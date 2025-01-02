@@ -28,7 +28,7 @@ use sov_modules_api::rest::{ApiState, HasRestApi};
 use sov_modules_api::{
     ApiStateAccessor, ApplySlotOutput, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall, Error, Gas,
     Genesis, InfallibleStateAccessor, Module, PrivateKey, Spec, StateCheckpoint, TxEffect,
-    VersionReader,
+    VersionReader, VisibleSlotNumber,
 };
 use sov_modules_stf_blueprint::{
     get_gas_used, StfBlueprint, TransactionReceipt, TxReceiptContents,
@@ -37,6 +37,7 @@ pub use sov_modules_stf_blueprint::{GenesisParams, Runtime};
 pub use sov_nonces::Nonces;
 pub use sov_paymaster::Paymaster;
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
+use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
@@ -232,13 +233,13 @@ where
     /// This value may be different from the value that would be returned by the [`ApiStateAccessor::rollup_height_to_access`] method inside
     /// [`TestRunner::query_visible_state`], the reason for that is that this version of the [`ApiStateAccessor`] only has access to the state up to the
     /// current _visible height_. See our soft-confirmation documentation for more details.
-    pub fn true_rollup_height(&self) -> u64 {
-        self.slot_receipts.len() as u64
+    pub fn true_rollup_height(&self) -> SlotNumber {
+        self.slot_receipts.len().to_slot_number()
     }
 
     /// Returns the current rollup height accessible from the transaction context.
-    pub fn visible_rollup_height(&self) -> u64 {
-        self.query_visible_state(|state| state.rollup_height_to_access())
+    pub fn visible_rollup_height(&self) -> VisibleSlotNumber {
+        self.query_visible_state(|state| state.rollup_height_to_access().as_visible())
     }
 
     /// A simple helper function to get the balance of a given address in the gas token currency with an [`InfallibleStateAccessor`].
@@ -311,7 +312,7 @@ where
         ApiStateAccessor::<S>::new_with_price_and_height(
             &state_checkpoint,
             runtime.kernel_with_slot_mapping(),
-            self.true_rollup_height(),
+            self.true_rollup_height().as_visible(),
             base_fee_per_gas,
         )
     }
@@ -358,7 +359,7 @@ where
     ) -> Option<Output> {
         let mut current_state = self
             .state_at_true_height()
-            .visible_state_at_height(height)
+            .visible_state_at_height(height.to_slot_number())
             .ok()?;
         Some(query(&mut current_state))
     }
@@ -370,7 +371,10 @@ where
         height: u64,
         query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
     ) -> Option<Output> {
-        let mut current_state = self.state_at_true_height().state_at_height(height).ok()?;
+        let mut current_state = self
+            .state_at_true_height()
+            .state_at_height(height.to_visible_slot_number())
+            .ok()?;
         Some(query(&mut current_state))
     }
 
@@ -393,7 +397,12 @@ where
             &mut kernel_state,
         );
 
-        kernel_state.update_visible_rollup_height(kernel_state.visible_rollup_height() + 1);
+        kernel_state.update_visible_rollup_height(
+            kernel_state
+                .visible_rollup_height()
+                .saturating_add(1)
+                .as_visible(),
+        );
 
         query(&mut state);
 
@@ -472,7 +481,7 @@ where
     }
 
     fn next_header(&mut self) -> MockBlockHeader {
-        let height = self.true_rollup_height() + 1;
+        let height = self.true_rollup_height().next().get();
         if let Some(timestamp) = &self.config.freeze_time {
             MockBlockHeader::new(height, timestamp.clone())
         } else {
@@ -541,7 +550,7 @@ where
                         } => borsh::to_vec(&PreferredBatchData {
                             sequence_number,
                             data: raw_txns,
-                            virtual_slots_to_advance: slots_to_advance as u8,
+                            visible_slots_to_advance: slots_to_advance as u8,
                         })
                         .unwrap(),
                         SequencerInfo::Regular => borsh::to_vec(&raw_txns).unwrap(),

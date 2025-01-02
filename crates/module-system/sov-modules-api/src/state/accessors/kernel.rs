@@ -1,4 +1,5 @@
 use internals::Delta;
+use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 /// Provides specialized working set wrappers for dealing with protected state.
 use sov_state::{IsValueCached, SlotKey, SlotValue, Storage};
 
@@ -35,17 +36,17 @@ impl<'a, S: Storage, N: CompileTimeNamespace> CachedAccessor<N> for BootstrapWor
 pub struct KernelStateAccessor<'a, S: Storage> {
     /// The inner working set
     pub checkpoint: &'a mut StateCheckpoint<S>,
-    pub(crate) true_slot_num: u64,
+    pub(crate) true_slot_num: SlotNumber,
 }
 
 impl<'a, S: Storage> VersionReader for KernelStateAccessor<'a, S> {
-    fn rollup_height_to_access(&self) -> u64 {
+    fn rollup_height_to_access(&self) -> SlotNumber {
         self.true_slot_num
     }
 }
 
 impl<'a, S: Storage> KernelWriter for KernelStateAccessor<'a, S> {
-    fn true_rollup_height(&self) -> u64 {
+    fn true_rollup_height(&self) -> SlotNumber {
         self.true_slot_num
     }
 }
@@ -70,19 +71,19 @@ impl<'a, S: Storage> KernelStateAccessor<'a, S> {
 }
 
 impl<'a, S: Storage> KernelStateAccessor<'a, S> {
-    /// Returns the virtual rollup height contained in the accessor
-    pub fn visible_rollup_height(&self) -> u64 {
-        self.checkpoint.virtual_slot_num
+    /// Returns the visible rollup height contained in the accessor
+    pub fn visible_rollup_height(&self) -> VisibleSlotNumber {
+        self.checkpoint.visible_slot_num
     }
 
     /// Updates the true rollup height contained in the accessor
-    pub fn update_true_rollup_height(&mut self, true_slot_num: u64) {
+    pub fn update_true_rollup_height(&mut self, true_slot_num: SlotNumber) {
         self.true_slot_num = true_slot_num;
     }
 
-    /// Updates the virtual rollup height contained in the accessor
-    pub fn update_visible_rollup_height(&mut self, virtual_slot_num: u64) {
-        self.checkpoint.virtual_slot_num = virtual_slot_num;
+    /// Updates the visible rollup height contained in the accessor
+    pub fn update_visible_rollup_height(&mut self, visible_slot_num: VisibleSlotNumber) {
+        self.checkpoint.visible_slot_num = visible_slot_num;
     }
 }
 

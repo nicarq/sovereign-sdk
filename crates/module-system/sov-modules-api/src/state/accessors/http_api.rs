@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{
     namespaces, CompileTimeNamespace, EventContainer, IsValueCached, Namespace,
     ProvableStorageCache, SlotKey, SlotValue, Storage,
@@ -19,19 +20,20 @@ impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for ApiStateAccessor<S>
                 key,
                 &self.storage,
                 &self.witness,
-                Some(self.rollup_height),
+                Some(self.rollup_height.get()),
             ),
             Namespace::Kernel => self.kernel_cache.get_without_caching(
                 key,
                 &self.storage,
                 &self.witness,
-                Some(self.rollup_height),
+                Some(self.rollup_height.get()),
             ),
             Namespace::Accessory => match self.accessory_writes.get(key).cloned() {
                 Some(Some(value)) => (Some(value), IsValueCached::Yes),
                 Some(None) => (None, IsValueCached::Yes),
                 None => (
-                    self.storage.get_accessory(key, Some(self.rollup_height)),
+                    self.storage
+                        .get_accessory(key, Some(self.rollup_height.get())),
                     IsValueCached::No,
                 ),
             },
@@ -83,7 +85,7 @@ pub struct ApiStateAccessor<S: Spec> {
     user_cache: ProvableStorageCache<namespaces::User>,
     accessory_writes: HashMap<SlotKey, Option<SlotValue>>,
     kernel: Arc<dyn KernelWithSlotMapping<S>>,
-    rollup_height: u64,
+    rollup_height: VisibleSlotNumber,
 }
 
 #[cfg(feature = "native")]
@@ -103,7 +105,7 @@ const _: () = {
         fn get_with_proof(&mut self, key: SlotKey) -> Option<StorageProof<Self::Proof>> {
             match self
                 .storage
-                .get_with_proof::<N>(key, Some(self.rollup_height))
+                .get_with_proof::<N>(key, Some(self.rollup_height.get()))
             {
                 Ok(storage_proof) => Some(storage_proof),
                 Err(err) => {
@@ -144,7 +146,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         Self::new_with_height(
             state_checkpoint,
             kernel,
-            state_checkpoint.rollup_height_to_access(),
+            state_checkpoint.rollup_height_to_access().as_visible(),
         )
     }
 
@@ -152,7 +154,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     pub fn new_with_height(
         state_checkpoint: &StateCheckpoint<S::Storage>,
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
-        rollup_height: u64,
+        rollup_height: VisibleSlotNumber,
     ) -> Self {
         Self::new_with_price_and_height(
             state_checkpoint,
@@ -171,7 +173,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         Self::new_with_price_and_height(
             state_checkpoint,
             kernel,
-            state_checkpoint.rollup_height_to_access(),
+            state_checkpoint.rollup_height_to_access().as_visible(),
             gas_price,
         )
     }
@@ -180,7 +182,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     pub fn new_with_price_and_height(
         state_checkpoint: &StateCheckpoint<S::Storage>,
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
-        storage_version: u64,
+        storage_version: VisibleSlotNumber,
         gas_price: <S::Gas as Gas>::Price,
     ) -> Self {
         let delta: &super::internals::Delta<<S as Spec>::Storage> = &state_checkpoint.delta;
@@ -225,7 +227,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     /// ## Note
     /// This method has a similar effect to [`ApiStateAccessor::state_at_height`], but it does not clone the underlying [`ApiStateAccessor`].
     /// Events and witness contents are wiped out from the underlying [`ApiStateAccessor`] to ensure consistency with [`ApiStateAccessor::state_at_height`].
-    pub fn set_state_to_height(&mut self, height: u64) -> Result<(), anyhow::Error> {
+    pub fn set_state_to_height(&mut self, height: VisibleSlotNumber) -> Result<(), anyhow::Error> {
         self.rollup_height = height;
         self.events = vec![];
         self.witness = Default::default();
@@ -253,7 +255,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     /// ## Note
     /// This method has a similar effect to [`ApiStateAccessor::visible_state_at_height`], but it does not clone the underlying [`ApiStateAccessor`].
     /// Events and witness contents are wiped out from the underlying [`ApiStateAccessor`] to ensure consistency with [`ApiStateAccessor::visible_state_at_height`].
-    pub fn set_state_to_visible_height(&mut self, height: u64) -> Result<(), anyhow::Error> {
+    pub fn set_state_to_visible_height(&mut self, height: SlotNumber) -> Result<(), anyhow::Error> {
         // We are mapping the provided height to the visible height to have access to the correct visible state.
         let visible_height = self.kernel.clone().visible_rollup_height_at(height, self).ok_or_else(|| anyhow::anyhow!("Impossible to retrieve the visible rollup height associated with the provided input. Please ensure you're querying a valid height"))?;
 
@@ -267,7 +269,10 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     ///
     /// ## Note
     /// This method _clones_ the underlying [`ApiStateAccessor`] without its witness contents or associated events.
-    pub fn state_at_height(&self, height: u64) -> Result<ApiStateAccessor<S>, anyhow::Error> {
+    pub fn state_at_height(
+        &self,
+        height: VisibleSlotNumber,
+    ) -> Result<ApiStateAccessor<S>, anyhow::Error> {
         // TODO: Is cloning the caches the correct behavior here?
         let mut state = self.clone_without_witness_or_events();
 
@@ -283,7 +288,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     /// This method _clones_ the underlying [`ApiStateAccessor`] without its witness contents or associated events.
     pub fn visible_state_at_height(
         &self,
-        height: u64,
+        height: SlotNumber,
     ) -> Result<ApiStateAccessor<S>, anyhow::Error> {
         // TODO: Is cloning the caches the correct behavior here?
         let mut state = self.clone_without_witness_or_events();
@@ -295,7 +300,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
 }
 
 impl<S: Spec> VersionReader for ApiStateAccessor<S> {
-    fn rollup_height_to_access(&self) -> u64 {
-        self.rollup_height
+    fn rollup_height_to_access(&self) -> SlotNumber {
+        self.rollup_height.as_true()
     }
 }

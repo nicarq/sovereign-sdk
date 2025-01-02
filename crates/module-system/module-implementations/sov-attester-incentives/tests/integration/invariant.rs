@@ -4,6 +4,7 @@ use std::sync::Arc;
 use sov_mock_da::MockBlock;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{InvalidProofError, ProofOutcome};
+use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::optimistic::Attestation;
 use sov_test_utils::runtime::TestRunner;
@@ -18,14 +19,17 @@ use crate::helpers::{build_proof, make_attestation_blob, setup, TestAttesterInce
 fn setup_invariant_tests() -> (TestRunner<RT, S>, TestAttester<S>, u64) {
     let (mut runner, genesis_attester, _, _) = setup();
 
-    runner.advance_slots(TEST_ROLLUP_FINALITY_PERIOD as usize);
+    runner.advance_slots(TEST_ROLLUP_FINALITY_PERIOD.get() as usize);
 
-    let expected_max_attested_height = TEST_ROLLUP_FINALITY_PERIOD + 1;
+    let expected_max_attested_height = TEST_ROLLUP_FINALITY_PERIOD.saturating_add(1);
     // Use atomic, so it can be properly shared with TestRunner closures.
     let max_attested_height_ref = Arc::new(AtomicU64::default());
 
     // Increase the max attested height by attesting to up to the finality period + 1.
-    for height_to_attest in 1..=expected_max_attested_height {
+    for height_to_attest in 1
+        .to_slot_number()
+        .range_inclusive(expected_max_attested_height)
+    {
         let max_attested_height_ref_loop = max_attested_height_ref.clone();
 
         let genesis_attester = genesis_attester.clone();
@@ -33,7 +37,7 @@ fn setup_invariant_tests() -> (TestRunner<RT, S>, TestAttester<S>, u64) {
             .query_visible_state(|state| {
                 build_proof(
                     state,
-                    height_to_attest,
+                    height_to_attest.get(),
                     &genesis_attester.user_info.address(),
                 )
             })
@@ -63,7 +67,7 @@ fn setup_invariant_tests() -> (TestRunner<RT, S>, TestAttester<S>, u64) {
                     .unwrap_infallible()
                     .unwrap();
                 assert_eq!(
-                    max_attested_height,
+                    max_attested_height.get(),
                     max_attested_height_ref_loop.load(Ordering::SeqCst),
                     "The max attested height should have increased by 1. Slot height {height_to_attest}"
                 );
@@ -73,10 +77,10 @@ fn setup_invariant_tests() -> (TestRunner<RT, S>, TestAttester<S>, u64) {
 
     assert_eq!(
         max_attested_height_ref.load(Ordering::SeqCst),
-        expected_max_attested_height,
+        expected_max_attested_height.get(),
         "Problem in setup"
     );
-    (runner, genesis_attester, expected_max_attested_height)
+    (runner, genesis_attester, expected_max_attested_height.get())
 }
 
 /// The attesters need to publish attestations for slots above `MAX_ATTESTED_HEIGHT - ROLLUP_FINALITY_PERIOD`.
@@ -113,7 +117,7 @@ fn test_cannot_attest_below_max_attested_height() {
                 .unwrap_infallible()
                 .unwrap();
 
-            assert_eq!(max_attested_height, expected_max_attested_height, "Sanity check failed: the max attested height should be {expected_max_attested_height}, but it is {max_attested_height}");
+            assert_eq!(max_attested_height.get(), expected_max_attested_height, "Sanity check failed: the max attested height should be {expected_max_attested_height}, but it is {max_attested_height}");
 
             assert!(
                 max_attested_height > finality,
@@ -152,7 +156,7 @@ fn test_cannot_attest_above_max_attested_height_plus_one() {
             .get(state)
             .unwrap_infallible()
             .unwrap();
-        assert_eq!(max_attested_height, expected_max_attested_height, "Sanity check failed: the max attested height should be {expected_max_attested_height}, but it is {max_attested_height}");
+        assert_eq!(max_attested_height.get(), expected_max_attested_height, "Sanity check failed: the max attested height should be {expected_max_attested_height}, but it is {max_attested_height}");
         }),
     });
 }
@@ -166,7 +170,7 @@ fn test_can_attest_within_allowed_range() {
     // which are between `MAX_ATTESTED_HEIGHT - FINALITY_PERIOD + 1` and `MAX_ATTESTED_HEIGHT`.
     // Check that the attestations are valid but the sequence is not rewarded.
     let start_height_to_attest = max_attested_height
-        .checked_sub(TEST_ROLLUP_FINALITY_PERIOD)
+        .checked_sub(TEST_ROLLUP_FINALITY_PERIOD.get())
         .expect("Test setup has changed, should have go beyond finalization")
         .checked_add(1)
         .expect("Test setup has changed, rollup should have non-zero finalization period");
@@ -196,7 +200,7 @@ fn test_can_attest_within_allowed_range() {
                     .unwrap_infallible()
                     .unwrap();
                 assert_eq!(
-                    max_attested_height, current_max_attested_height,
+                    max_attested_height, current_max_attested_height.get(),
                     "The max attested height should not have changed. Slot height {rollup_height_to_attest}"
                 );
             }),
@@ -212,11 +216,11 @@ fn test_cannot_attest_genesis_height() {
     // Building genesis attestation
 
     let attestation_proof = runner.query_visible_state(|state| {
-        let genesis_height = 0;
+        let genesis_height = SlotNumber::GENESIS;
         let chain_state = sov_chain_state::ChainState::<S>::default();
         let genesis_root_hash = chain_state.get_genesis_hash(state).unwrap().unwrap();
 
-        let mut archival_state = state.state_at_height(genesis_height).unwrap();
+        let mut archival_state = state.state_at_height(genesis_height.as_visible()).unwrap();
 
         let proof_of_bond = TestAttesterIncentives::default()
             .bonded_attesters

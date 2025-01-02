@@ -4,6 +4,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::registration_lib::RegistrationError;
 use sov_modules_api::Error::ModuleError;
 use sov_modules_api::{Spec, StateAccessorError};
+use sov_rollup_interface::common::SlotNumber;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
     AsUser, AtomicNumber, TestAttester, TransactionTestCase, TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
@@ -12,7 +13,7 @@ use sov_test_utils::{
 
 use crate::helpers::{setup, TestAttesterIncentives, TestRuntimeEvent, RT, S};
 
-const INIT_BONDING_HEIGHT: u64 = TEST_LIGHT_CLIENT_FINALIZED_HEIGHT;
+const INIT_BONDING_HEIGHT: SlotNumber = TEST_LIGHT_CLIENT_FINALIZED_HEIGHT;
 
 /// Checks that the attester is bonded and starts the unbonding process.
 /// Returns the gas consumed by the attester when submitting the unbonding transaction.
@@ -260,7 +261,7 @@ fn try_bond_while_unbonding() {
                     .get(&attester_address, state)
                     .unwrap(),
                 Some(UnbondingInfo {
-                    unbonding_initiated_height: 0,
+                    unbonding_initiated_height: SlotNumber::GENESIS,
                     amount: attester_bond
                 }),
                 "The attester should be part of the unbonding set"

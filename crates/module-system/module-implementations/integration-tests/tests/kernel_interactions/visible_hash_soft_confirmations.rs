@@ -1,6 +1,7 @@
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Spec, Storage};
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_state::{ProvableNamespace, StateRoot};
 use sov_test_utils::{generate_bare_runtime, impl_standard_runtime_authenticator, TestSequencer};
 
@@ -58,7 +59,7 @@ fn visible_hash_soft_confirmations_kernel() {
             assert_eq!(
                 current_slot_hash.namespace_root(ProvableNamespace::User),
                 genesis_hash.namespace_root(ProvableNamespace::User),
-                "The user state root should not update until the virtual state root updates"
+                "The user state root should not update until the visible state root updates"
             );
 
             assert_ne!(
@@ -144,7 +145,7 @@ fn begin_slot_hash_soft_confirmations_kernel() {
 
         let root_at_height = module
             .chain_state
-            .root_at_height(runner.visible_rollup_height(), state)
+            .root_at_height(runner.visible_rollup_height().as_true(), state)
             .unwrap_infallible()
             .unwrap();
 
@@ -156,7 +157,7 @@ fn begin_slot_hash_soft_confirmations_kernel() {
     let slot_hash_at_height_one = runner.query_state(|state| {
         module
             .chain_state
-            .root_at_height(1, state)
+            .root_at_height(1.to_slot_number(), state)
             .unwrap_infallible()
             .unwrap()
     });

@@ -157,6 +157,8 @@ pub trait HasKernel<S: Spec>: Send + Sync + 'static {
 pub mod mocks {
     //! Mocks for the rollup capabilities module
 
+    use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber, VisibleSlotNumber};
+
     #[cfg(feature = "native")]
     use super::KernelWithSlotMapping;
     use super::{Kernel, Spec};
@@ -168,9 +170,9 @@ pub mod mocks {
     #[derive(Debug, Clone, Default)]
     pub struct MockKernel<S> {
         /// The current rollup height
-        pub true_rollup_height: u64,
+        pub true_rollup_height: SlotNumber,
         /// The rollup height at which transactions appear to be executing
-        pub visible_rollup_height: u64,
+        pub visible_rollup_height: VisibleSlotNumber,
         phantom: core::marker::PhantomData<S>,
     }
 
@@ -178,16 +180,16 @@ pub mod mocks {
         /// Create a new mock kernel with the given rollup height
         pub fn new(true_rollup_height: u64, visible_height: u64) -> Self {
             Self {
-                true_rollup_height,
-                visible_rollup_height: visible_height,
+                true_rollup_height: true_rollup_height.to_slot_number(),
+                visible_rollup_height: visible_height.to_visible_slot_number(),
                 phantom: core::marker::PhantomData,
             }
         }
 
         /// Simply increases all the heights by one
         pub fn increase_heights(&mut self) {
-            self.true_rollup_height += 1;
-            self.visible_rollup_height += 1;
+            self.true_rollup_height.incr();
+            self.visible_rollup_height.incr();
         }
     }
 
@@ -195,15 +197,15 @@ pub mod mocks {
     impl<S: Spec> KernelWithSlotMapping<S> for MockKernel<S> {
         fn visible_rollup_height_at(
             &self,
-            true_rollup_height: u64,
+            true_rollup_height: SlotNumber,
             _state: &mut crate::ApiStateAccessor<S>,
-        ) -> Option<u64> {
-            Some(true_rollup_height)
+        ) -> Option<VisibleSlotNumber> {
+            Some(true_rollup_height.as_visible())
         }
 
         fn base_fee_per_gas_at(
             &self,
-            _height: u64,
+            _height: VisibleSlotNumber,
             state: &mut crate::state::ApiStateAccessor<S>,
         ) -> Option<<<S as Spec>::Gas as crate::Gas>::Price> {
             Some(state.gas_info().gas_price)
@@ -211,10 +213,13 @@ pub mod mocks {
     }
 
     impl<S: Spec> Kernel<S> for MockKernel<S> {
-        fn true_rollup_height(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
+        fn true_rollup_height(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> SlotNumber {
             self.true_rollup_height
         }
-        fn next_visible_rollup_height(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
+        fn next_visible_rollup_height(
+            &self,
+            _ws: &mut BootstrapWorkingSet<'_, S::Storage>,
+        ) -> VisibleSlotNumber {
             self.visible_rollup_height
         }
     }

@@ -42,7 +42,7 @@ fn test_query_visible_state_soft_confirmations() {
     // We now query the visible state at the current height, we should see the genesis state because the visible state is not updated.
     runner.query_visible_state(|state| {
         assert_eq!(
-            state.rollup_height_to_access(),
+            state.rollup_height_to_access().get(),
             0,
             "The visible state should be at the genesis height"
         );
@@ -59,7 +59,7 @@ fn test_query_visible_state_soft_confirmations() {
     // We now query the true state at the current height, we should see the updated state.
     runner.query_state(|state| {
         assert_eq!(
-            state.rollup_height_to_access(),
+            state.rollup_height_to_access().get(),
             1,
             "The true state should be higher than genesis"
         );
@@ -88,7 +88,7 @@ fn test_query_visible_state_soft_confirmations() {
     // We now query the visible state at the current height, we should still see the genesis state because the visible state is not updated.
     runner.query_visible_state(|state| {
         assert_eq!(
-            state.rollup_height_to_access(),
+            state.rollup_height_to_access().get(),
             0,
             "The value should be set to 0"
         );
@@ -108,7 +108,7 @@ fn test_query_visible_state_soft_confirmations() {
     // We now query the visible state at the current height, the visible state should be updated.
     runner.query_visible_state(|state| {
         assert_eq!(
-            state.rollup_height_to_access(),
+            state.rollup_height_to_access().get(),
             1,
             "The value should be set to 1"
         );
@@ -122,9 +122,9 @@ fn test_query_visible_state_soft_confirmations() {
         );
     });
 
-    runner.query_visible_state_at_height(runner.true_rollup_height() - 1, |state| {
+    runner.query_visible_state_at_height(runner.true_rollup_height().get() - 1, |state| {
         assert_eq!(
-            state.rollup_height_to_access(),
+            state.rollup_height_to_access().get(),
             0,
             "The value should be set to 0"
         );

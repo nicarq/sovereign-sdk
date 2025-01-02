@@ -6,7 +6,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     BatchWithId, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, FullyBakedTx,
     InfallibleKernelStateAccessor, InfallibleStateAccessor, IterableBatchWithId,
-    KernelStateAccessor, RawTx, Spec, VersionReader,
+    KernelStateAccessor, RawTx, Spec, VersionReader, VisibleSlotNumber,
 };
 use sov_sequencer_registry::AllowedSequencerError;
 use tracing::{debug, error, info, warn};
@@ -43,7 +43,7 @@ enum ValidateBlobOutcome {
 impl<S: Spec> BlobStorage<S> {
     fn set_next_visible_rollup_height(
         &self,
-        value: u64,
+        value: VisibleSlotNumber,
         state: &mut KernelStateAccessor<S::Storage>,
     ) {
         self.chain_state
@@ -62,9 +62,9 @@ impl<S: Spec> BlobStorage<S> {
     {
         tracing::trace!("On based sequencer path");
 
-        self.set_next_visible_rollup_height(state.rollup_height_to_access(), state);
+        self.set_next_visible_rollup_height(state.rollup_height_to_access().as_visible(), state);
 
-        state.update_visible_rollup_height(state.rollup_height_to_access());
+        state.update_visible_rollup_height(state.rollup_height_to_access().as_visible());
 
         BlobSelectorOutput {
             selected_blobs: self.select_blobs_da_ordering(current_blobs, state),
@@ -238,7 +238,7 @@ impl<S: Spec> BlobStorage<S> {
 
     /// Select blobs when transitioning from a preferred sequencer back to normal operation.
     /// This occurs when the preferred sequencer was slashed for malicious behavior. In recovery mode,
-    /// the rollup processes two virtual slots at a time until it catches up to the current slot, after
+    /// the rollup processes two visible slots at a time until it catches up to the current slot, after
     /// which it performs standard based sequencing.
     fn select_blobs_in_recovery_mode<'a, 'k, I>(
         &self,
@@ -253,12 +253,13 @@ impl<S: Spec> BlobStorage<S> {
         // First, decide how many slots worth of stored blobs we need. It could be 0, 1, or 2.
         let batches_needed_from_this_slot = match state
             .rollup_height_to_access()
-            .saturating_sub(state.visible_rollup_height())
+            .get()
+            .saturating_sub(state.visible_rollup_height().get())
         {
-            // If the virtual slot has caught up to the current slot, we don't need any stored blobs.
+            // If the visible slot has caught up to the current slot, we don't need any stored blobs.
             // In this case, we act like a normal "based" rollup
             0 => return self.select_blobs_as_based_sequencer_inner(current_blobs, state),
-            // If the virtual slot is only trailing by one, we process one stored slot (to catch up) and
+            // If the visible slot is only trailing by one, we process one stored slot (to catch up) and
             // then process the new blobs from this slot
             1 => {
                 self.select_blobs_as_based_sequencer_inner(current_blobs, state);
@@ -269,7 +270,7 @@ impl<S: Spec> BlobStorage<S> {
                 let new_batches = self.select_blobs_da_ordering(current_blobs, state);
                 self.store_batches(state.rollup_height_to_access(), &new_batches, state);
                 self.set_next_visible_rollup_height(
-                    state.visible_rollup_height().saturating_add(2),
+                    state.visible_rollup_height().saturating_add(2).as_visible(),
                     state,
                 );
                 2
@@ -294,21 +295,21 @@ impl<S: Spec> BlobStorage<S> {
         }
     }
 
-    /// Select the blobs to execute this slot based on the preferred sequencer and set the next virtual_height.
+    /// Select the blobs to execute this slot based on the preferred sequencer and set the next visible_height.
     ///
     /// During each `slot`, we process up to one `Batch` of transactions from the preferred sequencer, plus all of the proofs
     /// and batches that the preferred sequencer had seen by the time they submitted their batch. This is accomplished using
-    /// a sequencer number (to prevent re-ordering of data submitted by the preferred sequencer) and a virtual rollup height.
-    /// In each of their batches, the sequencer gets to choose how far to advance the virtual rollup height. For example, if
+    /// a sequencer number (to prevent re-ordering of data submitted by the preferred sequencer) and a visible rollup height.
+    /// In each of their batches, the sequencer gets to choose how far to advance the visible rollup height. For example, if
     /// the preferred sequencer had seen all the data up to slot 10 but hadn't posted a batch since slot 5, they would choose
-    /// to increment the virtual rollup height by 5 in their next on-chain message.
+    /// to increment the visible rollup height by 5 in their next on-chain message.
     ///
     /// During each `slot`, we process all proofs...
     /// - (If sent by the preferred sequencer) whose sequence number is less than that of the next preferred batch
-    /// - (If sent by anyone else) which appeared on chain before or during the current *virtual* rollup height
+    /// - (If sent by anyone else) which appeared on chain before or during the current *visible* rollup height
     /// For batches, we select
     /// - The next one sent by the preferred sequencer (if available)
-    /// - Any batches which appeared on chain before or during the current *virtual* rollup height
+    /// - Any batches which appeared on chain before or during the current *visible* rollup height
     #[tracing::instrument(skip_all)]
     fn select_blobs_for_preferred_sequencer<'a, 'k, I>(
         &self,
@@ -468,12 +469,13 @@ impl<S: Spec> BlobStorage<S> {
             }
         }
 
-        // Next, find number of virtual slots to advance.
-        // - If the preferred sequencer requested a number, advance up to that many (stopping early if the next virtual slot would be in the future)
+        // Next, find number of visible slots to advance.
+        // - If the preferred sequencer requested a number, advance up to that many (stopping early if the next visible slot would be in the future)
         // - Otherwise, advance only if we would otherwise exceed the maximum deferred slots count
         let max_slots_to_advance = state
             .rollup_height_to_access()
-            .saturating_sub(state.visible_rollup_height())
+            .get()
+            .saturating_sub(state.visible_rollup_height().get())
             .saturating_add(1);
         self.next_sequence_number
             .set(&next_sequence_number, state)
@@ -485,18 +487,18 @@ impl<S: Spec> BlobStorage<S> {
             blobs_with_total_size_limit.push_or_ignore((next_batch, preferred_sender.clone()));
             tracing::debug!(
                 seq_number = preferred_batch.sequence_number,
-                slots_to_advance = preferred_batch.virtual_slots_to_advance,
+                slots_to_advance = preferred_batch.visible_slots_to_advance,
                 "Requested to advance slots"
             );
 
-            if preferred_batch.virtual_slots_to_advance as u64 > max_slots_to_advance {
+            if preferred_batch.visible_slots_to_advance as u64 > max_slots_to_advance {
                 warn!(
                     "Preferred sequencer requested {} slots, but we can only advance {} slots",
-                    preferred_batch.virtual_slots_to_advance, max_slots_to_advance
+                    preferred_batch.visible_slots_to_advance, max_slots_to_advance
                 );
                 max_slots_to_advance
             } else {
-                std::cmp::max(preferred_batch.virtual_slots_to_advance as u64, 1)
+                std::cmp::max(preferred_batch.visible_slots_to_advance as u64, 1)
             }
         } else {
             // If there's no preferred blob, advance only if the we would otherwise exceed the maximum deferred slots count
@@ -513,8 +515,8 @@ impl<S: Spec> BlobStorage<S> {
 
         tracing::debug!(
             num_slots_to_advance,
-            current_real_slot = state.rollup_height_to_access(),
-            "Advancing virtual rollup height"
+            current_real_slot = %state.rollup_height_to_access(),
+            "Advancing visible rollup height"
         );
 
         // Load all the necessary batches from storage
@@ -533,10 +535,10 @@ impl<S: Spec> BlobStorage<S> {
         }
 
         // Check if we also need the blobs from the current slot. Add them to the set to be processed or store them as appropriate.
-        let next_virtual_height = state
+        let next_visible_height = state
             .visible_rollup_height()
             .saturating_add(num_slots_to_advance);
-        if next_virtual_height >= state.rollup_height_to_access() {
+        if next_visible_height >= state.rollup_height_to_access() {
             for (batch, sender) in new_forced_blobs.into_iter().map(|b| (b.0, b.1)) {
                 blobs_with_total_size_limit.push_or_ignore((batch, sender));
             }
@@ -544,7 +546,7 @@ impl<S: Spec> BlobStorage<S> {
             self.store_batches(state.rollup_height_to_access(), &new_forced_blobs, state);
         }
 
-        self.set_next_visible_rollup_height(next_virtual_height, state);
+        self.set_next_visible_rollup_height(next_visible_height.as_visible(), state);
 
         BlobSelectorOutput {
             selected_blobs: blobs_with_total_size_limit.inner(),

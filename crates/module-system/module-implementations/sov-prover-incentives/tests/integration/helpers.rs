@@ -15,6 +15,7 @@ use sov_modules_api::{
 };
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
 use sov_prover_incentives::ProverIncentives;
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
@@ -73,6 +74,9 @@ pub(crate) fn build_proof(
     >,
     Infallible,
 > {
+    let initial_slot = initial_slot.to_slot_number();
+    let end_slot = end_slot.to_slot_number();
+
     let chain_state = ChainState::<S>::default();
     let genesis_hash = chain_state
         .get_genesis_hash(state)
@@ -89,7 +93,7 @@ pub(crate) fn build_proof(
     let vec_validity_cond = MockValidityCond { is_valid: true };
 
     Ok(AggregatedProofPublicData {
-        validity_conditions: vec![vec_validity_cond; (end_slot - initial_slot + 1) as usize],
+        validity_conditions: vec![vec_validity_cond; end_slot.delta(initial_slot) as usize + 1],
         initial_rollup_height: initial_slot,
         final_rollup_height: end_slot,
         initial_state_root: genesis_hash,

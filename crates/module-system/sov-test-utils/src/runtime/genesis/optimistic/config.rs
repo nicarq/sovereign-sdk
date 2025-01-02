@@ -8,6 +8,7 @@ use sov_modules_api::{
 };
 use sov_nonces::Nonces;
 use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
+use sov_rollup_interface::common::SlotNumber;
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 
 use crate::interface::AsUser;
@@ -390,7 +391,7 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
             blob_storage: (),
             chain_state: ChainStateConfig {
                 current_time: Default::default(),
-                genesis_da_height: 0,
+                genesis_da_height: SlotNumber::GENESIS,
                 operating_mode: sov_modules_api::OperatingMode::Optimistic,
                 inner_code_commitment,
                 outer_code_commitment,

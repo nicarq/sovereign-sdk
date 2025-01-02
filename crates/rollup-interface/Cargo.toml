@@ -23,6 +23,7 @@ backon = { workspace = true, optional = true }
 borsh = { workspace = true }
 bytes = { workspace = true, default-features = true }
 derive_more = { workspace = true, features = [
+    "add",
     "as_ref",
     "display",
     "from",

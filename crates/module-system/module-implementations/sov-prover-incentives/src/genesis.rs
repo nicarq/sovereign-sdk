@@ -4,6 +4,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{GenesisState, Module, Spec};
+use sov_rollup_interface::common::SlotNumber;
 
 use crate::ProverIncentives;
 
@@ -46,7 +47,7 @@ impl<S: Spec> ProverIncentives<S> {
 
         self.minimum_bond.set(&config.minimum_bond, state)?;
         self.proving_penalty.set(&config.proving_penalty, state)?;
-        self.last_claimed_reward.set(&0, state)?;
+        self.last_claimed_reward.set(&SlotNumber::GENESIS, state)?;
 
         for (prover, bond) in config.initial_provers.iter() {
             self.register_staker(prover, prover, *bond, state)?;

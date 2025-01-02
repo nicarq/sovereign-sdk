@@ -2,6 +2,7 @@ use sov_chain_state::ChainState;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::GasSpec;
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_test_utils::generate_optimistic_runtime_with_kernel;
 
 use crate::kernel_interactions::{HighLevelOptimisticGenesisConfig, TestRunner, S};
@@ -89,7 +90,7 @@ fn test_gas_price_soft_confirmations() {
             next_gas_price,
             ChainState::<S>::compute_base_fee_per_gas(
                 chain_state
-                    .slot_at_height(1, state)
+                    .slot_at_height(1.to_slot_number(), state)
                     .unwrap_infallible()
                     .unwrap()
                     .gas_info()

@@ -1,5 +1,6 @@
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{InvalidProofError, ProofOutcome, SovAttestation};
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
 use sov_test_utils::runtime::sov_attester_incentives::{AttesterIncentives, CallMessage, Event};
@@ -105,7 +106,7 @@ fn test_burn_on_invalid_attestation() {
             .query_visible_state(|state| build_proof(state, 1, &attester_address))
             .unwrap();
 
-        attestation_proof.proof_of_bond.claimed_rollup_height = 2;
+        attestation_proof.proof_of_bond.claimed_rollup_height = 2.to_slot_number();
 
         let invalid_bond_proof_no_slash =
             invalid_bond_proof_no_slash(&genesis_attester, initial_balance, attestation_proof);
@@ -268,7 +269,7 @@ fn invalid_initial_state_slashed(
             assert!(
                 AttesterIncentives::<S>::default()
                     .bad_transition_pool
-                    .get(&2, state)
+                    .get(&2.to_slot_number(), state)
                     .unwrap_infallible()
                     .is_none(),
                 "The transition should not exist in the pool"
@@ -308,7 +309,7 @@ fn invalid_post_state_root_is_challengeable(
             assert_eq!(
                 AttesterIncentives::<S>::default()
                     .bad_transition_pool
-                    .get(&2, state)
+                    .get(&2.to_slot_number(), state)
                     .unwrap_infallible(),
                 Some(attester_bond),
                 "The transition should exist in the bad_transition_pool"

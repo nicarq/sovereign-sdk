@@ -99,7 +99,8 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
                 TestProverIncentives::default()
                     .last_claimed_reward
                     .get(state)
-                    .unwrap(),
+                    .unwrap()
+                    .map(|v| v.get()),
                 Some(2)
             );
         }),

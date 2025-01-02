@@ -91,12 +91,12 @@ pub fn build_basic_blobs(
 ///
 /// Then the `receive_order` parameter should be [ [0, 1, 2], [3, 4], [0], [0] ].
 ///
-/// The `virtual_slot_heights_increases` parameter indicates the virtual slot heights that we expect to advance.
-/// In the situation above: we would have [1, 1, 0, 0] for the `virtual_slot_heights_increases` parameter.
+/// The `visible_slot_heights_increases` parameter indicates the visible slot heights that we expect to advance.
+/// In the situation above: we would have [1, 1, 0, 0] for the `visible_slot_heights_increases` parameter.
 pub fn assert_blobs_are_correctly_received_basic_kernel(
     sending_order: Vec<Vec<(TestSequencer<S>, usize)>>,
     receive_order: Vec<Vec<usize>>,
-    virtual_slot_heights_increases: Vec<u64>,
+    visible_slot_heights_increases: Vec<u64>,
     runner: &mut TestRunner<BasicRT>,
 ) {
     let mut nonces = HashMap::new();
@@ -114,7 +114,7 @@ pub fn assert_blobs_are_correctly_received_basic_kernel(
     assert_blobs_are_correctly_received_helper(
         slots_to_send,
         receive_order,
-        virtual_slot_heights_increases,
+        visible_slot_heights_increases,
         runner,
     );
 }

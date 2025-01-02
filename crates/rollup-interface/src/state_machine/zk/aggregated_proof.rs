@@ -6,6 +6,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use super::ZkVerifier;
+use crate::common::SlotNumber;
 use crate::da::DaSpec;
 
 /// Aggregated proof code commitment.
@@ -29,9 +30,9 @@ pub struct AggregatedProofPublicData<Address, Da: DaSpec, Root> {
     /// Contains the validity conditions for each block in the aggregated proof.
     pub validity_conditions: Vec<Da::ValidityCondition>,
     /// Initial rollup height.
-    pub initial_rollup_height: u64,
+    pub initial_rollup_height: SlotNumber,
     /// Final rollup height.
-    pub final_rollup_height: u64,
+    pub final_rollup_height: SlotNumber,
     /// The genesis state root of the aggregated proof.
     pub genesis_state_root: Root,
     /// The initial state root of the aggregated proof.

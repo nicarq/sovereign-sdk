@@ -12,15 +12,18 @@ fn chain_state_kernel_genesis() {
         assert_eq!(
             ChainState::<S>::default()
                 .true_rollup_height(kernel)
-                .unwrap(),
+                .unwrap()
+                .get(),
             0,
             "The kernel should be initialized to zero"
         );
 
         assert_eq!(
             0,
-            ChainState::<S>::default().get_next_visible_rollup_height(kernel),
-            "The kernel virtual slot should be initialized to zero"
+            ChainState::<S>::default()
+                .get_next_visible_rollup_height(kernel)
+                .get(),
+            "The kernel visible slot should be initialized to zero"
         );
     });
 }

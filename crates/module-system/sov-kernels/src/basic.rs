@@ -9,8 +9,9 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel};
 use sov_modules_api::{
     BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, IterableBatchWithId, KernelStateAccessor,
-    Spec, VersionReader,
+    Spec, VersionReader, VisibleSlotNumber,
 };
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::Storage;
 
 /// The simplest imaginable kernel. It does not do any batching or reordering of blobs.
@@ -32,16 +33,20 @@ impl<'a, S: Spec> BasicKernel<'a, S> {
 }
 
 impl<'a, S: Spec> Kernel<S> for BasicKernel<'a, S> {
-    fn true_rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
+    fn true_rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> SlotNumber {
         self.chain_state
             .true_rollup_height(state)
             .unwrap_infallible()
     }
 
-    fn next_visible_rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
+    fn next_visible_rollup_height(
+        &self,
+        state: &mut BootstrapWorkingSet<'_, S::Storage>,
+    ) -> VisibleSlotNumber {
         self.chain_state
             .true_rollup_height(state)
             .unwrap_infallible()
+            .as_visible()
     }
 }
 

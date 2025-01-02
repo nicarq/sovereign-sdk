@@ -179,9 +179,7 @@ where
     /// ```
     pub fn get<Kq, Reader>(&self, key: &Kq, state: &mut Reader) -> Result<Option<V>, Reader::Error>
     where
-        Codec: StateCodec,
         Codec::KeyCodec: EncodeLike<Kq, K>,
-        Codec::ValueCodec: StateItemCodec<V>,
         Kq: ?Sized,
         Reader: StateReader<N>,
     {
@@ -196,9 +194,7 @@ where
         state: &mut Reader,
     ) -> Result<ValueOrError<V, N>, Reader::Error>
     where
-        Codec: StateCodec,
         Codec::KeyCodec: EncodeLike<Kq, K>,
-        Codec::ValueCodec: StateItemCodec<V>,
         Kq: ?Sized,
         Reader: StateReader<N>,
     {
@@ -219,9 +215,7 @@ where
         state: &mut ReaderAndWriter,
     ) -> Result<Option<V>, <ReaderAndWriter as StateWriter<N>>::Error>
     where
-        Codec: StateCodec,
         Codec::KeyCodec: EncodeLike<Kq, K>,
-        Codec::ValueCodec: StateItemCodec<V>,
         Kq: ?Sized,
         ReaderAndWriter: StateReaderAndWriter<N>,
     {
@@ -238,9 +232,7 @@ where
         state: &mut ReaderAndWriter,
     ) -> Result<ValueOrError<V, N>, <ReaderAndWriter as StateWriter<N>>::Error>
     where
-        Codec: StateCodec,
         Codec::KeyCodec: EncodeLike<Kq, K>,
-        Codec::ValueCodec: StateItemCodec<V>,
         Kq: ?Sized,
         ReaderAndWriter: StateReaderAndWriter<N>,
     {

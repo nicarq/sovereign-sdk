@@ -3,6 +3,7 @@ use std::env;
 
 use sov_blob_storage::{config_deferred_slots_count, BlobStorage};
 use sov_mock_da::MockBlob;
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::SequencerInfo;
 
@@ -32,16 +33,16 @@ fn store_and_retrieve_standard_soft_confirmation_kernel() {
         let blob_storage = BlobStorage::<S>::default();
 
         assert!(blob_storage
-            .take_blobs_for_rollup_height(1, state)
+            .take_blobs_for_rollup_height(1.to_slot_number(), state)
             .is_empty());
         assert!(blob_storage
-            .take_blobs_for_rollup_height(2, state)
+            .take_blobs_for_rollup_height(2.to_slot_number(), state)
             .is_empty());
         assert!(blob_storage
-            .take_blobs_for_rollup_height(3, state)
+            .take_blobs_for_rollup_height(3.to_slot_number(), state)
             .is_empty());
         assert!(blob_storage
-            .take_blobs_for_rollup_height(4, state)
+            .take_blobs_for_rollup_height(4.to_slot_number(), state)
             .is_empty());
     });
 
@@ -200,14 +201,14 @@ fn non_preferred_sequencer_deferred() {
     let mut receive_order = vec![vec![]; (config_deferred_slots_count() - 1) as usize];
     receive_order.push(vec![SequenceInfo::standard(0)]);
 
-    let mut virtual_slot_heights = vec![0; (config_deferred_slots_count() - 1) as usize];
+    let mut visible_slot_heights = vec![0; (config_deferred_slots_count() - 1) as usize];
 
-    virtual_slot_heights.push(1);
+    visible_slot_heights.push(1);
 
     assert_blobs_are_correctly_received_soft_confirmation(
         slots,
         receive_order,
-        virtual_slot_heights,
+        visible_slot_heights,
         &mut runner,
     );
 }
@@ -294,12 +295,12 @@ fn interspace_slots_preferred_non_preferred_sequencer_increase_slots() {
         }],
     ];
 
-    let virtual_slot_heights_increases = vec![1, 1, 1, 1];
+    let visible_slot_heights_increases = vec![1, 1, 1, 1];
 
     assert_blobs_are_correctly_received_soft_confirmation(
         slots,
         receive_order,
-        virtual_slot_heights_increases,
+        visible_slot_heights_increases,
         &mut runner,
     );
 }
@@ -375,15 +376,15 @@ fn interspace_slots_preferred_non_preferred_sequencer_dont_advance_slots() {
     ]);
     receive_order.push(vec![SequenceInfo::standard(6)]);
 
-    let mut virtual_slot_heights_increases = vec![1, 1];
-    virtual_slot_heights_increases
+    let mut visible_slot_heights_increases = vec![1, 1];
+    visible_slot_heights_increases
         .append(&mut vec![0; (config_deferred_slots_count() - 1) as usize]);
-    virtual_slot_heights_increases.push(1);
+    visible_slot_heights_increases.push(1);
 
     assert_blobs_are_correctly_received_soft_confirmation(
         slots,
         receive_order,
-        virtual_slot_heights_increases,
+        visible_slot_heights_increases,
         &mut runner,
     );
 }
@@ -434,12 +435,12 @@ fn send_slots_with_high_deferred_slot_adjustment() {
         ],
     ];
 
-    let virtual_slot_heights_increases = vec![0, 0, 0, 2];
+    let visible_slot_heights_increases = vec![0, 0, 0, 2];
 
     assert_blobs_are_correctly_received_soft_confirmation(
         slots_info,
         receive_order,
-        virtual_slot_heights_increases,
+        visible_slot_heights_increases,
         &mut runner,
     );
 }

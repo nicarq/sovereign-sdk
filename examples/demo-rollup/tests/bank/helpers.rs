@@ -155,8 +155,8 @@ pub(crate) async fn assert_aggregated_proof(
     )?;
 
     // We test inequality because proofs are saved asynchronously in the db.
-    assert!(initial_slot <= proof_pub_data.initial_rollup_height);
-    assert!(final_slot <= proof_pub_data.final_rollup_height);
+    assert!(initial_slot <= proof_pub_data.initial_rollup_height.get());
+    assert!(final_slot <= proof_pub_data.final_rollup_height.get());
 
     Ok(())
 }

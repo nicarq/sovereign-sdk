@@ -26,7 +26,7 @@ pub struct BlobSelectorOutput<S: Spec, BlobType> {
     /// The blobs selected by the module.
     pub selected_blobs: Vec<(BlobType, <S::Da as DaSpec>::Address)>,
     /// Whether the slot hooks should be executed. We should execute slot hooks whenever we accept blobs for execution
-    /// or when we increase the virtual slot number.
+    /// or when we increase the visible slot number.
     pub should_execute_slot_hooks: bool,
 }
 

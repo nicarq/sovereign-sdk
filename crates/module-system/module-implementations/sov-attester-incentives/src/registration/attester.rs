@@ -108,7 +108,7 @@ where
 
             if unbonding_info
                 .unbonding_initiated_height
-                .saturating_add(finality_period)
+                .saturating_add(finality_period.get())
                 > curr_height
             {
                 return Err(RegistrationError::Custom(

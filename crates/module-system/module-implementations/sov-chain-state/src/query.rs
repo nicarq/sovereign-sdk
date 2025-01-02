@@ -1,10 +1,11 @@
 use std::convert::Infallible;
 
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{KernelStateAccessor, Spec, StateReader};
+use sov_modules_api::{KernelStateAccessor, Spec, StateReader, VisibleSlotNumber};
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::Kernel;
 
-use crate::{ChainState, TransitionHeight};
+use crate::ChainState;
 
 impl<S: Spec> ChainState<S> {
     /// Get the visible height of the next slot.
@@ -12,7 +13,7 @@ impl<S: Spec> ChainState<S> {
     pub fn get_next_visible_rollup_height<Accessor: StateReader<Kernel, Error = Infallible>>(
         &self,
         accessor: &mut Accessor,
-    ) -> TransitionHeight {
+    ) -> VisibleSlotNumber {
         self.next_visible_rollup_height
             .get(accessor)
             .unwrap_infallible()
@@ -24,7 +25,7 @@ impl<S: Spec> ChainState<S> {
     pub fn get_true_rollup_height(
         &self,
         kernel_working_set: &mut KernelStateAccessor<S::Storage>,
-    ) -> TransitionHeight {
+    ) -> SlotNumber {
         self.true_rollup_height(kernel_working_set)
             .unwrap_infallible()
     }

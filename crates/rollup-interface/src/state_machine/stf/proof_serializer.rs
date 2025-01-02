@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 
+use crate::common::SlotNumber;
 use crate::optimistic::{SerializedAttestation, SerializedChallenge};
 use crate::zk::aggregated_proof::SerializedAggregatedProof;
 
@@ -22,6 +23,6 @@ pub trait ProofSerializer: Send + Sync {
     async fn serialize_challenge_blob_with_metadata(
         &self,
         serialized_challenge: SerializedChallenge,
-        slot_height: u64,
+        slot_height: SlotNumber,
     ) -> anyhow::Result<Vec<u8>>;
 }

@@ -410,7 +410,7 @@ where
         tracing::debug!("build_next_batch has been called");
 
         let state_checkpoint = self.checkpoint.take().unwrap();
-        let visible_height = state_checkpoint.rollup_height_to_access();
+        let visible_height = state_checkpoint.rollup_height_to_access().get();
 
         // This closure helps us make sure that we always put the
         // `StateCheckpoint` back into `self` at the end of the function.

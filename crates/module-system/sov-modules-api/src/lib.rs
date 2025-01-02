@@ -92,7 +92,7 @@ pub use reexport_macros::*;
 pub use rpc::*;
 pub use runtime::*;
 pub use sov_rollup_interface::common::{
-    safe_vec, HexHash, HexString, SafeString, SafeVec, SizedSafeString,
+    safe_vec, HexHash, HexString, SafeString, SafeVec, SizedSafeString, VisibleSlotNumber,
 };
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;

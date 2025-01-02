@@ -197,7 +197,7 @@ pub enum SlotInput<RT: Runtime<S>, S: Spec> {
 pub enum SequencerInfo {
     /// This is a preferred sequencer
     Preferred {
-        /// The number of virtual slots to advance
+        /// The number of visible slots to advance
         slots_to_advance: u64,
         /// The sequence number for this batch
         sequence_number: u64,

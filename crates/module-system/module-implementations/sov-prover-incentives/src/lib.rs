@@ -9,12 +9,12 @@ mod registration;
 pub use call::*;
 pub use genesis::*;
 use sov_bank::Amount;
-use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::runtime::OperatingMode;
 use sov_modules_api::{
     Context, DaSpec, Error, Gas, GenesisState, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateMap,
     StateReader, StateValue, TxState,
 };
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::User;
 
 pub use crate::event::Event;
@@ -43,7 +43,7 @@ pub struct ProverIncentives<S: Spec> {
 
     /// The highest slot height for which the reward has been claimed. The next proofs should claim the next slot height.
     #[state]
-    pub last_claimed_reward: StateValue<TransitionHeight>,
+    pub last_claimed_reward: StateValue<SlotNumber>,
 
     /// A penalty for provers who submit a proof for transitions that were already proven
     ///

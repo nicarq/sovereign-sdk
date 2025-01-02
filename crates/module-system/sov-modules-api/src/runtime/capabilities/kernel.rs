@@ -1,3 +1,5 @@
+use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
+
 use crate::{BootstrapWorkingSet, KernelStateAccessor, Spec, StateCheckpoint};
 
 /// Allows the kernel to map between a rollup height and the visible height at that slot.
@@ -9,9 +11,9 @@ pub trait KernelWithSlotMapping<S: Spec>: Sync + Send + 'static {
     // we need it to be object safe
     fn visible_rollup_height_at(
         &self,
-        true_rollup_height: u64,
+        true_rollup_height: SlotNumber,
         state: &mut crate::state::ApiStateAccessor<S>,
-    ) -> Option<u64>;
+    ) -> Option<VisibleSlotNumber>;
 
     /// Returns the base fee per gas accessible at the specified rollup height for this state accessor.
     ///
@@ -19,7 +21,7 @@ pub trait KernelWithSlotMapping<S: Spec>: Sync + Send + 'static {
     /// This method may return `None` if it is not possible to retrieve the correct base fee per gas from the state.
     fn base_fee_per_gas_at(
         &self,
-        height: u64,
+        height: VisibleSlotNumber,
         state: &mut crate::state::ApiStateAccessor<S>,
     ) -> Option<<<S as Spec>::Gas as crate::Gas>::Price>;
 }
@@ -38,7 +40,10 @@ pub trait Kernel<S: Spec> {
     }
 
     /// Return the current rollup height
-    fn true_rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64;
+    fn true_rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> SlotNumber;
     /// Return the next value of the rollup height at which transactions currently *appear* to be executing.
-    fn next_visible_rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64;
+    fn next_visible_rollup_height(
+        &self,
+        state: &mut BootstrapWorkingSet<'_, S::Storage>,
+    ) -> VisibleSlotNumber;
 }

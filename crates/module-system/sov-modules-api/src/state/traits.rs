@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 use std::fmt::Debug;
 
+use sov_rollup_interface::common::SlotNumber;
 #[cfg(feature = "native")]
 use sov_state::StorageProof;
 use sov_state::{
@@ -489,11 +490,11 @@ pub trait ProvenStateAccessor<N: ProvableCompileTimeNamespace>: StateReaderAndWr
 /// A trait indicating that this state accessor is version aware
 pub trait VersionReader: StateReader<namespaces::Kernel> {
     /// Returns the current version of the state accessor
-    fn rollup_height_to_access(&self) -> u64;
+    fn rollup_height_to_access(&self) -> SlotNumber;
 }
 
 /// A trait indicating that this state accessor can write to the kernel at the true slot height
 pub trait KernelWriter: StateWriter<namespaces::Kernel, Error = Infallible> {
     /// Returns the current true rollup height contained in the accessor
-    fn true_rollup_height(&self) -> u64;
+    fn true_rollup_height(&self) -> SlotNumber;
 }

@@ -159,7 +159,7 @@ using the transfer_from interface, a module is declaring that it has gotten such
 This leads us to a very important point about the Module System. All modules are _trusted_. Unlike smart contracts on Ethereum, modules
 cannot be dynamically deployed by users - they're fixed up-front by the rollup developer. That doesn't mean that the Sovereign SDK doesn't
 support smart contracts - just that they live one layer higher up the stack. If you want to deploy smart contracts on your rollup, you'll need
-to incorporate a _module_ which implements a secure virtual machine that users can invoke to store and run smart contracts.
+to incorporate a _module_ which implements a secure visible machine that users can invoke to store and run smart contracts.
 
 ### The `Call` Function: The Module-to-User Interface
 

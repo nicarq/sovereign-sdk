@@ -4,8 +4,9 @@ use sov_modules_api::da::{BlockHeaderTrait, Time};
 use sov_modules_api::{
     CodeCommitmentFor, DaSpec, Gas, GasSpec, GenesisState, Module, OperatingMode, Spec,
 };
+use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 
-use crate::{BlockGasInfo, ChainState, SlotInformation, TransitionHeight};
+use crate::{BlockGasInfo, ChainState, SlotInformation};
 
 /// Initial configuration of the chain state
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -26,7 +27,7 @@ pub struct ChainStateConfig<S: Spec> {
     pub outer_code_commitment: CodeCommitmentFor<S::OuterZkvm>,
 
     /// The height of the first DA block.
-    pub genesis_da_height: TransitionHeight,
+    pub genesis_da_height: SlotNumber,
 }
 
 impl<S: Spec> ChainState<S> {
@@ -40,14 +41,15 @@ impl<S: Spec> ChainState<S> {
         tracing::info!(
             current_time = ?config.current_time,
             operating_mode = ?config.operating_mode,
-            genesis_da_height = config.genesis_da_height,
+            genesis_da_height = %config.genesis_da_height,
             inner_code_commitment = ?config.inner_code_commitment,
             outer_code_commitment = ?config.outer_code_commitment,
             "Starting chain state genesis...",
         );
 
-        self.true_rollup_height.set(&0, state)?;
-        self.next_visible_rollup_height.set(&0, state)?;
+        self.true_rollup_height.set(&SlotNumber::GENESIS, state)?;
+        self.next_visible_rollup_height
+            .set(&VisibleSlotNumber::GENESIS, state)?;
 
         self.time.set_true_current(&config.current_time, state);
         self.operating_mode.set(&config.operating_mode, state)?;

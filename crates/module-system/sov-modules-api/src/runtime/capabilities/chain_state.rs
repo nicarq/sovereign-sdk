@@ -11,7 +11,7 @@ pub trait ChainState {
     type Spec: Spec;
 
     /// Called at the beginning of a slot. Updates the chain state module
-    /// and returns the root hash accessible at the current *virtual* slot.
+    /// and returns the root hash accessible at the current *visible* slot.
     fn synchronise_chain(
         &self,
         slot_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
@@ -28,7 +28,7 @@ pub trait ChainState {
         state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
     );
 
-    /// Returns the base fee per gas accessible at the current *virtual* slot.
+    /// Returns the base fee per gas accessible at the current *visible* slot.
     ///
     /// ## Note
     /// This method can return `None` if the base fee per gas for the current slot cannot be determined yet.
@@ -38,7 +38,7 @@ pub trait ChainState {
         state: &mut impl VersionReader<Error = Infallible>,
     ) -> Option<<<Self::Spec as Spec>::Gas as Gas>::Price>;
 
-    /// Returns the visible root hash accessible at the current *virtual* rollup height
+    /// Returns the visible root hash accessible at the current *visible* rollup height
     ///
     /// ## Note
     /// This method can return `None` if the visible root hash for the current rollup height cannot be determined yet.

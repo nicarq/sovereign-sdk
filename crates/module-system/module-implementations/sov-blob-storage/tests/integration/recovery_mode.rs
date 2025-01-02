@@ -9,14 +9,14 @@ use crate::{
     assert_blobs_are_correctly_received_helper, HashMap, SequenceInfo, TestData, TestRunner,
 };
 
-/// Test that when the preferred sequencer is slashed, the virtual rollup height increases by two until
+/// Test that when the preferred sequencer is slashed, the visible rollup height increases by two until
 /// it catches up. For this test to work [`DEFERRED_SLOTS_COUNT`] must be greater than 2.
 #[test]
 fn test_recovery_mode() {
     let (_, mut runner) = setup_soft_confirmation_kernel();
 
-    // Let's first advance the virtual slot to ensure that the sequencer needs to catch up
-    // We have to stop before the `DEFERRED_SLOT_COUNT` is reached because otherwise the virtual slot
+    // Let's first advance the visible slot to ensure that the sequencer needs to catch up
+    // We have to stop before the `DEFERRED_SLOT_COUNT` is reached because otherwise the visible slot
     // number will automatically increase.
     runner.advance_slots((config_deferred_slots_count() - 2) as usize);
 
@@ -25,18 +25,18 @@ fn test_recovery_mode() {
     // the sequencer to be slashed.
     runner.execute(BatchType(vec![]));
 
-    // Until it catches up, the virtual rollup height should increase by two
-    let mut expected_virtual_slot_increases = vec![2; (config_deferred_slots_count() - 1) as usize];
-    // Then the virtual rollup height should only increase by one
-    expected_virtual_slot_increases.push(1);
+    // Until it catches up, the visible rollup height should increase by two
+    let mut expected_visible_slot_increases = vec![2; (config_deferred_slots_count() - 1) as usize];
+    // Then the visible rollup height should only increase by one
+    expected_visible_slot_increases.push(1);
 
-    // Let's ensure that the virtual rollup height increases by two until it catches up
+    // Let's ensure that the visible rollup height increases by two until it catches up
     assert_blobs_are_correctly_received_soft_confirmation(
-        // We are not sending any blobs, we just want to assert the way the virtual rollup height increases
+        // We are not sending any blobs, we just want to assert the way the visible rollup height increases
         vec![],
         // Since we are not sending any blobs, we don't expect any receipts
         vec![vec![]; config_deferred_slots_count() as usize],
-        expected_virtual_slot_increases,
+        expected_visible_slot_increases,
         &mut runner,
     );
 }
@@ -46,7 +46,7 @@ fn test_recovery_mode() {
 /// - Slot 1: Send [(Batch 0, Non-preferred), (Batch 1, Non-preferred)]. Receive []
 /// - Slot 2: Send [(Batch 2, Non-preferred)]. Receive []
 /// - Slot 3: Slash the preferred sequencer. Receive []
-/// - Slot 4: Send []. Receive [Batch 0, Batch 1, Batch 2] (the virtual rollup height increases by two)
+/// - Slot 4: Send []. Receive [Batch 0, Batch 1, Batch 2] (the visible rollup height increases by two)
 ///
 /// Note: we have to manually build the blobs because we don't have a helper method that slashes the sequencer
 /// and sends the blobs.

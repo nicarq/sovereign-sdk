@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::{BorshCodec, Kernel, Namespace, Prefix, StateCodec, StateItemCodec, Storage};
 use unwrap_infallible::UnwrapInfallible;
 
@@ -20,14 +21,12 @@ use crate::{KernelStateAccessor, KernelWriter, StateReader, VersionReader};
 )]
 pub struct VersionedStateValue<V, Codec = BorshCodec> {
     _phantom: PhantomData<V>,
-    elems: NamespacedStateMap<Kernel, u64, V, Codec>,
+    elems: NamespacedStateMap<Kernel, SlotNumber, V, Codec>,
 }
 
 impl<V, Codec> VersionedStateValue<V, Codec>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V>,
-    Codec::KeyCodec: StateItemCodec<u64>,
 {
     /// The namespace where the versioned state value is stored.
     pub const NAMESPACE: Namespace = Namespace::Kernel;
@@ -50,7 +49,7 @@ impl<V, Codec> VersionedStateValue<V, Codec>
 where
     Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V>,
-    Codec::KeyCodec: StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<SlotNumber>,
 {
     /// Returns the codec used by the versioned state value.
     pub fn codec(&self) -> &Codec {
@@ -73,31 +72,29 @@ where
     }
 
     /// Only the kernel working set can write to versioned values
-    pub fn set<S: Storage>(&self, key: &u64, value: &V, state: &mut KernelStateAccessor<'_, S>)
-    where
-        Codec: StateCodec,
-        Codec::ValueCodec: StateItemCodec<V>,
-        Codec::KeyCodec: StateItemCodec<u64>,
-    {
+    pub fn set<S: Storage>(
+        &self,
+        key: &SlotNumber,
+        value: &V,
+        state: &mut KernelStateAccessor<'_, S>,
+    ) {
         self.elems.set(key, value, state).unwrap_infallible();
     }
 
     /// Any version_aware working set can read the current contents of a versioned value.
-    pub fn get<Reader>(&self, key: &u64, state: &mut Reader) -> Result<Option<V>, Reader::Error>
-    where
-        Reader: VersionReader,
-        Codec: StateCodec,
-        Codec::ValueCodec: StateItemCodec<V>,
-        Codec::KeyCodec: StateItemCodec<u64>,
-    {
+    pub fn get<Reader: VersionReader>(
+        &self,
+        key: &SlotNumber,
+        state: &mut Reader,
+    ) -> Result<Option<V>, Reader::Error> {
         self.elems.get(key, state)
     }
 }
 
 #[cfg(test)]
 mod tests {
-
     use sov_mock_zkvm::MockZkvm;
+    use sov_rollup_interface::common::IntoSlotNumber;
     use sov_rollup_interface::execution_mode::Native;
     use sov_state::{BorshCodec, Prefix};
     use sov_test_utils::storage::SimpleStorageManager;
@@ -151,9 +148,11 @@ mod tests {
         // Initialize a versioned value in the kernel state to be available starting at slot 2
 
         let mut kernel_state = kernel.accessor(&mut state);
-        value.set(&2, &100, &mut kernel_state);
+        value.set(&2.to_slot_number(), &100, &mut kernel_state);
         assert_eq!(
-            value.get(&2, &mut kernel_state).unwrap_infallible(),
+            value
+                .get(&2.to_slot_number(), &mut kernel_state)
+                .unwrap_infallible(),
             Some(100)
         );
         value.set_true_current(&17, &mut kernel_state);

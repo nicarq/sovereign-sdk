@@ -3,6 +3,7 @@ use std::env;
 
 use sov_blob_storage::BlobStorage;
 use sov_mock_da::MockBlob;
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_rollup_interface::da::RelevantBlobs;
 
 use crate::helpers_basic_kernel::{
@@ -16,7 +17,7 @@ fn empty_test() {
 
     runner.query_visible_state(|state| {
         assert!(BlobStorage::<S>::default()
-            .take_blobs_for_rollup_height(1, state)
+            .take_blobs_for_rollup_height(1.to_slot_number(), state)
             .is_empty());
     });
 }
@@ -38,16 +39,16 @@ fn store_and_retrieve_standard_basic_kernel() {
         let blob_storage = BlobStorage::<S>::default();
 
         assert!(blob_storage
-            .take_blobs_for_rollup_height(1, state)
+            .take_blobs_for_rollup_height(1.to_slot_number(), state)
             .is_empty());
         assert!(blob_storage
-            .take_blobs_for_rollup_height(2, state)
+            .take_blobs_for_rollup_height(2.to_slot_number(), state)
             .is_empty());
         assert!(blob_storage
-            .take_blobs_for_rollup_height(3, state)
+            .take_blobs_for_rollup_height(3.to_slot_number(), state)
             .is_empty());
         assert!(blob_storage
-            .take_blobs_for_rollup_height(4, state)
+            .take_blobs_for_rollup_height(4.to_slot_number(), state)
             .is_empty());
     });
 

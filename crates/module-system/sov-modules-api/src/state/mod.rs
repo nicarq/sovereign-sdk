@@ -54,7 +54,7 @@ pub mod provable_height_tracker {
             let storage = self.state_update_receiver.borrow().storage.clone();
             let checkpoint = StateCheckpoint::new(storage, &self.kernel.kernel());
             // Substract 1 because the state root at slot height `i` is only available at slot height `i + 1`.
-            checkpoint.rollup_height_to_access().saturating_sub(1)
+            checkpoint.rollup_height_to_access().saturating_sub(1).get()
         }
     }
 

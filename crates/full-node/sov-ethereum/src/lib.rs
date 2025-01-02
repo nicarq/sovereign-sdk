@@ -176,7 +176,7 @@ impl<
         let serialized_batch = borsh::to_vec(&PreferredBatchData {
             sequence_number,
             data: txs,
-            virtual_slots_to_advance: 1,
+            visible_slots_to_advance: 1,
         })
         .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
