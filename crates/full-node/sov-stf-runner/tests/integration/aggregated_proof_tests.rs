@@ -212,9 +212,12 @@ impl TestCase {
     ) {
         assert_eq!(
             self.output.initial_rollup_height,
-            public_data.initial_rollup_height,
+            public_data.initial_rollup_height.get(),
         );
 
-        assert_eq!(self.final_rollup_height(), public_data.final_rollup_height);
+        assert_eq!(
+            self.final_rollup_height(),
+            public_data.final_rollup_height.get()
+        );
     }
 }

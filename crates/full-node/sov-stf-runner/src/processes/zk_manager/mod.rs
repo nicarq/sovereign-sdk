@@ -169,7 +169,7 @@ where
         // We ensure that we're not trying to prove blocks that are being proven.
         // If that is not the case, we add the block to the queue.
         if first_height_unproven.saturating_add(self.proofs_to_create.current_proof_jump() as u64)
-            <= stf_info.rollup_height
+            <= stf_info.rollup_height.get()
         {
             let block_hash = stf_info.da_block_header().hash();
             // Save the transition for later proving. This is temporarily redundant

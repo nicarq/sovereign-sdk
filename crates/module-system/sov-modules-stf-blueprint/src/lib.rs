@@ -353,7 +353,7 @@ where
                     slot_finalization_time,
                     da_height: slot_header.height(),
                     execution_context,
-                    rollup_height: visible_height,
+                    rollup_height: visible_height.get(),
                 });
             });
             (state_root, witness, change_set)
@@ -461,19 +461,19 @@ where
         StateCheckpoint<S::Storage>,
     ) {
         // Note: The gas price should be computed after all the capabilities involving the [`KernelStateAccessor`] to have the
-        // most recent version of the virtual rollup height.
+        // most recent version of the visible rollup height.
         let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut state).expect("The base fee per gas for the current slot should be known at this point! This is a bug. Please report it");
 
         let visible_height = state.rollup_height_to_access();
 
         info!(
             blob_count = blob_selector_output.selected_blobs.len(),
-            virtual_slot = visible_height,
+            visible_slot = %visible_height,
             "Selected batch(es) for execution in current slot"
         );
 
         // We run [`SlotHooks::begin_slot_hook`] if the visible height is updated. This is to ensure that we have the
-        // following invariant: the `user_space` root only updates when the `virtual_slot_height`` gets increased.
+        // following invariant: the `user_space` root only updates when the `visible_slot_height`` gets increased.
         // If not enforced, this may break soft-confirmations because it will not be possible to deterministically
         // predict the user space state when executing priority blobs.
         #[cfg(feature = "native")]
@@ -507,7 +507,7 @@ where
                         blob_idx,
                         sender,
                         &gas_price,
-                        visible_height,
+                        visible_height.get(),
                         execution_context,
                     );
                     // Metrics section
@@ -543,7 +543,7 @@ where
                         blob_idx,
                         sender,
                         &gas_price,
-                        visible_height,
+                        visible_height.get(),
                         execution_context,
                     );
 
@@ -580,7 +580,7 @@ where
                     sov_metrics::UserSpaceSlotProcessingMetrics {
                         begin_slot_hooks_time,
                         blobs_processing_time: blob_processing_time,
-                        rollup_height: visible_height,
+                        rollup_height: visible_height.get(),
                         execution_context,
                         end_slot_hooks_time,
                     },

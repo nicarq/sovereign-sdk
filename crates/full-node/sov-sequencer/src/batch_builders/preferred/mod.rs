@@ -374,7 +374,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         let batch = FreshlyBuiltBatch {
             inner: PreferredBatchData {
                 data: txs,
-                virtual_slots_to_advance: 1,
+                visible_slots_to_advance: 1,
                 sequence_number,
             },
             hashes,

@@ -21,13 +21,13 @@ pub use capabilities::{ProcessAttestationErrors, ProcessChallengeErrors};
 pub use query::*;
 pub use registration::CustomError;
 use sov_bank::{Amount, BurnRate};
-use sov_modules_api::hooks::TransitionHeight;
 pub use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::runtime::OperatingMode;
 use sov_modules_api::{
     Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
     StateMap, StateReader, StateValue, TxState,
 };
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::User;
 
 pub use crate::event::Event;
@@ -36,7 +36,7 @@ pub use crate::event::Event;
 #[derive(BorshDeserialize, BorshSerialize, Clone, Debug, PartialEq, Eq)]
 pub struct UnbondingInfo {
     /// The height at which an attester started unbonding
-    pub unbonding_initiated_height: TransitionHeight,
+    pub unbonding_initiated_height: SlotNumber,
     /// The number of tokens that the attester may withdraw
     pub amount: Amount,
 }
@@ -58,7 +58,7 @@ where
     /// that an attested state transition won't be challenged. Measured in
     /// number of slots.
     #[state]
-    pub rollup_finality_period: StateValue<TransitionHeight>,
+    pub rollup_finality_period: StateValue<SlotNumber>,
 
     /// The set of bonded attesters and their bonded amount.
     #[rest_api(include)]
@@ -72,13 +72,13 @@ where
 
     /// The current maximum attestation height
     #[state]
-    pub maximum_attested_height: StateValue<TransitionHeight>,
+    pub maximum_attested_height: StateValue<SlotNumber>,
 
     /// Challengers now challenge a transition and not a specific attestation
     /// Mapping from a transition number to the associated reward value.
     /// This mapping is populated when the attestations are processed by the rollup
     #[state]
-    pub bad_transition_pool: StateMap<TransitionHeight, Amount>,
+    pub bad_transition_pool: StateMap<SlotNumber, Amount>,
 
     /// The set of bonded challengers and their bonded amount.
     #[rest_api(include)]
@@ -103,7 +103,7 @@ where
 
     /// The height of the most recent block which light clients know to be finalized
     #[state]
-    pub light_client_finalized_height: StateValue<TransitionHeight>,
+    pub light_client_finalized_height: StateValue<SlotNumber>,
 
     /// The reward burn rate for the attester incentives module
     #[state]

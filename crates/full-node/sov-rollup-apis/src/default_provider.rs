@@ -87,7 +87,7 @@ where
         let ctx = runtime.transaction_authorizer().resolve_context(
             &auth_data,
             &sequencer_da_address,
-            height,
+            height.get(),
             &mut scratchpad,
             // TODO(@theochap): maybe we should let the node set this variable?
             ExecutionContext::Node,

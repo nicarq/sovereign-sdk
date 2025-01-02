@@ -5,6 +5,7 @@ use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::{CodeCommitmentFor, Gas, GasArray, GasSpec, Genesis, Spec};
 use sov_nonces::Nonces;
 use sov_prover_incentives::ProverIncentives;
+use sov_rollup_interface::common::SlotNumber;
 use sov_sequencer_registry::SequencerRegistry;
 
 use crate::interface::AsUser;
@@ -187,9 +188,9 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
                     attester_placeholder.address().clone(),
                     attester_placeholder.balance(),
                 )],
-                rollup_finality_period: 0,
-                maximum_attested_height: 0,
-                light_client_finalized_height: 0,
+                rollup_finality_period: SlotNumber::GENESIS,
+                maximum_attested_height: SlotNumber::GENESIS,
+                light_client_finalized_height: SlotNumber::GENESIS,
             },
             bank: BankConfig {
                 gas_token_config: sov_bank::GasTokenConfig {
@@ -241,7 +242,7 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
             blob_storage: (),
             chain_state: ChainStateConfig {
                 current_time: Default::default(),
-                genesis_da_height: 0,
+                genesis_da_height: SlotNumber::GENESIS,
                 operating_mode: sov_modules_api::OperatingMode::Zk,
                 inner_code_commitment,
                 outer_code_commitment,

@@ -84,7 +84,7 @@ async fn archival_queries_soft_confirmations() {
     assert_eq!(init_time, chain_state_time);
 
     // Up until `DEFERRED_SLOTS_COUNT` the time should be the same as the genesis time because
-    // the virtual height does not change.
+    // the visible height does not change.
     for i in 1..deferred_slots_count {
         runner.advance_slots(1);
 
@@ -153,7 +153,7 @@ async fn archival_queries_soft_confirmations() {
         assert_eq!(current_time, chain_state_time);
     }
 
-    // Advance the virtual height to the next slot. The virtual height should update to 1. The time should be updated.
+    // Advance the visible height to the next slot. The visible height should update to 1. The time should be updated.
     runner.advance_slots(1);
 
     assert_eq!(runner.visible_rollup_height(), 1);
@@ -192,7 +192,7 @@ async fn archival_queries_soft_confirmations() {
     assert!(current_time_api > init_time);
 }
 
-/// Check that we can query all the intermediary states of the chain even when the virtual height skips some slots.
+/// Check that we can query all the intermediary states of the chain even when the visible height skips some slots.
 #[tokio::test(flavor = "multi_thread")]
 async fn intermediary_state_queries_soft_confirmations() {
     let (sequencer, mut runner) = setup();

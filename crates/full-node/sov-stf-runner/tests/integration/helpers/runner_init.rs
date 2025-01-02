@@ -19,6 +19,7 @@ use sov_modules_api::provable_height_tracker::InfiniteHeight;
 use sov_modules_api::{
     FullyBakedTx, ProofSerializer, StateTransitionFunction, StateUpdateInfo, SyncStatus,
 };
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -133,7 +134,7 @@ impl ProofSerializer for DummyProofSerializer {
     async fn serialize_challenge_blob_with_metadata(
         &self,
         _serialized_challenge: sov_modules_api::SerializedChallenge,
-        _slot_height: u64,
+        _slot_height: SlotNumber,
     ) -> anyhow::Result<Vec<u8>> {
         unimplemented!()
     }

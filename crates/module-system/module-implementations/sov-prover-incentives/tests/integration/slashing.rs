@@ -2,6 +2,7 @@ use sov_mock_da::MockValidityCond;
 use sov_modules_api::{
     AggregatedProofPublicData, ApiStateAccessor, InvalidProofError, ProofOutcome, Spec,
 };
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_state::Storage;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
@@ -170,7 +171,7 @@ fn test_invalid_initial_slot_hash() {
 #[test]
 fn test_invalid_initial_rollup_height() {
     let (mut runner, prover, mut aggregated_proof) = prepare_for_slashing();
-    aggregated_proof.initial_rollup_height = 5555;
+    aggregated_proof.initial_rollup_height = 5555.to_slot_number();
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
@@ -188,7 +189,7 @@ fn test_invalid_initial_rollup_height() {
 #[test]
 fn test_invalid_final_rollup_height() {
     let (mut runner, prover, mut aggregated_proof) = prepare_for_slashing();
-    aggregated_proof.final_rollup_height = 6;
+    aggregated_proof.final_rollup_height = 6.to_slot_number();
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),

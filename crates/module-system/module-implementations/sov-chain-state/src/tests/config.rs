@@ -1,5 +1,6 @@
 use sov_modules_api::da::{NanoSeconds, Time};
 use sov_modules_api::prelude::serde_json;
+use sov_rollup_interface::common::SlotNumber;
 use sov_test_utils::TestSpec;
 
 use crate::{ChainStateConfig, OperatingMode};
@@ -10,7 +11,7 @@ fn test_config_serialization() {
     let config = ChainStateConfig {
         current_time: time,
         operating_mode: OperatingMode::Zk,
-        genesis_da_height: 0,
+        genesis_da_height: SlotNumber::GENESIS,
         inner_code_commitment: Default::default(),
         outer_code_commitment: Default::default(),
     };

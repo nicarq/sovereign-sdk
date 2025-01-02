@@ -16,6 +16,7 @@ use sov_modules_api::{
     InvalidProofError, ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec, Storage,
     TxState,
 };
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 #[cfg(feature = "native")]
 use sov_rollup_interface::StateUpdateInfo;
@@ -325,7 +326,7 @@ impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, 
     fn process_challenge(
         &self,
         proof: sov_rollup_interface::optimistic::SerializedChallenge,
-        rollup_height: u64,
+        rollup_height: SlotNumber,
         prover_address: &<S as Spec>::Address,
         state: &mut impl TxState<S>,
     ) -> Result<SovStateTransitionPublicData<S>, InvalidProofError> {

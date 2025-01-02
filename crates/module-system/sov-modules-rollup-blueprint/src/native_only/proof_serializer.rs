@@ -8,6 +8,7 @@ use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
 use sov_modules_api::{ProofSerializer, Spec};
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::optimistic::{SerializedAttestation, SerializedChallenge};
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_sequencer::SequenceNumberProvider;
@@ -91,7 +92,7 @@ impl<S: Spec> ProofSerializer for SovApiProofSerializer<S> {
     async fn serialize_challenge_blob_with_metadata(
         &self,
         serialized_challenge: SerializedChallenge,
-        slot_height: u64,
+        slot_height: SlotNumber,
     ) -> anyhow::Result<Vec<u8>> {
         let details: TxDetails<S> = make_details(MAX_FEE);
 

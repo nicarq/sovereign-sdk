@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use sov_mock_da::{MockBlob, MockDaSpec, MockHash};
 use sov_modules_api::{BlobDataWithId, BlobReaderTrait, DaSpec, Spec, VersionReader};
 use sov_modules_stf_blueprint::{BatchReceipt, Runtime};
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::traits::MinimalGenesis;
 use sov_test_utils::runtime::{BlobStorage, SlotReceipt, ValueSetter};
@@ -29,10 +30,10 @@ pub struct TestData<S: Spec> {
 
 type TestRunner<RT> = sov_test_utils::runtime::TestRunner<RT, S>;
 
-/// Returns the current virtual rollup height in the runner.
-pub fn virtual_slot<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S>>(
+/// Returns the current visible rollup height in the runner.
+pub fn visible_slot<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S>>(
     runner: &TestRunner<RT>,
-) -> u64 {
+) -> SlotNumber {
     runner.query_visible_state(|state| state.rollup_height_to_access())
 }
 
@@ -60,22 +61,22 @@ fn format_batch_receipts(
         .collect::<Vec<_>>()
 }
 
-fn check_virtual_slot_height(
+fn check_visible_slot_height(
     slot_num: usize,
-    expected_virtual_slot_heights_increases: Vec<u64>,
-    current_virtual_slot_height: u64,
-    new_virtual_slot_height: u64,
+    expected_visible_slot_heights_increases: Vec<u64>,
+    current_visible_slot_height: u64,
+    new_visible_slot_height: u64,
 ) {
-    let expected_virtual_slot_height = expected_virtual_slot_heights_increases[slot_num];
+    let expected_visible_slot_height = expected_visible_slot_heights_increases[slot_num];
 
     assert_eq!(
-        expected_virtual_slot_heights_increases[slot_num],
-        new_virtual_slot_height - current_virtual_slot_height,
-        "The virtual slot height increase for the slot {} is not correct. Expected {}, but got new slot height {}, current slot height {}.",
+        expected_visible_slot_heights_increases[slot_num],
+        new_visible_slot_height - current_visible_slot_height,
+        "The visible slot height increase for the slot {} is not correct. Expected {}, but got new slot height {}, current slot height {}.",
         slot_num,
-        expected_virtual_slot_height,
-        new_virtual_slot_height,
-        current_virtual_slot_height,
+        expected_visible_slot_height,
+        new_visible_slot_height,
+        current_visible_slot_height,
     );
 }
 
@@ -102,24 +103,24 @@ fn assert_blobs_are_correctly_received_helper<
 >(
     slots_to_send: Vec<RelevantBlobs<MockBlob>>,
     receive_order: Vec<Vec<SequenceInfo>>,
-    expected_virtual_slot_heights_increases: Vec<u64>,
+    expected_visible_slot_heights_increases: Vec<u64>,
     runner: &mut TestRunner<RT>,
 ) {
-    assert_eq!(receive_order.len(), expected_virtual_slot_heights_increases.len() , "The number of slots to receive and the number of expected virtual slot heights don't match.");
+    assert_eq!(receive_order.len(), expected_visible_slot_heights_increases.len() , "The number of slots to receive and the number of expected visible slot heights don't match.");
 
-    let mut current_virtual_slot_height = virtual_slot(runner);
+    let mut current_visible_slot_height = visible_slot(runner);
 
     for (slot_num, slot) in slots_to_send.clone().into_iter().enumerate() {
         runner.execute::<RelevantBlobs<MockBlob>>(slot);
 
-        let new_virtual_slot_height = virtual_slot(runner);
-        check_virtual_slot_height(
+        let new_visible_slot_height = visible_slot(runner);
+        check_visible_slot_height(
             slot_num,
-            expected_virtual_slot_heights_increases.clone(),
-            current_virtual_slot_height,
-            new_virtual_slot_height,
+            expected_visible_slot_heights_increases.clone(),
+            current_visible_slot_height.get(),
+            new_visible_slot_height.get(),
         );
-        current_virtual_slot_height = new_virtual_slot_height;
+        current_visible_slot_height = new_visible_slot_height;
     }
 
     // If this inequality is verified, it means that we need to run a few empty slots because
@@ -128,14 +129,14 @@ fn assert_blobs_are_correctly_received_helper<
         for slot_num in 0..(receive_order.len() - slots_to_send.len()) {
             runner.advance_slots(1);
 
-            let new_virtual_slot_height = virtual_slot(runner);
-            check_virtual_slot_height(
+            let new_visible_slot_height = visible_slot(runner);
+            check_visible_slot_height(
                 slot_num + slots_to_send.len(),
-                expected_virtual_slot_heights_increases.clone(),
-                current_virtual_slot_height,
-                new_virtual_slot_height,
+                expected_visible_slot_heights_increases.clone(),
+                current_visible_slot_height.get(),
+                new_visible_slot_height.get(),
             );
-            current_virtual_slot_height = new_virtual_slot_height;
+            current_visible_slot_height = new_visible_slot_height;
         }
     }
 

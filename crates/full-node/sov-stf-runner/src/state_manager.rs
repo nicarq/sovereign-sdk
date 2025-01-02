@@ -5,6 +5,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{DeltaReader, SchemaBatch};
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::da::{DaService, SlotData};
 use sov_rollup_interface::stf::TxReceiptContents;
@@ -231,7 +232,7 @@ where
         if let Some(st_info_sender) = &self.st_info_sender {
             let stf_info = StateTransitionInfo {
                 data: transition_witness,
-                rollup_height,
+                rollup_height: rollup_height.to_slot_number(),
             };
             let stf_info_schema = st_info_sender
                 .materialize_stf_info(&stf_info, &self.ledger_db)
@@ -563,7 +564,7 @@ mod tests {
                 sender.next_height_to_receive.fetch_add(1, Ordering::SeqCst);
             };
 
-            assert_eq!(height, finalized.rollup_height);
+            assert_eq!(height, finalized.rollup_height.get());
             assert_eq!(filtered_block.header, finalized.data.da_block_header);
             assert_eq!(state_root, finalized.data.initial_state_root);
             state_root.clone_from(&finalized.data.final_state_root);

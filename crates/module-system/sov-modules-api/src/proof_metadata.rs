@@ -1,6 +1,7 @@
 use std::io;
 
 use borsh::BorshDeserialize;
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::optimistic::{SerializedAttestation, SerializedChallenge};
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 
@@ -26,7 +27,7 @@ pub enum ProofType {
     /// Optimistic workflow: attestation.
     OptimisticProofAttestation(SerializedAttestation),
     /// Optimistic workflow: challenge.
-    OptimisticProofChallenge(SerializedChallenge, u64),
+    OptimisticProofChallenge(SerializedChallenge, SlotNumber),
 }
 
 /// Proof with metadata need for verification.

@@ -31,17 +31,14 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
-pub use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{
     DaSpec, Error, Gas, KernelStateValue, Module, StateValue, ValidityConditionChecker,
     VersionReader, VersionedStateValue,
 };
+use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::codec::BcsCodec;
 use sov_state::namespaces::Kernel;
 use sov_state::{Storage, User};
-
-/// Type alias that contains the height of a given transition
-pub type VirtualRollupHeight = u64;
 
 /// A structure that contains block gas information.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, BorshSerialize, BorshDeserialize)]
@@ -225,16 +222,16 @@ pub struct ChainState<S: Spec> {
 
     /// The height that should be loaded as the visible set at the start of the next block
     #[state]
-    next_visible_rollup_height: KernelStateValue<TransitionHeight>,
+    next_visible_rollup_height: KernelStateValue<VisibleSlotNumber>,
 
     #[state]
     true_to_visible_rollup_height_history:
-        sov_modules_api::KernelStateMap<TransitionHeight, TransitionHeight>,
+        sov_modules_api::KernelStateMap<SlotNumber, VisibleSlotNumber>,
 
     /// The real rollup height of the rollup.
     /// This value is also required to create a [`sov_state::storage::KernelStateAccessor`]. See note on `visible_height` above.
     #[state]
-    true_rollup_height: KernelStateValue<TransitionHeight>,
+    true_rollup_height: KernelStateValue<SlotNumber>,
 
     /// The current time, as reported by the DA layer
     #[state]
@@ -264,7 +261,7 @@ pub struct ChainState<S: Spec> {
     /// `current_da_height = true_rollup_height + genesis_da_height`.
     /// Should be the same as the `genesis_height` field in the `RunnerConfig` (`sov-stf-runner` crate)
     #[state]
-    genesis_da_height: StateValue<TransitionHeight>,
+    genesis_da_height: StateValue<SlotNumber>,
 
     /// The rollup's code commitment.
     /// This value is initialized at genesis and can be used to verify the rollup's execution.
@@ -285,7 +282,7 @@ impl<S: Spec> ChainState<S> {
     pub fn true_rollup_height<T>(
         &self,
         state: &mut T,
-    ) -> Result<TransitionHeight, <T as StateReader<Kernel>>::Error>
+    ) -> Result<SlotNumber, <T as StateReader<Kernel>>::Error>
     where
         T: StateReaderAndWriter<Kernel>,
     {
@@ -296,7 +293,7 @@ impl<S: Spec> ChainState<S> {
     pub fn next_visible_rollup_height(
         &self,
         state: &mut BootstrapWorkingSet<'_, S::Storage>,
-    ) -> TransitionHeight {
+    ) -> VisibleSlotNumber {
         self.next_visible_rollup_height
             .get(state)
             .unwrap_infallible()
@@ -306,9 +303,9 @@ impl<S: Spec> ChainState<S> {
     /// Returns the visible rollup height corresponding to the provided real slot.
     pub fn visible_rollup_height_at<T>(
         &self,
-        true_rollup_height: u64,
+        true_rollup_height: SlotNumber,
         state: &mut T,
-    ) -> Result<Option<TransitionHeight>, T::Error>
+    ) -> Result<Option<VisibleSlotNumber>, T::Error>
     where
         T: StateReader<Kernel>,
     {
@@ -323,10 +320,10 @@ impl<S: Spec> ChainState<S> {
     /// Returns transition height in the current slot
     pub fn set_next_visible_rollup_height(
         &self,
-        value: &u64,
+        value: &VisibleSlotNumber,
         state: &mut KernelStateAccessor<S::Storage>,
     ) {
-        tracing::debug!(rollup_height = value, "Setting next visible rollup height");
+        tracing::debug!(%value, "Setting next visible rollup height");
 
         self.next_visible_rollup_height
             .set(value, state)
@@ -349,7 +346,7 @@ impl<S: Spec> ChainState<S> {
         &self,
         state: &mut Accessor,
     ) -> Result<Option<<S::Storage as Storage>::Root>, Accessor::Error> {
-        self.state_roots.get(0, state)
+        self.state_roots.get(SlotNumber::GENESIS, state)
     }
 
     /// Return the code commitment to be used for verifying the rollup's execution
@@ -376,7 +373,7 @@ impl<S: Spec> ChainState<S> {
     pub fn genesis_da_height<Accessor: StateAccessor>(
         &self,
         state: &mut Accessor,
-    ) -> Result<Option<TransitionHeight>, <Accessor as StateReader<User>>::Error> {
+    ) -> Result<Option<SlotNumber>, <Accessor as StateReader<User>>::Error> {
         self.genesis_da_height.get(state)
     }
 
@@ -399,7 +396,7 @@ impl<S: Spec> ChainState<S> {
     /// Returns the root hash of the state at the provided height.
     pub fn root_at_height<Accessor: VersionReader>(
         &self,
-        rollup_height: TransitionHeight,
+        rollup_height: SlotNumber,
         state: &mut Accessor,
     ) -> Result<Option<<S::Storage as Storage>::Root>, Accessor::Error> {
         self.state_roots.get(rollup_height, state)
@@ -408,7 +405,7 @@ impl<S: Spec> ChainState<S> {
     /// Returns the slot information from the state at the provided height.
     pub fn slot_at_height<Accessor: VersionReader>(
         &self,
-        rollup_height: TransitionHeight,
+        rollup_height: SlotNumber,
         state: &mut Accessor,
     ) -> Result<Option<SlotInformation<S>>, Accessor::Error> {
         self.slots.get(rollup_height, state)
@@ -417,12 +414,12 @@ impl<S: Spec> ChainState<S> {
     /// Returns the completed transition associated with the provided `transition_num`.
     pub fn get_historical_transitions<Accessor: VersionReader>(
         &self,
-        transition_num: TransitionHeight,
+        slot_num: SlotNumber,
         state: &mut Accessor,
     ) -> Result<Option<StateTransition<S>>, Accessor::Error> {
-        if let Some(root) = self.state_roots.get(transition_num, state)? {
+        if let Some(root) = self.state_roots.get(slot_num, state)? {
             return Ok({
-                let maybe_slot = self.slots.get(transition_num, state)?;
+                let maybe_slot = self.slots.get(slot_num, state)?;
 
                 maybe_slot.map(|slot| StateTransition {
                     post_state_root: root,

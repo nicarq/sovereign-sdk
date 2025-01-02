@@ -1,3 +1,4 @@
+use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{IsValueCached, Namespace, SlotKey, SlotValue, StateAccesses, Storage};
 
 use super::internals::{AccessoryDelta, Delta};
@@ -13,7 +14,7 @@ use crate::{Spec, VersionReader};
 pub struct StateCheckpoint<S: Storage> {
     pub(super) delta: Delta<S>,
     /// The rollup height visible to user-space modules
-    pub(super) virtual_slot_num: u64,
+    pub(super) visible_slot_num: VisibleSlotNumber,
 }
 
 impl<S: Storage> StateCheckpoint<S> {
@@ -27,7 +28,7 @@ impl<S: Storage> StateCheckpoint<S> {
     pub fn clone_with_empty_witness(&self) -> Self {
         Self {
             delta: self.delta.clone_with_empty_witness(),
-            virtual_slot_num: self.virtual_slot_num,
+            visible_slot_num: self.visible_slot_num,
         }
     }
 
@@ -47,11 +48,11 @@ impl<S: Storage> StateCheckpoint<S> {
         let mut delta = Delta::with_witness(inner.clone(), witness, None);
         let mut bootstrap_state = BootstrapWorkingSet { inner: &mut delta };
 
-        let virtual_slot_num = kernel.next_visible_rollup_height(&mut bootstrap_state);
+        let visible_slot_num = kernel.next_visible_rollup_height(&mut bootstrap_state);
 
         Self {
             delta,
-            virtual_slot_num,
+            visible_slot_num,
         }
     }
 
@@ -84,11 +85,13 @@ impl<S: Storage> StateCheckpoint<S> {
         (root, update, accessory_delta, witness, storage)
     }
 
-    /// Updates the true rollup height and the virtual rollup height.
+    /// Updates the true rollup height and the visible rollup height.
     /// This method is used in tests.
     #[cfg(test)]
-    pub fn update_version(&mut self, virtual_slot_num: u64) {
-        self.virtual_slot_num = virtual_slot_num;
+    pub fn update_version(&mut self, visible_slot_num: u64) {
+        use sov_rollup_interface::common::IntoSlotNumber;
+
+        self.visible_slot_num = visible_slot_num.to_visible_slot_number();
     }
 
     /// Directly apply a set of changes to the state checkpoint. This method should generally *not* be used
@@ -109,8 +112,8 @@ impl<S: Storage> StateCheckpoint<S> {
 }
 
 impl<S: Storage> VersionReader for StateCheckpoint<S> {
-    fn rollup_height_to_access(&self) -> u64 {
-        self.virtual_slot_num
+    fn rollup_height_to_access(&self) -> SlotNumber {
+        self.visible_slot_num.as_true()
     }
 }
 

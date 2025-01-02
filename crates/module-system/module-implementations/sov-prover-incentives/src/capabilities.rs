@@ -6,6 +6,7 @@ use sov_modules_api::{
     AggregatedProofPublicData, Gas, InvalidProofError, SerializedAggregatedProof, Spec, Storage,
     TxState, VersionReader, ZkVerifier, Zkvm,
 };
+use sov_rollup_interface::common::SlotNumber;
 use thiserror::Error;
 
 use crate::event::SlashingReason;
@@ -170,8 +171,8 @@ impl<S: Spec> ProverIncentives<S> {
     /// transition rewards. If all the rewards were already claimed, the prover is fined by a constant amount.
     fn calculate_reward(
         &self,
-        init_slot_num: u64,
-        final_slot_num: u64,
+        init_slot_num: SlotNumber,
+        final_slot_num: SlotNumber,
         state: &mut impl TxState<S>,
     ) -> Result<Paycheck, ProcessProofError> {
         // Let's compute the total reward
@@ -182,13 +183,13 @@ impl<S: Spec> ProverIncentives<S> {
             .get(state)
             .map_err(Into::<anyhow::Error>::into)?
             .expect("The last claimed reward should be set at genesis")
-            + 1;
+            .next();
 
         // The first reward we can claim is the maximum between the initial rollup height and the first available reward
         let first_claimed_reward = max(init_slot_num, first_available_reward);
 
         // Here the final rollup height is inclusive
-        for slot_num in first_claimed_reward..=final_slot_num {
+        for slot_num in first_claimed_reward.range_inclusive(final_slot_num) {
             // Check if the reward was already claimed
 
             // If not, reward the prover with the block reward
@@ -333,15 +334,14 @@ impl<S: Spec> ProverIncentives<S> {
         // We may also want to check the integrity of the validity conditions along the way
         // We first need to check the length of the validity conditions vector
         if public_outputs.validity_conditions.len()
-            != (final_slot_num - initial_slot_num + 1) as usize
+            != (final_slot_num.delta(initial_slot_num) as usize + 1)
         {
             return Ok(Some(SlashingReason::IncorrectValidityConditions));
         }
 
         // We are checking all the validity conditions up to `final_slot_num` included.
-        for (slot_num, output_condition) in
-            (initial_slot_num..=final_slot_num).zip(public_outputs.validity_conditions.iter())
-        {
+        let range = initial_slot_num.range_inclusive(final_slot_num);
+        for (slot_num, output_condition) in range.zip(public_outputs.validity_conditions.iter()) {
             match self
                 .chain_state
                 .get_historical_transitions(slot_num, state)?

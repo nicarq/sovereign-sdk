@@ -92,9 +92,12 @@ where
             initial_state_root: witness.initial_state_root,
             slot_hash: witness.da_block_header.hash(),
             post_state_root: witness.final_state_root,
-            proof_of_bond: self.bonding_proof_service.get_bonding_proof(height).ok_or(
-                anyhow::anyhow!("Cannot get bonding proof, storage is corrupted."),
-            )?,
+            proof_of_bond: self
+                .bonding_proof_service
+                .get_bonding_proof(height.get())
+                .ok_or(anyhow::anyhow!(
+                    "Cannot get bonding proof, storage is corrupted."
+                ))?,
         };
 
         let serialized_attestation = SerializedAttestation::from_attestation(&attestation)?;
@@ -111,7 +114,7 @@ where
             .send_proof(&serialized_blob, fee)
             .await
             .await??;
-        tracing::debug!(?receipt, height, "Attestation has been posted to DA");
+        tracing::debug!(?receipt, %height, "Attestation has been posted to DA");
 
         self.st_info_receiver
             .next_height_to_receive

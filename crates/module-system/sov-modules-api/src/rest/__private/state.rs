@@ -21,6 +21,7 @@ use axum::routing::get;
 use serde::Serialize;
 use sov_rest_utils::errors::not_found_404;
 use sov_rest_utils::{ApiResult, ErrorObject, Path, Query};
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::{CompileTimeNamespace, Kernel, Namespace, StateCodec, StateItemCodec};
 use unwrap_infallible::UnwrapInfallible;
 
@@ -248,7 +249,7 @@ where
     ApiStateAccessor<M::Spec>: StateReader<Kernel, Error = Infallible>,
     V: Serialize,
     Codec: StateCodec,
-    Codec::KeyCodec: StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<SlotNumber>,
     Codec::ValueCodec: StateItemCodec<V>,
 {
     async fn get_state_value_route(
@@ -271,8 +272,8 @@ where
     ApiStateAccessor<M::Spec>: StateReader<Kernel, Error = Infallible>,
     T: Serialize,
     Codec: StateCodec,
-    Codec::KeyCodec: StateItemCodec<u64>,
-    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<SlotNumber>,
+    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<SlotNumber> + StateItemCodec<u64>,
 {
     fn vec(&self) -> VersionedStateVec<T, Codec> {
         VersionedStateVec::with_codec(self.state_item_info.prefix.0.clone(), Codec::default())
@@ -291,7 +292,7 @@ where
     async fn get_state_vec_item_route(
         state: State<Self>,
         mut accessor: ApiStateAccessor<M::Spec>,
-        Path(item_index): Path<u64>,
+        Path(item_index): Path<SlotNumber>,
     ) -> ApiResult<StateItemContents<T, T>> {
         let state_vec = state.vec();
 
@@ -302,7 +303,7 @@ where
             Some(v) => v,
         };
         Ok(StateItemContents::VecElement {
-            index: item_index,
+            index: item_index.get(),
             value,
         }
         .into())
@@ -335,7 +336,7 @@ where
     ApiStateAccessor<M::Spec>: StateReader<Kernel, Error = Infallible>,
     V: Serialize + Clone + Send + Sync + 'static,
     Codec: StateCodec,
-    Codec::KeyCodec: StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<SlotNumber> + StateItemCodec<u64>,
     Codec::ValueCodec: StateItemCodec<V>,
 {
     fn state_item_rest_api(&self) -> axum::Router<()> {
@@ -351,8 +352,8 @@ where
     ApiStateAccessor<M::Spec>: StateReader<Kernel, Error = Infallible>,
     V: Serialize + Clone + Send + Sync + 'static,
     Codec: StateCodec,
-    Codec::KeyCodec: StateItemCodec<u64>,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<SlotNumber>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<SlotNumber> + StateItemCodec<u64>,
 {
     fn state_item_rest_api(&self) -> axum::Router<()> {
         axum::Router::new()

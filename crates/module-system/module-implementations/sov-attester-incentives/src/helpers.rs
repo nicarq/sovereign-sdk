@@ -1,12 +1,12 @@
 use anyhow::ensure;
 use borsh::BorshDeserialize;
 use sov_bank::{config_gas_token_id, BurnRate, Coins, IntoPayable};
-use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
     DaSpec, Gas, Spec, StateAccessor, StateTransitionPublicData, TxState, VersionReader,
 };
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use tracing::debug;
 
@@ -44,7 +44,7 @@ where
     #[allow(clippy::type_complexity)]
     pub(crate) fn check_initial_hash<ST: VersionReader>(
         &self,
-        claimed_rollup_height: TransitionHeight,
+        claimed_rollup_height: SlotNumber,
         attestation: &Attestation<
             <S::Da as DaSpec>::SlotHash,
             <S::Storage as Storage>::Root,
@@ -92,7 +92,7 @@ where
     pub(crate) fn slash_and_invalidate_attestation<TxStateAccessor: TxState<S>>(
         &self,
         attester: &S::Address,
-        height: TransitionHeight,
+        height: SlotNumber,
         state: &mut TxStateAccessor,
     ) -> Result<(), anyhow::Error> {
         let reward = self.slash_attester(attester, state)?;
@@ -140,7 +140,7 @@ where
         >,
         state: &mut ST,
     ) -> Result<(), ProcessAttestationErrors> {
-        if attestation.proof_of_bond.claimed_rollup_height == 0 {
+        if attestation.proof_of_bond.claimed_rollup_height == SlotNumber::GENESIS {
             debug!("Cannot claim attestation for genesis");
             return Err(ProcessAttestationErrors::InvalidTransitionInvariant);
         }
@@ -188,7 +188,7 @@ where
     #[allow(clippy::type_complexity)]
     pub(crate) fn check_transition<ST: VersionReader>(
         &self,
-        claimed_rollup_height: u64,
+        claimed_rollup_height: SlotNumber,
         attestation: &Attestation<
             <S::Da as DaSpec>::SlotHash,
             <S::Storage as Storage>::Root,
@@ -203,7 +203,7 @@ where
             // We first need to compare the initial block hash to the previous post state root
             if !curr_tx.compare_hashes(&attestation.slot_hash, &attestation.post_state_root) {
                 debug!(
-                    claimed_rollup_height,
+                    %claimed_rollup_height,
                     attestation_slot_hash = ?attestation.slot_hash,
                     attestation_post_state = ?attestation.post_state_root,
                     curr_tx_slot_hash = ?curr_tx.slot_hash(),
@@ -229,7 +229,7 @@ where
             S::Da,
             <S::Storage as Storage>::Root,
         >,
-        height: TransitionHeight,
+        height: SlotNumber,
         state: &mut ST,
     ) -> anyhow::Result<Option<SlashingReason>, ST::Error> {
         let transition = match self.chain_state.get_historical_transitions(height, state)? {

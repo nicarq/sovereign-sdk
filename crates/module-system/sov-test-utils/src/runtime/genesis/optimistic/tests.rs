@@ -8,6 +8,7 @@ use sov_modules_api::{
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_paymaster::{PaymasterConfig, SafeVec};
 use sov_prover_incentives::ProverIncentivesConfig;
+use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
 use sov_sequencer_registry::SequencerConfig;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
@@ -184,7 +185,7 @@ fn create_test_rt_genesis_config<S: Spec>(
 
         chain_state: ChainStateConfig {
             current_time: Default::default(),
-            genesis_da_height: 0,
+            genesis_da_height: SlotNumber::GENESIS,
             operating_mode: sov_modules_api::OperatingMode::Optimistic,
             inner_code_commitment,
             outer_code_commitment,
@@ -206,15 +207,15 @@ fn test_rollup_height() {
     let runtime = TestRuntime::default();
 
     let mut runner = TestRunner::new_with_genesis(genesis_config.into_genesis_params(), runtime);
-    assert_eq!(runner.true_rollup_height(), 0);
+    assert_eq!(runner.true_rollup_height(), 0.to_slot_number());
 
     runner.advance_slots(2);
 
-    assert_eq!(runner.true_rollup_height(), 2);
+    assert_eq!(runner.true_rollup_height(), 2.to_slot_number());
 
     runner.advance_slots(2);
 
-    assert_eq!(runner.true_rollup_height(), 4);
+    assert_eq!(runner.true_rollup_height(), 4.to_slot_number());
 }
 
 #[test]

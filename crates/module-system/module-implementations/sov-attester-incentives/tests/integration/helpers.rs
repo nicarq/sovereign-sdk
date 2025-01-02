@@ -10,6 +10,7 @@ use sov_modules_api::{
     SerializedChallenge, Spec, StateTransitionPublicData,
 };
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_state::{Storage, StorageProof};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{AttesterIncentives, TestRunner};
@@ -126,28 +127,26 @@ pub(crate) fn build_proof(
     >,
     Infallible,
 > {
+    let height_to_attest = rollup_height_to_attest.to_slot_number();
     let chain_state = ChainState::<S>::default();
 
     // Get the values for the transition being attested
     let current_transition = chain_state
-        .get_historical_transitions(rollup_height_to_attest, state)?
+        .get_historical_transitions(height_to_attest, state)?
         .unwrap();
 
     let prev_root = if rollup_height_to_attest == 1 {
         chain_state.get_genesis_hash(state)?
     } else {
         chain_state
-            .get_historical_transitions(
-                rollup_height_to_attest
-                    .checked_sub(1)
-                    .expect("Genesis rollup height is not supported by this function"),
-                state,
-            )?
+            .get_historical_transitions(height_to_attest.prev(), state)?
             .map(|t| *t.post_state_root())
     }
     .unwrap();
 
-    let mut archival_state = state.state_at_height(rollup_height_to_attest).unwrap();
+    let mut archival_state = state
+        .state_at_height(height_to_attest.as_visible())
+        .unwrap();
 
     let proof_of_bond = TestAttesterIncentives::default()
         .bonded_attesters
@@ -159,7 +158,7 @@ pub(crate) fn build_proof(
         slot_hash: *current_transition.slot_hash(),
         post_state_root: *current_transition.post_state_root(),
         proof_of_bond: sov_modules_api::optimistic::ProofOfBond {
-            claimed_rollup_height: rollup_height_to_attest,
+            claimed_rollup_height: height_to_attest,
             proof: proof_of_bond,
         },
     })
@@ -243,17 +242,18 @@ pub(crate) fn build_challenge(
     >,
     Infallible,
 > {
+    let challenge_slot = challenge_slot.to_slot_number();
     let chain_state = ChainState::<S>::default();
     // Get the values for the transition being attested
     let current_transition = chain_state
         .get_historical_transitions(challenge_slot, state)?
         .unwrap();
 
-    let prev_root = if challenge_slot == 1 {
+    let prev_root = if challenge_slot.get() == 1 {
         chain_state.get_genesis_hash(state)?
     } else {
         chain_state
-            .get_historical_transitions(challenge_slot - 1, state)?
+            .get_historical_transitions(challenge_slot.prev(), state)?
             .map(|t| *t.post_state_root())
     }
     .unwrap();
@@ -291,7 +291,10 @@ pub(crate) fn make_challenge_blob(
     task::block_in_place(move || {
         let f = async move {
             SovApiProofSerializer::<S>::new(None)
-                .serialize_challenge_blob_with_metadata(serialized_challenge, challenge_slot)
+                .serialize_challenge_blob_with_metadata(
+                    serialized_challenge,
+                    challenge_slot.to_slot_number(),
+                )
                 .await
                 .unwrap()
         };

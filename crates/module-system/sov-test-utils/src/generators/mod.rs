@@ -211,7 +211,7 @@ pub trait MessageGenerator {
                     data: txs,
                     sequence_number: curr_sequence_number
                         .fetch_add(1, std::sync::atomic::Ordering::SeqCst),
-                    virtual_slots_to_advance: 1,
+                    visible_slots_to_advance: 1,
                 };
 
                 borsh::to_vec(&batch).unwrap()

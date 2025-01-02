@@ -5,6 +5,7 @@ use sov_bank::Amount;
 use sov_mock_da::MockHash;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{InvalidProofError, ProofOutcome};
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
 use sov_test_utils::runtime::TestRunner;
@@ -69,7 +70,7 @@ fn setup_with_wrong_attestation() -> (
     runner
         .execute_transaction(bond_challenger)
         // Then execute empty transactions to reach finality
-        .advance_slots(TEST_ROLLUP_FINALITY_PERIOD as usize);
+        .advance_slots(TEST_ROLLUP_FINALITY_PERIOD.get() as usize);
 
     genesis_challenger.user_info.available_gas_balance = expected_challenger_balance_3.get();
 
@@ -110,7 +111,7 @@ fn setup_with_wrong_attestation() -> (
                 assert_eq!(
                     AttesterIncentives::<S>::default()
                         .bad_transition_pool
-                        .get(&1, state)
+                        .get(&1.to_slot_number(), state)
                         .unwrap_infallible(),
                     Some(genesis_attester_bond),
                     "The transition should exist in the pool"
@@ -157,7 +158,7 @@ fn test_valid_challenge() -> Result<(), Infallible> {
             assert_eq!(
                 TestAttesterIncentives::default()
                     .bad_transition_pool
-                    .get(&(1), state)
+                    .get(&1.to_slot_number(), state)
                     .unwrap_infallible(),
                 None,
                 "The transition should have disappeared from the pool"
@@ -216,7 +217,7 @@ fn test_invalid_challenge_helper(
             assert_eq!(
                 TestAttesterIncentives::default()
                     .bad_transition_pool
-                    .get(&(1), state)
+                    .get(&1.to_slot_number(), state)
                     .unwrap_infallible(),
                 Some(expected_reward),
                 "The transition should *not* have disappeared from the pool"

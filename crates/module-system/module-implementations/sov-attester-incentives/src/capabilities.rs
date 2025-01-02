@@ -5,6 +5,7 @@ use sov_modules_api::{
     Gas, InvalidProofError, SerializedAttestation, SerializedChallenge, SovAttestation,
     SovStateTransitionPublicData, Spec, StateTransitionPublicData, TxState, ZkVerifier, Zkvm,
 };
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::storage::Storage;
 use thiserror::Error;
 use tracing::error;
@@ -141,7 +142,7 @@ where
             error!(error = ?e, "Unable to deserialize the attestation.");
             ProcessAttestationErrors::InvalidAttestationFormat
         })?;
-        if attestation.proof_of_bond.claimed_rollup_height == 0 {
+        if attestation.proof_of_bond.claimed_rollup_height == SlotNumber::GENESIS {
             tracing::debug!("Cannot claim attestation for genesis");
             return Err(ProcessAttestationErrors::InvalidTransitionInvariant);
         }
@@ -186,7 +187,7 @@ where
             .expect("reached end of the chain");
 
         // Minimum height at which the proof of bond can be valid
-        let min_height = new_height_to_attest.saturating_sub(finality);
+        let min_height = new_height_to_attest.saturating_sub(finality.get());
 
         // We have to check the following order invariant is respected:
         // (height to attest - finality) <= bonding_proof.transition_height <= height to attest
@@ -292,7 +293,7 @@ where
         &self,
         sender: &S::Address,
         serialized_challenge: &SerializedChallenge,
-        rollup_height: u64,
+        rollup_height: SlotNumber,
         state: &mut State,
     ) -> anyhow::Result<SovStateTransitionPublicData<S>, ProcessChallengeErrors> {
         if !self.should_reward_fees(state) {

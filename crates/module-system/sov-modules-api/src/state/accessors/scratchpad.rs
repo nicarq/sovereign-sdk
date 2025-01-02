@@ -2,6 +2,7 @@
 
 use std::marker::PhantomData;
 
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::{EventContainer, IsValueCached, Namespace, SlotKey, SlotValue};
 
 use super::checkpoints::StateCheckpoint;
@@ -83,7 +84,7 @@ impl<S: Spec, I: StateProvider<S>> TxScratchpad<S, I> {
 }
 
 impl<S: Spec, I: StateProvider<S>> VersionReader for TxScratchpad<S, I> {
-    fn rollup_height_to_access(&self) -> u64 {
+    fn rollup_height_to_access(&self) -> SlotNumber {
         self.inner.inner.rollup_height_to_access()
     }
 }
@@ -130,7 +131,7 @@ impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for PreExecWorkingSet<
 }
 
 impl<S: Spec, I: StateProvider<S>> VersionReader for PreExecWorkingSet<S, I> {
-    fn rollup_height_to_access(&self) -> u64 {
+    fn rollup_height_to_access(&self) -> SlotNumber {
         self.inner.rollup_height_to_access()
     }
 }
@@ -330,7 +331,7 @@ impl<S: Spec, I: StateProvider<S>> EventContainer for WorkingSet<S, I> {
 }
 
 impl<S: Spec, I: StateProvider<S>> VersionReader for WorkingSet<S, I> {
-    fn rollup_height_to_access(&self) -> u64 {
+    fn rollup_height_to_access(&self) -> SlotNumber {
         self.delta.inner.rollup_height_to_access()
     }
 }

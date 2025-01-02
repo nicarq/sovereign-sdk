@@ -11,6 +11,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::types::{RollupHeight, StoredStfInfo};
+use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::zk::StateTransitionWitness;
 use sov_rollup_interface::ProvableHeightTracker;
@@ -23,7 +24,7 @@ pub struct StateTransitionInfo<StateRoot, Witness, Da: DaSpec> {
     /// Public input to the per-block zk proof.
     pub(crate) data: StateTransitionWitness<StateRoot, Witness, Da>,
     /// Rollup height.
-    pub(crate) rollup_height: u64,
+    pub(crate) rollup_height: SlotNumber,
 }
 
 impl<StateRoot, Witness, Da: DaSpec> StateTransitionInfo<StateRoot, Witness, Da> {
@@ -31,7 +32,7 @@ impl<StateRoot, Witness, Da: DaSpec> StateTransitionInfo<StateRoot, Witness, Da>
     pub fn new(data: StateTransitionWitness<StateRoot, Witness, Da>, rollup_height: u64) -> Self {
         Self {
             data,
-            rollup_height,
+            rollup_height: rollup_height.to_slot_number(),
         }
     }
 
@@ -300,11 +301,12 @@ where
         let write_rollup_height = stf_info.rollup_height;
 
         // Save the stf info in the db.
-        let mut schema =
-            ledger_db.materialize_stf_info(&stored_stf_info, &RollupHeight(write_rollup_height))?;
+        let mut schema = ledger_db
+            .materialize_stf_info(&stored_stf_info, &RollupHeight(write_rollup_height.get()))?;
 
         // Update the write rollup height.
-        schema.merge(ledger_db.materialize_stf_info_write_rollup_height(write_rollup_height)?);
+        schema
+            .merge(ledger_db.materialize_stf_info_write_rollup_height(write_rollup_height.get())?);
 
         // Send the new changes to the subscribers
         let next_rollup_height_to_receive: u64 = self.next_height_to_receive.load(Ordering::SeqCst);
@@ -319,21 +321,21 @@ where
             self.prune_entries(
                 ledger_db,
                 next_rollup_height_to_receive,
-                write_rollup_height,
+                write_rollup_height.get(),
             )
             .await?,
         );
 
         assert!(
-            next_rollup_height_to_receive <= write_rollup_height,
+            next_rollup_height_to_receive <= write_rollup_height.get(),
             "write({}) is smaller than next height to receive({})",
             write_rollup_height,
             next_rollup_height_to_receive
         );
 
         tracing::debug!(
-            next_rollup_height_to_receive,
-            write_rollup_height,
+            %next_rollup_height_to_receive,
+            %write_rollup_height,
             "Done materializing stf_info"
         );
         Ok(schema)
@@ -451,7 +453,9 @@ mod tests {
             for height in 1..=channel_size {
                 let stf_info = make_stf_info(height);
                 let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
-                sender.notify(stf_info.rollup_height, &ledger_db).await?;
+                sender
+                    .notify(stf_info.rollup_height.get(), &ledger_db)
+                    .await?;
                 storage_manager.commit(schema_batch);
             }
         }
@@ -463,7 +467,7 @@ mod tests {
 
             for i in 1..=channel_size {
                 let stf_info = receiver.read_next().await?.unwrap();
-                assert_eq!(stf_info.rollup_height, i);
+                assert_eq!(stf_info.rollup_height.get(), i);
             }
 
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
@@ -476,7 +480,7 @@ mod tests {
 
             for i in 1..=channel_size {
                 let stf_info = receiver.read_next().await?.unwrap();
-                assert_eq!(stf_info.rollup_height, i);
+                assert_eq!(stf_info.rollup_height.get(), i);
             }
 
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
@@ -489,12 +493,16 @@ mod tests {
             let stf_info = make_stf_info(channel_size + 1);
             let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
             storage_manager.commit(schema_batch);
-            sender.notify(stf_info.rollup_height, &ledger_db).await?;
+            sender
+                .notify(stf_info.rollup_height.get(), &ledger_db)
+                .await?;
 
             let stf_info = make_stf_info(channel_size + 2);
             let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
             storage_manager.commit(schema_batch);
-            sender.notify(stf_info.rollup_height, &ledger_db).await?;
+            sender
+                .notify(stf_info.rollup_height.get(), &ledger_db)
+                .await?;
 
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 2);
         }
@@ -505,7 +513,7 @@ mod tests {
                 setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
             let stf_info = receiver.read_next().await?.unwrap();
-            assert_eq!(stf_info.rollup_height, 3);
+            assert_eq!(stf_info.rollup_height.get(), 3);
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 2);
         }
 
@@ -526,7 +534,9 @@ mod tests {
             let stf_info = make_stf_info(height);
             let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
             storage_manager.commit(schema_batch);
-            sender.notify(stf_info.rollup_height, &ledger_db).await?;
+            sender
+                .notify(stf_info.rollup_height.get(), &ledger_db)
+                .await?;
         }
 
         // Read the data from the db.
@@ -536,7 +546,7 @@ mod tests {
                 .next_height_to_receive
                 .fetch_add(1, Ordering::SeqCst);
 
-            assert_eq!(stf_info.rollup_height, height);
+            assert_eq!(stf_info.rollup_height.get(), height);
         }
 
         Ok(())
@@ -555,7 +565,9 @@ mod tests {
             let stf_info = make_stf_info(height);
             let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
             storage_manager.commit(schema_batch);
-            sender.notify(stf_info.rollup_height, &ledger_db).await?;
+            sender
+                .notify(stf_info.rollup_height.get(), &ledger_db)
+                .await?;
         }
 
         drop(sender);
@@ -566,7 +578,7 @@ mod tests {
                 .next_height_to_receive
                 .fetch_add(1, Ordering::SeqCst);
 
-            assert_eq!(stf_info.rollup_height, height);
+            assert_eq!(stf_info.rollup_height.get(), height);
         }
 
         let stf_info = receiver.read_next().await;
@@ -598,7 +610,7 @@ mod tests {
                     .unwrap();
                 storage_manager.commit(schema_batch);
                 sender
-                    .notify(stf_info.rollup_height, &ledger_db)
+                    .notify(stf_info.rollup_height.get(), &ledger_db)
                     .await
                     .unwrap();
             }
@@ -611,7 +623,7 @@ mod tests {
                 .next_height_to_receive
                 .fetch_add(1, Ordering::SeqCst);
 
-            assert_eq!(stf_info.rollup_height, height);
+            assert_eq!(stf_info.rollup_height.get(), height);
         }
 
         Ok(())
@@ -703,7 +715,9 @@ mod tests {
                 let stf_info = make_stf_info(height);
                 let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
                 storage_manager.commit(schema_batch);
-                sender.notify(stf_info.rollup_height, &ledger_db).await?;
+                sender
+                    .notify(stf_info.rollup_height.get(), &ledger_db)
+                    .await?;
                 receiver.read_next().await?.unwrap();
                 receiver
                     .next_height_to_receive

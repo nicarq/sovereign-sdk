@@ -2,6 +2,7 @@ use sov_chain_state::ChainState;
 use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{ApiStateAccessor, Gas, GasArray, Spec, VersionReader};
+use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
 use sov_test_utils::runtime::TestApplySlotOutput;
 use sov_test_utils::{get_gas_used, AsUser, BatchType, TestUser};
 use sov_value_setter::ValueSetter;
@@ -32,7 +33,7 @@ fn check_chain_state_update(
     txs_to_send_per_round: usize,
     post_round_closure: &mut impl FnMut(
         // Round number
-        u64,
+        SlotNumber,
         // Kernel working set
         &mut ApiStateAccessor<S>,
         // The immediate result of the apply slot function
@@ -51,7 +52,9 @@ fn check_chain_state_update(
         // Sanity check: there should be only one batch executed
         assert_eq!(result.batch_receipts.len(), 1);
 
-        runner.query_state(|state| post_round_closure(round, state, result));
+        runner.query_state(|state| {
+            post_round_closure(round.to_slot_number(), state, result);
+        });
     }
 }
 
@@ -116,7 +119,7 @@ fn test_chain_state_update_state_root() {
         NUM_ROUNDS,
         NUM_TXS_PER_ROUND,
         &mut |round, kernel, result| {
-            if round == 0 {
+            if round == SlotNumber::GENESIS {
                 previous_state_root = Some(result.state_root);
             } else {
                 let previous_transition = ChainState::<S>::default()
@@ -144,7 +147,7 @@ fn test_chain_state_kernel_updates() {
         &mut |round, state, _result| {
             assert_eq!(
                 state.rollup_height_to_access(),
-                round + 1,
+                round.next(),
                 "The kernel should be updated to the current round"
             );
         },
@@ -159,7 +162,7 @@ fn test_chain_state_update_transitions() {
         NUM_ROUNDS,
         NUM_TXS_PER_ROUND,
         &mut |round, kernel, _result| {
-            if round == 0 {
+            if round == SlotNumber::GENESIS {
                 let in_progress_transition = ChainState::<S>::default()
                     .last_slot(kernel)
                     .unwrap_infallible()
@@ -167,10 +170,11 @@ fn test_chain_state_update_transitions() {
                 historical_transitions.push(in_progress_transition);
             } else {
                 for (i, historical_transition) in historical_transitions.iter().enumerate() {
+                    let height = i.to_slot_number().next();
                     let expected_previous_transition = historical_transition;
 
                     let stored_previous_transition = ChainState::<S>::default()
-                        .get_historical_transitions((i + 1) as u64, kernel)
+                        .get_historical_transitions(height, kernel)
                         .unwrap_infallible()
                         .unwrap();
 

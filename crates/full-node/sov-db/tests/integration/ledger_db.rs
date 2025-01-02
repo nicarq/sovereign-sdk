@@ -3,6 +3,7 @@ use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::types::{RollupHeight, StoredStfInfo};
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockDaSpec, MockHash};
 use sov_mock_zkvm::MockZkvmHost;
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
@@ -82,8 +83,8 @@ async fn test_save_aggregated_proof() {
     for i in 0..10 {
         let public_data = AggregatedProofPublicData::<MockAddress, MockDaSpec, Vec<u8>> {
             validity_conditions: vec![],
-            initial_rollup_height: i as u64,
-            final_rollup_height: i as u64,
+            initial_rollup_height: i.to_slot_number(),
+            final_rollup_height: i.to_slot_number(),
             genesis_state_root: vec![1],
             initial_state_root: vec![i],
             final_state_root: vec![i + 1],

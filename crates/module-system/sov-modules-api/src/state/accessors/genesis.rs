@@ -1,3 +1,4 @@
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::{CompileTimeNamespace, EventContainer, IsValueCached, SlotKey, SlotValue, Storage};
 
 use super::checkpoints::StateCheckpoint;
@@ -32,14 +33,14 @@ impl<Store: Storage> StateCheckpoint<Store> {
 }
 
 impl<S: Spec> KernelWriter for GenesisStateAccessor<'_, S> {
-    fn true_rollup_height(&self) -> u64 {
-        0
+    fn true_rollup_height(&self) -> SlotNumber {
+        SlotNumber::GENESIS
     }
 }
 
 impl<S: Spec> VersionReader for GenesisStateAccessor<'_, S> {
-    fn rollup_height_to_access(&self) -> u64 {
-        0
+    fn rollup_height_to_access(&self) -> SlotNumber {
+        SlotNumber::GENESIS
     }
 }
 

@@ -59,9 +59,6 @@ impl<T: Module> TxHooks for &T {
     }
 }
 
-/// Type alias that contains the height of a given transition
-pub type TransitionHeight = u64;
-
 /// Hooks that execute during the `StateTransitionFunction::begin_slot` and `end_slot` functions.
 pub trait SlotHooks {
     /// The runtime spec.

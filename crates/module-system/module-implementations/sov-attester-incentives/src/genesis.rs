@@ -2,8 +2,8 @@ use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_bank::Amount;
-use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{GenesisState, Module, Spec};
+use sov_rollup_interface::common::SlotNumber;
 
 use crate::AttesterIncentives;
 
@@ -17,11 +17,11 @@ pub struct AttesterIncentivesConfig<S: Spec> {
     /// A list of initial attesters and their bonded amount.
     pub initial_attesters: Vec<(S::Address, Amount)>,
     /// The finality period of the rollup (constant) in the number of DA layer slots processed.
-    pub rollup_finality_period: TransitionHeight,
+    pub rollup_finality_period: SlotNumber,
     /// The current maximum attested height
-    pub maximum_attested_height: TransitionHeight,
+    pub maximum_attested_height: SlotNumber,
     /// The light client finalized height
-    pub light_client_finalized_height: TransitionHeight,
+    pub light_client_finalized_height: SlotNumber,
 }
 
 impl<S: Spec> AttesterIncentives<S> {

@@ -1,15 +1,14 @@
-#[cfg(feature = "native")]
-use sov_modules_api::capabilities::KernelWithSlotMapping;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{DaSpec, GasSpec, KernelStateAccessor, KernelWriter, Spec, StateReader};
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::{Kernel, StateRoot, Storage};
 
 use crate::{BlockGasInfo, ChainState, SlotInformation, VersionReader};
 
 impl<S: Spec> ChainState<S> {
-    /// Computes the current root hash available at the current *virtual* slot number.
-    /// This is the kernel root hash at the *virtual* rollup height with the user root hash at the current height.
+    /// Computes the current root hash available at the current *visible* slot number.
+    /// This is the kernel root hash at the *visible* rollup height with the user root hash at the current height.
     /// Pratically, it merges the user root hash from the pre-state root with the kernel root hash at the specified height.
     ///
     /// ## Note
@@ -23,7 +22,7 @@ impl<S: Spec> ChainState<S> {
         let user_root = current_root.namespace_root(sov_state::ProvableNamespace::User);
 
         let root_at_height = self
-            .root_at_height(state.visible_rollup_height(), state)
+            .root_at_height(state.visible_rollup_height().as_true(), state)
             .unwrap_infallible()?;
 
         let kernel_root = root_at_height.namespace_root(sov_state::ProvableNamespace::Kernel);
@@ -52,7 +51,7 @@ impl<S: Spec> ChainState<S> {
         // We first extend the slot map because we are going to read from it before we set it.
         let maybe_previous_slot = self
             .slots
-            .get(state.visible_rollup_height(), state)
+            .get(state.visible_rollup_height().as_true(), state)
             .unwrap_infallible();
 
         // We compute the base fee per gas from the previous slot if it exists
@@ -108,13 +107,13 @@ impl<S: Spec> ChainState<S> {
     /// Returns the base fee per gas accessible at the specified slot height for this state accessor.
     pub fn base_fee_per_gas_at<Reader: VersionReader>(
         &self,
-        height: u64,
+        height: SlotNumber,
         state: &mut Reader,
     ) -> Result<
         Option<<S::Gas as sov_modules_api::Gas>::Price>,
         <Reader as StateReader<Kernel>>::Error,
     > {
-        if height == 0 {
+        if height == SlotNumber::GENESIS {
             return Ok(Some(S::initial_base_fee_per_gas()));
         }
 
@@ -145,21 +144,28 @@ impl<S: Spec> ChainState<S> {
 }
 
 #[cfg(feature = "native")]
-impl<S: Spec> KernelWithSlotMapping<S> for ChainState<S> {
-    fn visible_rollup_height_at(
-        &self,
-        true_rollup_height: u64,
-        state: &mut sov_modules_api::state::ApiStateAccessor<S>,
-    ) -> Option<u64> {
-        self.visible_rollup_height_at(true_rollup_height, state)
-            .unwrap_infallible()
-    }
+const _: () = {
+    use sov_modules_api::capabilities::KernelWithSlotMapping;
+    use sov_modules_api::state::ApiStateAccessor;
+    use sov_modules_api::VisibleSlotNumber;
 
-    fn base_fee_per_gas_at(
-        &self,
-        height: u64,
-        state: &mut sov_modules_api::state::ApiStateAccessor<S>,
-    ) -> Option<<<S as Spec>::Gas as sov_modules_api::Gas>::Price> {
-        self.base_fee_per_gas_at(height, state).unwrap_infallible()
+    impl<S: Spec> KernelWithSlotMapping<S> for ChainState<S> {
+        fn visible_rollup_height_at(
+            &self,
+            true_rollup_height: SlotNumber,
+            state: &mut ApiStateAccessor<S>,
+        ) -> Option<VisibleSlotNumber> {
+            self.visible_rollup_height_at(true_rollup_height, state)
+                .unwrap_infallible()
+        }
+
+        fn base_fee_per_gas_at(
+            &self,
+            height: VisibleSlotNumber,
+            state: &mut ApiStateAccessor<S>,
+        ) -> Option<<<S as Spec>::Gas as sov_modules_api::Gas>::Price> {
+            self.base_fee_per_gas_at(height.as_true(), state)
+                .unwrap_infallible()
+        }
     }
-}
+};

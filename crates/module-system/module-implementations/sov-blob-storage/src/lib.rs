@@ -4,7 +4,6 @@ mod capabilities;
 mod max_size_checker;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_chain_state::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
@@ -12,6 +11,7 @@ use sov_modules_api::{
     InfallibleStateAccessor, KernelStateMap, KernelStateValue, Module, ModuleId, ModuleInfo,
     NotInstantiable, Spec,
 };
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::codec::BcsCodec;
 
 type BlobAndSender<S> = (
@@ -69,12 +69,12 @@ impl<S: Spec> BlobStorage<S> {
     /// Store blobs for given block number, overwrite if already exists
     pub fn store_batches(
         &self,
-        rollup_height: TransitionHeight,
+        rollup_height: SlotNumber,
         batches: &[BlobAndSender<S>],
         state: &mut impl InfallibleKernelStateAccessor,
     ) {
         self.deferred_blobs
-            .set(&rollup_height, batches, state)
+            .set(&rollup_height.get(), batches, state)
             .unwrap_infallible();
     }
 
@@ -82,11 +82,11 @@ impl<S: Spec> BlobStorage<S> {
     /// Returned blobs are removed from the storage
     pub fn take_blobs_for_rollup_height(
         &self,
-        slot_height: TransitionHeight,
+        slot_height: SlotNumber,
         state: &mut impl InfallibleKernelStateAccessor,
     ) -> Vec<BlobAndSender<S>> {
         self.deferred_blobs
-            .remove(&slot_height, state)
+            .remove(&slot_height.get(), state)
             .unwrap_infallible()
             .unwrap_or_default()
     }
@@ -151,8 +151,8 @@ pub struct PreferredBatchData {
     pub sequence_number: u64,
     /// The actual data of the blob.
     pub data: Vec<FullyBakedTx>,
-    /// The number of virtual slots to advance after processing the batch. Minimum 1.
-    pub virtual_slots_to_advance: u8,
+    /// The number of visible slots to advance after processing the batch. Minimum 1.
+    pub visible_slots_to_advance: u8,
 }
 
 /// A trait implemented by blobs sent through the preferred sequencer.

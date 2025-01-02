@@ -267,8 +267,8 @@
     },
     {
       "Struct": {
-        "type_name": "__SovVirtualWallet_CallMessage_CreateToken",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_CreateToken",
+        "type_name": "__SovVisibleWallet_CallMessage_CreateToken",
+        "serde_type_name": "__SovVisibleWallet_CallMessage_CreateToken",
         "template": null,
         "fields": [
           {
@@ -347,8 +347,8 @@
     },
     {
       "Struct": {
-        "type_name": "__SovVirtualWallet_CallMessage_Transfer",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_Transfer",
+        "type_name": "__SovVisibleWallet_CallMessage_Transfer",
+        "serde_type_name": "__SovVisibleWallet_CallMessage_Transfer",
         "template": "Transfer to address {} {}.",
         "fields": [
           {
@@ -429,8 +429,8 @@
     },
     {
       "Struct": {
-        "type_name": "__SovVirtualWallet_CallMessage_Burn",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_Burn",
+        "type_name": "__SovVisibleWallet_CallMessage_Burn",
+        "serde_type_name": "__SovVisibleWallet_CallMessage_Burn",
         "template": null,
         "fields": [
           {
@@ -447,8 +447,8 @@
     },
     {
       "Struct": {
-        "type_name": "__SovVirtualWallet_CallMessage_Mint",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_Mint",
+        "type_name": "__SovVisibleWallet_CallMessage_Mint",
+        "serde_type_name": "__SovVisibleWallet_CallMessage_Mint",
         "template": null,
         "fields": [
           {
@@ -474,8 +474,8 @@
     },
     {
       "Struct": {
-        "type_name": "__SovVirtualWallet_CallMessage_Freeze",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_Freeze",
+        "type_name": "__SovVisibleWallet_CallMessage_Freeze",
+        "serde_type_name": "__SovVisibleWallet_CallMessage_Freeze",
         "template": null,
         "fields": [
           {
@@ -539,8 +539,8 @@
     },
     {
       "Struct": {
-        "type_name": "__SovVirtualWallet_CallMessage_Register",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_Register",
+        "type_name": "__SovVisibleWallet_CallMessage_Register",
+        "serde_type_name": "__SovVisibleWallet_CallMessage_Register",
         "template": null,
         "fields": [
           {
@@ -590,8 +590,8 @@
     },
     {
       "Struct": {
-        "type_name": "__SovVirtualWallet_CallMessage_Deposit",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_Deposit",
+        "type_name": "__SovVisibleWallet_CallMessage_Deposit",
+        "serde_type_name": "__SovVisibleWallet_CallMessage_Deposit",
         "template": null,
         "fields": [
           {
@@ -622,8 +622,8 @@
     },
     {
       "Struct": {
-        "type_name": "__SovVirtualWallet_CallMessage_Exit",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_Exit",
+        "type_name": "__SovVisibleWallet_CallMessage_Exit",
+        "serde_type_name": "__SovVisibleWallet_CallMessage_Exit",
         "template": null,
         "fields": [
           {
@@ -1096,8 +1096,8 @@
     },
     {
       "Struct": {
-        "type_name": "__SovVirtualWallet_CallMessage_RegisterPaymaster",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_RegisterPaymaster",
+        "type_name": "__SovVisibleWallet_CallMessage_RegisterPaymaster",
+        "serde_type_name": "__SovVisibleWallet_CallMessage_RegisterPaymaster",
         "template": null,
         "fields": [
           {
@@ -1182,8 +1182,8 @@
     },
     {
       "Struct": {
-        "type_name": "__SovVirtualWallet_PayeePolicy_Allow",
-        "serde_type_name": "__SovVirtualWallet_PayeePolicy_Allow",
+        "type_name": "__SovVisibleWallet_PayeePolicy_Allow",
+        "serde_type_name": "__SovVisibleWallet_PayeePolicy_Allow",
         "template": null,
         "fields": [
           {
@@ -1357,8 +1357,8 @@
     },
     {
       "Struct": {
-        "type_name": "__SovVirtualWallet_CallMessage_SetPayerForSequencer",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_SetPayerForSequencer",
+        "type_name": "__SovVisibleWallet_CallMessage_SetPayerForSequencer",
+        "serde_type_name": "__SovVisibleWallet_CallMessage_SetPayerForSequencer",
         "template": null,
         "fields": [
           {
@@ -1375,8 +1375,8 @@
     },
     {
       "Struct": {
-        "type_name": "__SovVirtualWallet_CallMessage_UpdatePolicy",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_UpdatePolicy",
+        "type_name": "__SovVisibleWallet_CallMessage_UpdatePolicy",
+        "serde_type_name": "__SovVisibleWallet_CallMessage_UpdatePolicy",
         "template": null,
         "fields": [
           {

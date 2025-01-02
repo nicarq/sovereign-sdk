@@ -1,4 +1,7 @@
 ## 2025-01-01
+
+- #2123 introduces newtypes `sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber}` which are used throughout the SDK codebase for better type safety and readability. Method type signatures for `VersionedStateValue` and `VersionedStateVec` use these newtypes which is a breaking change for kernel modules.
+
 - #2130 Extends `SKIP_GUEST_BUILD` variable usage. Please checkout PR if you need to port this functionality to your setup.
 - #2125 Upgrades tokio to 1.42 to fix bug https://github.com/tokio-rs/tokio/issues/6839
 ## 2024-12-30
@@ -311,7 +314,7 @@ Adds a new `arbitrary::Arbitrary` bound on the `Spec::Address` associated type a
     ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>;=  
   }
   ```
-- #1416 Adds the correct version of the kernel state root to the `VisibleRoot`. We have to be careful to add the correct `kernel` state root to the `VisibleRoot` because the `historical_state_transitions` map that contains the roots is indexed by `true_rollup_height`. Hence, we have to make sure we get the `kernel_state_root` corresponding to the current `virtual_height` accessible from the user space.
+- #1416 Adds the correct version of the kernel state root to the `VisibleRoot`. We have to be careful to add the correct `kernel` state root to the `VisibleRoot` because the `historical_state_transitions` map that contains the roots is indexed by `true_rollup_height`. Hence, we have to make sure we get the `kernel_state_root` corresponding to the current `visible_height` accessible from the user space.
 - #1418 Add back pressure mechanism to the StfInfoManager 
 - #1409 Removes the `override_sequencer` field from test case structures and `TestRunner::execute` & `TestRunner::simulate` in favor of a single central location.
     - Instead of passing this param you should set `runner.config.sequencer_da_address` right before executing your test case. Also note that the semantics have changed, previously
@@ -336,7 +339,7 @@ references to the `Authenticator` trait or `ModAuth` struct are replaced with re
 - #1383 Extend `prover-incentoves::test_valid_proof` test to check gas usage. 
 - #1370 Makes some light changes to the `GenesisStateAccessor` to become a wrapper around `StateCheckpoint`. 
 - #1362 Adds a versioned state accessor to be used in the soft confirmation context. This versioned state accessor is append-only and should be initialized at genesis to be properly used.
-- #1366 Replaces the `Delta` by a `StateCheckpoint` inside the `TxScratchpad`. This is because we are going to add fields to the `StateCheckpoint` (`virtual_height`, `true_height`) - this will allow to propagate the values up to the `WorkingSet`.
+- #1366 Replaces the `Delta` by a `StateCheckpoint` inside the `TxScratchpad`. This is because we are going to add fields to the `StateCheckpoint` (`visible_height`, `true_height`) - this will allow to propagate the values up to the `WorkingSet`.
 - #1370 Makes some light changes to the `GenesisStateAccessor` to become a wrapper around `StateCheckpoint`. 
 - #1356 Adds OpenAPI spec for sov-bank custom REST API endpoints.
 - #1374 Add gas handling in the stf-blueprint::process_proof.
@@ -345,14 +348,14 @@ references to the `Authenticator` trait or `ModAuth` struct are replaced with re
 - #1365 Simplify sequencer reward workflow.
 - #1378 Plugs in the new state accessors used in soft-confirmation. From now on, accessors such as the `StateCheckpoint` can access `VersionedStateValues` in the storage using the same mechanism as soft-confirmations.
 - #1362 Adds a versioned state accessor to be used in the soft confirmation context. This versioned state accessor is append-only and should be initialized at genesis to be properly used.
-- #1366 Replaces the `Delta` by a `StateCheckpoint` inside the `TxScratchpad`. This is because we are going to add fields to the `StateCheckpoint` (`virtual_height`, `true_height`) - this will allow to propagate the values up to the `WorkingSet`.
+- #1366 Replaces the `Delta` by a `StateCheckpoint` inside the `TxScratchpad`. This is because we are going to add fields to the `StateCheckpoint` (`visible_height`, `true_height`) - this will allow to propagate the values up to the `WorkingSet`.
 - #1360 attester-incentive & prover-incentives: Ensure that the helper methods only read the state.
 - #1358 Adds a mechanism for individually overriding capabilities on the `HasCapabilities` trait.
     - All usages of `runtime.capabilities()` should updated to the capability name in `snake_case`.
       For example, `runtime.capabilities().try_reserve_gas` should become `runtime.gas_enforcer().try_reserve_gas`.
 - #1344 Adds revertable errors to the `sov-attester-incentives` module.
 - #1353 Removes the `Batch` argument from the `begin_batch_hook` to allow the preferred sequencer to process batches.
-- #1352 adds a way to retrieve the `base_fee_per_gas` in the sequencer at the current virtual height. To do that we added a method to the `ChainState` that returns the current `base_fee_per_gas` at the virtual slot and a method to the `KernelSlotHooks` trait that allows easy access from the `Kernel`. It also removes the output from the `begin_slot` hook in the `KernelSlotHooks` trait, to allow more consistency accross the hooks (they shouldn't return anything).
+- #1352 adds a way to retrieve the `base_fee_per_gas` in the sequencer at the current visible height. To do that we added a method to the `ChainState` that returns the current `base_fee_per_gas` at the visible slot and a method to the `KernelSlotHooks` trait that allows easy access from the `Kernel`. It also removes the output from the `begin_slot` hook in the `KernelSlotHooks` trait, to allow more consistency accross the hooks (they shouldn't return anything).
 - #1335 Removes the previously deprecated method `StateCheckpoint::to_working_set_deprecated`. If you still use this method, please migrate your code to the testing framework available in `sov_test_utils`.
 - #1332 Remove events from AttesterIncentives capabilities 
 - #1328 Add reverts support in `prover-incentives` module.

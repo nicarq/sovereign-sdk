@@ -32,6 +32,7 @@ use axum::http::StatusCode;
 use axum::routing::get;
 use serde::{Deserialize, Serialize};
 use sov_rest_utils::{json_obj, ErrorObject, Query};
+use sov_rollup_interface::common::{IntoSlotNumber, VisibleSlotNumber};
 use sov_rollup_interface::StateUpdateInfo;
 use tokio::sync::watch;
 use utoipa::openapi::OpenApi;
@@ -175,7 +176,7 @@ pub struct ApiState<S: Spec, T = ()> {
     checkpoint_receiver: watch::Receiver<StateCheckpoint<S::Storage>>,
     kernel: Arc<dyn KernelWithSlotMapping<S>>,
     /// The `height` query parameter extracted from the request, when applicable.
-    requested_height: Option<u64>,
+    requested_height: Option<VisibleSlotNumber>,
 }
 
 impl<S: Spec, T> ApiState<S, T> {
@@ -191,7 +192,7 @@ impl<S: Spec, T> ApiState<S, T> {
             inner,
             checkpoint_receiver,
             kernel,
-            requested_height,
+            requested_height: requested_height.map(|h| h.to_visible_slot_number()),
         }
     }
 
@@ -226,11 +227,11 @@ impl<S: Spec, T> ApiState<S, T> {
     /// uses a zeroed gas price.
     pub fn build_api_state_accessor(
         &self,
-        maybe_height: Option<u64>,
+        maybe_height: Option<VisibleSlotNumber>,
     ) -> Result<ApiStateAccessor<S>, anyhow::Error> {
         let checkpoint = self.checkpoint_receiver.borrow();
 
-        let height = maybe_height.unwrap_or(checkpoint.rollup_height_to_access());
+        let height = maybe_height.unwrap_or(checkpoint.rollup_height_to_access().as_visible());
 
         let kernel = self.kernel.clone();
 
@@ -302,5 +303,5 @@ where
 
 #[derive(Copy, Clone, Debug, Deserialize)]
 pub(crate) struct RollupHeightQueryParam {
-    pub rollup_height: u64,
+    pub rollup_height: VisibleSlotNumber,
 }

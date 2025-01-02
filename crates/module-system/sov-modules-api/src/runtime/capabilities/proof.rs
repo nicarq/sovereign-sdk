@@ -1,3 +1,4 @@
+use sov_rollup_interface::common::SlotNumber;
 #[cfg(feature = "native")]
 use sov_rollup_interface::optimistic::BondingProofService;
 use sov_rollup_interface::optimistic::{SerializedAttestation, SerializedChallenge};
@@ -55,7 +56,7 @@ pub trait ProofProcessor<S: Spec> {
     fn process_challenge(
         &self,
         proof: SerializedChallenge,
-        rollup_height: u64,
+        rollup_height: SlotNumber,
         prover_address: &S::Address,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<SovStateTransitionPublicData<S>, InvalidProofError>;

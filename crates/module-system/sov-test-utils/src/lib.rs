@@ -24,6 +24,7 @@ pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{BasicGasMeter, CryptoSpec, Gas, GasArray, Spec};
 pub use sov_modules_stf_blueprint::{get_gas_used, TxProcessingError};
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::execution_mode::{Native, Zk};
 pub use sov_state::ProverStorage;
 
@@ -107,14 +108,14 @@ pub const TEST_DEFAULT_MAX_PRIORITY_FEE: PriorityFeeBips = PriorityFeeBips::from
 // --- Attester incentives constants ---
 /// The default max attested height at the genesis of the rollup. This is the height that contains the highest attestation
 /// for the rollup. This value is set to zero in tests because the rollup always starts at zeroth height.
-pub const TEST_MAX_ATTESTED_HEIGHT: u64 = 0;
+pub const TEST_MAX_ATTESTED_HEIGHT: SlotNumber = SlotNumber::GENESIS;
 /// The default finalized height of the light client. This value should always be below the [`TEST_MAX_ATTESTED_HEIGHT`].
 /// This value is set to zero in tests because the rollup always starts at zeroth height. This value should be manually
 /// updated for now because light clients are not yet implemented.
-pub const TEST_LIGHT_CLIENT_FINALIZED_HEIGHT: u64 = 0;
+pub const TEST_LIGHT_CLIENT_FINALIZED_HEIGHT: SlotNumber = SlotNumber::GENESIS;
 /// The default rollup finality period. Used by the [`sov_attester_incentives::AttesterIncentives`] module to determine the
 /// range of heights that are eligible for attestations.
-pub const TEST_ROLLUP_FINALITY_PERIOD: u64 = 5;
+pub const TEST_ROLLUP_FINALITY_PERIOD: SlotNumber = SlotNumber::new(5);
 /// The default name to use for the gas token.
 pub const TEST_GAS_TOKEN_NAME: &str = "TestGasToken";
 

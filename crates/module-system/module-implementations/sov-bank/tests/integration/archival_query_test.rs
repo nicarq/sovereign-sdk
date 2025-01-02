@@ -1,5 +1,6 @@
 use sov_bank::{Bank, Coins};
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_test_utils::{AsUser, TestSpec};
 
 use crate::helpers::*;
@@ -43,9 +44,11 @@ fn transfer_token_and_query_old_balances() {
             );
         });
 
-        for height_to_query in 0..height {
+        for height_to_query in 0..=height {
             runner.query_visible_state(|state| {
-                let archival_state = &mut state.state_at_height(height_to_query).unwrap();
+                let archival_state = &mut state
+                    .state_at_height(height_to_query.to_visible_slot_number())
+                    .unwrap();
 
                 // Sender query deducted at every height
                 assert_eq!(

@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::{ApiStateAccessor, StateCheckpoint, StateValue};
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_state::{BorshCodec, Prefix};
 use sov_test_utils::storage::SimpleStorageManager;
 use unwrap_infallible::UnwrapInfallible;
@@ -42,7 +43,9 @@ fn archival_state_updates_correctly() -> Result<(), Infallible> {
         let api_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel.clone()));
 
         for past_height in 0..current_height {
-            let mut archival_api_accessor = api_accessor.state_at_height(past_height).unwrap();
+            let mut archival_api_accessor = api_accessor
+                .state_at_height(past_height.to_visible_slot_number())
+                .unwrap();
 
             let value = state_value.get(&mut archival_api_accessor)?;
 
@@ -55,8 +58,9 @@ fn archival_state_updates_correctly() -> Result<(), Infallible> {
         let api_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel.clone()));
 
         for another_past_height in 0..=current_height {
-            let mut archival_api_accessor =
-                api_accessor.state_at_height(another_past_height).unwrap();
+            let mut archival_api_accessor = api_accessor
+                .state_at_height(another_past_height.to_visible_slot_number())
+                .unwrap();
 
             let value = state_value.get(&mut archival_api_accessor)?;
 

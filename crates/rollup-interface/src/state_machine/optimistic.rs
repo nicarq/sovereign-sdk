@@ -6,6 +6,7 @@ use sov_universal_wallet::UniversalWallet;
 
 #[cfg(feature = "native")]
 use crate as sov_rollup_interface; // Needed for UniversalWallet, as it requires global paths
+use crate::common::SlotNumber;
 use crate::da::DaSpec;
 use crate::zk::StateTransitionPublicData;
 
@@ -17,7 +18,7 @@ use crate::zk::StateTransitionPublicData;
 #[cfg_attr(feature = "native", derive(UniversalWallet))]
 pub struct ProofOfBond<StateProof> {
     /// The rollup height for which the proof of bond applies
-    pub claimed_rollup_height: u64,
+    pub claimed_rollup_height: SlotNumber,
     /// The actual state proof that the attester was bonded
     #[cfg_attr(feature = "native", sov_wallet(hidden))]
     pub proof: StateProof,
@@ -110,6 +111,7 @@ impl SerializedAttestation {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::common::IntoSlotNumber;
 
     #[test]
     fn test_attestation_serialization() {
@@ -118,7 +120,7 @@ mod tests {
             slot_hash: [10; 32],
             post_state_root: [22; 32],
             proof_of_bond: ProofOfBond {
-                claimed_rollup_height: 1,
+                claimed_rollup_height: 1.to_slot_number(),
                 proof: (),
             },
         };
