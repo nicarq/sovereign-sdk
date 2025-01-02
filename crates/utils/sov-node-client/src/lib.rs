@@ -204,6 +204,10 @@ impl NodeClient {
         raw_txs: Vec<Vec<u8>>,
         wait_for_processing: bool,
     ) -> anyhow::Result<()> {
+        tracing::info!(
+            txs_included = raw_txs.len(),
+            "Triggering publish_batch endpoint"
+        );
         let response = self
             .client
             .publish_batch(&types::PublishBatchBody {

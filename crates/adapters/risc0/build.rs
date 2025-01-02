@@ -5,7 +5,8 @@ fn main() -> anyhow::Result<()> {
     println!("cargo::rerun-if-env-changed=SKIP_GUEST_BUILD");
 
     // Skip the check if we aren't building any guest code
-    if std::env::var("SKIP_GUEST_BUILD").is_ok() {
+    if should_skip_guest_build() {
+        println!("cargo:warning=Skipping risc0 guest build");
         return Ok(());
     }
     // Outputs a string formatted like: rustc 1.75.0-dev
@@ -59,4 +60,14 @@ fn parse_version_string(string: &str) -> anyhow::Result<String> {
         .next()
         .unwrap();
     Ok(version.to_string())
+}
+
+fn should_skip_guest_build() -> bool {
+    match std::env::var("SKIP_GUEST_BUILD")
+        .as_ref()
+        .map(|arg0: &String| String::as_str(&arg0))
+    {
+        Ok("1") | Ok("true") | Ok("risc0") => true,
+        Ok("0") | Ok("false") | Ok(_) | Err(_) => false,
+    }
 }

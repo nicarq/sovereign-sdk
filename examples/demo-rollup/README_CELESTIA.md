@@ -323,7 +323,7 @@ batch, you can import them now. Finally, let's submit your transaction to the ro
 'true' parameter after `submit-batch` indicates, that command will wait for batch to be processed by the node.
 
 ```bash,test-ci
-$ ./../../target/debug/sov-cli node submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66 
+$ ./target/debug/sov-cli node submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66 
 ```
 
 This command will use your default private key.
