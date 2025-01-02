@@ -300,6 +300,12 @@ impl<S: Spec> IncrementalBatchReceipt<S> {
     }
 }
 
+/// The preferred sequencer might attempt to censor transactions from standard sequencers through the following methods:
+/// 1. Raising the gas price significantly: This could cause the transaction to run out of gas.
+/// 2. Filling the block's entire gas limit with preferred transactions: This would leave no space for standard transactions.
+/// To mitigate these scenarios:
+/// - In the first case, we will have to ensure that exiting the rollup consumes very little gas (similarly to what we do for forced transactions). This way, even if gas prices are artificially inflated, the transaction cost remains manageable.
+/// - In the second case, we reserve a percentage of block space specifically for standard transactions, ensuring the rollup can always process some standard transactions.
 #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch", fields(rollup_height = height, context = ?execution_context))]
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]

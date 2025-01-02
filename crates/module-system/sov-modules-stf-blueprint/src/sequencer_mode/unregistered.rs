@@ -160,6 +160,17 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvi
     }
 }
 
+/// See: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/882
+/// The preferred sequencer might attempt to censor a forced transaction through two approaches:
+/// 1. By raising the gas price significantly, so the transaction could run out of gas.
+/// 2. By filling the block's entire gas limit with preferred transactions, the sequencer could prevent the forced transaction from being included.
+/// - In the first scenario, a forced transaction consumes very little gas, with a maximum gas usage defined by [`MAX_UNREGISTERED_SEQUENCER_EXEC_GAS_PER_TX`].
+///   Although the preferred sequencer could manipulate gas prices, making the transaction prohibitively expensive is very unlikely due to its minimal gas consumption.
+///   Additionally, artificially inflating gas prices is a costly strategy for the preferred sequencer. Even if such censorship occurs, the affected user can continue sending forced transactions to the rollup,
+///   making sustained censorship economically impractical.
+///   
+/// - In the second scenario, forced transactions are rate-limited by the `BlobStorage`, and there is a defined upper limit on how many can be processed.
+///   Since these transactions consume very little gas, they can always be included in a block, even if doing so means exceeding the block's gas limit.
 #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
