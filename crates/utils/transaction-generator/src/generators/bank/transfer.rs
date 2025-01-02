@@ -114,6 +114,7 @@ impl<S: Spec> BankMessageGenerator<S> {
     ) -> InternalMessageGenResult<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
         let (from_addr, mut from_account) =
             Self::get_random_account_with_balance(generator_state, u)?;
+
         let from_key = from_account.private_key.clone();
 
         // Pick a random amount of a random token, and a random address to send it to

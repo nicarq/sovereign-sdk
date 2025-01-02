@@ -8019,6 +8019,7 @@ dependencies = [
  "rand_chacha",
  "schemars",
  "serde",
+ "sha2",
  "sov-bank",
  "sov-kernels",
  "sov-mock-da",
