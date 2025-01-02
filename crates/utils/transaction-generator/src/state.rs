@@ -68,6 +68,16 @@ impl<S: Spec, Tag, T> Default for State<S, Tag, T> {
 }
 
 impl<S: Spec, Tag: Eq + Hash, T> State<S, Tag, T> {
+    /// Returns a reference to the state accounts
+    pub fn accounts(&self) -> &IndexMap<S::Address, AccountState<S, T>> {
+        &self.accounts
+    }
+
+    /// Returns a reference to the state tags
+    pub fn tags(&self) -> &HashMap<Tag, IndexSet<S::Address>> {
+        &self.tags
+    }
+
     /// Create an empty [`State`].
     pub fn new() -> Self {
         Self::default()

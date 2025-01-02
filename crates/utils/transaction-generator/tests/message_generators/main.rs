@@ -28,6 +28,7 @@ use sov_transaction_generator::interface::{MessageValidity, Percent};
 use sov_transaction_generator::{AccountState, Distribution, GeneratedMessage, State};
 use sov_value_setter::CallMessageDiscriminants as ValueSetterDiscriminants;
 
+mod bank;
 mod basic;
 mod mock_da;
 

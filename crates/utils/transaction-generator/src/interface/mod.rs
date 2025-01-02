@@ -356,6 +356,7 @@ where
                 .accounts
                 .get(address)
                 .expect("Account from secondary index must exist");
+
             Ok(Some((address.clone(), account.into())))
         } else {
             Ok(None)
@@ -405,6 +406,13 @@ where
         let private_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey =
             Arbitrary::arbitrary(u)?;
         let address: S::Address = (&private_key.pub_key()).into();
+
+        // If an account already exist with that address panic because that means our source of randomness is flawed!
+        // There is only a vanishingly small change that two randomly generated addressed are the same
+        if self.0.accounts.get(&address).is_some() {
+            panic!("The address {address:?} has already been generated. The source of randomness is broken, this is a bug.");
+        }
+
         let account = AccountState::<S, T>::with_private_key(private_key);
         self.0.accounts.insert(address.clone(), account.clone());
         Ok((address, (&account).into()))
