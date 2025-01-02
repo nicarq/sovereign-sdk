@@ -20,6 +20,10 @@ use tracing_subscriber::{registry, Layer};
 
 use crate::test_helpers::test_genesis_source;
 
+const ROLLUP_START_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+const ROLLUP_SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+const FULL_TEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
+
 struct LogCollector {
     records: Arc<Mutex<Vec<(Level, String)>>>,
 }
@@ -76,7 +80,7 @@ async fn start_stop_empty(
 
     for sleep_duration in sleep_durations {
         let test_rollup = tokio::time::timeout(
-            std::time::Duration::from_secs(30),
+            ROLLUP_START_TIMEOUT,
             RollupBuilder::<MockDemoRollup<Native>>::new(
                 test_genesis_source(operation_mode),
                 BlockProducingConfig::Periodic,
@@ -107,7 +111,7 @@ async fn start_stop_empty(
         drop(da_service);
         tracing::info!("Triggering shutdown....");
         shutdown_sender.send(())?;
-        tokio::time::timeout(std::time::Duration::from_secs(5), rollup_task)
+        tokio::time::timeout(ROLLUP_SHUTDOWN_TIMEOUT, rollup_task)
             .await
             .context("Joining rollup task failed")???;
 
@@ -119,10 +123,15 @@ async fn start_stop_empty(
     }
 
     let known = [
-        // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1878
+        // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1878 for ZK:
         (
             Level::ERROR,
             "Invalid proof outcome, Invalid(ProverPenalized(\"Prover penalized\"))".to_string(),
+        ),
+        // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1878 for Optimistic
+        (
+            Level::ERROR,
+            "Invalid proof outcome, Invalid(PreconditionNotMet(\"Transition invariant isn't respected\")".to_string(),
         ),
         (
             Level::WARN,
@@ -357,12 +366,10 @@ async fn check_with_increasing_stf_infos(
 
     let mut last_processed_slot_number = 0;
     for idx in 0..restarts {
-        let test_rollup = tokio::time::timeout(
-            std::time::Duration::from_secs(30),
-            rollup_builder.clone().start(),
-        )
-        .await
-        .with_context(|| format!("start n={} of the rollup failed", idx))??;
+        let test_rollup =
+            tokio::time::timeout(ROLLUP_START_TIMEOUT, rollup_builder.clone().start())
+                .await
+                .with_context(|| format!("start n={} of the rollup failed", idx))??;
 
         let TestRollup {
             shutdown_sender,
@@ -380,7 +387,7 @@ async fn check_with_increasing_stf_infos(
         }
 
         let slot =
-            tokio::time::timeout(std::time::Duration::from_secs(30), slot_subscription.next())
+            tokio::time::timeout(std::time::Duration::from_secs(10), slot_subscription.next())
                 .await
                 .context("waiting for next slot is failed")?
                 .transpose()?
@@ -396,7 +403,7 @@ async fn check_with_increasing_stf_infos(
         drop(slot_subscription);
         drop(da_service);
         shutdown_sender.send(())?;
-        tokio::time::timeout(std::time::Duration::from_secs(5), rollup_task)
+        tokio::time::timeout(ROLLUP_SHUTDOWN_TIMEOUT, rollup_task)
             .await
             .context("Joining rollup task failed")???;
     }
@@ -416,16 +423,19 @@ async fn try_to_clog_channel_instant_finality(operating_mode: OperatingMode) -> 
     let aggregated_proof_jump: usize = 200;
     let max_infos_in_db = 500;
 
-    check_with_increasing_stf_infos(
-        operating_mode,
-        1,
-        aggregated_proof_jump,
-        max_channel_size,
-        max_infos_in_db,
-        restarts,
-        blocks_per_start,
+    tokio::time::timeout(
+        FULL_TEST_TIMEOUT,
+        check_with_increasing_stf_infos(
+            operating_mode,
+            1,
+            aggregated_proof_jump,
+            max_channel_size,
+            max_infos_in_db,
+            restarts,
+            blocks_per_start,
+        ),
     )
-    .await
+    .await?
 }
 
 #[tokio::test(flavor = "multi_thread")]
