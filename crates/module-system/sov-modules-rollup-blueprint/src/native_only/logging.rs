@@ -24,40 +24,26 @@ pub fn initialize_logging() -> Option<OtelGuard> {
     };
 
     let get_env_filter = || EnvFilter::from_str(&env_filter).unwrap();
-    let subscriber =
-        tracing_subscriber::registry().with(fmt::layer().with_filter(get_env_filter()));
+    let mut layers = fmt::layer().with_filter(get_env_filter()).boxed();
 
-    match (cfg!(tokio_unstable), otel.as_ref()) {
-        (true, Some(otel)) => {
-            subscriber
-                .with(
-                    // See <https://github.com/tokio-rs/console?tab=readme-ov-file#using-it>.
-                    console_subscriber::spawn()
-                        .with_filter(EnvFilter::from_str("tokio=trace,runtime=trace").unwrap()),
-                )
-                .with(otel.otel_tracing_layer().with_filter(get_env_filter()))
-                .with(otel.otel_logging_layer().with_filter(get_env_filter()))
-                .init();
-        }
-        (true, None) => {
-            subscriber
-                .with(
-                    // See <https://github.com/tokio-rs/console?tab=readme-ov-file#using-it>.
-                    console_subscriber::spawn()
-                        .with_filter(EnvFilter::from_str("tokio=trace,runtime=trace").unwrap()),
-                )
-                .init();
-        }
-        (false, Some(otel)) => {
-            subscriber
-                .with(otel.otel_tracing_layer().with_filter(get_env_filter()))
-                .with(otel.otel_logging_layer().with_filter(get_env_filter()))
-                .init();
-        }
-        (false, None) => {
-            subscriber.init();
-        }
-    };
+    if cfg!(tokio_unstable) {
+        layers = layers
+            .and_then(
+                // See <https://github.com/tokio-rs/console?tab=readme-ov-file#using-it>.
+                console_subscriber::spawn()
+                    .with_filter(EnvFilter::from_str("tokio=trace,runtime=trace").unwrap()),
+            )
+            .boxed();
+    }
+
+    if let Some(otel) = otel.as_ref() {
+        layers = layers
+            .and_then(otel.otel_tracing_layer().with_filter(get_env_filter()))
+            .and_then(otel.otel_logging_layer().with_filter(get_env_filter()))
+            .boxed();
+    }
+
+    tracing_subscriber::registry().with(layers).init();
 
     log_info_about_logging(&env_filter);
     set_tracing_panic_hook();
@@ -108,6 +94,7 @@ fn log_info_about_logging(current_env_filter: &str) {
             "The Tokio debugging console will not be available; must compile with `cfg(tokio_unstable)` to enable it",
         );
     }
+
     if should_init_otlp() {
         info!("OTLP exporter is enabled");
     } else {
