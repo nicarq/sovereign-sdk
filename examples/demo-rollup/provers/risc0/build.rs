@@ -5,7 +5,7 @@ fn main() {
     println!("cargo::rerun-if-env-changed=OUT_DIR");
 
     if should_skip_guest_build() {
-        println!("Skipping risc0 guest build for CI run");
+        println!("cargo:warning=Skipping risc0 guest build");
         let out_dir = std::env::var_os("OUT_DIR").unwrap();
         let out_dir = std::path::Path::new(&out_dir);
         let methods_path = out_dir.join("methods.rs");

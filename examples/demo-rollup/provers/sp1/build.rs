@@ -15,7 +15,7 @@ fn main() {
     println!("cargo::rerun-if-env-changed=OUT_DIR");
 
     if should_skip_guest_build() {
-        println!("Skipping sp1 guest build for CI run");
+        println!("cargo:warning=Skipping sp1 guest build");
         return;
     }
 

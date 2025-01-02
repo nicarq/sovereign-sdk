@@ -160,6 +160,8 @@ test-create-token:
 	$(SOV_CLI_REL_PATH) node set-url http://127.0.0.1:12346
 	$(SOV_CLI_REL_PATH) keys import --skip-if-present --nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY --path ../test-data/keys/token_deployer_private_key.json
 	$(SOV_CLI_REL_PATH) transactions import from-file bank --chain-id 4321 --max-fee 100000000 --path ../test-data/requests/create_token.json
+	@echo "Listing transactions"
+	$(SOV_CLI_REL_PATH) transactions list
 	@echo "Submitting a batch"
 	$(SOV_CLI_REL_PATH) node submit-batch --wait-for-processing by-nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY
 

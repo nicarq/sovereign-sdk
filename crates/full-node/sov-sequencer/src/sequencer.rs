@@ -97,10 +97,13 @@ impl<Ss: SequencerSpec> Inner<Ss> {
             );
         }
 
-        Ok(SubmitBatchReceipt {
+        let receipt = SubmitBatchReceipt {
             tx_hashes,
             submit_blob_receipt,
-        })
+        };
+        tracing::debug!(?receipt, "Batch has been build and sent");
+
+        Ok(receipt)
     }
 
     async fn produce_batch(&self) -> anyhow::Result<()> {
@@ -222,6 +225,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         &self,
         txs: Vec<FullyBakedTx>,
     ) -> anyhow::Result<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>> {
+        tracing::info!("Submit batch request has been received!");
         let mut batch_builder = self.batch_builder().await;
 
         let mut accept_tx_results = vec![];
@@ -249,8 +253,6 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             accept_tx_results.push(result);
         }
 
-        tracing::info!("Submit batch request has been received!");
-
         self.inner.build_and_send_batch(&mut batch_builder).await
     }
 
@@ -267,9 +269,9 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         &self,
         baked_tx: FullyBakedTx,
     ) -> Result<AcceptedTx<<Ss::BatchBuilder as BatchBuilder>::Confirmation>, AcceptTxError> {
+        tracing::info!(tx = hex::encode(&baked_tx.data), "Accepting transaction");
         let mut batch_builder = self.batch_builder().await;
 
-        tracing::info!(tx = hex::encode(&baked_tx.data), "Accepting transaction");
         let accepted = batch_builder.accept_tx(baked_tx.clone()).await?;
         let stored_tx = SeqDbTx::new(accepted.tx_hash, baked_tx);
 

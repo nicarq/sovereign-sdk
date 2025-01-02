@@ -76,13 +76,16 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
         let nonce = <u64 as BorshDeserialize>::deserialize(buf)?;
         let details = <TxDetails<S> as BorshDeserialize>::deserialize(buf)?;
 
-        Ok(Self {
+        let this = Self {
             signature,
             pub_key,
             runtime_call,
             nonce,
             details,
-        })
+        };
+        tracing::trace!(transaction = ?this, "Deserialized transaction");
+
+        Ok(this)
     }
 }
 
