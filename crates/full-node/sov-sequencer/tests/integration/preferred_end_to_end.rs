@@ -154,9 +154,12 @@ async fn txs_below_min_fee_are_rejected() {
     else {
         panic!("Tx must have been rejected for insufficient fee");
     };
-    assert!(e
-        .to_string()
-        .contains("This transaction did not pay a sufficient net fee."));
+    let err_message = e.to_string();
+    assert!(
+        err_message.contains("This transaction did not pay a sufficient net fee."),
+        "Full error message does not contain expect part: {}",
+        err_message
+    );
 }
 
 #[should_panic] // FIXME(@neysofu)
