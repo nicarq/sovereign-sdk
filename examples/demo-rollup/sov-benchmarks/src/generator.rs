@@ -5,8 +5,8 @@ use demo_stf::runtime::{Runtime, RuntimeCall};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_address::{EthereumAddress, FromVmAddress};
+use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::prelude::arbitrary::Unstructured;
-use sov_modules_api::prelude::{arbitrary, serde_json};
 use sov_modules_api::Spec;
 use sov_transaction_generator::generators::basic::{
     BasicCallMessageFactory, BasicChangeLogEntry, BasicModuleRef, BasicTag,
@@ -20,14 +20,15 @@ type BenchmarkMessageFactory<S> = BasicCallMessageFactory<S, Runtime<S>>;
 type BenchmarkState<S> = State<S, BasicTag>;
 
 /// Default buffer size used for randomization
-pub const DEFAULT_RANDOMIZATION_BUFFER_SIZE: u64 = 1_000_000;
+pub const DEFAULT_RANDOMIZATION_BUFFER_SIZE: u64 = 10_000_000;
 
 /// Maximum amount of attempts to execute arbitrary outcomes.
 pub const MAX_GEN_ATTEMPS: u64 = 10;
 
 pub type GeneratedBatch<S> = Vec<GeneratedMessage<S, RuntimeCall<S>, BasicChangeLogEntry<S>>>;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BenchmarkSlot<S: Spec> {
     Initialization(GeneratedBatch<S>),
     Execution {
@@ -39,8 +40,8 @@ pub enum BenchmarkSlot<S: Spec> {
 /// Minimal amount of information needed to deterministically reconstruct a benchmark.
 #[derive(Clone)]
 pub struct Benchmark<S: Spec> {
-    /// A simple description of the benchmark.
-    pub description: String,
+    /// The name of the benchmark.
+    pub name: String,
     /// The module distribution used
     pub module_distribution: Distribution<BenchmarkModule<S>>,
     /// Message validity distribution
@@ -104,12 +105,16 @@ where
         &self,
         call_message_factory: &BenchmarkMessageFactory<S>,
         state: &mut BenchmarkState<S>,
+        curr_buffer_size: &mut u64,
         curr_seed: &mut u128,
-        curr_rand_buffer_size: &mut u64,
     ) -> Vec<GeneratedBatch<S>> {
         for _ in 0..MAX_GEN_ATTEMPS {
+            // TODO(@theochap): we are regenerating random bytes for every slot. This is under optimal and we
+            // may think of a way to optimize this and reuse randomness from the previous slot.
             let random_bytes =
-                rng_utils::get_random_bytes(*curr_rand_buffer_size as usize, *curr_seed);
+                rng_utils::get_random_bytes((*curr_buffer_size).try_into().unwrap(), *curr_seed);
+            *curr_seed += 1;
+
             let u = &mut Unstructured::new(&random_bytes[..]);
 
             if let Ok(messages) = self.try_generate_batch_messages(call_message_factory, state, u) {
@@ -117,20 +122,21 @@ where
             }
 
             // An arbitrary error was raised. Increase the buffer size and try again.
-            *curr_rand_buffer_size *= 10;
-            *curr_seed += 1;
-            let bytes = rng_utils::get_random_bytes(*curr_rand_buffer_size as usize, *curr_seed);
-            *u = Unstructured::new(&bytes[..]);
+            *curr_buffer_size *= 10;
         }
 
         panic!("Exceeded the maximum number of generation attemps for single call messages")
     }
 
     /// Generate benchmark messages and dump them to a buffer. Start with a [`BenchmarkSlot::Initialization`]. Then write [`BenchmarkSlot::Execution`] messages.
+    // ## TODO(@theochap):
+    // We should think of storing the hashes of the benchmarks generated, along with useful information for reproductibility to an human-readable file for integrity.
     pub fn generate_and_write_benchmark_messages<W: Write>(
         &self,
         writer: &mut BufWriter<W>,
     ) -> anyhow::Result<()> {
+        tracing::info!("Starting to generate benchmark messages");
+
         let mut curr_seed = self.initial_seed;
         let mut curr_buf_size = self.initial_randomization_buffer_size;
 
@@ -155,18 +161,20 @@ where
             state,
         ).expect("Impossible to generate setup messages, make sure that the randomization buffer size is big enough");
 
-        let data = serde_json::to_vec_pretty(&BenchmarkSlot::Initialization(setup_messages))?;
+        let data = bincode::serialize(&BenchmarkSlot::Initialization(setup_messages))?;
         writer.write_all(&data)?;
 
         for slot_number in 0..self.number_of_slots {
+            tracing::info!(slot = slot_number, "Generating benchmark messages for slot");
+
             let batches = self.generate_batch_messages(
                 &call_message_factory,
                 state,
-                &mut curr_seed,
                 &mut curr_buf_size,
+                &mut curr_seed,
             );
 
-            let data = serde_json::to_vec_pretty(&BenchmarkSlot::Execution {
+            let data = bincode::serialize(&BenchmarkSlot::Execution {
                 batches,
                 slot_number,
             })?;
@@ -180,10 +188,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::io::Seek;
+    use std::io::{BufReader, Seek};
     use std::sync::Arc;
 
-    use serde_json::Deserializer;
     use sov_modules_api::prelude::strum::IntoEnumIterator;
     use sov_test_utils::runtime::sov_bank::CallMessageDiscriminants as BankDiscriminants;
     use sov_test_utils::MockZkvm;
@@ -212,7 +219,7 @@ mod tests {
         pub const TXS_PER_BATCH: u64 = 10;
 
         let bench = Benchmark {
-            description: "This is a test benchmark".to_string(),
+            name: "This is a test benchmark".to_string(),
             module_distribution: Distribution::with_equiprobable_values(vec![bank_harness]),
             message_validity_distribution: MessageValidity::as_distribution(Percent::fifty()),
             transactions_per_batch_range: TXS_PER_BATCH..=TXS_PER_BATCH,
@@ -230,21 +237,19 @@ mod tests {
 
         temp_file.rewind().expect("Impossible to rewind");
 
-        let mut deserializer = Deserializer::from_reader(temp_file).into_iter::<BenchmarkSlot<S>>();
         let mut len = 0;
 
-        let first_slot = deserializer
-            .next()
-            .expect("Not enough data to deserialize")
-            .expect("Impossible to deserialize slot data");
+        let mut reader = BufReader::new(&mut temp_file);
+
+        let first_slot: BenchmarkSlot<_> =
+            bincode::deserialize_from::<_, BenchmarkSlot<S>>(&mut reader)
+                .expect("Impossible to deserialize slot data");
         assert!(matches!(first_slot, BenchmarkSlot::Initialization(..)));
         len += 1;
 
         // There is only 5 slots to read from but there is also the initialization
-        for next_slot in deserializer {
-            assert!(next_slot.is_ok(), "Impossible to read slot data");
-
-            match next_slot.unwrap() {
+        while let Ok(next_slot) = bincode::deserialize_from::<_, BenchmarkSlot<S>>(&mut reader) {
+            match next_slot {
                 BenchmarkSlot::Execution {
                     batches,
                     slot_number,

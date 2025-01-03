@@ -14,6 +14,10 @@ use crate::interface::{GeneratedMessage, MessageValidity};
 use crate::state::State;
 use crate::{Distribution, HarnessModule};
 
+/// The minimal amount of randomness needed to generate a call message. This value should be high enough
+/// to be able to generate a random call message.
+const MINIMUM_RANDOMNESS_CALL_MESSAGE_GEN: u64 = 11_000;
+
 /// Generates call messages for the modules passed as inputs.
 ///
 /// Each instance has its own state, which is some subset of the world state. Callers
@@ -86,6 +90,10 @@ impl<
         validity: MessageValidity,
     ) -> arbitrary::Result<GeneratedMessage<S, <RT as DispatchCall>::Decodable, ChangelogEntry>>
     {
+        if u.len() < MINIMUM_RANDOMNESS_CALL_MESSAGE_GEN.try_into().unwrap() {
+            return Err(arbitrary::Error::NotEnoughData);
+        }
+
         let module = modules.select_value(u)?;
 
         let GeneratedMessage {

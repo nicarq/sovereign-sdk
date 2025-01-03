@@ -19,6 +19,7 @@ use crate::state::{AccountState, State, TokenInfo};
 
 /// Whether a generated message should be valid or invalid.
 #[derive(strum::EnumIs, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum MessageValidity {
     #[allow(missing_docs)]
     Valid,
@@ -39,8 +40,9 @@ impl MessageValidity {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
 /// The outcome expected from the generated message
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum MessageOutcome<E> {
     /// The message should execute successfully
     Successful {
@@ -414,6 +416,7 @@ where
         }
 
         let account = AccountState::<S, T>::with_private_key(private_key);
+
         self.0.accounts.insert(address.clone(), account.clone());
         Ok((address, (&account).into()))
     }
