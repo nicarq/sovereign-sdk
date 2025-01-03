@@ -126,6 +126,25 @@ impl<S: Spec> ChainState<S> {
         )
     }
 
+    /// Returns the slot gas limit at the specified slot height for this state accessor.
+    pub fn slot_gas_limit_at<Reader: VersionReader>(
+        &self,
+        height: SlotNumber,
+        state: &mut Reader,
+    ) -> Result<Option<S::Gas>, <Reader as StateReader<Kernel>>::Error> {
+        if height == SlotNumber::GENESIS {
+            return Ok(Some(S::initial_gas_limit()));
+        }
+
+        Ok(
+            if let Some(slot_information) = self.slots.get(height, state)? {
+                Some(slot_information.gas_info.gas_limit)
+            } else {
+                None
+            },
+        )
+    }
+
     /// Returns the base fee per gas accessible at the current slot accessible from the version reader.
     /// This value is safe to be used in the transaction execution context.
     ///
@@ -140,6 +159,14 @@ impl<S: Spec> ChainState<S> {
         <Reader as StateReader<Kernel>>::Error,
     > {
         self.base_fee_per_gas_at(state.rollup_height_to_access(), state)
+    }
+
+    /// Returns the slot gas limit at the current slot accessible from the version reader.
+    pub fn slot_gas_limit<Reader: VersionReader>(
+        &self,
+        state: &mut Reader,
+    ) -> Result<Option<S::Gas>, <Reader as StateReader<Kernel>>::Error> {
+        self.slot_gas_limit_at(state.rollup_height_to_access(), state)
     }
 }
 

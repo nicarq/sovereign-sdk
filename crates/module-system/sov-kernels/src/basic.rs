@@ -101,6 +101,13 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, 
         self.chain_state.base_fee_per_gas(state).unwrap_infallible()
     }
 
+    fn slot_gas_limit(
+        &self,
+        state: &mut impl VersionReader<Error = Infallible>,
+    ) -> Option<<Self::Spec as Spec>::Gas> {
+        self.chain_state.slot_gas_limit(state).unwrap_infallible()
+    }
+
     fn current_visible_hash(
         &self,
         state: &mut sov_modules_api::KernelStateAccessor<S::Storage>,
