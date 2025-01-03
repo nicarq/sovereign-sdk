@@ -496,6 +496,7 @@ where
         for (blob_idx, (blob, sender)) in
             blob_selector_output.selected_blobs.into_iter().enumerate()
         {
+            let sender = sender.address().clone();
             match blob {
                 BlobDataWithId::Batch(batch) => {
                     #[cfg(feature = "native")]
