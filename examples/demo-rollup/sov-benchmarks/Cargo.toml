@@ -40,16 +40,17 @@ tracing = { version = "0.1.40", default-features = false }
 prettytable-rs = "^0.10"
 criterion = "0.5.1"
 borsh = { version = "1", features = ["derive"] }
+bincode = "1.3.3"
 derivative = { version = "2.2", features = ["use_core"] }
 anyhow = { version = "1.0.86" }
 serde = { version = "1.0.208", default-features = false, features = [
     "alloc",
     "derive",
 ] }
-serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 tokio = { version = "1.42", default-features = false }
 humantime = "2.1"
 hex = { version = "0.4.3" }
+clap = { version = "4.5.16", features = ["derive"] }
 tempfile = "3.12"
 strum = { version = "0.26.3", features = ["derive"] }
 # To keep compatiblity with rust 1.79
@@ -64,3 +65,9 @@ harness = false
 name = "rollup_coarse_measure"
 path = "src/node/rollup_coarse_measure.rs"
 harness = false
+
+[[bin]]
+name = "bench_generator"
+path = "src/bench_files/bench_generator.rs"
+harness = false
+test = false

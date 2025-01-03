@@ -175,6 +175,7 @@ impl<S: Spec> BankMessageGenerator<S> {
 
 /// A complete description of any possible state change created by the bank message generator.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BankChangeLogEntry<S: Spec> {
     /// The balance of an address changed
     BalanceChanged {

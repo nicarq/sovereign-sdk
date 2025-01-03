@@ -88,6 +88,12 @@ pub mod private_key {
                 // it is important to generate the secret deterministically from the arbitrary argument
                 // so keys and signatures will be reproducible for a given seed.
                 // this unlocks fuzzy replay
+
+                // to generate the seed, we need to make sure there is at least 32 bytes left in the buffer.
+                if u.len() < 32 {
+                    return Err(arbitrary::Error::NotEnoughData);
+                }
+
                 let seed = <[u8; 32]>::arbitrary(u)?;
                 let rng = &mut StdRng::from_seed(seed);
                 let key_pair = SigningKey::new(rng);

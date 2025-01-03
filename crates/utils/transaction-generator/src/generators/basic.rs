@@ -38,6 +38,7 @@ pub enum BasicTag {
 
 /// The set of change log entries supported by the [`BasicCallMessageFactory`].
 #[derive(Clone, Debug, derive_more::From, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BasicChangeLogEntry<S: Spec> {
     /// Changes from the bank module
     Bank(BankChangeLogEntry<S>),
