@@ -38,6 +38,12 @@ pub trait ChainState {
         state: &mut impl VersionReader<Error = Infallible>,
     ) -> Option<<<Self::Spec as Spec>::Gas as Gas>::Price>;
 
+    /// Returns the slot gas limit accessible at the current *virtual* slot.
+    fn slot_gas_limit(
+        &self,
+        state: &mut impl VersionReader<Error = Infallible>,
+    ) -> Option<<Self::Spec as Spec>::Gas>;
+
     /// Returns the visible root hash accessible at the current *visible* rollup height
     ///
     /// ## Note
