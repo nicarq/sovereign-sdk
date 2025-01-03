@@ -10,7 +10,7 @@ use serde_with::serde_as;
 use sov_blob_storage::PreferredBatchData;
 use sov_db::sequencer_db::SeqDbTx;
 use sov_modules_api::capabilities::{
-    BlobSelector, BlobSelectorOutput, HasKernel, TransactionAuthenticator,
+    BlobSelector, BlobSelectorOutput, HasKernel, SequencerType, TransactionAuthenticator,
 };
 use sov_modules_api::rest::ApiState;
 use sov_modules_api::{
@@ -44,7 +44,7 @@ type AsyncBlobAndSender<Z> = (
             <Z as RtAwareBatchBuilderSpec>::Spec,
         >,
     >,
-    <<<Z as RtAwareBatchBuilderSpec>::Spec as Spec>::Da as DaSpec>::Address,
+    SequencerType<<Z as RtAwareBatchBuilderSpec>::Spec>,
 );
 
 type TxResult<Z> = Result<
@@ -489,7 +489,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
                     minimum_profit_per_tx,
                     admin_addresses,
                 )),
-                sequencer_address,
+                SequencerType::Preferred(sequencer_address),
             )];
             selected_blobs.extend(additional_blobs);
             let blob_selector_output = BlobSelectorOutput {

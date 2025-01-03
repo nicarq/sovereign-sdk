@@ -4,6 +4,7 @@ mod capabilities;
 mod max_size_checker;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use sov_modules_api::capabilities::SequencerType;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
@@ -14,10 +15,7 @@ use sov_modules_api::{
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::codec::BcsCodec;
 
-type BlobAndSender<S> = (
-    BlobDataWithId<BatchWithId>,
-    <<S as Spec>::Da as DaSpec>::Address,
-);
+type BlobAndSender<S> = (BlobDataWithId<BatchWithId>, SequencerType<S>);
 
 /// For how many slots deferred blobs are stored before being executed
 pub fn config_deferred_slots_count() -> u64 {
@@ -46,7 +44,14 @@ pub struct BlobStorage<S: Spec> {
     /// Caller controls the order of blobs in the vector
     #[state]
     #[allow(clippy::type_complexity)]
-    pub(crate) deferred_blobs: KernelStateMap<u64, Vec<BlobAndSender<S>>, BcsCodec>,
+    pub(crate) deferred_blobs: KernelStateMap<
+        u64,
+        Vec<(
+            BlobDataWithId<BatchWithId>,
+            <<S as Spec>::Da as DaSpec>::Address,
+        )>,
+        BcsCodec,
+    >,
 
     /// Any preferred sequencer blobs which were received out of order. Mapped from sequence number to batch.
     #[state]
@@ -70,7 +75,10 @@ impl<S: Spec> BlobStorage<S> {
     pub fn store_batches(
         &self,
         rollup_height: SlotNumber,
-        batches: &[BlobAndSender<S>],
+        batches: &[(
+            BlobDataWithId<BatchWithId>,
+            <<S as Spec>::Da as DaSpec>::Address,
+        )],
         state: &mut impl InfallibleKernelStateAccessor,
     ) {
         self.deferred_blobs
@@ -84,7 +92,10 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         slot_height: SlotNumber,
         state: &mut impl InfallibleKernelStateAccessor,
-    ) -> Vec<BlobAndSender<S>> {
+    ) -> Vec<(
+        BlobDataWithId<BatchWithId>,
+        <<S as Spec>::Da as DaSpec>::Address,
+    )> {
         self.deferred_blobs
             .remove(&slot_height.get(), state)
             .unwrap_infallible()

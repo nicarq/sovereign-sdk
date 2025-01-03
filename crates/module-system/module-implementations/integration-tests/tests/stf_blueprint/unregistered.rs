@@ -128,6 +128,7 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
 #[test]
 #[serial]
 fn execute_seq_registration_success_test() {
+    reset_constants();
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![TxStatus::Success, TxStatus::Success];
     check_unreg_txs(tx_statuses, priority_fee_bips);
@@ -137,6 +138,7 @@ fn execute_seq_registration_success_test() {
 #[test]
 #[serial]
 fn execute_seq_registration_failure_test() {
+    reset_constants();
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![
         TxStatus::OutOfGas,
@@ -155,6 +157,7 @@ fn execute_seq_registration_failure_test() {
 #[test]
 #[serial]
 fn blob_too_expensive_tests() {
+    reset_constants();
     // Set the max amount of gas to be spent on a single blob to a very small value
     env::set_var(
         "SOV_SDK_CONST_OVERRIDE_MAX_UNREGISTERED_SEQUENCER_EXEC_GAS_PER_TX",
@@ -184,6 +187,7 @@ fn blob_too_expensive_tests() {
 #[test]
 #[serial]
 fn blob_test_max_slot_size() {
+    reset_constants();
     env::set_var(
         "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE",
         "1",
@@ -211,6 +215,7 @@ fn blob_test_max_slot_size() {
 #[test]
 #[serial]
 fn blob_test_max_allowed_data_size() {
+    reset_constants();
     env::set_var(
         "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE",
         "1",
@@ -420,4 +425,21 @@ mod helpers {
         let tx_blob = borsh::to_vec(&raw_tx).unwrap();
         MockBlob::new_with_hash(tx_blob, da_address)
     }
+}
+
+fn reset_constants() {
+    env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE",
+        "10000000",
+    );
+
+    env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE",
+        "10000000",
+    );
+
+    env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_MAX_UNREGISTERED_SEQUENCER_EXEC_GAS_PER_TX",
+        "[10000000,10000000]",
+    );
 }
