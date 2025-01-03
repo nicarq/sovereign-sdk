@@ -144,7 +144,7 @@ impl EventMacro {
 
         let impl_runtime_event_module_name = quote::quote! {
             #[automatically_derived]
-            impl #impl_generics ::sov_modules_api::EventModuleName for #event_enum_name #type_generics {
+            impl #impl_generics ::sov_modules_api::EventModuleName for #event_enum_name #type_generics #where_clause {
                 fn module_name(&self) -> &'static str {
                     match self {
                         #(#from_event_cases),*
@@ -155,7 +155,7 @@ impl EventMacro {
 
         let impl_runtime_event_processor = quote::quote! {
             #[automatically_derived]
-            impl #impl_generics ::sov_modules_api::RuntimeEventProcessor for #ident_name #type_generics {
+            impl #impl_generics ::sov_modules_api::RuntimeEventProcessor for #ident_name #type_generics #where_clause {
                 type RuntimeEvent = #event_enum_name #type_generics;
 
                 fn convert_to_runtime_event(
