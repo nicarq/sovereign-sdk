@@ -26,7 +26,9 @@ macro_rules! generate_bare_runtime {
             ::sov_modules_api::macros::CliWallet,
             ::sov_modules_api::macros::RuntimeRestApi,
         )]
-        pub struct $id<S: ::sov_modules_api::Spec> {
+        pub struct $id<S: ::sov_modules_api::Spec>  where
+        $($runtime_trait_impl_bounds)*
+    {
             /// The sequencer registry module.
             pub sequencer_registry: $crate::runtime::SequencerRegistry<S>,
             /// The bank module.
@@ -49,13 +51,18 @@ macro_rules! generate_bare_runtime {
             ),*
         }
 
-        impl<S: ::sov_modules_api::Spec> $crate::runtime::traits::MinimalGenesis<S> for $id<S> {
+        impl<S: ::sov_modules_api::Spec> $crate::runtime::traits::MinimalGenesis<S> for $id<S>
+            where
+            $($runtime_trait_impl_bounds)*
+        {
             fn sequencer_registry_config(config: &GenesisConfig<S>) -> &<$crate::runtime::SequencerRegistry<S> as ::sov_modules_api::Genesis>::Config {
                 &config.sequencer_registry
             }
         }
 
-        impl<S: ::sov_modules_api::Spec> GenesisConfig<S> {
+        impl<S: ::sov_modules_api::Spec> GenesisConfig<S> where
+            $($runtime_trait_impl_bounds)*
+        {
             #[allow(unused)]
             /// Creates a new [`GenesisConfig`] from a minimal genesis config [`::sov_modules_api::Genesis::Config`].
             pub fn from_minimal_config(minimal_config: $minimal_genesis_config_ty,
@@ -78,6 +85,8 @@ macro_rules! generate_bare_runtime {
         }
 
         impl<S: ::sov_modules_api::Spec> GenesisConfig<S>
+        where
+            $($runtime_trait_impl_bounds)*
         {
             #[allow(unused)]
             /// Creates a [`$crate::runtime::GenesisParams`] from a [`GenesisConfig`].
@@ -121,6 +130,7 @@ macro_rules! generate_bare_runtime {
 
         impl<S> ::sov_modules_api::capabilities::HasCapabilities<S> for $id<S> where
             S: ::sov_modules_api::Spec,
+            $($runtime_trait_impl_bounds)*
         {
             type Capabilities<'a> = $crate::runtime::StandardProvenRollupCapabilities<'a, S , $gas_enforcer_ty>;
 
@@ -144,6 +154,7 @@ macro_rules! generate_bare_runtime {
 
         impl<S> sov_modules_api::capabilities::HasKernel<S> for $id<S> where
             S: ::sov_modules_api::Spec,
+            $($runtime_trait_impl_bounds)*
         {
             type BlobType = sov_modules_api::BlobDataWithId;
             type Kernel<'a> = $kernel_type;

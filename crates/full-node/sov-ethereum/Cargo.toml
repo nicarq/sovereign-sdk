@@ -18,6 +18,7 @@ workspace = true
 tracing = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 sov-rollup-interface = { workspace = true, features = ["native"] }
+sov-address = { workspace = true, features = ["evm"] }
 
 sov-evm = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["native"] }

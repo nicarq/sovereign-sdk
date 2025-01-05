@@ -39,6 +39,7 @@ serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 
 [build-dependencies]
 prettyplease = "0.2.22"
+sov-address = { path = "../../../../crates/module-system/sov-address", features = ["evm"] }
 progenitor = { version = "0.8" }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 syn = "2.0"

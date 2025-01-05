@@ -124,6 +124,7 @@ sov-modules-api = { path = "../../crates/module-system/sov-modules-api" }
 sov-mock-zkvm = { path = "../../crates/adapters/mock-zkvm", features = ["native"] }
 sov-mock-da = { path = "../../crates/adapters/mock-da", features = ["native"] }
 demo-stf = { path = "./stf", features = ["native"] }
+sov-address = { path = "../../crates/module-system/sov-address", features = ["evm"] }
 
 [features]
 default = []

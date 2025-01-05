@@ -10,6 +10,8 @@ use reth_primitives::revm_primitives::{
 use reth_primitives::{TransactionSignedEcRecovered, U64};
 use reth_rpc_eth_types::{EthApiError, RevertError, RpcInvalidTransactionError};
 use reth_rpc_types::{ReceiptEnvelope, ReceiptWithBloom};
+use revm::Database;
+use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::macros::{config_value, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{ApiStateAccessor, InfallibleStateAccessor, Spec};
@@ -27,7 +29,10 @@ use crate::{Evm, MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
 pub(crate) mod error;
 
 #[rpc_gen(client, server)]
-impl<S: Spec> Evm<S> {
+impl<S: Spec> Evm<S>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     /// Handler for `net_version`
     #[rpc_method(name = "net_version")]
     pub fn net_version(&self, state: &mut ApiStateAccessor<S>) -> RpcResult<String> {
@@ -158,10 +163,10 @@ impl<S: Spec> Evm<S> {
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/951
 
         let balance = self
-            .accounts
-            .get(&address, state)
+            .get_db(state)
+            .basic(address)
             .unwrap_infallible()
-            .map(|account| account.info.balance)
+            .map(|account| account.balance)
             .unwrap_or_default();
 
         debug!(
@@ -209,10 +214,10 @@ impl<S: Spec> Evm<S> {
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/882
 
         let nonce = self
-            .accounts
-            .get(&address, state)
+            .get_db(state)
+            .basic(address)
             .unwrap_infallible()
-            .map(|account| account.info.nonce)
+            .map(|account| account.nonce)
             .unwrap_or_default();
 
         debug!(%address, nonce, "EVM module JSON-RPC request to `eth_getTransactionCount`");
@@ -386,7 +391,7 @@ impl<S: Spec> Evm<S> {
         let cfg = self.cfg.get(state).unwrap_infallible().unwrap_or_default();
         let cfg_env = get_cfg_env_with_handler(&block_env, cfg, Some(get_cfg_env_template()));
 
-        let evm_db: EvmDb<_> = self.get_db(state);
+        let evm_db: EvmDb<_, S> = self.get_db(state);
 
         let result = match executor::inspect(evm_db, &block_env, tx_env, cfg_env) {
             Ok(result) => result.result,
@@ -731,12 +736,15 @@ pub(crate) fn build_rpc_receipt(
     }
 }
 
-fn map_out_of_gas_err<Ws: InfallibleStateAccessor>(
+fn map_out_of_gas_err<Ws: InfallibleStateAccessor, S: Spec>(
     block_env: BlockEnv,
     mut tx_env: TxEnv,
     cfg_env_with_handler: CfgEnvWithHandlerCfg,
-    db: EvmDb<Ws>,
-) -> EthApiError {
+    db: EvmDb<Ws, S>,
+) -> EthApiError
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     let req_gas_limit = tx_env.gas_limit;
     tx_env.gas_limit = block_env.gas_limit.to();
     let res = executor::inspect(db, &block_env, tx_env, cfg_env_with_handler).unwrap();

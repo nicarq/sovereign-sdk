@@ -4,15 +4,18 @@ use reth_primitives::B256;
 use reth_rpc_eth_types::EthResult;
 use reth_rpc_types::{Block, Rich};
 use schnellru::{ByLength, LruMap};
+use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::ApiStateAccessor;
-
 /// Block cache for gas oracle
 pub struct BlockCache<S: sov_modules_api::Spec> {
     cache: Mutex<LruMap<B256, Rich<Block>, ByLength>>,
     provider: sov_evm::Evm<S>,
 }
 
-impl<S: sov_modules_api::Spec> BlockCache<S> {
+impl<S: sov_modules_api::Spec> BlockCache<S>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     pub fn new(max_size: u32, provider: sov_evm::Evm<S>) -> Self {
         Self {
             cache: Mutex::new(LruMap::new(ByLength::new(max_size))),

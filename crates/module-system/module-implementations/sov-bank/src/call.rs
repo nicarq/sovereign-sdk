@@ -307,6 +307,26 @@ impl<S: Spec> Bank<S> {
         Ok(())
     }
 
+    /// Insecure function to override the balance of an address for the gas token.
+    /// This should only be used in VMs where the underlying transfers are black boxed (i.e. we trust the VM).
+    pub fn override_gas_balance<Accessor: StateAccessor>(
+        &self,
+        balance: u64,
+        address: impl Payable<S>,
+        state: &mut Accessor,
+    ) -> Result<(), <Accessor as StateReader<User>>::Error> {
+        let token = self
+            .tokens
+            .get(&crate::config_gas_token_id(), state)?
+            .expect("Gas token not found");
+
+        token
+            .balances
+            .set(&address.as_token_holder(), &balance, state)?;
+
+        Ok(())
+    }
+
     /// Tries to freeze the token ID `token_id`.
     /// Returns an error if the token ID doesn't exist,
     /// otherwise calls the [`Token::freeze`] function, and update the token set upon success.

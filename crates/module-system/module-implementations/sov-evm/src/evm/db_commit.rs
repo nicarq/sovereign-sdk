@@ -1,12 +1,18 @@
 use reth_primitives::revm_primitives::{Account, Address, HashMap};
+use reth_primitives::U256;
 use revm::DatabaseCommit;
+use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::InfallibleStateAccessor;
+use sov_modules_api::{InfallibleStateAccessor, Spec};
 
 use super::db::EvmDb;
 use super::DbAccount;
+use crate::to_rollup_address;
 
-impl<Ws: InfallibleStateAccessor> DatabaseCommit for EvmDb<Ws> {
+impl<Ws: InfallibleStateAccessor, S: Spec> DatabaseCommit for EvmDb<Ws, S>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     fn commit(&mut self, mut changes: HashMap<Address, Account>) {
         // Cloned to release borrow
         let mut addresses: Vec<_> = changes.keys().cloned().collect();
@@ -31,7 +37,19 @@ impl<Ws: InfallibleStateAccessor> DatabaseCommit for EvmDb<Ws> {
                 .unwrap_infallible()
                 .unwrap_or_else(|| DbAccount::new(accounts_prefix, address));
 
-            let account_info = account.info;
+            let mut account_info = account.info;
+            let rollup_address: <S as Spec>::Address = to_rollup_address::<S>(address);
+
+            self.bank_module
+                .override_gas_balance(
+                    account_info.balance.try_into().unwrap(),
+                    &rollup_address,
+                    &mut self.state,
+                )
+                .unwrap_infallible();
+
+            // Set the EVM account balance to 0 - as balances are stored in the bank module.
+            account_info.balance = U256::ZERO;
 
             if let Some(ref code) = account_info.code {
                 if !code.is_empty() {

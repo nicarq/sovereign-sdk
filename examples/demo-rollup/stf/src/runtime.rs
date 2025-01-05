@@ -51,7 +51,10 @@ mod __generated {
 /// The `demo-stf runtime`.
 #[derive(Default, Genesis, Hooks, DispatchCall, Event, MessageCodec, RuntimeRestApi)]
 #[cfg_attr(feature = "native", derive(CliWallet), expose_rpc)]
-pub struct Runtime<S: Spec> {
+pub struct Runtime<S: Spec>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     /// The Bank module.
     pub bank: sov_bank::Bank<S>,
     /// The Sequencer Registry module.
@@ -127,7 +130,10 @@ where
     }
 }
 
-impl<S: Spec> HasCapabilities<S> for Runtime<S> {
+impl<S: Spec> HasCapabilities<S> for Runtime<S>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     type Capabilities<'a> = StandardCapabilities<'a, S, sov_paymaster::Paymaster<S>>;
     type AuthorizationData = AuthorizationData<S>;
     fn capabilities(&self) -> Guard<Self::Capabilities<'_>> {
@@ -143,7 +149,10 @@ impl<S: Spec> HasCapabilities<S> for Runtime<S> {
     }
 }
 
-impl<S: Spec> HasKernel<S> for Runtime<S> {
+impl<S: Spec> HasKernel<S> for Runtime<S>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     type BlobType = BlobDataWithId;
     type Kernel<'a> = SoftConfirmationsKernel<'a, S>;
 

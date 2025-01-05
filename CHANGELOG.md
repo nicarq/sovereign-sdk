@@ -1,3 +1,6 @@
+## 2025-01-04
+- #2137 introduces the FromVmAddress trait bounds to demo-rollup (which includes an EVM module), allowing EVM transactions to be submitted natively from EVM addresses—without requiring the registration of EVM addresses as credentials.
+
 ## 2025-01-03
 - #2120 adds benchmark generation capabilities to `sov-benchmark` through a CLI. This is not a breaking change for customers of the SDK.
 

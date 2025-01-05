@@ -19,6 +19,7 @@ use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, B256, U256};
 use reth_rpc_eth_types::EthApiError;
 pub use reth_rpc_eth_types::GasPriceOracleConfig;
+use sov_address::{EthereumAddress, FromVmAddress};
 pub use sov_evm::EthereumAuthenticator;
 use sov_evm::{convert_to_transaction_signed, Evm, RlpEvmTransaction};
 use sov_modules_api::{ApiStateAccessor, RawTx, StateCheckpoint};
@@ -45,7 +46,10 @@ pub fn get_ethereum_rpc<
     da_service: Da,
     eth_rpc_config: EthRpcConfig,
     state_update: StateUpdateReceiver<S::Storage>,
-) -> RpcModule<Ethereum<S, Da, RT>> {
+) -> RpcModule<Ethereum<S, Da, RT>>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     // Unpack config
     let EthRpcConfig {
         min_blob_size,
@@ -88,6 +92,8 @@ impl<
         Da: DaService,
         RT: EthereumAuthenticator<S> + HasKernel<S> + Default,
     > Ethereum<S, Da, RT>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
 {
     fn new(
         da_service: Da,
@@ -223,7 +229,10 @@ fn register_rpc_methods<
     RT: HasKernel<S> + EthereumAuthenticator<S> + Default + Send + Sync + 'static,
 >(
     rpc: &mut RpcModule<Ethereum<S, Da, RT>>,
-) -> Result<(), jsonrpsee::core::client::Error> {
+) -> Result<(), jsonrpsee::core::client::Error>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     rpc.register_async_method("eth_gasPrice", |_, ethereum, _| async move {
         let price = {
             let runtime = RT::default();

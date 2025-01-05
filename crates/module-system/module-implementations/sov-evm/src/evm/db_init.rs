@@ -1,7 +1,7 @@
 use reth_primitives::revm_primitives::{AccountInfo, Address, B256};
 use reth_primitives::Bytes;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::InfallibleStateAccessor;
+use sov_modules_api::{InfallibleStateAccessor, Spec};
 
 use super::db::EvmDb;
 use super::DbAccount;
@@ -12,7 +12,7 @@ pub(crate) trait InitEvmDb {
     fn insert_code(&mut self, code_hash: B256, code: Bytes);
 }
 
-impl<Accessor: InfallibleStateAccessor> InitEvmDb for EvmDb<Accessor> {
+impl<Ws: InfallibleStateAccessor, S: Spec> InitEvmDb for EvmDb<Ws, S> {
     fn insert_account_info(&mut self, sender: Address, info: AccountInfo) {
         let parent_prefix = self.accounts.prefix();
         let db_account = DbAccount::new_with_info(parent_prefix, sender, info);

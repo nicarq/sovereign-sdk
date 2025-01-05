@@ -2,6 +2,7 @@ use reth_primitives::revm_primitives::{
     Address, BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, EVMError, HandlerCfg,
 };
 use reth_primitives::{Log as RethLog, TransactionSigned};
+use sov_address::{EthereumAddress, FromVmAddress};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{Context, Spec, TxState};
@@ -31,7 +32,10 @@ pub struct CallMessage {
     pub rlp: RlpEvmTransaction,
 }
 
-impl<S: Spec> Evm<S> {
+impl<S: Spec> Evm<S>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     pub(crate) fn execute_call(
         &self,
         message: CallMessage,
@@ -60,7 +64,7 @@ impl<S: Spec> Evm<S> {
         let cfg = self.cfg.get(state)?.expect("Evm config must be set");
         let cfg_env = get_cfg_env_with_handler(&block_env, cfg, None);
 
-        let evm_db: EvmDb<_> = self.get_db(state);
+        let evm_db: EvmDb<_, S> = self.get_db(state);
         let result = executor::execute_tx(evm_db, &block_env, &evm_tx, signer, cfg_env);
 
         let previous_transaction = self.pending_transactions.last(state)?;

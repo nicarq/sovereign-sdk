@@ -19,7 +19,7 @@ use sov_rollup_interface::zk::{CryptoSpec, Proof, Zkvm};
 use crate::crypto::{Ed25519PublicKey, Ed25519Signature};
 
 /// The cryptographic primitives provided for general purpose use.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Copy, schemars::JsonSchema)]
 pub struct MockZkvmCryptoSpec;
 
 impl CryptoSpec for MockZkvmCryptoSpec {

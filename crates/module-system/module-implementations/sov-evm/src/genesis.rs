@@ -4,13 +4,15 @@ use anyhow::Result;
 use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_ROOT_HASH, EMPTY_TRANSACTIONS};
 use reth_primitives::revm_primitives::{AccountInfo, Address, SpecId, B256, U256};
 use reth_primitives::{Bloom, Bytes, EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY};
+use sov_address::{EthereumAddress, FromVmAddress};
+use sov_bank::config_gas_token_id;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::{GenesisState, Module, Spec};
 
 use crate::evm::db_init::InitEvmDb;
 use crate::evm::primitive_types::Block;
 use crate::evm::EvmChainConfig;
-use crate::Evm;
+use crate::{to_rollup_address, Evm};
 
 /// Evm account.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
@@ -81,15 +83,37 @@ impl Default for EvmConfig {
     }
 }
 
-impl<S: Spec> Evm<S> {
+impl<S: Spec> Evm<S>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     pub(crate) fn init_module(
         &self,
         config: &<Self as Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
-        let mut evm_db = self.get_db(state);
+        for mut acc in config.data.clone() {
+            let rollup_address: <S as Spec>::Address = to_rollup_address::<S>(acc.address);
+            let bank_balance =
+                self.bank_module
+                    .get_balance_of(&rollup_address, config_gas_token_id(), state)?;
 
-        for acc in &config.data {
+            debug_assert!(
+                !(acc.balance != U256::ZERO && bank_balance.is_some()),
+                "EVM account balance can only be set from one genesis config to avoid conflicts. 
+                Choose either the Bank or the EVM module genesis config."
+            );
+
+            if acc.balance != U256::ZERO {
+                self.bank_module.override_gas_balance(
+                    acc.balance.try_into().unwrap(),
+                    &rollup_address,
+                    state,
+                )?;
+                acc.balance = U256::ZERO;
+            }
+
+            let mut evm_db = self.get_db(state);
             evm_db.insert_account_info(
                 acc.address,
                 AccountInfo {
