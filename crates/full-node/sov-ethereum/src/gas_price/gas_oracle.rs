@@ -8,6 +8,7 @@ use reth_rpc_eth_types::{
     EthApiError, EthResult, GasPriceOracleConfig, GasPriceOracleResult, RpcInvalidTransactionError,
 };
 use reth_rpc_types::BlockTransactions;
+use sov_address::{EthereumAddress, FromVmAddress};
 use sov_evm::Evm;
 use sov_modules_api::ApiStateAccessor;
 use tokio::sync::Mutex;
@@ -33,7 +34,10 @@ pub struct GasPriceOracle<S: sov_modules_api::Spec> {
     cache: BlockCache<S>,
 }
 
-impl<S: sov_modules_api::Spec> GasPriceOracle<S> {
+impl<S: sov_modules_api::Spec> GasPriceOracle<S>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     /// Creates and returns the [`GasPriceOracle`].
     pub fn new(provider: Evm<S>, mut oracle_config: GasPriceOracleConfig) -> Self {
         // sanitize the percentile to be less than 100

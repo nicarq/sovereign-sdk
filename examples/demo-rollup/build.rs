@@ -5,14 +5,15 @@ use std::process::{Command, ExitStatus};
 
 use demo_stf::runtime::{Runtime, RuntimeCall};
 use sov_mock_da::MockDaSpec;
-use sov_mock_zkvm::MockZkvm;
+use sov_mock_zkvm::{MockZkvm, MockZkvmCryptoSpec};
+use sov_address::MultiAddressEvm;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::schemars::schema_for;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_universal_wallet::schema::Schema;
 
-type S = sov_modules_api::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
+type S = sov_modules_api::configurable_spec::ConfigurableSpec<MockDaSpec, MockZkvm, MockZkvm, MockZkvmCryptoSpec, MultiAddressEvm, Native>;
 
 fn main() -> io::Result<()> {
     println!("cargo::rerun-if-env-changed=SKIP_GUEST_BUILD");

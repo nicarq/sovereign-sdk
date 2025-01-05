@@ -2,6 +2,7 @@ use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{TxKind, U256};
 use reth_rpc_eth_types::EthApiError;
+use sov_address::{EthereumAddress, FromVmAddress};
 use sov_evm::{EthereumAuthenticator, Evm, RlpEvmTransaction};
 use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::macros::config_value;
@@ -20,7 +21,10 @@ pub(crate) fn register_signer_rpc_methods<
     RT: EthereumAuthenticator<S> + HasKernel<S> + Default + Send + Sync + 'static,
 >(
     rpc: &mut RpcModule<Ethereum<S, Da, RT>>,
-) -> Result<(), jsonrpsee::core::client::Error> {
+) -> Result<(), jsonrpsee::core::client::Error>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     rpc.register_async_method("eth_accounts", |_parameters, ethereum, _| async move {
         Ok::<_, ErrorObjectOwned>(ethereum.eth_signer.signers())
     })?;
@@ -86,7 +90,10 @@ fn to_typed_transaction_request<S: sov_modules_api::Spec>(
     transaction_request: reth_rpc_types::TransactionRequest,
     evm: &Evm<S>,
     state: &mut ApiStateAccessor<S>,
-) -> Result<reth_rpc_types::TypedTransactionRequest, ErrorObjectOwned> {
+) -> Result<reth_rpc_types::TypedTransactionRequest, ErrorObjectOwned>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     let chain_id = evm
         .chain_id(state)
         .expect("Failed to get chain id")

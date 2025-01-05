@@ -5,8 +5,9 @@
 use alloy_eips::eip1559::BaseFeeParams;
 use reth_primitives::revm_primitives::{AccountInfo, Address, SpecId, U256};
 use serde::{Deserialize, Serialize};
+use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::macros::config_value;
-use sov_modules_api::{StateMap, StateReader};
+use sov_modules_api::{Spec, StateMap, StateReader};
 use sov_state::{Prefix, User};
 
 pub(crate) mod conversions;
@@ -108,4 +109,11 @@ impl Default for EvmChainConfig {
             base_fee_params: BaseFeeParams::ethereum(),
         }
     }
+}
+
+pub(crate) fn to_rollup_address<S: Spec>(address: reth_primitives::Address) -> S::Address
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
+    S::Address::from_vm_address(EthereumAddress::from(address))
 }

@@ -29,7 +29,10 @@ pub type GeneratedBatch<S> = Vec<GeneratedMessage<S, RuntimeCall<S>, BasicChange
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum BenchmarkSlot<S: Spec> {
+pub enum BenchmarkSlot<S: Spec>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     Initialization(GeneratedBatch<S>),
     Execution {
         batches: Vec<GeneratedBatch<S>>,
@@ -39,7 +42,10 @@ pub enum BenchmarkSlot<S: Spec> {
 
 /// Minimal amount of information needed to deterministically reconstruct a benchmark.
 #[derive(Clone)]
-pub struct Benchmark<S: Spec> {
+pub struct Benchmark<S: Spec>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     /// The name of the benchmark.
     pub name: String,
     /// The module distribution used

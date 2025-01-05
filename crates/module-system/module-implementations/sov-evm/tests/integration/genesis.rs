@@ -5,6 +5,7 @@ use reth_primitives::constants::{
 use reth_primitives::{
     Address, Bloom, Bytes, Header, B256, EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY, U256,
 };
+use revm::Database;
 use sov_evm::{AccountData, Evm, EvmChainConfig, EvmConfig, SpecId};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
@@ -20,10 +21,10 @@ fn test_genesis_data() {
     runner.query_visible_state(move |state| {
         let evm = Evm::<S>::default();
         let account = &cfg.data[0];
-        let db_account = evm.get_account(&account.address, state).unwrap().unwrap();
+        let account_info = evm.get_db(state).basic(account.address).unwrap().unwrap();
 
         assert_eq!(
-            db_account.account_info(),
+            &account_info,
             &reth_primitives::revm_primitives::AccountInfo {
                 balance: account.balance,
                 code_hash: account.code_hash,

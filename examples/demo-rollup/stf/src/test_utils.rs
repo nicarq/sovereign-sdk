@@ -12,10 +12,14 @@ use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::genesis::zk::MinimalZkGenesisConfig;
 use sov_test_utils::runtime::traits::MinimalGenesis;
 use sov_value_setter::ValueSetter;
+use sov_address::{EthereumAddress, FromVmAddress};
 
 use crate::runtime::{GenesisConfig, Runtime};
 
-impl<S: Spec> MinimalGenesis<S> for Runtime<S> {
+impl<S: Spec> MinimalGenesis<S> for Runtime<S>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     /// Returns a reference to the sequencer registry config.
     fn sequencer_registry_config(
         config: &Self::Config,
@@ -24,7 +28,10 @@ impl<S: Spec> MinimalGenesis<S> for Runtime<S> {
     }
 }
 
-impl<S: Spec> GenesisConfig<S> {
+impl<S: Spec> GenesisConfig<S>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     /// Creates a new [`GenesisConfig`] from a minimal genesis config [`::sov_modules_api::Genesis::Config`].
     pub fn from_minimal_config(
         minimal_config: MinimalZkGenesisConfig<S>,
@@ -48,7 +55,10 @@ impl<S: Spec> GenesisConfig<S> {
     }
 }
 
-impl<S: Spec> GenesisConfig<S> {
+impl<S: Spec> GenesisConfig<S>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     /// Creates a [`$crate::runtime::GenesisParams`] from a [`GenesisConfig`].
     pub fn into_genesis_params(self) -> GenesisParams<Self> {
         GenesisParams { runtime: self }

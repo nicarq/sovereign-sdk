@@ -28,6 +28,7 @@ pub use authenticate::{authenticate, decode_evm_tx, EthereumAuthenticator};
 pub use reth_primitives::revm_primitives::SpecId;
 use reth_primitives::revm_primitives::{Address, BlockEnv, B256};
 pub use reth_primitives::TransactionSigned;
+use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::prelude::UnwrapInfallible as _;
 use sov_modules_api::{
     AccessoryStateMap, AccessoryStateReader, AccessoryStateReaderAndWriter, AccessoryStateValue,
@@ -114,6 +115,10 @@ pub struct Evm<S: Spec> {
     #[state]
     pub(crate) transaction_hashes: AccessoryStateMap<B256, u64, BcsCodec>,
 
+    /// A reference to the Bank module.
+    #[module]
+    pub(crate) bank_module: sov_bank::Bank<S>,
+
     /// Used only by the RPC: Receipts.
     #[state]
     pub(crate) receipts: AccessoryStateVec<Receipt, BcsCodec>,
@@ -122,7 +127,10 @@ pub struct Evm<S: Spec> {
     phantom: core::marker::PhantomData<S>,
 }
 
-impl<S: Spec> Module for Evm<S> {
+impl<S: Spec> Module for Evm<S>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
     type Spec = S;
 
     type Config = EvmConfig;
@@ -156,12 +164,13 @@ impl<S: Spec> Evm<S> {
     pub fn get_db<'a, Ws: StateAccessor>(
         &self,
         state: &'a mut Ws,
-    ) -> EvmDb<UnmeteredStateWrapper<'a, Ws>> {
+    ) -> EvmDb<UnmeteredStateWrapper<'a, Ws>, S> {
         let infallible_state_accessor = state.to_unmetered();
         EvmDb::new(
             self.accounts.clone(),
             self.code.clone(),
             infallible_state_accessor,
+            self.bank_module.clone(),
         )
     }
 
@@ -187,15 +196,6 @@ impl<S: Spec> Evm<S> {
         state: &mut Accessor,
     ) -> Vec<SealedBlock> {
         self.blocks.collect_infallible(state)
-    }
-
-    /// Lookup an Ethereum account by address.
-    pub fn get_account<Accessor: StateReader<User>>(
-        &self,
-        address: &Address,
-        state: &mut Accessor,
-    ) -> Result<Option<DbAccount>, Accessor::Error> {
-        self.accounts.get(address, state)
     }
 
     /// Get the currently pending head block.

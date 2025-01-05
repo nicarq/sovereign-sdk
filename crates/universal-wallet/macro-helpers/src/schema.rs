@@ -589,7 +589,7 @@ fn syn_type_ident(syn_type: &Type) -> Option<&Ident> {
         | Type::Ptr(TypePtr { elem, .. })
         | Type::Reference(TypeReference { elem, .. })
         | Type::Slice(TypeSlice { elem, .. }) => syn_type_ident(elem),
-        Type::Path(t) => t.path.get_ident(),
+        Type::Path(t) => t.path.segments.first().map(|s| &s.ident),
         _ => None,
     }
 }
