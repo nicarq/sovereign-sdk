@@ -1,4 +1,4 @@
-pub const CHAIN_HASH: [u8; 32] = [226, 169, 203, 67, 129, 87, 39, 109, 146, 56, 23, 147, 140, 119, 169, 243, 108, 62, 178, 187, 240, 166, 55, 118, 38, 38, 190, 45, 179, 78, 237, 57];
+pub const CHAIN_HASH: [u8; 32] = [236, 6, 85, 68, 79, 126, 126, 254, 42, 225, 111, 74, 35, 234, 121, 13, 203, 195, 108, 5, 144, 69, 224, 103, 104, 235, 120, 109, 18, 189, 219, 94];
 
 #[allow(dead_code)]
 pub const SCHEMA_JSON: &str = r#"{
@@ -1189,8 +1189,8 @@ pub const SCHEMA_JSON: &str = r#"{
     },
     {
       "Struct": {
-        "type_name": "PaymasterPolicy",
-        "serde_type_name": "PaymasterPolicy",
+        "type_name": "PaymasterPolicyInitializer",
+        "serde_type_name": "PaymasterPolicyInitializer",
         "template": null,
         "fields": [
           {

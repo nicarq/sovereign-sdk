@@ -1,7 +1,6 @@
 use reth_primitives::{TxKind, U256};
 use reth_rpc_types::transaction::EIP1559TransactionRequest;
 use reth_rpc_types::TypedTransactionRequest;
-use revm::Database;
 use sov_evm::{EthereumAuthenticator, Evm};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::RawTx;
@@ -69,8 +68,8 @@ fn test_executing_eth_transaction() {
                 );
             }
             let storage_value = evm
-                .get_db(state)
-                .storage(contract_addr, U256::ZERO)
+                .get_storage(&contract_addr, &U256::ZERO, state)
+                .unwrap()
                 .unwrap();
             assert_eq!(U256::from(5), storage_value);
         }),
@@ -102,8 +101,8 @@ fn test_executing_eth_transaction() {
         assert: Box::new(move |_result, state| {
             let evm = Evm::<S>::default();
             let storage_value = evm
-                .get_db(state)
-                .storage(contract_addr, U256::ZERO)
+                .get_storage(&contract_addr, &U256::ZERO, state)
+                .unwrap()
                 .unwrap();
             assert_eq!(U256::from(92), storage_value);
         }),

@@ -4,6 +4,7 @@ use core::fmt;
 use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use derivative::Derivative;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 #[cfg(feature = "native")]
@@ -13,32 +14,44 @@ use crate::bytes::Prefix;
 use crate::codec::EncodeLike;
 use crate::jmt::Version;
 use crate::namespaces::{ProvableCompileTimeNamespace, ProvableNamespace};
-use crate::{StateAccesses, Witness};
+use crate::{StateAccesses, StateItemDecoder, Witness};
+
+type ArcFormatFn =
+    Arc<dyn (Fn(&[u8], &mut fmt::Formatter<'_>) -> fmt::Result) + Send + Sync + 'static>;
 
 /// The key type suitable for use in [`Storage::get`] and other getter methods of
 /// [`Storage`]. Cheaply-clonable.
-#[derive(
-    Clone,
-    PartialEq,
-    Eq,
-    Debug,
-    Hash,
-    Ord,
-    PartialOrd,
-    Serialize,
-    serde::Deserialize,
-    BorshDeserialize,
-    BorshSerialize,
-)]
+#[derive(Derivative, Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)]
+#[derivative(Clone, PartialEq, Eq, Debug, Hash, Ord)]
 #[cfg_attr(feature = "native", derive(UniversalWallet))]
 pub struct SlotKey {
     #[cfg_attr(feature = "native", sov_wallet(hidden))]
     key: Arc<Vec<u8>>,
+    #[borsh(skip)]
+    #[serde(skip)]
+    #[derivative(
+        Debug = "ignore",
+        PartialEq = "ignore",
+        Hash = "ignore",
+        Ord = "ignore"
+    )]
+    #[cfg_attr(feature = "native", sov_wallet(skip))]
+    display_fn: Option<ArcFormatFn>,
+}
+
+// Manually implement PartialOrd to satisfy clippy
+impl PartialOrd for SlotKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl From<Vec<u8>> for SlotKey {
     fn from(key: Vec<u8>) -> Self {
-        Self { key: Arc::new(key) }
+        Self {
+            key: Arc::new(key),
+            display_fn: None,
+        }
     }
 }
 
@@ -62,7 +75,11 @@ impl AsRef<Vec<u8>> for SlotKey {
 
 impl fmt::Display for SlotKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:x?}", hex::encode(self.key().as_ref()))
+        if let Some(display_fn) = &self.display_fn {
+            display_fn(self.key.as_ref(), f)
+        } else {
+            write!(f, "{}", String::from_utf8_lossy(self.key().as_ref()))
+        }
     }
 }
 
@@ -70,7 +87,8 @@ impl SlotKey {
     /// Creates a new [`SlotKey`] that combines a prefix and a key.
     pub fn new<K, Q, KC>(prefix: &Prefix, key: &Q, codec: &KC) -> Self
     where
-        KC: EncodeLike<Q, K>,
+        KC: EncodeLike<Q, K> + StateItemDecoder<K> + 'static,
+        K: fmt::Display,
         Q: ?Sized,
     {
         let encoded_key = codec.encode_like(key);
@@ -78,16 +96,23 @@ impl SlotKey {
         let mut full_key = Vec::<u8>::with_capacity(prefix.len().saturating_add(encoded_key.len()));
         full_key.extend(prefix.as_ref());
         full_key.extend(&encoded_key);
-
+        let prefix_len = prefix.len();
+        let codec = codec.clone();
+        let display_fn: Option<ArcFormatFn> = Some(Arc::new(
+            move |key_bytes: &[u8], formatter: &mut fmt::Formatter<'_>| {
+                if key_bytes.len() < prefix_len {
+                    return Err(std::fmt::Error);
+                }
+                let prefix = &key_bytes[..prefix_len];
+                let key = &key_bytes[prefix_len..];
+                let key = KC::try_decode(&codec, key).map_err(|_| std::fmt::Error)?;
+                let prefix_str = std::str::from_utf8(prefix).map_err(|_e| std::fmt::Error)?;
+                write!(formatter, "{}{}", prefix_str, key)
+            },
+        ));
         Self {
             key: Arc::new(full_key),
-        }
-    }
-
-    /// Build a storage key from raw bytes
-    pub fn from_bytes(bytes: Vec<u8>) -> Self {
-        Self {
-            key: Arc::new(bytes),
+            display_fn,
         }
     }
 
@@ -96,13 +121,21 @@ impl SlotKey {
     pub fn from_slice(key: &[u8]) -> Self {
         Self {
             key: Arc::new(key.to_vec()),
+            display_fn: None,
         }
     }
 
-    /// Creates a new [`SlotKey`] that combines a prefix and a key.
+    /// Creates a new [`SlotKey`] from a prefix.
     pub fn singleton(prefix: &Prefix) -> Self {
         Self {
             key: Arc::new(prefix.as_ref().to_vec()),
+            display_fn: Some(Arc::new(
+                move |key_bytes: &[u8], formatter: &mut fmt::Formatter<'_>| {
+                    let prefix_str =
+                        std::str::from_utf8(key_bytes).map_err(|_e| std::fmt::Error)?;
+                    formatter.write_str(prefix_str)
+                },
+            )),
         }
     }
 }

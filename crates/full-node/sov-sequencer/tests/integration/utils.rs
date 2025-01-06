@@ -4,13 +4,12 @@ use sov_modules_api::digest::Digest;
 use sov_modules_api::prelude::*;
 use sov_modules_api::transaction::{Transaction, TxDetails};
 use sov_modules_api::{CryptoSpec, DispatchCall, FullyBakedTx, RawTx};
+use sov_paymaster::PaymasterPolicyInitializer;
 use sov_rollup_interface::TxHash;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_test_utils::generators::bank::BankMessageGenerator;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use sov_test_utils::runtime::sov_paymaster::{
-    AuthorizedSequencers, PayeePolicy, PaymasterPolicy, SafeVec,
-};
+use sov_test_utils::runtime::sov_paymaster::{AuthorizedSequencers, PayeePolicy, SafeVec};
 use sov_test_utils::runtime::{
     Paymaster, Runtime, TestOptimisticRuntime, TestOptimisticRuntimeCall,
 };
@@ -100,7 +99,7 @@ pub fn generate_txs(admin_private_key: TestPrivateKey) -> Vec<GeneratedTx> {
 /// Generates a paymaster tx signed with the provided key
 pub fn generate_paymaster_tx(key: TestPrivateKey) -> RawTx {
     let message = sov_test_utils::runtime::sov_paymaster::CallMessage::RegisterPaymaster {
-        policy: PaymasterPolicy {
+        policy: PaymasterPolicyInitializer {
             default_payee_policy: PayeePolicy::Deny,
             payees: SafeVec::new(),
             authorized_updaters: SafeVec::new(),

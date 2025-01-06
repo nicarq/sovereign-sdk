@@ -8,7 +8,8 @@ use sov_state::User;
 use strum::{EnumDiscriminants, EnumIs, EnumIter, VariantArray};
 
 use crate::event::Event;
-use crate::utils::{Payable, TokenHolderRef};
+use crate::token::unique_holders;
+use crate::utils::{get_token_id_metered, Payable, TokenHolderRef};
 use crate::{Amount, Bank, Coins, Token, TokenId};
 
 /// The maximum number of addresses that can be authorized to mint or freeze a token.
@@ -98,14 +99,14 @@ impl<S: Spec> Bank<S> {
             .map(|minter| minter.as_token_holder())
             .collect::<Vec<_>>();
 
-        let (token_id, token) = Token::<S>::create(
-            &token_name,
-            &[(mint_to_address, initial_balance)],
-            &admins,
-            &minter,
-            self.tokens.prefix(),
-            state,
-        )?;
+        let token_id = get_token_id_metered::<S>(&token_name, &minter, state)?;
+        tracing::debug!(%token_name, originator = %minter, %token_id, "Calculated token id");
+        let admins = unique_holders(&admins);
+        let token = Token::<S> {
+            name: token_name.to_owned(),
+            total_supply: initial_balance,
+            admins: admins.clone(),
+        };
 
         if self.tokens.get(&token_id, state)?.is_some() {
             bail!(
@@ -115,6 +116,8 @@ impl<S: Spec> Bank<S> {
                 minter.as_token_holder()
             );
         }
+        self.balances
+            .set(&(mint_to_address, &token_id), &initial_balance, state)?;
 
         self.tokens.set(&token_id, &token, state)?;
 
@@ -138,7 +141,7 @@ impl<S: Spec> Bank<S> {
                 },
                 mint_to_address: mint_to_address.into(),
                 minter: minter.as_token_holder().into(),
-                admins: admins.iter().map(|m| m.into()).collect(),
+                admins,
             },
         );
         Ok(token_id)
@@ -202,15 +205,20 @@ impl<S: Spec> Bank<S> {
             .get_or_err(&coins.token_id, state)?
             .with_context(|| format!("Failed to get token_id={}", &coins.token_id))?;
 
-        let owner = owner.as_token_holder();
-        token.burn(owner, coins.amount, state).with_context(|| {
-            format!(
-                "Failed to burn token_id={} owner={}",
-                &coins.token_id, owner
-            )
-        })?;
+        token.total_supply = token
+            .total_supply
+            .checked_sub(coins.amount)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Total supply underflow when burning, supply={} is less than burn amount={}",
+                    token.total_supply,
+                    coins.amount
+                )
+            })?;
         self.tokens.set(&coins.token_id, &token, state)?;
 
+        let owner: TokenHolderRef<'_, S> = owner.as_token_holder();
+        self.decrease_balance_checked(&coins.token_id, owner, coins.amount, state)?;
         tracing::info!(
             id = %coins.token_id,
             name = token.name,
@@ -238,7 +246,14 @@ impl<S: Spec> Bank<S> {
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
-        self.burn(coins, context.sender(), state)?;
+        let token_id = coins.token_id;
+        self.burn(coins, context.sender(), state).with_context(|| {
+            format!(
+                "Failed to burn token_id={} owner={}",
+                token_id,
+                context.sender()
+            )
+        })?;
         Ok(())
     }
 
@@ -283,9 +298,21 @@ impl<S: Spec> Bank<S> {
 
         let authorizer = authorizer.as_token_holder();
         token
-            .mint(authorizer, mint_to_identity, coins.amount, state)
+            .update_for_mint_if_allowed(authorizer, coins.amount)
             .with_context(|| format!("Failed to mint token_id={}", &coins.token_id))?;
         self.tokens.set(&coins.token_id, &token, state)?;
+
+        let to_balance: Amount = self
+            .balances
+            .get(&(mint_to_identity, &coins.token_id), state)?
+            .unwrap_or_default()
+            .checked_add(coins.amount)
+            .ok_or(anyhow::Error::msg(
+                "Account balance overflow in the mint method of bank module",
+            ))?;
+
+        self.balances
+            .set(&(mint_to_identity, &coins.token_id), &to_balance, state)?;
 
         tracing::info!(
             %authorizer,
@@ -315,14 +342,11 @@ impl<S: Spec> Bank<S> {
         address: impl Payable<S>,
         state: &mut Accessor,
     ) -> Result<(), <Accessor as StateReader<User>>::Error> {
-        let token = self
-            .tokens
-            .get(&crate::config_gas_token_id(), state)?
-            .expect("Gas token not found");
-
-        token
-            .balances
-            .set(&address.as_token_holder(), &balance, state)?;
+        self.balances.set(
+            &(address.as_token_holder(), &crate::config_gas_token_id()),
+            &balance,
+            state,
+        )?;
 
         Ok(())
     }
@@ -383,16 +407,67 @@ impl<S: Spec> Bank<S> {
     ) -> Result<()> {
         let from = from.as_token_holder();
         let to = to.as_token_holder();
-        let token = self
-            .tokens
-            .get_or_err(&coins.token_id, state)?
-            .with_context(|| format!("Failed to get token_id={}", &coins.token_id))?;
 
-        token
-            .transfer(from, to, coins.amount, state)
+        self.do_transfer(from, to, &coins.token_id, coins.amount, state)
             .with_context(|| format!("Failed to transfer token_id={}", &coins.token_id))?;
 
         Ok(())
+    }
+
+    /// Transfer the amount `amount` of tokens from the address `from` to the address `to`.
+    /// First checks that there is enough token of that type stored in `from`. If so, update
+    /// the balances of the `from` and `to` accounts.
+    pub(crate) fn do_transfer(
+        &self,
+        from: TokenHolderRef<'_, S>,
+        to: TokenHolderRef<'_, S>,
+        token_id: &TokenId,
+        amount: Amount,
+        state: &mut impl StateAccessor,
+    ) -> anyhow::Result<()> {
+        if from == to {
+            tracing::trace!("Token transfer succeeded because it was transferring tokens to self.");
+            return Ok(());
+        }
+
+        if amount == 0 {
+            tracing::trace!("Token transfer succeeded because the transfer amount was zero.");
+            return Ok(());
+        }
+
+        let from_balance = self.decrease_balance_checked(token_id, from, amount, state)?;
+
+        let current_to_balance = self.balances.get(&(to, token_id), state)?.unwrap_or(0);
+        let to_balance = current_to_balance.checked_add(amount).with_context(|| {
+            format!(
+                "Account balance overflow for {} when adding {} to current balance {}",
+                to, amount, current_to_balance
+            )
+        })?;
+
+        self.balances.set(&(from, token_id), &from_balance, state)?;
+        self.balances.set(&(to, token_id), &to_balance, state)?;
+        Ok(())
+    }
+    // Check that amount can be deducted from address
+    // Returns new balance after subtraction.
+    fn decrease_balance_checked(
+        &self,
+        token_id: &TokenId,
+        from: TokenHolderRef<'_, S>,
+        amount: Amount,
+        state: &mut impl StateAccessor,
+    ) -> anyhow::Result<Amount> {
+        let balance = self.balances.get(&(from, token_id), state)?.unwrap_or(0);
+
+        let new_balance = match balance.checked_sub(amount) {
+            Some(from_balance) => from_balance,
+            None => bail!(format!(
+                "Insufficient balance from={from}, got={balance}, needed={amount}",
+            )),
+        };
+        self.balances.set(&(from, token_id), &new_balance, state)?;
+        Ok(new_balance)
     }
 
     /// Retrieve a token by the provided token id.
@@ -414,10 +489,7 @@ impl<S: Spec> Bank<S> {
         state: &mut Accessor,
     ) -> Result<Option<u64>, <Accessor as StateReader<User>>::Error> {
         let user_address = user_address.as_token_holder();
-        self.tokens
-            .get(&token_id, state)?
-            .and_then(|token| token.balances.get(&user_address, state).transpose())
-            .transpose()
+        self.balances.get(&(user_address, &token_id), state)
     }
 
     /// Get the name of a token by ID

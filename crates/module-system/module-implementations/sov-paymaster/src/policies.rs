@@ -1,5 +1,4 @@
 use schemars::JsonSchema;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_bank::ReserveGasError;
 use sov_modules_api::macros::UniversalWallet;
@@ -7,6 +6,7 @@ use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{DaSpec, Gas, GasArray, Spec};
 
 use crate::call::SafeVec;
+use crate::PayeePolicyList;
 
 /// The policy that the paymaster applies to a particular rollup user.
 #[derive(
@@ -171,9 +171,9 @@ impl<Da: DaSpec> AuthorizedSequencers<Da> {
     }
 }
 
-/// The complete policy for a paymaster. This includes...
-///  - The set of sequencers that can use the paymaster
-///  - The set of users authorized to update this policy
+/// An initial policy for a paymaster. This includes...
+///  - A set of sequencers that can use the paymaster
+///  - A set of users authorized to update this policy
 ///  - A default policy for accepting/rejecting gas requests
 ///  - Specific policies for accepting/rejecting gas requests from particular users
 #[derive(
@@ -188,14 +188,43 @@ impl<Da: DaSpec> AuthorizedSequencers<Da> {
     JsonSchema,
     UniversalWallet,
 )]
-#[serde(bound = "S: Spec, P: Serialize + DeserializeOwned")]
-#[schemars(bound = "S: Spec, P: JsonSchema", rename = "PaymasterPolicy")]
-pub struct PaymasterPolicy<S: Spec, P> {
+#[serde(bound = "S: Spec ")]
+#[schemars(bound = "S: Spec", rename = "PaymasterPolicyInitializer")]
+pub struct PaymasterPolicyInitializer<S: Spec> {
     /// Default payee policy for users that are not in the balances map.
     pub default_payee_policy: PayeePolicy<S>,
 
     /// A mapping from user address to the policy for that user.
-    pub payees: P,
+    pub payees: PayeePolicyList<S>,
+
+    /// Users who are authorized to update this policy.
+    pub authorized_updaters: SafeVec<S::Address>,
+
+    /// Sequencers who are authorized to use this payer.
+    pub authorized_sequencers: AuthorizedSequencers<S::Da>,
+}
+
+/// The policy for a paymaster. This includes...
+///  - The set of sequencers that can use the paymaster
+///  - The set of users authorized to update this policy
+///  - A default policy for accepting/rejecting gas requests
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    Serialize,
+    Deserialize,
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    JsonSchema,
+    UniversalWallet,
+)]
+#[serde(bound = "S: Spec")]
+#[schemars(bound = "S: Spec", rename = "PaymasterPolicy")]
+pub struct PaymasterPolicy<S: Spec> {
+    /// Default payee policy for users that are not in the balances map.
+    pub default_payee_policy: PayeePolicy<S>,
 
     /// Users who are authorized to update this policy.
     pub authorized_updaters: SafeVec<S::Address>,

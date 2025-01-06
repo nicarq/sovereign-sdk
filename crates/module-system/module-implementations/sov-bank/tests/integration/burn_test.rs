@@ -147,7 +147,6 @@ fn burn_more_than_deployed_tokens_fails() {
     let (
         TestData {
             token_id,
-            token_name,
             user_high_token_balance,
             ..
         },
@@ -164,7 +163,6 @@ fn burn_more_than_deployed_tokens_fails() {
     let to_burn = total_token_supply + 1;
 
     let user_address = user_high_token_balance.address();
-    let user_token_balance = user_high_token_balance.token_balance(&token_name).unwrap();
 
     runner.execute_transaction(TransactionTestCase {
         input: user_high_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
@@ -191,8 +189,7 @@ fn burn_more_than_deployed_tokens_fails() {
 
                 assert_eq!(
                     format!(
-                        "Insufficient balance from={user_address}, got={}, needed={}",
-                        user_token_balance, to_burn
+                        "Total supply underflow when burning, supply=200000 is less than burn amount={to_burn}",
                     ),
                     message_2,
                     "The error message is incorrect"
@@ -424,19 +421,29 @@ fn burn_unknown_token_fails() {
 
                     let message_1 = chain.next().unwrap().to_string();
                     let message_2 = chain.next().unwrap().to_string();
+                    let message_3 = chain.next().unwrap().to_string();
 
                     assert!(chain.next().is_none());
 
                     assert_eq!(
-                        format!("Failed to get token_id={other_token_id}"),
+                        format!(
+                            "Failed to burn token_id={other_token_id} owner={}",
+                            user_high_token_balance.address()
+                        ),
                         message_1,
                         "The first message is incorrect"
+                    );
+
+                    assert_eq!(
+                        format!("Failed to get token_id={other_token_id}"),
+                        message_2,
+                        "The second message is incorrect"
                     );
 
                     // Note, no token ID in root cause the message.
                     let expected_error_part =
                         "Value not found for prefix: \"sov_bank/Bank/tokens/\" and storage key:";
-                    assert!(message_2.starts_with(expected_error_part));
+                    assert!(message_3.starts_with(expected_error_part));
                 }
                 _ => {
                     panic!("The transaction does not have the expected outcome.")

@@ -6897,6 +6897,7 @@ dependencies = [
  "bcs",
  "borsh",
  "derivative",
+ "derive_more 1.0.0",
  "proptest",
  "proptest-derive 0.5.1",
  "schemars",

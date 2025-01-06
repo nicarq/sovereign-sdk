@@ -6,6 +6,8 @@ mod evm;
 mod genesis;
 mod hooks;
 
+use std::str::FromStr;
+
 pub use call::*;
 pub use evm::*;
 pub use genesis::*;
@@ -28,6 +30,7 @@ pub use authenticate::{authenticate, decode_evm_tx, EthereumAuthenticator};
 pub use reth_primitives::revm_primitives::SpecId;
 use reth_primitives::revm_primitives::{Address, BlockEnv, B256};
 pub use reth_primitives::TransactionSigned;
+use reth_primitives::U256;
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::prelude::UnwrapInfallible as _;
 use sov_modules_api::{
@@ -37,7 +40,7 @@ use sov_modules_api::{
     TxState, UnmeteredStateWrapper,
 };
 use sov_state::codec::BcsCodec;
-use sov_state::User;
+use sov_state::{EncodeLike, User};
 
 use crate::event::Event;
 use crate::evm::db::EvmDb;
@@ -58,6 +61,33 @@ pub struct PendingTransaction {
     pub(crate) receipt: Receipt,
 }
 
+/// The key to a policy, consisting of the payer and payee addresses with a separator.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, derive_more::Display)]
+#[display(r#"{}/slot/{}"#, self.0, self.1)]
+pub struct AccountStorageKey(pub Address, pub U256);
+
+impl FromStr for AccountStorageKey {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let Some((addr, location)) = s.split_once("/slot/") else {
+            anyhow::bail!("Invalid AccountStorageKey - missing '/slot'' separator");
+        };
+
+        Ok(AccountStorageKey(
+            Address::from_str(addr)?,
+            U256::from_str(location)?,
+        ))
+    }
+}
+
+impl EncodeLike<(&Address, &U256), AccountStorageKey> for BcsCodec {
+    fn encode_like(&self, borrowed: &(&Address, &U256)) -> Vec<u8> {
+        let mut out = self.encode_like(borrowed.0);
+        out.extend_from_slice(&self.encode_like(borrowed.1));
+        out
+    }
+}
+
 /// The sov-evm module provides compatibility with the EVM.
 #[allow(dead_code)]
 #[derive(Clone, ModuleInfo)]
@@ -69,6 +99,10 @@ pub struct Evm<S: Spec> {
     /// Mapping from account address to account state.
     #[state]
     pub(crate) accounts: StateMap<Address, DbAccount, BcsCodec>,
+
+    /// Storage for accounts.
+    #[state]
+    pub(crate) account_storage: StateMap<AccountStorageKey, U256, BcsCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state]
@@ -168,6 +202,7 @@ impl<S: Spec> Evm<S> {
         let infallible_state_accessor = state.to_unmetered();
         EvmDb::new(
             self.accounts.clone(),
+            self.account_storage.clone(),
             self.code.clone(),
             infallible_state_accessor,
             self.bank_module.clone(),
@@ -196,6 +231,25 @@ impl<S: Spec> Evm<S> {
         state: &mut Accessor,
     ) -> Vec<SealedBlock> {
         self.blocks.collect_infallible(state)
+    }
+
+    /// Lookup an Ethereum account by address.
+    pub fn get_account<Accessor: StateReader<User>>(
+        &self,
+        address: &Address,
+        state: &mut Accessor,
+    ) -> Result<Option<DbAccount>, Accessor::Error> {
+        self.accounts.get(address, state)
+    }
+
+    /// Get the value from a storage slot.
+    pub fn get_storage<Accessor: StateReader<User>>(
+        &self,
+        address: &Address,
+        index: &U256,
+        state: &mut Accessor,
+    ) -> Result<Option<U256>, Accessor::Error> {
+        self.account_storage.get(&(address, index), state)
     }
 
     /// Get the currently pending head block.
@@ -257,4 +311,24 @@ impl<S: Spec> Evm<S> {
             .get(tx_hash, state)
             .unwrap_infallible()
     }
+}
+
+#[test]
+fn test_account_storage_key_encode_like() {
+    use sov_state::StateItemEncoder;
+    let key = AccountStorageKey(Address::from_slice(&[1; 20]), U256::from(0));
+    let encoded_like = BcsCodec.encode_like(&(&key.0, &key.1));
+
+    assert_eq!(&BcsCodec.encode(&key), &encoded_like);
+}
+
+#[test]
+fn test_account_storage_key_str_roundtrip() {
+    let key = AccountStorageKey(Address::from_slice(&[1; 20]), U256::from(5));
+    assert_eq!(
+        key.to_string(),
+        "0x0101010101010101010101010101010101010101/slot/5"
+    );
+
+    assert_eq!(AccountStorageKey::from_str(&key.to_string()).unwrap(), key);
 }

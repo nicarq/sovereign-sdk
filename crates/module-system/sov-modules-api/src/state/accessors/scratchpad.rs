@@ -333,6 +333,7 @@ impl<S: Spec, I: StateProvider<S>> VersionReader for WorkingSet<S, I> {
 
 #[cfg(test)]
 mod tests {
+    use sov_rollup_interface::common::HexString;
     use sov_state::codec::BcsCodec;
     use sov_state::namespaces::User;
     use sov_state::{Kernel, SlotKey, SlotValue};
@@ -353,7 +354,7 @@ mod tests {
         let storage = storage_manager.create_storage();
 
         let prefix = sov_state::Prefix::new(vec![1, 2, 3]);
-        let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);
+        let storage_key = SlotKey::new::<HexString, _, _>(&prefix, [4, 5, 6].as_ref(), &codec);
         let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
 
         let mut working_set = WorkingSet::<TestSpec>::new_with_kernel(
@@ -373,7 +374,7 @@ mod tests {
         let storage = storage_manager.create_storage();
 
         let prefix = sov_state::Prefix::new(vec![1, 2, 3]);
-        let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);
+        let storage_key = SlotKey::new::<HexString, _, _>(&prefix, [4, 5, 6].as_ref(), &codec);
         let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
         let kernel: MockKernel<TestSpec> = MockKernel::new(4, 1);
 

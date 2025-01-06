@@ -2,10 +2,8 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{DaSpec, GenesisState, Module, Spec};
 
-use crate::call::{PayeePolicyList, SafeVec};
-use crate::{Paymaster, PaymasterPolicy};
-
-const DEFAULT_PAYER_POLICY_GENESIS_VEC_LEN: usize = 10;
+use crate::call::SafeVec;
+use crate::{Paymaster, PaymasterPolicyInitializer};
 
 /// The genesis configuration of the paymaster module, consisting of a list of
 /// payers and their policies.
@@ -35,11 +33,10 @@ pub struct PayerGenesisConfig<S: Spec> {
     /// The address of the newly registered payer.
     pub payer_address: S::Address,
     /// The policy that this payer will use.
-    pub policy: PaymasterPolicy<S, PayeePolicyList<S, DEFAULT_PAYER_POLICY_GENESIS_VEC_LEN>>,
+    pub policy: PaymasterPolicyInitializer<S>,
     /// The list of sequencers that should be configured to use this payer after genesis. Any sequencers in this
     /// list must also be authorized by the payer's policy.
-    pub sequencers_to_register:
-        SafeVec<<S::Da as DaSpec>::Address, DEFAULT_PAYER_POLICY_GENESIS_VEC_LEN>,
+    pub sequencers_to_register: SafeVec<<S::Da as DaSpec>::Address>,
 }
 
 impl<S: Spec> Paymaster<S> {

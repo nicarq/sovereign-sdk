@@ -4,11 +4,11 @@ use anyhow::{bail, Result};
 use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::safe_vec::CapacityError;
-use sov_modules_api::{Context, DaSpec, EventEmitter, Spec, StateMap, TxState};
-use sov_state::Prefix;
+use sov_modules_api::{Context, DaSpec, EventEmitter, Spec, TxState};
 
 use crate::{
-    AuthorizedSequencers, Event, PayeePolicy, PayeePolicyMap, Paymaster, PaymasterPolicy, C,
+    AuthorizedSequencers, Event, PayeePolicy, Payer, Paymaster, PaymasterPolicy,
+    PaymasterPolicyInitializer,
 };
 
 /// The default length of a [`SafeVec`].
@@ -49,7 +49,7 @@ pub enum CallMessage<S: Spec> {
     /// sequencer is set to the address of the newly registered payer.
     RegisterPaymaster {
         #[allow(missing_docs)]
-        policy: PaymasterPolicy<S, PayeePolicyList<S>>,
+        policy: PaymasterPolicyInitializer<S>,
     },
     /// Set the payer address for the sequencer to the given address.
     /// This call message is highly unusual in that it executes regardless of the sender address on the rollup.
@@ -309,7 +309,7 @@ impl<S: Spec> Paymaster<S> {
     /// current sequencer, then the paymaster is set as the payer for this sequencer.
     pub(crate) fn register_paymaster(
         &self,
-        policy: PaymasterPolicy<S, PayeePolicyList<S>>,
+        policy: PaymasterPolicyInitializer<S>,
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
@@ -323,25 +323,17 @@ impl<S: Spec> Paymaster<S> {
 
     /// Registers a new paymaster with the given policy. Sets the provided sequencer addresses
     /// to use that paymaster, if the paymaster policy permits it.
-    pub(crate) fn do_registration<'a, const N: usize>(
+    pub(crate) fn do_registration<'a>(
         &self,
         new_payer: &S::Address,
         sequencer_addresses_to_register: impl Iterator<Item = &'a <S::Da as DaSpec>::Address>,
-        policy: PaymasterPolicy<S, PayeePolicyList<S, N>>,
+        policy: PaymasterPolicyInitializer<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
         if self.payers.get(new_payer, state)?.is_some() {
             tracing::debug!(payer = %new_payer, "Payer already exists. Reverting registration tx.");
             bail!("{} is already registered as a payer. Use `UpdatePolicy` if you wish to change its configuration.", new_payer);
         }
-
-        // Converts the set of payee policies into a state map.
-        // The `payee_policies` state map does not collide with any other state item because its prefix is
-        // derived from the unique `payers` prefix combined with the new payee.
-        let payee_policies = StateMap::with_codec(
-            Prefix::with_parent(self.payers.prefix(), new_payer),
-            C::default(),
-        );
 
         self.emit_event(
             state,
@@ -357,14 +349,13 @@ impl<S: Spec> Paymaster<S> {
             },
         );
 
-        self.add_payee_policies(new_payer, policy.payees, &payee_policies, state)?;
+        self.add_payee_policies(new_payer, policy.payees, state)?;
 
         // Store the paymaster policy
         let policy = PaymasterPolicy {
             authorized_sequencers: policy.authorized_sequencers,
             authorized_updaters: policy.authorized_updaters,
             default_payee_policy: policy.default_payee_policy,
-            payees: payee_policies,
         };
         self.payers.set(new_payer, &policy, state)?;
 
@@ -454,9 +445,9 @@ impl<S: Spec> Paymaster<S> {
         self.update_allowed_sequencers(payer, sequencer_update, &mut policy, context, state)?;
         self.remove_allowed_updaters(updaters_to_remove, &mut policy);
         self.add_allowed_updaters(payer, updaters_to_add, &mut policy)?;
-        self.remove_payee_policies(payer, payee_policies_to_delete, &policy, state)?;
+        self.remove_payee_policies(payer, payee_policies_to_delete, state)?;
         if let Some(policies_to_add) = payee_policies_to_set {
-            self.add_payee_policies(payer, policies_to_add, &policy.payees, state)?;
+            self.add_payee_policies(payer, policies_to_add, state)?;
         }
         if let Some(default_policy) = default_policy {
             self.emit_event(
@@ -477,11 +468,11 @@ impl<S: Spec> Paymaster<S> {
         &self,
         payer: &S::Address,
         to_add: SafeVec<(S::Address, PayeePolicy<S>), N>,
-        payee_policies: &PayeePolicyMap<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
         for (address, policy) in to_add {
-            payee_policies.set(&address, &policy, state)?;
+            self.policies
+                .set(&(Payer(payer), &address), &policy, state)?;
             self.emit_event(
                 state,
                 Event::AddedPayeePolicy {
@@ -498,14 +489,17 @@ impl<S: Spec> Paymaster<S> {
         &self,
         payer: &S::Address,
         to_remove: Option<SafeVec<S::Address>>,
-        policy: &PaymasterPolicy<S, PayeePolicyMap<S>>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
         let Some(to_remove) = to_remove else {
             return Ok(());
         };
         for payee in to_remove {
-            if policy.payees.remove(&payee, state)?.is_some() {
+            if self
+                .policies
+                .remove(&(Payer(payer), &payee), state)?
+                .is_some()
+            {
                 self.emit_event(
                     state,
                     Event::RemovedPayeePolicy {
@@ -521,7 +515,7 @@ impl<S: Spec> Paymaster<S> {
     fn remove_allowed_updaters(
         &self,
         to_remove: Option<SafeVec<S::Address>>,
-        policy: &mut PaymasterPolicy<S, PayeePolicyMap<S>>,
+        policy: &mut PaymasterPolicy<S>,
     ) {
         let authorized_updaters = &mut policy.authorized_updaters;
         if let Some(to_remove) = to_remove {
@@ -533,7 +527,7 @@ impl<S: Spec> Paymaster<S> {
         &self,
         payer: &S::Address,
         to_add: Option<SafeVec<S::Address>>,
-        policy: &mut PaymasterPolicy<S, PayeePolicyMap<S>>,
+        policy: &mut PaymasterPolicy<S>,
     ) -> Result<()> {
         let authorized_updaters = &mut policy.authorized_updaters;
         if let Some(to_add) = to_add {
@@ -548,7 +542,7 @@ impl<S: Spec> Paymaster<S> {
         &self,
         payer: &S::Address,
         update: Option<SequencerSetUpdate<S::Da>>,
-        policy: &mut PaymasterPolicy<S, PayeePolicyMap<S>>,
+        policy: &mut PaymasterPolicy<S>,
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {

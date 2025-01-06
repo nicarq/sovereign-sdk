@@ -9,11 +9,12 @@ use sov_modules_api::{InfallibleStateAccessor, Spec, StateMap};
 use sov_state::codec::BcsCodec;
 
 use super::DbAccount;
-use crate::to_rollup_address;
+use crate::{to_rollup_address, AccountStorageKey};
 
 /// A queryable EVM database.
 pub struct EvmDb<Ws, S: Spec> {
     pub(crate) accounts: StateMap<Address, DbAccount, BcsCodec>,
+    pub(crate) account_storage: StateMap<AccountStorageKey, U256, BcsCodec>,
     pub(crate) code: StateMap<B256, Bytes, BcsCodec>,
     pub(crate) state: Ws,
     pub(crate) bank_module: sov_bank::Bank<S>,
@@ -22,12 +23,14 @@ pub struct EvmDb<Ws, S: Spec> {
 impl<Ws, S: Spec> EvmDb<Ws, S> {
     pub(crate) fn new(
         accounts: StateMap<Address, DbAccount, BcsCodec>,
+        account_storage: StateMap<AccountStorageKey, U256, BcsCodec>,
         code: StateMap<B256, Bytes, BcsCodec>,
         state: Ws,
         bank_module: sov_bank::Bank<S>,
     ) -> Self {
         Self {
             accounts,
+            account_storage,
             code,
             state,
             bank_module,
@@ -90,18 +93,11 @@ where
     }
 
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        let storage_value: U256 = if let Some(acc) = self
-            .accounts
-            .get(&address, &mut self.state)
+        let storage_value: U256 = self
+            .account_storage
+            .get(&(&address, &index), &mut self.state)
             .unwrap_infallible()
-        {
-            acc.storage
-                .get(&index, &mut self.state)
-                .unwrap_infallible()
-                .unwrap_or_default()
-        } else {
-            U256::default()
-        };
+            .unwrap_or_default();
 
         Ok(storage_value)
     }

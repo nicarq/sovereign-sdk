@@ -10,6 +10,7 @@
 - #2120 adds benchmark generation capabilities to `sov-benchmark` through a CLI. This is not a breaking change for customers of the SDK.
 
 ## 2025-01-01
+- #2127 Removes nested `StateMap`s from existing SDK modules
 
 - #2123 introduces newtypes `sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber}` which are used throughout the SDK codebase for better type safety and readability. Method type signatures for `VersionedStateValue` and `VersionedStateVec` use these newtypes which is a breaking change for kernel modules.
 

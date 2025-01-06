@@ -5,6 +5,10 @@ mod call;
 mod event;
 mod genesis;
 mod policies;
+use std::fmt::Display;
+use std::str::FromStr;
+
+use borsh::{BorshDeserialize, BorshSerialize};
 pub use call::*;
 pub use event::Event;
 pub use genesis::*;
@@ -16,12 +20,73 @@ use sov_modules_api::{
     Context, DaSpec, Error, Gas, GenesisState, InfallibleStateAccessor, InnerEnumVariant, Module,
     ModuleId, ModuleInfo, ModuleRestApi, Spec, StateMap, TxState,
 };
-use sov_state::BcsCodec;
+use sov_state::{BorshCodec, EncodeLike};
 
-pub(crate) type C = BcsCodec;
+/// The key to a policy, consisting of the payer and payee addresses with a separator.
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
+    derive_more::Display,
+)]
+#[display(r#"payers/{}{POLICY_SEPARATOR}{}"#, self.payer, self.payee)]
+pub struct PolicyKey<Address: Display> {
+    payer: Address,
+    payee: Address,
+}
+const POLICY_SEPARATOR: &str = "/policy/";
 
-#[allow(type_alias_bounds)]
-type PayeePolicyMap<S: Spec> = StateMap<S::Address, PayeePolicy<S>, C>;
+impl<Address: Display + FromStr<Err: Into<Box<dyn std::error::Error + Send + Sync + 'static>>>>
+    FromStr for PolicyKey<Address>
+{
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let Some(s) = s.strip_prefix("payers/") else {
+            anyhow::bail!("{} is not a policykey - missing 'payers/' prefix", s);
+        };
+        // There's an extremely nasty edge case here where the string `/policy/` is allowed as part of an address.
+        // (This is the case, for example, for base64 addresses). In this case, an adversary could pretty easily grind
+        // an address which contains the /policy/ string. To handle this edge case, we have to iteratively try every split
+        // until we find one that works. This assumes that the address type is constrained by length
+        for (idx, _) in s.match_indices("/policy/") {
+            let payer = &s[..idx];
+            let payee = &s[idx + POLICY_SEPARATOR.len()..];
+            let payer = Address::from_str(payer);
+            if let Ok(payer) = payer {
+                let payee =
+                    Address::from_str(payee).map_err(|e| anyhow::Error::from_boxed(e.into()))?;
+                return Ok(PolicyKey::with(Payer(payer), payee));
+            }
+        }
+        anyhow::bail!("{} could not be parsed as a policy key", s);
+    }
+}
+
+struct Payer<T>(pub T);
+
+impl<Addr: Display> PolicyKey<Addr> {
+    fn with(payer: Payer<Addr>, payee: Addr) -> Self {
+        Self {
+            payer: payer.0,
+            payee,
+        }
+    }
+}
+
+impl<'a, Addr: Display + BorshSerialize + BorshDeserialize>
+    EncodeLike<(Payer<&'a Addr>, &Addr), PolicyKey<Addr>> for BorshCodec
+{
+    fn encode_like(&self, borrowed: &(Payer<&'a Addr>, &Addr)) -> Vec<u8> {
+        let mut out = self.encode_like(borrowed.0 .0);
+        out.extend_from_slice(&self.encode_like(borrowed.1));
+        out
+    }
+}
 
 /// The `Paymaster` module allows a third party to gas on behalf of a user.
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
@@ -33,11 +98,15 @@ pub struct Paymaster<S: Spec> {
 
     /// A mapping from paymaster addresses to their policies.
     #[state]
-    pub payers: StateMap<S::Address, PaymasterPolicy<S, PayeePolicyMap<S>>, C>,
+    pub payers: StateMap<S::Address, PaymasterPolicy<S>>,
+
+    /// Policies per user
+    #[state]
+    pub policies: StateMap<PolicyKey<S::Address>, PayeePolicy<S>>,
 
     /// Maps the sequencer to the appropriate gas payer.
     #[state]
-    pub sequencer_to_payer: StateMap<<S::Da as DaSpec>::Address, S::Address, C>,
+    pub sequencer_to_payer: StateMap<<S::Da as DaSpec>::Address, S::Address>,
 
     /// Reference to the Bank module.
     #[module]
@@ -127,9 +196,8 @@ impl<S: Spec> Paymaster<S> {
             return None;
         }
         Some(
-            policy
-                .payees
-                .get(context.sender(), state)
+            self.policies
+                .get(&(Payer(payer), context.sender()), state)
                 .unwrap_infallible()
                 .unwrap_or(policy.default_payee_policy),
         )
@@ -210,4 +278,58 @@ impl<S: Spec> Paymaster<S> {
         policy.authorize_transaction(tx, gas_price)?;
         self.bank.reserve_gas(tx, gas_price, payer, state)
     }
+}
+
+#[test]
+fn test_policy_key_encode_like() {
+    let key = PolicyKey::with(Payer(1), 2);
+    let encoded_like = BorshCodec.encode_like(&(Payer(&key.payer), &key.payee));
+
+    assert_eq!(&borsh::to_vec(&key).unwrap(), &encoded_like);
+}
+
+#[test]
+fn test_policy_key_from_str() {
+    #[derive(PartialEq, Eq, Debug, Clone)]
+    struct MaliciousAddress([u8; 12]);
+
+    impl From<&[u8; 12]> for MaliciousAddress {
+        fn from(value: &[u8; 12]) -> Self {
+            Self(*value)
+        }
+    }
+
+    impl FromStr for MaliciousAddress {
+        type Err = anyhow::Error;
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            if s.len() == 12 {
+                return Ok(Self(s.as_bytes().try_into().unwrap()));
+            }
+            anyhow::bail!("String must be 12 bytes!");
+        }
+    }
+
+    impl Display for MaliciousAddress {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str(&String::from_utf8_lossy(&self.0))
+        }
+    }
+
+    // Test roundtrip for a *valid* address that contains the separator at an irrelelvant location
+    let key =
+        PolicyKey::<MaliciousAddress>::with(Payer(b"evil/policy/".into()), b"innocuouskey".into());
+    let key_str = format!("{key}");
+    assert_eq!(
+        &format!("payers/evil/policy/{}innocuouskey", POLICY_SEPARATOR),
+        &key_str
+    );
+    let recovered_key = PolicyKey::from_str(&key_str).expect("Valid key must deserialize!");
+    assert_eq!(recovered_key, key);
+
+    // Test an invalid address that contains lots of the separator
+    assert!(PolicyKey::<MaliciousAddress>::from_str(&format!(
+        "{}{}{}{}",
+        POLICY_SEPARATOR, POLICY_SEPARATOR, POLICY_SEPARATOR, POLICY_SEPARATOR
+    ))
+    .is_err());
 }

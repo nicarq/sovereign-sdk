@@ -3,7 +3,7 @@ use sov_modules_api::transaction::TxDetails;
 use sov_modules_api::TxEffect;
 use sov_paymaster::{
     AllowedSequencerUpdate, CallMessage as PaymasterCallMessage, Event as PaymasterEvent,
-    PayeePolicy, Paymaster, PaymasterPolicy, PolicyUpdate, SafeVec,
+    PayeePolicy, Paymaster, PaymasterPolicyInitializer, PolicyUpdate, SafeVec,
 };
 use sov_test_utils::runtime::{TestRunner, TokenId, ValueSetter, ValueSetterCallMessage};
 use sov_test_utils::{
@@ -100,7 +100,7 @@ fn test_registering_new_payer() {
     runner.execute_transaction(TransactionTestCase {
         input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::RegisterPaymaster {
-                policy: PaymasterPolicy {
+                policy: PaymasterPolicyInitializer {
                     default_payee_policy: PayeePolicy::Allow {
                         max_fee: None,
                         gas_limit: None,
@@ -143,7 +143,7 @@ fn test_setting_payer_for_sequencer() {
     runner.execute_transaction(TransactionTestCase {
         input: setup.user.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::RegisterPaymaster {
-                policy: PaymasterPolicy {
+                policy: PaymasterPolicyInitializer {
                     default_payee_policy: PayeePolicy::Allow {
                         max_fee: None,
                         gas_limit: None,
@@ -478,7 +478,7 @@ fn test_setting_payer_with_insufficient_balance() {
     runner.execute_transaction(TransactionTestCase {
         input: setup.user.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::RegisterPaymaster {
-                policy: PaymasterPolicy {
+                policy: PaymasterPolicyInitializer {
                     default_payee_policy: PayeePolicy::Allow {
                         max_fee: None,
                         gas_limit: None,

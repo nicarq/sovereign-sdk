@@ -23,12 +23,12 @@ use sov_modules_api::{
     StateMap, TxState,
 };
 use sov_state::BorshCodec;
-use token::Token;
 /// Specifies an interface to interact with tokens.
 pub use token::{Amount, BurnRate, Coins, TokenId, TokenIdBech32};
-use utils::TokenHolderRef;
+use token::{BalanceKey, Token};
 /// Methods to get a token ID.
 pub use utils::{get_token_id, IntoPayable, Payable};
+use utils::{TokenHolder, TokenHolderRef};
 
 /// Event definition from module exported
 /// This can be useful for deserialization from API and similar cases
@@ -78,6 +78,10 @@ pub struct Bank<S: Spec> {
     /// A mapping of [`TokenId`]s to tokens in the sov-bank.
     #[state]
     pub(crate) tokens: StateMap<TokenId, Token<S>, C>,
+
+    /// A mapping from [`TokenHolder`] and[`TokenId`] to balance in the sov-bank.
+    #[state]
+    pub(crate) balances: StateMap<BalanceKey<TokenHolder<S>>, Amount, C>,
 }
 
 impl<S: Spec> Module for Bank<S> {

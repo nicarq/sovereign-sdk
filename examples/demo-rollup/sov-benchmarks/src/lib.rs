@@ -15,7 +15,7 @@ use sov_rollup_interface::zk::ZkvmHost;
 use sov_sp1_adapter::SP1;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::sov_paymaster::{
-    self, PayeePolicy, PayerGenesisConfig, PaymasterPolicy, SafeVec,
+    self, PayeePolicy, PayerGenesisConfig, PaymasterPolicyInitializer, SafeVec,
 };
 use sov_test_utils::runtime::{TestRunner, ValueSetterConfig};
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
@@ -106,7 +106,7 @@ where
         PaymasterConfig {
             payers: [PayerGenesisConfig {
                 payer_address: payer.address(),
-                policy: PaymasterPolicy {
+                policy: PaymasterPolicyInitializer {
                     default_payee_policy: PayeePolicy::Allow {
                         max_fee: None,
                         gas_limit: None,

@@ -1,5 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use sov_rollup_interface::common::HexString;
 
 use super::{EncodeLike, StateCodec, StateItemDecoder, StateItemEncoder};
 
@@ -49,6 +50,14 @@ where
     T: BorshSerialize,
 {
     fn encode_like(&self, borrowed: &[T]) -> Vec<u8> {
+        borsh::to_vec(borrowed).expect("Borsh serialization to vec is infallible")
+    }
+}
+
+// Since `HexString` is serialized
+// exactly like `Vec<u8>`, we can just reuse the standard impl
+impl EncodeLike<[u8], HexString> for BorshCodec {
+    fn encode_like(&self, borrowed: &[u8]) -> Vec<u8> {
         borsh::to_vec(borrowed).expect("Borsh serialization to vec is infallible")
     }
 }

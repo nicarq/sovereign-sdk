@@ -8,7 +8,6 @@ use core::fmt;
 
 pub use bcs_codec::BcsCodec;
 pub use borsh_codec::BorshCodec;
-use sov_rollup_interface::common::HexString;
 pub use split_codec::SplitCodec;
 
 /// A trait for types that can serialize and deserialize values for storage
@@ -25,7 +24,7 @@ pub trait StateItemEncoder<V: ?Sized> {
 }
 
 /// A trait for types that can deserialize values from storage.
-pub trait StateItemDecoder<V> {
+pub trait StateItemDecoder<V>: Clone + Send + Sync + 'static {
     /// Error type that can arise during deserialization.
     type Error: fmt::Debug;
 
@@ -96,13 +95,6 @@ where
         self.encode(borrowed)
     }
 }
-
-impl EncodeLike<[u8], HexString> for BorshCodec {
-    fn encode_like(&self, borrowed: &[u8]) -> Vec<u8> {
-        self.encode(borrowed)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use proptest::collection::vec;
