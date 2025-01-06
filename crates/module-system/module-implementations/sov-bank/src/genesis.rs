@@ -4,9 +4,9 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{GenesisState, Module, Spec};
 
-use crate::token::Token;
+use crate::token::{unique_holders, Token};
 use crate::utils::TokenHolderRef;
-use crate::{config_gas_token_id, Bank, TokenId};
+use crate::{config_gas_token_id, Amount, Bank, TokenId};
 
 /// Initial configuration for sov-bank module.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, JsonSchema)]
@@ -88,7 +88,6 @@ impl<S: Spec> Bank<S> {
         config: &<Self as Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
-        let tokens_state_map_prefix = self.tokens.prefix();
         let gas_token_config: TokenConfig<S> = config.gas_token_config.clone().into();
         tracing::debug!(token_id = %config_gas_token_id(), token_name = %gas_token_config.token_name, "Gas token");
         for token_config in std::iter::once(&gas_token_config).chain(config.tokens.iter()) {
@@ -104,20 +103,21 @@ impl<S: Spec> Bank<S> {
                 .map(|minter| TokenHolderRef::<'_, S>::from(&minter))
                 .collect::<Vec<_>>();
 
-            let address_and_balances = token_config
-                .address_and_balances
-                .iter()
-                .map(|(address, balance)| (TokenHolderRef::<'_, S>::from(&address), *balance))
-                .collect::<Vec<_>>();
+            let mut total_supply: Amount = 0;
+            for (address, balance) in token_config.address_and_balances.iter() {
+                let addr = TokenHolderRef::<'_, S>::from(&address);
+                self.balances.set(&(addr, token_id), balance, state)?;
+                total_supply = total_supply
+                    .checked_add(*balance)
+                    .ok_or(anyhow::anyhow!("Overflowed token supply!"))?;
+            }
 
-            let token = Token::<S>::create_with_token_id(
-                &token_config.token_name,
-                &address_and_balances,
-                &admins,
-                token_id,
-                tokens_state_map_prefix,
-                state,
-            )?;
+            let admins = unique_holders(&admins);
+            let token = Token::<S> {
+                name: token_config.token_name.to_owned(),
+                total_supply,
+                admins,
+            };
 
             if self.tokens.get(token_id, state)?.is_some() {
                 bail!("token ID {} already exists", token_config.token_id);

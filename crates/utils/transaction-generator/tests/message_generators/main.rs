@@ -4,7 +4,8 @@ use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::arbitrary::{self};
 use sov_modules_api::transaction::TxDetails;
 use sov_paymaster::{
-    PayeePolicy, PayerGenesisConfig, Paymaster, PaymasterConfig, PaymasterPolicy, SafeVec,
+    PayeePolicy, PayerGenesisConfig, Paymaster, PaymasterConfig, PaymasterPolicyInitializer,
+    SafeVec,
 };
 use sov_test_utils::runtime::genesis::optimistic::{
     HighLevelOptimisticGenesisConfig, MinimalOptimisticGenesisConfig,
@@ -246,7 +247,7 @@ fn setup_roles_and_config(user_balance: u64) -> Setup {
         PaymasterConfig {
             payers: [PayerGenesisConfig {
                 payer_address: payer.address(),
-                policy: PaymasterPolicy {
+                policy: PaymasterPolicyInitializer {
                     default_payee_policy: PayeePolicy::Allow {
                         max_fee: None,
                         gas_limit: None,

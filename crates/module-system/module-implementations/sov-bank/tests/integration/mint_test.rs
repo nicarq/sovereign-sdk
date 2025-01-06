@@ -182,7 +182,7 @@ fn mint_token_account_balance_overflow() {
                 assert_eq!(message_1, format!("Failed to mint token_id={}", token_id));
                 assert_eq!(
                     message_2,
-                    "Account balance overflow in the mint method of bank module",
+                    "Total Supply overflow in the mint method of bank module",
                 );
             } else {
                 panic!("The transaction should have failed");

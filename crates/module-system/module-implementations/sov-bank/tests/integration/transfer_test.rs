@@ -153,13 +153,12 @@ fn transfer_non_existent_token() {
     ) = setup();
 
     let non_existent_token = TestTokenName::new("NonExistentToken".to_string());
-    let user_address = user.address();
 
     runner.execute_transaction(TransactionTestCase {
         input: user.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
-            to: user_address,
+            to: sov_modules_api::Address::new([1u8;28]),
             coins: Coins {
-                amount: 0,
+                amount: 1,
                 token_id: non_existent_token.id(),
             },
         }),
@@ -169,13 +168,14 @@ fn transfer_non_existent_token() {
                 let mut chain = err.chain();
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();
+                println!("{}\n{}", message_1, message_2);
                 assert!(chain.next().is_none());
-                assert_eq!(
-                    format!("Failed to get token_id={}", non_existent_token.id()),
-                    message_1
-                );
+
+                assert!(message_1.starts_with(
+                    "Failed to transfer token_id=token_1ry733wdf5jt2hkgyljcgy54k3julqqtvrf9j2wfty0l7tnrrdz6sl8f07d"
+                ));
                 assert!(message_2.starts_with(
-                    "Value not found for prefix: \"sov_bank/Bank/tokens/\" and storage key:"
+                    "Insufficient balance from="
                 ));
             } else {
                 panic!("The transaction should have failed");

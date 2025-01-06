@@ -193,10 +193,9 @@ where
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/951
 
         let storage_slot = self
-            .accounts
-            .get(&address, state)
+            .account_storage
+            .get(&(&address, &index), state)
             .unwrap_infallible()
-            .and_then(|account| account.storage.get(&index, state).unwrap_infallible())
             .unwrap_or_default();
 
         Ok(storage_slot)

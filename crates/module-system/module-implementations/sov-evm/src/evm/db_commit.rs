@@ -29,13 +29,11 @@ where
                 todo!("Account destruction not supported")
             }
 
-            let accounts_prefix = self.accounts.prefix();
-
             let mut db_account = self
                 .accounts
                 .get(&address, &mut self.state)
                 .unwrap_infallible()
-                .unwrap_or_else(|| DbAccount::new(accounts_prefix, address));
+                .unwrap_or_else(DbAccount::new);
 
             let mut account_info = account.info;
             let rollup_address: <S as Spec>::Address = to_rollup_address::<S>(address);
@@ -70,9 +68,8 @@ where
                 // Unwrap because we took key from map itself, so key exists by definition.
                 let value = account.storage.get(key).unwrap();
                 let value = value.present_value();
-                db_account
-                    .storage
-                    .set(key, &value, &mut self.state)
+                self.account_storage
+                    .set(&(&address, key), &value, &mut self.state)
                     .unwrap_infallible();
             }
 

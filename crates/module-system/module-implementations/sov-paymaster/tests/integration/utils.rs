@@ -1,5 +1,5 @@
 use sov_modules_api::{BlobDataWithId, CryptoSpec, SafeVec, Spec};
-use sov_paymaster::{PayeePolicy, PayerGenesisConfig, PaymasterConfig, PaymasterPolicy};
+use sov_paymaster::{PayeePolicy, PayerGenesisConfig, PaymasterConfig, PaymasterPolicyInitializer};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::traits::MinimalGenesis;
@@ -91,7 +91,7 @@ pub fn setup(user_balance: u64) -> Setup {
         PaymasterConfig {
             payers: [PayerGenesisConfig {
                 payer_address: payer.address(),
-                policy: PaymasterPolicy {
+                policy: PaymasterPolicyInitializer {
                     default_payee_policy: PayeePolicy::Allow {
                         max_fee: None,
                         gas_limit: None,

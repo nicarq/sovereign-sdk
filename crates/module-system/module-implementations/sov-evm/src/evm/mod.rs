@@ -3,12 +3,11 @@
 #![allow(clippy::match_same_arms)]
 
 use alloy_eips::eip1559::BaseFeeParams;
-use reth_primitives::revm_primitives::{AccountInfo, Address, SpecId, U256};
+use reth_primitives::revm_primitives::{AccountInfo, Address, SpecId};
 use serde::{Deserialize, Serialize};
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::macros::config_value;
-use sov_modules_api::{Spec, StateMap, StateReader};
-use sov_state::{Prefix, User};
+use sov_modules_api::Spec;
 
 pub(crate) mod conversions;
 pub(crate) mod db;
@@ -19,54 +18,23 @@ pub mod executor;
 pub(crate) mod primitive_types;
 
 pub use primitive_types::RlpEvmTransaction;
-use sov_state::codec::BcsCodec;
 
 /// Stores information about an EVM account and a corresponding account state.
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
 pub struct DbAccount {
     pub(crate) info: AccountInfo,
-    pub(crate) storage: StateMap<U256, U256, BcsCodec>,
 }
 
 impl DbAccount {
-    fn new(parent_prefix: &Prefix, address: Address) -> Self {
-        let prefix = Self::create_storage_prefix(parent_prefix, address);
+    fn new() -> Self {
         Self {
             info: Default::default(),
-            storage: StateMap::with_codec(prefix, BcsCodec {}),
-        }
-    }
-
-    pub(crate) fn new_with_info(
-        parent_prefix: &Prefix,
-        address: Address,
-        info: AccountInfo,
-    ) -> Self {
-        let prefix = Self::create_storage_prefix(parent_prefix, address);
-        Self {
-            info,
-            storage: StateMap::with_codec(prefix, BcsCodec {}),
         }
     }
 
     /// The account info associated with this db account.
     pub fn account_info(&self) -> &AccountInfo {
         &self.info
-    }
-
-    /// Lookup the storage at the specified index for the account.
-    pub fn get_storage<Accessor: StateReader<User>>(
-        &self,
-        index: &U256,
-        state: &mut Accessor,
-    ) -> Result<Option<U256>, Accessor::Error> {
-        self.storage.get(index, state)
-    }
-
-    fn create_storage_prefix(parent_prefix: &Prefix, address: Address) -> Prefix {
-        let mut prefix = parent_prefix.as_ref().to_vec();
-        prefix.extend_from_slice(address.as_slice());
-        Prefix::new(prefix)
     }
 }
 

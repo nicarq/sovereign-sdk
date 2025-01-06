@@ -1,24 +1,21 @@
-#[cfg(feature = "native")]
 use core::str::FromStr;
 use std::collections::HashSet;
-use std::fmt::Formatter;
+use std::fmt::{Display, Formatter};
 #[cfg(feature = "native")]
 use std::num::ParseIntError;
 
-use anyhow::{bail, Context};
+use anyhow::bail;
 use borsh::{BorshDeserialize, BorshSerialize};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "arbitrary")]
 use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{impl_hash32_type, Spec, StateMap, TxState};
-use sov_state::namespaces::User;
-use sov_state::Prefix;
+use sov_modules_api::{impl_hash32_type, Spec};
+use sov_state::{BorshCodec, EncodeLike, StateItemEncoder};
 use thiserror::Error;
 
-use crate::utils::{get_token_id_metered, Payable, TokenHolder, TokenHolderRef};
-use crate::C;
+use crate::utils::{Payable, TokenHolder, TokenHolderRef};
 
 /// Type alias to store an amount of token.
 pub type Amount = u64;
@@ -60,6 +57,57 @@ impl BurnRate {
 }
 
 impl_hash32_type!(TokenId, TokenIdBech32, "token_");
+
+/// The key to a `balances` entry, consisting of an Address and TokenID
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
+    derive_more::Display,
+)]
+#[display(r#"{}/{}"#, self.0, self.1)]
+pub struct BalanceKey<Addr: Display>(pub Addr, pub TokenId);
+
+impl<Addr: Display + BorshSerialize, AddrLike> EncodeLike<(AddrLike, &TokenId), BalanceKey<Addr>>
+    for BorshCodec
+where
+    BorshCodec: EncodeLike<AddrLike, Addr>,
+    BorshCodec: StateItemEncoder<TokenId>,
+{
+    fn encode_like(&self, borrowed: &(AddrLike, &TokenId)) -> Vec<u8> {
+        let mut out = self.encode_like(&borrowed.0);
+        out.extend_from_slice(&self.encode(borrowed.1));
+        out
+    }
+}
+
+impl<Addr> FromStr for BalanceKey<Addr>
+where
+    Addr: FromStr<Err: Into<Box<dyn std::error::Error + Send + Sync + 'static>>> + Display,
+{
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // The address serialization is unknown to us, so it might contain `/` - but we know that TokenID is
+        // bech32 which disallows `/`
+        let Some(pos) = s.rfind('/') else {
+            bail!("Invalid balance prefix. String does not contain '/'");
+        };
+        if (pos + 1) == s.len() {
+            bail!("Invalid balance prefix. String does not contain token ID");
+        }
+        let addr = &s[..pos];
+        let token = &s[(pos + 1)..];
+
+        Ok(BalanceKey(
+            Addr::from_str(addr).map_err(|e| anyhow::Error::from_boxed(e.into()))?,
+            TokenId::from_str(token)?,
+        ))
+    }
+}
 
 /// Structure that stores information specifying
 /// a given `amount` (type [`Amount`]) of coins stored at a `token_id`
@@ -149,8 +197,6 @@ pub struct Token<S: Spec> {
     pub(crate) name: String,
     /// Total supply of the coins.
     pub(crate) total_supply: u64,
-    /// Mapping from user address to user balance.
-    pub(crate) balances: StateMap<TokenHolder<S>, Amount>,
 
     /// Vector containing the admins
     /// Empty vector indicates that the token supply is frozen.
@@ -176,63 +222,6 @@ impl<S: Spec> Token<S> {
         &self.admins
     }
 
-    /// Transfer the amount `amount` of tokens from the address `from` to the address `to`.
-    /// First checks that there is enough token of that type stored in `from`. If so, update
-    /// the balances of the `from` and `to` accounts.
-    pub(crate) fn transfer(
-        &self,
-        from: TokenHolderRef<'_, S>,
-        to: TokenHolderRef<'_, S>,
-        amount: Amount,
-        state: &mut impl StateAccessor,
-    ) -> anyhow::Result<()> {
-        if from == to {
-            tracing::trace!("Token transfer succeeded because it was transferring tokens to self.");
-            return Ok(());
-        }
-
-        if amount == 0 {
-            tracing::trace!("Token transfer succeeded because the transfer amount was zero.");
-            return Ok(());
-        }
-
-        let from_balance = self.decrease_balance_checked(from, amount, state)?;
-
-        let current_to_balance = self.balances.get(&to, state)?.unwrap_or(0);
-        let to_balance = current_to_balance.checked_add(amount).with_context(|| {
-            format!(
-                "Account balance overflow for {} when adding {} to current balance {}",
-                to, amount, current_to_balance
-            )
-        })?;
-
-        self.balances.set(&from, &from_balance, state)?;
-        self.balances.set(&to, &to_balance, state)?;
-        Ok(())
-    }
-
-    /// Burns a specified `amount` of token from the address `from`. First check that the address has enough token to burn,
-    /// if not returns an error. Otherwise, update the balances by substracting the amount burnt.
-    pub(crate) fn burn(
-        &mut self,
-        from: TokenHolderRef<'_, S>,
-        amount: Amount,
-        state: &mut impl StateAccessor,
-    ) -> anyhow::Result<()> {
-        let new_balance = self.decrease_balance_checked(from, amount, state)?;
-        self.total_supply = self.total_supply.checked_sub(amount).ok_or_else(|| {
-            anyhow::anyhow!(
-                "Total supply underflow when burning, supply={} is less than burn amount={}",
-                self.total_supply,
-                amount
-            )
-        })?;
-        self.balances.set(&from, &new_balance, state)?;
-
-        Ok(())
-    }
-
-    /// Freezing a token requires emptying the admin vector
     /// admins: Vec<Address> is used to determine if the token is frozen or not
     /// If the vector is empty when the function is called, this means the token is already frozen
     pub(crate) fn freeze(&mut self, sender: TokenHolderRef<'_, S>) -> anyhow::Result<()> {
@@ -249,12 +238,10 @@ impl<S: Spec> Token<S> {
     /// Checks that the `admins` set is not empty for the token and that the `sender`
     /// is an `admin`. If so, update the balances of token for the `mint_to_address` by
     /// adding the minted tokens. Updates the `total_supply` of that token.
-    pub(crate) fn mint(
+    pub(crate) fn update_for_mint_if_allowed(
         &mut self,
         authorizer: TokenHolderRef<'_, S>,
-        mint_to_identity: TokenHolderRef<'_, S>,
         amount: Amount,
-        state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
         if self.admins.is_empty() {
             bail!("Attempt to mint frozen token {}", self.name)
@@ -262,16 +249,6 @@ impl<S: Spec> Token<S> {
 
         self.assert_is_admin(authorizer)?;
 
-        let to_balance: Amount = self
-            .balances
-            .get(&mint_to_identity, state)?
-            .unwrap_or_default()
-            .checked_add(amount)
-            .ok_or(anyhow::Error::msg(
-                "Account balance overflow in the mint method of bank module",
-            ))?;
-
-        self.balances.set(&mint_to_identity, &to_balance, state)?;
         self.total_supply = self
             .total_supply
             .checked_add(amount)
@@ -291,101 +268,52 @@ impl<S: Spec> Token<S> {
 
         bail!("Sender {} is not an admin of token {}", sender, self.name)
     }
-
-    // Check that amount can be deducted from address
-    // Returns new balance after subtraction.
-    fn decrease_balance_checked(
-        &self,
-        from: TokenHolderRef<'_, S>,
-        amount: Amount,
-        state: &mut impl StateAccessor,
-    ) -> anyhow::Result<Amount> {
-        let balance = self.balances.get(&from, state)?.unwrap_or(0);
-
-        let new_balance = match balance.checked_sub(amount) {
-            Some(from_balance) => from_balance,
-            None => bail!(format!(
-                "Insufficient balance from={from}, got={balance}, needed={amount}",
-            )),
-        };
-        Ok(new_balance)
-    }
-
-    /// Creates a token from a given set of parameters.
-    /// The `token_name`, `originator`  (as a `u8` slice)are used as an input
-    /// to an hash function that computes the token ID. Then the initial accounts and balances are populated
-    /// from the `identities_and_balances` slice and the `total_supply` of tokens is updated each time.
-    /// Returns a tuple containing the computed `token_id` and the created `token` object.
-    pub(crate) fn create(
-        token_name: &str,
-        identities_and_balances: &[(TokenHolderRef<'_, S>, u64)],
-        admins: &[TokenHolderRef<'_, S>],
-        originator: &impl Payable<S>,
-        tokens_state_map_prefix: &Prefix,
-        state: &mut impl TxState<S>,
-    ) -> anyhow::Result<(TokenId, Self)> {
-        let token_id = get_token_id_metered::<S>(token_name, originator, state)?;
-        tracing::debug!(%token_name, %originator, %token_id, "Calculated token id");
-        let token = Self::create_with_token_id(
-            token_name,
-            identities_and_balances,
-            admins,
-            &token_id,
-            tokens_state_map_prefix,
-            state,
-        )?;
-        Ok((token_id, token))
-    }
-
-    /// Shouldn't be used directly, only by genesis call
-    pub(crate) fn create_with_token_id(
-        token_name: &str,
-        identities_and_balances: &[(TokenHolderRef<'_, S>, u64)],
-        admins: &[TokenHolderRef<'_, S>],
-        token_id: &TokenId,
-        tokens_state_map_prefix: &Prefix,
-        state: &mut impl StateReaderAndWriter<User>,
-    ) -> anyhow::Result<Token<S>> {
-        // The `token_prefix` does not collide with any other prefix because it is
-        // derived from the unique `tokens_state_map_prefix` combined with the `token_id`.
-        let token_prefix = Prefix::with_parent(tokens_state_map_prefix, token_id.as_bytes());
-        tracing::debug!(final_prefix = %token_prefix, %token_id, %tokens_state_map_prefix, "Creating token with state prefix");
-        let balances = sov_modules_api::StateMap::with_codec(token_prefix.clone(), C::default());
-
-        let mut total_supply: Option<u64> = Some(0);
-        for (address, balance) in identities_and_balances.iter() {
-            balances.set(address, balance, state)?;
-            total_supply = total_supply.and_then(|ts| ts.checked_add(*balance));
-        }
-
-        let total_supply = match total_supply {
-            Some(total_supply) => total_supply,
-            None => bail!("Total supply overflow"),
-        };
-
-        let admins = unique_minters(admins);
-
-        Ok(Token::<S> {
-            name: token_name.to_owned(),
-            total_supply,
-            balances,
-            admins,
-        })
-    }
 }
 
-fn unique_minters<S: Spec>(minters: &[TokenHolderRef<'_, S>]) -> Vec<TokenHolder<S>> {
+pub(crate) fn unique_holders<S: Spec>(holders: &[TokenHolderRef<'_, S>]) -> Vec<TokenHolder<S>> {
     // IMPORTANT:
     // We can't just put `admins` into a `HashSet` because the order of the elements in the `HashSet`` is not guaranteed.
     // The algorithm below ensures that the order of the elements in the `auth_minter_list` is deterministic (both in zk and native execution).
     let mut indices = HashSet::new();
-    let mut auth_minter_list = Vec::new();
+    let mut holder_list = Vec::new();
 
-    for item in minters.iter() {
+    for item in holders.iter() {
         if indices.insert(item) {
-            auth_minter_list.push(item.into());
+            holder_list.push(item.into());
         }
     }
 
-    auth_minter_list
+    holder_list
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use sov_state::{BorshCodec, EncodeLike, StateItemEncoder};
+
+    use crate::{BalanceKey, TokenId};
+
+    #[test]
+    fn test_balance_key_str_roundtrip() {
+        let key: BalanceKey<String> = BalanceKey("Address/".to_string(), TokenId::from([1u8; 32]));
+        assert_eq!(
+            key.to_string(),
+            "Address//token_1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqskmlvce"
+        );
+
+        assert_eq!(
+            BalanceKey::<String>::from_str(&key.to_string()).unwrap(),
+            key
+        );
+    }
+
+    #[test]
+    fn test_balance_key_encode_like() {
+        let key: BalanceKey<String> = BalanceKey("Address/".to_string(), TokenId::from([1u8; 32]));
+        assert_eq!(
+            BorshCodec.encode_like(&(key.0.clone(), &key.1)),
+            BorshCodec.encode(&key)
+        );
+    }
 }

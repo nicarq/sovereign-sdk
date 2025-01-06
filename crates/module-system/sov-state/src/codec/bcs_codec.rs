@@ -1,3 +1,5 @@
+use sov_rollup_interface::common::HexString;
+
 use super::{EncodeLike, StateCodec, StateItemDecoder, StateItemEncoder};
 
 /// A [`StateCodec`] that uses [`bcs`] for all keys and values.
@@ -41,6 +43,12 @@ impl StateCodec for BcsCodec {
 // [`serde::Serializer::collect_seq`] under the hood.
 impl<T: serde::Serialize> EncodeLike<[T], Vec<T>> for BcsCodec {
     fn encode_like(&self, borrowed: &[T]) -> Vec<u8> {
+        bcs::to_bytes(borrowed).expect("Bcs serialization to vec is infallible")
+    }
+}
+
+impl EncodeLike<[u8], HexString> for BcsCodec {
+    fn encode_like(&self, borrowed: &[u8]) -> Vec<u8> {
         bcs::to_bytes(borrowed).expect("Bcs serialization to vec is infallible")
     }
 }

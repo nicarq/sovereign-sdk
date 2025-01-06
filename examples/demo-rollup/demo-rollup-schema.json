@@ -1186,8 +1186,8 @@
     },
     {
       "Struct": {
-        "type_name": "PaymasterPolicy",
-        "serde_type_name": "PaymasterPolicy",
+        "type_name": "PaymasterPolicyInitializer",
+        "serde_type_name": "PaymasterPolicyInitializer",
         "template": null,
         "fields": [
           {

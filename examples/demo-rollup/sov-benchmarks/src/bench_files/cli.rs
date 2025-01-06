@@ -10,7 +10,7 @@ use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::sov_paymaster::{
-    self, PayeePolicy, PayerGenesisConfig, PaymasterConfig, PaymasterPolicy, SafeVec,
+    self, PayeePolicy, PayerGenesisConfig, PaymasterConfig, PaymasterPolicyInitializer, SafeVec,
 };
 use sov_test_utils::runtime::ValueSetterConfig;
 use sov_transaction_generator::generators::basic::BasicModuleRef;
@@ -172,7 +172,7 @@ impl BenchCLICustomArgs {
             PaymasterConfig {
                 payers: [PayerGenesisConfig {
                     payer_address: payer.address(),
-                    policy: PaymasterPolicy {
+                    policy: PaymasterPolicyInitializer {
                         default_payee_policy: PayeePolicy::Allow {
                             max_fee: None,
                             gas_limit: None,

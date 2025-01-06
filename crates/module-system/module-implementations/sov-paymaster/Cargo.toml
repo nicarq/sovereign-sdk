@@ -20,6 +20,7 @@ arbitrary = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["rc"] }
 bcs = { workspace = true }
 derivative = { workspace = true }
+derive_more = { workspace = true }
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 schemars = { workspace = true }
