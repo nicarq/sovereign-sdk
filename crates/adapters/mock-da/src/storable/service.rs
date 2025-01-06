@@ -294,7 +294,7 @@ impl DaService for StorableMockDaService {
         let (tx, rx) = oneshot::channel();
         tracing::debug!(batch = hex::encode(blob), "Submitting a batch");
         let blob_hash = {
-            let da_layer = self.da_layer.read().await;
+            let mut da_layer = self.da_layer.write().await;
             da_layer
                 .submit_batch(blob, &self.sequencer_da_address)
                 .await
@@ -329,7 +329,7 @@ impl DaService for StorableMockDaService {
             "Sending an aggregated proof"
         );
         let blob_hash = {
-            let da_layer = self.da_layer.read().await;
+            let mut da_layer = self.da_layer.write().await;
             da_layer
                 .submit_proof(aggregated_proof_data, &self.sequencer_da_address)
                 .await

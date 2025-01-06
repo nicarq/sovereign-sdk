@@ -45,7 +45,9 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                 Distribution::with_equiprobable_values(vec![bench_module]),
                 Distribution::with_equiprobable_values(vec![
                     MessageValidity::Valid,
-                    MessageValidity::Invalid,
+                    // TODO(@theochap) - reactivate once we have a way to send invalid transactions
+                    // to DA through sequencers.
+                    // MessageValidity::Invalid,
                 ]),
                 value_setter_admin.clone(),
             )
@@ -63,7 +65,9 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                 Distribution::with_equiprobable_values(vec![bench_module]),
                 Distribution::with_equiprobable_values(vec![
                     MessageValidity::Valid,
-                    MessageValidity::Invalid,
+                    // TODO(@theochap) - reactivate once we have a way to send invalid transactions
+                    // to DA through sequencers.
+                    // MessageValidity::Invalid,
                 ]),
                 value_setter_admin.clone(),
             )
@@ -88,7 +92,9 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                 Distribution::with_equiprobable_values(vec![bench_module]),
                 Distribution::with_equiprobable_values(vec![
                     MessageValidity::Valid,
-                    MessageValidity::Invalid,
+                    // TODO(@theochap) - reactivate once we have a way to send invalid transactions
+                    // to DA through sequencers.
+                    // MessageValidity::Invalid,
                 ]),
                 value_setter_admin.clone(),
             )
@@ -110,7 +116,9 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                 Distribution::with_equiprobable_values(vec![bench_module]),
                 Distribution::with_equiprobable_values(vec![
                     MessageValidity::Valid,
-                    MessageValidity::Invalid,
+                    // TODO(@theochap) - reactivate once we have a way to send invalid transactions
+                    // to DA through sequencers.
+                    // MessageValidity::Invalid,
                 ]),
                 value_setter_admin.clone(),
             )
@@ -132,7 +140,9 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                 Distribution::with_equiprobable_values(vec![bench_module]),
                 Distribution::with_equiprobable_values(vec![
                     MessageValidity::Valid,
-                    MessageValidity::Invalid,
+                    // TODO(@theochap) - reactivate once we have a way to send invalid transactions
+                    // to DA through sequencers.
+                    // MessageValidity::Invalid,
                 ]),
                 value_setter_admin.clone(),
             )
@@ -162,7 +172,9 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                 ]),
                 Distribution::with_equiprobable_values(vec![
                     MessageValidity::Valid,
-                    MessageValidity::Invalid,
+                    // TODO(@theochap) - reactivate once we have a way to send invalid transactions
+                    // to DA through sequencers.
+                    // MessageValidity::Invalid,
                 ]),
                 value_setter_admin.clone(),
             )
@@ -199,7 +211,9 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                 ]),
                 Distribution::with_equiprobable_values(vec![
                     MessageValidity::Valid,
-                    MessageValidity::Invalid,
+                    // TODO(@theochap) - reactivate once we have a way to send invalid transactions
+                    // to DA through sequencers.
+                    // MessageValidity::Invalid,
                 ]),
                 value_setter_admin.clone(),
             )

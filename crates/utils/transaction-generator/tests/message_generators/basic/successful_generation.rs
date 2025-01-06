@@ -20,7 +20,7 @@ async fn test_successful_generation_helper(modules: Distribution<ModulesToUse>) 
             });
         };
 
-    let (mut runner, generator, outputs) = test_with_modules(
+    let (mut runner, outputs) = test_with_modules(
         modules,
         MessageValidity::as_distribution(Percent::one_hundred()),
         &mut transaction_exec_closure,
@@ -46,14 +46,9 @@ async fn test_successful_generation_helper(modules: Distribution<ModulesToUse>) 
         .flat_map(|output| output.outcome.unwrap_changes())
         .collect();
 
-    assert_logs_against_state(
-        changes,
-        generator.bank_harness.inner(),
-        generator.value_setter_harness.inner(),
-        &config,
-    )
-    .await
-    .expect("Failed to assert against state");
+    assert_logs_against_state(changes, &config)
+        .await
+        .expect("Failed to assert against state");
 
     NumTxsExecuted {
         num_bank_txs,
@@ -122,7 +117,6 @@ async fn test_generate_txs_only_bank() {
     ]))
     .await;
 
-    // We should have generated zero bank transaction and 100 value setter transactions
     assert_eq!(num_bank_txs, TXS_TO_GENERATE);
     assert_eq!(num_value_setter_txs, 0);
 }

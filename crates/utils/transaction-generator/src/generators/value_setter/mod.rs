@@ -162,7 +162,6 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
     }
 
     async fn assert_state(
-        &self,
         rollup_state_accessor: Self::ClientConfig,
         change: &Self::ChangelogEntry,
     ) -> Result<(), anyhow::Error> {

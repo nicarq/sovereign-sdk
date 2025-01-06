@@ -1,3 +1,5 @@
+## 2025-01-05
+- #2142 adds execution capabilities to the benchmark generation. This is not a breaking change for customers of the SDK.
 ## 2025-01-06
 - #2145 fixes various risc0 related issues in sov-rollup-interface, risc0 adapter and celestia adapter
 ## 2025-01-05

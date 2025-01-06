@@ -27,7 +27,7 @@ use crate::sov_paymaster::PaymasterConfig;
 
 pub const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic;
 pub const DEFAULT_BLOCK_TIME_MS: u64 = 150;
-pub const DEFAULT_FINALIZATION_BLOCKS: u32 = 5;
+pub const DEFAULT_FINALIZATION_BLOCKS: u32 = 0;
 pub const DEFAULT_TXS_PER_BATCH: u64 = 10;
 pub const MAX_TXS_PER_BATCH: u64 = 1000;
 pub const DEFAULT_TIMEOUT: Duration = Duration::new(10, 0);

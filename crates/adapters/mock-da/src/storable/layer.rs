@@ -190,7 +190,7 @@ impl StorableMockDaLayer {
     }
 
     pub(crate) async fn submit_batch(
-        &self,
+        &mut self,
         batch_data: &[u8],
         sender: &MockAddress,
     ) -> anyhow::Result<MockHash> {
@@ -200,7 +200,7 @@ impl StorableMockDaLayer {
     }
 
     pub(crate) async fn submit_proof(
-        &self,
+        &mut self,
         proof_data: &[u8],
         sender: &MockAddress,
     ) -> anyhow::Result<MockHash> {
@@ -566,7 +566,7 @@ mod tests {
         let proof_4 = vec![2, 2, 4, 4];
 
         {
-            let da_layer = StorableMockDaLayer::new_in_path(tempdir.path(), 0).await?;
+            let mut da_layer = StorableMockDaLayer::new_in_path(tempdir.path(), 0).await?;
             check_da_layer_consistency(&da_layer).await?;
             da_layer.submit_batch(&batch_1, &sender_1).await?;
             da_layer.submit_proof(&proof_1, &sender_1).await?;
@@ -579,7 +579,7 @@ mod tests {
             check_da_layer_consistency(&da_layer).await?;
         }
         {
-            let da_layer = StorableMockDaLayer::new_in_path(tempdir.path(), 0).await?;
+            let mut da_layer = StorableMockDaLayer::new_in_path(tempdir.path(), 0).await?;
             check_da_layer_consistency(&da_layer).await?;
             da_layer.submit_batch(&batch_3, &sender_1).await?;
             da_layer.submit_proof(&proof_3, &sender_1).await?;

@@ -168,7 +168,6 @@ pub trait CallMessageGenerator<S: Spec> {
     /// *must* detect when two changes conflict (if applicable) and assert only
     /// the most recent change.
     async fn assert_state(
-        &self,
         rollup_state_accessor: Self::ClientConfig,
         changes: &Self::ChangelogEntry,
     ) -> Result<(), anyhow::Error>;

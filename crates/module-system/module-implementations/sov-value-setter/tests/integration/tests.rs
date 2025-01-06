@@ -55,16 +55,22 @@ fn test_setting_value() {
 
 #[test]
 fn test_setting_value_not_admin() {
-    let (mut runner, _, non_admin) = setup();
+    let (mut runner, admin, non_admin) = setup();
 
     runner.execute_transaction(TransactionTestCase {
         input: non_admin.create_plain_message::<RT, ValueSetter<S>>(CallMessage::SetValue(5)),
-        assert: Box::new(|result, _state| {
+        assert: Box::new(move |result, _state| {
             match &result.tx_receipt {
                 sov_modules_api::TxEffect::Reverted(reason) => {
                     assert_eq!(
                         &reason.reason,
-                        &ModuleError(SetValueError::WrongSender.into()),
+                        &ModuleError(
+                            SetValueError::<S>::WrongSender {
+                                sender: non_admin.address(),
+                                admin: admin.address()
+                            }
+                            .into()
+                        ),
                         "Transaction reverted, but with unexpected reason"
                     );
                 }

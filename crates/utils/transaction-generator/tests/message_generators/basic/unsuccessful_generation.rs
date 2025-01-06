@@ -29,7 +29,7 @@ fn test_reverted_transactions_helper(modules: Distribution<ModulesToUse>) -> Num
             });
         };
 
-    let (_, _, outputs) = test_with_modules(
+    let (_, outputs) = test_with_modules(
         modules,
         MessageValidity::as_distribution(Percent::zero()),
         &mut transaction_exec_closure,

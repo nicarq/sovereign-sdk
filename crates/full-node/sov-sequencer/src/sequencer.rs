@@ -247,7 +247,13 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
                         self.notify_accepted_tx(accepted);
                     }
                 }
-                Err(_) => {}
+                Err(e) => {
+                    println!("Error {e:?}");
+                    return Err(
+                        anyhow::anyhow!("title: {}, details: {}", e.title, e.details)
+                            .context("Failed to add transaction to batch."),
+                    );
+                }
             }
 
             accept_tx_results.push(result);
