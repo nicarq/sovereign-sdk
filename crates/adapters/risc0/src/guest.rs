@@ -34,7 +34,7 @@ impl ZkvmGuest for Risc0Guest {
 #[derive(Default)]
 struct Hints {
     #[cfg(feature = "bincode")]
-    values: Vec<u8>,
+    values: std::io::Cursor<Vec<u8>>,
     #[cfg(not(feature = "bincode"))]
     values: Vec<u32>,
     #[cfg(not(feature = "bincode"))]
@@ -45,7 +45,9 @@ struct Hints {
 impl Hints {
     #[cfg(feature = "bincode")]
     pub fn with_hints(hints: Vec<u8>) -> Self {
-        Hints { values: hints }
+        Hints {
+            values: std::io::Cursor::new(hints),
+        }
     }
 
     #[cfg(not(feature = "bincode"))]
@@ -133,7 +135,12 @@ impl ZkvmGuest for Risc0Guest {
 
     #[cfg(feature = "bincode")]
     fn read_from_host<T: DeserializeOwned>(&self) -> T {
-        bincode::deserialize(&self.hints.lock().unwrap().values).unwrap()
+        use std::ops::DerefMut;
+
+        let mut hints = self.hints.lock().unwrap();
+        let hints = hints.deref_mut();
+
+        bincode::deserialize_from::<_, T>(&mut hints.values).expect("Deserialization failed")
     }
 
     #[cfg(not(feature = "bincode"))]

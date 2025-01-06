@@ -358,6 +358,10 @@ mod tests {
     use sov_rollup_interface::node::da::SlotData;
     use sov_rollup_interface::zk::ValidityCondition;
 
+    use crate::test_helper::files::{
+        with_rollup_batch_data, with_rollup_proof_data, without_rollup_batch_data,
+    };
+    use crate::test_helper::serialization::{get_test_da_service, test_block_serialization};
     use crate::{CelestiaHeader, CompactHeader};
 
     const HEADER_JSON_RESPONSES: &[&str] = &[
@@ -436,5 +440,29 @@ mod tests {
 
             assert_eq!(cel_header, deserialized);
         }
+    }
+
+    #[tokio::test]
+    async fn test_zkvm_serde_block_with_batch_serialization() {
+        let da_service = get_test_da_service(25668).await;
+        let block = with_rollup_batch_data::filtered_block();
+
+        test_block_serialization(&da_service, block).await;
+    }
+
+    #[tokio::test]
+    async fn test_zkvm_serde_block_without_batch_serialization() {
+        let da_service = get_test_da_service(25668).await;
+        let block = without_rollup_batch_data::filtered_block();
+
+        test_block_serialization(&da_service, block).await;
+    }
+
+    #[tokio::test]
+    async fn test_zkvm_serde_block_with_proof_serialization() {
+        let da_service = get_test_da_service(25668).await;
+        let block = with_rollup_proof_data::filtered_block();
+
+        test_block_serialization(&da_service, block).await;
     }
 }

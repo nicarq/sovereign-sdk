@@ -44,7 +44,7 @@ impl NamespaceWithShares {
         pfbs: &Vec<(MsgPayForBlobs, TxPosition)>,
         batch_shares: Self,
         proof_shares: Self,
-    ) -> (NamespaceRelevenatData, NamespaceRelevenatData) {
+    ) -> (NamespaceRelevantData, NamespaceRelevantData) {
         // Parse out the pfds and store them for later retrieval.
         trace!("Decoding pfb protobufs...");
         let mut batch_pbf_map = HashMap::new();
@@ -63,14 +63,14 @@ impl NamespaceWithShares {
             }
         }
 
-        let rollup_batch_data = NamespaceRelevenatData {
+        let rollup_batch_data = NamespaceRelevantData {
             namespace: batch_shares.namespace,
             group: NamespaceGroup::from(&batch_shares.rows),
             relevant_pfbs: batch_pbf_map,
             rows: batch_shares.rows,
         };
 
-        let rollup_proof_data = NamespaceRelevenatData {
+        let rollup_proof_data = NamespaceRelevantData {
             namespace: proof_shares.namespace,
             group: NamespaceGroup::from(&proof_shares.rows),
             relevant_pfbs: proof_pbf_map,
@@ -91,7 +91,7 @@ pub struct BlobWithSender {
 
 /// Data that is required for extracting the relevant blobs from the namespace
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct NamespaceRelevenatData {
+pub struct NamespaceRelevantData {
     /// Celestia namespace.
     pub(crate) namespace: Namespace,
     pub(crate) group: NamespaceGroup,
@@ -102,7 +102,7 @@ pub struct NamespaceRelevenatData {
     pub(crate) rows: NamespaceData,
 }
 
-impl NamespaceRelevenatData {
+impl NamespaceRelevantData {
     pub fn get_blob_with_sender(&self) -> Vec<BlobWithSender> {
         let mut output = Vec::new();
         for blob_ref in self.group.blobs() {
@@ -149,10 +149,10 @@ pub struct FilteredCelestiaBlock {
     /// All rows in the extended data square which contain pfb data
     pub(crate) etx_rows: NamespaceData,
     /// Batch related data.
-    pub(crate) rollup_batch_data: NamespaceRelevenatData,
+    pub(crate) rollup_batch_data: NamespaceRelevantData,
 
     /// Proof related data.
-    pub(crate) rollup_proof_data: NamespaceRelevenatData,
+    pub(crate) rollup_proof_data: NamespaceRelevantData,
 }
 
 #[cfg(feature = "native")]

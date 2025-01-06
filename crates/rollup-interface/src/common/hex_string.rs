@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::ser::SerializeSeq;
 
 use crate as sov_rollup_interface;
 use crate::da::BlockHashTrait;
@@ -97,7 +98,12 @@ where
         if serializer.is_human_readable() {
             serializer.serialize_str(&self.to_string())
         } else {
-            serializer.serialize_bytes(self.0.as_ref())
+            let inner_ref = self.0.as_ref();
+            let mut seq = serializer.serialize_seq(Some(inner_ref.len()))?;
+            for element in inner_ref {
+                seq.serialize_element(element)?;
+            }
+            seq.end()
         }
     }
 }
@@ -214,6 +220,15 @@ mod tests {
         assert_eq!(item, deserialized);
     }
 
+    fn test_serialization_roundtrip_equality_binary<T>(item: T)
+    where
+        T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + Debug,
+    {
+        let serialized = bincode::serialize(&item).unwrap();
+        let deserialized: T = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(item, deserialized);
+    }
+
     fn test_str_roundtrip(item: HexString) {
         let s = item.to_string();
         let restored = HexString::from_str(&s).expect("HexString::from_str should pass");
@@ -222,7 +237,8 @@ mod tests {
 
     #[test_strategy::proptest]
     fn hex_string_serialization_roundtrip(item: HexString) {
-        test_serialization_roundtrip_equality_json(item);
+        test_serialization_roundtrip_equality_json(item.clone());
+        test_serialization_roundtrip_equality_binary(item);
     }
 
     #[test_strategy::proptest]

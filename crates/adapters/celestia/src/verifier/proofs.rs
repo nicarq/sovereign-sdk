@@ -8,7 +8,7 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use tracing::warn;
 
 use super::CelestiaSpec;
-use crate::types::NamespaceRelevenatData;
+use crate::types::NamespaceRelevantData;
 use crate::{CelestiaHeader, TxPosition};
 
 // TODO: derive borsh Serialize, Deserialize <https://github.com/eigerco/celestia-node-rs/issues/155>
@@ -29,7 +29,7 @@ pub struct EtxRangeProof {
 pub fn new_inclusion_proof(
     header: &CelestiaHeader,
     etx_rows: &NamespaceData,
-    rollup_data: &NamespaceRelevenatData,
+    rollup_data: &NamespaceRelevantData,
     blobs: &[<CelestiaSpec as sov_rollup_interface::da::DaSpec>::BlobTransaction],
 ) -> Vec<EtxProof> {
     let mut needed_tx_shares = Vec::new();
