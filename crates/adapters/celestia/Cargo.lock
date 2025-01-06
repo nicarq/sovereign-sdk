@@ -1115,8 +1115,7 @@ dependencies = [
 [[package]]
 name = "celestia-proto"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c71c3cf9caaf35a7530ea5ac2bab226c9e5c1bad3d661d3527a3951d6f80cbcc"
+source = "git+https://github.com/eigerco/lumina.git?rev=7fb26b824c97b4d15b61891a251a6d677087b9fc#7fb26b824c97b4d15b61891a251a6d677087b9fc"
 dependencies = [
  "bytes",
  "prost 0.13.4",
@@ -1131,8 +1130,7 @@ dependencies = [
 [[package]]
 name = "celestia-rpc"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0970073d9e74fc74a417c5157146bbc122462c1dc7b2d5c442fe0b67be40e2cb"
+source = "git+https://github.com/eigerco/lumina.git?rev=7fb26b824c97b4d15b61891a251a6d677087b9fc#7fb26b824c97b4d15b61891a251a6d677087b9fc"
 dependencies = [
  "async-trait",
  "celestia-types",
@@ -1147,8 +1145,7 @@ dependencies = [
 [[package]]
 name = "celestia-types"
 version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a70717cd176178cb3feb43795dd40a6a29ad5e48fae4222d8ba45182b93acbae"
+source = "git+https://github.com/eigerco/lumina.git?rev=7fb26b824c97b4d15b61891a251a6d677087b9fc#7fb26b824c97b4d15b61891a251a6d677087b9fc"
 dependencies = [
  "base64 0.22.1",
  "bech32",
@@ -6462,6 +6459,7 @@ dependencies = [
  "sov-bank",
  "sov-chain-state",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-state",
  "thiserror 1.0.69",
  "tokio",
@@ -6479,6 +6477,7 @@ dependencies = [
  "schemars",
  "serde",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-state",
  "strum 0.26.3",
  "thiserror 1.0.69",
@@ -6497,6 +6496,7 @@ dependencies = [
  "serde",
  "sov-chain-state",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-sequencer-registry",
  "sov-state",
  "tracing",
@@ -6528,6 +6528,7 @@ dependencies = [
  "async-trait",
  "backon",
  "bech32",
+ "bincode",
  "borsh",
  "celestia-proto",
  "celestia-rpc",
@@ -6571,6 +6572,7 @@ dependencies = [
  "schemars",
  "serde",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-state",
  "thiserror 1.0.69",
  "tracing",
@@ -6594,6 +6596,7 @@ dependencies = [
  "sov-modules-stf-blueprint",
  "sov-node-client",
  "sov-rollup-interface",
+ "tracing",
 ]
 
 [[package]]
@@ -6650,6 +6653,7 @@ dependencies = [
  "sov-blob-storage",
  "sov-chain-state",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-state",
 ]
 
@@ -6869,6 +6873,7 @@ dependencies = [
  "sov-bank",
  "sov-modules-api",
  "sov-rollup-interface",
+ "tracing",
 ]
 
 [[package]]
@@ -6915,6 +6920,7 @@ dependencies = [
  "sov-bank",
  "sov-chain-state",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-state",
  "thiserror 1.0.69",
  "tracing",

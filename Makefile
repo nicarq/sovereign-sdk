@@ -70,6 +70,7 @@ test-all: test
 test-all:  ## Runs test for all crates in the repo, even those excluded from workspace
 	@for dir in $(TEST_DIRS); do \
 		echo "Running test in $$dir"; \
+		(cargo nextest run --no-fail-fast --status-level skip --manifest-path "$$dir/Cargo.toml"); \
 		(cargo nextest run --no-fail-fast --all-features --status-level skip --manifest-path "$$dir/Cargo.toml"); \
 	done;
 

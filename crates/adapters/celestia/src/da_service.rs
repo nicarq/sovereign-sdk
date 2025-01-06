@@ -123,7 +123,7 @@ impl CelestiaService {
         );
         let blob_hash = HexHash::new(blob.commitment.0);
 
-        let mut tx_config = celestia_types::TxConfig::default();
+        let mut tx_config = celestia_rpc::TxConfig::default();
         tx_config
             .with_gas_price(fee.fee_per_gas as f64)
             .with_gas(fee.gas_limit);
@@ -611,6 +611,7 @@ mod tests {
     };
     use crate::da_service::{CelestiaConfig, CelestiaFee, CelestiaService, GAS_PRICE_UTIA};
     use crate::test_helper::files::*;
+    use crate::test_helper::{ROLLUP_BATCH_NAMESPACE, ROLLUP_PROOF_NAMESPACE};
     use crate::types::{FilteredCelestiaBlock, APP_VERSION};
     use crate::verifier::{CelestiaVerifier, RollupParams};
 
@@ -672,7 +673,7 @@ mod tests {
         )
         .unwrap()
         .into();
-        let mut tx_config = celestia_types::TxConfig::default();
+        let mut tx_config = celestia_rpc::TxConfig::default();
         tx_config
             .with_gas_price(GAS_PRICE_UTIA as f64)
             .with_gas(gas_limit as u64);
@@ -1018,7 +1019,7 @@ mod tests {
         )
         .unwrap()
         .into();
-        let mut tx_config = celestia_types::TxConfig::default();
+        let mut tx_config = celestia_rpc::TxConfig::default();
         tx_config
             .with_gas_price(GAS_PRICE_UTIA as f64)
             .with_gas(gas_limit as u64);

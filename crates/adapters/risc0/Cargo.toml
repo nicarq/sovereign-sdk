@@ -55,6 +55,7 @@ thiserror = "1.0.64"
 sov-rollup-interface = { path = "../../rollup-interface" }
 sov-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "7c3995c0a517465f28f915e9da22f54960198503", features = ["risc0"], optional = true }
 sov-metrics = { path = "../../full-node/sov-metrics", optional = true }
+home = { version = "=0.5.9", optional = true }
 
 
 [dev-dependencies]
@@ -74,6 +75,7 @@ native = [
     "risc0-zkvm/prove",
     "sov-rollup-interface/native",
     "sov-metrics",
+    "home",
 ]
 bench = ["sov-cycle-utils"]
 arbitrary = ["dep:arbitrary", "dep:proptest", "sov-rollup-interface/arbitrary"]
@@ -81,4 +83,4 @@ bincode = []
 
 [[test]]
 name = "native"
-required-features = ["native"]
+required-features = ["native", "arbitrary"]

@@ -4,6 +4,7 @@
 //! Note though that, in practice, the runtime trait (and the methods below) can be macro-derived using the
 //! framework's macro exports. See `sov-test-utils` crate for additional information
 
+use sov_address::{EthereumAddress, FromVmAddress};
 use sov_evm::Evm;
 use sov_modules_api::{Genesis, Spec};
 use sov_modules_stf_blueprint::GenesisParams;
@@ -12,7 +13,6 @@ use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::genesis::zk::MinimalZkGenesisConfig;
 use sov_test_utils::runtime::traits::MinimalGenesis;
 use sov_value_setter::ValueSetter;
-use sov_address::{EthereumAddress, FromVmAddress};
 
 use crate::runtime::{GenesisConfig, Runtime};
 

@@ -6590,6 +6590,7 @@ dependencies = [
  "sov-bank",
  "sov-chain-state",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-state",
  "thiserror 1.0.69",
  "tokio",
@@ -6607,6 +6608,7 @@ dependencies = [
  "schemars",
  "serde",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-state",
  "strum 0.26.3",
  "thiserror 1.0.69",
@@ -6625,6 +6627,7 @@ dependencies = [
  "serde",
  "sov-chain-state",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-sequencer-registry",
  "sov-state",
  "tracing",
@@ -6657,6 +6660,7 @@ dependencies = [
  "schemars",
  "serde",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-state",
  "thiserror 1.0.69",
  "tracing",
@@ -6680,6 +6684,7 @@ dependencies = [
  "sov-modules-stf-blueprint",
  "sov-node-client",
  "sov-rollup-interface",
+ "tracing",
 ]
 
 [[package]]
@@ -6737,6 +6742,7 @@ dependencies = [
  "sov-blob-storage",
  "sov-chain-state",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-state",
 ]
 
@@ -6956,6 +6962,7 @@ dependencies = [
  "sov-bank",
  "sov-modules-api",
  "sov-rollup-interface",
+ "tracing",
 ]
 
 [[package]]
@@ -7002,6 +7009,7 @@ dependencies = [
  "sov-bank",
  "sov-chain-state",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-state",
  "thiserror 1.0.69",
  "tracing",
