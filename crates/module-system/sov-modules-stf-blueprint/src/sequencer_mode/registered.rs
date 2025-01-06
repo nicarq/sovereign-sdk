@@ -412,10 +412,8 @@ where
     let mut total_gas_used = <S as Spec>::Gas::ZEROED;
 
     for (idx, (raw_tx, injected_control_flow)) in batch_with_id.enumerate() {
-        let gas_meter = BasicGasMeter::new(
-            <S as GasSpec>::max_tx_check_costs().value(gas_price),
-            gas_price.clone(),
-        );
+        let gas_meter =
+            BasicGasMeter::new_with_gas(<S as GasSpec>::max_tx_check_costs(), gas_price.clone());
         let AuthAndProcessOutput {
             gas_used,
             scratchpad: dirty_scratchpad,

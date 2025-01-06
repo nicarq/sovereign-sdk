@@ -329,14 +329,14 @@ impl From<u64> for GasUnit<1> {
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum GasMeteringError<GU: Gas> {
     /// The gas meter has ran out of gas.
-    #[error("The gas to charge is greater than the funds available in the meter. Gas to charge {gas_to_charge}, gas price {gas_price}, remaining funds {remaining_funds}, total gas consumed {total_gas_consumed}")]
+    #[error("The gas to charge is greater than the funds available in the meter. Gas to charge {gas_to_charge}, gas price {gas_price}, remaining gas metering {gas_metering:?}, total gas consumed {total_gas_consumed}")]
     OutOfGas {
         /// The amount of gas to charge.
         gas_to_charge: GU,
         /// The current gas price.
         gas_price: GU::Price,
         /// The remaining funds in the meter.
-        remaining_funds: u64,
+        gas_metering: GasMetering<GU>,
         /// The total amount of gas consumed.
         total_gas_consumed: GU,
     },
@@ -379,10 +379,19 @@ pub trait GasMeter<GU: Gas> {
     fn gas_info(&self) -> GasInfo<GU>;
 }
 
+/// Remaining funds or gas.
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+pub enum GasMetering<GU: Gas> {
+    /// Remaining funds.
+    Funds(u64),
+    /// Remaining gas.
+    Gas(GU),
+}
+
 /// A struct that keeps track of the use gas.
 #[derive(Clone)]
 pub struct BasicGasMeter<GU: Gas> {
-    remaining_funds: u64,
+    gas_metering: GasMetering<GU>,
     gas_used: GU,
     gas_price: GU::Price,
 }
@@ -390,8 +399,19 @@ pub struct BasicGasMeter<GU: Gas> {
 impl<GU: Gas> BasicGasMeter<GU> {
     /// Creates a new `BasicGasMeter`
     pub fn new(remaining_funds: u64, gas_price: GU::Price) -> Self {
+        let gas_metering = GasMetering::Funds(remaining_funds);
         Self {
-            remaining_funds,
+            gas_metering,
+            gas_used: Gas::zero(),
+            gas_price,
+        }
+    }
+
+    /// Creates a new `BasicGasMeter`
+    pub fn new_with_gas(remaining_gas: GU, gas_price: GU::Price) -> Self {
+        let gas_metering = GasMetering::Gas(remaining_gas);
+        Self {
+            gas_metering,
             gas_used: Gas::zero(),
             gas_price,
         }
@@ -406,19 +426,39 @@ impl<GU: Gas> BasicGasMeter<GU> {
 
 impl<GU: Gas> GasMeter<GU> for BasicGasMeter<GU> {
     fn charge_gas(&mut self, amount: &GU) -> Result<(), GasMeteringError<GU>> {
-        let amount_value = amount.value(&self.gas_price);
+        match &self.gas_metering {
+            GasMetering::Funds(remaining_funds) => {
+                let amount_value = amount.value(&self.gas_price);
 
-        if amount_value > self.remaining_funds {
-            return Err(GasMeteringError::OutOfGas {
-                gas_to_charge: amount.clone(),
-                gas_price: self.gas_price.clone(),
-                remaining_funds: self.remaining_funds,
-                total_gas_consumed: self.gas_info().gas_used,
-            });
+                if amount_value > *remaining_funds {
+                    return Err(GasMeteringError::OutOfGas {
+                        gas_to_charge: amount.clone(),
+                        gas_price: self.gas_price.clone(),
+                        gas_metering: self.gas_metering.clone(),
+                        total_gas_consumed: self.gas_info().gas_used,
+                    });
+                }
+
+                self.gas_metering = GasMetering::Funds(remaining_funds - amount_value);
+                self.gas_used.combine(amount);
+            }
+
+            GasMetering::Gas(remaining_gas) => {
+                let remaining_gas = match remaining_gas.checked_sub(amount) {
+                    Some(remaining_gas) => remaining_gas,
+                    None => {
+                        return Err(GasMeteringError::OutOfGas {
+                            gas_to_charge: amount.clone(),
+                            gas_price: self.gas_price.clone(),
+                            gas_metering: self.gas_metering.clone(),
+                            total_gas_consumed: self.gas_info().gas_used,
+                        });
+                    }
+                };
+                self.gas_metering = GasMetering::Gas(remaining_gas);
+                self.gas_used.combine(amount);
+            }
         }
-
-        self.remaining_funds -= amount_value;
-        self.gas_used.combine(amount);
 
         Ok(())
     }
@@ -430,18 +470,31 @@ impl<GU: Gas> GasMeter<GU> for BasicGasMeter<GU> {
                 gas_used: self.gas_used.clone(),
             }
         })?;
-        self.remaining_funds = self
-            .remaining_funds
-            .saturating_add(gas.value(&self.gas_price));
+
+        match &mut self.gas_metering {
+            GasMetering::Funds(remaining_funds) => {
+                self.gas_metering =
+                    GasMetering::Funds(remaining_funds.saturating_add(gas.value(&self.gas_price)));
+            }
+            GasMetering::Gas(remaining_gas) => {
+                let remaining_gas = remaining_gas.combine(gas).clone();
+                self.gas_metering = GasMetering::Gas(remaining_gas);
+            }
+        }
 
         Ok(())
     }
 
     fn gas_info(&self) -> GasInfo<GU> {
+        let remaining_funds = match &self.gas_metering {
+            GasMetering::Funds(remaining_funds) => *remaining_funds,
+            GasMetering::Gas(remaining_gas) => remaining_gas.value(&self.gas_price),
+        };
+
         GasInfo {
             gas_used: self.gas_used.clone(),
             gas_price: self.gas_price.clone(),
-            remaining_funds: self.remaining_funds,
+            remaining_funds,
         }
     }
 }
@@ -454,58 +507,121 @@ mod tests {
     fn charge_gas_should_fail_if_not_enough_funds() {
         let gas_price = GasPrice::<2>::from([1; 2]);
 
-        let mut gas_meter = BasicGasMeter::new(0, gas_price.clone());
+        {
+            let mut gas_meter = BasicGasMeter::new(0, gas_price.clone());
+            assert!(
+                gas_meter.charge_gas(&GasUnit::<2>::from([100; 2])).is_err(),
+                "The gas meter should not be able to charge gas if there is not enough funds"
+            );
+        }
 
-        assert!(
-            gas_meter.charge_gas(&GasUnit::<2>::from([100; 2])).is_err(),
-            "The gas meter should not be able to charge gas if there is not enough funds"
-        );
+        {
+            let gas = GasUnit::<2>::from([0, 0]);
+            let mut gas_meter = BasicGasMeter::new_with_gas(gas, gas_price.clone());
+
+            assert!(
+                gas_meter.charge_gas(&GasUnit::<2>::from([100; 2])).is_err(),
+                "The gas meter should not be able to charge gas if there is not enough gas reserved"
+            );
+
+            let gas = GasUnit::<2>::from([1000, 99]);
+            let mut gas_meter = BasicGasMeter::new_with_gas(gas, gas_price.clone());
+
+            assert!(
+                gas_meter.charge_gas(&GasUnit::<2>::from([100; 2])).is_err(),
+                "The gas meter should not be able to charge gas if there is not enough gas reserved"
+            );
+        }
     }
 
     #[test]
     fn refund_gas_should_fail_if_not_enough_funds_consumed() {
         let gas_price = GasPrice::<2>::from([1; 2]);
 
-        let mut gas_meter = BasicGasMeter::new(100, gas_price.clone());
+        {
+            let mut gas_meter = BasicGasMeter::new(100, gas_price.clone());
 
-        assert!(
+            assert!(
             gas_meter.refund_gas(&GasUnit::<2>::from([100; 2])).is_err(),
             "The gas meter should not be able to refund gas if there is not enough gas consumed"
         );
+        }
+
+        {
+            let mut gas_meter =
+                BasicGasMeter::new_with_gas(GasUnit::<2>::from([100; 2]), gas_price.clone());
+
+            assert!(
+            gas_meter.refund_gas(&GasUnit::<2>::from([10; 2])).is_err(),
+            "The gas meter should not be able to refund gas if there is not enough gas consumed"
+            );
+        }
     }
 
     #[test]
     fn try_charge_gas() {
-        const REMAINING_FUNDS: u64 = 100;
-        let gas_price = GasPrice::<2>::from([1; 2]);
+        {
+            const REMAINING_FUNDS: u64 = 100;
+            let gas_price = GasPrice::<2>::from([1; 2]);
 
-        let mut gas_meter = BasicGasMeter::new(REMAINING_FUNDS, gas_price.clone());
-        assert!(
-            gas_meter
-                .charge_gas(&GasUnit::<2>::from([REMAINING_FUNDS / 2; 2]))
-                .is_ok(),
-            "It should be possible to charge gas"
-        );
-        assert_eq!(
-            gas_meter.gas_info().gas_used,
-            GasUnit::from([REMAINING_FUNDS / 2; 2]),
-            "The gas used should be the same as the gas charged"
-        );
-        assert_eq!(gas_meter.gas_info().gas_price, gas_price);
-        assert_eq!(
-            gas_meter.gas_info().remaining_funds,
-            0,
-            "There should be no more gas left in the meter"
-        );
+            let mut gas_meter = BasicGasMeter::new(REMAINING_FUNDS, gas_price.clone());
+            assert!(
+                gas_meter
+                    .charge_gas(&GasUnit::<2>::from([REMAINING_FUNDS / 2; 2]))
+                    .is_ok(),
+                "It should be possible to charge gas"
+            );
+            assert_eq!(
+                gas_meter.gas_info().gas_used,
+                GasUnit::from([REMAINING_FUNDS / 2; 2]),
+                "The gas used should be the same as the gas charged"
+            );
+            assert_eq!(gas_meter.gas_info().gas_price, gas_price);
+            assert_eq!(
+                gas_meter.gas_info().remaining_funds,
+                0,
+                "There should be no more gas left in the meter"
+            );
 
-        assert!(
+            assert!(
             gas_meter.charge_gas(&GasUnit::<2>::from([1; 2])).is_err(),
             "There should be no more gas left in the meter, hence charging more gas should fail"
         );
+        }
+
+        {
+            let remaining_gas = GasUnit::<2>::from([100; 2]);
+            let gas_price = GasPrice::<2>::from([1; 2]);
+
+            let mut gas_meter =
+                BasicGasMeter::new_with_gas(remaining_gas.clone(), gas_price.clone());
+
+            assert!(
+                gas_meter.charge_gas(&remaining_gas).is_ok(),
+                "It should be possible to charge gas"
+            );
+            assert_eq!(
+                gas_meter.gas_info().gas_used,
+                remaining_gas,
+                "The gas used should be the same as the gas charged"
+            );
+            assert_eq!(gas_meter.gas_info().gas_price, gas_price);
+
+            assert_eq!(
+                gas_meter.gas_info().remaining_funds,
+                0,
+                "There should be no more gas left in the meter"
+            );
+
+            assert!(
+                gas_meter.charge_gas(&GasUnit::<2>::from([1; 2])).is_err(),
+                "There should be no more gas left in the meter, hence charging more gas should fail"
+            );
+        }
     }
 
     #[test]
-    fn try_refund_gas() {
+    fn try_refund_gas_with_funds() {
         const REMAINING_FUNDS: u64 = 100;
         let gas_price = GasPrice::from([1; 2]);
 
@@ -516,6 +632,7 @@ mod tests {
                 .is_ok(),
             "There should be enough gas left in the meter to charge"
         );
+
         assert_eq!(
             gas_meter.gas_info().remaining_funds,
             0,
@@ -538,6 +655,42 @@ mod tests {
         assert_eq!(
             gas_meter.gas_info().remaining_funds,
             REMAINING_FUNDS / 2,
+            "Half of the gas should be refunded"
+        );
+    }
+
+    #[test]
+    fn try_refund_gas() {
+        let remaining_gas = GasUnit::<2>::from([100; 2]);
+        let gas_price = GasPrice::<2>::from([1; 2]);
+
+        let mut gas_meter = BasicGasMeter::new_with_gas(remaining_gas.clone(), gas_price.clone());
+
+        assert!(
+            gas_meter.charge_gas(&GasUnit::<2>::from([100; 2])).is_ok(),
+            "There should be enough gas left in the meter to charge"
+        );
+
+        assert_eq!(
+            gas_meter.gas_info().remaining_funds,
+            0,
+            "There should be no more gas left in the meter"
+        );
+
+        assert!(
+            gas_meter.refund_gas(&GasUnit::<2>::from([25; 2])).is_ok(),
+            "Enough gas should have been consumed to be refunded",
+        );
+
+        assert_eq!(
+            &gas_meter.gas_info().gas_used,
+            &GasUnit::<2>::from([75; 2]),
+            "The gas used amount should have decreased"
+        );
+
+        assert_eq!(
+            gas_meter.gas_info().remaining_funds,
+            50,
             "Half of the gas should be refunded"
         );
     }
