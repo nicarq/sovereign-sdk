@@ -1,6 +1,5 @@
 //! Implements call message generation for the [`sov_value_setter::ValueSetter`] module.
 
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use http::HttpValueSetterClient;
@@ -8,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::prelude::arbitrary::Arbitrary;
 use sov_modules_api::prelude::axum::async_trait;
-use sov_modules_api::{CryptoSpec, Spec};
+use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_value_setter::{CallMessage, CallMessageDiscriminants};
 use strum::VariantArray;
 
@@ -27,13 +26,6 @@ pub use harness_interface::*;
 /// The call message discriminants used by the `Bank` module
 pub const MESSAGES: &[sov_value_setter::CallMessageDiscriminants] =
     sov_value_setter::CallMessageDiscriminants::VARIANTS;
-
-/// Tags that can be applied to an account
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ValueSetterTag {
-    /// The account is an admin
-    IsAdmin,
-}
 
 /// The state of a value setter account
 #[derive(Debug, Clone)]
@@ -54,7 +46,7 @@ impl<S: Spec, Data> ApplyToState<S, Data> for ValueSetterAccount<S> {
 }
 
 impl<S: Spec> Taggable for ValueSetterAccount<S> {
-    type Tag = ValueSetterTag;
+    type Tag = ();
 
     fn add_tag(&mut self, _tag: Self::Tag) {}
 
@@ -65,17 +57,14 @@ impl<S: Spec> Taggable for ValueSetterAccount<S> {
     }
 }
 
-/// A message generator for the `ValueSetter` module
-///
-/// ## Note
-/// For the [`ValueSetterMessageGenerator`] to be `useful` (ie to be able to send valid messages), users of the testing-harness
-/// have to make sure there is an admin account in the [`crate::interface::GeneratorState`] with the tag [`ValueSetterTag::IsAdmin`].
+/// A message generator for the `ValueSetter` module.
 #[derive(Debug, Clone)]
 pub struct ValueSetterMessageGenerator<S: Spec> {
     message_distribution: Distribution<CallMessageDiscriminants>,
     /// The maximum length of a `SetManyValues` message
     maximum_vec_length: usize,
-    phantom: PhantomData<S>,
+    /// The private key of the admin of the value setter module
+    admin_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
 }
 
 impl<S: Spec> ValueSetterMessageGenerator<S> {
@@ -83,11 +72,12 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
     pub fn new(
         message_distribution: Distribution<CallMessageDiscriminants>,
         maximum_vec_length: usize,
+        admin_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     ) -> Self {
         Self {
             message_distribution,
             maximum_vec_length,
-            phantom: PhantomData,
+            admin_key,
         }
     }
 }
@@ -129,7 +119,7 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
 
     type ChangelogEntry = ValueSetterChangeLogEntry;
 
-    type Tag = ValueSetterTag;
+    type Tag = ();
 
     type ClientConfig = HttpValueSetterClient<S>;
 
@@ -166,25 +156,8 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
         crate::interface::GeneratedMessage<S, sov_value_setter::CallMessage, Self::ChangelogEntry>,
     > {
         match validity {
-            MessageValidity::Valid => {
-                match self.generate_valid_call_message(u, generator_state) {
-                    Ok(m) => Ok(m),
-                    Err(InternalMessageGenError::Arbitrary(e)) => Err(e),
-                    Err(InternalMessageGenError::AdminNotFound) => {
-                        // Generate an invalid message because there is no admin
-                        self.generate_call_message(u, generator_state, MessageValidity::Invalid)
-                    }
-                }
-            }
-            MessageValidity::Invalid => {
-                match self.generate_invalid_call_message(u, generator_state) {
-                    Ok(m) => Ok(m),
-                    Err(InternalMessageGenError::Arbitrary(e)) => Err(e),
-                    Err(InternalMessageGenError::AdminNotFound) => {
-                        unreachable!("This should be unreachable, since generating *invalid* value setter calls should be always possible regardless of whether there is an admin")
-                    }
-                }
-            }
+            MessageValidity::Valid => self.generate_valid_call_message(u),
+            MessageValidity::Invalid => self.generate_invalid_call_message(u, generator_state),
         }
     }
 
@@ -217,20 +190,6 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
     }
 }
 
-/// Errors that can occur when generating a message
-pub enum InternalMessageGenError {
-    /// Impossible to find an admin account
-    AdminNotFound,
-    /// An arbitrary error occurred
-    Arbitrary(arbitrary::Error),
-}
-
-impl From<arbitrary::Error> for InternalMessageGenError {
-    fn from(e: arbitrary::Error) -> Self {
-        InternalMessageGenError::Arbitrary(e)
-    }
-}
-
 impl<S: Spec> ValueSetterMessageGenerator<S> {
     /// We have two types of valid messages:
     /// 1. A message that sets a value and that is sent by an admin
@@ -238,19 +197,8 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
     pub fn generate_valid_call_message(
         &self,
         u: &mut sov_modules_api::prelude::arbitrary::Unstructured<'_>,
-        generator_state: &mut impl crate::interface::GeneratorState<
-            S,
-            AccountView = ValueSetterAccount<S>,
-            Tag: From<ValueSetterTag>,
-        >,
-    ) -> Result<GeneratedMessage<S, CallMessage, ValueSetterChangeLogEntry>, InternalMessageGenError>
-    {
+    ) -> arbitrary::Result<GeneratedMessage<S, CallMessage, ValueSetterChangeLogEntry>> {
         let message_type = self.message_distribution.select_value(u)?;
-        let Some((_, admin_account)) = generator_state
-            .get_random_existing_account_with_tag(ValueSetterTag::IsAdmin.into(), u)?
-        else {
-            return Err(InternalMessageGenError::AdminNotFound);
-        };
 
         match message_type {
             CallMessageDiscriminants::SetValue => {
@@ -258,7 +206,7 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
 
                 Ok(GeneratedMessage::new(
                     CallMessage::SetValue(value),
-                    admin_account.private_key.clone(),
+                    self.admin_key.clone(),
                     MessageOutcome::Successful {
                         changes: vec![ValueSetterChangeLogEntry::ValueUpdated { new_value: value }],
                     },
@@ -274,7 +222,7 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
 
                 Ok(GeneratedMessage::new(
                     CallMessage::SetManyValues(values.clone()),
-                    admin_account.private_key.clone(),
+                    self.admin_key.clone(),
                     MessageOutcome::Successful {
                         changes: vec![ValueSetterChangeLogEntry::ManyValuesUpdated {
                             new_values: values,
@@ -296,15 +244,14 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
         generator_state: &mut impl crate::interface::GeneratorState<
             S,
             AccountView = ValueSetterAccount<S>,
-            Tag: From<ValueSetterTag>,
+            Tag: From<()>,
         >,
-    ) -> Result<GeneratedMessage<S, CallMessage, ValueSetterChangeLogEntry>, InternalMessageGenError>
-    {
+    ) -> arbitrary::Result<GeneratedMessage<S, CallMessage, ValueSetterChangeLogEntry>> {
         let message_type = self.message_distribution.select_value(u)?;
 
         repeatedly!(
             let (_address, account) = generator_state.get_or_generate(Percent::fifty(), u)?;
-            until: !generator_state.has_tag(&_address, ValueSetterTag::IsAdmin.into()),
+            until: account.private_key.pub_key() != self.admin_key.pub_key(),
             on_failure: panic!("Impossible to get a non-admin account, when there should only be one admin!")
         );
 

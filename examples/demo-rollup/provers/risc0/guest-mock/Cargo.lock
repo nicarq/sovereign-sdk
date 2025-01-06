@@ -3382,6 +3382,7 @@ dependencies = [
  "serde",
  "sha2",
  "sov-address",
+ "sov-bank",
  "sov-kernels",
  "sov-modules-api",
  "sov-rollup-interface",

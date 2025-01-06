@@ -21,11 +21,11 @@ use sov_transaction_generator::generators::basic::{
     BasicValueSetterHarness,
 };
 use sov_transaction_generator::generators::value_setter::{
-    ValueSetterHarness, ValueSetterMessageGenerator, ValueSetterTag,
+    ValueSetterHarness, ValueSetterMessageGenerator,
 };
 use sov_transaction_generator::interface::rng_utils::{get_random_bytes, randomize_buffer};
 use sov_transaction_generator::interface::{MessageValidity, Percent};
-use sov_transaction_generator::{AccountState, Distribution, GeneratedMessage, State};
+use sov_transaction_generator::{Distribution, GeneratedMessage, State};
 use sov_value_setter::CallMessageDiscriminants as ValueSetterDiscriminants;
 
 mod bank;
@@ -173,6 +173,7 @@ fn setup_harness(
             ValueSetterDiscriminants::SetManyValues,
         ]),
         max_value_setter_vec_len,
+        admin.private_key.clone(),
     ));
 
     let modules: Vec<BasicModuleRef<S, RT>> = modules_distribution
@@ -184,16 +185,7 @@ fn setup_harness(
     let factory = BasicCallMessageFactory::<S, RT>::new();
 
     // Synchronizes the state with the value setter module
-    let mut state: State<S, BasicTag> = State::with_account_and_tags(
-        AccountState {
-            private_key: admin.private_key.clone(),
-            balances: vec![],
-            can_mint: Default::default(),
-            sequencing_bond: None,
-            additional_info: Default::default(),
-        },
-        vec![BasicTag::ValueSetter(ValueSetterTag::IsAdmin)],
-    );
+    let mut state: State<S, BasicTag> = State::new();
 
     let random_bytes: Vec<u8> = get_random_bytes(100_000, 0);
     let u = &mut arbitrary::Unstructured::new(&random_bytes[..]);
