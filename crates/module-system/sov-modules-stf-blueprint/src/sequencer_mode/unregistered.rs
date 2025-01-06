@@ -209,8 +209,10 @@ where
     // A malicious actor could exploit this mechanism to attack the rollup, for instance, by sending large transactions that are costly to deserialize from an address with no funds on the rollup.
     // To mitigate this, we initialize the gas meter with just enough gas to process a valid transaction. If the transaction is too big, we quickly run out of gas.
     // Additionally, we rate-limit (during blob selection) the number of forced registrations to further reduce the effectiveness of such attacks.
-    let max_auth_cost = <S as GasSpec>::max_unregistered_tx_check_costs().value(gas_price);
-    let meter = BasicGasMeter::new(max_auth_cost, gas_price.clone());
+    let meter = BasicGasMeter::new_with_gas(
+        <S as GasSpec>::max_unregistered_tx_check_costs(),
+        gas_price.clone(),
+    );
 
     let authentication_result = authenticate_unregistered_tx(runtime, meter, &batch, scratchpad);
 

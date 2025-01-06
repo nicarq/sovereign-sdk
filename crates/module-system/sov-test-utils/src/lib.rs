@@ -204,7 +204,7 @@ impl AtomicNumber {
 
 /// BasicGasMeter for tests.
 pub fn new_test_gas_meter<GU: Gas>() -> BasicGasMeter<GU> {
-    BasicGasMeter::new(u64::MAX, GU::Price::ZEROED)
+    BasicGasMeter::new(u64::MAX, <GU as Gas>::Price::ZEROED)
 }
 
 /// BasicGasMeter for tests.

@@ -173,16 +173,10 @@ impl<S: Spec> AuthenticatedTransactionData<S> {
     /// Creates a new [`TxGasMeter`] from the transaction data.
     pub(crate) fn gas_meter(&self, gas_price: &<S::Gas as Gas>::Price) -> BasicGasMeter<S::Gas> {
         // We compute the gas amount that the transaction should consume.
-        let gas_to_consume = match &self.gas_limit {
-            // If the user has provided a gas limit, we use the `gas_limit * gas_price` as the amount to consume (EIP-1559).
-            Some(gas_limit) => {
-                // We need to check the gas price in case the user has provided a gas limit.
-                gas_limit.value(gas_price)
-            }
+        match &self.gas_limit {
+            Some(gas_limit) => BasicGasMeter::new_with_gas(gas_limit.clone(), gas_price.clone()),
             // If the user has not provided a gas limit, we use the `max_fee` as the amount to consume.
-            None => self.max_fee,
-        };
-
-        BasicGasMeter::new(gas_to_consume, gas_price.clone())
+            None => BasicGasMeter::new(self.max_fee, gas_price.clone()),
+        }
     }
 }

@@ -38,14 +38,12 @@ where
 {
     let workflow = ProofProcessingWorkflow::new(runtime, blob_hash, &sequencer_da_address);
 
-    // We're currently penalizing the sequencer too much, but this is acceptable.
-    // Once we measure the cost of deserialization, we can provide a more accurate value.
-    let max_pre_exec_check_gas = <S as GasSpec>::max_tx_check_costs();
-    let max_auth_cost = max_pre_exec_check_gas.value(gas_price);
+    let max_tx_check_costs = <S as GasSpec>::max_tx_check_costs();
 
     // Check if the sequencer is bonded, and create `pre_exec_working_set`.
     let (sequencer_rollup_address, mut pre_exec_working_set) =
-        match workflow.authorize_sequencer(gas_price, max_auth_cost, state.to_tx_scratchpad()) {
+        match workflow.authorize_sequencer(gas_price, max_tx_check_costs, state.to_tx_scratchpad())
+        {
             WorkflowResult::Proceed(pre_exec_working_set) => pre_exec_working_set,
             WorkflowResult::EarlyReturn(out, state) => {
                 tracing::debug!("{LOG_PREFIX}: unable to create pre execution working set");
@@ -62,7 +60,7 @@ where
     // It is ok to panic here because we asserter that the sequencer has enough funds to pay for the tx processing costs.
     pre_exec_working_set
         .charge_gas(&tx_precessing_costs)
-        .expect("The rollup is misconfigured: MAX_SEQUENCER_EXEC_GAS_PER_TX: {max_pre_exec_check_gas} must be greater than PROCESS_TX_PRE_EXEC_GAS: {tx_precessing_costs}.");
+        .expect("The rollup is misconfigured: MAX_SEQUENCER_EXEC_GAS_PER_TX: {max_tx_check_costs} must be greater than PROCESS_TX_PRE_EXEC_GAS: {tx_precessing_costs}.");
 
     match SerializeProofWithDetails::<S>::deserialize(
         &mut raw_proof.as_slice(),
@@ -168,11 +166,12 @@ where
             // We could not deserialize the data from the DA. Penalize the sequencer and return early.
             tracing::debug!("{LOG_PREFIX}: unable to deserialize proof");
 
-            let (state, _) = pre_exec_working_set.to_scratchpad_and_gas_meter();
+            let (state, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
+            let gas_used = gas_meter.gas_info().gas_used;
             let state = workflow
                 .charge_sequencer_and_reward_prover(
                     "Unable to deserialize proof",
-                    max_auth_cost,
+                    gas_used.value(gas_price),
                     state,
                 )
                 .commit();
@@ -185,7 +184,7 @@ where
                             "Sequencer penalized for invalid serialization".to_string(),
                         ),
                     ),
-                    gas_used: max_pre_exec_check_gas,
+                    gas_used,
                 },
                 state,
             )
@@ -242,9 +241,10 @@ where
     fn authorize_sequencer<I: StateProvider<S>>(
         &self,
         gas_price: &<S::Gas as Gas>::Price,
-        max_auth_cost: u64,
+        max_tx_check_costs: S::Gas,
         mut tx_scratchpad: TxScratchpad<S, I>,
     ) -> PreExecWorkingSetResult<S, I> {
+        let max_auth_cost = max_tx_check_costs.value(gas_price);
         match self.runtime.sequencer_authorization().authorize_sequencer(
             self.sequencer_da_address,
             max_auth_cost,
@@ -252,7 +252,7 @@ where
         ) {
             Ok(allowed_sequencer) => {
                 let gas_meter =
-                    BasicGasMeter::<S::Gas>::new(allowed_sequencer.balance, gas_price.clone());
+                    BasicGasMeter::<S::Gas>::new_with_gas(max_tx_check_costs, gas_price.clone());
                 let pre_exec_working_set = tx_scratchpad.to_pre_exec_working_set(gas_meter);
 
                 WorkflowResult::Proceed((allowed_sequencer.address, pre_exec_working_set))

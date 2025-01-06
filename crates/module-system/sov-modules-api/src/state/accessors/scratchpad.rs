@@ -238,11 +238,6 @@ impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
         &self.events
     }
 
-    /// Returns the remaining gas funds.
-    pub fn gas_remaining_funds(&self) -> u64 {
-        self.gas_meter.gas_info().remaining_funds
-    }
-
     /// Returns the maximum fee that can be paid for this transaction expressed in gas token amount.
     pub fn max_fee(&self) -> u64 {
         self.max_fee
