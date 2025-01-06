@@ -49,8 +49,6 @@ pub enum BasicChangeLogEntry<S: Spec> {
 /// Asserts all the [`BasicChangeLogEntry`] against the existing state
 pub async fn assert_logs_against_state<S: Spec>(
     logs: Vec<BasicChangeLogEntry<S>>,
-    bank_generator: &BankMessageGenerator<S>,
-    value_setter_generator: &ValueSetterMessageGenerator<S>,
     config: &BasicClientConfig,
 ) -> anyhow::Result<()> {
     let mut seen_entries: Vec<BasicChangeLogEntry<S>> = Vec::new();
@@ -64,14 +62,18 @@ pub async fn assert_logs_against_state<S: Spec>(
 
         match log {
             BasicChangeLogEntry::Bank(bank_changelog_entry) => {
-                bank_generator
-                    .assert_state(config.clone().into(), bank_changelog_entry)
-                    .await?;
+                BankMessageGenerator::<S>::assert_state(
+                    config.clone().into(),
+                    bank_changelog_entry,
+                )
+                .await?;
             }
             BasicChangeLogEntry::ValueSetter(value_setter_changelog_entry) => {
-                value_setter_generator
-                    .assert_state(config.clone().into(), value_setter_changelog_entry)
-                    .await?;
+                ValueSetterMessageGenerator::<S>::assert_state(
+                    config.clone().into(),
+                    value_setter_changelog_entry,
+                )
+                .await?;
             }
         }
     }

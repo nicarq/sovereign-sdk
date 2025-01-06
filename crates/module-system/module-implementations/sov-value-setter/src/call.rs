@@ -42,10 +42,17 @@ pub enum CallMessage {
 
 /// Example of a custom error.
 #[derive(Debug, Error)]
-pub enum SetValueError {
+pub enum SetValueError<S: Spec> {
     /// Value tried to be set by a user that wasn't admin.
-    #[error("Only admin can change the value")]
-    WrongSender,
+    #[error(
+        "Only admin can change the value. The expected admin is {admin}, but the sender is {sender}"
+    )]
+    WrongSender {
+        /// The expected admin.
+        admin: S::Address,
+        /// The sender.
+        sender: S::Address,
+    },
 }
 
 impl<S: Spec> ValueSetter<S> {
@@ -61,7 +68,10 @@ impl<S: Spec> ValueSetter<S> {
 
         if &admin != context.sender() {
             // Here we use a custom error type.
-            Err(SetValueError::WrongSender)?;
+            Err(SetValueError::WrongSender::<S> {
+                admin,
+                sender: context.sender().clone(),
+            })?;
         }
 
         // This is how we set a new value:
@@ -82,7 +92,10 @@ impl<S: Spec> ValueSetter<S> {
 
         if &admin != context.sender() {
             // Here we use a custom error type.
-            Err(SetValueError::WrongSender)?;
+            Err(SetValueError::WrongSender::<S> {
+                admin,
+                sender: context.sender().clone(),
+            })?;
         }
 
         // This is how we set a new value:

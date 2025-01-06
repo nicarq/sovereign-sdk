@@ -176,11 +176,7 @@ impl TxBuilder {
 async fn test_with_modules(
     modules: Distribution<ModulesToUse>,
     validity: Distribution<MessageValidity>,
-) -> (
-    TestGenerator,
-    TestRollup<RollupBlueprint>,
-    Vec<GeneratorOutput>,
-) {
+) -> (TestRollup<RollupBlueprint>, Vec<GeneratorOutput>) {
     let random_bytes = get_random_bytes(100_000_000, 1);
     let u = &mut Unstructured::new(&random_bytes[..]);
 
@@ -240,7 +236,7 @@ async fn test_with_modules(
         .expect("Timed out while waiting for transactions to finish executing")
         .expect("Some transactions where not correctly executed!");
 
-    (generator, rollup, outputs)
+    (rollup, outputs)
 }
 
 /// ## TODO(@theochap):
@@ -249,7 +245,7 @@ async fn test_with_modules(
 ///
 #[tokio::test(flavor = "multi_thread")]
 async fn simple_sequencer_generation_with_da() {
-    let (generator, rollup, outputs) = test_with_modules(
+    let (rollup, outputs) = test_with_modules(
         Distribution::with_values(vec![
             (8, ModulesToUse::Bank),
             (2, ModulesToUse::ValueSetter),
@@ -268,12 +264,7 @@ async fn simple_sequencer_generation_with_da() {
         .flat_map(|output| output.outcome.unwrap_changes())
         .collect();
 
-    assert_logs_against_state(
-        changes,
-        generator.bank_harness.inner(),
-        generator.value_setter_harness.inner(),
-        &config,
-    )
-    .await
-    .expect("Failed to assert against state");
+    assert_logs_against_state(changes, &config)
+        .await
+        .expect("Failed to assert against state");
 }

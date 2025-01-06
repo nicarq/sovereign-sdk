@@ -800,9 +800,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.83"
+version = "0.1.84"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "721cae7de5c34fbb2acd27e21e6d2cf7b886dce0c27388d46c4e6c47ea4318dd"
+checksum = "1b1244b10dcd56c92219da4e14caa97e312079e185f04ba3eea25061561dc0a0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1387,9 +1387,9 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cc"
-version = "1.2.6"
+version = "1.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d6dbb628b8f8555f86d0323c2eb39e3ec81901f4b83e091db8a6a76d316a333"
+checksum = "a012a0df96dd6d06ba9a1b29d6402d1a5d77c6befd2566afdc26e10603dc93d7"
 dependencies = [
  "jobserver",
  "libc",
@@ -8181,9 +8181,9 @@ dependencies = [
 
 [[package]]
 name = "schnellru"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9a8ef13a93c54d20580de1e5c413e624e53121d42fc7e2c11d10ef7f8b02367"
+checksum = "356285bbf17bea63d9e52e96bd18f039672ac92b55b8cb997d6162a2a37d1649"
 dependencies = [
  "ahash",
  "cfg-if",
@@ -8853,10 +8853,12 @@ dependencies = [
  "demo-stf",
  "derivative",
  "derive_more 1.0.0",
+ "futures",
  "hex",
  "home",
  "humantime",
  "prettytable-rs",
+ "progenitor",
  "risc0",
  "serde",
  "sov-address",
@@ -8866,6 +8868,7 @@ dependencies = [
  "sov-modules-api",
  "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",
+ "sov-node-client",
  "sov-risc0-adapter",
  "sov-rollup-interface",
  "sov-sequencer",
@@ -10601,12 +10604,13 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "tempfile"
-version = "3.14.0"
+version = "3.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28cce251fcbc87fac86a866eeb0d6c2d536fc16d06f184bb61aeae11aa4cee0c"
+checksum = "9a8a559c81686f576e8cd0290cd2a24a2a9ad80c98b3478856500fcbd7acd704"
 dependencies = [
  "cfg-if",
  "fastrand",
+ "getrandom",
  "once_cell",
  "rustix",
  "windows-sys 0.59.0",
@@ -10975,7 +10979,7 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
- "winnow 0.6.21",
+ "winnow 0.6.22",
 ]
 
 [[package]]
@@ -12076,9 +12080,9 @@ dependencies = [
 
 [[package]]
 name = "winnow"
-version = "0.6.21"
+version = "0.6.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6f5bb5257f2407a5425c6e749bfd9692192a73e70a6060516ac04f889087d68"
+checksum = "39281189af81c07ec09db316b302a3e67bf9bd7cbf6c820b50e35fee9c2fa980"
 dependencies = [
  "memchr",
 ]

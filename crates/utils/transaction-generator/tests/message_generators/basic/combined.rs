@@ -30,7 +30,7 @@ async fn test_combined_generation_helper(modules: Distribution<ModulesToUse>) ->
             });
         };
 
-    let (mut runner, generator, outputs) = test_with_modules(
+    let (mut runner, outputs) = test_with_modules(
         modules,
         MessageValidity::as_distribution(Percent::fifty()),
         &mut transaction_exec_closure,
@@ -57,14 +57,9 @@ async fn test_combined_generation_helper(modules: Distribution<ModulesToUse>) ->
         .flat_map(|output| output.outcome.unwrap_changes())
         .collect();
 
-    assert_logs_against_state(
-        changes,
-        generator.bank_harness.inner(),
-        generator.value_setter_harness.inner(),
-        &config,
-    )
-    .await
-    .expect("Failed to assert against state");
+    assert_logs_against_state(changes, &config)
+        .await
+        .expect("Failed to assert against state");
 
     NumTxsExecuted {
         num_bank_txs,

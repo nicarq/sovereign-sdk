@@ -7,7 +7,7 @@ use sov_transaction_generator::Distribution;
 
 use crate::{
     plain_tx_with_default_details, setup_harness, setup_roles_and_config, GeneratorOutput,
-    ModulesToUse, TestGenerator, MAX_VEC_LEN_VALUE_SETTER, RT, USER_BALANCE,
+    ModulesToUse, MAX_VEC_LEN_VALUE_SETTER, RT, USER_BALANCE,
 };
 
 /// The number of transactions to generate.
@@ -25,7 +25,7 @@ fn test_with_modules(
         GeneratorOutput,
         &mut TestRunner<RT, S>,
     ),
-) -> (TestRunner<RT, S>, TestGenerator, Vec<GeneratorOutput>) {
+) -> (TestRunner<RT, S>, Vec<GeneratorOutput>) {
     let random_bytes = get_random_bytes(100_000_000, 1);
     let u = &mut Unstructured::new(&random_bytes[..]);
 
@@ -73,5 +73,5 @@ fn test_with_modules(
         })
         .collect();
 
-    (runner, generator, outputs)
+    (runner, outputs)
 }

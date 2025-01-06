@@ -19,6 +19,7 @@ sov-state = { path = "../../../crates/module-system/sov-state", features = ["arb
 sov-modules-stf-blueprint = { path = "../../../crates/module-system/sov-modules-stf-blueprint", features = ["bench"] }
 sov-transaction-generator = { path = "../../../crates/utils/transaction-generator" }
 sov-modules-rollup-blueprint = { path = "../../../crates/module-system/sov-modules-rollup-blueprint", default-features = false }
+sov-node-client = { path = "../../../crates/utils/sov-node-client" }
 
 sov-mock-da = { path = "../../../crates/adapters/mock-da", features = ["arbitrary", "native"] }
 sov-celestia-adapter = { path = "../../../crates/adapters/celestia", features = ["arbitrary", "bench", "native"] }
@@ -47,6 +48,7 @@ serde = { version = "1.0.208", default-features = false, features = [
     "alloc",
     "derive",
 ] }
+progenitor = { version = "0.8" }
 tokio = { version = "1.42", default-features = false }
 humantime = "2.1"
 hex = { version = "0.4.3" }
@@ -55,6 +57,7 @@ tempfile = "3.12"
 strum = { version = "0.26.3", features = ["derive"] }
 # To keep compatiblity with rust 1.79
 home = { version = "=0.5.9" }
+futures = { version = "0.3", default-features = false }
 
 [[bench]]
 name = "rollup_bench"
@@ -64,6 +67,11 @@ harness = false
 [[bench]]
 name = "rollup_coarse_measure"
 path = "src/node/rollup_coarse_measure.rs"
+harness = false
+
+[[bench]]
+name = "build_metrics"
+path = "src/metrics/build_metrics.rs"
 harness = false
 
 [[bin]]
