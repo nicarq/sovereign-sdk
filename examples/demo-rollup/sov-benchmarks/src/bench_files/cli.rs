@@ -1,7 +1,18 @@
 //! CLI utilities for benchmark generation.
 
 use clap::{Args, Parser, Subcommand};
+use demo_stf::genesis_config::EvmConfig;
+use demo_stf::runtime::GenesisConfig;
 use sov_benchmarks::generator::{Benchmark, DEFAULT_RANDOMIZATION_BUFFER_SIZE};
+use sov_benchmarks::mock_da_risc0_host_args;
+use sov_modules_api::{CryptoSpec, Spec};
+use sov_risc0_adapter::host::Risc0Host;
+use sov_rollup_interface::zk::ZkvmHost;
+use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
+use sov_test_utils::runtime::sov_paymaster::{
+    self, PayeePolicy, PayerGenesisConfig, PaymasterConfig, PaymasterPolicy, SafeVec,
+};
+use sov_test_utils::runtime::ValueSetterConfig;
 use sov_transaction_generator::generators::basic::BasicModuleRef;
 use sov_transaction_generator::{Distribution, MessageValidity};
 
@@ -44,7 +55,7 @@ pub const LARGE_BENCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
 };
 
 /// This program automatically generates benchmarks using the `sov-transaction-generator`. Please note that:
-/// - The files that are generated systematically come from the [`basic_benches`]. In the future we may want to add more control over the benchmark to generate.
+/// - The files that are generated systematically come from the [`crate::basic_benches`]. In the future we may want to add more control over the benchmark to generate.
 /// - The path argument should either define a relative path from the root of this crate (ie `sov-benchmarks`), or any absolute path.
 #[derive(Parser, Debug)]
 #[command(
@@ -127,7 +138,61 @@ impl BenchCLICustomArgs {
         seed: u128,
         module_distribution: Distribution<BasicModuleRef<S, RT>>,
         validity_distribution: Distribution<MessageValidity>,
+        value_setter_admin: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     ) -> Benchmark<S> {
+        let risc0_host_args = mock_da_risc0_host_args();
+        let risc0_commitment = Risc0Host::from_args(&*risc0_host_args).code_commitment();
+        let mut genesis_config =
+            HighLevelZkGenesisConfig::generate_with_additional_accounts_and_code_commitments(
+                2,
+                risc0_commitment,
+                Default::default(),
+            );
+
+        genesis_config
+            .initial_prover
+            .user_info
+            .available_gas_balance = u64::MAX / 4;
+        genesis_config.initial_prover.bond = u64::MAX / 4;
+        genesis_config.initial_sequencer.bond = u64::MAX / 4;
+        genesis_config
+            .initial_sequencer
+            .user_info
+            .available_gas_balance = u64::MAX / 4;
+
+        let sequencer = genesis_config.initial_sequencer.clone();
+        let payer = genesis_config.additional_accounts.first().unwrap().clone();
+
+        let mut admin = genesis_config.additional_accounts.get(1).unwrap().clone();
+        admin.private_key = value_setter_admin;
+
+        let genesis_config = GenesisConfig::from_minimal_config(
+            genesis_config.into(),
+            EvmConfig::default(),
+            PaymasterConfig {
+                payers: [PayerGenesisConfig {
+                    payer_address: payer.address(),
+                    policy: PaymasterPolicy {
+                        default_payee_policy: PayeePolicy::Allow {
+                            max_fee: None,
+                            gas_limit: None,
+                            max_gas_price: None,
+                        },
+                        payees: SafeVec::new(),
+                        authorized_sequencers: sov_paymaster::AuthorizedSequencers::All,
+                        authorized_updaters: [payer.address()].as_ref().try_into().unwrap(),
+                    },
+                    sequencers_to_register: [sequencer.da_address].as_ref().try_into().unwrap(),
+                }]
+                .as_ref()
+                .try_into()
+                .unwrap(),
+            },
+            ValueSetterConfig {
+                admin: admin.address(),
+            },
+        );
+
         Benchmark {
             name,
             module_distribution,
@@ -137,6 +202,7 @@ impl BenchCLICustomArgs {
             number_of_slots: slots,
             initial_seed: seed,
             initial_randomization_buffer_size: self.randomization_buffer_size,
+            genesis_config,
         }
     }
 }

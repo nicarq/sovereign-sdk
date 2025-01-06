@@ -1,7 +1,7 @@
 use core::ops;
 use std::io::{BufWriter, Write};
 
-use demo_stf::runtime::{Runtime, RuntimeCall};
+use demo_stf::runtime::{GenesisConfig, Runtime, RuntimeCall};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_address::{EthereumAddress, FromVmAddress};
@@ -27,12 +27,13 @@ pub const MAX_GEN_ATTEMPS: u64 = 10;
 
 pub type GeneratedBatch<S> = Vec<GeneratedMessage<S, RuntimeCall<S>, BasicChangeLogEntry<S>>>;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum BenchmarkSlot<S: Spec>
+pub enum BenchmarkData<S: Spec>
 where
     S::Address: FromVmAddress<EthereumAddress>,
 {
+    Genesis(GenesisConfig<S>),
     Initialization(GeneratedBatch<S>),
     Execution {
         batches: Vec<GeneratedBatch<S>>,
@@ -62,6 +63,8 @@ where
     pub initial_seed: u128,
     /// Randomization buffer size. Using [`DEFAULT_RANDOMIZATION_BUFFER_SIZE`] should work in practice
     pub initial_randomization_buffer_size: u64,
+    /// Genesis config for the benchmark.
+    pub genesis_config: GenesisConfig<S>,
 }
 
 impl<S: Spec> Benchmark<S>
@@ -134,13 +137,16 @@ where
         panic!("Exceeded the maximum number of generation attemps for single call messages")
     }
 
-    /// Generate benchmark messages and dump them to a buffer. Start with a [`BenchmarkSlot::Initialization`]. Then write [`BenchmarkSlot::Execution`] messages.
+    /// Generate benchmark messages and dump them to a buffer. Start with a [`BenchmarkData::Initialization`]. Then write [`BenchmarkData::Execution`] messages.
     // ## TODO(@theochap):
     // We should think of storing the hashes of the benchmarks generated, along with useful information for reproductibility to an human-readable file for integrity.
     pub fn generate_and_write_benchmark_messages<W: Write>(
         &self,
         writer: &mut BufWriter<W>,
     ) -> anyhow::Result<()> {
+        let data = bincode::serialize(&BenchmarkData::Genesis(self.genesis_config.clone()))?;
+        writer.write_all(&data)?;
+
         tracing::info!("Starting to generate benchmark messages");
 
         let mut curr_seed = self.initial_seed;
@@ -167,7 +173,7 @@ where
             state,
         ).expect("Impossible to generate setup messages, make sure that the randomization buffer size is big enough");
 
-        let data = bincode::serialize(&BenchmarkSlot::Initialization(setup_messages))?;
+        let data = bincode::serialize(&BenchmarkData::Initialization(setup_messages))?;
         writer.write_all(&data)?;
 
         for slot_number in 0..self.number_of_slots {
@@ -180,7 +186,7 @@ where
                 &mut curr_seed,
             );
 
-            let data = bincode::serialize(&BenchmarkSlot::Execution {
+            let data = bincode::serialize(&BenchmarkData::Execution {
                 batches,
                 slot_number,
             })?;
@@ -197,8 +203,15 @@ mod tests {
     use std::io::{BufReader, Seek};
     use std::sync::Arc;
 
+    use demo_stf::genesis_config::EvmConfig;
+    use sov_address::MultiAddress;
     use sov_modules_api::prelude::strum::IntoEnumIterator;
+    use sov_modules_api::Address;
+    use sov_test_utils::runtime::genesis::zk::config::{
+        HighLevelZkGenesisConfig, MinimalZkGenesisConfig,
+    };
     use sov_test_utils::runtime::sov_bank::CallMessageDiscriminants as BankDiscriminants;
+    use sov_test_utils::runtime::ValueSetterConfig;
     use sov_test_utils::MockZkvm;
     use sov_transaction_generator::generators::bank::BankMessageGenerator;
     use sov_transaction_generator::generators::basic::BasicBankHarness;
@@ -233,6 +246,14 @@ mod tests {
             number_of_slots: NUM_SLOTS,
             initial_seed: 0,
             initial_randomization_buffer_size: DEFAULT_RANDOMIZATION_BUFFER_SIZE,
+            genesis_config: GenesisConfig::from_minimal_config(
+                MinimalZkGenesisConfig::from(HighLevelZkGenesisConfig::generate_with_additional_accounts_and_code_commitments(0, Default::default(), Default::default())),
+                EvmConfig::default(),
+                Default::default(),
+                ValueSetterConfig {
+                    admin: MultiAddress::Standard(Address::from_const_slice([0; 28])),
+                },
+            ),
         };
 
         let mut temp_file = tempfile().expect("Impossible to generate a tempfile");
@@ -243,35 +264,39 @@ mod tests {
 
         temp_file.rewind().expect("Impossible to rewind");
 
-        let mut len = 0;
-
         let mut reader = BufReader::new(&mut temp_file);
 
-        let first_slot: BenchmarkSlot<_> =
-            bincode::deserialize_from::<_, BenchmarkSlot<S>>(&mut reader)
-                .expect("Impossible to deserialize slot data");
-        assert!(matches!(first_slot, BenchmarkSlot::Initialization(..)));
-        len += 1;
+        let genesis_config: BenchmarkData<_> =
+            bincode::deserialize_from::<_, BenchmarkData<S>>(&mut reader)
+                .expect("Impossible to deserialize bench data");
+        assert!(matches!(genesis_config, BenchmarkData::Genesis(..)));
+
+        let first_slot: BenchmarkData<_> =
+            bincode::deserialize_from::<_, BenchmarkData<S>>(&mut reader)
+                .expect("Impossible to deserialize bench data");
+        assert!(matches!(first_slot, BenchmarkData::Initialization(..)));
+
+        let mut len = 0;
 
         // There is only 5 slots to read from but there is also the initialization
-        while let Ok(next_slot) = bincode::deserialize_from::<_, BenchmarkSlot<S>>(&mut reader) {
+        while let Ok(next_slot) = bincode::deserialize_from::<_, BenchmarkData<S>>(&mut reader) {
             match next_slot {
-                BenchmarkSlot::Execution {
+                BenchmarkData::Execution {
                     batches,
                     slot_number,
                 } => {
-                    assert_eq!(slot_number, len - 1);
+                    assert_eq!(slot_number, len);
                     assert_eq!(batches.len(), BATCHES_PER_SLOT as usize);
                     for batch in batches {
                         assert_eq!(batch.len(), TXS_PER_BATCH as usize);
                     }
                 }
-                BenchmarkSlot::Initialization(_) => panic!("The items should be of execution type"),
+                _ => panic!("The items should be of execution type"),
             }
 
             len += 1;
         }
 
-        assert_eq!(len, NUM_SLOTS + 1, "Incorrect number of values read",);
+        assert_eq!(len, NUM_SLOTS, "Incorrect number of values read",);
     }
 }

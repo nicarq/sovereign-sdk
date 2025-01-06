@@ -10,6 +10,7 @@ use cli::{BenchCLI, BenchCLICustomArgs};
 use demo_stf::runtime::Runtime;
 use sov_benchmarks::generator::Benchmark;
 use sov_benchmarks::BenchSpec;
+use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_risc0_adapter::Risc0;
 use sov_test_utils::runtime::sov_bank::CallMessageDiscriminants as BankDiscriminants;
 use sov_test_utils::runtime::sov_value_setter::CallMessageDiscriminants as ValueSetterDiscriminants;
@@ -28,6 +29,8 @@ pub mod cli;
 
 /// A basic benchmark that tries to emulate variable behaviors from transaction execution.
 pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec<Benchmark<S>> {
+    let value_setter_admin = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
+
     vec![
         {
             let bench_module: BasicModuleRef<S, RT> =
@@ -44,6 +47,7 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                     MessageValidity::Valid,
                     MessageValidity::Invalid,
                 ]),
+                value_setter_admin.clone(),
             )
         },
         {
@@ -61,6 +65,7 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                     MessageValidity::Valid,
                     MessageValidity::Invalid,
                 ]),
+                value_setter_admin.clone(),
             )
         },
         {
@@ -85,6 +90,7 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                     MessageValidity::Valid,
                     MessageValidity::Invalid,
                 ]),
+                value_setter_admin.clone(),
             )
         },
         {
@@ -94,6 +100,7 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                         ValueSetterDiscriminants::SetValue,
                     ]),
                     params.max_value_setter_vec_len,
+                    value_setter_admin.clone(),
                 )));
 
             params.new_benchmark_with_params(
@@ -105,6 +112,7 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                     MessageValidity::Valid,
                     MessageValidity::Invalid,
                 ]),
+                value_setter_admin.clone(),
             )
         },
         {
@@ -115,6 +123,7 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                         ValueSetterDiscriminants::SetManyValues,
                     ]),
                     params.max_value_setter_vec_len,
+                    value_setter_admin.clone(),
                 )));
             params.new_benchmark_with_params(
                 "value_setter_messages".to_string(),
@@ -125,6 +134,7 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                     MessageValidity::Valid,
                     MessageValidity::Invalid,
                 ]),
+                value_setter_admin.clone(),
             )
         },
         {
@@ -140,6 +150,7 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                         ValueSetterDiscriminants::SetManyValues,
                     ]),
                     params.max_value_setter_vec_len,
+                    value_setter_admin.clone(),
                 )));
             params.new_benchmark_with_params(
                 "mix_bank_transfers_value_setter".to_string(),
@@ -153,6 +164,7 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                     MessageValidity::Valid,
                     MessageValidity::Invalid,
                 ]),
+                value_setter_admin.clone(),
             )
         },
         {
@@ -174,6 +186,7 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                         ValueSetterDiscriminants::SetManyValues,
                     ]),
                     params.max_value_setter_vec_len,
+                    value_setter_admin.clone(),
                 )));
 
             params.new_benchmark_with_params(
@@ -188,6 +201,7 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
                     MessageValidity::Valid,
                     MessageValidity::Invalid,
                 ]),
+                value_setter_admin.clone(),
             )
         },
     ]

@@ -8,7 +8,7 @@ use super::bank::harness_interface::BankHarness;
 use super::bank::{BankChangeLogEntry, BankMessageGenerator, BankTag};
 use super::factory::CallMessageFactory;
 use super::value_setter::{
-    ValueSetterChangeLogEntry, ValueSetterHarness, ValueSetterMessageGenerator, ValueSetterTag,
+    ValueSetterChangeLogEntry, ValueSetterHarness, ValueSetterMessageGenerator,
 };
 use crate::interface::traits::CallMessageGenerator;
 use crate::HarnessModule;
@@ -33,7 +33,7 @@ pub enum BasicTag {
     /// Tags for the bank module
     Bank(BankTag),
     /// Tags for the value setter module
-    ValueSetter(ValueSetterTag),
+    ValueSetter(()),
 }
 
 /// The set of change log entries supported by the [`BasicCallMessageFactory`].

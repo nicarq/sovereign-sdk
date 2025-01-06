@@ -4005,6 +4005,7 @@ dependencies = [
  "serde",
  "sha2 0.10.8",
  "sov-address",
+ "sov-bank",
  "sov-kernels",
  "sov-modules-api",
  "sov-rollup-interface",
