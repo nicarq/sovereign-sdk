@@ -2,96 +2,16 @@
 //!
 //! DEPRECATED. See <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1881>.
 
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
-
 use base64::prelude::*;
 use sov_api_spec::types::{self};
-use sov_mock_da::{MockDaService, MockDaSpec};
-use sov_modules_api::Spec;
-use sov_rollup_interface::node::{DaSyncState, SyncStatus};
-use sov_sequencer::batch_builders::preferred::{
-    PreferredBatchBuilder, PreferredBatchBuilderConfig,
-};
-use sov_sequencer::batch_builders::BatchBuilder;
-use sov_sequencer::{SeqDbTxExtend, SequencerConfig};
+use sov_mock_da::MockDaService;
+use sov_sequencer::batch_builders::preferred::PreferredBatchBuilder;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::sequencer::TestSequencerSetup;
-use sov_test_utils::{generate_optimistic_runtime_with_kernel, TestSpec};
-use tokio::sync::watch;
+use sov_test_utils::TestSpec;
 
-use crate::utils::{generate_paymaster_tx, generate_txs};
-
-generate_optimistic_runtime_with_kernel!(
-    TestOptimisticRuntime <=
-    kernel_type: sov_kernels::soft_confirmations::SoftConfirmationsKernel<'a, S>,
-    value_setter: sov_value_setter::ValueSetter<S>,
-    paymaster: sov_paymaster::Paymaster<S>
-);
-
-#[tokio::test(flavor = "multi_thread")]
-async fn restore_txs_from_seq_db() {
-    let dir = tempfile::tempdir().unwrap();
-    let sequencer_addr = HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr();
-    let da_service = MockDaService::new(sequencer_addr);
-
-    let batch_builder_config = PreferredBatchBuilderConfig::default();
-
-    let sequencer = TestSequencerSetup::<
-        PreferredBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>,
-    >::new(dir, da_service, batch_builder_config, true)
-    .await
-    .unwrap();
-
-    let tx = generate_txs(sequencer.admin_private_key.clone())[0].clone();
-    {
-        let client = sequencer.client();
-
-        client
-            .accept_tx(&types::AcceptTxBody {
-                body: BASE64_STANDARD.encode(&tx.raw_tx),
-            })
-            .await
-            .unwrap();
-    }
-
-    let seq_db = sequencer.sequencer.db().clone();
-
-    let db_txs = seq_db.read_all().unwrap();
-    assert_eq!(db_txs.len(), 1);
-    assert_eq!(db_txs[0].fully_baked_tx(), tx.fully_baked_tx);
-
-    let (sync_status_sender, _) = watch::channel(SyncStatus::Syncing {
-        synced_da_height: 0,
-        target_da_height: 0,
-    });
-
-    let da_sync_state = Arc::new(DaSyncState {
-        synced_da_height: AtomicU64::new(0),
-        target_da_height: AtomicU64::new(0),
-        sync_status_sender,
-    });
-
-    let config: SequencerConfig<
-        MockDaSpec,
-        <TestSpec as Spec>::Address,
-        PreferredBatchBuilderConfig,
-    > = sequencer.config.clone();
-
-    let (mut restored_batch_builder, _shutdown_handle) =
-        PreferredBatchBuilder::<(TestSpec, TestOptimisticRuntime<TestSpec>)>::create(
-            sequencer.state_update_receiver.borrow().clone(),
-            da_sync_state,
-            db_txs,
-            &config,
-        )
-        .await
-        .unwrap();
-
-    let batch = restored_batch_builder.build_next_batch(0).await.unwrap();
-
-    assert_eq!(batch.hashes.len(), 1);
-}
+use crate::preferred_end_to_end::TestRuntime;
+use crate::utils::generate_paymaster_tx;
 
 // Checks that transactions that are not sequencer safe are rejected
 // when the sender address is not configured as an admin in the sequencer config.
@@ -101,19 +21,15 @@ async fn not_sequencer_safe_txs_are_restricted() {
     let sequencer_addr = HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr();
     let da_service = MockDaService::new(sequencer_addr);
 
-    let sequencer = TestSequencerSetup::<
-        PreferredBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>,
-    >::new(
-        dir,
-        da_service,
-        PreferredBatchBuilderConfig {
-            should_update_state: true,
-            ..Default::default()
-        },
-        false,
-    )
-    .await
-    .unwrap();
+    let sequencer =
+        TestSequencerSetup::<PreferredBatchBuilder<(TestSpec, TestRuntime<TestSpec>)>>::new(
+            dir,
+            da_service,
+            Default::default(),
+            false,
+        )
+        .await
+        .unwrap();
 
     let tx = generate_paymaster_tx(sequencer.admin_private_key.clone());
     {
@@ -144,19 +60,15 @@ async fn sequencer_safe_txs_from_admins_are_accepted() {
     let sequencer_addr = HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr();
     let da_service = MockDaService::new(sequencer_addr);
 
-    let sequencer = TestSequencerSetup::<
-        PreferredBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>,
-    >::new(
-        dir,
-        da_service,
-        PreferredBatchBuilderConfig {
-            should_update_state: true,
-            ..Default::default()
-        },
-        true,
-    )
-    .await
-    .unwrap();
+    let sequencer =
+        TestSequencerSetup::<PreferredBatchBuilder<(TestSpec, TestRuntime<TestSpec>)>>::new(
+            dir,
+            da_service,
+            Default::default(),
+            true,
+        )
+        .await
+        .unwrap();
 
     let tx = generate_paymaster_tx(sequencer.admin_private_key.clone());
     {

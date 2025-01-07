@@ -143,9 +143,10 @@ pub trait ProvableHeightTracker: Send + Sync + 'static {
 
 /// Structure that holds information about the state update that happened in the block.
 #[cfg(feature = "native")]
-#[derive(Clone, Debug)]
+#[derive(Clone, derive_more::Debug)]
 pub struct StateUpdateInfo<StfState> {
     /// The storage following the state update.
+    #[debug(skip)]
     pub storage: StfState,
     /// What the next event number will be after the state update.
     pub next_event_number: u64,

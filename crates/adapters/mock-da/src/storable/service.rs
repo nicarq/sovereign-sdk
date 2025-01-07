@@ -15,6 +15,7 @@ use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
 use tokio::sync::{broadcast, oneshot, watch, RwLock};
 use tokio::task::JoinHandle;
 use tokio::time::{interval, sleep};
+use tracing::Instrument;
 
 use crate::storable::layer::StorableMockDaLayer;
 use crate::types::WAIT_ATTEMPT_PAUSE;
@@ -63,6 +64,8 @@ impl BlockProducing {
         };
 
         let duration = *duration;
+        let span = tracing::info_span!("periodic_batch_producer");
+
         Some(tokio::spawn(async move {
             tracing::debug!(interval = ?duration, "Spawning a task for periodic producing");
             loop {
@@ -83,7 +86,7 @@ impl BlockProducing {
                 }
             }
             tracing::info!("Periodic block producing is stopped");
-        }))
+        }.instrument(span)))
     }
 }
 

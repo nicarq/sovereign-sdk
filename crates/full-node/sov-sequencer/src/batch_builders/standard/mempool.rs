@@ -7,10 +7,11 @@ use std::sync::Arc;
 use sov_modules_api::{FullyBakedTx, Spec};
 use sov_rollup_interface::common::HexString;
 use sov_rollup_interface::TxHash;
-use tracing::debug;
+use tracing::{debug, warn};
 
-use crate::batch_builders::BatchBuilder;
-use crate::{SeqDbTx, SeqDbTxExtend, SeqDbTxId, TxStatus, TxStatusManager};
+use super::db::StandardBbDb;
+use crate::batch_builders::{BatchBuilder, SeqDbTx, SeqDbTxId};
+use crate::{TxStatus, TxStatusManager};
 
 // mempool picks transactions in this order:
 // - next_priority
@@ -18,6 +19,7 @@ use crate::{SeqDbTx, SeqDbTxExtend, SeqDbTxId, TxStatus, TxStatusManager};
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct Mempool<Bb: BatchBuilder> {
+    db: StandardBbDb,
     max_txs_count: NonZero<usize>,
     txsm: TxStatusManager<<<Bb as BatchBuilder>::Spec as Spec>::Da>,
     // Transaction data
@@ -33,9 +35,12 @@ impl<Bb: BatchBuilder> Mempool<Bb> {
     pub fn new(
         txsm: TxStatusManager<<<Bb as BatchBuilder>::Spec as Spec>::Da>,
         max_txs_count: NonZero<usize>,
-        txs: Vec<SeqDbTx>,
+        db: StandardBbDb,
     ) -> anyhow::Result<Self> {
+        let txs = db.read_all()?;
+
         let mut mempool = Self {
+            db,
             max_txs_count,
             txsm,
             txs_ordered_by_incremental_id: BTreeMap::new(),
@@ -76,10 +81,16 @@ impl<Bb: BatchBuilder> Mempool<Bb> {
     }
 
     /// Remove the tx from the mempool without notifying subscribers
-    pub fn remove_without_notifying(&mut self, hash: &TxHash) {
+    pub fn drop_without_notifying(&mut self, hash: &TxHash) {
         let Some(tx) = self.txs_by_hash.remove(hash) else {
             return;
         };
+
+        if let Err(error) = self.db.remove(*hash) {
+            // I suspect there's nothing more that we can do here other than
+            // complaining.
+            warn!(%error, "Failed to remove transaction from the mempool database");
+        }
 
         let cursor = MempoolCursor::from_db_tx(&tx);
 
@@ -89,7 +100,7 @@ impl<Bb: BatchBuilder> Mempool<Bb> {
 
     /// Drop a transaction from the mempool and notify subscribers.
     pub fn drop(&mut self, hash: &TxHash, reason: String) {
-        self.remove_without_notifying(hash);
+        self.drop_without_notifying(hash);
         // Notify about the drop.
         self.txsm.notify(*hash, TxStatus::Dropped { reason });
     }
@@ -132,10 +143,18 @@ impl<Bb: BatchBuilder> Mempool<Bb> {
 
         let cursor = MempoolCursor::from_db_tx(&tx);
 
+        if let Err(error) = self.db.insert(&tx) {
+            warn!(%error, "Failed to insert transaction into the mempool database");
+        }
+
         self.txs_ordered_by_incremental_id
             .insert(tx.uuid_v7, tx.clone());
         self.txs_ordered_by_most_fair_fit.insert(cursor, tx.clone());
         self.txs_by_hash.insert(tx.hash, tx.clone());
+    }
+
+    pub fn contains(&self, tx_hash: &TxHash) -> bool {
+        self.txs_by_hash.contains_key(tx_hash)
     }
 }
 
@@ -157,7 +176,7 @@ impl MempoolCursor {
 
     pub fn from_db_tx(tx: &SeqDbTx) -> Self {
         Self {
-            tx_size_in_bytes: tx.tx_bytes.len(),
+            tx_size_in_bytes: tx.tx.data.len(),
             uuid_v7: tx.uuid_v7,
         }
     }

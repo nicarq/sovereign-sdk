@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 use std::num::NonZero;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
-use std::time::Duration;
 
 use async_trait::async_trait;
 use sov_api_spec::Client;
@@ -21,9 +20,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::StateUpdateInfo;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_sequencer::batch_builders::BatchBuilder;
-use sov_sequencer::{
-    GenericSequencerSpec, SequenceNumberProvider, Sequencer, SequencerConfig, SequencerDb,
-};
+use sov_sequencer::{GenericSequencerSpec, SequenceNumberProvider, Sequencer, SequencerConfig};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_value_setter::ValueSetterConfig;
 use tempfile::TempDir;
@@ -129,7 +126,6 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
         let genesis_block = MockBlock::default();
         let (stf_state, _ledger_state) =
             storage_manager.create_state_for(genesis_block.header())?;
-        let sequencer_db = SequencerDb::new(dir.path(), Duration::ZERO)?;
 
         let (_genesis_root, stf_state) =
             stf.init_chain(&Default::default(), &Default::default(), stf_state, params);
@@ -189,7 +185,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
             state_update_receiver.clone(),
             da_service.clone(),
             da_sync_state,
-            sequencer_db,
+            dir.path(),
             ledger_db,
             &config,
             shutdown_receiver,
@@ -296,7 +292,7 @@ pub struct IncrementalSequenceNumberProvider {
 
 #[async_trait]
 impl SequenceNumberProvider for IncrementalSequenceNumberProvider {
-    async fn next_sequence_number(&self, _preferred_blob: &[u8]) -> anyhow::Result<u64> {
+    async fn generate_sequence_number(&self, _preferred_blob: &[u8]) -> anyhow::Result<u64> {
         let mut lock = self.next_sequence_number.lock().await;
 
         let n = *lock;

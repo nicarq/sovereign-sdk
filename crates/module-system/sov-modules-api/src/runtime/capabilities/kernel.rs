@@ -15,6 +15,21 @@ pub trait KernelWithSlotMapping<S: Spec>: Sync + Send + 'static {
         state: &mut crate::state::ApiStateAccessor<S>,
     ) -> Option<VisibleSlotNumber>;
 
+    /// Opposite operation of [`KernelWithSlotMapping::visible_rollup_height_at`].
+    ///
+    /// It's important to keep in mind that there's **no** single true
+    /// [`SlotNumber`] for any given [`VisibleSlotNumber`]. This may be true for
+    /// some visible slot numbers, but not all of them.
+    ///
+    /// To obviate this problem, implementors of this trait MUST return the very
+    /// **first** true slot number that's associated with the given visible slot
+    /// number.
+    fn first_true_slot_number_for(
+        &self,
+        visible_rollup_height: VisibleSlotNumber,
+        state: &mut crate::state::ApiStateAccessor<S>,
+    ) -> Option<SlotNumber>;
+
     /// Returns the base fee per gas accessible at the specified rollup height for this state accessor.
     ///
     /// ## Note

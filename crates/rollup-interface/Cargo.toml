@@ -25,6 +25,7 @@ bytes = { workspace = true, default-features = true }
 derive_more = { workspace = true, features = [
     "add",
     "as_ref",
+    "debug",
     "display",
     "from",
     "from_str",

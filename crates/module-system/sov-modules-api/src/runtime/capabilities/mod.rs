@@ -134,7 +134,7 @@ pub trait HasKernel<S: Spec>: Send + Sync + 'static {
     fn inner(&self) -> Guard<Self::Kernel<'_>>;
 
     /// Returns the [`Kernel`] implementation on [`HasKernel::Kernel`].
-    fn kernel(&self) -> impl Kernel<S> {
+    fn kernel(&self) -> Self::Kernel<'_> {
         self.inner().inner
     }
 
@@ -173,6 +173,8 @@ pub mod mocks {
         pub true_rollup_height: SlotNumber,
         /// The rollup height at which transactions appear to be executing
         pub visible_rollup_height: VisibleSlotNumber,
+        /// The next sequence number to expect for preferred blobs.
+        pub next_sequence_number: u64,
         phantom: core::marker::PhantomData<S>,
     }
 
@@ -182,6 +184,7 @@ pub mod mocks {
             Self {
                 true_rollup_height: true_rollup_height.to_slot_number(),
                 visible_rollup_height: visible_height.to_visible_slot_number(),
+                next_sequence_number: 0,
                 phantom: core::marker::PhantomData,
             }
         }
@@ -201,6 +204,14 @@ pub mod mocks {
             _state: &mut crate::ApiStateAccessor<S>,
         ) -> Option<VisibleSlotNumber> {
             Some(true_rollup_height.as_visible())
+        }
+
+        fn first_true_slot_number_for(
+            &self,
+            visible_rollup_height: VisibleSlotNumber,
+            _state: &mut crate::state::ApiStateAccessor<S>,
+        ) -> Option<SlotNumber> {
+            Some(visible_rollup_height.as_true())
         }
 
         fn base_fee_per_gas_at(

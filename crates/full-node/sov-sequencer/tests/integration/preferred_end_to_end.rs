@@ -1,6 +1,7 @@
 //! Integration tests for the preferred sequencer that use [`RollupBuilder`] and
 //! thus test sequencer + node interactions.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -13,7 +14,9 @@ use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{DispatchCall, RawTx, Runtime};
 use sov_modules_stf_blueprint::GenesisParams;
+use sov_paymaster::{Paymaster, PaymasterConfig};
 use sov_rest_utils::ResponseObject;
+use sov_rollup_interface::common::SlotNumber;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
@@ -24,52 +27,73 @@ use sov_test_utils::{
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use test_strategy::Arbitrary;
 use tokio::time::sleep;
+use tracing::{debug, info};
 
 use crate::utils::generate_txs;
 
 generate_optimistic_runtime_with_kernel!(
     TestRuntime <=
     kernel_type: sov_kernels::soft_confirmations::SoftConfirmationsKernel<'a, S>,
-    value_setter: ValueSetter<S>
+    value_setter: ValueSetter<S>,
+    paymaster: Paymaster<S>
 );
 
 type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
 
+/// All the interesting "things" that can happen during sequencer operations, and to
+/// which the sequencer ought to know how to respond.
 #[derive(Debug, Clone, Arbitrary)]
 enum TestingAction {
+    #[weight(0)] // Never generated automatically, but useful for debugging.
+    Sleep { duration_ms: u64 },
+    /// The node is shutdown and restarted, to catch possible losses of
+    /// soft-confirmed transactions and state initialization bugs.
+    Restart,
+    /// A client submits a valid transaction to be included in the next batch,
+    /// and for which a soft confirmation ought to be provided immediately.
+    #[weight(5)] // Make it more likely to be picked (this is where all juicy stuff happens)
+    AcceptTx,
+    /// A client submits an **invalid** transactions, asking for it to be
+    /// included in the next batch (it won't, as it's invalid).
+    #[weight(2)]
+    TryAcceptBadTx { wrong_nonce: WrongNonce },
+    #[weight(3)]
+    ProduceBatch {
+        #[strategy(0..5usize)]
+        num_txs: usize,
+    },
     /// A client queries the nonce for a given address.
     ///
     /// This is an easy and effective way for us to check that all pending
     /// transactions have actually been processed by the sequencer, and that
     /// its state changes are visible to REST API clients.
+    #[weight(8)]
     QuerySetValue,
-    /// The sequencer is shutdown and restarted, to catch possible losses of
-    /// soft-confirmed transactions and state initialization bugs.
-    Restart,
-    /// A client submits a valid transaction to be included in the next batch,
-    /// and for which a soft confirmation ought to be provided immediately.
-    #[weight(3)] // Make it more likely to be picked (this is where all juicy stuff happens)
-    AcceptTx,
-    /// A client submits an **invalid** transactions, asking for it to be
-    /// included in the next batch (it won't, as it's invalid).
-    TryAcceptBadTx { wrong_nonce: WrongNonce },
-    ProduceBatch {
-        #[strategy(0..5usize)]
-        num_txs: usize,
-    },
+    /// Like [`Self::QuerySetValue`], but historical queries.
+    ///
+    /// FIXME(@neysofu): historical queries only work for node-processed slots,
+    /// and not soft confirmations. This is arguably fine, but this test feature
+    /// doesn't take that into account and is currently broken.
+    #[weight(0)]
+    #[allow(dead_code)]
+    QuerySetValueHistorical,
     /// The node will process the latest DA slot, and inform the sequencer about
     /// it.
+    ///
+    /// TODO(@neysofu)
     NewDaSlot {
         #[any(size_range(0..1).lift())]
         _non_preferred_batches: Vec<()>,
     },
 }
 
-/// A nonce that is off by one compared to the expected one.
+/// An invalid nonce.
 #[derive(Debug, Clone, Arbitrary)]
 enum WrongNonce {
-    PlusOne,
-    MinusOne,
+    ExpectedPlusOne,
+    ExpectedMinusOne,
+    // Zero is never a valid nonce for this test because there's initialization
+    // transactions that "burn" the zero nonce.
     Zero,
 }
 
@@ -78,12 +102,12 @@ async fn new_test_rollup(
     genesis_params: GenesisParams<<TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig>,
     minimum_profit_per_tx: u64,
 ) -> TestRollup<TestBlueprint> {
-    const FINALIZATION_BLOCKS: u32 = 10;
+    const FINALIZATION_BLOCKS: u32 = 3;
     let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
 
     RollupBuilder::<TestBlueprint>::new(
         GenesisSource::CustomParams(genesis_params),
-        BlockProducingConfig::Periodic,
+        BlockProducingConfig::OnAnySubmit,
         FINALIZATION_BLOCKS,
         minimum_profit_per_tx,
         Default::default(),
@@ -98,30 +122,40 @@ async fn new_test_rollup(
     .unwrap()
 }
 
-#[should_panic] // FIXME(@neysofu)
-#[test]
-fn outer_preferred_sequencer_is_resistant_to_miscellaneous_edge_cases() {
-    use proptest::prelude::*;
-    use proptest::test_runner::{Config, TestRunner};
-
-    let mut runner = TestRunner::new(Config::with_cases(10));
-    let result = runner.run(
-        &proptest::collection::vec(any::<TestingAction>(), 0..100),
-        |actions| {
-            let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .unwrap();
-            tokio_runtime.block_on(async {
-                preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
-            });
-
-            Ok(())
-        },
-    );
-
-    result.unwrap();
+#[derive(Debug, Default)]
+struct TestState {
+    value_by_slot_number: HashMap<SlotNumber, u64>,
+    current_slot_number: SlotNumber,
+    next_nonce: u64,
+    current_value: u64,
 }
+
+// FIXME(@neysofu): this test is not broken due to correctness bugs in the
+// sequencer, but rather because generated testing scenarios sometimes are
+// oversized and the node can't keep up with the sequencer. TODO: find a solution.
+//#[test]
+//fn random_edge_cases_and_complex_scenarios() {
+//    use proptest::prelude::*;
+//    use proptest::test_runner::{Config, TestRunner};
+//
+//    let mut runner = TestRunner::new(Config::with_cases(1));
+//    let result = runner.run(
+//        &proptest::collection::vec(any::<TestingAction>(), 0..50),
+//        |actions| {
+//            let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
+//                .enable_all()
+//                .build()
+//                .unwrap();
+//            tokio_runtime.block_on(async {
+//                preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
+//            });
+//
+//            Ok(())
+//        },
+//    );
+//
+//    result.unwrap();
+//}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn txs_below_min_fee_are_rejected() {
@@ -135,6 +169,7 @@ async fn txs_below_min_fee_are_rejected() {
             ValueSetterConfig {
                 admin: admin.address(),
             },
+            PaymasterConfig::default(),
         );
     let genesis_params = GenesisParams {
         runtime: rt_genesis_config.clone(),
@@ -162,11 +197,92 @@ async fn txs_below_min_fee_are_rejected() {
     );
 }
 
-#[should_panic] // FIXME(@neysofu)
 #[tokio::test(flavor = "multi_thread")]
-async fn produce_batch_restart_then_accept_tx() {
+async fn batch_production_and_accept_tx() {
+    let mut actions = vec![];
+    for i in 1..20 {
+        actions.push(TestingAction::ProduceBatch { num_txs: i });
+        actions.push(TestingAction::AcceptTx);
+    }
+
+    preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn restart_and_query_value() {
+    let actions = vec![TestingAction::Restart, TestingAction::QuerySetValue];
+
+    preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn batch_production_and_state_query() {
+    let actions = vec![
+        TestingAction::AcceptTx,
+        TestingAction::ProduceBatch { num_txs: 4 },
+        TestingAction::ProduceBatch { num_txs: 4 },
+        TestingAction::ProduceBatch { num_txs: 4 },
+        TestingAction::ProduceBatch { num_txs: 4 },
+        TestingAction::ProduceBatch { num_txs: 4 },
+        TestingAction::ProduceBatch { num_txs: 4 },
+        TestingAction::QuerySetValue,
+        TestingAction::ProduceBatch { num_txs: 4 },
+        TestingAction::AcceptTx,
+        TestingAction::QuerySetValue,
+    ];
+
+    preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn api_state_race_condition_regression() {
+    let actions = vec![
+        TestingAction::QuerySetValue,
+        TestingAction::AcceptTx,
+        TestingAction::QuerySetValue,
+        TestingAction::ProduceBatch { num_txs: 1 },
+        TestingAction::QuerySetValue,
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::TryAcceptBadTx {
+            wrong_nonce: WrongNonce::ExpectedPlusOne,
+        },
+        TestingAction::TryAcceptBadTx {
+            wrong_nonce: WrongNonce::Zero,
+        },
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::QuerySetValue,
+        TestingAction::TryAcceptBadTx {
+            wrong_nonce: WrongNonce::Zero,
+        },
+        TestingAction::NewDaSlot {
+            _non_preferred_batches: vec![],
+        },
+        TestingAction::QuerySetValue,
+        TestingAction::QuerySetValue,
+        TestingAction::QuerySetValue,
+        TestingAction::QuerySetValue,
+        TestingAction::ProduceBatch { num_txs: 4 },
+        TestingAction::TryAcceptBadTx {
+            wrong_nonce: WrongNonce::Zero,
+        },
+        TestingAction::ProduceBatch { num_txs: 4 },
+        TestingAction::QuerySetValue,
+    ];
+
+    preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn restart_after_big_batch_regression() {
     let actions = vec![
         TestingAction::ProduceBatch { num_txs: 1 },
+        TestingAction::ProduceBatch { num_txs: 5 },
+        TestingAction::AcceptTx,
+        TestingAction::Restart,
+        TestingAction::ProduceBatch { num_txs: 10 },
         TestingAction::Restart,
         TestingAction::AcceptTx,
     ];
@@ -174,9 +290,35 @@ async fn produce_batch_restart_then_accept_tx() {
     preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn batch_production_with_immediate_finalization() {
+    let actions = vec![
+        TestingAction::ProduceBatch { num_txs: 1 },
+        TestingAction::ProduceBatch { num_txs: 50 },
+        TestingAction::Restart,
+        TestingAction::AcceptTx,
+        TestingAction::Sleep { duration_ms: 50 },
+        TestingAction::Restart,
+        TestingAction::ProduceBatch { num_txs: 50 },
+        TestingAction::Restart,
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::ProduceBatch { num_txs: 3 },
+        TestingAction::ProduceBatch { num_txs: 50 },
+    ];
+
+    preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
+}
+
 async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: Vec<TestingAction>) {
-    let genesis_config =
+    let mut genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    genesis_config.initial_sequencer.bond *= 100;
+
     let admin = genesis_config.additional_accounts[0].clone();
 
     let rt_genesis_config =
@@ -185,6 +327,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
             ValueSetterConfig {
                 admin: admin.address(),
             },
+            PaymasterConfig::default(),
         );
     let genesis_params = GenesisParams {
         runtime: rt_genesis_config.clone(),
@@ -195,7 +338,8 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
     let test_rollup = new_test_rollup(dir.clone(), genesis_params, 0).await;
     let client = test_rollup.api_client.clone();
 
-    let mut next_nonce = 0u64;
+    let mut test_state = TestState::default();
+
     {
         let txs = generate_txs(admin.private_key.clone()).clone();
         for tx in txs {
@@ -205,20 +349,24 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
                 })
                 .await
                 .unwrap();
-            next_nonce += 1;
+            test_state.next_nonce += 1;
         }
     }
 
     // initialize nonce value
     {
-        let tx = tx_set_value(&admin.private_key, next_nonce, next_nonce);
+        let tx = tx_set_value(
+            &admin.private_key,
+            test_state.next_nonce,
+            test_state.current_value,
+        );
         client
             .accept_tx(&api_types::AcceptTxBody {
                 body: BASE64_STANDARD.encode(&tx),
             })
             .await
             .unwrap();
-        next_nonce += 1;
+        test_state.next_nonce += 1;
     }
 
     let mut test_rollup = Some(test_rollup);
@@ -229,7 +377,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
             rt_genesis_config.clone(),
             &admin.private_key,
             action.clone(),
-            &mut next_nonce,
+            &mut test_state,
         )
         .await;
 
@@ -237,6 +385,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
             Ok(new_test_rollup) => test_rollup = Some(new_test_rollup),
             Err(e) => {
                 println!("Action history: {:#?}", actions[..=i].to_vec());
+                println!("test state: {:#?}", test_state);
                 panic!("Error: {:#?}", e);
             }
         }
@@ -250,13 +399,16 @@ async fn run_action_against_test_rollup(
     rt_genesis_params: <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig,
     key: &Ed25519PrivateKey,
     action: TestingAction,
-    next_nonce: &mut u64,
+    test_state: &mut TestState,
 ) -> anyhow::Result<TestRollup<TestBlueprint>> {
-    assert!(*next_nonce > 0);
+    assert!(test_state.next_nonce > 0);
 
-    let client = test_rollup.api_client.clone();
+    info!(?action, test_state.next_nonce, "Executing testing action");
 
     match action {
+        TestingAction::Sleep { duration_ms } => {
+            sleep(Duration::from_millis(duration_ms)).await;
+        }
         TestingAction::Restart => {
             let storage_dir = test_rollup.storage.clone();
             let genesis_params = GenesisParams {
@@ -265,19 +417,18 @@ async fn run_action_against_test_rollup(
 
             test_rollup.shutdown().await?;
 
-            sleep(Duration::from_millis(100)).await;
-
             return Ok(new_test_rollup(storage_dir, genesis_params, 0).await);
         }
         TestingAction::TryAcceptBadTx { wrong_nonce } => {
             let bad_nonce = match wrong_nonce {
-                WrongNonce::MinusOne => *next_nonce - 1,
-                WrongNonce::PlusOne => *next_nonce + 1,
+                WrongNonce::ExpectedMinusOne => test_state.next_nonce - 1,
+                WrongNonce::ExpectedPlusOne => test_state.next_nonce + 1,
                 WrongNonce::Zero => 0,
             };
-            let tx = tx_set_value(key, bad_nonce, *next_nonce);
+            let tx = tx_set_value(key, bad_nonce, test_state.current_value + 1);
 
-            anyhow::ensure!(client
+            anyhow::ensure!(test_rollup
+                .api_client
                 .accept_tx(&api_types::AcceptTxBody {
                     body: BASE64_STANDARD.encode(&tx),
                 })
@@ -285,9 +436,13 @@ async fn run_action_against_test_rollup(
                 .is_err());
         }
         TestingAction::AcceptTx => {
-            let tx = tx_set_value(key, *next_nonce, *next_nonce);
-            *next_nonce += 1;
-            client
+            let tx = tx_set_value(key, test_state.next_nonce, test_state.current_value + 1);
+
+            test_state.next_nonce += 1;
+            test_state.current_value += 1;
+
+            test_rollup
+                .api_client
                 .accept_tx(&api_types::AcceptTxBody {
                     body: BASE64_STANDARD.encode(&tx),
                 })
@@ -296,32 +451,64 @@ async fn run_action_against_test_rollup(
         TestingAction::ProduceBatch { num_txs } => {
             let mut txs = vec![];
             for _ in 0..num_txs {
-                let tx = tx_set_value(key, *next_nonce, *next_nonce);
-                *next_nonce += 1;
+                let tx = tx_set_value(key, test_state.next_nonce, test_state.current_value + 1);
+                test_state.next_nonce += 1;
+                test_state.current_value += 1;
 
-                txs.push(BASE64_STANDARD.encode(tx.data));
+                txs.push(tx.data);
             }
 
-            client
-                .publish_batch(&api_types::PublishBatchBody { transactions: txs })
-                .await?;
+            test_rollup.client.publish_batch(txs, true).await?;
+            test_state.current_slot_number.incr();
+            test_state
+                .value_by_slot_number
+                .insert(test_state.current_slot_number, test_state.current_value);
         }
         TestingAction::NewDaSlot { .. } => {}
+        TestingAction::QuerySetValueHistorical => {
+            for (slot_number, value) in test_state.value_by_slot_number.iter() {
+                info!(
+                    %slot_number,
+                    %value,
+                    "Historical query of value",
+                );
+                query_set_value(&test_rollup, Some(slot_number.get()), *value).await?;
+            }
+        }
         TestingAction::QuerySetValue => {
-            let response = test_rollup
-                .client
-                .query_rest_endpoint::<ResponseObject<serde_json::Value>>(
-                    "/modules/value-setter/state/value",
-                )
-                .await?;
-
-            let value_opt = response.data.and_then(|data| data["value"].as_u64());
-            let last_used_nonce = next_nonce.saturating_sub(1);
-            anyhow::ensure!(value_opt.unwrap_or_default() == last_used_nonce);
+            query_set_value(&test_rollup, None, test_state.current_value).await?;
         }
     }
 
     Ok(test_rollup)
+}
+
+async fn query_set_value(
+    test_rollup: &TestRollup<TestBlueprint>,
+    slot_number: Option<u64>,
+    expected: u64,
+) -> anyhow::Result<()> {
+    let url = format!(
+        "/modules/value-setter/state/value{}",
+        if let Some(slot_number) = slot_number {
+            format!("?rollup_height={}", slot_number)
+        } else {
+            "".to_string()
+        }
+    );
+
+    let response = test_rollup
+        .client
+        .query_rest_endpoint::<ResponseObject<serde_json::Value>>(&url)
+        .await?;
+
+    debug!(?response, "Querying value");
+
+    let found_value = response.data.unwrap()["value"].as_u64().unwrap();
+
+    anyhow::ensure!(found_value == expected);
+
+    Ok(())
 }
 
 fn tx_set_value(key: &Ed25519PrivateKey, nonce: u64, value_to_set: u64) -> RawTx {

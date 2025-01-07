@@ -13,7 +13,9 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 use super::{RejectReason, Spec, StateCheckpoint};
 use crate::batch_builders::sender_is_allowed;
+
 /// A batch that might be received async from some producer
+#[derive(Debug)]
 pub enum MaybeAsync {
     /// The batch is received async from a channel
     Async(Receiver<FullyBakedTx>),
@@ -25,6 +27,7 @@ pub enum MaybeAsync {
 }
 
 /// The control flow injector for an async batch.
+#[derive(Debug)]
 pub enum MaybeAsyncControlFlow<R, S: Spec> {
     Async(AsyncBatchResponder<R, S>),
     Sync,
@@ -68,6 +71,7 @@ impl<T: TxReceiptContents, S: Spec> InjectedControlFlow<TransactionReceipt<T>, S
 }
 
 /// Contains raw transactions received from an async source in real time
+#[derive(Debug)]
 pub struct AsyncBatch<R, S: Spec> {
     /// The batch contents, which may be sync or async
     pub contents: MaybeAsync,
@@ -97,6 +101,7 @@ impl<R, S: Spec> AsyncBatch<R, S> {
 }
 
 /// The channel responsible for notifying an async tx submitter of the txs result
+#[derive(Debug)]
 pub struct AsyncBatchResponder<R, S: Spec> {
     result_channel: Sender<Result<(R, TxChangeSet), RejectReason>>,
     admins: Arc<Vec<S::Address>>,

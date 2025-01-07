@@ -29,6 +29,7 @@ use crate::{MerkleProofSpec, ProvableNamespace, StateRoot};
 pub struct StorageRoot<S: MerkleProofSpec> {
     #[serde(with = "BigArray")]
     root_hashes: [u8; 64],
+    #[derivative(Debug = "ignore")]
     phantom: PhantomData<S>,
 }
 

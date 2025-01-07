@@ -145,7 +145,7 @@ impl<Da: DaSpec, S: InitializableNativeStorage> NativeStorageManager<Da, S> {
     }
 
     /// Extensive checks about internal consistency of the internal maps storage manager.
-    /// Panics of something is off.
+    /// Panics if something is off.
     #[cfg(debug_assertions)]
     fn validate_internal_consistency(&self) {
         for (slot_hash, child_hashes) in self.chain_forks.iter() {
