@@ -173,7 +173,7 @@ enum ValueExistsInCache {
 /// CacheLog keeps track of the original and current values of each key accessed.
 /// By tracking original values, we can detect and eliminate write patterns where a key is
 /// changed temporarily and then reset to its original value
-#[derive(Default, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct CacheLog {
     log: std::collections::HashMap<SlotKey, Access>,
 }
@@ -287,7 +287,7 @@ impl CacheLog {
 /// Caches reads and writes for a (key, value) pair. On the first read the value is fetched
 /// from an external source represented by the `ValueReader` trait. On following reads,
 /// the cache checks if the value we read was inserted before.
-#[derive(Default, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct ProvableStorageCache<N> {
     /// Transaction cache.
     pub tx_cache: CacheLog,

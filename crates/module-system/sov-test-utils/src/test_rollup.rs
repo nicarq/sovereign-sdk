@@ -107,7 +107,6 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
                 max_channel_size: 60,
                 max_infos_in_db: 80 + finalization_blocks as u64,
                 batch_builder_config: BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
-                    should_update_state: true,
                     minimum_profit_per_tx,
                 }),
                 prover_address: TEST_DEFAULT_PROVER_ADDRESS.to_string(),

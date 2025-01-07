@@ -1,3 +1,10 @@
+## 2025-01-07
+- #2030 is a major overhaul of internals. Notable changes are:
+  - Removal of the `should_update_state` configuration option. If you previously enabled it, you can safely remove it.
+  - Slight changes to error messages and error objects in the `/sequencer` REST API to provide more helpful information.
+  - Fixes a major memory leak and performance problem inside the preferred sequencer that would cause it to slow down to a crawl.
+  - Fixes several race conditions that would cause REST API state to be momentarily inconsistent or outdated briefly after accepting transactions.
+
 ## 2025-01-05
 - #2142 adds execution capabilities to the benchmark generation. This is not a breaking change for customers of the SDK.
 ## 2025-01-06

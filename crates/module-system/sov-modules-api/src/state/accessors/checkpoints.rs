@@ -1,5 +1,6 @@
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{IsValueCached, Namespace, SlotKey, SlotValue, StateAccesses, Storage};
+use tracing::trace;
 
 use super::internals::{AccessoryDelta, Delta};
 use super::{BootstrapWorkingSet, UniversalStateAccessor};
@@ -50,6 +51,8 @@ impl<S: Storage> StateCheckpoint<S> {
 
         let visible_slot_num = kernel.next_visible_rollup_height(&mut bootstrap_state);
 
+        trace!(%visible_slot_num, "Initializing a `StateCheckpoint`");
+
         Self {
             delta,
             visible_slot_num,
@@ -85,20 +88,19 @@ impl<S: Storage> StateCheckpoint<S> {
         (root, update, accessory_delta, witness, storage)
     }
 
-    /// Updates the true rollup height and the visible rollup height.
+    /// Updates the true [`SlotNumber`] and the [`VisibleSlotNumber`].
+    ///
     /// This method is used in tests.
     #[cfg(test)]
-    pub fn update_version(&mut self, visible_slot_num: u64) {
-        use sov_rollup_interface::common::IntoSlotNumber;
-
-        self.visible_slot_num = visible_slot_num.to_visible_slot_number();
+    pub fn update_version(&mut self, visible_slot_number: u64) {
+        self.visible_slot_num = VisibleSlotNumber::new(visible_slot_number);
     }
 
     /// Directly apply a set of changes to the state checkpoint. This method should generally *not* be used
     /// during normal execution, since changes should happen through `StateValue` types which
     /// use the UniversalStateAccessor API. It is primarily intended for use in the sequencer, which has to manage
     /// its own state.
-    // TODO: Remove this method when we stop using `StateCheckpoint` in the sequencer
+    // TODO: Remove this method if we stop using `StateCheckpoint` in the sequencer
     #[cfg(feature = "native")]
     pub fn apply_changes(&mut self, changeset: super::TxChangeSet) {
         for ((key, namespace), value) in changeset.changes {

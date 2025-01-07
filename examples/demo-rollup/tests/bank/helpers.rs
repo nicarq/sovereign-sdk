@@ -119,8 +119,8 @@ pub(crate) async fn assert_balance(
         .await
         .with_context(|| {
             format!(
-                "Failed to assert balance at rollup_height {:?} for user {} and token {}",
-                rollup_height, user_address, token_id
+                "Failed to get balance at rollup_height {:?} for user {} and token {} (expected {})",
+                rollup_height, user_address, token_id, assert_amount
             )
         })?;
     if assert_amount != actual_amount {

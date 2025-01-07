@@ -17,9 +17,9 @@ use sov_rollup_interface::da::{DaBlobHash, DaSpec};
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::TxHash;
 use tokio_stream::wrappers::BroadcastStream;
-use tracing::error;
 
-use crate::batch_builders::{AcceptTxError, BatchBuilder};
+use crate::batch_builders::BatchBuilder;
+use crate::sequencer::SequencerNotReadyDetails;
 use crate::{Sequencer, SequencerSpec, SubmitBatchReceipt, TxStatus};
 
 // Web server and Axum-related methods.
@@ -35,6 +35,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
                 Sequencer::<Ss>::ready_middleware,
             ));
         let routes_always_available = axum::Router::new()
+            .route("/ready", axum::routing::get(Self::axum_get_ready))
             .route("/txs/:tx_hash", axum::routing::get(Self::axum_get_tx))
             .route("/txs/:tx_hash/ws", axum::routing::get(Self::axum_get_tx_ws))
             .route("/events/ws", axum::routing::get(Self::subscribe_to_events))
@@ -54,13 +55,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     ) -> Result<Response, Response> {
         match sequencer.is_ready().await {
             Ok(()) => Ok(next.run(request).await),
-            Err(details) => Err(ErrorObject {
-                status: StatusCode::SERVICE_UNAVAILABLE,
-                title: "The node is not fully synced with the DA head and can't accept transactions at this time; try again later"
-                    .to_string(),
-                details: to_json_object(details)
-            }
-            .into_response())
+            Err(details) => Err(error_not_fully_synced(details).into_response()),
         }
     }
 
@@ -71,12 +66,11 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     ) -> anyhow::Result<()> {
         // Send a message with the initial status of the transaction,
         // without waiting for it to change for the first time.
-        let initial_status = self.tx_status(&tx_hash).await?.unwrap_or(TxStatus::Unknown);
+        let initial_status = self.tx_status(&tx_hash).await?;
         let ws_msg = ws::Message::Text(serde_json::to_string(&TxInfo {
             id: tx_hash,
             status: initial_status,
         })?);
-        dbg!(&ws_msg);
         socket.send(ws_msg).await?;
 
         Ok(())
@@ -136,13 +130,20 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         })
     }
 
+    async fn axum_get_ready(sequencer: State<Self>) -> ApiResult<()> {
+        match sequencer.is_ready().await {
+            Ok(()) => Ok(().into()),
+            Err(details) => Err(error_not_fully_synced(details).into_response()),
+        }
+    }
+
     async fn axum_get_tx(
         sequencer: State<Self>,
         tx_hash: Path<TxHash>,
     ) -> ApiResult<TxInfo<<<Ss::Da as DaService>::Spec as DaSpec>::TransactionId>> {
-        let tx_status = sequencer.tx_status_manager().get_cached(&tx_hash.0);
+        let tx_status = sequencer.tx_status(&tx_hash.0).await;
 
-        if let Some(tx_status) = tx_status {
+        if let Ok(tx_status) = tx_status {
             Ok(TxInfo {
                 id: tx_hash.0,
                 status: tx_status,
@@ -160,29 +161,10 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         let raw_tx = RawTx::new(tx.0.body.blob);
         let baked_tx = sequencer.encode_tx(raw_tx);
 
-        let tx_with_hash = match sequencer.accept_tx(baked_tx).await {
-            Ok(tx_hash) => tx_hash,
-            Err(AcceptTxError {
-                http_status,
-                title,
-                details,
-            }) => {
-                return Err(ErrorObject {
-                    status: http_status.try_into().unwrap_or_else(|_| {
-                        error!(
-                            http_status,
-                            "Sequencer generated an invalid HTTP status code"
-                        );
-                        StatusCode::INTERNAL_SERVER_ERROR
-                    }),
-                    title,
-                    details: json_obj!({
-                        "message": details
-                    }),
-                }
-                .into_response());
-            }
-        };
+        let tx_with_hash = sequencer
+            .accept_tx(baked_tx)
+            .await
+            .map_err(IntoResponse::into_response)?;
 
         Ok(TxInfo {
             id: tx_with_hash.tx_hash,
@@ -229,6 +211,15 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
                 .boxed();
             serve_generic_ws_subscription(socket, stream).await;
         })
+    }
+}
+
+fn error_not_fully_synced(details: SequencerNotReadyDetails) -> ErrorObject {
+    ErrorObject {
+        status: StatusCode::SERVICE_UNAVAILABLE,
+        title: "The node is not fully synced with the DA head and can't accept transactions at this time; try again later"
+            .to_string(),
+        details: to_json_object(details)
     }
 }
 

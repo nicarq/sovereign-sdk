@@ -40,7 +40,7 @@ impl<S: Spec> SovApiProofSerializer<S> {
         let data = borsh::to_vec(&proof_with_details)?;
 
         if let Some(ref provider) = self.sequence_number_provider {
-            let sequence_number = provider.next_sequence_number(&data).await?;
+            let sequence_number = provider.generate_sequence_number(&data).await?;
 
             let bytes = borsh::to_vec(&PreferredProofData {
                 sequence_number,

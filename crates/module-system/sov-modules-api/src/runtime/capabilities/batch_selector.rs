@@ -87,4 +87,12 @@ pub trait BlobSelector {
         I: IntoIterator<
             Item = BlobOrigin<'a, <<Self::Spec as Spec>::Da as DaSpec>::BlobTransaction>,
         >;
+
+    /// Implementors that don't support preferred blobs SHOULD panic.
+    fn next_sequence_number(
+        &self,
+        _state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
+    ) -> u64 {
+        panic!("Kernel does not support preferred blobs. Please change kernel type.")
+    }
 }

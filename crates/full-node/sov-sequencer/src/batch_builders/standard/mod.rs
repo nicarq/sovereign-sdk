@@ -1,18 +1,22 @@
 //! Standard, "vanilla" non-preferred sequencer implementation.
 
+mod db;
 mod mempool;
 
 use std::marker::PhantomData;
 use std::num::NonZero;
+use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use axum::http::StatusCode;
+use db::StandardBbDb;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use sov_modules_api::capabilities::{
     AuthenticationError, ChainState, HasKernel, TransactionAuthenticator,
 };
+use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::ApiState;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
@@ -23,6 +27,7 @@ use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect, TxProcessingError,
     ValidatedAuthOutput,
 };
+use sov_rest_utils::json_obj;
 use sov_rollup_interface::node::DaSyncState;
 use thiserror::Error;
 use tokio::sync::watch;
@@ -30,13 +35,13 @@ use tokio::task::JoinHandle;
 use tracing::error;
 
 use self::mempool::{Mempool, MempoolCursor};
-use super::{sender_is_allowed, EmptyConfirmation, RtAwareBatchBuilderSpec};
+use super::{sender_is_allowed, EmptyConfirmation, RtAwareBatchBuilderSpec, SeqDbTx};
 use crate::batch_builders::{
-    pre_exec_err_to_accept_tx_err, tx_auth, AcceptTxError, AcceptedTx, BatchBuilder,
-    FreshlyBuiltBatch, StateUpdateInfo, TxWithHash,
+    pre_exec_err_to_accept_tx_err, tx_auth, AcceptedTx, BatchBuilder, StateUpdateInfo,
+    WithCachedTxHashes,
 };
 use crate::sequencer::SequencerNotReadyDetails;
-use crate::{SeqDbTx, SeqDbTxExtend, SequencerConfig, TxHash, TxStatus, TxStatusManager};
+use crate::{SequencerConfig, TxHash, TxStatus, TxStatusManager};
 
 /// Configuration for [`StdBatchBuilder`].
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, JsonSchema)]
@@ -62,7 +67,7 @@ pub struct StdBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     api_state: ApiState<Z::Spec>,
-    tx_hashes_of_last_batch: Vec<TxHash>,
+    assembled_batch: Option<WithCachedTxHashes<Vec<FullyBakedTx>>>,
     config:
         SequencerConfig<<Z::Spec as Spec>::Da, <Z::Spec as Spec>::Address, StdBatchBuilderConfig>,
 }
@@ -102,11 +107,11 @@ where
         BatchConstructionContext<Z::Spec>,
         Result<Option<(FullyBakedTx, TransactionReceipt<Z::Spec>)>, AddTxToBatchError>,
     ) {
-        let fully_baked = seqdb_tx.fully_baked_tx();
+        let tx = seqdb_tx.tx.clone();
 
         // To fill a batch as big as possible, we only check if valid
         // tx can fit in the batch.
-        let tx_len = fully_baked.data.len();
+        let tx_len = tx.data.len();
         if ctx.current_batch_size_in_bytes + tx_len > self.max_batch_size_bytes().get() {
             return (ctx, Ok(None));
         }
@@ -118,7 +123,7 @@ where
             tx_scratchpad,
             ctx.gas_price.clone(),
             &self.config.da_address,
-            &seqdb_tx.fully_baked_tx(),
+            &seqdb_tx.tx,
         );
 
         let (auth_output, gas_meter) = match output_res {
@@ -177,7 +182,7 @@ where
                 ctx.state_checkpoint = tx_scratchpad.commit();
                 ctx.reward.accumulate(sequencer_reward);
 
-                (ctx, Ok(Some((fully_baked, receipt))))
+                (ctx, Ok(Some((tx, receipt))))
             }
         }
     }
@@ -218,15 +223,16 @@ where
 
     async fn create(
         latest_state_update: StateUpdateInfo<<Z::Spec as Spec>::Storage>,
+        txsm: TxStatusManager<<Self::Spec as Spec>::Da>,
         _da_sync_state: Arc<DaSyncState>,
-        seq_db_txs: Vec<SeqDbTx>,
+        storage_path: &Path,
         config: &SequencerConfig<<Z::Spec as Spec>::Da, <Z::Spec as Spec>::Address, Self::Config>,
     ) -> anyhow::Result<(Self, Option<JoinHandle<()>>)> {
         let runtime = Z::Rt::default();
         let kernel_with_slot_mapping = runtime.kernel_with_slot_mapping();
-        let kernel = runtime.kernel();
 
-        let checkpoint = StateCheckpoint::new(latest_state_update.storage.clone(), &kernel);
+        let checkpoint =
+            StateCheckpoint::new(latest_state_update.storage.clone(), &runtime.kernel());
         let (checkpoint_sender, checkpoint_receiver) = watch::channel(checkpoint);
 
         let api_state = ApiState::build(
@@ -236,8 +242,8 @@ where
             None,
         );
 
-        let checkpoint = StateCheckpoint::new(latest_state_update.storage.clone(), &kernel);
-        let txsm = TxStatusManager::default();
+        let checkpoint =
+            StateCheckpoint::new(latest_state_update.storage.clone(), &runtime.kernel());
 
         Ok((
             Self {
@@ -247,14 +253,14 @@ where
                         .batch_builder
                         .mempool_max_txs_count
                         .unwrap_or(default_mempool_max_txs_count()),
-                    seq_db_txs,
+                    StandardBbDb::new(storage_path).await?,
                 )?,
+                assembled_batch: None,
                 txsm,
                 api_state,
                 runtime: Z::Rt::default(),
                 checkpoint_sender,
                 checkpoint: Some(checkpoint),
-                tx_hashes_of_last_batch: vec![],
                 config: config.clone(),
             },
             None,
@@ -266,11 +272,9 @@ where
     }
 
     fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
+        // The non-preferred batch builder is always ready to accept
+        // transactions.
         Ok(())
-    }
-
-    fn tx_status_manager(&self) -> TxStatusManager<<Z::Spec as Spec>::Da> {
-        self.txsm.clone()
     }
 
     fn api_state(&self) -> ApiState<Self::Spec> {
@@ -301,21 +305,20 @@ where
     async fn accept_tx(
         &mut self,
         baked_tx: FullyBakedTx,
-    ) -> Result<AcceptedTx<Self::Confirmation>, AcceptTxError> {
+    ) -> Result<AcceptedTx<Self::Confirmation>, ErrorObject> {
         tracing::trace!(
             baked_tx = hex::encode(&baked_tx),
             "`accept_tx` has been called"
         );
 
         if baked_tx.data.len() > self.max_batch_size_bytes().get() {
-            return Err(AcceptTxError {
-                http_status: StatusCode::PAYLOAD_TOO_LARGE.as_u16(),
+            return Err(ErrorObject {
+                status: StatusCode::PAYLOAD_TOO_LARGE,
                 title: "Transaction is too big".to_string(),
-                details: format!(
-                    "Max allowed size: {}, submitted size: {}",
-                    self.max_batch_size_bytes(),
-                    baked_tx.data.len(),
-                ),
+                details: json_obj!({
+                    "max_allowed_size": self.max_batch_size_bytes(),
+                    "submitted_size": baked_tx.data.len(),
+                }),
             });
         }
 
@@ -363,11 +366,13 @@ where
 
                 return (
                     scratchpad.revert(),
-                    Err(AcceptTxError {
+                    Err(ErrorObject {
                         // Not enough gas, so 403 seems appropriate.
-                        http_status: StatusCode::FORBIDDEN.as_u16(),
+                        status: StatusCode::FORBIDDEN,
                         title: "Not enough gas for pre-execution checks".to_string(),
-                        details: err.to_string(),
+                        details: json_obj!({
+                            "message": err.to_string()
+                        }),
                     }),
                 );
             };
@@ -393,21 +398,31 @@ where
         })
     }
 
-    async fn clear_batch(&mut self) -> anyhow::Result<()> {
-        for tx_hash in self.tx_hashes_of_last_batch.drain(..) {
-            self.mempool.remove_without_notifying(&tx_hash);
+    async fn tx_status(
+        &self,
+        tx_hash: &TxHash,
+    ) -> anyhow::Result<
+        TxStatus<<<Self::Spec as Spec>::Da as sov_modules_api::DaSpec>::TransactionId>,
+    > {
+        if let Some(status) = self.txsm.get_cached(tx_hash) {
+            Ok(status)
+        } else if self.mempool.contains(tx_hash) {
+            Ok(TxStatus::Submitted)
+        } else {
+            Ok(TxStatus::Unknown)
         }
-
-        Ok(())
     }
 
     /// Builds a new batch of valid transactions in order they were added to mempool.
     /// Only transactions which are dispatched successfully are included in the batch.
-    async fn build_next_batch(
-        &mut self,
-        _sequence_number: u64,
-    ) -> anyhow::Result<FreshlyBuiltBatch<Self>> {
-        tracing::debug!("build_next_batch has been called");
+    async fn assemble_batch(&mut self) -> anyhow::Result<()> {
+        tracing::debug!("`assemble_batch` has been called");
+
+        // We already have a batch assembled. We'll wait until it's popped
+        // before assembling a new one.
+        if self.assembled_batch.is_some() {
+            return Ok(());
+        }
 
         let state_checkpoint = self.checkpoint.take().unwrap();
         let visible_height = state_checkpoint.rollup_height_to_access().get();
@@ -521,19 +536,47 @@ where
                 "Batch of transactions has been built"
             );
 
-            let (txs, hashes) = txs
+            let (txs, tx_hashes) = txs
                 .into_iter()
                 .map(|tx| (tx.fully_baked_tx, tx.hash))
                 .unzip();
 
             (
                 ctx.state_checkpoint,
-                Ok(FreshlyBuiltBatch { inner: txs, hashes }),
+                Ok(WithCachedTxHashes {
+                    inner: txs,
+                    tx_hashes,
+                }),
             )
         })(state_checkpoint);
 
         self.checkpoint = Some(new_checkpoint);
-        response
+
+        match response {
+            Ok(batch) => {
+                self.assembled_batch = Some(batch);
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn peek_batch(&mut self) -> anyhow::Result<Option<WithCachedTxHashes<Self::Batch>>> {
+        Ok(self.assembled_batch.clone())
+    }
+
+    async fn pop_batch(&mut self) -> anyhow::Result<()> {
+        if let Some(batch) = self.assembled_batch.take() {
+            for tx_hash in batch.tx_hashes {
+                // We're not dropping transactions because we're evicting them,
+                // but rather because we don't need them anymore after
+                // submitting them. Thus, sending a "drop" notification to users
+                // would be semantically wrong.
+                self.mempool.drop_without_notifying(&tx_hash);
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -550,4 +593,10 @@ const fn default_mempool_max_txs_count() -> NonZero<usize> {
         Some(default) => default,
         None => panic!("100 is greater than 0"),
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TxWithHash {
+    fully_baked_tx: FullyBakedTx,
+    hash: TxHash,
 }

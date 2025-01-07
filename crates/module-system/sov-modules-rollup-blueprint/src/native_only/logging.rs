@@ -54,20 +54,26 @@ pub fn initialize_logging() -> Option<OtelGuard> {
 pub fn default_rust_log_value() -> String {
     [
         "debug", // Default logging level.
+        // Info-only:
+        "h2=info",
+        "tower=info",
+        "tower_http=info",
+        "reqwest=info",
+        "tungstenite=info",
         "hyper=info",
-        "risc0_zkvm=warn",
         "jmt=info",
         "jsonrpsee-server=info",
         "jsonrpsee-client=info",
-        "reqwest=info",
-        "sqlx=warn",
-        "tiny_http=warn",
-        "tower_http=info",
-        "tungstenite=info",
         "risc0_circuit_rv32im=info",
         "risc0_zkp::verify=info",
-        "h2=info",
-        "tower=info",
+        // Warn-only:
+        "risc0_zkvm=warn",
+        "sqlx=warn",
+        "tiny_http=warn",
+        // "info", // <--- good option instead of default `debug` if you want most things to be quiet except for a handful of components
+        // "sov_modules_api=trace",
+        // "sov_modules_api::rest=trace", // <--- if you're not getting the data you'd expect out of REST APIs, or debugging `HasCustomRestApi` implementations
+        // "sov_sequencer=trace",         // <--- to debug sequencer behavior
     ]
     .join(",")
 }
@@ -79,7 +85,7 @@ fn log_info_about_logging(current_env_filter: &str) {
     // also print the current filter so they can copy-paste it and tweak it.
     info!(
         RUST_LOG = current_env_filter,
-        "Logging initialized; you can restart the node with a custom `RUST_LOG` env. var. to customize logging filtering"
+        "Logging initialized; you can restart the node with a custom `RUST_LOG` env. var. to customize log filtering"
     );
 
     let tokio_console_info_url = "https://github.com/tokio-rs/console";

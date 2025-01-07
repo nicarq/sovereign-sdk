@@ -1,24 +1,30 @@
 //! See [`PreferredBatchBuilder`].
 
+mod db;
+
+use std::num::NonZero;
+use std::path::Path;
 use std::sync::Arc;
 
 use async_batch::AsyncBatch;
 use async_trait::async_trait;
 use axum::http::StatusCode;
+use db::PreferredBbDb;
 use schemars::JsonSchema;
 use serde_with::serde_as;
 use sov_blob_storage::PreferredBatchData;
-use sov_db::sequencer_db::SeqDbTx;
 use sov_modules_api::capabilities::{
     BlobSelector, BlobSelectorOutput, HasKernel, SequencerType, TransactionAuthenticator,
 };
+use sov_modules_api::rest::utils::{json_obj, ErrorObject};
 use sov_modules_api::rest::ApiState;
 use sov_modules_api::{
     BlobDataWithId, DaSpec, ExecutionContext, FullyBakedTx, NestedEnumUtils, RawTx, RejectReason,
     RuntimeEventProcessor, RuntimeEventResponse, Spec, StateCheckpoint, StateUpdateInfo,
-    SyncStatus, TxChangeSet,
+    SyncStatus, TxChangeSet, VersionReader,
 };
 use sov_modules_stf_blueprint::{StfBlueprint, TransactionReceipt, TxEffect};
+use sov_rest_utils::errors::database_error_500;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
 use sov_state::{NativeStorage, Storage};
@@ -26,14 +32,15 @@ use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
-use tracing::{debug, trace, warn};
+use tracing::{debug, error, trace};
 
-use super::{generic_accept_tx_error, RtAwareBatchBuilderSpec, SequencerConfirmation};
-use crate::batch_builders::{
-    AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, TxWithHash,
-};
+use super::{generic_accept_tx_error, RtAwareBatchBuilderSpec, SeqDbTx, SequencerConfirmation};
+use crate::batch_builders::preferred::db::PreferredBbDbBlob;
+use crate::batch_builders::{AcceptedTx, BatchBuilder, WithCachedTxHashes};
 use crate::sequencer::SequencerNotReadyDetails;
-use crate::{SeqDbTxExtend, SequencerConfig, TxStatusManager};
+use crate::{
+    SequenceNumberProvider, Sequencer, SequencerConfig, SequencerSpec, TxStatus, TxStatusManager,
+};
 
 mod async_batch;
 
@@ -99,77 +106,13 @@ fn confirmation<Z: RtAwareBatchBuilderSpec>(
 
 /// A batch builder with instant transaction confirmation.
 pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
+    db: PreferredBbDb<Z::Spec, Z::Rt>,
     checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     api_state: ApiState<Z::Spec>,
     da_sync_state: Arc<DaSyncState>,
-    txs_in_next_batch: Vec<TxWithHash>,
     next_event_number: u64,
     acceptor: TxAcceptor<Z>,
-    config: PreferredBatchBuilderConfig,
-}
-
-impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
-    async fn reapply_txs(&mut self, txs: &[SeqDbTx]) {
-        let mut checkpoint = self
-            .checkpoint
-            .take()
-            .expect("Absent checkpoint; this is a bug, please report it");
-
-        for seqdb_tx in txs {
-            let baked_tx = seqdb_tx.fully_baked_tx();
-
-            let (new_checkpoint, response) = self
-                .acceptor
-                .tx_confirmation(baked_tx, checkpoint, self.next_event_number)
-                .await;
-
-            checkpoint = new_checkpoint;
-
-            match response {
-                Ok(ref ok) => {
-                    self.txs_in_next_batch.push(TxWithHash {
-                        fully_baked_tx: seqdb_tx.fully_baked_tx(),
-                        hash: seqdb_tx.hash,
-                    });
-                    self.next_event_number += ok.confirmation.events.len() as u64;
-                }
-                Err(err) => {
-                    warn!(
-                        ?err,
-                        "Failed to restore transaction; this is likely indicative of an abrupt sequencer shutdown. Please monitor logs and report any potential issues.",
-                    );
-                }
-            }
-        }
-
-        self.checkpoint = Some(checkpoint);
-        self.checkpoint_sender
-            .send(
-                self.checkpoint
-                    .as_ref()
-                    .expect("Missing internal checkpoint; this is a bug, please report it")
-                    .clone_with_empty_witness(),
-            )
-            .ok();
-    }
-}
-
-/// Configuration for [`PreferredBatchBuilder`].
-#[derive(
-    Debug, Default, Clone, serde::Serialize, serde::Deserialize, Eq, PartialEq, JsonSchema,
-)]
-pub struct PreferredBatchBuilderConfig {
-    /// Whether the sequencer should update its state to track the received state of the full-node before submitting a batch.
-    /// ## TODO(@theochap)
-    /// This is a temporary solution to prevent breakage of the sequencer. It should be removed once we have fully integrated
-    /// the sequencer and fixed update race conditions.
-    #[serde(default)]
-    pub should_update_state: bool,
-    /// The minimum fee that the preferred sequencer is willing to accept, denominated in rollup tokens. Defaults to zero.
-    /// Sequencers should set this to a non-zero value if they wish to cover their DA costs.
-    #[serde(default)]
-    pub minimum_profit_per_tx: u64,
 }
 
 /// A helper function to allow recovering an associated consant from an *instance* of a type
@@ -186,10 +129,18 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
     type Config = PreferredBatchBuilderConfig;
     type Spec = Z::Spec;
 
+    /// At the time of writing, the [`PreferredBatchBuilder`] doesn't use
+    /// the [`TxStatusManager`].
+    ///
+    /// The [`Sequencer`] itself already updates the
+    /// [`TxStatusManager`] after all operations, so we'd only need it if we
+    /// ever "drop" previously-accepted transactions. The whole point of the
+    /// [`PreferredBatchBuilder`] is that we *don't* do that.
     async fn create(
         latest_state_update: StateUpdateInfo<<Self::Spec as Spec>::Storage>,
+        _tx_status_manager: TxStatusManager<<Self::Spec as Spec>::Da>,
         da_sync_state: Arc<DaSyncState>,
-        seq_db_txs: Vec<SeqDbTx>,
+        storage_path: &Path,
         config: &SequencerConfig<<Z::Spec as Spec>::Da, <Z::Spec as Spec>::Address, Self::Config>,
     ) -> anyhow::Result<(Self, Option<JoinHandle<()>>)> {
         let runtime: Z::Rt = Default::default();
@@ -207,39 +158,49 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             None,
         );
 
+        let db = PreferredBbDb::new(storage_path, &latest_state_update).await?;
+
         let initial_checkpoint =
             StateCheckpoint::new(latest_state_update.storage.clone(), &runtime.kernel());
 
-        let admin_addresses = Arc::new(config.admin_addresses.clone());
-
         // TODO: Use an older state root if necessary. cc @neysofu
         let initial_height = latest_state_update.rollup_height;
+
         let initial_state_root = latest_state_update
             .storage
             .get_root_hash(initial_height)
             .expect("Latest rollup height must be present in database");
+
+        let (result_sender, result_receiver) =
+            tokio::sync::mpsc::channel(TxAcceptor::<Z>::MAX_BUFFERED_TXS);
+
+        debug!(
+            initial_height,
+            %latest_state_update.latest_finalized_rollup_height,
+            ?initial_state_root,
+            "Instantiating the preferred batch builder"
+        );
+
         let (acceptor, shutdown_handle) = TxAcceptor::new(
-            Default::default(),
-            config.da_address.clone(),
-            admin_addresses.clone(),
-            vec![], // TODO: provide any missing blobs from the DA layer / DB
             initial_checkpoint.clone_with_empty_witness(),
             initial_state_root,
-            config.batch_builder.minimum_profit_per_tx,
+            vec![], // TODO(https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2063): provide any missing blobs from the DA layer / DB
+            result_sender,
+            result_receiver,
+            config.clone(),
         );
         let mut bb = Self {
+            db,
             acceptor,
             next_event_number: latest_state_update.next_event_number,
             checkpoint: Some(initial_checkpoint),
             checkpoint_sender,
             api_state,
             da_sync_state,
-            txs_in_next_batch: vec![],
-            config: config.batch_builder.clone(),
         };
 
-        // Restore persisted transactions.
-        bb.reapply_txs(&seq_db_txs).await;
+        // Restore soft-confirmed state that the node hasn't processed yet.
+        bb.try_update_state(latest_state_update).await?;
 
         Ok((bb, Some(shutdown_handle)))
     }
@@ -270,46 +231,11 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         self.api_state.clone()
     }
 
-    fn tx_status_manager(&self) -> TxStatusManager<<Z::Spec as Spec>::Da> {
-        TxStatusManager::default()
-    }
-
     async fn update_state(&mut self, info: StateUpdateInfo<<Z::Spec as Spec>::Storage>) {
-        // TODO(@theochap): remove this once we have fully integrated the sequencer and fixed update race conditions.
-        // If [`Inner::should_update_state`] is set, we update the state of the batch builder to the
-        // one received from the full-node before submitting a batch.
-        if self.config.should_update_state {
-            let txs_to_process = self.txs_in_next_batch.clone();
-            let checkpoint = StateCheckpoint::new(info.storage.clone(), &Z::Rt::default().kernel());
-
-            self.checkpoint = Some(checkpoint);
-
-            debug!(
-                da_height = info.rollup_height,
-                num_txs_to_process = txs_to_process.len(),
-                "The sequencer is now re-applying transaction state changes on top of the latest state processed by the node"
-            );
-
-            for (idx, tx) in txs_to_process.iter().enumerate() {
-                trace!(
-                    idx,
-                    tx_hash = %tx.hash,
-                    "Re-applying state changes for the soft-confirmed transaction"
-                );
-
-                if let Err(error) = self.accept_tx(tx.fully_baked_tx.clone()).await {
-                    warn!(
-                        ?error,
-                        "Transaction was soft-confirmed but failed to be re-applied"
-                    );
-                }
-            }
-
-            self.next_event_number = info.next_event_number;
-            self.checkpoint_sender
-                .send(self.checkpoint.as_ref().unwrap().clone_with_empty_witness())
-                .ok();
-        }
+        self.try_update_state(info).await.unwrap_or_else(|err| {
+            error!(%err, "Failed to update preferred batch builder state. This failure is not recoverable, although application state is likely still intact and healthy. This is either a bug or a database issue.");
+            panic!("Failed to update preferred batch builder state. This failure is not recoverable, although application state is likely still intact and healthy. This is either a bug or a database issue. {err}");
+        });
     }
 
     fn encode_tx(raw: RawTx) -> FullyBakedTx {
@@ -319,7 +245,9 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
     async fn accept_tx(
         &mut self,
         baked_tx: FullyBakedTx,
-    ) -> Result<AcceptedTx<Self::Confirmation>, AcceptTxError> {
+    ) -> Result<AcceptedTx<Self::Confirmation>, ErrorObject> {
+        self.start_batch_if_needed().await?;
+
         let old_checkpoint = self
             .checkpoint
             .take()
@@ -327,79 +255,295 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
 
         let (new_checkpoint, response) = self
             .acceptor
-            .tx_confirmation(baked_tx, old_checkpoint, self.next_event_number)
+            .tx_confirmation(baked_tx.clone(), old_checkpoint, self.next_event_number)
             .await;
         self.checkpoint = Some(new_checkpoint);
-        if let Ok(ref ok) = response {
-            self.next_event_number += ok.confirmation.events.len() as u64;
 
-            self.txs_in_next_batch.push(TxWithHash {
-                fully_baked_tx: ok.tx.clone(),
-                hash: ok.tx_hash,
-            });
+        match &response {
+            Ok(ok) => {
+                trace!(
+                    ?ok.confirmation.events,
+                    "Transaction was accepted by the sequencer"
+                );
 
-            self.checkpoint_sender
-                .send(
-                    self.checkpoint
-                        .as_ref()
-                        .expect("Missing internal checkpoint; this is a bug, please report it")
-                        .clone_with_empty_witness(),
-                )
-                .ok();
+                self.next_event_number += ok.confirmation.events.len() as u64;
+
+                self.db
+                    .insert_tx(&SeqDbTx::new(ok.tx_hash, baked_tx))
+                    .await
+                    .map_err(database_error_500)?;
+
+                self.update_api_state().await;
+            }
+            Err(error) => {
+                debug!(error.title, "Transaction was rejected by the sequencer");
+            }
         }
 
         response
     }
 
-    async fn build_next_batch(
-        &mut self,
-        sequence_number: u64,
-    ) -> anyhow::Result<FreshlyBuiltBatch<Self>> {
-        // TODO: Compute the correct set of blobs to use here.
-        self.acceptor
-            .move_to_next_slot(
-                self.checkpoint
-                    .as_ref()
-                    .expect("Missing internal checkpoint; this is a bug, please report it")
-                    .clone_with_empty_witness(),
-                vec![],
-            )
-            .await;
-        let (txs, hashes) = self
-            .txs_in_next_batch
-            .iter()
-            .map(|tx| (tx.fully_baked_tx.clone(), tx.hash))
-            .unzip();
-
-        let batch = FreshlyBuiltBatch {
-            inner: PreferredBatchData {
-                data: txs,
-                visible_slots_to_advance: 1,
-                sequence_number,
-            },
-            hashes,
-        };
-
-        Ok(batch)
+    async fn tx_status(
+        &self,
+        _tx_hash: &TxHash,
+    ) -> anyhow::Result<
+        TxStatus<<<Self::Spec as Spec>::Da as sov_modules_api::DaSpec>::TransactionId>,
+    > {
+        // At the time of writing, information in the DB is not stored in such a
+        // way that facilitates random access to tx status information. That
+        // means the sequencer only relies on the cache. FIXME(@neysofu).
+        Ok(TxStatus::Unknown)
     }
 
-    async fn clear_batch(&mut self) -> anyhow::Result<()> {
-        self.txs_in_next_batch.clear();
+    async fn assemble_batch(&mut self) -> anyhow::Result<()> {
+        self.start_batch_if_needed().await.map_err(|_| anyhow::anyhow!("Unable to start a new batch; this is likely a database issue or a bug, please report it"))?;
+        self.db.terminate_batch().await?;
+
+        let checkpoint = self
+            .checkpoint
+            .as_mut()
+            .expect("Missing internal checkpoint; this is a bug, please report it");
+
+        self.acceptor
+            .move_to_next_slot(
+                checkpoint.clone_with_empty_witness(),
+                // TODO(https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2063): provide proofs and non-preferred blobs here.
+                vec![],
+                None,
+            )
+            .await;
+
+        Ok(())
+    }
+
+    async fn peek_batch(&mut self) -> anyhow::Result<Option<WithCachedTxHashes<Self::Batch>>> {
+        self.db.earliest_batch_not_sent_yet().await
+    }
+
+    async fn pop_batch(&mut self) -> anyhow::Result<()> {
+        self.db.advance_not_sent_yet_cursor().await?;
+        Ok(())
+    }
+}
+
+impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
+    /// Syncs [`ApiState`]s with the latest [`StateCheckpoint`].
+    async fn update_api_state(&self) {
         let checkpoint = self
             .checkpoint
             .as_ref()
             .expect("Missing internal checkpoint; this is a bug, please report it")
             .clone_with_empty_witness();
-        // We have to shut down the current tx_acceptor
-        // TODO: Compute the correct list of blobs to add to this batch
-        self.acceptor.move_to_next_slot(checkpoint, vec![]).await;
+
+        self.checkpoint_sender.send(
+            checkpoint
+        ).expect("sending the checkpoint should never fail because one receiver is always present; this is a bug, please report it");
+    }
+
+    async fn start_batch_if_needed(&mut self) -> Result<(), ErrorObject> {
+        if self.db.sequence_number_of_in_progress_batch.is_none() {
+            let next_visible_slot_number_increase = self.next_visible_slot_number_increase();
+
+            debug!(
+                next_visible_slot_number_increase,
+                "No in-progress batch, starting a new one"
+            );
+
+            self.db
+                .start_batch(next_visible_slot_number_increase)
+                .await
+                .map_err(database_error_500)?;
+        }
+
         Ok(())
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn try_update_state(
+        &mut self,
+        info: StateUpdateInfo<<Z::Spec as Spec>::Storage>,
+    ) -> anyhow::Result<()> {
+        debug!(
+            ?info,
+            "The sequencer is now re-applying transaction state changes on top of the latest state processed by the node"
+        );
+
+        let mut checkpoint =
+            StateCheckpoint::new(info.storage.clone(), &self.acceptor.runtime.kernel());
+
+        trace!(
+            checkpoint_height = %checkpoint.rollup_height_to_access(),
+            "Re-applying state changes"
+        );
+
+        let batches_to_process = {
+            let blobs_to_apply = match self.db.all_subsequent_blobs(&info).await {
+                Ok(b) => b,
+                Err(err) => {
+                    error!(%err, "Database error while re-applying state changes. This is a critical error. Database integrity is intact, but the sequencer may momentarily provide outdated state and break soft-confirmations.");
+                    return Err(err);
+                }
+            };
+
+            let first_sequence_number = blobs_to_apply.first().map(|b| b.sequence_number());
+
+            trace!(
+                blobs_count = blobs_to_apply.len(),
+                first_sequence_number,
+                last_sequence_number = blobs_to_apply.last().map(|b| b.sequence_number()),
+                "Extracted blobs to apply from database"
+            );
+
+            let mut batches: Vec<_> = blobs_to_apply
+                .into_iter()
+                .filter_map(|blob| match blob {
+                    PreferredBbDbBlob::Batch(batch) => Some((
+                        true,
+                        WithCachedTxHashes {
+                            inner: batch.inner,
+                            tx_hashes: batch.tx_hashes,
+                        },
+                    )),
+                    // TODO(https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2063): Process proofs.
+                    // Note: once we start processing proofs in addition to batches,
+                    // we gotta make sure to order everything by sequence number as
+                    // proofs can have a sequence number that's greater than the
+                    // in-progress batch.
+                    _ => {
+                        trace!(
+                            sequence_number = %blob.sequence_number(),
+                            "Ignoring proof blob"
+                        );
+                        None
+                    }
+                })
+                .collect();
+
+            if let Some(batch) = self.db.in_progress_batch_opt().await? {
+                batches.push((false, batch));
+            }
+
+            batches
+        };
+
+        {
+            let txs_count_by_sequence_number =
+                batches_to_process.iter().map(|(is_complete, batch)| {
+                    (
+                        is_complete,
+                        batch.inner.sequence_number,
+                        batch.inner.data.len(),
+                    )
+                });
+            trace!(
+                txs_count_by_sequence_number = ?txs_count_by_sequence_number.collect::<Vec<_>>(),
+                "Prepared batches to apply to the state"
+            );
+        }
+
+        // Reset the acceptor state inside a new slot.
+        self.acceptor
+            .move_to_next_slot(
+                checkpoint.clone_with_empty_witness(),
+                vec![],
+                Some(info.storage.get_root_hash(info.rollup_height)?),
+            )
+            .await;
+
+        for (idx, (is_complete, batch)) in batches_to_process.iter().enumerate() {
+            trace!(
+                idx,
+                num_txs = batch.inner.data.len(),
+                "Re-applying batch state changes"
+            );
+
+            checkpoint = self.replay_batch(batch, checkpoint, *is_complete).await;
+        }
+
+        self.checkpoint = Some(checkpoint);
+        self.update_api_state().await;
+
+        Ok(())
+    }
+
+    async fn replay_batch(
+        &mut self,
+        batch: &WithCachedTxHashes<PreferredBatchData>,
+        mut checkpoint: StateCheckpoint<<Z::Spec as Spec>::Storage>,
+        is_complete: bool,
+    ) -> StateCheckpoint<<Z::Spec as Spec>::Storage> {
+        for (tx, tx_hash) in batch.inner.data.iter().zip(batch.tx_hashes.iter()) {
+            trace!(
+                tx_hash = %tx_hash,
+                "Re-applying state changes for the soft-confirmed transaction"
+            );
+
+            let (new_checkpoint, response) = self
+                .acceptor
+                .tx_confirmation(tx.clone(), checkpoint, self.next_event_number)
+                .await;
+            checkpoint = new_checkpoint;
+
+            match response {
+                Ok(ref ok) => {
+                    self.next_event_number += ok.confirmation.events.len() as u64;
+                }
+                Err(err) => {
+                    panic!(
+                        "Transaction was soft-confirmed but failed to be re-applied; this is a bug, please report it {:?}",
+                        err
+                    );
+                }
+            }
+        }
+
+        if is_complete {
+            self.acceptor
+                .move_to_next_slot(checkpoint.clone_with_empty_witness(), vec![], None)
+                .await;
+        }
+
+        checkpoint
+    }
+
+    fn next_visible_slot_number_increase(&self) -> NonZero<u8> {
+        // TODO(@neysofu): finalized height -aware visible slot number increase logic.
+        NonZero::new(1).unwrap()
+    }
+}
+
+/// Configuration for [`PreferredBatchBuilder`].
+#[derive(
+    Debug, Default, Clone, serde::Serialize, serde::Deserialize, Eq, PartialEq, JsonSchema,
+)]
+pub struct PreferredBatchBuilderConfig {
+    /// The minimum fee that the preferred sequencer is willing to accept, denominated in rollup tokens. Defaults to zero.
+    /// Sequencers should set this to a non-zero value if they wish to cover their DA costs.
+    #[serde(default)]
+    pub minimum_profit_per_tx: u64,
+}
+
+#[async_trait]
+impl<Z, Ss> SequenceNumberProvider for Sequencer<Ss>
+where
+    Z: RtAwareBatchBuilderSpec,
+    Ss: SequencerSpec<BatchBuilder = PreferredBatchBuilder<Z>>,
+    //                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    // One should not be able to use a non-preferred sequencer to produce
+    // sequence numbers.
+{
+    async fn generate_sequence_number(&self, preferred_blob: &[u8]) -> anyhow::Result<u64> {
+        self.batch_builder()
+            .await
+            .db
+            .insert_proof_blob(preferred_blob.to_vec())
+            .await
     }
 }
 
 type AcceptTxResult<Z> = (
     StateCheckpoint<<<Z as RtAwareBatchBuilderSpec>::Spec as Spec>::Storage>,
-    Result<AcceptedTx<Confirmation<Z>>, AcceptTxError>,
+    Result<AcceptedTx<Confirmation<Z>>, ErrorObject>,
 );
 
 /// Subset of the [`PreferredBatchBuilder`] state that is needed to accept a
@@ -426,16 +570,18 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
     pub const MAX_BUFFERED_TXS: usize = 1;
 
     pub fn new(
-        runtime: Z::Rt,
-        sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
-        admin_addresses: Arc<Vec<<Z::Spec as Spec>::Address>>,
-        additional_blobs: Vec<AsyncBlobAndSender<Z>>,
         checkpoint: StateCheckpoint<<<Z as RtAwareBatchBuilderSpec>::Spec as Spec>::Storage>,
         initial_state_root: <<Z::Spec as Spec>::Storage as Storage>::Root,
-        minimum_profit_per_tx: u64,
+        additional_blobs: Vec<AsyncBlobAndSender<Z>>,
+        result_sender: Sender<TxResult<Z>>,
+        result_receiver: Receiver<TxResult<Z>>,
+        config: SequencerConfig<
+            <Z::Spec as Spec>::Da,
+            <Z::Spec as Spec>::Address,
+            PreferredBatchBuilderConfig,
+        >,
     ) -> (Self, JoinHandle<()>) {
         let (tx_sender, tx_receiver) = tokio::sync::mpsc::channel(Self::MAX_BUFFERED_TXS);
-        let (result_sender, result_receiver) = tokio::sync::mpsc::channel(Self::MAX_BUFFERED_TXS);
         let (shutdown_notifier, mut shutdown_rx) = tokio::sync::mpsc::channel(1);
 
         let handle = Some(Self::start_background_loop(
@@ -443,27 +589,28 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
             tx_receiver,
             result_sender,
             additional_blobs,
-            admin_addresses.clone(),
-            sequencer_address.clone(),
+            Arc::new(config.admin_addresses.clone()),
+            config.da_address.clone(),
             initial_state_root,
-            minimum_profit_per_tx,
+            config.batch_builder.minimum_profit_per_tx,
             shutdown_notifier.clone(),
         ));
 
         let shutdown_handle = tokio::task::spawn(async move {
-            // This task blocks until we receive a notification that all background tasks have been shut down
+            // This task blocks until we receive a notification that all
+            // background tasks have been shut down.
             let _ = shutdown_rx.recv().await;
         });
 
         (
             Self {
-                runtime,
+                runtime: Z::Rt::default(),
                 tx_sender,
                 result_receiver,
                 handle,
-                admin_addresses,
-                sequencer_address,
-                minimum_profit_per_tx,
+                admin_addresses: Arc::new(config.admin_addresses),
+                sequencer_address: config.da_address,
+                minimum_profit_per_tx: config.batch_builder.minimum_profit_per_tx,
                 shutdown_notifier,
             },
             shutdown_handle,
@@ -481,7 +628,18 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
         minimum_profit_per_tx: u64,
         shutdown_notifier: Sender<()>,
     ) -> JoinHandle<<<Z::Spec as Spec>::Storage as Storage>::Root> {
+        trace!(
+            height = %checkpoint.rollup_height_to_access(),
+            "Spawning background loop"
+        );
+
         tokio::runtime::Handle::current().spawn_blocking(move || {
+            let _span = tracing::trace_span!(
+                "sequencer_tx_acceptor",
+                checkpoint_height = %checkpoint.rollup_height_to_access(),
+            )
+            .entered();
+
             let mut selected_blobs = vec![(
                 BlobDataWithId::Batch(AsyncBatch::new_async(
                     tx_receiver,
@@ -540,11 +698,20 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
         &mut self,
         new_checkpoint: StateCheckpoint<<Z::Spec as Spec>::Storage>,
         additional_blobs: Vec<AsyncBlobAndSender<Z>>,
+        state_root: Option<<<Z::Spec as Spec>::Storage as Storage>::Root>,
     ) {
+        trace!(
+            height = %new_checkpoint.rollup_height_to_access(),
+            "Moving to next slot"
+        );
         let (prev_state_root, tx_receiver, result_sender) = self
             .finish_background_loop_iter()
             .await
             .expect("Missing join handle in sequencer! This is a bug, please report it.");
+        trace!(
+            height = %new_checkpoint.rollup_height_to_access(),
+            "Starting background loop"
+        );
         // TODO: Apply remaining changes from batch to new checkpoint.
         self.handle = Some(Self::start_background_loop(
             new_checkpoint,
@@ -553,7 +720,11 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
             additional_blobs,
             self.admin_addresses.clone(),
             self.sequencer_address.clone(),
-            prev_state_root,
+            // We simply use the state root from the previous slot if no new
+            // state root was provided. A user may provide a different state
+            // root if they wish to process a slot that's not the next one, e.g.
+            // when replaying transactions on top of old state.
+            state_root.unwrap_or(prev_state_root),
             self.minimum_profit_per_tx,
             self.shutdown_notifier.clone(),
         ));
@@ -568,24 +739,26 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
         let call = match Z::Rt::decode_serialized_tx(&self.runtime, &baked_tx) {
             Ok((call, _)) => call,
             Err(e) => {
-                return (
-                    checkpoint,
-                    Err(AcceptTxError {
-                        http_status: StatusCode::BAD_REQUEST.as_u16(),
-                        title: "Malformed transaction".to_string(),
-                        details: format!("This transaction could not be deserialized. {e}",),
+                let error = ErrorObject {
+                    status: StatusCode::BAD_REQUEST,
+                    title: "Malformed transaction".to_string(),
+                    details: json_obj!({
+                        "message": format!("This transaction could not be deserialized. {e}",)
                     }),
-                );
+                };
+
+                return (checkpoint, Err(error));
             }
         };
 
         // Send the transaction for execution
         if let Err(TrySendError::Full(_)) = self.tx_sender.try_send(baked_tx.clone()) {
-            let error = AcceptTxError {
-                http_status: StatusCode::SERVICE_UNAVAILABLE.as_u16(), // 503
+            let error = ErrorObject {
+                status: StatusCode::SERVICE_UNAVAILABLE, // 503
                 title: "Temporarily unavailable".to_string(),
-                details: "The sequencer is temporarily overloaded. Try again in a few seconds."
-                    .to_string(),
+                details: json_obj!({
+                    "message": "The sequencer is temporarily overloaded. Try again in a few seconds."
+                }),
             };
             return (checkpoint, Err(error));
         }
@@ -597,38 +770,11 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
 
         let (receipt, change_set) = match result {
             Ok(receipt) => receipt,
-            Err(e) => match e {
-                // TODO: get appropriate number of slots to advance.
-                // TODO: There's a complicated edge case here where the sequencer doesn't have enough stake for the number of incoming transactions
-                // (recall that the sequencer must have enough take to cover all N authentication attempts in order to submit a batch of size N).
-                // In that case, this check will fail repeatedly in a short time window. However, the sequencer is only allowed to submit 1 batch
-                // per slot. In that case, the "correct" solution is to raise the required fees per transaction and plow the profits into increasing
-                // the sequencer's stake.
-                // Finally, there's one small edge case where the sequencer isn't staked enough to cover even a single tx. In that case, we should
-                // probably throw an error on startup.
-                RejectReason::SequencerOutOfGas =>  {
-                    todo!("The sequencer ran out of gas! Support for recovery is not yet implemented");
-                    #[allow(unreachable_code)]
-                    return (checkpoint, Err(AcceptTxError {
-                        http_status: StatusCode::SERVICE_UNAVAILABLE.as_u16(),
-                        title: "Batch is full".to_string(),
-                        details: "More transactions were submitted that the sequencer is allowed to put into a single batch. Wait a few seconds and try again.".to_string(),
-                    }))
-                  },
-                RejectReason::InsufficientReward { expected, found } => return (checkpoint, Err(AcceptTxError {
-                    http_status: StatusCode::FORBIDDEN.as_u16(),
-                    title: "Sequencer tip too low".to_string(),
-                    details: format!(
-                        "This transaction did not pay a sufficient net fee. Minimum: {expected}. Found: {found}"
-                    ),
-                })),
-                RejectReason::SenderMustBeAdmin => {
-                    return (checkpoint, Err(AcceptTxError {
-                        http_status: StatusCode::FORBIDDEN.as_u16(),
-                        title: "The transaction is forbidden".to_string(),
-                        details: format!("Only designated admins are allowed to send `{:#?}` transactions through this sequencer", call.discriminant()),
-                    }));
-                }
+            Err(reason) => {
+                return (
+                    checkpoint,
+                    Err(reject_reason_to_error(reason, call.discriminant())),
+                )
             }
         };
 
@@ -646,5 +792,48 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
         };
 
         (checkpoint, Ok(accepted_tx))
+    }
+}
+
+fn reject_reason_to_error(
+    error: RejectReason,
+    call_discriminant: impl std::fmt::Debug,
+) -> ErrorObject {
+    match error {
+        // TODO: get appropriate number of slots to advance.
+        // TODO: There's a complicated edge case here where the sequencer doesn't have enough stake for the number of incoming transactions
+        // (recall that the sequencer must have enough take to cover all N authentication attempts in order to submit a batch of size N).
+        // In that case, this check will fail repeatedly in a short time window. However, the sequencer is only allowed to submit 1 batch
+        // per slot. In that case, the "correct" solution is to raise the required fees per transaction and plow the profits into increasing
+        // the sequencer's stake.
+        // Finally, there's one small edge case where the sequencer isn't staked enough to cover even a single tx. In that case, we should
+        // probably throw an error on startup.
+        RejectReason::SequencerOutOfGas => {
+            todo!("The sequencer ran out of gas! Support for recovery is not yet implemented");
+            #[allow(unreachable_code)]
+            ErrorObject {
+                status: StatusCode::SERVICE_UNAVAILABLE,
+                title: "Batch is full".to_string(),
+                details: json_obj!({
+                    "message": "More transactions were submitted that the sequencer is allowed to put into a single batch. Wait a few seconds and try again."
+                }),
+            }
+        }
+        RejectReason::InsufficientReward { expected, found } => ErrorObject {
+            status: StatusCode::FORBIDDEN,
+            title: "Sequencer tip too low".to_string(),
+            details: json_obj!({
+                "message": "This transaction did not pay a sufficient net fee.",
+                "minimum": expected,
+                "found": found,
+            }),
+        },
+        RejectReason::SenderMustBeAdmin => ErrorObject {
+            status: StatusCode::FORBIDDEN,
+            title: "The transaction is forbidden".to_string(),
+            details: json_obj!({
+                "message": format!("Only designated admins are allowed to send `{:#?}` transactions through this sequencer", call_discriminant),
+            }),
+        },
     }
 }

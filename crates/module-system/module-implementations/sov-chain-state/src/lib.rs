@@ -228,6 +228,10 @@ pub struct ChainState<S: Spec> {
     true_to_visible_rollup_height_history:
         sov_modules_api::KernelStateMap<SlotNumber, VisibleSlotNumber>,
 
+    #[state]
+    visible_to_true_slot_number_history:
+        sov_modules_api::KernelStateMap<VisibleSlotNumber, SlotNumber>,
+
     /// The real rollup height of the rollup.
     /// This value is also required to create a [`sov_state::storage::KernelStateAccessor`]. See note on `visible_height` above.
     #[state]
@@ -313,8 +317,21 @@ impl<S: Spec> ChainState<S> {
             .true_to_visible_rollup_height_history
             .get(&true_rollup_height, state)?;
 
-        dbg!(true_rollup_height, visible_rollup_height);
         Ok(visible_rollup_height)
+    }
+
+    /// See
+    /// [`sov_modules_api::runtime::capabilities::KernelWithSlotMapping::first_true_slot_number_for`].
+    pub fn first_true_slot_number_for<T>(
+        &self,
+        visible_rollup_height: VisibleSlotNumber,
+        state: &mut T,
+    ) -> Result<Option<SlotNumber>, T::Error>
+    where
+        T: StateReader<Kernel>,
+    {
+        self.visible_to_true_slot_number_history
+            .get(&visible_rollup_height, state)
     }
 
     /// Returns transition height in the current slot

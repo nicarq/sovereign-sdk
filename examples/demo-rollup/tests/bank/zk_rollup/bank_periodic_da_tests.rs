@@ -10,8 +10,6 @@ use sov_modules_api::{OperatingMode, SerializedAggregatedProof, Spec};
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregateProofVerifier, AggregatedProofPublicData,
 };
-use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
-use sov_sequencer::BatchBuilderConfig;
 use sov_state::Storage;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::RollupBuilder;
@@ -39,12 +37,6 @@ async fn flaky_bank_tx_tests_periodic_da() -> anyhow::Result<()> {
     )
     .set_config(|c| {
         c.rollup_prover_config = RollupProverConfig::Skip;
-        c.batch_builder_config = BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
-            // FIXME(@theochap): It seems this test is broken because the sequencer state does
-            // not update fast enough. Hence we disable the state update here.
-            should_update_state: false,
-            ..Default::default()
-        });
     })
     .start()
     .await?;

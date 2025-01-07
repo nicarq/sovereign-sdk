@@ -102,6 +102,18 @@ impl<S: Spec> ChainState<S> {
                 state,
             )
             .unwrap_infallible();
+
+        self.visible_to_true_slot_number_history
+            .set_if_absent(
+                &state.visible_rollup_height(),
+                // The true slot number was already incremented.
+                //
+                // TODO: audit this and make sure there's no off-by-one error
+                // here.
+                &state.true_rollup_height().prev(),
+                state,
+            )
+            .unwrap_infallible();
     }
 
     /// Returns the base fee per gas accessible at the specified slot height for this state accessor.
@@ -183,6 +195,15 @@ const _: () = {
             state: &mut ApiStateAccessor<S>,
         ) -> Option<VisibleSlotNumber> {
             self.visible_rollup_height_at(true_rollup_height, state)
+                .unwrap_infallible()
+        }
+
+        fn first_true_slot_number_for(
+            &self,
+            visible_rollup_height: sov_modules_api::VisibleSlotNumber,
+            state: &mut sov_modules_api::state::ApiStateAccessor<S>,
+        ) -> Option<SlotNumber> {
+            self.first_true_slot_number_for(visible_rollup_height, state)
                 .unwrap_infallible()
         }
 

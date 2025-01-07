@@ -389,7 +389,7 @@ pub enum GasMetering<GU: Gas> {
 }
 
 /// A struct that keeps track of the use gas.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BasicGasMeter<GU: Gas> {
     gas_metering: GasMetering<GU>,
     gas_used: GU,

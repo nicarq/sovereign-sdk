@@ -309,10 +309,13 @@ where
             .chain_state()
             .base_fee_per_gas(&mut state_checkpoint).expect("Impossible to get the base fee per gas for the current slot. This is a bug. Please report it");
 
-        ApiStateAccessor::<S>::new_with_price_and_height(
+        let accessor = kernel.accessor(&mut state_checkpoint);
+        let true_slot_number = accessor.rollup_height_to_access();
+
+        ApiStateAccessor::<S>::new_with_custom_price_at_true_slot_number(
             &state_checkpoint,
             runtime.kernel_with_slot_mapping(),
-            self.true_rollup_height().as_visible(),
+            true_slot_number,
             base_fee_per_gas,
         )
     }

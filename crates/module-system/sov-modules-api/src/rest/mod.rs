@@ -35,6 +35,7 @@ use sov_rest_utils::{json_obj, ErrorObject, Query};
 use sov_rollup_interface::common::{IntoSlotNumber, VisibleSlotNumber};
 use sov_rollup_interface::StateUpdateInfo;
 use tokio::sync::watch;
+use tracing::trace;
 use utoipa::openapi::OpenApi;
 
 use crate::capabilities::KernelWithSlotMapping;
@@ -157,11 +158,14 @@ pub trait HasCustomRestApi: Sized + Clone {
 /// empty [`axum::Router`] will be returned instead.
 ///
 /// This "blanket" implementation uses the [Autoref-based stable specialization](https://github.com/dtolnay/case-studies/tree/master/autoref-specialization)
-impl<T: ModuleInfo> HasCustomRestApi for &T {
+impl<T: ModuleInfo + Default> HasCustomRestApi for &T {
     type Spec = T::Spec;
 
     fn custom_rest_api(&self, _state: ApiState<Self::Spec>) -> axum::Router<()> {
-        tracing::trace!(module = std::any::type_name::<T>(), id = %self.id(), "No `HasCustomRestApi` implementation found for module");
+        tracing::trace!(
+            module = T::default().prefix().module_name(),
+            "No `HasCustomRestApi` implementation found for module"
+        );
         axum::Router::new()
     }
 }
@@ -231,15 +235,16 @@ impl<S: Spec, T> ApiState<S, T> {
     ) -> Result<ApiStateAccessor<S>, anyhow::Error> {
         let checkpoint = self.checkpoint_receiver.borrow();
 
-        let height = maybe_height.unwrap_or(checkpoint.rollup_height_to_access().as_visible());
-
         let kernel = self.kernel.clone();
 
-        let mut state = ApiStateAccessor::new_with_height(&*checkpoint, kernel.clone(), height);
+        let mut state =
+            ApiStateAccessor::new_with_height(&*checkpoint, kernel.clone(), maybe_height);
+
+        trace!(?maybe_height, ?state, "Building an API state accessor");
 
         let gas_price = self
             .kernel
-            .base_fee_per_gas_at(height, &mut state)
+            .base_fee_per_gas_at(state.rollup_height_to_access().as_visible(), &mut state)
             .ok_or_else(|| {
                 anyhow::anyhow!("Impossible to get the rollup state at the specified height. Please ensure you have queried the correct height.")
             })?;

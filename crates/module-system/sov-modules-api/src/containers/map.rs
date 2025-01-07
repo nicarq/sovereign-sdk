@@ -144,6 +144,30 @@ where
         state.set(&self.slot_key(key), self.slot_value(value))
     }
 
+    /// Calls [`StateMap::set`] iff the key is not already present in the map.
+    pub fn set_if_absent<Kq, Vq, Writer>(
+        &self,
+        key: &Kq,
+        value: &Vq,
+        state: &mut Writer,
+    ) -> Result<(), <Writer as StateWriter<N>>::Error>
+    where
+        Codec::KeyCodec: EncodeLike<Kq, K>,
+        Codec::ValueCodec: EncodeLike<Vq, V>,
+        Kq: ?Sized,
+        Vq: ?Sized,
+        Writer: StateReaderAndWriter<N>,
+    {
+        if state
+            .get_decoded(&self.slot_key(key), self.codec())?
+            .is_none()
+        {
+            self.set(key, value, state)?;
+        }
+
+        Ok(())
+    }
+
     /// Returns the value corresponding to the key, or [`None`] if the map
     /// doesn't contain the key.
     ///

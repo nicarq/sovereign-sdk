@@ -255,6 +255,7 @@ impl<R, S: Spec> InjectedControlFlow<R, S> for NoOpControlFlow {
 pub struct NoOpControlFlow;
 
 /// A Batch with its ID.
+#[derive(Debug)]
 
 pub struct IterableBatchWithId {
     /// Batch of transactions.

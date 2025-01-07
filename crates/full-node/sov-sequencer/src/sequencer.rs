@@ -1,30 +1,26 @@
+use std::path::Path;
 use std::sync::Arc;
 
 use axum::async_trait;
 use sov_db::ledger_db::LedgerDb;
-use sov_db::sequencer_db::{SequenceNumber, SequencerDb};
+use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
     DaSyncState, FullyBakedTx, RawTx, RuntimeEventResponse, Spec, StateUpdateInfo,
 };
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::node::da::DaService;
+use sov_rollup_interface::node::da::{DaService, Fee};
 use sov_rollup_interface::node::ledger_api::{
     ItemOrHash, LedgerStateProvider, QueryMode, SlotResponse,
 };
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
 use sov_rollup_interface::TxHash;
 use tokio::sync::{broadcast, Mutex, MutexGuard};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, trace};
 
-use super::tx_status::{TxStatus, TxStatusManager};
-use super::SubmitBatchReceipt;
-use crate::batch_builders::preferred::PreferredBatchBuilder;
-use crate::batch_builders::{
-    AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, RtAwareBatchBuilderSpec,
-    SequencerConfirmation,
-};
-use crate::{SeqDbTx, SeqDbTxExtend, SequencerConfig, SequencerSpec};
+use super::tx_status::TxStatus;
+use crate::batch_builders::{AcceptedTx, BatchBuilder, SequencerConfirmation, WithCachedTxHashes};
+use crate::{SequencerConfig, SequencerSpec, SubmitBatchReceipt, TxStatusManager};
 
 /// Single data structure that manages mempool and batch producing.
 #[derive(Clone, derive_more::Deref)]
@@ -40,78 +36,9 @@ pub struct Inner<Ss: SequencerSpec> {
     // We simply cache a copy so that we don't need to lock the builder to
     // retrieve it when needed.
     api_state: ApiState<<Ss::BatchBuilder as BatchBuilder>::Spec>,
-    sequencer_db: SequencerDb,
     events_sender: broadcast::Sender<SequencerEvent<Ss::BatchBuilder>>,
     da_service: Ss::Da,
     tx_status_manager: TxStatusManager<<Ss::Da as DaService>::Spec>,
-}
-
-impl<Ss: SequencerSpec> Inner<Ss> {
-    async fn build_and_send_batch(
-        &self,
-        batch_builder: &mut MutexGuard<'_, Ss::BatchBuilder>,
-    ) -> anyhow::Result<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>> {
-        let sequence_number = self
-            .sequencer_db
-            .get_and_increase_next_sequence_number()
-            .await?;
-
-        // FIXME: if the node crashes here, the sequence number is lost forever
-        // and the node can't recover.
-
-        let FreshlyBuiltBatch {
-            inner: next_batch,
-            hashes: tx_hashes,
-        } = batch_builder.build_next_batch(sequence_number).await?;
-        let serialized_batch = borsh::to_vec(&next_batch)
-            .expect("Failed to serialize batch inside sequencer; this is a bug, please report it");
-
-        let fee = match self.da_service.estimate_fee(serialized_batch.len()).await {
-            Ok(fee) => fee,
-            Err(e) => anyhow::bail!(
-                "failed to submit batch: could not determine appropriate fee rate: {}",
-                e
-            ),
-        };
-
-        let submit_blob_receipt = match self
-            .da_service
-            .send_transaction(&serialized_batch, fee)
-            .await
-            .await
-            .expect("The transaction sender should not fail")
-        {
-            Ok(id) => id,
-            Err(e) => anyhow::bail!("failed to submit batch: {}", e),
-        };
-
-        batch_builder.clear_batch().await?;
-        self.sequencer_db.remove(&tx_hashes)?;
-
-        for tx_hash in &tx_hashes {
-            self.tx_status_manager.notify(
-                *tx_hash,
-                TxStatus::Published {
-                    da_tx_id: submit_blob_receipt.da_transaction_id.clone(),
-                },
-            );
-        }
-
-        let receipt = SubmitBatchReceipt {
-            tx_hashes,
-            submit_blob_receipt,
-        };
-        tracing::debug!(?receipt, "Batch has been build and sent");
-
-        Ok(receipt)
-    }
-
-    async fn produce_batch(&self) -> anyhow::Result<()> {
-        let mut batch_builder = self.batch_builder.lock().await;
-        self.build_and_send_batch(&mut batch_builder).await?;
-
-        Ok(())
-    }
 }
 
 impl<Ss: SequencerSpec> Sequencer<Ss> {
@@ -126,7 +53,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         >,
         da_service: Ss::Da,
         da_sync_state: Arc<DaSyncState>,
-        sequencer_db: SequencerDb,
+        storage_path: &Path,
         ledger_db: LedgerDb,
         config: &SequencerConfig<
             <<Ss::BatchBuilder as BatchBuilder>::Spec as Spec>::Da,
@@ -140,15 +67,17 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         let latest_state_update = state_update_receiver.borrow().clone();
         let latest_processed_rollup_height = latest_state_update.rollup_height;
 
+        let tx_status_manager = TxStatusManager::default();
+
         let (batch_builder, maybe_bb_join_handle) = Ss::BatchBuilder::create(
             latest_state_update,
+            tx_status_manager.clone(),
             da_sync_state.clone(),
-            sequencer_db.read_all()?,
+            storage_path,
             config,
         )
         .await?;
 
-        let tx_status_manager = batch_builder.tx_status_manager();
         let api_state = batch_builder.api_state();
 
         let sequencer = Self {
@@ -156,7 +85,6 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
                 batch_builder: Mutex::new(batch_builder),
                 api_state,
                 events_sender,
-                sequencer_db,
                 da_service,
                 tx_status_manager,
             }),
@@ -190,11 +118,6 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         Ok((sequencer, handles))
     }
 
-    /// Returns a reference to the underlying [`SequencerDb`].
-    pub fn db(&self) -> &SequencerDb {
-        &self.inner.sequencer_db
-    }
-
     /// Locks the batch builder and returns a reference to it.
     pub async fn batch_builder(&self) -> MutexGuard<Ss::BatchBuilder> {
         self.inner.batch_builder.lock().await
@@ -207,7 +130,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
     /// Checks whether the sequencer is ready to accept transactions.
     pub async fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
-        self.batch_builder.lock().await.is_ready()
+        self.batch_builder().await.is_ready()
     }
 
     pub(crate) fn tx_status_manager(&self) -> &TxStatusManager<<Ss::Da as DaService>::Spec> {
@@ -219,49 +142,6 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         self.api_state.clone()
     }
 
-    /// Calls [`BatchBuilder::accept_tx`] for each transaction, and finally
-    /// [`BatchBuilder::build_next_batch`].
-    pub async fn submit_batch(
-        &self,
-        txs: Vec<FullyBakedTx>,
-    ) -> anyhow::Result<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>> {
-        tracing::info!("Submit batch request has been received!");
-        let mut batch_builder = self.batch_builder().await;
-
-        let mut accept_tx_results = vec![];
-        for tx in txs {
-            let mut result = batch_builder.accept_tx(tx.clone()).await;
-
-            match &result {
-                Ok(accepted) => {
-                    let stored_tx = SeqDbTx::new(accepted.tx_hash, tx);
-
-                    if let Err(e) = self.sequencer_db.insert(&stored_tx).await {
-                        error!(%e, "Database error. Failed to add transaction to batch");
-                        result = Err(AcceptTxError {
-                            http_status: 500,
-                            title: "Database Error".to_string(),
-                            details: String::new(),
-                        });
-                    } else {
-                        self.notify_accepted_tx(accepted);
-                    }
-                }
-                Err(e) => {
-                    println!("Error {e:?}");
-                    return Err(
-                        anyhow::anyhow!("title: {}, details: {}", e.title, e.details)
-                            .context("Failed to add transaction to batch."),
-                    );
-                }
-            }
-
-            accept_tx_results.push(result);
-        }
-
-        self.inner.build_and_send_batch(&mut batch_builder).await
-    }
-
     /// Encodes the transaction into the format accepted by [`BatchBuilder::accept_tx`].
     ///
     /// TODO(@neysofu): this method should be replaced an API endpoint -aware
@@ -271,27 +151,43 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     }
 
     /// See [`BatchBuilder::accept_tx`].
+    #[tracing::instrument(skip_all)]
     pub async fn accept_tx(
         &self,
-        baked_tx: FullyBakedTx,
-    ) -> Result<AcceptedTx<<Ss::BatchBuilder as BatchBuilder>::Confirmation>, AcceptTxError> {
-        tracing::info!(tx = hex::encode(&baked_tx.data), "Accepting transaction");
+        tx: FullyBakedTx,
+    ) -> Result<AcceptedTx<<Ss::BatchBuilder as BatchBuilder>::Confirmation>, ErrorObject> {
+        info!(tx = hex::encode(&tx.data), "Accepting transaction");
         let mut batch_builder = self.batch_builder().await;
 
-        let accepted = batch_builder.accept_tx(baked_tx.clone()).await?;
-        let stored_tx = SeqDbTx::new(accepted.tx_hash, baked_tx);
+        self.accept_tx_and_notify(&mut batch_builder, tx).await
+    }
 
-        self.sequencer_db.insert(&stored_tx).await.map_err(|e| {
-            error!(%e, "Database error. Failed to accept transaction");
-            AcceptTxError {
-                http_status: 500,
-                title: "Database Error".to_string(),
-                details: String::new(),
-            }
-        })?;
-        self.notify_accepted_tx(&accepted);
+    /// Calls [`BatchBuilder::accept_tx`] for each transaction, and finally
+    /// [`BatchBuilder::assemble_batch`].
+    #[tracing::instrument(skip_all)]
+    pub async fn submit_batch(
+        &self,
+        txs: Vec<FullyBakedTx>,
+    ) -> anyhow::Result<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>> {
+        tracing::info!(
+            txs_count = txs.len(),
+            "Submit batch request has been received!"
+        );
 
-        Ok(accepted)
+        let mut batch_builder = self.batch_builder().await;
+
+        for tx in txs {
+            // TODO(@neysofu): information about transaction failures is lost...
+            // it'd be nice to add it to the response, but at the same time
+            // we're thinking of deprecating or removing. `POST
+            // /sequencer/batches`. Gotta figure out what to do here.
+            self.accept_tx_and_notify(&mut batch_builder, tx.clone())
+                .await
+                .ok();
+        }
+
+        batch_builder.assemble_batch().await?;
+        self.inner.send_all_unsent_batches(&mut batch_builder).await
     }
 
     /// Queries the latest known status of the given transaction. Best-effort,
@@ -299,18 +195,14 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     pub async fn tx_status(
         &self,
         tx_hash: &TxHash,
-    ) -> anyhow::Result<Option<TxStatus<<<Ss::Da as DaService>::Spec as DaSpec>::TransactionId>>>
-    {
-        // TODO: This report is not completely accurate. The mempool is allowed to drop transactions
-        // but currently has no mechanism to remove them from the sequencer_db, so there can be a window
-        // between the time that a tx is evicted from the notificaiton cache and the time its entry is
-        // TTL'd where it will report `Submitted` instead of `Dropped`
+    ) -> anyhow::Result<TxStatus<<<Ss::Da as DaService>::Spec as DaSpec>::TransactionId>> {
+        // Hit the cache...
         if let Some(status) = self.tx_status_manager.get_cached(tx_hash) {
-            return Ok(Some(status));
-        } else if self.sequencer_db.get(tx_hash).await?.is_some() {
-            return Ok(Some(TxStatus::Submitted));
+            Ok(status)
+        } else {
+            // ...and then the batch builder's database.
+            self.batch_builder().await.tx_status(tx_hash).await
         }
-        Ok(None)
     }
 }
 
@@ -337,8 +229,8 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
                 }
             };
 
-            if changed.is_err() {
-                tracing::debug!("Error in state update");
+            if let Err(error) = changed {
+                tracing::error!(%error, "Channel notification failed");
                 continue;
             }
 
@@ -363,34 +255,30 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
     async fn handle_state_update_info(
         &self,
-        state_update_info: StateUpdateInfo<
-            <<Ss::BatchBuilder as BatchBuilder>::Spec as Spec>::Storage,
-        >,
+        info: StateUpdateInfo<<<Ss::BatchBuilder as BatchBuilder>::Spec as Spec>::Storage>,
         latest_processed_rollup_height: &mut u64,
         ledger_db: &LedgerDb,
         automatic_batch_production: bool,
     ) -> anyhow::Result<()> {
-        // Update storage. It is scoped, so batch builder lock is released early.
-        let storage_rollup_height = {
-            let rollup_height = state_update_info.rollup_height;
-            let mut bb = self.batch_builder().await;
-            bb.update_state(state_update_info.clone()).await;
-            rollup_height
-        };
+        self.batch_builder().await.update_state(info.clone()).await;
 
         self.notify_processed_slots(
             ledger_db,
-            *latest_processed_rollup_height..=storage_rollup_height,
+            *latest_processed_rollup_height..=info.rollup_height,
         )
         .await?;
 
+        *latest_processed_rollup_height = info.rollup_height;
+
         // Now that we retrieved the latest state, we can produce and send a new batch.
         if automatic_batch_production {
-            tracing::debug!("Producing a batch");
-            self.produce_batch().await?;
+            tracing::debug!("Producing a batch automatically");
+            // No additional transactions, the batches will
+            // just contain whatever transactions have been accepted already
+            // (possibly none).
+            let txs = vec![];
+            self.submit_batch(txs).await?;
         }
-
-        *latest_processed_rollup_height = state_update_info.rollup_height;
 
         Ok(())
     }
@@ -434,11 +322,31 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
         Ok(())
     }
+}
+
+impl<Ss: SequencerSpec> Inner<Ss> {
+    async fn accept_tx_and_notify(
+        &self,
+        batch_builder: &mut MutexGuard<'_, Ss::BatchBuilder>,
+        tx: FullyBakedTx,
+    ) -> Result<AcceptedTx<<Ss::BatchBuilder as BatchBuilder>::Confirmation>, ErrorObject> {
+        tracing::debug!(tx = hex::encode(&tx.data), "Accepting transaction");
+
+        let accepted = batch_builder.accept_tx(tx).await?;
+        self.notify_accepted_tx(&accepted);
+
+        Ok(accepted)
+    }
 
     fn notify_accepted_tx(
         &self,
         tx: &AcceptedTx<<Ss::BatchBuilder as BatchBuilder>::Confirmation>,
     ) {
+        // It makes sense to me (@neysofu) that tx status notifications are sent
+        // before events, but I can see arguments for both.
+        self.tx_status_manager
+            .notify(tx.tx_hash, TxStatus::Submitted);
+
         for event in tx.confirmation.events() {
             self.events_sender
                 .send(SequencerEvent {
@@ -447,9 +355,100 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
                 })
                 .ok();
         }
+    }
 
-        self.tx_status_manager
-            .notify(tx.tx_hash, TxStatus::Submitted);
+    async fn send_all_unsent_batches_opt(
+        &self,
+        batch_builder: &mut MutexGuard<'_, Ss::BatchBuilder>,
+    ) -> anyhow::Result<Option<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>>> {
+        let mut ret = None;
+
+        while let Some(receipt) = self.send_batch_if_available(batch_builder).await? {
+            ret = Some(receipt);
+        }
+
+        Ok(ret)
+    }
+
+    async fn send_all_unsent_batches(
+        &self,
+        batch_builder: &mut MutexGuard<'_, Ss::BatchBuilder>,
+    ) -> anyhow::Result<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>> {
+        self.send_all_unsent_batches_opt(batch_builder)
+            .await
+            .map(|opt| {
+                // Not a single batch was available for sending, but this was unexpected.
+                opt.expect("Batch was expected, but not found; this is a bug, please report it")
+            })
+    }
+
+    async fn send_batch_if_available(
+        &self,
+        batch_builder: &mut MutexGuard<'_, Ss::BatchBuilder>,
+    ) -> anyhow::Result<Option<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>>> {
+        let Some(WithCachedTxHashes {
+            inner: next_batch,
+            tx_hashes,
+        }) = batch_builder.peek_batch().await?
+        else {
+            trace!("No batch available to send");
+            return Ok(None);
+        };
+
+        let serialized_batch = borsh::to_vec(&next_batch)
+            .expect("Failed to serialize batch inside sequencer; this is a bug, please report it");
+
+        let fee = match self.da_service.estimate_fee(serialized_batch.len()).await {
+            Ok(fee) => fee,
+            Err(e) => anyhow::bail!(
+                "failed to submit batch: could not determine appropriate fee rate: {}",
+                e
+            ),
+        };
+
+        trace!(
+            gas_estimate = fee.gas_estimate(),
+            txs_count = tx_hashes.len(),
+            "Will attempt to publish batch to DA"
+        );
+
+        let submit_blob_receipt = match self
+            .da_service
+            .send_transaction(&serialized_batch, fee)
+            .await
+            .await
+            .expect("The transaction sender should not fail")
+        {
+            Ok(id) => id,
+            Err(e) => anyhow::bail!("failed to submit batch: {}", e),
+        };
+
+        debug!(
+            da_transaction_id = %submit_blob_receipt.da_transaction_id,
+            blob_hash = %submit_blob_receipt.blob_hash,
+            "Batch has been sent"
+        );
+
+        // If we crash here, the batch will still be sitting inside the batch
+        // builder's database and it will be re-submitted once again. Not ideal,
+        // but certainly better than losing it forever. This is the correct
+        // behavior.
+
+        batch_builder.pop_batch().await?;
+
+        for tx_hash in &tx_hashes {
+            self.tx_status_manager.notify(
+                *tx_hash,
+                TxStatus::Published {
+                    da_tx_id: submit_blob_receipt.da_transaction_id.clone(),
+                },
+            );
+        }
+
+        Ok(Some(SubmitBatchReceipt {
+            tx_hashes,
+            submit_blob_receipt,
+        }))
     }
 }
 
@@ -474,24 +473,8 @@ pub struct SequencerEvent<Bb: BatchBuilder> {
 /// get a sequence number assigned to preferred proof blobs.
 #[async_trait]
 pub trait SequenceNumberProvider: Send + Sync + 'static {
-    /// Returns the next sequence number.
+    /// Generates the next sequence number to use for a new preferred proof blob.
     ///
     /// Subsequent calls to this method MUST return different (greater) values.
-    async fn next_sequence_number(&self, preferred_blob: &[u8]) -> anyhow::Result<SequenceNumber>;
-}
-
-#[async_trait]
-impl<Z, Ss> SequenceNumberProvider for Sequencer<Ss>
-where
-    Z: RtAwareBatchBuilderSpec,
-    Ss: SequencerSpec<BatchBuilder = PreferredBatchBuilder<Z>>,
-    //                               ^^^^^^^^^^^^^^^^^^^^^^^^
-    // One should not be able to use a non-preferred sequencer to produce
-    // sequence numbers.
-{
-    async fn next_sequence_number(&self, _preferred_blob: &[u8]) -> anyhow::Result<SequenceNumber> {
-        self.sequencer_db
-            .get_and_increase_next_sequence_number()
-            .await
-    }
+    async fn generate_sequence_number(&self, preferred_blob: &[u8]) -> anyhow::Result<u64>;
 }

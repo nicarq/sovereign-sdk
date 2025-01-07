@@ -111,7 +111,7 @@ impl<S: Spec> BlobStorage<S> {
             .unwrap_infallible()
     }
 
-    /// Get the blob with the given sequence number, if it saved.
+    /// Get the blob with the given sequence number, if it's saved.
     #[cfg(feature = "test-utils")]
     pub fn get_deferred_preferred_sequencer_blob<
         R: sov_modules_api::StateReader<sov_state::Kernel>,
@@ -122,6 +122,16 @@ impl<S: Spec> BlobStorage<S> {
     ) -> Result<Option<PreferredBlobDataWithId>, R::Error> {
         self.deferred_preferred_sequencer_blobs
             .get(&sequence_number, state)
+    }
+
+    /// What the [`SequenceNumber`] of the next [`PreferredBlobData`]s MUST
+    /// be.
+    pub fn next_sequence_number(&self, state: &mut impl InfallibleKernelStateAccessor) -> u64 {
+        self.next_sequence_number
+            .get(state)
+            .unwrap_infallible()
+            // The very first sequence number is always 0.
+            .unwrap_or_default()
     }
 }
 
@@ -154,7 +164,7 @@ impl<S: Spec> Module for BlobStorage<S> {
 
 /// Contains data obtained from the DA blob, plus metadata required for blobs
 /// from the preferred sequencer. This is deserialized directly from the DA layer.
-#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct PreferredBatchData {
     /// The sequence number of the batch/proof. The rollup attempts to process items in order by sequence number.
     /// For example, if the sequencer sends a batch with sequence number 2 followed by a proof with sequencer number 1,
@@ -184,7 +194,7 @@ impl PreferredSequenced for PreferredBatchData {
 
 /// Contains data obtained from the DA blob, plus metadata required for blobs
 /// from the preferred sequencer. This is deserialized directly from the DA layer.
-#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct PreferredProofData {
     /// The sequence number of the batch/proof. The rollup attempts to process items in order by sequence number.
     /// For example, if the sequencer sends a batch with sequence number 2 followed by a proof with sequencer number 1,
@@ -213,6 +223,7 @@ pub struct PreferredBlobDataWithId {
 #[derive(
     Debug,
     PartialEq,
+    Eq,
     Clone,
     BorshDeserialize,
     BorshSerialize,

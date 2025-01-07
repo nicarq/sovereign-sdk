@@ -50,6 +50,13 @@ impl<'b, S: Spec> BlobSelector for SoftConfirmationsKernel<'b, S> {
         self.blob_storage
             .get_blobs_for_this_slot(current_blobs, state)
     }
+
+    fn next_sequence_number(
+        &self,
+        state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
+    ) -> u64 {
+        self.blob_storage.next_sequence_number(state)
+    }
 }
 
 impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for SoftConfirmationsKernel<'a, S> {

@@ -317,7 +317,7 @@ impl<S: Spec> BlobStorage<S> {
     /// - (If sent by anyone else) which appeared on chain before or during the current *visible* rollup height
     /// For batches, we select
     /// - The next one sent by the preferred sequencer (if available)
-    /// - Any batches which appeared on chain before or during the current *visible* rollup height
+    /// - Any batches which appeared on chain before or during the current *visible* slot number
     #[tracing::instrument(skip_all)]
     fn select_blobs_for_preferred_sequencer<'a, 'k, I>(
         &self,

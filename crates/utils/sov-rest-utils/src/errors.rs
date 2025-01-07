@@ -58,7 +58,7 @@ pub fn bad_request_400(message: &str, err: impl ToString) -> Response {
 }
 
 /// Returns a 500 error to be used when a database error occurred.
-pub fn database_error_response_500(err: impl ToString) -> Response {
+pub fn database_error_500(err: impl ToString) -> ErrorObject {
     // We don't include the database error in the response, because it may
     // contain sensitive information.
     //
@@ -73,7 +73,11 @@ pub fn database_error_response_500(err: impl ToString) -> Response {
         title: "Database error".to_string(),
         details: json_obj!({}),
     }
-    .into_response()
+}
+
+/// Converts [`database_error_500`] into a [`Response`].
+pub fn database_error_response_500(err: impl ToString) -> Response {
+    database_error_500(err).into_response()
 }
 
 /// Returns a 500 internal server error.

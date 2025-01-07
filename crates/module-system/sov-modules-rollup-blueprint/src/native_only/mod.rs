@@ -7,7 +7,6 @@ mod wallet;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::Context;
 use async_trait::async_trait;
@@ -33,9 +32,7 @@ use sov_rollup_interface::ProvableHeightTracker;
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilder;
 use sov_sequencer::batch_builders::standard::StdBatchBuilder;
 use sov_sequencer::batch_builders::BatchBuilder;
-use sov_sequencer::{
-    BatchBuilderConfig, SequenceNumberProvider, Sequencer, SequencerDb, SequencerSpec,
-};
+use sov_sequencer::{BatchBuilderConfig, SequenceNumberProvider, Sequencer, SequencerSpec};
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
 use sov_stf_runner::processes::{ProverService, RollupProverConfig, WorkflowProcessManager};
@@ -45,7 +42,7 @@ use sov_stf_runner::{
 use tokio::signal::unix::SignalKind;
 use tokio::sync::{oneshot, watch};
 use tokio::task::JoinHandle;
-use tracing::warn;
+use tracing::info;
 pub use wallet::*;
 
 use crate::RollupBlueprint;
@@ -174,11 +171,6 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         da_service: &Self::DaService,
         shutdown_receiver: watch::Receiver<()>,
     ) -> anyhow::Result<SequencerCreationReceipt<Self::Spec>> {
-        let sequencer_db = SequencerDb::new(
-            &rollup_config.storage.path,
-            Duration::from_secs(rollup_config.sequencer.dropped_tx_ttl_secs),
-        )?;
-
         match &rollup_config.sequencer.batch_builder {
             BatchBuilderConfig::Standard(bb_config) => {
                 let (sequencer, background_handles) = SequencerBlueprint::<
@@ -189,7 +181,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     state_update_receiver.clone(),
                     da_service.clone(),
                     da_sync_state,
-                    sequencer_db.clone(),
+                    &rollup_config.storage.path,
                     ledger_db.clone(),
                     &rollup_config.sequencer.with_bb_config(bb_config.clone()),
                     shutdown_receiver,
@@ -204,8 +196,6 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                 })
             }
             BatchBuilderConfig::Preferred(bb_config) => {
-                warn!("The preferred sequencer is **experimental** and may not work as expected. Please report any issues you encounter.");
-
                 let (sequencer, background_handles) = SequencerBlueprint::<
                     Self,
                     M,
@@ -214,7 +204,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     state_update_receiver.clone(),
                     da_service.clone(),
                     da_sync_state,
-                    sequencer_db.clone(),
+                    &rollup_config.storage.path,
                     ledger_db.clone(),
                     &rollup_config.sequencer.with_bb_config(bb_config.clone()),
                     shutdown_receiver,
@@ -233,6 +223,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
 
     /// Identical to [`FullNodeBlueprint::create_new_rollup`], but with
     /// a custom [`GenesisParams`].
+    #[tracing::instrument(name = "init_blueprint", skip_all)]
     async fn create_new_rollup_with_genesis_params(
         &self,
         genesis_params: GenesisParams<<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisConfig>,
@@ -250,7 +241,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
 
         let operating_mode =
             <Self::Runtime as RuntimeTrait<Self::Spec>>::operating_mode(&genesis_params.runtime);
-        tracing::debug!(?operating_mode, "Creating new rollup");
+        info!(?operating_mode, "Instantiating a new rollup");
 
         let da_service = self
             .create_da_service(&rollup_config, secondary_shutdown_receiver.clone())
@@ -270,6 +261,8 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
 
         let is_genesis = prev_root.is_none();
 
+        info!(?prev_root, is_genesis, "Recovering the state root");
+
         let native_stf = StfBlueprint::new();
 
         let (prev_state_root, genesis_state_root) = match prev_root {
@@ -280,9 +273,10 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                 (prev_state_root, genesis_state_root)
             }
             None => {
-                tracing::info!(
-                        rollup_genesis_height = rollup_config.runner.genesis_height,
-                        "Rollup state is empty, performing genesis initialization. Requesting genesis DA block");
+                info!(
+                    rollup_genesis_height = rollup_config.runner.genesis_height,
+                    "Rollup state is empty, performing genesis initialization. Requesting genesis DA block"
+                );
                 let rollup_genesis_block = da_service
                     .get_block_at(rollup_config.runner.genesis_height)
                     .await?;
@@ -319,14 +313,15 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
 
         let state_update_info = query_state_update_info(&ledger_db, prover_storage).await?;
 
-        let (state_update_sender, state_update_receiver) =
-            tokio::sync::watch::channel(state_update_info);
-
         tracing::debug!(
             prev_root_hash = hex::encode(prev_state_root.as_ref()),
             raw_genesis_state_root = hex::encode(genesis_state_root.as_ref()),
+            ?state_update_info,
             "Rollup state initialization is completed"
         );
+
+        let (state_update_sender, state_update_receiver) =
+            tokio::sync::watch::channel(state_update_info);
 
         let mut background_handles = vec![];
         if let Some(handle) = da_service_handle {

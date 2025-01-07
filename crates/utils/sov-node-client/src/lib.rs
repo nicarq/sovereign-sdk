@@ -203,11 +203,12 @@ impl NodeClient {
         &self,
         raw_txs: Vec<Vec<u8>>,
         wait_for_processing: bool,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<types::SubmitBatchReceipt> {
         tracing::info!(
             txs_included = raw_txs.len(),
-            "Triggering publish_batch endpoint"
+            "Calling `publish_batch` sequencer endpoint"
         );
+
         let response = self
             .client
             .publish_batch(&types::PublishBatchBody {
@@ -219,9 +220,9 @@ impl NodeClient {
             .await
             .context("Unable to publish batch")?;
 
-        let response_data = &response
+        let response_data = response
             .data
-            .as_ref()
+            .clone()
             .ok_or_else(|| anyhow::anyhow!("Response data was empty"))?;
 
         tracing::info!(
@@ -231,7 +232,9 @@ impl NodeClient {
 
         if wait_for_processing {
             // We pick the first tx hash of the batch, any would work.
-            let tx_hash_to_wait = response_data.tx_hashes[0].clone();
+            let Some(tx_hash_to_wait) = response_data.tx_hashes.first() else {
+                return Ok(response_data);
+            };
             let max_waiting_time = Duration::from_secs(300);
             tracing::info!(?max_waiting_time, "Going to wait for batch to be processed");
             let start_wait = Instant::now();
@@ -247,7 +250,7 @@ impl NodeClient {
                         || tx_info.status == types::TxStatus::Finalized
                     {
                         tracing::info!("Rollup has processed the submitted batch!");
-                        return Ok(());
+                        return Ok(response_data);
                     }
                 }
             }
@@ -256,7 +259,7 @@ impl NodeClient {
                 start_wait.elapsed()
             );
         }
-        Ok(())
+        Ok(response_data)
     }
 
     /// Performs a get request at given URL on the REST API socket.
