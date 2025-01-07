@@ -63,18 +63,13 @@ impl Client {
         &self,
         txs: &[Tx],
     ) -> Result<types::SubmitBatchReceipt, Error<types::PublishBatchResponse>> {
-        let mut txs_b64 = Vec::with_capacity(txs.len());
-
-        for tx in txs {
-            let tx_bytes =
-                borsh::to_vec(tx).map_err(|err| Error::InvalidRequest(err.to_string()))?;
-
-            txs_b64.push(BASE64_STANDARD.encode(&tx_bytes));
-        }
+        self.send_txs_to_sequencer(txs)
+            .await
+            .map_err(|err| Error::PreHookError(err.to_string()))?;
 
         let publish_batch_response = self
             .publish_batch(&types::PublishBatchBody {
-                transactions: txs_b64,
+                transactions: vec![],
             })
             .await?;
         Ok(publish_batch_response.data.clone().unwrap())
