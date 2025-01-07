@@ -1,4 +1,5 @@
 ## 2025-01-07
+- #2166 fixed batch submission to sequencer inside `sov-benchmarks`. This isn't a breaking change for customers of the SDK.
 - #2030 is a major overhaul of internals. Notable changes are:
   - Removal of the `should_update_state` configuration option. If you previously enabled it, you can safely remove it.
   - Slight changes to error messages and error objects in the `/sequencer` REST API to provide more helpful information.
