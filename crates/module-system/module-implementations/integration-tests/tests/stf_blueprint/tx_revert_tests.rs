@@ -11,7 +11,7 @@ use sov_test_utils::generators::bank::get_default_token_id;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{TestHasher, TestSpec};
 
-use super::setup;
+use super::{reset_constants, setup};
 use crate::stf_blueprint::da_simulation::{
     simulate_da_with_bad_nonce, simulate_da_with_bad_serialization, simulate_da_with_bad_sig,
     simulate_da_with_revert_msg,
@@ -21,20 +21,14 @@ use crate::stf_blueprint::{
 };
 
 fn assert_outcome(outcome: &BatchSequencerOutcome) {
-    match outcome {
-        BatchSequencerOutcome::Executed(rewards) => {
-            assert_eq!(rewards.accumulated_reward, 0);
-            assert!(rewards.accumulated_penalty > 0);
-        }
-        BatchSequencerOutcome::Ignored(e) => panic!(
-            "The outcome should be `Executed`. Instead the batch was ignored with the message {e}"
-        ),
-    }
+    assert_eq!(outcome.rewards.accumulated_reward, 0);
+    assert!(outcome.rewards.accumulated_penalty > 0);
 }
 
 #[test]
 #[serial]
 fn test_tx_revert() -> Result<(), Infallible> {
+    reset_constants();
     // Test checks:
     //  - Batch is successfully applied even with incorrect txs
     //  - Nonce for bad transactions has increased
@@ -60,7 +54,9 @@ fn test_tx_revert() -> Result<(), Infallible> {
     let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
 
     assert_eq!(
-        BatchSequencerOutcome::Executed(default_rewards()),
+        sov_modules_api::BatchSequencerOutcome {
+            rewards: default_rewards(),
+        },
         apply_blob_outcome.inner.outcome,
         "Sequencer execution should have succeeded but failed "
     );
@@ -116,6 +112,7 @@ fn test_tx_revert() -> Result<(), Infallible> {
 #[test]
 #[serial]
 fn test_tx_bad_signature() -> Result<(), Infallible> {
+    reset_constants();
     let (mut runner, users, sequencer) = setup(1);
     let admin = users.first().unwrap();
     let admin_key = admin.private_key.clone();
@@ -189,6 +186,7 @@ fn get_attester_stake_for_block(
 #[test]
 #[serial]
 fn test_tx_bad_nonce() {
+    reset_constants();
     let (mut runner, users, sequencer) = setup(1);
     let admin = users.first().unwrap();
     let admin_key = admin.private_key.clone();
@@ -246,6 +244,7 @@ fn test_tx_bad_nonce() {
 #[test]
 #[serial]
 fn test_tx_bad_serialization() -> Result<(), Infallible> {
+    reset_constants();
     let (mut runner, users, sequencer) = setup(1);
     let admin = users.first().unwrap();
     let admin_key = admin.private_key.clone();

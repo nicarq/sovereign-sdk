@@ -15,6 +15,7 @@ use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::{EncodeCall, TestUser};
 
 use super::{get_balance, get_seq_bond, setup, TxStatus};
+use crate::stf_blueprint::reset_constants;
 type S = sov_test_utils::TestSpec;
 
 const BOND_AMOUNT: u64 = 100;
@@ -111,10 +112,12 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
 
         assert_eq!(
             batch_receipt.inner.outcome,
-            sov_modules_api::BatchSequencerOutcome::Executed(Rewards {
-                accumulated_reward: seq_fee,
-                accumulated_penalty: 0,
-            })
+            sov_modules_api::BatchSequencerOutcome {
+                rewards: Rewards {
+                    accumulated_reward: seq_fee,
+                    accumulated_penalty: 0,
+                }
+            }
         );
 
         assert_eq!(batch_receipt.inner.gas_used, total_gas);
@@ -425,21 +428,4 @@ mod helpers {
         let tx_blob = borsh::to_vec(&raw_tx).unwrap();
         MockBlob::new_with_hash(tx_blob, da_address)
     }
-}
-
-fn reset_constants() {
-    env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE",
-        "10000000",
-    );
-
-    env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE",
-        "10000000",
-    );
-
-    env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_MAX_UNREGISTERED_SEQUENCER_EXEC_GAS_PER_TX",
-        "[10000000,10000000]",
-    );
 }

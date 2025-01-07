@@ -16,9 +16,9 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::ApiState;
 use sov_modules_api::{
-    BasicGasMeter, DaSpec, DispatchCall, EventModuleName, FullyBakedTx, Gas, GasSpec,
-    NestedEnumUtils, RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateProvider,
-    StateUpdateInfo, TxScratchpad,
+    BasicGasMeter, DaSpec, DispatchCall, EventModuleName, FullyBakedTx, Gas, NestedEnumUtils,
+    RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateProvider, StateUpdateInfo,
+    TxScratchpad,
 };
 use sov_modules_stf_blueprint::{PreExecError, Runtime};
 use sov_rest_utils::json_obj;
@@ -259,12 +259,11 @@ where
     Rt: Runtime<S>,
     I: StateProvider<S>,
 {
-    let max_auth_cost = <S as GasSpec>::max_tx_check_costs().value(&gas_price);
     let gas_meter: BasicGasMeter<S::Gas> = match runtime
         .sequencer_authorization()
-        .authorize_sequencer(sequencer_address, max_auth_cost, &mut tx_scratchpad)
+        .authorize_sequencer(sequencer_address, &mut tx_scratchpad)
     {
-        Ok(allowed_sequencer) => BasicGasMeter::new(allowed_sequencer.balance, gas_price),
+        Ok(sequencer) => BasicGasMeter::new(sequencer.balance, gas_price),
         Err(AuthorizeSequencerError { reason }) => {
             error!(%reason, "Sequencer authorization failed");
             return (tx_scratchpad, Err(PreExecError::SequencerError(reason)));

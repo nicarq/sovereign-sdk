@@ -3,8 +3,8 @@ use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{AuthenticationError, AuthenticationOutput, FatalError};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    BatchSequencerReceipt, Context, DispatchCall, Error, Spec, StateProvider, TxScratchpad,
-    WorkingSet,
+    BatchSequencerReceipt, Context, DispatchCall, Error, IgnoredTransactionReceipt, Spec,
+    StateProvider, TxScratchpad, WorkingSet,
 };
 use sov_rollup_interface::TxHash;
 use tracing::{debug, info, warn};
@@ -159,6 +159,7 @@ pub(crate) fn create_tx_receipt<S: Spec>(
 
 pub(crate) struct BatchReceiptContents<'a, S: Spec> {
     pub tx_receipts: &'a Vec<TransactionReceipt<S>>,
+    pub ignored_tx_receipts: &'a Vec<IgnoredTransactionReceipt<TxReceiptContents<S>>>,
     pub inner: &'a BatchSequencerReceipt<S>,
 }
 
@@ -166,6 +167,7 @@ impl<'a, S: Spec> From<&'a IncrementalBatchReceipt<S>> for BatchReceiptContents<
     fn from(value: &'a IncrementalBatchReceipt<S>) -> Self {
         Self {
             tx_receipts: &value.tx_receipts,
+            ignored_tx_receipts: &value.ignored_tx_receipts,
             inner: &value.inner,
         }
     }
@@ -175,6 +177,7 @@ impl<'a, S: Spec> From<&'a BatchReceipt<S>> for BatchReceiptContents<'a, S> {
     fn from(value: &'a BatchReceipt<S>) -> Self {
         Self {
             tx_receipts: &value.tx_receipts,
+            ignored_tx_receipts: &value.ignored_tx_receipts,
             inner: &value.inner,
         }
     }
@@ -192,6 +195,7 @@ pub(crate) fn apply_batch_logs<'a, S: Spec>(
         blob_idx,
         sequencer_da_address = %batch_sequencer_receipt.da_address,
         num_txs = batch_receipt.tx_receipts.len(),
+        num_ignored_txs = batch_receipt.ignored_tx_receipts.len(),
         sequencer_outcome = ?batch_receipt.inner,
         ?gas_used,
         "Applied blob and got the sequencer outcome"
@@ -207,6 +211,14 @@ pub(crate) fn apply_batch_logs<'a, S: Spec>(
             receipt = ?tx_receipt.receipt,
             gas_used = ?get_gas_used(tx_receipt),
             "Tx receipt"
+        );
+    }
+
+    for tx_receipt in batch_receipt.ignored_tx_receipts.iter() {
+        debug!(
+            receipt = ?tx_receipt,
+            gas_used = ?tx_receipt.ignored.gas_used,
+            "Ignored Tx receipt"
         );
     }
 }

@@ -25,7 +25,6 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect, TxProcessingError,
-    ValidatedAuthOutput,
 };
 use sov_rest_utils::json_obj;
 use sov_rollup_interface::node::DaSyncState;
@@ -157,7 +156,7 @@ where
 
         let (res, tx_scratchpad) = process_tx(
             &self.runtime,
-            ValidatedAuthOutput::Valid(auth_output),
+            auth_output,
             &gas_info.gas_price,
             &gas_info.gas_used,
             &self.config.da_address,

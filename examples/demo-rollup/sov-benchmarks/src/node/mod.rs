@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sov_mock_da::MockBlob;
-use sov_modules_api::{BatchSequencerOutcome, BatchSequencerReceipt, CryptoSpec, Spec};
+use sov_modules_api::{BatchSequencerReceipt, CryptoSpec, Spec};
 use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::{sov_bank, Bank, Coins, TestRunner, TokenId};
@@ -35,11 +35,8 @@ pub fn build_send_tx(sender: &TestUser<S>, token_id: TokenId) -> TransactionType
 /// Asserts the outcome of the benchmarks
 pub fn assert_batch_receipts<S: Spec>(batch_receipts: &[BatchReceipt<S>]) {
     for batch in batch_receipts {
-        if let BatchSequencerOutcome::Executed(r) = &batch.inner.outcome {
-            assert_eq!(0, r.accumulated_reward);
-        } else {
-            panic!("Unexpected batch outcome: {:?}", batch.inner.outcome);
-        }
+        assert_eq!(0, batch.inner.outcome.rewards.accumulated_reward);
+
         for tx in &batch.tx_receipts {
             assert!(
                 tx.receipt.is_successful(),

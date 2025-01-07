@@ -169,18 +169,13 @@ impl<S: Spec> BlobStorage<S> {
             .is_sender_allowed(&blob.sender(), state)
         {
             Ok(_) => ValidateBlobOutcome::Accept(SequencerStatus::Registered),
-            Err(e) => match e {
-                AllowedSequencerError::InsufficientStakeAmount { .. } => {
-                    ValidateBlobOutcome::Discard(BlobDiscardReason::SenderInsufficientStake)
+            Err(AllowedSequencerError::NotRegistered) => {
+                if unregistered_blobs_processed >= config_unregistered_blobs_per_slot() {
+                    ValidateBlobOutcome::Discard(BlobDiscardReason::MaxAllowedUnregisteredBlobs)
+                } else {
+                    ValidateBlobOutcome::Accept(SequencerStatus::Unregistered)
                 }
-                AllowedSequencerError::NotRegistered => {
-                    if unregistered_blobs_processed >= config_unregistered_blobs_per_slot() {
-                        ValidateBlobOutcome::Discard(BlobDiscardReason::MaxAllowedUnregisteredBlobs)
-                    } else {
-                        ValidateBlobOutcome::Accept(SequencerStatus::Unregistered)
-                    }
-                }
-            },
+            }
         }
     }
 

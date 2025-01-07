@@ -6,7 +6,8 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext, Gas,
-    GasArray, GasInfo, GasMeter, GasSpec, Rewards, Spec, StateProvider, TxScratchpad, WorkingSet,
+    GasArray, GasInfo, GasMeter, GasSpec, IgnoredTransactionReceipt, Rewards, Spec, StateProvider,
+    TxScratchpad, WorkingSet,
 };
 use tracing::{debug, warn};
 
@@ -14,14 +15,14 @@ use crate::sequencer_mode::common::{
     apply_batch_logs, apply_tx, create_tx_receipt, get_gas_used, BatchReceipt,
 };
 use crate::{
-    ApplyTxResult, AuthTxOutput, Runtime, SkippedTxContents, StateCheckpoint, TxProcessingError,
-    ValidatedAuthOutput,
+    ApplyTxResult, AuthTxOutput, IgnoredTxContents, Runtime, SkippedTxContents, StateCheckpoint,
+    TxProcessingError, TxReceiptContents,
 };
 
 #[allow(clippy::result_large_err)]
 pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
-    validated_output: ValidatedAuthOutput<S, R>,
+    validated_output: AuthTxOutput<S, R>,
     gas_info: GasInfo<S::Gas>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     height: u64,
@@ -31,18 +32,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     Result<ApplyTxResult<S>, TxProcessingError>,
     TxScratchpad<S, I>,
 ) {
-    let (auth_tx, auth_data, message) = match validated_output {
-        ValidatedAuthOutput::Valid(valid) => valid,
-        ValidatedAuthOutput::Invalid { tx_hash, error } => {
-            return (
-                Err(TxProcessingError::AuthenticationFailed(format!(
-                    "Authentication failed for tx: {}. Error: {}",
-                    tx_hash, error
-                ))),
-                scratchpad,
-            );
-        }
-    };
+    let (auth_tx, auth_data, message) = validated_output;
 
     let raw_tx_hash = auth_tx.raw_tx_hash;
     let tx = &auth_tx.authenticated_tx;
@@ -196,9 +186,6 @@ where
     );
 
     let scratchpad = checkpoint.to_tx_scratchpad();
-    let mut tx_receipts = Vec::new();
-    let mut gas_used = S::Gas::zero();
-    let mut accumulated_reward = 0;
 
     debug!(
         batch_id = hex::encode(batch.id),
@@ -217,53 +204,73 @@ where
     let authentication_result = authenticate_unregistered_tx(runtime, meter, &batch, scratchpad);
 
     let (validated_output, gas_info, scratchpad) = match authentication_result {
-        (Ok((auth_output, gas_info)), scratchpad) => (
-            ValidatedAuthOutput::Valid(auth_output),
-            gas_info,
-            scratchpad,
-        ),
+        (Ok((auth_output, gas_info)), scratchpad) => (auth_output, gas_info, scratchpad),
         (Err(UnregisteredAuthenticationError::FatalError(err, tx_hash)), scratchpad) => {
-            warn!(error = ?err, "Authentication failed");
-            (
-                ValidatedAuthOutput::Invalid {
-                    tx_hash,
-                    error: err,
+            let err_str = format!("Unregistered sequencer authentication failed: {}", err);
+            warn!(error = ?err_str);
+
+            let skipped = SkippedTxContents {
+                error: TxProcessingError::AuthenticationFailed(err_str),
+                gas_used: S::Gas::zero(),
+            };
+
+            return (
+                BatchReceipt {
+                    batch_hash: batch.id,
+                    tx_receipts: vec![create_tx_receipt(skipped, tx_hash)],
+                    ignored_tx_receipts: vec![],
+                    inner: BatchSequencerReceipt {
+                        da_address: sequencer_da_address,
+                        gas_price: gas_price.clone(),
+                        gas_used: S::Gas::zero(),
+                        outcome: BatchSequencerOutcome {
+                            rewards: Rewards {
+                                accumulated_reward: 0,
+                                accumulated_penalty: 0,
+                            },
+                        },
+                    },
                 },
-                GasInfo {
-                    // If the transaction is invalid `gas_used = S::Gas::zero()` because there is no one to charge (the sequencer is not bonded).
-                    gas_used: S::Gas::zero(),
-                    gas_price: gas_price.clone(),
-                    remaining_funds: 0,
-                },
-                scratchpad,
-            )
+                scratchpad.commit(),
+            );
         }
 
         (Err(UnregisteredAuthenticationError::OutOfGas(reason)), scratchpad) => {
-            let err_str = format!("Not enough gas to authenticate a transaction: {}", reason);
-
             warn!(
                 error = %reason,
                 "Not enough gas to authenticate the batch",
             );
 
+            let ignored = IgnoredTransactionReceipt::<TxReceiptContents<S>> {
+                ignored: IgnoredTxContents {
+                    gas_used: S::Gas::zero(),
+                    index: 0,
+                },
+            };
+
             return (
                 BatchReceipt {
                     batch_hash: batch.id,
                     tx_receipts: vec![],
+                    ignored_tx_receipts: vec![ignored],
                     inner: BatchSequencerReceipt {
                         da_address: sequencer_da_address,
                         gas_price: gas_price.clone(),
                         gas_used: S::Gas::zero(),
-                        outcome: BatchSequencerOutcome::Ignored(err_str),
+                        outcome: BatchSequencerOutcome {
+                            rewards: Rewards {
+                                accumulated_reward: 0,
+                                accumulated_penalty: 0,
+                            },
+                        },
                     },
                 },
-                scratchpad.revert(),
+                scratchpad.commit(),
             );
         }
     };
 
-    let raw_tx_hash = validated_output.hash();
+    let raw_tx_hash = validated_output.0.raw_tx_hash;
 
     let process_tx_result = process_unauthorized_tx(
         runtime,
@@ -274,6 +281,10 @@ where
         scratchpad,
         execution_context,
     );
+
+    let mut tx_receipts = Vec::new();
+    let mut gas_used = S::Gas::zero();
+    let mut accumulated_reward = 0;
 
     let (tx_result, scratchpad) = process_tx_result;
 
@@ -304,14 +315,18 @@ where
     let batch_receipt = BatchReceipt {
         batch_hash: batch.id,
         tx_receipts,
+        ignored_tx_receipts: vec![],
         inner: BatchSequencerReceipt {
             da_address: sequencer_da_address,
             gas_price: gas_price.clone(),
             gas_used: gas_used.clone(),
-            outcome: BatchSequencerOutcome::Executed(Rewards {
-                accumulated_reward,
-                accumulated_penalty: 0,
-            }),
+
+            outcome: BatchSequencerOutcome {
+                rewards: Rewards {
+                    accumulated_reward,
+                    accumulated_penalty: 0,
+                },
+            },
         },
     };
 

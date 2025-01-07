@@ -1,3 +1,5 @@
+use std::env;
+
 use helpers::*;
 use serial_test::serial;
 use sov_attester_incentives::AttesterIncentives;
@@ -40,24 +42,20 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
         batch_blobs: vec![mock_blob],
     };
 
-    let nb_of_valid_txs = TxStatus::nb_of_valid_txs(&tx_statuses);
-    let nb_of_skipped_txs = TxStatus::nb_of_skipped_txs(&tx_statuses);
-
     {
         let result = runner.execute::<RelevantBlobs<MockBlob>>(blobs);
         let batch_receipt = result.batch_receipts[0].clone();
 
         let gas_price = &batch_receipt.inner.gas_price;
         let tx_receipts = &batch_receipt.tx_receipts;
+        let ignored_tx_receipts = &batch_receipt.ignored_tx_receipts;
 
-        assert_eq!(tx_receipts.len(), txs_len);
+        assert_eq!(tx_receipts.len() + ignored_tx_receipts.len(), txs_len);
 
         let mut seq_fee = 0;
         let mut seq_penalty = 0;
         let mut gas_value_charged_to_user = 0;
 
-        let mut valid_tx_count = 0;
-        let mut skipped_tx_count = 0;
         let mut total_gas = <S as GasSpec>::Gas::ZEROED;
         for tx_receipt in tx_receipts {
             match &tx_receipt.receipt {
@@ -66,7 +64,6 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
                     let gas_value = tx_contents.gas_used.value(gas_price);
                     gas_value_charged_to_user += gas_value;
                     seq_fee += priority_fee_bips.apply(gas_value).unwrap();
-                    valid_tx_count += 1;
                 }
                 TxEffect::Skipped(tx_contents) => {
                     println!("Skipped tx: {:?}", tx_contents);
@@ -74,7 +71,6 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
                     let gas_value = tx_contents.gas_used.value(gas_price);
                     // Sequencer doesn't get the fee and is penalized
                     seq_penalty += gas_value;
-                    skipped_tx_count += 1;
                 }
                 TxEffect::Reverted(tx_contents) => {
                     total_gas.combine(&tx_contents.gas_used);
@@ -82,15 +78,18 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
                     let gas_value = tx_contents.gas_used.value(gas_price);
                     gas_value_charged_to_user += gas_value;
                     seq_fee += priority_fee_bips.apply(gas_value).unwrap();
-                    valid_tx_count += 1;
                 }
             }
         }
 
-        assert_eq!(nb_of_valid_txs, valid_tx_count);
-        assert_eq!(nb_of_skipped_txs, skipped_tx_count);
+        for ignored_tx_receipt in ignored_tx_receipts {
+            let ignored = &ignored_tx_receipt.ignored;
+            let gas_used = &ignored.gas_used;
+            total_gas.combine(gas_used);
+            let gas_value = gas_used.value(gas_price);
+            seq_penalty += gas_value;
+        }
 
-        //let end = actors.balances(state);
         let end = runner.query_state(|state| actors.balances(state));
 
         // Check user balances.
@@ -116,10 +115,12 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
 
         assert_eq!(
             batch_receipt.inner.outcome,
-            sov_modules_api::BatchSequencerOutcome::Executed(Rewards {
-                accumulated_reward: seq_fee,
-                accumulated_penalty: seq_penalty,
-            })
+            sov_modules_api::BatchSequencerOutcome {
+                rewards: Rewards {
+                    accumulated_reward: seq_fee,
+                    accumulated_penalty: seq_penalty,
+                }
+            }
         );
 
         assert_eq!(batch_receipt.inner.gas_used, total_gas);
@@ -210,6 +211,19 @@ fn non_existing_seq_da_tests() {
 
     let result = runner.execute::<RelevantBlobs<MockBlob>>(blobs);
     assert!(result.batch_receipts.is_empty());
+}
+
+#[test]
+#[serial]
+fn sequencer_run_out_of_gas() {
+    env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION",
+        "[100000, 100000]",
+    );
+
+    let priority_fee_bips = PriorityFeeBips::from_percentage(5);
+    let tx_statuses = vec![TxStatus::Success];
+    check_txs(tx_statuses, priority_fee_bips);
 }
 
 mod helpers {
@@ -358,7 +372,7 @@ mod helpers {
         MockBlob::new_with_hash(blob, seq_da_address)
     }
 
-    fn encode_message() -> IntegTestRuntimeCall<S> {
+    pub fn encode_message() -> IntegTestRuntimeCall<S> {
         <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::to_decodable(CallMessage::SetValue(8))
     }
 

@@ -40,12 +40,7 @@ fn test_custom_transaction_details_chain_id() {
                 unexpected => panic!("Expected TxEffect::Skipped but got {:?}", unexpected),
             }
 
-            match &batch_receipt.inner.outcome {
-                sov_modules_api::BatchSequencerOutcome::Executed(rewards) => {
-                    assert!(rewards.accumulated_penalty > 0);
-                }
-                sov_modules_api::BatchSequencerOutcome::Ignored(_) => todo!(),
-            }
+            assert!(batch_receipt.inner.outcome.rewards.accumulated_penalty > 0);
         }),
     });
 }

@@ -244,7 +244,7 @@ impl<R, S: Spec> InjectedControlFlow<R, S> for NoOpControlFlow {
                 TxControlFlow::ContinueProcessing(receipt),
             ),
             MaybeExecuted::SequencerOutOfFunds => {
-                (dirty_scratchpad.revert(), TxControlFlow::IgnoreTx)
+                (dirty_scratchpad.commit(), TxControlFlow::IgnoreTx)
             }
         }
     }
@@ -349,17 +349,12 @@ pub struct Rewards {
     pub accumulated_penalty: u64,
 }
 
-/// Represents the different outcomes that can occur for a sequencer after batch processing.
+/// Outcome of batch execution.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum BatchSequencerOutcome {
+pub struct BatchSequencerOutcome {
     /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties.
-    Executed(Rewards),
-    /// Batch was ignored, sequencer deposit left untouched.
-    Ignored(
-        /// Reason why the batch was ignored.
-        String,
-    ),
+    pub rewards: Rewards,
 }
 
 /// A receipt for a batch that was submitted by a sequencer to the DA layer.

@@ -38,7 +38,6 @@ pub trait SequencerAuthorization<S: Spec> {
     fn authorize_sequencer(
         &self,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
-        min_bond: u64,
         state: &mut impl InfallibleStateAccessor,
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError>;
 }

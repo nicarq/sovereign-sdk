@@ -179,11 +179,10 @@ impl<'a, S: Spec, T> SequencerAuthorization<S> for StandardProvenRollupCapabilit
     fn authorize_sequencer(
         &self,
         sequencer: &<S::Da as DaSpec>::Address,
-        min_bond: u64,
         state: &mut impl InfallibleStateAccessor,
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError> {
         self.sequencer_registry
-            .authorize_sequencer(sequencer, min_bond, state)
+            .authorize_sequencer(sequencer, state)
     }
 }
 
