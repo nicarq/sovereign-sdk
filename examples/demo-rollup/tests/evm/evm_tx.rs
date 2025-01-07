@@ -38,7 +38,7 @@ async fn evm_tx_test(
     .await;
 
     send_tx_test_to_eth(&test_client).await.unwrap();
-    test_rollup.rollup_task.abort();
+    test_rollup.shutdown_sender.send(()).unwrap();
     Ok(())
 }
 
@@ -77,7 +77,7 @@ async fn execute_evm_tests(client: &TestClient) -> Result<(), Box<dyn std::error
     let contract_address =
         evm_test_helper::deploy_contract_check(client, &mut slot_subscription).await?;
 
-    // Nonce should be 1 after the deploy
+    // Nonce should be 1 after the deployment
     let nonce = client.eth_get_transaction_count(client.from_addr).await;
     assert_eq!(1, nonce);
 

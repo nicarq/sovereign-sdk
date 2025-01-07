@@ -40,7 +40,10 @@ fn generate_dynamic_random_vectors(len_range: Range<usize>) -> Vec<Vec<u8>> {
     result
 }
 
-fn generate_call_message<S: Spec>(len_range: Range<usize>) -> Vec<runtime::RuntimeCall<S>> {
+fn generate_call_message<S: Spec>(len_range: Range<usize>) -> Vec<runtime::RuntimeCall<S>>
+where
+    <S as sov_modules_api::Spec>::Address: sov_address::FromVmAddress<sov_address::EthereumAddress>,
+{
     let payloads = generate_dynamic_random_vectors(len_range);
     let mut messages = Vec::with_capacity(payloads.len());
 

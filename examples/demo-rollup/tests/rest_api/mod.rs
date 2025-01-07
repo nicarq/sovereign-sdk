@@ -148,8 +148,9 @@ async fn check_base_runtime_info(client: &demo_stf_json_client::Client) -> anyho
 
     let state_items = bank_module_info.state_items;
 
-    let state_item_keys: Vec<String> = state_items.keys().cloned().collect();
-    assert_eq!(vec!["tokens"], state_item_keys);
+    let mut state_item_keys: Vec<String> = state_items.keys().cloned().collect();
+    state_item_keys.sort();
+    assert_eq!(vec!["balances", "tokens"], state_item_keys);
 
     let value = state_items.get("tokens").unwrap();
 

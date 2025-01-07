@@ -4,6 +4,7 @@
 - #2145 fixes various risc0 related issues in sov-rollup-interface, risc0 adapter and celestia adapter
 ## 2025-01-05
 - #2141 adapts the `sov-value-setter` module to benchmark generation. This is not a breaking change for customers of the SDK.
+- #2146 fixes CI and licenses for guest provers
 
 ## 2025-01-04
 - #2137 introduces the FromVmAddress trait bounds to demo-rollup (which includes an EVM module), allowing EVM transactions to be submitted natively from EVM addresses—without requiring the registration of EVM addresses as credentials.

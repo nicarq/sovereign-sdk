@@ -131,7 +131,7 @@ async fn start_stop_empty(
         // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1878 for Optimistic
         (
             Level::ERROR,
-            "Invalid proof outcome, Invalid(PreconditionNotMet(\"Transition invariant isn't respected\")".to_string(),
+            "Invalid proof outcome, Invalid(PreconditionNotMet(\"Transition invariant isn't respected\"))".to_string(),
         ),
         (
             Level::WARN,

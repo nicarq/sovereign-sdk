@@ -20,6 +20,13 @@
       "code_hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
       "code": "0x",
       "nonce": 0
+    },
+    {
+      "address": "0xa80749aD39A047603cbc5D0f46a03A1c6B2Db6c9",
+      "balance": "0xffffffffffffffff",
+      "code_hash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      "code": "0x",
+      "nonce": 0
     }
   ],
   "chain_id": 4321,

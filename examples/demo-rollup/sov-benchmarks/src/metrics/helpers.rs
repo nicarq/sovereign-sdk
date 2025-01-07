@@ -22,14 +22,13 @@ use crate::bench_runner::{BenchMessage, BenchRollup, BenchRollupBuilder, RT, S};
 /// Setups the rollup for the benchmarks.
 /// We give the maximum possible gas balance to the prover and sequencer to ensure that they can pay for the transactions.
 pub async fn setup(genesis_config: GenesisConfig<S>) -> anyhow::Result<BenchRollup> {
-    let sequencer_da_address = genesis_config.sequencer_registry.seq_da_address.clone();
+    let sequencer_da_address = genesis_config.sequencer_registry.seq_da_address;
     let prover_address = genesis_config
         .prover_incentives
         .initial_provers
         .first()
         .unwrap()
-        .0
-        .clone();
+        .0;
 
     let rollup_builder = BenchRollupBuilder::new(
         GenesisSource::CustomParams(genesis_config.into_genesis_params()),
@@ -46,7 +45,7 @@ pub async fn setup(genesis_config: GenesisConfig<S>) -> anyhow::Result<BenchRoll
         da_config.block_time_ms = 1_000;
     });
 
-    Ok(rollup_builder.start().await?)
+    rollup_builder.start().await
 }
 
 /// A simple struct that sends batches to the sequencer on behalf of the user and waits for the results.
@@ -161,7 +160,7 @@ impl BatchSender {
                     let parsed_hash: HexHash =
                         tx.hash.parse().expect("Impossible to parse tx_hash!");
 
-                    if self.txs_to_wait_for.get(&parsed_hash).is_some() {
+                    if self.txs_to_wait_for.contains(&parsed_hash) {
                         assert_eq!(
                             tx.receipt.result,
                             TxReceiptResult::Successful,

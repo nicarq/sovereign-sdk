@@ -40,7 +40,7 @@ pub async fn run_bench_file(bench_file: File) -> anyhow::Result<()> {
         bail!("The bench file should start with an initialization slot. The bench file is invalid");
     };
     let rollup = setup(genesis_config).await?;
-    let client = NodeClient::new(&rollup.api_client.baseurl()).await?;
+    let client = NodeClient::new(rollup.api_client.baseurl()).await?;
     let mut batch_sender = BatchSender::new(client).await;
 
     let Ok(BenchmarkData::Initialization(init_slot)) = parse_next_data(&mut reader) else {

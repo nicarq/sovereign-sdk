@@ -26,7 +26,7 @@ semicolon_if_nothing_returned = "deny"
 float_arithmetic = "deny"              # Can cause subtle bugs due to different behavior between native and zkVM execution.
 
 [dependencies]
-anyhow = { version = "1.0.86" }
+anyhow = { version = "1.0.95" }
 arbitrary = { version = "1.3.2", features = ["derive"], optional = true }
 bincode = "1.3.3"
 borsh = { version = "1", features = ["derive"] }
@@ -59,7 +59,7 @@ sov-sp1-adapter = { path = ".", features = ["arbitrary", "native"] }
 sov-test-utils = { path = "../../module-system/sov-test-utils", features = ["arbitrary"] }
 
 [build-dependencies]
-anyhow = { version = "1.0.86" }
+anyhow = { version = "1.0.95" }
 
 [features]
 default = []
