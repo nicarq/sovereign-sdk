@@ -26,6 +26,8 @@ pub mod metrics;
 
 /// Uniquely identifies a Risc0 binary. Roughly equivalent to
 /// the hash of the ELF file.
+/// 
+/// Use the [`ZkvmHost::code_commitment`](sov_rollup_interface::zk::ZkvmHost) method to get the MethodId for a given binary.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Risc0MethodId([u32; 8]);
 
