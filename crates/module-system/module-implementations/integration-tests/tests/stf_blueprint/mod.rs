@@ -4,6 +4,8 @@ mod stf_tests;
 mod tx_revert_tests;
 mod unregistered;
 
+use std::env;
+
 use sov_bank::Bank;
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
 use sov_modules_api::prelude::UnwrapInfallible;
@@ -245,4 +247,25 @@ fn default_rewards() -> Rewards {
         accumulated_reward: 0,
         accumulated_penalty: 0,
     }
+}
+
+pub(crate) fn reset_constants() {
+    env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION",
+        "[1, 1]",
+    );
+    env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE",
+        "10000000",
+    );
+
+    env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE",
+        "10000000",
+    );
+
+    env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_MAX_UNREGISTERED_SEQUENCER_EXEC_GAS_PER_TX",
+        "[10000000,10000000]",
+    );
 }

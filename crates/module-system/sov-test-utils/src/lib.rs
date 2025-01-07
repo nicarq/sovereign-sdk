@@ -168,6 +168,7 @@ impl sov_rollup_interface::stf::TxReceiptContents for TestTxReceiptContents {
     type Skipped = u32;
     type Reverted = u32;
     type Successful = u32;
+    type Ignored = u32;
 }
 
 /// Simplified AtomicU64 for using in tests.

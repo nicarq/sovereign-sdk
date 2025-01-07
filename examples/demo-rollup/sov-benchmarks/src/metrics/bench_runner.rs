@@ -66,14 +66,13 @@ pub async fn run_bench_file(bench_file: File) -> anyhow::Result<()> {
         for (i, batch) in slot.into_iter().enumerate() {
             println!("Publishing batch number: {i}...");
             batch_sender.produce_and_publish_batch(batch).await?;
-        }
 
-        // We wait for the results to be in, so that we can be sure that the batches run in separate slots
-        println!("Waiting for submission results...");
-        timeout(Duration::from_secs(60), batch_sender.wait_for_results()).await??;
+            // We wait for the results to be in, so that we can be sure that the batches run in separate slots
+            println!("Waiting for submission results...");
+            timeout(Duration::from_secs(60), batch_sender.wait_for_results()).await??;
+        }
     }
 
-    println!("Shutting down rollup...");
     rollup.shutdown_sender.send(())?;
     let _x = rollup.rollup_task.await?;
     Ok(())

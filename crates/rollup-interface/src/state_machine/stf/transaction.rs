@@ -6,6 +6,14 @@ use serde::{Deserialize, Serialize};
 use super::StoredEvent;
 use crate::TxHash;
 
+/// Ignored transactions consume gas but do not otherwise impact the state of the rollup.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound = "T: TxReceiptContents")]
+pub struct IgnoredTransactionReceipt<T: TxReceiptContents> {
+    /// The receipt.
+    pub ignored: T::Ignored,
+}
+
 /// A receipt for a single transaction. These receipts are stored in the rollup's database
 /// and may be queried via RPC. Receipts are generic over a type `R` which the rollup can use to
 /// store additional data, such as the status code of the transaction or the amount of gas used.s
@@ -74,12 +82,24 @@ pub trait TxReceiptContents:
         + Send
         + Sync
         + 'static;
+
+    /// The receipt contents for an ignored transaction.
+    type Ignored: Debug
+        + Clone
+        + PartialEq
+        + Eq
+        + Serialize
+        + DeserializeOwned
+        + Send
+        + Sync
+        + 'static;
 }
 
 impl TxReceiptContents for () {
     type Skipped = ();
     type Reverted = ();
     type Successful = ();
+    type Ignored = ();
 }
 
 impl<T: TxReceiptContents> TxEffect<T> {

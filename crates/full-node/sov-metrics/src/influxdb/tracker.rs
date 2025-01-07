@@ -390,18 +390,18 @@ pub struct BatchMetrics {
     pub processing_time: std::time::Duration,
     /// Number of transactions have been processed in batch.
     pub transactions_count: usize,
-    #[allow(missing_docs)]
-    pub outcome: BatchOutcome,
+    /// Number of transactions have been ignored..
+    pub ignored_transactions_count: usize,
 }
 
 impl Metric for BatchMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         write!(
             buffer,
-            "sov_rollup_batch_processing,outcome={:?} processing_time_us={},transactions={}",
-            self.outcome,
+            "sov_rollup_batch_processing processing_time_us={},transactions={},ignored_transactions={}",
             self.processing_time.as_micros(),
             self.transactions_count,
+            self.ignored_transactions_count,
         )
     }
 }

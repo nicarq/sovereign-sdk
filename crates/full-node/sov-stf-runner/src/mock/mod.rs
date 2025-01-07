@@ -60,6 +60,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
             batch_receipts: vec![BatchReceipt {
                 batch_hash: [0; 32],
                 tx_receipts: vec![],
+                ignored_tx_receipts: vec![],
                 inner: (),
             }],
             witness: (),

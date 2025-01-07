@@ -210,6 +210,7 @@ where
                     Self {
                         batch_hash,
                         tx_receipts: txs,
+                        ignored_tx_receipts: vec![],
                         inner: receipt,
                     }
                 })

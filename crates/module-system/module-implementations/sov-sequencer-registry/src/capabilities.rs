@@ -3,28 +3,19 @@ use sov_modules_api::capabilities::AuthorizeSequencerError;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{DaSpec, InfallibleStateAccessor, Spec};
 
-use crate::{AllowedSequencer, AllowedSequencerError, SequencerRegistry};
+use crate::{AllowedSequencer, SequencerRegistry};
 
 impl<S: Spec> SequencerRegistry<S> {
     /// Checks whether `sender` is a registered sequencer with enough staked amount.
     pub fn authorize_sequencer(
         &self,
         sender: &<S::Da as DaSpec>::Address,
-        min_bond: u64,
         scratchpad: &mut impl InfallibleStateAccessor,
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError> {
         let allowed_sequencer = match self.is_sender_allowed(sender, scratchpad) {
             Ok(seq) => seq,
             Err(e) => return Err(AuthorizeSequencerError { reason: e.into() }),
         };
-
-        if allowed_sequencer.balance < min_bond {
-            let err = AllowedSequencerError::InsufficientStakeAmount {
-                bond_amount: allowed_sequencer.balance,
-                minimum_bond_amount: min_bond,
-            };
-            return Err(AuthorizeSequencerError { reason: err.into() });
-        }
 
         Ok(allowed_sequencer)
     }

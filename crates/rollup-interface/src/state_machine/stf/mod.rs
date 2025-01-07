@@ -60,8 +60,10 @@ mod sealed {
 pub struct BatchReceipt<BatchReceiptContents, T: TxReceiptContents> {
     /// The canonical hash of this batch
     pub batch_hash: [u8; 32],
-    /// The receipts of all the transactions in this batch.
+    /// The receipts of all executed transactions in this batch.
     pub tx_receipts: Vec<TransactionReceipt<T>>,
+    /// The receipts of all ignored transactions in this batch.
+    pub ignored_tx_receipts: Vec<IgnoredTransactionReceipt<T>>,
     /// Any additional structured data to be saved in the database and served over RPC
     pub inner: BatchReceiptContents,
 }

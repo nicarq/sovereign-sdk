@@ -112,6 +112,15 @@ impl<S: Spec> PartialEq for SuccessfulTxContents<S> {
 }
 impl<S: Spec> Eq for SuccessfulTxContents<S> {}
 
+/// Ignored transactions consume gas but do not otherwise impact the state of the rollup.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Error, Eq, PartialEq)]
+pub struct IgnoredTxContents<S: Spec> {
+    /// The gas consumed by the transaction
+    pub gas_used: S::Gas,
+    /// Index in the batch.
+    pub index: usize,
+}
+
 /// The effect of a transaction using the STF blueprint.
 pub type TxEffect<S> = sov_rollup_interface::stf::TxEffect<TxReceiptContents<S>>;
 /// The effect of a batch using the STF blueprint.
@@ -122,6 +131,7 @@ impl<S: Spec> sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents
     type Skipped = SkippedTxContents<S>;
     type Reverted = RevertedTxContents<S>;
     type Successful = SuccessfulTxContents<S>;
+    type Ignored = IgnoredTxContents<S>;
 }
 
 /// The result of applying a transaction to the state.
@@ -516,20 +526,15 @@ where
                     #[cfg(feature = "native")]
                     {
                         let processing_time = start_batch_processing.elapsed();
-                        let outcome = match &batch_receipt.inner.outcome {
-                            sov_modules_api::BatchSequencerOutcome::Executed(_) => {
-                                sov_metrics::BatchOutcome::Executed
-                            }
-                            sov_modules_api::BatchSequencerOutcome::Ignored(_) => {
-                                sov_metrics::BatchOutcome::Ignored
-                            }
-                        };
+
                         let transactions_count = batch_receipt.tx_receipts.len();
+                        let ignored_transactions_count = batch_receipt.tx_receipts.len();
+
                         sov_metrics::track_metrics(|tracker| {
                             tracker.track_batch_processing(sov_metrics::BatchMetrics {
                                 processing_time,
                                 transactions_count,
-                                outcome,
+                                ignored_transactions_count,
                             });
                         });
                     };

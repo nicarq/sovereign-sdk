@@ -98,6 +98,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
             receipts.push(BatchReceipt {
                 batch_hash: hash,
                 tx_receipts: vec![],
+                ignored_tx_receipts: vec![],
                 inner: result,
             });
         }

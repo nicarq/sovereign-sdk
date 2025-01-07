@@ -43,6 +43,7 @@ pub async fn materialize_simple_ledger_db_data(
     slot.add_batch(BatchReceipt {
         batch_hash: [10; 32],
         tx_receipts,
+        ignored_tx_receipts: vec![],
         inner: 0,
     });
 
@@ -101,6 +102,7 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
 
     let batches = vec![
         BatchReceipt {
+            ignored_tx_receipts: vec![],
             batch_hash: sha2::Sha256::digest(b"batch_receipt").into(),
             tx_receipts: vec![
                 TransactionReceipt::<TestTxReceiptContents> {
@@ -123,6 +125,7 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
         },
         BatchReceipt {
             batch_hash: sha2::Sha256::digest(b"batch_receipt2").into(),
+            ignored_tx_receipts: vec![],
             tx_receipts: batch2_tx_receipts(),
             inner: 1,
         },

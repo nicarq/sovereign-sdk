@@ -16,12 +16,13 @@ use crate::stf_blueprint::da_simulation::{
 };
 use crate::stf_blueprint::{
     default_rewards, has_tx_events, new_test_blob_for_direct_registration,
-    new_test_blob_from_batch, IntegTestRuntime, S,
+    new_test_blob_from_batch, reset_constants, IntegTestRuntime, S,
 };
 
 #[test]
 #[serial]
 fn test_demo_values_in_db() -> Result<(), Infallible> {
+    reset_constants();
     let (mut runner, users, sequencer) = setup(1);
     let admin = users.first().unwrap();
     let admin_address: <TestSpec as Spec>::Address = admin.address();
@@ -45,7 +46,9 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
     let apply_blob_outcome = result.batch_receipts[0].clone();
 
     assert_eq!(
-        BatchSequencerOutcome::Executed(default_rewards()),
+        BatchSequencerOutcome {
+            rewards: default_rewards()
+        },
         apply_blob_outcome.inner.outcome,
         "Sequencer execution should have succeeded but failed "
     );
@@ -76,6 +79,7 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
 #[test]
 #[serial]
 fn test_demo_values_in_cache() -> Result<(), Infallible> {
+    reset_constants();
     let (mut runner, users, sequencer) = setup(1);
     let admin = users.first().unwrap();
     let admin_address: <TestSpec as Spec>::Address = admin.address();
@@ -96,7 +100,9 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
     let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
 
     assert_eq!(
-        BatchSequencerOutcome::Executed(default_rewards()),
+        BatchSequencerOutcome {
+            rewards: default_rewards()
+        },
         apply_blob_outcome.inner.outcome,
         "Sequencer execution should have succeeded but failed"
     );
@@ -128,6 +134,7 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
 #[test]
 #[serial]
 fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_register() {
+    reset_constants();
     let (mut runner, mut users, _) = setup(1);
     let tx_signer = users.pop().unwrap();
 
@@ -163,7 +170,9 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
     for batch_receipt in apply_block_result.batch_receipts.iter() {
         assert_eq!(
             batch_receipt.inner.outcome,
-            BatchSequencerOutcome::Executed(default_rewards()),
+            BatchSequencerOutcome {
+                rewards: default_rewards()
+            },
         );
         let tx_receipt = &batch_receipt.tx_receipts;
 
@@ -196,6 +205,7 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
 #[test]
 #[serial]
 fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
+    reset_constants();
     let (mut runner, users, _) = setup(1);
 
     let other_sequencer = users.first().unwrap();
@@ -254,6 +264,7 @@ fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
 #[test]
 #[serial]
 fn test_unregistered_sequencer_registration_incorrect_call_message() {
+    reset_constants();
     let (mut runner, mut users, _) = setup(1);
 
     let other_sequencer = users.pop().unwrap();
@@ -275,7 +286,9 @@ fn test_unregistered_sequencer_registration_incorrect_call_message() {
     let receipt = &apply_block_result.batch_receipts[0];
     assert_eq!(
         receipt.inner.outcome,
-        BatchSequencerOutcome::Executed(default_rewards())
+        BatchSequencerOutcome {
+            rewards: default_rewards()
+        },
     );
 
     let runtime = &mut IntegTestRuntime::<TestSpec>::default();
@@ -292,6 +305,7 @@ fn test_unregistered_sequencer_registration_incorrect_call_message() {
 #[test]
 #[serial]
 fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_slot() {
+    reset_constants();
     let (mut runner, mut users, _) = setup(1);
 
     let other_sequencer_da_address = MockAddress::new([86; 32]);
@@ -356,7 +370,9 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
     let first_registered_receipt = &apply_block_result.batch_receipts[0];
     assert_eq!(
         first_registered_receipt.inner.outcome,
-        BatchSequencerOutcome::Executed(default_rewards())
+        BatchSequencerOutcome {
+            rewards: default_rewards()
+        },
     );
 
     // ensure the filler blobs have the right outcome
@@ -364,7 +380,9 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
         let receipt = &apply_block_result.batch_receipts[i];
         assert_eq!(
             receipt.inner.outcome,
-            BatchSequencerOutcome::Executed(default_rewards())
+            BatchSequencerOutcome {
+                rewards: default_rewards()
+            },
         );
     }
 
