@@ -214,7 +214,7 @@ impl TestClient {
 
         let typed_transaction = TypedTransaction::Legacy(req.clone());
 
-        // Estimate gas on rpc
+        // Estimate gas on RPC
         let gas = self
             .eth_estimate_gas(typed_transaction, Some("latest".to_owned()))
             .await;

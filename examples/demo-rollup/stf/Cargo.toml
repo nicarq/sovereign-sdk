@@ -22,7 +22,7 @@ semicolon_if_nothing_returned = "deny"
 float_arithmetic = "deny"              # Can cause subtle bugs due to different behavior between native and zkVM execution.
 
 [dependencies]
-anyhow = { version = "1.0.86" }
+anyhow = { version = "1.0.95" }
 borsh = { version = "1", features = ["derive"] }
 serde = { version = "1.0.208", default-features = false, features = ["alloc", "derive"] }
 alloy-chains = "=0.1.27"

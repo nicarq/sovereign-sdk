@@ -15,7 +15,7 @@ use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::macros::{config_value, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{ApiStateAccessor, InfallibleStateAccessor, Spec};
-use tracing::debug;
+use tracing::{debug, trace};
 
 use crate::call::get_cfg_env_with_handler;
 use crate::evm::db::EvmDb;
@@ -433,6 +433,7 @@ where
         };
 
         let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
+        trace!(?tx_env, "TxEnv is prepared");
 
         let cfg = self.cfg.get(state).unwrap_infallible().unwrap_or_default();
         let cfg_env_with_handler =
@@ -445,12 +446,18 @@ where
         // get the highest possible gas limit, either the request's set value or the currently
         // configured gas limit
         let mut highest_gas_limit = request.gas.map(U256::from).unwrap_or(env_gas_limit);
+        trace!(
+            ?request_gas,
+            ?request_gas_price,
+            ?env_gas_limit,
+            ?highest_gas_limit,
+            "Gas limits"
+        );
 
         let account = self
-            .accounts
-            .get(&tx_env.caller, state)
+            .get_db(state)
+            .basic(tx_env.caller)
             .unwrap_infallible()
-            .map(|account| account.info)
             .unwrap_or_default();
 
         // if the request is a simple transfer, can we optimize?
@@ -487,6 +494,7 @@ where
 
         // if the provided gas limit is less than computed cap, use that
         block_env.gas_limit = std::cmp::min(U256::from(tx_env.gas_limit), highest_gas_limit);
+        trace!(?block_env, "Block env is configured");
 
         let evm_db = self.get_db(state);
 

@@ -76,6 +76,7 @@ jobs:
       # update this list!
       - check
       - check-workspace
+      - check_excluded_crates
       - bench_check
       - rollup_bench_check
       - doctests
@@ -83,6 +84,7 @@ jobs:
       - hack_default_targets
       - nextest
       - nextest_all_features
+      - nextest_excluded_crates
       - coverage
       - cargo-deny-check-licenses
       - cargo-doc-artifact
@@ -129,7 +131,40 @@ jobs:
       - name: Check exit code and print custom message
         if: ${{ failure() }}
         run: |
-          echo "Dirty working tree means that some of the Cargo.lock haven't been update. Run `make extra-check` to update that"
+          echo "Dirty working tree means probably that some of the Cargo.lock files haven't been updated. Run `cargo check && make check-excluded` to update them"
+
+  check_excluded_crates:
+    name: check_excluded_crates
+    needs: check
+    runs-on:
+      - nscloud-ubuntu-20.04-amd64-16x32-with-cache
+      - nscloud-cache-tag-cache-dev
+      - nscloud-cache-size-100gb
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: rust
+          path: ./crates/fuzz/target
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run lint
+        run: |
+          if ! make lint-excluded ; then
+            echo "Linting or formatting errors detected, please run 'make lint-excluded-fix' to fix it";
+            exit 1
+          fi
+      - name: Exit if working tree is dirty
+        # A dirty working tree likely means that `sov-modules-schemas` was
+        # out of date.
+        # Ignore the ELF's, because of how they are exposed in SP1 with include_bytes.
+        run: git diff --exit-code -- . ':(exclude)**/elf/**'
+      - name: Check exit code and print custom message
+        if: ${{ failure() }}
+        run: |
+          echo "Dirty working tree means probably that some of the Cargo.lock files haven't been updated. Run `cargo check && make check-excluded` to update them"
 
   check-workspace:
     name: check-workspace
@@ -154,7 +189,7 @@ jobs:
     name: bench_check
     needs: check
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x64-with-cache
+      - nscloud-ubuntu-20.04-amd64-16x64-with-cache
       - nscloud-cache-tag-cache-bench
       - nscloud-cache-size-100gb
     timeout-minutes: 120
@@ -262,27 +297,6 @@ jobs:
       - name: cargo hack
         run: make check-features-default-targets
 
-  nextest_all_features:
-    name: nextest_all_features
-    runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
-      - nscloud-cache-tag-cache-test
-      - nscloud-cache-size-100gb
-    timeout-minutes: 60
-    env:
-      RISC0_DEV_MODE: "true"
-      SP1_PROVER: "mock"
-      RUST_BACKTRACE: 1
-    steps:
-      - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: rust
-      - uses: ./.github/actions/setup
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-      - run: make test-all
-
   nextest:
     name: nextest
     runs-on:
@@ -302,7 +316,50 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      - run: cargo nextest run --workspace --status-level skip
+      - run: make test-default-features
+
+  nextest_all_features:
+    name: nextest_all_features
+    runs-on:
+      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-cache-tag-cache-test
+      - nscloud-cache-size-100gb
+    timeout-minutes: 60
+    env:
+      RISC0_DEV_MODE: "true"
+      SP1_PROVER: "mock"
+      RUST_BACKTRACE: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: rust
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: make test
+
+  nextest_excluded_crates:
+    name: nextest_excluded_crates
+    needs: check
+    runs-on:
+      - nscloud-ubuntu-20.04-amd64-16x32-with-cache
+      - nscloud-cache-tag-cache-test
+      - nscloud-cache-size-100gb
+    timeout-minutes: 60
+    env:
+      RISC0_DEV_MODE: "true"
+      SP1_PROVER: "mock"
+      RUST_BACKTRACE: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: rust
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: make test-excluded
 
   doctests:
     name: doctests

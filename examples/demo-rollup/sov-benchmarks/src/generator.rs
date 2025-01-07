@@ -27,6 +27,7 @@ pub const MAX_GEN_ATTEMPS: u64 = 10;
 
 pub type GeneratedBatch<S> = Vec<GeneratedMessage<S, RuntimeCall<S>, BasicChangeLogEntry<S>>>;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BenchmarkData<S: Spec>

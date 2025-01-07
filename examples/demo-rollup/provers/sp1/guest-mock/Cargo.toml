@@ -1,11 +1,12 @@
 [package]
 name = "sov-demo-prover-guest-mock-sp1"
 version = "0.3.0"
+license = "MIT OR Apache-2.0"
 edition = "2021"
 resolver = "2"
 
 [dependencies]
-anyhow = "1.0.86"
+anyhow = { version = "1.0.95" }
 sp1-zkvm = { version = "3.0.0" }
 sov-mock-da = { path = "../../../../../crates/adapters/mock-da" }
 demo-stf = { path = "../../../stf" }

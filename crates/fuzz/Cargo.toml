@@ -3,6 +3,7 @@ name = "sovereign-sdk-fuzz"
 version = "0.3.0"
 publish = false
 edition = "2021"
+license = "MIT OR Apache-2.0"
 
 [package.metadata]
 cargo-fuzz = true

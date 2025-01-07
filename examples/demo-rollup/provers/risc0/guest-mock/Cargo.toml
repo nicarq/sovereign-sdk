@@ -1,6 +1,7 @@
 [package]
 name = "sov-demo-prover-guest-mock-risc0"
 version = "0.3.0"
+license = "MIT OR Apache-2.0"
 edition = "2021"
 resolver = "2"
 
