@@ -53,6 +53,9 @@ pub trait GasArray:
     /// Returns [`None`] if the substraction in any gas dimension underflows.
     fn checked_sub(&self, rhs: &Self) -> Option<Self>;
 
+    /// Returns the product of the scalar and the gas units or None if the result overflows.
+    fn checked_scalar_product(&self, scalar: &u64) -> Option<Self>;
+
     /// In-place division of gas units.
     fn scalar_division(&mut self, scalar: u64) -> &mut Self;
 
@@ -228,6 +231,21 @@ macro_rules! impl_gas_dimensions {
                 Some(Self(output))
             }
 
+            fn checked_scalar_product(&self, scalar: &u64) -> Option<Self> {
+                let mut output = [0; $n];
+
+                for (i,v) in self.0.iter().enumerate() {
+                    if let Some(res) = v.checked_mul(*scalar) {
+                        output[i] = res;
+                    }else {
+                        return None
+                    }
+                }
+
+                Some(Self(output))
+
+            }
+
             fn scalar_division(&mut self, scalar: u64) -> &mut Self {
                 self.0
                     .iter_mut()
@@ -328,6 +346,9 @@ impl From<u64> for GasUnit<1> {
 /// Errors can be raised either when the meter runs out of gas or when the refund operation fails.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum GasMeteringError<GU: Gas> {
+    /// Unable to deserialize data due to invalid length.
+    #[error("Unable to deserialize data due to invalid length: {0}")]
+    InvalidLength(String),
     /// The gas meter has ran out of gas.
     #[error("The gas to charge is greater than the funds available in the meter. Gas to charge {gas_to_charge}, gas price {gas_price}, remaining gas metering {gas_metering:?}, total gas consumed {total_gas_consumed}")]
     OutOfGas {
