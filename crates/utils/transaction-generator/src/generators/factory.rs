@@ -29,14 +29,13 @@ pub struct CallMessageFactory<
     RT,
     Tag: Clone + Eq + Hash + Debug,
     ChangelogEntry,
-    ClientConfig,
     Acct = (),
 > {
-    phantom: PhantomData<(S, RT, Tag, ChangelogEntry, ClientConfig, Acct)>,
+    phantom: PhantomData<(S, RT, Tag, ChangelogEntry, Acct)>,
 }
 
-impl<S: Spec, RT, Tag: Clone + Eq + Hash + Debug, ChangelogEntry, ClientConfig, Acct>
-    CallMessageFactory<S, RT, Tag, ChangelogEntry, ClientConfig, Acct>
+impl<S: Spec, RT, Tag: Clone + Eq + Hash + Debug, ChangelogEntry: crate::ChangelogEntry, Acct>
+    CallMessageFactory<S, RT, Tag, ChangelogEntry, Acct>
 {
     /// Instantiate a new [`CallMessageFactory`] with the given
     /// subset of state.
@@ -51,18 +50,15 @@ impl<
         RT: Runtime<S>,
         S: Spec,
         Tag: Clone + Eq + Hash + Debug + 'static,
-        ChangelogEntry: 'static + Clone + Send + Sync,
-        ClientConfig: 'static + Clone + Send + Sync,
+        ChangelogEntry: crate::ChangelogEntry,
         BonusAcctData: Debug + Clone + Default + Send + Sync + 'static,
-    > CallMessageFactory<S, RT, Tag, ChangelogEntry, ClientConfig, BonusAcctData>
+    > CallMessageFactory<S, RT, Tag, ChangelogEntry, BonusAcctData>
 {
     /// Generate call messages needed to properly setup the generator.
     #[allow(clippy::type_complexity)]
     pub fn generate_setup_messages(
         &self,
-        modules: &Vec<
-            Arc<dyn HarnessModule<S, RT, Tag, ChangelogEntry, ClientConfig, BonusAcctData>>,
-        >,
+        modules: &Vec<Arc<dyn HarnessModule<S, RT, Tag, ChangelogEntry, BonusAcctData>>>,
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut State<S, Tag, BonusAcctData>,
     ) -> arbitrary::Result<Vec<GeneratedMessage<S, <RT as DispatchCall>::Decodable, ChangelogEntry>>>
@@ -82,9 +78,7 @@ impl<
     #[allow(clippy::type_complexity)]
     pub fn generate_call_message(
         &self,
-        modules: &Distribution<
-            Arc<dyn HarnessModule<S, RT, Tag, ChangelogEntry, ClientConfig, BonusAcctData>>,
-        >,
+        modules: &Distribution<Arc<dyn HarnessModule<S, RT, Tag, ChangelogEntry, BonusAcctData>>>,
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut State<S, Tag, BonusAcctData>,
         validity: MessageValidity,

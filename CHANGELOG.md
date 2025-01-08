@@ -2,6 +2,7 @@
 - #2170 increases the suggested value for `DEFERRED_SLOTS_COUNT` to 50. This value is more appropriate than the previous value (5) for testing, but still too low for production use. A value in the order of 1000 is more appropriate for production.
 
 ## 2025-01-07
+- #2164 adds a way to assert the logs against the state in the benchmark generation.
 - #2147 Add handling for ignored transactions in the STF blueprint. No breaking change for customers of the SDK.
 - #2166 fixed batch submission to sequencer inside `sov-benchmarks`. This isn't a breaking change for customers of the SDK.
 - #2030 is a major overhaul of internals. Notable changes are:

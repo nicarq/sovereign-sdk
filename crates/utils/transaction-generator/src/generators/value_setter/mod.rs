@@ -9,13 +9,13 @@ use sov_modules_api::prelude::arbitrary::Arbitrary;
 use sov_modules_api::prelude::axum::async_trait;
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_value_setter::{CallMessage, CallMessageDiscriminants};
-use strum::VariantArray;
+use strum::{EnumDiscriminants, VariantArray};
 
 use crate::interface::{
     CallMessageGenerator, Distribution, GeneratedMessage, MessageValidity, Percent, Taggable,
 };
 use crate::state::{AccountState, ApplyToState};
-use crate::{repeatedly, MessageOutcome};
+use crate::{repeatedly, ChangelogEntry, MessageOutcome};
 
 mod http;
 
@@ -83,8 +83,9 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
 }
 
 /// A complete description of any possible state change created by the [`ValueSetterMessageGenerator`].
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, EnumDiscriminants)]
 #[serde(rename_all = "snake_case")]
+#[strum_discriminants(name(ValueSetterChangeLogDiscriminant), derive(Hash))]
 pub enum ValueSetterChangeLogEntry {
     /// The single value was updated
     ValueUpdated {
@@ -112,6 +113,49 @@ impl PartialEq<ValueSetterChangeLogEntry> for ValueSetterChangeLogEntry {
 }
 
 #[async_trait]
+impl ChangelogEntry for ValueSetterChangeLogEntry {
+    type ClientConfig = HttpValueSetterClient;
+
+    type Discriminant = ValueSetterChangeLogDiscriminant;
+
+    async fn assert_state(
+        &self,
+        rollup_state_accessor: Arc<Self::ClientConfig>,
+    ) -> Result<(), anyhow::Error> {
+        match self {
+            ValueSetterChangeLogEntry::ValueUpdated { new_value } => {
+                let value = rollup_state_accessor.get_value().await;
+
+                assert_eq!(value, Some(*new_value));
+            }
+            ValueSetterChangeLogEntry::ManyValuesUpdated { new_values } => {
+                let values_len = rollup_state_accessor.get_many_values_len().await;
+
+                assert_eq!(values_len, Some(new_values.len() as u64));
+
+                for i in 0..values_len.unwrap() {
+                    let value = rollup_state_accessor.get_many_values_item(i).await;
+                    assert_eq!(value, Some(new_values[i as usize]));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn as_discriminant(&self) -> Self::Discriminant {
+        match self {
+            ValueSetterChangeLogEntry::ValueUpdated { .. } => {
+                ValueSetterChangeLogDiscriminant::ValueUpdated
+            }
+            ValueSetterChangeLogEntry::ManyValuesUpdated { .. } => {
+                ValueSetterChangeLogDiscriminant::ManyValuesUpdated
+            }
+        }
+    }
+}
+
+#[async_trait]
 impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
     type Module = sov_value_setter::ValueSetter<S>;
 
@@ -120,8 +164,6 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
     type ChangelogEntry = ValueSetterChangeLogEntry;
 
     type Tag = ();
-
-    type ClientConfig = HttpValueSetterClient<S>;
 
     fn generate_setup_messages(
         &self,
@@ -159,33 +201,6 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
             MessageValidity::Valid => self.generate_valid_call_message(u),
             MessageValidity::Invalid => self.generate_invalid_call_message(u, generator_state),
         }
-    }
-
-    async fn assert_state(
-        rollup_state_accessor: Self::ClientConfig,
-        change: &Self::ChangelogEntry,
-    ) -> Result<(), anyhow::Error> {
-        let accessor = Arc::new(rollup_state_accessor);
-
-        match change {
-            ValueSetterChangeLogEntry::ValueUpdated { new_value } => {
-                let value = accessor.get_value().await;
-
-                assert_eq!(value, Some(*new_value));
-            }
-            ValueSetterChangeLogEntry::ManyValuesUpdated { new_values } => {
-                let values_len = accessor.get_many_values_len().await;
-
-                assert_eq!(values_len, Some(new_values.len() as u64));
-
-                for i in 0..values_len.unwrap() {
-                    let value = accessor.get_many_values_item(i).await;
-                    assert_eq!(value, Some(new_values[i as usize]));
-                }
-            }
-        }
-
-        Ok(())
     }
 }
 

@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::num::NonZero;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Duration;
 
 use futures::{Stream, TryStreamExt};
@@ -22,10 +23,10 @@ use sov_test_utils::ledger_db::sov_api_spec::types::{
 };
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::{RtAgnosticBlueprint, TestSpec as S, TransactionType};
-use sov_transaction_generator::generators::basic::{assert_logs_against_state, BasicClientConfig};
+use sov_transaction_generator::generators::basic::BasicClientConfig;
 use sov_transaction_generator::interface::rng_utils::get_random_bytes;
 use sov_transaction_generator::interface::{MessageValidity, Percent};
-use sov_transaction_generator::Distribution;
+use sov_transaction_generator::{assert_logs_against_state, Distribution};
 
 use crate::{
     plain_tx_with_default_details, setup_harness, setup_roles_and_config, GeneratorOutput,
@@ -264,7 +265,7 @@ async fn simple_sequencer_generation_with_da() {
         .flat_map(|output| output.outcome.unwrap_changes())
         .collect();
 
-    assert_logs_against_state(changes, &config)
+    assert_logs_against_state(changes, Arc::new(config), 1)
         .await
         .expect("Failed to assert against state");
 }

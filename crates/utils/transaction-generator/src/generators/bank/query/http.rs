@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use backon::{ExponentialBuilder, Retryable};
 use sov_bank::TokenId;
 use sov_modules_api::Spec;
 use sov_node_client::NodeClient;
@@ -30,21 +31,27 @@ impl<S: Spec> HttpBankClient<S> {
         user: &<S as sov_modules_api::Spec>::Address,
         token_id: TokenId,
     ) -> sov_bank::Amount {
-        self.client
-            .get_balance::<S>(user, &token_id, self.rollup_height)
-            .await
-            .unwrap()
+        (|| {
+            self.client
+                .get_balance::<S>(user, &token_id, self.rollup_height)
+        })
+        .retry(&ExponentialBuilder::default())
+        .await
+        .unwrap()
     }
 
     /// Get the total supply of a token
     pub async fn get_total_supply(&self, token_id: &TokenId) -> sov_bank::Amount {
-        self.client.get_total_supply(token_id).await.unwrap()
+        (|| self.client.get_total_supply(token_id))
+            .retry(&ExponentialBuilder::default())
+            .await
+            .unwrap()
     }
 
     /// Check if a token is frozen
     pub async fn is_frozen(&self, token_id: &TokenId) -> bool {
-        self.client
-            .get_admins::<S>(token_id)
+        (|| self.client.get_admins::<S>(token_id))
+            .retry(&ExponentialBuilder::default())
             .await
             .unwrap()
             .is_empty()

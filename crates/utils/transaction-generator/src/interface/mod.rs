@@ -86,7 +86,7 @@ impl<E> MessageOutcome<E> {
 
 /// A generated message for a particular module.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GeneratedMessage<S: Spec, M, E> {
+pub struct GeneratedMessage<S: Spec, M, E: ChangelogEntry> {
     /// The generated call message
     pub message: M,
     /// The private key that should sign the message
@@ -95,7 +95,7 @@ pub struct GeneratedMessage<S: Spec, M, E> {
     pub outcome: MessageOutcome<E>,
 }
 
-impl<S: Spec, M, E> GeneratedMessage<S, M, E> {
+impl<S: Spec, M, E: ChangelogEntry> GeneratedMessage<S, M, E> {
     /// Create a new [`GeneratedMessage`] from its components
     pub fn new(
         message: M,

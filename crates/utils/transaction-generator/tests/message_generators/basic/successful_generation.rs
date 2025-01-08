@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use sov_modules_api::prelude::tokio;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{TestSpec as S, TransactionTestCase, TransactionType};
-use sov_transaction_generator::generators::basic::{assert_logs_against_state, BasicClientConfig};
+use sov_transaction_generator::generators::basic::BasicClientConfig;
 use sov_transaction_generator::interface::MessageValidity;
-use sov_transaction_generator::{Distribution, Percent};
+use sov_transaction_generator::{assert_logs_against_state, Distribution, Percent};
 
 use super::{test_with_modules, GeneratorOutput, ModulesToUse, TXS_TO_GENERATE};
 use crate::basic::RT;
@@ -46,7 +48,7 @@ async fn test_successful_generation_helper(modules: Distribution<ModulesToUse>) 
         .flat_map(|output| output.outcome.unwrap_changes())
         .collect();
 
-    assert_logs_against_state(changes, &config)
+    assert_logs_against_state(changes, Arc::new(config), 1)
         .await
         .expect("Failed to assert against state");
 

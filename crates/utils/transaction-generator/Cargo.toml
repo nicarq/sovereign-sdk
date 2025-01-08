@@ -18,6 +18,7 @@ sov-node-client = { workspace = true }
 
 schemars = { workspace = true }
 serde = { workspace = true }
+backon = { workspace = true }
 anyhow = { workspace = true }
 derivative = { workspace = true }
 derive_more = { workspace = true, features = [

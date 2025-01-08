@@ -8,16 +8,16 @@ use sov_benchmarks::{
     mock_da_risc0_host_args, DEFAULT_BLOCK_PRODUCING_CONFIG, DEFAULT_FINALIZATION_BLOCKS,
 };
 use sov_modules_api::capabilities::config_chain_id;
-use sov_modules_api::transaction::{Transaction, TxDetails};
+use sov_modules_api::transaction::TxDetails;
 use sov_modules_api::{CryptoSpec, HexHash, Runtime, Spec};
 use sov_node_client::NodeClient;
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
-use sov_test_utils::ledger_db::sov_api_spec::types::{Slot, SubmitBatchReceipt, TxReceiptResult};
+use sov_test_utils::ledger_db::sov_api_spec::types::{Slot, TxReceiptResult};
 use sov_test_utils::test_rollup::GenesisSource;
 use sov_test_utils::{TransactionType, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 use tokio::time::sleep;
 
-use crate::bench_runner::{BenchMessage, BenchRollup, BenchRollupBuilder, RT, S};
+use crate::bench_runner::{BenchLogs, BenchMessage, BenchRollup, BenchRollupBuilder, RT, S};
 
 /// Setups the rollup for the benchmarks.
 /// We give the maximum possible gas balance to the prover and sequencer to ensure that they can pay for the transactions.
@@ -74,36 +74,36 @@ impl BatchSender {
         }
     }
 
-    /// Builds a transaction out of the transaction generator's output
-    fn sign_generator_output(&mut self, gen_output: BenchMessage) -> Transaction<RT, S> {
-        TransactionType::<RT, S>::sign(
-            gen_output.message,
-            gen_output.sender,
-            &RT::CHAIN_HASH,
-            TxDetails {
-                max_priority_fee_bips: TEST_DEFAULT_MAX_PRIORITY_FEE,
-                max_fee: TEST_DEFAULT_MAX_FEE,
-                gas_limit: None,
-                chain_id: config_chain_id(),
-            },
-            &mut self.nonces,
-        )
-    }
-
     /// Produces a batch of transactions from bench messages and publishes it to DA through the sequencer.
     pub async fn produce_and_publish_batch(
         &mut self,
         batch: Vec<BenchMessage>,
-    ) -> Result<SubmitBatchReceipt, anyhow::Error> {
+    ) -> Result<Vec<BenchLogs>, anyhow::Error> {
         /// Maximum number of attempts to publish a batch before giving up.
         const MAX_PUBLICATION_ATTEMPTS: u64 = 4;
         /// Time to wait between publication attempts, this is the initial wait time. After each attempt, the wait time is doubled.
         const WAIT_TIME: std::time::Duration = std::time::Duration::from_millis(2000);
 
-        let txs: Vec<_> = batch
+        let (txs, outcomes): (Vec<_>, Vec<_>) = batch
             .into_iter()
-            .map(|output| self.sign_generator_output(output))
-            .collect();
+            .map(|output| {
+                (
+                    TransactionType::<RT, S>::sign(
+                        output.message,
+                        output.sender,
+                        &RT::CHAIN_HASH,
+                        TxDetails {
+                            max_priority_fee_bips: TEST_DEFAULT_MAX_PRIORITY_FEE,
+                            max_fee: TEST_DEFAULT_MAX_FEE,
+                            gas_limit: None,
+                            chain_id: config_chain_id(),
+                        },
+                        &mut self.nonces,
+                    ),
+                    output.outcome.unwrap_changes(),
+                )
+            })
+            .unzip();
 
         let batch_result = {
             let mut curr_wait_time = WAIT_TIME;
@@ -145,7 +145,7 @@ impl BatchSender {
             self.txs_to_wait_for.insert(tx_hash);
         }
 
-        Ok(batch_result)
+        Ok(outcomes.into_iter().flatten().collect::<Vec<_>>())
     }
 
     /// Waits for the results of the transactions sent to the sequencer to be available in the full node.
