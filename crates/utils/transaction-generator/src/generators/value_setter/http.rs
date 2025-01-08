@@ -1,16 +1,12 @@
-use std::marker::PhantomData;
-
 use serde::Deserialize;
 use sov_modules_api::rest::utils::ResponseObject;
-use sov_modules_api::Spec;
 use sov_node_client::NodeClient;
 
 use crate::generators::basic::BasicClientConfig;
 
 /// An http client for querying the state needed by the value setter generator
-pub struct HttpValueSetterClient<S: Spec> {
+pub struct HttpValueSetterClient {
     client: NodeClient,
-    phantom: PhantomData<S>,
     rollup_height: Option<u64>,
 }
 
@@ -31,17 +27,16 @@ struct IdxResponse<T> {
     value: Option<T>,
 }
 
-impl<S: Spec> From<BasicClientConfig> for HttpValueSetterClient<S> {
+impl From<BasicClientConfig> for HttpValueSetterClient {
     fn from(config: BasicClientConfig) -> Self {
         Self {
             rollup_height: config.rollup_height,
-            phantom: Default::default(),
             client: NodeClient::new_unchecked(&config.url),
         }
     }
 }
 
-impl<S: Spec> HttpValueSetterClient<S> {
+impl HttpValueSetterClient {
     pub async fn get_value(&self) -> Option<u32> {
         let rollup_height_param = if let Some(rollup_height) = self.rollup_height {
             format!("?rollup_height={rollup_height}")

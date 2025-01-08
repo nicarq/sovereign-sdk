@@ -1,10 +1,13 @@
 //! Traits used by all generators.
 
+use std::collections::HashSet;
 use std::hash::Hash;
+use std::sync::Arc;
 
 use sov_bank::TokenId;
 use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
 use sov_modules_api::prelude::axum::async_trait;
+use sov_modules_api::prelude::tokio::task::JoinSet;
 use sov_modules_api::{DispatchCall, Module, Spec};
 
 use super::{Percent, TagAction};
@@ -117,6 +120,60 @@ pub trait Taggable {
     fn remove_tag(&mut self, tag: Self::Tag);
 }
 
+/// Defines the interface of change entries that can be used to assert the state of a module after message generation.
+#[async_trait]
+pub trait ChangelogEntry: std::fmt::Debug + Send + Sync + 'static {
+    /// A service which returns the current rollup state.
+    type ClientConfig: 'static + Send + Sync;
+
+    /// A discriminant that can be used to distinguish two [`ChangelogEntry`]s.
+    type Discriminant: Eq + Hash;
+
+    /// Assert that the rollup state matches the expected value.
+    async fn assert_state(
+        &self,
+        rollup_state_accessor: Arc<Self::ClientConfig>,
+    ) -> Result<(), anyhow::Error>;
+
+    /// Transforms the [`ChangelogEntry`] into a discriminant that can be used to
+    /// distinguish two [`ChangelogEntry`]s.
+    fn as_discriminant(&self) -> Self::Discriminant;
+}
+
+/// Asserts all the [`ChangelogEntry`] logs against the existing state
+pub async fn assert_logs_against_state<Log: ChangelogEntry>(
+    logs: Vec<Log>,
+    config: Arc<Log::ClientConfig>,
+    num_threads: u8,
+) -> anyhow::Result<()> {
+    let mut seen_entries: HashSet<Log::Discriminant> = HashSet::new();
+    let mut joinset = JoinSet::new();
+
+    for log in logs.into_iter().rev() {
+        if !seen_entries.insert(log.as_discriminant()) {
+            continue;
+        }
+
+        let config_clone = config.clone();
+
+        if joinset.len() >= num_threads.into() {
+            joinset.join_next().await.unwrap()??;
+        }
+
+        joinset.spawn(async move { log.assert_state(config_clone).await });
+    }
+
+    let res = joinset.join_all().await;
+
+    let err = res.iter().find(|res| res.is_err());
+
+    if err.is_some() {
+        anyhow::bail!("Some asserts failed. {:?}", err);
+    }
+
+    Ok(())
+}
+
 /// A standard interface for generating call messages and checking that they produce
 /// the expected effects.
 #[async_trait]
@@ -130,11 +187,8 @@ pub trait CallMessageGenerator<S: Spec> {
     /// The view of account state used by the module message generator
     type AccountView: Clone + std::fmt::Debug;
 
-    /// A service which returns the current rollup state.
-    type ClientConfig: 'static;
-
     /// The relevant post state from a generatd message.
-    type ChangelogEntry: Clone + std::fmt::Debug + Send + Sync + 'static;
+    type ChangelogEntry: ChangelogEntry;
 
     /// Generate call messages needed to properly setup the generator.
     #[allow(clippy::type_complexity)]
@@ -163,25 +217,11 @@ pub trait CallMessageGenerator<S: Spec> {
     ) -> arbitrary::Result<
         GeneratedMessage<S, <Self::Module as Module>::CallMessage, Self::ChangelogEntry>,
     >;
-
-    /// Assert that the rollup state matches the expected value. This method
-    /// *must* detect when two changes conflict (if applicable) and assert only
-    /// the most recent change.
-    async fn assert_state(
-        rollup_state_accessor: Self::ClientConfig,
-        changes: &Self::ChangelogEntry,
-    ) -> Result<(), anyhow::Error>;
 }
 
 /// A module that can be used to generate messages for a [`CallMessageGenerator`].
-pub trait HarnessModule<
-    S: Spec,
-    RT: DispatchCall,
-    Tag,
-    ChangelogEntry,
-    ClientConfig,
-    BonusAcctData = (),
->: Send + Sync
+pub trait HarnessModule<S: Spec, RT: DispatchCall, Tag, CL: ChangelogEntry, BonusAcctData = ()>:
+    Send + Sync
 {
     /// Generates a list of setup messages for the module.
     #[allow(clippy::type_complexity)]
@@ -189,7 +229,7 @@ pub trait HarnessModule<
         &self,
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut State<S, Tag, BonusAcctData>,
-    ) -> arbitrary::Result<Vec<GeneratedMessage<S, <RT as DispatchCall>::Decodable, ChangelogEntry>>>;
+    ) -> arbitrary::Result<Vec<GeneratedMessage<S, <RT as DispatchCall>::Decodable, CL>>>;
 
     /// Generates a list of call messages for the module.
     #[allow(clippy::type_complexity)]
@@ -198,5 +238,5 @@ pub trait HarnessModule<
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut State<S, Tag, BonusAcctData>,
         validity: MessageValidity,
-    ) -> arbitrary::Result<GeneratedMessage<S, <RT as DispatchCall>::Decodable, ChangelogEntry>>;
+    ) -> arbitrary::Result<GeneratedMessage<S, <RT as DispatchCall>::Decodable, CL>>;
 }

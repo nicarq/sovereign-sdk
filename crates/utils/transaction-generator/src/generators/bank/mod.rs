@@ -1,6 +1,8 @@
 //! Implements call message generation for the [`sov_bank::Bank`] module.
 use std::marker::PhantomData;
+use std::sync::Arc;
 
+use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, CallMessage, CallMessageDiscriminants, Coins, TokenId};
 use sov_modules_api::prelude::arbitrary;
@@ -26,6 +28,7 @@ pub use account::BankAccount;
 use crate::interface::{
     CallMessageGenerator, Distribution, GeneratedMessage, GeneratorState, MessageValidity, Percent,
 };
+use crate::ChangelogEntry;
 
 /// The call message discriminants used by the `Bank` module
 pub const MESSAGES: &[sov_bank::CallMessageDiscriminants] =
@@ -200,30 +203,89 @@ pub enum BankChangeLogEntry<S: Spec> {
     },
 }
 
-impl<S: Spec> PartialEq<BankChangeLogEntry<S>> for BankChangeLogEntry<S> {
-    fn eq(&self, other: &BankChangeLogEntry<S>) -> bool {
-        match (self, other) {
-            (
-                Self::BalanceChanged { address, .. },
-                Self::BalanceChanged {
-                    address: other_address,
-                    ..
-                },
-            ) => address == other_address,
-            (
-                Self::SupplyChanged { token_id, .. },
-                Self::SupplyChanged {
-                    token_id: other_token_id,
-                    ..
-                },
-            )
-            | (
-                Self::TokenFrozen { token_id },
-                Self::TokenFrozen {
-                    token_id: other_token_id,
-                },
-            ) => token_id == other_token_id,
-            _ => false,
+/// Helper struct that can be used to discriminate between different [`BankChangeLogEntry`]s.
+#[derive(Debug, PartialEq, Eq, Derivative)]
+#[derivative(Hash(bound = ""))]
+pub enum BankChangeLogDiscriminant<S: Spec> {
+    /// A balance was changed.
+    BalanceChanged {
+        /// The address for which the balance was changed.
+        address: S::Address,
+    },
+
+    /// A token supply was changed.
+    SupplyChanged {
+        /// The token id for which the supply was changed.
+        token_id: TokenId,
+    },
+
+    /// A token was frozen.
+    TokenFrozen {
+        /// The token id for which the freeze event was triggered.
+        token_id: TokenId,
+    },
+}
+
+#[async_trait]
+impl<S: Spec> ChangelogEntry for BankChangeLogEntry<S> {
+    type ClientConfig = HttpBankClient<S>;
+
+    type Discriminant = BankChangeLogDiscriminant<S>;
+
+    async fn assert_state(
+        &self,
+        rollup_state_accessor: Arc<Self::ClientConfig>,
+    ) -> Result<(), anyhow::Error> {
+        match self {
+            BankChangeLogEntry::BalanceChanged { address, coins } => {
+                let Coins { token_id, amount } = coins;
+                let found_balance = &rollup_state_accessor.get_balance(address, *token_id).await;
+                assert_eq!(
+                    found_balance, amount,
+                    "Unexpected balance of {} at address {}",
+                    token_id, &address
+                );
+            }
+            BankChangeLogEntry::SupplyChanged {
+                token_id,
+                total_supply,
+            } => {
+                let found_supply = &rollup_state_accessor.get_total_supply(token_id).await;
+                assert_eq!(
+                    found_supply, total_supply,
+                    "Unexpected total supply of {}",
+                    token_id,
+                );
+            }
+            BankChangeLogEntry::TokenFrozen { token_id } => {
+                assert!(
+                    rollup_state_accessor.is_frozen(token_id).await,
+                    "Token with id {} should be frozen",
+                    token_id
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    fn as_discriminant(&self) -> Self::Discriminant {
+        match self {
+            BankChangeLogEntry::BalanceChanged { address, .. } => {
+                BankChangeLogDiscriminant::BalanceChanged {
+                    address: address.clone(),
+                }
+            }
+            BankChangeLogEntry::SupplyChanged { token_id, .. } => {
+                BankChangeLogDiscriminant::SupplyChanged {
+                    token_id: *token_id,
+                }
+            }
+            BankChangeLogEntry::TokenFrozen { token_id } => {
+                BankChangeLogDiscriminant::TokenFrozen {
+                    token_id: *token_id,
+                }
+            }
         }
     }
 }
@@ -235,8 +297,6 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
     type AccountView = BankAccount<S>;
 
     type Tag = BankTag;
-
-    type ClientConfig = HttpBankClient<S>;
 
     type ChangelogEntry = BankChangeLogEntry<S>;
 
@@ -284,43 +344,6 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
         self.do_generation_with_fallback(message, u, generator_state, validity)
             .try_to_arbitrary()
             .expect("Could not generate bank callmessage")
-    }
-
-    async fn assert_state(
-        rollup_state_accessor: Self::ClientConfig,
-        change: &Self::ChangelogEntry,
-    ) -> Result<(), anyhow::Error> {
-        match change {
-            BankChangeLogEntry::BalanceChanged { address, coins } => {
-                let Coins { token_id, amount } = coins;
-                let found_balance = &rollup_state_accessor.get_balance(address, *token_id).await;
-                assert_eq!(
-                    found_balance, amount,
-                    "Unexpected balance of {} at address {}",
-                    token_id, &address
-                );
-            }
-            BankChangeLogEntry::SupplyChanged {
-                token_id,
-                total_supply,
-            } => {
-                let found_supply = &rollup_state_accessor.get_total_supply(token_id).await;
-                assert_eq!(
-                    found_supply, total_supply,
-                    "Unexpected total supply of {}",
-                    token_id,
-                );
-            }
-            BankChangeLogEntry::TokenFrozen { token_id } => {
-                assert!(
-                    rollup_state_accessor.is_frozen(token_id).await,
-                    "Token with id {} should be frozen",
-                    token_id
-                );
-            }
-        }
-
-        Ok(())
     }
 }
 

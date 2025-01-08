@@ -481,6 +481,7 @@ fn penalize_sequencer<S: Spec, RT: Runtime<S>, I: StateProvider<S>>(
 }
 
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+#[allow(clippy::too_many_arguments)]
 fn auth_and_process_tx<S, RT, I, C>(
     runtime: &RT,
     mut scratchpad: TxScratchpad<S, I>,

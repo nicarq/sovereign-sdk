@@ -138,9 +138,12 @@ impl NodeClient {
         let response = self.http_client.get(url).send().await?;
         let response = response.json::<ResponseObject<Coins>>().await?;
 
-        let data = response
-            .data
-            .ok_or_else(|| anyhow::anyhow!("No data in balance response"))?;
+        let data = response.data.ok_or_else(|| {
+            anyhow::anyhow!(
+                "No data in balance response. Response errors: {:?}",
+                response.errors
+            )
+        })?;
         Ok(data.amount)
     }
 

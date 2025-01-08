@@ -20,6 +20,10 @@ pub struct BenchMetricsCLI {
     /// Output directory for the metrics.
     #[clap(short, long, default_value_t = DEFAULT_METRICS_OUTPUT.to_string())]
     output: String,
+    /// If set to `Some`, then asserts the logs against the state. The inner value is the maximal number of
+    /// concurrent requests to the node. If set to `None`, then no state assertions are performed.
+    #[arg(short, long)]
+    logs: Option<u8>,
 }
 
 #[tokio::main]
@@ -57,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
         println!("\nRunning bench file at path: {}.", entry.path().display());
 
         // Run the bench file.
-        run_bench_file(bench_file).await?;
+        run_bench_file(bench_file, cli.logs).await?;
     }
 
     Ok(())

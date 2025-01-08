@@ -8,13 +8,13 @@ macro_rules! impl_harness_module {
 
         /// A wrapper around [`$generator_ty`] that implements [`crate::HarnessModule`].
         #[derive(Debug, Clone)]
-        pub struct $harness_name<S: ::sov_modules_api::Spec, RT: ::sov_modules_api::DispatchCall, Tag, ChangelogEntry, ClientConfig, BonusAcctData>(
+        pub struct $harness_name<S: ::sov_modules_api::Spec, RT: ::sov_modules_api::DispatchCall, Tag, ChangelogEntry, BonusAcctData>(
             $generator_ty,
-            std::marker::PhantomData<(RT, Tag, ChangelogEntry, ClientConfig, BonusAcctData)>,
+            std::marker::PhantomData<(RT, Tag, ChangelogEntry, BonusAcctData)>,
         );
 
-        impl<S: ::sov_modules_api::Spec, RT: ::sov_modules_api::DispatchCall, Tag, ChangelogEntry, ClientConfig, BonusAcctData>
-            $harness_name<S, RT, Tag, ChangelogEntry, ClientConfig, BonusAcctData>
+        impl<S: ::sov_modules_api::Spec, RT: ::sov_modules_api::DispatchCall, Tag, ChangelogEntry, BonusAcctData>
+            $harness_name<S, RT, Tag, ChangelogEntry, BonusAcctData>
         {
             /// Create a new `$harness_name` from a `$generator_ty`
             pub fn new(message_generator: $generator_ty) -> Self {
@@ -39,13 +39,13 @@ macro_rules! impl_harness_module {
                     + From<<$generator_ty as $crate::interface::traits::CallMessageGenerator<S>>::Tag>
                     + Send
                     + Sync,
-                ChangelogEntry: From<<$generator_ty as $crate::interface::traits::CallMessageGenerator<S>>::ChangelogEntry>
+                ChangelogEntry: $crate::ChangelogEntry +
+                From<<$generator_ty as $crate::interface::traits::CallMessageGenerator<S>>::ChangelogEntry>
                     + Send
                     + Sync,
-                ClientConfig: Into<<$generator_ty as $crate::interface::traits::CallMessageGenerator<S>>::ClientConfig> + Send + Sync,
                 BonusAcctData: Default + Clone + 'static + Sync + Send,
-            > $crate::HarnessModule<S, RT, Tag, ChangelogEntry, ClientConfig, BonusAcctData>
-            for $harness_name<S, RT, Tag, ChangelogEntry, ClientConfig, BonusAcctData>
+            > $crate::HarnessModule<S, RT, Tag, ChangelogEntry, BonusAcctData>
+            for $harness_name<S, RT, Tag, ChangelogEntry, BonusAcctData>
         {
             fn generate_setup_messages(
                 &self,

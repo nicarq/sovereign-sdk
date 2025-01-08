@@ -617,6 +617,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn start_background_loop(
         checkpoint: StateCheckpoint<<Z::Spec as Spec>::Storage>,
         tx_receiver: Receiver<FullyBakedTx>,
