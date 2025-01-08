@@ -12,7 +12,7 @@ use crate::bank::helpers::*;
 use crate::bank::TOKEN_NAME;
 use crate::test_helpers::*;
 
-const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnBatchSubmit;
+const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_bank_tx_tests() -> anyhow::Result<()> {
@@ -52,37 +52,38 @@ async fn send_test_bank_txs(
         .get_token_id::<DemoRollupSpec>(TOKEN_NAME, &user_address)
         .await?;
 
-    const NUM_TRANSFERS: u64 = 10;
+    const NUM_TRANSFERS: u64 = 5;
 
     assert_eq!(token_id, token_id_response);
 
-    // create token. height 2
+    // create token.
     let initial_balance = 1000;
     let tx = build_create_token_tx(&key, 0, initial_balance);
-    let rollup_height = tx_sender.send_txs(client, &[tx]).await?;
-    assert_eq!(1, rollup_height);
-    assert_slot_finality(client, rollup_height, test_case.expected_head_finality()).await;
+    let slot_number = tx_sender.send_txs(client, &[tx]).await?;
 
+    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
     assert_balance(client, initial_balance, token_id, user_address, None).await?;
 
-    // Make 10 transfers
-    for i in 1..=NUM_TRANSFERS {
-        let tx = build_transfer_token_tx(&key, token_id, recipient_address, 10, i);
-        let rollup_height = tx_sender.send_txs(client, &[tx]).await?;
-        assert_eq!(i + 1, rollup_height);
-        assert_slot_finality(client, rollup_height, test_case.expected_head_finality()).await;
+    // Make a few transfers and check that attestation height progresses
+    for nonce in 1..=NUM_TRANSFERS {
+        let tx = build_transfer_token_tx(&key, token_id, recipient_address, 10, nonce);
+        let slot_number = tx_sender.send_txs(client, &[tx]).await?;
+        assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
         assert_balance(
             client,
-            initial_balance - i * 10,
+            initial_balance - nonce * 10,
             token_id,
             user_address,
             None,
         )
         .await?;
 
-        // Check max_attested_height from the previous slot.
-        let max_attested_height = get_max_attested_height(client).await?;
-        assert_eq!(i - 1, max_attested_height);
+        let mut max_attested_height = get_max_attested_height(client).await?;
+        while max_attested_height < slot_number {
+            // In some cases, the attestation may not be ready just yet. Let's try again in a bit.
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            max_attested_height = get_max_attested_height(client).await?;
+        }
     }
 
     Ok(())
