@@ -4,7 +4,6 @@ use crate::influxdb::config::MonitoringConfig;
 use crate::influxdb::SerializableMetric;
 
 pub(crate) async fn metrics_publisher_task(
-    mut shutdown_receiver: tokio::sync::watch::Receiver<()>,
     mut receiver: tokio::sync::mpsc::Receiver<SerializableMetric>,
     config: &MonitoringConfig,
 ) {
@@ -23,22 +22,7 @@ pub(crate) async fn metrics_publisher_task(
     tracing::trace!(?socket, "Starting metrics publishing task");
     let mut buffer: Vec<u8> = Vec::with_capacity(max_buffer_size);
 
-    loop {
-        let measurement = tokio::select! {
-            _ = shutdown_receiver.changed() => {
-                break;
-            }
-            res = receiver.recv() => {
-                match res {
-                    None => {
-                        tracing::info!("Metrics channel has been closed before shutdown signal received, shutting down");
-                        break;
-                    }
-                    Some(m) => m
-                }
-            }
-        };
-
+    while let Some(measurement) = receiver.recv().await {
         if !buffer.is_empty() {
             buffer.push(b'\n');
         }
@@ -156,11 +140,9 @@ mod tests {
             tokio::sync::mpsc::channel(total_send);
         spawn_metrics_udp_receiver(socket, metrics_back_sender.clone());
 
-        let (shutdown_sender, mut shutdown_receiver) = tokio::sync::watch::channel(());
-        shutdown_receiver.mark_unchanged();
         let (sender, receiver) = tokio::sync::mpsc::channel(10);
-        let task_handle = tokio::spawn(async move {
-            metrics_publisher_task(shutdown_receiver, receiver, &monitoring_config).await;
+        let _task_handle = tokio::spawn(async move {
+            metrics_publisher_task(receiver, &monitoring_config).await;
         });
 
         for _ in 0..first_chunk {
@@ -190,9 +172,6 @@ mod tests {
             .await
             .is_none());
 
-        // Correct shutdown
-        let _ = shutdown_sender.send(());
-        task_handle.await?;
         Ok(())
     }
 
@@ -211,11 +190,9 @@ mod tests {
         let (metrics_back_sender, mut metrics_back_receiver) = tokio::sync::mpsc::channel(1);
         spawn_metrics_udp_receiver(socket, metrics_back_sender.clone());
 
-        let (shutdown_sender, mut shutdown_receiver) = tokio::sync::watch::channel(());
-        shutdown_receiver.mark_unchanged();
         let (sender, receiver) = tokio::sync::mpsc::channel(10);
-        let task_handle = tokio::spawn(async move {
-            metrics_publisher_task(shutdown_receiver, receiver, &monitoring_config).await;
+        let _task_handle = tokio::spawn(async move {
+            metrics_publisher_task(receiver, &monitoring_config).await;
         });
 
         sender.send(Box::new(sample_metric)).await?;
@@ -224,8 +201,6 @@ mod tests {
             .await
             .is_some());
 
-        let _ = shutdown_sender.send(());
-        task_handle.await?;
         Ok(())
     }
 }

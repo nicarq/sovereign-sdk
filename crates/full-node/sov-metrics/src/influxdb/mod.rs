@@ -16,7 +16,7 @@ pub(crate) type SerializableMetric = Box<dyn Metric>;
 /// Struct for tracking Sovereign metrics.
 ///
 /// Hides underlying monitoring system implementation.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct MetricsTracker {
     sender: tokio::sync::mpsc::Sender<SerializableMetric>,
 }
@@ -66,11 +66,9 @@ mod tests {
         let (metrics_back_sender, mut metrics_back_receiver) = tokio::sync::mpsc::channel(100);
         spawn_metrics_udp_receiver(socket, metrics_back_sender.clone());
 
-        let (shutdown_sender, mut shutdown_receiver) = tokio::sync::watch::channel(());
-        shutdown_receiver.mark_unchanged();
         let (sender, receiver) = tokio::sync::mpsc::channel(10);
-        let task_handle = tokio::spawn(async move {
-            metrics_publisher_task(shutdown_receiver, receiver, &monitoring_config).await;
+        let _task_handle = tokio::spawn(async move {
+            metrics_publisher_task(receiver, &monitoring_config).await;
         });
 
         let tracker = MetricsTracker { sender };
@@ -122,8 +120,6 @@ mod tests {
         assert_eq!(3, received_number_of_metrics);
         assert!(received_number_of_metrics <= total_expected_number_of_metrics);
 
-        let _ = shutdown_sender.send(());
-        task_handle.await?;
         Ok(())
     }
 }

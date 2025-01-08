@@ -12,37 +12,21 @@ pub(crate) static METRICS_TRACKER: OnceLock<MetricsTracker> = OnceLock::new();
 pub(crate) type Timestamp = u128;
 
 /// Spawns task that published metrics in the background.
-pub fn init_metrics_tracker(
-    shutdown_receiver: tokio::sync::watch::Receiver<()>,
-    config: &MonitoringConfig,
-) -> tokio::task::JoinHandle<()> {
-    // Commented code will allow to properly reinitialization in the same process
-    // https://github.com/rust-lang/rust/issues/121641
-    //  Currently, the publishing task is started on every init, but metrics are dropped
-    // because OnceLock holds sender to the task that has been started first time.
-    //
-    // let was_initialized_before = METRICS_TRACKER.get().is_some();
-    let (sender, receiver) = tokio::sync::mpsc::channel(config.get_max_pending_metrics() as usize);
-    let config = config.clone();
-    let handle = tokio::spawn(async move {
-        publisher::metrics_publisher_task(shutdown_receiver, receiver, &config).await;
-    });
-    OnceLock::get_or_init(&METRICS_TRACKER, || {
-        tracing::trace!("Metrics tracker initialized");
-        MetricsTracker { sender }
-    });
-    // https://github.com/rust-lang/rust/issues/121641
-    // let mut tracker = OnceLock::get_mut_or_init(&METRICS_TRACKER, || {
-    //     tracing::trace!("Metrics tracker initialized");
-    //     MetricsTracker {
-    //         sender: sender.clone(),
-    //     }
-    // });
-    // if was_initialized_before {
-    //     tracker.sender = sender;
-    // }
-
-    handle
+pub fn init_metrics_tracker(config: &MonitoringConfig) {
+    match METRICS_TRACKER.get() {
+        None => {
+            let (sender, receiver) =
+                tokio::sync::mpsc::channel(config.get_max_pending_metrics() as usize);
+            let config = config.clone();
+            let _handle = tokio::spawn(async move {
+                publisher::metrics_publisher_task(receiver, &config).await;
+            });
+            tracing::trace!("Metrics tracker initialized");
+            OnceLock::set(&METRICS_TRACKER, MetricsTracker { sender })
+                .expect("Metrics tracker failed to set metrics");
+        }
+        Some(_) => {}
+    }
 }
 
 impl MetricsTracker {
