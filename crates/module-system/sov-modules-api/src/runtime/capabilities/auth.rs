@@ -306,6 +306,7 @@ pub fn authenticate<
     let tx =
         match <Transaction<D, S> as MeteredBorshDeserialize<S>>::deserialize(&mut raw_tx, state) {
             Ok(ok) => ok,
+
             Err(MeteredBorshDeserializeError::GasError(e)) => {
                 return Err(AuthenticationError::OutOfGas(format!(
                     "Transaction deserialization run out of gas {}, tx hash {}",

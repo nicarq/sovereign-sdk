@@ -168,10 +168,15 @@ pub enum MeteredBorshDeserializeError<GU: Gas> {
 /// Charges gas for deserialization.
 pub trait MeteredBorshDeserialize<S: Spec>: Sized {
     /// Computes the cost to deserialize the given buffer, in Gas.
-    fn gas_cost_to_deserialize(buf: &[u8]) -> <S as GasSpec>::Gas {
-        let mut deserialization_cost = S::gas_to_charge_per_byte_borsh_deserialization();
-        deserialization_cost.scalar_product(buf.len() as u64);
-        deserialization_cost
+    fn gas_cost_to_deserialize(
+        buf: &[u8],
+    ) -> Result<<S as GasSpec>::Gas, MeteredBorshDeserializeError<<S as GasSpec>::Gas>> {
+        let deserialization_cost = S::gas_to_charge_per_byte_borsh_deserialization();
+
+        // This is safe to cast here as we don't support platforms where usize > u64.
+        let buf_len: u64 = buf.len() as u64;
+
+        total_deserialization_cost::<S>(deserialization_cost, buf_len)
     }
 
     /// Deserializes a type from a byte slice with the provided gas meter. Charge the [`GasSpec::gas_to_charge_per_byte_borsh_deserialization`]
@@ -186,4 +191,15 @@ pub trait MeteredBorshDeserialize<S: Spec>: Sized {
     fn unmetered_deserialize(
         buf: &mut &[u8],
     ) -> Result<Self, MeteredBorshDeserializeError<<S as GasSpec>::Gas>>;
+}
+
+pub(crate) fn total_deserialization_cost<S: Spec>(
+    deserialization_cost: S::Gas,
+    buf_len: u64,
+) -> Result<S::Gas, MeteredBorshDeserializeError<S::Gas>> {
+    deserialization_cost.checked_scalar_product(&buf_len).ok_or(
+        MeteredBorshDeserializeError::GasError(GasMeteringError::InvalidLength(
+            "Deserialization cost overflows `u64::MAX` value".to_string(),
+        )),
+    )
 }
