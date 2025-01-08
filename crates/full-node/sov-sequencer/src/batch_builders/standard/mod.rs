@@ -20,8 +20,8 @@ use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::ApiState;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
-    ExecutionContext, FullyBakedTx, Gas, GasMeter, NestedEnumUtils, NoOpControlFlow, RawTx, Spec,
-    StateCheckpoint, StateProvider, VersionReader, WorkingSet,
+    ExecutionContext, FullyBakedTx, Gas, GasArray, GasMeter, NestedEnumUtils, NoOpControlFlow,
+    RawTx, SlotGasMeter, Spec, StateCheckpoint, StateProvider, VersionReader, WorkingSet,
 };
 use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect, TxProcessingError,
@@ -125,6 +125,8 @@ where
             &seqdb_tx.tx,
         );
 
+        // Currently the sequencer doesn't take into account the slot gas limit.
+        let slot_gas_meter = SlotGasMeter::new(<<Z::Spec as Spec>::Gas>::MAX);
         let (auth_output, gas_meter) = match output_res {
             Ok(ok) => ok,
 
@@ -134,7 +136,6 @@ where
             }
         };
 
-        let gas_info = gas_meter.gas_info();
         let (_, authz_data, message) = &auth_output;
 
         // If the module isn't sequencer safe, the caller must be an admin to proceed
@@ -154,11 +155,11 @@ where
             );
         }
 
-        let (res, tx_scratchpad) = process_tx(
+        let (res, tx_scratchpad, _slot_gas_meter) = process_tx(
             &self.runtime,
+            slot_gas_meter,
+            &gas_meter,
             auth_output,
-            &gas_info.gas_price,
-            &gas_info.gas_used,
             &self.config.da_address,
             ctx.visible_height,
             tx_scratchpad,
