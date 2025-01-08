@@ -220,18 +220,14 @@ where
         )
         .await?;
 
+        // This sender is not used immediately,
+        // But when REST and RPC handlers start, sender is used to get another subscription.
         let (secondary_shutdown_sender, mut secondary_shutdown_receiver) = watch::channel(());
         secondary_shutdown_receiver.mark_unchanged();
 
-        let monitoring_handle: tokio::task::JoinHandle<anyhow::Result<()>> =
-            tokio::spawn(async move {
-                sov_metrics::init_metrics_tracker(
-                    secondary_shutdown_receiver.clone(),
-                    &monitoring_config,
-                )
-                .await?;
-                Ok(())
-            });
+        tokio::spawn(async move {
+            sov_metrics::init_metrics_tracker(&monitoring_config);
+        });
 
         Ok(Self {
             first_unprocessed_height_at_startup,
@@ -250,7 +246,7 @@ where
             sync_fetcher,
             shutdown_receiver,
             secondary_shutdown_sender,
-            background_handles: vec![fetcher_background_handle, monitoring_handle],
+            background_handles: vec![fetcher_background_handle],
         })
     }
 
