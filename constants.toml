@@ -14,7 +14,7 @@ CHAIN_ID = 4321
 # will be invalidated due to congestion on the DA layer. (Note that with an honest sequencer, this parameter has no effect
 # on the speed of inclusion for forced transactions, since they will always be included ASAP.)
 # Setting this parameter to 0 disables soft-confirmations entirely.
-DEFERRED_SLOTS_COUNT = 5
+DEFERRED_SLOTS_COUNT = 50
 # How many blobs from unregistered sequencers we will accept per slot
 # We can't slash misbehaving senders because they aren't a registered sequencer with a stake so
 # this serves as protection against spam.
