@@ -21,6 +21,8 @@ pub mod guest;
 #[cfg(feature = "native")]
 pub mod host;
 
+#[cfg(target_os = "zkvm")]
+pub mod logging;
 #[cfg(all(feature = "native", feature = "bench"))]
 pub mod metrics;
 
