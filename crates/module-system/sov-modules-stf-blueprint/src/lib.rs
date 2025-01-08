@@ -9,6 +9,7 @@ use sov_modules_api::{
     VersionReader,
 };
 mod proof_processing;
+use sov_modules_api::SlotGasMeter;
 use sov_rollup_interface::stf::ProofReceipt;
 mod sequencer_mode;
 #[cfg(feature = "test-utils")]
@@ -473,7 +474,9 @@ where
         // Note: The gas price should be computed after all the capabilities involving the [`KernelStateAccessor`] to have the
         // most recent version of the visible rollup height.
         let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut state).expect("The base fee per gas for the current slot should be known at this point! This is a bug. Please report it");
-        let _slot_gas_limit = self.runtime.chain_state().slot_gas_limit(&mut state).expect("The slot gas limit for the current slot should be known at this point! This is a bug. Please report it");
+        let slot_gas_limit = self.runtime.chain_state().slot_gas_limit(&mut state).expect("The slot gas limit for the current slot should be known at this point! This is a bug. Please report it");
+
+        let mut slot_gas_meter = SlotGasMeter::new(slot_gas_limit);
 
         let visible_height = state.rollup_height_to_access();
 
@@ -512,16 +515,20 @@ where
                     #[cfg(feature = "native")]
                     let start_batch_processing = std::time::Instant::now();
                     let batch_id = batch.id();
-                    let (batch_receipt, next_checkpoint) = registered::apply_batch::<S, RT, B>(
-                        &self.runtime,
-                        state,
-                        batch,
-                        blob_idx,
-                        sender,
-                        &gas_price,
-                        visible_height.get(),
-                        execution_context,
-                    );
+                    let (batch_receipt, next_checkpoint, ret_slot_gas_meter) =
+                        registered::apply_batch::<S, RT, B>(
+                            &self.runtime,
+                            state,
+                            slot_gas_meter,
+                            batch,
+                            blob_idx,
+                            sender,
+                            &gas_price,
+                            visible_height.get(),
+                            execution_context,
+                        );
+
+                    slot_gas_meter = ret_slot_gas_meter;
                     // Metrics section
                     #[cfg(feature = "native")]
                     {
@@ -543,28 +550,32 @@ where
                     state = next_checkpoint;
                 }
                 BlobDataWithId::EmergencyRegistration { tx, id } => {
-                    let (batch_receipt, next_checkpoint) = unregistered::apply_batch::<S, RT>(
-                        &self.runtime,
-                        state,
-                        BatchFromUnregisteredSequencer { tx, id },
-                        blob_idx,
-                        sender,
-                        &gas_price,
-                        visible_height.get(),
-                        execution_context,
-                    );
+                    let (batch_receipt, next_checkpoint, ret_slot_gas_meter) =
+                        unregistered::apply_batch::<S, RT>(
+                            &self.runtime,
+                            state,
+                            slot_gas_meter,
+                            BatchFromUnregisteredSequencer { tx, id },
+                            blob_idx,
+                            sender,
+                            &gas_price,
+                            visible_height.get(),
+                            execution_context,
+                        );
 
                     total_gas.combine(&batch_receipt.inner.gas_used);
                     batch_receipts.push(batch_receipt);
                     state = next_checkpoint;
+                    slot_gas_meter = ret_slot_gas_meter;
                 }
                 BlobDataWithId::Proof { proof, id } => {
-                    let (receipt, next_checkpoint, gas_used) =
-                        self.process_proof(id, sender, &gas_price, proof, state);
+                    let (receipt, next_checkpoint, gas_used, ret_slot_gas_meter) =
+                        self.process_proof(id, slot_gas_meter, sender, &gas_price, proof, state);
 
                     state = next_checkpoint;
                     proof_receipts.push(receipt);
                     total_gas.combine(&gas_used);
+                    slot_gas_meter = ret_slot_gas_meter;
                 }
             }
         }

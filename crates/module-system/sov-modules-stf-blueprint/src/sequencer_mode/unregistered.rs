@@ -6,8 +6,8 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext, Gas,
-    GasArray, GasInfo, GasMeter, GasSpec, IgnoredTransactionReceipt, Rewards, Spec, StateProvider,
-    TxScratchpad, WorkingSet,
+    GasArray, GasInfo, GasMeter, GasSpec, IgnoredTransactionReceipt, Rewards, SlotGasMeter, Spec,
+    StateProvider, TxScratchpad, WorkingSet,
 };
 use tracing::{debug, warn};
 
@@ -22,6 +22,7 @@ use crate::{
 #[allow(clippy::result_large_err)]
 pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
+    slot_gas_meter: SlotGasMeter<S::Gas>,
     validated_output: AuthTxOutput<S, R>,
     gas_info: GasInfo<S::Gas>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
@@ -31,6 +32,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
     TxScratchpad<S, I>,
+    SlotGasMeter<S::Gas>,
 ) {
     let (auth_tx, auth_data, message) = validated_output;
 
@@ -51,6 +53,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
             return (
                 Err(TxProcessingError::CannotResolveContext(e.to_string())),
                 scratchpad,
+                slot_gas_meter,
             );
         }
     };
@@ -64,6 +67,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         return (
             Err(TxProcessingError::IncorrectNonce(e.to_string())),
             scratchpad,
+            slot_gas_meter,
         );
     }
 
@@ -75,6 +79,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         return (
             Err(TxProcessingError::CannotReserveGas(reason.to_string())),
             scratchpad,
+            slot_gas_meter,
         );
     }
 
@@ -93,6 +98,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         return (
             Err(TxProcessingError::OutOfGas(err.to_string())),
             scratchpad,
+            slot_gas_meter,
         );
     }
 
@@ -125,7 +131,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         &mut scratchpad,
     );
 
-    (Ok(apply_tx), scratchpad)
+    (Ok(apply_tx), scratchpad, slot_gas_meter)
 }
 
 #[allow(clippy::type_complexity)]
@@ -167,13 +173,18 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvi
 pub(crate) fn apply_batch<S, RT>(
     runtime: &RT,
     mut checkpoint: StateCheckpoint<S::Storage>,
+    slot_gas_meter: SlotGasMeter<S::Gas>,
     batch: BatchFromUnregisteredSequencer,
     blob_idx: usize,
     sequencer_da_address: <S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
     execution_context: ExecutionContext,
-) -> (BatchReceipt<S>, StateCheckpoint<S::Storage>)
+) -> (
+    BatchReceipt<S>,
+    StateCheckpoint<S::Storage>,
+    SlotGasMeter<S::Gas>,
+)
 where
     S: Spec,
     RT: Runtime<S>,
@@ -232,6 +243,7 @@ where
                     },
                 },
                 scratchpad.commit(),
+                slot_gas_meter,
             );
         }
 
@@ -266,6 +278,7 @@ where
                     },
                 },
                 scratchpad.commit(),
+                slot_gas_meter,
             );
         }
     };
@@ -274,6 +287,7 @@ where
 
     let process_tx_result = process_unauthorized_tx(
         runtime,
+        slot_gas_meter,
         validated_output,
         gas_info,
         &sequencer_da_address,
@@ -286,7 +300,7 @@ where
     let mut gas_used = S::Gas::zero();
     let mut accumulated_reward = 0;
 
-    let (tx_result, scratchpad) = process_tx_result;
+    let (tx_result, scratchpad, slot_gas_meter) = process_tx_result;
 
     match tx_result {
         Err(error) => {
@@ -334,5 +348,5 @@ where
 
     apply_batch_logs(&batch_receipt, &gas_used, blob_idx);
 
-    (batch_receipt, checkpoint)
+    (batch_receipt, checkpoint, slot_gas_meter)
 }

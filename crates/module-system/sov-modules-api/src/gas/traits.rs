@@ -44,6 +44,9 @@ pub trait GasArray:
     /// A zeroed instance of the unit.
     const ZEROED: Self;
 
+    /// The maximum value of the gas unit.
+    const MAX: Self;
+
     /// In-place combination of gas units, resulting in an addition.
     fn combine(&mut self, rhs: &Self) -> &mut Self;
 
@@ -217,6 +220,8 @@ macro_rules! impl_gas_dimensions {
         impl GasArray for $t {
             const ZEROED: Self = Self([0; $n]);
 
+            const MAX: Self = Self([u64::MAX; $n]);
+
             fn checked_sub(&self, rhs: &Self) -> Option<Self> {
                 let mut output = [0; $n];
 
@@ -346,6 +351,9 @@ impl From<u64> for GasUnit<1> {
 /// Errors can be raised either when the meter runs out of gas or when the refund operation fails.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum GasMeteringError<GU: Gas> {
+    /// The slot gas limit has been exhausted.
+    #[error("The slot gas limit has been exhausted")]
+    SlotOutOfGas,
     /// Unable to deserialize data due to invalid length.
     #[error("Unable to deserialize data due to invalid length: {0}")]
     InvalidLength(String),
@@ -398,6 +406,33 @@ pub trait GasMeter<GU: Gas> {
 
     /// Returns gas usage.
     fn gas_info(&self) -> GasInfo<GU>;
+}
+
+/// A gas meter that tracks the gas used for a slot.
+pub struct SlotGasMeter<GU: Gas> {
+    remaining_slot_gas: GU,
+}
+
+impl<GU: Gas> SlotGasMeter<GU> {
+    /// Creates a new `SlotGasMeter`
+    pub fn new(remaining_slot_gas: GU) -> Self {
+        Self { remaining_slot_gas }
+    }
+
+    /// Charge gas.
+    pub fn charge_gas(&mut self, gas: &GU) -> Result<(), GasMeteringError<GU>> {
+        self.remaining_slot_gas = match self.remaining_slot_gas.checked_sub(gas) {
+            Some(remaining_gas) => remaining_gas,
+            None => return Err(GasMeteringError::SlotOutOfGas),
+        };
+
+        Ok(())
+    }
+
+    /// Remaining slot gas.
+    pub fn remaining_slot_gas(&self) -> &GU {
+        &self.remaining_slot_gas
+    }
 }
 
 /// Remaining funds or gas.

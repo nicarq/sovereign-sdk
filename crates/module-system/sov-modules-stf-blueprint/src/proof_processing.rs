@@ -7,8 +7,8 @@ use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
     BasicGasMeter, DaSpec, Gas, GasMeter, GasSpec, InvalidProofError, MeteredBorshDeserialize,
-    PreExecWorkingSet, ProofOutcome, ProofReceipt, ProofReceiptContents, Spec, StateCheckpoint,
-    StateProvider, TxScratchpad, WorkingSet,
+    PreExecWorkingSet, ProofOutcome, ProofReceipt, ProofReceiptContents, SlotGasMeter, Spec,
+    StateCheckpoint, StateProvider, TxScratchpad, WorkingSet,
 };
 use sov_state::{Storage, StorageProof};
 
@@ -25,12 +25,17 @@ const LOG_PREFIX: &str = "Returning early from the proof processing workflow";
 #[allow(clippy::type_complexity)]
 pub(crate) fn process_proof<S, RT>(
     runtime: &RT,
+    slot_gas_meter: SlotGasMeter<S::Gas>,
     blob_hash: [u8; 32],
     sequencer_da_address: <S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
     raw_proof: Vec<u8>,
     state: StateCheckpoint<S::Storage>,
-) -> (ProcessProofOutput<S>, StateCheckpoint<S::Storage>)
+) -> (
+    ProcessProofOutput<S>,
+    StateCheckpoint<S::Storage>,
+    SlotGasMeter<S::Gas>,
+)
 where
     S: Spec,
     RT: Runtime<S>,
@@ -43,7 +48,7 @@ where
             WorkflowResult::Proceed(pre_exec_working_set) => pre_exec_working_set,
             WorkflowResult::EarlyReturn(out, state) => {
                 tracing::debug!("{LOG_PREFIX}: unable to create pre execution working set");
-                return (out, state);
+                return (out, state, slot_gas_meter);
             }
         };
 
@@ -64,7 +69,8 @@ where
                     tracing::debug!(
                         "{LOG_PREFIX}: unable to reserve gas for the proof verification"
                     );
-                    return (out, state);
+
+                    return (out, state, slot_gas_meter);
                 }
             };
 
@@ -145,6 +151,7 @@ where
                     gas_used: transaction_consumption.base_fee().clone(),
                 },
                 scratchpad.commit(),
+                slot_gas_meter,
             )
         }
         Err(e) => {
@@ -172,6 +179,7 @@ where
                     gas_used,
                 },
                 state,
+                slot_gas_meter,
             )
         }
     }
