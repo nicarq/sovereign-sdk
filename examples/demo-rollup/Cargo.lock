@@ -9921,6 +9921,8 @@ dependencies = [
  "sov-metrics",
  "sov-rollup-interface",
  "thiserror 1.0.69",
+ "tracing",
+ "tracing-subscriber 0.3.19",
 ]
 
 [[package]]
