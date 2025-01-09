@@ -59,6 +59,7 @@ where
         Ok(proof_with_details) => {
             // Reserve gas for the proof verification.
             let mut working_set = match workflow.try_reserve_gas(
+                &slot_gas_meter,
                 &sequencer_rollup_address,
                 gas_price,
                 proof_with_details.details.into(),
@@ -274,6 +275,7 @@ where
 
     fn try_reserve_gas<I: StateProvider<S>>(
         &self,
+        slot_gas_meter: &SlotGasMeter<S::Gas>,
         sequencer_rollup_address: &S::Address,
         gas_price: &<S::Gas as Gas>::Price,
         auth_tx: AuthenticatedTransactionData<S>,
@@ -307,8 +309,12 @@ where
             );
         }
 
-        let mut working_set =
-            WorkingSet::create_working_set(scratchpad, &gas_info.gas_price, &auth_tx);
+        let mut working_set = WorkingSet::create_working_set(
+            scratchpad,
+            &gas_info.gas_price,
+            &auth_tx,
+            slot_gas_meter.remaining_slot_gas().clone(),
+        );
 
         if let Err(err) = working_set.charge_gas(&gas_info.gas_used) {
             let (scratchpad, _transaction_consumption) = working_set.revert();

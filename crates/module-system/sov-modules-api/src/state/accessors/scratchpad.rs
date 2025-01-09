@@ -171,8 +171,9 @@ impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
         scratchpad: TxScratchpad<S, I>,
         gas_price: &<S::Gas as Gas>::Price,
         tx: &AuthenticatedTransactionData<S>,
+        slot_gas_limit: S::Gas,
     ) -> Self {
-        let working_set_gas_meter = tx.gas_meter(gas_price);
+        let working_set_gas_meter = tx.gas_meter(gas_price, slot_gas_limit);
 
         Self {
             delta: RevertableWriter::new(scratchpad),
