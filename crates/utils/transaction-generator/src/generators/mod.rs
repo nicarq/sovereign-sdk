@@ -6,4 +6,5 @@ pub mod basic;
 
 pub mod factory;
 pub mod macros;
+pub mod transaction;
 pub mod value_setter;
