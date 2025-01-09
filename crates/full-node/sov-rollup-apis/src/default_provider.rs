@@ -8,7 +8,7 @@ use sov_modules_api::prelude::*;
 use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    DaSpec, ExecutionContext, Gas, Spec, StateCheckpoint, VersionReader, WorkingSet,
+    DaSpec, ExecutionContext, Gas, GasArray, Spec, StateCheckpoint, VersionReader, WorkingSet,
 };
 use sov_modules_stf_blueprint::{apply_tx, ApplyTxResult, Runtime};
 use sov_rollup_interface::common::HexString;
@@ -99,6 +99,7 @@ where
             // We may want to change this in the future.
             &gas_price.clone(),
             &tx_data,
+            <S::Gas>::MAX,
         );
 
         let (result, _) = apply_tx(

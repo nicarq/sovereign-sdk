@@ -515,20 +515,18 @@ where
                     #[cfg(feature = "native")]
                     let start_batch_processing = std::time::Instant::now();
                     let batch_id = batch.id();
-                    let (batch_receipt, next_checkpoint, ret_slot_gas_meter) =
-                        registered::apply_batch::<S, RT, B>(
-                            &self.runtime,
-                            state,
-                            slot_gas_meter,
-                            batch,
-                            blob_idx,
-                            sender,
-                            &gas_price,
-                            visible_height.get(),
-                            execution_context,
-                        );
+                    let (batch_receipt, next_checkpoint) = registered::apply_batch::<S, RT, B>(
+                        &self.runtime,
+                        state,
+                        &mut slot_gas_meter,
+                        batch,
+                        blob_idx,
+                        sender,
+                        &gas_price,
+                        visible_height.get(),
+                        execution_context,
+                    );
 
-                    slot_gas_meter = ret_slot_gas_meter;
                     // Metrics section
                     #[cfg(feature = "native")]
                     {

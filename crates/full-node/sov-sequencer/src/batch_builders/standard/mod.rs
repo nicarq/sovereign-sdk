@@ -125,8 +125,6 @@ where
             &seqdb_tx.tx,
         );
 
-        // Currently the sequencer doesn't take into account the slot gas limit.
-        let slot_gas_meter = SlotGasMeter::new(<<Z::Spec as Spec>::Gas>::MAX);
         let (auth_output, gas_meter) = match output_res {
             Ok(ok) => ok,
 
@@ -155,10 +153,12 @@ where
             );
         }
 
-        let (res, tx_scratchpad, _slot_gas_meter) = process_tx(
+        // Currently the sequencer doesn't take into account the slot gas limit.
+        let slot_gas_meter = SlotGasMeter::new(<<Z::Spec as Spec>::Gas>::MAX);
+        let (res, tx_scratchpad) = process_tx(
             &self.runtime,
-            slot_gas_meter,
             &gas_meter,
+            &slot_gas_meter,
             auth_output,
             &self.config.da_address,
             ctx.visible_height,
@@ -359,6 +359,8 @@ where
                 tx_scratchpad,
                 &gas_info.gas_price,
                 &auth_output.0.authenticated_tx,
+                // Currently the sequencer doesn't take into account the slot gas limit.
+                <<Z::Spec as Spec>::Gas>::MAX,
             );
 
             if let Err(err) = working_set.charge_gas(&gas_info.gas_used) {

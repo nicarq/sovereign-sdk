@@ -83,7 +83,12 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         );
     }
 
-    let mut working_set = WorkingSet::create_working_set(scratchpad, &gas_info.gas_price, tx);
+    let mut working_set = WorkingSet::create_working_set(
+        scratchpad,
+        &gas_info.gas_price,
+        tx,
+        slot_gas_meter.remaining_slot_gas().clone(),
+    );
 
     // Here we charge the gas for the transaction sig & pre-execution checks.
     if let Err(err) = working_set.charge_gas(&gas_info.gas_used) {
