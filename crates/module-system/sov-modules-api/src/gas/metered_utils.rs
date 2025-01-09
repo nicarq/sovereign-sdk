@@ -46,10 +46,14 @@ impl<'a, GU: Gas, Meter: GasMeter<GU>, Hasher: Digest<OutputSize = U32>>
 
     /// Update the [`MeteredHasher`] with the given data. Performs the same operation as [`Digest::update`] but charges gas.
     pub fn update(&mut self, data: &[u8]) -> Result<(), GasMeteringError<GU>> {
-        self.meter.charge_gas(
-            self.gas_to_charge_for_hash_update
-                .scalar_product(data.len() as u64),
-        )?;
+        let total_cost = self
+            .gas_to_charge_for_hash_update
+            .checked_scalar_product(&(data.len() as u64))
+            .ok_or(GasMeteringError::InvalidLength(
+                "Unable to hash data".to_string(),
+            ))?;
+
+        self.meter.charge_gas(&total_cost)?;
         self.inner.update(data);
         Ok(())
     }
@@ -138,11 +142,15 @@ impl<GU: Gas, Sign: Signature> MeteredSignature<GU, Sign> {
         meter: &mut impl GasMeter<GU>,
     ) -> Result<(), MeteredSigVerificationError<GU>> {
         let mut fixed_gas_cost = self.fixed_gas_to_charge_per_verification.clone();
-        let total_gas_cost = fixed_gas_cost.combine(
-            self.gas_to_charge_per_byte_for_verification
-                .clone()
-                .scalar_product(msg.len() as u64),
-        );
+
+        let dynamic_cost = self
+            .gas_to_charge_per_byte_for_verification
+            .checked_scalar_product(&(msg.len() as u64))
+            .ok_or(MeteredSigVerificationError::GasError(
+                GasMeteringError::InvalidLength("Unable to verify message".to_string()),
+            ))?;
+
+        let total_gas_cost = fixed_gas_cost.combine(&dynamic_cost);
 
         meter
             .charge_gas(total_gas_cost)
