@@ -6,6 +6,7 @@
 - #2147 Add handling for ignored transactions in the STF blueprint. No breaking change for customers of the SDK.
 - #2166 fixed batch submission to sequencer inside `sov-benchmarks`. This isn't a breaking change for customers of the SDK.
 - #2030 is a major overhaul of internals. Notable changes are:
+- #2030 is a major overhaul of sequencer internals. Notable changes are:
   - Removal of the `should_update_state` configuration option. If you previously enabled it, you can safely remove it.
   - Slight changes to error messages and error objects in the `/sequencer` REST API to provide more helpful information.
   - Fixes a major memory leak and performance problem inside the preferred sequencer that would cause it to slow down to a crawl.
