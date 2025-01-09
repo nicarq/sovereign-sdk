@@ -156,7 +156,6 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         &self,
         tx: FullyBakedTx,
     ) -> Result<AcceptedTx<<Ss::BatchBuilder as BatchBuilder>::Confirmation>, ErrorObject> {
-        info!(tx = hex::encode(&tx.data), "Accepting transaction");
         let mut batch_builder = self.batch_builder().await;
 
         self.accept_tx_and_notify(&mut batch_builder, tx).await
@@ -330,7 +329,7 @@ impl<Ss: SequencerSpec> Inner<Ss> {
         batch_builder: &mut MutexGuard<'_, Ss::BatchBuilder>,
         tx: FullyBakedTx,
     ) -> Result<AcceptedTx<<Ss::BatchBuilder as BatchBuilder>::Confirmation>, ErrorObject> {
-        tracing::debug!(tx = hex::encode(&tx.data), "Accepting transaction");
+        debug!(tx = hex::encode(&tx.data), "Accepting transaction");
 
         let accepted = batch_builder.accept_tx(tx).await?;
         self.notify_accepted_tx(&accepted);
@@ -391,7 +390,7 @@ impl<Ss: SequencerSpec> Inner<Ss> {
             tx_hashes,
         }) = batch_builder.peek_batch().await?
         else {
-            trace!("No batch available to send");
+            trace!("All assembled batches have been sent already; no more batches to send");
             return Ok(None);
         };
 
