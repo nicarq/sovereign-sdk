@@ -1,67 +1,100 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::transaction::TxDetails;
-use sov_modules_api::{BlobDataWithId, CryptoSpec, DispatchCall, Gas, Runtime, Spec};
+use sov_modules_api::{
+    BlobDataWithId, CryptoSpec, DispatchCall, Gas, PrivateKey as _, Runtime, Spec,
+};
 use sov_modules_stf_blueprint::get_gas_used;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_utils::runtime::traits::MinimalGenesis;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    TransactionAssertContext, TransactionType, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
+    TransactionAssertContext, TransactionTestCase, TransactionType, TEST_DEFAULT_MAX_FEE,
+    TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
 
 use super::basic::{BasicChangeLogEntry, BasicModuleRef, BasicTag};
 use crate::{Distribution, GeneratedMessage, MessageValidity, State};
 
+/// Prepare the testing environment immediately before execution.
 pub trait PrepareEnv {
+    /// Context that is used for setup.
     type Input;
 
+    /// Prepare the testing environment.
     fn prepare_env(&mut self, input: &mut Self::Input);
 }
 
+/// Assert the outcome of applying some state update.
 pub trait AssertOutcome {
+    /// The result of the state update.
     type Output;
 
+    /// Asserts the outcome based on the provided output.
     fn assert_outcome(&self, output: &Self::Output);
 }
 
+/// A trait representing a generated transaction.
 pub trait GeneratedTransaction
 where
     Self: Sized + PrepareEnv + AssertOutcome,
 {
+    /// The type of the transaction.
     type Transaction;
 
+    /// Context used to create the generated transaction.
     type Context<'a>;
 
+    /// Constructor used to create the instance.
     fn new(context: &mut Self::Context<'_>) -> Self;
 
+    /// The concrete transaction that was generated.
     fn transaction(&self) -> Self::Transaction;
 }
 
+/// Executes the implementor as a test case.
+pub trait RunTest<S: Spec, RT: Runtime<S>> {
+    /// Consumes self and executes a test case using self as input.
+    fn run_test(self, runner: &mut TestRunner<RT, S>);
+}
+
+/// A transaction outcome associated with the `max_fee` field.
 #[derive(Debug)]
 pub enum MaxFeeOutcome {
+    /// The provided max_fee was below the gas consumed. This should result in a failed transaction.
     Insufficient,
+    /// The provided max_fee was exactly the same as the gas consumed. This should result in a
+    /// successful transaction.
     Exact,
+    /// The provided max_fee exceeded the gas consumed. This should result in a successful
+    /// transaction.
     Excess,
 }
 
+/// Outcomes associated with fields on transactions.
 #[derive(Debug)]
 pub enum TransactionOutcome {
+    /// An outcome associated with the max_fee field.
     MaxFee(MaxFeeOutcome),
 }
 
 type DefaultSpecWithHasher<S> = DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>;
 
+/// Generated transaction implementation using the standard Sovereign SDK transaction struct.
 #[derive(Clone)]
 pub struct SovereignGeneratedTransaction<
     S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>, Da = MockDaSpec>,
     RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S> + DispatchCall,
 > {
+    /// The generated transaction to be executed by the test runner.
     pub tx: TransactionType<RT, S>,
+    /// The outcome that applying the transaction should produce.
     pub outcome: Arc<TransactionOutcome>,
+    /// The call message that was generated and used in [`Self::tx`].
     pub msg: GeneratedMessage<S, <RT as DispatchCall>::Decodable, BasicChangeLogEntry<S>>,
 }
 
@@ -104,7 +137,7 @@ where
             TransactionOutcome::MaxFee(max_fee_outcome) => match max_fee_outcome {
                 MaxFeeOutcome::Insufficient => assert!(
                     !output.tx_receipt.is_successful(),
-                    "Insufficient expected reverted receipt, found {:?}",
+                    "Insufficient expected tx to not be successful, found {:?}",
                     output.tx_receipt
                 ),
                 MaxFeeOutcome::Exact => assert!(
@@ -122,10 +155,15 @@ where
     }
 }
 
+/// Context used to create a [`SovereignGeneratedTransaction`] instance.
 pub struct SovereignContext<'a, S: Spec, RT: DispatchCall + Runtime<S>> {
+    /// A distribution of modules used to produce the call message.
     pub modules: Distribution<BasicModuleRef<S, RT>>,
+    /// Used to create arbitrary instances
     pub u: &'a mut arbitrary::Unstructured<'a>,
+    /// Generator state used for call message generation.
     pub call_generator_state: &'a mut State<S, BasicTag, ()>,
+    /// A distribution of outcomes that influences the outcome of executing the transaction.
     pub outcomes: Distribution<Arc<TransactionOutcome>>,
 }
 
@@ -171,5 +209,45 @@ where
 
     fn transaction(&self) -> Self::Transaction {
         self.tx.clone()
+    }
+}
+
+impl<S, RT> RunTest<S, RT> for SovereignGeneratedTransaction<S, RT>
+where
+    RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S> + DispatchCall,
+    S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>, Da = MockDaSpec>,
+{
+    fn run_test(mut self, runner: &mut TestRunner<RT, S>) {
+        self.prepare_env(runner);
+
+        let input = self.transaction();
+        let pubkey_for_nonce_to_decrement = match &input {
+            TransactionType::Plain { key, .. } => Some(key.pub_key()),
+            _ => None,
+        };
+        // we don't know ahead of time if the transaction is going to be skipped or reverted
+        // so we always run `execute_transaction` instead of `execute_skipped_transaction`
+        // and manually decrement the nonce ourselves if the tx was skipped
+        let should_decrement_nonce = Arc::new(AtomicBool::new(false));
+        let nonce_flag = should_decrement_nonce.clone();
+
+        runner.execute_transaction(TransactionTestCase {
+            input,
+            assert: Box::new(move |context, _state| {
+                self.assert_outcome(&context);
+
+                if context.tx_receipt.is_skipped() {
+                    nonce_flag.store(true, Ordering::SeqCst);
+                }
+            }),
+        });
+
+        if should_decrement_nonce.load(Ordering::SeqCst) {
+            if let Some(pk) = pubkey_for_nonce_to_decrement {
+                if let Some(n) = runner.nonces_mut().get_mut(&pk) {
+                    *n -= 1;
+                }
+            }
+        }
     }
 }

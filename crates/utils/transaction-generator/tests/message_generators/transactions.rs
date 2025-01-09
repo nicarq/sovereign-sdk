@@ -4,15 +4,14 @@ use sov_modules_api::prelude::*;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    generate_optimistic_runtime, TestSpec as S, TestUser, TransactionTestCase,
-    TEST_DEFAULT_USER_BALANCE,
+    generate_optimistic_runtime, TestSpec as S, TestUser, TEST_DEFAULT_USER_BALANCE,
 };
 use sov_transaction_generator::generators::bank::harness_interface::BankHarness;
 use sov_transaction_generator::generators::bank::BankMessageGenerator;
 use sov_transaction_generator::generators::basic::{BasicModuleRef, BasicTag};
 use sov_transaction_generator::generators::transaction::{
-    AssertOutcome, GeneratedTransaction, MaxFeeOutcome, PrepareEnv, SovereignContext,
-    SovereignGeneratedTransaction, TransactionOutcome,
+    GeneratedTransaction, MaxFeeOutcome, RunTest, SovereignContext, SovereignGeneratedTransaction,
+    TransactionOutcome,
 };
 use sov_transaction_generator::generators::value_setter::{
     ValueSetterHarness, ValueSetterMessageGenerator,
@@ -74,7 +73,7 @@ fn test_transaction_gas_usage() {
 
     let mut generated_txs = vec![];
 
-    for _ in 0..10 {
+    for _ in 0..40 {
         generated_txs.push(SovereignGeneratedTransaction::new(&mut context));
     }
 
@@ -99,14 +98,7 @@ fn test_transaction_gas_usage() {
         Default::default(),
     );
 
-    for mut generated_tx in generated_txs {
-        generated_tx.prepare_env(&mut runner);
-
-        runner.execute_transaction(TransactionTestCase {
-            input: generated_tx.transaction(),
-            assert: Box::new(move |context, _state| {
-                generated_tx.assert_outcome(&context);
-            }),
-        });
+    for generated_tx in generated_txs {
+        generated_tx.run_test(&mut runner);
     }
 }
