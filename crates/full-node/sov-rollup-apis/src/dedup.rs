@@ -8,8 +8,8 @@ use serde::Serialize;
 use sov_modules_api::prelude::anyhow;
 use sov_modules_api::rest::ApiState;
 use sov_modules_api::{ApiStateAccessor, CryptoSpec, PublicKey, Spec};
-use sov_nonces::Nonces;
 use sov_rest_utils::{errors, preconfigured_router_layers, ResponseObject};
+use sov_uniqueness::Uniqueness;
 
 /// Trait for the `/rollup/addresses/{address}/dedup` endpoint.
 ///
@@ -61,7 +61,7 @@ pub trait DeDupEndpoint<S: Spec>: Clone + Send + Sync + 'static {
 }
 
 /// Provides the `/rollup/addresses/{address}/dedup` endpoint utilising the sovereign provided
-/// `nonces` module.
+/// `uniqueness` module.
 #[derive(Clone)]
 pub struct NonceDeDupEndpoint<S: Spec> {
     state: ApiState<S>,
@@ -92,7 +92,7 @@ impl<S: Spec> DeDupEndpoint<S> for NonceDeDupEndpoint<S> {
     ) -> Result<Self::Response, Self::Error> {
         let pub_key = <S::CryptoSpec as CryptoSpec>::PublicKey::from_str(&address)?;
         let credential_id = pub_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
-        let nonce = Nonces::<S>::default()
+        let nonce = Uniqueness::<S>::default()
             .nonce(&credential_id, &mut state)
             .unwrap()
             .unwrap_or_default();

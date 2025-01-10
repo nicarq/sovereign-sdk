@@ -126,7 +126,7 @@ async fn test_simulation() {
                 },
             },
         ),
-        nonce: 0,
+        generation: 0,
         gas_price: None,
         sequencer: None,
     }

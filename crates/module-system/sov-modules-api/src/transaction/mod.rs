@@ -60,8 +60,8 @@ pub struct Transaction<R: TransactionCallable, S: Spec> {
     pub pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
     /// The runtime call of the transaction.     
     pub runtime_call: R::Call,
-    /// The nonce of the transaction.
-    pub nonce: u64,
+    /// The generation of the transaction (for uniqueness).
+    pub generation: u64,
     /// The transaction metadata. Contains gas parameters and the chain ID.
     pub details: TxDetails<S>,
 }
@@ -73,14 +73,14 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
         let pub_key =
             <<S::CryptoSpec as CryptoSpec>::PublicKey as BorshDeserialize>::deserialize(buf)?;
         let runtime_call = <R::Call>::deserialize(buf)?;
-        let nonce = <u64 as BorshDeserialize>::deserialize(buf)?;
+        let generation = <u64 as BorshDeserialize>::deserialize(buf)?;
         let details = <TxDetails<S> as BorshDeserialize>::deserialize(buf)?;
 
         let this = Self {
             signature,
             pub_key,
             runtime_call,
-            nonce,
+            generation,
             details,
         };
         tracing::trace!(transaction = ?this, "Deserialized transaction");
@@ -121,7 +121,7 @@ impl<R: TransactionCallable, S: Spec> PartialEq for Transaction<R, S> {
         self.signature == other.signature
             && self.pub_key == other.pub_key
             && self.runtime_call == other.runtime_call
-            && self.nonce == other.nonce
+            && self.generation == other.generation
             && self.details == other.details
     }
 }
@@ -133,8 +133,8 @@ pub struct TransactionWithoutCall<S: Spec> {
     pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
     /// The public key of the sender of the transaction.
     pub pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
-    /// The nonce of the transaction.
-    pub nonce: u64,
+    /// The generation of the transaction (for uniqueness).
+    pub generation: u64,
     /// The transaction metadata. Contains gas parameters and the chain ID.
     pub details: TxDetails<S>,
 }
@@ -143,13 +143,13 @@ impl<S: Spec> TransactionWithoutCall<S> {
     /// Construct a [`Transaction`] by adding back the appropriate CallMessage.
     pub fn with_call<R: TransactionCallable>(self, runtime_call: R::Call) -> Transaction<R, S> {
         let TransactionWithoutCall {
-            nonce,
+            generation,
             details,
             signature,
             pub_key,
         } = self;
         Transaction {
-            nonce,
+            generation,
             details,
             signature,
             pub_key,
@@ -224,14 +224,14 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
         pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
         runtime_call: R::Call,
         signature: <S::CryptoSpec as CryptoSpec>::Signature,
-        nonce: u64,
+        generation: u64,
         details: TxDetails<S>,
     ) -> Self {
         Self {
             signature,
             runtime_call,
             pub_key,
-            nonce,
+            generation,
             details,
         }
     }
@@ -240,14 +240,14 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
     pub fn split(self) -> (TransactionWithoutCall<S>, R::Call) {
         let Transaction {
             runtime_call,
-            nonce,
+            generation,
             details,
             signature,
             pub_key,
         } = self;
         (
             TransactionWithoutCall {
-                nonce,
+                generation,
                 details,
                 signature,
                 pub_key,
@@ -259,7 +259,7 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
     fn to_unsigned_transaction(&self) -> UnsignedTransaction<R, S> {
         UnsignedTransaction::new_with_details(
             self.runtime_call.clone(),
-            self.nonce,
+            self.generation,
             self.details.clone(),
         )
     }
@@ -293,8 +293,8 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
 pub struct UnsignedTransaction<R: TransactionCallable, S: Spec> {
     // The runtime call
     runtime_call: R::Call,
-    // The nonce
-    nonce: u64,
+    // The generation number
+    generation: u64,
     // Data related to fees and gas handling.
     details: TxDetails<S>,
 }
@@ -303,7 +303,7 @@ pub struct UnsignedTransaction<R: TransactionCallable, S: Spec> {
 impl<R: TransactionCallable, S: Spec> PartialEq for UnsignedTransaction<R, S> {
     fn eq(&self, other: &Self) -> bool {
         self.runtime_call == other.runtime_call
-            && self.nonce == other.nonce
+            && self.generation == other.generation
             && self.details == other.details
     }
 }
@@ -316,12 +316,12 @@ impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
         max_fee: u64,
-        nonce: u64,
+        generation: u64,
         gas_limit: Option<S::Gas>,
     ) -> Self {
         Self {
             runtime_call,
-            nonce,
+            generation,
             details: TxDetails {
                 max_priority_fee_bips,
                 max_fee,
@@ -334,12 +334,12 @@ impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
     /// Creates a new unsigned transaction with the provided metadata.
     pub const fn new_with_details(
         runtime_call: R::Call,
-        nonce: u64,
+        generation: u64,
         details: TxDetails<S>,
     ) -> Self {
         Self {
             runtime_call,
-            nonce,
+            generation,
             details,
         }
     }
@@ -355,7 +355,7 @@ impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
             pub_key,
             self.runtime_call,
             signature,
-            self.nonce,
+            self.generation,
             self.details,
         )
     }

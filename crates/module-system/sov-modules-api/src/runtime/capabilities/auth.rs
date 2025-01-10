@@ -223,10 +223,24 @@ pub enum UnregisteredAuthenticationError {
     OutOfGas(String),
 }
 
+/// The different types of data that can be used to verify transaction uniqueness
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum UniquenessData {
+    /// Nonce-based uniqueness: an account's transactions must have a unique and consecutive nonces
+    Nonce(u64),
+    /// Generation-based uniqueness: the last PAST_TRANSACTION_GENERATION generations are cached.
+    /// Transactions older than this buffer are invalid, transactions falling within it or with a
+    /// higher generation are valid but must have a unique hash within their generation
+    Generation(u64),
+}
+
 /// Data required to authorize a sov-transaction.
 pub struct AuthorizationData<S: Spec> {
     /// The nonce of the transaction.
-    pub nonce: u64,
+    pub uniqueness: UniquenessData,
+
+    /// The hash of the transaction.
+    pub tx_hash: TxHash,
 
     /// Credential identifier used to retrieve relevant rollup address.
     pub credential_id: CredentialId,
@@ -271,7 +285,7 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
     let default_address = (&pub_key).into();
     let credential_id = pub_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
     let credentials = Credentials::new(pub_key);
-    let nonce = tx.nonce;
+    let generation = tx.generation;
 
     let tx_and_raw_hash = AuthenticatedTransactionAndRawHash {
         raw_tx_hash,
@@ -281,7 +295,8 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
     Ok((
         tx_and_raw_hash,
         AuthorizationData {
-            nonce,
+            uniqueness: UniquenessData::Generation(generation),
+            tx_hash: raw_tx_hash,
             credential_id,
             credentials,
             default_address: Some(default_address),

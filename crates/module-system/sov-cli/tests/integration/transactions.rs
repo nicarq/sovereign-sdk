@@ -200,7 +200,7 @@ fn transaction_signed_properly_from_file() {
     let default_pubkey = &wallet_state.addresses.default_address().unwrap().pub_key;
 
     assert_eq!(default_pubkey, &signed_tx.pub_key);
-    assert_eq!(nonce, signed_tx.nonce);
+    assert_eq!(nonce, signed_tx.generation);
 
     assert_eq!(&runtime_call, &signed_tx.runtime_call);
 }

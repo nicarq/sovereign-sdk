@@ -3,7 +3,7 @@ use reth_primitives::TransactionSigned;
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::capabilities::{
     fatal_deserialization_error, AuthenticationOutput, AuthorizationData, FatalError,
-    TransactionAuthenticator,
+    TransactionAuthenticator, UniquenessData,
 };
 use sov_modules_api::macros::config_value;
 use sov_modules_api::runtime::capabilities::AuthenticationError;
@@ -63,7 +63,8 @@ where
 
     let ethereum_address: EthereumAddress = signer.into();
     let auth_data = AuthorizationData {
-        nonce,
+        uniqueness: UniquenessData::Nonce(nonce),
+        tx_hash: hash,
         credential_id,
         credentials,
         default_address: Some(S::Address::from_vm_address(ethereum_address)),

@@ -82,7 +82,7 @@ fn setup(
 #[derive(PartialEq, Eq)]
 enum TxStatus {
     Success,
-    BadNonce,
+    BadGeneration,
     BadChainId,
     BadSignature,
     BadSerialization,

@@ -881,7 +881,7 @@ components:
         sender_pub_key:
           type: string
           format: byte
-        nonce:
+        generation:
           type: integer
           format: uint64
         gas_price:
@@ -896,7 +896,7 @@ components:
           $ref: "#/components/schemas/TxDetails"
       required:
         - sender_pub_key
-        - nonce
+        - generation
         - encoded_call_message
         - details
     TxDetails:

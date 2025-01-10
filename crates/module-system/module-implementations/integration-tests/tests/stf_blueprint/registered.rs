@@ -155,7 +155,7 @@ fn execute_batch_of_valid_and_invalid_tx_test() {
         TxStatus::BadSignature,
         TxStatus::Success,
         TxStatus::BadChainId,
-        TxStatus::BadNonce,
+        TxStatus::BadGeneration,
         TxStatus::Success,
         TxStatus::Reverted,
     ];
@@ -167,14 +167,17 @@ fn execute_batch_of_valid_and_invalid_tx_test() {
 #[serial]
 fn execute_batch_of_invalid_tx_test() {
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
+    // BadGeneration is only possible if an account already had at least one valid tx, so we cannot
+    // test it here
     let tx_statuses = vec![
         TxStatus::OutOfGas,
         TxStatus::BadChainId,
-        TxStatus::BadNonce,
-        TxStatus::BadNonce,
         TxStatus::BadChainId,
         TxStatus::BadSignature,
         TxStatus::SignerDoesNotExist,
+        TxStatus::BadChainId,
+        TxStatus::OutOfGas,
+        TxStatus::BadSignature,
     ];
     check_txs(tx_statuses, priority_fee_bips);
 }
@@ -282,36 +285,38 @@ mod helpers {
         not_admin: &TestUser<S>,
         seq_da_address: <<S as Spec>::Da as DaSpec>::Address,
     ) -> MockBlob {
-        let mut nonce = 0;
-        let mut reverted_tx_nonce = 0;
-        let mut bad_signer_nonce = 0;
+        let mut generation = 10;
         let mut txs = Vec::new();
         for status in statuses {
             match status {
                 TxStatus::Success => {
                     let tx = create_tx_valid(
-                        nonce,
+                        generation,
                         max_priority_fee_bips,
                         admin,
                         config_value!("CHAIN_ID"),
                         encode_message(),
                     );
                     txs.push(encode(tx));
-                    nonce += 1;
+                    generation += 1;
                 }
-                TxStatus::BadNonce => {
-                    let tx = create_tx_valid(
-                        9999,
-                        max_priority_fee_bips,
-                        admin,
-                        config_value!("CHAIN_ID"),
-                        encode_message(),
-                    );
-                    txs.push(encode(tx));
+                TxStatus::BadGeneration => {
+                    if generation == 10 {
+                        panic!("The first transaction will always have a valid generation");
+                    } else {
+                        let tx = create_tx_valid(
+                            0,
+                            max_priority_fee_bips,
+                            admin,
+                            config_value!("CHAIN_ID"),
+                            encode_message(),
+                        );
+                        txs.push(encode(tx));
+                    }
                 }
                 TxStatus::BadChainId => {
                     let tx = create_tx_valid(
-                        nonce,
+                        generation,
                         max_priority_fee_bips,
                         admin,
                         config_value!("CHAIN_ID") + 1,
@@ -322,7 +327,7 @@ mod helpers {
 
                 TxStatus::BadSignature => {
                     let tx = create_tx_bad_sig(
-                        nonce,
+                        generation,
                         max_priority_fee_bips,
                         admin,
                         config_value!("CHAIN_ID"),
@@ -332,7 +337,7 @@ mod helpers {
                 }
                 TxStatus::OutOfGas => {
                     let tx = create_tx_out_of_gas(
-                        nonce,
+                        generation,
                         max_priority_fee_bips,
                         admin,
                         config_value!("CHAIN_ID"),
@@ -343,14 +348,13 @@ mod helpers {
                 TxStatus::Reverted => {
                     // A call message send by not admin will be reverted.
                     let tx = create_tx_valid(
-                        reverted_tx_nonce,
+                        0,
                         max_priority_fee_bips,
                         not_admin,
                         config_value!("CHAIN_ID"),
                         encode_message(),
                     );
                     txs.push(encode(tx));
-                    reverted_tx_nonce += 1;
                 }
                 TxStatus::BadSerialization => {
                     let tx = FullyBakedTx::new(vec![1, 2, 3]);
@@ -358,13 +362,12 @@ mod helpers {
                 }
                 TxStatus::SignerDoesNotExist => {
                     let tx = create_tx_bad_sender(
-                        bad_signer_nonce,
+                        0,
                         max_priority_fee_bips,
                         config_value!("CHAIN_ID"),
                         encode_message(),
                     );
                     txs.push(encode(tx));
-                    bad_signer_nonce += 1;
                 }
             }
         }

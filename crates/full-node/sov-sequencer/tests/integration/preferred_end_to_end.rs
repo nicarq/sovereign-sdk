@@ -56,7 +56,7 @@ enum TestingAction {
     /// A client submits an **invalid** transactions, asking for it to be
     /// included in the next batch (it won't, as it's invalid).
     #[weight(2)]
-    TryAcceptBadTx { wrong_nonce: WrongNonce },
+    TryAcceptBadTx { invalid_reason: InvalidGeneration },
     #[weight(3)]
     ProduceBatch {
         #[strategy(0..5usize)]
@@ -89,12 +89,9 @@ enum TestingAction {
 
 /// An invalid nonce.
 #[derive(Debug, Clone, Arbitrary)]
-enum WrongNonce {
-    ExpectedPlusOne,
-    ExpectedMinusOne,
-    // Zero is never a valid nonce for this test because there's initialization
-    // transactions that "burn" the zero nonce.
-    Zero,
+enum InvalidGeneration {
+    DuplicateTransaction,
+    TooOld,
 }
 
 async fn new_test_rollup(
@@ -126,7 +123,7 @@ async fn new_test_rollup(
 struct TestState {
     value_by_slot_number: HashMap<SlotNumber, u64>,
     current_slot_number: SlotNumber,
-    next_nonce: u64,
+    next_generation: u64,
     current_value: u64,
 }
 
@@ -246,16 +243,16 @@ async fn api_state_race_condition_regression() {
         TestingAction::AcceptTx,
         TestingAction::AcceptTx,
         TestingAction::TryAcceptBadTx {
-            wrong_nonce: WrongNonce::ExpectedPlusOne,
+            invalid_reason: InvalidGeneration::DuplicateTransaction,
         },
         TestingAction::TryAcceptBadTx {
-            wrong_nonce: WrongNonce::Zero,
+            invalid_reason: InvalidGeneration::TooOld,
         },
         TestingAction::AcceptTx,
         TestingAction::AcceptTx,
         TestingAction::QuerySetValue,
         TestingAction::TryAcceptBadTx {
-            wrong_nonce: WrongNonce::Zero,
+            invalid_reason: InvalidGeneration::TooOld,
         },
         TestingAction::NewDaSlot {
             _non_preferred_batches: vec![],
@@ -266,7 +263,7 @@ async fn api_state_race_condition_regression() {
         TestingAction::QuerySetValue,
         TestingAction::ProduceBatch { num_txs: 4 },
         TestingAction::TryAcceptBadTx {
-            wrong_nonce: WrongNonce::Zero,
+            invalid_reason: InvalidGeneration::TooOld,
         },
         TestingAction::ProduceBatch { num_txs: 4 },
         TestingAction::QuerySetValue,
@@ -338,7 +335,10 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
     let test_rollup = new_test_rollup(dir.clone(), genesis_params, 0).await;
     let client = test_rollup.api_client.clone();
 
-    let mut test_state = TestState::default();
+    let mut test_state = TestState {
+        next_generation: 10, // initialize to a higher generation so that "invalid generation" actions are always possible
+        ..Default::default()
+    };
 
     {
         let txs = generate_txs(admin.private_key.clone()).clone();
@@ -349,7 +349,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
                 })
                 .await
                 .unwrap();
-            test_state.next_nonce += 1;
+            test_state.next_generation += 1;
         }
     }
 
@@ -357,7 +357,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
     {
         let tx = tx_set_value(
             &admin.private_key,
-            test_state.next_nonce,
+            test_state.next_generation,
             test_state.current_value,
         );
         client
@@ -366,7 +366,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
             })
             .await
             .unwrap();
-        test_state.next_nonce += 1;
+        test_state.next_generation += 1;
     }
 
     let mut test_rollup = Some(test_rollup);
@@ -401,9 +401,12 @@ async fn run_action_against_test_rollup(
     action: TestingAction,
     test_state: &mut TestState,
 ) -> anyhow::Result<TestRollup<TestBlueprint>> {
-    assert!(test_state.next_nonce > 0);
+    assert!(test_state.next_generation > 0);
 
-    info!(?action, test_state.next_nonce, "Executing testing action");
+    info!(
+        ?action,
+        test_state.next_generation, "Executing testing action"
+    );
 
     match action {
         TestingAction::Sleep { duration_ms } => {
@@ -419,13 +422,21 @@ async fn run_action_against_test_rollup(
 
             return Ok(new_test_rollup(storage_dir, genesis_params, 0).await);
         }
-        TestingAction::TryAcceptBadTx { wrong_nonce } => {
-            let bad_nonce = match wrong_nonce {
-                WrongNonce::ExpectedMinusOne => test_state.next_nonce - 1,
-                WrongNonce::ExpectedPlusOne => test_state.next_nonce + 1,
-                WrongNonce::Zero => 0,
+        TestingAction::TryAcceptBadTx { invalid_reason } => {
+            let tx = match invalid_reason {
+                InvalidGeneration::DuplicateTransaction => tx_set_value(
+                    key,
+                    test_state.next_generation - 1,
+                    test_state.current_value,
+                ),
+                InvalidGeneration::TooOld => {
+                    let bad_generation = test_state.next_generation
+                        - 1
+                        - config_value!("PAST_TRANSACTION_GENERATIONS");
+                    println!("Generating generation {bad_generation} for reason::TooOld");
+                    tx_set_value(key, bad_generation, test_state.current_value + 1)
+                }
             };
-            let tx = tx_set_value(key, bad_nonce, test_state.current_value + 1);
 
             anyhow::ensure!(test_rollup
                 .api_client
@@ -436,9 +447,13 @@ async fn run_action_against_test_rollup(
                 .is_err());
         }
         TestingAction::AcceptTx => {
-            let tx = tx_set_value(key, test_state.next_nonce, test_state.current_value + 1);
+            let tx = tx_set_value(
+                key,
+                test_state.next_generation,
+                test_state.current_value + 1,
+            );
 
-            test_state.next_nonce += 1;
+            test_state.next_generation += 1;
             test_state.current_value += 1;
 
             test_rollup
@@ -451,12 +466,16 @@ async fn run_action_against_test_rollup(
         TestingAction::ProduceBatch { num_txs } => {
             let mut txs = vec![];
             for _ in 0..num_txs {
-                let tx = tx_set_value(key, test_state.next_nonce, test_state.current_value + 1);
-                test_state.next_nonce += 1;
+                let tx = tx_set_value(
+                    key,
+                    test_state.next_generation,
+                    test_state.current_value + 1,
+                );
                 test_state.current_value += 1;
 
                 txs.push(tx.data);
             }
+            test_state.next_generation += 1;
 
             test_rollup.client.publish_batch(txs, true).await?;
             test_state.current_slot_number.incr();

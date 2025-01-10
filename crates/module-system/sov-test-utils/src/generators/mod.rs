@@ -31,8 +31,8 @@ pub struct Message<S: Spec, Mod: Module> {
     pub content: Mod::CallMessage,
     /// Data related to fees and gas handling.
     pub details: TxDetails<S>,
-    /// The message nonce.
-    pub nonce: u64,
+    /// The message generation number.
+    pub generation: u64,
 }
 
 impl<S: Spec, Mod: Module> Message<S, Mod> {
@@ -43,7 +43,7 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
         max_priority_fee_bips: PriorityFeeBips,
         max_fee: u64,
         gas_limit: Option<S::Gas>,
-        nonce: u64,
+        generation: u64,
     ) -> Self {
         Self {
             sender_key,
@@ -54,7 +54,7 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
                 max_fee,
                 gas_limit,
             },
-            nonce,
+            generation,
         }
     }
 
@@ -70,7 +70,7 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
                 self.details.chain_id,
                 self.details.max_priority_fee_bips,
                 self.details.max_fee,
-                self.nonce,
+                self.generation,
                 self.details.gas_limit,
             ),
         )

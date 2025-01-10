@@ -35,7 +35,6 @@ use sov_modules_stf_blueprint::{
     get_gas_used, StfBlueprint, TransactionReceipt, TxReceiptContents,
 };
 pub use sov_modules_stf_blueprint::{GenesisParams, Runtime};
-pub use sov_nonces::Nonces;
 pub use sov_paymaster::Paymaster;
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
@@ -43,6 +42,7 @@ use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
+pub use sov_uniqueness::Uniqueness;
 pub use sov_value_setter::{
     CallMessage as ValueSetterCallMessage, Event as ValueSetterEvent, ValueSetter,
     ValueSetterConfig,
