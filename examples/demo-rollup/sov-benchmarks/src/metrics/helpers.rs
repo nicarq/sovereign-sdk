@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::net::SocketAddr;
 use std::pin::Pin;
 
 use anyhow::ensure;
@@ -21,7 +22,10 @@ use crate::bench_runner::{BenchLogs, BenchMessage, BenchRollup, BenchRollupBuild
 
 /// Setups the rollup for the benchmarks.
 /// We give the maximum possible gas balance to the prover and sequencer to ensure that they can pay for the transactions.
-pub async fn setup(genesis_config: GenesisConfig<S>) -> anyhow::Result<BenchRollup> {
+pub async fn setup(
+    genesis_config: GenesisConfig<S>,
+    telegraf_address: SocketAddr,
+) -> anyhow::Result<BenchRollup> {
     let sequencer_da_address = genesis_config.sequencer_registry.seq_da_address;
     let prover_address = genesis_config
         .prover_incentives
@@ -39,6 +43,7 @@ pub async fn setup(genesis_config: GenesisConfig<S>) -> anyhow::Result<BenchRoll
     )
     .set_config(|config| {
         config.prover_address = prover_address.to_string();
+        config.telegraf_address = telegraf_address;
     })
     .set_da_config(|da_config| {
         da_config.sender_address = sequencer_da_address;

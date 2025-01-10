@@ -6632,6 +6632,7 @@ dependencies = [
  "serde",
  "sov-cycle-utils",
  "sov-rollup-interface",
+ "strum 0.26.3",
  "tokio",
  "tracing",
 ]

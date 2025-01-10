@@ -51,6 +51,7 @@ pub struct RollupBuilderConfig<S: Spec> {
     pub aggregated_proof_block_jump: usize,
     pub max_infos_in_db: u64,
     pub max_channel_size: u64,
+    pub telegraf_address: SocketAddr,
     pub rollup_prover_config: RollupProverConfig<S::InnerZkvm>,
     /// This is wrapped in an [`Arc`] to enable re-use of the same directory
     /// when dropping a [`TestRollup`] and creating a new one. The pattern
@@ -115,6 +116,7 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
                     zkvm_host_args,
                 ),
                 storage: Arc::new(tempfile::tempdir().unwrap()),
+                telegraf_address: MonitoringConfig::standard().telegraf_address,
             },
         }
         .set_da_connection_string()
@@ -257,7 +259,7 @@ where
             },
 
             monitoring: MonitoringConfig {
-                telegraf_address: SocketAddr::from_str("127.0.0.1:8094").unwrap(),
+                telegraf_address: self.config.telegraf_address,
                 max_datagram_size: None,
                 max_pending_metrics: None,
             },

@@ -20,6 +20,8 @@ sov-modules-stf-blueprint = { path = "../../../crates/module-system/sov-modules-
 sov-transaction-generator = { path = "../../../crates/utils/transaction-generator" }
 sov-modules-rollup-blueprint = { path = "../../../crates/module-system/sov-modules-rollup-blueprint", default-features = false }
 sov-node-client = { path = "../../../crates/utils/sov-node-client" }
+sov-metrics = { path = "../../../crates/full-node/sov-metrics", default-features = false }
+
 
 sov-mock-da = { path = "../../../crates/adapters/mock-da", features = ["arbitrary", "native"] }
 sov-celestia-adapter = { path = "../../../crates/adapters/celestia", features = ["arbitrary", "bench", "native"] }
@@ -27,6 +29,9 @@ sov-celestia-adapter = { path = "../../../crates/adapters/celestia", features = 
 sov-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "7c3995c0a517465f28f915e9da22f54960198503" }
 
 demo-stf = { path = "../stf", features = ["test-utils"] }
+reqwest = { version = "0.12", features = [
+    "rustls-tls", "stream",
+], default-features = false }
 
 sov-risc0-adapter = { path = "../../../crates/adapters/risc0", features = ["arbitrary", "bench", "native"] }
 sov-sp1-adapter = { path = "../../../crates/adapters/sp1", features = ["arbitrary", "bench", "native"] }
