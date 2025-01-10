@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::num::NonZero;
 
 use derive_more::derive::Display;
 use reqwest::Client;
@@ -553,7 +554,7 @@ where
                         } => borsh::to_vec(&PreferredBatchData {
                             sequence_number,
                             data: raw_txns,
-                            visible_slots_to_advance: slots_to_advance as u8,
+                            visible_slots_to_advance: NonZero::new(slots_to_advance).unwrap(),
                         })
                         .unwrap(),
                         SequencerInfo::Regular => borsh::to_vec(&raw_txns).unwrap(),

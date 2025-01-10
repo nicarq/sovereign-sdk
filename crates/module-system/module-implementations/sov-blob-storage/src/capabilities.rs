@@ -502,14 +502,14 @@ impl<S: Spec> BlobStorage<S> {
                 "Requested to advance slots"
             );
 
-            if preferred_batch.visible_slots_to_advance as u64 > max_slots_to_advance {
+            if preferred_batch.visible_slots_to_advance.get() as u64 > max_slots_to_advance {
                 warn!(
                     "Preferred sequencer requested {} slots, but we can only advance {} slots",
                     preferred_batch.visible_slots_to_advance, max_slots_to_advance
                 );
                 max_slots_to_advance
             } else {
-                std::cmp::max(preferred_batch.visible_slots_to_advance as u64, 1)
+                preferred_batch.visible_slots_to_advance.get() as u64
             }
         } else {
             // If there's no preferred blob, advance only if the we would otherwise exceed the maximum deferred slots count

@@ -1,3 +1,4 @@
+use std::num::NonZero;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use sov_blob_storage::PreferredBatchData;
@@ -182,7 +183,7 @@ impl<
         let serialized_batch = borsh::to_vec(&PreferredBatchData {
             sequence_number,
             data: txs,
-            visible_slots_to_advance: 1,
+            visible_slots_to_advance: NonZero::new(1).unwrap(),
         })
         .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
