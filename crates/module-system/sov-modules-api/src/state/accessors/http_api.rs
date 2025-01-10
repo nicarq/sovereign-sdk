@@ -144,7 +144,7 @@ impl<S: Spec> EventContainer for ApiStateAccessor<S> {
 impl<S: Spec + 'static> ApiStateAccessor<S> {
     /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with a gas price of zero at the [`StateCheckpoint::rollup_height_to_access`].
     pub fn new(
-        state_checkpoint: &StateCheckpoint<S::Storage>,
+        state_checkpoint: &StateCheckpoint<S>,
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
     ) -> Self {
         Self::new_with_price(state_checkpoint, kernel, <S::Gas as Gas>::Price::ZEROED)
@@ -162,7 +162,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     /// As of 2024-01-07, **historical** queries for soft-confirmed state that
     /// hasn't been processed by the node yet are not supported.
     pub fn new_with_height(
-        state_checkpoint: &StateCheckpoint<S::Storage>,
+        state_checkpoint: &StateCheckpoint<S>,
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
         visible_slot_number: Option<VisibleSlotNumber>,
     ) -> Self {
@@ -176,7 +176,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
 
     /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with the provided gas price. The rollup height is set to [`StateCheckpoint::rollup_height_to_access`].
     pub fn new_with_price(
-        state_checkpoint: &StateCheckpoint<S::Storage>,
+        state_checkpoint: &StateCheckpoint<S>,
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
         gas_price: <S::Gas as Gas>::Price,
     ) -> Self {
@@ -185,7 +185,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
 
     /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with the provided gas price.
     pub fn new_with_price_and_height(
-        state_checkpoint: &StateCheckpoint<S::Storage>,
+        state_checkpoint: &StateCheckpoint<S>,
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
         visible_slot_number: Option<VisibleSlotNumber>,
         gas_price: <S::Gas as Gas>::Price,
@@ -236,7 +236,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     /// likely should never be exposed over-the-wire e.g. as part of the API.
     #[cfg(feature = "test-utils")]
     pub fn new_with_custom_price_at_true_slot_number(
-        state_checkpoint: &StateCheckpoint<S::Storage>,
+        state_checkpoint: &StateCheckpoint<S>,
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
         slot_num: SlotNumber,
         gas_price: <S::Gas as Gas>::Price,

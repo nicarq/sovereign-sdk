@@ -206,8 +206,8 @@ pub trait InjectedControlFlow<Receipt, S: Spec> {
     fn post_tx(
         &self,
         provisional_outcome: ProvisionalSequencerOutcome<Receipt>,
-        dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S::Storage>>,
-    ) -> (StateCheckpoint<S::Storage>, TxControlFlow<Receipt>);
+        dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S>>,
+    ) -> (StateCheckpoint<S>, TxControlFlow<Receipt>);
 }
 
 /// A batch that can be processed incrementally
@@ -236,8 +236,8 @@ impl<R, S: Spec> InjectedControlFlow<R, S> for NoOpControlFlow {
     fn post_tx(
         &self,
         provisional_outcome: ProvisionalSequencerOutcome<R>,
-        dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S::Storage>>,
-    ) -> (StateCheckpoint<S::Storage>, TxControlFlow<R>) {
+        dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S>>,
+    ) -> (StateCheckpoint<S>, TxControlFlow<R>) {
         match provisional_outcome.execution_status {
             MaybeExecuted::Executed(receipt) => (
                 dirty_scratchpad.commit(),

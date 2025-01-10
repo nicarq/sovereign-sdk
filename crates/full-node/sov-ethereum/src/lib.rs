@@ -120,7 +120,7 @@ where
     #[cfg(feature = "local")]
     fn api_state_accessor(&self) -> ApiStateAccessor<S> {
         let runtime = RT::default();
-        let empty_checkpoint = StateCheckpoint::new::<S, _>(
+        let empty_checkpoint = StateCheckpoint::new(
             self.state_update.borrow().storage.clone(),
             &runtime.kernel(),
         );
@@ -237,7 +237,7 @@ where
     rpc.register_async_method("eth_gasPrice", |_, ethereum, _| async move {
         let price = {
             let runtime = RT::default();
-            let empty_checkpoint = StateCheckpoint::new::<S, _>(
+            let empty_checkpoint = StateCheckpoint::new(
                 ethereum.state_update.borrow().storage.clone(),
                 &runtime.kernel(),
             );

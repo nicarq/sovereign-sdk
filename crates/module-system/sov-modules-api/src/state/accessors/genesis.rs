@@ -1,5 +1,5 @@
 use sov_rollup_interface::common::SlotNumber;
-use sov_state::{CompileTimeNamespace, EventContainer, IsValueCached, SlotKey, SlotValue, Storage};
+use sov_state::{CompileTimeNamespace, EventContainer, IsValueCached, SlotKey, SlotValue};
 
 use super::checkpoints::StateCheckpoint;
 use super::seal::CachedAccessor;
@@ -12,14 +12,14 @@ use crate::{
 /// A special state accessor which can only be used at genesis.
 /// Since genesis is unproven, this state accessor may read and write to every namespace, and it is not metered.
 pub struct GenesisStateAccessor<'a, S: Spec> {
-    checkpoint: &'a mut StateCheckpoint<S::Storage>,
+    checkpoint: &'a mut StateCheckpoint<S>,
     pub(super) events: Vec<TypedEvent>,
     gas_meter: BasicGasMeter<S>,
 }
 
-impl<Store: Storage> StateCheckpoint<Store> {
+impl<S: Spec> StateCheckpoint<S> {
     /// Produces an unmetered [`GenesisStateAccessor`] from a [`StateCheckpoint`] for genesis.
-    pub fn to_genesis_state_accessor<G: Genesis, S: Spec<Storage = Store>>(
+    pub fn to_genesis_state_accessor<G: Genesis>(
         &mut self,
         // This argument prevents this method from being called outside of genesis.
         _config: &G::Config,

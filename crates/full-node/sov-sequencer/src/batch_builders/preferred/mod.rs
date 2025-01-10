@@ -107,8 +107,8 @@ fn confirmation<Z: RtAwareBatchBuilderSpec>(
 /// A batch builder with instant transaction confirmation.
 pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     db: PreferredBbDb<Z::Spec, Z::Rt>,
-    checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
-    checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
+    checkpoint: Option<StateCheckpoint<Z::Spec>>,
+    checkpoint_sender: watch::Sender<StateCheckpoint<Z::Spec>>,
     api_state: ApiState<Z::Spec>,
     da_sync_state: Arc<DaSyncState>,
     next_event_number: u64,
@@ -469,9 +469,9 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
     async fn replay_batch(
         &mut self,
         batch: &WithCachedTxHashes<PreferredBatchData>,
-        mut checkpoint: StateCheckpoint<<Z::Spec as Spec>::Storage>,
+        mut checkpoint: StateCheckpoint<Z::Spec>,
         is_complete: bool,
-    ) -> StateCheckpoint<<Z::Spec as Spec>::Storage> {
+    ) -> StateCheckpoint<Z::Spec> {
         for (tx, tx_hash) in batch.inner.data.iter().zip(batch.tx_hashes.iter()) {
             trace!(
                 tx_hash = %tx_hash,
@@ -542,7 +542,7 @@ where
 }
 
 type AcceptTxResult<Z> = (
-    StateCheckpoint<<<Z as RtAwareBatchBuilderSpec>::Spec as Spec>::Storage>,
+    StateCheckpoint<<Z as RtAwareBatchBuilderSpec>::Spec>,
     Result<AcceptedTx<Confirmation<Z>>, ErrorObject>,
 );
 
@@ -570,7 +570,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
     pub const MAX_BUFFERED_TXS: usize = 1;
 
     pub fn new(
-        checkpoint: StateCheckpoint<<<Z as RtAwareBatchBuilderSpec>::Spec as Spec>::Storage>,
+        checkpoint: StateCheckpoint<<Z as RtAwareBatchBuilderSpec>::Spec>,
         initial_state_root: <<Z::Spec as Spec>::Storage as Storage>::Root,
         additional_blobs: Vec<AsyncBlobAndSender<Z>>,
         result_sender: Sender<TxResult<Z>>,
@@ -619,7 +619,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
 
     #[allow(clippy::too_many_arguments)]
     fn start_background_loop(
-        checkpoint: StateCheckpoint<<Z::Spec as Spec>::Storage>,
+        checkpoint: StateCheckpoint<Z::Spec>,
         tx_receiver: Receiver<FullyBakedTx>,
         result_sender: Sender<TxResult<Z>>,
         additional_blobs: Vec<AsyncBlobAndSender<Z>>,
@@ -697,7 +697,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
     /// 2. Starting a new background task
     async fn move_to_next_slot(
         &mut self,
-        new_checkpoint: StateCheckpoint<<Z::Spec as Spec>::Storage>,
+        new_checkpoint: StateCheckpoint<Z::Spec>,
         additional_blobs: Vec<AsyncBlobAndSender<Z>>,
         state_root: Option<<<Z::Spec as Spec>::Storage as Storage>::Root>,
     ) {
@@ -734,7 +734,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
     async fn tx_confirmation(
         &mut self,
         baked_tx: FullyBakedTx,
-        mut checkpoint: StateCheckpoint<<Z::Spec as Spec>::Storage>,
+        mut checkpoint: StateCheckpoint<Z::Spec>,
         next_event_number: u64,
     ) -> AcceptTxResult<Z> {
         let call = match Z::Rt::decode_serialized_tx(&self.runtime, &baked_tx) {

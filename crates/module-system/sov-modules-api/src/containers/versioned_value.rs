@@ -2,11 +2,11 @@ use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::common::SlotNumber;
-use sov_state::{BorshCodec, Kernel, Namespace, Prefix, StateCodec, StateItemCodec, Storage};
+use sov_state::{BorshCodec, Kernel, Namespace, Prefix, StateCodec, StateItemCodec};
 use unwrap_infallible::UnwrapInfallible;
 
 use super::map::NamespacedStateMap;
-use crate::{KernelStateAccessor, KernelWriter, StateReader, VersionReader};
+use crate::{KernelStateAccessor, KernelWriter, Spec, StateReader, VersionReader};
 
 /// A `versioned` value stored in kernel state. The semantics of this type are different
 /// depending on the priveleges of the accessor. For a standard ("user space") interaction
@@ -72,7 +72,7 @@ where
     }
 
     /// Only the kernel working set can write to versioned values
-    pub fn set<S: Storage>(
+    pub fn set<S: Spec>(
         &self,
         key: &SlotNumber,
         value: &V,

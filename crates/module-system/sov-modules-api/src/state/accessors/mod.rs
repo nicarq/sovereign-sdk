@@ -92,8 +92,8 @@ pub trait StateProvider<S: Spec>:
     fn to_tx_scratchpad(self) -> TxScratchpad<S, Self>;
 }
 
-impl<S: Spec> StateProvider<S> for StateCheckpoint<S::Storage> {
-    fn to_tx_scratchpad(self) -> TxScratchpad<S, StateCheckpoint<S::Storage>> {
+impl<S: Spec> StateProvider<S> for StateCheckpoint<S> {
+    fn to_tx_scratchpad(self) -> TxScratchpad<S, StateCheckpoint<S>> {
         TxScratchpad {
             inner: RevertableWriter::new(self),
             phantom: PhantomData,

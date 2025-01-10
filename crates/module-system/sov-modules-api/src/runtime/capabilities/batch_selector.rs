@@ -81,7 +81,7 @@ pub trait BlobSelector {
     fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
-        state: &mut KernelStateAccessor<'k, <Self::Spec as Spec>::Storage>,
+        state: &mut KernelStateAccessor<'k, Self::Spec>,
     ) -> anyhow::Result<BlobSelectorOutput<Self::Spec, Self::BlobType>>
     where
         I: IntoIterator<
@@ -89,10 +89,7 @@ pub trait BlobSelector {
         >;
 
     /// Implementors that don't support preferred blobs SHOULD panic.
-    fn next_sequence_number(
-        &self,
-        _state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
-    ) -> u64 {
+    fn next_sequence_number(&self, _state: &mut KernelStateAccessor<'_, Self::Spec>) -> u64 {
         panic!("Kernel does not support preferred blobs. Please change kernel type.")
     }
 }

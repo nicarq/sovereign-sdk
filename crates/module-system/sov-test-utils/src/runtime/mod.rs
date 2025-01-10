@@ -119,9 +119,9 @@ pub struct TestRunner<RT: Runtime<S>, S: Spec> {
     state_root: <S::Storage as Storage>::Root,
     storage_manager: SimpleStorageManager<DefaultSpecWithHasher<S>>,
     /// A channel to send the storage over. This should be subscribed to the same channel as [`Self::checkpoint_receiver`].
-    checkpoint_sender: watch::Sender<StateCheckpoint<S::Storage>>,
+    checkpoint_sender: watch::Sender<StateCheckpoint<S>>,
     /// The corresponding receiving end of the channel.
-    checkpoint_receiver: watch::Receiver<StateCheckpoint<S::Storage>>,
+    checkpoint_receiver: watch::Receiver<StateCheckpoint<S>>,
     axum_server: axum_server::Handle,
     /// Test runner configuration.
     pub config: RunnerConfig<S::Da>,
@@ -285,7 +285,7 @@ where
         let runtime = self.runtime();
         let kernel = runtime.kernel();
 
-        let mut state_checkpoint = StateCheckpoint::<S::Storage>::new(stf_state.clone(), &kernel);
+        let mut state_checkpoint = StateCheckpoint::<S>::new(stf_state.clone(), &kernel);
 
         let base_fee_per_gas = runtime
             .chain_state()
@@ -304,7 +304,7 @@ where
         let runtime = self.runtime();
         let kernel = runtime.kernel();
 
-        let mut state_checkpoint = StateCheckpoint::<S::Storage>::new(stf_state.clone(), &kernel);
+        let mut state_checkpoint = StateCheckpoint::<S>::new(stf_state.clone(), &kernel);
 
         let base_fee_per_gas = runtime
             .chain_state()
@@ -384,12 +384,12 @@ where
 
     /// TODO(@theochap): A temporary solution until `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1192` is resolved.
     /// Updates the state of the rollup by committing the changes of the given closure.
-    pub fn __apply_to_state(&mut self, query: impl FnOnce(&mut StateCheckpoint<S::Storage>)) {
+    pub fn __apply_to_state(&mut self, query: impl FnOnce(&mut StateCheckpoint<S>)) {
         let stf_state = self.storage_manager.create_storage();
 
         let runtime = self.runtime();
 
-        let mut state = StateCheckpoint::<S::Storage>::new(stf_state.clone(), &runtime.kernel());
+        let mut state = StateCheckpoint::<S>::new(stf_state.clone(), &runtime.kernel());
 
         let mut kernel_state = runtime.kernel().accessor(&mut state);
 

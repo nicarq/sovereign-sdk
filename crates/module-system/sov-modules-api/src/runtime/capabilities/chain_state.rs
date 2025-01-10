@@ -17,7 +17,7 @@ pub trait ChainState {
         slot_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
         validity_condition: &<<Self::Spec as Spec>::Da as DaSpec>::ValidityCondition,
         pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
-        state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
+        state: &mut KernelStateAccessor<'_, Self::Spec>,
     );
 
     /// Called at the end of a slot. Updates the chain state module
@@ -25,7 +25,7 @@ pub trait ChainState {
     fn finalise_chain_state(
         &self,
         gas_used: &<Self::Spec as Spec>::Gas,
-        state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
+        state: &mut KernelStateAccessor<'_, Self::Spec>,
     );
 
     /// Returns the base fee per gas accessible at the current *visible* slot.
@@ -50,6 +50,6 @@ pub trait ChainState {
     /// This method can return `None` if the visible root hash for the current rollup height cannot be determined yet.
     fn current_visible_hash(
         &self,
-        state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
+        state: &mut KernelStateAccessor<'_, Self::Spec>,
     ) -> Option<<<Self::Spec as Spec>::Storage as Storage>::Root>;
 }

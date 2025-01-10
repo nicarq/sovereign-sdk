@@ -107,7 +107,7 @@ impl HooksMacro {
                 },
                 &ArgWithType {
                     arg: Ident::new("state", Span::call_site()),
-                    ty: quote::quote! {&mut ::sov_modules_api::StateCheckpoint<<Self::Spec as ::sov_modules_api::Spec>::Storage>},
+                    ty: quote::quote! {&mut ::sov_modules_api::StateCheckpoint<Self::Spec>},
                 },
             ],
         );
@@ -118,7 +118,7 @@ impl HooksMacro {
             false,
             vec![&ArgWithType {
                 arg: Ident::new("state", Span::call_site()),
-                ty: quote::quote! {&mut sov_modules_api::StateCheckpoint<<Self::Spec as ::sov_modules_api::Spec>::Storage>},
+                ty: quote::quote! {&mut sov_modules_api::StateCheckpoint<Self::Spec>},
             }],
         );
 
@@ -162,7 +162,7 @@ impl HooksMacro {
                 },
                 &ArgWithType {
                     arg: Ident::new("state", Span::call_site()),
-                    ty: quote::quote! {&mut ::sov_modules_api::KernelStateAccessor<<Self::Spec as ::sov_modules_api::Spec>::Storage>},
+                    ty: quote::quote! {&mut ::sov_modules_api::KernelStateAccessor<Self::Spec>},
                 },
             ],
         );
@@ -178,7 +178,7 @@ impl HooksMacro {
                 },
                 &ArgWithType {
                     arg: Ident::new("state", Span::call_site()),
-                    ty: quote::quote! {&mut ::sov_modules_api::KernelStateAccessor<<Self::Spec as ::sov_modules_api::Spec>::Storage>},
+                    ty: quote::quote! {&mut ::sov_modules_api::KernelStateAccessor<Self::Spec>},
                 },
             ],
         );

@@ -177,7 +177,7 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvi
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 pub(crate) fn apply_batch<S, RT>(
     runtime: &RT,
-    mut checkpoint: StateCheckpoint<S::Storage>,
+    mut checkpoint: StateCheckpoint<S>,
     slot_gas_meter: SlotGasMeter<S>,
     batch: BatchFromUnregisteredSequencer,
     blob_idx: usize,
@@ -185,11 +185,7 @@ pub(crate) fn apply_batch<S, RT>(
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
     execution_context: ExecutionContext,
-) -> (
-    BatchReceipt<S>,
-    StateCheckpoint<S::Storage>,
-    SlotGasMeter<S>,
-)
+) -> (BatchReceipt<S>, StateCheckpoint<S>, SlotGasMeter<S>)
 where
     S: Spec,
     RT: Runtime<S>,

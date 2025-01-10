@@ -12,13 +12,13 @@ use crate::{Spec, VersionReader};
 /// A [`StateCheckpoint`] can be obtained from a [`crate::WorkingSet`] in two ways:
 ///  1. With [`crate::TxScratchpad::commit`].
 ///  2. With [`crate::WorkingSet::revert`].
-pub struct StateCheckpoint<S: Storage> {
-    pub(super) delta: Delta<S>,
+pub struct StateCheckpoint<S: Spec> {
+    pub(super) delta: Delta<S::Storage>,
     /// The rollup height visible to user-space modules
     pub(super) visible_slot_num: VisibleSlotNumber,
 }
 
-impl<S: Storage> StateCheckpoint<S> {
+impl<S: Spec> StateCheckpoint<S> {
     /// Deep copy the state checkpoint (including its caches), ignoring
     /// the witness.
     ///
@@ -35,15 +35,15 @@ impl<S: Storage> StateCheckpoint<S> {
 
     /// Creates a new [`StateCheckpoint`] instance without any changes, backed
     /// by the given [`Storage`].
-    pub fn new<Sp: Spec<Storage = S>, K: Kernel<Sp>>(inner: S, kernel: &K) -> Self {
+    pub fn new<K: Kernel<S>>(inner: S::Storage, kernel: &K) -> Self {
         Self::with_witness(inner, Default::default(), kernel)
     }
 
     /// Creates a new [`StateCheckpoint`] instance without any changes, backed
     /// by the given [`Storage`] and witness.
-    pub fn with_witness<Sp: Spec<Storage = S>, K: Kernel<Sp>>(
-        inner: S,
-        witness: S::Witness,
+    pub fn with_witness<K: Kernel<S>>(
+        inner: S::Storage,
+        witness: <S::Storage as Storage>::Witness,
         kernel: &K,
     ) -> Self {
         let mut delta = Delta::with_witness(inner.clone(), witness, None);
@@ -64,21 +64,28 @@ impl<S: Storage> StateCheckpoint<S> {
     /// You can then use these to call [`Storage::validate_and_materialize`] or some
     /// of the other related [`Storage`] methods. Note that this data is moved
     /// **out** of the [`StateCheckpoint`] i.e. it can't be extracted twice.
-    pub fn freeze(self) -> (StateAccesses, AccessoryDelta<S>, S::Witness) {
+    pub fn freeze(
+        self,
+    ) -> (
+        StateAccesses,
+        AccessoryDelta<S::Storage>,
+        <S::Storage as Storage>::Witness,
+    ) {
         let (state_accesses, accesory_delta, witness, _storage) = self.delta.freeze();
         (state_accesses, accesory_delta, witness)
     }
 
     /// Extracts ordered reads, writes, and witness from this [`StateCheckpoint`] and uses
     /// them to compute the `StateUpdate` created by this StateCheckpoint.
+    #[allow(clippy::type_complexity)]
     pub fn materialize_update(
         self,
     ) -> (
-        <S as Storage>::Root,
-        <S as Storage>::StateUpdate,
-        AccessoryDelta<S>,
-        S::Witness,
-        S,
+        <S::Storage as Storage>::Root,
+        <S::Storage as Storage>::StateUpdate,
+        AccessoryDelta<S::Storage>,
+        <S::Storage as Storage>::Witness,
+        S::Storage,
     ) {
         let (cache_log, accessory_delta, witness, storage) = self.delta.freeze();
 
@@ -113,13 +120,13 @@ impl<S: Storage> StateCheckpoint<S> {
     }
 }
 
-impl<S: Storage> VersionReader for StateCheckpoint<S> {
+impl<S: Spec> VersionReader for StateCheckpoint<S> {
     fn rollup_height_to_access(&self) -> SlotNumber {
         self.visible_slot_num.as_true()
     }
 }
 
-impl<S: Storage> UniversalStateAccessor for StateCheckpoint<S> {
+impl<S: Spec> UniversalStateAccessor for StateCheckpoint<S> {
     fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
         UniversalStateAccessor::get(&mut self.delta, namespace, key)
     }
@@ -135,12 +142,12 @@ impl<S: Storage> UniversalStateAccessor for StateCheckpoint<S> {
 
 #[cfg(feature = "native")]
 pub mod native {
-    use sov_state::{Accessory, IsValueCached, SlotKey, SlotValue, Storage};
+    use sov_state::{Accessory, IsValueCached, SlotKey, SlotValue};
 
     use crate::state::accessors::seal::CachedAccessor;
-    use crate::StateCheckpoint;
+    use crate::{Spec, StateCheckpoint};
 
-    impl<S: Storage> StateCheckpoint<S> {
+    impl<S: Spec> StateCheckpoint<S> {
         /// Returns a handler for the accessory state (non-JMT state).
         ///
         /// You can use this method when calling getters and setters on accessory
@@ -152,11 +159,11 @@ pub mod native {
 
     /// A wrapper over [`crate::StateCheckpoint`] that only allows access to the accessory
     /// state (non-JMT state).
-    pub struct AccessoryStateCheckpoint<'a, S: Storage> {
+    pub struct AccessoryStateCheckpoint<'a, S: Spec> {
         pub(in crate::state) checkpoint: &'a mut StateCheckpoint<S>,
     }
 
-    impl<'a, S: Storage> CachedAccessor<Accessory> for AccessoryStateCheckpoint<'a, S> {
+    impl<'a, S: Spec> CachedAccessor<Accessory> for AccessoryStateCheckpoint<'a, S> {
         fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
             <StateCheckpoint<S> as CachedAccessor<Accessory>>::get_cached(self.checkpoint, key)
         }

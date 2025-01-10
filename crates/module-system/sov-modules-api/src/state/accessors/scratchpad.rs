@@ -135,10 +135,10 @@ impl<S: Spec, I: StateProvider<S>> VersionReader for PreExecWorkingSet<S, I> {
 }
 
 #[cfg(feature = "test-utils")]
-impl<Store: crate::Storage> StateCheckpoint<Store> {
+impl<S: Spec> StateCheckpoint<S> {
     /// Produces an unmetered [`WorkingSet`] from this [`StateProvider`].
     /// This is useful for tests that don't need to track gas consumption.
-    pub fn to_working_set_unmetered<S: Spec<Storage = Store>>(self) -> WorkingSet<S, Self> {
+    pub fn to_working_set_unmetered(self) -> WorkingSet<S, Self> {
         WorkingSet {
             delta: RevertableWriter::new(self.to_tx_scratchpad()),
             events: Default::default(),
@@ -154,7 +154,7 @@ impl<Store: crate::Storage> StateCheckpoint<Store> {
 /// 1. By using the [`WorkingSet::finalize`] method, where all the changes are added to the underlying
 /// [`TxScratchpad`].
 /// 2. By using the [`WorkingSet::revert`] method, where the most recent changes are reverted and the previous [`TxScratchpad`] is returned.
-pub struct WorkingSet<S: Spec, I: StateProvider<S> = StateCheckpoint<<S as Spec>::Storage>> {
+pub struct WorkingSet<S: Spec, I: StateProvider<S> = StateCheckpoint<S>> {
     pub(super) delta: RevertableWriter<TxScratchpad<S, I>>,
     events: Vec<TypedEvent>,
     gas_meter: BasicGasMeter<S>,
@@ -247,7 +247,7 @@ impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
 use crate::capabilities::Kernel;
 
 #[cfg(test)]
-impl<S: Spec> WorkingSet<S, StateCheckpoint<S::Storage>> {
+impl<S: Spec> WorkingSet<S, StateCheckpoint<S>> {
     /// A helper function to create a new [`WorkingSet`] with a given gas price and remaining funds.
     /// Note: This method uses a [`MockKernel`] with a default height, this is not compatible with tests over multiple slots.
     pub fn new_with_gas_meter(
@@ -257,7 +257,7 @@ impl<S: Spec> WorkingSet<S, StateCheckpoint<S::Storage>> {
     ) -> Self {
         use crate::capabilities::mocks::MockKernel;
 
-        let state_checkpoint: StateCheckpoint<S::Storage> =
+        let state_checkpoint: StateCheckpoint<S> =
             StateCheckpoint::new(inner, &MockKernel::<S>::default());
         let tx_scratchpad = TxScratchpad {
             inner: RevertableWriter::new(state_checkpoint),
@@ -275,7 +275,7 @@ impl<S: Spec> WorkingSet<S, StateCheckpoint<S::Storage>> {
 
     /// Creates a new [`WorkingSet`] instance backed by the given [`Spec::Storage`] and a [`Kernel`].
     pub fn new_with_kernel<K: Kernel<S>>(inner: S::Storage, kernel: &K) -> Self {
-        let state_checkpoint: StateCheckpoint<S::Storage> = StateCheckpoint::new(inner, kernel);
+        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner, kernel);
         let tx_scratchpad = TxScratchpad {
             inner: RevertableWriter::new(state_checkpoint),
             phantom: PhantomData,
@@ -344,7 +344,7 @@ mod tests {
     use crate::capabilities::mocks::MockKernel;
     use crate::capabilities::Kernel as _;
     use crate::execution_mode::Native;
-    use crate::{Spec, StateCheckpoint, StateReader, StateWriter, WorkingSet};
+    use crate::{StateCheckpoint, StateReader, StateWriter, WorkingSet};
 
     type TestSpec = crate::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
@@ -379,8 +379,7 @@ mod tests {
         let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
         let kernel: MockKernel<TestSpec> = MockKernel::new(4, 1);
 
-        let mut working_set =
-            StateCheckpoint::<<TestSpec as Spec>::Storage>::new(storage.clone(), &kernel);
+        let mut working_set = StateCheckpoint::<TestSpec>::new(storage.clone(), &kernel);
         let mut working_set = kernel.accessor(&mut working_set);
 
         StateWriter::<Kernel>::set(&mut working_set, &storage_key, storage_value.clone())

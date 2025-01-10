@@ -166,7 +166,7 @@ where
     pub fn materialize_slot(
         &self,
         should_execute_slot_hooks: bool,
-        checkpoint: StateCheckpoint<S::Storage>,
+        checkpoint: StateCheckpoint<S>,
     ) -> (
         <S::Storage as Storage>::Root,
         <S::Storage as Storage>::Witness,
@@ -190,7 +190,7 @@ where
     #[cfg(not(feature = "native"))]
     fn materialize_slot(
         &self,
-        checkpoint: StateCheckpoint<S::Storage>,
+        checkpoint: StateCheckpoint<S>,
     ) -> (
         <S::Storage as Storage>::Root,
         <S::Storage as Storage>::Witness,
@@ -237,10 +237,10 @@ where
         pre_state: Self::PreState,
         params: Self::GenesisParams,
     ) -> (Self::StateRoot, Self::ChangeSet) {
-        let mut state_checkpoint = StateCheckpoint::new::<S, _>(pre_state, &self.runtime.kernel());
+        let mut state_checkpoint = StateCheckpoint::new(pre_state, &self.runtime.kernel());
 
         let mut genesis_accessor =
-            state_checkpoint.to_genesis_state_accessor::<RT, S>(&params.runtime);
+            state_checkpoint.to_genesis_state_accessor::<RT>(&params.runtime);
 
         if let Err(e) = self.runtime.genesis(
             genesis_rollup_header,
@@ -390,7 +390,7 @@ where
     fn select_and_validate_blobs<'a, I>(
         &self,
         relevant_blobs: RelevantBlobIters<I>,
-        kernel: &mut KernelStateAccessor<<S as Spec>::Storage>,
+        kernel: &mut KernelStateAccessor<S>,
     ) -> BlobSelectorOutput<S, BlobDataWithId>
     where
         I: IntoIterator<Item = &'a mut <S::Da as DaSpec>::BlobTransaction>,
@@ -424,7 +424,7 @@ where
     pub fn run_batches_from_blob_selector(
         &self,
         blob_selector_output: BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId>>,
-        state: StateCheckpoint<S::Storage>,
+        state: StateCheckpoint<S>,
         execution_context: ExecutionContext,
         visible_hash: <<S as Spec>::Storage as Storage>::Root,
     ) -> (
@@ -438,7 +438,7 @@ where
             >,
         >,
         Vec<BatchReceipt<S>>,
-        StateCheckpoint<S::Storage>,
+        StateCheckpoint<S>,
     ) {
         self.apply_batches_in_user_space(
             blob_selector_output,
@@ -455,7 +455,7 @@ where
     pub fn apply_batches_in_user_space<B: IncrementalBatch<TransactionReceipt<S>, S>>(
         &self,
         blob_selector_output: BlobSelectorOutput<S, BlobDataWithId<B>>,
-        mut state: StateCheckpoint<S::Storage>,
+        mut state: StateCheckpoint<S>,
         execution_context: ExecutionContext,
         visible_hash: <<S as Spec>::Storage as Storage>::Root,
     ) -> (
@@ -469,7 +469,7 @@ where
             >,
         >,
         Vec<BatchReceipt<S>>,
-        StateCheckpoint<S::Storage>,
+        StateCheckpoint<S>,
     ) {
         // Note: The gas price should be computed after all the capabilities involving the [`KernelStateAccessor`] to have the
         // most recent version of the visible rollup height.

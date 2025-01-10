@@ -68,12 +68,12 @@ pub trait SlotHooks {
     fn begin_slot_hook(
         &self,
         _visible_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
-        _state: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>,
+        _state: &mut StateCheckpoint<Self::Spec>,
     ) {
     }
 
     /// Hook that runs at the end of the `apply_slot` function inside the `StateTransitionFunction`.
-    fn end_slot_hook(&self, _state: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>) {}
+    fn end_slot_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {}
 }
 
 /// Autoref blanket implementation of the [`SlotHooks`] trait.
@@ -84,11 +84,11 @@ impl<T: Module> SlotHooks for &T {
     fn begin_slot_hook(
         &self,
         _visible_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
-        _state: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>,
+        _state: &mut StateCheckpoint<Self::Spec>,
     ) {
     }
 
-    fn end_slot_hook(&self, _state: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>) {}
+    fn end_slot_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {}
 }
 
 /// Hooks allowing the runtime to get access to the DA layer state
@@ -102,7 +102,7 @@ pub trait KernelSlotHooks {
         _slot_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
         _validity_condition: &<<Self::Spec as Spec>::Da as DaSpec>::ValidityCondition,
         _pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
-        _state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
+        _state: &mut KernelStateAccessor<'_, Self::Spec>,
     ) {
     }
 
@@ -110,7 +110,7 @@ pub trait KernelSlotHooks {
     fn kernel_end_slot_hook(
         &self,
         _gas_used: &<Self::Spec as Spec>::Gas,
-        _state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
+        _state: &mut KernelStateAccessor<'_, Self::Spec>,
     ) {
     }
 }
@@ -125,14 +125,14 @@ impl<T: Module> KernelSlotHooks for &T {
         _slot_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
         _validity_condition: &<<Self::Spec as Spec>::Da as DaSpec>::ValidityCondition,
         _pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
-        _state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
+        _state: &mut KernelStateAccessor<'_, Self::Spec>,
     ) {
     }
 
     fn kernel_end_slot_hook(
         &self,
         _gas_used: &<Self::Spec as Spec>::Gas,
-        _state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
+        _state: &mut KernelStateAccessor<'_, Self::Spec>,
     ) {
     }
 }

@@ -63,8 +63,8 @@ pub struct StdBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     runtime: Z::Rt,
     txsm: TxStatusManager<<Z::Spec as Spec>::Da>,
     mempool: Mempool<Self>,
-    checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
-    checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
+    checkpoint: Option<StateCheckpoint<Z::Spec>>,
+    checkpoint_sender: watch::Sender<StateCheckpoint<Z::Spec>>,
     api_state: ApiState<Z::Spec>,
     assembled_batch: Option<WithCachedTxHashes<Vec<FullyBakedTx>>>,
     config:
@@ -329,9 +329,7 @@ where
 
         // This closure helps us make sure that we always put the
         // state checkpoint back into `self` at the end of the function.
-        let (new_checkpoint, response) = (|mut checkpoint: StateCheckpoint<
-            <Z::Spec as Spec>::Storage,
-        >| {
+        let (new_checkpoint, response) = (|mut checkpoint: StateCheckpoint<Z::Spec>| {
             let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut checkpoint).expect("Impossible to get the gas price for the current slot. This is a bug. Please report it");
 
             let (tx_scratchpad, output_res) = tx_auth(
@@ -583,7 +581,7 @@ where
 }
 
 struct BatchConstructionContext<S: Spec> {
-    state_checkpoint: StateCheckpoint<S::Storage>,
+    state_checkpoint: StateCheckpoint<S>,
     visible_height: u64,
     reward: SequencerReward,
     gas_price: <S::Gas as Gas>::Price,

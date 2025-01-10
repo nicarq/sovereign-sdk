@@ -9,7 +9,7 @@ where
 {
     /// Increment the current rollup height
     /// This function also modifies the kernel working set to update the true height.
-    pub(crate) fn increment_true_rollup_height(&self, state: &mut KernelStateAccessor<S::Storage>) {
+    pub(crate) fn increment_true_rollup_height(&self, state: &mut KernelStateAccessor<S>) {
         let current_height = self
             .true_rollup_height
             .get(state)

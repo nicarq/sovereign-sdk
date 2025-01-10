@@ -59,7 +59,7 @@ fn custom_builder_works() {
     let storage: ZkStorage<DefaultStorageSpec<TestHasher>> = ZkStorage::new();
     let module: TestModule<ZkTestSpec> = TestModule::default();
 
-    let mut state: StateCheckpoint<<ZkTestSpec as Spec>::Storage> =
+    let mut state: StateCheckpoint<ZkTestSpec> =
         StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec>::default());
     module.state_value.set(&0u32, &mut state).unwrap();
 

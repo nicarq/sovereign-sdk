@@ -186,9 +186,9 @@ pub fn test_state_thing<S: Spec<Storage = ProverStorage<StorageSpec>>, St: State
 ) {
     let simple_storage_manager = SimpleStorageManager::new();
     let storage: ProverStorage<StorageSpec> = simple_storage_manager.create_storage();
-    let mut state = StateCheckpoint::<S::Storage>::new(storage, &MockKernel::<S>::default());
+    let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S>::default());
     let thing = St::create(&mut state);
-    let mut working_set = state.to_working_set_unmetered::<S>();
+    let mut working_set = state.to_working_set_unmetered();
 
     for condition in conditions {
         working_set = condition.process_thing(&thing, working_set);
@@ -241,8 +241,7 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
         let mut mock_kernel = MockKernel::<S>::default();
         mock_kernel.increase_heights();
         let storage = storage_manager.create_storage();
-        let mut state: StateCheckpoint<<S as Spec>::Storage> =
-            StateCheckpoint::new(storage.clone(), &mock_kernel);
+        let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &mock_kernel);
         state_value.set(&11, &mut state)?;
         let _ = state_value.get(&mut state);
         state_value.set(&22, &mut state)?;
@@ -256,7 +255,7 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
 
     {
         let storage = ZkStorage::<StorageSpec>::new();
-        let mut state_checkpoint: StateCheckpoint<<Zk as Spec>::Storage> =
+        let mut state_checkpoint: StateCheckpoint<Zk> =
             StateCheckpoint::with_witness(storage.clone(), witness, &MockKernel::<Zk>::default());
         state_value.set(&11, &mut state_checkpoint)?;
         let _ = state_value.get(&mut state_checkpoint);

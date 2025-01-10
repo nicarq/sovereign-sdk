@@ -33,27 +33,27 @@ impl<'a, S: Storage, N: CompileTimeNamespace> CachedAccessor<N> for BootstrapWor
 ///
 /// ## Note
 /// This struct implements [`VersionReader`], and the value returned by [`VersionReader::rollup_height_to_access`] is the true rollup height.
-pub struct KernelStateAccessor<'a, S: Storage> {
+pub struct KernelStateAccessor<'a, S: Spec> {
     /// The inner working set
     pub checkpoint: &'a mut StateCheckpoint<S>,
     pub(crate) true_slot_num: SlotNumber,
 }
 
-impl<'a, S: Storage> VersionReader for KernelStateAccessor<'a, S> {
+impl<'a, S: Spec> VersionReader for KernelStateAccessor<'a, S> {
     fn rollup_height_to_access(&self) -> SlotNumber {
         self.true_slot_num
     }
 }
 
-impl<'a, S: Storage> KernelWriter for KernelStateAccessor<'a, S> {
+impl<'a, S: Spec> KernelWriter for KernelStateAccessor<'a, S> {
     fn true_rollup_height(&self) -> SlotNumber {
         self.true_slot_num
     }
 }
 
-impl<'a, S: Storage> KernelStateAccessor<'a, S> {
+impl<'a, S: Spec> KernelStateAccessor<'a, S> {
     /// Instantiates a new [`KernelStateAccessor`].
-    pub fn from_checkpoint<Sp: Spec<Storage = S>, K: Kernel<Sp> + ?Sized>(
+    pub fn from_checkpoint<K: Kernel<S> + ?Sized>(
         kernel: &K,
         checkpoint: &'a mut StateCheckpoint<S>,
     ) -> Self {
@@ -70,7 +70,7 @@ impl<'a, S: Storage> KernelStateAccessor<'a, S> {
     }
 }
 
-impl<'a, S: Storage> KernelStateAccessor<'a, S> {
+impl<'a, S: Spec> KernelStateAccessor<'a, S> {
     /// Returns the visible rollup height contained in the accessor
     pub fn visible_rollup_height(&self) -> VisibleSlotNumber {
         self.checkpoint.visible_slot_num
@@ -87,7 +87,7 @@ impl<'a, S: Storage> KernelStateAccessor<'a, S> {
     }
 }
 
-impl<S: Storage> UniversalStateAccessor for KernelStateAccessor<'_, S> {
+impl<S: Spec> UniversalStateAccessor for KernelStateAccessor<'_, S> {
     fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
         UniversalStateAccessor::get(self.checkpoint, namespace, key)
     }

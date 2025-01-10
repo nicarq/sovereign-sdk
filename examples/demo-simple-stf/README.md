@@ -66,7 +66,7 @@ Now that we have defined the necessary types, we need to implement the following
     // data relevant to the rollup.
     fn begin_slot(
         &self,
-        state: &mut StateCheckpoint<S::Storage>,
+        state: &mut StateCheckpoint<S>,
         slot_header: &<S::Da as DaSpec>::BlockHeader,
         validity_condition: &<S::Da as DaSpec>::ValidityCondition,
         pre_state_root: &<S::Storage as Storage>::Root,
@@ -138,7 +138,7 @@ The last method is `end_slot`, like before the implementation is trivial:
         &self,
         storage: S::Storage,
         gas_used: &S::Gas,
-        mut checkpoint: StateCheckpoint<S::Storage>,
+        mut checkpoint: StateCheckpoint<S>,
     ) -> (
         Self::StateRoot,
         Self::Witness,

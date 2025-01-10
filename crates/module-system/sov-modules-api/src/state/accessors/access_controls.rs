@@ -182,21 +182,21 @@ impl<'a, S: Spec> StateWriter<Kernel> for GenesisStateAccessor<'a, S> {
 }
 impl<'a, S: Spec> AccessoryStateWriter for GenesisStateAccessor<'a, S> {}
 
-impl<S: Storage> StateReader<User> for StateCheckpoint<S> {
+impl<S: Spec> StateReader<User> for StateCheckpoint<S> {
     inner_impl_unmetered_state_reader!(User);
 }
-impl<S: Storage> StateWriter<User> for StateCheckpoint<S> {
+impl<S: Spec> StateWriter<User> for StateCheckpoint<S> {
     inner_impl_unmetered_state_writer!(User);
 }
 
-impl<S: Storage> StateReader<Kernel> for StateCheckpoint<S> {
+impl<S: Spec> StateReader<Kernel> for StateCheckpoint<S> {
     inner_impl_unmetered_state_reader!(Kernel);
 }
-impl<S: Storage> StateWriter<Kernel> for StateCheckpoint<S> {
+impl<S: Spec> StateWriter<Kernel> for StateCheckpoint<S> {
     inner_impl_unmetered_state_writer!(Kernel);
 }
 
-impl<S: Storage> AccessoryStateWriter for StateCheckpoint<S> {}
+impl<S: Spec> AccessoryStateWriter for StateCheckpoint<S> {}
 
 impl<S, I> StateReader<User> for TxScratchpad<S, I>
 where
@@ -235,10 +235,16 @@ impl<S: Spec, I: StateProvider<S>> AccessoryStateWriter for WorkingSet<S, I> {}
 impl<S: Spec, I: StateProvider<S>> AccessoryStateReader for WorkingSet<S, I> {}
 
 #[cfg(feature = "native")]
-impl<'a, S: Storage> StateReader<Accessory> for AccessoryStateCheckpoint<'a, S> {
+impl<'a, S: Spec> StateReader<Accessory> for AccessoryStateCheckpoint<'a, S> {
     type Error = Infallible;
     fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
-        Ok(<Delta<S> as CachedAccessor<Accessory>>::get_cached(&mut self.checkpoint.delta, key).0)
+        Ok(
+            <Delta<S::Storage> as CachedAccessor<Accessory>>::get_cached(
+                &mut self.checkpoint.delta,
+                key,
+            )
+            .0,
+        )
     }
 
     /// Get a decoded value from the storage.
@@ -259,7 +265,7 @@ impl<'a, S: Storage> StateReader<Accessory> for AccessoryStateCheckpoint<'a, S> 
 }
 
 #[cfg(feature = "native")]
-impl<'a, S: Storage> AccessoryStateWriter for AccessoryStateCheckpoint<'a, S> {}
+impl<'a, S: Spec> AccessoryStateWriter for AccessoryStateCheckpoint<'a, S> {}
 
 pub mod kernel_state {
     use std::convert::Infallible;
@@ -270,7 +276,7 @@ pub mod kernel_state {
 
     use crate::state::accessors::seal::CachedAccessor;
     use crate::state::accessors::BootstrapWorkingSet;
-    use crate::{KernelStateAccessor, StateReader, StateWriter};
+    use crate::{KernelStateAccessor, Spec, StateReader, StateWriter};
 
     impl<'a, S: Storage> StateReader<Kernel> for BootstrapWorkingSet<'a, S> {
         inner_impl_unmetered_state_reader!(Kernel);
@@ -286,17 +292,17 @@ pub mod kernel_state {
         inner_impl_unmetered_state_writer!(User);
     }
 
-    impl<'a, S: Storage> StateReader<Kernel> for KernelStateAccessor<'a, S> {
+    impl<'a, S: Spec> StateReader<Kernel> for KernelStateAccessor<'a, S> {
         inner_impl_unmetered_state_reader!(Kernel);
     }
-    impl<'a, S: Storage> StateReader<User> for KernelStateAccessor<'a, S> {
+    impl<'a, S: Spec> StateReader<User> for KernelStateAccessor<'a, S> {
         inner_impl_unmetered_state_reader!(User);
     }
 
-    impl<'a, S: Storage> StateWriter<Kernel> for KernelStateAccessor<'a, S> {
+    impl<'a, S: Spec> StateWriter<Kernel> for KernelStateAccessor<'a, S> {
         inner_impl_unmetered_state_writer!(Kernel);
     }
-    impl<'a, S: Storage> StateWriter<User> for KernelStateAccessor<'a, S> {
+    impl<'a, S: Spec> StateWriter<User> for KernelStateAccessor<'a, S> {
         inner_impl_unmetered_state_writer!(User);
     }
 }
