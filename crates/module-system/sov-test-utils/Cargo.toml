@@ -18,6 +18,7 @@ workspace = true
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 axum-server = { workspace = true }
+backon = { workspace = true }
 borsh = { workspace = true }
 derivative = { workspace = true }
 derive_more = { workspace = true }

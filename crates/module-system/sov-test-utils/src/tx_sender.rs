@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use async_trait::async_trait;
+use backon::{ExponentialBuilder, Retryable};
 use sov_api_spec::types;
 use sov_cli::NodeClient;
 use sov_modules_api::transaction::Transaction;
@@ -35,7 +36,12 @@ impl<R: Runtime<S>, S: Spec> TxSender<S, R> for SequencerTxSender<R, S> {
             .map(|tx| borsh::to_vec(tx).unwrap())
             .collect::<Vec<_>>();
 
-        let receipt = client.publish_batch(serialized_txs, true).await?;
+        // TODO: Do retrial until sync-status endpoint is implemented:
+        //    https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1304
+        let serialized_txs_ref = &serialized_txs;
+        let receipt = (|| client.publish_batch(serialized_txs_ref.clone(), true))
+            .retry(&ExponentialBuilder::default())
+            .await?;
 
         let first_tx_hash = receipt
             .tx_hashes
