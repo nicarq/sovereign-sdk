@@ -18,6 +18,8 @@ demo_data_2/
 .vscode/*
 
 /docker/celestia/credentials/*
+/docker/**/storage/*
+/docker/influxdb-data
 !/docker/celestia/credentials/bridge-0.addr
 !/docker/celestia/credentials/bridge-0.key
 !/docker/celestia/credentials/bridge-1.key

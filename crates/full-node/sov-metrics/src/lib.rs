@@ -4,8 +4,8 @@
 mod influxdb;
 
 pub use influxdb::{
-    init_metrics_tracker, track_metrics, BatchMetrics, BatchOutcome, HttpMetrics, MetricsTracker,
-    MonitoringConfig, RunnerMetrics, SlotProcessingMetrics, TransactionEffect,
-    TransactionProcessingMetrics, UserSpaceSlotProcessingMetrics, ZkCircuit, ZkProvingTime,
-    ZkVmExecutionChunk,
+    init_metrics_tracker, timestamp, track_metrics, BatchMetrics, BatchOutcome, HttpMetrics,
+    MetricsTracker, MonitoringConfig, RunnerMetrics, SlotProcessingMetrics, SovRollupMetrics,
+    TransactionEffect, TransactionProcessingMetrics, UserSpaceSlotProcessingMetrics, ZkCircuit,
+    ZkProvingTime, ZkVmExecutionChunk,
 };

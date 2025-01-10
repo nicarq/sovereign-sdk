@@ -6,8 +6,8 @@ mod tracker;
 
 pub use config::MonitoringConfig;
 pub use tracker::{
-    init_metrics_tracker, BatchMetrics, BatchOutcome, HttpMetrics, RunnerMetrics,
-    SlotProcessingMetrics, TransactionEffect, TransactionProcessingMetrics,
+    init_metrics_tracker, timestamp, BatchMetrics, BatchOutcome, HttpMetrics, RunnerMetrics,
+    SlotProcessingMetrics, SovRollupMetrics, TransactionEffect, TransactionProcessingMetrics,
     UserSpaceSlotProcessingMetrics, ZkCircuit, ZkProvingTime, ZkVmExecutionChunk,
 };
 

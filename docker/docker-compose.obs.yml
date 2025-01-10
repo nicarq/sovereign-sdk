@@ -37,7 +37,7 @@ services:
     image: grafana/tempo:2.6.1
     container_name: tempo
     ports:
-      - "3200:3200"   # Tempo's query port
+      - "3200:3200" # Tempo's query port
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./grafana-tempo/tempo.yaml:/etc/tempo.yaml:ro
@@ -48,7 +48,7 @@ services:
     image: influxdb:2.7
     container_name: influxdb
     ports:
-      - "8086:8086"
+      - "${INFLUX_PORT:-8086}:${INFLUX_PORT:-8086}"
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_USERNAME=admin
@@ -71,7 +71,7 @@ services:
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
     ports:
-      - "8094:8094/udp"
+      - "${TELEGRAF_PORT:-8094}:${TELEGRAF_PORT:-8094}/udp"
     environment:
       - HOST_PROC=/host/proc
       - HOST_SYS=/host/sys

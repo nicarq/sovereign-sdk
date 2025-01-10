@@ -128,7 +128,8 @@ impl MetricsTracker {
     }
 }
 
-pub(crate) fn timestamp() -> u128 {
+/// Returns the current timestamp in nanoseconds since the UNIX epoch.
+pub fn timestamp() -> u128 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -471,17 +472,54 @@ impl Metric for ZkProvingTime {
     }
 }
 
+#[derive(strum::EnumDiscriminants)]
+#[strum_discriminants(
+    derive(strum::EnumString),
+    name(SovRollupMetrics),
+    vis(pub),
+    strum(serialize_all = "snake_case")
+)]
+#[strum(serialize_all = "snake_case")]
 enum SovRollupMetric {
+    /// Metrics for the Da layer.
     RunnerDa(Timestamp, RunnerDaMetrics),
+    /// Metrics to track the number of transactions, batches and slots processed inside the runner.
     RunnerCount(Timestamp, RunnerCountMetrics),
+    /// Metrics to track the time spent on processing transactions, batches and slots inside the runner.
     RunnerTimes(Timestamp, RunnerTimeMetrics),
+    /// Metrics to track the time spent on processing slots.
     SlotProcessing(Timestamp, SlotProcessingMetrics),
+    /// Metrics to track user space slot processing.
     UserSpaceSlotProcessing(Timestamp, UserSpaceSlotProcessingMetrics),
+    /// Metrics to track batch processing.
     BatchProcessing(Timestamp, BatchMetrics),
+    /// Metrics to track transaction processing.
     TransactionProcessing(Timestamp, TransactionProcessingMetrics),
+    /// Metrics to track HTTP requests.
     Http(Timestamp, HttpMetrics),
+    /// Metrics to track ZKVM execution.
     ZkVm(Timestamp, ZkVmExecutionChunk),
+    /// Metrics to track ZK proving.
     ZkProving(Timestamp, ZkProvingTime),
+}
+
+impl SovRollupMetrics {
+    /// Returns the name of the measurement for this metric.
+    pub fn measurement_name(&self) -> &'static str {
+        match self {
+            SovRollupMetrics::RunnerDa => "sov_rollup_runner_da",
+            SovRollupMetrics::RunnerCount => "sov_rollup_runner_counts",
+            SovRollupMetrics::RunnerTimes => "sov_rollup_runner_times_us",
+            SovRollupMetrics::SlotProcessing | SovRollupMetrics::UserSpaceSlotProcessing => {
+                "sov_rollup_slot_execution_time_us"
+            }
+            SovRollupMetrics::BatchProcessing => "sov_rollup_batch_processing",
+            SovRollupMetrics::TransactionProcessing => "sov_rollup_transaction_execution_us",
+            SovRollupMetrics::Http => "sov_rollup_http_handlers",
+            SovRollupMetrics::ZkVm => "sov_rollup_zkvm",
+            SovRollupMetrics::ZkProving => "sov_rollup_zkvm_proving",
+        }
+    }
 }
 
 impl Metric for SovRollupMetric {
