@@ -14,7 +14,7 @@ use crate::{
 pub struct GenesisStateAccessor<'a, S: Spec> {
     checkpoint: &'a mut StateCheckpoint<S::Storage>,
     pub(super) events: Vec<TypedEvent>,
-    gas_meter: BasicGasMeter<S::Gas>,
+    gas_meter: BasicGasMeter<S>,
 }
 
 impl<Store: Storage> StateCheckpoint<Store> {
@@ -58,7 +58,8 @@ impl<'a, S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for GenesisStateAcc
     }
 }
 
-impl<'a, S: Spec> GasMeter<S::Gas> for GenesisStateAccessor<'a, S> {
+impl<'a, S: Spec> GasMeter for GenesisStateAccessor<'a, S> {
+    type Spec = S;
     fn charge_gas(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_gas(amount)
     }

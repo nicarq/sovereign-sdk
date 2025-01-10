@@ -217,29 +217,17 @@ impl<S: Spec, I: StateProvider<S>> StateWriter<User> for TxScratchpad<S, I> {
     inner_impl_unmetered_state_writer!(User);
 }
 
-impl<S: Spec, I: StateProvider<S>> ProvableStateReader<User> for PreExecWorkingSet<S, I> {
-    type Spec = S;
-}
+impl<S: Spec, I: StateProvider<S>> ProvableStateReader<User> for PreExecWorkingSet<S, I> {}
 /// TODO: the [`PreExecWorkingSet`] should not be able to read the kernel state. Make sure
 /// to find a way to enforce that.
-impl<S: Spec, I: StateProvider<S>> ProvableStateReader<Kernel> for PreExecWorkingSet<S, I> {
-    type Spec = S;
-}
-impl<S: Spec, I: StateProvider<S>> ProvableStateWriter<User> for PreExecWorkingSet<S, I> {
-    type Spec = S;
-}
+impl<S: Spec, I: StateProvider<S>> ProvableStateReader<Kernel> for PreExecWorkingSet<S, I> {}
+impl<S: Spec, I: StateProvider<S>> ProvableStateWriter<User> for PreExecWorkingSet<S, I> {}
 
-impl<S: Spec, I: StateProvider<S>> ProvableStateReader<User> for WorkingSet<S, I> {
-    type Spec = S;
-}
+impl<S: Spec, I: StateProvider<S>> ProvableStateReader<User> for WorkingSet<S, I> {}
 /// TODO: the [`WorkingSet`] should not be able to read the kernel state. Make sure
 /// to find a way to enforce that.
-impl<S: Spec, I: StateProvider<S>> ProvableStateReader<Kernel> for WorkingSet<S, I> {
-    type Spec = S;
-}
-impl<S: Spec, I: StateProvider<S>> ProvableStateWriter<User> for WorkingSet<S, I> {
-    type Spec = S;
-}
+impl<S: Spec, I: StateProvider<S>> ProvableStateReader<Kernel> for WorkingSet<S, I> {}
+impl<S: Spec, I: StateProvider<S>> ProvableStateWriter<User> for WorkingSet<S, I> {}
 
 impl<S: Spec, I: StateProvider<S>> AccessoryStateWriter for WorkingSet<S, I> {}
 

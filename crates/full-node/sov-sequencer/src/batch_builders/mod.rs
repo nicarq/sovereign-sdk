@@ -203,7 +203,7 @@ type AuthRes<S, Rt, I> = (
                 <Rt as DispatchCall>::Decodable,
                 <Rt as TransactionAuthenticator<S>>::AuthorizationData,
             >,
-            BasicGasMeter<<S as Spec>::Gas>,
+            BasicGasMeter<S>,
         ),
         PreExecError,
     >,
@@ -259,7 +259,7 @@ where
     Rt: Runtime<S>,
     I: StateProvider<S>,
 {
-    let gas_meter: BasicGasMeter<S::Gas> = match runtime
+    let gas_meter: BasicGasMeter<S> = match runtime
         .sequencer_authorization()
         .authorize_sequencer(sequencer_address, &mut tx_scratchpad)
     {

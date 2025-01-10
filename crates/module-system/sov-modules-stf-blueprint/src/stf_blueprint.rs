@@ -55,7 +55,7 @@ where
     pub(crate) fn process_proof(
         &self,
         blob_hash: [u8; 32],
-        slot_gas_meter: SlotGasMeter<S::Gas>,
+        slot_gas_meter: SlotGasMeter<S>,
         sender: <S::Da as DaSpec>::Address,
         gas_price: &<S::Gas as Gas>::Price,
         raw_proof: Vec<u8>,
@@ -69,7 +69,7 @@ where
         >,
         StateCheckpoint<S::Storage>,
         S::Gas,
-        SlotGasMeter<S::Gas>,
+        SlotGasMeter<S>,
     ) {
         let (res, state, ret_slot_gas_meter) = process_proof(
             &self.runtime,

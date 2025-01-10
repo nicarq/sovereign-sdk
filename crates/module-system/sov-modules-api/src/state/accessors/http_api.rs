@@ -83,7 +83,7 @@ pub struct ApiStateAccessor<S: Spec> {
     #[debug(skip)]
     witness: <<S as Spec>::Storage as Storage>::Witness,
     events: Vec<TypedEvent>,
-    gas_meter: BasicGasMeter<S::Gas>,
+    gas_meter: BasicGasMeter<S>,
     kernel_cache: ProvableStorageCache<namespaces::Kernel>,
     user_cache: ProvableStorageCache<namespaces::User>,
     accessory_writes: HashMap<SlotKey, Option<SlotValue>>,
@@ -119,7 +119,9 @@ const _: () = {
     }
 };
 
-impl<S: Spec> GasMeter<S::Gas> for ApiStateAccessor<S> {
+impl<S: Spec> GasMeter for ApiStateAccessor<S> {
+    type Spec = S;
+
     fn charge_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_gas(gas)
     }

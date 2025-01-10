@@ -25,7 +25,7 @@ const LOG_PREFIX: &str = "Returning early from the proof processing workflow";
 #[allow(clippy::type_complexity)]
 pub(crate) fn process_proof<S, RT>(
     runtime: &RT,
-    slot_gas_meter: SlotGasMeter<S::Gas>,
+    slot_gas_meter: SlotGasMeter<S>,
     blob_hash: [u8; 32],
     sequencer_da_address: <S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
@@ -34,7 +34,7 @@ pub(crate) fn process_proof<S, RT>(
 ) -> (
     ProcessProofOutput<S>,
     StateCheckpoint<S::Storage>,
-    SlotGasMeter<S::Gas>,
+    SlotGasMeter<S>,
 )
 where
     S: Spec,
@@ -243,7 +243,7 @@ where
             .authorize_sequencer(self.sequencer_da_address, &mut tx_scratchpad)
             .expect("Blob selection must guarantee that sequencer is registered");
 
-        let gas_meter = BasicGasMeter::<S::Gas>::new(sequencer.balance, gas_price.clone());
+        let gas_meter = BasicGasMeter::<S>::new(sequencer.balance, gas_price.clone());
         let mut pre_exec_working_set = tx_scratchpad.to_pre_exec_working_set(gas_meter);
 
         // This represents the cost incurred by the sequencer solely for accepting the proof. It includes the cost of:
@@ -275,7 +275,7 @@ where
 
     fn try_reserve_gas<I: StateProvider<S>>(
         &self,
-        slot_gas_meter: &SlotGasMeter<S::Gas>,
+        slot_gas_meter: &SlotGasMeter<S>,
         sequencer_rollup_address: &S::Address,
         gas_price: &<S::Gas as Gas>::Price,
         auth_tx: AuthenticatedTransactionData<S>,

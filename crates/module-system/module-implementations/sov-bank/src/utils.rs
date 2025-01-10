@@ -26,7 +26,7 @@ pub fn get_token_id_metered<S: Spec>(
     originator: &impl Payable<S>,
     state: &mut impl TxState<S>,
 ) -> anyhow::Result<TokenId> {
-    let mut hasher = MeteredHasher::<_, _, <S::CryptoSpec as CryptoSpec>::Hasher>::new::<S>(state);
+    let mut hasher = MeteredHasher::<_, <S::CryptoSpec as CryptoSpec>::Hasher>::new(state);
     hasher.update(originator.as_token_holder().as_bytes())?;
     hasher.update(token_name.as_bytes())?;
 

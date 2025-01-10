@@ -44,7 +44,7 @@ fn test_metered_hasher_happy_path() {
 
     let mut ws = create_working_set(remaining_funds, &gas_price);
 
-    let mut hasher = MeteredHasher::<_, _, Sha256>::new_with_custom_price(
+    let mut hasher = MeteredHasher::<_, Sha256>::new_with_custom_price(
         &mut ws,
         gas_to_charge_for_hash_update,
         gas_to_charge_for_hash_finalize,
@@ -76,7 +76,7 @@ fn test_metered_hasher_not_enough_gas_to_finalize() {
 
     let mut ws = create_working_set(remaining_funds, &gas_price);
 
-    let mut hasher = MeteredHasher::<_, _, Sha256>::new_with_custom_price(
+    let mut hasher = MeteredHasher::<_, Sha256>::new_with_custom_price(
         &mut ws,
         gas_to_charge_for_hash_update,
         gas_to_charge_for_hash_finalize,
@@ -108,7 +108,7 @@ fn test_metered_hasher_not_enough_gas_to_update() {
 
     let mut ws = create_working_set(remaining_funds, &gas_price);
 
-    let mut hasher = MeteredHasher::<_, _, Sha256>::new_with_custom_price(
+    let mut hasher = MeteredHasher::<_, Sha256>::new_with_custom_price(
         &mut ws,
         gas_to_charge_for_hash_update,
         gas_to_charge_for_hash_finalize,
@@ -202,7 +202,7 @@ pub struct BorshTestStruct {
 impl MeteredBorshDeserialize<S> for BorshTestStruct {
     fn deserialize(
         buf: &mut &[u8],
-        meter: &mut impl GasMeter<<S as Spec>::Gas>,
+        meter: &mut impl GasMeter<Spec = S>,
     ) -> Result<Self, MeteredBorshDeserializeError<<S as Spec>::Gas>> {
         meter
             .charge_gas(&Self::gas_cost_to_deserialize(buf)?)
