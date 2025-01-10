@@ -109,7 +109,12 @@ impl<E> From<E> for MaybeRetryable<E> {
 }
 
 /// Output of submit blob operation.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, derive_more::Display)]
+#[display(
+    "SubmitBlobReceipt {{ blob_hash: {}, da_transaction_id: {:?} }}",
+    blob_hash,
+    da_transaction_id
+)]
 pub struct SubmitBlobReceipt<T: Debug + Clone> {
     /// Computed blob hash, so it can be identified by fetcher of the blobs.
     pub blob_hash: HexHash,

@@ -341,7 +341,14 @@ impl<B> BlobDataWithId<B> {
 }
 
 /// The sequencer rewards.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, derive_more::Display,
+)]
+#[display(
+    "Rewards {{ accumulated_reward:{}, accumulated_penalty: {} }}",
+    accumulated_reward,
+    accumulated_penalty
+)]
 pub struct Rewards {
     /// Rewards accumulated by the sequencer during the batch processing
     pub accumulated_reward: u64,
@@ -350,7 +357,10 @@ pub struct Rewards {
 }
 
 /// Outcome of batch execution.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, derive_more::Display,
+)]
+#[display("BatchSequencerOutcome {{ rewards: {} }}", rewards)]
 #[serde(rename_all = "snake_case")]
 pub struct BatchSequencerOutcome {
     /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties.
@@ -358,7 +368,14 @@ pub struct BatchSequencerOutcome {
 }
 
 /// A receipt for a batch that was submitted by a sequencer to the DA layer.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Display)]
+#[display(
+    "BatchSequencerReceipt {{ da_address: {}, gas_price: {}, gas_used: {}, outcome: {} }}",
+    da_address,
+    gas_price,
+    gas_used,
+    outcome
+)]
 #[serde(bound = "S: Spec")]
 pub struct BatchSequencerReceipt<S: Spec> {
     /// The da address of the sequencer that submitted the batch.

@@ -196,20 +196,17 @@ pub(crate) fn apply_batch_logs<'a, S: Spec>(
         sequencer_da_address = %batch_sequencer_receipt.da_address,
         num_txs = batch_receipt.tx_receipts.len(),
         num_ignored_txs = batch_receipt.ignored_tx_receipts.len(),
-        sequencer_outcome = ?batch_receipt.inner,
-        ?gas_used,
+        sequencer_outcome = %batch_receipt.inner,
+        %gas_used,
         "Applied blob and got the sequencer outcome"
     );
-
-    info!(sequencer_da_address =
-        ?batch_sequencer_receipt.da_address, ?batch_sequencer_receipt.outcome, "BatchSequencerOutcome ");
 
     for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
         debug!(
             tx_idx = i,
             tx_hash = hex::encode(tx_receipt.tx_hash),
             receipt = ?tx_receipt.receipt,
-            gas_used = ?get_gas_used(tx_receipt),
+            gas_used = %get_gas_used(tx_receipt),
             "Tx receipt"
         );
     }
@@ -217,7 +214,7 @@ pub(crate) fn apply_batch_logs<'a, S: Spec>(
     for tx_receipt in batch_receipt.ignored_tx_receipts.iter() {
         debug!(
             receipt = ?tx_receipt,
-            gas_used = ?tx_receipt.ignored.gas_used,
+            gas_used = %tx_receipt.ignored.gas_used,
             "Ignored Tx receipt"
         );
     }
