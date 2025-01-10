@@ -4,6 +4,7 @@ use serde_json::{Number, Value};
 use thiserror::Error;
 
 use crate::schema::Primitive;
+use crate::ty::byte_display::ByteParseError;
 use crate::ty::visitor::{ResolutionError, TypeResolver, TypeVisitor};
 use crate::ty::{Enum, IntegerType, LinkingScheme, Struct, Tuple, Ty};
 
@@ -15,6 +16,8 @@ pub enum EncodeError {
     Core(#[from] std::io::Error),
     #[error("JSON error: {0}")]
     Json(String),
+    #[error(transparent)]
+    ByteParsing(#[from] ByteParseError),
     #[error("Invalid discriminant `{discriminant}` for {type_name}")]
     InvalidDiscriminant {
         type_name: String,
@@ -283,39 +286,61 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
                     serialize_primitive!(self, context.value, as_u64, "u128", u128)
                 }
             },
-            Primitive::ByteArray { len, .. } => {
-                let arr = context.value.as_array().ok_or(EncodeError::InvalidType {
-                    schema_type: "byte array".to_string(),
-                    value: context.value.to_string(),
-                })?;
-                if arr.len() != len {
-                    return Err(EncodeError::WrongArrayLength {
-                        expected: len,
-                        actual: arr.len(),
-                    });
-                }
-                for byte in arr {
-                    serialize_primitive!(self, byte.clone(), as_u64, "byte", u8)?;
-                }
+            Primitive::ByteArray { len, display } => {
+                let verify_len = |actual: usize| {
+                    if actual != len {
+                        Err(EncodeError::WrongArrayLength {
+                            expected: len,
+                            actual,
+                        })
+                    } else {
+                        Ok(())
+                    }
+                };
+                match context.value {
+                    Value::Array(arr) => {
+                        verify_len(arr.len())?;
+                        for byte in arr {
+                            serialize_primitive!(self, byte.clone(), as_u64, "byte", u8)?;
+                        }
+                    }
+                    Value::String(str) => {
+                        let arr = display.parse(&str)?;
+                        verify_len(arr.len())?;
+                        for byte in arr {
+                            borsh::to_writer(&mut self.out, &byte)?;
+                        }
+                    }
+                    _ => {
+                        return Err(EncodeError::InvalidType {
+                            schema_type: "byte array".to_string(),
+                            value: context.value.to_string(),
+                        })
+                    }
+                };
                 Ok(())
             }
-
-            Primitive::ByteVec { .. } => {
-                let vec = context.value.as_array().ok_or(EncodeError::InvalidType {
-                    schema_type: "byte vector".to_string(),
-                    value: context.value.to_string(),
-                })?;
-                let vec = vec
-                    .iter()
-                    .map(|v| {
-                        v.as_u64().and_then(|u| u8::try_from(u).ok()).ok_or(
-                            EncodeError::InvalidType {
-                                schema_type: "byte".to_string(),
-                                value: v.to_string(),
-                            },
-                        )
-                    })
-                    .collect::<Result<Vec<u8>, _>>()?;
+            Primitive::ByteVec { display } => {
+                let vec = match context.value {
+                    Value::Array(vec) => vec
+                        .iter()
+                        .map(|v| {
+                            v.as_u64().and_then(|u| u8::try_from(u).ok()).ok_or(
+                                EncodeError::InvalidType {
+                                    schema_type: "byte".to_string(),
+                                    value: v.to_string(),
+                                },
+                            )
+                        })
+                        .collect::<Result<Vec<u8>, _>>()?,
+                    Value::String(str) => display.parse(&str)?,
+                    _ => {
+                        return Err(EncodeError::InvalidType {
+                            schema_type: "byte vector".to_string(),
+                            value: context.value.to_string(),
+                        })
+                    }
+                };
                 borsh::to_writer(&mut self.out, &vec)?;
                 Ok(())
             }
