@@ -59,7 +59,7 @@ where
         sender: <S::Da as DaSpec>::Address,
         gas_price: &<S::Gas as Gas>::Price,
         raw_proof: Vec<u8>,
-        checkpoint: StateCheckpoint<S::Storage>,
+        checkpoint: StateCheckpoint<S>,
     ) -> (
         ProofReceipt<
             S::Address,
@@ -67,7 +67,7 @@ where
             <S::Storage as Storage>::Root,
             StorageProof<<S::Storage as Storage>::Proof>,
         >,
-        StateCheckpoint<S::Storage>,
+        StateCheckpoint<S>,
         S::Gas,
         SlotGasMeter<S>,
     ) {

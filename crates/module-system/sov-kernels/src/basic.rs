@@ -60,7 +60,7 @@ impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
     fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
-        state: &mut KernelStateAccessor<'k, <Self::Spec as Spec>::Storage>,
+        state: &mut KernelStateAccessor<'k, Self::Spec>,
     ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId>>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
@@ -80,7 +80,7 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, 
         slot_header: &<S::Da as DaSpec>::BlockHeader,
         validity_condition: &<S::Da as DaSpec>::ValidityCondition,
         pre_state_root: &<S::Storage as Storage>::Root,
-        state: &mut sov_modules_api::KernelStateAccessor<S::Storage>,
+        state: &mut sov_modules_api::KernelStateAccessor<S>,
     ) {
         self.chain_state
             .synchronize_chain(slot_header, validity_condition, pre_state_root, state);
@@ -89,7 +89,7 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, 
     fn finalise_chain_state(
         &self,
         gas_used: &S::Gas,
-        state: &mut sov_modules_api::KernelStateAccessor<S::Storage>,
+        state: &mut sov_modules_api::KernelStateAccessor<S>,
     ) {
         self.chain_state.finalize_chain_state(gas_used, state);
     }
@@ -110,7 +110,7 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, 
 
     fn current_visible_hash(
         &self,
-        state: &mut sov_modules_api::KernelStateAccessor<S::Storage>,
+        state: &mut sov_modules_api::KernelStateAccessor<S>,
     ) -> Option<<<Self::Spec as Spec>::Storage as Storage>::Root> {
         self.chain_state.current_visible_hash(state)
     }

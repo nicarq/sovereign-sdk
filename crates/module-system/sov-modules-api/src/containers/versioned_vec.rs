@@ -5,14 +5,15 @@ use std::marker::PhantomData;
 use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
 use sov_state::codec::BorshCodec;
 use sov_state::namespaces::{CompileTimeNamespace, Kernel};
-use sov_state::{EncodeLike, Prefix, StateCodec, StateItemCodec, Storage};
+use sov_state::{EncodeLike, Prefix, StateCodec, StateItemCodec};
 use thiserror::Error;
 use unwrap_infallible::UnwrapInfallible;
 
 use super::map::NamespacedStateMap;
 use super::{KernelStateValue, VersionedStateValue};
 use crate::{
-    InfallibleStateReaderAndWriter, KernelStateAccessor, KernelWriter, StateReader, VersionReader,
+    InfallibleStateReaderAndWriter, KernelStateAccessor, KernelWriter, Spec, StateReader,
+    VersionReader,
 };
 
 /// A growable array of values stored as JMT-backed state. This is the versioned version of [`crate::StateVec`].
@@ -225,7 +226,7 @@ where
     }
 
     /// Sets the last element in a versioned state vector. Returns an error if the vector is empty.
-    pub fn set_last<Vq, S: Storage>(
+    pub fn set_last<Vq, S: Spec>(
         &self,
         new_value: &Vq,
         state: &mut KernelStateAccessor<S>,
@@ -379,8 +380,7 @@ mod test {
         let storage_manager = SimpleStorageManager::new();
         let storage = storage_manager.create_storage();
         let kernel = MockKernel::<TestSpec>::default();
-        let mut state: StateCheckpoint<<TestSpec as Spec>::Storage> =
-            StateCheckpoint::new(storage, &kernel);
+        let mut state: StateCheckpoint<TestSpec> = StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
         let state_vec = VersionedStateVec::<u32>::with_codec(prefix, BorshCodec);
@@ -488,7 +488,7 @@ mod test {
         state_vec: &VersionedStateVec<T>,
         action: TestCaseAction<T>,
         kernel: &mut MockKernel<S>,
-        state: &mut StateCheckpoint<S::Storage>,
+        state: &mut StateCheckpoint<S>,
     ) where
         BorshCodec: StateItemCodec<T>,
         T: Eq + Debug,

@@ -50,7 +50,7 @@ impl<S: Spec> SlotHooks for CorrectHooksOverride<S> {
     fn begin_slot_hook(
         &self,
         visible_hash: &<<S as Spec>::Storage as Storage>::Root,
-        state: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>,
+        state: &mut StateCheckpoint<Self::Spec>,
     ) {
         self.begin_slot_hash
             .push(visible_hash, state)

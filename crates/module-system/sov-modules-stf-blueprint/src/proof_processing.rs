@@ -30,12 +30,8 @@ pub(crate) fn process_proof<S, RT>(
     sequencer_da_address: <S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
     raw_proof: Vec<u8>,
-    state: StateCheckpoint<S::Storage>,
-) -> (
-    ProcessProofOutput<S>,
-    StateCheckpoint<S::Storage>,
-    SlotGasMeter<S>,
-)
+    state: StateCheckpoint<S>,
+) -> (ProcessProofOutput<S>, StateCheckpoint<S>, SlotGasMeter<S>)
 where
     S: Spec,
     RT: Runtime<S>,

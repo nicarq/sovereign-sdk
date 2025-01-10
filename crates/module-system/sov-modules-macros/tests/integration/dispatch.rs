@@ -312,7 +312,7 @@ mod derive_genesis {
         let runtime = &mut Runtime::<ZkTestSpec, u32>::default();
         let config = GenesisConfig::new((), (), ());
         let mut genesis_state =
-            state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>, ZkTestSpec>(&config);
+            state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>>(&config);
         runtime
             .genesis(
                 &Default::default(),
@@ -379,7 +379,7 @@ mod derive_dispatch {
             sov_modules_api::StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec>::default());
         let config = GenesisConfig::new((), (), ());
         let mut genesis_state =
-            state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>, ZkTestSpec>(&config);
+            state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>>(&config);
         runtime
             .genesis(
                 &Default::default(),

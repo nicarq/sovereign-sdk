@@ -24,7 +24,7 @@ impl<S: Spec> ChainState<S> {
     /// Panics if the rollup height is not set
     pub fn get_true_rollup_height(
         &self,
-        kernel_working_set: &mut KernelStateAccessor<S::Storage>,
+        kernel_working_set: &mut KernelStateAccessor<S>,
     ) -> SlotNumber {
         self.true_rollup_height(kernel_working_set)
             .unwrap_infallible()

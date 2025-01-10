@@ -177,7 +177,7 @@ impl<T: ModuleInfo + Default> HasCustomRestApi for &T {
 pub struct ApiState<S: Spec, T = ()> {
     #[deref]
     inner: Arc<T>,
-    checkpoint_receiver: watch::Receiver<StateCheckpoint<S::Storage>>,
+    checkpoint_receiver: watch::Receiver<StateCheckpoint<S>>,
     kernel: Arc<dyn KernelWithSlotMapping<S>>,
     /// The `height` query parameter extracted from the request, when applicable.
     requested_height: Option<VisibleSlotNumber>,
@@ -188,7 +188,7 @@ impl<S: Spec, T> ApiState<S, T> {
     /// [`StateCheckpoint`]s.
     pub fn build(
         inner: Arc<T>,
-        checkpoint_receiver: watch::Receiver<StateCheckpoint<S::Storage>>,
+        checkpoint_receiver: watch::Receiver<StateCheckpoint<S>>,
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
         requested_height: Option<u64>,
     ) -> Self {

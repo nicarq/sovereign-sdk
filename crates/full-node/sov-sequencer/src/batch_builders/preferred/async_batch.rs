@@ -39,11 +39,8 @@ impl<T: TxReceiptContents, S: Spec> InjectedControlFlow<TransactionReceipt<T>, S
     fn post_tx(
         &self,
         provisional_outcome: ProvisionalSequencerOutcome<TransactionReceipt<T>>,
-        dirty_scratchpad: TxScratchpad<S, StateCheckpoint<<S as Spec>::Storage>>,
-    ) -> (
-        StateCheckpoint<S::Storage>,
-        TxControlFlow<TransactionReceipt<T>>,
-    ) {
+        dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S>>,
+    ) -> (StateCheckpoint<S>, TxControlFlow<TransactionReceipt<T>>) {
         match self {
             Self::Async(responder) => responder.post_tx(provisional_outcome, dirty_scratchpad),
             Self::Sync => NoOpControlFlow.post_tx(provisional_outcome, dirty_scratchpad),
@@ -141,11 +138,8 @@ impl<T: TxReceiptContents, S: Spec> AsyncBatchResponder<TransactionReceipt<T>, S
     fn post_tx(
         &self,
         provisional_outcome: ProvisionalSequencerOutcome<TransactionReceipt<T>>,
-        dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S::Storage>>,
-    ) -> (
-        StateCheckpoint<S::Storage>,
-        TxControlFlow<TransactionReceipt<T>>,
-    ) {
+        dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S>>,
+    ) -> (StateCheckpoint<S>, TxControlFlow<TransactionReceipt<T>>) {
         let ProvisionalSequencerOutcome {
             reward,
             penalty,

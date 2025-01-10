@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::capabilities::Kernel;
 use sov_modules_api::{
-    KernelStateValue, Spec, StateCheckpoint, StateMap, StateValue, VersionedStateValue,
+    KernelStateValue, StateCheckpoint, StateMap, StateValue, VersionedStateValue,
 };
 use sov_state::{BorshCodec, Prefix, ProvableNamespace};
 use sov_test_utils::storage::SimpleStorageManager;
@@ -21,8 +21,7 @@ fn test_state_value_user_namespace() -> Result<(), Infallible> {
     let mut kernel = MockKernel::<S>::default();
 
     // Native execution
-    let mut state: StateCheckpoint<<S as Spec>::Storage> =
-        StateCheckpoint::new(storage.clone(), &kernel);
+    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);
     state_value.set(&11, &mut state)?;
     let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
 
@@ -35,8 +34,7 @@ fn test_state_value_user_namespace() -> Result<(), Infallible> {
         .unwrap();
     assert_ne!(kernel_root_hash, user_root_hash);
 
-    let mut state: StateCheckpoint<<S as Spec>::Storage> =
-        StateCheckpoint::new(storage.clone(), &kernel);
+    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);
     let _ = state_value.get(&mut state);
     state_value.set(&22, &mut state)?;
     let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
@@ -65,8 +63,7 @@ fn test_state_value_kernel_namespace() -> Result<(), Infallible> {
     let state_value = KernelStateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     // Native execution
-    let mut state: StateCheckpoint<<S as Spec>::Storage> =
-        StateCheckpoint::new(storage.clone(), &kernel);
+    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);
     let mut kernel_working_set = kernel.accessor(&mut state);
     state_value.set(&11, &mut kernel_working_set)?;
 
@@ -81,8 +78,7 @@ fn test_state_value_kernel_namespace() -> Result<(), Infallible> {
         .unwrap();
     assert_ne!(kernel_root_hash, user_root_hash);
 
-    let mut state: StateCheckpoint<<S as Spec>::Storage> =
-        StateCheckpoint::new(storage.clone(), &kernel);
+    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);
     let mut kernel_working_set = kernel.accessor(&mut state);
     let _ = state_value.get(&mut kernel_working_set);
     state_value.set(&22, &mut kernel_working_set)?;
@@ -111,8 +107,7 @@ fn test_state_map_user_namespace() -> Result<(), Infallible> {
     let mut kernel = MockKernel::<S>::default();
 
     // Native execution
-    let mut state: StateCheckpoint<<S as Spec>::Storage> =
-        StateCheckpoint::new(storage.clone(), &kernel);
+    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);
     state_value.set(&11, &0, &mut state)?;
 
     // Committing data at height 0
@@ -127,8 +122,7 @@ fn test_state_map_user_namespace() -> Result<(), Infallible> {
     // In the first version the user and the kernel root hashes are different
     assert_ne!(kernel_root_hash, user_root_hash);
 
-    let mut state: StateCheckpoint<<S as Spec>::Storage> =
-        StateCheckpoint::new(storage.clone(), &kernel);
+    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);
     state_value.set(&11, &0, &mut state)?;
     let _ = state_value.get(&0, &mut state);
     state_value.set(&22, &0, &mut state)?;

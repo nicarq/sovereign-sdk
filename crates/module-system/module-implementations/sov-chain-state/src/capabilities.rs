@@ -15,7 +15,7 @@ impl<S: Spec> ChainState<S> {
     /// If the state root at the current height is not available yet, this method will return `None`.
     pub fn current_visible_hash(
         &self,
-        state: &mut KernelStateAccessor<'_, S::Storage>,
+        state: &mut KernelStateAccessor<'_, S>,
     ) -> Option<<S::Storage as Storage>::Root> {
         let current_root = self.state_roots.last(state).unwrap_infallible()?;
 
@@ -39,7 +39,7 @@ impl<S: Spec> ChainState<S> {
         slot_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         pre_state_root: &<S::Storage as Storage>::Root,
-        state: &mut KernelStateAccessor<S::Storage>,
+        state: &mut KernelStateAccessor<S>,
     ) {
         // We increment the rollup height at the very beginning of the slot execution
         self.increment_true_rollup_height(state);
@@ -78,11 +78,7 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Updates the gas used by the transition in progress at the end of each slot
-    pub fn finalize_chain_state(
-        &self,
-        gas_used: &S::Gas,
-        state: &mut KernelStateAccessor<S::Storage>,
-    ) {
+    pub fn finalize_chain_state(&self, gas_used: &S::Gas, state: &mut KernelStateAccessor<S>) {
         // We retrieve the last slot in progress, update its gas information and store it back to the state
         let mut in_progress_slot = self
             .last_slot(state)

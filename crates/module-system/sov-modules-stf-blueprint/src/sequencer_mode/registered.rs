@@ -284,7 +284,7 @@ impl<S: Spec> IncrementalBatchReceipt<S> {
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 pub(crate) fn apply_batch<S, RT, B>(
     runtime: &RT,
-    mut checkpoint: StateCheckpoint<S::Storage>,
+    mut checkpoint: StateCheckpoint<S>,
     slot_gas_meter: &mut SlotGasMeter<S>,
     batch_with_id: B,
     blob_idx: usize,
@@ -292,7 +292,7 @@ pub(crate) fn apply_batch<S, RT, B>(
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
     execution_context: ExecutionContext,
-) -> (IncrementalBatchReceipt<S>, StateCheckpoint<S::Storage>)
+) -> (IncrementalBatchReceipt<S>, StateCheckpoint<S>)
 where
     S: Spec,
     RT: Runtime<S>,

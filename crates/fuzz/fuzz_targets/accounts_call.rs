@@ -44,8 +44,7 @@ fuzz_target!(
         let mut seed = [0u8; 32];
         let storage_manager = SimpleStorageManager::new();
         let storage = storage_manager.create_storage();
-        let mut state =
-            StateCheckpoint::<<S as Spec>::Storage>::new(storage, &MockKernel::<S>::default());
+        let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S>::default());
 
         let sequencer = <S as Spec>::Address::from(sequencer);
         let sequencer_da = <<S as Spec>::Da as DaSpec>::Address::from(sequencer_da);
@@ -60,7 +59,7 @@ fuzz_target!(
         let config = AccountConfig { accounts };
 
         let accounts: Accounts<S> = Accounts::default();
-        let mut genesis_state = state.to_genesis_state_accessor::<Accounts<S>, S>(&config);
+        let mut genesis_state = state.to_genesis_state_accessor::<Accounts<S>>(&config);
         accounts
             .genesis(
                 &Default::default(),

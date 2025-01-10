@@ -360,11 +360,11 @@ where
     /// See the [`arbitrary`] crate for more information.
     pub fn arbitrary_state_map<S>(
         u: &mut arbitrary::Unstructured<'a>,
-        working_set: &mut crate::StateCheckpoint<S::Storage>,
+        working_set: &mut crate::StateCheckpoint<S>,
     ) -> arbitrary::Result<Self>
     where
         S: crate::Spec,
-        StateCheckpoint<S::Storage>: InfallibleStateReaderAndWriter<N>,
+        StateCheckpoint<S>: InfallibleStateReaderAndWriter<N>,
     {
         use arbitrary::Arbitrary;
 

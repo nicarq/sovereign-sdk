@@ -47,10 +47,7 @@ pub trait KernelWithSlotMapping<S: Spec>: Sync + Send + 'static {
 /// in order to give out soft confirmations.
 pub trait Kernel<S: Spec> {
     /// Returns a [`KernelStateAccessor`] for the given [`StateCheckpoint`].
-    fn accessor<'a>(
-        &self,
-        state: &'a mut StateCheckpoint<S::Storage>,
-    ) -> KernelStateAccessor<'a, S::Storage> {
+    fn accessor<'a>(&self, state: &'a mut StateCheckpoint<S>) -> KernelStateAccessor<'a, S> {
         KernelStateAccessor::from_checkpoint(self, state)
     }
 

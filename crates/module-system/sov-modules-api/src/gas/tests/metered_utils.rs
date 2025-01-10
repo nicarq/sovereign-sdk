@@ -21,7 +21,7 @@ type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 fn create_working_set(
     remaining_funds: u64,
     gas_price: &<<S as Spec>::Gas as Gas>::Price,
-) -> WorkingSet<S, StateCheckpoint<<S as Spec>::Storage>> {
+) -> WorkingSet<S, StateCheckpoint<S>> {
     let storage_manager = SimpleStorageManager::new();
     let storage = storage_manager.create_storage();
     WorkingSet::new_with_gas_meter(storage, remaining_funds, gas_price)

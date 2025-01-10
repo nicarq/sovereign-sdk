@@ -338,7 +338,7 @@ impl<S: Spec> ChainState<S> {
     pub fn set_next_visible_rollup_height(
         &self,
         value: &VisibleSlotNumber,
-        state: &mut KernelStateAccessor<S::Storage>,
+        state: &mut KernelStateAccessor<S>,
     ) {
         tracing::debug!(%value, "Setting next visible rollup height");
 

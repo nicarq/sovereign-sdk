@@ -406,7 +406,7 @@ mod test {
 
     use super::*;
     use crate::capabilities::mocks::MockKernel;
-    use crate::{Spec, StateCheckpoint};
+    use crate::StateCheckpoint;
 
     type TestSpec = crate::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
@@ -416,7 +416,7 @@ mod test {
     fn double_ended_iterator_is_broken() {
         let storage_manager = SimpleStorageManager::new();
         let storage = storage_manager.create_storage();
-        let mut state: StateCheckpoint<<TestSpec as Spec>::Storage> =
+        let mut state: StateCheckpoint<TestSpec> =
             StateCheckpoint::new(storage, &MockKernel::<TestSpec>::default());
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
@@ -435,7 +435,7 @@ mod test {
     fn test_state_vec() {
         let storage_manager = SimpleStorageManager::new();
         let storage = storage_manager.create_storage();
-        let mut state: StateCheckpoint<<TestSpec as Spec>::Storage> =
+        let mut state: StateCheckpoint<TestSpec> =
             StateCheckpoint::new(storage, &MockKernel::<TestSpec>::default());
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
