@@ -4259,7 +4259,9 @@ dependencies = [
 name = "sov-universal-wallet-macro-helpers"
 version = "0.1.0"
 dependencies = [
+ "bech32",
  "borsh",
+ "bs58",
  "convert_case 0.6.0",
  "darling",
  "hex",

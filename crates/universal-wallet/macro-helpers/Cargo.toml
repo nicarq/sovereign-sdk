@@ -13,3 +13,5 @@ convert_case = { workspace = true }
 darling = { workspace = true }
 hex = { workspace = true }
 borsh = { workspace = true }
+bs58 = { workspace = true }
+bech32 = { workspace = true }

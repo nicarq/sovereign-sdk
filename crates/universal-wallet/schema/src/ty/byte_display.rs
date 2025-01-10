@@ -155,7 +155,7 @@ impl ByteDisplay {
         }
     }
 
-    pub fn parse_constant<const N: usize>(&self, input: &str) -> Result<[u8; N], ByteParseError> {
+    pub fn parse_const<const N: usize>(&self, input: &str) -> Result<[u8; N], ByteParseError> {
         let parsed_bytes = self.parse(input)?;
         let encoding = match self {
             ByteDisplay::Hex => "hex",
@@ -203,7 +203,7 @@ mod byte_display_tests {
             // vec parsing
             assert_eq!(display.parse(input).unwrap(), bytes.to_vec());
             // array parsing
-            assert_eq!(display.parse_constant(input).unwrap(), bytes);
+            assert_eq!(display.parse_const(input).unwrap(), bytes);
         };
     }
 
@@ -212,7 +212,7 @@ mod byte_display_tests {
             let input = $str;
             let display = $display;
 
-            let result = display.parse_constant::<11>(input);
+            let result = display.parse_const::<11>(input);
             assert!(result.is_err());
             assert_eq!(
                 result.err().unwrap(),

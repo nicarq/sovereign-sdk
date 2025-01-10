@@ -204,6 +204,29 @@ impl FromStr for SimpleStructWithTemplate {
 
 #[derive(
     Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Clone,
+    UniversalWallet,
+    BorshSerialize,
+    BorshDeserialize,
+)]
+pub struct SimpleStructWithTemplateAndDisplays {
+    #[sov_wallet(template("transfer" = input("tokens"), "receive" = input("tokens")))]
+    tokens: u64,
+    #[sov_wallet(template("transfer" = input("to_hex"), "receive" = value(bytes("0x0808080808080808080808080808080808080808080808080808080808080808"))))]
+    #[sov_wallet(display(hex))]
+    hex_address: [u8; 32],
+    #[sov_wallet(template("transfer" = input("to_bech32"), "receive" = value(bytes("celestia1pqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyq3k0ptp"))))]
+    #[sov_wallet(display(bech32(prefix = "PREFIX_CELESTIA")))]
+    bech32_address: [u8; 32],
+}
+
+#[derive(
+    Debug,
     PartialEq,
     Eq,
     Serialize,
@@ -423,6 +446,45 @@ fn test_nested_struct_with_surrogate_templates() {
         .fill_template_from_json(0, "mint_a", "{ \"mint_msg\": \"hi\" }")
         .unwrap();
     assert_eq!(mint_example_encoding, mint_template_encoding);
+}
+
+#[test]
+fn test_simple_struct_schema_with_template_and_display() {
+    let my_registration = SimpleStructWithTemplateAndDisplays {
+        tokens: 1000,
+        hex_address: [8; 32],
+        bech32_address: [9; 32],
+    };
+
+    encode_decode_tests!(
+        SimpleStructWithTemplateAndDisplays,
+        my_registration,
+        "{ tokens: 1000, hex_address: 0x0808080808080808080808080808080808080808080808080808080808080808, bech32_address: celestia1pyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyys5ykmar }"
+    );
+
+    let schema = Schema::of_single_type::<SimpleStructWithTemplateAndDisplays>();
+
+    let transfer_example_encoding = borsh::to_vec(&SimpleStructWithTemplateAndDisplays {
+        tokens: 124,
+        hex_address: [9; 32],
+        bech32_address: [9; 32],
+    })
+    .unwrap();
+    let transfer_template_encoding = schema
+        .fill_template_from_json(0, "transfer", "{ \"tokens\": 124, \"to_hex\": \"0x0909090909090909090909090909090909090909090909090909090909090909\", \"to_bech32\": \"celestia1pyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyys5ykmar\" }")
+        .unwrap();
+    assert_eq!(transfer_example_encoding, transfer_template_encoding);
+
+    let receive_example_encoding = borsh::to_vec(&SimpleStructWithTemplateAndDisplays {
+        tokens: 125,
+        hex_address: [8; 32],
+        bech32_address: [8; 32],
+    })
+    .unwrap();
+    let receive_template_encoding = schema
+        .fill_template_from_json(0, "receive", "{ \"tokens\": 125 }")
+        .unwrap();
+    assert_eq!(receive_example_encoding, receive_template_encoding);
 }
 
 #[test]

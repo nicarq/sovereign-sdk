@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use darling::ast::{self, Data, Fields, Style};
 use darling::usage::{CollectLifetimes, CollectTypeParams, GenericsExt, Purpose};
 use darling::util::SpannedValue;
@@ -32,6 +34,53 @@ pub enum DisplayType {
         prefix: syn::Expr,
     },
     Base58,
+}
+
+impl DisplayType {
+    pub fn resolve(&self, crate_prefix: &Option<syn::TypePath>) -> TokenStream {
+        match self {
+            DisplayType::Hex => {
+                quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Hex }
+            }
+            DisplayType::Decimal => {
+                quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Decimal }
+            }
+            DisplayType::Bech32 { prefix } => {
+                quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Bech32 { prefix: #crate_prefix::sov_universal_wallet::bech32::Hrp::parse(#prefix).expect("Invalid bech32 prefix") } }
+            }
+            DisplayType::Bech32m { prefix } => {
+                quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Bech32m { prefix: #crate_prefix::sov_universal_wallet::bech32::Hrp::parse(#prefix).expect("Invalid bech32 prefix") } }
+            }
+            DisplayType::Base58 => {
+                quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Base58 }
+            }
+        }
+    }
+
+    pub fn len(&self, input: &SpannedValue<String>) -> Result<usize, darling::Error> {
+        match self {
+            DisplayType::Hex => Ok(if input.starts_with("0x") {
+                (input.len() - 2) / 2
+            } else {
+                input.len() / 2
+            }),
+            DisplayType::Decimal => Ok(input.split(',').count()),
+            DisplayType::Bech32 { .. } | DisplayType::Bech32m { .. } => {
+                let (_, bytes) = bech32::decode(input).map_err(|e| {
+                    darling::Error::custom(format!("Invalid bech32(m) literal value: {e}"))
+                        .with_span(&input.span())
+                })?;
+                Ok(bytes.len())
+            }
+            DisplayType::Base58 => Ok(bs58::decode(input.deref())
+                .into_vec()
+                .map_err(|e| {
+                    darling::Error::custom(format!("Invalid base58 literal value: {e}"))
+                        .with_span(&input.span())
+                })?
+                .len()),
+        }
+    }
 }
 
 #[derive(Debug, FromMeta, Default, Clone)]
@@ -129,6 +178,19 @@ fn struct_child_templates(
                             &<#ty as ::core::default::Default>::default()
                         ).expect(format!("Borsh-encoding of default value failed while encoding schema template on type {}", #input_name_str).as_str())
                     )
+                },
+                InputOrValue::BytesValue(bytes) => {
+                    let display_type = field.display.clone().unwrap_or(DisplayType::Hex);
+                    let byte_display = display_type.resolve(prefix);
+                    let const_len = display_type.len(bytes)?;
+                    let bytes_str = bytes.deref();
+                    quote! {
+                        #prefix::sov_universal_wallet::schema::transaction_templates::TransactionTemplate::from_bytes(
+                            ::borsh::to_vec(
+                                &#byte_display.parse_const::<#const_len>(#bytes_str).expect(format!("Parsing value {} as byte array failed", #bytes_str).as_str())
+                            ).expect(format!("Borsh-encoding of value {} failed while encoding schema template on type {}", #bytes_str, #input_name_str).as_str())
+                        )
+                    }
                 }
             };
             let template_name = t.0;
@@ -230,7 +292,9 @@ fn generate_where_clause_template_parsing_bound(
         .template
         .iter()
         .filter_map(|(_, iov)| match iov {
-            InputOrValue::Input(_) | InputOrValue::FieldNameInput => None,
+            InputOrValue::Input(_) | InputOrValue::FieldNameInput | InputOrValue::BytesValue(_) => {
+                None
+            }
             InputOrValue::Value(_) => Some(syn::parse_quote! {
                 #ty_tokens: ::core::str::FromStr
             }),
@@ -805,23 +869,7 @@ impl InputField {
     pub fn resolve_type(&self, crate_prefix: &Option<syn::TypePath>) -> TokenStream {
         let ty = self.ty_tokens();
         if let Some(display) = &self.display {
-            let display_tokens = match display {
-                DisplayType::Hex => {
-                    quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Hex }
-                }
-                DisplayType::Decimal => {
-                    quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Decimal }
-                }
-                DisplayType::Bech32 { prefix } => {
-                    quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Bech32 { prefix: #crate_prefix::sov_universal_wallet::bech32::Hrp::parse(#prefix).expect("Invalid bech32 prefix") } }
-                }
-                DisplayType::Bech32m { prefix } => {
-                    quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Bech32m { prefix: #crate_prefix::sov_universal_wallet::bech32::Hrp::parse(#prefix).expect("Invalid bech32 prefix") } }
-                }
-                DisplayType::Base58 => {
-                    quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Base58 }
-                }
-            };
+            let display_tokens = display.resolve(crate_prefix);
             quote! {
                 {
                     // #crate_prefix::sov_universal_wallet::ty::ByteDisplayable;

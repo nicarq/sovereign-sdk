@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
+use darling::util::SpannedValue;
 use darling::{Error, FromMeta, Result};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::parse::Parser;
-use syn::{Expr, ExprCall, ExprLit, Lit, Meta, Token};
+use syn::spanned::Spanned;
+use syn::{Expr, ExprCall, ExprLit, Ident, Lit, Meta, Token};
 
 /// Attributes of the format
 /// `#[sov_wallet(template("transfer" = value("hi"), "other_template" = input("msg")))]`
@@ -22,6 +24,7 @@ pub enum InputOrValue {
     Input(String),
     Value(String),
     DefaultValue,
+    BytesValue(SpannedValue<String>),
 }
 
 impl FromMeta for TransactionTemplates {
@@ -33,16 +36,6 @@ impl FromMeta for TransactionTemplates {
     /// `Punctuated::<NestedMeta, Token![,]>` which is too greedy, fails to parse the complex Expr
     /// and complains that it expects ',' at the first '='.
     fn from_meta(item: &Meta) -> Result<Self> {
-        fn parse_lit_str(e: Expr) -> Result<String> {
-            match e {
-                Expr::Lit(ExprLit {
-                    lit: Lit::Str(s), ..
-                }) => Ok(s.value()),
-                Expr::Lit(expr) => Err(Error::unexpected_lit_type(&expr.lit)),
-                _ => Err(Error::unexpected_expr_type(&e).with_span(&e)),
-            }
-        }
-
         // Split it into a list of templates; each expr is an individual template annotation
         let list = match item {
             Meta::List(list) => Ok(list),
@@ -83,18 +76,9 @@ impl FromMeta for TransactionTemplates {
                     if let Some(func) = maybe_func {
                         // Template binding is call-type: `input("arg")` or `value("arg")`
 
-                        // We need exactly one string value between the paranthesis
-                        // Also, for some reason, ExprCall.args doesn't have the right span
-                        // information, so we set the errors to the ExprCall itself
-                        match func.args.len().cmp(&1) {
-                            std::cmp::Ordering::Less => {
-                                return Err(Error::too_few_items(1).with_span(&func))
-                            }
-                            std::cmp::Ordering::Greater => {
-                                return Err(Error::too_many_items(1).with_span(&func))
-                            }
-                            _ => (),
-                        };
+                        // And we need exactly one string value between the paranthesis
+                        ensure_exprcall_has_one_arg(&func)?;
+
                         // TODO: support for Assign values here for `json = ""` and `hex = ""` pre-encoded values
                         let arg = func.args[0].clone();
                         match discriminant.to_string().as_str() {
@@ -130,6 +114,27 @@ impl FromMeta for TransactionTemplates {
     }
 }
 
+fn ensure_exprcall_has_one_arg(e: &ExprCall) -> Result<()> {
+    // For some reason, ExprCall.args doesn't have the right span
+    // information, so we set the errors to the ExprCall itself
+    match e.args.len().cmp(&1) {
+        std::cmp::Ordering::Less => Err(Error::too_few_items(1).with_span(&e)),
+        std::cmp::Ordering::Greater => Err(Error::too_many_items(1).with_span(&e)),
+        _ => Ok(()),
+    }
+}
+
+fn parse_lit_str(e: Expr) -> Result<String> {
+    match e {
+        Expr::Lit(ExprLit {
+            lit: Lit::Str(s), ..
+        }) => Ok(s.value()),
+        Expr::Lit(expr) => Err(Error::unexpected_lit_type(&expr.lit)),
+        _ => Err(Error::unexpected_expr_type(&e).with_span(&e)),
+    }
+}
+
+// Helper to parse the possible Value options of an InputOrValue
 fn parse_value(e: Expr) -> Result<InputOrValue> {
     match e {
         Expr::Lit(ExprLit {
@@ -140,6 +145,26 @@ fn parse_value(e: Expr) -> Result<InputOrValue> {
         Expr::Path(p) => {
             Err(Error::unknown_value(p.path.to_token_stream().to_string().as_str()).with_span(&p))
         }
+        Expr::Call(e) => match get_exprcall_path(&e)?.to_string().as_str() {
+            "bytes" => {
+                ensure_exprcall_has_one_arg(&e)?;
+                let bytes = parse_lit_str(e.args[0].clone())?;
+                Ok(InputOrValue::BytesValue(SpannedValue::new(
+                    bytes,
+                    e.args[0].span(),
+                )))
+            }
+            s => Err(Error::unknown_value(s).with_span(&e)),
+        },
         _ => Err(Error::unexpected_expr_type(&e).with_span(&e)),
     }
+}
+
+// Helper to get the "function" name in a `func(arg, arg...)` expression
+fn get_exprcall_path(e: &ExprCall) -> Result<Ident> {
+    match *e.func {
+        Expr::Path(ref p) => p.path.get_ident().cloned(),
+        _ => None,
+    }
+    .ok_or(Error::unexpected_expr_type(&e.func).with_span(&e.func))
 }

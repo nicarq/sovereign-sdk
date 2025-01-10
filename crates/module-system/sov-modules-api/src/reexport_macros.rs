@@ -600,6 +600,8 @@ pub mod macros {
     /// * `input` for an input binding on the field name,
     /// * `input("name")` for an input binding with an arbitrary name, or
     /// * `value("data")` for a pre-defined hardcoded value, or
+    /// * `value(bytes = "data")` for byte fields, reusing the field's `sov_wallet(display)`
+    /// attribute for parsing; or
     /// * `value(default)` to use the type's `std::default::Default::default()` value in the
     /// template
     ///
