@@ -72,10 +72,7 @@ impl<S: Spec, I: StateProvider<S>> TxScratchpad<S, I> {
     }
 
     /// Converts this [`TxScratchpad`] into a [`PreExecWorkingSet`].
-    pub fn to_pre_exec_working_set(
-        self,
-        gas_meter: BasicGasMeter<S::Gas>,
-    ) -> PreExecWorkingSet<S, I> {
+    pub fn to_pre_exec_working_set(self, gas_meter: BasicGasMeter<S>) -> PreExecWorkingSet<S, I> {
         PreExecWorkingSet {
             inner: self,
             gas_meter,
@@ -92,17 +89,18 @@ impl<S: Spec, I: StateProvider<S>> VersionReader for TxScratchpad<S, I> {
 /// A working set that can be used to charge gas for pre transaction execution checks.
 pub struct PreExecWorkingSet<S: Spec, I: StateProvider<S>> {
     inner: TxScratchpad<S, I>,
-    gas_meter: BasicGasMeter<S::Gas>,
+    gas_meter: BasicGasMeter<S>,
 }
 
 impl<S: Spec, I: StateProvider<S>> PreExecWorkingSet<S, I> {
     /// Returns the associated gas meter and the scratchpad.
-    pub fn to_scratchpad_and_gas_meter(self) -> (TxScratchpad<S, I>, BasicGasMeter<S::Gas>) {
+    pub fn to_scratchpad_and_gas_meter(self) -> (TxScratchpad<S, I>, BasicGasMeter<S>) {
         (self.inner, self.gas_meter)
     }
 }
 
-impl<S: Spec, I: StateProvider<S>> GasMeter<S::Gas> for PreExecWorkingSet<S, I> {
+impl<S: Spec, I: StateProvider<S>> GasMeter for PreExecWorkingSet<S, I> {
+    type Spec = S;
     fn charge_gas(&mut self, amount: &S::Gas) -> anyhow::Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_gas(amount)
     }
@@ -159,7 +157,7 @@ impl<Store: crate::Storage> StateCheckpoint<Store> {
 pub struct WorkingSet<S: Spec, I: StateProvider<S> = StateCheckpoint<<S as Spec>::Storage>> {
     pub(super) delta: RevertableWriter<TxScratchpad<S, I>>,
     events: Vec<TypedEvent>,
-    gas_meter: BasicGasMeter<S::Gas>,
+    gas_meter: BasicGasMeter<S>,
     // Gas parameters of the transaction associated with the working set
     max_fee: u64,
     max_priority_fee_bips: PriorityFeeBips,
@@ -293,7 +291,9 @@ impl<S: Spec> WorkingSet<S, StateCheckpoint<S::Storage>> {
     }
 }
 
-impl<S: Spec, I: StateProvider<S>> GasMeter<S::Gas> for WorkingSet<S, I> {
+impl<S: Spec, I: StateProvider<S>> GasMeter for WorkingSet<S, I> {
+    type Spec = S;
+
     fn charge_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_gas(gas)
     }

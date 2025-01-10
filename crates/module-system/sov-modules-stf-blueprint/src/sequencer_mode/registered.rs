@@ -31,8 +31,8 @@ use crate::{
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 pub fn process_tx<S, R, I, C>(
     runtime: &R,
-    pre_exec_gas_meter: &BasicGasMeter<S::Gas>,
-    slot_gas_meter: &SlotGasMeter<S::Gas>,
+    pre_exec_gas_meter: &BasicGasMeter<S>,
+    slot_gas_meter: &SlotGasMeter<S>,
     validated_output: AuthTxOutput<S, R>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     height: u64,
@@ -114,8 +114,8 @@ fn track_transaction_metrics<S: Spec>(
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
 fn process_tx_inner<S, R, I, C>(
     runtime: &R,
-    pre_exec_gas_meter: &BasicGasMeter<S::Gas>,
-    slot_gas_meter: &SlotGasMeter<S::Gas>,
+    pre_exec_gas_meter: &BasicGasMeter<S>,
+    slot_gas_meter: &SlotGasMeter<S>,
     validated_output: AuthTxOutput<S, R>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     height: u64,
@@ -285,7 +285,7 @@ impl<S: Spec> IncrementalBatchReceipt<S> {
 pub(crate) fn apply_batch<S, RT, B>(
     runtime: &RT,
     mut checkpoint: StateCheckpoint<S::Storage>,
-    slot_gas_meter: &mut SlotGasMeter<S::Gas>,
+    slot_gas_meter: &mut SlotGasMeter<S>,
     batch_with_id: B,
     blob_idx: usize,
     sequencer_da_address: <S::Da as DaSpec>::Address,
@@ -484,7 +484,7 @@ fn penalize_sequencer<S: Spec, RT: Runtime<S>, I: StateProvider<S>>(
 fn auth_and_process_tx<S, RT, I, C>(
     runtime: &RT,
     mut scratchpad: TxScratchpad<S, I>,
-    slot_gas_meter: &mut SlotGasMeter<S::Gas>,
+    slot_gas_meter: &mut SlotGasMeter<S>,
     raw_tx: &FullyBakedTx,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,

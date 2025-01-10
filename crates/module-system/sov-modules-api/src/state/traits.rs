@@ -88,7 +88,7 @@ pub trait TxState<S: Spec>:
     + StateWriter<Accessory>
     + VersionReader<Error: Into<anyhow::Error>>
     + EventContainer
-    + GasMeter<S::Gas>
+    + GasMeter<Spec = S>
 {
 }
 
@@ -98,7 +98,7 @@ impl<S: Spec, T> TxState<S> for T where
         + StateWriter<Accessory>
         + VersionReader<Error: Into<anyhow::Error>>
         + EventContainer
-        + GasMeter<S::Gas>
+        + GasMeter<Spec = S>
 {
 }
 
@@ -112,7 +112,7 @@ pub trait GenesisState<S: Spec>:
     + KernelWriter
     + AccessoryStateWriter
     + EventContainer
-    + GasMeter<S::Gas>
+    + GasMeter<Spec = S>
 {
 }
 
@@ -124,7 +124,7 @@ impl<S: Spec, T> GenesisState<S> for T where
         + KernelWriter
         + AccessoryStateWriter
         + EventContainer
-        + GasMeter<S::Gas>
+        + GasMeter<Spec = S>
 {
 }
 
@@ -303,10 +303,8 @@ pub trait AccessoryStateReader: CachedAccessor<Accessory> {}
 /// A trait wrapper that replicates the functionality of [`StateReader`] but with a gas metering interface.
 /// This allows a storage reader to charge gas for read operations.
 pub trait ProvableStateReader<N: ProvableCompileTimeNamespace>:
-    CachedAccessor<N> + GasMeter<<Self::Spec as GasSpec>::Gas>
+    CachedAccessor<N> + GasMeter
 {
-    /// The rollup spec associated with the state reader.
-    type Spec: GasSpec;
 }
 
 macro_rules! blanket_impl_metered_state_reader {
@@ -406,10 +404,8 @@ pub trait StateWriter<N: CompileTimeNamespace>: CachedAccessor<N> {
 /// A trait wrapper that replicates the functionality of [`StateWriter`] but with a gas metering interface.
 /// This allows a storage writer to charge gas for write operations.
 pub trait ProvableStateWriter<N: ProvableCompileTimeNamespace>:
-    CachedAccessor<N> + GasMeter<<Self::Spec as GasSpec>::Gas>
+    CachedAccessor<N> + GasMeter
 {
-    /// The rollup spec associated with the state reader.
-    type Spec: GasSpec;
 }
 
 macro_rules! blanket_impl_metered_state_writer {

@@ -243,7 +243,7 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
     raw_tx_hash: TxHash,
     tx: Transaction<D, S>,
     chain_hash: &[u8; 32],
-    meter: &mut impl GasMeter<S::Gas>,
+    meter: &mut impl GasMeter<Spec = S>,
 ) -> Result<AuthenticationOutput<S, D::Decodable, AuthorizationData<S>>, AuthenticationError> {
     if tx.details.chain_id != config_chain_id() {
         return Err(AuthenticationError::FatalError(
@@ -341,10 +341,9 @@ pub fn calculate_hash<Accessor: ProvableStateReader<User, Spec = S>, S: Spec>(
     data: &[u8],
     accessor: &mut Accessor,
 ) -> Result<TxHash, GasMeteringError<S::Gas>> {
-    let hash = MeteredHasher::<_, Accessor, <S::CryptoSpec as CryptoSpec>::Hasher>::digest::<S>(
-        data, accessor,
-    )
-    .map(TxHash::new)?;
+    let hash =
+        MeteredHasher::<Accessor, <S::CryptoSpec as CryptoSpec>::Hasher>::digest(data, accessor)
+            .map(TxHash::new)?;
 
     Ok(hash)
 }

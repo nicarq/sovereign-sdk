@@ -22,7 +22,7 @@ use crate::{
 #[allow(clippy::result_large_err)]
 pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
-    slot_gas_meter: SlotGasMeter<S::Gas>,
+    slot_gas_meter: SlotGasMeter<S>,
     validated_output: AuthTxOutput<S, R>,
     gas_info: GasInfo<S::Gas>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
@@ -32,7 +32,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
     TxScratchpad<S, I>,
-    SlotGasMeter<S::Gas>,
+    SlotGasMeter<S>,
 ) {
     let (auth_tx, auth_data, message) = validated_output;
 
@@ -143,7 +143,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
-    meter: BasicGasMeter<S::Gas>,
+    meter: BasicGasMeter<S>,
     batch: &BatchFromUnregisteredSequencer,
     scratchpad: TxScratchpad<S, I>,
 ) -> (
@@ -178,7 +178,7 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvi
 pub(crate) fn apply_batch<S, RT>(
     runtime: &RT,
     mut checkpoint: StateCheckpoint<S::Storage>,
-    slot_gas_meter: SlotGasMeter<S::Gas>,
+    slot_gas_meter: SlotGasMeter<S>,
     batch: BatchFromUnregisteredSequencer,
     blob_idx: usize,
     sequencer_da_address: <S::Da as DaSpec>::Address,
@@ -188,7 +188,7 @@ pub(crate) fn apply_batch<S, RT>(
 ) -> (
     BatchReceipt<S>,
     StateCheckpoint<S::Storage>,
-    SlotGasMeter<S::Gas>,
+    SlotGasMeter<S>,
 )
 where
     S: Spec,

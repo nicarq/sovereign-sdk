@@ -92,7 +92,7 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
 impl<R: TransactionCallable, S: Spec> MeteredBorshDeserialize<S> for Transaction<R, S> {
     fn deserialize(
         buf: &mut &[u8],
-        meter: &mut impl GasMeter<<S as GasSpec>::Gas>,
+        meter: &mut impl GasMeter<Spec = S>,
     ) -> Result<Self, MeteredBorshDeserializeError<<S as GasSpec>::Gas>> {
         meter
             .charge_gas(&Self::gas_cost_to_deserialize(buf)?)
@@ -206,7 +206,7 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
     pub fn verify(
         &self,
         chain_hash: &[u8; 32],
-        meter: &mut impl GasMeter<S::Gas>,
+        meter: &mut impl GasMeter<Spec = S>,
     ) -> Result<(), TransactionVerificationError<S::Gas>> {
         let mut serialized_tx = borsh::to_vec(&self.to_unsigned_transaction()).map_err(|e| {
             TransactionVerificationError::TransactionDeserializationError(e.to_string())

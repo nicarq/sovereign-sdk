@@ -175,7 +175,7 @@ impl<S: Spec> AuthenticatedTransactionData<S> {
         &self,
         gas_price: &<S::Gas as Gas>::Price,
         _slot_gas_limit: S::Gas,
-    ) -> BasicGasMeter<S::Gas> {
+    ) -> BasicGasMeter<S> {
         // We compute the gas amount that the transaction should consume.
         match &self.gas_limit {
             Some(gas_limit) => BasicGasMeter::new_with_gas(gas_limit.clone(), gas_price.clone()),

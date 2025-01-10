@@ -11,30 +11,31 @@ use crate::{GasSpec, Spec};
 
 /// A metered hasher that charges gas for each operation.
 /// This data structure should be used in the module system to charge gas when hashing data.
-pub struct MeteredHasher<'a, GU: Gas, Meter: GasMeter<GU>, Hasher: Digest<OutputSize = U32>> {
+pub struct MeteredHasher<'a, Meter: GasMeter, Hasher: Digest<OutputSize = U32>> {
     inner: Hasher,
     meter: &'a mut Meter,
-    gas_to_charge_for_hash_update: GU,
-    gas_to_charge_for_hash_finalize: GU,
+    gas_to_charge_for_hash_update: <Meter::Spec as Spec>::Gas,
+    gas_to_charge_for_hash_finalize: <Meter::Spec as Spec>::Gas,
 }
 
-impl<'a, GU: Gas, Meter: GasMeter<GU>, Hasher: Digest<OutputSize = U32>>
-    MeteredHasher<'a, GU, Meter, Hasher>
-{
+type GasUnit<S> = <S as Spec>::Gas;
+type MeteringError<M> = GasMeteringError<GasUnit<<M as GasMeter>::Spec>>;
+
+impl<'a, Meter: GasMeter, Hasher: Digest<OutputSize = U32>> MeteredHasher<'a, Meter, Hasher> {
     /// Create a new metered hasher from a given gas meter with default gas prices [`GasSpec::gas_to_charge_per_byte_hash_update`] and [`GasSpec::gas_to_charge_per_byte_hash_finalize`]
-    pub fn new<Spec: GasSpec<Gas = GU>>(meter: &'a mut Meter) -> Self {
+    pub fn new(meter: &'a mut Meter) -> Self {
         Self::new_with_custom_price(
             meter,
-            Spec::gas_to_charge_per_byte_hash_update(),
-            Spec::gas_to_charge_per_byte_hash_finalize(),
+            Meter::Spec::gas_to_charge_per_byte_hash_update(),
+            Meter::Spec::gas_to_charge_per_byte_hash_finalize(),
         )
     }
 
     /// Create a new metered hasher from a given gas meter with custom gas prices.
     pub fn new_with_custom_price(
         meter: &'a mut Meter,
-        gas_to_charge_for_hash_update: GU,
-        gas_to_charge_for_hash_finalize: GU,
+        gas_to_charge_for_hash_update: GasUnit<Meter::Spec>,
+        gas_to_charge_for_hash_finalize: GasUnit<Meter::Spec>,
     ) -> Self {
         Self {
             inner: Hasher::new(),
@@ -45,7 +46,7 @@ impl<'a, GU: Gas, Meter: GasMeter<GU>, Hasher: Digest<OutputSize = U32>>
     }
 
     /// Update the [`MeteredHasher`] with the given data. Performs the same operation as [`Digest::update`] but charges gas.
-    pub fn update(&mut self, data: &[u8]) -> Result<(), GasMeteringError<GU>> {
+    pub fn update(&mut self, data: &[u8]) -> Result<(), MeteringError<Meter>> {
         let total_cost = self
             .gas_to_charge_for_hash_update
             .checked_scalar_product(&(data.len() as u64))
@@ -59,7 +60,7 @@ impl<'a, GU: Gas, Meter: GasMeter<GU>, Hasher: Digest<OutputSize = U32>>
     }
 
     /// Finalize the [`MeteredHasher`] and return the hash. Performs the same operation as [`Digest::finalize`] but charges gas.
-    pub fn finalize(self) -> Result<[u8; 32], (Self, GasMeteringError<GU>)> {
+    pub fn finalize(self) -> Result<[u8; 32], (Self, MeteringError<Meter>)> {
         if let Err(e) = self.meter.charge_gas(&self.gas_to_charge_for_hash_finalize) {
             return Err((self, e));
         };
@@ -69,11 +70,8 @@ impl<'a, GU: Gas, Meter: GasMeter<GU>, Hasher: Digest<OutputSize = U32>>
     }
 
     /// Computes the hash of the given data. Performs the same operation as [`Digest::digest`] but charges gas.
-    pub fn digest<Spec: GasSpec<Gas = GU>>(
-        data: &[u8],
-        meter: &'a mut Meter,
-    ) -> Result<[u8; 32], GasMeteringError<GU>> {
-        let mut hasher = Self::new::<Spec>(meter);
+    pub fn digest(data: &[u8], meter: &'a mut Meter) -> Result<[u8; 32], MeteringError<Meter>> {
+        let mut hasher = Self::new(meter);
         hasher.update(data)?;
         Self::finalize(hasher).map_err(|(_, e)| e)
     }
@@ -135,11 +133,11 @@ impl<GU: Gas, Sign: Signature> MeteredSignature<GU, Sign> {
     }
 
     /// Verifies a signature with the provided gas meter. This method is a wrapper around [`Signature::verify`].
-    pub fn verify(
+    pub fn verify<Meter: GasMeter<Spec: Spec<Gas = GU>>>(
         &self,
         pub_key: &Sign::PublicKey,
         msg: &[u8],
-        meter: &mut impl GasMeter<GU>,
+        meter: &mut Meter,
     ) -> Result<(), MeteredSigVerificationError<GU>> {
         let mut fixed_gas_cost = self.fixed_gas_to_charge_per_verification.clone();
 
@@ -191,7 +189,7 @@ pub trait MeteredBorshDeserialize<S: Spec>: Sized {
     /// amount of gas for each byte of the struct to deserialize.
     fn deserialize(
         buf: &mut &[u8],
-        meter: &mut impl GasMeter<<S as GasSpec>::Gas>,
+        meter: &mut impl GasMeter<Spec = S>,
     ) -> Result<Self, MeteredBorshDeserializeError<<S as GasSpec>::Gas>>;
 
     #[cfg(feature = "native")]
