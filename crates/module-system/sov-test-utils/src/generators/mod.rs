@@ -2,6 +2,7 @@
 //!
 //! TODO: Add a doctest to describe how to generate messages in tests.
 
+use std::num::NonZero;
 use std::rc::Rc;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
@@ -211,7 +212,7 @@ pub trait MessageGenerator {
                     data: txs,
                     sequence_number: curr_sequence_number
                         .fetch_add(1, std::sync::atomic::Ordering::SeqCst),
-                    visible_slots_to_advance: 1,
+                    visible_slots_to_advance: NonZero::new(1).unwrap(),
                 };
 
                 borsh::to_vec(&batch).unwrap()

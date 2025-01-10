@@ -270,7 +270,7 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
             inner: PreferredBatchData {
                 sequence_number,
                 data: txs,
-                visible_slots_to_advance: info.visible_slots_to_advance.get(),
+                visible_slots_to_advance: info.visible_slots_to_advance,
             },
             tx_hashes,
         }))

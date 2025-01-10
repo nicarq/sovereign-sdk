@@ -2,6 +2,8 @@
 #![doc = include_str!("../README.md")]
 mod capabilities;
 mod max_size_checker;
+use std::num::NonZero;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::capabilities::SequencerType;
@@ -173,7 +175,7 @@ pub struct PreferredBatchData {
     /// The actual data of the blob.
     pub data: Vec<FullyBakedTx>,
     /// The number of visible slots to advance after processing the batch. Minimum 1.
-    pub visible_slots_to_advance: u8,
+    pub visible_slots_to_advance: NonZero<u8>,
 }
 
 /// A trait implemented by blobs sent through the preferred sequencer.
