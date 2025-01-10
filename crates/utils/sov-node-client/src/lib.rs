@@ -341,6 +341,6 @@ async fn check_if_rollup_has_standard_modules(
 
     Ok(module_response.modules.contains_key("bank")
         && module_response.modules.contains_key("accounts")
-        && module_response.modules.contains_key("nonces")
+        && module_response.modules.contains_key("uniqueness")
         && module_response.modules.contains_key("sequencer-registry"))
 }

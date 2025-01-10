@@ -116,7 +116,7 @@ pub use sov_rollup_interface::zk::{
 };
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::StateUpdateInfo;
-pub use sov_rollup_interface::{execution_mode, BasicAddress};
+pub use sov_rollup_interface::{execution_mode, BasicAddress, TxHash};
 pub use sov_state::{CompileTimeNamespace, Storage};
 pub use state::*;
 pub use transaction::AuthenticatedTransactionData;

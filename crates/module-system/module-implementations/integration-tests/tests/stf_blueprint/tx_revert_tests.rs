@@ -92,18 +92,15 @@ fn test_tx_revert() -> Result<(), Infallible> {
         // Sequencer is not excluded from the list of allowed!
         assert_eq!(Some(sequencer_rollup_address), resp);
 
-        let nonce = runtime
-            .nonces
-            .nonce(&admin_key.pub_key().credential_id::<TestHasher>(), state)
-            .unwrap_infallible()
-            .unwrap();
+        let latest_generation = runtime
+            .uniqueness
+            .latest_generation(&admin_key.pub_key().credential_id::<TestHasher>(), state)
+            .unwrap_infallible();
 
-        // with 3 transactions, the final nonce should be 3
-        // 0 -> 1
-        // 1 -> 2
-        // 2 -> 3
+        // with 3 transactions, the latest generation should be 2, because generators send
+        // one transaction per generation
         // The minter account should have its nonce increased for 3 transactions
-        assert_eq!(3, nonce);
+        assert_eq!(2, latest_generation);
     });
 
     Ok(())
@@ -157,7 +154,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
         let runtime = &mut IntegTestRuntime::<TestSpec>::default();
 
         let nonce = runtime
-            .nonces
+            .uniqueness
             .nonce(&admin_key.pub_key().credential_id::<TestHasher>(), state)
             .unwrap_infallible()
             .unwrap_or_default();
@@ -210,15 +207,23 @@ fn test_tx_bad_nonce() {
     // Bad nonce means that the transaction has to be reverted
 
     match &tx_receipts[0].receipt {
+        sov_modules_api::TxEffect::Successful(_) => (),
+        receipt => panic!(
+            "Expected first transaction to be Successful error, but got a different TxEffect: {:?}",
+            receipt
+        ),
+    }
+
+    match &tx_receipts[1].receipt {
         sov_modules_api::TxEffect::Skipped(skipped) => {
             assert!(matches!(
                 skipped.error,
                 TxProcessingError::IncorrectNonce(..)
             ));
         }
-        _ => panic!(
+        receipt => panic!(
             "Expected Skipped error, but got a different TxEffect: {:?}",
-            tx_receipts[0].receipt
+            receipt
         ),
     }
 

@@ -167,7 +167,7 @@ impl<S: Spec> TryInto<types::PartialTransaction> for crate::PartialTransaction<S
                 .gas_limit
                 .map(|gas_limit| types::GasUnit(gas_limit.as_ref().to_vec())),
         };
-        let nonce = self.nonce;
+        let generation = self.generation;
         let gas_price = self
             .gas_price
             .map(|gas_price| types::GasPrice(gas_price.as_ref().to_vec()));
@@ -179,7 +179,7 @@ impl<S: Spec> TryInto<types::PartialTransaction> for crate::PartialTransaction<S
 
         Ok(types::PartialTransaction {
             sender_pub_key,
-            nonce,
+            generation,
             encoded_call_message,
             details,
             gas_price,
@@ -204,7 +204,7 @@ impl<S: Spec> TryFrom<types::PartialTransaction> for crate::PartialTransaction<S
                 .map(|gas_limit| S::Gas::try_from(gas_limit.0).map_err(Into::into))
                 .transpose()?,
         };
-        let nonce = value.nonce;
+        let generation = value.generation;
         let gas_price = value
             .gas_price
             .map(|gas_price| <S::Gas as Gas>::Price::try_from(gas_price.0).map_err(Into::into))
@@ -217,7 +217,7 @@ impl<S: Spec> TryFrom<types::PartialTransaction> for crate::PartialTransaction<S
 
         Ok(Self {
             sender_pub_key,
-            nonce,
+            generation,
             encoded_call_message,
             details,
             gas_price,

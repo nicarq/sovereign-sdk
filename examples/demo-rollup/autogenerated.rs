@@ -1,4 +1,4 @@
-pub const CHAIN_HASH: [u8; 32] = [236, 6, 85, 68, 79, 126, 126, 254, 42, 225, 111, 74, 35, 234, 121, 13, 203, 195, 108, 5, 144, 69, 224, 103, 104, 235, 120, 109, 18, 189, 219, 94];
+pub const CHAIN_HASH: [u8; 32] = [122, 58, 69, 131, 0, 138, 3, 63, 154, 36, 91, 205, 113, 26, 115, 216, 146, 188, 176, 28, 86, 10, 209, 10, 168, 64, 186, 50, 16, 182, 225, 151];
 
 #[allow(dead_code)]
 pub const SCHEMA_JSON: &str = r#"{
@@ -37,8 +37,8 @@ pub const SCHEMA_JSON: &str = r#"{
             "doc": ""
           },
           {
-            "display_name": "nonce",
-            "serde_display_name": "nonce",
+            "display_name": "generation",
+            "serde_display_name": "generation",
             "silent": false,
             "value": {
               "Immediate": {
@@ -162,8 +162,8 @@ pub const SCHEMA_JSON: &str = r#"{
             }
           },
           {
-            "name": "Nonces",
-            "serde_name": "nonces",
+            "name": "Uniqueness",
+            "serde_name": "uniqueness",
             "template": null,
             "value": {
               "ByIndex": 43
@@ -1781,8 +1781,8 @@ pub const SCHEMA_JSON: &str = r#"{
             "doc": ""
           },
           {
-            "display_name": "nonce",
-            "serde_display_name": "nonce",
+            "display_name": "generation",
+            "serde_display_name": "generation",
             "silent": false,
             "value": {
               "Immediate": {

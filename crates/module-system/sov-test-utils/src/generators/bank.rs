@@ -247,7 +247,8 @@ impl<S: Spec> MessageGenerator for BankMessageGenerator<S> {
     ) -> Vec<Message<Self::Spec, Self::Module>> {
         let mut messages = Vec::<Message<S, Bank<S>>>::new();
 
-        let mut nonce = 0;
+        // send incremental generations by default
+        let mut generation = 0;
 
         for create_message in &self.token_create_txs {
             messages.push(Message::new(
@@ -257,9 +258,9 @@ impl<S: Spec> MessageGenerator for BankMessageGenerator<S> {
                 max_priority_fee_bips,
                 max_fee,
                 gas_usage.clone(),
-                nonce,
+                generation,
             ));
-            nonce += 1;
+            generation += 1;
         }
 
         for transfer_message in &self.transfer_txs {
@@ -271,9 +272,9 @@ impl<S: Spec> MessageGenerator for BankMessageGenerator<S> {
                 TEST_DEFAULT_MAX_PRIORITY_FEE,
                 TEST_DEFAULT_MAX_FEE,
                 gas_limit,
-                nonce,
+                generation,
             ));
-            nonce += 1;
+            generation += 1;
         }
 
         messages

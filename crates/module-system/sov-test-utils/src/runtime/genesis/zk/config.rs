@@ -3,10 +3,10 @@ use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::Bank;
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::{CodeCommitmentFor, Gas, GasArray, GasSpec, Genesis, Spec};
-use sov_nonces::Nonces;
 use sov_prover_incentives::ProverIncentives;
 use sov_rollup_interface::common::SlotNumber;
 use sov_sequencer_registry::SequencerRegistry;
+use sov_uniqueness::Uniqueness;
 
 use crate::interface::AsUser;
 use crate::runtime::{
@@ -29,8 +29,8 @@ pub struct MinimalZkGenesisConfig<S: Spec> {
     pub bank: <Bank<S> as Genesis>::Config,
     /// The accounts config.
     pub accounts: <Accounts<S> as Genesis>::Config,
-    /// The nonces config.
-    pub nonces: <Nonces<S> as Genesis>::Config,
+    /// The uniqueness config.
+    pub uniqueness: <Uniqueness<S> as Genesis>::Config,
     /// The chain state config.
     pub chain_state: <ChainState<S> as Genesis>::Config,
     /// The blob storage config.
@@ -238,7 +238,7 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
                 tokens: vec![],
             },
             accounts: AccountConfig { accounts: vec![] },
-            nonces: (),
+            uniqueness: (),
             blob_storage: (),
             chain_state: ChainStateConfig {
                 current_time: Default::default(),

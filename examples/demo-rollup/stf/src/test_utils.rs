@@ -43,7 +43,7 @@ where
             sequencer_registry: minimal_config.sequencer_registry,
             bank: minimal_config.bank,
             accounts: minimal_config.accounts,
-            nonces: minimal_config.nonces,
+            uniqueness: minimal_config.uniqueness,
             chain_state: minimal_config.chain_state,
             blob_storage: minimal_config.blob_storage,
             prover_incentives: minimal_config.prover_incentives,

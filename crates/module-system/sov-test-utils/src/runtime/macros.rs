@@ -35,8 +35,8 @@ macro_rules! generate_bare_runtime {
             pub bank: $crate::runtime::Bank<S>,
             /// The accounts module
             pub accounts: $crate::runtime::Accounts<S>,
-            /// The nonces module
-            pub nonces: $crate::runtime::Nonces<S>,
+            /// The uniqueness module
+            pub uniqueness: $crate::runtime::Uniqueness<S>,
             /// The attester incentives module.
             pub attester_incentives: $crate::runtime::AttesterIncentives<S>,
             /// The chain state module.
@@ -72,7 +72,7 @@ macro_rules! generate_bare_runtime {
                     sequencer_registry: minimal_config.sequencer_registry,
                     bank: minimal_config.bank,
                     accounts: minimal_config.accounts,
-                    nonces: minimal_config.nonces,
+                    uniqueness: minimal_config.uniqueness,
                     chain_state: minimal_config.chain_state,
                     blob_storage: minimal_config.blob_storage,
                     prover_incentives: minimal_config.prover_incentives,
@@ -143,7 +143,7 @@ macro_rules! generate_bare_runtime {
                         gas_payer: &self . $payer_name,
                         sequencer_registry: &self.sequencer_registry,
                         accounts: &self.accounts,
-                        nonces: &self.nonces,
+                        uniqueness: &self.uniqueness,
                         prover_incentives: &self.prover_incentives,
                         attester_incentives: &self.attester_incentives,
                     }

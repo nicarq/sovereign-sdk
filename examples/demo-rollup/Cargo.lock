@@ -2324,13 +2324,13 @@ dependencies = [
  "sov-kernels",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
- "sov-nonces",
  "sov-paymaster",
  "sov-prover-incentives",
  "sov-rollup-apis",
  "sov-rollup-interface",
  "sov-sequencer-registry",
  "sov-state",
+ "sov-uniqueness",
  "sov-value-setter",
  "strum 0.26.3",
  "url",
@@ -9336,12 +9336,12 @@ dependencies = [
  "sov-attester-incentives",
  "sov-bank",
  "sov-modules-api",
- "sov-nonces",
  "sov-paymaster",
  "sov-prover-incentives",
  "sov-rollup-interface",
  "sov-sequencer-registry",
  "sov-state",
+ "sov-uniqueness",
 ]
 
 [[package]]
@@ -9832,18 +9832,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-nonces"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh",
- "schemars",
- "serde",
- "sov-modules-api",
- "sov-state",
-]
-
-[[package]]
 name = "sov-paymaster"
 version = "0.3.0"
 dependencies = [
@@ -9943,9 +9931,9 @@ dependencies = [
  "sov-api-spec",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
- "sov-nonces",
  "sov-rest-utils",
  "sov-rollup-interface",
+ "sov-uniqueness",
  "utoipa-swagger-ui",
 ]
 
@@ -10146,7 +10134,6 @@ dependencies = [
  "sov-modules-api",
  "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",
- "sov-nonces",
  "sov-paymaster",
  "sov-prover-incentives",
  "sov-rollup-interface",
@@ -10154,12 +10141,25 @@ dependencies = [
  "sov-sequencer-registry",
  "sov-state",
  "sov-stf-runner",
+ "sov-uniqueness",
  "sov-value-setter",
  "strum 0.26.3",
  "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.19",
+]
+
+[[package]]
+name = "sov-uniqueness"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "schemars",
+ "serde",
+ "sov-modules-api",
+ "sov-state",
 ]
 
 [[package]]

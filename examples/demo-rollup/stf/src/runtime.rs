@@ -67,8 +67,8 @@ where
     pub prover_incentives: sov_prover_incentives::ProverIncentives<S>,
     /// The Accounts module.
     pub accounts: sov_accounts::Accounts<S>,
-    /// The Nonces module.
-    pub nonces: sov_nonces::Nonces<S>,
+    /// The uniqueness module.
+    pub uniqueness: sov_uniqueness::Uniqueness<S>,
     /// The Chain state module.
     pub chain_state: sov_chain_state::ChainState<S>,
     /// The Blob storage module.
@@ -102,7 +102,7 @@ where
 
         let axum_router = Self::default().rest_api(api_state.clone());
         // Provide an endpoint to return dedup information associated with addresses.
-        // Since our runtime is using the nonces module we can use the provided `NonceDeDupEndpoint` implementation.
+        // Since our runtime is using the uniqueness module we can use the provided `NonceDeDupEndpoint` implementation.
         let dedup_endpoint = NonceDeDupEndpoint::new(api_state.clone());
         let axum_router = axum_router.merge(dedup_endpoint.axum_router());
 
@@ -142,7 +142,7 @@ where
             gas_payer: &self.paymaster,
             sequencer_registry: &self.sequencer_registry,
             accounts: &self.accounts,
-            nonces: &self.nonces,
+            uniqueness: &self.uniqueness,
             prover_incentives: &self.prover_incentives,
             attester_incentives: &self.attester_incentives,
         })

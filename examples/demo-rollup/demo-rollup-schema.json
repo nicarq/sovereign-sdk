@@ -34,8 +34,8 @@
             "doc": ""
           },
           {
-            "display_name": "nonce",
-            "serde_display_name": "nonce",
+            "display_name": "generation",
+            "serde_display_name": "generation",
             "silent": false,
             "value": {
               "Immediate": {
@@ -159,8 +159,8 @@
             }
           },
           {
-            "name": "Nonces",
-            "serde_name": "nonces",
+            "name": "Uniqueness",
+            "serde_name": "uniqueness",
             "template": null,
             "value": {
               "ByIndex": 43
@@ -1778,8 +1778,8 @@
             "doc": ""
           },
           {
-            "display_name": "nonce",
-            "serde_display_name": "nonce",
+            "display_name": "generation",
+            "serde_display_name": "generation",
             "silent": false,
             "value": {
               "Immediate": {

@@ -1,5 +1,9 @@
 ## 2025-01-09
 - #2183 adds a way to collect and store metrics from influxDB. This is not a breaking change for customers of the SDK.
+- #2182 Added generations as a replacement to nonces. EVM transactions are unaffected, but all other transactions must now use per-account generation numbers.
+  - Multiple transactions can have the same generation, as long as they are different (i.e. have different hashes). Generations older than a configurable limit are pruned. Transactions with a generation number below the pruned limit are automatically considered invalid. Storing too many transaction hashes increases cost; regular pruning is encouraged by regularly increasing the generation number. Using the current UNIX timestamp in seconds is a convenient way to set the generation number in most cases.
+  - All references to `nonce` are replaced with `generation` when constructing transactions and in API calls. As mentioned above, this excludes EVM transactions (which continue to use `nonce`s and retain full EVM compatibility).
+  - Any integration tests that relied on nonces automatically incrementing, or duplicate or non-consecutive nonces being invalid, will exhibit changed behavior and will need to be adjusted.
 
 ## 2025-01-08
 - #2170 increases the suggested value for `DEFERRED_SLOTS_COUNT` to 50. This value is more appropriate than the previous value (5) for testing, but still too low for production use. A value in the order of 1000 is more appropriate for production.

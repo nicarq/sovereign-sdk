@@ -277,7 +277,7 @@ Commands:
   attester-incentives  A subcommand for the `AttesterIncentives` module
   prover-incentives    A subcommand for the `ProverIncentives` module
   accounts             A subcommand for the `Accounts` module
-  nonces               A subcommand for the `Nonces` module
+  uniqueness           A subcommand for the `Uniqueness` module
   chain-state          A subcommand for the `ChainState` module
   blob-storage         A subcommand for the `BlobStorage` module
   paymaster            A subcommand for the `Paymaster` module
@@ -304,7 +304,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0xec0655444f7e7efe2ae16f4a23ea790dcbc36c059045e06768eb786d12bddb5e",
+  "chain_hash": "0x7a3a4583008a033f9a245bcd711a73d892bcb01c560ad10aa840ba3210b6e197",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": 100000000,

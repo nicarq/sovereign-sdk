@@ -25,7 +25,7 @@
 - sov-prover-incentives
 - sov-chain-state
 - sov-blob-storage
-- sov-nonces
+- sov-uniqueness
 
 # Adapters
 - sov-risc0-adapter

@@ -28,7 +28,7 @@ pub struct StandardProvenRollupCapabilities<'a, S: Spec, GasPayer = sov_bank::Ba
     pub gas_payer: &'a GasPayer,
     pub sequencer_registry: &'a SequencerRegistry<S>,
     pub accounts: &'a sov_accounts::Accounts<S>,
-    pub nonces: &'a sov_nonces::Nonces<S>,
+    pub uniqueness: &'a sov_uniqueness::Uniqueness<S>,
     pub prover_incentives: &'a sov_prover_incentives::ProverIncentives<S>,
     pub attester_incentives: &'a sov_attester_incentives::AttesterIncentives<S>,
 }
@@ -197,8 +197,12 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
         _context: &Context<S>,
         state: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<()> {
-        self.nonces
-            .check_nonce(&auth_data.credential_id, auth_data.nonce, state)
+        self.uniqueness.check_uniqueness(
+            &auth_data.credential_id,
+            auth_data.uniqueness,
+            auth_data.tx_hash,
+            state,
+        )
     }
 
     /// Marks a transaction as having been executed, preventing it from executing again.
@@ -208,8 +212,12 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
         _sequencer: &<S::Da as DaSpec>::Address,
         state: &mut impl InfallibleStateAccessor,
     ) {
-        self.nonces
-            .mark_tx_attempted(&auth_data.credential_id, state);
+        self.uniqueness.mark_tx_attempted(
+            &auth_data.credential_id,
+            auth_data.uniqueness,
+            auth_data.tx_hash,
+            state,
+        );
     }
 
     /// Resolves the context for a transaction.

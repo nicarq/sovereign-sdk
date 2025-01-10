@@ -27,7 +27,7 @@ pub fn simulate_da(admin: TestPrivateKey) -> Vec<FullyBakedTx> {
         .extend(value_setter.create_default_encoded_txs_without_gas_usage::<IntegTestRuntime<S>>());
     let nonce_offset = messages.len() as u64;
     for mut msg in bank_messages {
-        msg.nonce += nonce_offset;
+        msg.generation += nonce_offset;
         let tx = msg.to_tx::<IntegTestRuntime<S>>();
         messages.push(encode_with_auth(tx));
     }
@@ -51,7 +51,7 @@ pub fn simulate_da_with_bad_sig(key: TestPrivateKey) -> Vec<FullyBakedTx> {
         <IntegTestRuntime<S> as EncodeCall<Bank<S>>>::to_decodable(create_token_message.content),
         // Use the signature of an empty message
         key.sign(&[]),
-        create_token_message.nonce,
+        create_token_message.generation,
         create_token_message.details,
     );
     // Overwrite the signature with the signature of the empty message
@@ -60,12 +60,19 @@ pub fn simulate_da_with_bad_sig(key: TestPrivateKey) -> Vec<FullyBakedTx> {
 }
 
 pub fn simulate_da_with_bad_nonce(key: TestPrivateKey) -> Vec<FullyBakedTx> {
-    let bank_generator: BankMessageGenerator<S> = BankMessageGenerator::with_minter(key);
-    let mut create_token_message = bank_generator.create_default_messages().remove(0);
-    // Overwrite the nonce with the maximum value
-    create_token_message.nonce = u64::MAX;
-    let tx = create_token_message.to_tx::<IntegTestRuntime<S>>();
-    vec![encode_with_auth(tx)]
+    let bank_generator: BankMessageGenerator<S> =
+        BankMessageGenerator::with_minter_and_transfer(key);
+    let mut messages = bank_generator.create_default_messages();
+    // First, we send a valid transaction with a high generation
+    let mut create_token_message = messages.remove(0);
+    create_token_message.generation = u64::MAX; // Overwrite the generation with the maximum value
+    let first_tx = create_token_message.to_tx::<IntegTestRuntime<S>>();
+
+    // Next, we send a transaction whose generation will be below the prune limit
+    let mut transfer_message = messages.remove(0);
+    transfer_message.generation = 0; // Overwrite the generation to 0
+    let second_tx = transfer_message.to_tx::<IntegTestRuntime<S>>();
+    vec![encode_with_auth(first_tx), encode_with_auth(second_tx)]
 }
 
 pub fn simulate_da_with_bad_serialization(key: TestPrivateKey) -> Vec<FullyBakedTx> {
@@ -78,7 +85,7 @@ pub fn simulate_da_with_bad_serialization(key: TestPrivateKey) -> Vec<FullyBaked
             <IntegTestRuntime<S> as EncodeCall<Bank<S>>>::to_decodable(
                 create_token_message.content,
             ),
-            create_token_message.nonce,
+            create_token_message.generation,
             create_token_message.details.clone(),
         ),
     );
@@ -122,7 +129,7 @@ pub fn simulate_da_with_multiple_direct_registration_msg(
 
     let nonce_offset = messages.len() as u64;
     for mut message in default_messages {
-        message.nonce += nonce_offset;
+        message.generation += nonce_offset;
         let tx = message.to_tx::<IntegTestRuntime<S>>();
         messages.push(RawTx {
             data: borsh::to_vec(&tx).unwrap(),

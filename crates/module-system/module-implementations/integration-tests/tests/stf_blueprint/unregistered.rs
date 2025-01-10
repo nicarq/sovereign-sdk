@@ -147,9 +147,9 @@ fn execute_seq_registration_failure_test() {
         TxStatus::OutOfGas,
         TxStatus::BadSerialization,
         TxStatus::SignerDoesNotExist,
-        TxStatus::BadNonce,
-        TxStatus::BadNonce,
         TxStatus::BadSignature,
+        TxStatus::BadSignature,
+        TxStatus::BadSerialization,
         TxStatus::BadChainId,
         TxStatus::Reverted,
     ];
@@ -357,13 +357,7 @@ mod helpers {
                 config_value!("CHAIN_ID"),
                 encode_message(potential_seq.da_address, BOND_AMOUNT),
             )),
-            TxStatus::BadNonce => encode_tx(create_tx_valid(
-                999,
-                max_priority_fee_bips,
-                &potential_seq.user,
-                config_value!("CHAIN_ID"),
-                encode_message(potential_seq.da_address, BOND_AMOUNT),
-            )),
+            TxStatus::BadGeneration => panic!("Unregistered blobs send one transaction per user, any generation number is valid for a user's first transaction"),
             TxStatus::BadChainId => encode_tx(create_tx_valid(
                 0,
                 max_priority_fee_bips,

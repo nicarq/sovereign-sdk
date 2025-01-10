@@ -111,14 +111,14 @@ Once a batch is submitted the output should also contain the transaction hashes 
 
 ```text
 Your batch was submitted to the sequencer for publication. Response: "Submitted 1 transactions"
-0: 0x813e639c23a830242dfe3ebece5e69d9aae9c80478cbb9221fabbfaceebeb203
+0: 0xfbb5907a00462161be156d81c8dd3dc70fe15b8204d5501e94ac4b86c4e8040e
 ```
 
 The transaction hash can be used to query the REST API endpoint to fetch events belonging to the transaction, which should in
 this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0x94a9a80df7248beca13bf726977e3d19842df57a68f123061e832859d8c88737/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0xfbb5907a00462161be156d81c8dd3dc70fe15b8204d5501e94ac4b86c4e8040e/events | jq
 {
   "data": [
     {
@@ -298,7 +298,7 @@ Commands:
   attester-incentives  A subcommand for the `AttesterIncentives` module
   prover-incentives    A subcommand for the `ProverIncentives` module
   accounts             A subcommand for the `Accounts` module
-  nonces               A subcommand for the `Nonces` module
+  uniqueness           A subcommand for the `Uniqueness` module
   chain-state          A subcommand for the `ChainState` module
   blob-storage         A subcommand for the `BlobStorage` module
   paymaster            A subcommand for the `Paymaster` module
@@ -325,7 +325,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0xec0655444f7e7efe2ae16f4a23ea790dcbc36c059045e06768eb786d12bddb5e",
+  "chain_hash": "0x7a3a4583008a033f9a245bcd711a73d892bcb01c560ad10aa840ba3210b6e197",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": 100000000,

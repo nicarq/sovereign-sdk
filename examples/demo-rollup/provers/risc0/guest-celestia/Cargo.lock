@@ -1313,12 +1313,12 @@ dependencies = [
  "sov-kernels",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
- "sov-nonces",
  "sov-paymaster",
  "sov-prover-incentives",
  "sov-rollup-interface",
  "sov-sequencer-registry",
  "sov-state",
+ "sov-uniqueness",
  "sov-value-setter",
  "strum",
  "url",
@@ -3903,12 +3903,12 @@ dependencies = [
  "sov-attester-incentives",
  "sov-bank",
  "sov-modules-api",
- "sov-nonces",
  "sov-paymaster",
  "sov-prover-incentives",
  "sov-rollup-interface",
  "sov-sequencer-registry",
  "sov-state",
+ "sov-uniqueness",
 ]
 
 [[package]]
@@ -4116,18 +4116,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-nonces"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh",
- "schemars",
- "serde",
- "sov-modules-api",
- "sov-state",
-]
-
-[[package]]
 name = "sov-paymaster"
 version = "0.3.0"
 dependencies = [
@@ -4236,6 +4224,18 @@ dependencies = [
  "sov-cycle-utils",
  "sov-rollup-interface",
  "thiserror",
+]
+
+[[package]]
+name = "sov-uniqueness"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "schemars",
+ "serde",
+ "sov-modules-api",
+ "sov-state",
 ]
 
 [[package]]

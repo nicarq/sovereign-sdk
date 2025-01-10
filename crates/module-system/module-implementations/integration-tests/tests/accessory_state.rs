@@ -3,7 +3,6 @@ use sov_modules_api::{
     AccessoryStateValue, Context, DaSpec, GenesisState, Module, ModuleError, ModuleId, ModuleInfo,
     Spec, StateAccessor, TxState,
 };
-use sov_state::{ProvableNamespace, StateRoot};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_optimistic_runtime, get_gas_used, AsUser};
@@ -104,18 +103,12 @@ fn test_accessory_value_setter() {
         user.create_plain_message::<RT, TestAccessoryModule<S>>(CallMessage::SetAccessoryValue(42)),
     );
 
-    let root_hash_with_update = result_with_update
-        .state_root
-        .namespace_root(ProvableNamespace::User);
     let gas_consumed_with_update =
         get_gas_used(&result_with_update.batch_receipts[0].tx_receipts[0]);
 
     let (result_without_update, _) = runner
         .simulate(user.create_plain_message::<RT, TestAccessoryModule<S>>(CallMessage::Nop(42)));
 
-    let root_hash_without_update = result_without_update
-        .state_root
-        .namespace_root(ProvableNamespace::User);
     let gas_consumed_without_update =
         get_gas_used(&result_without_update.batch_receipts[0].tx_receipts[0]);
 
@@ -124,8 +117,9 @@ fn test_accessory_value_setter() {
         "Gas consumption has been changed by accessory writes"
     );
 
-    assert_eq!(
-        root_hash_with_update, root_hash_without_update,
-        "State root has been changed by accessory writes"
-    );
+    // TODO: this test used to check root_hash_with_update and root_hash_without_update and
+    // assert_eq! on them.
+    // This is no longer possible since the switch from nonces to generations, as the tx hash is
+    // stored inside sov_uniqueness thus altering the state root hash anyway.
+    // See https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2189
 }

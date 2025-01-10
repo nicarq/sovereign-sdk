@@ -19,6 +19,9 @@ DEFERRED_SLOTS_COUNT = 5
 # We can't slash misbehaving senders because they aren't a registered sequencer with a stake so
 # this serves as protection against spam.
 UNREGISTERED_BLOBS_PER_SLOT = 5
+# How many past transaction generations into the past to keep per-account buckets for
+# Higher numbers give more flexibility to avoid collisions, lower numbers reduce the maximum amount of storage used
+PAST_TRANSACTION_GENERATIONS = 5
 # The maximum size of a slot that can be held in the BLOB_STORAGE. 
 # The maximum possible limit is u32::MAX, as in some ZKVMs, usize is equivalent to u32. 
 # However, in practice, the limit should be set to a value orders of magnitude smaller.

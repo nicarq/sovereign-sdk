@@ -6,7 +6,7 @@ use axum::extract::State;
 use axum::routing::{get, post};
 use axum::Json;
 use sov_api_spec::types::{self, SimulateExecutionResponse};
-use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
+use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities, UniquenessData};
 use sov_modules_api::prelude::tokio::sync::watch;
 use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::transaction::{Credentials, TxDetails};
@@ -60,8 +60,8 @@ pub struct PartialTransaction<S: Spec> {
     pub encoded_call_message: Vec<u8>,
     /// The details of the transaction.
     pub details: TxDetails<S>,
-    /// The nonce of the transaction.
-    pub nonce: u64,
+    /// The generation of the transaction.
+    pub generation: u64,
     /// An optional gas price for the transaction.
     /// If not provided, the current gas price will be used.
     pub gas_price: Option<<S::Gas as Gas>::Price>,
@@ -73,12 +73,21 @@ impl<S: Spec> From<PartialTransaction<S>> for AuthorizationData<S> {
     fn from(value: PartialTransaction<S>) -> AuthorizationData<S> {
         let pub_key = value.sender_pub_key.clone();
         let credential_id = pub_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
-        let nonce = value.nonce;
+        let generation = value.generation;
         let default_address = Some((&pub_key).into());
         let credentials = Credentials::new(pub_key);
+        // The generation module stores `raw_tx_hash`es, created from the full serialized tx
+        // including the signature. Since we don't have the signature, we can't recreate this hash,
+        // so we just use a value that will always pass the check. This makes the simulation
+        // endpoint not report a failure IF you are sending duplicate transactions within the same
+        // generation, so this is left as a responsibility of the user to avoid. (The assumption is
+        // that normal users will not, in ordinary circumstances, send duplicate transactions
+        // accidentally; so this is not the main purpose of the simulate endpoint anyway.)
+        let tx_hash = ([0; 32]).into();
 
         AuthorizationData {
-            nonce,
+            uniqueness: UniquenessData::Generation(generation),
+            tx_hash,
             credential_id,
             credentials,
             default_address,
