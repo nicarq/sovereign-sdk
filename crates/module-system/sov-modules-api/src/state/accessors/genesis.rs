@@ -26,7 +26,10 @@ impl<S: Spec> StateCheckpoint<S> {
     ) -> GenesisStateAccessor<S> {
         GenesisStateAccessor {
             checkpoint: self,
-            gas_meter: BasicGasMeter::new(u64::MAX, <S::Gas as Gas>::Price::ZEROED),
+            gas_meter: BasicGasMeter::new_with_gas(
+                <S::Gas as Gas>::max(),
+                <S::Gas as Gas>::Price::ZEROED,
+            ),
             events: Default::default(),
         }
     }

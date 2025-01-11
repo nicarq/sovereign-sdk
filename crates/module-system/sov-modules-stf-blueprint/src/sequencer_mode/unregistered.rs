@@ -6,7 +6,7 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext, Gas,
-    GasArray, GasInfo, GasMeter, GasSpec, IgnoredTransactionReceipt, Rewards, SlotGasMeter, Spec,
+    GasInfo, GasMeter, GasSpec, IgnoredTransactionReceipt, Rewards, SlotGasMeter, Spec,
     StateProvider, TxScratchpad, WorkingSet,
 };
 use tracing::{debug, warn};
@@ -16,13 +16,13 @@ use crate::sequencer_mode::common::{
 };
 use crate::{
     ApplyTxResult, AuthTxOutput, IgnoredTxContents, Runtime, SkippedTxContents, StateCheckpoint,
-    TxProcessingError, TxReceiptContents,
+    TransactionReceipt, TxProcessingError, TxReceiptContents,
 };
 
 #[allow(clippy::result_large_err)]
 pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
-    slot_gas_meter: SlotGasMeter<S>,
+    slot_gas_meter: &SlotGasMeter<S>,
     validated_output: AuthTxOutput<S, R>,
     gas_info: GasInfo<S::Gas>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
@@ -32,7 +32,6 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
     TxScratchpad<S, I>,
-    SlotGasMeter<S>,
 ) {
     let (auth_tx, auth_data, message) = validated_output;
 
@@ -53,7 +52,6 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
             return (
                 Err(TxProcessingError::CannotResolveContext(e.to_string())),
                 scratchpad,
-                slot_gas_meter,
             );
         }
     };
@@ -67,7 +65,6 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         return (
             Err(TxProcessingError::IncorrectNonce(e.to_string())),
             scratchpad,
-            slot_gas_meter,
         );
     }
 
@@ -79,16 +76,23 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         return (
             Err(TxProcessingError::CannotReserveGas(reason.to_string())),
             scratchpad,
-            slot_gas_meter,
         );
     }
 
-    let mut working_set = WorkingSet::create_working_set(
-        scratchpad,
+    let working_set_gas_meter = match tx.gas_meter(
         &gas_info.gas_price,
-        tx,
         slot_gas_meter.remaining_slot_gas().clone(),
-    );
+    ) {
+        Ok(ws) => ws,
+        Err(reason) => {
+            return (
+                Err(TxProcessingError::OutOfGas(reason.to_string())),
+                scratchpad,
+            )
+        }
+    };
+
+    let mut working_set = WorkingSet::create_working_set(scratchpad, tx, working_set_gas_meter);
 
     // Here we charge the gas for the transaction sig & pre-execution checks.
     if let Err(err) = working_set.charge_gas(&gas_info.gas_used) {
@@ -103,7 +107,6 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         return (
             Err(TxProcessingError::OutOfGas(err.to_string())),
             scratchpad,
-            slot_gas_meter,
         );
     }
 
@@ -136,7 +139,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         &mut scratchpad,
     );
 
-    (Ok(apply_tx), scratchpad, slot_gas_meter)
+    (Ok(apply_tx), scratchpad)
 }
 
 #[allow(clippy::type_complexity)]
@@ -178,14 +181,14 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvi
 pub(crate) fn apply_batch<S, RT>(
     runtime: &RT,
     mut checkpoint: StateCheckpoint<S>,
-    slot_gas_meter: SlotGasMeter<S>,
+    slot_gas_meter: &SlotGasMeter<S>,
     batch: BatchFromUnregisteredSequencer,
     blob_idx: usize,
     sequencer_da_address: <S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
     execution_context: ExecutionContext,
-) -> (BatchReceipt<S>, StateCheckpoint<S>, SlotGasMeter<S>)
+) -> (BatchReceipt<S>, StateCheckpoint<S>)
 where
     S: Spec,
     RT: Runtime<S>,
@@ -204,14 +207,49 @@ where
         "Verifying & executing transactions"
     );
 
+    // A helper function to create a batch receipt.
+    let early_return_batch_receipt =
+        |tx_receipts: Vec<TransactionReceipt<S>>,
+         ignored_tx_receipts: Vec<IgnoredTransactionReceipt<TxReceiptContents<S>>>|
+         -> BatchReceipt<S> {
+            BatchReceipt {
+                batch_hash: batch.id,
+                tx_receipts,
+                ignored_tx_receipts,
+                inner: BatchSequencerReceipt {
+                    da_address: sequencer_da_address.clone(),
+                    gas_price: gas_price.clone(),
+                    gas_used: S::Gas::zero(),
+                    outcome: BatchSequencerOutcome {
+                        rewards: Rewards {
+                            accumulated_reward: 0,
+                            accumulated_penalty: 0,
+                        },
+                    },
+                },
+            }
+        };
+
+    let max_unregistered_tx_check_costs = <S as GasSpec>::max_unregistered_tx_check_costs();
+    if slot_gas_meter.remaining_slot_gas() <= &max_unregistered_tx_check_costs {
+        // We don't consume gas for failed authentication of unregistered sequencer.
+        let gas_used = S::Gas::zero();
+
+        let ignored = IgnoredTransactionReceipt::<TxReceiptContents<S>> {
+            ignored: IgnoredTxContents { gas_used, index: 0 },
+        };
+
+        return (
+            early_return_batch_receipt(Vec::new(), vec![ignored]),
+            scratchpad.commit(),
+        );
+    }
+
     // We need to be cautious about potential DoS attacks. When receiving an emergency registration, we cannot immediately determine if the sequencer registration will succeed.
     // A malicious actor could exploit this mechanism to attack the rollup, for instance, by sending large transactions that are costly to deserialize from an address with no funds on the rollup.
     // To mitigate this, we initialize the gas meter with just enough gas to process a valid transaction. If the transaction is too big, we quickly run out of gas.
     // Additionally, we rate-limit (during blob selection) the number of forced registrations to further reduce the effectiveness of such attacks.
-    let meter = BasicGasMeter::new_with_gas(
-        <S as GasSpec>::max_unregistered_tx_check_costs(),
-        gas_price.clone(),
-    );
+    let meter = BasicGasMeter::new_with_gas(max_unregistered_tx_check_costs, gas_price.clone());
 
     let authentication_result = authenticate_unregistered_tx(runtime, meter, &batch, scratchpad);
 
@@ -221,30 +259,17 @@ where
             let err_str = format!("Unregistered sequencer authentication failed: {}", err);
             warn!(error = ?err_str);
 
+            // We don't consume gas for failed authentication of unregistered sequencer.
+            let gas_used = S::Gas::zero();
+
             let skipped = SkippedTxContents {
                 error: TxProcessingError::AuthenticationFailed(err_str),
-                gas_used: S::Gas::zero(),
+                gas_used,
             };
 
             return (
-                BatchReceipt {
-                    batch_hash: batch.id,
-                    tx_receipts: vec![create_tx_receipt(skipped, tx_hash)],
-                    ignored_tx_receipts: vec![],
-                    inner: BatchSequencerReceipt {
-                        da_address: sequencer_da_address,
-                        gas_price: gas_price.clone(),
-                        gas_used: S::Gas::zero(),
-                        outcome: BatchSequencerOutcome {
-                            rewards: Rewards {
-                                accumulated_reward: 0,
-                                accumulated_penalty: 0,
-                            },
-                        },
-                    },
-                },
+                early_return_batch_receipt(vec![create_tx_receipt(skipped, tx_hash)], Vec::new()),
                 scratchpad.commit(),
-                slot_gas_meter,
             );
         }
 
@@ -254,32 +279,16 @@ where
                 "Not enough gas to authenticate the batch",
             );
 
+            // We don't consume gas for failed authentication of unregistered sequencer.
+            let gas_used = S::Gas::zero();
+
             let ignored = IgnoredTransactionReceipt::<TxReceiptContents<S>> {
-                ignored: IgnoredTxContents {
-                    gas_used: S::Gas::zero(),
-                    index: 0,
-                },
+                ignored: IgnoredTxContents { gas_used, index: 0 },
             };
 
             return (
-                BatchReceipt {
-                    batch_hash: batch.id,
-                    tx_receipts: vec![],
-                    ignored_tx_receipts: vec![ignored],
-                    inner: BatchSequencerReceipt {
-                        da_address: sequencer_da_address,
-                        gas_price: gas_price.clone(),
-                        gas_used: S::Gas::zero(),
-                        outcome: BatchSequencerOutcome {
-                            rewards: Rewards {
-                                accumulated_reward: 0,
-                                accumulated_penalty: 0,
-                            },
-                        },
-                    },
-                },
+                early_return_batch_receipt(Vec::new(), vec![ignored]),
                 scratchpad.commit(),
-                slot_gas_meter,
             );
         }
     };
@@ -298,16 +307,18 @@ where
     );
 
     let mut tx_receipts = Vec::new();
-    let mut gas_used = S::Gas::zero();
+    let gas_used;
     let mut accumulated_reward = 0;
 
-    let (tx_result, scratchpad, slot_gas_meter) = process_tx_result;
+    let (tx_result, scratchpad) = process_tx_result;
 
     match tx_result {
         Err(error) => {
+            // We don't consume gas for failed transactions.
+            gas_used = S::Gas::zero();
             let skipped = SkippedTxContents {
                 error,
-                gas_used: S::Gas::zero(),
+                gas_used: gas_used.clone(),
             };
 
             let tx_receipt = create_tx_receipt(skipped, raw_tx_hash);
@@ -322,7 +333,8 @@ where
                 let sequencer_reward = transaction_consumption.priority_fee();
                 accumulated_reward += sequencer_reward.0;
             }
-            gas_used.combine(&get_gas_used(&receipt));
+            gas_used = get_gas_used(&receipt);
+
             tx_receipts.push(receipt);
         }
     }
@@ -346,8 +358,7 @@ where
     };
 
     checkpoint = scratchpad.commit();
-
     apply_batch_logs(&batch_receipt, &gas_used, blob_idx);
 
-    (batch_receipt, checkpoint, slot_gas_meter)
+    (batch_receipt, checkpoint)
 }

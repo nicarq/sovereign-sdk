@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::transaction::Transaction;
-use crate::{BasicGasMeter, DispatchCall, Gas, Spec};
+use crate::{BasicGasMeter, DispatchCall, Gas, GasMeteringError, Spec};
 
 /// A type wrapper around a u64 which represents the priority fee.
 /// Since the priority fee is expressed as a basis point, we should use this wrapper for
@@ -170,17 +170,27 @@ pub struct AuthenticatedTransactionData<S: Spec> {
 }
 
 impl<S: Spec> AuthenticatedTransactionData<S> {
-    /// Creates a new [`TxGasMeter`] from the transaction data.
-    pub(crate) fn gas_meter(
+    /// Creates a new [`BasicGasMeter`] from the transaction data.
+    pub fn gas_meter(
         &self,
         gas_price: &<S::Gas as Gas>::Price,
-        _slot_gas_limit: S::Gas,
-    ) -> BasicGasMeter<S> {
-        // We compute the gas amount that the transaction should consume.
-        match &self.gas_limit {
-            Some(gas_limit) => BasicGasMeter::new_with_gas(gas_limit.clone(), gas_price.clone()),
-            // If the user has not provided a gas limit, we use the `max_fee` as the amount to consume.
-            None => BasicGasMeter::new(self.max_fee, gas_price.clone()),
-        }
+        slot_gas_limit: S::Gas,
+    ) -> Result<BasicGasMeter<S>, GasMeteringError<S::Gas>> {
+        let gas_meter = match &self.gas_limit {
+            Some(gas_limit) =>
+            {
+                #[allow(clippy::comparison_chain)]
+                if *gas_limit < slot_gas_limit {
+                    BasicGasMeter::new(self.max_fee, gas_limit.clone(), gas_price.clone())
+                } else if *gas_limit > slot_gas_limit {
+                    BasicGasMeter::new(self.max_fee, slot_gas_limit, gas_price.clone())
+                } else {
+                    return Err(GasMeteringError::SlotOutOfGas);
+                }
+            }
+            None => BasicGasMeter::new(self.max_fee, slot_gas_limit, gas_price.clone()),
+        };
+
+        Ok(gas_meter)
     }
 }

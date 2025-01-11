@@ -86,6 +86,11 @@ pub trait Gas: GasArray {
     fn zero() -> Self {
         Self::ZEROED
     }
+
+    /// Returns the maximum gas unit.
+    fn max() -> Self {
+        Self::MAX
+    }
 }
 
 /// A multi-dimensional gas unit.
@@ -420,13 +425,17 @@ pub trait GasMeter {
 
 /// A gas meter that tracks the gas used for a slot.
 pub struct SlotGasMeter<S: Spec> {
+    initial_slot_gas: S::Gas,
     remaining_slot_gas: S::Gas,
 }
 
 impl<S: Spec> SlotGasMeter<S> {
     /// Creates a new `SlotGasMeter`
     pub fn new(remaining_slot_gas: S::Gas) -> Self {
-        Self { remaining_slot_gas }
+        Self {
+            initial_slot_gas: remaining_slot_gas.clone(),
+            remaining_slot_gas,
+        }
     }
 
     /// Charge gas.
@@ -443,15 +452,22 @@ impl<S: Spec> SlotGasMeter<S> {
     pub fn remaining_slot_gas(&self) -> &S::Gas {
         &self.remaining_slot_gas
     }
+
+    /// Total gas used in the slot.
+    pub fn total_gas_used(&self) -> S::Gas {
+        self.initial_slot_gas
+            .checked_sub(&self.remaining_slot_gas)
+            .expect("The remaining_slot_gas can't be greater than the initial_slot_gas")
+    }
 }
 
 /// Remaining funds or gas.
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum GasMetering<GU: Gas> {
-    /// Remaining funds.
-    Funds(u64),
     /// Remaining gas.
     Gas(GU),
+    /// Remaining funds and gas.
+    GasAndFunds(u64, GU),
 }
 
 /// A struct that keeps track of the use gas.
@@ -464,8 +480,12 @@ pub struct BasicGasMeter<S: Spec> {
 
 impl<S: Spec> BasicGasMeter<S> {
     /// Creates a new `BasicGasMeter`
-    pub fn new(remaining_funds: u64, gas_price: <S::Gas as Gas>::Price) -> Self {
-        let gas_metering = GasMetering::Funds(remaining_funds);
+    pub fn new(
+        remaining_funds: u64,
+        remaining_gas: S::Gas,
+        gas_price: <S::Gas as Gas>::Price,
+    ) -> Self {
+        let gas_metering = GasMetering::GasAndFunds(remaining_funds, remaining_gas);
         Self {
             gas_metering,
             gas_used: S::Gas::zero(),
@@ -488,41 +508,52 @@ impl<S: Spec> BasicGasMeter<S> {
     pub(crate) fn set_gas_price(&mut self, gas_price: <S::Gas as Gas>::Price) {
         self.gas_price = gas_price;
     }
+
+    fn charge_funds_inner(
+        &self,
+        remaining_funds: &u64,
+        amount: &S::Gas,
+    ) -> Result<u64, GasMeteringError<S::Gas>> {
+        let amount_value = amount.value(&self.gas_price);
+        remaining_funds
+            .checked_sub(amount_value)
+            .ok_or_else(|| GasMeteringError::OutOfGas {
+                gas_to_charge: amount.clone(),
+                gas_price: self.gas_price.clone(),
+                gas_metering: self.gas_metering.clone(),
+                total_gas_consumed: self.gas_used.clone(),
+            })
+    }
+
+    fn charge_gas_inner(
+        &self,
+        remaining_gas: &S::Gas,
+        amount: &S::Gas,
+    ) -> Result<S::Gas, GasMeteringError<S::Gas>> {
+        remaining_gas
+            .checked_sub(amount)
+            .ok_or_else(|| GasMeteringError::OutOfGas {
+                gas_to_charge: amount.clone(),
+                gas_price: self.gas_price.clone(),
+                gas_metering: self.gas_metering.clone(),
+                total_gas_consumed: self.gas_used.clone(),
+            })
+    }
 }
 
 impl<S: Spec> GasMeter for BasicGasMeter<S> {
     type Spec = S;
     fn charge_gas(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         match &self.gas_metering {
-            GasMetering::Funds(remaining_funds) => {
-                let amount_value = amount.value(&self.gas_price);
-
-                if amount_value > *remaining_funds {
-                    return Err(GasMeteringError::OutOfGas {
-                        gas_to_charge: amount.clone(),
-                        gas_price: self.gas_price.clone(),
-                        gas_metering: self.gas_metering.clone(),
-                        total_gas_consumed: self.gas_info().gas_used,
-                    });
-                }
-
-                self.gas_metering = GasMetering::Funds(remaining_funds - amount_value);
+            GasMetering::Gas(remaining_gas) => {
+                let remaining_gas = self.charge_gas_inner(remaining_gas, amount)?;
+                self.gas_metering = GasMetering::Gas(remaining_gas);
                 self.gas_used.combine(amount);
             }
-
-            GasMetering::Gas(remaining_gas) => {
-                let remaining_gas = match remaining_gas.checked_sub(amount) {
-                    Some(remaining_gas) => remaining_gas,
-                    None => {
-                        return Err(GasMeteringError::OutOfGas {
-                            gas_to_charge: amount.clone(),
-                            gas_price: self.gas_price.clone(),
-                            gas_metering: self.gas_metering.clone(),
-                            total_gas_consumed: self.gas_info().gas_used,
-                        });
-                    }
-                };
-                self.gas_metering = GasMetering::Gas(remaining_gas);
+            GasMetering::GasAndFunds(remaining_funds, remaining_gas) => {
+                let remaining_funds = self.charge_funds_inner(remaining_funds, amount)?;
+                let remaining_gas = self.charge_gas_inner(remaining_gas, amount)?;
+                self.gas_metering = GasMetering::GasAndFunds(remaining_funds, remaining_gas);
                 self.gas_used.combine(amount);
             }
         }
@@ -539,13 +570,14 @@ impl<S: Spec> GasMeter for BasicGasMeter<S> {
         })?;
 
         match &mut self.gas_metering {
-            GasMetering::Funds(remaining_funds) => {
-                self.gas_metering =
-                    GasMetering::Funds(remaining_funds.saturating_add(gas.value(&self.gas_price)));
-            }
             GasMetering::Gas(remaining_gas) => {
                 let remaining_gas = remaining_gas.combine(gas).clone();
                 self.gas_metering = GasMetering::Gas(remaining_gas);
+            }
+            GasMetering::GasAndFunds(remaining_funds, remaining_gas) => {
+                let remaining_funds = remaining_funds.saturating_add(gas.value(&self.gas_price));
+                let remaining_gas = remaining_gas.combine(gas).clone();
+                self.gas_metering = GasMetering::GasAndFunds(remaining_funds, remaining_gas);
             }
         }
 
@@ -554,8 +586,8 @@ impl<S: Spec> GasMeter for BasicGasMeter<S> {
 
     fn gas_info(&self) -> GasInfo<S::Gas> {
         let remaining_funds = match &self.gas_metering {
-            GasMetering::Funds(remaining_funds) => *remaining_funds,
             GasMetering::Gas(remaining_gas) => remaining_gas.value(&self.gas_price),
+            GasMetering::GasAndFunds(remaining_funds, _) => *remaining_funds,
         };
 
         GasInfo {
@@ -582,7 +614,8 @@ mod tests {
         let gas_price = GasPrice::<2>::from([1; 2]);
 
         {
-            let mut gas_meter = BasicGasMeter::<S>::new(0, gas_price.clone());
+            let mut gas_meter =
+                BasicGasMeter::<S>::new_with_gas(GasUnit::<2>::ZEROED, gas_price.clone());
             assert!(
                 gas_meter.charge_gas(&GasUnit::<2>::from([100; 2])).is_err(),
                 "The gas meter should not be able to charge gas if there is not enough funds"
@@ -613,7 +646,7 @@ mod tests {
         let gas_price = GasPrice::<2>::from([1; 2]);
 
         {
-            let mut gas_meter = BasicGasMeter::<S>::new(100, gas_price.clone());
+            let mut gas_meter = BasicGasMeter::<S>::new(100, GasUnit::<2>::MAX, gas_price.clone());
 
             assert!(
             gas_meter.refund_gas(&GasUnit::<2>::from([100; 2])).is_err(),
@@ -638,7 +671,8 @@ mod tests {
             const REMAINING_FUNDS: u64 = 100;
             let gas_price = GasPrice::<2>::from([1; 2]);
 
-            let mut gas_meter = BasicGasMeter::<S>::new(REMAINING_FUNDS, gas_price.clone());
+            let mut gas_meter =
+                BasicGasMeter::<S>::new(REMAINING_FUNDS, GasUnit::<2>::MAX, gas_price.clone());
             assert!(
                 gas_meter
                     .charge_gas(&GasUnit::<2>::from([REMAINING_FUNDS / 2; 2]))
@@ -699,7 +733,7 @@ mod tests {
         const REMAINING_FUNDS: u64 = 100;
         let gas_price = GasPrice::from([1; 2]);
 
-        let mut gas_meter = BasicGasMeter::<S>::new(REMAINING_FUNDS, gas_price);
+        let mut gas_meter = BasicGasMeter::<S>::new(REMAINING_FUNDS, GasUnit::<2>::MAX, gas_price);
         assert!(
             gas_meter
                 .charge_gas(&GasUnit::<2>::from([REMAINING_FUNDS / 2; 2]))

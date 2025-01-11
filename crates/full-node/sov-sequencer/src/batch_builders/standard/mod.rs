@@ -36,8 +36,8 @@ use tracing::error;
 use self::mempool::{Mempool, MempoolCursor};
 use super::{sender_is_allowed, EmptyConfirmation, RtAwareBatchBuilderSpec, SeqDbTx};
 use crate::batch_builders::{
-    pre_exec_err_to_accept_tx_err, tx_auth, AcceptedTx, BatchBuilder, StateUpdateInfo,
-    WithCachedTxHashes,
+    generic_accept_tx_error, pre_exec_err_to_accept_tx_err, tx_auth, AcceptedTx, BatchBuilder,
+    StateUpdateInfo, WithCachedTxHashes,
 };
 use crate::sequencer::SequencerNotReadyDetails;
 use crate::{SequencerConfig, TxHash, TxStatus, TxStatusManager};
@@ -353,13 +353,18 @@ where
             let tx_hash = auth_output.0.raw_tx_hash;
 
             let gas_info = gas_meter.gas_info();
-            let mut working_set = WorkingSet::create_working_set(
-                tx_scratchpad,
-                &gas_info.gas_price,
-                &auth_output.0.authenticated_tx,
-                // Currently the sequencer doesn't take into account the slot gas limit.
-                <<Z::Spec as Spec>::Gas>::MAX,
-            );
+            let tx = auth_output.0.authenticated_tx;
+
+            let working_set_gas_meter =
+                match tx.gas_meter(&gas_info.gas_price.clone(), <<Z::Spec as Spec>::Gas>::MAX) {
+                    Ok(ws) => ws,
+                    Err(err) => {
+                        return (tx_scratchpad.revert(), Err(generic_accept_tx_error(err)));
+                    }
+                };
+
+            let mut working_set =
+                WorkingSet::create_working_set(tx_scratchpad, &tx, working_set_gas_meter);
 
             if let Err(err) = working_set.charge_gas(&gas_info.gas_used) {
                 let (scratchpad, _) = working_set.revert();
