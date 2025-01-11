@@ -1,6 +1,7 @@
 //! Gas unit definitions and implementations.
 
 use core::fmt::{self, Debug, Display};
+use std::cmp::min;
 
 use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -28,8 +29,6 @@ pub trait GasArray:
     + Sync
     + PartialEq
     + Eq
-    + PartialOrd
-    + Ord
     + JsonSchema
     + core::hash::Hash
     + Serialize
@@ -61,15 +60,26 @@ pub trait GasArray:
     /// Returns the product of the scalar and the gas units or None if the result overflows.
     fn checked_scalar_product(&self, scalar: &u64) -> Option<Self>;
 
+    /// Checks if the gas is less than the provided gas in each dimension of the gas array.
+    fn dim_is_less_than(&self, rhs: &Self) -> bool;
+
+    /// Checks if the gas is less or equal to the provided gas in each dimension of the gas array.
+    fn dim_is_less_or_eq(&self, rhs: &Self) -> bool;
+
+    /// Calculates the minimum gas values between two gas arrays along each dimension.
+    fn calculate_min(lhs: &Self, rhs: &Self) -> Self;
+
     /// In-place division of gas units.
     fn scalar_division(&mut self, scalar: u64) -> &mut Self;
 
     /// In-place product of gas units, resulting in a multiplication.
     fn scalar_product(&mut self, scalar: u64) -> &mut Self;
 
+    #[cfg(feature = "test-utils")]
     /// In-place addition of gas units with a scalar.
     fn scalar_add(&mut self, scalar: u64) -> &mut Self;
 
+    #[cfg(feature = "test-utils")]
     /// In-place substraction of gas units with a scalar.
     fn scalar_sub(&mut self, scalar: u64) -> &mut Self;
 }
@@ -99,8 +109,6 @@ pub trait Gas: GasArray {
     PartialEq,
     Eq,
     Hash,
-    PartialOrd,
-    Ord,
     BorshSerialize,
     BorshDeserialize,
     derive_more::Display,
@@ -121,8 +129,6 @@ impl<const N: usize> Debug for GasUnit<N> {
     PartialEq,
     Eq,
     Hash,
-    PartialOrd,
-    Ord,
     BorshSerialize,
     BorshDeserialize,
     sov_rollup_interface::sov_universal_wallet::UniversalWallet,
@@ -258,6 +264,33 @@ macro_rules! impl_gas_dimensions {
 
             }
 
+            fn dim_is_less_than(&self, rhs: &Self) -> bool{
+                for (l, r) in self.0.iter().zip(rhs.0.as_slice()) {
+                    if l >=r {
+                        return false
+                    }
+                }
+                true
+            }
+
+            fn dim_is_less_or_eq(&self, rhs: &Self) -> bool{
+                for (l, r) in self.0.iter().zip(rhs.0.as_slice()) {
+                    if l > r{
+                        return false
+                    }
+                }
+                true
+            }
+
+            fn calculate_min(lhs: &Self, rhs: &Self) -> Self{
+                let mut output = [0; $n];
+
+                for (i, (l,r)) in lhs.0.iter().zip(rhs.0.iter()).enumerate() {
+                    output[i] = min(*l, *r);
+                }
+                Self(output)
+            }
+
             fn scalar_division(&mut self, scalar: u64) -> &mut Self {
                 self.0
                     .iter_mut()
@@ -272,6 +305,7 @@ macro_rules! impl_gas_dimensions {
                 self
             }
 
+            #[cfg(feature = "test-utils")]
             fn scalar_add(&mut self, scalar: u64) -> &mut Self {
                 self.0
                     .iter_mut()
@@ -279,6 +313,7 @@ macro_rules! impl_gas_dimensions {
                 self
             }
 
+            #[cfg(feature = "test-utils")]
             fn scalar_sub(&mut self, scalar: u64) -> &mut Self {
                 self.0
                     .iter_mut()
@@ -608,6 +643,95 @@ mod tests {
     use crate::execution_mode::Native;
 
     type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
+
+    #[test]
+    fn is_less_than_test() {
+        let gas_1 = GasUnit::<2>::from([10, 20]);
+        let gas_2 = GasUnit::<2>::from([20, 30]);
+        assert!(gas_1.dim_is_less_than(&gas_2));
+        assert!(gas_1.dim_is_less_or_eq(&gas_2));
+
+        let gas_1 = GasUnit::<2>::from([20, 30]);
+        let gas_2 = GasUnit::<2>::from([20, 30]);
+        assert!(gas_1.dim_is_less_or_eq(&gas_2));
+
+        let gas_1 = GasUnit::<2>::from([10, 40]);
+        let gas_2 = GasUnit::<2>::from([20, 30]);
+        assert!(!gas_1.dim_is_less_than(&gas_2));
+        assert!(!gas_1.dim_is_less_or_eq(&gas_2));
+
+        let gas_1 = GasUnit::<2>::from([40, 40]);
+        let gas_2 = GasUnit::<2>::from([20, 30]);
+        assert!(!gas_1.dim_is_less_than(&gas_2));
+        assert!(!gas_1.dim_is_less_or_eq(&gas_2));
+
+        let gas_1 = GasUnit::<2>::from([40, 40]);
+        let gas_2 = GasUnit::<2>::from([20, 50]);
+        assert!(!gas_1.dim_is_less_than(&gas_2));
+        assert!(!gas_1.dim_is_less_or_eq(&gas_2));
+
+        let gas_1 = GasUnit::<2>::from([10, 20]);
+        let gas_2 = GasUnit::<2>::from([10, 30]);
+        assert!(!gas_1.dim_is_less_than(&gas_2));
+
+        let gas_1 = GasUnit::<2>::from([10, 30]);
+        let gas_2 = GasUnit::<2>::from([20, 30]);
+        assert!(!gas_1.dim_is_less_than(&gas_2));
+
+        let gas_1 = GasUnit::<2>::from([10, 20]);
+        let gas_2 = GasUnit::<2>::from([10, 30]);
+        assert!(gas_1.dim_is_less_or_eq(&gas_2));
+
+        let gas_1 = GasUnit::<2>::from([10, 30]);
+        let gas_2 = GasUnit::<2>::from([20, 30]);
+        assert!(gas_1.dim_is_less_or_eq(&gas_2));
+    }
+
+    #[test]
+    fn calculate_min_test() {
+        let gas_1 = GasUnit::<2>::from([10, 20]);
+        let gas_2 = GasUnit::<2>::from([20, 30]);
+
+        assert_eq!(
+            GasUnit::<2>::from([10, 20]),
+            GasUnit::calculate_min(&gas_1, &gas_2)
+        );
+
+        let gas_1 = GasUnit::<2>::from([20, 30]);
+        let gas_2 = GasUnit::<2>::from([10, 20]);
+
+        assert_eq!(
+            GasUnit::<2>::from([10, 20]),
+            GasUnit::calculate_min(&gas_1, &gas_2)
+        );
+
+        let gas_1 = GasUnit::<2>::from([10, 20]);
+        let gas_2 = GasUnit::<2>::from([10, 5]);
+
+        assert_eq!(
+            GasUnit::<2>::from([10, 5]),
+            GasUnit::calculate_min(&gas_1, &gas_2)
+        );
+
+        let gas_1 = GasUnit::<2>::from([10, 20]);
+        let gas_2 = GasUnit::<2>::from([5, 30]);
+
+        assert_eq!(
+            GasUnit::<2>::from([5, 20]),
+            GasUnit::calculate_min(&gas_1, &gas_2)
+        );
+
+        let gas_1 = GasUnit::<2>::from([10, 20]);
+        let gas_2 = GasUnit::<2>::from([10, 20]);
+
+        assert_eq!(
+            GasUnit::<2>::from([10, 20]),
+            GasUnit::calculate_min(&gas_1, &gas_2)
+        );
+    }
+
+    #[test]
+    fn compute_min_test() {}
 
     #[test]
     fn charge_gas_should_fail_if_not_enough_funds() {

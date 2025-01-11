@@ -5,8 +5,8 @@ mod stf_blueprint;
 use sequencer_mode::{registered, unregistered};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{
-    BatchSequencerReceipt, GasSpec, IncrementalBatch, IterableBatchWithId, KernelStateAccessor,
-    VersionReader,
+    BatchSequencerReceipt, GasArray, GasSpec, IncrementalBatch, IterableBatchWithId,
+    KernelStateAccessor, VersionReader,
 };
 mod proof_processing;
 use sov_modules_api::SlotGasMeter;
@@ -282,9 +282,8 @@ where
         I: IntoIterator<Item = &'a mut <S::Da as DaSpec>::BlobTransaction>,
     {
         // Sanity checks.
-        assert!(
-            <S as GasSpec>::process_tx_pre_exec_checks_gas() < <S as GasSpec>::max_tx_check_costs()
-        );
+        assert!(<S as GasSpec>::process_tx_pre_exec_checks_gas()
+            .dim_is_less_than(&<S as GasSpec>::max_tx_check_costs()));
 
         #[cfg(feature = "native")]
         let start_slot = std::time::Instant::now();

@@ -117,7 +117,7 @@ fn test_gas_price_increases_if_gas_used_exceeds_gas_target() {
     let initial_gas_price = S::initial_base_fee_per_gas();
 
     assert!(
-        gas_price > initial_gas_price,
+        initial_gas_price.dim_is_less_than(&gas_price),
         "The gas price should have increased, current gas price: {:?}, initial gas price: {:?}",
         gas_price,
         initial_gas_price
@@ -165,7 +165,7 @@ fn test_gas_price_decreases_if_gas_used_is_below_gas_target() {
     let initial_gas_price = S::initial_base_fee_per_gas();
 
     assert!(
-        gas_price < initial_gas_price,
+        gas_price.dim_is_less_than(&initial_gas_price),
         "The gas price should have decreased, current gas price: {:?}, initial gas price: {:?}",
         gas_price,
         initial_gas_price

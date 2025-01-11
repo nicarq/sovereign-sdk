@@ -520,7 +520,10 @@ where
         };
     }
 
-    if slot_gas_meter.remaining_slot_gas() <= &max_tx_check_costs {
+    if slot_gas_meter
+        .remaining_slot_gas()
+        .dim_is_less_or_eq(&max_tx_check_costs)
+    {
         return AuthAndProcessOutput {
             outcome: AuthAndProcessOutcome::IllegalSequencer {
                 reason: "The slot gas limit has been exhausted".to_string(),

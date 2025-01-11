@@ -217,7 +217,7 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
             }
 
             assert!(
-                total_gas_used > gas_target,
+                gas_target.dim_is_less_than(&total_gas_used),
                 "The total gas used should be higher than the initial gas used"
             );
         }),
@@ -232,7 +232,7 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
         let new_gas_price = state.gas_info().gas_price;
 
         assert!(
-            new_gas_price > initial_gas_price,
+            initial_gas_price.dim_is_less_than(&new_gas_price),
             "The new gas price {new_gas_price} should be higher than the initial gas price {initial_gas_price}"
         );
 

@@ -6,9 +6,9 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    BasicGasMeter, DaSpec, Gas, GasMeter, GasSpec, InvalidProofError, MeteredBorshDeserialize,
-    PreExecWorkingSet, ProofOutcome, ProofReceipt, ProofReceiptContents, SlotGasMeter, Spec,
-    StateCheckpoint, StateProvider, TxScratchpad, WorkingSet,
+    BasicGasMeter, DaSpec, Gas, GasArray, GasMeter, GasSpec, InvalidProofError,
+    MeteredBorshDeserialize, PreExecWorkingSet, ProofOutcome, ProofReceipt, ProofReceiptContents,
+    SlotGasMeter, Spec, StateCheckpoint, StateProvider, TxScratchpad, WorkingSet,
 };
 use sov_state::{Storage, StorageProof};
 
@@ -276,7 +276,10 @@ where
             );
         }
 
-        if slot_gas_meter.remaining_slot_gas() <= &max_tx_check_costs {
+        if slot_gas_meter
+            .remaining_slot_gas()
+            .dim_is_less_or_eq(&max_tx_check_costs)
+        {
             return WorkflowResult::EarlyReturn(
                 ProcessProofOutput {
                     proof_receipt: invalid_proof_receipt::<S>(

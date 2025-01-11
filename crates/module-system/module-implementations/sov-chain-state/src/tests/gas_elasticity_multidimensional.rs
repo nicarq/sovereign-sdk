@@ -50,7 +50,8 @@ fn test_base_fee_increases_if_above_target() {
 
     // The base fee per gas should increase above the initial base fee per gas.
     assert!(
-        computed_base_fee_per_gas > INITIAL_BASE_FEE_PER_GAS.into(),
+        Into::<GasPrice<2>>::into(INITIAL_BASE_FEE_PER_GAS)
+            .dim_is_less_than(&computed_base_fee_per_gas),
         "The base fee per gas should increase when the gas used is above the gas target"
     );
 
@@ -59,7 +60,7 @@ fn test_base_fee_increases_if_above_target() {
         .expect("The computed base fee per gas should be above the INITIAL_BASE_FEE_PER_GAS");
 
     assert!(
-        delta_base_fee_per_gas > GasPrice::from([1; 2]),
+        GasPrice::from([1; 2]).dim_is_less_than(&delta_base_fee_per_gas),
         "The base fee per gas delta should increase by more than 1, actual value {:?}",
         delta_base_fee_per_gas
     );
@@ -81,7 +82,7 @@ fn test_base_fee_decreases_if_below_target() {
     // The base fee per gas should decrease below the initial base fee per gas. The decrease amount should be high enough for the computed base fee per gas to be strictly
     // below the initial base fee per gas.
     assert!(
-        computed_base_fee_per_gas < INITIAL_BASE_FEE_PER_GAS.into(),
+        computed_base_fee_per_gas.dim_is_less_than(&INITIAL_BASE_FEE_PER_GAS.into()),
         "The base fee per gas should decrease when the gas used is below the gas target"
     );
 }
