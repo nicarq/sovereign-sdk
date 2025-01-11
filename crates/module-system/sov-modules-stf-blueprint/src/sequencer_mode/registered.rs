@@ -188,12 +188,20 @@ where
         );
     }
 
-    let mut working_set = WorkingSet::create_working_set(
-        scratchpad,
+    let working_set_gas_meter = match tx.gas_meter(
         &pre_exec_gas_meter.gas_info().gas_price,
-        tx,
         slot_gas_meter.remaining_slot_gas().clone(),
-    );
+    ) {
+        Ok(ws) => ws,
+        Err(reason) => {
+            return (
+                Err(TxProcessingError::OutOfGas(reason.to_string())),
+                scratchpad,
+            )
+        }
+    };
+
+    let mut working_set = WorkingSet::create_working_set(scratchpad, tx, working_set_gas_meter);
 
     // Recover the authentication cost form the user.
     if let Err(err) = working_set.charge_gas(&pre_exec_gas_meter.gas_info().gas_used) {
@@ -285,7 +293,7 @@ impl<S: Spec> IncrementalBatchReceipt<S> {
 pub(crate) fn apply_batch<S, RT, B>(
     runtime: &RT,
     mut checkpoint: StateCheckpoint<S>,
-    slot_gas_meter: &mut SlotGasMeter<S>,
+    slot_gas_meter: &SlotGasMeter<S>,
     batch_with_id: B,
     blob_idx: usize,
     sequencer_da_address: <S::Da as DaSpec>::Address,
@@ -327,10 +335,6 @@ where
     let mut accumulated_reward = 0;
     let mut accumulated_penalty = 0;
     let mut total_gas_used = <S as Spec>::Gas::ZEROED;
-
-    assert!(
-        <S as GasSpec>::process_tx_pre_exec_checks_gas() < <S as GasSpec>::max_tx_check_costs()
-    );
 
     for (idx, (raw_tx, injected_control_flow)) in batch_with_id.enumerate() {
         let sequencer = runtime
@@ -484,7 +488,7 @@ fn penalize_sequencer<S: Spec, RT: Runtime<S>, I: StateProvider<S>>(
 fn auth_and_process_tx<S, RT, I, C>(
     runtime: &RT,
     mut scratchpad: TxScratchpad<S, I>,
-    slot_gas_meter: &mut SlotGasMeter<S>,
+    slot_gas_meter: &SlotGasMeter<S>,
     raw_tx: &FullyBakedTx,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
@@ -502,7 +506,7 @@ where
 {
     let max_tx_check_costs = <S as GasSpec>::max_tx_check_costs();
     let max_tx_check_value = max_tx_check_costs.value(gas_price);
-    if sequencer_bond < max_tx_check_value {
+    if sequencer_bond <= max_tx_check_value {
         return AuthAndProcessOutput {
             outcome: AuthAndProcessOutcome::IllegalSequencer {
                 reason: format!(
@@ -516,7 +520,7 @@ where
         };
     }
 
-    if slot_gas_meter.remaining_slot_gas() < &max_tx_check_costs {
+    if slot_gas_meter.remaining_slot_gas() <= &max_tx_check_costs {
         return AuthAndProcessOutput {
             outcome: AuthAndProcessOutcome::IllegalSequencer {
                 reason: "The slot gas limit has been exhausted".to_string(),
@@ -526,6 +530,8 @@ where
         };
     }
 
+    // In the conditions above, we ensured that both the sequencer bond and the remaining gas in the slot gas meter exceed `max_tx_check_costs`.
+    // Initialize `pre_exec_gas_meter` with `max_tx_check_costs` gas.
     let pre_exec_gas_meter = BasicGasMeter::new_with_gas(max_tx_check_costs, gas_price.clone());
 
     let mut pre_exec_working_set: PreExecWorkingSet<S, _> =
@@ -551,11 +557,6 @@ where
             AuthenticationError::FatalError(err, tx_hash) => {
                 let gas_used_for_authentication = pre_exec_gas_meter.gas_info().gas_used;
 
-                // We ensured that the slot gas meter had at least `max_tx_check_value` gas, and `gas_used_for_authentication` is lower than that.
-                slot_gas_meter
-                    .charge_gas(&gas_used_for_authentication)
-                    .expect("The slot gas meter should be able to charge the gas");
-
                 penalize_sequencer(
                     runtime,
                     &pre_exec_gas_meter.gas_info().gas_used,
@@ -576,14 +577,9 @@ where
             AuthenticationError::OutOfGas(e) => {
                 let gas_used_for_authentication = pre_exec_gas_meter.gas_info().gas_used;
 
-                // We ensured that the slot gas meter had at least `max_tx_check_value` gas, and `gas_used_for_authentication` is lower than that.
-                slot_gas_meter
-                    .charge_gas(&gas_used_for_authentication)
-                    .expect("The slot gas meter should be able to charge the gas");
-
                 penalize_sequencer(
                     runtime,
-                    &pre_exec_gas_meter.gas_info().gas_used,
+                    &gas_used_for_authentication,
                     &pre_exec_gas_meter.gas_info().gas_price,
                     sequencer_da_address,
                     &mut scratchpad,
@@ -624,11 +620,6 @@ where
             let gas_used = pre_exec_gas_meter.gas_info().gas_used;
             let gas_price = pre_exec_gas_meter.gas_info().gas_price;
 
-            // We ensured that the slot gas meter had at least `max_tx_check_value` gas, and `gas_used_for_authentication` is lower than that.
-            slot_gas_meter
-                .charge_gas(&gas_used)
-                .expect("The slot gas meter should be able to charge the gas");
-
             penalize_sequencer(
                 runtime,
                 &gas_used,
@@ -652,10 +643,6 @@ where
         }) => {
             let gas_used = get_gas_used(&receipt);
 
-            // We ensured that the slot gas meter had at least `max_tx_check_value` gas, and `gas_used_for_authentication` is lower than that.
-            // slot_gas_meter
-            //    .charge_gas(&gas_used)
-            //    .expect("The slot gas meter should be able to charge the gas");
             AuthAndProcessOutput {
                 gas_used,
                 scratchpad,

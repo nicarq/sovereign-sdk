@@ -198,7 +198,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
             storage: delta.inner.clone(),
             witness: Default::default(),
             // TODO: #1490. Remove u64::MAX
-            gas_meter: BasicGasMeter::new(u64::MAX, gas_price),
+            gas_meter: BasicGasMeter::new_with_gas(<S::Gas as Gas>::max(), gas_price),
             events: Vec::new(),
             kernel_cache: delta.kernel_cache.clone(),
             user_cache: delta.user_cache.clone(),
@@ -247,7 +247,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
             storage: delta.inner.clone(),
             witness: Default::default(),
             // TODO: #1490. Remove u64::MAX
-            gas_meter: BasicGasMeter::new(u64::MAX, gas_price),
+            gas_meter: BasicGasMeter::new_with_gas(<S::Gas as Gas>::max(), gas_price),
             events: Vec::new(),
             kernel_cache: delta.kernel_cache.clone(),
             user_cache: delta.user_cache.clone(),

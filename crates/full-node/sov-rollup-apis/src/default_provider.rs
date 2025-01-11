@@ -93,14 +93,13 @@ where
             ExecutionContext::Node,
         )?;
 
-        let working_set = WorkingSet::create_working_set(
-            scratchpad,
-            // We are using a fresh gas meter here to not include the costs of the pre-execution checks.
-            // We may want to change this in the future.
-            &gas_price.clone(),
-            &tx_data,
-            <S::Gas>::MAX,
-        );
+        let working_set_gas_meter = match tx_data.gas_meter(&gas_price.clone(), <S::Gas>::MAX) {
+            Ok(ws) => ws,
+            Err(err) => return Err(anyhow::anyhow!("Slot run out of gas {}", err)),
+        };
+
+        let working_set =
+            WorkingSet::create_working_set(scratchpad, &tx_data, working_set_gas_meter);
 
         let (result, _) = apply_tx(
             &runtime,

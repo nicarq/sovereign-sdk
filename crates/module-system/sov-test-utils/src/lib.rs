@@ -205,14 +205,14 @@ impl AtomicNumber {
 
 /// BasicGasMeter for tests.
 pub fn new_test_gas_meter<S: Spec>() -> BasicGasMeter<S> {
-    BasicGasMeter::new(u64::MAX, <S::Gas as Gas>::Price::ZEROED)
+    BasicGasMeter::new_with_gas(<S::Gas as Gas>::max(), <S::Gas as Gas>::Price::ZEROED)
 }
 
 /// BasicGasMeter for tests.
 pub fn new_test_gas_meter_with_price<S: Spec>(
     gas_price: <S::Gas as Gas>::Price,
 ) -> BasicGasMeter<S> {
-    BasicGasMeter::new(u64::MAX, gas_price)
+    BasicGasMeter::new_with_gas(<S::Gas as Gas>::max(), gas_price)
 }
 
 /// Serializes a value to JSON and validates it based on its

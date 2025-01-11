@@ -5,7 +5,7 @@ mod stf_blueprint;
 use sequencer_mode::{registered, unregistered};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{
-    BatchSequencerReceipt, IncrementalBatch, IterableBatchWithId, KernelStateAccessor,
+    BatchSequencerReceipt, GasSpec, IncrementalBatch, IterableBatchWithId, KernelStateAccessor,
     VersionReader,
 };
 mod proof_processing;
@@ -30,7 +30,7 @@ use sov_modules_api::hooks::{KernelSlotHooks, SlotHooks};
 use sov_modules_api::transaction::TransactionConsumption;
 pub use sov_modules_api::{BatchWithId, BlobData, Runtime};
 use sov_modules_api::{
-    BlobDataWithId, DaSpec, Error, ExecutionContext, Gas, GasArray, Genesis, Spec, StateCheckpoint,
+    BlobDataWithId, DaSpec, Error, ExecutionContext, Gas, Genesis, Spec, StateCheckpoint,
 };
 #[cfg(feature = "native")]
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -281,6 +281,11 @@ where
     where
         I: IntoIterator<Item = &'a mut <S::Da as DaSpec>::BlobTransaction>,
     {
+        // Sanity checks.
+        assert!(
+            <S as GasSpec>::process_tx_pre_exec_checks_gas() < <S as GasSpec>::max_tx_check_costs()
+        );
+
         #[cfg(feature = "native")]
         let start_slot = std::time::Instant::now();
         let mut state =
@@ -501,7 +506,6 @@ where
         let mut proof_receipts = Vec::new();
         let mut batch_receipts = Vec::new();
 
-        let mut total_gas = S::Gas::zero();
         #[cfg(feature = "native")]
         let blob_processing_start = std::time::Instant::now();
 
@@ -518,7 +522,7 @@ where
                     let (batch_receipt, next_checkpoint) = registered::apply_batch::<S, RT, B>(
                         &self.runtime,
                         state,
-                        &mut slot_gas_meter,
+                        &slot_gas_meter,
                         batch,
                         blob_idx,
                         sender,
@@ -543,37 +547,50 @@ where
                             });
                         });
                     };
-                    total_gas.combine(&batch_receipt.inner.gas_used);
+                    let gas_used = &batch_receipt.inner.gas_used;
+
+                    // SAFETY: Within `registered::apply_batch`, we always ensure the pre execution and tx gas meters are initialized with less than the remaining gas in the slot gas meter.
+                    slot_gas_meter
+                        .charge_gas(gas_used)
+                        .expect("The slot gas meter should be able to charge the gas");
+
                     batch_receipts.push(batch_receipt.finalize(batch_id.unwrap_or([0u8; 32])));
                     state = next_checkpoint;
                 }
                 BlobDataWithId::EmergencyRegistration { tx, id } => {
-                    let (batch_receipt, next_checkpoint, ret_slot_gas_meter) =
-                        unregistered::apply_batch::<S, RT>(
-                            &self.runtime,
-                            state,
-                            slot_gas_meter,
-                            BatchFromUnregisteredSequencer { tx, id },
-                            blob_idx,
-                            sender,
-                            &gas_price,
-                            visible_height.get(),
-                            execution_context,
-                        );
+                    let (batch_receipt, next_checkpoint) = unregistered::apply_batch::<S, RT>(
+                        &self.runtime,
+                        state,
+                        &slot_gas_meter,
+                        BatchFromUnregisteredSequencer { tx, id },
+                        blob_idx,
+                        sender,
+                        &gas_price,
+                        visible_height.get(),
+                        execution_context,
+                    );
 
-                    total_gas.combine(&batch_receipt.inner.gas_used);
+                    let gas_used = &batch_receipt.inner.gas_used;
+
+                    // SAFETY: Within `unregistered::apply_batch`, we always ensure tx gas meter is initialized with less than the remaining gas in the slot gas meter.
+                    slot_gas_meter
+                        .charge_gas(gas_used)
+                        .expect("The slot gas meter should be able to charge the gas");
+
                     batch_receipts.push(batch_receipt);
                     state = next_checkpoint;
-                    slot_gas_meter = ret_slot_gas_meter;
                 }
                 BlobDataWithId::Proof { proof, id } => {
-                    let (receipt, next_checkpoint, gas_used, ret_slot_gas_meter) =
-                        self.process_proof(id, slot_gas_meter, sender, &gas_price, proof, state);
+                    let (receipt, next_checkpoint, gas_used) =
+                        self.process_proof(id, &slot_gas_meter, sender, &gas_price, proof, state);
+
+                    // SAFETY: Within `process_proof`, we always ensure the pre execution and tx gas meters are initialized with less than the remaining gas in the slot gas meter.
+                    slot_gas_meter
+                        .charge_gas(&gas_used)
+                        .expect("The slot gas meter should be able to charge the gas");
 
                     state = next_checkpoint;
                     proof_receipts.push(receipt);
-                    total_gas.combine(&gas_used);
-                    slot_gas_meter = ret_slot_gas_meter;
                 }
             }
         }
@@ -604,6 +621,11 @@ where
             });
         }
 
-        (total_gas, proof_receipts, batch_receipts, state)
+        (
+            slot_gas_meter.total_gas_used(),
+            proof_receipts,
+            batch_receipts,
+            state,
+        )
     }
 }

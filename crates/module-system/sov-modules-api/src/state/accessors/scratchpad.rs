@@ -16,7 +16,7 @@ use crate::transaction::{
 };
 #[cfg(feature = "test-utils")]
 use crate::GasArray;
-use crate::{BasicGasMeter, Gas, GasInfo, GasMeter, GasMeteringError, VersionReader};
+use crate::{BasicGasMeter, GasInfo, GasMeter, GasMeteringError, VersionReader};
 
 /// A state diff over the storage that contains all the changes related to transaction execution.
 ///
@@ -142,7 +142,10 @@ impl<S: Spec> StateCheckpoint<S> {
         WorkingSet {
             delta: RevertableWriter::new(self.to_tx_scratchpad()),
             events: Default::default(),
-            gas_meter: BasicGasMeter::new(u64::MAX, <S::Gas as crate::Gas>::Price::ZEROED),
+            gas_meter: BasicGasMeter::new_with_gas(
+                <S::Gas as crate::Gas>::max(),
+                <S::Gas as crate::Gas>::Price::ZEROED,
+            ),
             max_fee: 0,
             max_priority_fee_bips: PriorityFeeBips::ZERO,
         }
@@ -167,12 +170,9 @@ impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
     /// Creates a new [`WorkingSet`] from the provided [`TxScratchpad`] and [`AuthenticatedTransactionData`].
     pub fn create_working_set(
         scratchpad: TxScratchpad<S, I>,
-        gas_price: &<S::Gas as Gas>::Price,
         tx: &AuthenticatedTransactionData<S>,
-        slot_gas_limit: S::Gas,
+        working_set_gas_meter: BasicGasMeter<S>,
     ) -> Self {
-        let working_set_gas_meter = tx.gas_meter(gas_price, slot_gas_limit);
-
         Self {
             delta: RevertableWriter::new(scratchpad),
             events: Default::default(),
@@ -267,7 +267,11 @@ impl<S: Spec> WorkingSet<S, StateCheckpoint<S>> {
         WorkingSet {
             delta: RevertableWriter::new(tx_scratchpad),
             events: Default::default(),
-            gas_meter: BasicGasMeter::new(remaining_funds, price.clone()),
+            gas_meter: BasicGasMeter::new(
+                remaining_funds,
+                <S::Gas as crate::Gas>::max(),
+                price.clone(),
+            ),
             max_fee: 0,
             max_priority_fee_bips: PriorityFeeBips::ZERO,
         }
@@ -284,7 +288,10 @@ impl<S: Spec> WorkingSet<S, StateCheckpoint<S>> {
         WorkingSet {
             delta: RevertableWriter::new(tx_scratchpad),
             events: Default::default(),
-            gas_meter: BasicGasMeter::new(u64::MAX, <S::Gas as crate::Gas>::Price::ZEROED),
+            gas_meter: BasicGasMeter::new_with_gas(
+                <S::Gas as crate::Gas>::max(),
+                <S::Gas as crate::Gas>::Price::ZEROED,
+            ),
             max_fee: 0,
             max_priority_fee_bips: PriorityFeeBips::ZERO,
         }
