@@ -3,7 +3,7 @@ use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::tokio::{self};
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
-use sov_modules_api::{Gas, GasSpec, PrivateKey, Spec, SyncStatus};
+use sov_modules_api::{Gas, GasArray, GasSpec, PrivateKey, Spec, SyncStatus};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_apis::{PartialTransaction, SimulateExecutionContainer};
 use sov_test_utils::{AsUser, EncodeCall, TransactionTestCase, TEST_DEFAULT_MAX_FEE};
@@ -71,7 +71,7 @@ async fn test_get_base_fee_per_gas_latest_with_updates() {
     let initial_gas_price = S::initial_base_fee_per_gas();
 
     assert!(
-        current_gas_price < initial_gas_price,
+        current_gas_price.dim_is_less_than(&initial_gas_price),
         "The gas price in the runner should have decreased! Current gas price {current_gas_price}, initial gas price {initial_gas_price}"
     );
 
@@ -96,7 +96,7 @@ async fn test_get_base_fee_per_gas_latest_with_updates() {
 
     // The gas price should decrease because the slot doesn't have enough gas
     assert!(
-        api_current_gas_price < api_initial_gas_price,
+        api_current_gas_price.dim_is_less_than(&api_initial_gas_price),
         "The gas price should have decreased, but it didn't: current gas price {api_current_gas_price}, initial gas price {api_initial_gas_price}"
     );
 

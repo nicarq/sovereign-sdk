@@ -6,7 +6,7 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext, Gas,
-    GasInfo, GasMeter, GasSpec, IgnoredTransactionReceipt, Rewards, SlotGasMeter, Spec,
+    GasArray, GasInfo, GasMeter, GasSpec, IgnoredTransactionReceipt, Rewards, SlotGasMeter, Spec,
     StateProvider, TxScratchpad, WorkingSet,
 };
 use tracing::{debug, warn};
@@ -231,7 +231,10 @@ where
         };
 
     let max_unregistered_tx_check_costs = <S as GasSpec>::max_unregistered_tx_check_costs();
-    if slot_gas_meter.remaining_slot_gas() <= &max_unregistered_tx_check_costs {
+    if slot_gas_meter
+        .remaining_slot_gas()
+        .dim_is_less_or_eq(&max_unregistered_tx_check_costs)
+    {
         // We don't consume gas for failed authentication of unregistered sequencer.
         let gas_used = S::Gas::zero();
 

@@ -3,7 +3,7 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::registration_lib::StakeRegistration;
-use sov_modules_api::{GenesisState, Module, Spec};
+use sov_modules_api::{GasArray, GenesisState, Module, Spec};
 use sov_rollup_interface::common::SlotNumber;
 
 use crate::ProverIncentives;
@@ -41,7 +41,9 @@ impl<S: Spec> ProverIncentives<S> {
         );
 
         anyhow::ensure!(
-            config.proving_penalty < config.minimum_bond,
+            config
+                .proving_penalty
+                .dim_is_less_than(&config.minimum_bond),
             "The penalty should be less than the minimum bond"
         );
 

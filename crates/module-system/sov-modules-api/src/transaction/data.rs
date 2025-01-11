@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::transaction::Transaction;
-use crate::{BasicGasMeter, DispatchCall, Gas, GasMeteringError, Spec};
+use crate::{BasicGasMeter, DispatchCall, Gas, GasArray, GasMeteringError, Spec};
 
 /// A type wrapper around a u64 which represents the priority fee.
 /// Since the priority fee is expressed as a basis point, we should use this wrapper for
@@ -177,16 +177,10 @@ impl<S: Spec> AuthenticatedTransactionData<S> {
         slot_gas_limit: S::Gas,
     ) -> Result<BasicGasMeter<S>, GasMeteringError<S::Gas>> {
         let gas_meter = match &self.gas_limit {
-            Some(gas_limit) =>
-            {
-                #[allow(clippy::comparison_chain)]
-                if *gas_limit < slot_gas_limit {
-                    BasicGasMeter::new(self.max_fee, gas_limit.clone(), gas_price.clone())
-                } else if *gas_limit > slot_gas_limit {
-                    BasicGasMeter::new(self.max_fee, slot_gas_limit, gas_price.clone())
-                } else {
-                    return Err(GasMeteringError::SlotOutOfGas);
-                }
+            Some(gas_limit) => {
+                // `GasArray::calculate_min` creates a new gas instance by selecting the minimum value along each dimension of the gas array.
+                let new_gas_limit = <S::Gas as GasArray>::calculate_min(gas_limit, &slot_gas_limit);
+                BasicGasMeter::new(self.max_fee, new_gas_limit, gas_price.clone())
             }
             None => BasicGasMeter::new(self.max_fee, slot_gas_limit, gas_price.clone()),
         };
