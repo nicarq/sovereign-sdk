@@ -49,7 +49,7 @@ impl<'a, Meter: GasMeter, Hasher: Digest<OutputSize = U32>> MeteredHasher<'a, Me
     pub fn update(&mut self, data: &[u8]) -> Result<(), MeteringError<Meter>> {
         let total_cost = self
             .gas_to_charge_for_hash_update
-            .checked_scalar_product(&(data.len() as u64))
+            .checked_scalar_product(data.len() as u64)
             .ok_or(GasMeteringError::InvalidLength(
                 "Unable to hash data".to_string(),
             ))?;
@@ -143,7 +143,7 @@ impl<GU: Gas, Sign: Signature> MeteredSignature<GU, Sign> {
 
         let dynamic_cost = self
             .gas_to_charge_per_byte_for_verification
-            .checked_scalar_product(&(msg.len() as u64))
+            .checked_scalar_product(msg.len() as u64)
             .ok_or(MeteredSigVerificationError::GasError(
                 GasMeteringError::InvalidLength("Unable to verify message".to_string()),
             ))?;
@@ -203,7 +203,7 @@ pub(crate) fn total_deserialization_cost<S: Spec>(
     deserialization_cost: S::Gas,
     buf_len: u64,
 ) -> Result<S::Gas, MeteredBorshDeserializeError<S::Gas>> {
-    deserialization_cost.checked_scalar_product(&buf_len).ok_or(
+    deserialization_cost.checked_scalar_product(buf_len).ok_or(
         MeteredBorshDeserializeError::GasError(GasMeteringError::InvalidLength(
             "Deserialization cost overflows `u64::MAX` value".to_string(),
         )),

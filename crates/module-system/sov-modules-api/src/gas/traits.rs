@@ -58,7 +58,7 @@ pub trait GasArray:
     fn checked_sub(&self, rhs: &Self) -> Option<Self>;
 
     /// Returns the product of the scalar and the gas units or None if the result overflows.
-    fn checked_scalar_product(&self, scalar: &u64) -> Option<Self>;
+    fn checked_scalar_product(&self, scalar: u64) -> Option<Self>;
 
     /// Checks if the gas is less than the provided gas in each dimension of the gas array.
     fn dim_is_less_than(&self, rhs: &Self) -> bool;
@@ -71,9 +71,6 @@ pub trait GasArray:
 
     /// In-place division of gas units.
     fn scalar_division(&mut self, scalar: u64) -> &mut Self;
-
-    /// In-place product of gas units, resulting in a multiplication.
-    fn scalar_product(&mut self, scalar: u64) -> &mut Self;
 
     #[cfg(feature = "test-utils")]
     /// In-place addition of gas units with a scalar.
@@ -249,11 +246,11 @@ macro_rules! impl_gas_dimensions {
                 Some(Self(output))
             }
 
-            fn checked_scalar_product(&self, scalar: &u64) -> Option<Self> {
+            fn checked_scalar_product(&self, scalar: u64) -> Option<Self> {
                 let mut output = [0; $n];
 
                 for (i,v) in self.0.iter().enumerate() {
-                    if let Some(res) = v.checked_mul(*scalar) {
+                    if let Some(res) = v.checked_mul(scalar) {
                         output[i] = res;
                     }else {
                         return None
@@ -295,13 +292,6 @@ macro_rules! impl_gas_dimensions {
                 self.0
                     .iter_mut()
                     .for_each(|s| *s = s.checked_div(scalar).unwrap_or(0));
-                self
-            }
-
-            fn scalar_product(&mut self, scalar: u64) -> &mut Self {
-                self.0
-                    .iter_mut()
-                    .for_each(|s| *s = s.saturating_mul(scalar));
                 self
             }
 
@@ -731,7 +721,28 @@ mod tests {
     }
 
     #[test]
-    fn compute_min_test() {}
+    fn checked_scalar_product_test() {
+        let gas = GasUnit::<2>::from([10, 20]);
+        assert_eq!(
+            gas.checked_scalar_product(10).unwrap(),
+            GasUnit::<2>::from([100, 200]),
+        );
+
+        let gas = GasUnit::<2>::from([u64::MAX, 20]);
+        assert!(gas.checked_scalar_product(10).is_none());
+
+        let gas = GasUnit::<2>::from([10, u64::MAX]);
+        assert!(gas.checked_scalar_product(10).is_none());
+
+        let gas = GasUnit::<2>::from([u64::MAX, u64::MAX]);
+        assert!(gas.checked_scalar_product(10).is_none());
+
+        let gas = GasUnit::<2>::from([u64::MAX, u64::MAX]);
+        assert_eq!(
+            gas.checked_scalar_product(0).unwrap(),
+            GasUnit::<2>::from([0, 0]),
+        );
+    }
 
     #[test]
     fn charge_gas_should_fail_if_not_enough_funds() {

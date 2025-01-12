@@ -38,7 +38,8 @@ fn test_metered_hasher_happy_path() {
 
     let remaining_funds = gas_to_charge_for_hash_update
         .clone()
-        .scalar_product(data.len() as u64)
+        .checked_scalar_product(data.len() as u64)
+        .unwrap()
         .value(&gas_price)
         + gas_to_charge_for_hash_finalize.value(&gas_price);
 
@@ -71,7 +72,8 @@ fn test_metered_hasher_not_enough_gas_to_finalize() {
 
     let remaining_funds = gas_to_charge_for_hash_update
         .clone()
-        .scalar_product(data.len() as u64)
+        .checked_scalar_product(data.len() as u64)
+        .unwrap()
         .value(&gas_price);
 
     let mut ws = create_working_set(remaining_funds, &gas_price);
@@ -103,7 +105,8 @@ fn test_metered_hasher_not_enough_gas_to_update() {
 
     let remaining_funds = gas_to_charge_for_hash_update
         .clone()
-        .scalar_product(data.len() as u64 - 1)
+        .checked_scalar_product(data.len() as u64 - 1)
+        .unwrap()
         .value(&gas_price);
 
     let mut ws = create_working_set(remaining_funds, &gas_price);
@@ -140,9 +143,10 @@ fn test_metered_signature() {
 
     let remaining_funds = fixed_cost
         .combine(
-            gas_to_charge_for_signature
+            &gas_to_charge_for_signature
                 .clone()
-                .scalar_product(data.len() as u64),
+                .checked_scalar_product(data.len() as u64)
+                .unwrap(),
         )
         .value(&gas_price);
 
@@ -176,9 +180,10 @@ fn test_metered_signature_not_enough_gas() {
 
     let remaining_funds = fixed_cost
         .combine(
-            gas_to_charge_for_signature
+            &gas_to_charge_for_signature
                 .clone()
-                .scalar_product(data.len() as u64 - 1),
+                .checked_scalar_product(data.len() as u64 - 1)
+                .unwrap(),
         )
         .value(&gas_price);
 
