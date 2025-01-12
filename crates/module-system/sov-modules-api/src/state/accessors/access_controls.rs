@@ -107,7 +107,8 @@ mod http_api {
             let storage_value = <Self as StateReader<$namespace>>::get(self, storage_key)?;
 
             if let Some(storage_value) = &storage_value {
-                self.charge_gas(&decode_gas_cost::<S>(storage_value)).expect("We should never fail to charge gas for read operation of api accessors. This is a bug!")
+                let decode_gas_cost = decode_gas_cost::<S>(storage_value).expect("We should never fail to charge gas for read operation of api accessors. This is a bug!");
+                self.charge_gas(&decode_gas_cost).expect("We should never fail to charge gas for read operation of api accessors. This is a bug!");
             }
 
             Ok(storage_value
