@@ -81,6 +81,7 @@ type RT = TestAccessoryRuntime<S>;
 /// Check that:
 /// 1. Accessory state does not change normal state root hash.
 /// 2. Accessory state is reverted together with normal state.
+///
 /// Changes are returned explicitly by storage trait.
 #[test]
 fn test_accessory_value_setter() {

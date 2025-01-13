@@ -106,9 +106,8 @@ async fn run() -> anyhow::Result<()> {
 
 fn parse_prover_config() -> anyhow::Result<Option<RollupProverConfigDiscriminants>> {
     if let Some(value) = option_env!("SOV_PROVER_MODE") {
-        let config = std::str::FromStr::from_str(value).map_err(|error| {
+        let config = std::str::FromStr::from_str(value).inspect_err(|&error| {
             tracing::error!(value, ?error, "Unknown `SOV_PROVER_MODE` value; aborting");
-            error
         })?;
         #[cfg(debug_assertions)]
         {

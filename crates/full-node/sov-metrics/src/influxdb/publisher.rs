@@ -96,10 +96,9 @@ pub(crate) async fn receive_with_timeout(
     receiver: &mut tokio::sync::mpsc::Receiver<String>,
 ) -> Option<String> {
     static TIMEOUT: std::time::Duration = std::time::Duration::from_millis(100);
-    match tokio::time::timeout(TIMEOUT, receiver.recv()).await {
-        Ok(s) => s,
-        _ => None,
-    }
+    tokio::time::timeout(TIMEOUT, receiver.recv())
+        .await
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

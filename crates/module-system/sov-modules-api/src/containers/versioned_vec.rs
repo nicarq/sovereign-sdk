@@ -16,17 +16,23 @@ use crate::{
     VersionReader,
 };
 
-/// A growable array of values stored as JMT-backed state. This is the versioned version of [`crate::StateVec`].
-/// There are a few differences with the non-versioned version:
+/// A growable array of values stored as JMT-backed state.
+///
+/// This is the versioned version of [`crate::StateVec`]. There are a few
+/// differences with the non-versioned version:
 /// - The values are systematically stored in the [`Kernel`] namespace.
 /// - The length of the vector is stored as a [`VersionedStateValue`], which is a versioned value. This allows us
-/// to have a growable vector of values that depends on the current version of the rollup (which is compatible with
-/// soft-confirmations).
-/// - The data structure is *append-only*. This means that the vector can only be modified by appending new values to the end of the vector.
-/// The last element in the vector can be modified using the [`VersionedStateVec::set_last`] method.
-/// This choice is motivated by the fact that the vector is used in the soft-confirmations context, so there shouldn't be
-/// any way to modify older keys from the vector without breaking the soft-confirmations mechanism.
-/// - This data structure *needs* to be initialized at genesis. Otherwise, the state vector will be in an invalid state.
+///   to have a growable vector of values that depends on the current version of the rollup (which is compatible with
+///   soft-confirmations).
+/// - The data structure is *append-only*. This means that the vector can only
+///   be modified by appending new values to the end of the vector. The last
+///   element in the vector can be modified using the
+///   [`VersionedStateVec::set_last`] method. This choice is motivated by the
+///   fact that the vector is used in the soft-confirmations context, so there
+///   shouldn't be any way to modify older keys from the vector without breaking
+///   the soft-confirmations mechanism.
+/// - This data structure *needs* to be initialized at genesis. Otherwise, the
+///   state vector will be in an invalid state.
 #[derive(
     Debug,
     Clone,

@@ -126,10 +126,12 @@ pub struct Evm<S: Spec> {
     #[state]
     pub(crate) head: StateValue<Block, BcsCodec>,
 
-    /// Used only by the RPC: This represents the head of the chain and is set in two distinct stages:
-    /// 1. `end_slot_hook`: the pending head is populated with data from pending_transactions.
-    /// 2. `finalize_hook` the `root_hash` is populated.
-    /// Since this value is not authenticated, it can be modified in the `finalize_hook` with the correct `state_root`.
+    /// Used only by the RPC. This represents the head of the chain and is set in two distinct stages:
+    ///  1. `end_slot_hook`: the pending head is populated with data from pending_transactions.
+    ///  2. `finalize_hook` the `root_hash` is populated.
+    ///
+    /// Since this value is not authenticated, it can be modified in the
+    /// `finalize_hook` with the correct `state_root`.
     #[state]
     pub(crate) pending_head: AccessoryStateValue<Block, BcsCodec>,
 

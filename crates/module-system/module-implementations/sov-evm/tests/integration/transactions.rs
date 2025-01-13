@@ -39,7 +39,7 @@ fn test_executing_eth_transaction() {
         kind: TxKind::Call(contract_addr),
         value: Default::default(),
         input: reth_primitives::Bytes::from(
-            hex::decode(hex::encode(&contract.set_call_data(5))).unwrap(),
+            hex::decode(hex::encode(contract.set_call_data(5))).unwrap(),
         ),
         access_list: Default::default(),
     });
@@ -84,7 +84,7 @@ fn test_executing_eth_transaction() {
         kind: TxKind::Call(contract_addr),
         value: Default::default(),
         input: reth_primitives::Bytes::from(
-            hex::decode(hex::encode(&contract.set_call_data(92))).unwrap(),
+            hex::decode(hex::encode(contract.set_call_data(92))).unwrap(),
         ),
         access_list: Default::default(),
     });

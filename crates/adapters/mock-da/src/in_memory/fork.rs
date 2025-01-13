@@ -16,6 +16,8 @@ impl PlannedFork {
     /// * `fork_height` - Height at which the chain forked. The height of the first block in `blobs` will be `fork_height + 1`
     /// * `blobs` - Blobs that will be added after fork. Single blob per each block.
     ///     Blobs length needs be larger than difference between trigger_at_height and fork_height, otherwise there would be on block available at `trigger_at_height`
+    ///
+    /// ```text
     /// ----- visual example:
     /// height    1    2    3    4    5    6    7    8
     /// blocks    a -> b -> c -> d -> e -> f -> g
@@ -24,6 +26,7 @@ impl PlannedFork {
     /// blobs.len(): 3
     /// trigger_at_height: 7
     /// fork_height: 4
+    /// ```
     pub fn new(trigger_at_height: u64, fork_height: u64, blobs: Vec<Vec<u8>>) -> Self {
         if fork_height > trigger_at_height {
             panic!("Fork height must be less than trigger height");

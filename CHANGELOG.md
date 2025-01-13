@@ -1,4 +1,5 @@
 ## 2025-01-09
+- #2162 migrates the SDK to Rust 1.81. Compatibility with older `rustc` versions is not guaranteed.
 - #2183 adds a way to collect and store metrics from influxDB. This is not a breaking change for customers of the SDK.
 - #2182 Added generations as a replacement to nonces. EVM transactions are unaffected, but all other transactions must now use per-account generation numbers.
   - Multiple transactions can have the same generation, as long as they are different (i.e. have different hashes). Generations older than a configurable limit are pruned. Transactions with a generation number below the pruned limit are automatically considered invalid. Storing too many transaction hashes increases cost; regular pruning is encouraged by regularly increasing the generation number. Using the current UNIX timestamp in seconds is a convenient way to set the generation number in most cases.

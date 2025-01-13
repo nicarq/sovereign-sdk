@@ -166,8 +166,11 @@ pub struct Receiver<StateRoot, Witness, Da: DaSpec> {
 ///
 /// The channel's data is retained across Db restarts.
 /// - The sender will block if the channel reaches `max_channel_size` of STF infos.
-/// - If the number of entries in the Db exceeds `max_nb_of_infos_in_db`, the oldest data will be pruned.
-/// The channel can only be created if `max_channel_size` is less than or equal to `max_nb_of_infos_in_db`.
+/// - If the number of entries in the Db exceeds `max_nb_of_infos_in_db`, the
+///   oldest data will be pruned.
+///
+/// The channel can only be created if `max_channel_size` is less than or equal
+/// to `max_nb_of_infos_in_db`.
 pub async fn new_stf_info_channel<StateRoot, Witness, Da: DaSpec>(
     ledger_db: LedgerDb,
     max_channel_size: NonZero<u64>,

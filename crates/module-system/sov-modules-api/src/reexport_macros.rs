@@ -180,7 +180,7 @@ pub use sov_modules_macros::MessageCodec;
 /// The underlying type must respect the following conditions, or compilation
 /// will fail:
 /// - It must be a named `struct`. Tuple `struct`s, `enum`s, and others are
-/// not supported.
+///   not supported.
 /// - It must have *exactly one* field with the `#[id]` attribute. This field
 ///   represents the **module id**.
 /// - All other fields must have either the `#[state]` or `#[module]` attribute.
@@ -601,9 +601,9 @@ pub mod macros {
     /// * `input("name")` for an input binding with an arbitrary name, or
     /// * `value("data")` for a pre-defined hardcoded value, or
     /// * `value(bytes = "data")` for byte fields, reusing the field's `sov_wallet(display)`
-    /// attribute for parsing; or
+    ///   attribute for parsing; or
     /// * `value(default)` to use the type's `std::default::Default::default()` value in the
-    /// template
+    ///   template.
     ///
     /// Note that input names must be unique throughout a single template. For example, it's not
     /// possible to annotate two identically-named fields (in different structs) with `input` and
@@ -670,12 +670,12 @@ pub mod macros {
     /// types that are not relevant for the rollup.
     ///
     /// * An easy way to disable any inherited templates from a field's type is to set
-    /// `#[sov_wallet(template_override_ty = "()")]
+    ///   `#[sov_wallet(template_override_ty = "()")]`.
     ///
     /// * To actually replace the templates with your own, build a set of scaffold types that
-    /// mirror the structure of the original, provide the desired `#[sov_wallet(template(...))]`
-    /// attributes and #[derive(UniversalWallet)] on the type; then it can be used as the argument
-    /// to `template_override_ty`
+    ///   mirror the structure of the original, provide the desired `#[sov_wallet(template(...))]`
+    ///   attributes and #[derive(UniversalWallet)] on the type; then it can be used as the argument
+    ///   to `template_override_ty`.
     ///
     /// ```rust
     /// use sov_rollup_interface::sov_universal_wallet::{schema::Schema, UniversalWallet};

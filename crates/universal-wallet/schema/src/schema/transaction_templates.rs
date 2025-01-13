@@ -168,8 +168,9 @@ impl TransactionTemplateSet {
     /// Input: a vector of template sets, normally one for each field of a type.
     /// Outputs: a merged template set. This means:
     ///  - Every individual template is concatenated from each field portion of it, across the set
-    ///  of templates
-    ///  - The entire set is enforced to be present on every field, so no fields are skipped
+    ///    of templates.
+    ///  - The entire set is enforced to be present on every field, so no fields are skipped.
+    ///
     /// The exception to the 2nd rule above is for templates only present in the set through field
     /// types (i.e. subtype templates). See the documentation of AttributeAndChildTemplateSet for a
     /// full explanation.

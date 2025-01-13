@@ -80,11 +80,6 @@ async fn test_rest_api_routes_custom_api() {
     let path = ApiPath::query_module("bank").with_custom_api_path(
         format!("tokens/{}/balances/{}", config_gas_token_id(), user_addr).as_str(),
     );
-    format!(
-        "/modules/bank/tokens/{}/balances/{}",
-        config_gas_token_id(),
-        user_addr
-    );
 
     let api_user_balance = runner.query_api_unwrap_data::<Coins>(&path, &client).await;
 

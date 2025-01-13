@@ -691,10 +691,12 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
         }
     }
 
-    /// This function is tightly coupled with the implementation of the background task. It works by...
-    /// 1. Closing the existing tx channel. This causes the background task to close out the current batch and begin applying any
-    /// "forced" blobs immediately, then awaiting the final result
-    /// 2. Starting a new background task
+    /// This function is tightly coupled with the implementation of the
+    /// background task. It works by...
+    ///  1. Closing the existing tx channel. This causes the background task to
+    ///     close out the current batch and begin applying any "forced" blobs
+    ///     immediately, then awaiting the final result.
+    ///  2. Starting a new background task.
     async fn move_to_next_slot(
         &mut self,
         new_checkpoint: StateCheckpoint<Z::Spec>,

@@ -78,6 +78,7 @@ repository = "https://github.com/sovereign-labs/sovereign-sdk"
 [workspace.lints.rust]
 dead_code = "deny"
 non_ascii_idents = "deny" # Bad for readability and it can also be a security vulnerability
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(tokio_unstable)'] } # See <https://docs.rs/tokio/latest/tokio/#unstable-features>.
 
 # In case you need inspiration for new lints to add to the list, this is a good
 # reference: <https://github.com/EmbarkStudios/rust-ecosystem/blob/6783ae1573d62f3f5439b8ff9e04bec191ec2eaf/lints.toml>.
@@ -206,8 +207,6 @@ utoipa-swagger-ui = { git = "https://github.com/juhaku/utoipa.git", rev = "a985d
     "axum",
 ] }
 unwrap-infallible = "0.1.5"
-# To keep compatiblity with rust 1.79
-home = { version = "=0.5.9" }
 tiny-keccak = "2.0.2"
 bech32 = { version = "0.11" }
 derive_more = { version = "1.0", default-features = false, features = ["std"] }

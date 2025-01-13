@@ -221,7 +221,7 @@ pub fn validate_schema<T>(item: &T) -> Result<(), jsonschema::error::ValidationE
 where
     T: schemars::JsonSchema + serde::Serialize,
 {
-    let schema = serde_json::to_value(&schemars::schema_for!(T)).unwrap();
+    let schema = serde_json::to_value(schemars::schema_for!(T)).unwrap();
     let json = serde_json::to_value(item).unwrap();
 
     jsonschema::validate(&schema, &json).map_err(|e| e.kind)

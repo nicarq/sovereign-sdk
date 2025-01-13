@@ -337,7 +337,7 @@ mod tests {
 }
 
 #[cfg(test)]
-#[cfg(all(feature = "proptest", feature = "native"))]
+#[cfg(all(feature = "arbitrary", feature = "native"))]
 mod proptest_tests {
     use proptest::prelude::*;
 
@@ -347,7 +347,7 @@ mod proptest_tests {
         #[test]
         fn pub_key_json_schema_is_valid(item in any::<Risc0PublicKey>()) {
             let serialized = serde_json::to_value(item).unwrap();
-            let schema = serde_json::to_value(&schemars::schema_for!(Risc0PublicKey)).unwrap();
+            let schema = serde_json::to_value(schemars::schema_for!(Risc0PublicKey)).unwrap();
 
             jsonschema::validate(&schema, &serialized).unwrap();
         }
@@ -355,7 +355,7 @@ mod proptest_tests {
         #[test]
         fn sig_json_schema_is_valid(item in any::<Risc0Signature>()) {
             let serialized = serde_json::to_value(item).unwrap();
-            let schema = serde_json::to_value(&schemars::schema_for!(Risc0Signature)).unwrap();
+            let schema = serde_json::to_value(schemars::schema_for!(Risc0Signature)).unwrap();
 
             jsonschema::validate(&schema, &serialized).unwrap();
         }

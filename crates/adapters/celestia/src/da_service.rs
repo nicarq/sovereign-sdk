@@ -528,9 +528,9 @@ impl DaService for CelestiaService {
 /// Celestia has two types of shares:
 ///  1. The first has extra metadata about the size of payload
 ///  2. Continuation shares have namespace and info bytes.
+///
 /// Technically, we rely on constants about size,
 /// and it should be good as long as there are only two types of shares.
-///
 fn shares_needed_for_bytes(payload_bytes: usize) -> usize {
     debug_assert_ne!(
         CONTINUATION_SPARSE_SHARE_CONTENT_SIZE, 0,
