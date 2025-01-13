@@ -102,7 +102,7 @@ fn call(
     msg: Self::CallMessage,
     context: &Context<Self::Spec>,
     state: &mut impl TxState<S>,
-) -> Result<sov_modules_api::CallResponse, Error> {
+) -> Result<(), Error> {
     match msg {
         call::CallMessage::CreateToken {
             salt,
@@ -410,9 +410,8 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         coins: Coins,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<(), Error> {
         // Implementation details elided...
-q
         // Use emit event with a specific value of the type Event that was created and bound to the Module implementation
         self.emit_event(
             state,
@@ -421,7 +420,7 @@ q
                 amount: coins.amount,
             },
         );
-        Ok(CallResponse::default())
+        Ok(())
     }
 }
 ```
