@@ -64,13 +64,12 @@ fn test_chain_state_update_gas_used() {
         NUM_ROUNDS,
         NUM_TXS_PER_ROUND,
         &mut |_round, kernel, result| {
-            let expected_gas_consumed_batch = result.batch_receipts[0].tx_receipts.iter().fold(
-                <<S as Spec>::Gas as Gas>::zero(),
-                |mut acc, tx_receipt| {
-                    acc.combine(&get_gas_used(tx_receipt));
-                    acc
-                },
-            );
+            let expected_gas_consumed_batch = result.batch_receipts[0]
+                .tx_receipts
+                .iter()
+                .fold(<<S as Spec>::Gas as Gas>::zero(), |acc, tx_receipt| {
+                    acc.checked_combine(&get_gas_used(tx_receipt)).unwrap()
+                });
 
             let in_progress_tx = ChainState::<S>::default()
                 .last_slot(kernel)

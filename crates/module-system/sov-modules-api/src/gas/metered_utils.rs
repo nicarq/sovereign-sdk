@@ -139,19 +139,23 @@ impl<GU: Gas, Sign: Signature> MeteredSignature<GU, Sign> {
         msg: &[u8],
         meter: &mut Meter,
     ) -> Result<(), MeteredSigVerificationError<GU>> {
-        let mut fixed_gas_cost = self.fixed_gas_to_charge_per_verification.clone();
+        let fixed_gas_cost = self.fixed_gas_to_charge_per_verification.clone();
 
         let dynamic_cost = self
             .gas_to_charge_per_byte_for_verification
             .checked_scalar_product(msg.len() as u64)
             .ok_or(MeteredSigVerificationError::GasError(
-                GasMeteringError::InvalidLength("Unable to verify message".to_string()),
+                GasMeteringError::InvalidLength(
+                    "Unable to verify message, gas cost overflows `u64::MAX` value".to_string(),
+                ),
             ))?;
 
-        let total_gas_cost = fixed_gas_cost.combine(&dynamic_cost);
+        meter
+            .charge_gas(&fixed_gas_cost)
+            .map_err(MeteredSigVerificationError::GasError)?;
 
         meter
-            .charge_gas(total_gas_cost)
+            .charge_gas(&dynamic_cost)
             .map_err(MeteredSigVerificationError::GasError)?;
 
         self.inner
