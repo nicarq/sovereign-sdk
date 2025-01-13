@@ -9,6 +9,7 @@ use sov_modules_api::{
     GasArray, GasInfo, GasMeter, GasSpec, IgnoredTransactionReceipt, Rewards, SlotGasMeter, Spec,
     StateProvider, TxScratchpad, WorkingSet,
 };
+use sov_rollup_interface::common::VisibleSlotNumber;
 use tracing::{debug, warn};
 
 use crate::sequencer_mode::common::{
@@ -26,7 +27,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     validated_output: AuthTxOutput<S, R>,
     gas_info: GasInfo<S::Gas>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
-    height: u64,
+    visible_slot_number: VisibleSlotNumber,
     mut scratchpad: TxScratchpad<S, I>,
     execution_context: ExecutionContext,
 ) -> (
@@ -43,7 +44,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         .resolve_unregistered_context(
             &auth_data,
             sequencer_da_address,
-            height,
+            visible_slot_number,
             &mut scratchpad,
             execution_context,
         ) {
@@ -186,7 +187,7 @@ pub(crate) fn apply_batch<S, RT>(
     blob_idx: usize,
     sequencer_da_address: <S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
-    height: u64,
+    visible_slot_number: VisibleSlotNumber,
     execution_context: ExecutionContext,
 ) -> (BatchReceipt<S>, StateCheckpoint<S>)
 where
@@ -304,7 +305,7 @@ where
         validated_output,
         gas_info,
         &sequencer_da_address,
-        height,
+        visible_slot_number,
         scratchpad,
         execution_context,
     );

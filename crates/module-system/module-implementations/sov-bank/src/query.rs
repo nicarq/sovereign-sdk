@@ -1,11 +1,12 @@
 //! Defines REST queries exposed by the bank module, along with the relevant types.
 
 use axum::routing::get;
+use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::prelude::utoipa::openapi::OpenApi;
 use sov_modules_api::prelude::{axum, serde_yaml, UnwrapInfallible};
 use sov_modules_api::rest::utils::{errors, ApiResult, Path, Query};
 use sov_modules_api::rest::{ApiState, HasCustomRestApi};
-use sov_modules_api::{ApiStateAccessor, Spec, VisibleSlotNumber};
+use sov_modules_api::{ApiStateAccessor, Spec};
 
 use crate::{get_token_id, Amount, Bank, Coins, TokenId};
 
@@ -28,7 +29,7 @@ impl<S: Spec> Bank<S> {
     /// stored at the address `token_id`.
     pub fn balance_of(
         &self,
-        version: Option<VisibleSlotNumber>,
+        version: Option<RollupHeight>,
         user_address: S::Address,
         token_id: TokenId,
         state: &mut ApiStateAccessor<S>,
@@ -46,7 +47,7 @@ impl<S: Spec> Bank<S> {
     /// Method that returns the supply of a token stored at the address `token_id`.
     pub fn supply_of(
         &self,
-        version: Option<VisibleSlotNumber>,
+        version: Option<RollupHeight>,
         token_id: TokenId,
         state: &mut ApiStateAccessor<S>,
     ) -> Result<TotalSupplyResponse, anyhow::Error> {

@@ -1,12 +1,13 @@
 use std::marker::PhantomData;
 
 use jmt::storage::NodeBatch;
-use jmt::{JellyfishMerkleTree, KeyHash, Version};
+use jmt::{JellyfishMerkleTree, KeyHash};
 use sov_db::accessory_db::AccessoryDb;
 use sov_db::namespaces;
 use sov_db::namespaces::{KernelNamespace as DBKernelNamespace, UserNamespace as DBUserNamespace};
 use sov_db::state_db::{JmtHandler, StateDb};
 use sov_db::storage_manager::{InitializableNativeStorage, NativeChangeSet, StfStorageHandlers};
+use sov_rollup_interface::common::SlotNumber;
 
 use crate::cache::{OrderedReadsAndWrites, StateAccesses};
 use crate::config::Config;
@@ -59,7 +60,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
     fn read_value_namespace<N: namespaces::Namespace>(
         &self,
         key: &SlotKey,
-        version: Version,
+        version: SlotNumber,
     ) -> Option<SlotValue> {
         match self.db.get_value_option_by_key::<N>(version, key.as_ref()) {
             Ok(value) => value.map(Into::into),
@@ -70,7 +71,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
 
     // Return version to use, if applicable
     // If none returned, means no version can be used and should return empty value
-    fn get_version_to_use(&self, version: Option<Version>) -> Option<Version> {
+    fn get_version_to_use(&self, version: Option<SlotNumber>) -> Option<SlotNumber> {
         if self.is_empty() {
             return None;
         }
@@ -94,7 +95,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
     fn read_value<N: CompileTimeNamespace>(
         &self,
         key: &SlotKey,
-        version: Option<Version>,
+        version: Option<SlotNumber>,
     ) -> Option<SlotValue> {
         let version_to_use = self.get_version_to_use(version)?;
 
@@ -113,18 +114,18 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
 
     fn get_root_hash_namespace_helper<N: namespaces::Namespace>(
         &self,
-        version: Version,
+        version: SlotNumber,
     ) -> anyhow::Result<jmt::RootHash> {
         let state_db_handler: JmtHandler<N> = self.db.get_jmt_handler();
         let merkle = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&state_db_handler);
-        merkle.get_root_hash(version)
+        merkle.get_root_hash(version.get())
     }
 
     /// Return the root hash for a given namespace and version
     pub fn get_root_hash_namespace(
         &self,
         namespace: ProvableNamespace,
-        version: Version,
+        version: SlotNumber,
     ) -> anyhow::Result<jmt::RootHash> {
         match namespace {
             ProvableNamespace::User => {
@@ -150,14 +151,14 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
             // Previous root and reads are not witnessed during genesis.
             Some(latest_version) => {
                 let root_hash = jmt
-                    .get_root_hash(latest_version)
+                    .get_root_hash(latest_version.get())
                     .expect("Previous root hash was not populated");
                 witness.add_hint(root_hash.0);
                 // For each value that's been read from the tree, read it from the logged JMT to populate hints
                 for (key, read_value) in &state_accesses.ordered_reads {
                     let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
                     // TODO: Switch to the batch read API once it becomes available
-                    let (result, proof) = jmt.get_with_proof(key_hash, latest_version)?;
+                    let (result, proof) = jmt.get_with_proof(key_hash, latest_version.get())?;
                     if result != read_value.as_ref().map(|f| f.value().to_vec()) {
                         anyhow::bail!("Bug! Incorrect value read from jmt");
                     }
@@ -181,7 +182,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         let next_version = self.db.get_next_version();
 
         let (new_root, update_proof, tree_update) = jmt
-            .put_value_set_with_proof(batch, next_version)
+            .put_value_set_with_proof(batch, next_version.get())
             .expect("JMT update must succeed");
 
         witness.add_hint(update_proof);
@@ -216,13 +217,13 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         &self,
         namespace: ProvableNamespace,
         key: SlotKey,
-        version: Version,
+        version: SlotNumber,
     ) -> StorageProof<<ProverStorage<S> as Storage>::Proof> {
         let state_db_handler: JmtHandler<N> = self.db.get_jmt_handler();
         let merkle = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&state_db_handler);
         // We should've checked all input before this point, so any error means a bug.
         let (val_opt, proof) = merkle
-            .get_with_proof(KeyHash::with::<S::Hasher>(key.as_ref()), version)
+            .get_with_proof(KeyHash::with::<S::Hasher>(key.as_ref()), version.get())
             .expect("Corrupted JMT state");
         StorageProof {
             key,
@@ -235,7 +236,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
     /// Utility method for checking if storage is empty.
     /// Does not guarantee 100% that it actually is.
     pub fn is_empty(&self) -> bool {
-        self.db.get_next_version() == 0
+        self.db.get_next_version() == SlotNumber::GENESIS
     }
 }
 
@@ -282,7 +283,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     fn get<N: ProvableCompileTimeNamespace>(
         &self,
         key: &SlotKey,
-        version: Option<Version>,
+        version: Option<SlotNumber>,
         witness: &Self::Witness,
     ) -> Option<SlotValue> {
         let val = self.read_value::<N>(key, version);
@@ -290,7 +291,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         val
     }
 
-    fn get_accessory(&self, key: &SlotKey, version: Option<Version>) -> Option<SlotValue> {
+    fn get_accessory(&self, key: &SlotKey, version: Option<SlotNumber>) -> Option<SlotValue> {
         self.read_value::<Accessory>(key, version)
     }
 
@@ -371,7 +372,7 @@ impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
     fn get_with_proof<N: ProvableCompileTimeNamespace>(
         &self,
         key: SlotKey,
-        version: Option<u64>,
+        version: Option<SlotNumber>,
     ) -> anyhow::Result<StorageProof<Self::Proof>> {
         let version_to_use = match self.get_version_to_use(version) {
             None => {
@@ -393,7 +394,7 @@ impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
         })
     }
 
-    fn get_root_hash(&self, version: Version) -> anyhow::Result<Self::Root> {
+    fn get_root_hash(&self, version: SlotNumber) -> anyhow::Result<Self::Root> {
         let version_to_use = match self.get_version_to_use(Some(version)) {
             None => {
                 // Mimic error from jmt.

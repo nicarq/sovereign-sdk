@@ -1,9 +1,10 @@
 use std::convert::Infallible;
 
+use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_rollup_interface::da::DaSpec;
-use sov_state::Storage;
+use sov_state::{Storage, User};
 
-use crate::{Gas, KernelStateAccessor, Spec, VersionReader};
+use crate::{Gas, KernelStateAccessor, Spec, StateReader, VersionReader};
 
 /// Capabilities allowing the kernel to update and access the DA layer state.
 pub trait ChainState {
@@ -20,6 +21,13 @@ pub trait ChainState {
         state: &mut KernelStateAccessor<'_, Self::Spec>,
     );
 
+    /// Called at the beginning of a non-empty slot. Updates the rollup height
+    fn increment_rollup_height(
+        &self,
+        state: &mut KernelStateAccessor<'_, Self::Spec>,
+        visible_slot_number: VisibleSlotNumber,
+    );
+
     /// Called at the end of a slot. Updates the chain state module
     /// and finalises the state.
     fn finalise_chain_state(
@@ -33,15 +41,19 @@ pub trait ChainState {
     /// ## Note
     /// This method can return `None` if the base fee per gas for the current slot cannot be determined yet.
     /// This can happen when querying a slot too far ahead in the future.
-    fn base_fee_per_gas(
+    fn base_fee_per_gas<
+        Reader: VersionReader<Error = Infallible> + StateReader<User, Error = Infallible>,
+    >(
         &self,
-        state: &mut impl VersionReader<Error = Infallible>,
+        state: &mut Reader,
     ) -> Option<<<Self::Spec as Spec>::Gas as Gas>::Price>;
 
     /// Returns the slot gas limit accessible at the current *virtual* slot.
-    fn slot_gas_limit(
+    fn block_gas_limit<
+        Reader: VersionReader<Error = Infallible> + StateReader<User, Error = Infallible>,
+    >(
         &self,
-        state: &mut impl VersionReader<Error = Infallible>,
+        state: &mut Reader,
     ) -> Option<<Self::Spec as Spec>::Gas>;
 
     /// Returns the visible root hash accessible at the current *visible* rollup height

@@ -717,7 +717,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LedgerTx"
-        rollup_height:
+        slot_number:
           type: integer
           format: uint64
       required:
@@ -726,7 +726,7 @@ components:
         - hash
         - tx_range
         - receipt
-        - rollup_height
+        - slot_number
     TxReceipt:
       type: object
       properties:

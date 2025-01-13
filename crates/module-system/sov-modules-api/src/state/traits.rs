@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 use std::fmt::Debug;
 
-use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 #[cfg(feature = "native")]
 use sov_state::StorageProof;
 use sov_state::{
@@ -12,6 +12,7 @@ use sov_state::{
 use thiserror::Error;
 
 use super::accessors::seal::CachedAccessor;
+use crate::capabilities::RollupHeight;
 use crate::gas::GasArray;
 #[cfg(any(feature = "test-utils", feature = "evm"))]
 use crate::UnmeteredStateWrapper;
@@ -499,14 +500,20 @@ pub trait ProvenStateAccessor<N: ProvableCompileTimeNamespace>: StateReaderAndWr
         N: ProvableCompileTimeNamespace;
 }
 
-/// A trait indicating that this state accessor is version aware
+/// A [`StateReader`] that is version-aware.
 pub trait VersionReader: StateReader<namespaces::Kernel> {
+    /// Returns the largest visible slot number that the accessor is allowed to access.
+    /// This may differ from the actual value of the "current" visible slot number depending on the accessor's permissions.
+    // FIXME: This trait needs reworking - the number returned from this method is not always visible - that's the whole point!
+    fn visible_slot_number_to_access(&self) -> VisibleSlotNumber;
+
     /// Returns the current version of the state accessor
-    fn rollup_height_to_access(&self) -> SlotNumber;
+    fn rollup_height_to_access(&self) -> RollupHeight;
 }
 
-/// A trait indicating that this state accessor can write to the kernel at the true slot height
+/// A trait for state accessors that can write to the kernel at the true
+/// [`SlotNumber`].
 pub trait KernelWriter: StateWriter<namespaces::Kernel, Error = Infallible> {
     /// Returns the current true rollup height contained in the accessor
-    fn true_rollup_height(&self) -> SlotNumber;
+    fn true_slot_number(&self) -> SlotNumber;
 }

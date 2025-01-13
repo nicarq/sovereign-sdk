@@ -1,4 +1,3 @@
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use borsh::BorshSerialize;
@@ -85,7 +84,7 @@ where
         &mut self,
         stf_info: StateTransitionInfo<StateRoot, Witness, Da::Spec>,
     ) -> anyhow::Result<()> {
-        let height = stf_info.rollup_height;
+        let slot_number = stf_info.slot_number;
         let witness = stf_info.witness();
 
         let attestation = Attestation {
@@ -94,7 +93,7 @@ where
             post_state_root: witness.final_state_root,
             proof_of_bond: self
                 .bonding_proof_service
-                .get_bonding_proof(height.get())
+                .get_bonding_proof(slot_number)
                 .ok_or(anyhow::anyhow!(
                     "Cannot get bonding proof, storage is corrupted."
                 ))?,
@@ -114,11 +113,9 @@ where
             .send_proof(&serialized_blob, fee)
             .await
             .await??;
-        tracing::debug!(?receipt, %height, "Attestation has been posted to DA");
+        tracing::debug!(?receipt, %slot_number, "Attestation has been posted to DA");
 
-        self.st_info_receiver
-            .next_height_to_receive
-            .fetch_add(1, Ordering::SeqCst);
+        self.st_info_receiver.inc_next_height_to_receive();
         Ok(())
     }
 }

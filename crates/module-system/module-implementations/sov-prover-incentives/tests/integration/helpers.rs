@@ -15,7 +15,7 @@ use sov_modules_api::{
 };
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
 use sov_prover_incentives::ProverIncentives;
-use sov_rollup_interface::common::IntoSlotNumber;
+use sov_rollup_interface::common::SlotNumber;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
@@ -63,8 +63,8 @@ pub(crate) fn setup() -> (TestRunner<RT, S>, TestProver<TestSpec>, TestUser<S>) 
 #[allow(clippy::type_complexity)]
 pub(crate) fn build_proof(
     state: &mut ApiStateAccessor<S>,
-    initial_slot: u64,
-    end_slot: u64,
+    initial_slot: SlotNumber,
+    end_slot: SlotNumber,
     prover_address: <S as Spec>::Address,
 ) -> Result<
     AggregatedProofPublicData<
@@ -74,9 +74,6 @@ pub(crate) fn build_proof(
     >,
     Infallible,
 > {
-    let initial_slot = initial_slot.to_slot_number();
-    let end_slot = end_slot.to_slot_number();
-
     let chain_state = ChainState::<S>::default();
     let genesis_hash = chain_state
         .get_genesis_hash(state)
@@ -94,8 +91,8 @@ pub(crate) fn build_proof(
 
     Ok(AggregatedProofPublicData {
         validity_conditions: vec![vec_validity_cond; end_slot.delta(initial_slot) as usize + 1],
-        initial_rollup_height: initial_slot,
-        final_rollup_height: end_slot,
+        initial_slot_number: initial_slot,
+        final_slot_number: end_slot,
         initial_state_root: genesis_hash,
         genesis_state_root: genesis_hash,
         final_state_root: *end_transition.post_state_root(),

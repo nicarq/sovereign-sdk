@@ -4,6 +4,7 @@ use sov_db::ledger_db::event_helper::{
     get_events_by_key_helper, get_events_by_key_slot_range_helper,
 };
 use sov_db::ledger_db::LedgerDb;
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::ledger_api::{LedgerStateProvider, PaginatedEventResponse};
 use sov_rollup_interface::stf::StoredEvent;
 
@@ -25,8 +26,8 @@ pub trait LedgerStateProviderExt: LedgerStateProvider {
     async fn get_events_by_slot_range_key<E>(
         &self,
         event_key: &str,
-        slot_height_start: u64,
-        slot_height_end: u64,
+        slot_height_start: SlotNumber,
+        slot_height_end: SlotNumber,
         num_events: usize,
         next: Option<&str>,
     ) -> Result<PaginatedEventResponse<E>, Self::Error>
@@ -52,8 +53,8 @@ impl LedgerStateProviderExt for LedgerDb {
     async fn get_events_by_slot_range_key<E>(
         &self,
         event_key: &str,
-        slot_height_start: u64,
-        slot_height_end: u64,
+        slot_height_start: SlotNumber,
+        slot_height_end: SlotNumber,
         num_events: usize,
         next: Option<&str>,
     ) -> anyhow::Result<PaginatedEventResponse<E>>

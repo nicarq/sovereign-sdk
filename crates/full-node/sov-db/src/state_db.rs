@@ -5,6 +5,7 @@ use jmt::storage::{HasPreimage, TreeReader};
 use jmt::{KeyHash, Version};
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::{SchemaBatch, SchemaKey};
+use sov_rollup_interface::common::SlotNumber;
 
 use crate::namespaces::{KernelNamespace, Namespace, UserNamespace};
 use crate::schema::namespace::{JmtNodes, JmtValues, KeyHashToKey};
@@ -18,7 +19,7 @@ pub struct StateDb {
     /// The [`Version`] that will be used for the next batch of writes to the DB
     /// This [`Version`] is also used for querying data,
     /// so if this instance of StateDb is used as read-only, it won't see newer data.
-    next_version: Version,
+    next_version: SlotNumber,
 }
 
 impl StateDb {
@@ -43,7 +44,7 @@ impl StateDb {
     }
 
     /// Get the next version from the database snapshot
-    fn next_version_from(reader: &DeltaReader) -> anyhow::Result<Version> {
+    fn next_version_from(reader: &DeltaReader) -> anyhow::Result<SlotNumber> {
         let kernel_last_key_value = reader.get_largest::<JmtNodes<KernelNamespace>>()?;
         let kernel_largest_version = kernel_last_key_value.map(|(k, _)| k.version());
 
@@ -58,8 +59,8 @@ impl StateDb {
         );
 
         Ok(match user_largest_version {
-            None => 0,
-            Some(existing_version) => existing_version
+            None => SlotNumber::GENESIS,
+            Some(existing_version) => SlotNumber::new_dangerous(existing_version)
                 .checked_add(1)
                 .expect("JMT Version overflow. Is is over"),
         })
@@ -103,14 +104,19 @@ impl StateDb {
     }
 
     /// Get the current value of the `next_version` counter
-    pub fn get_next_version(&self) -> Version {
+    pub fn get_next_version(&self) -> SlotNumber {
         self.next_version
+    }
+
+    /// The last version used for writes.
+    pub fn last_version(&self) -> Option<SlotNumber> {
+        self.next_version.checked_sub(1)
     }
 
     /// Get an optional value from the database, given a version and a key hash.
     pub fn get_value_option_by_key<N: Namespace>(
         &self,
-        version: Version,
+        version: SlotNumber,
         key: &SchemaKey,
     ) -> anyhow::Result<Option<jmt::OwnedValue>> {
         // Defense programming
@@ -167,7 +173,8 @@ impl StateDb {
                         "Could not find preimage for key hash {key_hash:?}. Has `StateDb::put_preimage` been called for this key?"
                     ))?
             };
-            batch.put::<JmtValues<N>>(&(key_preimage, *version), value)?;
+            batch
+                .put::<JmtValues<N>>(&(key_preimage, SlotNumber::new_dangerous(*version)), value)?;
         }
 
         Ok(batch)
@@ -228,7 +235,8 @@ impl<'a, N: Namespace> TreeReader for JmtHandler<'a, N> {
             .context("Preimage for key is not found")?;
 
         if let Some(key) = key_opt {
-            self.state_db.get_value_option_by_key::<N>(version, &key)
+            self.state_db
+                .get_value_option_by_key::<N>(SlotNumber::new_dangerous(version), &key)
         } else {
             Ok(None)
         }

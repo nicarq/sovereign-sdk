@@ -1,5 +1,6 @@
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::SchemaBatch;
+use sov_rollup_interface::common::SlotNumber;
 
 use crate::schema::tables::{ModuleAccessoryState, ACCESSORY_TABLES};
 use crate::schema::types::AccessoryKey;
@@ -37,7 +38,7 @@ impl AccessoryDb {
     pub fn get_value_option(
         &self,
         key: &AccessoryKey,
-        version: Version,
+        version: SlotNumber,
     ) -> anyhow::Result<Option<Vec<u8>>> {
         let found = self
             .db
@@ -58,7 +59,7 @@ impl AccessoryDb {
     /// Collects a sequence of key-value pairs into [`SchemaBatch`].
     pub fn materialize_values(
         key_value_pairs: impl IntoIterator<Item = (Vec<u8>, Option<Vec<u8>>)>,
-        version: Version,
+        version: SlotNumber,
     ) -> anyhow::Result<SchemaBatch> {
         let mut batch = SchemaBatch::default();
         for (key, value) in key_value_pairs {
@@ -72,6 +73,8 @@ impl AccessoryDb {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+
+    use sov_rollup_interface::common::IntoSlotNumber;
 
     use super::*;
 
@@ -88,16 +91,28 @@ mod tests {
 
         let key = b"foo".to_vec();
         let value = b"bar".to_vec();
-        let changes1 =
-            AccessoryDb::materialize_values(vec![(key.clone(), Some(value.clone()))], 0).unwrap();
+        let changes1 = AccessoryDb::materialize_values(
+            vec![(key.clone(), Some(value.clone()))],
+            0.to_slot_number(),
+        )
+        .unwrap();
         rocksdb.write_schemas(&changes1).unwrap();
-        assert_eq!(db.get_value_option(&key, 0).unwrap(), Some(value.clone()));
+        assert_eq!(
+            db.get_value_option(&key, 0.to_slot_number()).unwrap(),
+            Some(value.clone())
+        );
 
         let value2 = b"baz".to_vec();
-        let changes2 =
-            AccessoryDb::materialize_values(vec![(key.clone(), Some(value2.clone()))], 1).unwrap();
+        let changes2 = AccessoryDb::materialize_values(
+            vec![(key.clone(), Some(value2.clone()))],
+            1.to_slot_number(),
+        )
+        .unwrap();
         rocksdb.write_schemas(&changes2).unwrap();
-        assert_eq!(db.get_value_option(&key, 0).unwrap(), Some(value));
+        assert_eq!(
+            db.get_value_option(&key, 0.to_slot_number()).unwrap(),
+            Some(value)
+        );
     }
 
     #[test]
@@ -113,14 +128,21 @@ mod tests {
 
         let key = b"deleted".to_vec();
         let value = b"baz".to_vec();
-        let changes1 =
-            AccessoryDb::materialize_values(vec![(key.clone(), Some(value.clone()))], 0).unwrap();
+        let changes1 = AccessoryDb::materialize_values(
+            vec![(key.clone(), Some(value.clone()))],
+            0.to_slot_number(),
+        )
+        .unwrap();
         rocksdb.write_schemas(&changes1).unwrap();
-        assert_eq!(db.get_value_option(&key, 0).unwrap(), Some(value.clone()));
+        assert_eq!(
+            db.get_value_option(&key, 0.to_slot_number()).unwrap(),
+            Some(value.clone())
+        );
 
-        let changes2 = AccessoryDb::materialize_values(vec![(key.clone(), None)], 0).unwrap();
+        let changes2 =
+            AccessoryDb::materialize_values(vec![(key.clone(), None)], 0.to_slot_number()).unwrap();
         rocksdb.write_schemas(&changes2).unwrap();
-        assert_eq!(db.get_value_option(&key, 0).unwrap(), None);
+        assert_eq!(db.get_value_option(&key, 0.to_slot_number()).unwrap(), None);
     }
 
     #[test]
@@ -135,6 +157,6 @@ mod tests {
         let db = AccessoryDb::with_reader(reader).unwrap();
 
         let key = b"spam".to_vec();
-        assert_eq!(db.get_value_option(&key, 0).unwrap(), None);
+        assert_eq!(db.get_value_option(&key, 0.to_slot_number()).unwrap(), None);
     }
 }

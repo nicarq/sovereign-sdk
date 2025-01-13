@@ -12,7 +12,7 @@ pub use accessors::{
     PreExecWorkingSet, StateCheckpoint, StateProvider, TxChangeSet, TxScratchpad, WorkingSet,
 };
 #[cfg(feature = "native")]
-pub use accessors::{AccessoryStateCheckpoint, ApiStateAccessor};
+pub use accessors::{AccessoryStateCheckpoint, ApiStateAccessor, ApiStateAccessorError};
 pub use events::TypedEvent;
 #[cfg(feature = "native")]
 use sov_rollup_interface::ProvableHeightTracker;
@@ -28,6 +28,8 @@ pub use traits::{
 #[cfg(feature = "native")]
 /// Utilities to allow tracking the maximum provable height of the rollup.
 pub mod provable_height_tracker {
+    use sov_rollup_interface::common::SlotNumber;
+
     use super::*;
     use crate::capabilities::HasKernel;
     use crate::rest::StateUpdateReceiver;
@@ -50,11 +52,11 @@ pub mod provable_height_tracker {
     }
 
     impl<S: Spec, K: HasKernel<S>> ProvableHeightTracker for MaximumProvableHeight<S, K> {
-        fn maximum_provable_height(&self) -> u64 {
+        fn max_provable_slot_number(&self) -> SlotNumber {
             let storage = self.state_update_receiver.borrow().storage.clone();
             let checkpoint = StateCheckpoint::new(storage, &self.kernel.kernel());
             // Substract 1 because the state root at slot height `i` is only available at slot height `i + 1`.
-            checkpoint.rollup_height_to_access().saturating_sub(1).get()
+            checkpoint.visible_slot_number_to_access().saturating_sub(1)
         }
     }
 
@@ -68,8 +70,8 @@ pub mod provable_height_tracker {
 
     #[cfg(feature = "test-utils")]
     impl ProvableHeightTracker for InfiniteHeight {
-        fn maximum_provable_height(&self) -> u64 {
-            u64::MAX
+        fn max_provable_slot_number(&self) -> SlotNumber {
+            SlotNumber::MAX
         }
     }
 }

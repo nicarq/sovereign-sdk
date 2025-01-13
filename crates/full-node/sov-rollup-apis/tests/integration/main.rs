@@ -4,6 +4,7 @@ use std::sync::Arc;
 use sov_api_spec::Client;
 use sov_modules_api::prelude::tokio::sync::watch;
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::StateUpdateInfo;
 use sov_test_utils::{generate_optimistic_runtime, TestUser};
 mod rest_api;
@@ -61,8 +62,8 @@ impl TestData {
         let state_update_info = StateUpdateInfo {
             storage,
             next_event_number: 0,
-            rollup_height: 0,
-            latest_finalized_rollup_height: 0,
+            slot_number: SlotNumber::GENESIS,
+            latest_finalized_slot_number: SlotNumber::GENESIS,
         };
 
         let (state_update_sender, state_update_receiver) = watch::channel(state_update_info);
@@ -116,8 +117,8 @@ impl TestData {
         let state_update_info = StateUpdateInfo {
             storage,
             next_event_number: 0,
-            rollup_height: 0,
-            latest_finalized_rollup_height: 0,
+            slot_number: SlotNumber::GENESIS,
+            latest_finalized_slot_number: SlotNumber::GENESIS,
         };
         self.storage_sender.send_replace(state_update_info);
     }

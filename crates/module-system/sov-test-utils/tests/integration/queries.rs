@@ -1,4 +1,5 @@
 use sov_chain_state::ChainState;
+use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_test_utils::{AsUser, TransactionTestCase};
@@ -75,7 +76,7 @@ fn test_query_archival_state() {
         }),
     });
 
-    runner.query_state_at_height(0, |state| {
+    runner.query_state_at_height(RollupHeight::new(0), |state| {
         assert_eq!(
             ValueSetter::<S>::default()
                 .value

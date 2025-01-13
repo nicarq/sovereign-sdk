@@ -7,12 +7,12 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use sov_rollup_interface::common::SlotNumber;
 #[cfg(feature = "native")]
 use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 
 use crate::bytes::Prefix;
 use crate::codec::EncodeLike;
-use crate::jmt::Version;
 use crate::namespaces::{ProvableCompileTimeNamespace, ProvableNamespace};
 use crate::{StateAccesses, StateItemDecoder, Witness};
 
@@ -287,7 +287,7 @@ pub trait Storage: Clone {
     fn get<N: ProvableCompileTimeNamespace>(
         &self,
         key: &SlotKey,
-        version: Option<Version>,
+        version: Option<SlotNumber>,
         witness: &Self::Witness,
     ) -> Option<SlotValue>;
 
@@ -298,7 +298,7 @@ pub trait Storage: Clone {
     /// execution environments** (i.e. outside of the zmVM) **SHOULD** override
     /// this method to return a value. This is because accessory state **MUST
     /// NOT** be readable from within the zmVM.
-    fn get_accessory(&self, _key: &SlotKey, _version: Option<Version>) -> Option<SlotValue> {
+    fn get_accessory(&self, _key: &SlotKey, _version: Option<SlotNumber>) -> Option<SlotValue> {
         None
     }
 
@@ -371,10 +371,10 @@ pub trait NativeStorage: Storage {
     fn get_with_proof<N: ProvableCompileTimeNamespace>(
         &self,
         key: SlotKey,
-        version: Option<u64>,
+        slot_number: Option<SlotNumber>,
     ) -> anyhow::Result<StorageProof<Self::Proof>>;
 
     /// Get the *global* root hash of the tree at the requested version.
     /// Returns an error if storage is empty or the requests version is not yet available.
-    fn get_root_hash(&self, version: Version) -> anyhow::Result<Self::Root>;
+    fn get_root_hash(&self, version: SlotNumber) -> anyhow::Result<Self::Root>;
 }

@@ -7,20 +7,22 @@ impl<S> ChainState<S>
 where
     S: Spec,
 {
-    /// Increment the current rollup height
+    /// Increment the current slot number
     /// This function also modifies the kernel working set to update the true height.
-    pub(crate) fn increment_true_rollup_height(&self, state: &mut KernelStateAccessor<S>) {
+    pub(crate) fn increment_true_slot_number(&self, state: &mut KernelStateAccessor<S>) {
         let current_height = self
-            .true_rollup_height
+            .true_slot_number
             .get(state)
             .unwrap_infallible()
             .unwrap_or_default();
-        let new_height = current_height.saturating_add(1);
 
-        self.true_rollup_height
-            .set(&(new_height), state)
+        let mut new_height = current_height;
+        new_height.incr();
+
+        self.true_slot_number
+            .set(&new_height, state)
             .unwrap_infallible();
 
-        state.update_true_rollup_height(new_height);
+        state.update_true_slot_number(new_height);
     }
 }

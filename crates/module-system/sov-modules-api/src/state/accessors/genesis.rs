@@ -1,8 +1,9 @@
-use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{CompileTimeNamespace, EventContainer, IsValueCached, SlotKey, SlotValue};
 
 use super::checkpoints::StateCheckpoint;
 use super::seal::CachedAccessor;
+use crate::capabilities::RollupHeight;
 use crate::state::events::TypedEvent;
 use crate::{
     BasicGasMeter, Gas, GasArray, GasMeter, GasMeteringError, Genesis, KernelWriter, Spec,
@@ -36,14 +37,18 @@ impl<S: Spec> StateCheckpoint<S> {
 }
 
 impl<S: Spec> KernelWriter for GenesisStateAccessor<'_, S> {
-    fn true_rollup_height(&self) -> SlotNumber {
+    fn true_slot_number(&self) -> SlotNumber {
         SlotNumber::GENESIS
     }
 }
 
 impl<S: Spec> VersionReader for GenesisStateAccessor<'_, S> {
-    fn rollup_height_to_access(&self) -> SlotNumber {
-        SlotNumber::GENESIS
+    fn visible_slot_number_to_access(&self) -> VisibleSlotNumber {
+        VisibleSlotNumber::GENESIS
+    }
+
+    fn rollup_height_to_access(&self) -> RollupHeight {
+        RollupHeight::GENESIS
     }
 }
 

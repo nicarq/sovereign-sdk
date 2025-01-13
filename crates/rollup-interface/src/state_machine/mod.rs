@@ -12,7 +12,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_universal_wallet::schema::SchemaGenerator;
 
-use crate::common::HexHash;
+use crate::common::{HexHash, SlotNumber};
 
 pub mod optimistic;
 pub mod storage;
@@ -138,7 +138,7 @@ impl<T> MaybeArbitrary for T {}
 /// A tracker that returns the maximum provable height of the rollup.
 pub trait ProvableHeightTracker: Send + Sync + 'static {
     /// Returns the maximum provable height of the rollup.
-    fn maximum_provable_height(&self) -> u64;
+    fn max_provable_slot_number(&self) -> SlotNumber;
 }
 
 /// Structure that holds information about the state update that happened in the block.
@@ -150,8 +150,8 @@ pub struct StateUpdateInfo<StfState> {
     pub storage: StfState,
     /// What the next event number will be after the state update.
     pub next_event_number: u64,
-    /// The height of the rollup following the state update.
-    pub rollup_height: u64,
-    /// The latest rollup height that was finalized.
-    pub latest_finalized_rollup_height: u64,
+    /// The slot number of the rollup following the state update.
+    pub slot_number: SlotNumber,
+    /// The latest slot number that was finalized.
+    pub latest_finalized_slot_number: SlotNumber,
 }

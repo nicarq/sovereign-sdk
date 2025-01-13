@@ -307,7 +307,7 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
                     initial_attester.as_user().address().clone(),
                     initial_attester.bond,
                 )],
-                rollup_finality_period: TEST_ROLLUP_FINALITY_PERIOD,
+                rollup_finality_period: SlotNumber::new(TEST_ROLLUP_FINALITY_PERIOD),
                 maximum_attested_height: TEST_MAX_ATTESTED_HEIGHT,
                 light_client_finalized_height: TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
             },
@@ -391,7 +391,7 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
             blob_storage: (),
             chain_state: ChainStateConfig {
                 current_time: Default::default(),
-                genesis_da_height: SlotNumber::GENESIS,
+                genesis_da_height: 0,
                 operating_mode: sov_modules_api::OperatingMode::Optimistic,
                 inner_code_commitment,
                 outer_code_commitment,

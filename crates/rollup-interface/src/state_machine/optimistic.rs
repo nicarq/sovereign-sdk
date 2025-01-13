@@ -17,19 +17,19 @@ use crate::zk::StateTransitionPublicData;
 )]
 #[cfg_attr(feature = "native", derive(UniversalWallet))]
 pub struct ProofOfBond<StateProof> {
-    /// The rollup height for which the proof of bond applies
-    pub claimed_rollup_height: SlotNumber,
+    /// The slot_number for which the proof of bond applies
+    pub claimed_slot_number: SlotNumber,
     /// The actual state proof that the attester was bonded
     #[cfg_attr(feature = "native", sov_wallet(hidden))]
     pub proof: StateProof,
 }
 
-/// Service that knows how to generate a [`ProofOfBond`] for a given rollup height.
+/// Service that knows how to generate a [`ProofOfBond`] for a given slot number.
 pub trait BondingProofService: Send + Sync + 'static {
     /// The actual state proof that the attester was bonded.
     type StateProof: BorshSerialize + BorshDeserialize + Send + Sync;
-    /// Gets the bonding proof for the given height.
-    fn get_bonding_proof(&self, height: u64) -> Option<ProofOfBond<Self::StateProof>>;
+    /// Gets the bonding proof for the given slot.
+    fn get_bonding_proof(&self, slot_number: SlotNumber) -> Option<ProofOfBond<Self::StateProof>>;
 }
 
 /// An attestation that a particular DA layer block transitioned the rollup state to some value
@@ -120,7 +120,7 @@ mod tests {
             slot_hash: [10; 32],
             post_state_root: [22; 32],
             proof_of_bond: ProofOfBond {
-                claimed_rollup_height: 1.to_slot_number(),
+                claimed_slot_number: 1.to_slot_number(),
                 proof: (),
             },
         };

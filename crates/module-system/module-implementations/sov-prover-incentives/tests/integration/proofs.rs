@@ -1,5 +1,6 @@
 use sov_modules_api::{Gas, InvalidProofError, ProofOutcome, Spec};
 use sov_prover_incentives::ProverIncentives;
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
     assert_matches, AtomicNumber, ProofInput, ProofTestCase, TransactionTestCase,
@@ -36,7 +37,14 @@ fn test_valid_proof() {
     runner.execute(consume_gas_tx_for_signer(&other_user));
 
     let aggregated_proof = runner
-        .query_visible_state(|state| build_proof(state, 1, 2, prover.user_info.address()))
+        .query_visible_state(|state| {
+            build_proof(
+                state,
+                1.to_slot_number(),
+                2.to_slot_number(),
+                prover.user_info.address(),
+            )
+        })
         .unwrap();
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
@@ -77,7 +85,14 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
     }
 
     let aggregated_proof = runner
-        .query_visible_state(|state| build_proof(state, 1, 2, prover_address))
+        .query_visible_state(|state| {
+            build_proof(
+                state,
+                1.to_slot_number(),
+                2.to_slot_number(),
+                prover_address,
+            )
+        })
         .unwrap();
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
@@ -107,7 +122,14 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
     });
 
     let aggregated_proof = runner
-        .query_visible_state(|state| build_proof(state, 1, 2, prover_address))
+        .query_visible_state(|state| {
+            build_proof(
+                state,
+                1.to_slot_number(),
+                2.to_slot_number(),
+                prover_address,
+            )
+        })
         .unwrap();
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {

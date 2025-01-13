@@ -31,13 +31,14 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::Version;
 use rockbound::schema::{ColumnFamilyName, KeyDecoder, KeyEncoder, ValueCodec};
 use rockbound::{CodecError, SeekKeyEncoder};
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::stf::{EventKey, StoredEvent};
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber,
-    LatestFinalizedSlotSingleton, ProofUniqueId, RollupHeight, StfInfoUniqueId, StoredBatch,
-    StoredSlot, StoredStfInfo, StoredTransaction, TxNumber,
+    LatestFinalizedSlotSingleton, ProofUniqueId, StfInfoUniqueId, StoredBatch, StoredSlot,
+    StoredStfInfo, StoredTransaction, TxNumber,
 };
 
 /* Other tables used by the Rollup */
@@ -45,7 +46,7 @@ use super::types::{
 /// A list of all tables used by the LedgerDb. These tables store rollup "history" - meaning
 /// transaction, events, receipts, etc.
 pub const LEDGER_TABLES: &[ColumnFamilyName] = &[
-    SlotByRollupHeight::table_name(),
+    SlotByNumber::table_name(),
     SlotByHash::table_name(),
     BatchByHash::table_name(),
     BatchByNumber::table_name(),
@@ -210,22 +211,22 @@ macro_rules! define_table_with_seek_key_codec {
 
 define_table_with_seek_key_codec!(
     /// The primary source for slot data
-    (SlotByRollupHeight) RollupHeight => StoredSlot
+    (SlotByNumber) SlotNumber => StoredSlot
 );
 
 define_table_with_seek_key_codec!(
-    /// A table containing a single entry with the rollup height of the latest finalized slot
-    (FinalizedSlots) LatestFinalizedSlotSingleton => RollupHeight
+    /// A table containing a single entry with the slot number of the latest finalized slot
+    (FinalizedSlots) LatestFinalizedSlotSingleton => SlotNumber
 );
 
 define_table_with_seek_key_codec!(
     /// The primary source for state transition info data.
-    (StfInfoByNumber) RollupHeight => StoredStfInfo
+    (StfInfoByNumber) SlotNumber => StoredStfInfo
 );
 
 define_table_with_default_codec!(
     /// A "secondary index" for slot data by hash
-    (SlotByHash) DbHash => RollupHeight
+    (SlotByHash) DbHash => SlotNumber
 );
 
 define_table_with_seek_key_codec!(
@@ -267,15 +268,15 @@ define_table_with_seek_key_codec!(
 
 define_table_with_seek_key_codec!(
     /// The STF Info metadata.
-    (StfInfoMetadata) StfInfoUniqueId => RollupHeight
+    (StfInfoMetadata) StfInfoUniqueId => SlotNumber
 );
 
 define_table_without_codec!(
     /// Non-JMT state stored by a module for JSON-RPC use.
-    (ModuleAccessoryState) (AccessoryKey, Version) => AccessoryStateValue
+    (ModuleAccessoryState) (AccessoryKey, SlotNumber) => AccessoryStateValue
 );
 
-impl KeyEncoder<ModuleAccessoryState> for (AccessoryKey, Version) {
+impl KeyEncoder<ModuleAccessoryState> for (AccessoryKey, SlotNumber) {
     fn encode_key(&self) -> rockbound::schema::Result<Vec<u8>> {
         let mut out = Vec::with_capacity(self.0.len() + std::mem::size_of::<Version>() + 8);
         self.0
@@ -283,24 +284,24 @@ impl KeyEncoder<ModuleAccessoryState> for (AccessoryKey, Version) {
             .serialize(&mut out)
             .map_err(CodecError::from)?;
         // Write the version in big-endian order so that sorting order is based on the most-significant bytes of the key
-        out.write_u64::<BigEndian>(self.1)
+        out.write_u64::<BigEndian>(self.1.get())
             .expect("serialization to vec is infallible");
         Ok(out)
     }
 }
 
-impl SeekKeyEncoder<ModuleAccessoryState> for (AccessoryKey, Version) {
+impl SeekKeyEncoder<ModuleAccessoryState> for (AccessoryKey, SlotNumber) {
     fn encode_seek_key(&self) -> rockbound::schema::Result<Vec<u8>> {
-        <(Vec<u8>, u64) as KeyEncoder<ModuleAccessoryState>>::encode_key(self)
+        <(Vec<u8>, SlotNumber) as KeyEncoder<ModuleAccessoryState>>::encode_key(self)
     }
 }
 
-impl KeyDecoder<ModuleAccessoryState> for (AccessoryKey, Version) {
+impl KeyDecoder<ModuleAccessoryState> for (AccessoryKey, SlotNumber) {
     fn decode_key(data: &[u8]) -> rockbound::schema::Result<Self> {
         let mut cursor = std::io::Cursor::new(data);
         let key = Vec::<u8>::deserialize_reader(&mut cursor)?;
         let version = cursor.read_u64::<BigEndian>()?;
-        Ok((key, version))
+        Ok((key, SlotNumber::new_dangerous(version)))
     }
 }
 

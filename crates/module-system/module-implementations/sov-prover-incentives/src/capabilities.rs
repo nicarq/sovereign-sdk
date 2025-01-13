@@ -141,8 +141,8 @@ impl<S: Spec> ProverIncentives<S> {
         }
 
         match self.calculate_reward(
-            public_outputs.initial_rollup_height,
-            public_outputs.final_rollup_height,
+            public_outputs.initial_slot_number,
+            public_outputs.final_slot_number,
             state,
         )? {
             Paycheck::Penalized => {
@@ -283,7 +283,7 @@ impl<S: Spec> ProverIncentives<S> {
         }
 
         // We start with the initial state values
-        let initial_slot_num = public_outputs.initial_rollup_height;
+        let initial_slot_num = public_outputs.initial_slot_number;
 
         let initial_transition = match self
             .chain_state
@@ -313,7 +313,7 @@ impl<S: Spec> ProverIncentives<S> {
         }
 
         // Let's move on to the final state values
-        let final_slot_num = public_outputs.final_rollup_height;
+        let final_slot_num = public_outputs.final_slot_number;
 
         let expected_final_transition = match self
             .chain_state

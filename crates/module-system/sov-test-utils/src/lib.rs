@@ -22,6 +22,7 @@ use sov_modules_api::transaction::{
 };
 pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{BasicGasMeter, CryptoSpec, Gas, GasArray, Spec};
+pub use sov_modules_rollup_blueprint::logging::initialize_logging;
 pub use sov_modules_stf_blueprint::{get_gas_used, TxProcessingError};
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rollup_interface::common::SlotNumber;
@@ -115,7 +116,7 @@ pub const TEST_MAX_ATTESTED_HEIGHT: SlotNumber = SlotNumber::GENESIS;
 pub const TEST_LIGHT_CLIENT_FINALIZED_HEIGHT: SlotNumber = SlotNumber::GENESIS;
 /// The default rollup finality period. Used by the [`sov_attester_incentives::AttesterIncentives`] module to determine the
 /// range of heights that are eligible for attestations.
-pub const TEST_ROLLUP_FINALITY_PERIOD: SlotNumber = SlotNumber::new(5);
+pub const TEST_ROLLUP_FINALITY_PERIOD: u64 = 5;
 /// The default name to use for the gas token.
 pub const TEST_GAS_TOKEN_NAME: &str = "TestGasToken";
 

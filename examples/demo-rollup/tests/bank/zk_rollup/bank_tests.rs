@@ -214,8 +214,8 @@ async fn send_test_bank_txs(
         > = verifier.verify(&proof)?;
 
         // Because da blocks produced only on submit to DA layer, we can guarantee those rollup heights:
-        assert_eq!(1, pub_data.initial_rollup_height.get());
-        assert_eq!(1, pub_data.final_rollup_height.get());
+        assert_eq!(1, pub_data.initial_slot_number.get());
+        assert_eq!(1, pub_data.final_slot_number.get());
         assert_aggregated_proof(1, 1, client).await?;
     }
 

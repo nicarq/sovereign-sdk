@@ -13,6 +13,7 @@ use sov_modules_api::{
     Context, CredentialId, DaSpec, ExecutionContext, Module, PrivateKey, PublicKey, Spec,
     StateCheckpoint, WorkingSet,
 };
+use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
@@ -87,7 +88,7 @@ fuzz_target!(
                 Default::default(),
                 sequencer,
                 sequencer_da,
-                i as u64,
+                VisibleSlotNumber::new_dangerous(i as _),
                 ExecutionContext::Node,
             );
 

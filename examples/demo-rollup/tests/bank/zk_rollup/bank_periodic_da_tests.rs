@@ -105,8 +105,8 @@ async fn send_test_bank_txs(
             <<TestSpec as Spec>::Storage as Storage>::Root,
         > = verifier.verify(&proof)?;
 
-        assert!(slot_batch_1 >= pub_data.initial_rollup_height.get());
-        assert!(slot_batch_1 >= pub_data.final_rollup_height.get());
+        assert!(slot_batch_1 >= pub_data.initial_slot_number.get());
+        assert!(slot_batch_1 >= pub_data.final_slot_number.get());
         // We can only check this under periodic block producing.
         // More thorough checks should be done in "OnSubmit" batch producing
         assert_aggregated_proof(1, 1, client).await?;

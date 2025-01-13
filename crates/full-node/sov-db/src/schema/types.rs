@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::ledger_api::{BatchResponse, TxResponse};
 use sov_rollup_interface::stf::{StoredEvent, TransactionReceipt, TxReceiptContents};
 
@@ -94,8 +95,8 @@ pub struct StoredBatch {
     pub txs: std::ops::Range<TxNumber>,
     /// A customer "receipt" for this batch defined by the rollup.
     pub receipt: DbBytes,
-    /// This batch's parent rollup height.
-    pub rollup_height: RollupHeight,
+    /// This batch's parent slot number.
+    pub slot_number: SlotNumber,
 }
 
 impl<B: DeserializeOwned, T: TxReceiptContents, E> TryFrom<StoredBatch> for BatchResponse<B, T, E> {
@@ -106,7 +107,7 @@ impl<B: DeserializeOwned, T: TxReceiptContents, E> TryFrom<StoredBatch> for Batc
             receipt: bincode::deserialize(&value.receipt.0)?,
             tx_range: value.txs.start.into()..value.txs.end.into(),
             txs: None,
-            rollup_height: value.rollup_height.0,
+            rollup_height: value.slot_number,
         })
     }
 }
@@ -241,7 +242,6 @@ macro_rules! u64_wrapper {
 }
 
 u64_wrapper!(TxIncrId);
-u64_wrapper!(RollupHeight);
 u64_wrapper!(BatchNumber);
 u64_wrapper!(TxNumber);
 u64_wrapper!(EventNumber);

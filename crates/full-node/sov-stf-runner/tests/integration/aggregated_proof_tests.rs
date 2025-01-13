@@ -171,7 +171,7 @@ struct Input {
 
 #[derive(Clone, Copy)]
 struct Output {
-    initial_rollup_height: u64,
+    initial_slot_number: u64,
 }
 
 #[derive(Clone, Copy)]
@@ -186,14 +186,14 @@ impl TestCase {
         let nb_of_batches = 7 * jump;
         // The initial rollup height of the final proof.
         // The first proof covers slots 1..=jump, the second jump+1..=(2*jump), etc.
-        let initial_rollup_height = (6 * jump + 1) as u64;
+        let initial_slot_number = (6 * jump + 1) as u64;
         Self {
             input: Input {
                 jump,
                 nb_of_batches,
             },
             output: Output {
-                initial_rollup_height,
+                initial_slot_number,
             },
         }
     }
@@ -202,8 +202,8 @@ impl TestCase {
         self.input.jump
     }
 
-    fn final_rollup_height(&self) -> u64 {
-        self.output.initial_rollup_height + (self.input.jump as u64) - 1
+    fn final_slot_number(&self) -> u64 {
+        self.output.initial_slot_number + (self.input.jump as u64) - 1
     }
 
     fn assert(
@@ -211,13 +211,13 @@ impl TestCase {
         public_data: &AggregatedProofPublicData<MockAddress, MockDaSpec, StorageRoot<S>>,
     ) {
         assert_eq!(
-            self.output.initial_rollup_height,
-            public_data.initial_rollup_height.get(),
+            self.output.initial_slot_number,
+            public_data.initial_slot_number.get(),
         );
 
         assert_eq!(
-            self.final_rollup_height(),
-            public_data.final_rollup_height.get()
+            self.final_slot_number(),
+            public_data.final_slot_number.get()
         );
     }
 }

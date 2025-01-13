@@ -5,7 +5,7 @@ use sov_bank::Amount;
 use sov_mock_da::MockHash;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{InvalidProofError, ProofOutcome};
-use sov_rollup_interface::common::IntoSlotNumber;
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
 use sov_test_utils::runtime::TestRunner;
@@ -70,7 +70,7 @@ fn setup_with_wrong_attestation() -> (
     runner
         .execute_transaction(bond_challenger)
         // Then execute empty transactions to reach finality
-        .advance_slots(TEST_ROLLUP_FINALITY_PERIOD.get() as usize);
+        .advance_slots(TEST_ROLLUP_FINALITY_PERIOD as usize);
 
     genesis_challenger.user_info.available_gas_balance = expected_challenger_balance_3.get();
 
@@ -111,7 +111,7 @@ fn setup_with_wrong_attestation() -> (
                 assert_eq!(
                     AttesterIncentives::<S>::default()
                         .bad_transition_pool
-                        .get(&1.to_slot_number(), state)
+                        .get(&SlotNumber::ONE, state)
                         .unwrap_infallible(),
                     Some(genesis_attester_bond),
                     "The transition should exist in the pool"
@@ -143,7 +143,13 @@ fn test_valid_challenge() -> Result<(), Infallible> {
     let bonded_challenger_address = bonded_challenger.user_info.address();
 
     let challenge_proof = runner
-        .query_visible_state(|state| build_challenge(state, 1, bonded_challenger_address))
+        .query_visible_state(|state| {
+            build_challenge(
+                state,
+                SlotNumber::new_dangerous(1),
+                bonded_challenger_address,
+            )
+        })
         .unwrap();
 
     let initial_challenger_balance = runner
@@ -153,12 +159,16 @@ fn test_valid_challenge() -> Result<(), Infallible> {
         .unwrap();
 
     runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
-        input: ProofInput(make_challenge_blob(challenge_proof, true, 1)),
+        input: ProofInput(make_challenge_blob(
+            challenge_proof,
+            true,
+            SlotNumber::new_dangerous(1),
+        )),
         assert: Box::new(move |result, state| {
             assert_eq!(
                 TestAttesterIncentives::default()
                     .bad_transition_pool
-                    .get(&1.to_slot_number(), state)
+                    .get(&SlotNumber::ONE, state)
                     .unwrap_infallible(),
                 None,
                 "The transition should have disappeared from the pool"
@@ -217,7 +227,7 @@ fn test_invalid_challenge_helper(
             assert_eq!(
                 TestAttesterIncentives::default()
                     .bad_transition_pool
-                    .get(&1.to_slot_number(), state)
+                    .get(&SlotNumber::ONE, state)
                     .unwrap_infallible(),
                 Some(expected_reward),
                 "The transition should *not* have disappeared from the pool"
@@ -239,7 +249,13 @@ fn test_invalid_challenge_initial_state_root() {
     let bonded_challenger_address = bonded_challenger.user_info.address();
 
     let mut challenge_proof = runner
-        .query_visible_state(|state| build_challenge(state, 1, bonded_challenger_address))
+        .query_visible_state(|state| {
+            build_challenge(
+                state,
+                SlotNumber::new_dangerous(1),
+                bonded_challenger_address,
+            )
+        })
         .unwrap();
 
     challenge_proof.initial_state_root = StorageRoot::new(RootHash([255; 32]), RootHash([255; 32]));
@@ -248,7 +264,7 @@ fn test_invalid_challenge_initial_state_root() {
         &mut runner,
         expected_reward,
         &bonded_challenger,
-        make_challenge_blob(challenge_proof, true, 1),
+        make_challenge_blob(challenge_proof, true, SlotNumber::new_dangerous(1)),
         SlashingReason::InvalidInitialHash,
     );
 }
@@ -260,7 +276,13 @@ fn test_invalid_challenge_transition() {
     let bonded_challenger_address = bonded_challenger.user_info.address();
 
     let mut challenge_proof = runner
-        .query_visible_state(|state| build_challenge(state, 1, bonded_challenger_address))
+        .query_visible_state(|state| {
+            build_challenge(
+                state,
+                SlotNumber::new_dangerous(1),
+                bonded_challenger_address,
+            )
+        })
         .unwrap();
 
     challenge_proof.slot_hash = MockHash([255; 32]);
@@ -269,7 +291,7 @@ fn test_invalid_challenge_transition() {
         &mut runner,
         expected_reward,
         &bonded_challenger,
-        make_challenge_blob(challenge_proof, true, 1),
+        make_challenge_blob(challenge_proof, true, SlotNumber::new_dangerous(1)),
         SlashingReason::TransitionInvalid,
     );
 }
@@ -280,14 +302,20 @@ fn test_invalid_challenge_proof() {
     let bonded_challenger_address = bonded_challenger.user_info.address();
 
     let challenge_proof = runner
-        .query_visible_state(|state| build_challenge(state, 1, bonded_challenger_address))
+        .query_visible_state(|state| {
+            build_challenge(
+                state,
+                SlotNumber::new_dangerous(1),
+                bonded_challenger_address,
+            )
+        })
         .unwrap();
 
     test_invalid_challenge_helper(
         &mut runner,
         expected_reward,
         &bonded_challenger,
-        make_challenge_blob(challenge_proof, false, 1),
+        make_challenge_blob(challenge_proof, false, SlotNumber::new_dangerous(1)),
         SlashingReason::InvalidZkProof,
     );
 }

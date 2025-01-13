@@ -1,10 +1,10 @@
-use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
+use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_state::{IsValueCached, Namespace, SlotKey, SlotValue, StateAccesses, Storage};
 use tracing::trace;
 
 use super::internals::{AccessoryDelta, Delta};
 use super::{BootstrapWorkingSet, UniversalStateAccessor};
-use crate::capabilities::Kernel;
+use crate::capabilities::{Kernel, RollupHeight};
 use crate::{Spec, VersionReader};
 
 /// This structure is responsible for storing the `read-write` set.
@@ -16,6 +16,7 @@ pub struct StateCheckpoint<S: Spec> {
     pub(super) delta: Delta<S::Storage>,
     /// The rollup height visible to user-space modules
     pub(super) visible_slot_num: VisibleSlotNumber,
+    pub(super) rollup_height: RollupHeight,
 }
 
 impl<S: Spec> StateCheckpoint<S> {
@@ -30,6 +31,7 @@ impl<S: Spec> StateCheckpoint<S> {
         Self {
             delta: self.delta.clone_with_empty_witness(),
             visible_slot_num: self.visible_slot_num,
+            rollup_height: self.rollup_height,
         }
     }
 
@@ -49,13 +51,13 @@ impl<S: Spec> StateCheckpoint<S> {
         let mut delta = Delta::with_witness(inner.clone(), witness, None);
         let mut bootstrap_state = BootstrapWorkingSet { inner: &mut delta };
 
-        let visible_slot_num = kernel.next_visible_rollup_height(&mut bootstrap_state);
-
+        let visible_slot_num = kernel.next_visible_slot_number(&mut bootstrap_state);
         trace!(%visible_slot_num, "Initializing a `StateCheckpoint`");
-
+        let rollup_height = kernel.rollup_height(&mut bootstrap_state);
         Self {
             delta,
             visible_slot_num,
+            rollup_height,
         }
     }
 
@@ -100,7 +102,7 @@ impl<S: Spec> StateCheckpoint<S> {
     /// This method is used in tests.
     #[cfg(test)]
     pub fn update_version(&mut self, visible_slot_number: u64) {
-        self.visible_slot_num = VisibleSlotNumber::new(visible_slot_number);
+        self.visible_slot_num = VisibleSlotNumber::new_dangerous(visible_slot_number);
     }
 
     /// Directly apply a set of changes to the state checkpoint. This method should generally *not* be used
@@ -121,8 +123,12 @@ impl<S: Spec> StateCheckpoint<S> {
 }
 
 impl<S: Spec> VersionReader for StateCheckpoint<S> {
-    fn rollup_height_to_access(&self) -> SlotNumber {
-        self.visible_slot_num.as_true()
+    fn visible_slot_number_to_access(&self) -> VisibleSlotNumber {
+        self.visible_slot_num
+    }
+
+    fn rollup_height_to_access(&self) -> RollupHeight {
+        self.rollup_height
     }
 }
 

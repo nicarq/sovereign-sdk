@@ -4,15 +4,15 @@ use std::convert::Infallible;
 
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
-use sov_modules_api::capabilities::{BlobOrigin, BlobSelectorOutput};
+use sov_modules_api::capabilities::{BlobOrigin, BlobSelectorOutput, BlockGasInfo, RollupHeight};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel};
 use sov_modules_api::{
     BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, IterableBatchWithId, KernelStateAccessor,
-    Spec, VersionReader, VisibleSlotNumber,
+    Spec, StateReader, VersionReader, VisibleSlotNumber,
 };
 use sov_rollup_interface::common::SlotNumber;
-use sov_state::Storage;
+use sov_state::{Storage, User};
 
 /// A kernel supporting based sequencing with soft confirmations
 pub struct SoftConfirmationsKernel<'a, S: Spec> {
@@ -21,16 +21,28 @@ pub struct SoftConfirmationsKernel<'a, S: Spec> {
 }
 
 impl<'a, S: Spec> Kernel<S> for SoftConfirmationsKernel<'a, S> {
-    fn true_rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> SlotNumber {
-        self.chain_state
-            .true_rollup_height(state)
-            .unwrap_infallible()
+    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> SlotNumber {
+        self.chain_state.true_slot_number(state).unwrap_infallible()
     }
-    fn next_visible_rollup_height(
+    fn next_visible_slot_number(
         &self,
         state: &mut BootstrapWorkingSet<'_, S::Storage>,
     ) -> VisibleSlotNumber {
-        self.chain_state.next_visible_rollup_height(state)
+        self.chain_state.next_visible_slot_number(state)
+    }
+
+    fn rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> RollupHeight {
+        self.chain_state.rollup_height(state).unwrap_infallible()
+    }
+
+    fn record_gas_usage(
+        &self,
+        state: &mut sov_modules_api::StateCheckpoint<S>,
+        final_gas_info: BlockGasInfo<S::Gas>,
+        rollup_height: RollupHeight,
+    ) {
+        self.chain_state
+            .record_gas_usage(state, final_gas_info, rollup_height);
     }
 }
 
@@ -78,18 +90,22 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for SoftConfirmation
         self.chain_state.finalize_chain_state(gas_used, state);
     }
 
-    fn base_fee_per_gas(
+    fn base_fee_per_gas<
+        Reader: VersionReader<Error = Infallible> + StateReader<User, Error = Infallible>,
+    >(
         &self,
-        state: &mut impl VersionReader<Error = Infallible>,
-    ) -> Option<<<S as Spec>::Gas as Gas>::Price> {
+        state: &mut Reader,
+    ) -> Option<<<Self::Spec as Spec>::Gas as Gas>::Price> {
         self.chain_state.base_fee_per_gas(state).unwrap_infallible()
     }
 
-    fn slot_gas_limit(
+    fn block_gas_limit<
+        Reader: VersionReader<Error = Infallible> + StateReader<User, Error = Infallible>,
+    >(
         &self,
-        state: &mut impl VersionReader<Error = Infallible>,
+        state: &mut Reader,
     ) -> Option<<Self::Spec as Spec>::Gas> {
-        self.chain_state.slot_gas_limit(state).unwrap_infallible()
+        self.chain_state.block_gas_limit(state).unwrap_infallible()
     }
 
     fn current_visible_hash(
@@ -97,6 +113,15 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for SoftConfirmation
         state: &mut sov_modules_api::KernelStateAccessor<S>,
     ) -> Option<<<Self::Spec as Spec>::Storage as Storage>::Root> {
         self.chain_state.current_visible_hash(state)
+    }
+
+    fn increment_rollup_height(
+        &self,
+        state: &mut KernelStateAccessor<'_, Self::Spec>,
+        visible_slot_number: VisibleSlotNumber,
+    ) {
+        self.chain_state
+            .increment_rollup_height(state, visible_slot_number);
     }
 }
 

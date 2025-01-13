@@ -26,7 +26,7 @@ use sov_state::{CompileTimeNamespace, Kernel, Namespace, StateCodec, StateItemCo
 use unwrap_infallible::UnwrapInfallible;
 
 use super::types::StateItemContents;
-use super::{ApiState, ModuleSendSync, RollupHeightQueryParam, StateItemInfo};
+use super::{ApiState, ModuleSendSync, RollupHeight, RollupHeightQueryParam, StateItemInfo};
 use crate::map::NamespacedStateMap;
 use crate::rest::{json_obj, StatusCode};
 use crate::value::NamespacedStateValue;
@@ -106,7 +106,7 @@ where
     ApiStateAccessor<M::Spec>: StateReader<N, Error = Infallible>,
     T: Serialize,
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<T>,
+    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<SlotNumber> + StateItemCodec<u64>,
 {
     async fn get_state_value_route(
         State(state): State<Self>,
@@ -129,7 +129,7 @@ where
     ApiStateAccessor<M::Spec>: StateReader<N, Error = Infallible>,
     T: Serialize + Send + Sync + 'static,
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<T>,
+    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<SlotNumber> + StateItemCodec<u64>,
 {
     fn state_item_rest_api(&self) -> axum::Router<()> {
         axum::Router::new()
@@ -145,8 +145,8 @@ where
     ApiStateAccessor<M::Spec>: StateReader<N, Error = Infallible>,
     T: Serialize,
     Codec: StateCodec,
-    Codec::KeyCodec: StateItemCodec<u64>,
-    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<SlotNumber> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<SlotNumber> + StateItemCodec<u64>,
 {
     fn vec(&self) -> NamespacedStateVec<N, T, Codec> {
         NamespacedStateVec::with_codec(self.state_item_info.prefix.0.clone(), Codec::default())
@@ -190,8 +190,8 @@ where
     ApiStateAccessor<M::Spec>: StateReader<N, Error = Infallible>,
     T: Serialize + Clone + Send + Sync + 'static,
     Codec: StateCodec,
-    Codec::KeyCodec: StateItemCodec<u64>,
-    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<SlotNumber> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<SlotNumber> + StateItemCodec<u64>,
 {
     fn state_item_rest_api(&self) -> axum::Router<()> {
         axum::Router::new()
@@ -249,8 +249,8 @@ where
     ApiStateAccessor<M::Spec>: StateReader<Kernel, Error = Infallible>,
     V: Serialize,
     Codec: StateCodec,
-    Codec::KeyCodec: StateItemCodec<SlotNumber>,
-    Codec::ValueCodec: StateItemCodec<V>,
+    Codec::KeyCodec: StateItemCodec<SlotNumber> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<SlotNumber> + StateItemCodec<u64>,
 {
     async fn get_state_value_route(
         State(state): State<Self>,
@@ -284,7 +284,7 @@ where
         mut accessor: ApiStateAccessor<M::Spec>,
     ) -> ApiResult<StateItemContents<T, T>> {
         let state_vec = state.vec();
-        let length = state_vec.len(&mut accessor).unwrap_infallible();
+        let length = state_vec.len(&mut accessor).unwrap_infallible().get();
 
         Ok(StateItemContents::Vec { length }.into())
     }
@@ -292,18 +292,30 @@ where
     async fn get_state_vec_item_route(
         state: State<Self>,
         mut accessor: ApiStateAccessor<M::Spec>,
-        Path(item_index): Path<SlotNumber>,
+        Path(rollup_height): Path<RollupHeight>,
     ) -> ApiResult<StateItemContents<T, T>> {
         let state_vec = state.vec();
 
-        let value = match state_vec.get(item_index, &mut accessor).unwrap_infallible() {
+        let Some(visible_slot_number) = state
+            .api_state
+            .kernel
+            .clone()
+            .rollup_height_to_visible_slot_number(rollup_height, &mut accessor)
+        else {
+            return Err(not_found_404(&state.state_item_info.name, rollup_height));
+        };
+
+        let value = match state_vec
+            .get(visible_slot_number.as_true(), &mut accessor)
+            .unwrap_infallible()
+        {
             None => {
-                return Err(not_found_404(&state.state_item_info.name, item_index));
+                return Err(not_found_404(&state.state_item_info.name, rollup_height));
             }
             Some(v) => v,
         };
         Ok(StateItemContents::VecElement {
-            index: item_index.get(),
+            index: rollup_height.get(),
             value,
         }
         .into())
@@ -337,7 +349,7 @@ where
     V: Serialize + Clone + Send + Sync + 'static,
     Codec: StateCodec,
     Codec::KeyCodec: StateItemCodec<SlotNumber> + StateItemCodec<u64>,
-    Codec::ValueCodec: StateItemCodec<V>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<SlotNumber> + StateItemCodec<u64>,
 {
     fn state_item_rest_api(&self) -> axum::Router<()> {
         axum::Router::new()
@@ -352,7 +364,7 @@ where
     ApiStateAccessor<M::Spec>: StateReader<Kernel, Error = Infallible>,
     V: Serialize + Clone + Send + Sync + 'static,
     Codec: StateCodec,
-    Codec::KeyCodec: StateItemCodec<SlotNumber>,
+    Codec::KeyCodec: StateItemCodec<SlotNumber> + StateItemCodec<u64>,
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<SlotNumber> + StateItemCodec<u64>,
 {
     fn state_item_rest_api(&self) -> axum::Router<()> {

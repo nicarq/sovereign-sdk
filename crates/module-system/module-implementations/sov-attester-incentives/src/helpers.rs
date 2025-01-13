@@ -44,7 +44,7 @@ where
     #[allow(clippy::type_complexity)]
     pub(crate) fn check_initial_hash<ST: VersionReader>(
         &self,
-        claimed_rollup_height: SlotNumber,
+        claimed_slot_number: SlotNumber,
         attestation: &Attestation<
             <S::Da as DaSpec>::SlotHash,
             <S::Storage as Storage>::Root,
@@ -52,7 +52,7 @@ where
         >,
         state: &mut ST,
     ) -> anyhow::Result<CheckInitialHashStatus, ST::Error> {
-        let previous_height = claimed_rollup_height
+        let previous_height = claimed_slot_number
             .checked_sub(1)
             .expect("Claimed transition height must be > 0");
 
@@ -140,7 +140,7 @@ where
         >,
         state: &mut ST,
     ) -> Result<(), ProcessAttestationErrors> {
-        if attestation.proof_of_bond.claimed_rollup_height == SlotNumber::GENESIS {
+        if attestation.proof_of_bond.claimed_slot_number == SlotNumber::GENESIS {
             debug!("Cannot claim attestation for genesis");
             return Err(ProcessAttestationErrors::InvalidTransitionInvariant);
         }
@@ -149,7 +149,7 @@ where
         // to get the genesis state root
         let Some(bonding_root) = self
             .chain_state
-            .root_at_height(attestation.proof_of_bond.claimed_rollup_height, state)
+            .root_at_height(attestation.proof_of_bond.claimed_slot_number, state)
             .map_err(Into::<anyhow::Error>::into)?
         else {
             return Err(ProcessAttestationErrors::InvalidBondingProof);
@@ -188,7 +188,7 @@ where
     #[allow(clippy::type_complexity)]
     pub(crate) fn check_transition<ST: VersionReader>(
         &self,
-        claimed_rollup_height: SlotNumber,
+        claimed_slot_number: SlotNumber,
         attestation: &Attestation<
             <S::Da as DaSpec>::SlotHash,
             <S::Storage as Storage>::Root,
@@ -198,12 +198,12 @@ where
     ) -> Result<CheckTransitionStatus, ST::Error> {
         if let Some(curr_tx) = self
             .chain_state
-            .get_historical_transitions(claimed_rollup_height, state)?
+            .get_historical_transitions(claimed_slot_number, state)?
         {
             // We first need to compare the initial block hash to the previous post state root
             if !curr_tx.compare_hashes(&attestation.slot_hash, &attestation.post_state_root) {
                 debug!(
-                    %claimed_rollup_height,
+                    %claimed_slot_number,
                     attestation_slot_hash = ?attestation.slot_hash,
                     attestation_post_state = ?attestation.post_state_root,
                     curr_tx_slot_hash = ?curr_tx.slot_hash(),

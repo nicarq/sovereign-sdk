@@ -20,7 +20,7 @@ fn test_helper(gas_used: &<TestSpec as Spec>::Gas) -> <<TestSpec as Spec>::Gas a
 
     parent_gas_info.update_gas_used(gas_used.clone());
 
-    ChainState::<TestSpec>::compute_base_fee_per_gas(&parent_gas_info)
+    ChainState::<TestSpec>::compute_base_fee_per_gas(parent_gas_info, 1)
 }
 
 /// Checks that the `base_fee_per_gas` does not change when the gas used is the same as the gas target.

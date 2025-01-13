@@ -1,3 +1,6 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
 use crate::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
@@ -89,4 +92,62 @@ pub trait GasEnforcer<S: Spec> {
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         tx_scratchpad: &mut impl InfallibleStateAccessor,
     );
+}
+
+/// A structure that contains block gas information.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, BorshSerialize, BorshDeserialize)]
+#[serde(bound = "GU: DeserializeOwned")]
+pub struct BlockGasInfo<GU: Gas> {
+    /// The gas limit of the block execution.
+    /// This value is dynamically adjusted over time to account for the increase
+    /// in proving/execution performance.
+    gas_limit: GU,
+    /// The gas used by the block execution.
+    /// This value is set to zero at the beginning of the block execution (in the [`ChainState::synchronize_chain`] capability),
+    /// and is populated once the block execution is complete.
+    gas_used: GU,
+    /// The base fee per gas used for the block execution. This value combined with the `gas_used`
+    /// can be used to compute the total base fee (expressed in gas tokens) paid by the block execution.
+    base_fee_per_gas: GU::Price,
+}
+
+impl<GU: Gas> BlockGasInfo<GU> {
+    /// Creates a new [`BlockGasInfo`] with the provided gas limit and base fee per gas.
+    /// The `gas_used` is set to zero.
+    pub fn new(gas_limit: GU, base_fee_per_gas: GU::Price) -> Self {
+        Self {
+            gas_limit,
+            gas_used: GU::zero(),
+            base_fee_per_gas,
+        }
+    }
+
+    /// Creates a new [`BlockGasInfo`] with the provided gas limit and base fee per gas.
+    pub fn with_usage(gas_limit: GU, base_fee_per_gas: GU::Price, gas_used: GU) -> Self {
+        Self {
+            gas_limit,
+            gas_used,
+            base_fee_per_gas,
+        }
+    }
+
+    /// Updates the gas used by the block execution.
+    pub fn update_gas_used(&mut self, gas_used: GU) {
+        self.gas_used = gas_used;
+    }
+
+    /// Returns the gas limit of the block execution.
+    pub const fn gas_limit(&self) -> &GU {
+        &self.gas_limit
+    }
+
+    /// Returns the gas used by the block execution.
+    pub const fn gas_used(&self) -> &GU {
+        &self.gas_used
+    }
+
+    /// Returns the base fee per gas used for the block execution.
+    pub const fn base_fee_per_gas(&self) -> &GU::Price {
+        &self.base_fee_per_gas
+    }
 }

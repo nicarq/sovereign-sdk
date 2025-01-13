@@ -1,6 +1,7 @@
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec, MockDaVerifier, MockHash};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm, MockZkvmHost};
 use sov_modules_api::ZkVerifier;
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::{DaProof, RelevantBlobs, RelevantProofs, Time};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
 use sov_rollup_interface::zk::StateTransitionWitness;
@@ -223,8 +224,8 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
                     &MockCodeCommitment::default(),
                 )
                 .unwrap();
-                assert_eq!(public_data.initial_rollup_height.get(), 0);
-                assert_eq!(public_data.final_rollup_height.get(), (jump - 1) as u64);
+                assert_eq!(public_data.initial_slot_number.get(), 0);
+                assert_eq!(public_data.final_slot_number.get(), (jump - 1) as u64);
             }
             ProofAggregationStatus::ProofGenerationInProgress => panic!("Prover should succeed"),
         }
@@ -259,9 +260,9 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
                     &MockCodeCommitment::default(),
                 )
                 .unwrap();
-                assert_eq!(public_data.initial_rollup_height.get() as usize, jump);
+                assert_eq!(public_data.initial_slot_number.get() as usize, jump);
                 assert_eq!(
-                    public_data.final_rollup_height.get() as usize,
+                    public_data.final_slot_number.get() as usize,
                     total_nb_of_blocks - 1
                 );
             }
@@ -362,6 +363,6 @@ fn make_transition_info(
             },
             witness: vec![],
         },
-        height,
+        SlotNumber::new_dangerous(height),
     )
 }

@@ -50,7 +50,14 @@ fn prepare_for_slashing() -> (
     }
 
     let aggregated_proof = runner
-        .query_visible_state(|state| build_proof(state, 1, 2, prover.user_info.address()))
+        .query_visible_state(|state| {
+            build_proof(
+                state,
+                1.to_slot_number(),
+                2.to_slot_number(),
+                prover.user_info.address(),
+            )
+        })
         .unwrap();
 
     (runner, prover, aggregated_proof)
@@ -169,9 +176,9 @@ fn test_invalid_initial_slot_hash() {
 }
 
 #[test]
-fn test_invalid_initial_rollup_height() {
+fn test_invalid_initial_slot_number() {
     let (mut runner, prover, mut aggregated_proof) = prepare_for_slashing();
-    aggregated_proof.initial_rollup_height = 5555.to_slot_number();
+    aggregated_proof.initial_slot_number = 5555.to_slot_number();
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
@@ -187,9 +194,9 @@ fn test_invalid_initial_rollup_height() {
 }
 
 #[test]
-fn test_invalid_final_rollup_height() {
+fn test_invalid_final_slot_number() {
     let (mut runner, prover, mut aggregated_proof) = prepare_for_slashing();
-    aggregated_proof.final_rollup_height = 6.to_slot_number();
+    aggregated_proof.final_slot_number = 6.to_slot_number();
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),

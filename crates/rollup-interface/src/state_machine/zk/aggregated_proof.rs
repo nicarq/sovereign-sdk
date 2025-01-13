@@ -30,9 +30,9 @@ pub struct AggregatedProofPublicData<Address, Da: DaSpec, Root> {
     /// Contains the validity conditions for each block in the aggregated proof.
     pub validity_conditions: Vec<Da::ValidityCondition>,
     /// Initial rollup height.
-    pub initial_rollup_height: SlotNumber,
+    pub initial_slot_number: SlotNumber,
     /// Final rollup height.
-    pub final_rollup_height: SlotNumber,
+    pub final_slot_number: SlotNumber,
     /// The genesis state root of the aggregated proof.
     pub genesis_state_root: Root,
     /// The initial state root of the aggregated proof.
@@ -55,9 +55,9 @@ impl<Address, Da: DaSpec, Root: AsRef<[u8]>> core::fmt::Display
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "AggregatedProofPublicData(initial_rollup_height: {}, final_rollup_height: {}, genesis_state_root: {}, initial_state_root: 0x{}, final_state_root: 0x{}, initial_slot_hash: 0x{}, final_slot_hash: 0x{}, code_commitment: {})",
-            self.initial_rollup_height,
-            self.final_rollup_height,
+            "AggregatedProofPublicData(initial_slot_number: {}, final_slot_number: {}, genesis_state_root: {}, initial_state_root: 0x{}, final_state_root: 0x{}, initial_slot_hash: 0x{}, final_slot_hash: 0x{}, code_commitment: {})",
+            self.initial_slot_number,
+            self.final_slot_number,
             hex::encode(self.genesis_state_root.as_ref()),
             hex::encode(self.initial_state_root.as_ref()),
             hex::encode(self.final_state_root.as_ref()),

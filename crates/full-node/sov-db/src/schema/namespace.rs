@@ -6,9 +6,9 @@ use std::io::Cursor;
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::storage::{NibblePath, Node, NodeKey};
-use jmt::Version;
 use rockbound::schema::{ColumnFamilyName, KeyDecoder, KeyEncoder, ValueCodec};
 use rockbound::{CodecError, Schema, SchemaKey, SchemaValue, SeekKeyEncoder};
+use sov_rollup_interface::common::SlotNumber;
 
 /// Mapping table from key Hash to jmt key
 #[derive(Debug)]
@@ -55,7 +55,7 @@ impl<N: Namespace> Schema for KeyHashToKey<N> {
 impl<N: Namespace> Schema for JmtValues<N> {
     const COLUMN_FAMILY_NAME: ColumnFamilyName = N::JMT_VALUES_TABLE_NAME;
 
-    type Key = (SchemaKey, Version);
+    type Key = (SchemaKey, SlotNumber);
     type Value = Option<SchemaValue>;
 }
 
@@ -125,32 +125,34 @@ impl<N: Namespace> ValueCodec<JmtNodes<N>> for Node {
     }
 }
 
-impl<T: Debug + PartialEq + AsRef<[u8]>, N: Namespace> KeyEncoder<JmtValues<N>> for (T, Version) {
+impl<T: Debug + PartialEq + AsRef<[u8]>, N: Namespace> KeyEncoder<JmtValues<N>>
+    for (T, SlotNumber)
+{
     fn encode_key(&self) -> Result<Vec<u8>, CodecError> {
         let mut out =
-            Vec::with_capacity(self.0.as_ref().len() + std::mem::size_of::<Version>() + 8);
+            Vec::with_capacity(self.0.as_ref().len() + std::mem::size_of::<SlotNumber>() + 8);
         BorshSerialize::serialize(self.0.as_ref(), &mut out).map_err(CodecError::from)?;
         // Write the version in big-endian order so that sorting order is based on the most-significant bytes of the key
-        out.write_u64::<BigEndian>(self.1)
+        out.write_u64::<BigEndian>(self.1.get())
             .expect("serialization to vec is infallible");
         Ok(out)
     }
 }
 
 impl<T: AsRef<[u8]> + PartialEq + Debug, N: Namespace> SeekKeyEncoder<JmtValues<N>>
-    for (T, Version)
+    for (T, SlotNumber)
 {
     fn encode_seek_key(&self) -> Result<Vec<u8>, CodecError> {
-        <(T, Version) as KeyEncoder<JmtValues<N>>>::encode_key(self)
+        <(T, SlotNumber) as KeyEncoder<JmtValues<N>>>::encode_key(self)
     }
 }
 
-impl<N: Namespace> KeyDecoder<JmtValues<N>> for (SchemaKey, Version) {
+impl<N: Namespace> KeyDecoder<JmtValues<N>> for (SchemaKey, SlotNumber) {
     fn decode_key(data: &[u8]) -> Result<Self, CodecError> {
         let mut cursor = Cursor::new(data);
         let key = Vec::<u8>::deserialize_reader(&mut cursor)?;
         let version = cursor.read_u64::<BigEndian>()?;
-        Ok((key, version))
+        Ok((key, SlotNumber::new_dangerous(version)))
     }
 }
 

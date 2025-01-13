@@ -16,7 +16,7 @@ use sov_modules_api::{
     InvalidProofError, ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec, Storage,
     TxState,
 };
-use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 #[cfg(feature = "native")]
 use sov_rollup_interface::StateUpdateInfo;
@@ -225,7 +225,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
         &self,
         auth_data: &Self::AuthorizationData,
         sequencer: &<S::Da as DaSpec>::Address,
-        height: u64,
+        visible_slot_number: VisibleSlotNumber,
         state: &mut impl InfallibleStateAccessor,
         execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>> {
@@ -244,7 +244,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
             auth_data.credentials.clone(),
             sequencer_rollup_address,
             sequencer.clone(),
-            height,
+            visible_slot_number,
             execution_context,
         ))
     }
@@ -253,7 +253,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
         &self,
         auth_data: &Self::AuthorizationData,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
-        height: u64,
+        visible_slot_number: VisibleSlotNumber,
         state: &mut impl InfallibleStateAccessor,
         execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>> {
@@ -268,7 +268,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
             auth_data.credentials.clone(),
             sender,
             sequencer.clone(),
-            height,
+            visible_slot_number,
             execution_context,
         ))
     }

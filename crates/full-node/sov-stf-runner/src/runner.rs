@@ -10,6 +10,7 @@ use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{DeltaReader, SchemaBatch};
 use sov_metrics::RunnerMetrics;
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::da::{DaService, SlotData};
 use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
@@ -57,6 +58,7 @@ where
     first_unprocessed_height_at_startup: u64,
     da_polling_interval_ms: u64,
     da_service: Arc<Da>,
+    da_height_at_genesis: u64,
     stf: Stf,
     state_manager: StateManager<Stf::StateRoot, Stf::Witness, Sm, Da>,
     listen_address_rpc: SocketAddr,
@@ -121,7 +123,7 @@ where
     let mut ledger_change_set =
         ledger_db.materialize_slot(data_to_commit, genesis_state_root.as_ref())?;
 
-    let finalized_slot_changes = ledger_db.materialize_latest_finalize_slot(0)?;
+    let finalized_slot_changes = ledger_db.materialize_latest_finalize_slot(SlotNumber::GENESIS)?;
 
     ledger_change_set.merge(finalized_slot_changes);
     storage_manager.save_change_set(&block_header, initialized_storage, ledger_change_set)?;
@@ -177,10 +179,10 @@ where
             SocketAddr::new(axum_config.bind_host.parse()?, axum_config.bind_port);
 
         let next_item_numbers = ledger_db.get_next_items_numbers()?;
-        let last_slot_processed_before_shutdown = next_item_numbers.rollup_height.saturating_sub(1);
+        let last_slot_processed_before_shutdown = next_item_numbers.slot_number.saturating_sub(1);
 
         let da_height_processed =
-            runner_config.genesis_height + last_slot_processed_before_shutdown;
+            runner_config.genesis_height + last_slot_processed_before_shutdown.get();
 
         let first_unprocessed_height_at_startup = da_height_processed + 1;
         debug!(
@@ -233,6 +235,7 @@ where
             first_unprocessed_height_at_startup,
             da_polling_interval_ms: runner_config.da_polling_interval_ms,
             da_service: da_service.clone(),
+            da_height_at_genesis: runner_config.genesis_height,
             stf,
             state_manager,
             listen_address_rpc,
@@ -528,6 +531,7 @@ where
         self.state_manager
             .process_stf_changes(
                 last_finalized_height,
+                self.da_height_at_genesis,
                 slot_result.change_set,
                 transition_data,
                 data_to_commit,
@@ -618,8 +622,8 @@ pub async fn query_state_update_info<S>(
     ledger_db: &LedgerDb,
     storage: S,
 ) -> anyhow::Result<StateUpdateInfo<S>> {
-    let rollup_height = ledger_db
-        .get_head_rollup_height()
+    let slot_number = ledger_db
+        .get_head_slot_number()
         .await?
         .expect("The rollup height should always be available");
     let next_event_number = ledger_db
@@ -627,13 +631,13 @@ pub async fn query_state_update_info<S>(
         .await?
         .map(|x| x + 1)
         .unwrap_or_default();
-    let latest_finalized_rollup_height = ledger_db.get_latest_finalized_rollup_height().await?;
+    let latest_finalized_slot_number = ledger_db.get_latest_finalized_slot_number().await?;
 
     Ok(StateUpdateInfo {
         storage,
         next_event_number,
-        rollup_height,
-        latest_finalized_rollup_height,
+        slot_number,
+        latest_finalized_slot_number,
     })
 }
 

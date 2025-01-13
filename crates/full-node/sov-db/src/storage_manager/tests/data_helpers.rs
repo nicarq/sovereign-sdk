@@ -7,6 +7,7 @@ use jmt::KeyHash;
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::{SchemaBatch, SchemaKey, SchemaValue};
 use sov_mock_da::{MockBlockHeader, MockHash};
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::stf::StoredEvent;
 
@@ -52,7 +53,7 @@ fn decode_ledger_item(item: (EventNumber, StoredEvent)) -> (u64, MockHash) {
 pub fn get_state_value(state_db: &StateDb, key: &(SchemaKey, jmt::Version)) -> Option<SchemaValue> {
     let (key, version) = key;
     state_db
-        .get_value_option_by_key::<N>(*version, key)
+        .get_value_option_by_key::<N>(SlotNumber::new_dangerous(*version), key)
         .unwrap()
 }
 
@@ -103,8 +104,11 @@ pub fn materialize_stf_changes(da_header: &MockBlockHeader) -> NativeChangeSet {
 
     // Accessory
     let accessory_key = encode_height(da_header.height()).to_vec();
-    let accessory_change_set =
-        AccessoryDb::materialize_values([(accessory_key, Some(hash_bytes))], VERSION).unwrap();
+    let accessory_change_set = AccessoryDb::materialize_values(
+        [(accessory_key, Some(hash_bytes))],
+        SlotNumber::new_dangerous(VERSION),
+    )
+    .unwrap();
     NativeChangeSet {
         state_change_set,
         accessory_change_set,
@@ -145,7 +149,7 @@ pub fn verify_accessory_db(accessory_db: &AccessoryDb, expected_values: &[(u64, 
     for (expected_height, expected_hash) in expected_values {
         let key = encode_height(*expected_height).to_vec();
         let actual_value = accessory_db
-            .get_value_option(&key, VERSION)
+            .get_value_option(&key, SlotNumber::new_dangerous(VERSION))
             .unwrap()
             .expect("Missing value in AccessoryDb");
         assert_eq!(expected_hash.0.to_vec(), actual_value);

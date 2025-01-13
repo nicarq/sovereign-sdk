@@ -22,7 +22,6 @@ use sov_db::{
 };
 use sov_modules_api::capabilities::BlobSelector;
 use sov_modules_api::{KernelStateAccessor, Runtime, Spec, StateCheckpoint, StateUpdateInfo};
-use sov_rollup_interface::common::SlotNumber;
 use tracing::{error, trace};
 
 use crate::batch_builders::{SeqDbTx, SeqDbTxId, WithCachedTxHashes};
@@ -124,9 +123,7 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
         // Now, we query what the situation is as of the latest finalized
         // height. We don't care to hold data related to anything older than
         // that.
-        state.update_true_rollup_height(SlotNumber::new(
-            latest_state_info.latest_finalized_rollup_height,
-        ));
+        state.update_true_slot_number(latest_state_info.latest_finalized_slot_number);
 
         let next_sequence_number_as_of_latest_finalized_rollup_height =
             self.runtime.kernel().next_sequence_number(&mut state);
@@ -497,6 +494,16 @@ impl PreferredBbDbBlob {
             Self::Proof(PreferredProofData {
                 sequence_number, ..
             }) => *sequence_number,
+        }
+    }
+
+    /// Returns the number of visible slots to advance for this blob
+    pub fn visible_slots_to_advance(&self) -> Option<u8> {
+        match self {
+            Self::Batch(WithCachedTxHashes { inner, .. }) => {
+                Some(inner.visible_slots_to_advance.get())
+            }
+            Self::Proof(_) => None,
         }
     }
 }

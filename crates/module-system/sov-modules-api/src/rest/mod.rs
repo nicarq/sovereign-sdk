@@ -32,13 +32,11 @@ use axum::http::StatusCode;
 use axum::routing::get;
 use serde::{Deserialize, Serialize};
 use sov_rest_utils::{json_obj, ErrorObject, Query};
-use sov_rollup_interface::common::{IntoSlotNumber, VisibleSlotNumber};
 use sov_rollup_interface::StateUpdateInfo;
 use tokio::sync::watch;
-use tracing::trace;
 use utoipa::openapi::OpenApi;
 
-use crate::capabilities::KernelWithSlotMapping;
+use crate::capabilities::{KernelWithSlotMapping, RollupHeight};
 use crate::hooks::TxHooks;
 use crate::state::VersionReader;
 use crate::{ApiStateAccessor, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint};
@@ -180,7 +178,7 @@ pub struct ApiState<S: Spec, T = ()> {
     checkpoint_receiver: watch::Receiver<StateCheckpoint<S>>,
     kernel: Arc<dyn KernelWithSlotMapping<S>>,
     /// The `height` query parameter extracted from the request, when applicable.
-    requested_height: Option<VisibleSlotNumber>,
+    requested_height: Option<RollupHeight>,
 }
 
 impl<S: Spec, T> ApiState<S, T> {
@@ -190,13 +188,13 @@ impl<S: Spec, T> ApiState<S, T> {
         inner: Arc<T>,
         checkpoint_receiver: watch::Receiver<StateCheckpoint<S>>,
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
-        requested_height: Option<u64>,
+        requested_height: Option<RollupHeight>,
     ) -> Self {
         Self {
             inner,
             checkpoint_receiver,
             kernel,
-            requested_height: requested_height.map(|h| h.to_visible_slot_number()),
+            requested_height,
         }
     }
 
@@ -231,20 +229,19 @@ impl<S: Spec, T> ApiState<S, T> {
     /// uses a zeroed gas price.
     pub fn build_api_state_accessor(
         &self,
-        maybe_height: Option<VisibleSlotNumber>,
+        maybe_height: Option<RollupHeight>,
     ) -> Result<ApiStateAccessor<S>, anyhow::Error> {
         let checkpoint = self.checkpoint_receiver.borrow();
 
+        let height = maybe_height.unwrap_or(checkpoint.rollup_height_to_access());
         let kernel = self.kernel.clone();
 
-        let mut state =
-            ApiStateAccessor::new_with_height(&*checkpoint, kernel.clone(), maybe_height);
-
-        trace!(?maybe_height, ?state, "Building an API state accessor");
+        let mut state = ApiStateAccessor::new_with_height(&*checkpoint, kernel.clone(), height)?;
+        tracing::trace!(?maybe_height, ?state, "Building an API state accessor");
 
         let gas_price = self
             .kernel
-            .base_fee_per_gas_at(state.rollup_height_to_access().as_visible(), &mut state)
+            .base_fee_per_gas_at(height, &mut state)
             .ok_or_else(|| {
                 anyhow::anyhow!("Impossible to get the rollup state at the specified height. Please ensure you have queried the correct height.")
             })?;
@@ -308,5 +305,5 @@ where
 
 #[derive(Copy, Clone, Debug, Deserialize)]
 pub(crate) struct RollupHeightQueryParam {
-    pub rollup_height: VisibleSlotNumber,
+    pub rollup_height: RollupHeight,
 }

@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
+use sov_rollup_interface::common::SlotNumber;
 
 use crate::cache::{OrderedReadsAndWrites, StateAccesses};
 use crate::jmt::KeyHash;
@@ -111,7 +112,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     fn get<N: CompileTimeNamespace>(
         &self,
         _key: &SlotKey,
-        _version: Option<u64>,
+        _version: Option<SlotNumber>,
         witness: &Self::Witness,
     ) -> Option<SlotValue> {
         witness.get_hint()
@@ -159,12 +160,12 @@ impl<S: MerkleProofSpec> crate::storage::NativeStorage for ZkStorage<S> {
     fn get_with_proof<N: ProvableCompileTimeNamespace>(
         &self,
         _key: SlotKey,
-        _version: Option<u64>,
+        _version: Option<SlotNumber>,
     ) -> anyhow::Result<StorageProof<Self::Proof>> {
         unimplemented!("The ZkStorage should not be used to generate merkle proofs! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
     }
 
-    fn get_root_hash(&self, _version: jmt::Version) -> anyhow::Result<Self::Root> {
+    fn get_root_hash(&self, _version: SlotNumber) -> anyhow::Result<Self::Root> {
         unimplemented!("The ZkStorage should not be used to generate merkle proofs! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
     }
 }

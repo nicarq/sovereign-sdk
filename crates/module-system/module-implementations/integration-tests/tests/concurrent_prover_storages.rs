@@ -1,3 +1,4 @@
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::{
     ArrayWitness, Kernel, NativeStorage, OrderedReadsAndWrites, ProverStorage, SlotKey, SlotValue,
     StateAccesses, StateUpdate, Storage, StorageRoot, User,
@@ -297,7 +298,7 @@ fn assert_values(
     namespace: ValueNamespace,
 ) {
     let witness_stub = ArrayWitness::default();
-    let get_value = |version: Option<u64>| -> Option<SlotValue> {
+    let get_value = |version: Option<SlotNumber>| -> Option<SlotValue> {
         match namespace {
             ValueNamespace::StateKernel => {
                 let just_value = storage.get::<Kernel>(key, version, &witness_stub);
@@ -333,13 +334,15 @@ fn assert_values(
 
     let next_version = expected_values.len() as u64;
     for (idx, expected_value) in expected_values.into_iter().enumerate() {
-        let version = idx as u64;
-        assert_eq!(expected_value, get_value(Some(version)),);
+        let version = SlotNumber::new_dangerous(idx as u64);
+        assert_eq!(expected_value, get_value(Some(version)));
     }
 
     // Future versions are not available
     // Checking 3 more next versions for extra confidence
     for version in next_version..(next_version + 3) {
+        let version = SlotNumber::new_dangerous(version);
+
         assert_eq!(
             None,
             get_value(Some(version)),
@@ -351,7 +354,7 @@ fn assert_values(
     // Boundary check
     assert_eq!(
         None,
-        get_value(Some(u64::MAX)),
+        get_value(Some(SlotNumber::MAX)),
         "Future version(u64::MAX) should not be available",
     );
 }
@@ -364,10 +367,14 @@ fn assert_root_hashes(
     for (version, expected_root_hash) in expected_root_hashes.into_iter().enumerate() {
         assert_eq!(
             expected_root_hash,
-            storage.get_root_hash(version as u64).unwrap()
+            storage
+                .get_root_hash(SlotNumber::new_dangerous(version as u64))
+                .unwrap()
         );
     }
-    let future_root = storage.get_root_hash(next_version).unwrap_err();
+    let future_root = storage
+        .get_root_hash(SlotNumber::new_dangerous(next_version))
+        .unwrap_err();
     let expected_error = format!("Root node not found for version {}.", next_version);
     assert_eq!(expected_error, future_root.to_string());
 }

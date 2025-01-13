@@ -39,6 +39,12 @@ impl SlotNumber {
     /// The very first [`SlotNumber`] of the rollup.
     pub const GENESIS: Self = Self(0);
 
+    /// The [`SlotNumber`] after genesis.
+    pub const ONE: Self = Self(1);
+
+    /// The largest possible [`SlotNumber`].
+    pub const MAX: Self = Self(u64::MAX);
+
     /// Wraps a [`u64`] into a [`SlotNumber`].
     pub const fn new(height: u64) -> Self {
         Self(height)
@@ -79,6 +85,12 @@ impl SlotNumber {
         self.0
     }
 
+    /// Constructs a [`SlotNumber`] from a [`u64`]. This method should be used with caution,
+    /// since passing a [`SlotNumber`] that is not a valid height can lead to unexpected results.
+    pub fn new_dangerous(height: u64) -> Self {
+        Self(height)
+    }
+
     /// Calculates the difference between two [`SlotNumber`]s as a [`u64`].
     ///
     /// # Panics
@@ -102,12 +114,10 @@ impl SlotNumber {
     pub fn checked_add(&self, rhs: u64) -> Option<Self> {
         self.0.checked_add(rhs).map(Self)
     }
-
     /// See [`u64::checked_sub`].
     pub fn checked_sub(&self, rhs: u64) -> Option<Self> {
         self.0.checked_sub(rhs).map(Self)
     }
-
     /// Casts this value into a [`SlotNumber`].
     ///
     /// <div class="warning">
@@ -116,12 +126,17 @@ impl SlotNumber {
     /// should be reviewed AND removed.
     /// </div>
     pub fn as_visible(&self) -> VisibleSlotNumber {
-        VisibleSlotNumber::new(self.get())
+        VisibleSlotNumber::new_dangerous(self.get())
     }
 
     /// Iterates over all [`SlotNumber`]s in the range `[self, end]`.
     pub fn range_inclusive(&self, end: Self) -> impl Iterator<Item = Self> {
         (self.get()..=end.get()).map(Self::new)
+    }
+
+    /// Iterates over all [`SlotNumber`]s in the range `[self, end)`.
+    pub fn range_exclusive(&self, end: Self) -> impl Iterator<Item = Self> {
+        (self.get()..end.get()).map(Self::new)
     }
 }
 
@@ -142,7 +157,7 @@ macro_rules! impl_into_slot_number {
             }
 
             fn to_visible_slot_number(self) -> VisibleSlotNumber {
-                VisibleSlotNumber::new(self as _)
+                VisibleSlotNumber::new_dangerous(self as _)
             }
         }
     };
@@ -201,8 +216,16 @@ impl VisibleSlotNumber {
     /// At genesis, [`VisibleSlotNumber`] is equal to [`SlotNumber`].
     pub const GENESIS: Self = Self(SlotNumber::GENESIS);
 
+    /// The [`VisibleSlotNumber`] after genesis.
+    pub const ONE: Self = Self(SlotNumber::ONE);
+
+    /// The largest possible [`VisibleSlotNumber`].
+    pub const MAX: Self = Self(SlotNumber::MAX);
+
     /// Wraps a [`u64`] into a [`VisibleSlotNumber`].
-    pub fn new(height: u64) -> Self {
+    /// This method should be used with caution,
+    /// since passing a [`VisibleSlotNumber`] that is not a valid height can lead to unexpected results.
+    pub fn new_dangerous(height: u64) -> Self {
         Self(SlotNumber::new(height))
     }
 
@@ -213,7 +236,7 @@ impl VisibleSlotNumber {
     ///
     /// Panics in case of overflow.
     pub fn advance(&mut self, amount: u64) -> Self {
-        self.0 .0.checked_add(amount).unwrap();
+        self.0 = self.0.checked_add(amount).unwrap();
         *self
     }
 
@@ -227,4 +250,12 @@ impl VisibleSlotNumber {
     pub fn as_true(&self) -> SlotNumber {
         self.0
     }
+}
+
+#[test]
+fn test_visible_slot_number() {
+    let mut number = VisibleSlotNumber::GENESIS;
+    let output = number.advance(5);
+    assert_eq!(number.get(), 5);
+    assert_eq!(output.get(), 5);
 }

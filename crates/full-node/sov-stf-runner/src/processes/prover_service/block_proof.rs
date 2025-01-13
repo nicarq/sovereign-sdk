@@ -4,6 +4,6 @@ use sov_rollup_interface::zk::StateTransitionPublicData;
 
 pub(crate) struct BlockProof<Address, Da: DaSpec, Root> {
     pub(crate) _proof: Vec<u8>,
-    pub(crate) rollup_height: SlotNumber,
+    pub(crate) slot_number: SlotNumber,
     pub(crate) st: StateTransitionPublicData<Address, Da, Root>,
 }

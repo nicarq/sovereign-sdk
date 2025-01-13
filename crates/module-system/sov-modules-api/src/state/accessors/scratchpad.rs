@@ -2,12 +2,13 @@
 
 use std::marker::PhantomData;
 
-use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_state::{EventContainer, IsValueCached, Namespace, SlotKey, SlotValue};
 
 use super::checkpoints::StateCheckpoint;
 use super::internals::RevertableWriter;
 use super::{StateProvider, UniversalStateAccessor};
+use crate::capabilities::RollupHeight;
 use crate::module::Spec;
 use crate::state::events::TypedEvent;
 use crate::transaction::{
@@ -81,8 +82,12 @@ impl<S: Spec, I: StateProvider<S>> TxScratchpad<S, I> {
 }
 
 impl<S: Spec, I: StateProvider<S>> VersionReader for TxScratchpad<S, I> {
-    fn rollup_height_to_access(&self) -> SlotNumber {
+    fn rollup_height_to_access(&self) -> RollupHeight {
         self.inner.inner.rollup_height_to_access()
+    }
+
+    fn visible_slot_number_to_access(&self) -> VisibleSlotNumber {
+        self.inner.inner.visible_slot_number_to_access()
     }
 }
 
@@ -129,8 +134,12 @@ impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for PreExecWorkingSet<
 }
 
 impl<S: Spec, I: StateProvider<S>> VersionReader for PreExecWorkingSet<S, I> {
-    fn rollup_height_to_access(&self) -> SlotNumber {
+    fn rollup_height_to_access(&self) -> RollupHeight {
         self.inner.rollup_height_to_access()
+    }
+
+    fn visible_slot_number_to_access(&self) -> VisibleSlotNumber {
+        self.inner.visible_slot_number_to_access()
     }
 }
 
@@ -338,8 +347,12 @@ impl<S: Spec, I: StateProvider<S>> EventContainer for WorkingSet<S, I> {
 }
 
 impl<S: Spec, I: StateProvider<S>> VersionReader for WorkingSet<S, I> {
-    fn rollup_height_to_access(&self) -> SlotNumber {
+    fn rollup_height_to_access(&self) -> RollupHeight {
         self.delta.inner.rollup_height_to_access()
+    }
+
+    fn visible_slot_number_to_access(&self) -> VisibleSlotNumber {
+        self.delta.inner.visible_slot_number_to_access()
     }
 }
 

@@ -7,6 +7,7 @@ use sov_modules_api::{
     Error, ExecutionContext, Genesis, MessageCodec, Module, ModuleId, ModuleInfo, Spec,
     StateCheckpoint, StateValue, TxState,
 };
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
 
@@ -153,7 +154,7 @@ fn associated_types() {
         Default::default(),
         sequencer,
         sequencer_da,
-        1,
+        1.to_visible_slot_number(),
         ExecutionContext::Node,
     );
 

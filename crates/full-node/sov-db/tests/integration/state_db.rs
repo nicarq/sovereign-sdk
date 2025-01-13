@@ -6,6 +6,7 @@ use rockbound::cache::delta_reader::DeltaReader;
 use sov_db::namespaces::{KernelNamespace, Namespace, UserNamespace};
 use sov_db::state_db::{JmtHandler, StateDb};
 use sov_db::test_utils::build_node_batch;
+use sov_rollup_interface::common::IntoSlotNumber;
 
 type H = sha2::Sha256;
 
@@ -51,7 +52,7 @@ fn test_state_db_simple() {
 
     // Still zero after materialization and writing.
     // Nothing changes
-    assert_eq!(state_db.get_next_version(), 0);
+    assert_eq!(state_db.get_next_version(), 0.to_slot_number());
     for version in [0, 1, 2, u64::MAX] {
         assert!(state_db
             .get_jmt_handler::<UserNamespace>()
@@ -73,7 +74,7 @@ fn test_state_db_simple() {
         .is_err());
 
     let state_db = init_state_db(rocksdb.clone());
-    assert_eq!(state_db.get_next_version(), 1);
+    assert_eq!(state_db.get_next_version(), 1.to_slot_number());
     assert_eq!(
         state_db
             .get_jmt_handler::<UserNamespace>()
@@ -128,10 +129,10 @@ fn test_state_db_writing_empty_batch() {
 
     // Still zero after materialization and writing.
     // Nothing changes.
-    assert_eq!(state_db.get_next_version(), 0);
+    assert_eq!(state_db.get_next_version(), 0.to_slot_number());
 
     let state_db = init_state_db(rocksdb.clone());
-    assert_eq!(state_db.get_next_version(), 1);
+    assert_eq!(state_db.get_next_version(), 1.to_slot_number());
 }
 
 #[test]
@@ -177,7 +178,7 @@ fn test_state_db_empty_nodes() {
     );
 
     // Nothing changes.
-    assert_eq!(state_db.get_next_version(), 0);
+    assert_eq!(state_db.get_next_version(), 0.to_slot_number());
 }
 
 #[test]
@@ -215,7 +216,7 @@ fn test_state_db_writing_same_node_batch_both_namespaces() {
 
     // So that's seems fine, user value leaks into kernel data.
     let state_db = init_state_db(rocksdb.clone());
-    assert_eq!(state_db.get_next_version(), 1);
+    assert_eq!(state_db.get_next_version(), 1.to_slot_number());
 
     assert_eq!(
         state_db
@@ -393,7 +394,7 @@ fn test_root_hash_at_init() {
             .unwrap(),
     );
     let state_db = init_state_db(rocksdb.clone());
-    assert_eq!(0, state_db.get_next_version());
+    assert_eq!(0.to_slot_number(), state_db.get_next_version());
 
     let user_state_db_handler: JmtHandler<'_, UserNamespace> = state_db.get_jmt_handler();
     let kernel_state_db_handler: JmtHandler<'_, KernelNamespace> = state_db.get_jmt_handler();

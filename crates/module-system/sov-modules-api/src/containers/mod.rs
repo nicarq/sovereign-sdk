@@ -16,13 +16,14 @@ mod test {
 
     use sov_mock_da::MockDaSpec;
     use sov_mock_zkvm::MockZkvm;
+    use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
     use sov_state::namespaces::User;
     use sov_state::{DefaultStorageSpec, SlotKey, SlotValue, Storage};
     use sov_test_utils::storage::SimpleStorageManager;
 
     use crate::capabilities::mocks::MockKernel;
     use crate::execution_mode::Native;
-    use crate::{CryptoSpec, StateWriter, Version, WorkingSet};
+    use crate::{CryptoSpec, StateWriter, WorkingSet};
 
     type StorageSpec = DefaultStorageSpec<TestHasher>;
     type TestSpec = crate::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
@@ -32,7 +33,7 @@ mod test {
     struct TestCase {
         key: SlotKey,
         value: SlotValue,
-        version: Version,
+        version: SlotNumber,
     }
 
     fn create_tests() -> Vec<TestCase> {
@@ -40,22 +41,22 @@ mod test {
             TestCase {
                 key: SlotKey::from_slice(b"key_0"),
                 value: SlotValue::from("value_0"),
-                version: 0,
+                version: 0.to_slot_number(),
             },
             TestCase {
                 key: SlotKey::from_slice(b"key_1"),
                 value: SlotValue::from("value_1"),
-                version: 1,
+                version: 1.to_slot_number(),
             },
             TestCase {
                 key: SlotKey::from_slice(b"key_2"),
                 value: SlotValue::from("value_2"),
-                version: 2,
+                version: 2.to_slot_number(),
             },
             TestCase {
                 key: SlotKey::from_slice(b"key_1"),
                 value: SlotValue::from("value_3"),
-                version: 3,
+                version: 3.to_slot_number(),
             },
         ]
     }

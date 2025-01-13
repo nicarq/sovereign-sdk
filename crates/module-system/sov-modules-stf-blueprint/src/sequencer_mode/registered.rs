@@ -13,6 +13,7 @@ use sov_modules_api::{
     InjectedControlFlow, PreExecWorkingSet, ProvisionalSequencerOutcome, Rewards, SlotGasMeter,
     Spec, StateCheckpoint, StateProvider, TxControlFlow, TxScratchpad, WorkingSet,
 };
+use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_rollup_interface::TxHash;
 use tracing::{debug, warn};
 
@@ -27,7 +28,7 @@ use crate::{
 
 /// Executes the entire transaction lifecycle.
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
-#[cfg_attr(feature = "native", tracing::instrument(skip_all, name = "StfBlueprint::process_tx", fields(height = height, context = ?execution_context)))]
+#[cfg_attr(feature = "native", tracing::instrument(skip_all, name = "StfBlueprint::process_tx", fields(visible_slot_number = %visible_slot_number, context = ?execution_context)))]
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 pub fn process_tx<S, R, I, C>(
     runtime: &R,
@@ -35,7 +36,7 @@ pub fn process_tx<S, R, I, C>(
     slot_gas_meter: &SlotGasMeter<S>,
     validated_output: AuthTxOutput<S, R>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
-    height: u64,
+    visible_slot_number: VisibleSlotNumber,
     scratchpad: TxScratchpad<S, I>,
     execution_context: ExecutionContext,
     injected_control_flow: &C,
@@ -63,7 +64,7 @@ where
         slot_gas_meter,
         validated_output,
         sequencer_da_address,
-        height,
+        visible_slot_number,
         scratchpad,
         execution_context,
         injected_control_flow,
@@ -74,7 +75,7 @@ where
         &result.0,
         start.elapsed(),
         execution_context,
-        height,
+        visible_slot_number,
         sequencer_da_address,
         discriminant,
     );
@@ -87,7 +88,7 @@ fn track_transaction_metrics<S: Spec>(
     result: &Result<ApplyTxResult<S>, TxProcessingError>,
     execution_time: std::time::Duration,
     execution_context: ExecutionContext,
-    height: u64,
+    visible_slot_number: VisibleSlotNumber,
     sequencer_address: &<S::Da as DaSpec>::Address,
     message_discriminant: String,
 ) {
@@ -101,7 +102,7 @@ fn track_transaction_metrics<S: Spec>(
             execution_time,
             tx_effect,
             execution_context,
-            rollup_height: height,
+            visible_slot_number,
             sequencer_address: sequencer_address.to_string(),
             call_message: message_discriminant,
         };
@@ -118,7 +119,7 @@ fn process_tx_inner<S, R, I, C>(
     slot_gas_meter: &SlotGasMeter<S>,
     validated_output: AuthTxOutput<S, R>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
-    height: u64,
+    visible_slot_number: VisibleSlotNumber,
     mut scratchpad: TxScratchpad<S, I>,
     execution_context: ExecutionContext,
     injected_control_flow: &C,
@@ -140,7 +141,7 @@ where
     let maybe_ctx = runtime.transaction_authorizer().resolve_context(
         &auth_data,
         sequencer_da_address,
-        height,
+        visible_slot_number,
         &mut scratchpad,
         execution_context,
     );
@@ -287,7 +288,7 @@ impl<S: Spec> IncrementalBatchReceipt<S> {
 /// To mitigate these scenarios:
 /// - In the first case, we will have to ensure that exiting the rollup consumes very little gas (similarly to what we do for forced transactions). This way, even if gas prices are artificially inflated, the transaction cost remains manageable.
 /// - In the second case, we reserve a percentage of block space specifically for standard transactions, ensuring the rollup can always process some standard transactions.
-#[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch", fields(rollup_height = height, context = ?execution_context))]
+#[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch", fields(visible_slot_number = %visible_slot_number, context = ?execution_context))]
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 pub(crate) fn apply_batch<S, RT, B>(
@@ -298,7 +299,7 @@ pub(crate) fn apply_batch<S, RT, B>(
     blob_idx: usize,
     sequencer_da_address: <S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
-    height: u64,
+    visible_slot_number: VisibleSlotNumber,
     execution_context: ExecutionContext,
 ) -> (IncrementalBatchReceipt<S>, StateCheckpoint<S>)
 where
@@ -355,7 +356,7 @@ where
             &raw_tx,
             &sequencer_da_address,
             gas_price,
-            height,
+            visible_slot_number,
             execution_context,
             sequencer_bond,
             idx,
@@ -499,7 +500,7 @@ fn auth_and_process_tx<S, RT, I, C>(
     raw_tx: &FullyBakedTx,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
-    height: u64,
+    visible_slot_number: VisibleSlotNumber,
     execution_context: ExecutionContext,
     sequencer_bond: u64,
     idx: usize,
@@ -615,7 +616,7 @@ where
         slot_gas_meter,
         validated_output,
         sequencer_da_address,
-        height,
+        visible_slot_number,
         scratchpad,
         execution_context,
         injected_control_flow,

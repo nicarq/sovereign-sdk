@@ -1,7 +1,8 @@
 use sov_chain_state::ChainState;
+use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{GasMeter, VersionReader};
-use sov_rollup_interface::common::IntoSlotNumber;
+use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_optimistic_runtime, get_gas_used, AsUser, TestSpec, TestUser};
@@ -39,16 +40,16 @@ fn chain_state_kernel_updates_basic_kernel() {
 
     runner.query_state(|state| {
         assert_eq!(
-            state.rollup_height_to_access().get(),
-            0,
+            state.visible_slot_number_to_access(),
+            VisibleSlotNumber::GENESIS,
             "The kernel should be initialized to zero"
         );
     });
 
     runner.query_visible_state(|state| {
         assert_eq!(
-            state.rollup_height_to_access().get(),
-            0,
+            state.visible_slot_number_to_access(),
+            VisibleSlotNumber::GENESIS,
             "The kernel visible slot should be initialized to zero"
         );
     });
@@ -61,16 +62,16 @@ fn chain_state_kernel_updates_basic_kernel() {
 
     runner.query_state(|state| {
         assert_eq!(
-            state.rollup_height_to_access().get(),
-            1,
+            state.visible_slot_number_to_access(),
+            VisibleSlotNumber::ONE,
             "The kernel should be updated to one"
         );
     });
 
     runner.query_visible_state(|state| {
         assert_eq!(
-            state.rollup_height_to_access().get(),
-            1,
+            state.visible_slot_number_to_access(),
+            VisibleSlotNumber::ONE,
             "The kernel visible slot should be updated to one"
         );
     });
@@ -139,7 +140,7 @@ fn test_chain_state_root_updates() {
 
     runner.query_state(|kernel| {
         let first_transition = ChainState::<S>::default()
-            .get_historical_transitions(1.to_slot_number(), kernel)
+            .get_historical_transitions(SlotNumber::ONE, kernel)
             .unwrap_infallible()
             .unwrap();
 
@@ -176,7 +177,7 @@ fn test_chain_state_historical_transition_update() {
 
     runner.query_state(|kernel| {
         let first_transition = ChainState::<S, >::default()
-            .get_historical_transitions(1.to_slot_number(), kernel)
+            .get_historical_transitions(SlotNumber::ONE, kernel)
             .unwrap_infallible()
             .unwrap();
 
@@ -237,7 +238,7 @@ fn test_archival_state_updates_gas_price() {
             "The gas price stored in the accessor should be the same as the current gas price"
         );
 
-        let archival_state = state.state_at_height(1.to_visible_slot_number()).unwrap();
+        let archival_state = state.state_at_height(RollupHeight::new(1)).unwrap();
 
         assert_eq!(
             archival_state.gas_info().gas_price,

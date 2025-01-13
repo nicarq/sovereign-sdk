@@ -23,8 +23,8 @@ pub use sequencer_mode::registered::{process_tx, PreExecError};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    BatchFromUnregisteredSequencer, BlobOrigin, BlobSelector, BlobSelectorOutput, ChainState,
-    HasKernel, Kernel, TransactionAuthenticator,
+    BatchFromUnregisteredSequencer, BlobOrigin, BlobSelector, BlobSelectorOutput, BlockGasInfo,
+    ChainState, HasKernel, Kernel, TransactionAuthenticator,
 };
 use sov_modules_api::hooks::{KernelSlotHooks, SlotHooks};
 use sov_modules_api::transaction::TransactionConsumption;
@@ -309,10 +309,17 @@ where
         let visible_hash = self
             .runtime
             .chain_state()
-            .current_visible_hash( &mut kernel)
+            .current_visible_hash(&mut kernel)
             .expect("The current visible hash should be possible to compute at this point because the chain-state should have synchronized. This is a bug. Please report it.");
 
         let blob_selector_output = self.select_and_validate_blobs(relevant_blobs, &mut kernel);
+
+        if blob_selector_output.should_execute_slot_hooks {
+            let visible_slot_number = kernel.visible_slot_number();
+            self.runtime
+                .chain_state()
+                .increment_rollup_height(&mut kernel, visible_slot_number);
+        }
 
         #[cfg(feature = "native")]
         let blob_selection_time = start_slot.elapsed();
@@ -329,7 +336,7 @@ where
         );
 
         #[cfg(feature = "native")]
-        let visible_height = state.rollup_height_to_access();
+        let visible_slot_number = state.visible_slot_number_to_access();
         let (total_gas, proof_receipts, batch_receipts, mut state) = self
             .apply_batches_in_user_space(
                 blob_selector_output,
@@ -368,7 +375,7 @@ where
                     slot_finalization_time,
                     da_height: slot_header.height(),
                     execution_context,
-                    rollup_height: visible_height.get(),
+                    visible_slot_number,
                 });
             });
             (state_root, witness, change_set)
@@ -478,15 +485,15 @@ where
         // Note: The gas price should be computed after all the capabilities involving the [`KernelStateAccessor`] to have the
         // most recent version of the visible rollup height.
         let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut state).expect("The base fee per gas for the current slot should be known at this point! This is a bug. Please report it");
-        let slot_gas_limit = self.runtime.chain_state().slot_gas_limit(&mut state).expect("The slot gas limit for the current slot should be known at this point! This is a bug. Please report it");
+        let block_gas_limit = self.runtime.chain_state().block_gas_limit(&mut state).expect("The slot gas limit for the current slot should be known at this point! This is a bug. Please report it");
 
-        let mut slot_gas_meter = SlotGasMeter::new(slot_gas_limit);
+        let mut slot_gas_meter = SlotGasMeter::new(block_gas_limit.clone());
 
-        let visible_height = state.rollup_height_to_access();
+        let visible_slot_number = state.visible_slot_number_to_access();
 
         info!(
             blob_count = blob_selector_output.selected_blobs.len(),
-            visible_slot = %visible_height,
+            visible_slot = %visible_slot_number,
             "Selected batch(es) for execution in current slot"
         );
 
@@ -526,7 +533,7 @@ where
                         blob_idx,
                         sender,
                         &gas_price,
-                        visible_height.get(),
+                        visible_slot_number,
                         execution_context,
                     );
 
@@ -565,7 +572,7 @@ where
                         blob_idx,
                         sender,
                         &gas_price,
-                        visible_height.get(),
+                        visible_slot_number,
                         execution_context,
                     );
 
@@ -603,6 +610,12 @@ where
         // be a single "native" block
         if blob_selector_output.should_execute_slot_hooks {
             SlotHooks::end_slot_hook(&self.runtime, &mut state);
+            let mut block_gas_info = BlockGasInfo::new(block_gas_limit, gas_price);
+            block_gas_info.update_gas_used(slot_gas_meter.total_gas_used());
+            let rollup_height = state.rollup_height_to_access();
+            self.runtime
+                .kernel()
+                .record_gas_usage(&mut state, block_gas_info, rollup_height);
         }
         #[cfg(feature = "native")]
         {
@@ -612,7 +625,7 @@ where
                     sov_metrics::UserSpaceSlotProcessingMetrics {
                         begin_slot_hooks_time,
                         blobs_processing_time: blob_processing_time,
-                        rollup_height: visible_height.get(),
+                        visible_slot_number,
                         execution_context,
                         end_slot_hooks_time,
                     },

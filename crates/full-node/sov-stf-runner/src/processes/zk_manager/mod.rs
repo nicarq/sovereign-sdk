@@ -1,5 +1,4 @@
 use std::num::NonZero;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use backon::{BackoffBuilder, ExponentialBuilder};
@@ -159,17 +158,14 @@ where
             <Ps::DaService as DaService>::Spec,
         >,
     ) -> anyhow::Result<()> {
-        let first_height_unproven = self
-            .st_info_receiver
-            .next_height_to_receive
-            .load(Ordering::SeqCst);
+        let first_height_unproven = self.st_info_receiver.next_height_to_receive();
 
         let prover_service = &self.prover_service;
 
         // We ensure that we're not trying to prove blocks that are being proven.
         // If that is not the case, we add the block to the queue.
         if first_height_unproven.saturating_add(self.proofs_to_create.current_proof_jump() as u64)
-            <= stf_info.rollup_height.get()
+            <= stf_info.slot_number
         {
             let block_hash = stf_info.da_block_header().hash();
             // Save the transition for later proving. This is temporarily redundant
@@ -227,8 +223,7 @@ where
 
             // Update the next height to receive
             self.st_info_receiver
-                .next_height_to_receive
-                .fetch_add(num_proofs_to_create as u64, Ordering::SeqCst);
+                .inc_next_height_to_receive_by(num_proofs_to_create as u64);
         }
         Ok(())
     }
