@@ -1,5 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::da::{BlockHeaderTrait, Time};
 use sov_modules_api::{
     CodeCommitmentFor, DaSpec, Gas, GasSpec, GenesisState, Module, OperatingMode, Spec,
@@ -27,7 +28,7 @@ pub struct ChainStateConfig<S: Spec> {
     pub outer_code_commitment: CodeCommitmentFor<S::OuterZkvm>,
 
     /// The height of the first DA block.
-    pub genesis_da_height: SlotNumber,
+    pub genesis_da_height: u64,
 }
 
 impl<S: Spec> ChainState<S> {
@@ -47,12 +48,21 @@ impl<S: Spec> ChainState<S> {
             "Starting chain state genesis...",
         );
 
-        self.true_rollup_height.set(&SlotNumber::GENESIS, state)?;
-        self.next_visible_rollup_height
+        self.true_slot_number.set(&SlotNumber::GENESIS, state)?;
+        self.next_visible_slot_number
             .set(&VisibleSlotNumber::GENESIS, state)?;
+
+        self.current_heights
+            .set(&(RollupHeight::GENESIS, VisibleSlotNumber::GENESIS), state)?;
 
         self.time.set_true_current(&config.current_time, state);
         self.operating_mode.set(&config.operating_mode, state)?;
+
+        self.slot_number_history
+            .set(&RollupHeight::GENESIS, &VisibleSlotNumber::GENESIS, state)?;
+
+        self.true_slot_number_history
+            .set(&RollupHeight::GENESIS, &SlotNumber::GENESIS, state)?;
 
         self.inner_code_commitment
             .set(&config.inner_code_commitment, state)?;
@@ -69,11 +79,11 @@ impl<S: Spec> ChainState<S> {
             &SlotInformation::new(
                 genesis_slot_header.hash(),
                 *validity_condition,
-                BlockGasInfo {
-                    gas_used: S::Gas::zero(),
-                    base_fee_per_gas: S::initial_base_fee_per_gas(),
-                    gas_limit: S::Gas::zero(),
-                },
+                BlockGasInfo::with_usage(
+                    S::Gas::zero(),
+                    S::initial_base_fee_per_gas(),
+                    S::Gas::zero(),
+                ),
             ),
             state,
         );

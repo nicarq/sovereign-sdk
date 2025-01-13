@@ -88,8 +88,8 @@ async fn archival_queries_soft_confirmations() {
     for i in 1..deferred_slots_count {
         runner.advance_slots(1);
 
-        assert_eq!(runner.visible_rollup_height(), 0);
-        assert_eq!(runner.true_rollup_height(), i);
+        assert_eq!(runner.visible_slot_number(), 0);
+        assert_eq!(runner.true_slot_number(), i);
 
         let chain_state_time = runner.query_state(|state| {
             ChainState::<S>::default()
@@ -113,7 +113,7 @@ async fn archival_queries_soft_confirmations() {
 
         // We query the visible height from the rollup state and we try to query the time at the same height and
         // see if we get the same time as without the visible height parameter
-        let visible_height = runner
+        let visible_slot_number = runner
             .query_api_unwrap_data::<ApiGetStateData<u64>>(
                 &ApiPath::query_module("chain-state")
                     .with_default_state_path("next-visible-rollup-height"),
@@ -123,20 +123,20 @@ async fn archival_queries_soft_confirmations() {
             .value
             .unwrap();
 
-        assert_eq!(visible_height, 0);
+        assert_eq!(visible_slot_number, 0);
 
-        let time_visible_height = runner
+        let time_visible_slot_number = runner
             .query_api_unwrap_data::<ApiGetStateData<Time>>(
                 &ApiPath::query_module("chain-state")
                     .with_default_state_path("time")
-                    .with_rollup_height(visible_height),
+                    .with_rollup_height(visible_slot_number),
                 &client,
             )
             .await
             .value
             .unwrap();
 
-        assert_eq!(time_visible_height, time);
+        assert_eq!(time_visible_slot_number, time);
 
         // We can query any height using the API with the rollup height parameter
         let current_time = runner
@@ -156,7 +156,7 @@ async fn archival_queries_soft_confirmations() {
     // Advance the visible height to the next slot. The visible height should update to 1. The time should be updated.
     runner.advance_slots(1);
 
-    assert_eq!(runner.visible_rollup_height(), 1);
+    assert_eq!(runner.visible_slot_number(), 1);
 
     let chain_state_time = runner
         .query_state_at_height(1, |state| {
@@ -203,8 +203,8 @@ async fn intermediary_state_queries_soft_confirmations() {
 
     runner.advance_slots((deferred_slots_count - 1) as usize);
 
-    assert_eq!(runner.true_rollup_height(), deferred_slots_count - 1);
-    assert_eq!(runner.visible_rollup_height(), 0);
+    assert_eq!(runner.true_slot_number(), deferred_slots_count - 1);
+    assert_eq!(runner.visible_slot_number(), 0);
 
     let blobs = build_soft_confirmation_blobs(
         &vec![(
@@ -220,7 +220,7 @@ async fn intermediary_state_queries_soft_confirmations() {
 
     runner.execute::<_>(blobs);
 
-    assert_eq!(runner.visible_rollup_height(), deferred_slots_count - 1);
+    assert_eq!(runner.visible_slot_number(), deferred_slots_count - 1);
 
     let mut prev_time = runner
         .query_state_at_height(0, |state| {
@@ -270,8 +270,8 @@ async fn query_versioned_vector() {
 
     runner.advance_slots((deferred_slots_count) as usize);
 
-    assert_eq!(runner.true_rollup_height(), deferred_slots_count);
-    assert_eq!(runner.visible_rollup_height(), 1);
+    assert_eq!(runner.true_slot_number(), deferred_slots_count);
+    assert_eq!(runner.visible_slot_number(), 1);
 
     // We can query the current value of the versioned state vector
     let slot_height_1 = runner.query_state(|state| {

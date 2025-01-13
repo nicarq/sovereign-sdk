@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use sov_mock_da::{MockBlob, MockDaSpec, MockHash};
 use sov_modules_api::{BlobDataWithId, BlobReaderTrait, DaSpec, Spec, VersionReader};
 use sov_modules_stf_blueprint::{BatchReceipt, Runtime};
-use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::traits::MinimalGenesis;
 use sov_test_utils::runtime::{BlobStorage, SlotReceipt, ValueSetter};
@@ -33,8 +32,10 @@ type TestRunner<RT> = sov_test_utils::runtime::TestRunner<RT, S>;
 /// Returns the current visible rollup height in the runner.
 pub fn visible_slot<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S>>(
     runner: &TestRunner<RT>,
-) -> SlotNumber {
-    runner.query_visible_state(|state| state.rollup_height_to_access())
+) -> u64 {
+    runner
+        .query_visible_state(|state| state.visible_slot_number_to_access())
+        .get()
 }
 
 /// Returns the last `k` slot receipts
@@ -117,8 +118,8 @@ fn assert_blobs_are_correctly_received_helper<
         check_visible_slot_height(
             slot_num,
             expected_visible_slot_heights_increases.clone(),
-            current_visible_slot_height.get(),
-            new_visible_slot_height.get(),
+            current_visible_slot_height,
+            new_visible_slot_height,
         );
         current_visible_slot_height = new_visible_slot_height;
     }
@@ -133,8 +134,8 @@ fn assert_blobs_are_correctly_received_helper<
             check_visible_slot_height(
                 slot_num + slots_to_send.len(),
                 expected_visible_slot_heights_increases.clone(),
-                current_visible_slot_height.get(),
-                new_visible_slot_height.get(),
+                current_visible_slot_height,
+                new_visible_slot_height,
             );
             current_visible_slot_height = new_visible_slot_height;
         }
@@ -160,9 +161,6 @@ fn assert_blobs_are_correctly_received_helper<
         })
         .collect::<Vec<_>>();
 
-    for sent_blob_nums in receive_order.iter() {
-        println!("{}", sent_blob_nums.len());
-    }
     // We check that the blobs we received are the ones we sent in the correct order.
     for (received_slot_num, sent_blob_nums) in receive_order.iter().enumerate() {
         assert_eq!(

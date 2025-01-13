@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{DeltaReader, SchemaBatch};
-use sov_rollup_interface::common::IntoSlotNumber;
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::da::{DaService, SlotData};
 use sov_rollup_interface::stf::TxReceiptContents;
@@ -49,7 +49,7 @@ where
     seen_state_transitions: VecDeque<StateOnBlock<Da::Spec, StateRoot>>,
     state_update_sender: watch::Sender<StateUpdateInfo<Sm::StfState>>,
     st_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
-    maximum_provable_height_tracker: Box<dyn ProvableHeightTracker>,
+    max_provable_slot_number_tracker: Box<dyn ProvableHeightTracker>,
     is_initialized: bool,
 }
 
@@ -80,7 +80,7 @@ where
             seen_state_transitions: Default::default(),
             state_update_sender: state_update_channel,
             st_info_sender,
-            maximum_provable_height_tracker: state_height_tracker,
+            max_provable_slot_number_tracker: state_height_tracker,
             is_initialized: false,
         })
     }
@@ -92,7 +92,7 @@ where
             sender
                 .startup_notify_about_infos_from_db(
                     &self.ledger_db,
-                    &*self.maximum_provable_height_tracker,
+                    &*self.max_provable_slot_number_tracker,
                 )
                 .await?;
         }
@@ -188,6 +188,7 @@ where
     >(
         &mut self,
         last_finalized_height: u64,
+        da_height_at_genesis: u64,
         stf_changes: Sm::StfChangeSet,
         transition_witness: StateTransitionWitness<StateRoot, Witness, Da::Spec>,
         slot_commit: SlotCommit<S, B, T>,
@@ -198,12 +199,12 @@ where
                 "StateManager wasn't initialized. Please call `.startup()` method before using"
             );
         }
-        let rollup_height = self.get_rollup_height()?;
+        let slot_number = self.get_slot_number()?;
         let new_state_root = transition_witness.final_state_root.clone();
         let block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
             transition_witness.da_block_header.clone();
         tracing::debug!(
-            rollup_height,
+            %slot_number,
             block_header = %block_header.display(),
             current_state_root = hex::encode(self.get_state_root().as_ref()),
             next_state_root = hex::encode(new_state_root.as_ref()),
@@ -224,15 +225,18 @@ where
             .ledger_db
             .materialize_slot(slot_commit, new_state_root.as_ref())?;
 
-        let last_finalized_slot = self
-            .ledger_db
-            .materialize_latest_finalize_slot(last_finalized_height)?;
-        ledger_change_set.merge(last_finalized_slot);
+        let last_finalized_slot_update =
+            self.ledger_db
+                .materialize_latest_finalize_slot(SlotNumber::new_dangerous(
+                    last_finalized_height.saturating_sub(da_height_at_genesis),
+                ))?;
+
+        ledger_change_set.merge(last_finalized_slot_update);
 
         if let Some(st_info_sender) = &self.st_info_sender {
             let stf_info = StateTransitionInfo {
                 data: transition_witness,
-                rollup_height: rollup_height.to_slot_number(),
+                slot_number,
             };
             let stf_info_schema = st_info_sender
                 .materialize_stf_info(&stf_info, &self.ledger_db)
@@ -259,11 +263,11 @@ where
 
         if let Some(st_info_sender) = &mut self.st_info_sender {
             // Notify `StateTransitionInfo` consumers that the data is saved in the Db.
-            let maximum_provable_height = self
-                .maximum_provable_height_tracker
-                .maximum_provable_height();
+            let max_provable_slot_number = self
+                .max_provable_slot_number_tracker
+                .max_provable_slot_number();
             st_info_sender
-                .notify(maximum_provable_height, &self.ledger_db)
+                .notify(max_provable_slot_number, &self.ledger_db)
                 .await?;
         }
 
@@ -326,7 +330,8 @@ where
         let mut finalized_transitions = Vec::new();
         // Checking all seen blocks, in case if there was delay in getting last finalized header.
         while let Some(earliest_seen_transition) = self.seen_state_transitions.front() {
-            let earliest_header = &earliest_seen_transition.block_header;
+            let earliest_header: &<<Da as DaService>::Spec as DaSpec>::BlockHeader =
+                &earliest_seen_transition.block_header;
             tracing::trace!(header = %earliest_header.display(), last_finalized_height, "Checking seen header");
             let height = earliest_header.height();
 
@@ -364,14 +369,13 @@ where
         &self.state_root
     }
 
-    fn get_rollup_height(&self) -> anyhow::Result<u64> {
-        Ok(self.ledger_db.get_next_items_numbers()?.rollup_height)
+    fn get_slot_number(&self) -> anyhow::Result<SlotNumber> {
+        Ok(self.ledger_db.get_next_items_numbers()?.slot_number)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use core::sync::atomic::Ordering;
     use std::num::NonZero;
 
     use sov_db::storage_manager::{NativeChangeSet, NativeStorageManager};
@@ -380,6 +384,7 @@ mod tests {
         MockValidityCond, PlannedFork,
     };
     use sov_mock_zkvm::MockZkvm;
+    use sov_rollup_interface::common::SlotNumber;
     use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
     use sov_rollup_interface::stf::StateTransitionFunction;
     use sov_state::{
@@ -419,7 +424,8 @@ mod tests {
             SlotCommit::new(genesis_block);
         let mut ledger_change_set =
             ledger_db.materialize_slot(data_to_commit, state_root.as_ref())?;
-        let finalized_slot_changes = ledger_db.materialize_latest_finalize_slot(0)?;
+        let finalized_slot_changes =
+            ledger_db.materialize_latest_finalize_slot(SlotNumber::GENESIS)?;
         ledger_change_set.merge(finalized_slot_changes);
 
         storage_manager.save_change_set(&genesis_header, change_set, ledger_change_set)?;
@@ -494,6 +500,7 @@ mod tests {
         state_manager
             .process_stf_changes(
                 finalized_height,
+                0,
                 change_set,
                 transition_witness,
                 slot_commit,
@@ -520,10 +527,10 @@ mod tests {
 
         // LedgerDb storage should be updated by that point, so correct height is returned
         assert_eq!(
-            0,
+            SlotNumber::GENESIS,
             state_manager
                 .ledger_db
-                .get_latest_finalized_rollup_height()
+                .get_latest_finalized_slot_number()
                 .await?
         );
 
@@ -561,10 +568,10 @@ mod tests {
             let finalized = receiver.read_next().await?.unwrap();
 
             if let Some(sender) = state_manager.st_info_sender.as_ref() {
-                sender.next_height_to_receive.fetch_add(1, Ordering::SeqCst);
+                sender.inc_next_height_to_receive();
             };
 
-            assert_eq!(height, finalized.rollup_height.get());
+            assert_eq!(height, finalized.slot_number.get());
             assert_eq!(filtered_block.header, finalized.data.da_block_header);
             assert_eq!(state_root, finalized.data.initial_state_root);
             state_root.clone_from(&finalized.data.final_state_root);
@@ -572,8 +579,9 @@ mod tests {
                 height,
                 state_manager
                     .ledger_db
-                    .get_latest_finalized_rollup_height()
+                    .get_latest_finalized_slot_number()
                     .await?
+                    .get()
             );
         }
 
@@ -603,20 +611,22 @@ mod tests {
 
         let mut state_roots = Vec::with_capacity(last_block as usize);
 
-        for rollup_height in 1..=last_block {
+        for slot_number in 1..=last_block {
+            let slot_number = SlotNumber::new(slot_number);
+
             // Not used anywhere, `process_normal_transition` relies on da header to produce changes.
-            let blob_data = [rollup_height as u8; 10];
+            let blob_data = [slot_number.get() as u8; 10];
             da_service
                 .send_transaction(&blob_data, MockFee::zero())
                 .await
                 .await??;
-            let filtered_block = da_service.get_block_at(rollup_height).await?;
-            if rollup_height < last_block {
+            let filtered_block = da_service.get_block_at(slot_number.get()).await?;
+            if slot_number.get() < last_block {
                 process_normal_transition(&mut state_manager, filtered_block, 0, &da_service)
                     .await?;
                 let current_state_root = state_manager.get_state_root().clone();
                 let received_storage = state_update_receiver.borrow().storage.clone();
-                let received_storage_root = received_storage.get_root_hash(rollup_height)?;
+                let received_storage_root = received_storage.get_root_hash(slot_number)?;
                 assert_eq!(
                     current_state_root,
                     received_storage_root.root_hash().0.to_vec()
@@ -634,10 +644,12 @@ mod tests {
                 let expected_state_root = &state_roots[fork_point as usize - 1];
                 assert_eq!(expected_state_root, state_manager.get_state_root());
 
-                let returned_storage_root = prover_storage.get_root_hash(fork_point)?;
+                let returned_storage_root =
+                    prover_storage.get_root_hash(SlotNumber::new_dangerous(fork_point))?;
                 let received_update_info = state_update_receiver.borrow().clone();
-                let received_storage_root =
-                    received_update_info.storage.get_root_hash(fork_point)?;
+                let received_storage_root = received_update_info
+                    .storage
+                    .get_root_hash(SlotNumber::new_dangerous(fork_point))?;
                 assert_eq!(returned_storage_root, received_storage_root);
             }
         }
@@ -715,8 +727,9 @@ mod tests {
                 0,
                 state_manager
                     .ledger_db
-                    .get_latest_finalized_rollup_height()
+                    .get_latest_finalized_slot_number()
                     .await?
+                    .get()
             );
         }
         da_service
@@ -732,8 +745,9 @@ mod tests {
             u64::MAX,
             state_manager
                 .ledger_db
-                .get_latest_finalized_rollup_height()
+                .get_latest_finalized_slot_number()
                 .await?
+                .get()
         );
         Ok(())
     }

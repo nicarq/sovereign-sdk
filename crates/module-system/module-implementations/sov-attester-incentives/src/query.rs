@@ -6,7 +6,7 @@ use sov_modules_api::optimistic::{BondingProofService, ProofOfBond};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::{ApiStateAccessor, Gas, GasMeter, Spec, StateCheckpoint, StateReader};
-use sov_rollup_interface::common::IntoSlotNumber;
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::storage::{SlotKey, Storage, StorageProof};
 use sov_state::User;
 
@@ -143,26 +143,25 @@ where
 
     fn get_bonding_proof(
         &self,
-        height: u64,
+        slot_number: SlotNumber,
     ) -> Option<ProofOfBond<<Self as BondingProofService>::StateProof>> {
-        let visible_slot_num = height.to_visible_slot_number();
-
         let info = self.state_update_info.borrow();
 
         let storage = info.storage.clone();
         let checkpoint = StateCheckpoint::new(storage, &self.has_kernel.kernel());
-        let state = ApiStateAccessor::<S>::new_with_height(
+
+        let mut state = ApiStateAccessor::<S>::new_with_true_slot_number_dangerous(
             &checkpoint,
             self.has_kernel.kernel_with_slot_mapping(),
-            Some(visible_slot_num),
-        );
-        let mut state = state.state_at_height(visible_slot_num).ok()?;
+            slot_number,
+        )
+        .ok()?;
         let proof = self
             .attester_incentives
             .get_bond_proof(self.attester_address.clone(), &mut state)?;
 
         Some(ProofOfBond {
-            claimed_rollup_height: visible_slot_num.as_true(),
+            claimed_slot_number: slot_number,
             proof,
         })
     }

@@ -168,8 +168,8 @@ pub async fn initialize_runner(
     let mut ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
 
     let (state_update_sender, _state_update_recv) = {
-        let rollup_height = ledger_db
-            .get_head_rollup_height()
+        let slot_number = ledger_db
+            .get_head_slot_number()
             .await
             .unwrap()
             .unwrap_or_default();
@@ -179,16 +179,14 @@ pub async fn initialize_runner(
             .unwrap()
             .map(|x| x + 1)
             .unwrap_or_default();
-        let latest_finalized_rollup_height = ledger_db
-            .get_latest_finalized_rollup_height()
-            .await
-            .unwrap();
+        let latest_finalized_slot_number =
+            ledger_db.get_latest_finalized_slot_number().await.unwrap();
 
         watch::channel(StateUpdateInfo {
             storage: genesis_storage,
             next_event_number,
-            rollup_height,
-            latest_finalized_rollup_height,
+            slot_number,
+            latest_finalized_slot_number,
         })
     };
 
@@ -325,7 +323,7 @@ where
         let (prev_state_root, genesis_state_root) = match self {
             InitVariant::Initialized(prev_state_root) => {
                 let (prover_storage, _ledger_state) = storage_manager.create_bootstrap_state()?;
-                let genesis_state_root = prover_storage.get_root_hash(0)?;
+                let genesis_state_root = prover_storage.get_root_hash(SlotNumber::GENESIS)?;
 
                 (prev_state_root, genesis_state_root)
             }

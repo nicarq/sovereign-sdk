@@ -111,7 +111,7 @@ fn bench_random_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
         .default_setup_db_in_path(tempdir.path())
         .unwrap();
     let TestData { db, random_key, .. } = prepare_data(size, state_rocksdb);
-    let version = db.get_next_version() - 1;
+    let version = db.last_version().unwrap();
     g.bench_with_input(
         BenchmarkId::new("bench_random_read", size),
         &(db, random_key, version),
@@ -136,7 +136,7 @@ fn bench_largest_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
         largest_key: _largest_key,
         ..
     } = prepare_data(size, state_rocksdb);
-    let version = db.get_next_version() - 1;
+    let version = db.last_version().unwrap();
     g.bench_with_input(
         BenchmarkId::new("bench_largest_read", size),
         &(db, _largest_key, version),
@@ -161,7 +161,7 @@ fn bench_not_found_read(g: &mut BenchmarkGroup<WallTime>, size: usize) {
         non_existing_key,
         ..
     } = prepare_data(size, state_rocksdb);
-    let version = db.get_next_version() - 1;
+    let version = db.last_version().unwrap();
     g.bench_with_input(
         BenchmarkId::new("bench_not_found_read", size),
         &(db, non_existing_key, version),

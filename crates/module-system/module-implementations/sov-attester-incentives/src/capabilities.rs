@@ -142,7 +142,7 @@ where
             error!(error = ?e, "Unable to deserialize the attestation.");
             ProcessAttestationErrors::InvalidAttestationFormat
         })?;
-        if attestation.proof_of_bond.claimed_rollup_height == SlotNumber::GENESIS {
+        if attestation.proof_of_bond.claimed_slot_number == SlotNumber::GENESIS {
             tracing::debug!("Cannot claim attestation for genesis");
             return Err(ProcessAttestationErrors::InvalidTransitionInvariant);
         }
@@ -195,8 +195,8 @@ where
         // Which with our variable gives:
         // min_height <= bonding_proof.rollup_height <= new_height_to_attest
         // If this invariant is respected, we can be sure that the attester was bonded at new_height_to_attest.
-        if !(min_height <= attestation.proof_of_bond.claimed_rollup_height
-            && attestation.proof_of_bond.claimed_rollup_height <= new_height_to_attest)
+        if !(min_height <= attestation.proof_of_bond.claimed_slot_number
+            && attestation.proof_of_bond.claimed_slot_number <= new_height_to_attest)
         {
             return Err(ProcessAttestationErrors::InvalidTransitionInvariant);
         }
@@ -209,7 +209,7 @@ where
 
         let check_initial_hash_status = self
             .check_initial_hash(
-                attestation.proof_of_bond.claimed_rollup_height,
+                attestation.proof_of_bond.claimed_slot_number,
                 &attestation,
                 state,
             )
@@ -225,7 +225,7 @@ where
 
         let check_transition = self
             .check_transition(
-                attestation.proof_of_bond.claimed_rollup_height,
+                attestation.proof_of_bond.claimed_slot_number,
                 &attestation,
                 state,
             )
@@ -246,7 +246,7 @@ where
 
                 self.slash_and_invalidate_attestation(
                     sender,
-                    attestation.proof_of_bond.claimed_rollup_height,
+                    attestation.proof_of_bond.claimed_slot_number,
                     state,
                 )?;
 
@@ -256,9 +256,9 @@ where
             CheckTransitionStatus::Valid => {}
         }
 
-        // Now we have to check whether the claimed_rollup_height is the max_attested_height.
+        // Now we have to check whether the claimed_slot_number is the max_attested_height.
         // If so, update the maximum attested height and reward the sender
-        if attestation.proof_of_bond.claimed_rollup_height == new_height_to_attest {
+        if attestation.proof_of_bond.claimed_slot_number == new_height_to_attest {
             // We reward the attester with the amount of gas used for the transition.
             let transition = self
                 .chain_state

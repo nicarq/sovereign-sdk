@@ -20,7 +20,7 @@ use sov_db::storage_manager::NativeChangeSet;
 pub use sov_kernels::basic::BasicKernel;
 pub use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec};
-use sov_modules_api::capabilities::{ChainState as _, Kernel};
+use sov_modules_api::capabilities::{ChainState as _, Kernel, RollupHeight};
 use sov_modules_api::da::Time;
 use sov_modules_api::prelude::utoipa::openapi::OpenApi;
 use sov_modules_api::prelude::UnwrapInfallible;
@@ -37,7 +37,7 @@ use sov_modules_stf_blueprint::{
 pub use sov_modules_stf_blueprint::{GenesisParams, Runtime};
 pub use sov_paymaster::Paymaster;
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
-use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
@@ -231,16 +231,16 @@ where
     /// Returns the current "true" rollup height.
     ///
     /// ## Note (soft-confirmations)
-    /// This value may be different from the value that would be returned by the [`ApiStateAccessor::rollup_height_to_access`] method inside
+    /// This value may be different from the value that would be returned by the [`ApiStateAccessor::visible_slot_number_to_access`] method inside
     /// [`TestRunner::query_visible_state`], the reason for that is that this version of the [`ApiStateAccessor`] only has access to the state up to the
     /// current _visible height_. See our soft-confirmation documentation for more details.
-    pub fn true_rollup_height(&self) -> SlotNumber {
-        self.slot_receipts.len().to_slot_number()
+    pub fn true_slot_number(&self) -> SlotNumber {
+        SlotNumber::new(self.slot_receipts.len() as u64)
     }
 
-    /// Returns the current rollup height accessible from the transaction context.
-    pub fn visible_rollup_height(&self) -> VisibleSlotNumber {
-        self.query_visible_state(|state| state.rollup_height_to_access().as_visible())
+    /// Returns the current visible slot number accessible from the transaction context.
+    pub fn visible_slot_number(&self) -> VisibleSlotNumber {
+        self.query_visible_state(|state| state.visible_slot_number_to_access())
     }
 
     /// A simple helper function to get the balance of a given address in the gas token currency with an [`InfallibleStateAccessor`].
@@ -291,11 +291,13 @@ where
             .chain_state()
             .base_fee_per_gas(&mut state_checkpoint).expect("Impossible to get the base fee per gas for the current slot. This is a bug. Please report it");
 
-        ApiStateAccessor::<S>::new_with_price(
+        ApiStateAccessor::<S>::new_with_price_and_heights(
             &state_checkpoint,
             runtime.kernel_with_slot_mapping(),
+            state_checkpoint.rollup_height_to_access(),
+            state_checkpoint.visible_slot_number_to_access(),
             base_fee_per_gas,
-        )
+        ).unwrap_or_else(|_| panic!("ApiStateAccessor creation failed but the requested block height {} or visible height {} is accessible. This is a bug. Please report it.", state_checkpoint.rollup_height_to_access(), state_checkpoint.visible_slot_number_to_access()))
     }
 
     /// Returns the state of the rollup at the most recent version of the rollup.
@@ -310,15 +312,12 @@ where
             .chain_state()
             .base_fee_per_gas(&mut state_checkpoint).expect("Impossible to get the base fee per gas for the current slot. This is a bug. Please report it");
 
-        let accessor = kernel.accessor(&mut state_checkpoint);
-        let true_slot_number = accessor.rollup_height_to_access();
-
-        ApiStateAccessor::<S>::new_with_custom_price_at_true_slot_number(
+        ApiStateAccessor::<S>::new_with_price_and_slot_number_dangerous(
             &state_checkpoint,
             runtime.kernel_with_slot_mapping(),
-            true_slot_number,
+           self.true_slot_number(),
             base_fee_per_gas,
-        )
+        ).unwrap_or_else(|_| panic!("ApiStateAccessor creation failed but the requested true height {} is accessible. This is a bug. Please report it.", self.true_slot_number()))
     }
 
     /// Queries the state of the rollup. Calls the given closure with an [`ApiStateAccessor`] and returns the result.
@@ -349,36 +348,14 @@ where
         query(&mut self.state_at_true_height())
     }
 
-    /// This method queries the visible state of the rollup at the given height. This is essentially the same thing as [`TestRunner::query_state_at_height`]
-    /// except that the provided height is mapped to the visible state at the specified height.
-    ///
-    /// ## Note
-    /// This method is mostly useful in the `soft-confirmations` context. In that case, the _true_ height may be higher than the
-    /// current _visible_ height from the default [`TestRunner::query_state_at_height`] method. This is because the execution of
-    /// blocks from non-preferred sequencers may be deferred to later.
-    pub fn query_visible_state_at_height<Output>(
-        &self,
-        height: u64,
-        query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
-    ) -> Option<Output> {
-        let mut current_state = self
-            .state_at_true_height()
-            .visible_state_at_height(height.to_slot_number())
-            .ok()?;
-        Some(query(&mut current_state))
-    }
-
     /// Queries the state of the rollup at the given height. This is essentially the same thing as [`TestRunner::query_visible_state`]
     /// followed by [`ApiStateAccessor::state_at_height`].
     pub fn query_state_at_height<Output>(
         &self,
-        height: u64,
+        height: RollupHeight,
         query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
     ) -> Option<Output> {
-        let mut current_state = self
-            .state_at_true_height()
-            .state_at_height(height.to_visible_slot_number())
-            .ok()?;
+        let mut current_state = self.state_at_true_height().state_at_height(height).ok()?;
         Some(query(&mut current_state))
     }
 
@@ -401,12 +378,7 @@ where
             &mut kernel_state,
         );
 
-        kernel_state.update_visible_rollup_height(
-            kernel_state
-                .visible_rollup_height()
-                .saturating_add(1)
-                .as_visible(),
-        );
+        kernel_state.update_visible_slot_number(kernel_state.visible_slot_number().advance(1));
 
         query(&mut state);
 
@@ -485,7 +457,11 @@ where
     }
 
     fn next_header(&mut self) -> MockBlockHeader {
-        let height = self.true_rollup_height().next().get();
+        let height = self
+            .true_slot_number()
+            .checked_add(1)
+            .expect("Slot number overflow")
+            .get();
         if let Some(timestamp) = &self.config.freeze_time {
             MockBlockHeader::new(height, timestamp.clone())
         } else {

@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use sov_mock_da::MockBlock;
+use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{InvalidProofError, ProofOutcome};
 use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
@@ -19,14 +20,15 @@ use crate::helpers::{build_proof, make_attestation_blob, setup, TestAttesterInce
 fn setup_invariant_tests() -> (TestRunner<RT, S>, TestAttester<S>, u64) {
     let (mut runner, genesis_attester, _, _) = setup();
 
-    runner.advance_slots(TEST_ROLLUP_FINALITY_PERIOD.get() as usize);
+    runner.advance_slots(TEST_ROLLUP_FINALITY_PERIOD as usize);
 
-    let expected_max_attested_height = TEST_ROLLUP_FINALITY_PERIOD.saturating_add(1);
+    let expected_max_attested_height =
+        SlotNumber::new(TEST_ROLLUP_FINALITY_PERIOD.saturating_add(1));
     // Use atomic, so it can be properly shared with TestRunner closures.
     let max_attested_height_ref = Arc::new(AtomicU64::default());
 
     // Increase the max attested height by attesting to up to the finality period + 1.
-    for height_to_attest in 1
+    for height_to_attest in 1i32
         .to_slot_number()
         .range_inclusive(expected_max_attested_height)
     {
@@ -170,7 +172,7 @@ fn test_can_attest_within_allowed_range() {
     // which are between `MAX_ATTESTED_HEIGHT - FINALITY_PERIOD + 1` and `MAX_ATTESTED_HEIGHT`.
     // Check that the attestations are valid but the sequence is not rewarded.
     let start_height_to_attest = max_attested_height
-        .checked_sub(TEST_ROLLUP_FINALITY_PERIOD.get())
+        .checked_sub(TEST_ROLLUP_FINALITY_PERIOD)
         .expect("Test setup has changed, should have go beyond finalization")
         .checked_add(1)
         .expect("Test setup has changed, rollup should have non-zero finalization period");
@@ -216,11 +218,11 @@ fn test_cannot_attest_genesis_height() {
     // Building genesis attestation
 
     let attestation_proof = runner.query_visible_state(|state| {
-        let genesis_height = SlotNumber::GENESIS;
+        let genesis_height = RollupHeight::GENESIS;
         let chain_state = sov_chain_state::ChainState::<S>::default();
         let genesis_root_hash = chain_state.get_genesis_hash(state).unwrap().unwrap();
 
-        let mut archival_state = state.state_at_height(genesis_height.as_visible()).unwrap();
+        let mut archival_state = state.state_at_height(genesis_height).unwrap();
 
         let proof_of_bond = TestAttesterIncentives::default()
             .bonded_attesters
@@ -234,7 +236,7 @@ fn test_cannot_attest_genesis_height() {
             slot_hash: genesis_block_hash,
             post_state_root: genesis_root_hash,
             proof_of_bond: sov_modules_api::optimistic::ProofOfBond {
-                claimed_rollup_height: genesis_height,
+                claimed_slot_number: SlotNumber::GENESIS,
                 proof: proof_of_bond,
             },
         }

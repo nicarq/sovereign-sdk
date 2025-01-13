@@ -1,7 +1,7 @@
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Spec, Storage};
-use sov_rollup_interface::common::IntoSlotNumber;
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::{ProvableNamespace, StateRoot};
 use sov_test_utils::{generate_bare_runtime, impl_standard_runtime_authenticator, TestSequencer};
 
@@ -145,7 +145,7 @@ fn begin_slot_hash_soft_confirmations_kernel() {
 
         let root_at_height = module
             .chain_state
-            .root_at_height(runner.visible_rollup_height().as_true(), state)
+            .root_at_height(runner.visible_slot_number().as_true(), state)
             .unwrap_infallible()
             .unwrap();
 
@@ -157,7 +157,7 @@ fn begin_slot_hash_soft_confirmations_kernel() {
     let slot_hash_at_height_one = runner.query_state(|state| {
         module
             .chain_state
-            .root_at_height(1.to_slot_number(), state)
+            .root_at_height(SlotNumber::ONE, state)
             .unwrap_infallible()
             .unwrap()
     });

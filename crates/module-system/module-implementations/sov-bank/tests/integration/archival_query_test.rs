@@ -1,6 +1,6 @@
 use sov_bank::{Bank, Coins};
+use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_rollup_interface::common::IntoSlotNumber;
 use sov_test_utils::{AsUser, TestSpec};
 
 use crate::helpers::*;
@@ -44,24 +44,24 @@ fn transfer_token_and_query_old_balances() {
             );
         });
 
-        for height_to_query in 0..=height {
+        for height_to_query in (0..=height).map(RollupHeight::new) {
             runner.query_visible_state(|state| {
-                let archival_state = &mut state
-                    .state_at_height(height_to_query.to_visible_slot_number())
-                    .unwrap();
+                let archival_state = &mut state.state_at_height(height_to_query).unwrap();
 
                 // Sender query deducted at every height
                 assert_eq!(
                     Bank::<TestSpec>::default()
                         .get_balance_of(&sender.address(), token_id, archival_state)
                         .unwrap_infallible(),
-                    Some(sender_initial_token_balance - AMOUNT_PER_TRANSFER * height_to_query)
+                    Some(
+                        sender_initial_token_balance - AMOUNT_PER_TRANSFER * height_to_query.get()
+                    )
                 );
 
-                let expected_receiver_balance = if height_to_query == 0 {
+                let expected_receiver_balance = if height_to_query == RollupHeight::GENESIS {
                     None
                 } else {
-                    Some(AMOUNT_PER_TRANSFER * height_to_query)
+                    Some(AMOUNT_PER_TRANSFER * height_to_query.get())
                 };
                 assert_eq!(
                     Bank::<TestSpec>::default()

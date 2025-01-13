@@ -148,7 +148,7 @@ where
                             validity_condition,
                             prover_address,
                         },
-                        rollup_height: state_transition_info.rollup_height,
+                        slot_number: state_transition_info.slot_number,
                     });
 
                     prover_state.set_to_proved(block_header_hash, block_proof);
@@ -203,8 +203,8 @@ where
         let public_data = AggregatedProofPublicData::<Address, Da::Spec, StateRoot> {
             validity_conditions,
             rewarded_addresses,
-            initial_rollup_height: initial_block_proof.rollup_height,
-            final_rollup_height: final_block_proof.rollup_height,
+            initial_slot_number: initial_block_proof.slot_number,
+            final_slot_number: final_block_proof.slot_number,
             genesis_state_root: genesis_state_root.clone(),
             initial_state_root: initial_block_proof.st.initial_state_root.clone(),
             final_state_root: final_block_proof.st.final_state_root.clone(),

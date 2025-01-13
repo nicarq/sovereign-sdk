@@ -3,6 +3,8 @@
 use std::io::Write;
 use std::sync::OnceLock;
 
+use sov_rollup_interface::common::VisibleSlotNumber;
+
 use crate::influxdb::{publisher, Metric};
 use crate::{MetricsTracker, MonitoringConfig};
 
@@ -226,7 +228,7 @@ pub struct TransactionProcessingMetrics {
     /// [`sov_rollup_interface::stf::ExecutionContext`]
     pub execution_context: sov_rollup_interface::stf::ExecutionContext,
     /// Height at which transaction is being executed
-    pub rollup_height: u64,
+    pub visible_slot_number: VisibleSlotNumber,
     /// Human-readable address of sequencer.
     pub sequencer_address: String,
     /// Call message
@@ -245,8 +247,8 @@ pub struct SlotProcessingMetrics {
     /// Height of DA layer when this slot has been applied.
     pub da_height: u64,
 
-    /// Visible rollup height at given slot.
-    pub rollup_height: u64,
+    /// Visible slot number at given slot.
+    pub visible_slot_number: VisibleSlotNumber,
 
     /// [`sov_rollup_interface::stf::ExecutionContext`]
     pub execution_context: sov_rollup_interface::stf::ExecutionContext,
@@ -264,8 +266,8 @@ pub struct UserSpaceSlotProcessingMetrics {
     /// Time it took for end slot hooks.
     pub end_slot_hooks_time: std::time::Duration,
 
-    /// Visible rollup height at given slot.
-    pub rollup_height: u64,
+    /// The visible slot number associated with these metrics.
+    pub visible_slot_number: VisibleSlotNumber,
 
     /// [`sov_rollup_interface::stf::ExecutionContext`]
     pub execution_context: sov_rollup_interface::stf::ExecutionContext,
@@ -323,7 +325,7 @@ impl Metric for TransactionProcessingMetrics {
                self.sequencer_address,
                //fields
                self.execution_time.as_micros(),
-               self.rollup_height,
+               self.visible_slot_number,
         )
     }
 }
@@ -332,13 +334,13 @@ impl Metric for SlotProcessingMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         write!(
             buffer,
-            "sov_rollup_slot_execution_time_us,context={:?} blobs_selection={},finalization={},rollup_height={},da_height={}",
+            "sov_rollup_slot_execution_time_us,context={:?} blobs_selection={},finalization={},visible_slot_number={},da_height={}",
             // Tags
             self.execution_context,
             // Fields
             self.blobs_selection_time.as_micros(),
             self.slot_finalization_time.as_micros(),
-            self.rollup_height,
+            self.visible_slot_number,
             self.da_height,
         )
     }
@@ -355,7 +357,7 @@ impl Metric for UserSpaceSlotProcessingMetrics {
             self.begin_slot_hooks_time.as_micros(),
             self.blobs_processing_time.as_micros(),
             self.end_slot_hooks_time.as_micros(),
-            self.rollup_height,
+            self.visible_slot_number,
         )
     }
 }

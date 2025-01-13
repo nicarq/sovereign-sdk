@@ -148,7 +148,8 @@ impl<S: Spec> ChainState<S> {
         }
     }
 
-    /// Computes the updated gas price following a block execution, provided the arguments.
+    /// Computes the gas price for the a slot given it's parent's gas consumption and the number of *slots* elapsed since
+    /// the parent *block* was executed.
     ///
     /// The computation of the base price for the current block is determined
     /// by the value of the `base_fee_per_gas`, `gas_limit` of the parent block as well as constant parameters
@@ -156,14 +157,28 @@ impl<S: Spec> ChainState<S> {
     /// The computation follows the one described in the EIP-1559 specification, where each dimension
     /// of the multi-dimensional gas price is independently updated following EIP-1559.
     pub fn compute_base_fee_per_gas(
+        mut parent_gas_info: BlockGasInfo<S::Gas>,
+        slots_since_last_update: u64,
+    ) -> <S::Gas as Gas>::Price {
+        // We need to compute the base fee per gas for the slots that are not yet visible to us in state, starting from the previous rollup height.
+        // We just iteratively compute the base fee per gas for each slot assuming zero gas used and a constant gas limit.
+        for _ in 0..slots_since_last_update {
+            let next_base_price = Self::compute_base_fee_update_for_slot(&parent_gas_info);
+            // TODO(@theochap): the gas limit should be updated dynamically `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/271`
+            parent_gas_info = BlockGasInfo::new(S::initial_gas_limit(), next_base_price);
+        }
+        parent_gas_info.base_fee_per_gas().clone()
+    }
+
+    fn compute_base_fee_update_for_slot(
         parent_gas_info: &BlockGasInfo<S::Gas>,
     ) -> <S::Gas as Gas>::Price {
-        let mut output = parent_gas_info.base_fee_per_gas.clone();
+        let mut output = parent_gas_info.base_fee_per_gas().clone();
         output
             .as_mut()
             .iter_mut()
-            .zip(parent_gas_info.gas_limit.as_ref().iter())
-            .zip(parent_gas_info.gas_used.as_ref().iter())
+            .zip(parent_gas_info.gas_limit().as_ref().iter())
+            .zip(parent_gas_info.gas_used().as_ref().iter())
             .for_each(|((base_fee_per_gas, gas_limit), gas_used)| {
                 *base_fee_per_gas = Self::compute_base_fee_per_gas_unidimensional(
                     *gas_limit,

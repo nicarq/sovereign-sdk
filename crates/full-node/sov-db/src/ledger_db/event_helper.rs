@@ -1,13 +1,14 @@
 use anyhow::{ensure, Context};
 use borsh::BorshDeserialize;
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::ledger_api::{EventIdentifier, PaginatedEventResponse};
 use sov_rollup_interface::stf::{EventKey, StoredEvent};
 
 use crate::ledger_db::rpc::LedgerRpcReader;
 use crate::ledger_db::rpc_constants::MAX_BATCHES_PER_REQUEST;
 use crate::ledger_db::LedgerDb;
-use crate::schema::tables::{BatchByNumber, EventByKey, SlotByRollupHeight};
-use crate::schema::types::{BatchNumber, EventNumber, RollupHeight, TxNumber};
+use crate::schema::tables::{BatchByNumber, EventByKey, SlotByNumber};
+use crate::schema::types::{BatchNumber, EventNumber, TxNumber};
 
 impl LedgerRpcReader {
     async fn get_events_by_key_helper<E>(
@@ -78,8 +79,8 @@ impl LedgerRpcReader {
     async fn get_events_by_key_slot_range_helper<E>(
         &self,
         event_key: &str,
-        slot_height_start: u64,
-        slot_height_end: u64,
+        slot_height_start: SlotNumber,
+        slot_height_end: SlotNumber,
         num_events: usize,
         next: Option<&str>,
     ) -> anyhow::Result<PaginatedEventResponse<E>>
@@ -90,7 +91,7 @@ impl LedgerRpcReader {
             None => {
                 let read_slot = |slot_num| async move {
                     self.db
-                        .get_async::<SlotByRollupHeight>(&RollupHeight(slot_num))
+                        .get_async::<SlotByNumber>(&slot_num)
                         .await
                         .with_context(|| format!("Failed to query slot with number: {}", slot_num))
                         .and_then(|slot_opt| {
@@ -225,8 +226,8 @@ where
 pub async fn get_events_by_key_slot_range_helper<E>(
     ledger_db: &LedgerDb,
     event_key: &str,
-    slot_height_start: u64,
-    slot_height_end: u64,
+    slot_height_start: SlotNumber,
+    slot_height_end: SlotNumber,
     num_events: usize,
     next: Option<&str>,
 ) -> anyhow::Result<PaginatedEventResponse<E>>

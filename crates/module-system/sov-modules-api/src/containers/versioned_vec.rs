@@ -2,7 +2,7 @@ use std::convert::Infallible;
 use std::iter::FusedIterator;
 use std::marker::PhantomData;
 
-use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::codec::BorshCodec;
 use sov_state::namespaces::{CompileTimeNamespace, Kernel};
 use sov_state::{EncodeLike, Prefix, StateCodec, StateItemCodec};
@@ -43,11 +43,11 @@ use crate::{
     serde::Deserialize,
 )]
 pub struct VersionedStateVec<V, Codec = BorshCodec> {
-    _phantom: PhantomData<V>,
     pub(crate) prefix: Prefix,
-    pub(crate) len_value: VersionedStateValue<u64, Codec>,
-    // The maximum length index is used to determine the maximum index at which the `len_value` map is defined.
-    pub(crate) max_len_index: KernelStateValue<u64, Codec>,
+    pub(crate) next_height: VersionedStateValue<SlotNumber, Codec>,
+    // The maximum length index is used to determine the maximum index at which
+    // the `len_value` map is defined.
+    pub(crate) max_len_index: KernelStateValue<SlotNumber, Codec>,
     pub(crate) elems: NamespacedStateMap<Kernel, SlotNumber, V, Codec>,
 }
 
@@ -67,8 +67,8 @@ type VersionedStateVecResult<V> = Result<V, VersionedStateVecError>;
 impl<V, Codec> VersionedStateVec<V, Codec>
 where
     Codec: Clone + StateCodec,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<SlotNumber>,
     Codec::KeyCodec: StateItemCodec<SlotNumber>,
-    Codec::ValueCodec: StateItemCodec<u64>,
 {
     /// Creates a new [`crate::StateVec`] with the given prefix and codec.
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
@@ -80,9 +80,8 @@ where
         let elems = NamespacedStateMap::with_codec(prefix.extended(b"e"), codec.clone());
         let max_len_index = KernelStateValue::with_codec(prefix.extended(b"m"), codec);
         Self {
-            _phantom: PhantomData,
             prefix,
-            len_value,
+            next_height: len_value,
             max_len_index,
             elems,
         }
@@ -97,7 +96,7 @@ where
 impl<V, Codec: Clone> VersionedStateVec<V, Codec>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<SlotNumber>,
     Codec::KeyCodec: StateItemCodec<SlotNumber>,
 {
     /// Initializes the state vector by setting the length to zero.
@@ -105,19 +104,19 @@ where
     /// ## Warning
     /// This step *needs* to be done before any other operation on the state vector to ensure that the state vector is in a valid state.
     pub fn initialize(&self, state: &mut impl KernelWriter) {
-        self.len_value.set_true_current(&0, state);
+        self.next_height
+            .set_true_current(&SlotNumber::GENESIS, state);
     }
-
-    fn set_true_len(&self, length: u64, state: &mut impl KernelWriter) {
-        self.len_value.set_true_current(&length, state);
+    fn set_true_len(&self, length: SlotNumber, state: &mut impl KernelWriter) {
+        self.next_height.set_true_current(&length, state);
     }
 
     fn elems(&self) -> &NamespacedStateMap<Kernel, SlotNumber, V, Codec> {
         &self.elems
     }
 
-    fn len_value(&self) -> &VersionedStateValue<u64, Codec> {
-        &self.len_value
+    fn len_value(&self) -> &VersionedStateValue<SlotNumber, Codec> {
+        &self.next_height
     }
 
     /// Returns the value for the given index.
@@ -128,7 +127,7 @@ where
     ) -> Result<Option<V>, <Reader as StateReader<Kernel>>::Error> {
         let len = self.len(state)?;
 
-        if index.get() < len {
+        if index.get() < len.get() {
             self.elems().get(&index, state)
         } else {
             Ok(None)
@@ -145,7 +144,7 @@ where
     ) -> Result<VersionedStateVecResult<V>, <Reader as StateReader<Kernel>>::Error> {
         let len = self.len(state)?;
 
-        Ok(if index.get() < len {
+        Ok(if index.get() < len.get() {
             self.elems()
                 .get(&index, state)?
                 .ok_or_else(|| VersionedStateVecError::MissingValue {
@@ -153,7 +152,10 @@ where
                     index,
                 })
         } else {
-            Err(VersionedStateVecError::IndexOutOfBounds { index, length: len })
+            Err(VersionedStateVecError::IndexOutOfBounds {
+                index,
+                length: len.get(),
+            })
         })
     }
 
@@ -167,22 +169,23 @@ where
     pub fn len<Reader: VersionReader>(
         &self,
         state: &mut Reader,
-    ) -> Result<u64, <Reader as StateReader<Kernel>>::Error> {
-        if let Some(len_index) = self.max_len_index.get(state)? {
-            // If the current height to access is greater than the maximum length index, we can use the length at the maximum length index.
-            // Otherwise, we can use the length at the current height to access.
-            if state.rollup_height_to_access().get() > len_index {
-                return Ok(self
-                    .len_value()
-                    .get(&len_index.to_slot_number(), state)?
-                    .expect("The length should always be defined at the maximum length index"));
-            } else {
-                return Ok(self.len_value().get_current(state)?.expect("All the values of the vector located at indexes below `max_len_index` should be defined"));
-            }
-        }
+    ) -> Result<SlotNumber, <Reader as StateReader<Kernel>>::Error> {
+        let Some(len_index) = self.max_len_index.get(state)? else {
+            // If the `max_len_index` is not set, this means that the vector is empty.
+            return Ok(SlotNumber::GENESIS);
+        };
 
-        // If the `max_len_index` is not set, this means that the vector is empty.
-        Ok(0)
+        let len_value = self.len_value();
+
+        // If the current height to access is greater than the maximum length index, we can use the length at the maximum length index.
+        // Otherwise, we can use the length at the current height to access.
+        if state.visible_slot_number_to_access().as_true() > len_index {
+            Ok(len_value
+                .get(&len_index, state)?
+                .expect("The length should always be defined at the maximum length index"))
+        } else {
+            Ok(len_value.get_current(state)?.expect("All the values of the vector located at indexes below `max_len_index` should be defined"))
+        }
     }
 
     fn last_index<Vs: VersionReader>(
@@ -192,7 +195,7 @@ where
         let len = self.len(state)?;
 
         match len.checked_sub(1) {
-            Some(i) => Ok(Some(i.to_slot_number())),
+            Some(i) => Ok(Some(i)),
             None => Ok(None),
         }
     }
@@ -209,22 +212,23 @@ where
         Codec::ValueCodec: EncodeLike<Vq, V>,
     {
         let len = self.len(state).unwrap_infallible();
+        self.elems().set(&len, value, state).unwrap_infallible();
 
-        let new_index = len.to_slot_number();
-
-        self.elems()
-            .set(&new_index, value, state)
-            .unwrap_infallible();
-        self.set_true_len(len + 1, state);
+        let mut new_len = len;
+        new_len.incr();
+        self.set_true_len(new_len, state);
 
         self.max_len_index
-            .set(&state.true_rollup_height().get(), state)
+            .set(&state.true_slot_number(), state)
             .unwrap_infallible();
     }
 
     /// Returns the last value in the vector at the version visible from the accessor, or [`None`] if
     /// empty.
-    pub fn last<Vs: VersionReader>(&self, state: &mut Vs) -> Result<Option<V>, Vs::Error> {
+    pub fn last<VersionedState: VersionReader>(
+        &self,
+        state: &mut VersionedState,
+    ) -> Result<Option<V>, VersionedState::Error> {
         match self.last_index(state)? {
             Some(i) => self.elems().get(&i, state),
             None => Ok(None),
@@ -250,7 +254,7 @@ where
         }
     }
 
-    /// Returns an iterator over all the values in the vector.
+    /// Returns an iterator over all visible values in the vector.
     pub fn iter<'a, 'ws, W>(
         &'a self,
         state: &'ws mut W,
@@ -260,11 +264,11 @@ where
     {
         let last_i = self.last_index(state)?.unwrap_or_default();
         Ok(VersionedStateVecIter {
+            _phantom: Default::default(),
             state_vec: self,
             state,
             last_i,
             next_i: SlotNumber::GENESIS,
-            _phantom: Default::default(),
         })
     }
 
@@ -293,22 +297,21 @@ where
     Kernel: CompileTimeNamespace,
     W: VersionReader,
 {
+    _phantom: PhantomData<Kernel>,
     state_vec: &'a VersionedStateVec<V, Codec>,
     state: &'ws mut W,
     last_i: SlotNumber,
     next_i: SlotNumber,
-    _phantom: std::marker::PhantomData<Kernel>,
 }
 
 impl<'a, 'ws, V, Codec, W> Iterator for VersionedStateVecIter<'a, 'ws, Kernel, V, Codec, W>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<SlotNumber>,
     Codec::KeyCodec: StateItemCodec<SlotNumber>,
     W: VersionReader,
 {
     type Item = Result<V, W::Error>;
-
     fn next(&mut self) -> Option<Self::Item> {
         match self.state_vec.get(self.next_i, self.state) {
             Err(e) => Some(Err(e)),
@@ -324,7 +327,7 @@ where
 impl<'a, 'ws, V, Codec, W> ExactSizeIterator for VersionedStateVecIter<'a, 'ws, Kernel, V, Codec, W>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<SlotNumber>,
     Codec::KeyCodec: StateItemCodec<SlotNumber>,
     W: VersionReader + InfallibleStateReaderAndWriter<Kernel>,
 {
@@ -336,7 +339,7 @@ where
 impl<'a, 'ws, V, Codec, W> FusedIterator for VersionedStateVecIter<'a, 'ws, Kernel, V, Codec, W>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<SlotNumber> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<SlotNumber>,
     Codec::KeyCodec: StateItemCodec<SlotNumber>,
     W: VersionReader + InfallibleStateReaderAndWriter<Kernel>,
 {
@@ -346,7 +349,7 @@ impl<'a, 'ws, V, Codec, W> DoubleEndedIterator
     for VersionedStateVecIter<'a, 'ws, Kernel, V, Codec, W>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<SlotNumber> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<SlotNumber>,
     Codec::KeyCodec: StateItemCodec<SlotNumber>,
     W: VersionReader,
 {
@@ -366,7 +369,6 @@ mod test {
     use std::fmt::Debug;
 
     use sov_mock_zkvm::MockZkvm;
-    use sov_rollup_interface::common::IntoSlotNumber;
     use sov_rollup_interface::execution_mode::Native;
     use sov_state::codec::BorshCodec;
     use sov_state::Prefix;
@@ -382,7 +384,7 @@ mod test {
     type TestSpec = crate::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
     #[test]
-    fn test_state_vec() {
+    fn test_versioned_state_vec() {
         let storage_manager = SimpleStorageManager::new();
         let storage = storage_manager.create_storage();
         let kernel = MockKernel::<TestSpec>::default();
@@ -395,7 +397,7 @@ mod test {
         state_vec.initialize(&mut kernel.accessor(&mut state));
 
         let mut kernel = MockKernel::<TestSpec>::default();
-        kernel.true_rollup_height = 0.to_slot_number();
+        kernel.true_slot_number = SlotNumber::GENESIS;
 
         test_cases().into_iter().for_each(|test_case_action| {
             check_test_case_action(&state_vec, test_case_action, &mut kernel, &mut state);
@@ -508,10 +510,10 @@ mod test {
             }
             TestCaseAction::CheckLen(expected) => {
                 let actual = state_vec.len(state).unwrap_infallible();
-                assert_eq!(actual, expected);
+                assert_eq!(actual.get(), expected);
             }
             TestCaseAction::ExtendAndPush(value) => {
-                kernel.true_rollup_height.incr();
+                kernel.true_slot_number.incr();
                 let state = &mut KernelStateAccessor::from_checkpoint(kernel, state);
                 state_vec.push(&value, state);
             }
@@ -521,7 +523,7 @@ mod test {
             }
             TestCaseAction::CheckGet(index, expected) => {
                 let actual = state_vec
-                    .get(index.to_slot_number(), state)
+                    .get(SlotNumber::new_dangerous(index), state)
                     .unwrap_infallible();
                 assert_eq!(actual, expected);
             }
@@ -539,15 +541,27 @@ mod test {
                 assert_eq!(contents, expected);
             }
             TestCaseAction::IncreaseVisibleHeight => {
-                state.update_version(state.rollup_height_to_access().get() + 1);
+                state.update_version(state.visible_slot_number_to_access().advance(1).get());
             }
             TestCaseAction::CheckHeights {
                 true_slot_num,
                 visible_slot_num,
             } => {
                 let state = &mut KernelStateAccessor::from_checkpoint(kernel, state);
-                assert_eq!(state.rollup_height_to_access().get(), true_slot_num);
-                assert_eq!(state.visible_rollup_height().get(), visible_slot_num);
+                assert_eq!(
+                    state.true_slot_number().get(),
+                    true_slot_num,
+                    "Unexpected true slot number. Expected {}, got {}",
+                    true_slot_num,
+                    state.true_slot_number().get()
+                );
+                assert_eq!(
+                    state.visible_slot_number().get(),
+                    visible_slot_num,
+                    "Unexpected visible slot number. Expected {}, got {}",
+                    visible_slot_num,
+                    state.visible_slot_number().get()
+                );
             }
         }
     }

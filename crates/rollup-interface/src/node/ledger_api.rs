@@ -7,7 +7,7 @@ use futures::stream::BoxStream;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::common::hex_string_serde;
+use crate::common::{hex_string_serde, SlotNumber};
 use crate::stf::{EventKey, StoredEvent, TxEffect, TxReceiptContents};
 use crate::zk::aggregated_proof::SerializedAggregatedProof;
 
@@ -126,7 +126,7 @@ pub enum SlotIdentifier {
     Hash(#[serde(with = "hex_string_serde")] [u8; 32]),
     /// The monotonically increasing number of the slot, ordered by the DA layer but starting from 0
     /// at the *rollup's* genesis.
-    Number(u64),
+    Number(SlotNumber),
 }
 
 /// A QueryMode specifies how much information to return in response to an RPC query
@@ -227,7 +227,7 @@ pub struct BatchResponse<B, Tx: TxReceiptContents, E> {
     /// information about the outcome of the batch.
     pub receipt: B,
     /// The rollup height this batch belongs to.
-    pub rollup_height: u64,
+    pub rollup_height: SlotNumber, // FIXME: rename to `slot_number` (API breaking change)
 }
 
 /// The response to a JSON-RPC request for a particular transaction.
@@ -266,9 +266,9 @@ pub enum ItemOrHash<T> {
 #[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ProofInfoResponse {
     /// Initial rollup height
-    pub initial_rollup_height: u64,
+    pub initial_slot_number: u64,
     /// Final rollup height.
-    pub final_rollup_height: u64,
+    pub final_slot_number: u64,
 }
 
 /// An RPC response for the latest aggregated proof.
@@ -295,10 +295,10 @@ pub trait LedgerStateProvider {
     type Error: ToString + Send + Sync + 'static;
 
     /// Get the latest rollup height in the ledger.
-    async fn get_head_rollup_height(&self) -> Result<Option<u64>, Self::Error>;
+    async fn get_head_slot_number(&self) -> Result<Option<SlotNumber>, Self::Error>;
 
     /// Get the latest rollup height in the ledger.
-    async fn get_latest_finalized_rollup_height(&self) -> Result<u64, Self::Error>;
+    async fn get_latest_finalized_slot_number(&self) -> Result<SlotNumber, Self::Error>;
 
     /// Get the latest slot in the ledger.
     async fn get_head<B, T, E>(
@@ -310,9 +310,8 @@ pub trait LedgerStateProvider {
         T: TxReceiptContents,
         E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
-        if let Some(head_number) = self.get_head_rollup_height().await? {
-            self.get_slot_by_rollup_height(head_number, query_mode)
-                .await
+        if let Some(head_number) = self.get_head_slot_number().await? {
+            self.get_slot_by_number(head_number, query_mode).await
         } else {
             Ok(None)
         }
@@ -423,9 +422,9 @@ pub trait LedgerStateProvider {
     async fn get_tx_numbers_by_hash(&self, hash: &[u8; 32]) -> Result<Vec<u64>, Self::Error>;
 
     /// Get a single slot by number.
-    async fn get_slot_by_rollup_height<B, T, E>(
+    async fn get_slot_by_number<B, T, E>(
         &self,
-        number: u64,
+        number: SlotNumber,
         query_mode: QueryMode,
     ) -> Result<Option<SlotResponse<B, T, E>>, Self::Error>
     where
@@ -497,8 +496,8 @@ pub trait LedgerStateProvider {
     /// db queries for adjacent items.
     async fn get_slots_range<B, T, E>(
         &self,
-        start: u64,
-        end: u64,
+        start: SlotNumber,
+        end: SlotNumber,
         query_mode: QueryMode,
     ) -> Result<Vec<Option<SlotResponse<B, T, E>>>, Self::Error>
     where
@@ -537,7 +536,7 @@ pub trait LedgerStateProvider {
     async fn resolve_slot_identifier(
         &self,
         slot_id: &SlotIdentifier,
-    ) -> Result<Option<u64>, Self::Error>;
+    ) -> Result<Option<SlotNumber>, Self::Error>;
 
     /// Resolve a [`BatchIdentifier`] into a batch number.
     async fn resolve_batch_identifier(
@@ -559,10 +558,10 @@ pub trait LedgerStateProvider {
     async fn get_latest_aggregated_proof(&self) -> anyhow::Result<Option<AggregatedProofResponse>>;
 
     /// Get a notification each time a slot is processed
-    fn subscribe_slots(&self) -> BoxStream<'static, u64>;
+    fn subscribe_slots(&self) -> BoxStream<'static, SlotNumber>;
 
     /// Get a notification each time a slot is finalized
-    fn subscribe_finalized_slots(&self) -> BoxStream<'static, u64>;
+    fn subscribe_finalized_slots(&self) -> BoxStream<'static, SlotNumber>;
 
     /// Get a notification each time an aggregated proof is processed
     // https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161

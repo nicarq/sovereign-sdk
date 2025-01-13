@@ -2,6 +2,8 @@
 
 use std::collections::hash_map::Entry;
 
+use sov_rollup_interface::common::SlotNumber;
+
 use crate::namespaces::ProvableCompileTimeNamespace;
 use crate::storage::{SlotKey, SlotValue, Storage};
 
@@ -305,7 +307,7 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         key: &SlotKey,
         value_reader: &S,
         witness: &S::Witness,
-        version: Option<u64>,
+        version: Option<SlotNumber>,
     ) -> (Option<SlotValue>, IsValueCached) {
         let read = self.get_without_caching(key, value_reader, witness, version);
         if read.1 == IsValueCached::No {
@@ -321,7 +323,7 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         key: &SlotKey,
         value_reader: &S,
         witness: &S::Witness,
-        version: Option<u64>,
+        version: Option<SlotNumber>,
     ) -> (Option<SlotValue>, IsValueCached) {
         match self.tx_cache.get_value(key) {
             ValueExistsInCache::Yes(cache_value) => (cache_value, IsValueCached::Yes),

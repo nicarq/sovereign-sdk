@@ -1,6 +1,7 @@
 use core::fmt;
 use std::collections::HashMap;
 
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::{
     namespaces, Accessory, IsValueCached, Namespace, ProvableStorageCache, SlotKey, SlotValue,
     StateAccesses, Storage,
@@ -18,11 +19,14 @@ use super::UniversalStateAccessor;
 /// when the `Delta` is frozen.
 pub(super) struct Delta<S: Storage> {
     pub(super) inner: S,
+    /// What version of the [`Storage`] the changes are based on.
+    ///
+    /// If absent, the latest version of the [`Storage`] is assumed.
+    pub(super) version: Option<SlotNumber>,
     witness: S::Witness,
     pub(crate) kernel_cache: ProvableStorageCache<namespaces::Kernel>,
     pub(crate) user_cache: ProvableStorageCache<namespaces::User>,
     pub(crate) accessory_writes: HashMap<SlotKey, Option<SlotValue>>,
-    pub(super) version: Option<u64>,
 }
 
 impl<S: Storage> Delta<S> {
@@ -37,7 +41,7 @@ impl<S: Storage> Delta<S> {
         }
     }
 
-    pub(super) fn with_witness(inner: S, witness: S::Witness, version: Option<u64>) -> Self {
+    pub(super) fn with_witness(inner: S, witness: S::Witness, version: Option<SlotNumber>) -> Self {
         Self {
             inner,
             witness,
@@ -140,7 +144,7 @@ pub struct AccessoryDelta<S: Storage> {
     // This inner storage is never accessed inside the zkVM because reads are
     // not allowed, so it can result as dead code.
     #[allow(dead_code)]
-    version: Option<u64>,
+    version: Option<SlotNumber>,
     writes: HashMap<SlotKey, Option<SlotValue>>,
     storage: S,
 }

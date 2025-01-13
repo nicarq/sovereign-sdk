@@ -5,12 +5,13 @@ use sov_bank::{config_gas_token_id, Bank};
 use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkvmHost;
+use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::{
     ApiStateAccessor, DaSpec, ProofOutcome, ProofSerializer as _, SerializedAttestation,
     SerializedChallenge, Spec, StateTransitionPublicData,
 };
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
-use sov_rollup_interface::common::IntoSlotNumber;
+use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
 use sov_state::{Storage, StorageProof};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{AttesterIncentives, TestRunner};
@@ -145,7 +146,7 @@ pub(crate) fn build_proof(
     .unwrap();
 
     let mut archival_state = state
-        .state_at_height(height_to_attest.as_visible())
+        .state_at_height(RollupHeight::new(rollup_height_to_attest))
         .unwrap();
 
     let proof_of_bond = TestAttesterIncentives::default()
@@ -158,7 +159,7 @@ pub(crate) fn build_proof(
         slot_hash: *current_transition.slot_hash(),
         post_state_root: *current_transition.post_state_root(),
         proof_of_bond: sov_modules_api::optimistic::ProofOfBond {
-            claimed_rollup_height: height_to_attest,
+            claimed_slot_number: height_to_attest,
             proof: proof_of_bond,
         },
     })
@@ -232,7 +233,7 @@ pub(crate) fn create_test_case(
 #[allow(clippy::type_complexity)]
 pub(crate) fn build_challenge(
     state: &mut ApiStateAccessor<S>,
-    challenge_slot: u64,
+    challenge_slot: SlotNumber,
     prover_address: <S as Spec>::Address,
 ) -> Result<
     StateTransitionPublicData<
@@ -242,7 +243,6 @@ pub(crate) fn build_challenge(
     >,
     Infallible,
 > {
-    let challenge_slot = challenge_slot.to_slot_number();
     let chain_state = ChainState::<S>::default();
     // Get the values for the transition being attested
     let current_transition = chain_state
@@ -281,7 +281,7 @@ pub(crate) fn make_challenge_blob(
         <<S as Spec>::Storage as Storage>::Root,
     >,
     is_valid: bool,
-    challenge_slot: u64,
+    challenge_slot: SlotNumber,
 ) -> Vec<u8> {
     let serialized_challenge = MockZkvmHost::create_serialized_proof(is_valid, challenge);
     let serialized_challenge = SerializedChallenge {
@@ -291,10 +291,7 @@ pub(crate) fn make_challenge_blob(
     task::block_in_place(move || {
         let f = async move {
             SovApiProofSerializer::<S>::new(None)
-                .serialize_challenge_blob_with_metadata(
-                    serialized_challenge,
-                    challenge_slot.to_slot_number(),
-                )
+                .serialize_challenge_blob_with_metadata(serialized_challenge, challenge_slot)
                 .await
                 .unwrap()
         };

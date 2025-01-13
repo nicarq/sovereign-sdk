@@ -27,6 +27,7 @@ use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect, TxProcessingError,
 };
 use sov_rest_utils::json_obj;
+use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_rollup_interface::node::DaSyncState;
 use thiserror::Error;
 use tokio::sync::watch;
@@ -161,7 +162,7 @@ where
             &slot_gas_meter,
             auth_output,
             &self.config.da_address,
-            ctx.visible_height,
+            ctx.visible_slot_number,
             tx_scratchpad,
             ExecutionContext::Sequencer,
             &NoOpControlFlow,
@@ -285,14 +286,14 @@ where
         &mut self,
         StateUpdateInfo {
             storage,
-            rollup_height,
+            slot_number,
             ..
         }: StateUpdateInfo<<Z::Spec as Spec>::Storage>,
     ) {
         let checkpoint = StateCheckpoint::new(storage, &Z::Rt::default().kernel());
 
         tracing::debug!(
-            da_height = rollup_height,
+            %slot_number,
             "The sequencer received a new state. Notifying the subscribers."
         );
 
@@ -430,7 +431,7 @@ where
         }
 
         let state_checkpoint = self.checkpoint.take().unwrap();
-        let visible_height = state_checkpoint.rollup_height_to_access().get();
+        let visible_slot_number = state_checkpoint.visible_slot_number_to_access();
 
         // This closure helps us make sure that we always put the
         // `StateCheckpoint` back into `self` at the end of the function.
@@ -438,7 +439,7 @@ where
             let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut checkpoint).expect("Impossible to get the gas price for the current slot. This is a bug. Please report it");
 
             let mut ctx = BatchConstructionContext {
-                visible_height,
+                visible_slot_number,
                 reward: SequencerReward::ZERO,
                 gas_price,
                 state_checkpoint: checkpoint,
@@ -587,7 +588,7 @@ where
 
 struct BatchConstructionContext<S: Spec> {
     state_checkpoint: StateCheckpoint<S>,
-    visible_height: u64,
+    visible_slot_number: VisibleSlotNumber,
     reward: SequencerReward,
     gas_price: <S::Gas as Gas>::Price,
     current_batch_size_in_bytes: usize,

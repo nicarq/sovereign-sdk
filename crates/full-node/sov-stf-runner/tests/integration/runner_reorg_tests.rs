@@ -8,6 +8,7 @@ use sov_mock_da::{
 };
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{FullyBakedTx, StateTransitionFunction};
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
@@ -165,7 +166,7 @@ fn get_saved_root_hash(
 
     ledger_db
         .get_head_slot()?
-        .map(|(number, _)| stf_state.get_root_hash(number.0))
+        .map(|(number, _)| stf_state.get_root_hash(number))
         .transpose()
 }
 
@@ -242,7 +243,9 @@ fn get_result_from_blocks(
     }
 
     let storage = storage_manager.create_storage();
-    let root_hash = storage.get_root_hash(l as u64).ok();
+    let root_hash = storage
+        .get_root_hash(SlotNumber::new_dangerous(l as u64))
+        .ok();
     (state_root, root_hash)
 }
 

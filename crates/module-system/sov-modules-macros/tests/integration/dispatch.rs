@@ -353,6 +353,7 @@ mod derive_genesis {
 // to avoid proc-macro resolution fallback error: https://github.com/rust-lang/rust/issues/83583
 mod derive_dispatch {
     use sov_modules_api::NestedEnumUtils;
+    use sov_rollup_interface::common::IntoSlotNumber;
 
     use super::*;
     #[derive(Default, Genesis, DispatchCall, MessageCodec)]
@@ -398,7 +399,7 @@ mod derive_dispatch {
             Default::default(),
             sequencer,
             sequencer_da,
-            1,
+            1.to_visible_slot_number(),
             ExecutionContext::Node,
         );
 

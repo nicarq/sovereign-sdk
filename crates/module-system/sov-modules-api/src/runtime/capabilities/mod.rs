@@ -24,6 +24,7 @@ mod sequencer;
 pub use sequencer::*;
 mod chain_state;
 pub use chain_state::*;
+use sov_rollup_interface::common::SlotNumber;
 
 use crate::Spec;
 
@@ -157,11 +158,11 @@ pub trait HasKernel<S: Spec>: Send + Sync + 'static {
 pub mod mocks {
     //! Mocks for the rollup capabilities module
 
-    use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber, VisibleSlotNumber};
+    use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 
     #[cfg(feature = "native")]
     use super::KernelWithSlotMapping;
-    use super::{Kernel, Spec};
+    use super::{Kernel, RollupHeight, Spec};
     use crate::BootstrapWorkingSet;
     #[cfg(feature = "native")]
     use crate::GasMeter;
@@ -169,21 +170,21 @@ pub mod mocks {
     /// A mock kernel for use in tests
     #[derive(Debug, Clone, Default)]
     pub struct MockKernel<S> {
-        /// The current rollup height
-        pub true_rollup_height: SlotNumber,
-        /// The rollup height at which transactions appear to be executing
-        pub visible_rollup_height: VisibleSlotNumber,
+        /// The current slot number
+        pub true_slot_number: SlotNumber,
+        /// The slot number at which transactions appear to be executing
+        pub visible_slot_number: VisibleSlotNumber,
         /// The next sequence number to expect for preferred blobs.
         pub next_sequence_number: u64,
         phantom: core::marker::PhantomData<S>,
     }
 
     impl<S: Spec> MockKernel<S> {
-        /// Create a new mock kernel with the given rollup height
-        pub fn new(true_rollup_height: u64, visible_height: u64) -> Self {
+        /// Create a new mock kernel with the given slot numbers
+        pub fn new(true_slot_number: u64, visible_slot_number: u64) -> Self {
             Self {
-                true_rollup_height: true_rollup_height.to_slot_number(),
-                visible_rollup_height: visible_height.to_visible_slot_number(),
+                true_slot_number: SlotNumber::new_dangerous(true_slot_number),
+                visible_slot_number: VisibleSlotNumber::new_dangerous(visible_slot_number),
                 next_sequence_number: 0,
                 phantom: core::marker::PhantomData,
             }
@@ -191,32 +192,40 @@ pub mod mocks {
 
         /// Simply increases all the heights by one
         pub fn increase_heights(&mut self) {
-            self.true_rollup_height.incr();
-            self.visible_rollup_height.incr();
+            self.true_slot_number.incr();
+            self.visible_slot_number.incr();
         }
     }
 
     #[cfg(feature = "native")]
     impl<S: Spec> KernelWithSlotMapping<S> for MockKernel<S> {
-        fn visible_rollup_height_at(
+        fn visible_slot_number_at(
             &self,
-            true_rollup_height: SlotNumber,
+            true_slot_number: SlotNumber,
             _state: &mut crate::ApiStateAccessor<S>,
         ) -> Option<VisibleSlotNumber> {
-            Some(true_rollup_height.as_visible())
+            Some(true_slot_number.as_visible())
         }
 
-        fn first_true_slot_number_for(
+        fn rollup_height_to_visible_slot_number(
             &self,
-            visible_rollup_height: VisibleSlotNumber,
+            height: super::RollupHeight,
+            _state: &mut crate::state::ApiStateAccessor<S>,
+        ) -> Option<VisibleSlotNumber> {
+            Some(VisibleSlotNumber::new_dangerous(height.get()))
+        }
+
+        fn true_slot_number_at_height(
+            &self,
+            height: super::RollupHeight,
             _state: &mut crate::state::ApiStateAccessor<S>,
         ) -> Option<SlotNumber> {
-            Some(visible_rollup_height.as_true())
+            Some(SlotNumber::new_dangerous(height.get()))
         }
 
         fn base_fee_per_gas_at(
             &self,
-            _height: VisibleSlotNumber,
+            _height: super::RollupHeight,
             state: &mut crate::state::ApiStateAccessor<S>,
         ) -> Option<<<S as Spec>::Gas as crate::Gas>::Price> {
             Some(state.gas_info().gas_price)
@@ -224,14 +233,97 @@ pub mod mocks {
     }
 
     impl<S: Spec> Kernel<S> for MockKernel<S> {
-        fn true_rollup_height(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> SlotNumber {
-            self.true_rollup_height
+        fn true_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> SlotNumber {
+            self.true_slot_number
         }
-        fn next_visible_rollup_height(
+        fn next_visible_slot_number(
             &self,
             _ws: &mut BootstrapWorkingSet<'_, S::Storage>,
         ) -> VisibleSlotNumber {
-            self.visible_rollup_height
+            self.visible_slot_number
         }
+
+        fn rollup_height(
+            &self,
+            _state: &mut BootstrapWorkingSet<'_, <S as Spec>::Storage>,
+        ) -> super::RollupHeight {
+            RollupHeight::new(self.visible_slot_number.get())
+        }
+
+        fn record_gas_usage(
+            &self,
+            _state: &mut crate::StateCheckpoint<S>,
+            _final_gas_info: super::BlockGasInfo<<S as Spec>::Gas>,
+            _rollup_height: RollupHeight,
+        ) {
+        }
+    }
+}
+
+/// A rollup "block number". Rollup heights increase in order (1, 2, 3, ...),
+/// regardless of what happens on the underlying DA layer.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    derive_more::Display,
+    derive_more::FromStr,
+    serde::Serialize,
+    serde::Deserialize,
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+)]
+pub struct RollupHeight(u64);
+
+impl RollupHeight {
+    /// The genesis rollup height.
+    pub const GENESIS: Self = Self(0);
+
+    /// The height of the first rollup block after genesis.
+    pub const ONE: Self = Self(1);
+
+    /// Create a new rollup height from a u64.
+    pub fn new(height: u64) -> Self {
+        Self(height)
+    }
+
+    /// Returns the inner value of a rollup height.
+    pub fn get(&self) -> u64 {
+        self.0
+    }
+
+    /// Increment a rollup height by one.
+    pub fn incr(&mut self) {
+        self.0 += 1;
+    }
+
+    /// See [u64::checked_sub]
+    pub fn checked_sub(self, rhs: u64) -> Option<Self> {
+        self.0.checked_sub(rhs).map(Self)
+    }
+
+    /// See [u64::checked_add]
+    pub fn checked_add(self, rhs: Self) -> Option<Self> {
+        self.0.checked_add(rhs.0).map(Self)
+    }
+
+    /// See [u64::saturating_sub]
+    pub fn saturating_sub(self, rhs: u64) -> Self {
+        Self(self.0.saturating_sub(rhs))
+    }
+
+    /// See [u64::saturating_add]
+    pub fn saturating_add(self, rhs: u64) -> Self {
+        Self(self.0.saturating_add(rhs))
+    }
+
+    /// Convert a rollup height to a slot number
+    pub fn to_slot_number(&self) -> SlotNumber {
+        SlotNumber::new_dangerous(self.0)
     }
 }

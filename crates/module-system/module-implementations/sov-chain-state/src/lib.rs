@@ -1,8 +1,9 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
+use sov_modules_api::capabilities::{BlockGasInfo, RollupHeight};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{ModuleRestApi, NotInstantiable};
+use sov_modules_api::{KernelStateMap, ModuleRestApi, NotInstantiable, StateCheckpoint, StateMap};
 /// Contains the call methods used by the module
 mod call;
 mod gas;
@@ -18,7 +19,6 @@ mod genesis;
 
 pub use gas::{NonZeroRatio, NonZeroRatioConversionError};
 pub use genesis::*;
-use serde::de::DeserializeOwned;
 use sov_modules_api::OperatingMode;
 
 /// Capabilities implementation for the module
@@ -39,56 +39,7 @@ use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::codec::BcsCodec;
 use sov_state::namespaces::Kernel;
 use sov_state::{Storage, User};
-
-/// A structure that contains block gas information.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, BorshSerialize, BorshDeserialize)]
-#[serde(bound = "GU: DeserializeOwned")]
-pub struct BlockGasInfo<GU: Gas> {
-    /// The gas limit of the block execution.
-    /// This value is dynamically adjusted over time to account for the increase
-    /// in proving/execution performance.
-    gas_limit: GU,
-    /// The gas used by the block execution.
-    /// This value is set to zero at the beginning of the block execution (in the [`ChainState::synchronize_chain`] capability),
-    /// and is populated once the block execution is complete.
-    gas_used: GU,
-    /// The base fee per gas used for the block execution. This value combined with the `gas_used`
-    /// can be used to compute the total base fee (expressed in gas tokens) paid by the block execution.
-    base_fee_per_gas: GU::Price,
-}
-
-impl<GU: Gas> BlockGasInfo<GU> {
-    /// Creates a new [`BlockGasInfo`] with the provided gas limit and base fee per gas.
-    /// The `gas_used` is set to zero. This method is meant to be called from the [`ChainState::synchronize_chain`] capability.
-    pub fn new(gas_limit: GU, base_fee_per_gas: GU::Price) -> Self {
-        Self {
-            gas_limit,
-            gas_used: GU::zero(),
-            base_fee_per_gas,
-        }
-    }
-
-    /// Updates the gas used by the block execution.
-    /// This method is meant to be called from the [`ChainState::finalize_chain_state`] capability.
-    pub fn update_gas_used(&mut self, gas_used: GU) {
-        self.gas_used = gas_used;
-    }
-
-    /// Returns the gas limit of the block execution.
-    pub fn gas_limit(&self) -> &GU {
-        &self.gas_limit
-    }
-
-    /// Returns the gas used by the block execution.
-    pub fn gas_used(&self) -> &GU {
-        &self.gas_used
-    }
-
-    /// Returns the base fee per gas used for the block execution.
-    pub fn base_fee_per_gas(&self) -> &GU::Price {
-        &self.base_fee_per_gas
-    }
-}
+use tracing::trace;
 
 #[derive(Derivative, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
 // We need to use derivative here because `Storage` doesn't implement `Eq` and `PartialEq`
@@ -137,17 +88,17 @@ impl<S: Spec> StateTransition<S> {
 
     /// Returns the total gas used for the block execution
     pub const fn gas_used(&self) -> &S::Gas {
-        &self.slot.gas_info.gas_used
+        self.slot.gas_info.gas_used()
     }
 
     /// Returns the gas price computed for the block execution
     pub const fn gas_price(&self) -> &<S::Gas as Gas>::Price {
-        &self.slot.gas_info.base_fee_per_gas
+        self.slot.gas_info.base_fee_per_gas()
     }
 
     /// Returns the gas limit of used for the block execution
     pub const fn gas_limit(&self) -> &S::Gas {
-        &self.slot.gas_info.gas_limit
+        self.slot.gas_info.gas_limit()
     }
 
     /// Returns the validity condition associated with the transition
@@ -189,17 +140,17 @@ impl<S: Spec> SlotInformation<S> {
 
     /// Returns the gas price of the transition.
     pub const fn gas_price(&self) -> &<S::Gas as Gas>::Price {
-        &self.gas_info.base_fee_per_gas
+        self.gas_info.base_fee_per_gas()
     }
 
     /// Returns the total gas used of the transition.
     pub const fn gas_used(&self) -> &S::Gas {
-        &self.gas_info.gas_used
+        self.gas_info.gas_used()
     }
 
     /// Returns the gas limit of the transition.
     pub const fn gas_limit(&self) -> &S::Gas {
-        &self.gas_info.gas_limit
+        self.gas_info.gas_limit()
     }
 
     /// Returns the block hash of the transition in progress
@@ -222,20 +173,27 @@ pub struct ChainState<S: Spec> {
 
     /// The height that should be loaded as the visible set at the start of the next block
     #[state]
-    next_visible_rollup_height: KernelStateValue<VisibleSlotNumber>,
+    next_visible_slot_number: KernelStateValue<VisibleSlotNumber>,
+
+    /// The rollup height of the current slot
+    // This is a normal state value, since the current rollup height is always known
+    #[state]
+    current_heights: StateValue<(RollupHeight, VisibleSlotNumber)>,
 
     #[state]
-    true_to_visible_rollup_height_history:
+    slot_number_history: StateMap<RollupHeight, VisibleSlotNumber>,
+
+    #[state]
+    true_slot_number_history: KernelStateMap<RollupHeight, SlotNumber>,
+
+    #[state]
+    true_to_visible_slot_number_history:
         sov_modules_api::KernelStateMap<SlotNumber, VisibleSlotNumber>,
 
-    #[state]
-    visible_to_true_slot_number_history:
-        sov_modules_api::KernelStateMap<VisibleSlotNumber, SlotNumber>,
-
     /// The real rollup height of the rollup.
-    /// This value is also required to create a [`sov_state::storage::KernelStateAccessor`]. See note on `visible_height` above.
+    /// This value is also required to create a [`sov_state::storage::KernelStateAccessor`]. See note on `visible_slot_number` above.
     #[state]
-    true_rollup_height: KernelStateValue<SlotNumber>,
+    true_slot_number: KernelStateValue<SlotNumber>,
 
     /// The current time, as reported by the DA layer
     #[state]
@@ -250,6 +208,10 @@ pub struct ChainState<S: Spec> {
     #[state]
     slots: VersionedStateVec<SlotInformation<S>, BcsCodec>,
 
+    /// A record of all previous rollup heights' gas information.
+    #[state]
+    gas_info: StateMap<RollupHeight, BlockGasInfo<S::Gas>>,
+
     /// The state root hashes from genesis to the current slot.
     /// ## Note
     /// There is a one slot-delay for the update of this state map because we cannot predict what will be the next
@@ -260,12 +222,12 @@ pub struct ChainState<S: Spec> {
 
     /// The height of the first DA block.
     /// Set at the rollup genesis. Since the rollup is always delayed by a constant amount of blocks,
-    /// we can use this value with the `true_rollup_height` to get the current height of the DA layer,
+    /// we can use this value with the `true_slot_number` to get the current height of the DA layer,
     /// using the following formula:
-    /// `current_da_height = true_rollup_height + genesis_da_height`.
+    /// `current_da_height = true_slot_number + genesis_da_height`.
     /// Should be the same as the `genesis_height` field in the `RunnerConfig` (`sov-stf-runner` crate)
     #[state]
-    genesis_da_height: StateValue<SlotNumber>,
+    genesis_da_height: StateValue<u64>,
 
     /// The rollup's code commitment.
     /// This value is initialized at genesis and can be used to verify the rollup's execution.
@@ -283,67 +245,55 @@ pub struct ChainState<S: Spec> {
 
 impl<S: Spec> ChainState<S> {
     /// Returns transition height in the current slot
-    pub fn true_rollup_height<T>(
+    pub fn true_slot_number<T>(
         &self,
         state: &mut T,
     ) -> Result<SlotNumber, <T as StateReader<Kernel>>::Error>
     where
         T: StateReaderAndWriter<Kernel>,
     {
-        Ok(self.true_rollup_height.get(state)?.unwrap_or_default())
+        Ok(self.true_slot_number.get(state)?.unwrap_or_default())
     }
 
-    /// Returns transition height for the next slot to start execution
-    pub fn next_visible_rollup_height(
+    /// Returns slot number for the next slot to start execution
+    pub fn next_visible_slot_number(
         &self,
         state: &mut BootstrapWorkingSet<'_, S::Storage>,
     ) -> VisibleSlotNumber {
-        self.next_visible_rollup_height
+        self.next_visible_slot_number
             .get(state)
             .unwrap_infallible()
             .unwrap_or_default()
     }
 
     /// Returns the visible rollup height corresponding to the provided real slot.
-    pub fn visible_rollup_height_at<T>(
+    pub fn visible_slot_number_at<T>(
         &self,
-        true_rollup_height: SlotNumber,
+        true_slot_number: SlotNumber,
         state: &mut T,
     ) -> Result<Option<VisibleSlotNumber>, T::Error>
     where
         T: StateReader<Kernel>,
     {
-        let visible_rollup_height = self
-            .true_to_visible_rollup_height_history
-            .get(&true_rollup_height, state)?;
+        let visible_slot_number = self
+            .true_to_visible_slot_number_history
+            .get(&true_slot_number, state)?;
 
-        Ok(visible_rollup_height)
-    }
+        trace!(?visible_slot_number, %true_slot_number, "ChainState::visible_slot_number_at");
 
-    /// See
-    /// [`sov_modules_api::runtime::capabilities::KernelWithSlotMapping::first_true_slot_number_for`].
-    pub fn first_true_slot_number_for<T>(
-        &self,
-        visible_rollup_height: VisibleSlotNumber,
-        state: &mut T,
-    ) -> Result<Option<SlotNumber>, T::Error>
-    where
-        T: StateReader<Kernel>,
-    {
-        self.visible_to_true_slot_number_history
-            .get(&visible_rollup_height, state)
+        Ok(visible_slot_number)
     }
 
     /// Returns transition height in the current slot
-    pub fn set_next_visible_rollup_height(
+    pub fn set_next_visible_slot_number(
         &self,
-        value: &VisibleSlotNumber,
+        next_visible_slot_number: VisibleSlotNumber,
         state: &mut KernelStateAccessor<S>,
     ) {
-        tracing::debug!(%value, "Setting next visible rollup height");
+        tracing::debug!(%next_visible_slot_number, "Setting next visible slot number");
 
-        self.next_visible_rollup_height
-            .set(value, state)
+        self.next_visible_slot_number
+            .set(&next_visible_slot_number, state)
             .unwrap_infallible();
     }
 
@@ -390,7 +340,7 @@ impl<S: Spec> ChainState<S> {
     pub fn genesis_da_height<Accessor: StateAccessor>(
         &self,
         state: &mut Accessor,
-    ) -> Result<Option<SlotNumber>, <Accessor as StateReader<User>>::Error> {
+    ) -> Result<Option<u64>, <Accessor as StateReader<User>>::Error> {
         self.genesis_da_height.get(state)
     }
 
@@ -413,30 +363,30 @@ impl<S: Spec> ChainState<S> {
     /// Returns the root hash of the state at the provided height.
     pub fn root_at_height<Accessor: VersionReader>(
         &self,
-        rollup_height: SlotNumber,
+        slot_number: SlotNumber,
         state: &mut Accessor,
     ) -> Result<Option<<S::Storage as Storage>::Root>, Accessor::Error> {
-        self.state_roots.get(rollup_height, state)
+        self.state_roots.get(slot_number, state)
     }
 
     /// Returns the slot information from the state at the provided height.
     pub fn slot_at_height<Accessor: VersionReader>(
         &self,
-        rollup_height: SlotNumber,
+        slot_number: SlotNumber,
         state: &mut Accessor,
     ) -> Result<Option<SlotInformation<S>>, Accessor::Error> {
-        self.slots.get(rollup_height, state)
+        self.slots.get(slot_number, state)
     }
 
     /// Returns the completed transition associated with the provided `transition_num`.
     pub fn get_historical_transitions<Accessor: VersionReader>(
         &self,
-        slot_num: SlotNumber,
+        slot_number: SlotNumber,
         state: &mut Accessor,
     ) -> Result<Option<StateTransition<S>>, Accessor::Error> {
-        if let Some(root) = self.state_roots.get(slot_num, state)? {
+        if let Some(root) = self.state_roots.get(slot_number, state)? {
             return Ok({
-                let maybe_slot = self.slots.get(slot_num, state)?;
+                let maybe_slot = self.slots.get(slot_number, state)?;
 
                 maybe_slot.map(|slot| StateTransition {
                     post_state_root: root,
@@ -448,6 +398,18 @@ impl<S: Spec> ChainState<S> {
         Ok(None)
     }
 
+    /// Record the gas usage for a given rollup height.
+    pub fn record_gas_usage(
+        &self,
+        state: &mut StateCheckpoint<S>,
+        final_gas_info: BlockGasInfo<S::Gas>,
+        rollup_height: RollupHeight,
+    ) {
+        self.gas_info
+            .set(&rollup_height, &final_gas_info, state)
+            .unwrap_infallible();
+    }
+
     /// Returns the current operating mode of the rollup.
     pub fn operating_mode<Accessor: StateReader<User>>(
         &self,
@@ -457,6 +419,27 @@ impl<S: Spec> ChainState<S> {
             .operating_mode
             .get(state)?
             .expect("Operating mode must be set at initialization"))
+    }
+
+    /// Get the current rollup height
+    pub fn rollup_height<Accessor: StateReader<User>>(
+        &self,
+        state: &mut Accessor,
+    ) -> Result<RollupHeight, Accessor::Error> {
+        Ok(self
+            .current_heights
+            .get(state)?
+            .map(|(rollup_height, _)| rollup_height)
+            .unwrap_or(RollupHeight::GENESIS))
+    }
+
+    /// Returns the visible slot number at the provided height, if that height exists.
+    pub fn visible_slot_number_at_height<Accessor: StateReader<User>>(
+        &self,
+        height: RollupHeight,
+        state: &mut Accessor,
+    ) -> Result<Option<VisibleSlotNumber>, Accessor::Error> {
+        self.slot_number_history.get(&height, state)
     }
 }
 

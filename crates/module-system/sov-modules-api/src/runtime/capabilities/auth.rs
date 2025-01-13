@@ -47,6 +47,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value_private;
+use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_rollup_interface::crypto::{CredentialId, PublicKey};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::TxHash;
@@ -149,7 +150,7 @@ pub trait TransactionAuthorizer<S: Spec> {
         &self,
         auth_data: &Self::AuthorizationData,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
-        height: u64,
+        visible_slot_number: VisibleSlotNumber,
         state: &mut impl InfallibleStateAccessor,
         context: ExecutionContext,
     ) -> anyhow::Result<Context<S>>;
@@ -159,7 +160,7 @@ pub trait TransactionAuthorizer<S: Spec> {
         &self,
         auth_data: &Self::AuthorizationData,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
-        height: u64,
+        visible_slot_number: VisibleSlotNumber,
         state: &mut impl InfallibleStateAccessor,
         execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>>;

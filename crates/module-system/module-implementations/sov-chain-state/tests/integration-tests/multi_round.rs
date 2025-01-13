@@ -1,7 +1,7 @@
 use sov_chain_state::ChainState;
 use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{ApiStateAccessor, Gas, GasArray, Spec, VersionReader};
+use sov_modules_api::{ApiStateAccessor, Gas, GasArray, Spec};
 use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
 use sov_test_utils::runtime::TestApplySlotOutput;
 use sov_test_utils::{get_gas_used, AsUser, BatchType, TestUser};
@@ -145,7 +145,7 @@ fn test_chain_state_kernel_updates() {
         NUM_TXS_PER_ROUND,
         &mut |round, state, _result| {
             assert_eq!(
-                state.rollup_height_to_access(),
+                state.true_slot_number_to_use(),
                 round.next(),
                 "The kernel should be updated to the current round"
             );

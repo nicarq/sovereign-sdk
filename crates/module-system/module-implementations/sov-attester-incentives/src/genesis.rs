@@ -17,7 +17,7 @@ pub struct AttesterIncentivesConfig<S: Spec> {
     /// A list of initial attesters and their bonded amount.
     pub initial_attesters: Vec<(S::Address, Amount)>,
     /// The finality period of the rollup (constant) in the number of DA layer slots processed.
-    pub rollup_finality_period: SlotNumber,
+    pub rollup_finality_period: SlotNumber, // TODO: use a newtype Delta<SlotNumber>
     /// The current maximum attested height
     pub maximum_attested_height: SlotNumber,
     /// The light client finalized height

@@ -1,5 +1,6 @@
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 
+use super::{BlockGasInfo, RollupHeight};
 use crate::{BootstrapWorkingSet, KernelStateAccessor, Spec, StateCheckpoint};
 
 /// Allows the kernel to map between a rollup height and the visible height at that slot.
@@ -9,24 +10,28 @@ pub trait KernelWithSlotMapping<S: Spec>: Sync + Send + 'static {
     /// Gets the visible rollup height as of the given true rollup height.
     // This method takes `ApiStateAccessor` rather than an `impl Trait` because
     // we need it to be object safe
-    fn visible_rollup_height_at(
+    fn visible_slot_number_at(
         &self,
-        true_rollup_height: SlotNumber,
+        true_slot_number: SlotNumber,
         state: &mut crate::state::ApiStateAccessor<S>,
     ) -> Option<VisibleSlotNumber>;
 
-    /// Opposite operation of [`KernelWithSlotMapping::visible_rollup_height_at`].
-    ///
-    /// It's important to keep in mind that there's **no** single true
-    /// [`SlotNumber`] for any given [`VisibleSlotNumber`]. This may be true for
-    /// some visible slot numbers, but not all of them.
-    ///
-    /// To obviate this problem, implementors of this trait MUST return the very
-    /// **first** true slot number that's associated with the given visible slot
-    /// number.
-    fn first_true_slot_number_for(
+    /// Returns the visible slot number at the given rollup height.
+    fn rollup_height_to_visible_slot_number(
         &self,
-        visible_rollup_height: VisibleSlotNumber,
+        height: RollupHeight,
+        state: &mut crate::state::ApiStateAccessor<S>,
+    ) -> Option<VisibleSlotNumber>;
+
+    /// Retrieves the true slot number during which a given rollup height was processed.
+    ///
+    /// Note that the true slot number for a rollup height is not known until that slot has been
+    /// finalized on the DA layer. However, the results of a slot may be known well before that point
+    /// (assuming that the sequencer is not malicious). In other words, querying for the true slot number
+    /// may return `None` even if the rollup height has already finished processing.
+    fn true_slot_number_at_height(
+        &self,
+        height: RollupHeight,
         state: &mut crate::state::ApiStateAccessor<S>,
     ) -> Option<SlotNumber>;
 
@@ -36,7 +41,7 @@ pub trait KernelWithSlotMapping<S: Spec>: Sync + Send + 'static {
     /// This method may return `None` if it is not possible to retrieve the correct base fee per gas from the state.
     fn base_fee_per_gas_at(
         &self,
-        height: VisibleSlotNumber,
+        height: super::RollupHeight,
         state: &mut crate::state::ApiStateAccessor<S>,
     ) -> Option<<<S as Spec>::Gas as crate::Gas>::Price>;
 }
@@ -52,10 +57,21 @@ pub trait Kernel<S: Spec> {
     }
 
     /// Return the current rollup height
-    fn true_rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> SlotNumber;
-    /// Return the next value of the rollup height at which transactions currently *appear* to be executing.
-    fn next_visible_rollup_height(
+    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> SlotNumber;
+    /// Return the next value of the slot number at which transactions currently *appear* to be executing.
+    fn next_visible_slot_number(
         &self,
         state: &mut BootstrapWorkingSet<'_, S::Storage>,
     ) -> VisibleSlotNumber;
+
+    /// Return the current rollup height
+    fn rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> RollupHeight;
+
+    /// Record the gas usage for a given rollup height.
+    fn record_gas_usage(
+        &self,
+        state: &mut StateCheckpoint<S>,
+        final_gas_info: BlockGasInfo<S::Gas>,
+        rollup_height: RollupHeight,
+    );
 }

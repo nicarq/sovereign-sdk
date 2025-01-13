@@ -14,17 +14,19 @@ use schemars::JsonSchema;
 use serde_with::serde_as;
 use sov_blob_storage::PreferredBatchData;
 use sov_modules_api::capabilities::{
-    BlobSelector, BlobSelectorOutput, HasKernel, SequencerType, TransactionAuthenticator,
+    BlobSelector, BlobSelectorOutput, ChainState, HasKernel, SequencerType,
+    TransactionAuthenticator,
 };
 use sov_modules_api::rest::utils::{json_obj, ErrorObject};
 use sov_modules_api::rest::ApiState;
 use sov_modules_api::{
-    BlobDataWithId, DaSpec, ExecutionContext, FullyBakedTx, NestedEnumUtils, RawTx, RejectReason,
-    RuntimeEventProcessor, RuntimeEventResponse, Spec, StateCheckpoint, StateUpdateInfo,
-    SyncStatus, TxChangeSet, VersionReader,
+    BlobDataWithId, DaSpec, ExecutionContext, FullyBakedTx, KernelStateAccessor, NestedEnumUtils,
+    RawTx, RejectReason, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateCheckpoint,
+    StateUpdateInfo, SyncStatus, TxChangeSet, VersionReader,
 };
 use sov_modules_stf_blueprint::{StfBlueprint, TransactionReceipt, TxEffect};
 use sov_rest_utils::errors::database_error_500;
+use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
 use sov_state::{NativeStorage, Storage};
@@ -145,7 +147,6 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
     ) -> anyhow::Result<(Self, Option<JoinHandle<()>>)> {
         let runtime: Z::Rt = Default::default();
         let blob_selector = runtime.blob_selector();
-
         assert!(accepts_preferred_batches(blob_selector), "Attempting to use preferred sequencer with an incompatible rollup. Set your sequencer config to `standard` in your rollup's config.toml file or change your kernel to be compatible with soft confirmations.");
         let (checkpoint_sender, checkpoint_receiver) = watch::channel(StateCheckpoint::new(
             latest_state_update.storage.clone(),
@@ -164,8 +165,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             StateCheckpoint::new(latest_state_update.storage.clone(), &runtime.kernel());
 
         // TODO: Use an older state root if necessary. cc @neysofu
-        let initial_height = latest_state_update.rollup_height;
-
+        let initial_height = latest_state_update.slot_number;
         let initial_state_root = latest_state_update
             .storage
             .get_root_hash(initial_height)
@@ -175,15 +175,44 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             tokio::sync::mpsc::channel(TxAcceptor::<Z>::MAX_BUFFERED_TXS);
 
         debug!(
-            initial_height,
-            %latest_state_update.latest_finalized_rollup_height,
+            %initial_height,
+            %latest_state_update.latest_finalized_slot_number,
             ?initial_state_root,
             "Instantiating the preferred batch builder"
         );
 
+        let latest_finalized_slot_number = latest_state_update.latest_finalized_slot_number;
+
+        let blobs_to_restore = match db.all_subsequent_blobs(&latest_state_update).await {
+            Ok(b) => b,
+            Err(err) => {
+                error!(%err, "Database error while re-applying state changes. This is a critical error. Database integrity is intact, but the sequencer may momentarily provide outdated state and break soft-confirmations.");
+                return Err(err);
+            }
+        };
+        let next_visible_slot_number = {
+            let mut current_visible_slot_number =
+                initial_checkpoint.visible_slot_number_to_access();
+            if let Some(next_height_increase) = blobs_to_restore
+                .iter()
+                .filter_map(|blob| blob.visible_slots_to_advance())
+                .next()
+            {
+                current_visible_slot_number.advance(next_height_increase as u64)
+            } else {
+                // Update the visible slot number to the latest finalized slot number if possible. However,
+                // we're only allowed to update it by at most u8::MAX slots at a time.
+                std::cmp::min(
+                    latest_finalized_slot_number.as_visible(),
+                    current_visible_slot_number.advance(u8::MAX as u64),
+                )
+            }
+        };
+
         let (acceptor, shutdown_handle) = TxAcceptor::new(
             initial_checkpoint.clone_with_empty_witness(),
             initial_state_root,
+            next_visible_slot_number,
             vec![], // TODO(https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2063): provide any missing blobs from the DA layer / DB
             result_sender,
             result_receiver,
@@ -200,7 +229,8 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         };
 
         // Restore soft-confirmed state that the node hasn't processed yet.
-        bb.try_update_state(latest_state_update).await?;
+        bb.try_update_state_with_blobs(latest_state_update, blobs_to_restore)
+            .await?;
 
         Ok((bb, Some(shutdown_handle)))
     }
@@ -309,6 +339,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
                 checkpoint.clone_with_empty_witness(),
                 // TODO(https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2063): provide proofs and non-preferred blobs here.
                 vec![],
+                checkpoint.visible_slot_number_to_access().advance(1), // TODO: This breaks if we call submit batch more frequently than blocks finalize.
                 None,
             )
             .await;
@@ -358,10 +389,27 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         Ok(())
     }
 
-    #[tracing::instrument(skip_all)]
     async fn try_update_state(
         &mut self,
         info: StateUpdateInfo<<Z::Spec as Spec>::Storage>,
+    ) -> anyhow::Result<()> {
+        let blobs_to_restore = match self.db.all_subsequent_blobs(&info).await {
+            Ok(b) => b,
+            Err(err) => {
+                error!(%err, "Database error while re-applying state changes. This is a critical error. Database integrity is intact, but the sequencer may momentarily provide outdated state and break soft-confirmations.");
+                return Err(err);
+            }
+        };
+
+        self.try_update_state_with_blobs(info, blobs_to_restore)
+            .await
+    }
+
+    #[tracing::instrument(skip_all)]
+    async fn try_update_state_with_blobs(
+        &mut self,
+        info: StateUpdateInfo<<Z::Spec as Spec>::Storage>,
+        blobs_to_apply: Vec<PreferredBbDbBlob>,
     ) -> anyhow::Result<()> {
         debug!(
             ?info,
@@ -377,14 +425,6 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         );
 
         let batches_to_process = {
-            let blobs_to_apply = match self.db.all_subsequent_blobs(&info).await {
-                Ok(b) => b,
-                Err(err) => {
-                    error!(%err, "Database error while re-applying state changes. This is a critical error. Database integrity is intact, but the sequencer may momentarily provide outdated state and break soft-confirmations.");
-                    return Err(err);
-                }
-            };
-
             let first_sequence_number = blobs_to_apply.first().map(|b| b.sequence_number());
 
             trace!(
@@ -442,22 +482,57 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         }
 
         // Reset the acceptor state inside a new slot.
-        self.acceptor
-            .move_to_next_slot(
-                checkpoint.clone_with_empty_witness(),
-                vec![],
-                Some(info.storage.get_root_hash(info.rollup_height)?),
-            )
-            .await;
 
+        let mut last_batch_was_complete = false;
         for (idx, (is_complete, batch)) in batches_to_process.iter().enumerate() {
+            last_batch_was_complete = *is_complete;
+            let next_visible_slot_number = {
+                let mut current_visible_slot_number = checkpoint.visible_slot_number_to_access();
+                current_visible_slot_number
+                    .advance(batch.inner.visible_slots_to_advance.get() as u64)
+            };
             trace!(
                 idx,
                 num_txs = batch.inner.data.len(),
                 "Re-applying batch state changes"
             );
+            let root = if idx == 0 {
+                Some(info.storage.get_root_hash(info.slot_number)?)
+            } else {
+                None
+            };
 
-            checkpoint = self.replay_batch(batch, checkpoint, *is_complete).await;
+            self.acceptor
+                .move_to_next_slot(
+                    checkpoint.clone_with_empty_witness(),
+                    vec![],
+                    next_visible_slot_number,
+                    root,
+                )
+                .await;
+
+            checkpoint = self.replay_batch(batch, checkpoint).await;
+        }
+
+        if last_batch_was_complete {
+            let next_visible_slot_number = {
+                let mut current_visible_slot_number = checkpoint.visible_slot_number_to_access();
+                // Update the visible slot number to the latest finalized slot number if possible. However,
+                // we're only allowed to update it by at most u8::MAX slots at a time.
+                std::cmp::min(
+                    info.latest_finalized_slot_number.as_visible(),
+                    current_visible_slot_number.advance(u8::MAX as u64),
+                )
+            };
+
+            self.acceptor
+                .move_to_next_slot(
+                    checkpoint.clone_with_empty_witness(),
+                    vec![],
+                    next_visible_slot_number,
+                    None,
+                )
+                .await;
         }
 
         self.checkpoint = Some(checkpoint);
@@ -470,7 +545,6 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         &mut self,
         batch: &WithCachedTxHashes<PreferredBatchData>,
         mut checkpoint: StateCheckpoint<Z::Spec>,
-        is_complete: bool,
     ) -> StateCheckpoint<Z::Spec> {
         for (tx, tx_hash) in batch.inner.data.iter().zip(batch.tx_hashes.iter()) {
             trace!(
@@ -495,12 +569,6 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
                     );
                 }
             }
-        }
-
-        if is_complete {
-            self.acceptor
-                .move_to_next_slot(checkpoint.clone_with_empty_witness(), vec![], None)
-                .await;
         }
 
         checkpoint
@@ -572,6 +640,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
     pub fn new(
         checkpoint: StateCheckpoint<<Z as RtAwareBatchBuilderSpec>::Spec>,
         initial_state_root: <<Z::Spec as Spec>::Storage as Storage>::Root,
+        next_visible_slot_number: VisibleSlotNumber,
         additional_blobs: Vec<AsyncBlobAndSender<Z>>,
         result_sender: Sender<TxResult<Z>>,
         result_receiver: Receiver<TxResult<Z>>,
@@ -592,6 +661,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
             Arc::new(config.admin_addresses.clone()),
             config.da_address.clone(),
             initial_state_root,
+            next_visible_slot_number,
             config.batch_builder.minimum_profit_per_tx,
             shutdown_notifier.clone(),
         ));
@@ -619,13 +689,14 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
 
     #[allow(clippy::too_many_arguments)]
     fn start_background_loop(
-        checkpoint: StateCheckpoint<Z::Spec>,
+        mut checkpoint: StateCheckpoint<Z::Spec>,
         tx_receiver: Receiver<FullyBakedTx>,
         result_sender: Sender<TxResult<Z>>,
         additional_blobs: Vec<AsyncBlobAndSender<Z>>,
         admin_addresses: Arc<Vec<<Z::Spec as Spec>::Address>>,
         sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
         initial_state_root: <<Z::Spec as Spec>::Storage as Storage>::Root,
+        next_visible_slot_number: VisibleSlotNumber,
         minimum_profit_per_tx: u64,
         shutdown_notifier: Sender<()>,
     ) -> JoinHandle<<<Z::Spec as Spec>::Storage as Storage>::Root> {
@@ -656,6 +727,15 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
                 should_execute_slot_hooks: true,
             };
             let stf = StfBlueprint::<Z::Spec, Z::Rt>::new();
+            let rt = Z::Rt::default();
+            let kernel = rt.kernel();
+            let mut accessor: KernelStateAccessor<'_, Z::Spec> =
+                KernelStateAccessor::from_checkpoint(&kernel, &mut checkpoint);
+            kernel.increment_rollup_height(&mut accessor, next_visible_slot_number);
+            tracing::info!(
+                "Applying batches in user space. using visible_slot_number: {}",
+                next_visible_slot_number
+            );
             let (_, _, _, checkpoint) = stf.apply_batches_in_user_space(
                 blob_selector_output,
                 checkpoint,
@@ -701,6 +781,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
         &mut self,
         new_checkpoint: StateCheckpoint<Z::Spec>,
         additional_blobs: Vec<AsyncBlobAndSender<Z>>,
+        next_visible_slot_number: VisibleSlotNumber,
         state_root: Option<<<Z::Spec as Spec>::Storage as Storage>::Root>,
     ) {
         trace!(
@@ -728,6 +809,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
             // root if they wish to process a slot that's not the next one, e.g.
             // when replaying transactions on top of old state.
             state_root.unwrap_or(prev_state_root),
+            next_visible_slot_number,
             self.minimum_profit_per_tx,
             self.shutdown_notifier.clone(),
         ));

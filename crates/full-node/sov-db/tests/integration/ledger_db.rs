@@ -1,9 +1,9 @@
 use futures::StreamExt;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
-use sov_db::schema::types::{RollupHeight, StoredStfInfo};
+use sov_db::schema::types::StoredStfInfo;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockDaSpec, MockHash};
 use sov_mock_zkvm::MockZkvmHost;
-use sov_rollup_interface::common::IntoSlotNumber;
+use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
 use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
@@ -64,7 +64,10 @@ async fn test_slot_subscription() {
         .unwrap();
     ledger_db.send_notifications();
 
-    assert_eq!(slots_subscription.next().await.unwrap(), 0);
+    assert_eq!(
+        slots_subscription.next().await.unwrap(),
+        SlotNumber::GENESIS
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -83,8 +86,8 @@ async fn test_save_aggregated_proof() {
     for i in 0..10 {
         let public_data = AggregatedProofPublicData::<MockAddress, MockDaSpec, Vec<u8>> {
             validity_conditions: vec![],
-            initial_rollup_height: i.to_slot_number(),
-            final_rollup_height: i.to_slot_number(),
+            initial_slot_number: i.to_slot_number(),
+            final_slot_number: i.to_slot_number(),
             genesis_state_root: vec![1],
             initial_state_root: vec![i],
             final_state_root: vec![i + 1],
@@ -128,11 +131,28 @@ async fn test_stf_info() {
     };
 
     let schema_batch = ledger_db
-        .materialize_stf_info(&original_stored_inf_info, &RollupHeight(0))
+        .materialize_stf_info(&original_stored_inf_info, SlotNumber::GENESIS)
         .unwrap();
 
     storage_manager.commit(schema_batch);
 
-    let stored_stf_info = ledger_db.get_stf_info(&RollupHeight(0)).unwrap().unwrap();
+    let stored_stf_info = ledger_db
+        .get_stf_info(SlotNumber::GENESIS)
+        .unwrap()
+        .unwrap();
     assert_eq!(original_stored_inf_info, stored_stf_info);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn next_slot_number_to_receive_is_none_at_startup() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
+    let ledger_storage = storage_manager.create_ledger_storage();
+
+    let ledger_db = LedgerDb::with_reader(ledger_storage).unwrap();
+    assert!(ledger_db
+        .get_stf_info_next_slot_number_to_receive()
+        .await
+        .unwrap()
+        .is_none());
 }

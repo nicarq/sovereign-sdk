@@ -19,7 +19,7 @@ pub use unmetered_state_wrapper::UnmeteredStateWrapper;
 mod http_api;
 
 #[cfg(feature = "native")]
-pub use http_api::ApiStateAccessor;
+pub use http_api::{ApiStateAccessor, ApiStateAccessorError};
 
 mod scratchpad;
 

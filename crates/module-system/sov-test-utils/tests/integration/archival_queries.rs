@@ -1,5 +1,6 @@
 use sov_chain_state::ChainState;
 use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
+use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::VersionReader;
@@ -42,7 +43,7 @@ fn test_query_visible_state_soft_confirmations() {
     // We now query the visible state at the current height, we should see the genesis state because the visible state is not updated.
     runner.query_visible_state(|state| {
         assert_eq!(
-            state.rollup_height_to_access().get(),
+            state.visible_slot_number_to_access().get(),
             0,
             "The visible state should be at the genesis height"
         );
@@ -59,7 +60,7 @@ fn test_query_visible_state_soft_confirmations() {
     // We now query the true state at the current height, we should see the updated state.
     runner.query_state(|state| {
         assert_eq!(
-            state.rollup_height_to_access().get(),
+            state.visible_slot_number_to_access().get(),
             1,
             "The true state should be higher than genesis"
         );
@@ -88,7 +89,7 @@ fn test_query_visible_state_soft_confirmations() {
     // We now query the visible state at the current height, we should still see the genesis state because the visible state is not updated.
     runner.query_visible_state(|state| {
         assert_eq!(
-            state.rollup_height_to_access().get(),
+            state.visible_slot_number_to_access().get(),
             0,
             "The value should be set to 0"
         );
@@ -102,39 +103,33 @@ fn test_query_visible_state_soft_confirmations() {
         );
     });
 
-    // We advance the slots to be behind by at least `DEFERRED_SLOTS_COUNT` to ensure that the visible state is updated
+    // We advance the slots to be behind by at least `DEFERRED_SLOTS_COUNT` to
+    // ensure that the visible state is updated.
     runner.advance_slots(config_value!("DEFERRED_SLOTS_COUNT") - 2);
 
     // We now query the visible state at the current height, the visible state should be updated.
     runner.query_visible_state(|state| {
-        assert_eq!(
-            state.rollup_height_to_access().get(),
-            1,
-            "The value should be set to 1"
-        );
+        assert_eq!(state.visible_slot_number_to_access().get(), 1);
 
         assert_ne!(
             sov_chain_state::ChainState::<S>::default()
                 .get_time(state)
                 .unwrap_infallible(),
-            genesis_time,
-            "The time should have been updated"
+            genesis_time
         );
     });
 
-    runner.query_visible_state_at_height(runner.true_rollup_height().get() - 1, |state| {
-        assert_eq!(
-            state.rollup_height_to_access().get(),
-            0,
-            "The value should be set to 0"
-        );
+    runner.query_state_at_height(
+        RollupHeight::new(runner.true_slot_number().get() - 1),
+        |state| {
+            assert_eq!(state.visible_slot_number_to_access().get(), 0);
 
-        assert_eq!(
-            sov_chain_state::ChainState::<S>::default()
-                .get_time(state)
-                .unwrap_infallible(),
-            genesis_time,
-            "The time should have been updated"
-        );
-    });
+            assert_eq!(
+                sov_chain_state::ChainState::<S>::default()
+                    .get_time(state)
+                    .unwrap_infallible(),
+                genesis_time
+            );
+        },
+    );
 }

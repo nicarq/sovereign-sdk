@@ -33,16 +33,16 @@ fn store_and_retrieve_standard_soft_confirmation_kernel() {
         let blob_storage = BlobStorage::<S>::default();
 
         assert!(blob_storage
-            .take_blobs_for_rollup_height(1.to_slot_number(), state)
+            .take_blobs_for_slot(1.to_slot_number(), state)
             .is_empty());
         assert!(blob_storage
-            .take_blobs_for_rollup_height(2.to_slot_number(), state)
+            .take_blobs_for_slot(2.to_slot_number(), state)
             .is_empty());
         assert!(blob_storage
-            .take_blobs_for_rollup_height(3.to_slot_number(), state)
+            .take_blobs_for_slot(3.to_slot_number(), state)
             .is_empty());
         assert!(blob_storage
-            .take_blobs_for_rollup_height(4.to_slot_number(), state)
+            .take_blobs_for_slot(4.to_slot_number(), state)
             .is_empty());
     });
 

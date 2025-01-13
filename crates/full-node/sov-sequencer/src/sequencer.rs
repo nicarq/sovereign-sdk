@@ -8,6 +8,7 @@ use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
     DaSyncState, FullyBakedTx, RawTx, RuntimeEventResponse, Spec, StateUpdateInfo,
 };
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::node::da::{DaService, Fee};
 use sov_rollup_interface::node::ledger_api::{
@@ -65,7 +66,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         let (events_sender, _) = broadcast::channel(Self::EVENTS_CHANNEL_SIZE);
 
         let latest_state_update = state_update_receiver.borrow().clone();
-        let latest_processed_rollup_height = latest_state_update.rollup_height;
+        let latest_processed_slot_number = latest_state_update.slot_number;
 
         let tx_status_manager = TxStatusManager::default();
 
@@ -98,7 +99,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
                 if let Err(error) = s
                     .loop_background_task(
                         state_update_receiver,
-                        latest_processed_rollup_height,
+                        latest_processed_slot_number,
                         ledger_db,
                         shutdown_receiver,
                         automatic_batch_production,
@@ -213,7 +214,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         mut state_update_receiver: StateUpdateReceiver<
             <<Ss::BatchBuilder as BatchBuilder>::Spec as Spec>::Storage,
         >,
-        mut latest_processed_rollup_height: u64,
+        mut latest_processed_slot_number: SlotNumber,
         ledger_db: LedgerDb,
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
         automatic_batch_production: bool,
@@ -241,7 +242,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             let info = (*state_update_receiver.borrow()).clone();
             self.handle_state_update_info(
                 info,
-                &mut latest_processed_rollup_height,
+                &mut latest_processed_slot_number,
                 &ledger_db,
                 automatic_batch_production,
             )
@@ -254,20 +255,29 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
     async fn handle_state_update_info(
         &self,
-        info: StateUpdateInfo<<<Ss::BatchBuilder as BatchBuilder>::Spec as Spec>::Storage>,
-        latest_processed_rollup_height: &mut u64,
+        state_update_info: StateUpdateInfo<
+            <<Ss::BatchBuilder as BatchBuilder>::Spec as Spec>::Storage,
+        >,
+        latest_processed_slot_number: &mut SlotNumber,
         ledger_db: &LedgerDb,
         automatic_batch_production: bool,
     ) -> anyhow::Result<()> {
-        self.batch_builder().await.update_state(info.clone()).await;
+        // Update storage. It is scoped, so batch builder lock is released early.
+        let storage_slot_number = {
+            let slot_number = state_update_info.slot_number;
+            let mut bb: MutexGuard<'_, <Ss as SequencerSpec>::BatchBuilder> =
+                self.batch_builder().await;
+            bb.update_state(state_update_info.clone()).await;
+            slot_number
+        };
 
         self.notify_processed_slots(
             ledger_db,
-            *latest_processed_rollup_height..=info.rollup_height,
+            latest_processed_slot_number.range_inclusive(storage_slot_number),
         )
         .await?;
 
-        *latest_processed_rollup_height = info.rollup_height;
+        *latest_processed_slot_number = state_update_info.slot_number;
 
         // Now that we retrieved the latest state, we can produce and send a new batch.
         if automatic_batch_production {
@@ -279,18 +289,20 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             self.submit_batch(txs).await?;
         }
 
+        *latest_processed_slot_number = state_update_info.slot_number;
+
         Ok(())
     }
 
     async fn notify_processed_slots(
         &self,
         ledger_db: &LedgerDb,
-        rollup_height_range: impl Iterator<Item = u64>,
+        slot_number_range: impl Iterator<Item = SlotNumber>,
     ) -> anyhow::Result<()> {
-        for rollup_height in rollup_height_range {
+        for slot_number in slot_number_range {
             let slot = ledger_db
-                .get_slot_by_rollup_height::<Ss::BatchReceipt, Ss::TxReceipt, Ss::Event>(
-                    rollup_height,
+                .get_slot_by_number::<Ss::BatchReceipt, Ss::TxReceipt, Ss::Event>(
+                    slot_number,
                     QueryMode::Full,
                 )
                 .await?

@@ -21,7 +21,7 @@ fn test_gas_price_soft_confirmations() {
 
     let chain_state = ChainState::<S>::default();
 
-    let initial_gas_price = runner.query_state(|state| {
+    let initial_gas_price = runner.query_visible_state(|state| {
         chain_state
             .base_fee_per_gas(state)
             .unwrap_infallible()
@@ -32,7 +32,7 @@ fn test_gas_price_soft_confirmations() {
 
     runner.advance_slots(1);
 
-    let next_gas_price = runner.query_state(|state| {
+    let next_gas_price = runner.query_visible_state(|state| {
         let next_gas_price = chain_state
             .base_fee_per_gas(state)
             .unwrap_infallible()
@@ -48,7 +48,7 @@ fn test_gas_price_soft_confirmations() {
 
     runner.advance_slots(1);
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         assert_eq!(
             chain_state
                 .base_fee_per_gas(state)
@@ -61,7 +61,7 @@ fn test_gas_price_soft_confirmations() {
 
     runner.advance_slots(config_value!("DEFERRED_SLOTS_COUNT") - 2);
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         assert_eq!(
             chain_state
                 .base_fee_per_gas(state)
@@ -75,7 +75,7 @@ fn test_gas_price_soft_confirmations() {
     runner.advance_slots(1);
 
     // The gas price should have changed because the visible slot height has changed
-    let next_gas_price = runner.query_state(|state| {
+    let next_gas_price = runner.query_visible_state(|state| {
         let next_gas_price = chain_state
             .base_fee_per_gas(state)
             .unwrap_infallible()
@@ -94,6 +94,8 @@ fn test_gas_price_soft_confirmations() {
                     .unwrap_infallible()
                     .unwrap()
                     .gas_info()
+                    .clone(),
+                1,
             ),
             "The gas price should be the one for the slot after the last visible slot"
         );
@@ -101,16 +103,16 @@ fn test_gas_price_soft_confirmations() {
         next_gas_price
     });
 
-    runner.advance_slots(config_value!("DEFERRED_SLOTS_COUNT") - 1);
+    runner.advance_slots(1);
 
-    runner.query_state(|state| {
-        assert_eq!(
+    runner.query_visible_state(|state| {
+        assert_ne!(
             chain_state
                 .base_fee_per_gas(state)
                 .unwrap_infallible()
                 .unwrap(),
             next_gas_price,
-            "The gas price should not have changed because the visible slot height has not changed"
+            "The gas price should have changed because the visible slot height has changed"
         );
     });
 }

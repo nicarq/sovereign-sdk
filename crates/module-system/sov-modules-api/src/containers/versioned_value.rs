@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::{BorshCodec, Kernel, Namespace, Prefix, StateCodec, StateItemCodec};
@@ -8,19 +6,21 @@ use unwrap_infallible::UnwrapInfallible;
 use super::map::NamespacedStateMap;
 use crate::{KernelStateAccessor, KernelWriter, Spec, StateReader, VersionReader};
 
-/// A `versioned` value stored in kernel state. The semantics of this type are different
+/// A `versioned` value stored in kernel state.
+///
+/// The semantics of this type are different
 /// depending on the priveleges of the accessor. For a standard ("user space") interaction
 /// via a `VersionedStateReadWriter`, only one version of this value is accessible. Inside the kernel,
 /// (where access is mediated by a [`KernelStateAccessor`]), all versions of this value are accessible.
 ///
-/// Under the hood, a versioned value is implemented as a map from a rollup height to a value. From the kernel, any
-/// value can be accessed
+/// Under the hood, a versioned value is implemented as a map from a rollup
+/// height to a value. From the kernel, any value can be accessed.
 // TODO: Automatically clear out old versions from state https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/383
 #[derive(
     Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, serde::Serialize, serde::Deserialize,
 )]
 pub struct VersionedStateValue<V, Codec = BorshCodec> {
-    _phantom: PhantomData<V>,
+    _phantom: std::marker::PhantomData<V>,
     elems: NamespacedStateMap<Kernel, SlotNumber, V, Codec>,
 }
 
@@ -34,8 +34,8 @@ where
     /// Creates a new [`VersionedStateValue`] with the given prefix and codec.
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
         Self {
-            _phantom: PhantomData,
             elems: NamespacedStateMap::with_codec(prefix, codec),
+            _phantom: std::marker::PhantomData,
         }
     }
 
@@ -61,13 +61,14 @@ where
         &self,
         state: &mut Reader,
     ) -> Result<Option<V>, <Reader as StateReader<Kernel>>::Error> {
-        self.elems.get(&state.rollup_height_to_access(), state)
+        self.elems
+            .get(&state.visible_slot_number_to_access(), state)
     }
 
     /// Only the kernel working set can write to versioned values
     pub fn set_true_current<Accessor: KernelWriter>(&self, value: &V, state: &mut Accessor) {
         self.elems
-            .set(&state.true_rollup_height(), value, state)
+            .set(&state.true_slot_number(), value, state)
             .unwrap_infallible();
     }
 
@@ -102,6 +103,7 @@ mod tests {
     use unwrap_infallible::UnwrapInfallible;
 
     use crate::capabilities::mocks::MockKernel;
+    use crate::capabilities::RollupHeight;
     use crate::runtime::capabilities::Kernel as _;
     use crate::{StateCheckpoint, VersionedStateValue};
 
@@ -116,14 +118,14 @@ mod tests {
         let mut state = StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new(b"test".to_vec());
-        let value = VersionedStateValue::<u64>::with_codec(prefix.clone(), BorshCodec);
+        let value = VersionedStateValue::<RollupHeight>::with_codec(prefix.clone(), BorshCodec);
 
         // Initialize a value in the kernel state during slot 4
         let mut kernel_state = kernel.accessor(&mut state);
-        value.set_true_current(&100, &mut kernel_state);
+        value.set_true_current(&RollupHeight::new(100), &mut kernel_state);
         assert_eq!(
             value.get_current(&mut kernel_state).unwrap_infallible(),
-            Some(100)
+            Some(RollupHeight::new(100))
         );
 
         // Try to read the value from kernel space with the rollup height set to 1. Should fail.
@@ -131,7 +133,10 @@ mod tests {
 
         // Try to read the value from kernel space with the rollup height set to 4. Should succeed.
         state.update_version(4);
-        assert_eq!(value.get_current(&mut state).unwrap_infallible(), Some(100));
+        assert_eq!(
+            value.get_current(&mut state).unwrap_infallible(),
+            Some(RollupHeight::new(100))
+        );
     }
 
     #[test]
@@ -143,19 +148,23 @@ mod tests {
         let mut state = StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new(b"test".to_vec());
-        let value = VersionedStateValue::<u64>::with_codec(prefix.clone(), BorshCodec);
+        let value = VersionedStateValue::<RollupHeight>::with_codec(prefix.clone(), BorshCodec);
 
         // Initialize a versioned value in the kernel state to be available starting at slot 2
 
         let mut kernel_state = kernel.accessor(&mut state);
-        value.set(&2.to_slot_number(), &100, &mut kernel_state);
+        value.set(
+            &2.to_slot_number(),
+            &RollupHeight::new(100),
+            &mut kernel_state,
+        );
         assert_eq!(
             value
                 .get(&2.to_slot_number(), &mut kernel_state)
                 .unwrap_infallible(),
-            Some(100)
+            Some(RollupHeight::new(100))
         );
-        value.set_true_current(&17, &mut kernel_state);
+        value.set_true_current(&RollupHeight::new(17), &mut kernel_state);
 
         // Try to read the value from user space with the rollup height set to 1. Should fail.
         assert_eq!(value.get_current(&mut state).unwrap_infallible(), None);
@@ -163,10 +172,16 @@ mod tests {
         // Try to read the value from user space with the rollup height set to 2. Should succeed.
         state.update_version(2);
 
-        assert_eq!(value.get_current(&mut state).unwrap_infallible(), Some(100));
+        assert_eq!(
+            value.get_current(&mut state).unwrap_infallible(),
+            Some(RollupHeight::new(100))
+        );
 
         // Try to read the value from user space with the rollup height set to 4. Should succeed.
         state.update_version(4);
-        assert_eq!(value.get_current(&mut state).unwrap_infallible(), Some(17));
+        assert_eq!(
+            value.get_current(&mut state).unwrap_infallible(),
+            Some(RollupHeight::new(17))
+        );
     }
 }

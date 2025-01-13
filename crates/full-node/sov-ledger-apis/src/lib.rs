@@ -14,7 +14,7 @@ use futures::StreamExt;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use sov_db::schema::types::{BatchNumber, EventNumber, RollupHeight, TxNumber};
+use sov_db::schema::types::{BatchNumber, EventNumber, TxNumber};
 use sov_modules_api::{EventModuleName, RuntimeEventResponse};
 use sov_rest_utils::errors::{
     self, database_error_response_500, internal_server_error_response_500, not_found_404,
@@ -23,7 +23,7 @@ use sov_rest_utils::{
     json_obj, preconfigured_router_layers, serve_generic_ws_subscription, ApiResult, ErrorObject,
     Path, Query,
 };
-use sov_rollup_interface::common::{HexHash, HexString};
+use sov_rollup_interface::common::{HexHash, HexString, SlotNumber};
 use sov_rollup_interface::node::ledger_api::{
     AggregatedProofResponse, BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier,
     FinalityStatus, IncludeChildren, ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset,
@@ -203,30 +203,30 @@ where
     async fn get_slot(
         State(ledger): State<T>,
         include_children_opt: Option<Query<IncludeChildren>>,
-        Extension(RollupHeight(rollup_height)): Extension<RollupHeight>,
+        Extension(slot_number): Extension<SlotNumber>,
     ) -> ApiResult<Slot<B, TxReceipt, E>> {
         match ledger
-            .get_slot_by_rollup_height::<B, TxReceipt, Event<E>>(
-                rollup_height,
+            .get_slot_by_number::<B, TxReceipt, Event<E>>(
+                slot_number,
                 include_children_opt.map(|q| q.0).unwrap_or_default().into(),
             )
             .await
         {
             Ok(Some(slot_response)) => Ok(Slot::new(slot_response).into()),
-            Ok(None) => Err(errors::not_found_404("Slot", rollup_height)),
+            Ok(None) => Err(errors::not_found_404("Slot", slot_number)),
             Err(err) => Err(errors::database_error_response_500(err)),
         }
     }
 
     async fn get_slot_events(
         State(ledger): State<T>,
-        Extension(RollupHeight(rollup_height)): Extension<RollupHeight>,
+        Extension(slot_number): Extension<SlotNumber>,
         event_key_prefix_opt: Option<Query<EventFilter>>,
     ) -> ApiResult<Vec<Event<E>>> {
         let filter = event_key_prefix_opt.map(|q| q.0.prefix.into());
         let events = ledger
             .get_filtered_slot_events::<B, TxReceipt, Event<E>>(
-                &SlotIdentifier::Number(rollup_height),
+                &SlotIdentifier::Number(slot_number),
                 filter,
             )
             .await
@@ -336,12 +336,12 @@ where
         next: Next,
     ) -> Result<Response, Response> {
         let latest_slot = ledger
-            .get_head_rollup_height()
+            .get_head_slot_number()
             .await
             .map_err(database_error_response_500)?
             .ok_or_else(|| not_found_404("Slot", "latest"))?;
 
-        request.extensions_mut().insert(RollupHeight(latest_slot));
+        request.extensions_mut().insert(latest_slot);
         Ok(next.run(request).await)
     }
 
@@ -352,7 +352,9 @@ where
         next: Next,
     ) -> Result<Response, Response> {
         let identifier = match get_path_item(&path_values, "slotId")? {
-            NumberOrHash::Number(number) => SlotIdentifier::Number(number),
+            NumberOrHash::Number(number) => {
+                SlotIdentifier::Number(SlotNumber::new_dangerous(number))
+            }
             NumberOrHash::Hash(hash) => SlotIdentifier::Hash(hash.0),
         };
 
@@ -369,7 +371,7 @@ where
             // can remove this workaround and do the right thing.
             .ok_or_else(|| not_found_404("Slot", "unknown"))?;
 
-        request.extensions_mut().insert(RollupHeight(rollup_height));
+        request.extensions_mut().insert(rollup_height);
         Ok(next.run(request).await)
     }
 
@@ -443,14 +445,14 @@ where
     async fn resolve_batch_offset(
         State(ledger): State<T>,
         path_values: PathMap,
-        Extension(rollup_height): Extension<RollupHeight>,
+        Extension(slot_number): Extension<SlotNumber>,
         mut request: Request,
         next: Next,
     ) -> Result<Response, Response> {
         let batch_offset = get_path_number(&path_values, "batchOffset")?;
 
         let identifier = BatchIdentifier::SlotIdAndOffset(SlotIdAndOffset {
-            slot_id: SlotIdentifier::Number(rollup_height.0),
+            slot_id: SlotIdentifier::Number(slot_number),
             offset: batch_offset,
         });
         let batch_number = ledger
@@ -560,7 +562,7 @@ where
                             .collect::<Vec<_>>();
 
                         Ok(SlotEvents {
-                            rollup_height: slot_num,
+                            rollup_height: slot_num.get(),
                             events,
                         })
                     }
@@ -602,9 +604,7 @@ where
                     let ledger = ledger.clone();
                     async move {
                         let Ok(Some(slot)) = ledger
-                            .get_slot_by_rollup_height::<B, TxReceipt, Event<E>>(
-                                slot_num, query_mode,
-                            )
+                            .get_slot_by_number::<B, TxReceipt, Event<E>>(slot_num, query_mode)
                             .await
                         else {
                             anyhow::bail!("Slot with number {} does not exist", slot_num);
@@ -630,7 +630,7 @@ where
         };
 
         ws.on_upgrade(move |socket| async move {
-            let Ok(last_notified_slot) = ledger.get_latest_finalized_rollup_height().await else {
+            let Ok(last_notified_slot) = ledger.get_latest_finalized_slot_number().await else {
                 return;
             };
 
@@ -640,10 +640,10 @@ where
                     let ledger = ledger.clone();
                     async move {
                         let mut slots = vec![];
-                        for rollup_height in last_notified_slot..=slot_num {
+                        for slot_number in last_notified_slot.range_inclusive(slot_num) {
                             let slot_result = match ledger
-                                .get_slot_by_rollup_height::<B, TxReceipt, Event<E>>(
-                                    rollup_height,
+                                .get_slot_by_number::<B, TxReceipt, Event<E>>(
+                                    slot_number,
                                     query_mode,
                                 )
                                 .await
@@ -651,7 +651,7 @@ where
                                 Ok(Some(slot)) => Ok(Slot::<B, TxReceipt, E>::new(slot)),
                                 Ok(None) => Err(anyhow::anyhow!(
                                     "Slot with number {} does not exist",
-                                    rollup_height
+                                    slot_number
                                 )),
                                 Err(err) => Err(anyhow::anyhow!(
                                     "Failed to query slot with number: {}",
@@ -752,7 +752,7 @@ struct Batch<B, TxReceipt: TxReceiptContents, E> {
     pub tx_range: Range<u64>,
     pub receipt: B,
     pub txs: Vec<Transaction<TxReceipt, E>>,
-    pub rollup_height: u64,
+    pub slot_number: SlotNumber,
 }
 
 impl<B, TxReceipt: TxReceiptContents, E> Batch<B, TxReceipt, E> {
@@ -771,7 +771,7 @@ impl<B, TxReceipt: TxReceiptContents, E> Batch<B, TxReceipt, E> {
             tx_range: batch.tx_range,
             receipt: batch.receipt,
             txs,
-            rollup_height: batch.rollup_height,
+            slot_number: batch.rollup_height,
         }
     }
 }

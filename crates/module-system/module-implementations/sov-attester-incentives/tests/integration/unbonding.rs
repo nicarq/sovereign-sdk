@@ -84,7 +84,10 @@ fn try_unbond_successful() {
         // Increase the light client finalized height
         TestAttesterIncentives::default()
             .light_client_finalized_height
-            .set(&(INIT_BONDING_HEIGHT + TEST_ROLLUP_FINALITY_PERIOD), state)
+            .set(
+                &INIT_BONDING_HEIGHT.saturating_add(TEST_ROLLUP_FINALITY_PERIOD),
+                state,
+            )
             .unwrap_infallible();
     });
 

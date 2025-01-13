@@ -66,7 +66,7 @@ impl<R: Runtime<S>, S: Spec> TxSender<S, R> for SequencerTxSender<R, S> {
             .data
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Batch not found"))?
-            .rollup_height;
+            .slot_number;
 
         Ok(slot_number)
     }

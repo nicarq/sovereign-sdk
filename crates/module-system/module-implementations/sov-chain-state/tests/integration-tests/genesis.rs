@@ -1,4 +1,5 @@
 use sov_chain_state::ChainState;
+use sov_rollup_interface::common::SlotNumber;
 use sov_test_utils::AsUser;
 use sov_value_setter::ValueSetter;
 
@@ -10,18 +11,15 @@ fn chain_state_kernel_genesis() {
 
     runner.query_state(|kernel| {
         assert_eq!(
-            ChainState::<S>::default()
-                .true_rollup_height(kernel)
-                .unwrap()
-                .get(),
-            0,
+            ChainState::<S>::default().true_slot_number(kernel).unwrap(),
+            SlotNumber::GENESIS,
             "The kernel should be initialized to zero"
         );
 
         assert_eq!(
             0,
             ChainState::<S>::default()
-                .get_next_visible_rollup_height(kernel)
+                .get_next_visible_slot_number(kernel)
                 .get(),
             "The kernel visible slot should be initialized to zero"
         );

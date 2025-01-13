@@ -5,6 +5,7 @@ use sov_modules_api::capabilities::Kernel;
 use sov_modules_api::{
     KernelStateValue, StateCheckpoint, StateMap, StateValue, VersionedStateValue,
 };
+use sov_rollup_interface::common::IntoSlotNumber;
 use sov_state::{BorshCodec, Prefix, ProvableNamespace};
 use sov_test_utils::storage::SimpleStorageManager;
 
@@ -27,10 +28,10 @@ fn test_state_value_user_namespace() -> Result<(), Infallible> {
 
     // In the first version the user and the kernel root hashes are different
     let kernel_root_hash = storage
-        .get_root_hash_namespace(ProvableNamespace::Kernel, 0)
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 0.to_slot_number())
         .unwrap();
     let user_root_hash = storage
-        .get_root_hash_namespace(ProvableNamespace::User, 0)
+        .get_root_hash_namespace(ProvableNamespace::User, 0.to_slot_number())
         .unwrap();
     assert_ne!(kernel_root_hash, user_root_hash);
 
@@ -41,10 +42,10 @@ fn test_state_value_user_namespace() -> Result<(), Infallible> {
 
     // Then the kernel is the same but the user root hash changes
     let new_kernel_root_hash = storage
-        .get_root_hash_namespace(ProvableNamespace::Kernel, 1)
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 1.to_slot_number())
         .unwrap();
     let new_user_root_hash = storage
-        .get_root_hash_namespace(ProvableNamespace::User, 1)
+        .get_root_hash_namespace(ProvableNamespace::User, 1.to_slot_number())
         .unwrap();
     assert_eq!(kernel_root_hash, new_kernel_root_hash);
     assert_ne!(new_kernel_root_hash, new_user_root_hash);
@@ -71,10 +72,10 @@ fn test_state_value_kernel_namespace() -> Result<(), Infallible> {
 
     // In the first version the user and the kernel root hashes are different
     let kernel_root_hash = storage
-        .get_root_hash_namespace(ProvableNamespace::Kernel, 0)
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 0.to_slot_number())
         .unwrap();
     let user_root_hash = storage
-        .get_root_hash_namespace(ProvableNamespace::User, 0)
+        .get_root_hash_namespace(ProvableNamespace::User, 0.to_slot_number())
         .unwrap();
     assert_ne!(kernel_root_hash, user_root_hash);
 
@@ -86,10 +87,10 @@ fn test_state_value_kernel_namespace() -> Result<(), Infallible> {
 
     // Then the kernel is the same, but the user root hash changes
     let new_kernel_root_hash = storage
-        .get_root_hash_namespace(ProvableNamespace::Kernel, 1)
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 1.to_slot_number())
         .unwrap();
     let new_user_root_hash = storage
-        .get_root_hash_namespace(ProvableNamespace::User, 1)
+        .get_root_hash_namespace(ProvableNamespace::User, 1.to_slot_number())
         .unwrap();
     assert_eq!(user_root_hash, new_user_root_hash);
     assert_ne!(new_kernel_root_hash, new_user_root_hash);
@@ -114,10 +115,10 @@ fn test_state_map_user_namespace() -> Result<(), Infallible> {
     let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
 
     let kernel_root_hash = storage
-        .get_root_hash_namespace(ProvableNamespace::Kernel, 0)
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 0.to_slot_number())
         .unwrap();
     let user_root_hash = storage
-        .get_root_hash_namespace(ProvableNamespace::User, 0)
+        .get_root_hash_namespace(ProvableNamespace::User, 0.to_slot_number())
         .unwrap();
     // In the first version the user and the kernel root hashes are different
     assert_ne!(kernel_root_hash, user_root_hash);
@@ -131,10 +132,10 @@ fn test_state_map_user_namespace() -> Result<(), Infallible> {
 
     // Then the kernel is the same but the user root hash changes
     let new_kernel_root_hash: sov_state::jmt::RootHash = storage
-        .get_root_hash_namespace(ProvableNamespace::Kernel, 1)
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 1.to_slot_number())
         .unwrap();
     let new_user_root_hash = storage
-        .get_root_hash_namespace(ProvableNamespace::User, 1)
+        .get_root_hash_namespace(ProvableNamespace::User, 1.to_slot_number())
         .unwrap();
     assert_eq!(kernel_root_hash, new_kernel_root_hash);
     assert_ne!(user_root_hash, new_user_root_hash);
@@ -161,10 +162,10 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
 
     // In the first version the user and the kernel root hashes are different from one another
     let kernel_root_hash = storage
-        .get_root_hash_namespace(ProvableNamespace::Kernel, 0)
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 0.to_slot_number())
         .unwrap();
     let user_root_hash = storage
-        .get_root_hash_namespace(ProvableNamespace::User, 0)
+        .get_root_hash_namespace(ProvableNamespace::User, 0.to_slot_number())
         .unwrap();
     assert_ne!(kernel_root_hash, user_root_hash);
 
@@ -176,10 +177,10 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
 
     // Then the kernel is the same but the user root hash changes
     let new_kernel_root_hash = storage
-        .get_root_hash_namespace(ProvableNamespace::Kernel, 1)
+        .get_root_hash_namespace(ProvableNamespace::Kernel, 1.to_slot_number())
         .unwrap();
     let new_user_root_hash = storage
-        .get_root_hash_namespace(ProvableNamespace::User, 1)
+        .get_root_hash_namespace(ProvableNamespace::User, 1.to_slot_number())
         .unwrap();
     assert_eq!(user_root_hash, new_user_root_hash);
     assert_ne!(new_kernel_root_hash, new_user_root_hash);

@@ -12,7 +12,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     BatchWithId, BlobDataWithId, DaSpec, FullyBakedTx, GenesisState, InfallibleKernelStateAccessor,
     InfallibleStateAccessor, KernelStateMap, KernelStateValue, Module, ModuleId, ModuleInfo,
-    NotInstantiable, Spec,
+    NotInstantiable, Spec, VersionReader,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::codec::BcsCodec;
@@ -47,7 +47,7 @@ pub struct BlobStorage<S: Spec> {
     #[state]
     #[allow(clippy::type_complexity)]
     pub(crate) deferred_blobs: KernelStateMap<
-        u64,
+        SlotNumber,
         Vec<(
             BlobDataWithId<BatchWithId>,
             <<S as Spec>::Da as DaSpec>::Address,
@@ -76,30 +76,29 @@ impl<S: Spec> BlobStorage<S> {
     /// Store blobs for given block number, overwrite if already exists
     pub fn store_batches(
         &self,
-        rollup_height: SlotNumber,
         batches: &[(
             BlobDataWithId<BatchWithId>,
             <<S as Spec>::Da as DaSpec>::Address,
         )],
-        state: &mut impl InfallibleKernelStateAccessor,
+        state: &mut (impl InfallibleKernelStateAccessor + VersionReader),
     ) {
         self.deferred_blobs
-            .set(&rollup_height.get(), batches, state)
+            .set(&state.visible_slot_number_to_access(), batches, state)
             .unwrap_infallible();
     }
 
     /// Take all blobs for given block number, return empty vector if not exists
     /// Returned blobs are removed from the storage
-    pub fn take_blobs_for_rollup_height(
+    pub fn take_blobs_for_slot(
         &self,
-        slot_height: SlotNumber,
+        slot_number: SlotNumber,
         state: &mut impl InfallibleKernelStateAccessor,
     ) -> Vec<(
         BlobDataWithId<BatchWithId>,
         <<S as Spec>::Da as DaSpec>::Address,
     )> {
         self.deferred_blobs
-            .remove(&slot_height.get(), state)
+            .remove(&slot_number, state)
             .unwrap_infallible()
             .unwrap_or_default()
     }

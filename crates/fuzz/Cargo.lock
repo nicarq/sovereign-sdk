@@ -6789,6 +6789,7 @@ dependencies = [
  "sov-bank",
  "sov-celestia-adapter",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-test-utils",
  "tempfile",
 ]

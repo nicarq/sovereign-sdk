@@ -5,7 +5,7 @@ use sov_state::{IsValueCached, SlotKey, SlotValue, Storage};
 
 use self::checkpoints::StateCheckpoint;
 use super::*;
-use crate::capabilities::Kernel;
+use crate::capabilities::{Kernel, RollupHeight};
 use crate::state::traits::{KernelWriter, VersionReader};
 use crate::Spec;
 
@@ -32,7 +32,8 @@ impl<'a, S: Storage, N: CompileTimeNamespace> CachedAccessor<N> for BootstrapWor
 /// A special wrapper over [`StateCheckpoint`] that allows access to kernel values
 ///
 /// ## Note
-/// This struct implements [`VersionReader`], and the value returned by [`VersionReader::rollup_height_to_access`] is the true rollup height.
+/// This struct implements [`VersionReader`], and the value returned by
+/// [`VersionReader::rollup_height_to_access`] is the last known rollup height.
 pub struct KernelStateAccessor<'a, S: Spec> {
     /// The inner working set
     pub checkpoint: &'a mut StateCheckpoint<S>,
@@ -40,13 +41,17 @@ pub struct KernelStateAccessor<'a, S: Spec> {
 }
 
 impl<'a, S: Spec> VersionReader for KernelStateAccessor<'a, S> {
-    fn rollup_height_to_access(&self) -> SlotNumber {
-        self.true_slot_num
+    fn visible_slot_number_to_access(&self) -> VisibleSlotNumber {
+        VisibleSlotNumber::new_dangerous(self.true_slot_num.get())
+    }
+
+    fn rollup_height_to_access(&self) -> RollupHeight {
+        self.checkpoint.rollup_height
     }
 }
 
 impl<'a, S: Spec> KernelWriter for KernelStateAccessor<'a, S> {
-    fn true_rollup_height(&self) -> SlotNumber {
+    fn true_slot_number(&self) -> SlotNumber {
         self.true_slot_num
     }
 }
@@ -61,7 +66,7 @@ impl<'a, S: Spec> KernelStateAccessor<'a, S> {
             inner: &mut checkpoint.delta,
         };
 
-        let true_slot_num = kernel.true_rollup_height(&mut bootstrap);
+        let true_slot_num = kernel.true_slot_number(&mut bootstrap);
 
         Self {
             checkpoint,
@@ -72,18 +77,23 @@ impl<'a, S: Spec> KernelStateAccessor<'a, S> {
 
 impl<'a, S: Spec> KernelStateAccessor<'a, S> {
     /// Returns the visible rollup height contained in the accessor
-    pub fn visible_rollup_height(&self) -> VisibleSlotNumber {
+    pub fn visible_slot_number(&self) -> VisibleSlotNumber {
         self.checkpoint.visible_slot_num
     }
 
     /// Updates the true rollup height contained in the accessor
-    pub fn update_true_rollup_height(&mut self, true_slot_num: SlotNumber) {
+    pub fn update_true_slot_number(&mut self, true_slot_num: SlotNumber) {
         self.true_slot_num = true_slot_num;
     }
 
     /// Updates the visible rollup height contained in the accessor
-    pub fn update_visible_rollup_height(&mut self, visible_slot_num: VisibleSlotNumber) {
+    pub fn update_visible_slot_number(&mut self, visible_slot_num: VisibleSlotNumber) {
         self.checkpoint.visible_slot_num = visible_slot_num;
+    }
+
+    /// Updates the visible rollup height contained in the accessor
+    pub fn update_rollup_height(&mut self, rollup_height: RollupHeight) {
+        self.checkpoint.rollup_height = rollup_height;
     }
 }
 

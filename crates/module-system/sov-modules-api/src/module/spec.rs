@@ -3,6 +3,7 @@
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_rollup_interface::crypto::Signature;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::optimistic::Attestation;
@@ -170,7 +171,7 @@ pub struct Context<S: Spec> {
     /// The rollup address that pays the gas fees for the transaction.
     gas_refund_recipient: S::Address,
     /// The height to report. This is set by the kernel when the context is created
-    visible_height: u64,
+    visible_slot_number: VisibleSlotNumber,
     /// Describes the context in which the transaction is being executed.
     execution_context: ExecutionContext,
 }
@@ -212,7 +213,7 @@ impl<S: Spec> Context<S> {
         sender_credentials: Credentials,
         sequencer: S::Address,
         sequencer_da_address: <S::Da as DaSpec>::Address,
-        height: u64,
+        visible_slot_number: VisibleSlotNumber,
         execution_context: ExecutionContext,
     ) -> Self {
         Self::with_payer(
@@ -221,7 +222,7 @@ impl<S: Spec> Context<S> {
             sequencer,
             sequencer_da_address,
             sender,
-            height,
+            visible_slot_number,
             execution_context,
         )
     }
@@ -233,7 +234,7 @@ impl<S: Spec> Context<S> {
         sequencer: S::Address,
         sequencer_da_address: <S::Da as DaSpec>::Address,
         payer: S::Address,
-        height: u64,
+        visible_slot_number: VisibleSlotNumber,
         execution_context: ExecutionContext,
     ) -> Self {
         Self {
@@ -242,7 +243,7 @@ impl<S: Spec> Context<S> {
             sequencer,
             sequencer_da_address,
             gas_refund_recipient: payer,
-            visible_height: height,
+            visible_slot_number,
             execution_context,
         }
     }
@@ -252,9 +253,9 @@ impl<S: Spec> Context<S> {
         self.sender_credentials.get::<T>()
     }
 
-    /// Returns the current rollup height.
-    pub fn visible_rollup_height(&self) -> u64 {
-        self.visible_height
+    /// Returns the current [`VisibleSlotNumber`].
+    pub fn visible_slot_number(&self) -> VisibleSlotNumber {
+        self.visible_slot_number
     }
 }
 

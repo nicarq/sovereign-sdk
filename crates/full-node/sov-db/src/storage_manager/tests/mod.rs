@@ -8,6 +8,7 @@ use std::time::Duration;
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::SchemaBatch;
 use sov_mock_da::{MockBlockHeader, MockHash};
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use tokio::time::Instant;
@@ -582,8 +583,11 @@ fn check_snapshots_ordering() {
             let key = encode_height(k).to_vec();
             (key, Some(hash_bytes.clone()))
         });
-        let accessory_change_set =
-            AccessoryDb::materialize_values(accessory_values_to_materialize, VERSION).unwrap();
+        let accessory_change_set = AccessoryDb::materialize_values(
+            accessory_values_to_materialize,
+            SlotNumber::new_dangerous(VERSION),
+        )
+        .unwrap();
 
         let stf_change_set = NativeChangeSet {
             state_change_set,

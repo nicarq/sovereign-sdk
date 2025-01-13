@@ -25,6 +25,7 @@ use sov_modules_api::{
 use sov_modules_stf_blueprint::{
     GenesisParams, Runtime as RuntimeTrait, StfBlueprint, TxReceiptContents,
 };
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -256,7 +257,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
 
         let prev_root = ledger_db
             .get_head_slot()?
-            .map(|(number, _)| prover_storage.get_root_hash(number.0))
+            .map(|(number, _)| prover_storage.get_root_hash(number))
             .transpose()?;
 
         let is_genesis = prev_root.is_none();
@@ -268,7 +269,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         let (prev_state_root, genesis_state_root) = match prev_root {
             Some(prev_state_root) => {
                 let (prover_storage, _ledger_state) = storage_manager.create_bootstrap_state()?;
-                let genesis_state_root = prover_storage.get_root_hash(0)?;
+                let genesis_state_root = prover_storage.get_root_hash(SlotNumber::GENESIS)?;
 
                 (prev_state_root, genesis_state_root)
             }

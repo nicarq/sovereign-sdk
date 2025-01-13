@@ -242,7 +242,7 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
             blob_storage: (),
             chain_state: ChainStateConfig {
                 current_time: Default::default(),
-                genesis_da_height: SlotNumber::GENESIS,
+                genesis_da_height: 0,
                 operating_mode: sov_modules_api::OperatingMode::Zk,
                 inner_code_commitment,
                 outer_code_commitment,
