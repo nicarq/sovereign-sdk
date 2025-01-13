@@ -208,7 +208,9 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
             for (i, tx_receipt) in result.batch_receipt.unwrap().tx_receipts.iter().enumerate() {
                 match &tx_receipt.receipt {
                     TxEffect::Successful(tx_contents) => {
-                        total_gas_used.combine(&tx_contents.gas_used);
+                        total_gas_used = total_gas_used
+                            .checked_combine(&tx_contents.gas_used)
+                            .unwrap();
                     }
                     _ => {
                         panic!("Tx {i} with receipt {tx_receipt:?} should be successful");

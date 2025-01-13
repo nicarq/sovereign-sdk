@@ -71,13 +71,6 @@ impl<GU: Gas> TransactionConsumption<GU> {
         SequencerReward(self.priority_fee)
     }
 
-    /// If the total consumption overflows, we saturate, because we know that this amount will always be lower than the max fee.
-    pub fn total_consumption(&self) -> u64 {
-        self.base_fee
-            .value(&self.gas_price)
-            .saturating_add(self.priority_fee)
-    }
-
     /// The remaining amount of gas tokens locked in the meter.
     pub fn remaining_funds(&self) -> RemainingFunds {
         RemainingFunds(self.remaining_funds)

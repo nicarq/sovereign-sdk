@@ -395,7 +395,11 @@ where
             injected_control_flow.post_tx(provisional_outcome, dirty_scratchpad);
         match outcome {
             TxControlFlow::ContinueProcessing(receipt) => {
-                total_gas_used.combine(&gas_used);
+                // SAFETY: It is safe to unwrap here because the total gas used is guaranteed to be less than the slot gas limit.
+                total_gas_used = total_gas_used
+                    .checked_combine(&gas_used)
+                    .expect("Gas Overflow");
+
                 accumulated_reward += provisional_reward;
                 accumulated_penalty += provisional_penalty;
                 tx_receipts.push(receipt);
@@ -405,7 +409,11 @@ where
                     // In onchain mode, transactions that make the sequencer run out of gas are treated as "ignored".
                     // While they consume gas, their hashes cannot be computed, so they are not indexed in the database.
 
-                    total_gas_used.combine(&gas_used);
+                    // SAFETY: It is safe to unwrap here because the total gas used is guaranteed to be less than the slot gas limit.
+                    total_gas_used = total_gas_used
+                        .checked_combine(&gas_used)
+                        .expect("Gas Overflow");
+
                     accumulated_reward += provisional_reward;
                     accumulated_penalty += provisional_penalty;
 
@@ -423,7 +431,6 @@ where
         clean_scratchpad = new_checkpoint.to_tx_scratchpad();
     }
     // End of the transaction processing phase.
-
     let batch_receipt = IncrementalBatchReceipt {
         tx_receipts,
         ignored_tx_receipts,

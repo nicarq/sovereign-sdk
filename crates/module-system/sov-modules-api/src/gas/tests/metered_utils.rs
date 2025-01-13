@@ -126,7 +126,7 @@ fn test_metered_hasher_not_enough_gas_to_update() {
 #[test]
 fn test_metered_signature() {
     let gas_to_charge_for_signature = GasUnit::<2>::from([5, 5]);
-    let mut fixed_cost = GasUnit::<2>::from([1000, 1000]);
+    let fixed_cost = GasUnit::<2>::from([1000, 1000]);
 
     let gas_price = GasPrice::<2>::from([1, 1]);
 
@@ -142,12 +142,13 @@ fn test_metered_signature() {
     );
 
     let remaining_funds = fixed_cost
-        .combine(
+        .checked_combine(
             &gas_to_charge_for_signature
                 .clone()
                 .checked_scalar_product(data.len() as u64)
                 .unwrap(),
         )
+        .unwrap()
         .value(&gas_price);
 
     let mut ws = create_working_set(remaining_funds, &gas_price);
@@ -163,7 +164,7 @@ fn test_metered_signature() {
 #[test]
 fn test_metered_signature_not_enough_gas() {
     let gas_to_charge_for_signature = GasUnit::<2>::from([5, 5]);
-    let mut fixed_cost = GasUnit::<2>::from([1000, 1000]);
+    let fixed_cost = GasUnit::<2>::from([1000, 1000]);
 
     let gas_price = GasPrice::<2>::from([1, 1]);
 
@@ -179,12 +180,13 @@ fn test_metered_signature_not_enough_gas() {
     );
 
     let remaining_funds = fixed_cost
-        .combine(
+        .checked_combine(
             &gas_to_charge_for_signature
                 .clone()
                 .checked_scalar_product(data.len() as u64 - 1)
                 .unwrap(),
         )
+        .unwrap()
         .value(&gas_price);
 
     let mut ws = create_working_set(remaining_funds, &gas_price);
