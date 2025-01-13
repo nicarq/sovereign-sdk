@@ -82,10 +82,14 @@ where
             .block_hashes
             .get(&block_hash, state)
             .unwrap_infallible()
-            .map(|number| hex::encode(number.to_be_bytes()))
-            .expect("Block number for known block hash must be set");
+            .map(|number| hex::encode(number.to_be_bytes()));
 
-        self.get_block_by_number(Some(block_number_hex), details, state)
+        match block_number_hex {
+            Some(block_number_hex) => {
+                self.get_block_by_number(Some(block_number_hex), details, state)
+            }
+            None => Ok(None),
+        }
     }
 
     /// Handler for: `eth_getBlockByNumber`
