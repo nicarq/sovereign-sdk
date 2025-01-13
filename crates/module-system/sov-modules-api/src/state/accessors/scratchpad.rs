@@ -152,11 +152,15 @@ impl<S: Spec> StateCheckpoint<S> {
     }
 }
 
-/// This structure contains the read-write set and the events collected during the execution of a transaction.
-/// There are two ways to convert it into a StateCheckpoint:
-/// 1. By using the [`WorkingSet::finalize`] method, where all the changes are added to the underlying
-/// [`TxScratchpad`].
-/// 2. By using the [`WorkingSet::revert`] method, where the most recent changes are reverted and the previous [`TxScratchpad`] is returned.
+/// This structure contains the read-write set and the events collected during
+/// the execution of a transaction.
+///
+/// There are two ways to convert it into a [`StateCheckpoint`]:
+///
+/// 1. By using the [`WorkingSet::finalize`] method, where all the changes are
+///    added to the underlying [`TxScratchpad`].
+/// 2. By using the [`WorkingSet::revert`] method, where the most recent changes
+///    are reverted and the previous [`TxScratchpad`] is returned.
 pub struct WorkingSet<S: Spec, I: StateProvider<S> = StateCheckpoint<S>> {
     pub(super) delta: RevertableWriter<TxScratchpad<S, I>>,
     events: Vec<TypedEvent>,

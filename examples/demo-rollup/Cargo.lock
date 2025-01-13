@@ -9484,7 +9484,6 @@ dependencies = [
  "ethers-signers",
  "futures",
  "hex",
- "home",
  "jsonrpsee",
  "prettytable-rs",
  "prometheus_exporter",

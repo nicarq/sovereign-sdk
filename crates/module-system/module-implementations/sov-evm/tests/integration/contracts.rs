@@ -47,7 +47,7 @@ fn test_invalid_contract_execution() {
             kind: TxKind::Call(contract_addr),
             value: Default::default(),
             input: reth_primitives::Bytes::from(
-                hex::decode(hex::encode(&contract.failing_function_call_data())).unwrap(),
+                hex::decode(hex::encode(contract.failing_function_call_data())).unwrap(),
             ),
             access_list: Default::default(),
         });

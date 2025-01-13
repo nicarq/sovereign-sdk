@@ -95,7 +95,7 @@ install-dev-tools: install-risc0-toolchain install-sp1-toolchain
 	cargo install cargo-llvm-cov
 	cargo install cargo-hack
 	cargo install cargo-udeps
-	cargo install cargo-deny@0.16.1 --locked  # compatibility with rust 1.79
+	cargo install cargo-deny
 	cargo install flaky-finder
 	cargo install cargo-nextest --locked
 	cargo install zepter
@@ -104,7 +104,7 @@ install-dev-tools: install-risc0-toolchain install-sp1-toolchain
 install-risc0-toolchain:  ## install risc0 toolchain
 	curl -L https://risczero.com/install | bash
 	~/.risc0/bin/rzup install cargo-risczero v1.2.0
-	cargo risczero install --version r0.1.79.0
+	cargo risczero install --version r0.1.81.0
 	@echo "Risc0 toolchain version:"
 	cargo +risc0 --version
 

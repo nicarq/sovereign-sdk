@@ -1,24 +1,40 @@
 //! This module defines abstractions related to transaction authentication and authorization.
 //!
-//! 1. The [`TransactionAuthenticator::authenticate`] method accepts bytes and parses them into a structure relevant to a particular authenticator.
-//! For example, if the raw bytes form an EVM transaction, the data will be parsed into RLP encoded format followed by an `ECDSA` check.
-//! This method returns the following tuple:
-//!    - `AuthenticatedTransactionData`: Metadata about the original transaction, such as `chain_id`, `gas_limit`, etc.
-//!    - [`TransactionAuthenticator::Decodable`]: The call message that will be forwarded to the relevant module for execution.
-//!    - [`TransactionAuthenticator::AuthorizationData`]: An associated type used later to authorize the transaction.
+//! 1. The [`TransactionAuthenticator::authenticate`] method accepts bytes and
+//!    parses them into a structure relevant to a particular authenticator.
 //!
-//!     The important part is that while the `AuthenticatedTransactionData` and [`TransactionAuthenticator::Decodable`] are external types that are part of the rollup specification,
-//! the [`TransactionAuthenticator::AuthorizationData`] is created by the [`TransactionAuthenticator`] implementation, and the stf-blueprint logic is oblivious to it.
+//!    For example, if the raw bytes form an EVM transaction, the data will be
+//!    parsed into RLP encoded format followed by an `ECDSA` check. This method
+//!    returns the following tuple:
+//!     - `AuthenticatedTransactionData`: Metadata about the original
+//!       transaction, such as `chain_id`, `gas_limit`, etc.
+//!     - [`TransactionAuthenticator::Decodable`]: The call message that will be
+//!       forwarded to the relevant module for execution.
+//!     - [`TransactionAuthenticator::AuthorizationData`]: An associated type
+//!       used later to authorize the transaction.
+//!
+//!    The important part is that while the `AuthenticatedTransactionData` and
+//!    [`TransactionAuthenticator::Decodable`] are external types that are part
+//!    of the rollup specification, the
+//!    [`TransactionAuthenticator::AuthorizationData`] is created by the
+//!    [`TransactionAuthenticator`] implementation, and the stf-blueprint logic
+//!    is oblivious to it.
 //!
 //! 2. The [`TransactionAuthenticator`] contains methods to authorize a transaction.
-//! Example:
-//! Let's say we have a rollup that supports EVM transactions. At a high level, these are the relevant parts of the workflow:
-//!    1. [`TransactionAuthenticator::authenticate`] authenticates the transaction by checking the ECDSA signature and produces [`TransactionAuthenticator::AuthorizationData`] that, among other data, contains the transaction nonce.
-//!    2. [`TransactionAuthorizer::check_uniqueness`] checks that the nonce is unique.
-//!    3. [`TransactionAuthorizer::mark_tx_attempted`] updates the nonce.
 //!
-//! Notice that in the above example, the concept of the nonce is entirely internal to the implementation of the two traits. We can have other
-//! authentication/authorization mechanisms where authentication means something other than a signature check, and the nonce is not used.
+//!    For example, let's say we have a rollup that supports EVM transactions.
+//!    At a high level, these are the relevant parts of the workflow:
+//!     1. [`TransactionAuthenticator::authenticate`] authenticates the
+//!        transaction by checking the ECDSA signature and produces
+//!        [`TransactionAuthenticator::AuthorizationData`] that, among other data,
+//!        contains the transaction nonce.
+//!     2. [`TransactionAuthorizer::check_uniqueness`] checks that the nonce is unique.
+//!     3. [`TransactionAuthorizer::mark_tx_attempted`] updates the nonce.
+//!
+//!     Notice that in the above example, the concept of the nonce is entirely
+//!     internal to the implementation of the two traits. We can have other
+//!     authentication/authorization mechanisms where authentication means something
+//!     other than a signature check, and the nonce is not used.
 //!
 //! 3. The [`TransactionAuthenticator::authenticate_unregistered`] method accepts bytes and parses them
 //!    into a structure relevant for registering unregistered sequencers without going through a

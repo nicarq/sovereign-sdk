@@ -622,7 +622,7 @@ mod proptest_tests {
         #[test]
         fn pub_key_json_schema_is_valid(item in any::<EthereumPublicKey>()) {
             let serialized = serde_json::to_value(item).unwrap();
-            let schema = serde_json::to_value(&schemars::schema_for!(EthereumPublicKey)).unwrap();
+            let schema = serde_json::to_value(schemars::schema_for!(EthereumPublicKey)).unwrap();
 
             jsonschema::validate(&schema, &serialized).unwrap();
         }
@@ -630,7 +630,7 @@ mod proptest_tests {
         #[test]
         fn sig_json_schema_is_valid(item in any::<EthereumSignature>()) {
             let serialized = serde_json::to_value(item).unwrap();
-            let schema = serde_json::to_value(&schemars::schema_for!(EthereumSignature)).unwrap();
+            let schema = serde_json::to_value(schemars::schema_for!(EthereumSignature)).unwrap();
 
             jsonschema::validate(&schema, &serialized).unwrap();
         }

@@ -112,8 +112,10 @@ pub fn materialize_stf_changes(da_header: &MockBlockHeader) -> NativeChangeSet {
 }
 
 /// Using [`MockBlockHeader::height`] as a key and [`MockHash`] of header as value.
+///
 /// What it writes:
 ///  - [`EventByNumber`] => `block_height` => Event {key == block_hash, value == block_hash}
+///
 /// So it can be validated by traversing data from DB.
 pub fn materialize_ledger_changes(da_header: &MockBlockHeader) -> SchemaBatch {
     let mut change_set = SchemaBatch::default();
