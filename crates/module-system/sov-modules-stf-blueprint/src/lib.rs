@@ -5,8 +5,7 @@ mod stf_blueprint;
 use sequencer_mode::{registered, unregistered};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{
-    BatchSequencerReceipt, GasArray, GasSpec, IncrementalBatch, IterableBatchWithId,
-    KernelStateAccessor, VersionReader,
+    BatchSequencerReceipt, GasArray, GasSpec, IncrementalBatch, KernelStateAccessor, VersionReader,
 };
 mod proof_processing;
 use sov_modules_api::SlotGasMeter;
@@ -430,35 +429,6 @@ where
     RT: Runtime<S>,
     RT: HasKernel<S>,
 {
-    /// Run batches provided by the blob selector
-    #[allow(clippy::type_complexity)]
-    pub fn run_batches_from_blob_selector(
-        &self,
-        blob_selector_output: BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId>>,
-        state: StateCheckpoint<S>,
-        execution_context: ExecutionContext,
-        visible_hash: <<S as Spec>::Storage as Storage>::Root,
-    ) -> (
-        <S as Spec>::Gas,
-        Vec<
-            ProofReceipt<
-                <S as Spec>::Address,
-                <S as Spec>::Da,
-                <<S as Spec>::Storage as Storage>::Root,
-                StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
-            >,
-        >,
-        Vec<BatchReceipt<S>>,
-        StateCheckpoint<S>,
-    ) {
-        self.apply_batches_in_user_space(
-            blob_selector_output,
-            state,
-            execution_context,
-            visible_hash,
-        )
-    }
-
     /// Run the provided sequence of batches, updating the user-space rollup state as we go.
     /// Batches can inject control flow, which will be respected by the runner.
     #[allow(clippy::type_complexity)]

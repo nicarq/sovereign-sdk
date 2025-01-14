@@ -280,7 +280,7 @@ impl<S: Spec> WorkingSet<S, StateCheckpoint<S>> {
         WorkingSet {
             delta: RevertableWriter::new(tx_scratchpad),
             events: Default::default(),
-            gas_meter: BasicGasMeter::new(
+            gas_meter: BasicGasMeter::new_with_funds_and_gas(
                 remaining_funds,
                 <S::Gas as crate::Gas>::max(),
                 price.clone(),

@@ -8,20 +8,6 @@ use crate::{BasicGasMeter, GasArray, GasMeter, GasPrice, GasUnit};
 type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
 #[test]
-fn charge_gas_should_always_succeed() {
-    let gas_price = GasPrice::<2>::from([1; 2]);
-
-    let mut gas_meter = BasicGasMeter::<S>::new_with_gas(GasUnit::<2>::MAX, gas_price.clone());
-
-    assert!(
-        gas_meter
-            .charge_gas(&GasUnit::<2>::from([u64::MAX; 2]))
-            .is_ok(),
-        "The unlimited gas meter should never run out of gas"
-    );
-}
-
-#[test]
 fn refund_gas_should_fail_if_not_enough_funds_consumed() {
     let gas_price = GasPrice::<2>::from([1; 2]);
 

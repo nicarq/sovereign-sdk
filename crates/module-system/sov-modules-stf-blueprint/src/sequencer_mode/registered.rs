@@ -407,9 +407,6 @@ where
             }
             TxControlFlow::IgnoreTx => {
                 if !execution_context.is_sequencer() {
-                    // In onchain mode, transactions that make the sequencer run out of gas are treated as "ignored".
-                    // While they consume gas, their hashes cannot be computed, so they are not indexed in the database.
-
                     // SAFETY: It is safe to unwrap here because the total gas used is guaranteed to be less than the slot gas limit.
                     total_gas_used = total_gas_used
                         .checked_combine(&gas_used)
@@ -418,6 +415,8 @@ where
                     accumulated_reward += provisional_reward;
                     accumulated_penalty += provisional_penalty;
 
+                    // In onchain mode, transactions that make the sequencer run out of gas are treated as "ignored".
+                    // While they consume gas, their hashes cannot be computed, so they are not indexed in the database.
                     let ignored = IgnoredTransactionReceipt::<TxReceiptContents<S>> {
                         ignored: IgnoredTxContents {
                             gas_used,
@@ -478,12 +477,10 @@ struct AuthAndProcessOutput<S: Spec, I: StateProvider<S>> {
 
 fn penalize_sequencer<S: Spec, RT: Runtime<S>, I: StateProvider<S>>(
     runtime: &RT,
-    gas_used: &<S as Spec>::Gas,
-    gas_price: &<S::Gas as Gas>::Price,
+    auth_cost: u64,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     tx_scratchpad: &mut TxScratchpad<S, I>,
 ) {
-    let auth_cost = gas_used.value(gas_price);
     runtime
         .gas_enforcer()
         .transfer_funds_from_sequencer_to_prover(auth_cost, sequencer_da_address, tx_scratchpad)
@@ -513,7 +510,20 @@ where
     C: InjectedControlFlow<TransactionReceipt<S>, S>,
 {
     let max_tx_check_costs = <S as GasSpec>::max_tx_check_costs();
-    let max_tx_check_value = max_tx_check_costs.value(gas_price);
+    let max_tx_check_value = match max_tx_check_costs.checked_value(gas_price) {
+        Some(v) => v,
+        None => {
+            return AuthAndProcessOutput {
+                outcome: AuthAndProcessOutcome::IllegalSequencer {
+                    reason: "Overflow: Unable to calculate gas value for max_tx_check_costs"
+                        .to_string(),
+                },
+                scratchpad,
+                gas_used: <S as Spec>::Gas::zero(),
+            }
+        }
+    };
+
     if sequencer_bond <= max_tx_check_value {
         return AuthAndProcessOutput {
             outcome: AuthAndProcessOutcome::IllegalSequencer {
@@ -566,16 +576,14 @@ where
         Ok(auth_output) => auth_output,
         Err(pre_exec_error) => match pre_exec_error {
             AuthenticationError::FatalError(err, tx_hash) => {
-                let gas_used_for_authentication = pre_exec_gas_meter.gas_info().gas_used;
-
                 penalize_sequencer(
                     runtime,
-                    &pre_exec_gas_meter.gas_info().gas_used,
-                    &pre_exec_gas_meter.gas_info().gas_price,
+                    pre_exec_gas_meter.gas_info().gas_value,
                     sequencer_da_address,
                     &mut scratchpad,
                 );
 
+                let gas_used_for_authentication = pre_exec_gas_meter.gas_info().gas_used;
                 return AuthAndProcessOutput {
                     scratchpad,
                     gas_used: gas_used_for_authentication,
@@ -586,15 +594,14 @@ where
                 };
             }
             AuthenticationError::OutOfGas(e) => {
-                let gas_used_for_authentication = pre_exec_gas_meter.gas_info().gas_used;
-
                 penalize_sequencer(
                     runtime,
-                    &gas_used_for_authentication,
-                    &pre_exec_gas_meter.gas_info().gas_price,
+                    pre_exec_gas_meter.gas_info().gas_value,
                     sequencer_da_address,
                     &mut scratchpad,
                 );
+
+                let gas_used_for_authentication = pre_exec_gas_meter.gas_info().gas_used;
                 return AuthAndProcessOutput {
                         scratchpad,
                         gas_used: gas_used_for_authentication,
@@ -628,17 +635,14 @@ where
 
     match tx_result {
         Err(error) => {
-            let gas_used = pre_exec_gas_meter.gas_info().gas_used;
-            let gas_price = pre_exec_gas_meter.gas_info().gas_price;
-
             penalize_sequencer(
                 runtime,
-                &gas_used,
-                &gas_price,
+                pre_exec_gas_meter.gas_info().gas_value,
                 sequencer_da_address,
                 &mut scratchpad,
             );
 
+            let gas_used = pre_exec_gas_meter.gas_info().gas_used;
             AuthAndProcessOutput {
                 outcome: AuthAndProcessOutcome::Skipped {
                     error,

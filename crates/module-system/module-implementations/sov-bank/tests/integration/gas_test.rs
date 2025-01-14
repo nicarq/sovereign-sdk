@@ -225,7 +225,7 @@ fn not_enough_gas_wont_panic() {
 }
 
 #[test]
-fn very_high_gas_to_charge_wont_panic_or_overflow() {
+fn very_high_gas_to_charge_should_overflow() {
     gas_test_setup(
         Some(<S as Spec>::Gas::from([u64::MAX - 1, u64::MAX - 1])),
         |_| {
@@ -242,7 +242,7 @@ fn very_high_gas_to_charge_wont_panic_or_overflow() {
 
                     assert!(
                         chain.next().unwrap().to_string().contains(
-                            "The gas to charge is greater than the funds available in the meter."
+                            "Gas calculation overflow: Charge Funds: Unable to charge gas, because the calculation overflows"
                         ),
                         "The error message is incorrect"
                     );
