@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
+use sov_bank::Bank;
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::arbitrary::{self};
 use sov_modules_api::transaction::TxDetails;
+use sov_modules_api::{DispatchCall, EncodeCall, Runtime};
 use sov_paymaster::{
     PayeePolicy, PayerGenesisConfig, Paymaster, PaymasterConfig, PaymasterPolicyInitializer,
     SafeVec,
@@ -42,7 +44,7 @@ generate_runtime! {
     modules: [paymaster: Paymaster<S>, value_setter: ValueSetter<S>],
     operating_mode: sov_modules_api::runtime::OperatingMode::Optimistic,
     minimal_genesis_config_type: MinimalOptimisticGenesisConfig<S>,
-    gas_enforcer: paymaster: sov_paymaster::Paymaster<S>,
+    gas_enforcer: paymaster: Paymaster<S>,
     runtime_trait_impl_bounds: [],
     kernel_type: sov_kernels::basic::BasicKernel<'a, S>
 }
@@ -62,18 +64,18 @@ enum ModulesToUse {
 
 impl ModulesToUse {
     /// Builds dynamic module reference
-    pub fn select(
+    pub fn select<R: Runtime<S> + EncodeCall<Bank<S>> + EncodeCall<ValueSetter<S>>>(
         &self,
-        bank_harness: &BasicBankHarness<S, RT>,
-        value_setter_harness: &BasicValueSetterHarness<S, RT>,
-    ) -> BasicModuleRef<S, RT> {
+        bank_harness: BasicBankHarness<S, R>,
+        value_setter_harness: BasicValueSetterHarness<S, R>,
+    ) -> BasicModuleRef<S, R> {
         match self {
             ModulesToUse::Bank => {
-                let module: BasicModuleRef<S, RT> = Arc::new(bank_harness.clone());
+                let module: BasicModuleRef<S, R> = Arc::new(bank_harness);
                 module
             }
             ModulesToUse::ValueSetter => {
-                let module: BasicModuleRef<S, RT> = Arc::new(value_setter_harness.clone());
+                let module: BasicModuleRef<S, R> = Arc::new(value_setter_harness);
                 module
             }
         }
@@ -85,7 +87,9 @@ struct NumTxsExecuted {
     num_value_setter_txs: u64,
 }
 
-pub fn plain_tx_with_default_details(gen_output: &GeneratorOutput) -> TransactionType<RT, S> {
+pub fn plain_tx_with_default_details<R: Runtime<S>>(
+    gen_output: &GeneratedMessage<S, <R as DispatchCall>::Decodable, BasicChangeLogEntry<S>>,
+) -> TransactionType<R, S> {
     TransactionType::Plain {
         message: gen_output.message.clone(),
         key: gen_output.sender.clone(),
@@ -98,24 +102,25 @@ pub fn plain_tx_with_default_details(gen_output: &GeneratorOutput) -> Transactio
     }
 }
 
-pub struct TestGenerator {
-    generator: BasicCallMessageFactory<S, RT>,
-    bank_harness: BasicBankHarness<S, RT>,
-    value_setter_harness: BasicValueSetterHarness<S, RT>,
+pub struct TestGenerator<R: Runtime<S>> {
+    generator: BasicCallMessageFactory<S, R>,
+    bank_harness: BasicBankHarness<S, R>,
+    value_setter_harness: BasicValueSetterHarness<S, R>,
     state: State<S, BasicTag>,
     randomness: Vec<u8>,
     remaining_randomness: usize,
     target_buffer_size: usize,
     salt: u128,
-    initial_transaction: Option<GeneratorOutput>,
+    initial_transaction:
+        Option<GeneratedMessage<S, <R as DispatchCall>::Decodable, BasicChangeLogEntry<S>>>,
 }
 
-impl TestGenerator {
+impl<R: Runtime<S>> TestGenerator<R> {
     pub fn generate(
         &mut self,
-        modules_distribution: &Distribution<BasicModuleRef<S, RT>>,
+        modules_distribution: &Distribution<BasicModuleRef<S, R>>,
         validity: MessageValidity,
-    ) -> GeneratorOutput {
+    ) -> GeneratedMessage<S, <R as DispatchCall>::Decodable, BasicChangeLogEntry<S>> {
         for _ in 0..20 {
             if self.has_enough_randomness() {
                 let u =
@@ -156,12 +161,12 @@ impl TestGenerator {
 }
 
 // Setup generation with the given params
-fn setup_harness(
+fn setup_harness<R: Runtime<S> + EncodeCall<Bank<S>> + EncodeCall<ValueSetter<S>> + Clone>(
     address_creation_rate: Percent,
     admin: &TestUser<S>,
     max_value_setter_vec_len: usize,
     modules_distribution: &Distribution<ModulesToUse>,
-) -> TestGenerator {
+) -> TestGenerator<R> {
     use sov_bank::CallMessageDiscriminants::*;
 
     let bank_harness = BankHarness::new(BankMessageGenerator::<S>::new(
@@ -178,13 +183,15 @@ fn setup_harness(
         admin.private_key.clone(),
     ));
 
-    let modules: Vec<BasicModuleRef<S, RT>> = modules_distribution
+    let modules: Vec<BasicModuleRef<S, R>> = modules_distribution
         .inner()
         .iter()
-        .map(|(_, module_to_use)| module_to_use.select(&bank_harness, &value_setter_harness))
+        .map(|(_, module_to_use)| {
+            module_to_use.select::<R>(bank_harness.clone(), value_setter_harness.clone())
+        })
         .collect();
 
-    let factory = BasicCallMessageFactory::<S, RT>::new();
+    let factory = BasicCallMessageFactory::<S, R>::new();
 
     // Synchronizes the state with the value setter module
     let mut state: State<S, BasicTag> = State::new();
@@ -217,8 +224,9 @@ pub struct Setup {
     pub sequencer: TestSequencer<S>,
     /// The pre-registered attester
     pub attester: TestAttester<S>,
-    /// The admin user
+    /// The admin user of [`ValueSetter`] module
     pub value_setter_admin: TestUser<S>,
+    #[allow(missing_docs)]
     pub genesis_config: GenesisConfig<S>,
 }
 

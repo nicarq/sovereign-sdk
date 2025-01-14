@@ -17,8 +17,8 @@ use tokio::task::JoinHandle;
 use tokio::time::{interval, sleep};
 use tracing::Instrument;
 
+use crate::config::WAIT_ATTEMPT_PAUSE;
 use crate::storable::layer::StorableMockDaLayer;
-use crate::types::WAIT_ATTEMPT_PAUSE;
 use crate::{
     MockAddress, MockBlock, MockBlockHeader, MockDaConfig, MockDaSpec, MockDaVerifier, MockFee,
 };
@@ -159,14 +159,18 @@ impl StorableMockDaService {
 
     /// Creates new in memory [`StorableMockDaService`] from [`MockDaConfig`].
     pub async fn from_config(config: MockDaConfig, shutdown_receiver: watch::Receiver<()>) -> Self {
-        let da_layer = StorableMockDaLayer::new_from_connection(
-            &config.connection_string,
-            config.finalization_blocks,
-        )
-        .await
-        .expect("Failed to initialize StorableMockDaLayer");
+        let da_layer = match config.da_layer.as_ref() {
+            None => Arc::new(RwLock::new(
+                StorableMockDaLayer::new_from_connection(
+                    &config.connection_string,
+                    config.finalization_blocks,
+                )
+                .await
+                .expect("Failed to initialize StorableMockDaLayer"),
+            )),
+            Some(da_layer) => da_layer.clone(),
+        };
         let block_producing = config.block_producing();
-        let da_layer = Arc::new(RwLock::new(da_layer));
         let handle =
             block_producing.spawn_block_producing_if_needed(shutdown_receiver, da_layer.clone());
         Self::construct(config.sender_address, da_layer, block_producing, handle)
@@ -246,12 +250,10 @@ impl DaService for StorableMockDaService {
     }
 
     async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
-        let receiver = self
-            .da_layer
-            .read()
-            .await
-            .finalized_header_sender
-            .subscribe();
+        let receiver = {
+            let da_layer = self.da_layer.read().await;
+            da_layer.finalized_header_sender.subscribe()
+        };
 
         let stream = futures::stream::unfold(receiver, |mut receiver| async move {
             match receiver.recv().await {
@@ -350,7 +352,7 @@ impl DaService for StorableMockDaService {
                 da_layer.produce_block().await.unwrap();
             }
             BlockProducing::Periodic(_) | BlockProducing::Manual => (),
-        }
+        };
 
         let res = Ok(SubmitBlobReceipt {
             blob_hash: HexHash::new(blob_hash.0),
@@ -385,7 +387,7 @@ mod tests {
     use rand::Rng;
 
     use super::*;
-    use crate::types::GENESIS_HEADER;
+    use crate::config::GENESIS_HEADER;
 
     async fn check_consistency(
         da_service: &StorableMockDaService,

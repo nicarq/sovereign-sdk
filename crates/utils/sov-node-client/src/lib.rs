@@ -207,8 +207,9 @@ impl NodeClient {
         raw_txs: Vec<Vec<u8>>,
         wait_for_processing: bool,
     ) -> anyhow::Result<types::SubmitBatchReceipt> {
+        let txs_included = raw_txs.len();
         tracing::info!(
-            txs_included = raw_txs.len(),
+            txs_included = txs_included,
             "Calling `publish_batch` sequencer endpoint"
         );
 
@@ -232,6 +233,10 @@ impl NodeClient {
             reponse = ?response_data,
             "Your batch was submitted to the sequencer for publication.",
         );
+
+        if response_data.tx_hashes.len() < txs_included {
+            tracing::warn!("Not all transactions have been included");
+        }
 
         if wait_for_processing {
             // We pick the first tx hash of the batch, any would work.

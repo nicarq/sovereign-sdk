@@ -224,6 +224,7 @@ mod tests {
                 finalization_blocks: 0,
                 block_producing: sov_mock_da::BlockProducingConfig::Periodic,
                 block_time_ms: 1000,
+                da_layer: None,
             },
             storage: StorageConfig {
                 path: PathBuf::from("/tmp"),

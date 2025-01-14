@@ -48,6 +48,7 @@ pub trait StakeRegistration {
             })?;
 
         self.set_allowed_staker(primary_address, rollup_address, amount, state)?;
+        tracing::trace!(%primary_address, %rollup_address, %amount, "Staker has been registered");
 
         Ok(())
     }

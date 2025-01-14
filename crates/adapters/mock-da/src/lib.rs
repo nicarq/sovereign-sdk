@@ -2,6 +2,8 @@
 #![doc = include_str!("../README.md")]
 
 #[cfg(feature = "native")]
+mod config;
+#[cfg(feature = "native")]
 mod fee;
 #[cfg(feature = "native")]
 mod in_memory;
@@ -13,6 +15,8 @@ mod validity_condition;
 /// Contains DaSpec and DaVerifier
 pub mod verifier;
 
+#[cfg(feature = "native")]
+pub use config::*;
 #[cfg(feature = "native")]
 pub use fee::*;
 #[cfg(feature = "native")]

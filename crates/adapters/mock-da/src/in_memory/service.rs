@@ -13,8 +13,8 @@ use sov_rollup_interface::node::da::{DaService, MaybeRetryable, SlotData, Submit
 use tokio::sync::{broadcast, oneshot, Mutex, RwLock};
 use tokio::time;
 
+use crate::config::{GENESIS_BLOCK, GENESIS_HEADER, WAIT_ATTEMPT_PAUSE};
 use crate::in_memory::fork::PlannedFork;
-use crate::types::{GENESIS_BLOCK, GENESIS_HEADER, WAIT_ATTEMPT_PAUSE};
 use crate::utils::hash_to_array;
 use crate::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockDaSpec, MockDaVerifier,

@@ -25,10 +25,10 @@ backon = { workspace = true }
 anyhow = { workspace = true }
 derivative = { workspace = true }
 derive_more = { workspace = true, features = [
-  "constructor",
-  "deref_mut",
-  "add",
-  "mul",
+    "constructor",
+    "deref_mut",
+    "add",
+    "mul",
 ] }
 sha2 = { version = "0.10.8", default-features = false }
 strum = { workspace = true }
@@ -46,7 +46,8 @@ sov-mock-da = { workspace = true, features = ["native", "arbitrary"] }
 sov-mock-zkvm = { workspace = true, features = ["native", "arbitrary"] }
 sov-paymaster = { workspace = true, features = ["native"] }
 sov-state = { workspace = true, features = ["native"] }
-sov-rollup-interface = { workspace = true }
+sov-sequencer-registry = { workspace = true, features = ["native"] }
+sov-rollup-interface = { workspace = true, features = ["native"] }
 sov-sequencer = { workspace = true }
 sov-test-utils = { workspace = true, features = ["arbitrary"] }
 

@@ -30,7 +30,7 @@ fn test_with_modules(
     let u = &mut Unstructured::new(&random_bytes[..]);
 
     let setup = setup_roles_and_config(USER_BALANCE);
-    let mut generator = setup_harness(
+    let mut generator = setup_harness::<RT>(
         Percent::one_hundred(),
         &setup.value_setter_admin,
         MAX_VEC_LEN_VALUE_SETTER,
@@ -45,7 +45,7 @@ fn test_with_modules(
     // Execute initial transaction if there is one
     if let Some(init_tx) = generator.initial_transaction.take() {
         runner.execute_transaction(TransactionTestCase {
-            input: plain_tx_with_default_details(&init_tx),
+            input: plain_tx_with_default_details::<RT>(&init_tx),
             assert: Box::new(move |receipt, _state| {
                 assert!(
                     receipt.tx_receipt.is_successful(),
@@ -56,7 +56,10 @@ fn test_with_modules(
     }
 
     let modules = modules.map_values(&mut |module| {
-        module.select(&generator.bank_harness, &generator.value_setter_harness)
+        module.select(
+            generator.bank_harness.clone(),
+            generator.value_setter_harness.clone(),
+        )
     });
 
     // Generate and execute [`TXS_TO_GENERATE`] txs
