@@ -16,7 +16,7 @@ use sov_modules_stf_blueprint::{GenesisParams, Runtime};
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
 use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
-use sov_stf_runner::processes::RollupProverConfig;
+pub use sov_stf_runner::processes::RollupProverConfig;
 use sov_stf_runner::{
     HttpServerConfig, MonitoringConfig, ProofManagerConfig, RollupConfig, RunnerConfig,
     StorageConfig,
@@ -99,6 +99,7 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
             finalization_blocks,
             block_producing,
             block_time_ms: TEST_DEFAULT_MOCK_DA_BLOCK_TIME_MS,
+            da_layer: None,
         };
 
         Self {

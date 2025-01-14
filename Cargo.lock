@@ -8019,6 +8019,7 @@ dependencies = [
  "sov-paymaster",
  "sov-rollup-interface",
  "sov-sequencer",
+ "sov-sequencer-registry",
  "sov-state",
  "sov-test-utils",
  "sov-value-setter",

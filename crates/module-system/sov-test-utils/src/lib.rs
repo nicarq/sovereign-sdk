@@ -55,6 +55,8 @@ pub mod storage;
 /// Utilities that specify an interface for testing.
 pub mod interface;
 
+pub use sov_modules_rollup_blueprint::logging::initialize_logging;
+
 /// The default test spec. Uses a [`MockZkvm`] for both inner and outer vm verification.
 /// Uses [`sov_mock_zkvm::MockZkvmCryptoSpec`] for cryptographic primitives.
 pub type TestSpec = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;

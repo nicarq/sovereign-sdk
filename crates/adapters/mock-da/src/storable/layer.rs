@@ -7,14 +7,15 @@ use sea_orm::{
 use sha2::Digest;
 use tokio::sync::broadcast;
 
+use crate::config::{GENESIS_BLOCK, GENESIS_HEADER};
 use crate::storable::entity;
 use crate::storable::entity::blobs::Entity as Blobs;
 use crate::storable::entity::block_headers::Entity as BlockHeaders;
 use crate::storable::entity::{blobs, block_headers};
-use crate::types::{GENESIS_BLOCK, GENESIS_HEADER};
 use crate::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockHash};
 
 /// Struct that stores blobs and block headers. Controller of the sea orm entities.
+#[derive(Debug)]
 pub struct StorableMockDaLayer {
     conn: DatabaseConnection,
     /// Height which is currently being built.
@@ -112,6 +113,10 @@ impl StorableMockDaLayer {
             .all(&self.conn)
             .await?;
         let blobs_count = blobs.len();
+        tracing::trace!(
+            %blobs_count,
+            height = self.next_height,
+            "Extracted blobs for this block");
 
         for blob in &blobs {
             hasher.update(&blob.hash[..]);

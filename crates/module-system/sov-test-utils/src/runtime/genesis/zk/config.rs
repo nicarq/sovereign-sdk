@@ -116,6 +116,17 @@ impl<S: Spec> HighLevelZkGenesisConfig<S> {
             outer_code_commitment,
         )
     }
+
+    /// Generates a new high-level genesis config with given number of additional accounts with random addresses and given balance.
+    ///
+    pub fn add_accounts_with_balance(mut self, num_accounts: usize, balance: u64) -> Self {
+        for _ in 0..num_accounts {
+            self.additional_accounts
+                .push(TestUser::<S>::generate(balance));
+        }
+
+        self
+    }
 }
 
 impl HighLevelZkGenesisConfig<TestSpec> {

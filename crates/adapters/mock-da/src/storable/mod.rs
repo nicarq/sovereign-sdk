@@ -36,6 +36,7 @@ mod tests {
             finalization_blocks: 0,
             block_producing: BlockProducingConfig::Manual,
             block_time_ms: 100,
+            da_layer: None,
         };
         let blocks = 5;
         let start = Time::now();

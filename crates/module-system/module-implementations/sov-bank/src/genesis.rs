@@ -106,6 +106,7 @@ impl<S: Spec> Bank<S> {
             let mut total_supply: Amount = 0;
             for (address, balance) in token_config.address_and_balances.iter() {
                 let addr = TokenHolderRef::<'_, S>::from(&address);
+                tracing::trace!(%address, %balance, %token_id, "Genesis balance of address");
                 self.balances.set(&(addr, token_id), balance, state)?;
                 total_supply = total_supply
                     .checked_add(*balance)
