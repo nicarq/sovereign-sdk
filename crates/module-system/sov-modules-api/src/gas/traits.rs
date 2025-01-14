@@ -86,6 +86,9 @@ pub trait Gas: GasArray {
     /// The price of the gas, expressed in tokens per unit.
     type Price: GasArray;
 
+    /// Calculates the value of the given amount of gas at the given price or returns None if the result overflows.
+    fn checked_value(&self, price: &Self::Price) -> Option<u64>;
+
     /// Calculates the value of the given amount of gas at the given price.
     fn value(&self, price: &Self::Price) -> u64;
 
@@ -332,6 +335,16 @@ macro_rules! impl_gas_unit {
         impl Gas for GasUnit<$n> {
             type Price = GasPrice<$n>;
 
+            fn checked_value(&self, price: &Self::Price) -> Option<u64> {
+                let mut value: u64 = 0;
+                for (g, p) in self.0.iter().zip(price.as_ref().iter().copied()) {
+                    let v = g.checked_mul(p)?;
+                    value = value.checked_add(v)?;
+                }
+
+                Some(value)
+            }
+
             fn value(&self, price: &Self::Price) -> u64 {
                 self.0
                     .iter()
@@ -388,7 +401,7 @@ impl From<u64> for GasUnit<1> {
 /// Errors can be raised either when the meter runs out of gas or when the refund operation fails.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum GasMeteringError<GU: Gas> {
-    #[error("Unable to calculate gas usage due to overflow: {0}")]
+    #[error("Gas calculation overflow: {0}")]
     /// Unable to calculate gas usage due to overflow.
     Overflow(String),
     /// The slot gas limit has been exhausted.
@@ -398,16 +411,14 @@ pub enum GasMeteringError<GU: Gas> {
     #[error("Unable to deserialize data due to invalid length: {0}")]
     InvalidLength(String),
     /// The gas meter has ran out of gas.
-    #[error("The gas to charge is greater than the funds available in the meter. Gas to charge {gas_to_charge}, gas price {gas_price}, remaining gas metering {gas_metering:?}, total gas consumed {total_gas_consumed}")]
+    #[error("The gas to charge is greater than the funds available in the meter. Gas to charge {gas_to_charge}, gas price {gas_price}, initial_gas {initial_gas}")]
     OutOfGas {
         /// The amount of gas to charge.
         gas_to_charge: GU,
         /// The current gas price.
         gas_price: GU::Price,
-        /// The remaining funds in the meter.
-        gas_metering: GasMetering<GU>,
-        /// The total amount of gas consumed.
-        total_gas_consumed: GU,
+        /// The initial gas.
+        initial_gas: GU,
     },
     /// The refund operation failed for the gas meter.
     #[error("The gas to refund is greater than the gas used. Gas to refund {gas_to_refund}, gas used {gas_used}")]
@@ -421,6 +432,8 @@ pub enum GasMeteringError<GU: Gas> {
 
 /// Contain information about the gas usage of a gas.
 pub struct GasInfo<GU: Gas> {
+    /// The gas value.
+    pub gas_value: u64,
     /// The current gas used accumulated by the stake meter.
     pub gas_used: GU,
     /// The current gas price
@@ -494,44 +507,38 @@ impl<S: Spec> SlotGasMeter<S> {
     }
 }
 
-/// Remaining funds or gas.
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub enum GasMetering<GU: Gas> {
-    /// Remaining gas.
-    Gas(GU),
-    /// Remaining funds and gas.
-    GasAndFunds(u64, GU),
-}
-
-/// A struct that keeps track of the use gas.
+/// A struct that keeps track of the gas used.
+/// The gas meter continues running until it either depletes its funds or runs out of gas, depending on its configuration.
+/// It also ensures that the gas used will not overflow when multiplied by the gas price.
 #[derive(Clone, Debug)]
 pub struct BasicGasMeter<S: Spec> {
-    gas_metering: GasMetering<S::Gas>,
-    gas_used: S::Gas,
+    initial_gas: S::Gas,
+    remaining_gas: S::Gas,
+    remaining_funds: Option<u64>,
     gas_price: <S::Gas as Gas>::Price,
 }
 
 impl<S: Spec> BasicGasMeter<S> {
-    /// Creates a new `BasicGasMeter`
-    pub fn new(
+    /// Creates a new `BasicGasMeter`.
+    pub fn new_with_funds_and_gas(
         remaining_funds: u64,
         remaining_gas: S::Gas,
         gas_price: <S::Gas as Gas>::Price,
     ) -> Self {
-        let gas_metering = GasMetering::GasAndFunds(remaining_funds, remaining_gas);
         Self {
-            gas_metering,
-            gas_used: S::Gas::zero(),
+            initial_gas: remaining_gas.clone(),
+            remaining_gas,
+            remaining_funds: Some(remaining_funds),
             gas_price,
         }
     }
 
     /// Creates a new `BasicGasMeter`
     pub fn new_with_gas(remaining_gas: S::Gas, gas_price: <S::Gas as Gas>::Price) -> Self {
-        let gas_metering = GasMetering::Gas(remaining_gas);
         Self {
-            gas_metering,
-            gas_used: Gas::zero(),
+            initial_gas: remaining_gas.clone(),
+            remaining_gas,
+            remaining_funds: None,
             gas_price,
         }
     }
@@ -547,14 +554,18 @@ impl<S: Spec> BasicGasMeter<S> {
         remaining_funds: &u64,
         amount: &S::Gas,
     ) -> Result<u64, GasMeteringError<S::Gas>> {
-        let amount_value = amount.value(&self.gas_price);
+        let amount_value = amount.checked_value(&self.gas_price).ok_or_else(|| {
+            GasMeteringError::Overflow(
+                "Charge Funds: Unable to charge gas, because the calculation overflows".to_string(),
+            )
+        })?;
+
         remaining_funds
             .checked_sub(amount_value)
             .ok_or_else(|| GasMeteringError::OutOfGas {
                 gas_to_charge: amount.clone(),
                 gas_price: self.gas_price.clone(),
-                gas_metering: self.gas_metering.clone(),
-                total_gas_consumed: self.gas_used.clone(),
+                initial_gas: self.initial_gas.clone(),
             })
     }
 
@@ -568,8 +579,7 @@ impl<S: Spec> BasicGasMeter<S> {
             .ok_or_else(|| GasMeteringError::OutOfGas {
                 gas_to_charge: amount.clone(),
                 gas_price: self.gas_price.clone(),
-                gas_metering: self.gas_metering.clone(),
-                total_gas_consumed: self.gas_used.clone(),
+                initial_gas: self.initial_gas.clone(),
             })
     }
 }
@@ -577,73 +587,89 @@ impl<S: Spec> BasicGasMeter<S> {
 impl<S: Spec> GasMeter for BasicGasMeter<S> {
     type Spec = S;
     fn charge_gas(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
-        match &self.gas_metering {
-            GasMetering::Gas(remaining_gas) => {
-                let remaining_gas = self.charge_gas_inner(remaining_gas, amount)?;
-                self.gas_metering = GasMetering::Gas(remaining_gas);
-                // self.gas_used starts at zero, and since we are constrained by the slot gas limit,
-                // this overflow is impossible.
-                self.gas_used = self.gas_used.checked_combine(amount).ok_or_else(|| {
-                    GasMeteringError::Overflow("Unable to charge gas".to_string())
-                })?;
-            }
-            GasMetering::GasAndFunds(remaining_funds, remaining_gas) => {
-                let remaining_funds = self.charge_funds_inner(remaining_funds, amount)?;
-                let remaining_gas = self.charge_gas_inner(remaining_gas, amount)?;
-                self.gas_metering = GasMetering::GasAndFunds(remaining_funds, remaining_gas);
-                // self.gas_used starts at zero, and since we are constrained by the slot gas limit,
-                // this overflow is impossible.
-                self.gas_used = self.gas_used.checked_combine(amount).ok_or_else(|| {
-                    GasMeteringError::Overflow("Unable to charge gas".to_string())
-                })?;
-            }
+        if let Some(remaining_funds) = &self.remaining_funds {
+            self.remaining_funds = Some(self.charge_funds_inner(remaining_funds, amount)?);
         }
 
+        let remaining_gas = self.charge_gas_inner(&self.remaining_gas, amount)?;
+        // Here we check that the current gas_used won't overflow when multiplied by the price.
+        // This ensures that after execution, it is always safe to convert the total gas used to a token value.
+        {
+            let gas_used = self
+                .initial_gas
+                .checked_sub(&remaining_gas)
+                .expect("The remaining gas can't be greater than the initial gas");
+
+            gas_used.checked_value(&self.gas_price).ok_or_else(|| {
+                GasMeteringError::Overflow(
+                    "Charge Gas: Unable to charge gas, because the calculation overflows"
+                        .to_string(),
+                )
+            })?;
+        }
+        self.remaining_gas = remaining_gas;
         Ok(())
     }
 
     fn refund_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
-        self.gas_used = self.gas_used.checked_sub(gas).ok_or_else(|| {
-            GasMeteringError::ImpossibleToRefundGas {
-                gas_to_refund: gas.clone(),
-                gas_used: self.gas_used.clone(),
-            }
-        })?;
+        // `refund_gas` is called in accessors to refund gas for hot access/write/delete operations.
+        // It is always preceded by `charge_gas`, and the refund amount is less than the charged amount.
+        // Although overflows are handled, they should not occur under normal circumstances.
+        {
+            let gas_used = self
+                .initial_gas
+                .checked_sub(&self.remaining_gas)
+                .expect("The remaining gas can't be greater than the initial gas");
 
-        match &mut self.gas_metering {
-            GasMetering::Gas(remaining_gas) => {
-                let remaining_gas = remaining_gas.checked_combine(gas).ok_or_else(|| {
-                    GasMeteringError::Overflow("Unable to refund gas".to_string())
-                })?;
-                self.gas_metering = GasMetering::Gas(remaining_gas);
-            }
-            GasMetering::GasAndFunds(remaining_funds, remaining_gas) => {
-                let gas_value = gas.value(&self.gas_price);
-                // We never refund more than what was charged during execution; therefore, an overflow is impossible.
-                let remaining_funds = remaining_funds.checked_add(gas_value).ok_or_else(|| {
-                    GasMeteringError::Overflow("Unable to refund gas".to_string())
-                })?;
-
-                // We never refund more than what was charged during execution; therefore, an overflow is impossible.
-                let remaining_gas = remaining_gas.checked_combine(gas).ok_or_else(|| {
-                    GasMeteringError::Overflow("Unable to refund gas".to_string())
-                })?;
-
-                self.gas_metering = GasMetering::GasAndFunds(remaining_funds, remaining_gas);
+            if gas_used.dim_is_less_than(gas) {
+                return Err(GasMeteringError::ImpossibleToRefundGas {
+                    gas_to_refund: gas.clone(),
+                    gas_used: gas_used.clone(),
+                });
             }
         }
+
+        let gas_value = gas.checked_value(&self.gas_price).ok_or_else(|| {
+            GasMeteringError::Overflow(
+                "Refund Gas: Unable to refund gas, because the calculation overflows".to_string(),
+            )
+        })?;
+
+        if let Some(remaining_funds) = self.remaining_funds {
+            // We never refund more than what was charged during execution; therefore, an overflow is impossible.
+            self.remaining_funds =
+                Some(remaining_funds.checked_add(gas_value).ok_or_else(|| {
+                    GasMeteringError::Overflow("Refund Gas: remaining funds overflow".to_string())
+                })?);
+        }
+
+        // We never refund more than what was charged during execution; therefore, an overflow is impossible.
+        self.remaining_gas = self.remaining_gas.checked_combine(gas).ok_or_else(|| {
+            GasMeteringError::Overflow("Refund Gas: remaining gas overflow".to_string())
+        })?;
 
         Ok(())
     }
 
     fn gas_info(&self) -> GasInfo<S::Gas> {
-        let remaining_funds = match &self.gas_metering {
-            GasMetering::Gas(remaining_gas) => remaining_gas.value(&self.gas_price),
-            GasMetering::GasAndFunds(remaining_funds, _) => *remaining_funds,
+        let remaining_funds = if let Some(remaining_funds) = self.remaining_funds {
+            remaining_funds
+        } else {
+            self.remaining_gas.value(&self.gas_price)
         };
 
+        let gas_used = self
+            .initial_gas
+            .checked_sub(&self.remaining_gas)
+            .expect("The remaining gas can't be greater than the initial gas");
+
+        let gas_value = gas_used
+            .checked_value(&self.gas_price)
+            .expect("The gas value should be possible to compute");
+
         GasInfo {
-            gas_used: self.gas_used.clone(),
+            gas_value,
+            gas_used,
             gas_price: self.gas_price.clone(),
             remaining_funds,
         }
@@ -804,6 +830,32 @@ mod tests {
     }
 
     #[test]
+    fn checked_value_test() {
+        let gas = GasUnit::<2>::from([10, 20]);
+        let gas_price = GasPrice::<2>::from([3, 5]);
+
+        let value = gas.checked_value(&gas_price).unwrap();
+        assert_eq!(value, 130);
+
+        let gas = GasUnit::<2>::from([u64::MAX, 20]);
+        let gas_price = GasPrice::<2>::from([3, 5]);
+
+        let value = gas.checked_value(&gas_price);
+        assert!(value.is_none());
+
+        let gas = GasUnit::<2>::from([u64::MAX, 1]);
+        let gas_price = GasPrice::<2>::from([1, 1]);
+        let value = gas.checked_value(&gas_price);
+        assert!(value.is_none());
+
+        let gas = GasUnit::<2>::from([0, 10]);
+        let gas_price = GasPrice::<2>::from([u64::MAX, 20]);
+
+        let value = gas.checked_value(&gas_price).unwrap();
+        assert_eq!(value, 200);
+    }
+
+    #[test]
     fn charge_gas_should_fail_if_not_enough_funds() {
         let gas_price = GasPrice::<2>::from([1; 2]);
 
@@ -840,7 +892,11 @@ mod tests {
         let gas_price = GasPrice::<2>::from([1; 2]);
 
         {
-            let mut gas_meter = BasicGasMeter::<S>::new(100, GasUnit::<2>::MAX, gas_price.clone());
+            let mut gas_meter = BasicGasMeter::<S>::new_with_funds_and_gas(
+                100,
+                GasUnit::<2>::MAX,
+                gas_price.clone(),
+            );
 
             assert!(
             gas_meter.refund_gas(&GasUnit::<2>::from([100; 2])).is_err(),
@@ -865,8 +921,11 @@ mod tests {
             const REMAINING_FUNDS: u64 = 100;
             let gas_price = GasPrice::<2>::from([1; 2]);
 
-            let mut gas_meter =
-                BasicGasMeter::<S>::new(REMAINING_FUNDS, GasUnit::<2>::MAX, gas_price.clone());
+            let mut gas_meter = BasicGasMeter::<S>::new_with_funds_and_gas(
+                REMAINING_FUNDS,
+                GasUnit::<2>::MAX,
+                gas_price.clone(),
+            );
             assert!(
                 gas_meter
                     .charge_gas(&GasUnit::<2>::from([REMAINING_FUNDS / 2; 2]))
@@ -927,7 +986,11 @@ mod tests {
         const REMAINING_FUNDS: u64 = 100;
         let gas_price = GasPrice::from([1; 2]);
 
-        let mut gas_meter = BasicGasMeter::<S>::new(REMAINING_FUNDS, GasUnit::<2>::MAX, gas_price);
+        let mut gas_meter = BasicGasMeter::<S>::new_with_funds_and_gas(
+            REMAINING_FUNDS,
+            GasUnit::<2>::MAX,
+            gas_price,
+        );
         assert!(
             gas_meter
                 .charge_gas(&GasUnit::<2>::from([REMAINING_FUNDS / 2; 2]))
@@ -995,6 +1058,58 @@ mod tests {
             gas_meter.gas_info().remaining_funds,
             50,
             "Half of the gas should be refunded"
+        );
+    }
+
+    #[test]
+    fn gas_meter_charge_gas_overflow_test() {
+        let remaining_gas = GasUnit::<2>::from([u64::MAX, u64::MAX]);
+        let gas_price = GasPrice::<2>::from([u64::MAX; 2]);
+
+        let mut gas_meter =
+            BasicGasMeter::<S>::new_with_gas(remaining_gas.clone(), gas_price.clone());
+
+        let gas = GasUnit::<2>::from([2; 2]);
+        let res = gas_meter.charge_gas(&gas);
+
+        assert_eq!(
+            res,
+            Err(GasMeteringError::Overflow(
+                "Charge Gas: Unable to charge gas, because the calculation overflows".to_string()
+            ))
+        );
+
+        let mut gas_meter = BasicGasMeter::<S>::new_with_funds_and_gas(
+            u64::MAX,
+            remaining_gas.clone(),
+            gas_price.clone(),
+        );
+
+        let res = gas_meter.charge_gas(&gas);
+
+        assert_eq!(
+            res,
+            Err(GasMeteringError::Overflow(
+                "Charge Funds: Unable to charge gas, because the calculation overflows".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn gas_meter_refund_gas_overflow_test() {
+        let mut gas_meter = BasicGasMeter::<S> {
+            initial_gas: GasUnit::<2>::from([u64::MAX, u64::MAX]),
+            remaining_gas: GasUnit::<2>::ZEROED,
+            remaining_funds: Some(0),
+            gas_price: GasPrice::<2>::from([u64::MAX; 2]),
+        };
+
+        let res = gas_meter.refund_gas(&GasUnit::<2>::from([2, 2]));
+        assert_eq!(
+            res,
+            Err(GasMeteringError::Overflow(
+                "Refund Gas: Unable to refund gas, because the calculation overflows".to_string()
+            ))
         );
     }
 }

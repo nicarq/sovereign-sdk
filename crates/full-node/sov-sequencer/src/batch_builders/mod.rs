@@ -263,7 +263,7 @@ where
         .sequencer_authorization()
         .authorize_sequencer(sequencer_address, &mut tx_scratchpad)
     {
-        Ok(sequencer) => BasicGasMeter::new(
+        Ok(sequencer) => BasicGasMeter::new_with_funds_and_gas(
             sequencer.balance,
             <S as GasSpec>::max_tx_check_costs(),
             gas_price,

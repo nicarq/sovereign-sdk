@@ -76,11 +76,14 @@ where
                         "The sequencer paid for the transaction.",
                     );
 
+                    let gas_value = out
+                        .gas_used
+                        .checked_value(gas_price)
+                        // SAFETY: Unwrapping is safe here because `gas_used` comes from `BasicGasMeter``, which ensures overflow does not occur.
+                        .expect("The gas value can't overflow");
+
                     let state = workflow
-                        .charge_sequencer_and_reward_prover(
-                            out.gas_used.value(gas_price),
-                            scratchpad,
-                        )
+                        .charge_sequencer_and_reward_prover(gas_value, scratchpad)
                         .commit();
 
                     return (out, state);
@@ -172,7 +175,6 @@ where
             tracing::debug!("{LOG_PREFIX}: unable to deserialize proof {:?}", e);
 
             let (state, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
-            let gas_used = gas_meter.gas_info().gas_used;
 
             tracing::info!(
                 sequencer = %sequencer_da_address,
@@ -180,9 +182,10 @@ where
             );
 
             let state = workflow
-                .charge_sequencer_and_reward_prover(gas_used.value(gas_price), state)
+                .charge_sequencer_and_reward_prover(gas_meter.gas_info().gas_value, state)
                 .commit();
 
+            let gas_used = gas_meter.gas_info().gas_used;
             (
                 ProcessProofOutput {
                     proof_receipt: invalid_proof_receipt::<S>(
@@ -252,7 +255,26 @@ where
         mut tx_scratchpad: TxScratchpad<S, I>,
     ) -> PreExecWorkingSetResult<S, I> {
         let max_tx_check_costs = <S as GasSpec>::max_tx_check_costs();
-        let max_tx_check_value = max_tx_check_costs.value(gas_price);
+
+        let max_tx_check_value = match <S as GasSpec>::max_tx_check_costs().checked_value(gas_price)
+        {
+            Some(v) => v,
+            None => {
+                return WorkflowResult::EarlyReturn(
+                    ProcessProofOutput {
+                        proof_receipt: invalid_proof_receipt::<S>(
+                            self.blob_hash,
+                            InvalidProofError::PreconditionNotMet(
+                                "Overflow: Unable to calculate gas value for max_tx_check_costs"
+                                    .to_string(),
+                            ),
+                        ),
+                        gas_used: S::Gas::zero(),
+                    },
+                    tx_scratchpad,
+                );
+            }
+        };
 
         let sequencer = self
             .runtime
