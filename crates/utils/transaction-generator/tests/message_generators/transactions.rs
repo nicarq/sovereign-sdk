@@ -10,8 +10,8 @@ use sov_transaction_generator::generators::bank::harness_interface::BankHarness;
 use sov_transaction_generator::generators::bank::BankMessageGenerator;
 use sov_transaction_generator::generators::basic::{BasicModuleRef, BasicTag};
 use sov_transaction_generator::generators::transaction::{
-    GeneratedTransaction, MaxFeeOutcome, RunTest, SovereignContext, SovereignGeneratedTransaction,
-    TransactionOutcome,
+    GasLimitOutcome, GeneratedTransaction, MaxFeeOutcome, RunTest, SovereignContext,
+    SovereignGeneratedTransaction, TransactionOutcome,
 };
 use sov_transaction_generator::generators::value_setter::{
     ValueSetterHarness, ValueSetterMessageGenerator,
@@ -27,7 +27,7 @@ generate_optimistic_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
 type RT = TestRuntime<S>;
 
 #[test]
-fn test_transaction_gas_usage() {
+fn test_transaction_max_fee() {
     use sov_bank::CallMessageDiscriminants::*;
     let user = TestUser::<S>::generate_with_default_balance();
 
@@ -74,6 +74,82 @@ fn test_transaction_gas_usage() {
     let mut generated_txs = vec![];
 
     for _ in 0..40 {
+        generated_txs.push(SovereignGeneratedTransaction::new(&mut context));
+    }
+
+    let accounts = generated_txs
+        .iter()
+        .map(|tx| TestUser::<S>::new(tx.msg.sender.clone(), TEST_DEFAULT_USER_BALANCE * 10))
+        .collect::<Vec<_>>();
+
+    let low_genesis_config = HighLevelOptimisticGenesisConfig::generate()
+        .add_accounts_with_default_balance(2)
+        .add_accounts(vec![user.clone()])
+        .add_accounts(accounts);
+
+    let genesis_config = GenesisConfig::from_minimal_config(
+        low_genesis_config.into(),
+        ValueSetterConfig {
+            admin: user.address(),
+        },
+    );
+    let mut runner = TestRunner::<RT, S>::new_with_genesis(
+        genesis_config.into_genesis_params(),
+        Default::default(),
+    );
+
+    for generated_tx in generated_txs {
+        generated_tx.run_test(&mut runner);
+    }
+}
+
+#[test]
+fn test_transaction_gas_limit() {
+    use sov_bank::CallMessageDiscriminants::*;
+    let user = TestUser::<S>::generate_with_default_balance();
+
+    let bank_harness = BankHarness::new(BankMessageGenerator::<S>::new(
+        Distribution::with_equiprobable_values(vec![Transfer, Freeze, Burn, Mint, CreateToken]),
+        Percent::one_hundred(),
+    ));
+    let value_setter_harness = ValueSetterHarness::new(ValueSetterMessageGenerator::<S>::new(
+        Distribution::with_equiprobable_values(vec![
+            ValueSetterDiscriminants::SetValue,
+            ValueSetterDiscriminants::SetManyValues,
+        ]),
+        1000,
+        user.private_key.clone(),
+    ));
+    let modules: Vec<BasicModuleRef<S, RT>> =
+        vec![Arc::new(bank_harness), Arc::new(value_setter_harness)];
+
+    let random_bytes: Vec<u8> = get_random_bytes(100_000, 0);
+    let u = &mut arbitrary::Unstructured::new(&random_bytes[..]);
+    let mut state: State<S, BasicTag> = State::with_account_and_tags(
+        AccountState {
+            private_key: user.private_key.clone(),
+            balances: vec![],
+            can_mint: Default::default(),
+            sequencing_bond: None,
+            additional_info: Default::default(),
+        },
+        vec![],
+    );
+    let outcomes = vec![
+        Arc::new(TransactionOutcome::GasLimit(GasLimitOutcome::Excess)),
+        Arc::new(TransactionOutcome::GasLimit(GasLimitOutcome::Insufficient)),
+    ];
+
+    let mut context = SovereignContext {
+        modules: Distribution::with_equiprobable_values(modules),
+        u,
+        call_generator_state: &mut state,
+        outcomes: Distribution::with_equiprobable_values(outcomes),
+    };
+
+    let mut generated_txs = vec![];
+
+    for _ in 0..10 {
         generated_txs.push(SovereignGeneratedTransaction::new(&mut context));
     }
 

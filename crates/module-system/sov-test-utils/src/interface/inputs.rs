@@ -31,7 +31,9 @@ pub enum TransactionType<RT: Runtime<S>, S: Spec> {
 }
 
 impl<RT: Runtime<S>, S: Spec> TransactionType<RT, S> {
-    fn details_mut(&mut self) -> Option<&mut TxDetails<S>> {
+    /// Get a mutable reference to the [`TxDetails`] if self is [`TransactionType::Plain`].
+    /// Otherwise returns [`None`].
+    pub fn details_mut(&mut self) -> Option<&mut TxDetails<S>> {
         Some(match self {
             TransactionType::PreAuthenticated(_) | TransactionType::PreSigned { .. } => {
                 return None

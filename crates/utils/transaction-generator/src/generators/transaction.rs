@@ -6,9 +6,10 @@ use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::transaction::TxDetails;
 use sov_modules_api::{
-    BlobDataWithId, CryptoSpec, DispatchCall, Gas, PrivateKey as _, Runtime, Spec,
+    BlobDataWithId, CryptoSpec, DispatchCall, Gas, GasArray, PrivateKey as _, Runtime, Spec,
+    TxEffect,
 };
-use sov_modules_stf_blueprint::get_gas_used;
+use sov_modules_stf_blueprint::{get_gas_used, TxReceiptContents};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_utils::runtime::traits::MinimalGenesis;
 use sov_test_utils::runtime::TestRunner;
@@ -21,7 +22,7 @@ use super::basic::{BasicChangeLogEntry, BasicModuleRef, BasicTag};
 use crate::{Distribution, GeneratedMessage, MessageValidity, State};
 
 /// Prepare the testing environment immediately before execution.
-pub trait PrepareEnv {
+pub trait PrepareEnv<S> {
     /// Context that is used for setup.
     type Input;
 
@@ -30,7 +31,7 @@ pub trait PrepareEnv {
 }
 
 /// Assert the outcome of applying some state update.
-pub trait AssertOutcome {
+pub trait AssertOutcome<S> {
     /// The result of the state update.
     type Output;
 
@@ -41,7 +42,7 @@ pub trait AssertOutcome {
 /// A trait representing a generated transaction.
 pub trait GeneratedTransaction
 where
-    Self: Sized + PrepareEnv + AssertOutcome,
+    Self: Sized,
 {
     /// The type of the transaction.
     type Transaction;
@@ -75,11 +76,85 @@ pub enum MaxFeeOutcome {
     Excess,
 }
 
+impl<S: Spec> AssertOutcome<S> for MaxFeeOutcome {
+    type Output = TxEffect<TxReceiptContents<S>>;
+
+    fn assert_outcome(&self, output: &Self::Output) {
+        match self {
+            MaxFeeOutcome::Insufficient => assert!(
+                !output.is_successful(),
+                "Insufficient expected tx to not be successful, found {:?}",
+                output
+            ),
+            MaxFeeOutcome::Exact => assert!(
+                output.is_successful(),
+                "Exact expected successful receipt, found {:?}",
+                output
+            ),
+            MaxFeeOutcome::Excess => assert!(
+                output.is_successful(),
+                "Excess expected successful receipt, found {:?}",
+                output
+            ),
+        }
+    }
+}
+
+impl MaxFeeOutcome {
+    fn set_max_fee<S: Spec>(&self, gas_used: u64, details: &mut TxDetails<S>) {
+        details.max_fee = match self {
+            MaxFeeOutcome::Insufficient => gas_used - 2000,
+            MaxFeeOutcome::Exact => gas_used,
+            MaxFeeOutcome::Excess => gas_used + 2000,
+        };
+    }
+}
+
+/// A transaction outcome associated with the `gas_limit` field.
+#[derive(Debug)]
+pub enum GasLimitOutcome {
+    /// The transaction will fail due to insufficient gas caused by the gas_limit setting.
+    Insufficient,
+    /// The transaction will succeed due to sufficient gas caused by the gas_limit setting.
+    Excess,
+}
+
+impl GasLimitOutcome {
+    fn set_gas_limit<S: Spec>(&self, mut gas_used: S::Gas, details: &mut TxDetails<S>) {
+        let gas_limit = match self {
+            GasLimitOutcome::Insufficient => gas_used.scalar_sub(2000),
+            GasLimitOutcome::Excess => gas_used.scalar_add(2000),
+        };
+        details.gas_limit = Some(gas_limit.clone());
+    }
+}
+
+impl<S: Spec> AssertOutcome<S> for GasLimitOutcome {
+    type Output = TxEffect<TxReceiptContents<S>>;
+
+    fn assert_outcome(&self, output: &Self::Output) {
+        match self {
+            GasLimitOutcome::Insufficient => assert!(
+                !output.is_successful(),
+                "Insufficient expected tx to not be successful, found {:?}",
+                output
+            ),
+            GasLimitOutcome::Excess => assert!(
+                output.is_successful(),
+                "Excess expected successful receipt, found {:?}",
+                output
+            ),
+        }
+    }
+}
+
 /// Outcomes associated with fields on transactions.
 #[derive(Debug)]
 pub enum TransactionOutcome {
     /// An outcome associated with the max_fee field.
     MaxFee(MaxFeeOutcome),
+    /// An outcome associated with the gas_limit field.
+    GasLimit(GasLimitOutcome),
 }
 
 type DefaultSpecWithHasher<S> = DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>;
@@ -98,7 +173,7 @@ pub struct SovereignGeneratedTransaction<
     pub msg: GeneratedMessage<S, <RT as DispatchCall>::Decodable, BasicChangeLogEntry<S>>,
 }
 
-impl<S, RT> PrepareEnv for SovereignGeneratedTransaction<S, RT>
+impl<S, RT> PrepareEnv<S> for SovereignGeneratedTransaction<S, RT>
 where
     RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S> + DispatchCall,
     S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>, Da = MockDaSpec>,
@@ -111,46 +186,35 @@ where
         let tx_receipt = &simulated.batch_receipts[0].tx_receipts[0].clone();
         let gas_used = get_gas_used(tx_receipt);
         let gas_price = batch_receipt.inner.gas_price.clone();
-        let gas_used = gas_used.value(&gas_price);
+        let gas_used_value = gas_used.value(&gas_price);
+        let tx_details = self.tx.details_mut().unwrap();
 
-        let max_fee = match &*self.outcome {
-            TransactionOutcome::MaxFee(gas_outcome) => match gas_outcome {
-                MaxFeeOutcome::Insufficient => gas_used - 2000,
-                MaxFeeOutcome::Exact => gas_used,
-                MaxFeeOutcome::Excess => gas_used + 2000,
-            },
-        };
-
-        self.tx = self.transaction().with_max_fee(max_fee);
+        match &*self.outcome {
+            TransactionOutcome::MaxFee(max_fee_outcome) => {
+                max_fee_outcome.set_max_fee(gas_used_value, tx_details);
+            }
+            TransactionOutcome::GasLimit(gas_limit_outcome) => {
+                gas_limit_outcome.set_gas_limit(gas_used, tx_details);
+            }
+        }
     }
 }
 
-impl<S, RT> AssertOutcome for SovereignGeneratedTransaction<S, RT>
+impl<S, RT> AssertOutcome<S> for SovereignGeneratedTransaction<S, RT>
 where
     S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>, Da = MockDaSpec>,
     RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S> + DispatchCall,
 {
     type Output = TransactionAssertContext<S, RT>;
 
-    fn assert_outcome<'a>(&self, output: &Self::Output) {
+    fn assert_outcome(&self, output: &Self::Output) {
         match &*self.outcome {
-            TransactionOutcome::MaxFee(max_fee_outcome) => match max_fee_outcome {
-                MaxFeeOutcome::Insufficient => assert!(
-                    !output.tx_receipt.is_successful(),
-                    "Insufficient expected tx to not be successful, found {:?}",
-                    output.tx_receipt
-                ),
-                MaxFeeOutcome::Exact => assert!(
-                    output.tx_receipt.is_successful(),
-                    "Exact expected successful receipt, found {:?}",
-                    output.tx_receipt
-                ),
-                MaxFeeOutcome::Excess => assert!(
-                    output.tx_receipt.is_successful(),
-                    "Excess expected successful receipt, found {:?}",
-                    output.tx_receipt
-                ),
-            },
+            TransactionOutcome::MaxFee(max_fee_outcome) => {
+                max_fee_outcome.assert_outcome(&output.tx_receipt);
+            }
+            TransactionOutcome::GasLimit(gas_limit_outcome) => {
+                gas_limit_outcome.assert_outcome(&output.tx_receipt);
+            }
         };
     }
 }
@@ -237,12 +301,12 @@ where
                 self.assert_outcome(&context);
 
                 if context.tx_receipt.is_skipped() {
-                    nonce_flag.store(true, Ordering::SeqCst);
+                    nonce_flag.store(true, Ordering::Release);
                 }
             }),
         });
 
-        if should_decrement_nonce.load(Ordering::SeqCst) {
+        if should_decrement_nonce.load(Ordering::Acquire) {
             if let Some(pk) = pubkey_for_nonce_to_decrement {
                 if let Some(n) = runner.nonces_mut().get_mut(&pk) {
                     *n -= 1;
