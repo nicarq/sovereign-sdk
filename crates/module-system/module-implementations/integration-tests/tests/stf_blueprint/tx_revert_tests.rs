@@ -1,6 +1,5 @@
 use std::convert::Infallible;
 
-use serial_test::serial;
 use sov_bank::config_gas_token_id;
 use sov_mock_da::MockAddress;
 use sov_modules_api::prelude::UnwrapInfallible;
@@ -26,7 +25,6 @@ fn assert_outcome(outcome: &BatchSequencerOutcome) {
 }
 
 #[test]
-#[serial]
 fn test_tx_revert() -> Result<(), Infallible> {
     reset_constants();
     // Test checks:
@@ -107,7 +105,6 @@ fn test_tx_revert() -> Result<(), Infallible> {
 }
 
 #[test]
-#[serial]
 fn test_tx_bad_signature() -> Result<(), Infallible> {
     reset_constants();
     let (mut runner, users, sequencer) = setup(1);
@@ -181,7 +178,6 @@ fn get_attester_stake_for_block(
 
 /// This test ensures that the sequencer gets penalized for submitting a proof that has a wrong nonce.
 #[test]
-#[serial]
 fn test_tx_bad_nonce() {
     reset_constants();
     let (mut runner, users, sequencer) = setup(1);
@@ -247,7 +243,6 @@ fn test_tx_bad_nonce() {
 }
 
 #[test]
-#[serial]
 fn test_tx_bad_serialization() -> Result<(), Infallible> {
     reset_constants();
     let (mut runner, users, sequencer) = setup(1);

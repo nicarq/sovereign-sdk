@@ -1,7 +1,6 @@
 use std::env;
 
 use helpers::*;
-use serial_test::serial;
 use sov_attester_incentives::AttesterIncentives;
 use sov_bank::IntoPayable;
 use sov_mock_da::MockBlob;
@@ -128,8 +127,6 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
 
 // Execute batch of valid transactions and ensure that the relevant balances ware updated correctly
 #[test]
-// All the tests run serially because they modify the shared env variables.
-#[serial]
 fn execute_many_successful_tx_test() {
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![
@@ -144,7 +141,6 @@ fn execute_many_successful_tx_test() {
 
 // Execute a batch of mixed transactions and ensure that the relevant balances were updated correctly
 #[test]
-#[serial]
 fn execute_batch_of_valid_and_invalid_tx_test() {
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![
@@ -163,7 +159,6 @@ fn execute_batch_of_valid_and_invalid_tx_test() {
 
 // Execute a batch of invalid transactions and ensure that the relevant balances ware updated correctly
 #[test]
-#[serial]
 fn execute_batch_of_invalid_tx_test() {
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     // BadGeneration is only possible if an account already had at least one valid tx, so we cannot
@@ -183,7 +178,6 @@ fn execute_batch_of_invalid_tx_test() {
 
 // The batch from an unregistered sequencer is ignored, and no batch receipt is returned.
 #[test]
-#[serial]
 fn non_existing_seq_da_tests() {
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![TxStatus::Success];
@@ -216,7 +210,6 @@ fn non_existing_seq_da_tests() {
 }
 
 #[test]
-#[serial]
 fn sequencer_run_out_of_gas() {
     env::set_var(
         "SOV_SDK_CONST_OVERRIDE_DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION",
