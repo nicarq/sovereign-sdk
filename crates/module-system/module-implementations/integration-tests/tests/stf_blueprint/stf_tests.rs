@@ -1,7 +1,6 @@
 use std::convert::Infallible;
 use std::vec;
 
-use serial_test::serial;
 use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{BatchSequencerOutcome, FullyBakedTx, Spec};
@@ -20,7 +19,6 @@ use crate::stf_blueprint::{
 };
 
 #[test]
-#[serial]
 fn test_demo_values_in_db() -> Result<(), Infallible> {
     reset_constants();
     let (mut runner, users, sequencer) = setup(1);
@@ -77,7 +75,6 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
 }
 
 #[test]
-#[serial]
 fn test_demo_values_in_cache() -> Result<(), Infallible> {
     reset_constants();
     let (mut runner, users, sequencer) = setup(1);
@@ -132,7 +129,6 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
 // This test has 2 batches each submitted by unregistered sequencers, given they are in different
 // batches then both unregistered sequencers should be registered
 #[test]
-#[serial]
 fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_register() {
     reset_constants();
     let (mut runner, mut users, _) = setup(1);
@@ -203,7 +199,6 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
 }
 
 #[test]
-#[serial]
 fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
     reset_constants();
     let (mut runner, users, _) = setup(1);
@@ -262,7 +257,6 @@ fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
 }
 
 #[test]
-#[serial]
 fn test_unregistered_sequencer_registration_incorrect_call_message() {
     reset_constants();
     let (mut runner, mut users, _) = setup(1);
@@ -303,7 +297,6 @@ fn test_unregistered_sequencer_registration_incorrect_call_message() {
 }
 
 #[test]
-#[serial]
 fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_slot() {
     reset_constants();
     let (mut runner, mut users, _) = setup(1);

@@ -1,7 +1,6 @@
 use std::env;
 
 use helpers::*;
-use serial_test::serial;
 use sov_attester_incentives::AttesterIncentives;
 use sov_bank::IntoPayable;
 use sov_mock_da::{MockAddress, MockBlob};
@@ -129,7 +128,6 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
 
 // Execute batch of valid registrations.
 #[test]
-#[serial]
 fn execute_seq_registration_success_test() {
     reset_constants();
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
@@ -139,7 +137,6 @@ fn execute_seq_registration_success_test() {
 
 // Execute batch of invalid registrations.
 #[test]
-#[serial]
 fn execute_seq_registration_failure_test() {
     reset_constants();
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
@@ -158,7 +155,6 @@ fn execute_seq_registration_failure_test() {
 
 // Execute a blob that is too expensive to deserialize.
 #[test]
-#[serial]
 fn blob_too_expensive_tests() {
     reset_constants();
     // Set the max amount of gas to be spent on a single blob to a very small value
@@ -188,7 +184,6 @@ fn blob_too_expensive_tests() {
 
 // Execute a blob that is too big to be processed.
 #[test]
-#[serial]
 fn blob_test_max_slot_size() {
     reset_constants();
     env::set_var(
@@ -216,7 +211,6 @@ fn blob_test_max_slot_size() {
 
 // Execute a blob that is too big to be returned by the blob storage.
 #[test]
-#[serial]
 fn blob_test_max_allowed_data_size() {
     reset_constants();
     env::set_var(
