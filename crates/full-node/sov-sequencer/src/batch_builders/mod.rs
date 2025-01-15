@@ -22,6 +22,7 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::{PreExecError, Runtime};
 use sov_rest_utils::json_obj;
+use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::DaSyncState;
 use tokio::task::JoinHandle;
 use tracing::{error, trace};
@@ -39,6 +40,8 @@ pub mod standard;
 /// This trait serves no purpose other than to reduce generics clutter in `impl`
 /// blocks.
 pub trait RtAwareBatchBuilderSpec: Send + Sync + 'static {
+    /// The DA service.
+    type DaService: DaService;
     /// The `Spec` defines the rollup's types.
     type Spec: Spec;
     /// The runtime of the rollup.
@@ -47,14 +50,16 @@ pub trait RtAwareBatchBuilderSpec: Send + Sync + 'static {
         + TransactionAuthenticator<Self::Spec, AuthorizationData = AuthorizationData<Self::Spec>>;
 }
 
-impl<S, Rt> RtAwareBatchBuilderSpec for (S, Rt)
+impl<Da, S, Rt> RtAwareBatchBuilderSpec for (Da, S, Rt)
 where
+    Da: DaService,
     S: Spec,
     Rt: Runtime<S>
         + HasCapabilities<S, AuthorizationData = AuthorizationData<S>>
         + TransactionAuthenticator<S, AuthorizationData = AuthorizationData<S>>
         + 'static,
 {
+    type DaService = Da;
     type Spec = S;
     type Rt = Rt;
 }
@@ -71,6 +76,9 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     type Config: Clone + Debug + Send + Sync + 'static;
     /// The rollup spec.
     type Spec: Spec;
+
+    /// Enables submission of batche of DA in parallel.
+    const PARALLEL_DA_SUBMISSION: bool;
 
     /// Encodes the transaction into the format accepted by [`BatchBuilder::accept_tx`].
     fn encode_tx(raw: RawTx) -> FullyBakedTx;
@@ -118,12 +126,8 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     /// batch is up to implementation.
     async fn assemble_batch(&mut self) -> anyhow::Result<()>;
 
-    /// Peeks the earliest assembled batch that hasn't been popped yet.
-    ///
-    /// FIXME(@neysofu): the assemble/peek/pop pattern of [`BatchBuilder`]
-    /// doesn't quite support reorgs as-is. We probably ought to offer an API
-    /// that allows to "rewind" the batch builder to a given unfinalized height.
-    async fn peek_batch(&mut self) -> anyhow::Result<Option<WithCachedTxHashes<Self::Batch>>>;
+    /// Peeks all the assembled batches that haven't been removed yet.
+    async fn peek_batches(&mut self) -> anyhow::Result<Vec<WithCachedTxHashes<Self::Batch>>>;
 
     /// Pops the earliest assembled batch that hasn't been popped yet.
     ///
@@ -155,7 +159,7 @@ impl<C> AcceptedTx<C> {
     }
 }
 
-/// The return type of [`BatchBuilder::peek_batch`].
+/// The return type of [`BatchBuilder::peek_batches`].
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct WithCachedTxHashes<I> {
     /// Inner batch data.

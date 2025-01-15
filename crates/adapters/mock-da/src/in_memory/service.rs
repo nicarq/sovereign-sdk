@@ -268,6 +268,8 @@ impl DaService for MockDaService {
     type Error = anyhow::Error;
     type Fee = MockFee;
 
+    const GUARANTEES_TRANSACTION_ORDERING: bool = true;
+
     /// Gets block at given height
     /// If block is not available, waits until it is produced.
     /// It is possible to read non-finalized and last finalized blocks multiple times

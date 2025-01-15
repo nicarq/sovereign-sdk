@@ -374,32 +374,46 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
         Ok(sequence_number)
     }
 
-    /// Returns the [`SequenceNumber`] of the oldest/earliest batch stored in
-    /// this [`PreferredBbDb`] that hasn't been successfully sent to the DA yet.
-    pub async fn earliest_batch_not_sent_yet(
-        &self,
-    ) -> anyhow::Result<Option<WithCachedTxHashes<PreferredBatchData>>> {
+    /// Returns all batches stored in
+    /// this [`PreferredBbDb`] that haven't been successfully sent to the DA
+    /// yet.
+    pub async fn not_sent_yet_batches(
+        &mut self,
+    ) -> anyhow::Result<Vec<WithCachedTxHashes<PreferredBatchData>>> {
         let Some(sequence_number) = self
             .sequence_number_of_earliest_batch_not_sent_yet()
             .await?
         else {
-            return Ok(None);
-        };
-        let Some(batch) = self
-            .db
-            .get::<tables::NotFinalizedPreferredBlobs>(&sequence_number)?
-        else {
-            return Ok(None);
+            return Ok(vec![]);
         };
 
-        if let PreferredBbDbBlob::Batch(batch) = batch {
-            Ok(Some(batch))
-        } else {
-            panic!("Database error: expected to find batch, but a proof blob was found instead. Either db is corrupted or this is a bug.");
+        let mut iter = self.db.iter::<tables::BatchesWaitingToBePublished>()?;
+        iter.seek(&sequence_number)?;
+
+        let mut batches = vec![];
+
+        for iter_res in iter {
+            let sequence_number = iter_res?.key;
+
+            let Some(batch) = self
+                .db
+                .get::<tables::NotFinalizedPreferredBlobs>(&sequence_number)?
+            else {
+                continue;
+            };
+
+            // We only want batches, not proofs.
+            if let PreferredBbDbBlob::Batch(batch) = batch {
+                batches.push(batch);
+            } else {
+                panic!("Database error: expected to find batch, but a proof blob was found instead. Either db is corrupted or this is a bug.");
+            }
         }
+
+        Ok(batches)
     }
 
-    /// Removes the [`SequenceNumber`] of [`PreferredBbDb::earliest_batch_not_sent_yet`].
+    /// Removes the [`SequenceNumber`] of [`PreferredBbDb::`].
     pub async fn advance_not_sent_yet_cursor(&mut self) -> anyhow::Result<()> {
         let Some(sequence_number) = self
             .sequence_number_of_earliest_batch_not_sent_yet()

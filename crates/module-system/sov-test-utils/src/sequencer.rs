@@ -45,7 +45,8 @@ pub type TestSequencer<B> = Sequencer<TestSequencerSpec<B>>;
 /// An alias for a [`StdBatchBuilder`] with a [`TestSpec`],
 /// a [`MockDaService`] for DA interactions,
 /// a [`TestOptimisticRuntime`] and a [`sov_kernels::basic::BasicKernel`].
-pub type TestStdBatchBuilder = StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>;
+pub type TestStdBatchBuilder =
+    StdBatchBuilder<(MockDaService, TestSpec, TestOptimisticRuntime<TestSpec>)>;
 
 /// A `struct` that contains a [`Sequencer`] and a copy of its running Axum
 /// server, for use in tests. See [`TestSequencerSetup::new`] and
