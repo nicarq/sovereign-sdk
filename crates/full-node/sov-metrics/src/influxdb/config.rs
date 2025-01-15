@@ -1,5 +1,7 @@
 /// Configuration of Sovereign monitoring
-#[derive(Debug, Clone, serde::Deserialize, derivative::Derivative, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, serde::Deserialize, serde::Serialize, derivative::Derivative, schemars::JsonSchema,
+)]
 #[derivative(PartialEq)]
 pub struct MonitoringConfig {
     /// UDP socket where Telegraf service is active, something like 127.0.0.1:8094.

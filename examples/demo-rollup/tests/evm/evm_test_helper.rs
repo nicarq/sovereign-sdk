@@ -31,6 +31,7 @@ pub(crate) async fn start_node(
         mock_da_risc0_host_args(),
     )
     .set_config(|c| {
+        c.automatic_batch_production = false; // FIXME(@neysofu): finish migrating all tests off of manual batch production.
         c.rollup_prover_config = rollup_prover_config;
         c.aggregated_proof_block_jump = 5;
         c.max_infos_in_db = 30;

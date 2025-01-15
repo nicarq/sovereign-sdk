@@ -173,7 +173,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
         let config = SequencerConfig {
             da_address: da_service.sequencer_address(),
             admin_addresses,
-            automatic_batch_production: false,
+            automatic_batch_production: true,
             max_allowed_blocks_behind: 0,
             dropped_tx_ttl_secs: 0,
             batch_builder: batch_builder_config,

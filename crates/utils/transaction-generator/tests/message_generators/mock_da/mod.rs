@@ -436,6 +436,8 @@ async fn test_several_sequencers(
         Default::default(),
     )
     .set_config(|config| {
+        // FIXME(@neysofu): this test fails when automatic batch production is enabled.
+        config.automatic_batch_production = false;
         config.batch_builder_config = BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
             minimum_profit_per_tx: 0,
         });

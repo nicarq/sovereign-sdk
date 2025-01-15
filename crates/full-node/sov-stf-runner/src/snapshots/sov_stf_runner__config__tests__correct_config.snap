@@ -1,0 +1,55 @@
+---
+source: crates/full-node/sov-stf-runner/src/config.rs
+expression: config
+---
+{
+  "storage": {
+    "path": "/tmp"
+  },
+  "runner": {
+    "genesis_height": 31337,
+    "da_polling_interval_ms": 10000,
+    "rpc_config": {
+      "bind_host": "127.0.0.1",
+      "bind_port": 12345,
+      "public_address": null,
+      "cors": "enabled"
+    },
+    "axum_config": {
+      "bind_host": "127.0.0.1",
+      "bind_port": 12346,
+      "public_address": "https://rollup.sovereign.xyz",
+      "cors": "disabled"
+    },
+    "concurrent_sync_tasks": 18
+  },
+  "da": {
+    "connection_string": "sqlite:///tmp/mockda.sqlite?mode=rwc",
+    "sender_address": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+    "finalization_blocks": 0,
+    "block_producing": "periodic",
+    "block_time_ms": 1000
+  },
+  "proof_manager": {
+    "aggregated_proof_block_jump": 22,
+    "prover_address": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66",
+    "max_number_of_transitions_in_db": 1025,
+    "max_number_of_transitions_in_memory": 768
+  },
+  "sequencer": {
+    "automatic_batch_production": true,
+    "max_allowed_blocks_behind": 5,
+    "dropped_tx_ttl_secs": 60,
+    "da_address": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+    "admin_addresses": [],
+    "standard": {
+      "mempool_max_txs_count": null,
+      "max_batch_size_bytes": null
+    }
+  },
+  "monitoring": {
+    "telegraf_address": "192.168.4.5:8543",
+    "max_datagram_size": 1024,
+    "max_pending_metrics": 2560
+  }
+}

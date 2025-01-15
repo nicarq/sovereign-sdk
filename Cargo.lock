@@ -7864,6 +7864,7 @@ dependencies = [
  "derivative",
  "futures",
  "hex",
+ "insta",
  "jsonrpsee",
  "num_cpus",
  "rayon",

@@ -371,7 +371,7 @@ fn rollup_config(
             max_number_of_transitions_in_memory: NonZero::new(20).unwrap(),
         },
         sequencer: SequencerConfig {
-            automatic_batch_production: false,
+            automatic_batch_production: true,
             max_allowed_blocks_behind: 5,
             // Set ttl to zero to disable for testing. This prevents nondeterminism.
             dropped_tx_ttl_secs: 0,
