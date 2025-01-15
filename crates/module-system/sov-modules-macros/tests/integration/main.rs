@@ -3,6 +3,10 @@ mod custom_state_codec_builder;
 mod derive_wallet;
 mod dispatch;
 mod hygienic_module_info;
+
+#[cfg(feature = "gas-constant-estimation")]
+mod metrics;
+
 mod module_info;
 mod regression_tests;
 mod rpc_gen;

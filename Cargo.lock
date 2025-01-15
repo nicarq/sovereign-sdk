@@ -7369,6 +7369,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "derivative",
+ "derive_more 1.0.0",
  "http",
  "schemars",
  "serde",
@@ -7526,6 +7527,7 @@ dependencies = [
  "serde",
  "sov-address",
  "sov-bank",
+ "sov-metrics",
  "sov-modules-api",
  "sov-modules-macros",
  "sov-rollup-interface",
@@ -7535,6 +7537,7 @@ dependencies = [
  "strum 0.26.3",
  "syn 2.0.77",
  "tempfile",
+ "tokio",
  "toml",
  "trybuild",
 ]

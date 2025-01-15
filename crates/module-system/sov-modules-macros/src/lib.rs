@@ -137,6 +137,9 @@ mod rest;
 #[cfg(feature = "native")]
 mod rpc;
 
+#[cfg(feature = "gas-constant-estimation")]
+mod metrics;
+
 use compile_manifest_constants::{make_const_value, ConfigValueInput};
 use dispatch::dispatch_call::DispatchCallMacro;
 use dispatch::genesis::GenesisMacro;
@@ -258,6 +261,16 @@ pub fn config_value_private(item: TokenStream) -> TokenStream {
         .map(Into::into);
 
     handle_macro_error_and_expand(fn_name!(), tokens)
+}
+
+/// This macro is used to annotate functions that we want to track the usage of gas constants within the SDK.
+/// The purpose of the this macro is to measure how times different gas constants have been used within an annotated function
+/// to be able to estimate constant values.
+#[proc_macro_attribute]
+#[cfg(feature = "gas-constant-estimation")]
+pub fn track_gas_constants_usage(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    metrics::wrap_function_with(metrics::const_tracker, item)
+        .unwrap_or_else(|err| err.to_compile_error().into())
 }
 
 #[cfg(feature = "native")]

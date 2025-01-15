@@ -5,6 +5,8 @@ use std::sync::OnceLock;
 
 use sov_rollup_interface::common::VisibleSlotNumber;
 
+#[cfg(feature = "gas-constant-estimation")]
+use crate::influxdb::gas_constant_estimation::GasConstantMetric;
 use crate::influxdb::{publisher, Metric};
 use crate::{MetricsTracker, MonitoringConfig};
 
@@ -62,7 +64,7 @@ pub fn init_metrics_tracker(config: &MonitoringConfig) {
 }
 
 impl MetricsTracker {
-    fn submit(&self, measurement: SovRollupMetric) {
+    pub(crate) fn submit(&self, measurement: SovRollupMetric) {
         // TODO: Maybe print warning if it fails?
         let _ = self.sender.try_send(Box::new(measurement));
     }
@@ -512,7 +514,7 @@ impl Metric for ZkProvingTime {
     strum(serialize_all = "snake_case")
 )]
 #[strum(serialize_all = "snake_case")]
-enum SovRollupMetric {
+pub(crate) enum SovRollupMetric {
     /// Metrics for the Da layer.
     RunnerDa(Timestamp, RunnerDaMetrics),
     /// Metrics to track the number of transactions, batches and slots processed inside the runner.
@@ -533,6 +535,9 @@ enum SovRollupMetric {
     ZkVm(Timestamp, ZkVmExecutionChunk),
     /// Metrics to track ZK proving.
     ZkProving(Timestamp, ZkProvingTime),
+    #[cfg(feature = "gas-constant-estimation")]
+    /// Metrics to track gas constant usage.
+    GasConstantUsage(Timestamp, GasConstantMetric),
 }
 
 impl SovRollupMetrics {
@@ -550,6 +555,8 @@ impl SovRollupMetrics {
             SovRollupMetrics::Http => "sov_rollup_http_handlers",
             SovRollupMetrics::ZkVm => "sov_rollup_zkvm",
             SovRollupMetrics::ZkProving => "sov_rollup_zkvm_proving",
+            #[cfg(feature = "gas-constant-estimation")]
+            SovRollupMetrics::GasConstantUsage => "sov_rollup_gas_constant_usage",
         }
     }
 }
@@ -594,6 +601,11 @@ impl Metric for SovRollupMetric {
                 t
             }
             SovRollupMetric::ZkProving(t, m) => {
+                m.serialize_for_telegraf(buffer)?;
+                t
+            }
+            #[cfg(feature = "gas-constant-estimation")]
+            SovRollupMetric::GasConstantUsage(t, m) => {
                 m.serialize_for_telegraf(buffer)?;
                 t
             }

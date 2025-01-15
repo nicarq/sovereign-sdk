@@ -23,6 +23,7 @@ http = "1.0"
 derivative = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-cycle-utils = { workspace = true, features = ["native"] }
+derive_more = { workspace = true, features = ["deref_mut", "deref"] }
 
 [dev-dependencies]
 anyhow = { workspace = true }

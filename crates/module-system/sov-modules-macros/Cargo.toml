@@ -47,6 +47,7 @@ serde = { workspace = true }
 strum = { workspace = true }
 tempfile = { workspace = true }
 trybuild = "1.0"
+tokio = { workspace = true  }
 
 sov-address = { workspace = true }
 sov-modules-api = { workspace = true, features = ["native"] }
@@ -54,6 +55,7 @@ sov-rollup-interface = { workspace = true }
 sov-state = { workspace = true }
 sov-bank = { workspace = true, features = ["native"] }
 sov-modules-macros = { workspace = true, features = ["native"] }
+sov-metrics = { workspace = true }
 sov-test-utils = { workspace = true }
 
 [build-dependencies]
@@ -69,3 +71,4 @@ native = [
 	"sov-state/native",
 	"sov-address/native"
 ]
+gas-constant-estimation = ["sov-modules-macros/gas-constant-estimation", "sov-modules-api/gas-constant-estimation"]

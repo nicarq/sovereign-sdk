@@ -212,7 +212,7 @@
       ],
       "properties": {
         "max_datagram_size": {
-          "description": "Defines how many measurements a rollup node will accumulate before sending it to the Telegraf. It is expected from the rollup node to produce metrics all the time, so measurements are buffered by size and not sent by time. and below 67 KB, which is the maximal UDP packet size. It also means that if a single serialized metric is larger than this value, a UDP packet will be larger.",
+          "description": "Defines how many measurements a rollup node will accumulate before sending it to the Telegraf. It is expected from the rollup node to produce metrics all the time, so measurements are buffered by size and not sent by time. and below 67 KB, which is the maximal UDP packet size. It also means that if a single serialized metric is larger than this value, a UDP packet will be larger.\n\nNote: to disable buffering, set this value to `Some(1)`.",
           "type": [
             "integer",
             "null"
