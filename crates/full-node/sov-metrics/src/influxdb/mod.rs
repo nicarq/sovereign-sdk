@@ -5,6 +5,8 @@ mod publisher;
 mod tracker;
 
 pub use config::MonitoringConfig;
+#[cfg(feature = "gas-constant-estimation")]
+pub use tracker::gas_constant_estimation::GAS_CONSTANTS;
 pub use tracker::{
     init_metrics_tracker, timestamp, BatchMetrics, BatchOutcome, HttpMetrics, RunnerMetrics,
     SlotProcessingMetrics, SovRollupMetrics, TransactionEffect, TransactionProcessingMetrics,

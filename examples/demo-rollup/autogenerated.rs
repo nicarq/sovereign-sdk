@@ -1,4 +1,4 @@
-pub const CHAIN_HASH: [u8; 32] = [122, 58, 69, 131, 0, 138, 3, 63, 154, 36, 91, 205, 113, 26, 115, 216, 146, 188, 176, 28, 86, 10, 209, 10, 168, 64, 186, 50, 16, 182, 225, 151];
+pub const CHAIN_HASH: [u8; 32] = [11, 230, 42, 152, 191, 199, 56, 112, 13, 160, 127, 103, 62, 222, 64, 57, 35, 125, 218, 190, 147, 9, 88, 20, 216, 75, 112, 16, 92, 252, 84, 59];
 
 #[allow(dead_code)]
 pub const SCHEMA_JSON: &str = r#"{
@@ -1311,14 +1311,18 @@ pub const SCHEMA_JSON: &str = r#"{
       }
     },
     {
-      "Tuple": {
+      "Struct": {
+        "type_name": "GasUnit",
+        "serde_type_name": "GasUnit",
         "template": null,
         "fields": [
           {
+            "display_name": "value",
+            "serde_display_name": "value",
+            "silent": false,
             "value": {
               "ByIndex": 56
             },
-            "silent": false,
             "doc": ""
           }
         ]
@@ -1345,14 +1349,18 @@ pub const SCHEMA_JSON: &str = r#"{
       }
     },
     {
-      "Tuple": {
+      "Struct": {
+        "type_name": "GasPrice",
+        "serde_type_name": "GasPrice",
         "template": null,
         "fields": [
           {
+            "display_name": "value",
+            "serde_display_name": "value",
+            "silent": false,
             "value": {
               "ByIndex": 56
             },
-            "silent": false,
             "doc": ""
           }
         ]

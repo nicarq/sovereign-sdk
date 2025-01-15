@@ -31,10 +31,10 @@ fn gas_test_setup(
         if let Some(gas_to_charge_for_create_token) = gas_to_charge_for_create_token {
             let config = BankGasConfig {
                 create_token: gas_to_charge_for_create_token,
-                transfer: Gas::zero(),
-                burn: Gas::zero(),
-                mint: Gas::zero(),
-                freeze: Gas::zero(),
+                transfer: <S as Spec>::Gas::zero(),
+                burn: <S as Spec>::Gas::zero(),
+                mint: <S as Spec>::Gas::zero(),
+                freeze: <S as Spec>::Gas::zero(),
             };
 
             runtime.bank.override_gas_config(config);

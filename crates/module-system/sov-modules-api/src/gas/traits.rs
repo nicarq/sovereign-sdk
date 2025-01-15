@@ -101,6 +101,14 @@ pub trait Gas: GasArray {
     fn max() -> Self {
         Self::MAX
     }
+
+    #[cfg(feature = "gas-constant-estimation")]
+    /// Returns an optional name of the gas unit.
+    fn name(&self) -> &Option<String>;
+
+    #[cfg(feature = "gas-constant-estimation")]
+    /// Names the gas unit.
+    fn with_name(self, name: String) -> Self;
 }
 
 /// A multi-dimensional gas unit.
@@ -114,8 +122,14 @@ pub trait Gas: GasArray {
     derive_more::Display,
     sov_rollup_interface::sov_universal_wallet::UniversalWallet,
 )]
-#[display("GasUnit{:?}", self.0)]
-pub struct GasUnit<const N: usize>([u64; N]);
+#[display("GasUnit{:?}", self.value)]
+pub struct GasUnit<const N: usize> {
+    value: [u64; N],
+    #[cfg(feature = "gas-constant-estimation")]
+    #[sov_wallet(skip)]
+    #[borsh(skip)]
+    name: Option<String>,
+}
 
 impl<const N: usize> Debug for GasUnit<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -135,8 +149,10 @@ impl<const N: usize> Debug for GasUnit<N> {
     derive_more::Display,
 )]
 #[sov_wallet()]
-#[display("GasPrice{:?}", self.0)]
-pub struct GasPrice<const N: usize>([u64; N]);
+#[display("GasPrice{:?}", self.value)]
+pub struct GasPrice<const N: usize> {
+    value: [u64; N],
+}
 
 impl<const N: usize> Debug for GasPrice<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -171,7 +187,7 @@ macro_rules! impl_gas_dimensions {
             where
                 __S: serde::Serializer,
             {
-                <[u64; $n] as serde::Serialize>::serialize(&self.0, serializer)
+                <[u64; $n] as serde::Serialize>::serialize(&self.value, serializer)
             }
         }
 
@@ -180,19 +196,20 @@ macro_rules! impl_gas_dimensions {
             where
                 D: serde::Deserializer<'de>,
             {
-                <[u64; $n] as serde::Deserialize>::deserialize(deserializer).map(Self)
+                let array = <[u64; $n] as serde::Deserialize>::deserialize(deserializer)?;
+                Ok(Self::from(array))
             }
         }
 
         impl From<[u64; $n]> for $t {
             fn from(array: [u64; $n]) -> Self {
-                Self(array)
+                Self::from_primitive(array)
             }
         }
 
         impl From<$t> for [u64; $n] {
             fn from(gas: $t) -> [u64; $n] {
-                gas.0
+                gas.value
             }
         }
 
@@ -207,38 +224,32 @@ macro_rules! impl_gas_dimensions {
                 let mut output = [0; $n];
                 output.copy_from_slice(&value);
 
-                Ok(Self(output))
+                Ok(Self::from(output))
             }
         }
 
         impl AsRef<[u64; $n]> for $t {
             fn as_ref(&self) -> &[u64; $n] {
-                &self.0
+                &self.value
             }
         }
 
         impl AsMut<[u64; $n]> for $t {
             fn as_mut(&mut self) -> &mut [u64; $n] {
-                &mut self.0
+                &mut self.value
             }
         }
 
-        impl $t {
-            /// Creates a new [`$t`] from an array of [`u64`].
-            pub const fn from_primitive(array: [u64; $n]) -> Self {
-                Self(array)
-            }
-        }
 
         impl GasArray for $t {
-            const ZEROED: Self = Self([0; $n]);
+            const ZEROED: Self = Self::from_primitive([0; $n]);
 
-            const MAX: Self = Self([u64::MAX; $n]);
+            const MAX: Self = Self::from_primitive([u64::MAX; $n]);
 
             fn checked_sub(&self, rhs: &Self) -> Option<Self> {
                 let mut output = [0; $n];
 
-                for (i, (l, r)) in self.0.iter().zip(rhs.0.as_slice()).enumerate() {
+                for (i, (l, r)) in self.value.iter().zip(rhs.value.as_slice()).enumerate() {
                     if let Some(res) = l.checked_sub(*r) {
                         output[i] = res;
                     } else {
@@ -246,13 +257,13 @@ macro_rules! impl_gas_dimensions {
                     }
                 }
 
-                Some(Self(output))
+                Some(Self::from(output))
             }
 
             fn checked_scalar_product(&self, scalar: u64) -> Option<Self> {
                 let mut output = [0; $n];
 
-                for (i,v) in self.0.iter().enumerate() {
+                for (i,v) in self.value.iter().enumerate() {
                     if let Some(res) = v.checked_mul(scalar) {
                         output[i] = res;
                     }else {
@@ -260,12 +271,12 @@ macro_rules! impl_gas_dimensions {
                     }
                 }
 
-                Some(Self(output))
+                Some(Self::from(output))
 
             }
 
             fn dim_is_less_than(&self, rhs: &Self) -> bool{
-                for (l, r) in self.0.iter().zip(rhs.0.as_slice()) {
+                for (l, r) in self.value.iter().zip(rhs.value.as_slice()) {
                     if l >=r {
                         return false
                     }
@@ -274,7 +285,7 @@ macro_rules! impl_gas_dimensions {
             }
 
             fn dim_is_less_or_eq(&self, rhs: &Self) -> bool{
-                for (l, r) in self.0.iter().zip(rhs.0.as_slice()) {
+                for (l, r) in self.value.iter().zip(rhs.value.as_slice()) {
                     if l > r{
                         return false
                     }
@@ -285,14 +296,14 @@ macro_rules! impl_gas_dimensions {
             fn calculate_min(lhs: &Self, rhs: &Self) -> Self{
                 let mut output = [0; $n];
 
-                for (i, (l,r)) in lhs.0.iter().zip(rhs.0.iter()).enumerate() {
+                for (i, (l,r)) in lhs.value.iter().zip(rhs.value.iter()).enumerate() {
                     output[i] = min(*l, *r);
                 }
-                Self(output)
+                Self::from_primitive(output)
             }
 
             fn scalar_division(&mut self, scalar: u64) -> &mut Self {
-                self.0
+                self.value
                     .iter_mut()
                     .for_each(|s| *s = s.checked_div(scalar).unwrap_or(0));
                 self
@@ -300,7 +311,7 @@ macro_rules! impl_gas_dimensions {
 
             #[cfg(feature = "test-utils")]
             fn scalar_add(&mut self, scalar: u64) -> &mut Self {
-                self.0
+                self.value
                     .iter_mut()
                     .for_each(|s| *s = s.saturating_add(scalar));
                 self
@@ -308,7 +319,7 @@ macro_rules! impl_gas_dimensions {
 
             #[cfg(feature = "test-utils")]
             fn scalar_sub(&mut self, scalar: u64) -> &mut Self {
-                self.0
+                self.value
                     .iter_mut()
                     .for_each(|s| *s = s.saturating_sub(scalar));
                 self
@@ -317,14 +328,14 @@ macro_rules! impl_gas_dimensions {
             fn checked_combine(&self, rhs: &Self) -> Option<Self> {
                 let mut output = [0; $n];
 
-                for (i, (l, r)) in self.0.iter().zip(rhs.0.iter()).enumerate() {
+                for (i, (l, r)) in self.value.iter().zip(rhs.value.iter()).enumerate() {
                     if let Some(res) = l.checked_add(*r) {
                         output[i] = res;
                     } else {
                         return None
                     }
                 }
-                Some(Self(output))
+                Some(Self::from_primitive(output))
             }
         }
     };
@@ -335,9 +346,23 @@ macro_rules! impl_gas_unit {
         impl Gas for GasUnit<$n> {
             type Price = GasPrice<$n>;
 
+            #[cfg(feature = "gas-constant-estimation")]
+            fn name(&self) -> &Option<String> {
+                &self.name
+            }
+
+            /// Adds a name tag to the gas constant.
+            #[cfg(feature = "gas-constant-estimation")]
+            fn with_name(self, name: String) -> Self {
+                Self {
+                    name: Some(name),
+                    ..self
+                }
+            }
+
             fn checked_value(&self, price: &Self::Price) -> Option<u64> {
                 let mut value: u64 = 0;
-                for (g, p) in self.0.iter().zip(price.as_ref().iter().copied()) {
+                for (g, p) in self.value.iter().zip(price.as_ref().iter().copied()) {
                     let v = g.checked_mul(p)?;
                     value = value.checked_add(v)?;
                 }
@@ -346,11 +371,29 @@ macro_rules! impl_gas_unit {
             }
 
             fn value(&self, price: &Self::Price) -> u64 {
-                self.0
+                self.value
                     .iter()
                     .zip(price.as_ref().iter().copied())
                     .map(|(a, b)| a.saturating_mul(b))
                     .fold(0, |a, b| a.saturating_add(b))
+            }
+        }
+
+        impl GasUnit<$n> {
+            /// Creates a new [`GasUnit`] from an array of [`u64`].
+            const fn from_primitive(array: [u64; $n]) -> Self {
+                Self {
+                    value: array,
+                    #[cfg(feature = "gas-constant-estimation")]
+                    name: None,
+                }
+            }
+        }
+
+        impl GasPrice<$n> {
+            /// Creates a new [`GasPrice`] from an array of [`u64`].
+            pub const fn from_primitive(array: [u64; $n]) -> Self {
+                Self { value: array }
             }
         }
 
@@ -360,42 +403,6 @@ macro_rules! impl_gas_unit {
 }
 
 impl_gas_unit!(GAS_DIMENSIONS);
-
-impl<'a> From<&'a GasPrice<1>> for u64 {
-    fn from(value: &'a GasPrice<1>) -> Self {
-        value.0[0]
-    }
-}
-
-impl From<GasPrice<1>> for u64 {
-    fn from(value: GasPrice<1>) -> Self {
-        value.0[0]
-    }
-}
-
-impl From<u64> for GasPrice<1> {
-    fn from(value: u64) -> Self {
-        GasPrice([value])
-    }
-}
-
-impl<'a> From<&'a GasUnit<1>> for u64 {
-    fn from(value: &'a GasUnit<1>) -> Self {
-        value.0[0]
-    }
-}
-
-impl From<GasUnit<1>> for u64 {
-    fn from(value: GasUnit<1>) -> Self {
-        value.0[0]
-    }
-}
-
-impl From<u64> for GasUnit<1> {
-    fn from(value: u64) -> Self {
-        GasUnit([value])
-    }
-}
 
 /// Error type that can be raised by the `GasMeter` trait.
 /// Errors can be raised either when the meter runs out of gas or when the refund operation fails.
@@ -442,17 +449,40 @@ pub struct GasInfo<GU: Gas> {
     pub remaining_funds: u64,
 }
 
+#[macro_export]
+/// Defines a constant gas value.
+macro_rules! new_constant {
+    ($name: literal, $gas: ty) => {{
+        #[cfg(feature = "gas-constant-estimation")]
+        {
+            <$gas>::from(config_value_private!($name)).with_name($name.to_string())
+        }
+        #[cfg(not(feature = "gas-constant-estimation"))]
+        {
+            <$gas>::from(config_value_private!($name))
+        }
+    }};
+}
+
 /// A type-safe trait that should track the gas consumed by a finite ressource over time.
 pub trait GasMeter {
     /// The spec used by this gas meter.
     type Spec: Spec;
-    /// Charges some gas in the gas meter.
+
+    /// Charges a fix amount of gas in the gas meter.
     ///
     /// # Error
     /// May raises an error if the gas to charge is greater than the funds available
     fn charge_gas(
         &mut self,
         amount: &<Self::Spec as Spec>::Gas,
+    ) -> Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>>;
+
+    /// Charges an amount of gas equal to `amount *_point parameter`, the pointwise product of `amount` times `parameter`.
+    fn charge_linear_gas(
+        &mut self,
+        amount: &<Self::Spec as Spec>::Gas,
+        parameter: u64,
     ) -> Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>>;
 
     /// Refunds some gas to the gas meter.
@@ -549,7 +579,7 @@ impl<S: Spec> BasicGasMeter<S> {
         self.gas_price = gas_price;
     }
 
-    fn charge_funds_inner(
+    fn compute_remaining_funds(
         &self,
         remaining_funds: &u64,
         amount: &S::Gas,
@@ -569,7 +599,7 @@ impl<S: Spec> BasicGasMeter<S> {
             })
     }
 
-    fn charge_gas_inner(
+    fn compute_remaining_gas(
         &self,
         remaining_gas: &S::Gas,
         amount: &S::Gas,
@@ -582,16 +612,13 @@ impl<S: Spec> BasicGasMeter<S> {
                 initial_gas: self.initial_gas.clone(),
             })
     }
-}
 
-impl<S: Spec> GasMeter for BasicGasMeter<S> {
-    type Spec = S;
-    fn charge_gas(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
+    fn charge_gas_inner(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         if let Some(remaining_funds) = &self.remaining_funds {
-            self.remaining_funds = Some(self.charge_funds_inner(remaining_funds, amount)?);
+            self.remaining_funds = Some(self.compute_remaining_funds(remaining_funds, amount)?);
         }
 
-        let remaining_gas = self.charge_gas_inner(&self.remaining_gas, amount)?;
+        let remaining_gas = self.compute_remaining_gas(&self.remaining_gas, amount)?;
         // Here we check that the current gas_used won't overflow when multiplied by the price.
         // This ensures that after execution, it is always safe to convert the total gas used to a token value.
         {
@@ -608,6 +635,59 @@ impl<S: Spec> GasMeter for BasicGasMeter<S> {
             })?;
         }
         self.remaining_gas = remaining_gas;
+
+        Ok(())
+    }
+}
+
+impl<S: Spec> GasMeter for BasicGasMeter<S> {
+    type Spec = S;
+    fn charge_gas(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
+        self.charge_gas_inner(amount)?;
+
+        #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
+        if let Some(name) = amount.name() {
+            sov_metrics::GAS_CONSTANTS.with(|var| {
+                let mut var = var.borrow_mut();
+
+                if let Some(const_count) = var.get_mut(name) {
+                    *const_count = const_count.checked_add(1).unwrap();
+                } else {
+                    var.insert(name.clone(), 1);
+                }
+            });
+        }
+
+        Ok(())
+    }
+
+    fn charge_linear_gas(
+        &mut self,
+        amount: &S::Gas,
+        parameter: u64,
+    ) -> Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
+        self.charge_gas_inner(&amount.checked_scalar_product(parameter).ok_or(
+            GasMeteringError::Overflow(format!(
+                "Unable to charge gas. The product of {} to {} is overflowing",
+                amount, parameter
+            )),
+        )?)?;
+
+        #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
+        if let Some(name) = amount.name() {
+            sov_metrics::GAS_CONSTANTS.with(|var| {
+                let param_i64 = parameter.try_into().unwrap();
+
+                let mut var = var.borrow_mut();
+
+                if let Some(const_count) = var.get_mut(name) {
+                    *const_count = const_count.checked_add(param_i64).unwrap();
+                } else {
+                    var.insert(name.clone(), param_i64);
+                }
+            });
+        }
+
         Ok(())
     }
 
@@ -647,6 +727,19 @@ impl<S: Spec> GasMeter for BasicGasMeter<S> {
         self.remaining_gas = self.remaining_gas.checked_combine(gas).ok_or_else(|| {
             GasMeteringError::Overflow("Refund Gas: remaining gas overflow".to_string())
         })?;
+
+        #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
+        if let Some(name) = gas.name() {
+            sov_metrics::GAS_CONSTANTS.with(|var| {
+                let mut var = var.borrow_mut();
+
+                if let Some(const_count) = var.get_mut(name) {
+                    *const_count = const_count.checked_sub(1).unwrap();
+                } else {
+                    var.insert(name.clone(), -1);
+                }
+            });
+        }
 
         Ok(())
     }
@@ -958,7 +1051,7 @@ mod tests {
                 BasicGasMeter::<S>::new_with_gas(remaining_gas.clone(), gas_price.clone());
 
             assert!(
-                gas_meter.charge_gas(&remaining_gas).is_ok(),
+                gas_meter.charge_gas(&remaining_gas.clone()).is_ok(),
                 "It should be possible to charge gas"
             );
             assert_eq!(
@@ -1070,7 +1163,7 @@ mod tests {
             BasicGasMeter::<S>::new_with_gas(remaining_gas.clone(), gas_price.clone());
 
         let gas = GasUnit::<2>::from([2; 2]);
-        let res = gas_meter.charge_gas(&gas);
+        let res = gas_meter.charge_gas(&gas.clone());
 
         assert_eq!(
             res,

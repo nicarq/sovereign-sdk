@@ -1308,14 +1308,18 @@
       }
     },
     {
-      "Tuple": {
+      "Struct": {
+        "type_name": "GasUnit",
+        "serde_type_name": "GasUnit",
         "template": null,
         "fields": [
           {
+            "display_name": "value",
+            "serde_display_name": "value",
+            "silent": false,
             "value": {
               "ByIndex": 56
             },
-            "silent": false,
             "doc": ""
           }
         ]
@@ -1342,14 +1346,18 @@
       }
     },
     {
-      "Tuple": {
+      "Struct": {
+        "type_name": "GasPrice",
+        "serde_type_name": "GasPrice",
         "template": null,
         "fields": [
           {
+            "display_name": "value",
+            "serde_display_name": "value",
+            "silent": false,
             "value": {
               "ByIndex": 56
             },
-            "silent": false,
             "doc": ""
           }
         ]

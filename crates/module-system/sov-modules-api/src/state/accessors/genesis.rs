@@ -71,6 +71,14 @@ impl<'a, S: Spec> GasMeter for GenesisStateAccessor<'a, S> {
     fn charge_gas(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_gas(amount)
     }
+    fn charge_linear_gas(
+        &mut self,
+        amount: &S::Gas,
+        parameter: u64,
+    ) -> Result<(), GasMeteringError<S::Gas>> {
+        self.gas_meter.charge_linear_gas(amount, parameter)
+    }
+
     fn refund_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.refund_gas(gas)
     }

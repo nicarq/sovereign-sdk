@@ -21,6 +21,7 @@ use crate::{
 };
 
 #[allow(clippy::result_large_err)]
+#[allow(clippy::too_many_arguments)]
 pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
     slot_gas_meter: &SlotGasMeter<S>,

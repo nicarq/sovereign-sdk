@@ -1,3 +1,5 @@
+## 2025-01-13
+- #2207 makes it possible to track gas constant consumption within the SDK. Consumers of the SDK can now track gas consumption within the SDK by using the `gas_constant_estimation` feature flag and adding a name tag to the constants they want to track.
 ## 2025-01-15
 - #2216 drops support for `cargo test` when working on the SDK repository. Use `cargo nextest` instead, which runs one test per process. `cargo test` is still supported for downstream SDK consumers.
 

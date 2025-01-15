@@ -61,9 +61,7 @@ impl<S: Spec> MeteredBorshDeserialize<S> for SerializeProofWithDetails<S> {
         buf: &mut &[u8],
         meter: &mut impl GasMeter<Spec = S>,
     ) -> Result<Self, MeteredBorshDeserializeError<<S as GasSpec>::Gas>> {
-        meter
-            .charge_gas(&Self::gas_cost_to_deserialize(buf)?)
-            .map_err(MeteredBorshDeserializeError::GasError)?;
+        Self::charge_gas_to_deserialize(buf, meter)?;
 
         SerializeProofWithDetails::<S>::unmetered_deserialize_inner(buf)
             .map_err(MeteredBorshDeserializeError::IOError)

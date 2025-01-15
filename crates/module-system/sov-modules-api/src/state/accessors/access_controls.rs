@@ -76,7 +76,7 @@ mod http_api {
     use crate::gas::GasMeter;
     use crate::module::GasSpec;
     use crate::state::accessors::http_api::ApiStateAccessor;
-    use crate::state::traits::decode_gas_cost;
+    use crate::state::traits::charge_decode_gas_cost;
     use crate::{AccessoryStateReader, AccessoryStateWriter, Spec, StateReader, StateWriter};
 
     macro_rules! inner_impl_http_api_state_reader {
@@ -107,8 +107,7 @@ mod http_api {
             let storage_value = <Self as StateReader<$namespace>>::get(self, storage_key)?;
 
             if let Some(storage_value) = &storage_value {
-                let decode_gas_cost = decode_gas_cost::<S>(storage_value).expect("We should never fail to charge gas for read operation of api accessors. This is a bug!");
-                self.charge_gas(&decode_gas_cost).expect("We should never fail to charge gas for read operation of api accessors. This is a bug!");
+                charge_decode_gas_cost::<S>(storage_value, self).expect("We should never fail to charge gas for read operation of api accessors. This is a bug!");
             }
 
             Ok(storage_value
