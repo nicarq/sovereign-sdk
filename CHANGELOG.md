@@ -1,3 +1,6 @@
+## 2025-01-15
+- #2216 drops support for `cargo test` when working on the SDK repository. Use `cargo nextest` instead, which runs one test per process. `cargo test` is still supported for downstream SDK consumers.
+
 ## 2025-01-09
 - #2173 Separates the notion of a `rollup_height` from that of a `slot_number`. The current `slot_number` is simply the current DA block number minus the DA height at the rollup's genesis. The `rollup_height` is the number of logical rollup blocks that have been created - in other words, `rollup_height` matches the slotnumber for based rollups, while it increments by `1` for each batch sent by the preferred sequencer in soft-confirming rollups. Starting from this PR, rollup *state* is queried by the new `rollup_height` rather than `slot_number`. Ledger state is still queried by `slot_number`. A future PR will make ledger state queriable by rollup height as well.
 - #2162 migrates the SDK to Rust 1.81. Compatibility with older `rustc` versions is not guaranteed.
