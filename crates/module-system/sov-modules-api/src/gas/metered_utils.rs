@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 use sov_rollup_interface::crypto::{SigVerificationError, Signature};
 use thiserror::Error;
 
-use crate::gas::traits::{Gas, GasArray, GasMeter, GasMeteringError};
+use crate::gas::traits::{Gas, GasMeter, GasMeteringError};
 use crate::{GasSpec, Spec};
 
 /// A metered hasher that charges gas for each operation.
@@ -34,8 +34,8 @@ impl<'a, Meter: GasMeter, Hasher: Digest<OutputSize = U32>> MeteredHasher<'a, Me
     /// Create a new metered hasher from a given gas meter with custom gas prices.
     pub fn new_with_custom_price(
         meter: &'a mut Meter,
-        gas_to_charge_for_hash_update: GasUnit<Meter::Spec>,
-        gas_to_charge_for_hash_finalize: GasUnit<Meter::Spec>,
+        gas_to_charge_for_hash_update: <Meter::Spec as Spec>::Gas,
+        gas_to_charge_for_hash_finalize: <Meter::Spec as Spec>::Gas,
     ) -> Self {
         Self {
             inner: Hasher::new(),
@@ -47,14 +47,8 @@ impl<'a, Meter: GasMeter, Hasher: Digest<OutputSize = U32>> MeteredHasher<'a, Me
 
     /// Update the [`MeteredHasher`] with the given data. Performs the same operation as [`Digest::update`] but charges gas.
     pub fn update(&mut self, data: &[u8]) -> Result<(), MeteringError<Meter>> {
-        let total_cost = self
-            .gas_to_charge_for_hash_update
-            .checked_scalar_product(data.len() as u64)
-            .ok_or(GasMeteringError::InvalidLength(
-                "Unable to hash data".to_string(),
-            ))?;
-
-        self.meter.charge_gas(&total_cost)?;
+        self.meter
+            .charge_linear_gas(&self.gas_to_charge_for_hash_update, data.len() as u64)?;
         self.inner.update(data);
         Ok(())
     }
@@ -139,23 +133,15 @@ impl<GU: Gas, Sign: Signature> MeteredSignature<GU, Sign> {
         msg: &[u8],
         meter: &mut Meter,
     ) -> Result<(), MeteredSigVerificationError<GU>> {
-        let fixed_gas_cost = self.fixed_gas_to_charge_per_verification.clone();
-
-        let dynamic_cost = self
-            .gas_to_charge_per_byte_for_verification
-            .checked_scalar_product(msg.len() as u64)
-            .ok_or(MeteredSigVerificationError::GasError(
-                GasMeteringError::InvalidLength(
-                    "Unable to verify message, gas cost overflows `u64::MAX` value".to_string(),
-                ),
-            ))?;
-
         meter
-            .charge_gas(&fixed_gas_cost)
+            .charge_gas(&self.fixed_gas_to_charge_per_verification)
             .map_err(MeteredSigVerificationError::GasError)?;
 
         meter
-            .charge_gas(&dynamic_cost)
+            .charge_linear_gas(
+                &self.gas_to_charge_per_byte_for_verification,
+                msg.len() as u64,
+            )
             .map_err(MeteredSigVerificationError::GasError)?;
 
         self.inner
@@ -178,15 +164,18 @@ pub enum MeteredBorshDeserializeError<GU: Gas> {
 /// Charges gas for deserialization.
 pub trait MeteredBorshDeserialize<S: Spec>: Sized {
     /// Computes the cost to deserialize the given buffer, in Gas.
-    fn gas_cost_to_deserialize(
+    fn charge_gas_to_deserialize(
         buf: &[u8],
-    ) -> Result<<S as GasSpec>::Gas, MeteredBorshDeserializeError<<S as GasSpec>::Gas>> {
+        meter: &mut impl GasMeter<Spec = S>,
+    ) -> Result<(), MeteredBorshDeserializeError<<S as GasSpec>::Gas>> {
         let deserialization_cost = S::gas_to_charge_per_byte_borsh_deserialization();
 
         // This is safe to cast here as we don't support platforms where usize > u64.
         let buf_len: u64 = buf.len() as u64;
 
-        total_deserialization_cost::<S>(deserialization_cost, buf_len)
+        meter
+            .charge_linear_gas(&deserialization_cost, buf_len)
+            .map_err(MeteredBorshDeserializeError::GasError)
     }
 
     /// Deserializes a type from a byte slice with the provided gas meter. Charge the [`GasSpec::gas_to_charge_per_byte_borsh_deserialization`]
@@ -201,15 +190,4 @@ pub trait MeteredBorshDeserialize<S: Spec>: Sized {
     fn unmetered_deserialize(
         buf: &mut &[u8],
     ) -> Result<Self, MeteredBorshDeserializeError<<S as GasSpec>::Gas>>;
-}
-
-pub(crate) fn total_deserialization_cost<S: Spec>(
-    deserialization_cost: S::Gas,
-    buf_len: u64,
-) -> Result<S::Gas, MeteredBorshDeserializeError<S::Gas>> {
-    deserialization_cost.checked_scalar_product(buf_len).ok_or(
-        MeteredBorshDeserializeError::GasError(GasMeteringError::InvalidLength(
-            "Deserialization cost overflows `u64::MAX` value".to_string(),
-        )),
-    )
 }

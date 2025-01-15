@@ -27,3 +27,7 @@ sov-cycle-utils = { workspace = true, features = ["native"] }
 [dev-dependencies]
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
+
+[features]
+default = []
+gas-constant-estimation = []

@@ -9,7 +9,6 @@ use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::MockDaSpec;
 
 use crate::default_spec::DefaultSpec;
-use crate::gas::metered_utils::total_deserialization_cost;
 use crate::gas::GasArray;
 use crate::{
     Gas, GasMeter, GasPrice, GasUnit, MeteredBorshDeserialize, MeteredBorshDeserializeError,
@@ -211,9 +210,7 @@ impl MeteredBorshDeserialize<S> for BorshTestStruct {
         buf: &mut &[u8],
         meter: &mut impl GasMeter<Spec = S>,
     ) -> Result<Self, MeteredBorshDeserializeError<<S as Spec>::Gas>> {
-        meter
-            .charge_gas(&Self::gas_cost_to_deserialize(buf)?)
-            .map_err(MeteredBorshDeserializeError::GasError)?;
+        Self::charge_gas_to_deserialize(buf, meter)?;
 
         <Self as borsh::BorshDeserialize>::deserialize(buf)
             .map_err(MeteredBorshDeserializeError::IOError)
@@ -234,9 +231,7 @@ fn test_metered_deserializer() {
         field2: 2,
     };
     let serialized_data = borsh::to_vec(&data).unwrap();
-    let gas_to_charge_for_deserialization =
-        <BorshTestStruct as MeteredBorshDeserialize<S>>::gas_cost_to_deserialize(&serialized_data)
-            .unwrap();
+    let gas_to_charge_for_deserialization = gas_cost_to_deserialize::<S>(&serialized_data).unwrap();
     let gas_price = GasPrice::<2>::from([1, 1]);
 
     let remaining_funds = gas_to_charge_for_deserialization.value(&gas_price);
@@ -263,9 +258,7 @@ fn test_metered_deserializer_not_enough_gas() {
         field2: 2,
     };
     let serialized_data = borsh::to_vec(&data).unwrap();
-    let gas_to_charge_for_deserialization =
-        <BorshTestStruct as MeteredBorshDeserialize<S>>::gas_cost_to_deserialize(&serialized_data)
-            .unwrap();
+    let gas_to_charge_for_deserialization = gas_cost_to_deserialize::<S>(&serialized_data).unwrap();
     let gas_price = GasPrice::<2>::from([1, 1]);
 
     let remaining_funds = gas_to_charge_for_deserialization.value(&gas_price) - 1;
@@ -292,9 +285,7 @@ fn test_metered_deserializer_invalid_data() {
         field2: 2,
     };
     let serialized_data = borsh::to_vec(&data).unwrap();
-    let gas_to_charge_for_deserialization =
-        <BorshTestStruct as MeteredBorshDeserialize<S>>::gas_cost_to_deserialize(&serialized_data)
-            .unwrap();
+    let gas_to_charge_for_deserialization = gas_cost_to_deserialize::<S>(&serialized_data).unwrap();
     let gas_price = GasPrice::<2>::from([1, 1]);
 
     let remaining_funds = gas_to_charge_for_deserialization.value(&gas_price);
@@ -319,4 +310,24 @@ fn test_total_deserialization_cost() {
     assert!(total_deserialization_cost::<S>(GasUnit::<2>::from([1; 2]), u64::MAX).is_ok());
     assert!(total_deserialization_cost::<S>(GasUnit::<2>::from([1, 2]), u64::MAX).is_err());
     assert!(total_deserialization_cost::<S>(GasUnit::<2>::from([2; 2]), u64::MAX).is_err());
+}
+
+use crate::{GasMeteringError, GasSpec};
+fn total_deserialization_cost<S: Spec>(
+    deserialization_cost: S::Gas,
+    buf_len: u64,
+) -> Result<S::Gas, MeteredBorshDeserializeError<S::Gas>> {
+    deserialization_cost.checked_scalar_product(buf_len).ok_or(
+        MeteredBorshDeserializeError::GasError(GasMeteringError::InvalidLength(
+            "Deserialization cost overflows `u64::MAX` value".to_string(),
+        )),
+    )
+}
+
+fn gas_cost_to_deserialize<S: Spec>(
+    buf: &[u8],
+) -> Result<S::Gas, MeteredBorshDeserializeError<S::Gas>> {
+    let deserialization_cost = S::gas_to_charge_per_byte_borsh_deserialization();
+
+    total_deserialization_cost::<S>(deserialization_cost, buf.len() as u64)
 }

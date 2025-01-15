@@ -43,7 +43,7 @@ pub fn config_gas_token_id() -> TokenId {
 pub(crate) type C = BorshCodec;
 
 /// Gas configuration for the bank module
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub struct BankGasConfig<GU: Gas> {
     /// Gas price multiplier for the create token operation
     pub create_token: GU,

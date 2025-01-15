@@ -184,6 +184,14 @@ impl<S: Spec> GasMeter for ApiStateAccessor<S> {
         self.gas_meter.refund_gas(gas)
     }
 
+    fn charge_linear_gas(
+        &mut self,
+        amount: &<Self::Spec as Spec>::Gas,
+        parameter: u64,
+    ) -> anyhow::Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
+        self.gas_meter.charge_linear_gas(amount, parameter)
+    }
+
     fn gas_info(&self) -> crate::GasInfo<S::Gas> {
         self.gas_meter.gas_info()
     }

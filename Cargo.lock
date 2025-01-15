@@ -7483,6 +7483,7 @@ dependencies = [
  "sov-bank",
  "sov-cycle-utils",
  "sov-db",
+ "sov-metrics",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",

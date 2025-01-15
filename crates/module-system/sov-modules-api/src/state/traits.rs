@@ -13,7 +13,6 @@ use thiserror::Error;
 
 use super::accessors::seal::CachedAccessor;
 use crate::capabilities::RollupHeight;
-use crate::gas::GasArray;
 #[cfg(any(feature = "test-utils", feature = "evm"))]
 use crate::UnmeteredStateWrapper;
 use crate::{Gas, GasMeter, GasMeteringError, GasSpec, Spec};
@@ -188,18 +187,15 @@ pub enum StateAccessorError<GU: Gas> {
 /// ## NOTE
 /// The constants' value should be updated based on benchmarks to ensure that the gas cost of the read operation is
 /// optimal
-pub(crate) fn decode_gas_cost<Spec: GasSpec>(
+pub(crate) fn charge_decode_gas_cost<S: Spec>(
     input: &SlotValue,
-) -> Result<Spec::Gas, GasMeteringError<Spec::Gas>> {
-    let gas_cost = Spec::gas_to_charge_for_decoding();
+    meter: &mut impl GasMeter<Spec = S>,
+) -> Result<(), GasMeteringError<S::Gas>> {
+    let gas_cost = S::gas_to_charge_for_decoding();
     let input_len = input.value().len();
-    let gas_cost = gas_cost.checked_scalar_product(input_len as u64).ok_or(
-        GasMeteringError::InvalidLength(format!(
-            "Unable to decode the value. The length is too large: {input_len}"
-        )),
-    )?;
+    meter.charge_linear_gas(&gas_cost, input_len as u64)?;
 
-    Ok(gas_cost)
+    Ok(())
 }
 
 /// A trait that represents a [`StateReader`] and [`StateWriter`] to a given namespace that never fails on state accesses. Accessing the state with structs that implement
@@ -348,7 +344,7 @@ macro_rules! blanket_impl_metered_state_reader {
                 let storage_value = <Self as StateReader<$namespace>>::get(self, storage_key)?;
 
                 if let Some(storage_value) = &storage_value {
-                    let gas_cost = match decode_gas_cost::<T::Spec>(storage_value){
+                    match charge_decode_gas_cost::<T::Spec>(storage_value, self){
                         Ok(gas_cost) => gas_cost,
                         Err(e) => return Err(StateAccessorError::Decode{
                             key: storage_key.clone(),
@@ -356,13 +352,6 @@ macro_rules! blanket_impl_metered_state_reader {
                             namespace: <$namespace>::PROVABLE_NAMESPACE,
                         })
                     };
-
-
-                    self.charge_gas(&gas_cost).map_err(|e| StateAccessorError::Decode{
-                        key: storage_key.clone(),
-                        inner: e,
-                        namespace: <$namespace>::PROVABLE_NAMESPACE,
-                    })?
                 }
 
                 Ok(storage_value

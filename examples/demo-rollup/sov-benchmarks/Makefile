@@ -31,7 +31,7 @@ generate_benches:
 
 build_metrics:
 	@echo "Running benchmark files path: ./src/bench_files/generated/$(SIZE)"
-	@cargo build -r --bench build_metrics
+	@cargo build -r --bench build_metrics 
 
 run_benches: build_metrics
 	@output=$$(ls -t ./target/release/deps/build_metrics-* | head -n 1) && \

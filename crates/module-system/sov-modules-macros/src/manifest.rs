@@ -176,7 +176,19 @@ impl<'a> Manifest<'a> {
                 }
             };
 
-            field_values.push(quote::quote!(#k: <<Self as ::sov_modules_api::Module>::Spec as ::sov_modules_api::Spec>::Gas::from([#(#v,)*])));
+            field_values.push(
+                quote::quote!(#k:
+                    {
+                        #[cfg(feature = "gas-constant-estimation")]
+                        {
+                            <<Self as ::sov_modules_api::Module>::Spec as ::sov_modules_api::Spec>::Gas::from([#(#v,)*]).with_name(stringify!(#k).to_string().to_uppercase())
+                        }
+                        #[cfg(not(feature = "gas-constant-estimation"))]
+                        {
+                            <<Self as ::sov_modules_api::Module>::Spec as ::sov_modules_api::Spec>::Gas::from([#(#v,)*])
+                        }
+                    }
+                ));
         }
 
         // remove generics, if any
@@ -248,40 +260,29 @@ mod tests {
             decl.to_string(),
             quote::quote!(
                 let foo_gas_config = FooGasConfig {
-                    complex_math_operation: <<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas::from([1u64, 2u64, ]),
-                    some_other_operation: <<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas::from([4u64, 5u64, ]),
+                    complex_math_operation: {
+                        #[cfg(feature = "gas-constant-estimation")]
+                        {
+                            <<Self as ::sov_modules_api::Module>::Spec as ::sov_modules_api::Spec>::Gas::from([1u64, 2u64, ]).with_name(stringify!(complex_math_operation).to_string().to_uppercase())
+                        }
+                        #[cfg(not(feature = "gas-constant-estimation"))]
+                        {
+                            <<Self as ::sov_modules_api::Module>::Spec as ::sov_modules_api::Spec>::Gas::from([1u64, 2u64, ])
+                        }
+                    },
+                    some_other_operation: {
+                        #[cfg(feature = "gas-constant-estimation")]
+                        {
+                            <<Self as ::sov_modules_api::Module>::Spec as ::sov_modules_api::Spec>::Gas::from([4u64, 5u64, ]).with_name(stringify!(some_other_operation).to_string().to_uppercase())
+                        }
+                        #[cfg(not(feature = "gas-constant-estimation"))]
+                        {
+                            <<Self as ::sov_modules_api::Module>::Spec as ::sov_modules_api::Spec>::Gas::from([4u64, 5u64, ])
+                        }
+                    },
                 };
             )
             .to_string()
-        );
-    }
-
-    #[test]
-    fn parse_gas_config_single_dimension_works() {
-        let input = r#"
-            [gas]
-            complex_math_operation = [1, 1]
-            some_other_operation = [2, 2]
-        "#;
-
-        let parent = Ident::new("Foo", proc_macro2::Span::call_site());
-        let gas_config: Type = syn::parse_str("FooGasConfig<S::Gas>").unwrap();
-        let field: Ident = syn::parse_str("foo_gas_config").unwrap();
-
-        let decl = Manifest::read_str(input, PathBuf::from("foo.toml"), &parent)
-            .unwrap()
-            .parse_gas_config(&gas_config, &field)
-            .unwrap();
-
-        #[rustfmt::skip]
-        assert_eq!(
-            decl.to_string(),
-            quote::quote!(
-                let foo_gas_config = FooGasConfig {
-                    complex_math_operation: <<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas::from([1u64, 1u64, ]),
-                    some_other_operation: <<Self as ::sov_modules_api::Module>::Spec as  ::sov_modules_api::Spec>::Gas::from([2u64, 2u64, ]),
-                };
-            ).to_string()
         );
     }
 }

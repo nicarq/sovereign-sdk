@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_macros::config_value_private;
 
 use super::Spec;
-use crate::Gas;
+use crate::{new_constant, Gas};
 
 /// The trait that defines the gas specification for the rollup.
 pub trait GasSpec:
@@ -85,23 +85,22 @@ impl<S: Spec> GasSpec for S {
     type Gas = S::Gas;
 
     fn gas_forced_sequencer_registration_cost() -> Self::Gas {
-        Self::Gas::from(config_value_private!(
-            "GAS_FORCED_SEQUENCER_REGISTRATION_COST"
-        ))
+        new_constant!("GAS_FORCED_SEQUENCER_REGISTRATION_COST", Self::Gas)
     }
 
     fn gas_to_charge_for_access() -> Self::Gas {
-        Self::Gas::from(config_value_private!("GAS_TO_CHARGE_FOR_ACCESS"))
+        new_constant!("GAS_TO_CHARGE_FOR_ACCESS", Self::Gas)
     }
 
     fn gas_to_charge_for_decoding() -> Self::Gas {
-        Self::Gas::from(config_value_private!("GAS_TO_CHARGE_FOR_DECODING"))
+        new_constant!("GAS_TO_CHARGE_FOR_DECODING", Self::Gas)
     }
 
     fn fixed_gas_to_charge_per_signature_verification() -> Self::Gas {
-        Self::Gas::from(config_value_private!(
-            "DEFAULT_FIXED_GAS_TO_CHARGE_PER_SIGNATURE_VERIFICATION"
-        ))
+        new_constant!(
+            "DEFAULT_FIXED_GAS_TO_CHARGE_PER_SIGNATURE_VERIFICATION",
+            Self::Gas
+        )
     }
 
     fn gas_to_charge_for_delete() -> Self::Gas {
@@ -109,33 +108,33 @@ impl<S: Spec> GasSpec for S {
     }
 
     fn gas_to_charge_for_write() -> Self::Gas {
-        Self::Gas::from(config_value_private!("GAS_TO_CHARGE_FOR_WRITE"))
+        new_constant!("GAS_TO_CHARGE_FOR_WRITE", Self::Gas)
     }
 
     fn gas_to_charge_per_byte_borsh_deserialization() -> Self::Gas {
-        Self::Gas::from(config_value_private!(
-            "DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION"
-        ))
+        new_constant!(
+            "DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION",
+            Self::Gas
+        )
     }
 
     fn gas_to_charge_per_byte_hash_finalize() -> Self::Gas {
-        Self::Gas::from(config_value_private!(
-            "GAS_TO_CHARGE_PER_BYTE_HASH_FINALIZE"
-        ))
+        new_constant!("GAS_TO_CHARGE_PER_BYTE_HASH_FINALIZE", Self::Gas)
     }
 
     fn gas_to_charge_per_byte_hash_update() -> Self::Gas {
-        Self::Gas::from(config_value_private!("GAS_TO_CHARGE_PER_BYTE_HASH_UPDATE"))
+        new_constant!("GAS_TO_CHARGE_PER_BYTE_HASH_UPDATE", Self::Gas)
     }
 
     fn gas_to_charge_per_byte_signature_verification() -> Self::Gas {
-        Self::Gas::from(config_value_private!(
-            "DEFAULT_GAS_TO_CHARGE_PER_BYTE_SIGNATURE_VERIFICATION"
-        ))
+        new_constant!(
+            "DEFAULT_GAS_TO_CHARGE_PER_BYTE_SIGNATURE_VERIFICATION",
+            Self::Gas
+        )
     }
 
     fn gas_to_refund_for_hot_access() -> Self::Gas {
-        Self::Gas::from(config_value_private!("GAS_TO_REFUND_FOR_HOT_ACCESS"))
+        new_constant!("GAS_TO_REFUND_FOR_HOT_ACCESS", Self::Gas)
     }
 
     fn gas_to_refund_for_hot_delete() -> Self::Gas {
@@ -143,7 +142,7 @@ impl<S: Spec> GasSpec for S {
     }
 
     fn gas_to_refund_for_hot_write() -> Self::Gas {
-        Self::Gas::from(config_value_private!("GAS_TO_REFUND_FOR_HOT_WRITE"))
+        new_constant!("GAS_TO_REFUND_FOR_HOT_WRITE", Self::Gas)
     }
 
     fn initial_base_fee_per_gas() -> <Self::Gas as Gas>::Price {
@@ -155,16 +154,14 @@ impl<S: Spec> GasSpec for S {
     }
 
     fn max_tx_check_costs() -> Self::Gas {
-        Self::Gas::from(config_value_private!("MAX_SEQUENCER_EXEC_GAS_PER_TX"))
+        new_constant!("MAX_SEQUENCER_EXEC_GAS_PER_TX", Self::Gas)
     }
 
     fn max_unregistered_tx_check_costs() -> Self::Gas {
-        Self::Gas::from(config_value_private!(
-            "MAX_UNREGISTERED_SEQUENCER_EXEC_GAS_PER_TX"
-        ))
+        new_constant!("MAX_UNREGISTERED_SEQUENCER_EXEC_GAS_PER_TX", Self::Gas)
     }
 
     fn process_tx_pre_exec_checks_gas() -> Self::Gas {
-        Self::Gas::from(config_value_private!("PROCESS_TX_PRE_EXEC_GAS"))
+        new_constant!("PROCESS_TX_PRE_EXEC_GAS", Self::Gas)
     }
 }

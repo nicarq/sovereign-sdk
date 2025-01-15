@@ -110,6 +110,14 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for PreExecWorkingSet<S, I> {
         self.gas_meter.charge_gas(amount)
     }
 
+    fn charge_linear_gas(
+        &mut self,
+        amount: &<Self::Spec as Spec>::Gas,
+        parameter: u64,
+    ) -> anyhow::Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
+        self.gas_meter.charge_linear_gas(amount, parameter)
+    }
+
     fn refund_gas(&mut self, gas: &S::Gas) -> anyhow::Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.refund_gas(gas)
     }
@@ -320,6 +328,14 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for WorkingSet<S, I> {
 
     fn refund_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.refund_gas(gas)
+    }
+
+    fn charge_linear_gas(
+        &mut self,
+        amount: &<Self::Spec as Spec>::Gas,
+        parameter: u64,
+    ) -> anyhow::Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
+        self.gas_meter.charge_linear_gas(amount, parameter)
     }
 
     fn gas_info(&self) -> GasInfo<S::Gas> {
