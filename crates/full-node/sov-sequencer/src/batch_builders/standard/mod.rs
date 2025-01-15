@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use axum::http::StatusCode;
 use db::StandardBbDb;
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sov_modules_api::capabilities::{
     AuthenticationError, ChainState, HasKernel, TransactionAuthenticator,
 };
@@ -45,7 +45,7 @@ use crate::sequencer::SequencerNotReadyDetails;
 use crate::{SequencerConfig, TxHash, TxStatus, TxStatusManager};
 
 /// Configuration for [`StdBatchBuilder`].
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
 pub struct StdBatchBuilderConfig {
     /// Maximum number of transactions in mempool. Once this limit is reached,
     /// the batch builder will evict older transactions.

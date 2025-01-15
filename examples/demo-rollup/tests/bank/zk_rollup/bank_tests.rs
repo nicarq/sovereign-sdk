@@ -41,6 +41,9 @@ async fn flaky_bank_tx_tests_instant_finality_using_sequencer_tx_submission() ->
         0,
         mock_da_risc0_host_args(),
     )
+    .set_config(|c| {
+        c.automatic_batch_production = false; // FIXME(@neysofu): finish migrating all tests off of manual batch production.
+    })
     .start()
     .await?;
 
@@ -69,6 +72,9 @@ async fn flaky_bank_tx_tests_non_instant_finality_using_sequencer_tx_submission(
         0,
         mock_da_risc0_host_args(),
     )
+    .set_config(|c| {
+        c.automatic_batch_production = false; // FIXME(@neysofu): finish migrating all tests off of manual batch production.
+    })
     .start()
     .await?;
 

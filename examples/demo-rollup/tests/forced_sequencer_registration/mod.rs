@@ -44,6 +44,7 @@ async fn flaky_test_forced_sequencer_registration() -> anyhow::Result<()> {
     )
     .with_standard_batch_builder()
     .set_config(|c| {
+        c.automatic_batch_production = false; // FIXME(@neysofu): finish migrating all tests off of manual batch production.
         c.rollup_prover_config = RollupProverConfig::Skip;
         c.max_channel_size = 1;
         c.max_infos_in_db = 1;

@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sov_modules_api::schemars::JsonSchema;
 use sov_modules_api::DaSpec;
 
@@ -6,7 +6,7 @@ use crate::batch_builders::preferred::PreferredBatchBuilderConfig;
 use crate::batch_builders::standard::StdBatchBuilderConfig;
 
 /// See [`SequencerConfig::batch_builder`].
-#[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum BatchBuilderConfig {
     /// A standard batch builder, which can post transactions to the rollup but not give soft confirmations.
@@ -22,7 +22,7 @@ impl Default for BatchBuilderConfig {
 }
 
 /// Sequencer configuration.
-#[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[schemars(
     bound = "Da: DaSpec, Address: JsonSchema, BbConfig: JsonSchema",
     rename = "SequencerConfig"
@@ -31,11 +31,7 @@ pub struct SequencerConfig<Da: DaSpec, Address, BbConfig = BatchBuilderConfig> {
     /// When enabled, submitted transactions are periodically assembled into
     /// batches and automatically posted to the DA layer. When disabled, the
     /// batch production endpoint has to be called explicitly.
-    ///
-    /// Experimental.
-    // TODO(@neysofu): remove the experimental notice when we're confident it
-    // works as expected.
-    #[serde(default)]
+    #[serde(default = "default_automatic_batch_production")]
     pub automatic_batch_production: bool,
     /// The sequencer won't process incoming requests unless the node is within
     /// this many blocks behind the DA chain head.
@@ -58,6 +54,10 @@ pub struct SequencerConfig<Da: DaSpec, Address, BbConfig = BatchBuilderConfig> {
     /// Batch builder configuration.
     #[serde(flatten)]
     pub batch_builder: BbConfig,
+}
+
+fn default_automatic_batch_production() -> bool {
+    true
 }
 
 impl<Da: DaSpec, Addr: Clone, BbConfig> SequencerConfig<Da, Addr, BbConfig> {

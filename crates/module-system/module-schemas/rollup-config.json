@@ -139,6 +139,7 @@
         },
         "cors": {
           "description": "Enable or disable CORS policy headers. Enabled by default.",
+          "default": "enabled",
           "allOf": [
             {
               "$ref": "#/definitions/CorsConfiguration"
@@ -379,8 +380,8 @@
           }
         },
         "automatic_batch_production": {
-          "description": "When enabled, submitted transactions are periodically assembled into batches and automatically posted to the DA layer. When disabled, the batch production endpoint has to be called explicitly.\n\nExperimental.",
-          "default": false,
+          "description": "When enabled, submitted transactions are periodically assembled into batches and automatically posted to the DA layer. When disabled, the batch production endpoint has to be called explicitly.",
+          "default": true,
           "type": "boolean"
         },
         "da_address": {

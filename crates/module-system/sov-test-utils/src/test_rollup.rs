@@ -46,6 +46,7 @@ pub enum GenesisSource<S: Spec, R: Runtime<S>> {
 #[allow(missing_docs)]
 #[derive(Clone)]
 pub struct RollupBuilderConfig<S: Spec> {
+    pub automatic_batch_production: bool,
     pub batch_builder_config: BatchBuilderConfig,
     pub prover_address: String,
     pub aggregated_proof_block_jump: usize,
@@ -108,6 +109,7 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
             config: RollupBuilderConfig {
                 max_channel_size: 60,
                 max_infos_in_db: 80 + finalization_blocks as u64,
+                automatic_batch_production: true,
                 batch_builder_config: BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
                     minimum_profit_per_tx,
                 }),
@@ -250,7 +252,7 @@ where
                     .unwrap(),
             },
             sequencer: SequencerConfig {
-                automatic_batch_production: false,
+                automatic_batch_production: self.config.automatic_batch_production,
                 max_allowed_blocks_behind: 5,
                 // Set ttl to zero to disable for testing. This prevents nondeterminism.
                 dropped_tx_ttl_secs: 0,
