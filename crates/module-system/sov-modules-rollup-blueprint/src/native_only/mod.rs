@@ -177,7 +177,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                 let (sequencer, background_handles) = SequencerBlueprint::<
                     Self,
                     M,
-                    StdBatchBuilder<(Self::Spec, Self::Runtime)>,
+                    StdBatchBuilder<(Self::DaService, Self::Spec, Self::Runtime)>,
                 >::new(
                     state_update_receiver.clone(),
                     da_service.clone(),
@@ -196,11 +196,12 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     sequence_number_provider: None,
                 })
             }
+
             BatchBuilderConfig::Preferred(bb_config) => {
                 let (sequencer, background_handles) = SequencerBlueprint::<
                     Self,
                     M,
-                    PreferredBatchBuilder<(Self::Spec, Self::Runtime)>,
+                    PreferredBatchBuilder<(Self::DaService, Self::Spec, Self::Runtime)>,
                 >::new(
                     state_update_receiver.clone(),
                     da_service.clone(),

@@ -28,6 +28,7 @@ use sov_modules_stf_blueprint::{
 };
 use sov_rest_utils::json_obj;
 use sov_rollup_interface::common::VisibleSlotNumber;
+use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::DaSyncState;
 use thiserror::Error;
 use tokio::sync::watch;
@@ -221,6 +222,12 @@ where
     type Batch = Vec<FullyBakedTx>;
     type Config = StdBatchBuilderConfig;
     type Spec = Z::Spec;
+
+    // Batches coming from non-preferred sequencers lack sequence numbers, so
+    // are susceptible to issues when submitted and processed out-of-order...
+    // unless the DA adapter guarantees ordering.
+    const PARALLEL_DA_SUBMISSION: bool =
+        <Z::DaService as DaService>::GUARANTEES_TRANSACTION_ORDERING;
 
     async fn create(
         latest_state_update: StateUpdateInfo<<Z::Spec as Spec>::Storage>,
@@ -567,8 +574,12 @@ where
         }
     }
 
-    async fn peek_batch(&mut self) -> anyhow::Result<Option<WithCachedTxHashes<Self::Batch>>> {
-        Ok(self.assembled_batch.clone())
+    async fn peek_batches(&mut self) -> anyhow::Result<Vec<WithCachedTxHashes<Self::Batch>>> {
+        if let Some(batch) = &self.assembled_batch {
+            Ok(vec![batch.clone()])
+        } else {
+            Ok(vec![])
+        }
     }
 
     async fn pop_batch(&mut self) -> anyhow::Result<()> {

@@ -218,6 +218,8 @@ impl DaService for StorableMockDaService {
     type Error = anyhow::Error;
     type Fee = MockFee;
 
+    const GUARANTEES_TRANSACTION_ORDERING: bool = true;
+
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
         tracing::trace!(%height, "Getting block at");
         if height > u32::MAX as u64 {

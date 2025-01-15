@@ -131,6 +131,8 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
     type Config = PreferredBatchBuilderConfig;
     type Spec = Z::Spec;
 
+    const PARALLEL_DA_SUBMISSION: bool = true;
+
     /// At the time of writing, the [`PreferredBatchBuilder`] doesn't use
     /// the [`TxStatusManager`].
     ///
@@ -347,8 +349,8 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         Ok(())
     }
 
-    async fn peek_batch(&mut self) -> anyhow::Result<Option<WithCachedTxHashes<Self::Batch>>> {
-        self.db.earliest_batch_not_sent_yet().await
+    async fn peek_batches(&mut self) -> anyhow::Result<Vec<WithCachedTxHashes<Self::Batch>>> {
+        self.db.not_sent_yet_batches().await
     }
 
     async fn pop_batch(&mut self) -> anyhow::Result<()> {

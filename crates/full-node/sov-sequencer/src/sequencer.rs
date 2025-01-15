@@ -10,13 +10,13 @@ use sov_modules_api::{
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::node::da::{DaService, Fee};
+use sov_rollup_interface::node::da::{DaService, Fee, SubmitBlobReceipt};
 use sov_rollup_interface::node::ledger_api::{
     ItemOrHash, LedgerStateProvider, QueryMode, SlotResponse,
 };
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
 use sov_rollup_interface::TxHash;
-use tokio::sync::{broadcast, Mutex, MutexGuard};
+use tokio::sync::{broadcast, oneshot, Mutex, MutexGuard};
 use tracing::{debug, error, info, trace};
 
 use super::tx_status::TxStatus;
@@ -187,7 +187,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         }
 
         batch_builder.assemble_batch().await?;
-        self.inner.send_all_unsent_batches(&mut batch_builder).await
+        self.send_all_unsent_batches(&mut batch_builder).await
     }
 
     /// Queries the latest known status of the given transaction. Best-effort,
@@ -203,6 +203,69 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             // ...and then the batch builder's database.
             self.batch_builder().await.tx_status(tx_hash).await
         }
+    }
+
+    async fn send_all_unsent_batches(
+        &self,
+        batch_builder: &mut Ss::BatchBuilder,
+    ) -> anyhow::Result<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>> {
+        let mut batches = batch_builder.peek_batches().await?;
+
+        let Some(last_batch) = batches.pop() else {
+            panic!("Not a single batch was available for sending, but this is unexpected; this is a bug, please report it");
+        };
+
+        for batch in batches {
+            let receipt_fut = self.inner.send_batch(batch_builder, batch).await?;
+            let seq = self.clone();
+
+            let handle = tokio::spawn(async move {
+                if let Err(error) = seq.react_to_batch_receipt(receipt_fut).await {
+                    error!(%error, "Failed to react to batch receipt; this is likely a bug, please report it");
+                }
+            });
+
+            if !Ss::BatchBuilder::PARALLEL_DA_SUBMISSION {
+                handle
+                    .await
+                    .expect("Failed to .await a task; this is a bug, please report it");
+            }
+        }
+
+        self.react_to_batch_receipt(self.inner.send_batch(batch_builder, last_batch).await?)
+            .await
+    }
+
+    async fn react_to_batch_receipt(
+        &self,
+        receipt_fut: WithCachedTxHashes<BlobReceiptFut<Ss>>,
+    ) -> anyhow::Result<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>> {
+        let receipt = receipt_fut
+            .inner
+            .await
+            .expect("Failed to .await a oneshot receiver; this is a bug, please report it")
+            .map_err(|e| anyhow::anyhow!("Failed to provide batch submission receipt: {e}"))?;
+
+        let SubmitBlobReceipt {
+            blob_hash,
+            da_transaction_id,
+        } = &receipt;
+
+        debug!(%da_transaction_id, %blob_hash, "Batch has been sent");
+
+        for tx_hash in &receipt_fut.tx_hashes {
+            self.tx_status_manager.notify(
+                *tx_hash,
+                TxStatus::Published {
+                    da_tx_id: receipt.da_transaction_id.clone(),
+                },
+            );
+        }
+
+        Ok(SubmitBatchReceipt {
+            tx_hashes: receipt_fut.tx_hashes,
+            submit_blob_receipt: receipt,
+        })
     }
 }
 
@@ -265,8 +328,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         // Update storage. It is scoped, so batch builder lock is released early.
         let storage_slot_number = {
             let slot_number = state_update_info.slot_number;
-            let mut bb: MutexGuard<'_, <Ss as SequencerSpec>::BatchBuilder> =
-                self.batch_builder().await;
+            let mut bb = self.batch_builder().await;
             bb.update_state(state_update_info.clone()).await;
             slot_number
         };
@@ -338,7 +400,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 impl<Ss: SequencerSpec> Inner<Ss> {
     async fn accept_tx_and_notify(
         &self,
-        batch_builder: &mut MutexGuard<'_, Ss::BatchBuilder>,
+        batch_builder: &mut Ss::BatchBuilder,
         tx: FullyBakedTx,
     ) -> Result<AcceptedTx<<Ss::BatchBuilder as BatchBuilder>::Confirmation>, ErrorObject> {
         debug!(tx = hex::encode(&tx.data), "Accepting transaction");
@@ -368,43 +430,15 @@ impl<Ss: SequencerSpec> Inner<Ss> {
         }
     }
 
-    async fn send_all_unsent_batches_opt(
+    async fn send_batch(
         &self,
-        batch_builder: &mut MutexGuard<'_, Ss::BatchBuilder>,
-    ) -> anyhow::Result<Option<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>>> {
-        let mut ret = None;
-
-        while let Some(receipt) = self.send_batch_if_available(batch_builder).await? {
-            ret = Some(receipt);
-        }
-
-        Ok(ret)
-    }
-
-    async fn send_all_unsent_batches(
-        &self,
-        batch_builder: &mut MutexGuard<'_, Ss::BatchBuilder>,
-    ) -> anyhow::Result<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>> {
-        self.send_all_unsent_batches_opt(batch_builder)
-            .await
-            .map(|opt| {
-                // Not a single batch was available for sending, but this was unexpected.
-                opt.expect("Batch was expected, but not found; this is a bug, please report it")
-            })
-    }
-
-    async fn send_batch_if_available(
-        &self,
-        batch_builder: &mut MutexGuard<'_, Ss::BatchBuilder>,
-    ) -> anyhow::Result<Option<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>>> {
-        let Some(WithCachedTxHashes {
+        batch_builder: &mut Ss::BatchBuilder,
+        batch: WithCachedTxHashes<<Ss::BatchBuilder as BatchBuilder>::Batch>,
+    ) -> anyhow::Result<WithCachedTxHashes<BlobReceiptFut<Ss>>> {
+        let WithCachedTxHashes {
             inner: next_batch,
             tx_hashes,
-        }) = batch_builder.peek_batch().await?
-        else {
-            trace!("All assembled batches have been sent already; no more batches to send");
-            return Ok(None);
-        };
+        } = batch;
 
         let serialized_batch = borsh::to_vec(&next_batch)
             .expect("Failed to serialize batch inside sequencer; this is a bug, please report it");
@@ -423,22 +457,10 @@ impl<Ss: SequencerSpec> Inner<Ss> {
             "Will attempt to publish batch to DA"
         );
 
-        let submit_blob_receipt = match self
+        let receipt_fut = self
             .da_service
             .send_transaction(&serialized_batch, fee)
-            .await
-            .await
-            .expect("The transaction sender should not fail")
-        {
-            Ok(id) => id,
-            Err(e) => anyhow::bail!("failed to submit batch: {}", e),
-        };
-
-        debug!(
-            da_transaction_id = %submit_blob_receipt.da_transaction_id,
-            blob_hash = %submit_blob_receipt.blob_hash,
-            "Batch has been sent"
-        );
+            .await;
 
         // If we crash here, the batch will still be sitting inside the batch
         // builder's database and it will be re-submitted once again. Not ideal,
@@ -447,21 +469,21 @@ impl<Ss: SequencerSpec> Inner<Ss> {
 
         batch_builder.pop_batch().await?;
 
-        for tx_hash in &tx_hashes {
-            self.tx_status_manager.notify(
-                *tx_hash,
-                TxStatus::Published {
-                    da_tx_id: submit_blob_receipt.da_transaction_id.clone(),
-                },
-            );
-        }
-
-        Ok(Some(SubmitBatchReceipt {
+        Ok(WithCachedTxHashes {
+            inner: receipt_fut,
             tx_hashes,
-            submit_blob_receipt,
-        }))
+        })
     }
 }
+
+type BlobReceiptFut<Ss> = oneshot::Receiver<
+    Result<
+        SubmitBlobReceipt<
+            <<<Ss as SequencerSpec>::Da as DaService>::Spec as DaSpec>::TransactionId,
+        >,
+        <<Ss as SequencerSpec>::Da as DaService>::Error,
+    >,
+>;
 
 #[derive(Debug, serde::Serialize)]
 pub struct SequencerNotReadyDetails {

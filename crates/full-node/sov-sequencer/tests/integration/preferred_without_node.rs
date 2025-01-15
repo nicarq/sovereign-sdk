@@ -21,15 +21,11 @@ async fn not_sequencer_safe_txs_are_restricted() {
     let sequencer_addr = HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr();
     let da_service = MockDaService::new(sequencer_addr);
 
-    let sequencer =
-        TestSequencerSetup::<PreferredBatchBuilder<(TestSpec, TestRuntime<TestSpec>)>>::new(
-            dir,
-            da_service,
-            Default::default(),
-            false,
-        )
-        .await
-        .unwrap();
+    let sequencer = TestSequencerSetup::<
+        PreferredBatchBuilder<(MockDaService, TestSpec, TestRuntime<TestSpec>)>,
+    >::new(dir, da_service, Default::default(), false)
+    .await
+    .unwrap();
 
     let tx = generate_paymaster_tx(sequencer.admin_private_key.clone());
     {
@@ -60,15 +56,11 @@ async fn sequencer_safe_txs_from_admins_are_accepted() {
     let sequencer_addr = HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr();
     let da_service = MockDaService::new(sequencer_addr);
 
-    let sequencer =
-        TestSequencerSetup::<PreferredBatchBuilder<(TestSpec, TestRuntime<TestSpec>)>>::new(
-            dir,
-            da_service,
-            Default::default(),
-            true,
-        )
-        .await
-        .unwrap();
+    let sequencer = TestSequencerSetup::<
+        PreferredBatchBuilder<(MockDaService, TestSpec, TestRuntime<TestSpec>)>,
+    >::new(dir, da_service, Default::default(), true)
+    .await
+    .unwrap();
 
     let tx = generate_paymaster_tx(sequencer.admin_private_key.clone());
     {

@@ -19,7 +19,8 @@ use sov_test_utils::{
     TransactionType, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
 
-pub type MyBatchBuilder = StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>;
+pub type MyBatchBuilder =
+    StdBatchBuilder<(MockDaService, TestSpec, TestOptimisticRuntime<TestSpec>)>;
 pub type RT = TestOptimisticRuntime<TestSpec>;
 pub type RTCall = TestOptimisticRuntimeCall<TestSpec>;
 
