@@ -1,12 +1,14 @@
 //! InfluxDB metrics for Sovereign rollups.
 
 mod config;
+#[cfg(feature = "gas-constant-estimation")]
+mod gas_constant_estimation;
 mod publisher;
 mod tracker;
 
 pub use config::MonitoringConfig;
 #[cfg(feature = "gas-constant-estimation")]
-pub use tracker::gas_constant_estimation::GAS_CONSTANTS;
+pub use gas_constant_estimation::{GasConstantTracker, GAS_CONSTANTS};
 pub use tracker::{
     init_metrics_tracker, timestamp, BatchMetrics, BatchOutcome, HttpMetrics, RunnerMetrics,
     SlotProcessingMetrics, SovRollupMetrics, TransactionEffect, TransactionProcessingMetrics,

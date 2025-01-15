@@ -1,3 +1,8 @@
+## 2025-01-14
+- #2214 adds a way to track gas constants usage in the SDK. Consumers of the SDK may use the `track_gas_constants_usage` proc-macro decorator to gather metrics relevant to gas constants usage within the SDK. This is not a breaking change.
+
+## 2025-01-13
+- #2207 makes it possible to track gas constant consumption within the SDK. Consumers of the SDK can now track gas consumption within the SDK by using the `gas_constant_estimation` feature flag and adding a name tag to the constants they want to track.
 ## 2025-01-13
 - #2207 makes it possible to track gas constant consumption within the SDK. Consumers of the SDK can now track gas consumption within the SDK by using the `gas_constant_estimation` feature flag and adding a name tag to the constants they want to track.
 ## 2025-01-15

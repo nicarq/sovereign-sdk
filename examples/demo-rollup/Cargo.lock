@@ -9639,6 +9639,7 @@ name = "sov-metrics"
 version = "0.3.0"
 dependencies = [
  "derivative",
+ "derive_more 1.0.0",
  "http 1.2.0",
  "schemars",
  "serde",

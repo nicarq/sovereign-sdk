@@ -10,6 +10,8 @@ pub struct MonitoringConfig {
     /// so measurements are buffered by size and not sent by time.
     /// and below 67 KB, which is the maximal UDP packet size.
     /// It also means that if a single serialized metric is larger than this value, a UDP packet will be larger.
+    ///
+    /// Note: to disable buffering, set this value to `Some(1)`.
     pub max_datagram_size: Option<u32>,
     /// How many metrics are allowed to be in pending state, before new metrics will be dropped.
     /// This is a number of metrics, not serialized bytes.
