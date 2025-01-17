@@ -266,7 +266,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
     async fn update_state(&mut self, info: StateUpdateInfo<<Z::Spec as Spec>::Storage>) {
         self.try_update_state(info).await.unwrap_or_else(|err| {
             error!(%err, "Failed to update preferred batch builder state. This failure is not recoverable, although application state is likely still intact and healthy. This is either a bug or a database issue.");
-            panic!("Failed to update preferred batch builder state. This failure is not recoverable, although application state is likely still intact and healthy. This is either a bug or a database issue. {err}");
+            std::process::exit(9); // Unique exit code so we can easily identify it from bug reports.
         });
     }
 
