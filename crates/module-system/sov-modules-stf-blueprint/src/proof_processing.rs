@@ -8,7 +8,7 @@ use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
     BasicGasMeter, DaSpec, Gas, GasArray, GasMeter, GasSpec, InvalidProofError,
     MeteredBorshDeserialize, PreExecWorkingSet, ProofOutcome, ProofReceipt, ProofReceiptContents,
-    SlotGasMeter, Spec, StateCheckpoint, StateProvider, TxScratchpad, WorkingSet,
+    Spec, StateCheckpoint, StateProvider, TxScratchpad, WorkingSet,
 };
 use sov_state::{Storage, StorageProof};
 
@@ -25,9 +25,9 @@ const LOG_PREFIX: &str = "Returning early from the proof processing workflow";
 #[allow(clippy::type_complexity)]
 pub(crate) fn process_proof<S, RT>(
     runtime: &RT,
-    slot_gas_meter: &SlotGasMeter<S>,
+    slot_gas: &S::Gas,
     blob_hash: [u8; 32],
-    sequencer_da_address: <S::Da as DaSpec>::Address,
+    sequencer_da_address: &<S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
     raw_proof: Vec<u8>,
     state: StateCheckpoint<S>,
@@ -36,11 +36,11 @@ where
     S: Spec,
     RT: Runtime<S>,
 {
-    let workflow = ProofProcessingWorkflow::new(runtime, blob_hash, &sequencer_da_address);
+    let workflow = ProofProcessingWorkflow::new(runtime, blob_hash, sequencer_da_address);
 
     // Check if the sequencer is bonded, and create `pre_exec_working_set`.
     let (sequencer_rollup_address, mut pre_exec_working_set) =
-        match workflow.authorize_sequencer(slot_gas_meter, gas_price, state.to_tx_scratchpad()) {
+        match workflow.authorize_sequencer(slot_gas, gas_price, state.to_tx_scratchpad()) {
             WorkflowResult::Proceed(pre_exec_working_set) => pre_exec_working_set,
             WorkflowResult::EarlyReturn(out, scratchpad) => {
                 tracing::debug!("{LOG_PREFIX}: unable to create pre execution working set");
@@ -50,7 +50,7 @@ where
             }
         };
 
-    // The `pre_exec_working_set` is initialize, so we can start charging gas.
+    // The `pre_exec_working_set` is initialized, indicating that the sequencer is bonded and we can begin charging gas.
     match SerializeProofWithDetails::<S>::deserialize(
         &mut raw_proof.as_slice(),
         &mut pre_exec_working_set,
@@ -58,7 +58,7 @@ where
         Ok(proof_with_details) => {
             // Reserve gas for the proof verification.
             let mut working_set = match workflow.try_reserve_gas(
-                slot_gas_meter,
+                slot_gas,
                 &sequencer_rollup_address,
                 gas_price,
                 proof_with_details.details.into(),
@@ -90,6 +90,7 @@ where
                 }
             };
 
+            // `workflow.try_reserve_gas` succeeded, meaning that any charge will be deducted from the sequencer's balance in the bank module, rather than from the sequencer's bond.
             let receipt_contents = match proof_with_details.proof {
                 ProofType::ZkAggregatedProof(proof) => runtime
                     .proof_processor()
@@ -151,7 +152,7 @@ where
 
             let sequencer_reward = transaction_consumption.priority_fee();
             runtime.sequencer_remuneration().reward_sequencer(
-                &sequencer_da_address,
+                sequencer_da_address,
                 sequencer_reward,
                 &mut scratchpad,
             );
@@ -250,12 +251,13 @@ where
 
     fn authorize_sequencer<I: StateProvider<S>>(
         &self,
-        slot_gas_meter: &SlotGasMeter<S>,
+        slot_gas: &S::Gas,
         gas_price: &<S::Gas as Gas>::Price,
         mut tx_scratchpad: TxScratchpad<S, I>,
     ) -> PreExecWorkingSetResult<S, I> {
+        // CHECKS:
+        // 1. `max_tx_check_costs` will not cause an overflow when converted to a token value.
         let max_tx_check_costs = <S as GasSpec>::max_tx_check_costs();
-
         let max_tx_check_value = match <S as GasSpec>::max_tx_check_costs().checked_value(gas_price)
         {
             Some(v) => v,
@@ -282,6 +284,7 @@ where
             .authorize_sequencer(self.sequencer_da_address, &mut tx_scratchpad)
             .expect("Blob selection must guarantee that sequencer is registered");
 
+        // 2. The sequencer has more funds than are needed for transaction validation..
         if sequencer.balance <= max_tx_check_value {
             return WorkflowResult::EarlyReturn(
                 ProcessProofOutput {
@@ -298,10 +301,8 @@ where
             );
         }
 
-        if slot_gas_meter
-            .remaining_slot_gas()
-            .dim_is_less_or_eq(&max_tx_check_costs)
-        {
+        // 3. The slot gas is higher than the gas needed to validate the transaction.
+        if slot_gas.dim_is_less_or_eq(&max_tx_check_costs) {
             return WorkflowResult::EarlyReturn(
                 ProcessProofOutput {
                     proof_receipt: invalid_proof_receipt::<S>(
@@ -325,7 +326,7 @@ where
         // etc
         pre_exec_working_set
             .charge_gas(&<S as GasSpec>::process_tx_pre_exec_checks_gas())
-            // It is ok to expect here because `pre_exec_gas_meter` was initialized with `max_tx_check_costs` which is bigger than process_tx_pre_exec_checks_gas.
+            // SAFETY: It is ok to expect here because `pre_exec_gas_meter` was initialized with `max_tx_check_costs` which is bigger than process_tx_pre_exec_checks_gas.
             .expect("The gas meter should be able to charge the pre-execution checks");
 
         WorkflowResult::Proceed((sequencer.address, pre_exec_working_set))
@@ -333,7 +334,7 @@ where
 
     fn try_reserve_gas<I: StateProvider<S>>(
         &self,
-        slot_gas_meter: &SlotGasMeter<S>,
+        slot_gas: &S::Gas,
         sequencer_rollup_address: &S::Address,
         gas_price: &<S::Gas as Gas>::Price,
         auth_tx: AuthenticatedTransactionData<S>,
@@ -353,17 +354,19 @@ where
             return self.make_early_return(scratchpad, reason, gas_info.gas_used);
         }
 
-        let working_set_gas_meter =
-            match auth_tx.gas_meter(gas_price, slot_gas_meter.remaining_slot_gas().clone()) {
-                Ok(ws) => ws,
-                Err(e) => {
-                    return self.make_early_return(
-                        scratchpad,
-                        format!("Insufficient slot gas {}", e),
-                        gas_info.gas_used,
-                    );
-                }
-            };
+        // The transaction will execute until one of the following conditions is met:
+        // 1. It consumes more funds than `tx.max_fee`.
+        // 2. The `Gas::calculate_min(tx.gas_limit, slot_gas)` is exhausted.
+        let working_set_gas_meter = match auth_tx.gas_meter(gas_price, slot_gas) {
+            Ok(ws) => ws,
+            Err(e) => {
+                return self.make_early_return(
+                    scratchpad,
+                    format!("Insufficient slot gas {}", e),
+                    gas_info.gas_used,
+                );
+            }
+        };
 
         let mut working_set =
             WorkingSet::create_working_set(scratchpad, &auth_tx, working_set_gas_meter);
@@ -389,7 +392,7 @@ where
                 self.sequencer_da_address,
                 &mut state,
             )
-            // This **should** never fail because we initialize gas meter with `max_tx_check_costs` which is lower than the sequencer bond..
+            // SAFETY: This **should** never fail because we initialize gas meter with `max_tx_check_costs` which is lower than the sequencer bond..
             .expect("Sequencer should have enough funds to pay for the penalty");
 
         state

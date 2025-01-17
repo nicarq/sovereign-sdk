@@ -6,7 +6,6 @@ use std::num::NonZero;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::capabilities::SequencerType;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
@@ -17,7 +16,10 @@ use sov_modules_api::{
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::codec::BcsCodec;
 
-type BlobAndSender<S> = (BlobDataWithId<BatchWithId>, SequencerType<S>);
+type BlobAndSender<S> = (
+    BlobDataWithId<BatchWithId>,
+    <<S as Spec>::Da as DaSpec>::Address,
+);
 
 /// For how many slots deferred blobs are stored before being executed
 pub fn config_deferred_slots_count() -> u64 {

@@ -93,7 +93,7 @@ where
             ExecutionContext::Node,
         )?;
 
-        let working_set_gas_meter = match tx_data.gas_meter(&gas_price.clone(), <S::Gas>::MAX) {
+        let working_set_gas_meter = match tx_data.gas_meter(&gas_price.clone(), &<S::Gas>::MAX) {
             Ok(ws) => ws,
             Err(err) => return Err(anyhow::anyhow!("Slot run out of gas {}", err)),
         };

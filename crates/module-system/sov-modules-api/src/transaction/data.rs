@@ -174,12 +174,12 @@ impl<S: Spec> AuthenticatedTransactionData<S> {
     pub fn gas_meter(
         &self,
         gas_price: &<S::Gas as Gas>::Price,
-        slot_gas_limit: S::Gas,
+        slot_gas_limit: &S::Gas,
     ) -> Result<BasicGasMeter<S>, GasMeteringError<S::Gas>> {
         let gas_meter = match &self.gas_limit {
             Some(gas_limit) => {
                 // `GasArray::calculate_min` creates a new gas instance by selecting the minimum value along each dimension of the gas array.
-                let new_gas_limit = <S::Gas as GasArray>::calculate_min(gas_limit, &slot_gas_limit);
+                let new_gas_limit = <S::Gas as GasArray>::calculate_min(gas_limit, slot_gas_limit);
                 BasicGasMeter::new_with_funds_and_gas(
                     self.max_fee,
                     new_gas_limit,
@@ -188,7 +188,7 @@ impl<S: Spec> AuthenticatedTransactionData<S> {
             }
             None => BasicGasMeter::new_with_funds_and_gas(
                 self.max_fee,
-                slot_gas_limit,
+                slot_gas_limit.clone(),
                 gas_price.clone(),
             ),
         };

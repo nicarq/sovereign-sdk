@@ -21,7 +21,7 @@ use sov_modules_api::rest::ApiState;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     ExecutionContext, FullyBakedTx, Gas, GasArray, GasMeter, NestedEnumUtils, NoOpControlFlow,
-    RawTx, SlotGasMeter, Spec, StateCheckpoint, StateProvider, VersionReader, WorkingSet,
+    RawTx, Spec, StateCheckpoint, StateProvider, VersionReader, WorkingSet,
 };
 use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect, TxProcessingError,
@@ -155,12 +155,11 @@ where
             );
         }
 
-        // Currently the sequencer doesn't take into account the slot gas limit.
-        let slot_gas_meter = SlotGasMeter::new(<<Z::Spec as Spec>::Gas>::MAX);
         let (res, tx_scratchpad) = process_tx(
             &self.runtime,
             &gas_meter,
-            &slot_gas_meter,
+            // Currently the sequencer doesn't take into account the slot gas limit.
+            &<<Z::Spec as Spec>::Gas>::MAX,
             auth_output,
             &self.config.da_address,
             ctx.visible_slot_number,
@@ -364,7 +363,7 @@ where
             let tx = auth_output.0.authenticated_tx;
 
             let working_set_gas_meter =
-                match tx.gas_meter(&gas_info.gas_price.clone(), <<Z::Spec as Spec>::Gas>::MAX) {
+                match tx.gas_meter(&gas_info.gas_price.clone(), &<<Z::Spec as Spec>::Gas>::MAX) {
                     Ok(ws) => ws,
                     Err(err) => {
                         return (tx_scratchpad.revert(), Err(generic_accept_tx_error(err)));

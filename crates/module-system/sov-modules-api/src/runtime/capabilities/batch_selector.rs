@@ -21,28 +21,10 @@ impl<'a, T: BlobReaderTrait> BlobOrigin<'a, T> {
     }
 }
 
-/// The type of the sequencer.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SequencerType<S: Spec> {
-    /// Preferred sequencer.
-    Preferred(<<S as Spec>::Da as DaSpec>::Address),
-    /// Standard sequencer.
-    Standard(<<S as Spec>::Da as DaSpec>::Address),
-}
-
-impl<S: Spec> SequencerType<S> {
-    /// The sequencer DA address.
-    pub fn address(&self) -> &<<S as Spec>::Da as DaSpec>::Address {
-        match self {
-            SequencerType::Preferred(address) | SequencerType::Standard(address) => address,
-        }
-    }
-}
-
 /// Output of the [`BlobSelector::get_blobs_for_this_slot`] method from the [`BlobSelector`] trait.
 pub struct BlobSelectorOutput<S: Spec, BlobType> {
     /// The blobs selected by the module.
-    pub selected_blobs: Vec<(BlobType, SequencerType<S>)>,
+    pub selected_blobs: Vec<(BlobType, <S::Da as DaSpec>::Address)>,
     /// Whether the slot hooks should be executed. We should execute slot hooks whenever we accept blobs for execution
     /// or when we increase the visible slot number.
     pub should_execute_slot_hooks: bool,

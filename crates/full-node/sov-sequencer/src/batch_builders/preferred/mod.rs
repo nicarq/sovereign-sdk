@@ -14,8 +14,7 @@ use schemars::JsonSchema;
 use serde_with::serde_as;
 use sov_blob_storage::PreferredBatchData;
 use sov_modules_api::capabilities::{
-    BlobSelector, BlobSelectorOutput, ChainState, HasKernel, SequencerType,
-    TransactionAuthenticator,
+    BlobSelector, BlobSelectorOutput, ChainState, HasKernel, TransactionAuthenticator,
 };
 use sov_modules_api::rest::utils::{json_obj, ErrorObject};
 use sov_modules_api::rest::ApiState;
@@ -53,7 +52,7 @@ type AsyncBlobAndSender<Z> = (
             <Z as RtAwareBatchBuilderSpec>::Spec,
         >,
     >,
-    SequencerType<<Z as RtAwareBatchBuilderSpec>::Spec>,
+    <<<Z as RtAwareBatchBuilderSpec>::Spec as Spec>::Da as DaSpec>::Address,
 );
 
 type TxResult<Z> = Result<
@@ -721,7 +720,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
                     minimum_profit_per_tx,
                     admin_addresses,
                 )),
-                SequencerType::Preferred(sequencer_address),
+                sequencer_address,
             )];
             selected_blobs.extend(additional_blobs);
             let blob_selector_output = BlobSelectorOutput {

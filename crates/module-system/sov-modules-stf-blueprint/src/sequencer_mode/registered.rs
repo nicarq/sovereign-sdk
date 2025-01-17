@@ -33,7 +33,7 @@ use crate::{
 pub fn process_tx<S, R, I, C>(
     runtime: &R,
     pre_exec_gas_meter: &BasicGasMeter<S>,
-    slot_gas_meter: &SlotGasMeter<S>,
+    slot_gas: &S::Gas,
     validated_output: AuthTxOutput<S, R>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     visible_slot_number: VisibleSlotNumber,
@@ -61,7 +61,7 @@ where
     let result = process_tx_inner(
         runtime,
         pre_exec_gas_meter,
-        slot_gas_meter,
+        slot_gas,
         validated_output,
         sequencer_da_address,
         visible_slot_number,
@@ -116,7 +116,7 @@ fn track_transaction_metrics<S: Spec>(
 fn process_tx_inner<S, R, I, C>(
     runtime: &R,
     pre_exec_gas_meter: &BasicGasMeter<S>,
-    slot_gas_meter: &SlotGasMeter<S>,
+    slot_gas: &S::Gas,
     validated_output: AuthTxOutput<S, R>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     visible_slot_number: VisibleSlotNumber,
@@ -189,18 +189,19 @@ where
         );
     }
 
-    let working_set_gas_meter = match tx.gas_meter(
-        &pre_exec_gas_meter.gas_info().gas_price,
-        slot_gas_meter.remaining_slot_gas().clone(),
-    ) {
-        Ok(ws) => ws,
-        Err(reason) => {
-            return (
-                Err(TxProcessingError::OutOfGas(reason.to_string())),
-                scratchpad,
-            )
-        }
-    };
+    let working_set_gas_meter =
+       // The transaction will execute until one of the following conditions is met:
+       // 1. It consumes more funds than `tx.max_fee`.
+       // 2. The `Gas::calculate_min(tx.gas_limit, slot_gas)` is exhausted.
+        match tx.gas_meter(&pre_exec_gas_meter.gas_info().gas_price, slot_gas) {
+            Ok(ws) => ws,
+            Err(reason) => {
+                return (
+                    Err(TxProcessingError::OutOfGas(reason.to_string())),
+                    scratchpad,
+                )
+            }
+        };
 
     let mut working_set = WorkingSet::create_working_set(scratchpad, tx, working_set_gas_meter);
 
@@ -282,22 +283,16 @@ impl<S: Spec> IncrementalBatchReceipt<S> {
     }
 }
 
-/// The preferred sequencer might attempt to censor transactions from standard sequencers through the following methods:
-/// 1. Raising the gas price significantly: This could cause the transaction to run out of gas.
-/// 2. Filling the block's entire gas limit with preferred transactions: This would leave no space for standard transactions.
-/// To mitigate these scenarios:
-/// - In the first case, we will have to ensure that exiting the rollup consumes very little gas (similarly to what we do for forced transactions). This way, even if gas prices are artificially inflated, the transaction cost remains manageable.
-/// - In the second case, we reserve a percentage of block space specifically for standard transactions, ensuring the rollup can always process some standard transactions.
 #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch", fields(visible_slot_number = %visible_slot_number, context = ?execution_context))]
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 pub(crate) fn apply_batch<S, RT, B>(
     runtime: &RT,
     mut checkpoint: StateCheckpoint<S>,
-    slot_gas_meter: &SlotGasMeter<S>,
+    slot_gas_meter: &mut SlotGasMeter<S>,
     batch_with_id: B,
     blob_idx: usize,
-    sequencer_da_address: <S::Da as DaSpec>::Address,
+    sequencer_da_address: &<S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
     visible_slot_number: VisibleSlotNumber,
     execution_context: ExecutionContext,
@@ -312,6 +307,7 @@ where
     } else {
         tracing::info_span!("sequencer-batch").entered()
     };
+
     debug!(
         sequencer_da_address = %sequencer_da_address,
         ?gas_price,
@@ -335,12 +331,11 @@ where
     let mut ignored_tx_receipts = Vec::default();
     let mut accumulated_reward = 0;
     let mut accumulated_penalty = 0;
-    let mut total_gas_used = <S as Spec>::Gas::ZEROED;
 
     for (idx, (raw_tx, injected_control_flow)) in batch_with_id.enumerate() {
         let sequencer = runtime
             .sequencer_authorization()
-            .authorize_sequencer(&sequencer_da_address, &mut clean_scratchpad)
+            .authorize_sequencer(sequencer_da_address, &mut clean_scratchpad)
             .expect("Blob selection must guarantee that sequencer is registered");
 
         let sequencer_bond = sequencer.balance;
@@ -352,9 +347,10 @@ where
         } = auth_and_process_tx(
             runtime,
             clean_scratchpad,
-            slot_gas_meter,
+            // Here we make sure that a tx can't use more gas that remaining gas in the slot gas meter.
+            slot_gas_meter.remaining_slot_gas(sequencer_da_address),
             &raw_tx,
-            &sequencer_da_address,
+            sequencer_da_address,
             gas_price,
             visible_slot_number,
             execution_context,
@@ -397,8 +393,8 @@ where
         match outcome {
             TxControlFlow::ContinueProcessing(receipt) => {
                 // SAFETY: It is safe to unwrap here because the total gas used is guaranteed to be less than the slot gas limit.
-                total_gas_used = total_gas_used
-                    .checked_combine(&gas_used)
+                slot_gas_meter
+                    .charge_gas(&gas_used, sequencer_da_address)
                     .expect("Gas Overflow");
 
                 accumulated_reward += provisional_reward;
@@ -408,8 +404,8 @@ where
             TxControlFlow::IgnoreTx => {
                 if !execution_context.is_sequencer() {
                     // SAFETY: It is safe to unwrap here because the total gas used is guaranteed to be less than the slot gas limit.
-                    total_gas_used = total_gas_used
-                        .checked_combine(&gas_used)
+                    slot_gas_meter
+                        .charge_gas(&gas_used, sequencer_da_address)
                         .expect("Gas Overflow");
 
                     accumulated_reward += provisional_reward;
@@ -430,14 +426,16 @@ where
         }
         clean_scratchpad = new_checkpoint.to_tx_scratchpad();
     }
+    let total_gas_used_in_batch = slot_gas_meter.total_gas_used();
+
     // End of the transaction processing phase.
     let batch_receipt = IncrementalBatchReceipt {
         tx_receipts,
         ignored_tx_receipts,
         inner: BatchSequencerReceipt {
-            da_address: sequencer_da_address,
+            da_address: sequencer_da_address.clone(),
             gas_price: gas_price.clone(),
-            gas_used: total_gas_used.clone(),
+            gas_used: total_gas_used_in_batch.clone(),
             outcome: BatchSequencerOutcome {
                 rewards: Rewards {
                     accumulated_reward,
@@ -448,7 +446,7 @@ where
     };
 
     checkpoint = clean_scratchpad.commit();
-    apply_batch_logs(&batch_receipt, &total_gas_used, blob_idx);
+    apply_batch_logs(&batch_receipt, &total_gas_used_in_batch, blob_idx);
     span.exit();
     (batch_receipt, checkpoint)
 }
@@ -493,7 +491,7 @@ fn penalize_sequencer<S: Spec, RT: Runtime<S>, I: StateProvider<S>>(
 fn auth_and_process_tx<S, RT, I, C>(
     runtime: &RT,
     mut scratchpad: TxScratchpad<S, I>,
-    slot_gas_meter: &SlotGasMeter<S>,
+    slot_gas: &S::Gas,
     raw_tx: &FullyBakedTx,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
@@ -509,6 +507,8 @@ where
     I: StateProvider<S>,
     C: InjectedControlFlow<TransactionReceipt<S>, S>,
 {
+    // CHECKS:
+    // 1. `max_tx_check_costs` will not cause an overflow when converted to a token value.
     let max_tx_check_costs = <S as GasSpec>::max_tx_check_costs();
     let max_tx_check_value = match max_tx_check_costs.checked_value(gas_price) {
         Some(v) => v,
@@ -524,6 +524,7 @@ where
         }
     };
 
+    // 2. The sequencer has more funds than are needed for transaction validation..
     if sequencer_bond <= max_tx_check_value {
         return AuthAndProcessOutput {
             outcome: AuthAndProcessOutcome::IllegalSequencer {
@@ -538,10 +539,8 @@ where
         };
     }
 
-    if slot_gas_meter
-        .remaining_slot_gas()
-        .dim_is_less_or_eq(&max_tx_check_costs)
-    {
+    // 3. The slot gas is higher than the gas needed to validate the transaction.
+    if slot_gas.dim_is_less_or_eq(&max_tx_check_costs) {
         return AuthAndProcessOutput {
             outcome: AuthAndProcessOutcome::IllegalSequencer {
                 reason: "The slot gas limit has been exhausted".to_string(),
@@ -559,7 +558,7 @@ where
         scratchpad.to_pre_exec_working_set(pre_exec_gas_meter);
 
     // Charge gas for all the checks in the `process_tx`.
-    // We can unwrap here because, we asserted that max_tx_check_costs > process_tx_pre_exec_checks_gas.
+    // SAFETY: We can unwrap here because, we asserted that max_tx_check_costs > process_tx_pre_exec_checks_gas.
     pre_exec_working_set
         .charge_gas(&<S as GasSpec>::process_tx_pre_exec_checks_gas())
         .expect("The gas meter should be able to charge the pre-execution checks");
@@ -620,7 +619,7 @@ where
     let process_tx_result = process_tx(
         runtime,
         &pre_exec_gas_meter,
-        slot_gas_meter,
+        slot_gas,
         validated_output,
         sequencer_da_address,
         visible_slot_number,
