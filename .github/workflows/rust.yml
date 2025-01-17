@@ -67,7 +67,7 @@ concurrency:
 jobs:
   check-aggregate:
     # Follows the guide at <https://github.com/re-actors/alls-green>.
-    runs-on: nscloud-ubuntu-20.04-amd64-2x4
+    runs-on: nscloud-ubuntu-22.04-amd64-2x4
     timeout-minutes: 5
     if: always()
     needs:
@@ -104,7 +104,7 @@ jobs:
   check:
     name: check
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
       - nscloud-cache-tag-cache-dev
       - nscloud-cache-size-100gb
     timeout-minutes: 60
@@ -137,7 +137,7 @@ jobs:
     name: check_excluded_crates
     needs: check
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-16x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-16x32-with-cache
       - nscloud-cache-tag-cache-dev
       - nscloud-cache-size-100gb
     timeout-minutes: 60
@@ -169,7 +169,7 @@ jobs:
   check-workspace:
     name: check-workspace
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
       - nscloud-cache-tag-cache-dev
       - nscloud-cache-size-100gb
     timeout-minutes: 60
@@ -189,7 +189,7 @@ jobs:
     name: bench_check
     needs: check
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-16x64-with-cache
+      - nscloud-ubuntu-22.04-amd64-16x64-with-cache
       - nscloud-cache-tag-cache-bench
       - nscloud-cache-size-100gb
     timeout-minutes: 120
@@ -212,7 +212,7 @@ jobs:
     name: rollup_bench_check
     needs: check
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
       - nscloud-cache-tag-cache-bench
       - nscloud-cache-size-100gb
     timeout-minutes: 120
@@ -239,7 +239,7 @@ jobs:
     # effectively.
     needs: check
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
       - nscloud-cache-tag-cache-dev
       - nscloud-cache-size-100gb
     strategy:
@@ -273,7 +273,7 @@ jobs:
     # effectively.
     needs: check
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
       - nscloud-cache-tag-cache-dev
       - nscloud-cache-size-100gb
     strategy:
@@ -300,7 +300,7 @@ jobs:
   nextest:
     name: nextest
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
       - nscloud-cache-tag-cache-test
       - nscloud-cache-size-100gb
     timeout-minutes: 60
@@ -321,7 +321,7 @@ jobs:
   nextest_all_features:
     name: nextest_all_features
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
       - nscloud-cache-tag-cache-test
       - nscloud-cache-size-100gb
     timeout-minutes: 60
@@ -343,7 +343,7 @@ jobs:
     name: nextest_excluded_crates
     needs: check
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-16x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-16x32-with-cache
       - nscloud-cache-tag-cache-test
       - nscloud-cache-size-100gb
     timeout-minutes: 60
@@ -364,7 +364,7 @@ jobs:
   doctests:
     name: doctests
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
       - nscloud-cache-tag-cache-doctests
       - nscloud-cache-size-100gb
     timeout-minutes: 60
@@ -388,7 +388,7 @@ jobs:
   coverage:
     name: coverage
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
       - nscloud-cache-tag-cache-coverage
       - nscloud-cache-size-100gb
     timeout-minutes: 90
@@ -417,7 +417,7 @@ jobs:
           fail_ci_if_error: false
 
   cargo-deny-check-licenses:
-    runs-on: nscloud-ubuntu-20.04-amd64-2x4
+    runs-on: nscloud-ubuntu-22.04-amd64-2x4
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -426,7 +426,7 @@ jobs:
 
   cargo-doc-artifact:
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
       - nscloud-cache-tag-cache-dev
       - nscloud-cache-size-100gb
     timeout-minutes: 90
@@ -457,7 +457,7 @@ jobs:
       - name: Fix assets' file permissions
         run: chmod -c -R +rX "target/doc"
       - name: Upload artifacts
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3
         with:
           path: target/doc
       - run: mkdir "test-upload-dir"; echo "This is a test file from CI" > test-upload-dir/test_ci.txt
@@ -484,7 +484,7 @@ jobs:
           echo "Docs are available at https://${S3_BUCKET_NAME}.${AWS_REGION}.amazonaws.com/${TARGET_DIR}/index.html";
 
   deploy-github-pages:
-    runs-on: nscloud-ubuntu-20.04-amd64-2x4
+    runs-on: nscloud-ubuntu-22.04-amd64-2x4
     needs: cargo-doc-artifact
     timeout-minutes: 5
     if: github.ref == 'refs/heads/stable'
@@ -499,10 +499,10 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
 
   check-demo-rollup-table-of-contents:
-    runs-on: nscloud-ubuntu-20.04-amd64-2x4
+    runs-on: nscloud-ubuntu-22.04-amd64-2x4
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v3
@@ -521,7 +521,7 @@ jobs:
 
   check-demo-rollup-bash-commands:
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
       - nscloud-cache-tag-demo-rollup
       - nscloud-cache-size-100gb
     needs:
@@ -553,7 +553,7 @@ jobs:
 
   check-demo-rollup-bash-commands-mock-da:
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
       - nscloud-cache-tag-demo-rollup
       - nscloud-cache-size-100gb
     needs:
@@ -579,7 +579,7 @@ jobs:
 
   check-constant-overriding-is-disabled-in-release-mode:
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
       - nscloud-cache-tag-check-constant-overriding-is-disabled-in-release-mode
       - nscloud-cache-size-20gb
     timeout-minutes: 30
@@ -595,7 +595,7 @@ jobs:
       - run: make check-constant-overriding-is-disabled-in-release-mode
 
   validate-packages-to-publish-yml:
-    runs-on: nscloud-ubuntu-20.04-amd64-2x4
+    runs-on: nscloud-ubuntu-22.04-amd64-2x4
     steps:
       - uses: actions/checkout@v4
       - run: ./scripts/validate_packages_to_publish_yml.sh
