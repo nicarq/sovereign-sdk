@@ -6,10 +6,6 @@ mod gas_constant_estimation;
 mod publisher;
 mod tracker;
 
-/// Contains utilities for gathering risc0 metrics
-#[cfg(any(feature = "risc0", feature = "sp1"))]
-pub mod zkvm;
-
 pub use config::MonitoringConfig;
 #[cfg(feature = "gas-constant-estimation")]
 pub use gas_constant_estimation::{GasConstantTracker, GAS_CONSTANTS};

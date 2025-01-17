@@ -461,6 +461,8 @@ impl Metric for HttpMetrics {
 pub struct ZkVmExecutionChunk {
     /// Name of the caller site, usually a function or method
     pub name: String,
+    /// Metadata associated with the metric. Usually input values collected from the caller function
+    pub metadata: Vec<(String, String)>,
     /// A number of ZKVM cycles have been spent on this call.
     pub cycles_count: u64,
     /// Available bytes on the heap after execution of the block is complete.
@@ -469,10 +471,29 @@ pub struct ZkVmExecutionChunk {
 
 impl Metric for ZkVmExecutionChunk {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        // We are adding the metadata as measurmement tags in the influxdb line protocol.
+        let mut parsed_metadata = String::new();
+
+        if !self.metadata.is_empty() {
+            parsed_metadata = format!(
+                "{},",
+                self.metadata
+                    .iter()
+                    .map(|(key, value)| {
+                        // Replace spaces with underscores to make them compatible with telegraf
+                        let telegraf_formatted_key = key.replace(" ", "_");
+
+                        format!("{}=\"{}\"", telegraf_formatted_key, value)
+                    })
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+        };
+
         write!(
             buffer,
-            "sov_rollup_zkvm,name={} cycles_count={},free_heap_bytes={}",
-            self.name, self.cycles_count, self.free_heap_bytes
+            "sov_rollup_zkvm,name={}{} cycles_count={},free_heap_bytes={}",
+            self.name, parsed_metadata, self.cycles_count, self.free_heap_bytes
         )
     }
 }

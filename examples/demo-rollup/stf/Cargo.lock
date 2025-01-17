@@ -6597,6 +6597,7 @@ name = "sov-metrics"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "bincode",
  "derivative",
  "derive_more 1.0.0",
  "http",

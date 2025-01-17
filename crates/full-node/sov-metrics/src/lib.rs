@@ -7,8 +7,6 @@ pub mod cycle_utils;
 #[cfg(feature = "native")]
 mod influxdb;
 
-#[cfg(all(feature = "native", any(feature = "risc0", feature = "sp1")))]
-pub use influxdb::zkvm;
 #[cfg(feature = "native")]
 pub use influxdb::{
     init_metrics_tracker, timestamp, track_metrics, BatchMetrics, BatchOutcome, HttpMetrics,

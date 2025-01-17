@@ -43,12 +43,14 @@ pub mod gas_estimation {
 
 #[cfg(feature = "bench")]
 pub mod zk {
+    use quote::quote;
+
     use super::*;
 
     /// Wrap a block with benchmarking. Fills the correct cycle counter based on the target and vendor.
-    pub fn cycles(ident: &Ident, block: &Block, _tagged_inputs: Vec<Ident>) -> Box<Block> {
-        let risc0_zk_block = cycles_inner_risc0(ident, block);
-        let sp1_zk_block = cycles_inner_sp1(ident, block);
+    pub fn cycles(ident: &Ident, block: &Block, tagged_inputs: Vec<Ident>) -> Box<Block> {
+        let risc0_zk_block = cycles_inner_risc0(ident, block, &tagged_inputs);
+        let sp1_zk_block = cycles_inner_sp1(ident, block, &tagged_inputs);
 
         parse_quote!({
             #[cfg(all(target_os = "zkvm", target_vendor = "succinct"))]
@@ -66,30 +68,58 @@ pub mod zk {
         })
     }
 
-    fn cycles_inner_risc0(ident: &Ident, block: &Block) -> Box<Block> {
+    fn cycles_inner_risc0(ident: &Ident, block: &Block, tagged_inputs: &[Ident]) -> Box<Block> {
+        let inputs_iter = tagged_inputs
+            .iter()
+            .map(|ident| quote! { (stringify!(#ident).to_string(), #ident.to_string()) })
+            .collect::<Vec<_>>();
+
         parse_quote! {
             {
+                let inputs = vec![ #(#inputs_iter,)* ];
+
                 let cycles_before = ::sov_metrics::cycle_utils::risc0::get_cycle_count();
                 let result = (|| #block)();
                 let cycles_after = ::sov_metrics::cycle_utils::risc0::get_cycle_count();
                 let heap_bytes_free_after = ::sov_metrics::cycle_utils::risc0::get_available_heap();
 
                 let cycles = cycles_after.saturating_sub(cycles_before);
-                ::sov_metrics::cycle_utils::risc0::report_cycle_count(stringify!(#ident), cycles, heap_bytes_free_after);
+                ::sov_metrics::cycle_utils::risc0::report_cycle_count(
+                    ::sov_metrics::cycle_utils::CycleMetric {
+                        name: stringify!(#ident).to_string(),
+                        metadata: inputs,
+                        count: cycles,
+                        free_heap_bytes: heap_bytes_free_after,
+                    }
+                );
+
                 result
             }
         }
     }
 
-    fn cycles_inner_sp1(ident: &Ident, block: &Block) -> Box<Block> {
+    fn cycles_inner_sp1(ident: &Ident, block: &Block, tagged_inputs: &[Ident]) -> Box<Block> {
+        let inputs_iter = tagged_inputs
+            .iter()
+            .map(|ident| quote! { (stringify!(#ident).to_string(), #ident.to_string()) })
+            .collect::<Vec<_>>();
+
         parse_quote!({
            {
+                let inputs = vec![ #(#inputs_iter,)* ];
+
                 let before = ::sov_metrics::cycle_utils::sp1::get_cycle_count();
                 let result = (move || #block)();
                 let after = ::sov_metrics::cycle_utils::sp1::get_cycle_count();
                 let heap_bytes_free_after = ::sov_metrics::cycle_utils::sp1::get_available_heap();
 
-                ::sov_metrics::cycle_utils::sp1::report_cycle_count(stringify!(#ident), after - before, heap_bytes_free_after);
+                ::sov_metrics::cycle_utils::sp1::report_cycle_count(
+                    ::sov_metrics::cycle_utils::CycleMetric {
+                        name: stringify!(#ident).to_string(),
+                        metadata: inputs,
+                        count: after - before,
+                        free_heap_bytes: heap_bytes_free_after,
+                    });
                 result
             }
         })
