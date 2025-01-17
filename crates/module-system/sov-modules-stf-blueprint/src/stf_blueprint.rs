@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use sov_modules_api::{DaSpec, Gas, ProofReceipt, SlotGasMeter, Spec, StateCheckpoint, Storage};
+use sov_modules_api::{DaSpec, Gas, ProofReceipt, Spec, StateCheckpoint, Storage};
 use sov_rollup_interface::stf::StoredEvent;
 use sov_state::StorageProof;
 
@@ -55,8 +55,8 @@ where
     pub(crate) fn process_proof(
         &self,
         blob_hash: [u8; 32],
-        slot_gas_meter: &SlotGasMeter<S>,
-        sender: <S::Da as DaSpec>::Address,
+        slot_gas: &S::Gas,
+        sender: &<S::Da as DaSpec>::Address,
         gas_price: &<S::Gas as Gas>::Price,
         raw_proof: Vec<u8>,
         checkpoint: StateCheckpoint<S>,
@@ -72,7 +72,7 @@ where
     ) {
         let (res, state) = process_proof(
             &self.runtime,
-            slot_gas_meter,
+            slot_gas,
             blob_hash,
             sender,
             gas_price,

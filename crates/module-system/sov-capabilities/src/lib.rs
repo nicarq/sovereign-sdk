@@ -384,4 +384,11 @@ impl<'a, S: Spec, T> SequencerRemuneration<S> for StandardProvenRollupCapabiliti
             );
         }
     }
+
+    fn preferred_sequencer(
+        &self,
+        scratchpad: &mut impl InfallibleStateAccessor,
+    ) -> Option<<S::Da as DaSpec>::Address> {
+        self.sequencer_registry.preferred_sequencer(scratchpad)
+    }
 }

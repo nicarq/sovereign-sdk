@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use borsh::BorshDeserialize;
-use sov_modules_api::capabilities::{BlobOrigin, BlobSelectorOutput, SequencerType};
+use sov_modules_api::capabilities::{BlobOrigin, BlobSelectorOutput};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     BatchWithId, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, FullyBakedTx,
@@ -81,7 +81,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S>,
-    ) -> Vec<(BlobDataWithId<BatchWithId>, SequencerType<S>)>
+    ) -> Vec<(BlobDataWithId<BatchWithId>, <S::Da as DaSpec>::Address)>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
@@ -105,10 +105,8 @@ impl<S: Spec> BlobStorage<S> {
                                 proof,
                                 id: blob.hash().into(),
                             };
-                            blobs_with_total_size_limit.push_or_ignore((
-                                data,
-                                SequencerType::Standard(blob.sender().clone()),
-                            ));
+                            blobs_with_total_size_limit
+                                .push_or_ignore((data, blob.sender().clone()));
                         }
                     } else {
                         self.log_discarded_blob(blob, BlobDiscardReason::SenderInsufficientStake);
@@ -151,7 +149,7 @@ impl<S: Spec> BlobStorage<S> {
 
                                 blobs_with_total_size_limit.push_or_ignore((
                                     data.with_id(blob.hash().into()),
-                                    SequencerType::Standard(blob.sender().clone()),
+                                    blob.sender().clone(),
                                 ));
                             }
                         }
@@ -272,7 +270,7 @@ impl<S: Spec> BlobStorage<S> {
                 let new_batches: Vec<_> = self
                     .select_blobs_da_ordering(current_blobs, state)
                     .into_iter()
-                    .map(|(batch, seq)| (batch, seq.address().clone()))
+                    .map(|(batch, seq)| (batch, seq.clone()))
                     .collect();
                 self.store_batches(&new_batches, state);
                 self.set_next_visible_slot_number(state.visible_slot_number().advance(2), state);
@@ -288,8 +286,7 @@ impl<S: Spec> BlobStorage<S> {
 
             for (batch, sender) in batches_from_next_slot {
                 // Only push the blobs that are within the total size limit.
-                blobs_with_total_size_limit
-                    .push_or_ignore((batch, SequencerType::Standard(sender)));
+                blobs_with_total_size_limit.push_or_ignore((batch, sender));
             }
         }
 
@@ -363,10 +360,8 @@ impl<S: Spec> BlobStorage<S> {
                             let data = BlobData::Proof(proof.data).with_id(blob.hash().into());
 
                             // Only push the blobs that are within the total size limit.
-                            blobs_with_total_size_limit.push_or_ignore((
-                                data,
-                                SequencerType::Preferred(preferred_sender.clone()),
-                            ));
+                            blobs_with_total_size_limit
+                                .push_or_ignore((data, preferred_sender.clone()));
                         }
                     } else if self
                         .sequencer_registry
@@ -466,10 +461,8 @@ impl<S: Spec> BlobStorage<S> {
                         let data = BlobData::Proof(p.data).with_id(next_blob.id);
 
                         // Only push the blobs that are within the total size limit.
-                        blobs_with_total_size_limit.push_or_ignore((
-                            data,
-                            SequencerType::Preferred(preferred_sender.clone()),
-                        ));
+                        blobs_with_total_size_limit
+                            .push_or_ignore((data, preferred_sender.clone()));
                     }
                 }
             } else {
@@ -492,10 +485,7 @@ impl<S: Spec> BlobStorage<S> {
             let next_batch = BlobDataWithId::Batch(BatchWithId::new(preferred_batch.data, id));
 
             // Only push the blobs that are within the total size limit.
-            blobs_with_total_size_limit.push_or_ignore((
-                next_batch,
-                SequencerType::Preferred(preferred_sender.clone()),
-            ));
+            blobs_with_total_size_limit.push_or_ignore((next_batch, preferred_sender.clone()));
 
             tracing::debug!(
                 seq_number = preferred_batch.sequence_number,
@@ -542,8 +532,7 @@ impl<S: Spec> BlobStorage<S> {
             );
             for (batch, sender) in batches_from_next_slot {
                 // Only push the blobs that are within the total size limit.
-                blobs_with_total_size_limit
-                    .push_or_ignore((batch, SequencerType::Standard(sender)));
+                blobs_with_total_size_limit.push_or_ignore((batch, sender));
             }
         }
 
@@ -552,8 +541,7 @@ impl<S: Spec> BlobStorage<S> {
         if next_visible_slot_number >= state.visible_slot_number_to_access() {
             // Note that "visible_slot_number_to_access" is the true slot number. This method badly needs renaming.
             for (batch, sender) in new_forced_blobs.into_iter().map(|b| (b.0, b.1)) {
-                blobs_with_total_size_limit
-                    .push_or_ignore((batch, SequencerType::Standard(sender)));
+                blobs_with_total_size_limit.push_or_ignore((batch, sender));
             }
         } else {
             self.store_batches(&new_forced_blobs, state);

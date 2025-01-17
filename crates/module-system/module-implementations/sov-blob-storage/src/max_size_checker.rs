@@ -5,7 +5,7 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::{BatchWithId, BlobDataWithId, DaSpec, Spec};
 use tracing::error;
 
-use crate::{BlobAndSender, SequencerType};
+use crate::BlobAndSender;
 
 struct BlobSizeChecker {
     max_size: u32,
@@ -56,7 +56,7 @@ impl BlobSizeChecker {
 /// Example
 /// If the maximum allowed size is 10MB, and the blobs are inserted in the following order [3MB, 20MB, 1MB], the `BlobsWithTotalSizeLimit` will only hold the first and the last blobs because their total size is less than 10MB.
 pub(crate) struct BlobsWithTotalSizeLimit<S: Spec> {
-    blobs_with_address: Vec<(BlobDataWithId<BatchWithId>, SequencerType<S>)>,
+    blobs_with_address: Vec<(BlobDataWithId<BatchWithId>, <S::Da as DaSpec>::Address)>,
     blob_size_checker: BlobSizeChecker,
 }
 
@@ -227,9 +227,9 @@ mod tests {
             let b = BlobDataWithId::Batch(BatchWithId::new(b, [0; 32]));
             let addr = MockAddress::new([i as u8; 32]);
             if expected_indexes.contains(&(i as u8)) {
-                expected_addresses.push(SequencerType::Standard(addr));
+                expected_addresses.push(addr);
             }
-            blobs_with_total_size_limit.push_or_ignore((b, SequencerType::Standard(addr)));
+            blobs_with_total_size_limit.push_or_ignore((b, addr));
         }
 
         let inner = blobs_with_total_size_limit

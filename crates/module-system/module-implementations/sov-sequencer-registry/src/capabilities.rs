@@ -6,6 +6,14 @@ use sov_modules_api::{DaSpec, InfallibleStateAccessor, Spec};
 use crate::{AllowedSequencer, SequencerRegistry};
 
 impl<S: Spec> SequencerRegistry<S> {
+    /// Returns the preferred sequencer, or [`None`] it wasn't set.
+    pub fn preferred_sequencer(
+        &self,
+        scratchpad: &mut impl InfallibleStateAccessor,
+    ) -> Option<<S::Da as DaSpec>::Address> {
+        self.preferred_sequencer.get(scratchpad).unwrap_infallible()
+    }
+
     /// Checks whether `sender` is a registered sequencer with enough staked amount.
     pub fn authorize_sequencer(
         &self,

@@ -62,4 +62,10 @@ pub trait SequencerRemuneration<S: Spec> {
         reward: SequencerReward,
         state: &mut impl InfallibleStateAccessor,
     );
+
+    /// Gets the address of the preferred sequencer.
+    fn preferred_sequencer(
+        &self,
+        scratchpad: &mut impl InfallibleStateAccessor,
+    ) -> Option<<S::Da as DaSpec>::Address>;
 }
