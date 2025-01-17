@@ -29,13 +29,18 @@ impl GasConstantTracker {
     }
 
     /// Emits the gas constant usage as telegraf metrics.
-    pub fn report_gas_constants_usage(&self, method_name: &str) {
+    pub fn report_gas_constants_usage(
+        &self,
+        method_name: &str,
+        tagged_inputs: Vec<(String, String)>,
+    ) {
         for (constant, weight) in self.0.iter() {
             crate::track_metrics(|tracker| {
                 let point = GasConstantMetric {
                     name: method_name.to_string(),
                     constant: constant.to_string(),
                     num_invocations: *weight,
+                    metadata: tagged_inputs.clone(),
                 };
                 tracker.track_gas_constants_usage(point);
             });
@@ -51,6 +56,12 @@ pub struct GasConstantMetric {
     pub constant: String,
     /// A numerical value representing the number of invocations of the gas constant
     pub num_invocations: i64,
+    /// Additional metadata to be included in the metrics. The metadata is added as a
+    /// measurement attribute according to the [influxdb line protocol](https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol/)
+    /// We are parsing the metadata in the `tag_key=tag_value` format of influxdb.
+    /// This can be used to filter metrics data in telegraf, by querying metrics for some
+    /// specific metadata.
+    pub metadata: Vec<(String, String)>,
 }
 
 impl MetricsTracker {
@@ -64,10 +75,24 @@ impl MetricsTracker {
 
 impl Metric for GasConstantMetric {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        // We are adding the metadata as measurmement tags in the influxdb line protocol.
+        let mut parsed_metadata = String::new();
+
+        if !self.metadata.is_empty() {
+            parsed_metadata = format!(
+                "{},",
+                self.metadata
+                    .iter()
+                    .map(|(key, value)| format!("{}={}", key, value))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+        };
+
         write!(
             buffer,
-            "sov_rollup_gas_constant,name={},constant={} num_invocations={}",
-            self.name, self.constant, self.num_invocations
+            "sov_rollup_gas_constant,name={},{}constant={} num_invocations={}",
+            self.name, parsed_metadata, self.constant, self.num_invocations
         )?;
         Ok(())
     }
