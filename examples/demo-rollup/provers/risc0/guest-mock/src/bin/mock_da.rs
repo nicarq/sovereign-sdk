@@ -13,7 +13,7 @@ use sov_state::ZkStorage;
 
 risc0_zkvm::guest::entry!(main);
 
-#[cfg_attr(feature = "bench", sov_cycle_utils::macros::cycle_tracker)]
+#[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 fn cycles_per_block() {
     let guest = Risc0Guest::new();
     let storage = ZkStorage::new();

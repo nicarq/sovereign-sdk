@@ -50,7 +50,7 @@ fn cycle_count_hook(env: HookEnv, _buf: &[u8]) -> Vec<Vec<u8>> {
 
 #[cfg(feature = "bench")]
 fn add_benchmarking_hooks<'a, T: WithHook<'a>>(action_builder: T) -> T {
-    use sov_cycle_utils::sp1::{FD_CYCLE_COUNT_HOOK, FD_METRICS_HOOK};
+    use sov_metrics::cycle_utils::sp1::{FD_CYCLE_COUNT_HOOK, FD_METRICS_HOOK};
 
     use crate::metrics::metrics_hook;
 

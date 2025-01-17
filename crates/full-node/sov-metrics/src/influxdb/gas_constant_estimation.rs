@@ -83,7 +83,12 @@ impl Metric for GasConstantMetric {
                 "{},",
                 self.metadata
                     .iter()
-                    .map(|(key, value)| format!("{}={}", key, value))
+                    .map(|(key, value)| {
+                        // Replace spaces with underscores to make them compatible with telegraf
+                        let telegraf_formatted_key = key.replace(" ", "_");
+
+                        format!("{}=\"{}\"", telegraf_formatted_key, value)
+                    })
                     .collect::<Vec<_>>()
                     .join(",")
             );

@@ -14,7 +14,7 @@ use sov_sp1_adapter::guest::SP1Guest;
 use sov_sp1_adapter::{SP1CryptoSpec, SP1};
 use sov_state::ZkStorage;
 
-#[cfg_attr(feature = "bench", sov_cycle_utils::macros::cycle_tracker)]
+#[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 pub fn main() {
     let guest = SP1Guest::new();
     let storage = ZkStorage::new();

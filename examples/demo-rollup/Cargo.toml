@@ -38,7 +38,7 @@ sov-stf-runner = { path = "../../crates/full-node/sov-stf-runner" }
 # Sovereign crates
 sov-bank = { path = "../../crates/module-system/module-implementations/sov-bank", features = ["native"] }
 sov-cli = { path = "../../crates/module-system/sov-cli" }
-sov-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "7c3995c0a517465f28f915e9da22f54960198503", optional = true }
+sov-metrics = { path = "../../crates/full-node/sov-metrics", optional = true }
 sov-db = { path = "../../crates/full-node/sov-db" }
 sov-ethereum = { path = "../../crates/full-node/sov-ethereum", features = ["local"] }
 sov-kernels = { path = "../../crates/module-system/sov-kernels", features = ["native"] }

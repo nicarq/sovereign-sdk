@@ -137,7 +137,10 @@ mod rest;
 #[cfg(feature = "native")]
 mod rpc;
 
-#[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
+#[cfg(any(
+    feature = "bench",
+    all(feature = "gas-constant-estimation", feature = "native")
+))]
 mod metrics;
 
 use compile_manifest_constants::{make_const_value, ConfigValueInput};
@@ -263,10 +266,10 @@ pub fn config_value_private(item: TokenStream) -> TokenStream {
     handle_macro_error_and_expand(fn_name!(), tokens)
 }
 
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "bench"))]
 struct AttributeArgs(syn::punctuated::Punctuated<syn::Meta, syn::Token![,]>);
 
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "bench"))]
 impl syn::parse::Parse for AttributeArgs {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         Ok(AttributeArgs(
@@ -308,7 +311,42 @@ pub fn track_gas_constants_usage(attr: TokenStream, item: TokenStream) -> TokenS
         })
         .collect::<Vec<_>>();
 
-    metrics::wrap_function_with(metrics::const_tracker, item, attr_inputs)
+    metrics::wrap_function_with(metrics::gas_estimation::const_tracker, item, attr_inputs)
+        .unwrap_or_else(|err| err.to_compile_error().into())
+}
+
+/// This macro is used to annotate functions that we want to track the number of riscV cycles being
+/// generated inside the VM. The purpose of the this macro is to measure how many cycles a rust
+/// function takes because prover time is directly proportional to the number of riscv cycles
+/// generated. We are using the `cycle-count` module defined in `sov-metrics` to interface with zkvm
+/// specific methods.
+///
+/// For instance, for RISC0, it does this by making use of a risc0 provided function
+/// ```rust,ignore
+/// risc0_zkvm_platform::syscall::sys_cycle_count
+/// ```
+///
+/// For SP1, we are using the `sp1-lib` crate that provides file descriptors to communicate with the zk-guest.
+///
+/// The macro essentially generates new function with the same name by wrapping the body with calls to `get_cycle_counts`
+/// at the beginning and end of the function, subtracting it and then emitting it out using `report_cycle_count`
+#[cfg(feature = "bench")]
+#[proc_macro_attribute]
+pub fn cycle_tracker(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let attr_contents = parse_macro_input!(attr as AttributeArgs);
+
+    let attr_inputs = attr_contents
+        .0
+        .into_iter()
+        .filter_map(|meta| match meta {
+            syn::Meta::Path(path) => path.get_ident().cloned(),
+            _ => {
+                panic!("Only path meta items are supported for the `cycle_tracker` macro attribute")
+            }
+        })
+        .collect::<Vec<_>>();
+
+    metrics::wrap_function_with(metrics::zk::cycles, item, attr_inputs)
         .unwrap_or_else(|err| err.to_compile_error().into())
 }
 

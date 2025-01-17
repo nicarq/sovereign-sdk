@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_cycle_utils::macros::cycle_tracker;
+#[cfg(feature = "bench")]
+use sov_modules_macros::cycle_tracker;
 use sov_rollup_interface::common::SlotNumber;
 
 use crate::cache::{OrderedReadsAndWrites, StateAccesses};
@@ -29,7 +29,7 @@ impl<S: MerkleProofSpec> ZkStorage<S> {
     }
 }
 
-#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+#[cfg_attr(feature = "bench", cycle_tracker)]
 fn jmt_verify_existence<S: MerkleProofSpec>(
     prev_state_root: [u8; 32],
     state_accesses: &OrderedReadsAndWrites,
@@ -54,7 +54,7 @@ fn jmt_verify_existence<S: MerkleProofSpec>(
     Ok(())
 }
 
-#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+#[cfg_attr(feature = "bench", cycle_tracker)]
 fn jmt_verify_update<S: MerkleProofSpec>(
     prev_state_root: [u8; 32],
     state_accesses: OrderedReadsAndWrites,
@@ -108,7 +108,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     type StateUpdate = ();
     type ChangeSet = ();
 
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    #[cfg_attr(feature = "bench", cycle_tracker)]
     fn get<N: CompileTimeNamespace>(
         &self,
         _key: &SlotKey,

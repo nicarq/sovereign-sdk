@@ -224,7 +224,6 @@ num_cpus = "1.16"
 # These:
 risc0-zkvm = { version = "1.2", default-features = false }
 risc0-zkvm-platform = "1.2"
-sov-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "7c3995c0a517465f28f915e9da22f54960198503" }
 
 # EVM dependencies
 ethereum-types = "0.14.1"

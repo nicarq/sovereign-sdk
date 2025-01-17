@@ -1,5 +1,3 @@
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
     AuthenticationError, GasEnforcer, SequencerAuthorization, SequencerRemuneration,
     TransactionAuthorizer, TryReserveGasError,
@@ -29,7 +27,7 @@ use crate::{
 /// Executes the entire transaction lifecycle.
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
 #[cfg_attr(feature = "native", tracing::instrument(skip_all, name = "StfBlueprint::process_tx", fields(visible_slot_number = %visible_slot_number, context = ?execution_context)))]
-#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+#[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 pub fn process_tx<S, R, I, C>(
     runtime: &R,
     pre_exec_gas_meter: &BasicGasMeter<S>,
@@ -253,7 +251,7 @@ where
     (Ok(apply_tx), scratchpad)
 }
 
-#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+#[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 #[cfg_attr(
     feature = "native",
     tracing::instrument(skip_all, name = "StfBlueprint::authenticate")
@@ -285,7 +283,7 @@ impl<S: Spec> IncrementalBatchReceipt<S> {
 
 #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch", fields(visible_slot_number = %visible_slot_number, context = ?execution_context))]
 #[allow(clippy::too_many_arguments)]
-#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+#[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 pub(crate) fn apply_batch<S, RT, B>(
     runtime: &RT,
     mut checkpoint: StateCheckpoint<S>,
@@ -486,7 +484,7 @@ fn penalize_sequencer<S: Spec, RT: Runtime<S>, I: StateProvider<S>>(
         .expect("Sequencer should have enough funds to pay for the pre-execution checks");
 }
 
-#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+#[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 #[allow(clippy::too_many_arguments)]
 fn auth_and_process_tx<S, RT, I, C>(
     runtime: &RT,

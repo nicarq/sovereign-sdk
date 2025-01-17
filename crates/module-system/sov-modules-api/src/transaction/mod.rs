@@ -8,8 +8,6 @@ pub use data::{AuthenticatedTransactionData, Credentials, PriorityFeeBips, TxDet
 pub(crate) use rewards::transaction_consumption_helper;
 pub use rewards::{ProverRewards, RemainingFunds, SequencerReward, TransactionConsumption};
 use serde::{Deserialize, Serialize};
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_cycle_utils::macros::cycle_tracker;
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::crypto::SigVerificationError;
@@ -200,7 +198,7 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
     }
 
     /// Check whether the transaction has been signed correctly.
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    #[cfg_attr(feature = "bench", crate::cycle_tracker)]
     pub fn verify(
         &self,
         chain_hash: &[u8; 32],

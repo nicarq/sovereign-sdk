@@ -1212,12 +1212,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "critical-section"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
-
-[[package]]
 name = "crossbeam-deque"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3097,10 +3091,6 @@ name = "once_cell"
 version = "1.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
-dependencies = [
- "critical-section",
- "portable-atomic",
-]
 
 [[package]]
 name = "openapiv3"
@@ -5560,26 +5550,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-cycle-macros"
-version = "0.5.0"
-source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=7c3995c0a517465f28f915e9da22f54960198503#7c3995c0a517465f28f915e9da22f54960198503"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.93",
-]
-
-[[package]]
-name = "sov-cycle-utils"
-version = "0.5.0"
-source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=7c3995c0a517465f28f915e9da22f54960198503#7c3995c0a517465f28f915e9da22f54960198503"
-dependencies = [
- "anyhow",
- "once_cell",
- "sov-cycle-macros",
-]
-
-[[package]]
 name = "sov-db"
 version = "0.3.0"
 dependencies = [
@@ -5651,12 +5621,12 @@ dependencies = [
 name = "sov-metrics"
 version = "0.3.0"
 dependencies = [
+ "anyhow",
  "derivative",
  "derive_more 1.0.0",
  "http",
  "schemars",
  "serde",
- "sov-cycle-utils",
  "sov-rollup-interface",
  "strum 0.26.3",
  "tokio",
@@ -5726,8 +5696,8 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sha2",
- "sov-cycle-utils",
  "sov-db",
+ "sov-metrics",
  "sov-modules-macros",
  "sov-rest-utils",
  "sov-rollup-interface",
@@ -5758,6 +5728,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde",
+ "sov-metrics",
  "sov-universal-wallet-macro-helpers",
  "syn 2.0.93",
  "toml",
@@ -5774,7 +5745,6 @@ dependencies = [
  "jsonrpsee",
  "schemars",
  "serde",
- "sov-cycle-utils",
  "sov-metrics",
  "sov-modules-api",
  "sov-rollup-interface",
@@ -5911,8 +5881,9 @@ dependencies = [
  "serde",
  "serde-big-array",
  "sha2",
- "sov-cycle-utils",
  "sov-db",
+ "sov-metrics",
+ "sov-modules-macros",
  "sov-rollup-interface",
  "thiserror 1.0.69",
 ]

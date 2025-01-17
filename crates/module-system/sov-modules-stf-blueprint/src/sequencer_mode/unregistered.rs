@@ -1,5 +1,3 @@
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
     BatchFromUnregisteredSequencer, GasEnforcer, SequencerRemuneration, TransactionAuthorizer,
     TryReserveGasError, UnregisteredAuthenticationError,
@@ -146,7 +144,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
 }
 
 #[allow(clippy::type_complexity)]
-#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+#[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
     meter: BasicGasMeter<S>,
@@ -169,7 +167,7 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvi
 
 #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
 #[allow(clippy::too_many_arguments)]
-#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+#[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 pub(crate) fn apply_batch<S, RT>(
     runtime: &RT,
     mut checkpoint: StateCheckpoint<S>,
