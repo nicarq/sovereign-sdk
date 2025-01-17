@@ -4,6 +4,8 @@ mod stf_blueprint;
 
 use sequencer_mode::{registered, unregistered};
 use serde::{Deserialize, Serialize};
+#[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
+use sov_modules_api::track_gas_constants_usage;
 use sov_modules_api::{
     BatchSequencerReceipt, GasArray, GasSpec, IncrementalBatch, KernelStateAccessor, VersionReader,
 };
@@ -266,6 +268,10 @@ where
             skip_all
             fields(context = ?execution_context, da_height = slot_header.height())
         )
+    )]
+    #[cfg_attr(
+        all(feature = "gas-constant-estimation", feature = "native"),
+        track_gas_constants_usage
     )]
     fn apply_slot<'a, I>(
         &self,

@@ -556,7 +556,7 @@ impl SovRollupMetrics {
             SovRollupMetrics::ZkVm => "sov_rollup_zkvm",
             SovRollupMetrics::ZkProving => "sov_rollup_zkvm_proving",
             #[cfg(feature = "gas-constant-estimation")]
-            SovRollupMetrics::GasConstantUsage => "sov_rollup_gas_constant_usage",
+            SovRollupMetrics::GasConstantUsage => "sov_rollup_gas_constant",
         }
     }
 }

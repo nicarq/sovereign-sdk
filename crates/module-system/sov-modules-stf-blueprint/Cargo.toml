@@ -51,3 +51,4 @@ native = [
     "sov-metrics",
 ]
 test-utils = []
+gas-constant-estimation = ["bench", "sov-modules-api/gas-constant-estimation", "sov-metrics/gas-constant-estimation"] 

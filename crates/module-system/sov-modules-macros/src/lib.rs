@@ -137,7 +137,7 @@ mod rest;
 #[cfg(feature = "native")]
 mod rpc;
 
-#[cfg(feature = "gas-constant-estimation")]
+#[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
 mod metrics;
 
 use compile_manifest_constants::{make_const_value, ConfigValueInput};
@@ -263,10 +263,10 @@ pub fn config_value_private(item: TokenStream) -> TokenStream {
     handle_macro_error_and_expand(fn_name!(), tokens)
 }
 
-#[cfg(any(feature = "native", feature = "gas-constant-estimation"))]
+#[cfg(feature = "native")]
 struct AttributeArgs(syn::punctuated::Punctuated<syn::Meta, syn::Token![,]>);
 
-#[cfg(any(feature = "native", feature = "gas-constant-estimation"))]
+#[cfg(feature = "native")]
 impl syn::parse::Parse for AttributeArgs {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         Ok(AttributeArgs(
@@ -292,7 +292,7 @@ impl syn::parse::Parse for AttributeArgs {
 /// ```
 ///
 /// Will add `input={input_value}` as a metric metadata when collecting gas constant usage here.
-#[cfg(feature = "gas-constant-estimation")]
+#[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
 #[proc_macro_attribute]
 pub fn track_gas_constants_usage(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attr_contents = parse_macro_input!(attr as AttributeArgs);

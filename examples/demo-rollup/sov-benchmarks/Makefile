@@ -60,3 +60,15 @@ run_benches_with_zk_metrics: start_metrics_container build_metrics
 		-o ./src/metrics/generated/$(SIZE) \
 		--influx-auth-token $(INFLUX_AUTH_TOKEN) --influx-org-id $(INFLUX_ORG_ID) \
 		measurements zk_vm zk_proving
+
+run_benches_with_gas_constants_and_zk_metrics: start_metrics_container 
+	@echo "Running benchmark files path: ./src/bench_files/generated/$(SIZE)."
+	@cargo build -r --bench build_metrics --features gas-constant-estimation
+	@echo "Telegraf port: $(TELEGRAF_PORT), Influx port: $(INFLUX_PORT)..."
+	@echo "Metrics will be stored at path: ./src/metrics/generated/$(SIZE)"
+	@output=$$(ls -t ./target/release/deps/build_metrics-* | head -n 1) && \
+	$$output -p ./src/bench_files/generated/$(SIZE) \
+		metrics -t $(LOCALHOST):$(TELEGRAF_PORT) -i $(LOCALHOST):$(INFLUX_PORT) \
+		-o ./src/metrics/generated/$(SIZE) \
+		--influx-auth-token $(INFLUX_AUTH_TOKEN) --influx-org-id $(INFLUX_ORG_ID) \
+		measurements zk_vm zk_proving gas_constant_usage

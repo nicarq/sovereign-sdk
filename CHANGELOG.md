@@ -1,3 +1,6 @@
+## 2025-01-15
+- #2220 integrates gas constant tracking inside `sov-benchmarks`. This is not a breaking change for consumers of the SDK.
+
 ## 2025-01-14
 - #2214 adds a way to track gas constants usage in the SDK. Consumers of the SDK may use the `track_gas_constants_usage` proc-macro decorator to gather metrics relevant to gas constants usage within the SDK. This is not a breaking change.
 
