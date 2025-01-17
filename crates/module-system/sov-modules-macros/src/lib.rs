@@ -263,26 +263,53 @@ pub fn config_value_private(item: TokenStream) -> TokenStream {
     handle_macro_error_and_expand(fn_name!(), tokens)
 }
 
-/// This macro is used to annotate functions that we want to track the usage of gas constants within the SDK.
-/// The purpose of the this macro is to measure how times different gas constants have been used within an annotated function
-/// to be able to estimate constant values.
-#[proc_macro_attribute]
-#[cfg(feature = "gas-constant-estimation")]
-pub fn track_gas_constants_usage(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    metrics::wrap_function_with(metrics::const_tracker, item)
-        .unwrap_or_else(|err| err.to_compile_error().into())
-}
-
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "gas-constant-estimation"))]
 struct AttributeArgs(syn::punctuated::Punctuated<syn::Meta, syn::Token![,]>);
 
-#[cfg(feature = "native")]
+#[cfg(any(feature = "native", feature = "gas-constant-estimation"))]
 impl syn::parse::Parse for AttributeArgs {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         Ok(AttributeArgs(
             syn::punctuated::Punctuated::parse_terminated(input)?,
         ))
     }
+}
+
+/// This macro is used to annotate functions that we want to track the usage of gas constants within the SDK.
+/// The purpose of the this macro is to measure how times different gas constants have been used within an annotated function
+/// to be able to estimate constant values.
+///
+/// One can add attribute arguments to this macro. Arguments should specify the name of the function inputs
+/// to track as metadata. For instance:
+///
+/// ```rust
+/// use sov_modules_macros::track_gas_constants_usage;
+///
+/// #[track_gas_constants_usage(input)]
+/// fn test_metrics(_input: &mut u64) {
+///     
+/// }
+/// ```
+///
+/// Will add `input={input_value}` as a metric metadata when collecting gas constant usage here.
+#[cfg(feature = "gas-constant-estimation")]
+#[proc_macro_attribute]
+pub fn track_gas_constants_usage(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let attr_contents = parse_macro_input!(attr as AttributeArgs);
+
+    let attr_inputs = attr_contents
+        .0
+        .into_iter()
+        .filter_map(|meta| match meta {
+            syn::Meta::Path(path) => path.get_ident().cloned(),
+            _ => panic!(
+                "Only path meta items are supported for the `track_gas_constants_usage` macro attribute"
+            ),
+        })
+        .collect::<Vec<_>>();
+
+    metrics::wrap_function_with(metrics::const_tracker, item, attr_inputs)
+        .unwrap_or_else(|err| err.to_compile_error().into())
 }
 
 #[proc_macro_attribute]
