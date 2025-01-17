@@ -21,8 +21,6 @@ pub use sequencer_mode::common::{
     get_gas_used, AuthTxOutput, BatchReceipt, TransactionReceipt, ValidatedAuthOutput,
 };
 pub use sequencer_mode::registered::{process_tx, PreExecError};
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
     BatchFromUnregisteredSequencer, BlobOrigin, BlobSelector, BlobSelectorOutput, BlockGasInfo,
     ChainState, HasKernel, Kernel, SequencerRemuneration, TransactionAuthenticator,
@@ -161,7 +159,7 @@ where
     RT: Runtime<S>,
 {
     /// Compute the new state root and change set after running a batch.
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
     #[cfg(feature = "native")]
     #[tracing::instrument(skip_all, name = "StfBlueprint::materialize_slot")]
     pub fn materialize_slot(
@@ -187,7 +185,7 @@ where
         (next_root_hash, witness, change_set)
     }
 
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
     #[cfg(not(feature = "native"))]
     fn materialize_slot(
         &self,
@@ -402,7 +400,7 @@ where
     RT: Runtime<S>,
     RT: HasKernel<S, BlobType = BlobDataWithId>,
 {
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
     fn select_and_validate_blobs<'a, I>(
         &self,
         relevant_blobs: RelevantBlobIters<I>,
@@ -438,7 +436,7 @@ where
     /// Run the provided sequence of batches, updating the user-space rollup state as we go.
     /// Batches can inject control flow, which will be respected by the runner.
     #[allow(clippy::type_complexity)]
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
     pub fn apply_batches_in_user_space<B: IncrementalBatch<TransactionReceipt<S>, S>>(
         &self,
         blob_selector_output: BlobSelectorOutput<S, BlobDataWithId<B>>,

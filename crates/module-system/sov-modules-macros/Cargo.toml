@@ -37,6 +37,7 @@ serde = { workspace = true }
 syn = { workspace = true, features = ["full"] }
 toml = { workspace = true }
 sov-universal-wallet-macro-helpers = { workspace = true }
+sov-metrics = { workspace = true, optional = true }
 
 
 [dev-dependencies]
@@ -69,6 +70,13 @@ native = [
 	"sov-modules-macros/native",
 	"sov-rollup-interface/native",
 	"sov-state/native",
-	"sov-address/native"
+	"sov-address/native",
+	"sov-metrics?/native"
+]
+bench = [
+	"sov-metrics",
+	"sov-modules-api/bench",
+	"sov-modules-macros/bench",
+	"sov-state/bench"
 ]
 gas-constant-estimation = ["sov-modules-macros/gas-constant-estimation", "sov-modules-api/gas-constant-estimation"]

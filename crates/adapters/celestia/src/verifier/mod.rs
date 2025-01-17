@@ -19,8 +19,6 @@ use thiserror::Error;
 pub mod address;
 pub mod proofs;
 
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use sov_cycle_utils::macros::cycle_tracker;
 use tracing::debug;
 
 use self::address::CelestiaAddress;
@@ -237,7 +235,7 @@ impl da::DaVerifier for CelestiaVerifier {
         }
     }
 
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    #[cfg_attr(feature = "bench", sov_modules_macros::cycle_tracker)]
     fn verify_relevant_tx_list(
         &self,
         block_header: &<Self::Spec as DaSpec>::BlockHeader,

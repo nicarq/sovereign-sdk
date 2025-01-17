@@ -57,8 +57,7 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", default-features = false, features = ["fmt"] }
 
 sov-rollup-interface = { path = "../../rollup-interface" }
-sov-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "7c3995c0a517465f28f915e9da22f54960198503", features = ["risc0"], optional = true }
-sov-metrics = { path = "../../full-node/sov-metrics", optional = true }
+sov-metrics = { path = "../../full-node/sov-metrics", features = ["risc0"], optional = true }
 
 
 [dev-dependencies]
@@ -74,13 +73,12 @@ native = [
     "ed25519-dalek/default",
     "ed25519-dalek/rand_core",
     "rand",
-    "sov-cycle-utils?/native",
+    "sov-metrics?/native",
     "risc0-zkvm/prove",
     "sov-rollup-interface/native",
-    "sov-metrics",
     "home",
 ]
-bench = ["sov-cycle-utils"]
+bench = ["sov-metrics"]
 arbitrary = ["dep:arbitrary", "dep:proptest", "sov-rollup-interface/arbitrary"]
 bincode = []
 

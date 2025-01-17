@@ -17,7 +17,7 @@ sov-address = { path = "../../../../../crates/module-system/sov-address" }
 sov-state = { path = "../../../../../crates/module-system/sov-state" }
 sov-modules-stf-blueprint = { path = "../../../../../crates/module-system/sov-modules-stf-blueprint" }
 sov-kernels = { path = "../../../../../crates/module-system/sov-kernels" }
-sov-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "7c3995c0a517465f28f915e9da22f54960198503", optional = true, features = [
+sov-metrics = { path = "../../../../../crates/full-node/sov-metrics", optional = true, features = [
     "sp1",
 ] }
 

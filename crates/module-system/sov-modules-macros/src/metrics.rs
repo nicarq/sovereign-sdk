@@ -1,37 +1,99 @@
 use proc_macro::TokenStream;
-use quote::{quote, ToTokens};
+use quote::ToTokens;
 use syn::{parse2, parse_quote, Block, Ident, ItemFn};
 
-/// Wrap a block with benchmarking. Fills the correct cycle counter based on the target and vendor.
-pub fn const_tracker(ident: &Ident, block: &Block, tagged_inputs: Vec<Ident>) -> Box<Block> {
-    let inputs_iter = tagged_inputs
-        .iter()
-        .map(|ident| quote! { (stringify!(#ident).to_string(), #ident.to_string()) })
-        .collect::<Vec<_>>();
+#[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
+pub mod gas_estimation {
+    use quote::quote;
 
-    let const_tracker_block: Box<Block> = parse_quote! {
-        {
-            let inputs = vec![ #(#inputs_iter,)* ];
+    use super::*;
 
-            let constants_usage_before: ::sov_metrics::GasConstantTracker =
-                ::sov_metrics::GAS_CONSTANTS.with(|gas_constants| gas_constants.borrow().clone());
-            let result = (|| #block)();
-            let constants_usage_after: ::sov_metrics::GasConstantTracker =
-                ::sov_metrics::GAS_CONSTANTS.with(|gas_constants| gas_constants.borrow().clone());
+    /// Wrap a block with benchmarking. Fills the correct cycle counter based on the target and vendor.
+    pub fn const_tracker(ident: &Ident, block: &Block, tagged_inputs: Vec<Ident>) -> Box<Block> {
+        let inputs_iter = tagged_inputs
+            .iter()
+            .map(|ident| quote! { (stringify!(#ident).to_string(), #ident.to_string()) })
+            .collect::<Vec<_>>();
 
-            let constants_usage_diff = constants_usage_after.diff(constants_usage_before);
+        let const_tracker_block: Box<Block> = parse_quote! {
+            {
+                let inputs = vec![ #(#inputs_iter,)* ];
 
-            constants_usage_diff.report_gas_constants_usage(stringify!(#ident), inputs);
+                let constants_usage_before: ::sov_metrics::GasConstantTracker =
+                    ::sov_metrics::GAS_CONSTANTS.with(|gas_constants| gas_constants.borrow().clone());
+                let result = (|| #block)();
+                let constants_usage_after: ::sov_metrics::GasConstantTracker =
+                    ::sov_metrics::GAS_CONSTANTS.with(|gas_constants| gas_constants.borrow().clone());
 
-            result
+                let constants_usage_diff = constants_usage_after.diff(constants_usage_before);
+
+                constants_usage_diff.report_gas_constants_usage(stringify!(#ident), inputs);
+
+                result
+            }
+        };
+
+        parse_quote!({
+            #[cfg(feature="gas-constant-estimation")] return #const_tracker_block;
+            #[cfg(not(feature="gas-constant-estimation"))]
+            #block
+        })
+    }
+}
+
+#[cfg(feature = "bench")]
+pub mod zk {
+    use super::*;
+
+    /// Wrap a block with benchmarking. Fills the correct cycle counter based on the target and vendor.
+    pub fn cycles(ident: &Ident, block: &Block, _tagged_inputs: Vec<Ident>) -> Box<Block> {
+        let risc0_zk_block = cycles_inner_risc0(ident, block);
+        let sp1_zk_block = cycles_inner_sp1(ident, block);
+
+        parse_quote!({
+            #[cfg(all(target_os = "zkvm", target_vendor = "succinct"))]
+            {
+                return #sp1_zk_block;
+            }
+            #[cfg(all(target_os = "zkvm", target_vendor = "risc0"))]
+            {
+                return #risc0_zk_block;
+            }
+            #[cfg(not(target_os = "zkvm"))]
+            {
+                return #block;
+            }
+        })
+    }
+
+    fn cycles_inner_risc0(ident: &Ident, block: &Block) -> Box<Block> {
+        parse_quote! {
+            {
+                let cycles_before = ::sov_metrics::cycle_utils::risc0::get_cycle_count();
+                let result = (|| #block)();
+                let cycles_after = ::sov_metrics::cycle_utils::risc0::get_cycle_count();
+                let heap_bytes_free_after = ::sov_metrics::cycle_utils::risc0::get_available_heap();
+
+                let cycles = cycles_after.saturating_sub(cycles_before);
+                ::sov_metrics::cycle_utils::risc0::report_cycle_count(stringify!(#ident), cycles, heap_bytes_free_after);
+                result
+            }
         }
-    };
+    }
 
-    parse_quote!({
-        #[cfg(feature="gas-constant-estimation")] return #const_tracker_block;
-        #[cfg(not(feature="gas-constant-estimation"))]
-        #block
-    })
+    fn cycles_inner_sp1(ident: &Ident, block: &Block) -> Box<Block> {
+        parse_quote!({
+           {
+                let before = ::sov_metrics::cycle_utils::sp1::get_cycle_count();
+                let result = (move || #block)();
+                let after = ::sov_metrics::cycle_utils::sp1::get_cycle_count();
+                let heap_bytes_free_after = ::sov_metrics::cycle_utils::sp1::get_available_heap();
+
+                ::sov_metrics::cycle_utils::sp1::report_cycle_count(stringify!(#ident), after - before, heap_bytes_free_after);
+                result
+            }
+        })
+    }
 }
 
 /// Wrap a function, where `f` wraps a block with (benchmarking) code.

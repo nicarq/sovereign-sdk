@@ -4,7 +4,10 @@ mod derive_wallet;
 mod dispatch;
 mod hygienic_module_info;
 
-#[cfg(feature = "gas-constant-estimation")]
+#[cfg(feature = "bench")]
+mod cycle_macro;
+
+#[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
 mod metrics;
 
 mod module_info;

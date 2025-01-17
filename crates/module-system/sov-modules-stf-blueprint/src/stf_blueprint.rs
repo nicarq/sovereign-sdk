@@ -48,10 +48,7 @@ where
     }
 
     #[allow(clippy::type_complexity)]
-    #[cfg_attr(
-        all(target_os = "zkvm", feature = "bench"),
-        sov_cycle_utils::macros::cycle_tracker
-    )]
+    #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
     pub(crate) fn process_proof(
         &self,
         blob_hash: [u8; 32],

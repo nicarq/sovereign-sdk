@@ -26,8 +26,6 @@ sov-metrics = { path = "../../../crates/full-node/sov-metrics", default-features
 sov-mock-da = { path = "../../../crates/adapters/mock-da", features = ["arbitrary", "native"] }
 sov-celestia-adapter = { path = "../../../crates/adapters/celestia", features = ["arbitrary", "bench", "native"] }
 
-sov-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "7c3995c0a517465f28f915e9da22f54960198503" }
-
 demo-stf = { path = "../stf", features = ["test-utils"] }
 reqwest = { version = "0.12", features = [
     "rustls-tls", "stream",

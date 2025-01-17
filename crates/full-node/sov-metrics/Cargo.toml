@@ -16,14 +16,20 @@ workspace = true
 [dependencies]
 tracing = { workspace = true }
 strum = { workspace = true }
-tokio = { workspace = true, features = ["sync", "net", "macros", "rt"], default-features = false }
+tokio = { workspace = true, features = ["sync", "net", "macros", "rt"], default-features = false, optional = true }
 serde = { workspace = true }
-schemars = { workspace = true }
+schemars = { workspace = true, optional = true }
 http = "1.0"
 derivative = { workspace = true }
 sov-rollup-interface = { workspace = true }
-sov-cycle-utils = { workspace = true, features = ["native"] }
 derive_more = { workspace = true, features = ["deref_mut", "deref"] }
+
+anyhow = { workspace = true }
+risc0-zkvm = { workspace = true, default-features = false, features = [
+    "std",
+], optional = true }
+risc0-zkvm-platform = { workspace = true, features = ["export-syscalls"], optional = true }
+sp1-lib = { version = "3.0", default-features = false, optional = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
@@ -32,3 +38,10 @@ tokio = { workspace = true, features = ["full"] }
 [features]
 default = []
 gas-constant-estimation = []
+risc0 = ["dep:risc0-zkvm", "dep:risc0-zkvm-platform"]
+sp1 = ["dep:sp1-lib"]
+native = [
+	"dep:tokio",
+	"dep:schemars",
+	"sov-rollup-interface/native"
+]

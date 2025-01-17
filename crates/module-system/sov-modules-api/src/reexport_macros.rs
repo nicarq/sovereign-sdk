@@ -1,4 +1,39 @@
-/// Tracks the usage of gas constants within the SDK. Use this macro to measure how times different gas constants have been used within the annotated function .
+/// Contains the `cycle-tracker` macro which can be used to annotate functions that run inside a zkvm
+///
+/// ```rust,ignore
+/// #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
+/// fn begin_slot(
+///     &mut self,
+///     slot_data: &impl SlotData<Cond = Cond>,
+///     witness: <Self as StateTransitionFunction<Vm, B>>::Witness,
+/// ) {
+///     let state_checkpoint = StateCheckpoint::with_witness(self.current_storage.clone(), witness);
+///
+///     let mut working_set = state_checkpoint.to_revertable();
+///
+///     self.runtime.begin_slot_hook(slot_data, &mut working_set);
+///
+///     self.checkpoint = Some(working_set.checkpoint());
+/// }
+#[cfg(feature = "bench")]
+pub use sov_modules_macros::cycle_tracker;
+/// This macro is used to annotate functions that we want to track the usage of gas constants within the SDK.
+/// The purpose of the this macro is to measure how times different gas constants have been used within an annotated function
+/// to be able to estimate constant values.
+///
+/// One can add attribute arguments to this macro. Arguments should specify the name of the function inputs
+/// to track as metadata. For instance:
+///
+/// ```rust
+/// use sov_modules_macros::track_gas_constants_usage;
+///
+/// #[track_gas_constants_usage(input)]
+/// fn test_metrics(_input: &mut u64) {
+///     
+/// }
+/// ```
+///
+/// Will add `input={input_value}` as a metric metadata when collecting gas constant usage here.
 #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
 pub use sov_modules_macros::track_gas_constants_usage;
 /// Derives the [`DispatchCall`] trait for the underlying

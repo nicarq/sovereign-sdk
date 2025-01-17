@@ -18,7 +18,7 @@ sov-address = { path = "../../../../../crates/module-system/sov-address" }
 sov-state = { path = "../../../../../crates/module-system/sov-state" }
 sov-modules-stf-blueprint = { path = "../../../../../crates/module-system/sov-modules-stf-blueprint" }
 sov-kernels = { path = "../../../../../crates/module-system/sov-kernels" }
-sov-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "7c3995c0a517465f28f915e9da22f54960198503", optional = true }
+sov-metrics = { path = "../../../../../crates/full-node/sov-metrics", optional = true }
 
 [patch.crates-io]
 sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.8-risczero.0" }
@@ -48,6 +48,5 @@ bench = [
     "sov-modules-stf-blueprint/bench",
     "sov-risc0-adapter/bench",
     "sov-celestia-adapter/bench",
-    "dep:sov-cycle-utils",
-    "sov-cycle-utils/risc0",
+    "sov-metrics/risc0",
 ]

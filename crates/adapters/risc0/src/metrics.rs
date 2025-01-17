@@ -1,17 +1,16 @@
 //! Defines utilities for collecting runtime metrics from inside a Risc0 VM
 use risc0_zkvm::Bytes;
 /// The name of the syscall we use to collect metrics from the Risc0 VM.
-pub use sov_cycle_utils::risc0::SYSCALL_NAME_METRICS;
+pub use sov_metrics::cycle_utils::risc0::SYSCALL_NAME_METRICS;
 
 /// A custom callback for extracting metrics from the Risc0 zkvm.
 ///
 /// When the "bench" feature is enabled, this callback is registered as a syscall
-/// in the Risc0 VM and invoked whenever a function annotated with the [`risc0-cycle-utils::cycle_tracker`]
+/// in the Risc0 VM and invoked whenever a function annotated with the `cycle_tracker`
 /// macro is invoked.
 pub fn metrics_callback(input: Bytes) -> anyhow::Result<Bytes> {
     let (metric, cycles_count, free_heap_bytes) =
-        sov_cycle_utils::risc0::deserialize_metrics_call(input.as_ref())?;
-    sov_cycle_utils::increment_metric(metric.clone(), cycles_count);
+        sov_metrics::zkvm::deserialize_metrics_call(input.as_ref())?;
     sov_metrics::track_metrics(|tracker| {
         tracker.track_zkvm_metric(sov_metrics::ZkVmExecutionChunk {
             name: metric,

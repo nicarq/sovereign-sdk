@@ -62,7 +62,8 @@ tokio = { version = "1.42", default-features = false, optional = true, features 
 tower = { version = "0.4", default-features = false, optional = true }
 tracing = { version = "0.1.40", default-features = false }
 
-sov-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "7c3995c0a517465f28f915e9da22f54960198503", optional = true }
+sov-metrics = { path = "../../full-node/sov-metrics", optional = true }
+sov-modules-macros = { path = "../../module-system/sov-modules-macros", optional = true }
 sov-rollup-interface = { path = "../../rollup-interface" }
 
 [dev-dependencies]
@@ -93,11 +94,12 @@ native = [
     "dep:tokio",
     "sov-celestia-adapter/native",
     "sov-rollup-interface/native",
-    "sov-cycle-utils?/native",
+    "sov-metrics?/native",
     "dep:tower",
 ]
 bench = [
-    "dep:sov-cycle-utils",
+    "dep:sov-metrics",
+    "sov-modules-macros/bench",
     "sov-celestia-adapter/bench",
 ]
 arbitrary = [
