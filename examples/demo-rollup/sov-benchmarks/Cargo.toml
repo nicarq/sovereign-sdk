@@ -11,7 +11,7 @@ resolver = "2"
 [dependencies]
 # Sovereign dependencies
 sov-rollup-interface = { path = "../../../crates/rollup-interface", features = ["arbitrary"] }
-sov-modules-api = { path = "../../../crates/module-system/sov-modules-api", features = ["arbitrary", "bench"] }
+sov-modules-api = { path = "../../../crates/module-system/sov-modules-api", features = ["arbitrary", "bench", "native"] }
 sov-test-utils = { path = "../../../crates/module-system/sov-test-utils", features = ["arbitrary"] }
 sov-sequencer = { path = "../../../crates/full-node/sov-sequencer", default-features = false }
 sov-address = { path = "../../../crates/module-system/sov-address" }
@@ -82,3 +82,6 @@ name = "bench_generator"
 path = "src/bench_files/bench_generator.rs"
 harness = false
 test = false
+
+[features]
+gas-constant-estimation = ["sov-modules-api/gas-constant-estimation", "sov-metrics/gas-constant-estimation", "sov-modules-stf-blueprint/gas-constant-estimation"]

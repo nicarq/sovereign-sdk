@@ -12,7 +12,7 @@ thread_local! {
 }
 
 /// A structure used to track the usage of gas constants.
-#[derive(Clone, Default, derive_more::Deref, derive_more::DerefMut)]
+#[derive(Debug, Clone, Default, derive_more::Deref, derive_more::DerefMut)]
 pub struct GasConstantTracker(HashMap<String, i64>);
 
 impl GasConstantTracker {

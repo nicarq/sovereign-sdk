@@ -1,3 +1,6 @@
+/// Tracks the usage of gas constants within the SDK. Use this macro to measure how times different gas constants have been used within the annotated function .
+#[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
+pub use sov_modules_macros::track_gas_constants_usage;
 /// Derives the [`DispatchCall`] trait for the underlying
 /// type.
 ///

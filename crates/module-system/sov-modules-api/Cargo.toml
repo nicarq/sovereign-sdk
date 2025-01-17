@@ -122,4 +122,4 @@ native = [
 ]
 test-utils = ["dep:tracing-test"]
 evm = []
-gas-constant-estimation = ["sov-metrics/gas-constant-estimation"]
+gas-constant-estimation = ["sov-metrics/gas-constant-estimation", "sov-modules-macros/gas-constant-estimation"]
