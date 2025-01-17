@@ -7,8 +7,7 @@ use sp1_sdk::HookEnv;
 /// in the SP1 VM and invoked whenever a function annotated with the `cycle_tracker`
 /// macro is invoked.
 pub fn metrics_hook(_env: HookEnv, buf: &[u8]) -> Vec<Vec<u8>> {
-    let (cycles_buf, name_buf) = buf.split_at(std::mem::size_of::<u64>());
-    let _cycles = u64::from_le_bytes(cycles_buf.try_into().unwrap());
-    let _name = std::str::from_utf8(name_buf).unwrap();
+    let _ = sov_metrics::cycle_utils::deserialize_metrics_call(buf).unwrap();
+
     vec![]
 }

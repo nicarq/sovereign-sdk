@@ -8,17 +8,7 @@ mod actual_impl {
     use risc0_zkvm;
     use risc0_zkvm_platform::syscall::{sys_cycle_count, SyscallName};
 
-    fn serialize_metric(name: &str, cycle_count: u64, free_heap_bytes: u64) -> Vec<u8> {
-        let name_bytes = name.as_bytes();
-        // We know the exact capacity:
-        // name_bytes plus one null terminator plus two u64s (16 bytes total)
-        let mut serialized = Vec::with_capacity(name_bytes.len() + 1 + 16);
-        serialized.extend_from_slice(name_bytes);
-        serialized.push(0);
-        serialized.extend_from_slice(&cycle_count.to_le_bytes());
-        serialized.extend_from_slice(&free_heap_bytes.to_le_bytes());
-        serialized
-    }
+    use crate::cycle_utils::CycleMetric;
 
     /// Name of the syscall that is used to report metrics
     // Safety: string is null terminated
@@ -31,9 +21,11 @@ mod actual_impl {
     }
 
     /// Reports cycle count metrics to the zk guest
-    pub fn report_cycle_count(name: &str, cycle_count: u64, free_heap_bytes: u64) {
-        let serialized = serialize_metric(name, cycle_count, free_heap_bytes);
-        risc0_zkvm::guest::env::send_recv_slice::<u8, u8>(SYSCALL_NAME_METRICS, &serialized);
+    pub fn report_cycle_count(metric: CycleMetric) {
+        risc0_zkvm::guest::env::send_recv_slice::<u8, u8>(
+            SYSCALL_NAME_METRICS,
+            &bincode::serialize(&metric).unwrap(),
+        );
     }
 
     /// Returns how many bytes of heap are still available
@@ -45,49 +37,21 @@ mod actual_impl {
         let available = 0x0C00_0000 - &new_alloc as *const _ as usize;
         available as u64
     }
-
-    #[cfg(all(test, feature = "native"))]
-    mod tests {
-        use super::*;
-        use crate::zkvm::deserialize_metrics_call;
-
-        fn check_in_out(name: &str, cycle_count: u64, free_heap_bytes: u64) {
-            let serialized = serialize_metric(name, cycle_count, free_heap_bytes);
-
-            let (de_name, de_cycles, de_heap) = deserialize_metrics_call(&serialized[..]).unwrap();
-
-            assert_eq!(de_name, name, "wrong metric name");
-            assert_eq!(de_cycles, cycle_count, "wrong cycle count");
-            assert_eq!(de_heap, free_heap_bytes, "wrong free heap");
-        }
-
-        #[test]
-        fn callback_serialize_and_deserialize() {
-            let cases = vec![
-                ("zeros", 0, 0),
-                ("something", 1024, 4095),
-                ("different", 9056, 3870),
-                ("one_max", u64::MAX, 514),
-                ("two_max", 512, u64::MAX),
-            ];
-            for (name, cycles, heap_bytes) in cases {
-                check_in_out(name, cycles, heap_bytes);
-            }
-        }
-    }
 }
 
 #[cfg(not(feature = "risc0"))]
 pub use facade::*;
 #[cfg(not(feature = "risc0"))]
 mod facade {
+    use crate::cycle_utils::CycleMetric;
+
     /// Gets the current cycle count. Note: this function will always return 0 if the risc0 feature is not enabled!
     pub fn get_cycle_count() -> u64 {
         0
     }
 
     /// Reports the cycle counts to the zkvm. Note: this function will panic if the risc0 feature is not enabled!
-    pub fn report_cycle_count(_name: &str, _count: u64, _free_heap_bytes: u64) {
+    pub fn report_cycle_count(_metric: CycleMetric) {
         panic!("Reporting risc0 cycle count without risc0 feature enabled");
     }
 

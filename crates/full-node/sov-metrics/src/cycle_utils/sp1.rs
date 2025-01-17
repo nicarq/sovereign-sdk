@@ -2,6 +2,8 @@
 pub use actual_impl::*;
 #[cfg(feature = "sp1")]
 mod actual_impl {
+    use crate::cycle_utils::CycleMetric;
+
     /// File descriptor for the cycle count hook, which is used to get the cycle count.
     /// Can be any number, as long as it doesn't conflict with default/other hooks.
     pub const FD_CYCLE_COUNT_HOOK: u32 = 1000;
@@ -10,11 +12,8 @@ mod actual_impl {
     pub const FD_METRICS_HOOK: u32 = 1001;
 
     /// Report the cycle count to the host, if available. Otherwise, this is a no-op.
-    pub fn report_cycle_count(name: &str, count: u64, _free_heap_bytes: u64) {
-        // Cheap serialization: concat the u64 (fixed size) with the string (unknown size).
-        let mut buf = Vec::from(count.to_le_bytes());
-        buf.extend_from_slice(name.as_bytes());
-        sp1_lib::io::write(FD_METRICS_HOOK, &buf);
+    pub fn report_cycle_count(metric: CycleMetric) {
+        sp1_lib::io::write(FD_METRICS_HOOK, &bincode::serialize(&metric).unwrap());
     }
 
     /// Get the current cycle count of the sp1 zkvm, if available. Otherwise, return 0.
@@ -39,13 +38,15 @@ pub use facade::*;
 
 #[cfg(not(feature = "sp1"))]
 mod facade {
+    use crate::cycle_utils::CycleMetric;
+
     /// Get the current cycle count of the sp1 zkvm, if available. Otherwise, return 0.
     pub fn get_cycle_count() -> u64 {
         0
     }
 
     /// Report the cycle count to the host.
-    pub fn report_cycle_count(_name: &str, _count: u64, _free_heap_bytes: u64) {
+    pub fn report_cycle_count(_metric: CycleMetric) {
         panic!("Reporting sp1 cycle count without sp1 feature enabled");
     }
 
