@@ -17,6 +17,8 @@ use tracing::Subscriber;
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::registry::LookupSpan;
 
+const SOV_OTEL_ENV: &str = "SOV_OTEL_ENABLED";
+
 /// Controls shutdown of providers
 pub struct OtelGuard {
     pub(crate) tracer_provider: TracerProvider,
@@ -103,18 +105,47 @@ fn init_tracer_provider() -> anyhow::Result<TracerProvider> {
 
 /// Helper function to ensure if open telemetry exporter should be enabled.
 pub(crate) fn should_init_otlp() -> bool {
+    // logging in this function won't be printed originally, but on the second it will
     let env_vars = [
         "OTEL_EXPORTER_OTLP_ENDPOINT",
         "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
         "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
     ];
 
-    if env_vars.iter().any(|&var| std::env::var(var).is_ok()) {
+    // Collect all that are set
+    let found_otel_envs: Vec<(&str, String)> = env_vars
+        .iter()
+        .filter_map(|&var| std::env::var(var).ok().map(|value| (var, value)))
+        .collect();
+
+    // Log each that we found
+    for (var, value) in &found_otel_envs {
+        tracing::debug!(variable = %var, %value, "Found expected OTEL_ prefixed environment variable");
+    }
+
+    if !found_otel_envs.is_empty() {
+        tracing::debug!(
+            "Some of standard OTEL_ prefixed environment variable is set, enabling Open Telemetry exporter"
+        );
         return true;
     }
-    match std::env::var("SOV_OTEL_ENABLED") {
-        Ok(val) if val == "1" => true,
-        Ok(_) | Err(_) => false,
+
+    tracing::trace!(
+        "None of standard OTEL_ prefixed environment variables are set, checking.. {SOV_OTEL_ENV}"
+    );
+
+    match std::env::var(SOV_OTEL_ENV).as_deref() {
+        Ok("1") | Ok("true") => {
+            tracing::debug!("`{SOV_OTEL_ENV}` environment variable is set, Open Telemetry exporter will be enabled with default values");
+            true
+        }
+        Ok(value) => {
+            tracing::info!(%value, "Value of environment variable `{SOV_OTEL_ENV}` suggests not enabling Open Telemetry exporter");
+            false
+        }
+        Err(_) => {
+            tracing::trace!("Environment variable `{SOV_OTEL_ENV}` is not set, Open Telemetry exporter won't be enabled");
+            false
+        }
     }
 }

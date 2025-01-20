@@ -101,10 +101,9 @@ fn log_info_about_logging(current_env_filter: &str) {
         );
     }
 
-    if should_init_otlp() {
-        info!("OTLP exporter is enabled");
-    } else {
-        info!("OTLP exporter is not enabled");
+    // Call it one more time to log information about OpenTelementry loggign
+    if !should_init_otlp() {
+        info!("Open Telemetry exporter is not enabled");
     }
 }
 
