@@ -211,16 +211,18 @@ impl<S: sov_modules_api::Spec> PrivateKeyAndAddress<S> {
     }
 
     /// Deserializes from json file.
-    pub fn from_json_file(path: impl AsRef<Path>) -> anyhow::Result<Self> {
+    pub fn from_json_file(path: impl AsRef<Path>, check_is_default: bool) -> anyhow::Result<Self> {
         let data = fs::read_to_string(path.as_ref())?;
 
         let key_and_address: PrivateKeyAndAddress<S> = serde_json::from_str(&data)
             .with_context(|| format!("Unable to convert data {} to PrivateKeyAndAddress", &data))?;
 
-        anyhow::ensure!(
-            key_and_address.is_matching_to_default(),
-            "Key default address does not match address in file. Probably an error in file"
-        );
+        if check_is_default {
+            anyhow::ensure!(
+                key_and_address.is_matching_to_default(),
+                "Key default address does not match address in file. Probably an error in file"
+            );
+        }
 
         Ok(key_and_address)
     }

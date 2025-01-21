@@ -180,7 +180,7 @@ mod helpers {
         url: String,
     ) -> (<TestSpec as Spec>::Address, String) {
         let client = Client::new(&url);
-        let keys = PrivateKeyAndAddress::<TestSpec>::from_json_file(Path::new(private_key_file))
+        let keys = PrivateKeyAndAddress::<TestSpec>::from_json_file(Path::new(private_key_file), true)
             .context(format!("File does not exist: {:?}", private_key_file))
             .unwrap();
         let priv_key = keys.private_key;
