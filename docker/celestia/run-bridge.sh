@@ -52,6 +52,7 @@ add_trusted_genesis() {
   echo "Trusting a genesis: $genesis_hash"
   sed -i'.bak' "s/TrustedHash = .*/TrustedHash = $genesis_hash/" "$CONFIG_DIR/config.toml"
   sed -i'.bak' "s/Address = \"localhost\"/Address = \"0.0.0.0\"/" "$CONFIG_DIR/config.toml"
+  sed -i'.bak' "s/SkipAuth = false/SkipAuth = true/" "$CONFIG_DIR/config.toml"
 }
 
 write_jwt_token() {
