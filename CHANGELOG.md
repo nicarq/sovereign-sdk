@@ -2,6 +2,7 @@
 - #2247 exports `sov_modules_rollup_blueprint::logging::should_init_open_telemetry_exporter` so there's a standard way to ensure that Open Telemetry exporter should be enabled.
 - #2245 Makes state that is *only* soft-confirmed unavailable via archival queries (i.e. API queries that include the `?rollup_height` parameter). State now becomes available via archival APIs at the same time across all node, regardless of whether the node is also providing soft confirmations. This fixes a bug where the archival APIs could return incorrect data when queried for soft-confirmed state.
 ## 2025-01-20
+- #2246 Adds a parameter to the `PrivateKeyAndAddress::from_json_file` method which allows skipping the check that the deserialized address matches the key's default value.
 - #2245 Makes state that is *only* soft-confirmed unavailable via archival queries (i.e. API queries that include the `?rollup_height` parameter). State now becomes available via archival APIs at the same time across all node, regardless of whether the node is also providing soft confirmations. This fixes a bug where the archival APIs could return incorrect data when queried for soft-confirmed state.
 - #2231 revert formatting of `GasUnit` when serializing with universal wallet. Allows keeping the array/tuple format instead of object structure.
 - #2230 The ValueSetter::SetValue call message was updated to include an optional gas parameter, which will be used for updating the value.
