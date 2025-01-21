@@ -217,7 +217,7 @@ where
     // The standard, non-preferred sequencer doesn't provide any information as
     // part of transaction confirmations. In the future, it might return
     // authentication gas usage information.
-    type Confirmation = EmptyConfirmation<Z>;
+    type Confirmation = EmptyConfirmation<Z::Rt>;
     type Batch = Vec<FullyBakedTx>;
     type Config = StdBatchBuilderConfig;
     type Spec = Z::Spec;

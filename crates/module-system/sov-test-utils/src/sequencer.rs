@@ -19,6 +19,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::StateUpdateInfo;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
+pub use sov_sequencer::batch_builders::test_stateless::TestStatelessBatchBuilder;
 use sov_sequencer::batch_builders::BatchBuilder;
 use sov_sequencer::{GenericSequencerSpec, SequenceNumberProvider, Sequencer, SequencerConfig};
 use sov_state::{DefaultStorageSpec, ProverStorage};
