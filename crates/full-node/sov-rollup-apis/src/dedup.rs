@@ -93,9 +93,8 @@ impl<S: Spec> DeDupEndpoint<S> for NonceDeDupEndpoint<S> {
         let pub_key = <S::CryptoSpec as CryptoSpec>::PublicKey::from_str(&address)?;
         let credential_id = pub_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
         let nonce = Uniqueness::<S>::default()
-            .nonce(&credential_id, &mut state)
-            .unwrap()
-            .unwrap_or_default();
+            .next_generation(&credential_id, &mut state)
+            .unwrap();
         Ok(NonceResponse { nonce })
     }
 
