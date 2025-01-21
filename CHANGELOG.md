@@ -1,3 +1,5 @@
+## 2025-01-20
+- #2230 The ValueSetter::SetValue call message was updated to include an optional gas parameter, which will be used for updating the value.
 ## 2025-01-21
 - #2247 exports `sov_modules_rollup_blueprint::logging::should_init_open_telemetry_exporter` so there's a standard way to ensure that Open Telemetry exporter should be enabled
 ## 2025-01-20

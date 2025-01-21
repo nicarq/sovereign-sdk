@@ -23,7 +23,10 @@ fn test_custom_transaction_details_chain_id() {
 
     runner.execute_batch(BatchTestCase {
         input: vec![admin
-            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1))
+            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue {
+                value: 1,
+                gas: None,
+            })
             .with_chain_id(fake_chain_id)]
         .into(),
         assert: Box::new(move |result, _state| {
@@ -52,7 +55,7 @@ fn test_custom_transaction_details_max_fee() {
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
-            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
+            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue{value:10,gas: None})
             .with_max_fee(0),
         assert: Box::new(move |result, _state| {
            match &result.tx_receipt {
@@ -83,7 +86,7 @@ fn test_custom_transaction_details_priority_fee_bips() {
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
-            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
+            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue{value:10, gas: None})
             .with_max_fee(max_fee)
             .with_max_priority_fee_bips(priority_fee_bips),
         assert: Box::new(move |result, state| {
@@ -108,7 +111,7 @@ fn test_custom_transaction_details_gas_limit() {
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
-            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
+            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue{value:10, gas: None})
             .with_max_fee(admin.available_gas_balance)
             .with_gas_limit(Some(GasUnit::from([admin.available_gas_balance; 2]))),
         assert: Box::new(move |result, _state| {
@@ -137,7 +140,7 @@ fn test_default_transaction_details_works() {
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
-            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue{value:10,gas: None}),
         assert: Box::new(move |result, state| {
             assert!(result.tx_receipt.is_successful());
 

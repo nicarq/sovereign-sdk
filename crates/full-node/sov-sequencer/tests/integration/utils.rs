@@ -128,7 +128,10 @@ pub fn valid_tx_bytes(
     value_to_set: u32,
 ) -> RawTx {
     let msg = <TestOptimisticRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
-        sov_value_setter::CallMessage::SetValue(value_to_set),
+        sov_value_setter::CallMessage::SetValue {
+            value: value_to_set,
+            gas: None,
+        },
     );
 
     build_tx(setup, nonce, &msg)

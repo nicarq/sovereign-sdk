@@ -5,6 +5,7 @@ burn = [2, 2]
 mint = [2, 2]
 freeze = [1, 1]
 
+
 [constants]
 # We use the ID 4321 for demo purposes. Change this value before deploying!
 CHAIN_ID = 4321

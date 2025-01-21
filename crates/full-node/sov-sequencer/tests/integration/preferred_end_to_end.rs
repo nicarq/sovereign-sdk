@@ -532,7 +532,10 @@ async fn query_set_value(
 
 fn tx_set_value(key: &Ed25519PrivateKey, nonce: u64, value_to_set: u64) -> RawTx {
     let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
-        sov_value_setter::CallMessage::SetValue(value_to_set as u32),
+        sov_value_setter::CallMessage::SetValue {
+            value: value_to_set as u32,
+            gas: None,
+        },
     );
 
     encode_call(key, nonce, &msg)

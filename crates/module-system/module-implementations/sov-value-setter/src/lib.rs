@@ -8,7 +8,7 @@ pub use call::*;
 pub use event::Event;
 pub use genesis::*;
 use sov_modules_api::{
-    Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    Context, DaSpec, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
     StateValue, StateVec, TxState,
 };
 
@@ -36,12 +36,19 @@ pub struct ValueSetter<S: Spec> {
     pub admin: StateValue<S::Address>,
 }
 
+/// Gas configuration for the bank module
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
+pub struct ValueSeterGasConfig<GU: Gas> {
+    /// Gas price multiplier for the set_value operation
+    pub set_value: GU,
+}
+
 impl<S: Spec> Module for ValueSetter<S> {
     type Spec = S;
 
     type Config = ValueSetterConfig<S>;
 
-    type CallMessage = call::CallMessage;
+    type CallMessage = call::CallMessage<S>;
 
     type Event = Event;
 
@@ -63,9 +70,10 @@ impl<S: Spec> Module for ValueSetter<S> {
         state: &mut impl TxState<S>,
     ) -> Result<(), Error> {
         match msg {
-            call::CallMessage::SetValue(new_value) => {
-                Ok(self.set_value(new_value, context, state)?)
-            }
+            call::CallMessage::SetValue {
+                value: new_value,
+                gas,
+            } => Ok(self.set_value(new_value, gas, context, state)?),
             CallMessage::SetManyValues(many) => Ok(self.set_values(many, context, state)?),
         }
     }

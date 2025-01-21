@@ -31,7 +31,10 @@ fn reward_mechanism_test_setup() -> (TestRoles, u64, TestRunner<RT, S>) {
     let (output, _) = runner.simulate(
         admin
             .create_plain_message::<RT, sov_value_setter::ValueSetter<S>>(
-                sov_value_setter::CallMessage::SetValue(VALUE_SETTER_NEW_CONST),
+                sov_value_setter::CallMessage::SetValue {
+                    value: VALUE_SETTER_NEW_CONST,
+                    gas: None,
+                },
             )
             .with_max_priority_fee_bips(PriorityFeeBips::ZERO),
     );
@@ -73,7 +76,10 @@ fn reward_mechanism_test(
     runner.execute_transaction(TransactionTestCase {
         input: admin
             .create_plain_message::<RT, sov_value_setter::ValueSetter<S>>(
-                sov_value_setter::CallMessage::SetValue(OTHER_VALUE_SETTER_CONST),
+                sov_value_setter::CallMessage::SetValue {
+                    value: OTHER_VALUE_SETTER_CONST,
+                    gas: None,
+                },
             )
             .with_max_fee(max_fee)
             .with_max_priority_fee_bips(max_priority_fee),
@@ -175,7 +181,7 @@ fn test_penalize_sequencer() {
     runner.execute_transaction(TransactionTestCase {
         input: admin
             .create_plain_message::<RT, sov_value_setter::ValueSetter<S>>(
-                sov_value_setter::CallMessage::SetValue(OTHER_VALUE_SETTER_CONST),
+                sov_value_setter::CallMessage::SetValue{value:OTHER_VALUE_SETTER_CONST,gas: None},
             )
             .with_max_fee(0),
         assert: Box::new(move |result, state| {
@@ -211,7 +217,10 @@ fn produce_malformed_tx(
 
     let mut tx = admin
         .create_plain_message::<RT, sov_value_setter::ValueSetter<S>>(
-            sov_value_setter::CallMessage::SetValue(10),
+            sov_value_setter::CallMessage::SetValue {
+                value: 10,
+                gas: None,
+            },
         )
         .to_serialized_authenticated_tx(&mut nonces);
 
@@ -240,7 +249,7 @@ fn test_authentication_out_of_gas_error() {
         input: vec![
             admin
                 .create_plain_message::<RT, sov_value_setter::ValueSetter<S>>(
-                    sov_value_setter::CallMessage::SetValue(10),
+                    sov_value_setter::CallMessage::SetValue{value:10,gas: None},
                 )
                 .with_max_fee(0),
             malformed_transaction,

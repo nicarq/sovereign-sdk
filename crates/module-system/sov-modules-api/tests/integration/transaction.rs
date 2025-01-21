@@ -12,7 +12,10 @@ fn test_unsigned_tx_wallet_serialization_none_gas_limit() {
     let json = r#"{
         "runtime_call": {
             "value_setter": {
-                "set_value": 4
+                 "set_value": {
+                    "value": 4,
+                    "gas": null
+                }
             }
         },
         "generation": 2,
@@ -33,7 +36,10 @@ fn test_unsigned_tx_wallet_serialization_some_gas_limit() {
     let json = r#"{
         "runtime_call": {
             "value_setter": {
-                "set_value": 4
+                 "set_value": {
+                    "value": 4,
+                    "gas": null
+                }
             }
         },
         "generation": 2,
@@ -69,7 +75,10 @@ fn test_tx_wallet_serialization_some_gas_limit() {
         },
         "runtime_call": {
             "value_setter": {
-                "set_value": 4
+                 "set_value": {
+                    "value": 4,
+                    "gas": null
+                }
             }
         },
         "generation": 2,
@@ -105,7 +114,10 @@ fn test_tx_wallet_serialization_none_gas_limit() {
         },
         "runtime_call": {
             "value_setter": {
-                "set_value": 4
+                "set_value": {
+                    "value": 4,
+                    "gas": null
+                }
             }
         },
         "generation": 2,

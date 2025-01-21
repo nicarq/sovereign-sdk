@@ -15,7 +15,10 @@ fn test_default_sequencer() {
 
     runner.execute_batch(BatchTestCase {
         input: vec![admin.create_plain_message::<RT, ValueSetter<S>>(
-            sov_value_setter::CallMessage::SetValue(1),
+            sov_value_setter::CallMessage::SetValue {
+                value: 1,
+                gas: None,
+            },
         )]
         .into(),
         assert: Box::new(move |result, _state| {
@@ -33,7 +36,10 @@ fn test_specify_non_default_sequencer_errors_if_not_registered() {
 
     runner.execute_batch(BatchTestCase {
         input: vec![admin.create_plain_message::<RT, ValueSetter<S>>(
-            sov_value_setter::CallMessage::SetValue(10),
+            sov_value_setter::CallMessage::SetValue {
+                value: 10,
+                gas: None,
+            },
         )]
         .into(),
         assert: Box::new(move |result, _state| {
@@ -79,7 +85,10 @@ fn test_register_sequencer() {
         // Then we use the non-default sequencer to set a value
         .execute_batch(BatchTestCase {
             input: vec![new_sequencer.create_plain_message::<RT, ValueSetter<S>>(
-                sov_value_setter::CallMessage::SetValue(10),
+                sov_value_setter::CallMessage::SetValue {
+                    value: 10,
+                    gas: None,
+                },
             )]
             .into(),
             assert: Box::new(move |result, state| {

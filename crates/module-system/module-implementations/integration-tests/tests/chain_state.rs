@@ -54,11 +54,12 @@ fn chain_state_kernel_updates_basic_kernel() {
         );
     });
 
-    runner.execute(
-        admin.create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(
-            10,
-        )),
-    );
+    runner.execute(admin.create_plain_message::<RT, ValueSetter<S>>(
+        sov_value_setter::CallMessage::SetValue {
+            value: 10,
+            gas: None,
+        },
+    ));
 
     runner.query_state(|state| {
         assert_eq!(
@@ -83,10 +84,12 @@ fn test_chain_state_gas_updates() {
 
     let genesis_state_root = *runner.state_root();
 
-    let output =
-        runner.execute(admin.create_plain_message::<RT, ValueSetter<S>>(
-            sov_value_setter::CallMessage::SetValue(10),
-        ));
+    let output = runner.execute(admin.create_plain_message::<RT, ValueSetter<S>>(
+        sov_value_setter::CallMessage::SetValue {
+            value: 10,
+            gas: None,
+        },
+    ));
 
     runner.query_state(|kernel| {
         assert_eq!(
@@ -116,11 +119,12 @@ fn test_chain_state_root_updates() {
 
     let genesis_state_root = *runner.state_root();
 
-    runner.execute(
-        admin.create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(
-            10,
-        )),
-    );
+    runner.execute(admin.create_plain_message::<RT, ValueSetter<S>>(
+        sov_value_setter::CallMessage::SetValue {
+            value: 10,
+            gas: None,
+        },
+    ));
 
     let post_state_root = *runner.state_root();
 
@@ -132,11 +136,12 @@ fn test_chain_state_root_updates() {
         );
     });
 
-    runner.execute(
-        admin.create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(
-            10,
-        )),
-    );
+    runner.execute(admin.create_plain_message::<RT, ValueSetter<S>>(
+        sov_value_setter::CallMessage::SetValue {
+            value: 10,
+            gas: None,
+        },
+    ));
 
     runner.query_state(|kernel| {
         let first_transition = ChainState::<S>::default()
@@ -156,11 +161,12 @@ fn test_chain_state_root_updates() {
 fn test_chain_state_historical_transition_update() {
     let (admin, mut runner) = setup();
 
-    runner.execute(
-        admin.create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(
-            10,
-        )),
-    );
+    runner.execute(admin.create_plain_message::<RT, ValueSetter<S>>(
+        sov_value_setter::CallMessage::SetValue {
+            value: 10,
+            gas: None,
+        },
+    ));
 
     let in_progress_transition = runner.query_state(|kernel| {
         ChainState::<S>::default()
@@ -169,11 +175,12 @@ fn test_chain_state_historical_transition_update() {
             .unwrap()
     });
 
-    runner.execute(
-        admin.create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(
-            10,
-        )),
-    );
+    runner.execute(admin.create_plain_message::<RT, ValueSetter<S>>(
+        sov_value_setter::CallMessage::SetValue {
+            value: 10,
+            gas: None,
+        },
+    ));
 
     runner.query_state(|kernel| {
         let first_transition = ChainState::<S, >::default()
@@ -209,11 +216,12 @@ fn test_archival_state_updates_gas_price() {
         })
         .unwrap();
 
-    runner.execute(
-        admin.create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(
-            10,
-        )),
-    );
+    runner.execute(admin.create_plain_message::<RT, ValueSetter<S>>(
+        sov_value_setter::CallMessage::SetValue {
+            value: 10,
+            gas: None,
+        },
+    ));
 
     runner.advance_slots(1);
 

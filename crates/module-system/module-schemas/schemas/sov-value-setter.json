@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "CallMessage",
+  "title": "CallMessage_for_DefaultSpec_for_MockDaSpec_and_MockZkvm_and_MockZkvm_and_Native",
   "description": "This enumeration represents the available call messages for interacting with the `sov-value-setter` module.",
   "oneOf": [
     {
@@ -11,9 +11,29 @@
       ],
       "properties": {
         "set_value": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0.0
+          "type": "object",
+          "required": [
+            "value"
+          ],
+          "properties": {
+            "gas": {
+              "description": "Gas to charge. Don't charge gas if None.",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/GasUnit(2)"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "value": {
+              "description": "Singe new value.",
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
         }
       },
       "additionalProperties": false
@@ -36,5 +56,16 @@
       },
       "additionalProperties": false
     }
-  ]
+  ],
+  "definitions": {
+    "GasUnit(2)": {
+      "description": "GasUnit is an array of u64 of size 2",
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "maxItems": 2,
+      "minItems": 2
+    }
+  }
 }
