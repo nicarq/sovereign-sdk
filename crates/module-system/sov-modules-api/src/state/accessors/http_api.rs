@@ -353,6 +353,8 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
             kernel: kernel.clone(),
             state_to_access,
             safe_true_slot_number_to_use: None,
+            // We use MAX here to indicate that the accessor should be allowed to access any value. This is necessary because of the fundamental
+            // permissions vs state confusion in our current design of VersionReader - see the comment inline in get_cached for more details.
             visible_slot_number: Some(VisibleSlotNumber::MAX),
         }
     }
