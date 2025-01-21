@@ -196,7 +196,7 @@ fn test_archival_proof_gen() {
     let mut api_state_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel));
     for iter in 0..NUM_ITER {
         let mut archival_accessor = api_state_accessor
-            .state_at_height(RollupHeight::new(iter))
+            .get_archival_state(RollupHeight::new(iter))
             .unwrap();
         let proof = state_val.get_with_proof(&mut archival_accessor).unwrap();
         let value = state_val

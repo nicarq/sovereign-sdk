@@ -43,7 +43,7 @@ fn archival_state_updates_correctly() -> Result<(), Infallible> {
 
         for past_height in 0..current_height {
             let mut archival_api_accessor = api_accessor
-                .state_at_height(RollupHeight::new(past_height))
+                .get_archival_state(RollupHeight::new(past_height))
                 .unwrap();
 
             let value = state_value.get(&mut archival_api_accessor)?;
@@ -58,7 +58,7 @@ fn archival_state_updates_correctly() -> Result<(), Infallible> {
 
         for another_past_height in 0..=current_height {
             let mut archival_api_accessor = api_accessor
-                .state_at_height(RollupHeight::new(another_past_height))
+                .get_archival_state(RollupHeight::new(another_past_height))
                 .unwrap();
 
             let value = state_value.get(&mut archival_api_accessor)?;

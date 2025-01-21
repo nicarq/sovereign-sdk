@@ -218,6 +218,9 @@ pub trait StateUpdate {
             self.add_accessory_item(key, value);
         }
     }
+
+    /// Returns an iterator over the accessory items modified by this state update.
+    fn get_accessory_items(&self) -> impl Iterator<Item = &(SlotKey, Option<SlotValue>)>;
 }
 
 impl StateUpdate for () {
@@ -226,6 +229,10 @@ impl StateUpdate for () {
         // is *not* consensus critical. This implementation is intended to be used
         // in the zk context only. In the native context, a real implementation SHOULD
         // be used instead.
+    }
+
+    fn get_accessory_items(&self) -> impl Iterator<Item = &(SlotKey, Option<SlotValue>)> {
+        std::iter::empty()
     }
 }
 
@@ -282,6 +289,10 @@ pub trait Storage: Clone {
 
     /// Collections of all the writes that have been made on top of this instance of the storage;
     type ChangeSet: Send + Sync;
+
+    #[cfg(feature = "native")]
+    /// Gets the latest version available in the storage.
+    fn latest_version(&self) -> SlotNumber;
 
     /// Returns the value corresponding to the key or None if key is absent.
     fn get<N: ProvableCompileTimeNamespace>(

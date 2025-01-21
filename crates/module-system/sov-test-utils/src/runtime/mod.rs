@@ -349,13 +349,16 @@ where
     }
 
     /// Queries the state of the rollup at the given height. This is essentially the same thing as [`TestRunner::query_visible_state`]
-    /// followed by [`ApiStateAccessor::state_at_height`].
+    /// followed by [`ApiStateAccessor::get_archival_state`].
     pub fn query_state_at_height<Output>(
         &self,
         height: RollupHeight,
         query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
     ) -> Option<Output> {
-        let mut current_state = self.state_at_true_height().state_at_height(height).ok()?;
+        let mut current_state = self
+            .state_at_true_height()
+            .get_archival_state(height)
+            .ok()?;
         Some(query(&mut current_state))
     }
 

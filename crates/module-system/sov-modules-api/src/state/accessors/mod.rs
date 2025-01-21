@@ -27,7 +27,7 @@ mod kernel;
 
 #[cfg(feature = "native")]
 pub use checkpoints::native::AccessoryStateCheckpoint;
-pub use checkpoints::StateCheckpoint;
+pub use checkpoints::{ChangeSet, StateCheckpoint};
 pub use genesis::GenesisStateAccessor;
 pub use internals::AccessoryDelta;
 pub use kernel::{BootstrapWorkingSet, KernelStateAccessor};

@@ -236,9 +236,15 @@ impl<S: Spec, T> ApiState<S, T> {
         let height = maybe_height.unwrap_or(checkpoint.rollup_height_to_access());
         let kernel = self.kernel.clone();
 
-        let mut state = ApiStateAccessor::new_with_height(&*checkpoint, kernel.clone(), height)?;
+        let mut state = if let Some(height) = maybe_height {
+            ApiStateAccessor::new_archival(&checkpoint, kernel.clone(), height)?
+        } else {
+            ApiStateAccessor::new(&checkpoint, kernel.clone())
+        };
         tracing::trace!(?maybe_height, ?state, "Building an API state accessor");
 
+        // TODO: Move this inside the constructor
+        // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2244>
         let gas_price = self
             .kernel
             .base_fee_per_gas_at(height, &mut state)

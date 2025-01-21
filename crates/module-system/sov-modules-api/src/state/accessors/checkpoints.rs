@@ -19,6 +19,20 @@ pub struct StateCheckpoint<S: Spec> {
     pub(super) rollup_height: RollupHeight,
 }
 
+#[derive(Debug)]
+/// The list of changes from the state checkpoint
+pub struct ChangeSet {
+    #[allow(missing_docs)]
+    pub changes: Vec<((SlotKey, sov_state::Namespace), Option<SlotValue>)>,
+}
+
+impl ChangeSet {
+    /// Create a new `ChangeSet` from a vector of changes.
+    pub fn new(changes: Vec<((SlotKey, sov_state::Namespace), Option<SlotValue>)>) -> Self {
+        Self { changes }
+    }
+}
+
 impl<S: Spec> StateCheckpoint<S> {
     /// Deep copy the state checkpoint (including its caches), ignoring
     /// the witness.
@@ -105,13 +119,28 @@ impl<S: Spec> StateCheckpoint<S> {
         self.visible_slot_num = VisibleSlotNumber::new_dangerous(visible_slot_number);
     }
 
+    /// Returns the list of all changes contained in the state checkpoint.
+    pub fn changes(&self) -> ChangeSet {
+        self.delta.changes()
+    }
+
     /// Directly apply a set of changes to the state checkpoint. This method should generally *not* be used
     /// during normal execution, since changes should happen through `StateValue` types which
     /// use the UniversalStateAccessor API. It is primarily intended for use in the sequencer, which has to manage
     /// its own state.
     // TODO: Remove this method if we stop using `StateCheckpoint` in the sequencer
     #[cfg(feature = "native")]
-    pub fn apply_changes(&mut self, changeset: super::TxChangeSet) {
+    pub fn apply_tx_changes(&mut self, changeset: super::TxChangeSet) {
+        self.apply_changes(changeset.0);
+    }
+
+    /// Directly apply a set of changes to the state checkpoint. This method should generally *not* be used
+    /// during normal execution, since changes should happen through `StateValue` types which
+    /// use the UniversalStateAccessor API. It is primarily intended for use in the sequencer, which has to manage
+    /// its own state.
+    // TODO: Remove this method if we stop using `StateCheckpoint` in the sequencer
+    #[cfg(feature = "native")]
+    pub fn apply_changes(&mut self, changeset: ChangeSet) {
         for ((key, namespace), value) in changeset.changes {
             if let Some(value) = value {
                 self.set(namespace, &key, value);

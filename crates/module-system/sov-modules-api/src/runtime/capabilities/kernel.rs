@@ -23,6 +23,9 @@ pub trait KernelWithSlotMapping<S: Spec>: Sync + Send + 'static {
         state: &mut crate::state::ApiStateAccessor<S>,
     ) -> Option<VisibleSlotNumber>;
 
+    /// Returns the latest known rollup height.
+    fn current_rollup_height(&self, state: &mut crate::state::ApiStateAccessor<S>) -> RollupHeight;
+
     /// Retrieves the true slot number during which a given rollup height was processed.
     ///
     /// Note that the true slot number for a rollup height is not known until that slot has been

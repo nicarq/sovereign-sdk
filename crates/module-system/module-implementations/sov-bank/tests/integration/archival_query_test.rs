@@ -44,9 +44,9 @@ fn transfer_token_and_query_old_balances() {
             );
         });
 
-        for height_to_query in (0..=height).map(RollupHeight::new) {
+        for height_to_query in (0..height).map(RollupHeight::new) {
             runner.query_visible_state(|state| {
-                let archival_state = &mut state.state_at_height(height_to_query).unwrap();
+                let archival_state = &mut state.get_archival_state(height_to_query).unwrap();
 
                 // Sender query deducted at every height
                 assert_eq!(

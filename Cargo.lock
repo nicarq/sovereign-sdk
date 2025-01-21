@@ -8119,6 +8119,7 @@ dependencies = [
  "sov-mock-zkvm",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
+ "sov-node-client",
  "sov-paymaster",
  "sov-rest-utils",
  "sov-rollup-interface",

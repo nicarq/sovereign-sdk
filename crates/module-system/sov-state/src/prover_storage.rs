@@ -256,6 +256,10 @@ impl StateUpdate for NamespacedStateUpdate {
     fn add_accessory_item(&mut self, key: SlotKey, value: Option<SlotValue>) {
         self.accessory.ordered_writes.push((key, value));
     }
+
+    fn get_accessory_items(&self) -> impl Iterator<Item = &(SlotKey, Option<SlotValue>)> {
+        self.accessory.ordered_writes.iter()
+    }
 }
 
 impl NamespacedStateUpdate {
@@ -289,6 +293,10 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         let val = self.read_value::<N>(key, version);
         witness.add_hint(val.clone());
         val
+    }
+
+    fn latest_version(&self) -> SlotNumber {
+        self.db.get_next_version().saturating_sub(1)
     }
 
     fn get_accessory(&self, key: &SlotKey, version: Option<SlotNumber>) -> Option<SlotValue> {

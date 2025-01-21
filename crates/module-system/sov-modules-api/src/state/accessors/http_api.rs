@@ -217,12 +217,27 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         state_checkpoint: &StateCheckpoint<S>,
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
     ) -> Self {
-        Self::new_with_height(
+        Self::new_with_price_and_state_to_access(
             state_checkpoint,
             kernel,
-            state_checkpoint.rollup_height_to_access(),
+            StateToAccess::RollupHeight(state_checkpoint.rollup_height_to_access()),
+            <S::Gas as Gas>::Price::ZEROED,
         )
         .expect("Creating an ApiStateCheckpoint without specifying a height is infallible")
+    }
+
+    /// Creates a fully initialized [`ApiStateAccessor`] from a [`StateCheckpoint`] and a [`RollupHeight`], if the requested
+    /// height is available in storage.
+    ///
+    /// ## Important
+    /// Note that archival state is only available *after* the requested height has been processed by the node. In other words,
+    /// state that is *only* soft-confirmed is not available for archival queries.
+    pub fn new_archival(
+        state_checkpoint: &StateCheckpoint<S>,
+        kernel: Arc<dyn KernelWithSlotMapping<S>>,
+        height: RollupHeight,
+    ) -> Result<Self, ApiStateAccessorError> {
+        Self::build_archival_state(state_checkpoint.delta.inner.clone(), kernel, height)
     }
 
     /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with a gas price of zero at the [`StateCheckpoint::rollup_height_to_access`].
@@ -236,59 +251,6 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
             kernel,
             StateToAccess::TrueSlotNumber(slot_number),
             <S::Gas as Gas>::Price::ZEROED,
-        )
-    }
-
-    /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with a gas
-    /// price of zero.
-    ///
-    /// If the given `visible_slot_number` is `None`, the very latest state
-    /// (possibly containing soft-confirmed transactions, if using a preferred
-    /// sequencer) will be used. Otherwise, a historical query is performed.
-    ///
-    /// # Warning
-    ///
-    /// As of 2024-01-07, **historical** queries for soft-confirmed state that
-    /// hasn't been processed by the node yet are not supported.
-    pub fn new_with_height(
-        state_checkpoint: &StateCheckpoint<S>,
-        kernel: Arc<dyn KernelWithSlotMapping<S>>,
-        rollup_height: RollupHeight,
-    ) -> Result<Self, ApiStateAccessorError> {
-        Self::new_with_price_and_height(
-            state_checkpoint,
-            kernel,
-            rollup_height,
-            <S::Gas as Gas>::Price::ZEROED,
-        )
-    }
-
-    /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with the provided gas price. The rollup height is set to [`StateCheckpoint::rollup_height_to_access`].
-    pub fn new_with_price(
-        state_checkpoint: &StateCheckpoint<S>,
-        kernel: Arc<dyn KernelWithSlotMapping<S>>,
-        gas_price: <S::Gas as Gas>::Price,
-    ) -> Result<Self, ApiStateAccessorError> {
-        Self::new_with_price_and_height(
-            state_checkpoint,
-            kernel,
-            state_checkpoint.rollup_height_to_access(),
-            gas_price,
-        )
-    }
-
-    /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with the provided gas price.
-    pub fn new_with_price_and_height(
-        state_checkpoint: &StateCheckpoint<S>,
-        kernel: Arc<dyn KernelWithSlotMapping<S>>,
-        rollup_height: RollupHeight,
-        gas_price: <S::Gas as Gas>::Price,
-    ) -> Result<Self, ApiStateAccessorError> {
-        Self::new_with_price_and_state_to_access(
-            state_checkpoint,
-            kernel,
-            StateToAccess::RollupHeight(rollup_height),
-            gas_price,
         )
     }
 
@@ -316,7 +278,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     }
 
     /// Creates a new [`ApiStateAccessor`] that *queries all state at the provided slot number, regardless of whether that slot number is visible*. This should only be used
-    /// when the semantics of the call necessitate it. If you're unsure, use [`ApiStateAccessor::new_with_price_and_height`] and provide a rollup height instead.
+    /// when the semantics of the call necessitate it. If you're unsure, use [`ApiStateAccessor::new_archival`] and provide a rollup height instead.
     pub fn new_with_price_and_slot_number_dangerous(
         state_checkpoint: &StateCheckpoint<S>,
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
@@ -372,19 +334,26 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         Ok(out)
     }
 
-    fn clone_without_witness_or_events(&self) -> Self {
+    fn get_uninitialized_empty_accessor(
+        storage: S::Storage,
+        kernel: Arc<dyn KernelWithSlotMapping<S>>,
+        state_to_access: StateToAccess,
+    ) -> Self {
         Self {
             events: Vec::new(),
-            gas_meter: self.gas_meter.clone(),
-            storage: self.storage.clone(),
+            gas_meter: BasicGasMeter::new_with_gas(
+                <S::Gas as Gas>::max(),
+                <S::Gas as Gas>::Price::ZEROED,
+            ),
+            storage: storage.clone(),
             witness: Default::default(),
-            kernel_cache: self.kernel_cache.clone(),
-            user_cache: self.user_cache.clone(),
-            accessory_writes: self.accessory_writes.clone(),
-            kernel: self.kernel.clone(),
-            state_to_access: self.state_to_access,
-            safe_true_slot_number_to_use: self.safe_true_slot_number_to_use,
-            visible_slot_number: self.visible_slot_number,
+            kernel_cache: Default::default(),
+            user_cache: Default::default(),
+            accessory_writes: HashMap::new(),
+            kernel: kernel.clone(),
+            state_to_access,
+            safe_true_slot_number_to_use: None,
+            visible_slot_number: Some(VisibleSlotNumber::MAX),
         }
     }
 
@@ -401,34 +370,10 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         }
     }
 
-    /// Sets the underlying [`ApiStateAccessor`] to the state at the specified `height`.
-    /// The gas price contained in the accessor is set to the base fee per gas at the specified height.
-    ///
-    /// ## Note
-    /// This method has a similar effect to [`ApiStateAccessor::state_at_height`], but it does not clone the underlying [`ApiStateAccessor`].
-    /// Events and witness contents are wiped out from the underlying [`ApiStateAccessor`] to ensure consistency with [`ApiStateAccessor::state_at_height`].
-    pub fn set_state_to_height(&mut self, height: RollupHeight) -> anyhow::Result<()> {
-        self.state_to_access = StateToAccess::RollupHeight(height);
-        self.events = vec![];
-        self.witness = Default::default();
-        self.visible_slot_number = None;
-        let kernel = self.kernel.clone();
-        let safe_true_height_to_use = kernel.true_slot_number_at_height(height, self);
-        // Temporarily give access to all visible slots numbers for the purpose of retrieving the base fee per gas.
-        self.visible_slot_number = Some(VisibleSlotNumber::MAX);
-        // Set the state's base fee per gas if there is a relevant value to retrieve from the state.
-        let Some(base_fee_per_gas) = self.kernel.clone().base_fee_per_gas_at(height, self) else {
-            return Err(anyhow::anyhow!(
-                "Impossible to retrieve the base fee per gas for the specified slot."
-            ));
-        };
-        // Set the visible slot number to the correct value.
-        self.visible_slot_number = self.lookup_visible_slot_number();
-        self.safe_true_slot_number_to_use = safe_true_height_to_use;
-
-        self.gas_meter.set_gas_price(base_fee_per_gas);
-
-        Ok(())
+    fn clear_caches(&mut self) {
+        self.kernel_cache = Default::default();
+        self.user_cache = Default::default();
+        self.accessory_writes = HashMap::new();
     }
 
     /// Sets the gas price for the accessor.
@@ -436,21 +381,59 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         self.gas_meter.set_gas_price(gas_price);
     }
 
+    fn build_archival_state(
+        storage: S::Storage,
+        kernel: Arc<dyn KernelWithSlotMapping<S>>,
+        height: RollupHeight,
+    ) -> Result<Self, ApiStateAccessorError> {
+        let latest_true_slot_number = storage.latest_version();
+        let mut state = ApiStateAccessor::get_uninitialized_empty_accessor(
+            storage,
+            kernel.clone(),
+            StateToAccess::RollupHeight(height),
+        );
+        // Check if the requested height is accessible.
+        let true_slot_number =
+            if let Some(true_slot_number) = kernel.true_slot_number_at_height(height, &mut state) {
+                true_slot_number
+            } else {
+                // There's a tricky case here where the height exists in storage but the true slot number is not available via the kernel yet.
+                // This is because the true slot number mapping is updated at the beginning of the next slot, but the rest of the values are written
+                // at the end of the current slot.
+                //
+                // Since the ApiStateAccessor has empty caches right now, we can check if we're in this case by checking whether the requested height is equal to the current rollup height
+                // as reported by the kernel. (Recall that, since the caches are empty, the "current_rollup_height" value reported by the kernel is the value stored at S::Storage::latest_version.)
+                if height == kernel.current_rollup_height(&mut state) {
+                    latest_true_slot_number
+                } else {
+                    return Err(ApiStateAccessorError::HeightNotAccessible);
+                }
+            };
+
+        let Some(visible_slot_number) = kernel.visible_slot_number_at(true_slot_number, &mut state)
+        else {
+            panic!("Visible slot number not available at height {}, but that height exist in storage. This is a bug. Please report it.", height);
+        };
+        let Some(base_fee_per_gas) = kernel.base_fee_per_gas_at(height, &mut state) else {
+            panic!("Base fee per gas not available at height {}, but that height exist in storage. This is a bug. Please report it.", height);
+        };
+        state.visible_slot_number = Some(visible_slot_number);
+        state.safe_true_slot_number_to_use = Some(true_slot_number);
+        state.gas_meter.set_gas_price(base_fee_per_gas);
+
+        // Clear out any new values that were put in cache during initialization. Otherwise, we'd incorrectly estimate gas costs for
+        // the first accesses to those values since they would be incorrectly shown as cached.
+        state.clear_caches();
+        Ok(state)
+    }
+
     /// Returns a new accessor which accesses the rollup at the specified `height`.
     /// The gas price contained in the accessor is set to the base fee per gas at the specified height.
-    ///
-    /// ## Note
-    /// This method _clones_ the underlying [`ApiStateAccessor`] without its witness contents or associated events.
-    pub fn state_at_height(
+    pub fn get_archival_state(
         &self,
         height: RollupHeight,
-    ) -> Result<ApiStateAccessor<S>, anyhow::Error> {
-        // TODO: Is cloning the caches the correct behavior here?
-        let mut state = self.clone_without_witness_or_events();
-
-        state.set_state_to_height(height)?;
-
-        Ok(state)
+    ) -> Result<ApiStateAccessor<S>, ApiStateAccessorError> {
+        Self::build_archival_state(self.storage.clone(), self.kernel.clone(), height)
     }
 
     /// Get the true slot number being used for queries.

@@ -221,6 +221,9 @@ pub trait IncrementalBatch<Receipt, S: Spec>:
 
     /// The id of this blob on the DA layer, if known.
     fn id(&self) -> Option<[u8; 32]>;
+
+    /// Runs just before the batch is applied.
+    fn pre_flight(&mut self, state_checkpoint: &StateCheckpoint<S>);
 }
 
 impl<R, S: Spec> InjectedControlFlow<R, S> for NoOpControlFlow {
@@ -291,6 +294,10 @@ impl<Receipt, S: Spec> IncrementalBatch<Receipt, S> for IterableBatchWithId {
 
     fn id(&self) -> Option<[u8; 32]> {
         Some(self.id)
+    }
+
+    fn pre_flight(&mut self, _state_checkpoint: &StateCheckpoint<S>) {
+        // Do nothing
     }
 }
 

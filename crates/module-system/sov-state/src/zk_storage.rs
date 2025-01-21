@@ -108,6 +108,11 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     type StateUpdate = ();
     type ChangeSet = ();
 
+    #[cfg(feature = "native")]
+    fn latest_version(&self) -> SlotNumber {
+        unimplemented!("Latest version is not available for ZkStorage");
+    }
+
     #[cfg_attr(feature = "bench", cycle_tracker)]
     fn get<N: CompileTimeNamespace>(
         &self,
