@@ -1,3 +1,5 @@
+## 2025-01-20
+- #2231 revert formatting of `GasUnit` when serializing with universal wallet. Allows keeping the array/tuple format instead of object structure.
 ## 2025-01-16
 - #2226 merge `sov-cycle-utils` with `sovereign-sdk-wip`. This may be a breaking change if you were using the `cycle_tracker` proc-macro decorator. In that case, you may import the `cycle_tracker` macro from either `sov-modules-api` or `sov-modules-macros` instead. Besides, you don't need to specify `target_os = "zkvm"` anymore when using the `cycle_tracker` decorator.
 ## 2025-01-15
