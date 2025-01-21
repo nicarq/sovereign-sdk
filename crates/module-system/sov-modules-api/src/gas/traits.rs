@@ -9,7 +9,8 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_modules_macros::config_value_private;
-use sov_universal_wallet::schema::SchemaGenerator;
+use sov_universal_wallet::schema::{Container, IndexLinking, Item, Link, Schema, SchemaGenerator};
+use sov_universal_wallet::ty::{Tuple, UnnamedField};
 use thiserror::Error;
 
 use crate::{DaSpec, Spec};
@@ -112,23 +113,34 @@ pub trait Gas: GasArray {
 }
 
 /// A multi-dimensional gas unit.
-#[derive(
-    Clone,
-    PartialEq,
-    Eq,
-    Hash,
-    BorshSerialize,
-    BorshDeserialize,
-    derive_more::Display,
-    sov_rollup_interface::sov_universal_wallet::UniversalWallet,
-)]
+#[derive(Clone, PartialEq, Eq, Hash, BorshSerialize, BorshDeserialize, derive_more::Display)]
 #[display("GasUnit{:?}", self.value)]
 pub struct GasUnit<const N: usize> {
     value: [u64; N],
     #[cfg(feature = "gas-constant-estimation")]
-    #[sov_wallet(skip)]
     #[borsh(skip)]
     name: Option<String>,
+}
+
+impl<const N: usize> SchemaGenerator for GasUnit<N>
+where
+    Self: 'static,
+    [u64; N]: SchemaGenerator,
+{
+    fn scaffold() -> Item<IndexLinking> {
+        Item::Container(Container::Tuple(Tuple {
+            template: None,
+            fields: vec![UnnamedField {
+                value: Link::Placeholder,
+                silent: false,
+                doc: String::new(),
+            }],
+        }))
+    }
+
+    fn get_child_links(schema: &mut Schema) -> Vec<Link> {
+        vec![<[u64; N]>::make_linkable(schema)]
+    }
 }
 
 impl<const N: usize> Debug for GasUnit<N> {
