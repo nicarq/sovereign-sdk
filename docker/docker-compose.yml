@@ -8,8 +8,8 @@ services:
     depends_on:
       - sequencer-0
     ports:
-      - 26659:26659
-      - 8474:8474
+      - "127.0.0.1:26659:26659"
+      - "127.0.0.1:8474:8474"
   toxiproxy-config:
     image: curlimages/curl:8.9.1
     depends_on:
