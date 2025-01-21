@@ -90,6 +90,12 @@ impl NodeClient {
         Self::new(&api_url).await
     }
 
+    /// Simplified constructor for testing.
+    pub fn new_at_localhost_unchecked(port: u16) -> Self {
+        let api_url = format!("http://127.0.0.1:{}", port);
+        Self::new_unchecked(&api_url)
+    }
+
     /// Fetches the nonce associated with a given public key.
     /// Returns an error if the HTTP request fails or the response cannot be parsed.
     /// If nonce is not found, it will return 0.

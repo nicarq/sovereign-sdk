@@ -253,7 +253,16 @@ where
         let rpc_addr = rpc_addr_rx.await?;
 
         let rest_port = rest_addr.port();
-        let client = NodeClient::new_at_localhost(rest_port).await?;
+        let client = match NodeClient::new_at_localhost(rest_port).await {
+            Ok(client) => client,
+            Err(e) => {
+                tracing::warn!(
+                    "Unable to instantiate standard NodeClient for node at localhost:{}: {e}",
+                    rest_port
+                );
+                NodeClient::new_at_localhost_unchecked(rest_port)
+            }
+        };
 
         Ok(TestRollup {
             rollup_task,
