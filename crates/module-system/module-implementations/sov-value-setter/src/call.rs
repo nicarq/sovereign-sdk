@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use anyhow::Result;
 use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::{Context, EventEmitter, Spec, TxState};
+use sov_modules_api::{Context, EventEmitter, Gas, Spec, TxState};
 use strum::{EnumDiscriminants, EnumIs, VariantArray};
 use thiserror::Error;
 
@@ -27,12 +27,14 @@ use crate::event::Event;
 )]
 #[serde(rename_all = "snake_case")]
 #[strum_discriminants(derive(VariantArray, EnumIs))]
-pub enum CallMessage {
+pub enum CallMessage<S: Spec> {
     /// Single value to set.
-    SetValue(
+    SetValue {
         /// Singe new value.
-        u32,
-    ),
+        value: u32,
+        /// Gas to charge. Don't charge gas if None.
+        gas: Option<S::Gas>,
+    },
     /// Many values to set.
     SetManyValues(
         /// Many new values.
@@ -60,9 +62,12 @@ impl<S: Spec> ValueSetter<S> {
     pub(crate) fn set_value(
         &self,
         new_value: u32,
+        gas: Option<S::Gas>,
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
+        let gas = gas.unwrap_or(<S::Gas as Gas>::zero());
+        state.charge_gas(&gas)?;
         // If admin is not then early return:
         let admin = self.admin.get_or_err(state)??;
 

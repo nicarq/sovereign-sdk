@@ -507,9 +507,12 @@ fn test_setting_payer_with_insufficient_balance() {
 
     // Users who *do* have a balance can still execute transactions
     runner.execute_transaction(TransactionTestCase {
-        input: setup
-            .payer
-            .create_plain_message::<RT, ValueSetter<S>>(ValueSetterCallMessage::SetValue(99)),
+        input: setup.payer.create_plain_message::<RT, ValueSetter<S>>(
+            ValueSetterCallMessage::SetValue {
+                value: 99,
+                gas: None,
+            },
+        ),
         assert: Box::new(move |result, state| {
             assert!(!result.tx_receipt.is_skipped());
             // Check that the payer's balance didn't change
@@ -583,7 +586,10 @@ fn test_granular_policies() {
         runner.execute_skipped_transaction(TransactionTestCase {
             input: TransactionType::Plain {
                 message: <RT as EncodeCall<ValueSetter<S>>>::to_decodable(
-                    ValueSetterCallMessage::SetValue(99),
+                    ValueSetterCallMessage::SetValue {
+                        value: 99,
+                        gas: None,
+                    },
                 ),
                 key: setup.user.as_user().private_key().clone(),
                 details: TxDetails {
@@ -600,7 +606,10 @@ fn test_granular_policies() {
         runner.execute_transaction(TransactionTestCase {
             input: TransactionType::Plain {
                 message: <RT as EncodeCall<ValueSetter<S>>>::to_decodable(
-                    ValueSetterCallMessage::SetValue(99),
+                    ValueSetterCallMessage::SetValue {
+                        value: 99,
+                        gas: None,
+                    },
                 ),
                 key: setup.user.as_user().private_key().clone(),
                 details: TxDetails {
@@ -640,7 +649,10 @@ fn test_granular_policies() {
         runner.execute_skipped_transaction(TransactionTestCase {
             input: TransactionType::Plain {
                 message: <RT as EncodeCall<ValueSetter<S>>>::to_decodable(
-                    ValueSetterCallMessage::SetValue(99),
+                    ValueSetterCallMessage::SetValue {
+                        value: 99,
+                        gas: None,
+                    },
                 ),
                 key: setup.user.as_user().private_key().clone(),
                 details: TxDetails {

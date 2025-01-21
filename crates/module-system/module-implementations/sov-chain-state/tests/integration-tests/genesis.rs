@@ -32,11 +32,12 @@ fn test_chain_state_genesis_root() {
 
     let genesis_state_root = *runner.state_root();
 
-    runner.execute(
-        admin.create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(
-            10,
-        )),
-    );
+    runner.execute(admin.create_plain_message::<RT, ValueSetter<S>>(
+        sov_value_setter::CallMessage::SetValue {
+            value: 10,
+            gas: None,
+        },
+    ));
 
     runner.query_state(|kernel| {
         assert_eq!(

@@ -41,7 +41,10 @@ fn test_default_sequencer() {
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
-            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
+            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue {
+                value: 10,
+                gas: None,
+            })
             .with_max_priority_fee_bips(custom_priority_fee),
         assert: Box::new(move |result, state| {
             // Assert that the sequencer has been rewarded
@@ -114,7 +117,10 @@ fn test_new_sequencer_registration() {
 
     runner.execute_batch(BatchTestCase {
         input: vec![admin.create_plain_message::<RT, ValueSetter<S>>(
-            sov_value_setter::CallMessage::SetValue(10),
+            sov_value_setter::CallMessage::SetValue {
+                value: 10,
+                gas: None,
+            },
         )]
         .into(),
         assert: Box::new(move |result, _state| {

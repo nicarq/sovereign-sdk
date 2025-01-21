@@ -5,13 +5,16 @@ use sov_attester_incentives::AttesterIncentives;
 use sov_bank::IntoPayable;
 use sov_mock_da::MockBlob;
 use sov_modules_api::capabilities::TransactionAuthenticator;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
-use sov_modules_api::{ApiStateAccessor, Gas, GasArray, GasSpec, ModuleInfo, RawTx, Rewards};
+use sov_modules_api::{
+    ApiStateAccessor, Gas, GasArray, GasSpec, GasUnit, ModuleInfo, RawTx, Rewards,
+};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::da::RelevantBlobs;
 
 use super::{get_balance, get_seq_bond, TxStatus};
-use crate::stf_blueprint::setup;
+use crate::stf_blueprint::{create_tx_valid, setup};
 
 type S = sov_test_utils::TestSpec;
 
@@ -221,6 +224,47 @@ fn sequencer_run_out_of_gas() {
     check_txs(tx_statuses, priority_fee_bips);
 }
 
+// If the slot runs out of gas during transaction execution, the transaction is reverted.
+#[test]
+fn slot_out_of_gas_tests() {
+    env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_INITIAL_GAS_LIMIT",
+        "[1000000, 1000000]",
+    );
+    let priority_fee_bips = PriorityFeeBips::from_percentage(5);
+
+    let (mut runner, users, sequencer_account) = setup(2);
+
+    let actors = Actors {
+        admin_account: users[0].clone(),
+        not_admin_account: users[1].clone(),
+        sequencer_account,
+    };
+
+    // The trasnaction uses more gas than the slot gas limit.
+    let gas = GasUnit::from([1000001, 2]);
+    let tx = create_tx_valid(
+        10,
+        priority_fee_bips,
+        &actors.admin_account,
+        config_value!("CHAIN_ID"),
+        encode_message(Some(gas)),
+    );
+
+    let blob = borsh::to_vec(&vec![encode(tx)]).unwrap();
+    let mock_blob = MockBlob::new_with_hash(blob, runner.config.sequencer_da_address);
+
+    let blobs = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs: vec![mock_blob],
+    };
+
+    let result = runner.execute::<RelevantBlobs<MockBlob>>(blobs);
+    let tx_receipt = &result.batch_receipts[0].tx_receipts[0].receipt;
+
+    assert!(matches!(tx_receipt, TxEffect::Reverted(_)));
+}
+
 mod helpers {
     use sov_modules_api::macros::config_value;
     use sov_modules_api::transaction::PriorityFeeBips;
@@ -278,7 +322,7 @@ mod helpers {
         seq_da_address: <<S as Spec>::Da as DaSpec>::Address,
     ) -> MockBlob {
         let mut generation = 10;
-        let mut txs = Vec::new();
+        let mut txs: Vec<FullyBakedTx> = Vec::new();
         for status in statuses {
             match status {
                 TxStatus::Success => {
@@ -287,7 +331,7 @@ mod helpers {
                         max_priority_fee_bips,
                         admin,
                         config_value!("CHAIN_ID"),
-                        encode_message(),
+                        encode_message(None),
                     );
                     txs.push(encode(tx));
                     generation += 1;
@@ -301,7 +345,7 @@ mod helpers {
                             max_priority_fee_bips,
                             admin,
                             config_value!("CHAIN_ID"),
-                            encode_message(),
+                            encode_message(None),
                         );
                         txs.push(encode(tx));
                     }
@@ -312,7 +356,7 @@ mod helpers {
                         max_priority_fee_bips,
                         admin,
                         config_value!("CHAIN_ID") + 1,
-                        encode_message(),
+                        encode_message(None),
                     );
                     txs.push(encode(tx));
                 }
@@ -323,7 +367,7 @@ mod helpers {
                         max_priority_fee_bips,
                         admin,
                         config_value!("CHAIN_ID"),
-                        encode_message(),
+                        encode_message(None),
                     );
                     txs.push(encode(tx));
                 }
@@ -333,7 +377,7 @@ mod helpers {
                         max_priority_fee_bips,
                         admin,
                         config_value!("CHAIN_ID"),
-                        encode_message(),
+                        encode_message(None),
                     );
                     txs.push(encode(tx));
                 }
@@ -344,7 +388,7 @@ mod helpers {
                         max_priority_fee_bips,
                         not_admin,
                         config_value!("CHAIN_ID"),
-                        encode_message(),
+                        encode_message(None),
                     );
                     txs.push(encode(tx));
                 }
@@ -357,7 +401,7 @@ mod helpers {
                         0,
                         max_priority_fee_bips,
                         config_value!("CHAIN_ID"),
-                        encode_message(),
+                        encode_message(None),
                     );
                     txs.push(encode(tx));
                 }
@@ -367,11 +411,14 @@ mod helpers {
         MockBlob::new_with_hash(blob, seq_da_address)
     }
 
-    pub fn encode_message() -> IntegTestRuntimeCall<S> {
-        <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::to_decodable(CallMessage::SetValue(8))
+    pub fn encode_message(gas: Option<<S as Spec>::Gas>) -> IntegTestRuntimeCall<S> {
+        <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::to_decodable(CallMessage::SetValue {
+            value: 8,
+            gas,
+        })
     }
 
-    fn encode(tx: Transaction<IntegTestRuntime<S>, S>) -> FullyBakedTx {
+    pub fn encode(tx: Transaction<IntegTestRuntime<S>, S>) -> FullyBakedTx {
         <IntegTestRuntime<S> as TransactionAuthenticator<S>>::encode_with_standard_auth(RawTx::new(
             borsh::to_vec(&tx).unwrap(),
         ))

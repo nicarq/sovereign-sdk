@@ -77,7 +77,10 @@ fn generate_default_tx(
         }
         UniquenessData::Generation(generation) => {
             let runtime_msg = <RT as EncodeCall<ValueSetter<S>>>::to_decodable(
-                sov_value_setter::CallMessage::SetValue(10),
+                sov_value_setter::CallMessage::SetValue {
+                    value: 10,
+                    gas: None,
+                },
             );
 
             let transaction = UnsignedTransaction::new(

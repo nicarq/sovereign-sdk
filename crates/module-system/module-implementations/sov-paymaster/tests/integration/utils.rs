@@ -58,13 +58,19 @@ where
         match expected_outcome {
             TxOutcome::Skipped => self.execute_skipped_transaction(TransactionTestCase {
                 input: user.create_plain_message::<RT, ValueSetter<S>>(
-                    ValueSetterCallMessage::SetValue(99),
+                    ValueSetterCallMessage::SetValue {
+                        value: 99,
+                        gas: None,
+                    },
                 ),
                 assert: Box::new(|_, _| {}),
             }),
             TxOutcome::Executed => self.execute_transaction(TransactionTestCase {
                 input: user.create_plain_message::<RT, ValueSetter<S>>(
-                    ValueSetterCallMessage::SetValue(99),
+                    ValueSetterCallMessage::SetValue {
+                        value: 99,
+                        gas: None,
+                    },
                 ),
                 assert: Box::new(|result, _state| {
                     assert!(!result.tx_receipt.is_skipped());

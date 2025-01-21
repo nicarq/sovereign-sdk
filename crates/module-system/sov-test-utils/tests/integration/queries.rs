@@ -36,8 +36,12 @@ fn test_query_runtime() {
     );
 
     runner.execute_transaction(TransactionTestCase {
-        input: admin
-            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1)),
+        input: admin.create_plain_message::<RT, ValueSetter<S>>(
+            sov_value_setter::CallMessage::SetValue {
+                value: 1,
+                gas: None,
+            },
+        ),
         assert: Box::new(move |_result, state| {
             let value = ValueSetter::<S>::default()
                 .value
@@ -65,8 +69,12 @@ fn test_query_archival_state() {
     });
 
     runner.execute_transaction(TransactionTestCase {
-        input: admin
-            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1)),
+        input: admin.create_plain_message::<RT, ValueSetter<S>>(
+            sov_value_setter::CallMessage::SetValue {
+                value: 1,
+                gas: None,
+            },
+        ),
         assert: Box::new(move |_result, state| {
             let value = ValueSetter::<S>::default()
                 .value

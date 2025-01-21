@@ -102,7 +102,7 @@ fn run_value_setter_txs_with_assertions(
         let input = TransactionType::Plain {
             message:
                 <TestOptimisticRuntime<TestSpec> as EncodeCall<ValueSetter<TestSpec>>>::to_decodable(
-                    sov_value_setter::CallMessage::SetValue(value),
+                    sov_value_setter::CallMessage::SetValue { value, gas: None },
                 ),
             key: admin_pkey.clone(),
             details: default_test_tx_details(),

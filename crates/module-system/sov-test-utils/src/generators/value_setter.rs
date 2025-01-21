@@ -51,8 +51,11 @@ impl<S: Spec> MessageGenerator for ValueSetterMessages<S> {
             for (value_setter_admin_nonce, new_value) in
                 value_setter_message.messages.iter().enumerate()
             {
-                let set_value_msg: sov_value_setter::CallMessage =
-                    sov_value_setter::CallMessage::SetValue(*new_value);
+                let set_value_msg: sov_value_setter::CallMessage<S> =
+                    sov_value_setter::CallMessage::SetValue {
+                        value: *new_value,
+                        gas: None,
+                    };
 
                 messages.push(Message::new(
                     admin.clone(),

@@ -21,7 +21,10 @@ fn generate_admin_messages(
 
     for i in 0..num_messages {
         messages.push(admin.create_plain_message::<RT, ValueSetter<S>>(
-            sov_value_setter::CallMessage::SetValue((round_num + i) as u32),
+            sov_value_setter::CallMessage::SetValue {
+                value: (round_num + i) as u32,
+                gas: None,
+            },
         ));
     }
 

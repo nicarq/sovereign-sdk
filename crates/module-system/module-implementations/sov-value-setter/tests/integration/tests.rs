@@ -37,7 +37,10 @@ fn test_setting_value() {
     let (mut runner, admin, _) = setup();
 
     runner.execute_transaction(TransactionTestCase {
-        input: admin.create_plain_message::<RT, ValueSetter<S>>(CallMessage::SetValue(5)),
+        input: admin.create_plain_message::<RT, ValueSetter<S>>(CallMessage::SetValue {
+            value: 5,
+            gas: None,
+        }),
         assert: Box::new(|result, state| {
             assert_eq!(
                 ValueSetter::<S>::default().value.get(state).unwrap(),
@@ -58,7 +61,10 @@ fn test_setting_value_not_admin() {
     let (mut runner, admin, non_admin) = setup();
 
     runner.execute_transaction(TransactionTestCase {
-        input: non_admin.create_plain_message::<RT, ValueSetter<S>>(CallMessage::SetValue(5)),
+        input: non_admin.create_plain_message::<RT, ValueSetter<S>>(CallMessage::SetValue {
+            value: 5,
+            gas: None,
+        }),
         assert: Box::new(move |result, _state| {
             match &result.tx_receipt {
                 sov_modules_api::TxEffect::Reverted(reason) => {
@@ -84,14 +90,17 @@ fn test_setting_value_not_admin() {
 fn test_display_value_setter_call() {
     #[derive(Debug, Clone, PartialEq, borsh::BorshSerialize, UniversalWallet)]
     enum RuntimeCall {
-        ValueSetter(CallMessage),
+        ValueSetter(CallMessage<S>),
     }
 
-    let msg = RuntimeCall::ValueSetter(CallMessage::SetValue(92));
+    let msg = RuntimeCall::ValueSetter(CallMessage::SetValue {
+        value: 92,
+        gas: None,
+    });
 
     let schema = Schema::of_single_type::<RuntimeCall>();
     assert_eq!(
         schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(),
-        r#"ValueSetter.SetValue(92)"#
+        r#"ValueSetter.SetValue { value: 92, gas: None }"#
     );
 }

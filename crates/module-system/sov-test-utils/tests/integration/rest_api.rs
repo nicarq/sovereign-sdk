@@ -46,7 +46,10 @@ async fn test_rest_api_routes_default_state() {
 
     runner.execute_transaction(TransactionTestCase {
         input: user.create_plain_message::<RT, ValueSetter<S>>(
-            sov_value_setter::CallMessage::SetValue(10),
+            sov_value_setter::CallMessage::SetValue {
+                value: 10,
+                gas: None,
+            },
         ),
         assert: Box::new(move |result, _state| {
             assert!(result.tx_receipt.is_successful());
@@ -93,7 +96,10 @@ async fn test_rest_api_routes_custom_api() {
 
     runner.execute_transaction(TransactionTestCase {
         input: user.create_plain_message::<RT, ValueSetter<S>>(
-            sov_value_setter::CallMessage::SetValue(10),
+            sov_value_setter::CallMessage::SetValue {
+                value: 10,
+                gas: None,
+            },
         ),
         assert: Box::new(move |result, _state| {
             assert!(result.tx_receipt.is_successful());

@@ -177,7 +177,7 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
         Vec<
             crate::interface::GeneratedMessage<
                 S,
-                sov_value_setter::CallMessage,
+                sov_value_setter::CallMessage<S>,
                 Self::ChangelogEntry,
             >,
         >,
@@ -195,7 +195,11 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
         >,
         validity: crate::interface::MessageValidity,
     ) -> sov_modules_api::prelude::arbitrary::Result<
-        crate::interface::GeneratedMessage<S, sov_value_setter::CallMessage, Self::ChangelogEntry>,
+        crate::interface::GeneratedMessage<
+            S,
+            sov_value_setter::CallMessage<S>,
+            Self::ChangelogEntry,
+        >,
     > {
         match validity {
             MessageValidity::Valid => self.generate_valid_call_message(u),
@@ -211,7 +215,7 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
     pub fn generate_valid_call_message(
         &self,
         u: &mut sov_modules_api::prelude::arbitrary::Unstructured<'_>,
-    ) -> arbitrary::Result<GeneratedMessage<S, CallMessage, ValueSetterChangeLogEntry>> {
+    ) -> arbitrary::Result<GeneratedMessage<S, CallMessage<S>, ValueSetterChangeLogEntry>> {
         let message_type = self.message_distribution.select_value(u)?;
 
         match message_type {
@@ -219,7 +223,7 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
                 let value = u32::arbitrary(u)?;
 
                 Ok(GeneratedMessage::new(
-                    CallMessage::SetValue(value),
+                    CallMessage::SetValue { value, gas: None },
                     self.admin_key.clone(),
                     MessageOutcome::Successful {
                         changes: vec![ValueSetterChangeLogEntry::ValueUpdated { new_value: value }],
@@ -260,7 +264,7 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
             AccountView = ValueSetterAccount<S>,
             Tag: From<()>,
         >,
-    ) -> arbitrary::Result<GeneratedMessage<S, CallMessage, ValueSetterChangeLogEntry>> {
+    ) -> arbitrary::Result<GeneratedMessage<S, CallMessage<S>, ValueSetterChangeLogEntry>> {
         let message_type = self.message_distribution.select_value(u)?;
 
         repeatedly!(
@@ -272,7 +276,7 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
         match message_type {
             CallMessageDiscriminants::SetValue => {
                 let value = u32::arbitrary(u)?;
-                let message = CallMessage::SetValue(value);
+                let message = CallMessage::SetValue { value, gas: None };
                 Ok(GeneratedMessage {
                     message,
                     sender: account.private_key,
