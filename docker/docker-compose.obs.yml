@@ -5,7 +5,7 @@ services:
     volumes:
       - ./prometheus:/etc/prometheus
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -14,7 +14,7 @@ services:
     image: grafana/grafana:11.4.0
     container_name: grafana
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./grafana/datasources:/etc/grafana/provisioning/datasources/
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards/
@@ -27,7 +27,7 @@ services:
     image: grafana/loki:3.3.2
     container_name: loki
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/local-config.yaml
     command: -config.file=/etc/loki/local-config.yaml
@@ -37,7 +37,7 @@ services:
     image: grafana/tempo:2.6.1
     container_name: tempo
     ports:
-      - "3200:3200" # Tempo's query port
+      - "127.0.0.1:3200:3200" # Tempo's query port
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./grafana-tempo/tempo.yaml:/etc/tempo.yaml:ro
@@ -48,7 +48,7 @@ services:
     image: influxdb:2.7
     container_name: influxdb
     ports:
-      - "${INFLUX_PORT:-8086}:${INFLUX_PORT:-8086}"
+      - "127.0.0.1:${INFLUX_PORT:-8086}:${INFLUX_PORT:-8086}"
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_USERNAME=admin
@@ -71,7 +71,7 @@ services:
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
     ports:
-      - "${TELEGRAF_PORT:-8094}:${TELEGRAF_PORT:-8094}/udp"
+      - "127.0.0.1:${TELEGRAF_PORT:-8094}:${TELEGRAF_PORT:-8094}/udp"
     environment:
       - HOST_PROC=/host/proc
       - HOST_SYS=/host/sys
@@ -82,9 +82,9 @@ services:
     image: grafana/alloy:v1.5.1
     container_name: grafana-alloy
     ports:
-      - "3101:3101"
-      - "4317:4317"
-      - "4318:4318"
+      - "127.0.0.1:3101:3101"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
     volumes:
       - ./grafana-alloy/config.local.alloy:/etc/alloy/config.alloy
       - ./grafana-alloy/storage:/var/lib/alloy/data

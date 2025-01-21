@@ -40,7 +40,7 @@ services:
     # uncomment to provide the id of the sequencer (default: 0)
     # command: ["/opt/entrypoint.sh", "0"]
     ports:
-      - 26658:26658
+      - "127.0.0.1:26658:26658"
     volumes:
       - type: bind
         source: ./credentials
