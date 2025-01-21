@@ -104,7 +104,7 @@ fn init_tracer_provider() -> anyhow::Result<TracerProvider> {
 }
 
 /// Helper function to ensure if open telemetry exporter should be enabled.
-pub(crate) fn should_init_otlp() -> bool {
+pub fn should_init_open_telemetry_exporter() -> bool {
     // logging in this function won't be printed originally, but on the second it will
     let env_vars = [
         "OTEL_EXPORTER_OTLP_ENDPOINT",

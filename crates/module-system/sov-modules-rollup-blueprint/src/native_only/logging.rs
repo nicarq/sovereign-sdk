@@ -8,8 +8,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter, Layer};
 
-use crate::native_only::telemetry::should_init_otlp;
-pub use crate::native_only::telemetry::OtelGuard;
+pub use crate::native_only::telemetry::{should_init_open_telemetry_exporter, OtelGuard};
 
 /// Default [`tracing`] initialization for the rollup node.
 /// Returns optional [`OtelGuard`] which should be held through the lifetime of the caller,
@@ -17,7 +16,7 @@ pub use crate::native_only::telemetry::OtelGuard;
 pub fn initialize_logging() -> Option<OtelGuard> {
     let env_filter = env::var("RUST_LOG").unwrap_or_else(|_| default_rust_log_value().to_string());
 
-    let otel: Option<OtelGuard> = if should_init_otlp() {
+    let otel: Option<OtelGuard> = if should_init_open_telemetry_exporter() {
         Some(OtelGuard::new().unwrap())
     } else {
         None
@@ -102,7 +101,7 @@ fn log_info_about_logging(current_env_filter: &str) {
     }
 
     // Call it one more time to log information about OpenTelementry loggign
-    if !should_init_otlp() {
+    if !should_init_open_telemetry_exporter() {
         info!("Open Telemetry exporter is not enabled");
     }
 }
