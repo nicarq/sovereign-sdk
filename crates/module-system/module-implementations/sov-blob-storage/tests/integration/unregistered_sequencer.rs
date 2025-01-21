@@ -5,7 +5,9 @@ use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::traits::MinimalGenesis;
-use sov_test_utils::{AsUser, EncodeCall, SequencerInfo, TestSequencer};
+use sov_test_utils::{
+    default_test_tx_details, AsUser, EncodeCall, SequencerInfo, TestSequencer, TransactionType,
+};
 
 use crate::helpers_basic_kernel::{build_basic_blobs, setup_basic_kernel, BasicRT};
 use crate::helpers_soft_confirmations::{
@@ -22,16 +24,24 @@ fn make_unregistered_blobs<
 ) -> Vec<MockBlob> {
     (0..num_blobs)
         .map(|_| {
-            let tx = sender.create_plain_message::<RT, SequencerRegistry<S>>(
+            let msg: sov_sequencer_registry::CallMessage<S> =
                 sov_sequencer_registry::CallMessage::Register {
                     da_address: sender.da_address,
                     amount: 22,
-                },
+                };
+
+            let key = sender.as_user().private_key().clone();
+            let details = default_test_tx_details::<S>();
+
+            let tx = TransactionType::<RT, S>::sign_and_serialize(
+                <RT as EncodeCall<SequencerRegistry<S>>>::to_decodable(msg),
+                key,
+                &RT::CHAIN_HASH,
+                details,
+                nonces,
             );
 
-            let raw_tx = tx.to_serialized_authenticated_tx(nonces);
-
-            MockBlob::new_with_hash(borsh::to_vec(&raw_tx).unwrap(), sender.da_address)
+            MockBlob::new_with_hash(borsh::to_vec(&tx).unwrap(), sender.da_address)
         })
         .collect::<Vec<_>>()
 }
@@ -51,7 +61,7 @@ fn blobs_from_non_registered_sequencers_are_limited_to_set_amount() {
 
     // Make more unregistered blobs than the limit
     let unregistered_blobs = make_unregistered_blobs::<BasicRT>(
-        config_unregistered_blobs_per_slot() + 1,
+        config_unregistered_blobs_per_slot() + 5,
         &non_registered_sequencer,
         &mut nonces,
     );
@@ -64,7 +74,7 @@ fn blobs_from_non_registered_sequencers_are_limited_to_set_amount() {
     // Send them
     let result = runner.execute::<RelevantBlobs<MockBlob>>(unregistered_blobs);
 
-    // Assert that the number of blobs received is below the [`UNREGISTERED_BLOBS_PER_SLOT`] limit
+    // Assert that the number of blobs received is at most the [`UNREGISTERED_BLOBS_PER_SLOT`] limit
     assert_eq!(
         result.batch_receipts.len(),
         config_unregistered_blobs_per_slot() as usize,

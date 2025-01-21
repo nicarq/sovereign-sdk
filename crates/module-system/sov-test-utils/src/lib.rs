@@ -128,7 +128,7 @@ pub const TEST_DEFAULT_PROVER_ADDRESS: &str =
 pub const TEST_DEFAULT_MOCK_DA_BLOCK_TIME_MS: u64 = 100;
 
 /// Generates a default [`TxDetails`] for testing.
-pub(crate) fn default_test_tx_details<S: Spec>() -> TxDetails<S> {
+pub fn default_test_tx_details<S: Spec>() -> TxDetails<S> {
     TxDetails {
         max_priority_fee_bips: TEST_DEFAULT_MAX_PRIORITY_FEE,
         max_fee: TEST_DEFAULT_MAX_FEE,
