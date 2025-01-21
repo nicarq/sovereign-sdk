@@ -189,6 +189,13 @@ impl CacheLog {
             .collect()
     }
 
+    /// Returns the owned set of key/value pairs of the cache.
+    pub fn get_writes(&self) -> impl Iterator<Item = (&SlotKey, Option<&SlotValue>)> {
+        self.log
+            .iter()
+            .filter_map(|(k, access)| access.modified().map(|v| (k, v)))
+    }
+
     /// Returns a value corresponding to the key.
     fn get_value(&self, key: &SlotKey) -> ValueExistsInCache {
         match self.log.get(key) {

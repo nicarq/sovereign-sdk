@@ -288,7 +288,7 @@ pub(crate) fn apply_batch<S, RT, B>(
     runtime: &RT,
     mut checkpoint: StateCheckpoint<S>,
     slot_gas_meter: &mut SlotGasMeter<S>,
-    batch_with_id: B,
+    mut batch_with_id: B,
     blob_idx: usize,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
@@ -312,6 +312,7 @@ where
         "Applying a batch"
     );
 
+    batch_with_id.pre_flight(&checkpoint);
     let mut clean_scratchpad = checkpoint.to_tx_scratchpad();
 
     debug!("Verifying & executing transactions");

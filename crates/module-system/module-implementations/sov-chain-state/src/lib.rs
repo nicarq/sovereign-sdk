@@ -275,6 +275,10 @@ impl<S: Spec> ChainState<S> {
     where
         T: StateReader<Kernel>,
     {
+        if true_slot_number == SlotNumber::GENESIS {
+            return Ok(Some(VisibleSlotNumber::GENESIS));
+        }
+
         let visible_slot_number = self
             .true_to_visible_slot_number_history
             .get(&true_slot_number, state)?;

@@ -7,7 +7,7 @@ use sov_state::{EventContainer, IsValueCached, Namespace, SlotKey, SlotValue};
 
 use super::checkpoints::StateCheckpoint;
 use super::internals::RevertableWriter;
-use super::{StateProvider, UniversalStateAccessor};
+use super::{ChangeSet, StateProvider, UniversalStateAccessor};
 use crate::capabilities::RollupHeight;
 use crate::module::Spec;
 use crate::state::events::TypedEvent;
@@ -48,10 +48,7 @@ impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for TxScratchpad<S, I>
 }
 
 /// The list of changes caused by a single transaction
-pub struct TxChangeSet {
-    #[allow(missing_docs)]
-    pub changes: Vec<((SlotKey, sov_state::Namespace), Option<SlotValue>)>,
-}
+pub struct TxChangeSet(pub ChangeSet);
 
 impl<S: Spec, I: StateProvider<S>> TxScratchpad<S, I> {
     /// Commits the changes of this [`TxScratchpad`] and returns a [`StateCheckpoint`].
@@ -62,9 +59,7 @@ impl<S: Spec, I: StateProvider<S>> TxScratchpad<S, I> {
     /// Gets an iterator over the diff currently written onto this scratchpad. These changes will
     /// be reverted or commited as a unit.
     pub fn changes(&self) -> TxChangeSet {
-        TxChangeSet {
-            changes: self.inner.changes(),
-        }
+        TxChangeSet(self.inner.changes())
     }
 
     /// Reverts the changes of this [`TxScratchpad`] and returns a [`StateCheckpoint`].

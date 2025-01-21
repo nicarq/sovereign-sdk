@@ -42,6 +42,14 @@ pub use stf_blueprint::StfBlueprint;
 use thiserror::Error;
 use tracing::info;
 
+#[cfg(feature = "native")]
+type MaterializedUpdate<S> = (
+    <S as Storage>::Root,
+    <S as Storage>::Witness,
+    <S as Storage>::ChangeSet,
+    <S as Storage>::StateUpdate,
+);
+
 /// The contents of the receipt for a skipped transaction
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SkippedTxContents<S: Spec> {
@@ -166,11 +174,7 @@ where
         &self,
         should_execute_slot_hooks: bool,
         checkpoint: StateCheckpoint<S>,
-    ) -> (
-        <S::Storage as Storage>::Root,
-        <S::Storage as Storage>::Witness,
-        <S::Storage as Storage>::ChangeSet,
-    ) {
+    ) -> MaterializedUpdate<S::Storage> {
         let (next_root_hash, mut state_update, mut accessory_delta, witness, storage) =
             checkpoint.materialize_update();
 
@@ -182,7 +186,7 @@ where
 
         let change_set = storage.materialize_changes(&state_update);
 
-        (next_root_hash, witness, change_set)
+        (next_root_hash, witness, change_set, state_update)
     }
 
     #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
@@ -252,7 +256,7 @@ where
         }
 
         #[cfg(feature = "native")]
-        let (genesis_hash, _, change_set) = self.materialize_slot(true, state_checkpoint);
+        let (genesis_hash, _, change_set, _) = self.materialize_slot(true, state_checkpoint);
         #[cfg(not(feature = "native"))]
         let (genesis_hash, _, change_set) = self.materialize_slot(state_checkpoint);
 
@@ -368,7 +372,7 @@ where
             let slot_finalization_start = std::time::Instant::now();
 
             // Note the call to materialize slot mixed in with metrics operations here.
-            let (state_root, witness, change_set) =
+            let (state_root, witness, change_set, _) =
                 self.materialize_slot(should_execute_slot_hooks, state);
 
             let slot_finalization_time = slot_finalization_start.elapsed();

@@ -246,7 +246,7 @@ fn test_archival_state_updates_gas_price() {
             "The gas price stored in the accessor should be the same as the current gas price"
         );
 
-        let archival_state = state.state_at_height(RollupHeight::new(1)).unwrap();
+        let archival_state = state.get_archival_state(RollupHeight::new(1)).unwrap();
 
         assert_eq!(
             archival_state.gas_info().gas_price,

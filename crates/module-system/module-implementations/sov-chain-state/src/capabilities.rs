@@ -289,6 +289,14 @@ const _: () = {
                 .unwrap_infallible()
         }
 
+        fn current_rollup_height(&self, state: &mut ApiStateAccessor<S>) -> RollupHeight {
+            self.current_heights
+                .get(state)
+                .unwrap_infallible()
+                .expect("Current heights must be set at genesis")
+                .0
+        }
+
         fn true_slot_number_at_height(
             &self,
             height: RollupHeight,

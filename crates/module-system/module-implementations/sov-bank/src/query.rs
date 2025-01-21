@@ -35,7 +35,7 @@ impl<S: Spec> Bank<S> {
         state: &mut ApiStateAccessor<S>,
     ) -> Result<BalanceResponse, anyhow::Error> {
         let amount = if let Some(v) = version {
-            let state = &mut state.state_at_height(v).map_err(|e| anyhow::anyhow!("Impossible to retrieve the state at the provided height. Please ensure you're querying a valid state. Error: {e}"))?;
+            let state = &mut state.get_archival_state(v).map_err(|e| anyhow::anyhow!("Impossible to retrieve the state at the provided height. Please ensure you're querying a valid state. Error: {e}"))?;
             self.get_balance_of(&user_address, token_id, state)
         } else {
             self.get_balance_of(&user_address, token_id, state)
@@ -52,7 +52,7 @@ impl<S: Spec> Bank<S> {
         state: &mut ApiStateAccessor<S>,
     ) -> Result<TotalSupplyResponse, anyhow::Error> {
         let amount = if let Some(v) = version {
-            let mut state = state.state_at_height(v).map_err(|e| anyhow::anyhow!("Impossible to retrieve the state at the provided height. Please ensure you're querying a valid state. Error: {e}"))?;
+            let mut state = state.get_archival_state(v).map_err(|e| anyhow::anyhow!("Impossible to retrieve the state at the provided height. Please ensure you're querying a valid state. Error: {e}"))?;
             self.get_total_supply_of(&token_id, &mut state)
         } else {
             self.get_total_supply_of(&token_id, state)

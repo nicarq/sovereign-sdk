@@ -1,10 +1,12 @@
-## 2025-01-20
-- #2230 The ValueSetter::SetValue call message was updated to include an optional gas parameter, which will be used for updating the value.
 ## 2025-01-21
-- #2247 exports `sov_modules_rollup_blueprint::logging::should_init_open_telemetry_exporter` so there's a standard way to ensure that Open Telemetry exporter should be enabled
+- #2247 exports `sov_modules_rollup_blueprint::logging::should_init_open_telemetry_exporter` so there's a standard way to ensure that Open Telemetry exporter should be enabled.
 ## 2025-01-20
+- #2245 Makes state that is *only* soft-confirmed unavailable via archival queries (i.e. API queries that include the `?rollup_height` parameter). State now becomes available via archival APIs at the same time across all node, regardless of whether the node is also providing soft confirmations. This fixes a bug where the archival APIs could return incorrect data when queried for soft-confirmed state.
 - #2231 revert formatting of `GasUnit` when serializing with universal wallet. Allows keeping the array/tuple format instead of object structure.
+- #2230 The ValueSetter::SetValue call message was updated to include an optional gas parameter, which will be used for updating the value.
+
 ## 2025-01-16
+- #2222 disables tests for prover database clogging
 - #2226 merge `sov-cycle-utils` with `sovereign-sdk-wip`. This may be a breaking change if you were using the `cycle_tracker` proc-macro decorator. In that case, you may import the `cycle_tracker` macro from either `sov-modules-api` or `sov-modules-macros` instead. Besides, you don't need to specify `target_os = "zkvm"` anymore when using the `cycle_tracker` decorator.
 ## 2025-01-15
 - #2220 integrates gas constant tracking inside `sov-benchmarks`. This is not a breaking change for consumers of the SDK.

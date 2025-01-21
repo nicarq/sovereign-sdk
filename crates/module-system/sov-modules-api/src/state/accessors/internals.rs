@@ -7,6 +7,7 @@ use sov_state::{
     StateAccesses, Storage,
 };
 
+use super::checkpoints::ChangeSet;
 use super::seal::CachedAccessor;
 use super::UniversalStateAccessor;
 
@@ -75,6 +76,27 @@ impl<S: Storage> Delta<S> {
             witness,
             inner,
         )
+    }
+
+    pub(super) fn changes(&self) -> ChangeSet {
+        let changes = self
+            .user_cache
+            .tx_cache
+            .get_writes()
+            .map(|(k, v)| ((k.clone(), Namespace::User), v.cloned()))
+            .chain(
+                self.kernel_cache
+                    .tx_cache
+                    .get_writes()
+                    .map(|(k, v)| ((k.clone(), Namespace::Kernel), v.cloned())),
+            )
+            .chain(
+                self.accessory_writes
+                    .iter()
+                    .map(|(k, v)| ((k.clone(), Namespace::Accessory), v.clone())),
+            )
+            .collect();
+        ChangeSet { changes }
     }
 }
 
@@ -207,11 +229,13 @@ impl<T> RevertableWriter<T> {
     }
 
     /// Get an iterator over the current writes
-    pub fn changes(&self) -> Vec<((SlotKey, Namespace), Option<SlotValue>)> {
-        self.writes
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect()
+    pub fn changes(&self) -> ChangeSet {
+        ChangeSet::new(
+            self.writes
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+        )
     }
 
     /// Commit all items from [`RevertableWriter`] returning the inner storage.

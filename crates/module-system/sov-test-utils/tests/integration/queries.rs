@@ -94,6 +94,33 @@ fn test_query_archival_state() {
             "The value should not be set"
         );
     });
+
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, ValueSetter<S>>(
+            sov_value_setter::CallMessage::SetValue {
+                value: 2,
+                gas: None,
+            },
+        ),
+        assert: Box::new(move |_result, state| {
+            let value = ValueSetter::<S>::default()
+                .value
+                .get(state)
+                .unwrap_infallible();
+            assert_eq!(value, Some(2), "The value should be set to 1");
+        }),
+    });
+
+    runner.query_state_at_height(RollupHeight::new(1), |state| {
+        assert_eq!(
+            ValueSetter::<S>::default()
+                .value
+                .get(state)
+                .unwrap_infallible(),
+            Some(1),
+            "The value was set to 1 at height 1"
+        );
+    });
 }
 
 #[test]

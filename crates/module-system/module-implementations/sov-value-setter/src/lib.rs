@@ -7,9 +7,10 @@ mod event;
 pub use call::*;
 pub use event::Event;
 pub use genesis::*;
+mod hooks;
 use sov_modules_api::{
-    Context, DaSpec, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
-    StateValue, StateVec, TxState,
+    AccessoryStateValue, Context, DaSpec, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo,
+    ModuleRestApi, Spec, StateValue, StateVec, TxState,
 };
 
 /// A new module:
@@ -30,6 +31,18 @@ pub struct ValueSetter<S: Spec> {
     /// Some more values kept in state.
     #[state]
     pub many_values: StateVec<u8>,
+
+    /// The number of times the `begin_slot` hook has been called.
+    #[state]
+    pub begin_slot_hook_count: StateValue<u32>,
+
+    /// The number of times the `end_slot` hook has been called.
+    #[state]
+    pub end_slot_hook_count: StateValue<u32>,
+
+    /// The number of times the `finalize` hook has been called.
+    #[state]
+    pub finalize_hook_count: AccessoryStateValue<u32>,
 
     /// Holds the address of the admin user who is allowed to update the value.
     #[state]

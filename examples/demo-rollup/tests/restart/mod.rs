@@ -439,12 +439,14 @@ async fn try_to_clog_channel_instant_finality(operating_mode: OperatingMode) -> 
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore]
 // Flaky because of an existing problem: "Error: IO error: lock hold by current process,"
 async fn flaky_test_increasing_stf_infos_zk_instant_finality() -> anyhow::Result<()> {
     try_to_clog_channel_instant_finality(OperatingMode::Zk).await
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore]
 // Flaky because of an existing problem: "Error: IO error: lock hold by current process,"
 async fn flaky_test_increasing_stf_infos_optimistic_instant_finality() -> anyhow::Result<()> {
     try_to_clog_channel_instant_finality(OperatingMode::Optimistic).await

@@ -19,19 +19,19 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::rest::utils::{json_obj, ErrorObject};
 use sov_modules_api::rest::ApiState;
 use sov_modules_api::{
-    BlobDataWithId, DaSpec, ExecutionContext, FullyBakedTx, KernelStateAccessor, NestedEnumUtils,
-    RawTx, RejectReason, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateCheckpoint,
-    StateUpdateInfo, SyncStatus, TxChangeSet, VersionReader,
+    BlobDataWithId, ChangeSet, DaSpec, ExecutionContext, FullyBakedTx, KernelStateAccessor,
+    NestedEnumUtils, RawTx, RejectReason, RuntimeEventProcessor, RuntimeEventResponse, Spec,
+    StateCheckpoint, StateUpdateInfo, SyncStatus, TxChangeSet, VersionReader,
 };
 use sov_modules_stf_blueprint::{StfBlueprint, TransactionReceipt, TxEffect};
 use sov_rest_utils::errors::database_error_500;
 use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
-use sov_state::{NativeStorage, Storage};
+use sov_state::{Namespace, NativeStorage, StateUpdate, Storage};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::sync::watch;
+use tokio::sync::{oneshot, watch};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, trace};
 
@@ -42,6 +42,11 @@ use crate::sequencer::SequencerNotReadyDetails;
 use crate::{
     SequenceNumberProvider, Sequencer, SequencerConfig, SequencerSpec, TxStatus, TxStatusManager,
 };
+
+type BackgroundTaskOutput<Z> = (
+    <<<Z as RtAwareBatchBuilderSpec>::Spec as Spec>::Storage as Storage>::Root,
+    ChangeSet,
+);
 
 mod async_batch;
 
@@ -162,7 +167,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
 
         let db = PreferredBbDb::new(storage_path, &latest_state_update).await?;
 
-        let initial_checkpoint =
+        let mut initial_checkpoint =
             StateCheckpoint::new(latest_state_update.storage.clone(), &runtime.kernel());
 
         // TODO: Use an older state root if necessary. cc @neysofu
@@ -210,7 +215,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             }
         };
 
-        let (acceptor, shutdown_handle) = TxAcceptor::new(
+        let (acceptor, setup_changes, shutdown_handle) = TxAcceptor::new(
             initial_checkpoint.clone_with_empty_witness(),
             initial_state_root,
             next_visible_slot_number,
@@ -218,7 +223,10 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             result_sender,
             result_receiver,
             config.clone(),
-        );
+        )
+        .await;
+
+        initial_checkpoint.apply_changes(setup_changes);
         let mut bb = Self {
             db,
             acceptor,
@@ -334,17 +342,20 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             .checkpoint
             .as_mut()
             .expect("Missing internal checkpoint; this is a bug, please report it");
+        let next_slot_number = checkpoint.visible_slot_number_to_access().advance(1);
 
         self.acceptor
-            .move_to_next_slot(
-                checkpoint.clone_with_empty_witness(),
+            .change_background_task_base_state(
+                checkpoint,
                 // TODO(https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2063): provide proofs and non-preferred blobs here.
                 vec![],
-                checkpoint.visible_slot_number_to_access().advance(1), // TODO: This breaks if we call submit batch more frequently than blocks finalize.
+                next_slot_number, // TODO: This breaks if we call submit batch more frequently than blocks finalize.
                 None,
+                true,
             )
             .await;
 
+        self.update_api_state().await;
         Ok(())
     }
 
@@ -503,12 +514,16 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
                 None
             };
 
+            // On the first iteration of the loop, we want to discard the changes we get from tearing down the background task.
+            // because that statecheckpoint is unrelated to the current one. On the remaining iterations, we want to apply the changes
+            // from tearing down the previous slot's background task to the current checkpoint before advancing to the next slot
             self.acceptor
-                .move_to_next_slot(
-                    checkpoint.clone_with_empty_witness(),
+                .change_background_task_base_state(
+                    &mut checkpoint,
                     vec![],
                     next_visible_slot_number,
                     root,
+                    idx != 0, // See comment above
                 )
                 .await;
 
@@ -527,11 +542,12 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
             };
 
             self.acceptor
-                .move_to_next_slot(
-                    checkpoint.clone_with_empty_witness(),
+                .change_background_task_base_state(
+                    &mut checkpoint,
                     vec![],
                     next_visible_slot_number,
                     None,
+                    !batches_to_process.is_empty(), // Apply the teardown changes if this is not the first time we're tearing down the background task.
                 )
                 .await;
         }
@@ -623,7 +639,7 @@ struct TxAcceptor<Z: RtAwareBatchBuilderSpec> {
     result_receiver: Receiver<TxResult<Z>>,
     // Optional because we temporarily take the handle during loop re-initialization.
     // Callers may safely `unwrap` because we hold a `&mut self` any time the handle is `None`.`
-    handle: Option<JoinHandle<<<Z::Spec as Spec>::Storage as Storage>::Root>>,
+    handle: Option<JoinHandle<BackgroundTaskOutput<Z>>>,
     // A sender notifying that this acceptor has successfully shut down. We give a handle to
     // each background task when it is spawned, ensuring that this channel remains open as long
     // as any background task is operational even if the acceptor is dropped.
@@ -638,7 +654,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
     /// rejected.
     pub const MAX_BUFFERED_TXS: usize = 1;
 
-    pub fn new(
+    pub async fn new(
         checkpoint: StateCheckpoint<<Z as RtAwareBatchBuilderSpec>::Spec>,
         initial_state_root: <<Z::Spec as Spec>::Storage as Storage>::Root,
         next_visible_slot_number: VisibleSlotNumber,
@@ -650,13 +666,15 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
             <Z::Spec as Spec>::Address,
             PreferredBatchBuilderConfig,
         >,
-    ) -> (Self, JoinHandle<()>) {
+    ) -> (Self, ChangeSet, JoinHandle<()>) {
         let (tx_sender, tx_receiver) = tokio::sync::mpsc::channel(Self::MAX_BUFFERED_TXS);
         let (shutdown_notifier, mut shutdown_rx) = tokio::sync::mpsc::channel(1);
+        let (setup_sender, setup_receiver) = oneshot::channel();
 
         let handle = Some(Self::start_background_loop(
             checkpoint,
             tx_receiver,
+            setup_sender,
             result_sender,
             additional_blobs,
             Arc::new(config.admin_addresses.clone()),
@@ -672,6 +690,10 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
             // background tasks have been shut down.
             let _ = shutdown_rx.recv().await;
         });
+        // Wait for the background task to get up and running and send the initial change set
+        let setup_changes = setup_receiver
+            .await
+            .expect("Setup must finish successfully");
 
         (
             Self {
@@ -684,6 +706,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
                 minimum_profit_per_tx: config.batch_builder.minimum_profit_per_tx,
                 shutdown_notifier,
             },
+            setup_changes,
             shutdown_handle,
         )
     }
@@ -692,6 +715,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
     fn start_background_loop(
         mut checkpoint: StateCheckpoint<Z::Spec>,
         tx_receiver: Receiver<FullyBakedTx>,
+        setup_channel: oneshot::Sender<ChangeSet>,
         result_sender: Sender<TxResult<Z>>,
         additional_blobs: Vec<AsyncBlobAndSender<Z>>,
         admin_addresses: Arc<Vec<<Z::Spec as Spec>::Address>>,
@@ -700,7 +724,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
         next_visible_slot_number: VisibleSlotNumber,
         minimum_profit_per_tx: u64,
         shutdown_notifier: Sender<()>,
-    ) -> JoinHandle<<<Z::Spec as Spec>::Storage as Storage>::Root> {
+    ) -> JoinHandle<BackgroundTaskOutput<Z>> {
         trace!(
             height = %checkpoint.rollup_height_to_access(),
             "Spawning background loop"
@@ -716,6 +740,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
             let mut selected_blobs = vec![(
                 BlobDataWithId::Batch(AsyncBatch::new_async(
                     tx_receiver,
+                    setup_channel,
                     result_sender.clone(),
                     minimum_profit_per_tx,
                     admin_addresses,
@@ -743,16 +768,23 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
                 ExecutionContext::Sequencer,
                 initial_state_root,
             );
-            let (state_root, _witness, _change_set) = stf.materialize_slot(true, checkpoint);
+            let mut changes = checkpoint.changes();
+            let (state_root, _witness, _change_set, state_update) =
+                stf.materialize_slot(true, checkpoint);
+            changes.changes.extend(
+                state_update
+                    .get_accessory_items()
+                    .map(|(k, v)| ((k.clone(), Namespace::Accessory), v.clone())),
+            );
             drop(shutdown_notifier);
-            state_root
+            (state_root, changes)
         })
     }
 
     async fn finish_background_loop_iter(
         &mut self,
     ) -> Option<(
-        <<Z::Spec as Spec>::Storage as Storage>::Root,
+        (<<Z::Spec as Spec>::Storage as Storage>::Root, ChangeSet),
         Receiver<FullyBakedTx>,
         Sender<TxResult<Z>>,
     )> {
@@ -772,35 +804,55 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
         }
     }
 
+    /// Changes out the state checkpoint in the [`TxAcceptor`] background task. This is useful when we want to
+    /// forward the latest state from the *node* into the sequencer (a.k.a. `update_state`) or when we're ready to
+    /// close out the batch that's currently in progress and start building the next one.
+    ///
+    /// This function works by...
+    /// - Tearing down the current background task.
+    /// - (Optionally) Applying the changes from the previous iteration to the provided state checkpoint
+    /// - Starting a new background task by cloning the (modified) checkpoint and passing it to the new background task.
+    /// - Applying the changes from setting up the new background task onto the provided checkpoint.
+    ///
+    /// Callers of this function should typically use the `apply_teardown_changes` option when the state checkpoint passed to this method
+    /// is exactly in sync with the one held by the [`TxAcceptor`] background task (This is the case when we finish building a batch and want
+    /// to start building the next one without calling `update_state` in the middle).
+    /// Callers should not use the `apply_teardown_changes` option when they're switching out the underlying state checkpoint for an older one (as is the case during `update_state`)
+    ///
     /// This function is tightly coupled with the implementation of the
     /// background task. It works by...
     ///  1. Closing the existing tx channel. This causes the background task to
     ///     close out the current batch and begin applying any "forced" blobs
     ///     immediately, then awaiting the final result.
     ///  2. Starting a new background task.
-    async fn move_to_next_slot(
+    async fn change_background_task_base_state(
         &mut self,
-        new_checkpoint: StateCheckpoint<Z::Spec>,
+        checkpoint: &mut StateCheckpoint<Z::Spec>,
         additional_blobs: Vec<AsyncBlobAndSender<Z>>,
         next_visible_slot_number: VisibleSlotNumber,
         state_root: Option<<<Z::Spec as Spec>::Storage as Storage>::Root>,
+        apply_teardown_changes: bool,
     ) {
         trace!(
-            height = %new_checkpoint.rollup_height_to_access(),
+            height = %checkpoint.rollup_height_to_access(),
             "Moving to next slot"
         );
-        let (prev_state_root, tx_receiver, result_sender) = self
+        let ((prev_state_root, prev_teardown_changes), tx_receiver, result_sender) = self
             .finish_background_loop_iter()
             .await
             .expect("Missing join handle in sequencer! This is a bug, please report it.");
         trace!(
-            height = %new_checkpoint.rollup_height_to_access(),
+            height = %checkpoint.rollup_height_to_access(),
             "Starting background loop"
         );
-        // TODO: Apply remaining changes from batch to new checkpoint.
+        if apply_teardown_changes {
+            checkpoint.apply_changes(prev_teardown_changes);
+        }
+        let (setup_sender, setup_receiver) = oneshot::channel();
         self.handle = Some(Self::start_background_loop(
-            new_checkpoint,
+            checkpoint.clone_with_empty_witness(),
             tx_receiver,
+            setup_sender,
             result_sender,
             additional_blobs,
             self.admin_addresses.clone(),
@@ -814,6 +866,12 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
             self.minimum_profit_per_tx,
             self.shutdown_notifier.clone(),
         ));
+
+        // Wait for the background task to get up and running and send the initial change set
+        let setup_changes = setup_receiver
+            .await
+            .expect("Setup must finish successfully");
+        checkpoint.apply_changes(setup_changes);
     }
 
     async fn tx_confirmation(
@@ -869,7 +927,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
         }
 
         // If we made it this far, the tx was successful. Update our state with the changes and accept.
-        checkpoint.apply_changes(change_set);
+        checkpoint.apply_tx_changes(change_set);
 
         let accepted_tx = AcceptedTx {
             tx: baked_tx,

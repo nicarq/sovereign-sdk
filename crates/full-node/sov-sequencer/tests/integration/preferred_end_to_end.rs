@@ -9,11 +9,14 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use proptest::sample::size_range;
 use sov_api_spec::types as api_types;
+use sov_api_spec::types::PublishBatchBody;
+use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{DispatchCall, RawTx, Runtime};
 use sov_modules_stf_blueprint::GenesisParams;
+use sov_node_client::NodeClient;
 use sov_paymaster::{Paymaster, PaymasterConfig};
 use sov_rest_utils::ResponseObject;
 use sov_rollup_interface::common::SlotNumber;
@@ -192,6 +195,115 @@ async fn txs_below_min_fee_are_rejected() {
         "Full error message does not contain expect part: {}",
         err_message
     );
+}
+
+/// This test checks that state changes from the begin/end slot and finalize hooks are visible via the sequencer's REST API.
+///
+/// It works by producing several batches in the sequencer (causing the hooks to be run) without every publishing those batches
+/// to DA (ensuring that the state changes are not visible to the node), then querying the state via the REST API.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_hooks_state_is_visible() {
+    const FINALIZATION_BLOCKS: u32 = 3;
+    let genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    let admin = genesis_config.additional_accounts[0].clone();
+
+    let rt_genesis_config =
+        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
+            genesis_config.into(),
+            ValueSetterConfig {
+                admin: admin.address(),
+            },
+            PaymasterConfig::default(),
+        );
+    let genesis_params = GenesisParams {
+        runtime: rt_genesis_config.clone(),
+    };
+
+    let dir = Arc::new(tempfile::tempdir().unwrap());
+
+    let da_layer = Arc::new(tokio::sync::RwLock::new(
+        StorableMockDaLayer::new_in_memory(FINALIZATION_BLOCKS)
+            .await
+            .unwrap(),
+    ));
+    let test_rollup = {
+        let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
+        RollupBuilder::<TestBlueprint>::new(
+            GenesisSource::CustomParams(genesis_params),
+            BlockProducingConfig::Manual, // Use manual block production to be sure that the changes are happening in the sequencer only, not the node.
+            FINALIZATION_BLOCKS,
+            0,
+            Default::default(),
+        )
+        .set_config(|c| {
+            c.rollup_prover_config = RollupProverConfig::Skip;
+            c.storage = dir;
+        })
+        .set_da_config(|c| {
+            c.sender_address = sequencer_addr;
+            c.da_layer = Some(da_layer.clone());
+        })
+        .start()
+        .await
+        .unwrap()
+    };
+
+    // Run one slot. This causes both begin and end slot hooks to be run.
+    test_rollup
+        .api_client
+        .publish_batch(&PublishBatchBody {
+            transactions: vec![],
+        })
+        .await
+        .unwrap();
+
+    // By the time we query here, the sequencer has *started* the next slot, so it has run the begin slot hook a second time.
+    let client = NodeClient::new(test_rollup.api_client.baseurl())
+        .await
+        .unwrap();
+
+    let query_hook_counter = |hook_name: &'static str| async {
+        #[derive(Debug, serde::Deserialize)]
+        struct ValueResponse {
+            value: u32,
+        }
+        let hook_name = hook_name.to_string();
+        client
+            .query_rest_endpoint::<ResponseObject<ValueResponse>>(&format!(
+                "/modules/value-setter/state/{}-hook-count",
+                hook_name
+            ))
+            .await
+            .unwrap()
+            .data
+            .unwrap()
+            .value
+    };
+
+    let begin_slot_count = query_hook_counter("begin-slot").await;
+    assert_eq!(begin_slot_count, 2);
+
+    //  since we haven't finished building this batch, the end slot hook hasn't been run - so its value is still 1
+    let end_slot_count = query_hook_counter("end-slot").await;
+    assert_eq!(end_slot_count, 1);
+    // The finalize hook runs during genesis, so it should have been run twice
+    let finalize_count = query_hook_counter("finalize").await;
+    assert_eq!(finalize_count, 2);
+
+    // Finish the in-progress batch (and start the next one). Now the end slot hook should have been run again.
+    test_rollup
+        .api_client
+        .publish_batch(&PublishBatchBody {
+            transactions: vec![],
+        })
+        .await
+        .unwrap();
+    let end_slot_count = query_hook_counter("end-slot").await;
+    assert_eq!(end_slot_count, 2);
+    // The finalize hook should also have been run again
+    let finalize_count = query_hook_counter("finalize").await;
+    assert_eq!(finalize_count, 3);
 }
 
 #[tokio::test(flavor = "multi_thread")]

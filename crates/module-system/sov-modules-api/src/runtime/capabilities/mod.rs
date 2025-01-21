@@ -207,6 +207,13 @@ pub mod mocks {
             Some(true_slot_number.as_visible())
         }
 
+        fn current_rollup_height(
+            &self,
+            _state: &mut crate::state::ApiStateAccessor<S>,
+        ) -> RollupHeight {
+            RollupHeight::new(self.visible_slot_number.get())
+        }
+
         fn rollup_height_to_visible_slot_number(
             &self,
             height: super::RollupHeight,

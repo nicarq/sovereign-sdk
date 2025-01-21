@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use sov_modules_api::state::TxScratchpad;
 use sov_modules_api::{
-    Context, DispatchCall, FullyBakedTx, IncrementalBatch, InjectedControlFlow,
+    ChangeSet, Context, DispatchCall, FullyBakedTx, IncrementalBatch, InjectedControlFlow,
     IterableBatchWithId, MaybeExecuted, NoOpControlFlow, ProvisionalSequencerOutcome, Runtime,
     TxChangeSet, TxControlFlow,
 };
@@ -10,6 +10,7 @@ use sov_rollup_interface::stf::{TransactionReceipt, TxReceiptContents};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::oneshot;
 
 use super::{RejectReason, Spec, StateCheckpoint};
 use crate::batch_builders::sender_is_allowed;
@@ -74,6 +75,9 @@ pub struct AsyncBatch<R, S: Spec> {
     pub contents: MaybeAsync,
     /// The channel to send responses on
     pub result_channel: Sender<Result<(R, TxChangeSet), RejectReason>>,
+    /// A channel for sending the state changes from "setup" (everything before execution of the first sequencer tx)
+    /// and "teardown" (everything after execution of the last sequencer tx)
+    pub setup_channel: Option<oneshot::Sender<ChangeSet>>,
     /// The minimum fee that the sequencer is currently willing to earn. Txs which net
     /// less than this fee will be rejected.
     pub tx_profit_threshold: u64,
@@ -84,6 +88,7 @@ impl<R, S: Spec> AsyncBatch<R, S> {
     /// Create a new batch with a receiver for transactions
     pub fn new_async(
         tx_receiver: Receiver<FullyBakedTx>,
+        setup_channel: oneshot::Sender<ChangeSet>,
         result_channel: Sender<Result<(R, TxChangeSet), RejectReason>>,
         tx_profit_threshold: u64,
         sequencer_admins: Arc<Vec<S::Address>>,
@@ -91,6 +96,7 @@ impl<R, S: Spec> AsyncBatch<R, S> {
         Self {
             contents: MaybeAsync::Async(tx_receiver),
             result_channel,
+            setup_channel: Some(setup_channel),
             tx_profit_threshold,
             sequencer_admins,
         }
@@ -190,6 +196,12 @@ impl<T: TxReceiptContents, S: Spec> IncrementalBatch<TransactionReceipt<T>, S>
             Async(_) => None,
             Sync(batch) => Some(batch.id),
         }
+    }
+
+    fn pre_flight(&mut self, state_checkpoint: &StateCheckpoint<S>) {
+        let changes = state_checkpoint.changes();
+        // If the receiver is no longer available, we don't care about sending the changes.
+        let _  = self.setup_channel.take().expect("The pre-flight hook of a single batch was invoked multiple times! This is a bug - please report it.").send(changes);
     }
 }
 
