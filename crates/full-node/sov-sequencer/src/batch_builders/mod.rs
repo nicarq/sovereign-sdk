@@ -33,6 +33,8 @@ use crate::{SequencerConfig, TxHash, TxStatus, TxStatusManager};
 
 pub mod preferred;
 pub mod standard;
+#[cfg(feature = "test-utils")]
+pub mod test_stateless;
 
 /// An aggregator of types for [`Runtime`]-aware
 /// [`BatchBuilder`]s
@@ -188,10 +190,12 @@ pub trait SequencerConfirmation: serde::Serialize + Send + Sync + 'static {
 
 /// Empty transaction confirmation data. See [`standard::StdBatchBuilder`].
 #[derive(Clone, serde::Serialize)]
-pub struct EmptyConfirmation<Z>(PhantomData<Z>);
+pub struct EmptyConfirmation<Z>(pub(crate) PhantomData<Z>);
 
-impl<Z: RtAwareBatchBuilderSpec> SequencerConfirmation for EmptyConfirmation<Z> {
-    type EventInner = <Z::Rt as RuntimeEventProcessor>::RuntimeEvent;
+impl<Z: RuntimeEventProcessor + Send + Sync + 'static> SequencerConfirmation
+    for EmptyConfirmation<Z>
+{
+    type EventInner = Z::RuntimeEvent;
 
     fn events(&self) -> Vec<RuntimeEventResponse<Self::EventInner>> {
         vec![]

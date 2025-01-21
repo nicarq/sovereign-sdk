@@ -2,19 +2,29 @@ use std::net::SocketAddr;
 use std::num::NonZero;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use derivative::Derivative;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_cli::NodeClient;
+use sov_db::ledger_db::LedgerDb;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig, MockDaSpec};
 use sov_modules_api::execution_mode::Native;
+use sov_modules_api::prelude::axum;
+use sov_modules_api::prelude::axum::extract::Request;
+use sov_modules_api::prelude::axum::ServiceExt;
 use sov_modules_api::{Spec, Zkvm};
-use sov_modules_rollup_blueprint::FullNodeBlueprint;
+use sov_modules_rollup_blueprint::{FullNodeBlueprint, SequencerBlueprint};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime};
+use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::node::{DaSyncState, SyncStatus};
+use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::StateUpdateInfo;
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
+use sov_sequencer::batch_builders::test_stateless::TestStatelessBatchBuilder;
 use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
 pub use sov_stf_runner::processes::RollupProverConfig;
 use sov_stf_runner::{
@@ -77,6 +87,7 @@ pub struct RollupBuilder<R: FullNodeBlueprint<Native>> {
     genesis: GenesisSource<R::Spec, R::Runtime>,
     da_config: MockDaConfig,
     config: RollupBuilderConfig<R::Spec>,
+    with_secondary_sequencer: Option<MockAddress>,
 }
 
 impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
@@ -121,6 +132,7 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
                 storage: Arc::new(tempfile::tempdir().unwrap()),
                 telegraf_address: MonitoringConfig::standard().telegraf_address,
             },
+            with_secondary_sequencer: None,
         }
         .set_da_connection_string()
     }
@@ -143,6 +155,13 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
         self.set_config(|c| {
             c.batch_builder_config = BatchBuilderConfig::Standard(Default::default());
         })
+    }
+
+    /// Runs a secondary sequencer with [`TestStatelessBatchBuilder`] on the same DA layer
+    /// with the provided DA Address.
+    pub fn with_secondary_sequencer(mut self, sequencer_da_address: MockAddress) -> Self {
+        self.with_secondary_sequencer = Some(sequencer_da_address);
+        self
     }
 
     /// Returns the path that will be used for the mock DA database.
@@ -202,6 +221,26 @@ where
 
         let da_service = rollup.runner.da_service();
 
+        let secondary_test_sequencer_client = match self.with_secondary_sequencer {
+            Some(addr) => {
+                // We "keep" it because it is going to be deleted when the parent is deleted.
+                let second_sequencer_dir = tempfile::Builder::new()
+                    .keep(true)
+                    .tempdir_in(self.config.storage.path())?;
+                let mut rollup_config = rollup_config.clone();
+                rollup_config.storage.path = second_sequencer_dir.path().to_path_buf();
+                Some(
+                    Self::start_secondary_sequencer(
+                        da_service.another_on_the_same_layer(addr),
+                        rollup_config.clone(),
+                        shutdown_sender.subscribe(),
+                    )
+                    .await?,
+                )
+            }
+            None => None,
+        };
+
         let rollup_task = tokio::spawn(async move {
             rollup
                 .run_and_report_addr(Some(rpc_addr_tx), Some(rest_addr_tx))
@@ -226,6 +265,7 @@ where
             da_service,
             storage: self.config.storage.clone(),
             shutdown_sender,
+            secondary_test_sequencer_client,
         })
     }
 
@@ -267,6 +307,65 @@ where
                 max_pending_metrics: None,
             },
         }
+    }
+
+    async fn start_secondary_sequencer(
+        secondary_da_service: StorableMockDaService,
+        rollup_config: RollupConfig<<R::Spec as Spec>::Address, R::DaService>,
+        mut shutdown_receiver: tokio::sync::watch::Receiver<()>,
+    ) -> anyhow::Result<sov_api_spec::client::Client> {
+        let blueprint: R = Default::default();
+
+        let mut storage_manager = blueprint.create_storage_manager(&rollup_config)?;
+        let (storage, ledger_state) = storage_manager.create_bootstrap_state()?;
+        let ledger_db = LedgerDb::with_reader(ledger_state)?;
+
+        let (sync_status_sender, _) = watch::channel(SyncStatus::START);
+        let da_sync_state = Arc::new(DaSyncState {
+            synced_da_height: AtomicU64::new(0),
+            target_da_height: AtomicU64::new(0),
+            sync_status_sender,
+        });
+
+        let state_update_info = StateUpdateInfo {
+            storage: storage.clone(),
+            next_event_number: 0,
+            slot_number: SlotNumber::ONE,
+            latest_finalized_slot_number: SlotNumber::ONE,
+        };
+        let (_, state_update_receiver) = watch::channel(state_update_info);
+
+        let (sequencer, _background_handles) =
+            SequencerBlueprint::<R, Native, TestStatelessBatchBuilder<R::Runtime, R::Spec>>::new(
+                state_update_receiver,
+                secondary_da_service,
+                da_sync_state,
+                &rollup_config.storage.path,
+                ledger_db,
+                &rollup_config.sequencer.with_bb_config(()),
+                shutdown_receiver.clone(),
+            )
+            .await?;
+
+        let router = sequencer.rest_api_server();
+
+        let addr = SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 0));
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+        let actual_address = listener.local_addr()?;
+        let actual_port = actual_address.port();
+
+        tokio::spawn(async move {
+            axum::serve(listener, ServiceExt::<Request>::into_make_service(router))
+                .with_graceful_shutdown(async move {
+                    shutdown_receiver.changed().await.ok();
+                })
+                .await
+        });
+
+        Ok(sov_api_spec::client::Client::new(&format!(
+            "http://127.0.0.1:{}",
+            actual_port
+        )))
     }
 }
 
@@ -333,6 +432,9 @@ pub struct TestRollup<R: FullNodeBlueprint<Native>> {
     pub shutdown_sender: watch::Sender<()>,
     /// Used for cleanup/shutdown logic.
     pub rollup_task: JoinHandle<anyhow::Result<()>>,
+    /// In case the rollup was started with a secondary sequencer, this is the
+    /// client that can be used to submit transactions.
+    pub secondary_test_sequencer_client: Option<sov_api_spec::client::Client>,
 }
 
 impl<R: FullNodeBlueprint<Native>> TestRollup<R> {

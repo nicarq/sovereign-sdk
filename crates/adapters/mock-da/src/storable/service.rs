@@ -136,6 +136,17 @@ impl StorableMockDaService {
         Self::new(sequencer_da_address, da_layer, BlockProducing::Manual)
     }
 
+    /// Creates a new instance with different address, but on the same [`StorableMockDaLayer`].
+    /// Block production of this new instance is manual.
+    /// Panics if passed address is the same as the original one.
+    pub fn another_on_the_same_layer(&self, new_da_address: MockAddress) -> Self {
+        if new_da_address == self.sequencer_da_address {
+            panic!("DA address equal self, just call .clone()");
+        }
+        let da_layer = self.da_layer.clone();
+        Self::new_manual_producing(new_da_address, da_layer)
+    }
+
     /// Will receive notification one block before the proof is included on the DA.
     pub fn subscribe_proof_posted(&self) -> broadcast::Receiver<()> {
         self.aggregated_proof_sender.subscribe()
