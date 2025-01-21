@@ -26,7 +26,7 @@ pub struct MetricsTracker {
 }
 
 /// Anything that makes sense to serialize for telegraf.
-pub trait Metric: Send + Sync {
+pub trait Metric: Send + Sync + std::fmt::Debug {
     /// Write InfluxDb [`line protocol`](https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol/) format.
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()>;
 }
