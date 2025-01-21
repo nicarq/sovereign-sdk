@@ -7,6 +7,7 @@ pub(crate) async fn metrics_publisher_task(
     mut receiver: tokio::sync::mpsc::Receiver<SerializableMetric>,
     config: &MonitoringConfig,
 ) {
+    tracing::trace!(?config, "Starting metrics publisher task");
     let max_buffer_size = config.get_max_datagram_size() as usize;
     assert!(max_buffer_size > 0, "Max buffer size cannot be zero");
     // Number is based on [`std::net::UdpSocket::send_to`] documentation.
@@ -23,12 +24,15 @@ pub(crate) async fn metrics_publisher_task(
     let mut buffer: Vec<u8> = Vec::with_capacity(max_buffer_size);
 
     while let Some(measurement) = receiver.recv().await {
+        tracing::trace!(?measurement, "Received measurement");
         if !buffer.is_empty() {
             buffer.push(b'\n');
         }
         if let Err(error) = measurement.serialize_for_telegraf(&mut buffer) {
             tracing::warn!(?error, "Failed to format measurement, skipping");
         };
+        // We know that telegraf format is string based, so for debugging we can print strings:
+        tracing::trace!(buffer = ?String::from_utf8_lossy(&buffer), "Serialized measurement into buffer");
 
         // Exceed max size, need to submit the packet first.
         if buffer.len() > max_buffer_size {
@@ -60,6 +64,7 @@ async fn send_metrics(
                     "UDP Socket wrote less bytes than was passed. This is a bug."
                 );
             }
+            tracing::trace!(?socket, "Metrics have been successfully send to socket");
         }
         Err(err) => {
             tracing::warn!(error = ?err, "Error publishing metrics");
@@ -106,7 +111,7 @@ mod tests {
     use super::*;
     use crate::influxdb::Metric;
 
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
     struct SampleMetric(Vec<u8>);
 
     impl Metric for SampleMetric {

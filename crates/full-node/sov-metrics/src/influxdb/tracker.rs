@@ -25,6 +25,7 @@ pub mod gas_constant_estimation {
         pub static GAS_CONSTANTS: RefCell<HashMap<String, i64>> = RefCell::new(HashMap::new());
     }
 
+    #[derive(Debug)]
     pub struct GasConstantMetric {
         pub constant: String,
         pub num_invocations: u64,
@@ -65,8 +66,10 @@ pub fn init_metrics_tracker(config: &MonitoringConfig) {
 
 impl MetricsTracker {
     pub(crate) fn submit(&self, measurement: SovRollupMetric) {
-        // TODO: Maybe print warning if it fails?
-        let _ = self.sender.try_send(Box::new(measurement));
+        tracing::trace!(?measurement, "Submitting a measurement");
+        if let Err(e) = self.sender.try_send(Box::new(measurement)) {
+            tracing::trace!(error = ?e, "Dropped measurement");
+        };
     }
 
     /// Tracks all runner-related metrics
@@ -203,12 +206,14 @@ pub struct RunnerMetrics {
     pub extraction_proof_time: std::time::Duration,
 }
 
+#[derive(Debug)]
 pub(crate) struct RunnerDaMetrics {
     pub da_height: u64,
     pub sync_distance: i64,
     pub get_block_time: std::time::Duration,
 }
 
+#[derive(Debug)]
 pub(crate) struct RunnerCountMetrics {
     pub da_height: u64,
     pub batches: u64,
@@ -218,6 +223,7 @@ pub(crate) struct RunnerCountMetrics {
     pub proof_bytes_processed: u64,
 }
 
+#[derive(Debug)]
 pub(crate) struct RunnerTimeMetrics {
     pub da_height: u64,
     pub process_slot_time: std::time::Duration,
@@ -251,6 +257,7 @@ impl<T: sov_rollup_interface::stf::TxReceiptContents> From<&sov_rollup_interface
 }
 
 /// Collection of metrics related to transaction processing.
+#[derive(Debug)]
 pub struct TransactionProcessingMetrics {
     /// Time it took a transaction to be executed
     pub execution_time: std::time::Duration,
@@ -268,6 +275,7 @@ pub struct TransactionProcessingMetrics {
 }
 
 /// Metrics related to processing of a single slot.
+#[derive(Debug)]
 pub struct SlotProcessingMetrics {
     /// Time it took from slot initialization till blobs have been selected.
     /// Includes kernel and state initialization + chain_state logic.
@@ -287,6 +295,7 @@ pub struct SlotProcessingMetrics {
 }
 
 /// Metrics related to processing of a single slot.
+#[derive(Debug)]
 pub struct UserSpaceSlotProcessingMetrics {
     /// Time it took for begin slot hooks.
     /// Includes KernelSlotHooks and normal SlotHooks.
@@ -404,6 +413,7 @@ pub enum BatchOutcome {
 }
 
 /// Metrics for batch with transactions.
+#[derive(Debug)]
 pub struct BatchMetrics {
     #[allow(missing_docs)]
     pub processing_time: std::time::Duration,
@@ -427,6 +437,7 @@ impl Metric for BatchMetrics {
 
 /// Metrics for an HTTP subsystem.
 /// Can be applied to REST API or JSON RPC.
+#[derive(Debug)]
 pub struct HttpMetrics {
     /// HTTP method.
     pub request_method: http::Method,
@@ -458,6 +469,7 @@ impl Metric for HttpMetrics {
 }
 
 /// Representation of cycle count and free heap for a particular chunk of execution inside ZK VM guest.
+#[derive(Debug)]
 pub struct ZkVmExecutionChunk {
     /// Name of the caller site, usually a function or method
     pub name: String,
@@ -506,6 +518,7 @@ pub enum ZkCircuit {
 }
 
 /// How much wall clock time it took to run prover
+#[derive(Debug)]
 pub struct ZkProvingTime {
     #[allow(missing_docs)]
     pub proving_time: std::time::Duration,
@@ -527,7 +540,7 @@ impl Metric for ZkProvingTime {
     }
 }
 
-#[derive(strum::EnumDiscriminants)]
+#[derive(strum::EnumDiscriminants, Debug)]
 #[strum_discriminants(
     derive(strum::EnumString),
     name(SovRollupMetrics),
