@@ -92,13 +92,13 @@ fn test_tx_revert() -> Result<(), Infallible> {
 
         let latest_generation = runtime
             .uniqueness
-            .latest_generation(&admin_key.pub_key().credential_id::<TestHasher>(), state)
+            .next_generation(&admin_key.pub_key().credential_id::<TestHasher>(), state)
             .unwrap_infallible();
 
         // with 3 transactions, the latest generation should be 2, because generators send
-        // one transaction per generation
+        // one transaction per generation. So the next generation should be 3
         // The minter account should have its nonce increased for 3 transactions
-        assert_eq!(2, latest_generation);
+        assert_eq!(3, latest_generation);
     });
 
     Ok(())

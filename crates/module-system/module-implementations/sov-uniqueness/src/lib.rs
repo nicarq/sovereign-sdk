@@ -40,8 +40,11 @@ impl<S: Spec> Uniqueness<S> {
         self.nonces.get(credential_id, state)
     }
 
-    /// Retrieves the latest known generation number for a given credential id.
-    pub fn latest_generation<Reader: StateReader<User>>(
+    /// Retrieves the latest known generation number + 1 for a given credential id.
+    /// We add one so that it can be used in the /dedup API and be consumed by clients in a similar
+    /// way to nonces. Returning the actual latest generation would require the client to manage
+    /// incrementing the generation themselves
+    pub fn next_generation<Reader: StateReader<User>>(
         &self,
         credential_id: &CredentialId,
         state: &mut Reader,
@@ -52,7 +55,7 @@ impl<S: Spec> Uniqueness<S> {
                 maybe_generations
                     .unwrap_or_default()
                     .last_key_value()
-                    .map(|(k, _)| k.to_owned())
+                    .map(|(k, _)| k.to_owned().saturating_add(1))
                     .unwrap_or_default()
             })
     }

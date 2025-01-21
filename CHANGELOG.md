@@ -1,4 +1,10 @@
 ## 2025-01-21
+- #2252 Adjust the `/dedup` API endpoint to return the next unused generation rather than the next available nonce. This follows from the earlier (#2182) that made generations the default deduplication/uniqueness mechanism for native sovereign transactions. EVM transactions still use nonces (for standard compatibility) and those can be queried using the ethereum RPC.
+Note that the recommended way to deduplicate transaction now is using the current UNIX timestamp in seconds as the generation. The `/dedup` endpoint is intended for compatibility with rollup-agnostic clients (enabling the same transaction submission flow for both nonce-based and generation-based rollups), or for state introspection.
+
+## 2025-01-20
+- #2230 The ValueSetter::SetValue call message was updated to include an optional gas parameter, which will be used for updating the value.
+## 2025-01-21
 - #2247 exports `sov_modules_rollup_blueprint::logging::should_init_open_telemetry_exporter` so there's a standard way to ensure that Open Telemetry exporter should be enabled.
 - #2245 Makes state that is *only* soft-confirmed unavailable via archival queries (i.e. API queries that include the `?rollup_height` parameter). State now becomes available via archival APIs at the same time across all node, regardless of whether the node is also providing soft confirmations. This fixes a bug where the archival APIs could return incorrect data when queried for soft-confirmed state.
 ## 2025-01-20

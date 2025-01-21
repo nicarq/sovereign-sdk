@@ -197,10 +197,10 @@ fn send_tx_works_generation() {
     runner.query_visible_state(|state| {
         assert_eq!(
             Uniqueness::<S>::default()
-                .latest_generation(&admin_credential_id, state)
+                .next_generation(&admin_credential_id, state)
                 .unwrap_infallible(),
             0,
-            "The generation for a new account should start at 0"
+            "The next generation for a new account should start at 0"
         );
     });
 
@@ -211,10 +211,10 @@ fn send_tx_works_generation() {
 
             assert_eq!(
                 Uniqueness::<S>::default()
-                    .latest_generation(&admin_credential_id, state)
+                    .next_generation(&admin_credential_id, state)
                     .unwrap_infallible(),
-                0,
-                "The latest generation should not change when a transaction of the same generation is sent"
+                1,
+                "The next generation should be 1 after a transaction of generation 0 is sent"
             );
         }),
     });
@@ -225,10 +225,10 @@ fn send_tx_works_generation() {
             assert!(ctx.tx_receipt.is_successful());
             assert_eq!(
                 Uniqueness::<S>::default()
-                    .latest_generation(&admin_credential_id, state)
+                    .next_generation(&admin_credential_id, state)
                     .unwrap_infallible(),
-                5,
-                "The latest generation should update when a transaction with a higher generation is sent"
+                6,
+                "The next available generation should update when a transaction with a higher generation is sent"
             );
         }),
     });
