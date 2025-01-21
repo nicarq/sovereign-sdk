@@ -1,3 +1,5 @@
+## 2025-01-21
+- #2247 exports `sov_modules_rollup_blueprint::logging::should_init_open_telemetry_exporter` so there's a standard way to ensure that Open Telemetry exporter should be enabled
 ## 2025-01-20
 - #2231 revert formatting of `GasUnit` when serializing with universal wallet. Allows keeping the array/tuple format instead of object structure.
 ## 2025-01-16
