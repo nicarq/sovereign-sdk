@@ -1,21 +1,22 @@
 include:
   - docker-compose.obs.yml
   - docker-compose.celestia.yml
-services:
-  toxiproxy:
-    image: shopify/toxiproxy
-    hostname: toxiproxy
-    depends_on:
-      - sequencer-0
-    ports:
-      - "127.0.0.1:26659:26659"
-      - "127.0.0.1:8474:8474"
-  toxiproxy-config:
-    image: curlimages/curl:8.9.1
-    depends_on:
-      - toxiproxy
-    networks:
-      - monitoring-network
-    volumes:
-      - ./toxiproxy:/opt/toxiproxy
-    command: ["/opt/toxiproxy/configure.sh"]
+# Uncomment this if you want to test network delays/errors
+#services:
+#  toxiproxy:
+#    image: shopify/toxiproxy
+#    hostname: toxiproxy
+#    depends_on:
+#      - sequencer-0
+#    ports:
+#      - "127.0.0.1:26659:26659"
+#      - "127.0.0.1:8474:8474"
+#  toxiproxy-config:
+#    image: curlimages/curl:8.9.1
+#    depends_on:
+#      - toxiproxy
+#    networks:
+#      - monitoring-network
+#    volumes:
+#      - ./toxiproxy:/opt/toxiproxy
+#    command: ["/opt/toxiproxy/configure.sh"]
