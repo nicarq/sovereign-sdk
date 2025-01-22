@@ -134,8 +134,6 @@ macro_rules! generate_bare_runtime {
         {
             type Capabilities<'a> = $crate::runtime::StandardProvenRollupCapabilities<'a, S , $gas_enforcer_ty>;
 
-            type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
-
             fn capabilities(&self) -> ::sov_modules_api::capabilities::Guard<Self::Capabilities<'_>> {
                 ::sov_modules_api::capabilities::Guard::new(
                     $crate::runtime::StandardProvenRollupCapabilities {
@@ -205,7 +203,6 @@ macro_rules! impl_standard_runtime_authenticator {
             S: ::sov_modules_api::Spec,
         {
             type Decodable = <$runtime as ::sov_modules_api::DispatchCall>::Decodable;
-            type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
             type Input = AuthenticatorInput;
 
             type Signature = ::sov_modules_api::transaction::TransactionWithoutCall<S>;
@@ -229,7 +226,6 @@ macro_rules! impl_standard_runtime_authenticator {
                 ::sov_modules_api::capabilities::AuthenticationOutput<
                     S,
                     Self::Decodable,
-                    Self::AuthorizationData,
                 >,
                 ::sov_modules_api::capabilities::AuthenticationError,
             > {
@@ -254,7 +250,6 @@ macro_rules! impl_standard_runtime_authenticator {
                 ::sov_modules_api::capabilities::AuthenticationOutput<
                     S,
                     Self::Decodable,
-                    Self::AuthorizationData,
                 >,
                 ::sov_modules_api::capabilities::UnregisteredAuthenticationError,
             > {

@@ -1,3 +1,6 @@
+## 2025-01-22
+- #2259 removes the generic `AuthorizationData` associated type from traits (e.g. `TransactionAuthenticator`, `HasCapabilities`) and replaces it with a single concrete `AuthorizationData<S>` throughout the codebase.
+
 ## 2025-01-21
 - #2252 Adjust the `/dedup` API endpoint to return the next unused generation rather than the next available nonce. This follows from the earlier (#2182) that made generations the default deduplication/uniqueness mechanism for native sovereign transactions. EVM transactions still use nonces (for standard compatibility) and those can be queried using the ethereum RPC.
 Note that the recommended way to deduplicate transaction now is using the current UNIX timestamp in seconds as the generation. The `/dedup` endpoint is intended for compatibility with rollup-agnostic clients (enabling the same transaction submission flow for both nonce-based and generation-based rollups), or for state introspection.

@@ -22,7 +22,7 @@ pub struct DefaultRollupStateProvider<S: Spec, RT: Runtime<S>> {
 
 impl<S: Spec, RT: Runtime<S>> RollupStateProvider for Arc<DefaultRollupStateProvider<S, RT>>
 where
-    RT: HasCapabilities<S, AuthorizationData = AuthorizationData<S>>,
+    RT: HasCapabilities<S>,
 {
     type Spec = S;
 
@@ -46,10 +46,7 @@ where
         transaction: PartialTransaction<Self::Spec>,
     ) -> Result<ApplyTxResult<S>, Self::Error> {
         let auth_data =
-            <<RT as HasCapabilities<S>>::AuthorizationData>::from(
-                <PartialTransaction<S> as Into<AuthorizationData<S>>>::into(transaction.clone()),
-            );
-
+            <PartialTransaction<S> as Into<AuthorizationData<S>>>::into(transaction.clone());
         let mut state = StateCheckpoint::new(
             state_update_receiver.borrow().storage.clone(),
             &RT::default().kernel(),

@@ -2,9 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use reth_primitives::TransactionSigned;
 use sov_address::{EthereumAddress, FromVmAddress, MultiAddressEvm};
 use sov_evm::Evm;
-use sov_modules_api::capabilities::{
-    AuthorizationData, BatchFromUnregisteredSequencer, TransactionAuthenticator,
-};
+use sov_modules_api::capabilities::{BatchFromUnregisteredSequencer, TransactionAuthenticator};
 use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::runtime::Runtime;
 use sov_modules_api::transaction::TransactionWithoutCall;
@@ -39,8 +37,6 @@ where
 {
     type Decodable = <Self as DispatchCall>::Decodable;
 
-    type AuthorizationData = AuthorizationData<S>;
-
     type Input = Auth;
 
     type Signature = Auth<TransactionSigned, TransactionWithoutCall<S>>;
@@ -74,11 +70,7 @@ where
         tx: &FullyBakedTx,
         state: &mut Accessor,
     ) -> Result<
-        sov_modules_api::capabilities::AuthenticationOutput<
-            S,
-            Self::Decodable,
-            Self::AuthorizationData,
-        >,
+        sov_modules_api::capabilities::AuthenticationOutput<S, Self::Decodable>,
         sov_modules_api::capabilities::AuthenticationError,
     > {
         let input: Auth = borsh::from_slice(&tx.data).map_err(|e| {
@@ -114,11 +106,7 @@ where
         _batch: &BatchFromUnregisteredSequencer,
         _state: &mut Accessor,
     ) -> Result<
-        sov_modules_api::capabilities::AuthenticationOutput<
-            S,
-            Self::Decodable,
-            Self::AuthorizationData,
-        >,
+        sov_modules_api::capabilities::AuthenticationOutput<S, Self::Decodable>,
         sov_modules_api::capabilities::UnregisteredAuthenticationError,
     > {
         unimplemented!()

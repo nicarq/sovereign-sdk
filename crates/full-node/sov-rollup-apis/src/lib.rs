@@ -122,7 +122,7 @@ pub trait RollupStateProvider: Clone + Send + Sync {
 impl<T> RollupTxRouter<T>
 where
     T: RollupStateProvider + Clone + Send + Sync + 'static,
-    T::Runtime: HasCapabilities<T::Spec, AuthorizationData = AuthorizationData<T::Spec>>,
+    T::Runtime: HasCapabilities<T::Spec>,
 {
     /// Returns an [`axum::Router`] that exposes gas information, simulation data and sync status.
     pub fn axum_router(

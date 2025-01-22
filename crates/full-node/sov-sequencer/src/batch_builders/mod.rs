@@ -10,8 +10,8 @@ use async_trait::async_trait;
 use axum::http::StatusCode;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::capabilities::{
-    AuthenticationOutput, AuthorizationData, AuthorizeSequencerError, HasCapabilities,
-    SequencerAuthorization, TransactionAuthenticator,
+    AuthenticationOutput, AuthorizeSequencerError, HasCapabilities, SequencerAuthorization,
+    TransactionAuthenticator,
 };
 use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::ApiState;
@@ -48,18 +48,15 @@ pub trait RtAwareBatchBuilderSpec: Send + Sync + 'static {
     type Spec: Spec;
     /// The runtime of the rollup.
     type Rt: Runtime<Self::Spec>
-        + HasCapabilities<Self::Spec, AuthorizationData = AuthorizationData<Self::Spec>>
-        + TransactionAuthenticator<Self::Spec, AuthorizationData = AuthorizationData<Self::Spec>>;
+        + HasCapabilities<Self::Spec>
+        + TransactionAuthenticator<Self::Spec>;
 }
 
 impl<Da, S, Rt> RtAwareBatchBuilderSpec for (Da, S, Rt)
 where
     Da: DaService,
     S: Spec,
-    Rt: Runtime<S>
-        + HasCapabilities<S, AuthorizationData = AuthorizationData<S>>
-        + TransactionAuthenticator<S, AuthorizationData = AuthorizationData<S>>
-        + 'static,
+    Rt: Runtime<S> + HasCapabilities<S> + TransactionAuthenticator<S> + 'static,
 {
     type DaService = Da;
     type Spec = S;
@@ -206,11 +203,7 @@ type AuthRes<S, Rt, I> = (
     TxScratchpad<S, I>,
     Result<
         (
-            AuthenticationOutput<
-                S,
-                <Rt as DispatchCall>::Decodable,
-                <Rt as TransactionAuthenticator<S>>::AuthorizationData,
-            >,
+            AuthenticationOutput<S, <Rt as DispatchCall>::Decodable>,
             BasicGasMeter<S>,
         ),
         PreExecError,

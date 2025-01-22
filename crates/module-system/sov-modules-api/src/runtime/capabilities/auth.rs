@@ -1,49 +1,5 @@
-//! This module defines abstractions related to transaction authentication and authorization.
-//!
-//! 1. The [`TransactionAuthenticator::authenticate`] method accepts bytes and
-//!    parses them into a structure relevant to a particular authenticator.
-//!
-//!    For example, if the raw bytes form an EVM transaction, the data will be
-//!    parsed into RLP encoded format followed by an `ECDSA` check. This method
-//!    returns the following tuple:
-//!     - `AuthenticatedTransactionData`: Metadata about the original
-//!       transaction, such as `chain_id`, `gas_limit`, etc.
-//!     - [`TransactionAuthenticator::Decodable`]: The call message that will be
-//!       forwarded to the relevant module for execution.
-//!     - [`TransactionAuthenticator::AuthorizationData`]: An associated type
-//!       used later to authorize the transaction.
-//!
-//!    The important part is that while the `AuthenticatedTransactionData` and
-//!    [`TransactionAuthenticator::Decodable`] are external types that are part
-//!    of the rollup specification, the
-//!    [`TransactionAuthenticator::AuthorizationData`] is created by the
-//!    [`TransactionAuthenticator`] implementation, and the stf-blueprint logic
-//!    is oblivious to it.
-//!
-//! 2. The [`TransactionAuthenticator`] contains methods to authorize a transaction.
-//!
-//!    For example, let's say we have a rollup that supports EVM transactions.
-//!    At a high level, these are the relevant parts of the workflow:
-//!     1. [`TransactionAuthenticator::authenticate`] authenticates the
-//!        transaction by checking the ECDSA signature and produces
-//!        [`TransactionAuthenticator::AuthorizationData`] that, among other data,
-//!        contains the transaction nonce.
-//!     2. [`TransactionAuthorizer::check_uniqueness`] checks that the nonce is unique.
-//!     3. [`TransactionAuthorizer::mark_tx_attempted`] updates the nonce.
-//!
-//!     Notice that in the above example, the concept of the nonce is entirely
-//!     internal to the implementation of the two traits. We can have other
-//!     authentication/authorization mechanisms where authentication means something
-//!     other than a signature check, and the nonce is not used.
-//!
-//! 3. The [`TransactionAuthenticator::authenticate_unregistered`] method accepts bytes and parses them
-//!    into a structure relevant for registering unregistered sequencers without going through a
-//!    registered sequencer. In the normal case the raw bytes will be a Sovereign Rollup
-//!    transaction containing a `Register` call message. This method will also accept an unmetered
-//!    pre-execution working set that will accumulate costs to charge the sender if execution
-//!    succeeds. The implication of this is that misbehaving transaction submissions can't be penalized, thus
-//!    there is a need to limit the amount of unregistered transactions we process.
-
+//! This module defines abstractions and workflows around authenticating and authorizing
+//! transactions within a rollup.
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value_private;
@@ -86,9 +42,6 @@ pub trait TransactionAuthenticator<S: Spec> {
     /// The "message" that is extracted from the transaction and passed to the runtime for execution.
     type Decodable;
 
-    /// The type that is passed to the authorizer.
-    type AuthorizationData;
-
     /// The input to the authenticator
     type Input: BorshDeserialize + BorshSerialize + Clone + std::fmt::Debug + Send + Sync + 'static;
 
@@ -101,10 +54,7 @@ pub trait TransactionAuthenticator<S: Spec> {
         &self,
         tx: &FullyBakedTx,
         state: &mut Accessor,
-    ) -> Result<
-        AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
-        AuthenticationError,
-    >;
+    ) -> Result<AuthenticationOutput<S, Self::Decodable>, AuthenticationError>;
 
     #[cfg(feature = "native")]
     /// Decode a transaction into a message and signature.
@@ -120,10 +70,7 @@ pub trait TransactionAuthenticator<S: Spec> {
         &self,
         batch: &BatchFromUnregisteredSequencer,
         state: &mut Accessor,
-    ) -> Result<
-        AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
-        UnregisteredAuthenticationError,
-    >;
+    ) -> Result<AuthenticationOutput<S, Self::Decodable>, UnregisteredAuthenticationError>;
 
     /// Encode a standard transaction for the rollup with information describing how to authenticate it.
     fn add_standard_auth(tx: RawTx) -> Self::Input;
@@ -141,14 +88,11 @@ pub trait TransactionAuthenticator<S: Spec> {
 
 /// Authorizes transactions to be executed.
 pub trait TransactionAuthorizer<S: Spec> {
-    /// The type used for authorization.
-    type AuthorizationData;
-
     /// Resolves the [`Context`] for a transaction.
     // TODO(@preston-evans98): This should be a read-only method `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/384>`
     fn resolve_context(
         &self,
-        auth_data: &Self::AuthorizationData,
+        auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         visible_slot_number: VisibleSlotNumber,
         state: &mut impl InfallibleStateAccessor,
@@ -158,7 +102,7 @@ pub trait TransactionAuthorizer<S: Spec> {
     /// Resolves the context for an unregistered transaction.
     fn resolve_unregistered_context(
         &self,
-        auth_data: &Self::AuthorizationData,
+        auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         visible_slot_number: VisibleSlotNumber,
         state: &mut impl InfallibleStateAccessor,
@@ -168,7 +112,7 @@ pub trait TransactionAuthorizer<S: Spec> {
     /// Prevents duplicate transactions from running.
     fn check_uniqueness(
         &self,
-        auth_data: &Self::AuthorizationData,
+        auth_data: &AuthorizationData<S>,
         context: &Context<S>,
         state: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<()>;
@@ -176,15 +120,18 @@ pub trait TransactionAuthorizer<S: Spec> {
     /// Marks a transaction as having been executed, preventing it from executing again.
     fn mark_tx_attempted(
         &self,
-        auth_data: &Self::AuthorizationData,
+        auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         state: &mut impl InfallibleStateAccessor,
     );
 }
 
 /// Output of the authentication.
-pub type AuthenticationOutput<S, Decodable, Auth> =
-    (AuthenticatedTransactionAndRawHash<S>, Auth, Decodable);
+pub type AuthenticationOutput<S, Decodable> = (
+    AuthenticatedTransactionAndRawHash<S>,
+    AuthorizationData<S>,
+    Decodable,
+);
 
 /// Error variants that can be raised as a [`AuthenticationError::FatalError`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Error)]
@@ -275,7 +222,7 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
     tx: Transaction<D, S>,
     chain_hash: &[u8; 32],
     meter: &mut impl GasMeter<Spec = S>,
-) -> Result<AuthenticationOutput<S, D::Decodable, AuthorizationData<S>>, AuthenticationError> {
+) -> Result<AuthenticationOutput<S, D::Decodable>, AuthenticationError> {
     if tx.details.chain_id != config_chain_id() {
         return Err(AuthenticationError::FatalError(
             FatalError::InvalidChainId {
@@ -331,7 +278,7 @@ pub fn authenticate<
     mut raw_tx: &[u8],
     chain_hash: &[u8; 32],
     state: &mut Accessor,
-) -> Result<AuthenticationOutput<S, D::Decodable, AuthorizationData<S>>, AuthenticationError> {
+) -> Result<AuthenticationOutput<S, D::Decodable>, AuthenticationError> {
     let raw_tx_hash = calculate_hash::<Accessor, S>(raw_tx, state)
         .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
 

@@ -187,13 +187,11 @@ impl<'a, S: Spec, T> SequencerAuthorization<S> for StandardProvenRollupCapabilit
 }
 
 impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<'a, S, T> {
-    type AuthorizationData = AuthorizationData<S>;
-
     /// Prevents duplicate transactions from running.
     // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
     fn check_uniqueness(
         &self,
-        auth_data: &Self::AuthorizationData,
+        auth_data: &AuthorizationData<S>,
         _context: &Context<S>,
         state: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<()> {
@@ -208,7 +206,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
     /// Marks a transaction as having been executed, preventing it from executing again.
     fn mark_tx_attempted(
         &self,
-        auth_data: &Self::AuthorizationData,
+        auth_data: &AuthorizationData<S>,
         _sequencer: &<S::Da as DaSpec>::Address,
         state: &mut impl InfallibleStateAccessor,
     ) {
@@ -223,7 +221,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
     /// Resolves the context for a transaction.
     fn resolve_context(
         &self,
-        auth_data: &Self::AuthorizationData,
+        auth_data: &AuthorizationData<S>,
         sequencer: &<S::Da as DaSpec>::Address,
         visible_slot_number: VisibleSlotNumber,
         state: &mut impl InfallibleStateAccessor,
@@ -251,7 +249,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
 
     fn resolve_unregistered_context(
         &self,
-        auth_data: &Self::AuthorizationData,
+        auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         visible_slot_number: VisibleSlotNumber,
         state: &mut impl InfallibleStateAccessor,

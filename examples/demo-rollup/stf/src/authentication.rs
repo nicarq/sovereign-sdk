@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_evm::{EthereumAuthenticator, TransactionSigned};
 use sov_modules_api::capabilities::{
-    fatal_deserialization_error, AuthenticationError, AuthenticationOutput, AuthorizationData,
+    fatal_deserialization_error, AuthenticationError, AuthenticationOutput,
     BatchFromUnregisteredSequencer, FatalError, UnregisteredAuthenticationError,
 };
 use sov_modules_api::runtime::capabilities::TransactionAuthenticator;
@@ -19,8 +19,6 @@ where
     S::Address: FromVmAddress<EthereumAddress>,
 {
     type Decodable = <Self as DispatchCall>::Decodable;
-
-    type AuthorizationData = AuthorizationData<S>;
 
     type Input = Auth;
 
@@ -53,10 +51,7 @@ where
         &self,
         tx: &FullyBakedTx,
         pre_exec_ws: &mut Accessor,
-    ) -> Result<
-        AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
-        AuthenticationError,
-    > {
+    ) -> Result<AuthenticationOutput<S, Self::Decodable>, AuthenticationError> {
         // We don't charge for the deserialization of the Auth enum because variant.
         let input: Auth = borsh::from_slice(&tx.data)
             .map_err(|e| fatal_deserialization_error::<_, S, _>(&tx.data, e, pre_exec_ws))?;
@@ -82,10 +77,7 @@ where
         &self,
         batch: &BatchFromUnregisteredSequencer,
         pre_exec_ws: &mut Accessor,
-    ) -> Result<
-        AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
-        UnregisteredAuthenticationError,
-    > {
+    ) -> Result<AuthenticationOutput<S, Self::Decodable>, UnregisteredAuthenticationError> {
         let (tx_and_raw_hash, auth_data, runtime_call) =
             sov_modules_api::capabilities::authenticate::<_, S, Runtime<S>>(
                 &batch.tx.data,
