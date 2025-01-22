@@ -77,7 +77,9 @@ mod http_api {
     use crate::module::GasSpec;
     use crate::state::accessors::http_api::ApiStateAccessor;
     use crate::state::traits::charge_decode_gas_cost;
-    use crate::{AccessoryStateReader, AccessoryStateWriter, Spec, StateReader, StateWriter};
+    use crate::{
+        AccessoryStateReader, AccessoryStateWriter, GasArray, Spec, StateReader, StateWriter,
+    };
 
     macro_rules! inner_impl_http_api_state_reader {
         ($namespace:ty) => {
@@ -121,12 +123,14 @@ mod http_api {
                 type Error = Infallible;
 
                 fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Infallible> {
-                    self.charge_gas(&S::gas_to_charge_for_write())
-                        .expect("We should never fail to charge gas for write operation of api accessors. This is a bug!");
+                    let input_len = value.size() as u64;
+                    self.charge_linear_gas(&S::gas_to_charge_per_byte_for_write(), input_len)  .expect("We should never fail to charge gas for write operation of api accessors. This is a bug!");
+
                     let is_value_cached = CachedAccessor::<$namespace>::set_cached(self, key, value);
 
                     if is_value_cached == IsValueCached::Yes {
-                        self.refund_gas(&S::gas_to_refund_for_hot_write()).expect("Failed to refund gas for write operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
+                        let gas_to_refund = &S::gas_to_refund_per_byte_for_hot_write().checked_scalar_product(input_len).unwrap();
+                        self.refund_gas(gas_to_refund).expect("Failed to refund gas for write operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
                     }
 
                     Ok(())
