@@ -91,7 +91,7 @@ impl<S: Spec> Bank<S> {
         minter: impl Payable<S>,
         state: &mut impl TxState<S>,
     ) -> Result<TokenId> {
-        tracing::debug!(%minter, "Create token request");
+        tracing::trace!(%minter, "Create token request");
 
         let mint_to_address = mint_to_address.as_token_holder();
         let admins = admins
@@ -100,7 +100,7 @@ impl<S: Spec> Bank<S> {
             .collect::<Vec<_>>();
 
         let token_id = get_token_id_metered::<S>(&token_name, &minter, state)?;
-        tracing::debug!(%token_name, originator = %minter, %token_id, "Calculated token id");
+        tracing::trace!(%token_name, originator = %minter, %token_id, "Calculated token id");
         let admins = unique_holders(&admins);
         let token = Token::<S> {
             name: token_name.to_owned(),
@@ -121,7 +121,7 @@ impl<S: Spec> Bank<S> {
 
         self.tokens.set(&token_id, &token, state)?;
 
-        tracing::info!(
+        tracing::trace!(
             %token_id,
             %token_name,
             %minter,
@@ -155,14 +155,14 @@ impl<S: Spec> Bank<S> {
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
-        tracing::debug!("Transfer token request");
+        tracing::trace!("Transfer token request");
 
         let to = to.as_token_holder();
         let sender = context.sender();
 
         self.transfer_from(sender, to, coins.clone(), state)?;
 
-        tracing::info!(
+        tracing::trace!(
             from = %sender,
             %to,
             %coins,
@@ -198,7 +198,7 @@ impl<S: Spec> Bank<S> {
         owner: impl Payable<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
-        tracing::debug!("Handling Burn call");
+        tracing::trace!("Handling Burn call");
 
         let mut token = self
             .tokens
@@ -219,7 +219,7 @@ impl<S: Spec> Bank<S> {
 
         let owner: TokenHolderRef<'_, S> = owner.as_token_holder();
         self.decrease_balance_checked(&coins.token_id, owner, coins.amount, state)?;
-        tracing::info!(
+        tracing::trace!(
             id = %coins.token_id,
             name = token.name,
             burnt_amount = coins.amount,
@@ -288,7 +288,7 @@ impl<S: Spec> Bank<S> {
         authorizer: impl Payable<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
-        tracing::debug!(%authorizer, "Mint token request");
+        tracing::trace!(%authorizer, "Mint token request");
 
         let mint_to_identity = mint_to_identity.as_token_holder();
         let mut token = self
@@ -314,7 +314,7 @@ impl<S: Spec> Bank<S> {
         self.balances
             .set(&(mint_to_identity, &coins.token_id), &to_balance, state)?;
 
-        tracing::info!(
+        tracing::trace!(
             %authorizer,
             token_id = %coins.token_id,
             amount = coins.amount,
@@ -363,7 +363,7 @@ impl<S: Spec> Bank<S> {
         let sender_ref = context.sender();
         let sender = sender_ref.as_token_holder();
 
-        tracing::debug!(freezer = %sender, "Freeze token request");
+        tracing::trace!(freezer = %sender, "Freeze token request");
 
         let mut token = self
             .tokens
@@ -376,7 +376,7 @@ impl<S: Spec> Bank<S> {
 
         self.tokens.set(&token_id, &token, state)?;
 
-        tracing::info!(
+        tracing::trace!(
             freezer = %sender,
             %token_id,
             "Successfully froze tokens"
