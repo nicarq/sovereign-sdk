@@ -29,12 +29,10 @@ pub trait GasSpec:
     /// In the future we may want to support more access patterns and improve the granularity of the refund.
     fn gas_to_refund_for_hot_access() -> Self::Gas;
 
-    /// Returns the gas to charge for a write operation. This value is the maximum amount of gas that can be charged
-    /// for a write operation. Some of this amount may be refunded to the gas meter if the write operation access a warm value.
-    fn gas_to_charge_for_write() -> Self::Gas;
-    /// Gas to refund for a write operation. Now this is the value to refund for a write operation that accesses a warm value.
-    /// In the future we may want to support more access patterns and improve the granularity of the refund.
-    fn gas_to_refund_for_hot_write() -> Self::Gas;
+    /// Returns the gas to charge for writing one bytae of data to the satte.
+    fn gas_to_charge_per_byte_for_write() -> Self::Gas;
+    /// Gas to refund for a write operation. Now this is the value to refund for a write operation that accesses a warm bye of data.
+    fn gas_to_refund_per_byte_for_hot_write() -> Self::Gas;
 
     /// Gas to charge for a delete a cold storage slot
     fn gas_to_charge_for_delete() -> Self::Gas;
@@ -104,11 +102,11 @@ impl<S: Spec> GasSpec for S {
     }
 
     fn gas_to_charge_for_delete() -> Self::Gas {
-        Self::gas_to_charge_for_write()
+        new_constant!("GAS_TO_REFUND_FOR_DELETE", Self::Gas)
     }
 
-    fn gas_to_charge_for_write() -> Self::Gas {
-        new_constant!("GAS_TO_CHARGE_FOR_WRITE", Self::Gas)
+    fn gas_to_charge_per_byte_for_write() -> Self::Gas {
+        new_constant!("GAS_TO_CHARGE_PER_BYTE_FOR_WRITE", Self::Gas)
     }
 
     fn gas_to_charge_per_byte_borsh_deserialization() -> Self::Gas {
@@ -138,11 +136,11 @@ impl<S: Spec> GasSpec for S {
     }
 
     fn gas_to_refund_for_hot_delete() -> Self::Gas {
-        Self::gas_to_refund_for_hot_write()
+        new_constant!("GAS_TO_REFUND_FOR_HOT_DELETE", Self::Gas)
     }
 
-    fn gas_to_refund_for_hot_write() -> Self::Gas {
-        new_constant!("GAS_TO_REFUND_FOR_HOT_WRITE", Self::Gas)
+    fn gas_to_refund_per_byte_for_hot_write() -> Self::Gas {
+        new_constant!("GAS_TO_REFUND_PER_BYTE_FOR_HOT_WRITE", Self::Gas)
     }
 
     fn initial_base_fee_per_gas() -> <Self::Gas as Gas>::Price {

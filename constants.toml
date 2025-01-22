@@ -43,13 +43,18 @@ GAS_TOKEN_ID = { bech32 = "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2
 ADDRESS_PREFIX = { const = "sov" }
 # --- Gas parameters to charge for state accesses ---
 # The cost of a storage access operation.
-GAS_TO_CHARGE_FOR_ACCESS = [5, 5]
 # Gas to refund for a read from a hot storage slot
 GAS_TO_REFUND_FOR_HOT_ACCESS = [4, 4]
+# Gas to refund for a read from a storage slot
+GAS_TO_REFUND_FOR_DELETE = [4, 4]
+# Gas to refund for a deletng from a hot storage slot
+GAS_TO_REFUND_FOR_HOT_DELETE = [4, 4]
 # Gas to charge for a write to a cold storage slot
-GAS_TO_CHARGE_FOR_WRITE = [10, 10]
+GAS_TO_CHARGE_PER_BYTE_FOR_WRITE = [10, 10]
 # Gas to refund for a write to a hot storage slot
-GAS_TO_REFUND_FOR_HOT_WRITE = [8, 8]
+GAS_TO_REFUND_PER_BYTE_FOR_HOT_WRITE = [8, 8]
+#
+GAS_TO_CHARGE_FOR_ACCESS = [5, 5]
 # Gas to charge for decoding a state access
 GAS_TO_CHARGE_FOR_DECODING = [2, 2]
 # --- End Gas parameters to charge for state accesses ---

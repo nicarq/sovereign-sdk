@@ -15,7 +15,7 @@ use super::accessors::seal::CachedAccessor;
 use crate::capabilities::RollupHeight;
 #[cfg(any(feature = "test-utils", feature = "evm"))]
 use crate::UnmeteredStateWrapper;
-use crate::{Gas, GasMeter, GasMeteringError, GasSpec, Spec};
+use crate::{Gas, GasArray, GasMeter, GasMeteringError, GasSpec, Spec};
 
 /// A type that can both read and write the normal "user-space" state of the rollup.
 ///
@@ -420,16 +420,18 @@ macro_rules! blanket_impl_metered_state_writer {
             type Error = StateAccessorError<<T::Spec as GasSpec>::Gas>;
 
             fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Self::Error> {
-                self.charge_gas(&<T::Spec as GasSpec>::gas_to_charge_for_write())
-                    .map_err(|e| StateAccessorError::Set{
-                        key: key.clone(),
-                        inner: e,
-                        namespace: <$namespace>::PROVABLE_NAMESPACE,
-                    })?;
+                let input_len = value.size() as u64;
+                self.charge_linear_gas(&<T::Spec as GasSpec>::gas_to_charge_per_byte_for_write(), input_len).map_err(|e| StateAccessorError::Set{
+                    key: key.clone(),
+                    inner: e,
+                    namespace: <$namespace>::PROVABLE_NAMESPACE,
+                })?;
+
                 let is_value_cached = CachedAccessor::<$namespace>::set_cached(self, key, value);
 
                 if is_value_cached == IsValueCached::Yes {
-                    self.refund_gas(&<T::Spec as GasSpec>::gas_to_refund_for_hot_write()).expect("Failed to refund gas for write operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
+                    let gas_to_refund = &<T::Spec as GasSpec>::gas_to_refund_per_byte_for_hot_write().checked_scalar_product(input_len).unwrap();
+                    self.refund_gas(gas_to_refund).expect("Failed to refund gas for write operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
                 }
 
                 Ok(())

@@ -7,7 +7,7 @@ use sov_test_utils::MockDaSpec;
 
 use super::traits::{StateReader, StateWriter};
 use crate::default_spec::DefaultSpec;
-use crate::{Gas, GasMeter, Spec, WorkingSet};
+use crate::{Gas, GasArray, GasMeter, Spec, WorkingSet};
 
 type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
@@ -23,7 +23,10 @@ fn create_working_set(
 #[test]
 fn test_charge_gas_to_set() {
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from([1; 2]);
-    let gas_set_cost = <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_FOR_WRITE"));
+    let value = SlotValue::from("value");
+    let gas_set_cost = <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_PER_BYTE_FOR_WRITE"))
+        .checked_scalar_product(value.size() as u64)
+        .unwrap();
     let remaining_funds = gas_set_cost.value(&gas_price);
 
     let mut working_set = create_working_set(remaining_funds, &gas_price);
@@ -70,13 +73,17 @@ fn test_charge_gas_set_then_retrieve() {
     let gas_hot_access_refund =
         <S as Spec>::Gas::from(config_value!("GAS_TO_REFUND_FOR_HOT_ACCESS"));
 
-    let gas_set_cost = <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_FOR_WRITE"));
+    let value = SlotValue::from("value");
+    let gas_set_cost = <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_PER_BYTE_FOR_WRITE"))
+        .checked_scalar_product(value.size() as u64)
+        .unwrap();
+
     let remaining_funds = gas_access_cost.value(&gas_price) + gas_set_cost.value(&gas_price);
 
     let mut working_set = create_working_set(remaining_funds, &gas_price);
 
     assert!(
-        StateWriter::<User>::set(&mut working_set, &SlotKey::from_slice(b"key"), SlotValue::from("value"))
+        StateWriter::<User>::set(&mut working_set, &SlotKey::from_slice(b"key"), value)
             .is_ok(),
         "The set operation should succeed because there should be enough funds in the metered working set"
     );

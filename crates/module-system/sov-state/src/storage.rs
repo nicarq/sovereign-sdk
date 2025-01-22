@@ -184,6 +184,11 @@ impl SlotValue {
     pub fn value(&self) -> &[u8] {
         &self.value
     }
+
+    /// The size of the `SlotValue` in bytes.
+    pub fn size(&self) -> usize {
+        self.value.len()
+    }
 }
 
 #[derive(
