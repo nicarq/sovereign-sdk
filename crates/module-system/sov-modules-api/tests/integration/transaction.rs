@@ -7,9 +7,55 @@ type Runtime = TestOptimisticRuntime<TestSpec>;
 
 const ASSERT_MSG: &str = "JSON representation changed, this is a breaking change for web3 SDK, please ensure it is also updated";
 
-#[test]
-fn test_unsigned_tx_wallet_serialization_none_gas_limit() {
-    let json = r#"{
+/// The tests in this module are designed to detect changes that will be breaking for web3 SDK
+/// applications. Making these changes without making the neccessary updates in the web3 SDK will
+/// break (and has broken) customer applications.
+///
+/// Ultimately most breaking changes will result in a changed chain hash which will result in a "Signature
+/// Verification error" when submitting a transaction but a change in structure of
+/// Transaction/UnsignedTransaction data types will also cause serialization failures before that
+/// point.
+///
+/// Examples:
+/// - UnsignedTransaction.nonce renamed to UnsignedTransaction.generation
+/// - TxDetails.gas_limit changed from [500,500] to {value: [500,500]}
+///
+/// If a change like this occurs we also need to coordinate an update in the web3 SDK.
+///
+/// Here's an example bumping web3 SDK to the latest Sovereign SDK version and fixing a breaking
+/// change that renamed the `nonce` field to `generation`: https://github.com/Sovereign-Labs/sovereign-sdk-web3-js/pull/96
+///
+/// The basic steps for updating are:
+/// 1. Update the Sovereign SDK commit in universal-wallet-wasm to latest: https://github.com/Sovereign-Labs/sovereign-sdk-web3-js/pull/96/files#diff-b83605a5cd722ca4ff6623adb35018bbff8882060c3bf5778bbdd0ae05f3d233R13
+/// 2. Copy and paste Sovereign SDK `examples/demo-rollup/demo-rollup-schema.json` into Sovereign SDK web3 JS `packages/__fixtures`
+/// 3. Run tests
+///
+/// This will catch any additional changes that need to be made such as field renames.
+mod web3_compatibility {
+    use sov_test_utils::runtime::TestOptimisticRuntimeCall;
+
+    use super::*;
+
+    #[test]
+    fn test_chain_hash_has_not_changed() {
+        let mut schema = Schema::of_rollup_types_with_metadata::<
+            (),
+            Transaction<Runtime, TestSpec>,
+            UnsignedTransaction<Runtime, TestSpec>,
+            TestOptimisticRuntimeCall<TestSpec>,
+        >(&())
+        .unwrap();
+        let actual_chain_hash = hex::encode(schema.chain_hash().unwrap());
+
+        assert_eq!(
+            actual_chain_hash,
+            "bf7af6cb5172993d1ecf88c8c9bfce730901eff0dd0290be0bc9efa3ed02f214"
+        );
+    }
+
+    #[test]
+    fn test_unsigned_tx_wallet_serialization_none_gas_limit() {
+        let json = r#"{
         "runtime_call": {
             "value_setter": {
                  "set_value": {
@@ -26,14 +72,20 @@ fn test_unsigned_tx_wallet_serialization_none_gas_limit() {
             "chain_id": 1337
         }
     }"#;
-    let schema = Schema::of_single_type::<UnsignedTransaction<Runtime, TestSpec>>();
+        let mut schema = Schema::of_single_type::<UnsignedTransaction<Runtime, TestSpec>>();
 
-    assert!(schema.json_to_borsh(0, json).is_ok(), "{ASSERT_MSG}");
-}
+        assert!(schema.json_to_borsh(0, json).is_ok(), "{ASSERT_MSG}");
 
-#[test]
-fn test_unsigned_tx_wallet_serialization_some_gas_limit() {
-    let json = r#"{
+        let actual_chain_hash = hex::encode(schema.chain_hash().unwrap());
+        assert_eq!(
+            actual_chain_hash,
+            "4c3f263a0249e1487900e8e0e98707c357de6b6b2df52d3323a322e85e55db60"
+        );
+    }
+
+    #[test]
+    fn test_unsigned_tx_wallet_serialization_some_gas_limit() {
+        let json = r#"{
         "runtime_call": {
             "value_setter": {
                  "set_value": {
@@ -50,14 +102,14 @@ fn test_unsigned_tx_wallet_serialization_some_gas_limit() {
             "chain_id": 1337
         }
     }"#;
-    let schema = Schema::of_single_type::<UnsignedTransaction<Runtime, TestSpec>>();
+        let schema = Schema::of_single_type::<UnsignedTransaction<Runtime, TestSpec>>();
 
-    assert!(schema.json_to_borsh(0, json).is_ok(), "{ASSERT_MSG}");
-}
+        assert!(schema.json_to_borsh(0, json).is_ok(), "{ASSERT_MSG}");
+    }
 
-#[test]
-fn test_tx_wallet_serialization_some_gas_limit() {
-    let json = r#"{
+    #[test]
+    fn test_tx_wallet_serialization_some_gas_limit() {
+        let json = r#"{
         "signature": {
             "msg_sig": [
                 197, 161, 16, 121, 196, 253, 39, 80, 96, 211, 6, 131, 61, 32, 48, 100,
@@ -89,14 +141,14 @@ fn test_tx_wallet_serialization_some_gas_limit() {
             "chain_id": 1337
         }
     }"#;
-    let schema = Schema::of_single_type::<Transaction<Runtime, TestSpec>>();
+        let schema = Schema::of_single_type::<Transaction<Runtime, TestSpec>>();
 
-    assert!(schema.json_to_borsh(0, json).is_ok(), "{ASSERT_MSG}");
-}
+        assert!(schema.json_to_borsh(0, json).is_ok(), "{ASSERT_MSG}");
+    }
 
-#[test]
-fn test_tx_wallet_serialization_none_gas_limit() {
-    let json = r#"{
+    #[test]
+    fn test_tx_wallet_serialization_none_gas_limit() {
+        let json = r#"{
         "signature": {
             "msg_sig": [
                 197, 161, 16, 121, 196, 253, 39, 80, 96, 211, 6, 131, 61, 32, 48, 100,
@@ -128,7 +180,8 @@ fn test_tx_wallet_serialization_none_gas_limit() {
             "chain_id": 1337
         }
     }"#;
-    let schema = Schema::of_single_type::<Transaction<Runtime, TestSpec>>();
+        let schema = Schema::of_single_type::<Transaction<Runtime, TestSpec>>();
 
-    assert!(schema.json_to_borsh(0, json).is_ok(), "{ASSERT_MSG}");
+        assert!(schema.json_to_borsh(0, json).is_ok(), "{ASSERT_MSG}");
+    }
 }
