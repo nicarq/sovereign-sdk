@@ -25,7 +25,7 @@ use crate::{CallMessage, RlpEvmTransaction};
 pub fn authenticate<Accessor: ProvableStateReader<User, Spec = S>, S: Spec>(
     raw_tx: &[u8],
     state: &mut Accessor,
-) -> Result<AuthenticationOutput<S, CallMessage, AuthorizationData<S>>, AuthenticationError>
+) -> Result<AuthenticationOutput<S, CallMessage>, AuthenticationError>
 where
     S::Address: FromVmAddress<EthereumAddress>,
 {

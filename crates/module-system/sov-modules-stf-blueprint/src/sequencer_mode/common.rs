@@ -118,11 +118,8 @@ pub enum PreExecError {
 }
 
 /// Alias for `AuthenticationOutput`.
-pub type AuthTxOutput<S, R> = AuthenticationOutput<
-    S,
-    <R as TransactionAuthenticator<S>>::Decodable,
-    <R as TransactionAuthenticator<S>>::AuthorizationData,
->;
+pub type AuthTxOutput<S, R> =
+    AuthenticationOutput<S, <R as TransactionAuthenticator<S>>::Decodable>;
 
 /// The receipt for a batch using the STF blueprint.
 pub type BatchReceipt<S> =

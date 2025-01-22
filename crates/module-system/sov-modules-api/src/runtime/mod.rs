@@ -34,11 +34,8 @@ pub trait Runtime<S: Spec>:
     DispatchCall<Spec = S>
     + HasCapabilities<S>
     + HasKernel<S>
-    + TransactionAuthenticator<
-        S,
-        Decodable = <Self as DispatchCall>::Decodable,
-        AuthorizationData = <Self as HasCapabilities<S>>::AuthorizationData,
-    > + Genesis<Spec = S, Config = Self::GenesisConfig>
+    + TransactionAuthenticator<S, Decodable = <Self as DispatchCall>::Decodable>
+    + Genesis<Spec = S, Config = Self::GenesisConfig>
     + TxHooks<Spec = S>
     + SlotHooks<Spec = S>
     + KernelSlotHooks<Spec = S>
@@ -100,11 +97,8 @@ pub trait Runtime<S: Spec>:
     DispatchCall<Spec = S>
     + HasCapabilities<S>
     + HasKernel<S>
-    + TransactionAuthenticator<
-        S,
-        Decodable = <Self as DispatchCall>::Decodable,
-        AuthorizationData = <Self as HasCapabilities<S>>::AuthorizationData,
-    > + Genesis<Spec = S, Config = Self::GenesisConfig>
+    + TransactionAuthenticator<S, Decodable = <Self as DispatchCall>::Decodable>
+    + Genesis<Spec = S, Config = Self::GenesisConfig>
     + TxHooks<Spec = S>
     + SlotHooks<Spec = S>
     + KernelSlotHooks<Spec = S>

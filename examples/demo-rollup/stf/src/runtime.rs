@@ -35,7 +35,7 @@ use sov_capabilities::StandardProvenRollupCapabilities as StandardCapabilities;
 use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 #[cfg(feature = "native")]
 use sov_modules_api::capabilities::KernelWithSlotMapping;
-use sov_modules_api::capabilities::{AuthorizationData, Guard, HasCapabilities, HasKernel};
+use sov_modules_api::capabilities::{Guard, HasCapabilities, HasKernel};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet};
 use sov_modules_api::prelude::*;
@@ -135,7 +135,6 @@ where
     S::Address: FromVmAddress<EthereumAddress>,
 {
     type Capabilities<'a> = StandardCapabilities<'a, S, sov_paymaster::Paymaster<S>>;
-    type AuthorizationData = AuthorizationData<S>;
     fn capabilities(&self) -> Guard<Self::Capabilities<'_>> {
         Guard::new(StandardCapabilities {
             bank: &self.bank,

@@ -6,7 +6,7 @@ use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm, MockZkvmHost};
-use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities, HasKernel};
+use sov_modules_api::capabilities::{HasCapabilities, HasKernel};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::prelude::axum::async_trait;
 use sov_modules_api::rest::{HasRestApi, StateUpdateReceiver};
@@ -35,7 +35,7 @@ where
     S: Spec + PluggableSpec,
     R: RuntimeTrait<S>
         + HasKernel<S, BlobType = BlobDataWithId>
-        + HasCapabilities<S, AuthorizationData = AuthorizationData<S>>
+        + HasCapabilities<S>
         + HasKernel<S, BlobType = BlobDataWithId>,
 {
     type Spec = S;
@@ -54,7 +54,7 @@ where
         > + PluggableSpec,
     R: RuntimeTrait<S>
         + HasRestApi<S>
-        + HasCapabilities<S, AuthorizationData = AuthorizationData<S>>
+        + HasCapabilities<S>
         + HasKernel<S, BlobType = BlobDataWithId>
         + 'static,
 {

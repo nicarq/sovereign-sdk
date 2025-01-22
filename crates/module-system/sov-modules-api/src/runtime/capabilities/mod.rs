@@ -45,14 +45,11 @@ pub trait HasCapabilities<S: Spec> {
     /// The concrete implementation of the capabilities.
     type Capabilities<'a>: GasEnforcer<S>
         + SequencerAuthorization<S>
-        + TransactionAuthorizer<S, AuthorizationData = Self::AuthorizationData>
+        + TransactionAuthorizer<S>
         + ProofProcessor<S>
         + SequencerRemuneration<S>
     where
         Self: 'a;
-
-    /// The type that is passed to the authorizer.
-    type AuthorizationData;
 
     /// Fetches the capabilities from the runtime.
     ///
@@ -86,9 +83,7 @@ pub trait HasCapabilities<S: Spec> {
     /// Returns the [`TransactionAuthorizer`] implementation on [`HasCapabilities::Capabilities`].
     ///
     /// This method can be overriden to provide a custom implementation.
-    fn transaction_authorizer(
-        &self,
-    ) -> impl TransactionAuthorizer<S, AuthorizationData = Self::AuthorizationData> {
+    fn transaction_authorizer(&self) -> impl TransactionAuthorizer<S> {
         self.capabilities().inner
     }
 

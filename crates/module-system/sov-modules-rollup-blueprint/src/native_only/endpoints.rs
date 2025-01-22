@@ -1,6 +1,6 @@
 use sov_db::ledger_db::LedgerDb;
 use sov_ledger_apis::LedgerRoutes;
-use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
+use sov_modules_api::capabilities::HasCapabilities;
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::prelude::utoipa_swagger_ui::Config;
 use sov_modules_api::rest::utils::{cors_layer, errors};
@@ -27,9 +27,7 @@ pub async fn register_endpoints<B, M>(
 where
     B: FullNodeBlueprint<M> + 'static,
     M: ExecutionMode + 'static,
-    B::Runtime: RuntimeEventProcessor
-        + HasRestApi<B::Spec>
-        + HasCapabilities<B::Spec, AuthorizationData = AuthorizationData<B::Spec>>,
+    B::Runtime: RuntimeEventProcessor + HasRestApi<B::Spec> + HasCapabilities<B::Spec>,
 {
     let mut endpoints = B::Runtime::endpoints(sequencer.api_state.clone());
 
