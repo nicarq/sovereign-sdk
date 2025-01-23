@@ -487,7 +487,7 @@ impl<S: Spec> BlobStorage<S> {
             // Only push the blobs that are within the total size limit.
             blobs_with_total_size_limit.push_or_ignore((next_batch, preferred_sender.clone()));
 
-            tracing::debug!(
+            tracing::trace!(
                 seq_number = preferred_batch.sequence_number,
                 slots_to_advance = preferred_batch.visible_slots_to_advance,
                 "Requested to advance slots"
@@ -515,7 +515,7 @@ impl<S: Spec> BlobStorage<S> {
             }
         };
 
-        tracing::debug!(
+        tracing::trace!(
             num_slots_to_advance,
             current_real_slot = %state.rollup_height_to_access(),
             "Advancing visible rollup height"

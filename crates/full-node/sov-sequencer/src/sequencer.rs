@@ -343,7 +343,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
         // Now that we retrieved the latest state, we can produce and send a new batch.
         if automatic_batch_production {
-            tracing::debug!("Producing a batch automatically");
+            tracing::trace!("Producing a batch automatically");
             // No additional transactions, the batches will
             // just contain whatever transactions have been accepted already
             // (possibly none).

@@ -136,7 +136,7 @@ impl StorableMockDaLayer {
             ..Default::default()
         };
         block.insert(&self.conn).await?;
-        tracing::debug!(
+        tracing::trace!(
             blobs_count,
             height = self.next_height,
             "New block has been produced"
@@ -147,7 +147,7 @@ impl StorableMockDaLayer {
         let last_finalized_height = self.get_last_finalized_height();
         // Meaning that "chain head - blocks to finalization" has moved beyond genesis block.
         if last_finalized_height > 0 {
-            tracing::debug!(
+            tracing::trace!(
                 height = last_finalized_height,
                 "Submitting finalized header at"
             );

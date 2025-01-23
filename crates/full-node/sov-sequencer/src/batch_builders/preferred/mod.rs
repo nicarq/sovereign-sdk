@@ -387,7 +387,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         if self.db.sequence_number_of_in_progress_batch.is_none() {
             let next_visible_slot_number_increase = self.next_visible_slot_number_increase();
 
-            debug!(
+            trace!(
                 next_visible_slot_number_increase,
                 "No in-progress batch, starting a new one"
             );
@@ -758,7 +758,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
             let mut accessor: KernelStateAccessor<'_, Z::Spec> =
                 KernelStateAccessor::from_checkpoint(&kernel, &mut checkpoint);
             kernel.increment_rollup_height(&mut accessor, next_visible_slot_number);
-            tracing::info!(
+            tracing::trace!(
                 "Applying batches in user space. using visible_slot_number: {}",
                 next_visible_slot_number
             );

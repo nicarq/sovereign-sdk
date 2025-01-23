@@ -40,7 +40,7 @@ use sov_state::storage::StateUpdate;
 use sov_state::{Storage, StorageProof};
 pub use stf_blueprint::StfBlueprint;
 use thiserror::Error;
-use tracing::info;
+use tracing::trace;
 
 #[cfg(feature = "native")]
 type MaterializedUpdate<S> = (
@@ -478,7 +478,7 @@ where
 
         let visible_slot_number = state.visible_slot_number_to_access();
 
-        info!(
+        trace!(
             blob_count = blob_selector_output.selected_blobs.len(),
             visible_slot = %visible_slot_number,
             "Selected batch(es) for execution in current slot"
