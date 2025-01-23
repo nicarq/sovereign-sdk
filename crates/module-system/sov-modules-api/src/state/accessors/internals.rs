@@ -100,8 +100,12 @@ impl<S: Storage> Delta<S> {
     }
 }
 
-impl<S: Storage> UniversalStateAccessor for Delta<S> {
-    fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
+impl<S: Storage> Delta<S> {
+    pub fn get(
+        &mut self,
+        namespace: Namespace,
+        key: &SlotKey,
+    ) -> (Option<SlotValue>, IsValueCached) {
         match namespace {
             Namespace::User => {
                 self.user_cache
@@ -122,7 +126,7 @@ impl<S: Storage> UniversalStateAccessor for Delta<S> {
         }
     }
 
-    fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
+    pub fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
         match namespace {
             Namespace::User => self.user_cache.set(key, value),
             Namespace::Kernel => self.kernel_cache.set(key, value),
@@ -140,7 +144,7 @@ impl<S: Storage> UniversalStateAccessor for Delta<S> {
         }
     }
 
-    fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+    pub fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
         match namespace {
             Namespace::User => self.user_cache.delete(key),
             Namespace::Kernel => self.kernel_cache.delete(key),

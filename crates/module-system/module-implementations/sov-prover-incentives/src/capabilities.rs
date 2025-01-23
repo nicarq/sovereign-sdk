@@ -3,10 +3,11 @@ use std::cmp::max;
 use sov_bank::{config_gas_token_id, Coins, IntoPayable};
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{
-    AggregatedProofPublicData, Gas, InvalidProofError, SerializedAggregatedProof, Spec, Storage,
-    TxState, VersionReader, ZkVerifier, Zkvm,
+    AggregatedProofPublicData, Gas, InvalidProofError, SerializedAggregatedProof, Spec,
+    StateReader, Storage, TxState, VersionReader, ZkVerifier, Zkvm,
 };
 use sov_rollup_interface::common::SlotNumber;
+use sov_state::Kernel;
 use thiserror::Error;
 
 use crate::event::SlashingReason;
@@ -263,7 +264,7 @@ impl<S: Spec> ProverIncentives<S> {
     }
 
     /// Check that the initial and final state values of the proof output are valid against the chain state module
-    fn check_proof_outputs<ST: VersionReader>(
+    fn check_proof_outputs<ST: VersionReader + StateReader<Kernel>>(
         &self,
         public_outputs: &AggregatedProofPublicData<
             S::Address,

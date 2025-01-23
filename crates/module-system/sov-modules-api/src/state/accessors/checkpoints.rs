@@ -163,15 +163,15 @@ impl<S: Spec> VersionReader for StateCheckpoint<S> {
 
 impl<S: Spec> UniversalStateAccessor for StateCheckpoint<S> {
     fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        UniversalStateAccessor::get(&mut self.delta, namespace, key)
+        self.delta.get(namespace, key)
     }
 
     fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        UniversalStateAccessor::set(&mut self.delta, namespace, key, value)
+        self.delta.set(namespace, key, value)
     }
 
     fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        UniversalStateAccessor::delete(&mut self.delta, namespace, key)
+        self.delta.delete(namespace, key)
     }
 }
 

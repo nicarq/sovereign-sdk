@@ -6,13 +6,13 @@ use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
 use sov_modules_api::capabilities::{BlobOrigin, BlobSelectorOutput, BlockGasInfo, RollupHeight};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel};
+use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel as KernelTrait};
 use sov_modules_api::{
     BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, IterableBatchWithId, KernelStateAccessor,
     Spec, StateReader, VersionReader, VisibleSlotNumber,
 };
 use sov_rollup_interface::common::SlotNumber;
-use sov_state::{Storage, User};
+use sov_state::{Kernel, Storage, User};
 
 /// A kernel supporting based sequencing with soft confirmations
 pub struct SoftConfirmationsKernel<'a, S: Spec> {
@@ -20,7 +20,7 @@ pub struct SoftConfirmationsKernel<'a, S: Spec> {
     pub blob_storage: &'a BlobStorage<S>,
 }
 
-impl<'a, S: Spec> Kernel<S> for SoftConfirmationsKernel<'a, S> {
+impl<'a, S: Spec> KernelTrait<S> for SoftConfirmationsKernel<'a, S> {
     fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> SlotNumber {
         self.chain_state.true_slot_number(state).unwrap_infallible()
     }
@@ -91,7 +91,9 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for SoftConfirmation
     }
 
     fn base_fee_per_gas<
-        Reader: VersionReader<Error = Infallible> + StateReader<User, Error = Infallible>,
+        Reader: VersionReader
+            + StateReader<Kernel, Error = Infallible>
+            + StateReader<User, Error = Infallible>,
     >(
         &self,
         state: &mut Reader,
@@ -100,7 +102,9 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for SoftConfirmation
     }
 
     fn block_gas_limit<
-        Reader: VersionReader<Error = Infallible> + StateReader<User, Error = Infallible>,
+        Reader: VersionReader
+            + StateReader<Kernel, Error = Infallible>
+            + StateReader<User, Error = Infallible>,
     >(
         &self,
         state: &mut Reader,

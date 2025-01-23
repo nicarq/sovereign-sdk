@@ -120,7 +120,7 @@ where
     }
 
     /// Returns the value for the given index.
-    pub fn get<Reader: VersionReader>(
+    pub fn get<Reader: VersionReader + StateReader<Kernel>>(
         &self,
         index: SlotNumber,
         state: &mut Reader,
@@ -137,7 +137,7 @@ where
     /// Returns the value for the given index.
     /// If the index is out of bounds, returns an error.
     /// If the value is absent, returns an error.
-    pub fn get_or_err<Reader: VersionReader>(
+    pub fn get_or_err<Reader: VersionReader + StateReader<Kernel>>(
         &self,
         index: SlotNumber,
         state: &mut Reader,
@@ -166,7 +166,7 @@ where
     /// `len_value[max_len_index]` instead of `None`. This is safe to do because the [`VersionedStateVec`] is an _append-only_ data structure,
     /// and hence querying the values at indexes below `len_value[max_len_index]` will always return the same value for future heights.
     /// Also note that if the current height to access is less than `max_len_index`, we will naturally return `len_value[max_len_index]`.
-    pub fn len<Reader: VersionReader>(
+    pub fn len<Reader: VersionReader + StateReader<Kernel>>(
         &self,
         state: &mut Reader,
     ) -> Result<SlotNumber, <Reader as StateReader<Kernel>>::Error> {
@@ -188,7 +188,7 @@ where
         }
     }
 
-    fn last_index<Vs: VersionReader>(
+    fn last_index<Vs: VersionReader + StateReader<Kernel>>(
         &self,
         state: &mut Vs,
     ) -> Result<Option<SlotNumber>, Vs::Error> {
@@ -203,7 +203,10 @@ where
     /// Pushes a value to the end of the vector.
     ///
     /// This operation should be performed by a [`KernelStateAccessor`].
-    pub fn push<Vq, Accessor: KernelWriter + VersionReader<Error = Infallible>>(
+    pub fn push<
+        Vq,
+        Accessor: KernelWriter + VersionReader + StateReader<Kernel, Error = Infallible>,
+    >(
         &self,
         value: &Vq,
         state: &mut Accessor,
@@ -225,7 +228,7 @@ where
 
     /// Returns the last value in the vector at the version visible from the accessor, or [`None`] if
     /// empty.
-    pub fn last<VersionedState: VersionReader>(
+    pub fn last<VersionedState: VersionReader + StateReader<Kernel>>(
         &self,
         state: &mut VersionedState,
     ) -> Result<Option<V>, VersionedState::Error> {
@@ -260,7 +263,7 @@ where
         state: &'ws mut W,
     ) -> Result<VersionedStateVecIter<'a, 'ws, Kernel, V, Codec, W>, W::Error>
     where
-        W: VersionReader,
+        W: VersionReader + StateReader<Kernel>,
     {
         let last_i = self.last_index(state)?.unwrap_or_default();
         Ok(VersionedStateVecIter {
@@ -309,7 +312,7 @@ where
     Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<SlotNumber>,
     Codec::KeyCodec: StateItemCodec<SlotNumber>,
-    W: VersionReader,
+    W: VersionReader + StateReader<Kernel>,
 {
     type Item = Result<V, W::Error>;
     fn next(&mut self) -> Option<Self::Item> {
@@ -351,7 +354,7 @@ where
     Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<SlotNumber>,
     Codec::KeyCodec: StateItemCodec<SlotNumber>,
-    W: VersionReader,
+    W: VersionReader + StateReader<Kernel>,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.last_i >= self.next_i {

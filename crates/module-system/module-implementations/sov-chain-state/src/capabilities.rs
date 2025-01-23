@@ -153,7 +153,7 @@ impl<S: Spec> ChainState<S> {
 
     /// Returns the gas info from a *previous* rollup height.
     pub fn historical_gas_info_at<
-        Reader: VersionReader<Error = E> + StateReader<User, Error = E>,
+        Reader: VersionReader + StateReader<User, Error = E> + StateReader<Kernel, Error = E>,
         E,
     >(
         &self,
@@ -172,7 +172,7 @@ impl<S: Spec> ChainState<S> {
 
     /// Returns the base fee per gas accessible at the specified slot height for this state accessor.
     pub fn base_fee_per_gas_at<
-        Reader: VersionReader<Error = E> + StateReader<User, Error = E>,
+        Reader: VersionReader + StateReader<User, Error = E> + StateReader<Kernel, Error = E>,
         E,
     >(
         &self,
@@ -212,7 +212,7 @@ impl<S: Spec> ChainState<S> {
 
     /// Returns the slot gas limit at the specified slot height for this state accessor.
     pub fn block_gas_limit_at<
-        Reader: VersionReader<Error = E> + StateReader<User, Error = E>,
+        Reader: VersionReader + StateReader<User, Error = E> + StateReader<Kernel, Error = E>,
         E,
     >(
         &self,
@@ -245,7 +245,10 @@ impl<S: Spec> ChainState<S> {
     /// ## Note
     /// This method can return `None` if the base fee per gas for the current slot cannot be determined yet.
     /// This can happen when querying a slot too far ahead in the future.
-    pub fn base_fee_per_gas<Reader: VersionReader<Error = E> + StateReader<User, Error = E>, E>(
+    pub fn base_fee_per_gas<
+        Reader: VersionReader + StateReader<User, Error = E> + StateReader<Kernel, Error = E>,
+        E,
+    >(
         &self,
         state: &mut Reader,
     ) -> Result<
@@ -256,7 +259,10 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Returns the slot gas limit at the current slot accessible from the version reader.
-    pub fn block_gas_limit<Reader: VersionReader<Error = E> + StateReader<User, Error = E>, E>(
+    pub fn block_gas_limit<
+        Reader: VersionReader + StateReader<User, Error = E> + StateReader<Kernel, Error = E>,
+        E,
+    >(
         &self,
         state: &mut Reader,
     ) -> Result<Option<S::Gas>, <Reader as StateReader<Kernel>>::Error> {

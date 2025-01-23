@@ -17,15 +17,15 @@ pub struct BootstrapWorkingSet<'a, S: Storage> {
 
 impl<'a, S: Storage, N: CompileTimeNamespace> CachedAccessor<N> for BootstrapWorkingSet<'a, S> {
     fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        <Delta<S> as CachedAccessor<N>>::get_cached(self.inner, key)
+        self.inner.get(N::NAMESPACE, key)
     }
 
     fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        <Delta<S> as CachedAccessor<N>>::set_cached(self.inner, key, value)
+        self.inner.set(N::NAMESPACE, key, value)
     }
 
     fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
-        <Delta<S> as CachedAccessor<N>>::delete_cached(self.inner, key)
+        self.inner.delete(N::NAMESPACE, key)
     }
 }
 
@@ -99,14 +99,14 @@ impl<'a, S: Spec> KernelStateAccessor<'a, S> {
 
 impl<S: Spec> UniversalStateAccessor for KernelStateAccessor<'_, S> {
     fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        UniversalStateAccessor::get(self.checkpoint, namespace, key)
+        self.checkpoint.get(namespace, key)
     }
 
     fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        UniversalStateAccessor::set(self.checkpoint, namespace, key, value)
+        self.checkpoint.set(namespace, key, value)
     }
 
     fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        UniversalStateAccessor::delete(self.checkpoint, namespace, key)
+        self.checkpoint.delete(namespace, key)
     }
 }
