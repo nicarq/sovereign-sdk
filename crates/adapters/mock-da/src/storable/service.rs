@@ -248,7 +248,7 @@ impl DaService for StorableMockDaService {
         let da_layer = self.da_layer.read().await;
 
         let block = da_layer.get_block_at(height).await?;
-        tracing::debug!(block_header = %block.header().display(), "Block retrieved");
+        tracing::trace!(block_header = %block.header().display(), "Block retrieved");
         Ok(block)
     }
 
@@ -310,7 +310,7 @@ impl DaService for StorableMockDaService {
         Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
     > {
         let (tx, rx) = oneshot::channel();
-        tracing::debug!(batch = hex::encode(blob), "Submitting a batch");
+        tracing::trace!(batch = hex::encode(blob), "Submitting a batch");
         let blob_hash = {
             let mut da_layer = self.da_layer.write().await;
             da_layer
@@ -342,7 +342,7 @@ impl DaService for StorableMockDaService {
         Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
     > {
         let (tx, rx) = oneshot::channel();
-        tracing::debug!(
+        tracing::trace!(
             blob = hex::encode(aggregated_proof_data),
             "Sending an aggregated proof"
         );

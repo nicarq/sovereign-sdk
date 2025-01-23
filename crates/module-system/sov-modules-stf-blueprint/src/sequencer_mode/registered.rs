@@ -13,7 +13,7 @@ use sov_modules_api::{
 };
 use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_rollup_interface::TxHash;
-use tracing::{debug, warn};
+use tracing::{trace, warn};
 
 pub use crate::sequencer_mode::common::PreExecError;
 use crate::sequencer_mode::common::{
@@ -306,7 +306,7 @@ where
         tracing::info_span!("sequencer-batch").entered()
     };
 
-    debug!(
+    trace!(
         sequencer_da_address = %sequencer_da_address,
         ?gas_price,
         "Applying a batch"
@@ -315,7 +315,7 @@ where
     batch_with_id.pre_flight(&checkpoint);
     let mut clean_scratchpad = checkpoint.to_tx_scratchpad();
 
-    debug!("Verifying & executing transactions");
+    trace!("Verifying & executing transactions");
 
     // Cost of the authentication for the entire batch.
     // It should include the costs of `authentication` and process_tx pre-execution checks.

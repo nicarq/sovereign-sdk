@@ -186,7 +186,7 @@ pub(crate) fn apply_batch_logs<'a, S: Spec>(
     let batch_receipt = batch_receipt.into();
     let batch_sequencer_receipt = batch_receipt.inner;
 
-    info!(
+    debug!(
         blob_idx,
         sequencer_da_address = %batch_sequencer_receipt.da_address,
         num_txs = batch_receipt.tx_receipts.len(),
