@@ -3,12 +3,11 @@ use std::collections::HashMap;
 
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::{
-    namespaces, Accessory, IsValueCached, Namespace, ProvableStorageCache, SlotKey, SlotValue,
-    StateAccesses, Storage,
+    namespaces, IsValueCached, Namespace, ProvableStorageCache, SlotKey, SlotValue, StateAccesses,
+    Storage,
 };
 
 use super::checkpoints::ChangeSet;
-use super::seal::CachedAccessor;
 use super::UniversalStateAccessor;
 
 /// A [`Delta`] is a diff over an underlying [`Storage`] instance. When queried, it first checks
@@ -182,8 +181,12 @@ impl<S: Storage> AccessoryDelta<S> {
     }
 }
 
-impl<S: Storage> CachedAccessor<Accessory> for AccessoryDelta<S> {
-    fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
+impl<S: Storage> UniversalStateAccessor for AccessoryDelta<S> {
+    fn get_value(
+        &mut self,
+        _namespace: Namespace,
+        key: &SlotKey,
+    ) -> (Option<SlotValue>, IsValueCached) {
         if let Some(value) = self.writes.get(key) {
             return (value.clone().map(Into::into), IsValueCached::Yes);
         }
@@ -194,7 +197,12 @@ impl<S: Storage> CachedAccessor<Accessory> for AccessoryDelta<S> {
         )
     }
 
-    fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
+    fn set_value(
+        &mut self,
+        _namespace: Namespace,
+        key: &SlotKey,
+        value: SlotValue,
+    ) -> IsValueCached {
         if self.writes.insert(key.clone(), Some(value)).is_none() {
             IsValueCached::No
         } else {
@@ -202,7 +210,7 @@ impl<S: Storage> CachedAccessor<Accessory> for AccessoryDelta<S> {
         }
     }
 
-    fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
+    fn delete_value(&mut self, _namespace: Namespace, key: &SlotKey) -> IsValueCached {
         if self.writes.insert(key.clone(), None).is_none() {
             IsValueCached::No
         } else {
@@ -263,8 +271,8 @@ impl<T> RevertableWriter<T> {
         T: UniversalStateAccessor,
     {
         match value {
-            Some(value) => inner.set(namespace, &key, value),
-            None => inner.delete(namespace, &key),
+            Some(value) => inner.set_value(namespace, &key, value),
+            None => inner.delete_value(namespace, &key),
         };
     }
 }
@@ -273,15 +281,24 @@ impl<T> UniversalStateAccessor for RevertableWriter<T>
 where
     T: UniversalStateAccessor,
 {
-    fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
+    fn get_value(
+        &mut self,
+        namespace: Namespace,
+        key: &SlotKey,
+    ) -> (Option<SlotValue>, IsValueCached) {
         if let Some(value) = self.writes.get(&(key.clone(), namespace)) {
             (value.as_ref().cloned().map(Into::into), IsValueCached::Yes)
         } else {
-            <T as UniversalStateAccessor>::get(&mut self.inner, namespace, key)
+            <T as UniversalStateAccessor>::get_value(&mut self.inner, namespace, key)
         }
     }
 
-    fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
+    fn set_value(
+        &mut self,
+        namespace: Namespace,
+        key: &SlotKey,
+        value: SlotValue,
+    ) -> IsValueCached {
         if self
             .writes
             .insert((key.clone(), namespace), Some(value))
@@ -293,7 +310,7 @@ where
         }
     }
 
-    fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
         if self.writes.insert((key.clone(), namespace), None).is_none() {
             IsValueCached::No
         } else {

@@ -3,7 +3,7 @@
 use std::marker::PhantomData;
 
 use internals::RevertableWriter;
-use sov_state::{CompileTimeNamespace, IsValueCached, Namespace, SlotKey, SlotValue};
+use sov_state::Namespace;
 
 mod access_controls;
 mod checkpoints;
@@ -38,40 +38,26 @@ use super::{StateReaderAndWriter, VersionReader};
 use crate::Spec;
 
 pub(super) mod seal {
-    use sov_state::{CompileTimeNamespace, IsValueCached, Namespace, SlotKey, SlotValue};
-
-    /// A helper trait that is used to derive [`crate::StateReader`]/[`crate::StateWriter`] and the corresponding unmetered versions.
-    pub trait CachedAccessor<N: CompileTimeNamespace> {
-        fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached);
-        fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached;
-        fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached;
-    }
+    use sov_state::{IsValueCached, Namespace, SlotKey, SlotValue};
 
     /// A helper trait allowing a type to access any namespace by their *runtime* enum variant.
     /// Structs that implements this trait also implement [`CachedAccessor`] for any namespace by default.
     /// Useful to represent structs with caches containing different state value namespaces that can be committed to the storage.
     pub trait UniversalStateAccessor {
-        fn get(
+        fn get_value(
             &mut self,
             namespace: Namespace,
             key: &SlotKey,
         ) -> (Option<SlotValue>, IsValueCached);
-        fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached;
-        fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached;
-    }
-}
 
-impl<N: CompileTimeNamespace, T: UniversalStateAccessor> CachedAccessor<N> for T {
-    fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        <Self as UniversalStateAccessor>::get(self, N::NAMESPACE, key)
-    }
+        fn set_value(
+            &mut self,
+            namespace: Namespace,
+            key: &SlotKey,
+            value: SlotValue,
+        ) -> IsValueCached;
 
-    fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        <Self as UniversalStateAccessor>::set(self, N::NAMESPACE, key, value)
-    }
-
-    fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
-        <Self as UniversalStateAccessor>::delete(self, N::NAMESPACE, key)
+        fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached;
     }
 }
 

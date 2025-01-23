@@ -34,16 +34,34 @@ pub struct TxScratchpad<S: Spec, I: StateProvider<S>> {
 }
 
 impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for TxScratchpad<S, I> {
-    fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        <RevertableWriter<I> as UniversalStateAccessor>::get(&mut self.inner, namespace, key)
+    fn get_value(
+        &mut self,
+        namespace: Namespace,
+        key: &SlotKey,
+    ) -> (Option<SlotValue>, IsValueCached) {
+        <RevertableWriter<I> as UniversalStateAccessor>::get_value(&mut self.inner, namespace, key)
     }
 
-    fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        <RevertableWriter<I> as UniversalStateAccessor>::set(&mut self.inner, namespace, key, value)
+    fn set_value(
+        &mut self,
+        namespace: Namespace,
+        key: &SlotKey,
+        value: SlotValue,
+    ) -> IsValueCached {
+        <RevertableWriter<I> as UniversalStateAccessor>::set_value(
+            &mut self.inner,
+            namespace,
+            key,
+            value,
+        )
     }
 
-    fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        <RevertableWriter<I> as UniversalStateAccessor>::delete(&mut self.inner, namespace, key)
+    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+        <RevertableWriter<I> as UniversalStateAccessor>::delete_value(
+            &mut self.inner,
+            namespace,
+            key,
+        )
     }
 }
 
@@ -123,16 +141,34 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for PreExecWorkingSet<S, I> {
 }
 
 impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for PreExecWorkingSet<S, I> {
-    fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        <TxScratchpad<S, I> as UniversalStateAccessor>::get(&mut self.inner, namespace, key)
+    fn get_value(
+        &mut self,
+        namespace: Namespace,
+        key: &SlotKey,
+    ) -> (Option<SlotValue>, IsValueCached) {
+        <TxScratchpad<S, I> as UniversalStateAccessor>::get_value(&mut self.inner, namespace, key)
     }
 
-    fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        <TxScratchpad<S, I> as UniversalStateAccessor>::set(&mut self.inner, namespace, key, value)
+    fn set_value(
+        &mut self,
+        namespace: Namespace,
+        key: &SlotKey,
+        value: SlotValue,
+    ) -> IsValueCached {
+        <TxScratchpad<S, I> as UniversalStateAccessor>::set_value(
+            &mut self.inner,
+            namespace,
+            key,
+            value,
+        )
     }
 
-    fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        <TxScratchpad<S, I> as UniversalStateAccessor>::delete(&mut self.inner, namespace, key)
+    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+        <TxScratchpad<S, I> as UniversalStateAccessor>::delete_value(
+            &mut self.inner,
+            namespace,
+            key,
+        )
     }
 }
 
@@ -339,15 +375,24 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for WorkingSet<S, I> {
 }
 
 impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for WorkingSet<S, I> {
-    fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        self.delta.get(namespace, key)
+    fn get_value(
+        &mut self,
+        namespace: Namespace,
+        key: &SlotKey,
+    ) -> (Option<SlotValue>, IsValueCached) {
+        self.delta.get_value(namespace, key)
     }
-    fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        self.delta.set(namespace, key, value)
+    fn set_value(
+        &mut self,
+        namespace: Namespace,
+        key: &SlotKey,
+        value: SlotValue,
+    ) -> IsValueCached {
+        self.delta.set_value(namespace, key, value)
     }
 
-    fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        self.delta.delete(namespace, key)
+    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+        self.delta.delete_value(namespace, key)
     }
 }
 

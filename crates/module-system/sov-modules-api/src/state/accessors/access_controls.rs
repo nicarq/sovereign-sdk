@@ -12,7 +12,6 @@ use sov_state::{
 };
 
 use super::genesis::GenesisStateAccessor;
-use super::seal::CachedAccessor;
 use super::StateProvider;
 use crate::state::traits::{AccessoryStateWriter, ProvableStateReader, ProvableStateWriter};
 #[cfg(feature = "native")]
@@ -27,7 +26,14 @@ macro_rules! inner_impl_unmetered_state_reader {
         type Error = Infallible;
 
         fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
-            Ok(<Self as CachedAccessor<$namespace>>::get_cached(self, key).0)
+            Ok(
+                <Self as crate::state::accessors::UniversalStateAccessor>::get_value(
+                    self,
+                    <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
+                    key,
+                )
+                .0,
+            )
         }
 
         fn get_decoded<V, Codec>(
@@ -52,12 +58,22 @@ macro_rules! inner_impl_unmetered_state_writer {
         type Error = Infallible;
 
         fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Self::Error> {
-            <Self as CachedAccessor<$namespace>>::set_cached(self, key, value);
+            <Self as crate::state::accessors::UniversalStateAccessor>::set_value(
+                self,
+                <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
+                key,
+                value,
+            );
             Ok(())
         }
 
         fn delete(&mut self, key: &SlotKey) -> Result<(), Self::Error> {
-            <Self as CachedAccessor<$namespace>>::delete_cached(self, key);
+            <Self as crate::state::accessors::UniversalStateAccessor>::delete_value(
+                self,
+                <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
+                key,
+            );
+
             Ok(())
         }
     };
@@ -72,7 +88,6 @@ mod http_api {
         User,
     };
 
-    use super::CachedAccessor;
     use crate::gas::GasMeter;
     use crate::module::GasSpec;
     use crate::state::accessors::http_api::ApiStateAccessor;
@@ -88,7 +103,11 @@ mod http_api {
         fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Infallible> {
             self.charge_gas(&S::gas_to_charge_for_access()).expect("We should never fail to charge gas for read operation of api accessors. This is a bug!");
 
-            let (val, is_value_cached) = CachedAccessor::<$namespace>::get_cached(self, key);
+            let (val, is_value_cached) =   <Self as crate::state::accessors::UniversalStateAccessor>::get_value(
+                    self,
+                    <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
+                    key,
+                );
 
             if is_value_cached == IsValueCached::Yes {
                 self.refund_gas(&S::gas_to_refund_for_hot_access()).expect("Failed to refund gas for read operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
@@ -120,35 +139,44 @@ mod http_api {
 
     macro_rules! inner_impl_http_api_state_writer {
         ($namespace:ty) => {
-                type Error = Infallible;
+            type Error = Infallible;
 
-                fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Infallible> {
-                    let input_len = value.size() as u64;
-                    self.charge_linear_gas(&S::gas_to_charge_per_byte_for_write(), input_len)  .expect("We should never fail to charge gas for write operation of api accessors. This is a bug!");
+            fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Infallible> {
+                let input_len = value.size() as u64;
+                self.charge_linear_gas(&S::gas_to_charge_per_byte_for_write(), input_len).expect("We should never fail to charge gas for write operation of api accessors. This is a bug!");
 
-                    let is_value_cached = CachedAccessor::<$namespace>::set_cached(self, key, value);
+                let is_value_cached = <Self as crate::state::accessors::UniversalStateAccessor>::set_value(
+                    self,
+                    <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
+                    key,
+                    value,
+                );
 
-                    if is_value_cached == IsValueCached::Yes {
-                        let gas_to_refund = &S::gas_to_refund_per_byte_for_hot_write().checked_scalar_product(input_len).unwrap();
-                        self.refund_gas(gas_to_refund).expect("Failed to refund gas for write operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
-                    }
+                if is_value_cached == IsValueCached::Yes {
+                    let gas_to_refund = &S::gas_to_refund_per_byte_for_hot_write().checked_scalar_product(input_len).expect("Impossible happened: Failed to calualate gas refund. ");
+                    self.refund_gas(gas_to_refund).expect("Failed to refund gas for write operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
+                };
+                Ok(())
+            }
 
-                    Ok(())
-                }
-
-                fn delete(&mut self, key: &SlotKey) -> Result<(), Infallible> {
-                    self.charge_gas(&S::gas_to_charge_for_delete())
+            fn delete(&mut self, key: &SlotKey) -> Result<(), Infallible> {
+                self.charge_gas(&S::gas_to_charge_for_delete())
                     .expect("We should never fail to charge gas for write operation of api accessors. This is a bug!");
 
-                    let is_value_cached = CachedAccessor::<$namespace>::delete_cached(self, key);
+                let is_value_cached = <Self as crate::state::accessors::UniversalStateAccessor>::delete_value(
+                    self,
+                    <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
+                    key,
+                );
 
-                    if is_value_cached == IsValueCached::Yes {
-                        self.refund_gas(&S::gas_to_refund_for_hot_delete()).expect("Failed to refund gas for delete operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
-                    }
-
-                    Ok(())
+                if is_value_cached == IsValueCached::Yes {
+                    self.refund_gas(&S::gas_to_refund_for_hot_delete()).expect("Failed to refund gas for delete operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
                 }
+
+
+                Ok(())
             }
+        };
     }
 
     impl<S: Spec> AccessoryStateReader for ApiStateAccessor<S> {}
@@ -276,7 +304,6 @@ pub mod kernel_state {
         Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, Storage, User,
     };
 
-    use crate::state::accessors::seal::CachedAccessor;
     use crate::state::accessors::BootstrapWorkingSet;
     use crate::{KernelStateAccessor, Spec, StateReader, StateWriter};
 

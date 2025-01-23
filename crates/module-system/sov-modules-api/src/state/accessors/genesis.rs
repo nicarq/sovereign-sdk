@@ -1,8 +1,8 @@
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
-use sov_state::{CompileTimeNamespace, EventContainer, IsValueCached, SlotKey, SlotValue};
+use sov_state::{EventContainer, IsValueCached, SlotKey, SlotValue};
 
 use super::checkpoints::StateCheckpoint;
-use super::seal::CachedAccessor;
+use super::UniversalStateAccessor;
 use crate::capabilities::RollupHeight;
 use crate::state::events::TypedEvent;
 use crate::{
@@ -52,17 +52,26 @@ impl<S: Spec> VersionReader for GenesisStateAccessor<'_, S> {
     }
 }
 
-impl<'a, S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for GenesisStateAccessor<'a, S> {
-    fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        CachedAccessor::<N>::get_cached(self.checkpoint, key)
+impl<'a, S: Spec> UniversalStateAccessor for GenesisStateAccessor<'a, S> {
+    fn get_value(
+        &mut self,
+        namespace: sov_state::Namespace,
+        key: &SlotKey,
+    ) -> (Option<SlotValue>, IsValueCached) {
+        self.checkpoint.get_value(namespace, key)
     }
 
-    fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        CachedAccessor::<N>::set_cached(self.checkpoint, key, value)
+    fn set_value(
+        &mut self,
+        namespace: sov_state::Namespace,
+        key: &SlotKey,
+        value: SlotValue,
+    ) -> IsValueCached {
+        self.checkpoint.set_value(namespace, key, value)
     }
 
-    fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
-        CachedAccessor::<N>::delete_cached(self.checkpoint, key)
+    fn delete_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
+        self.checkpoint.delete_value(namespace, key)
     }
 }
 

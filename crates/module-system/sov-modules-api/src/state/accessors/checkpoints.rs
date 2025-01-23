@@ -143,9 +143,9 @@ impl<S: Spec> StateCheckpoint<S> {
     pub fn apply_changes(&mut self, changeset: ChangeSet) {
         for ((key, namespace), value) in changeset.changes {
             if let Some(value) = value {
-                self.set(namespace, &key, value);
+                self.set_value(namespace, &key, value);
             } else {
-                self.delete(namespace, &key);
+                self.delete_value(namespace, &key);
             }
         }
     }
@@ -162,24 +162,33 @@ impl<S: Spec> VersionReader for StateCheckpoint<S> {
 }
 
 impl<S: Spec> UniversalStateAccessor for StateCheckpoint<S> {
-    fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
+    fn get_value(
+        &mut self,
+        namespace: Namespace,
+        key: &SlotKey,
+    ) -> (Option<SlotValue>, IsValueCached) {
         self.delta.get(namespace, key)
     }
 
-    fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
+    fn set_value(
+        &mut self,
+        namespace: Namespace,
+        key: &SlotKey,
+        value: SlotValue,
+    ) -> IsValueCached {
         self.delta.set(namespace, key, value)
     }
 
-    fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
         self.delta.delete(namespace, key)
     }
 }
 
 #[cfg(feature = "native")]
 pub mod native {
-    use sov_state::{Accessory, IsValueCached, SlotKey, SlotValue};
+    use sov_state::{IsValueCached, SlotKey, SlotValue};
 
-    use crate::state::accessors::seal::CachedAccessor;
+    use crate::state::accessors::UniversalStateAccessor;
     use crate::{Spec, StateCheckpoint};
 
     impl<S: Spec> StateCheckpoint<S> {
@@ -198,21 +207,30 @@ pub mod native {
         pub(in crate::state) checkpoint: &'a mut StateCheckpoint<S>,
     }
 
-    impl<'a, S: Spec> CachedAccessor<Accessory> for AccessoryStateCheckpoint<'a, S> {
-        fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-            <StateCheckpoint<S> as CachedAccessor<Accessory>>::get_cached(self.checkpoint, key)
+    impl<'a, S: Spec> UniversalStateAccessor for AccessoryStateCheckpoint<'a, S> {
+        fn get_value(
+            &mut self,
+            namespace: sov_state::Namespace,
+            key: &SlotKey,
+        ) -> (Option<SlotValue>, IsValueCached) {
+            self.checkpoint.get_value(namespace, key)
         }
 
-        fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-            <StateCheckpoint<S> as CachedAccessor<Accessory>>::set_cached(
-                self.checkpoint,
-                key,
-                value,
-            )
+        fn set_value(
+            &mut self,
+            namespace: sov_state::Namespace,
+            key: &SlotKey,
+            value: SlotValue,
+        ) -> IsValueCached {
+            self.checkpoint.set_value(namespace, key, value)
         }
 
-        fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
-            <StateCheckpoint<S> as CachedAccessor<Accessory>>::delete_cached(self.checkpoint, key)
+        fn delete_value(
+            &mut self,
+            namespace: sov_state::Namespace,
+            key: &SlotKey,
+        ) -> IsValueCached {
+            self.checkpoint.delete_value(namespace, key)
         }
     }
 }

@@ -11,7 +11,7 @@ use sov_state::{
 };
 use thiserror::Error;
 
-use super::accessors::seal::CachedAccessor;
+use super::accessors::seal::UniversalStateAccessor;
 use crate::capabilities::RollupHeight;
 #[cfg(any(feature = "test-utils", feature = "evm"))]
 use crate::UnmeteredStateWrapper;
@@ -238,18 +238,6 @@ impl<T: InfallibleStateReaderAndWriter<Accessory>> AccessoryStateReaderAndWriter
 pub trait StateReaderAndWriter<N: CompileTimeNamespace>:
     StateReader<N> + StateWriter<N, Error = <Self as StateReader<N>>::Error>
 {
-    /// Deletes a value from the storage. Basically a wrapper around [`StateWriter::delete`].
-    ///
-    /// ## Note
-    /// For now, charges the same amount of gas for delete as for write. In the future, we may want to charge a different amount and improve the granularity of the refund.
-    fn remove(&mut self, key: &SlotKey) -> Result<(), <Self as StateWriter<N>>::Error> {
-        <Self as StateReader<N>>::get(self, key)?;
-
-        <Self as StateWriter<N>>::delete(self, key)?;
-
-        Ok(())
-    }
-
     /// Removes a value from storage and decode the result
     fn remove_decoded<V, Codec>(
         &mut self,
@@ -274,7 +262,7 @@ where
 }
 
 /// A storage reader which can access a particular namespace.
-pub trait StateReader<N: CompileTimeNamespace>: CachedAccessor<N> {
+pub trait StateReader<N: CompileTimeNamespace>: UniversalStateAccessor {
     /// The error type returned when a state read operation fails.
     type Error: std::error::Error + Send + Sync + 'static;
 
@@ -303,62 +291,69 @@ pub trait StateReader<N: CompileTimeNamespace>: CachedAccessor<N> {
 
 /// A storage reader which can access the accessory state.
 /// Does not charge gas for read operations.
-pub trait AccessoryStateReader: CachedAccessor<Accessory> {}
+pub trait AccessoryStateReader: UniversalStateAccessor {}
 
 /// A trait wrapper that replicates the functionality of [`StateReader`] but with a gas metering interface.
 /// This allows a storage reader to charge gas for read operations.
 pub trait ProvableStateReader<N: ProvableCompileTimeNamespace>:
-    CachedAccessor<N> + GasMeter
+    UniversalStateAccessor + GasMeter
 {
 }
 
 macro_rules! blanket_impl_metered_state_reader {
     ($namespace:ty) => {
-            type Error = StateAccessorError<<T::Spec as GasSpec>::Gas>;
+        type Error = StateAccessorError<<T::Spec as GasSpec>::Gas>;
 
-            fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
-                self.charge_gas(&<T::Spec as GasSpec>::gas_to_charge_for_access())
-                    .map_err(|e| StateAccessorError::Get{
-                        key: key.clone(),
-                        inner: e,
-                        namespace: <$namespace>::PROVABLE_NAMESPACE,
-                    })?;
+        fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
+            self.charge_gas(&<T::Spec as GasSpec>::gas_to_charge_for_access())
+                .map_err(|e| StateAccessorError::Get{
+                    key: key.clone(),
+                    inner: e,
+                    namespace: <$namespace>::PROVABLE_NAMESPACE,
+                })?;
 
-                let (val, is_value_cached) = CachedAccessor::<$namespace>::get_cached(self, key);
 
-                if is_value_cached == IsValueCached::Yes {
-                    self.refund_gas(&<T::Spec as GasSpec>::gas_to_refund_for_hot_access()).expect("Failed to refund gas for read operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
-                }
+            let (val, is_value_cached) = <Self as  super::accessors::seal::UniversalStateAccessor>::get_value(
+                self,
+                <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
+                key,
+            );
 
-                Ok(val)
+            if is_value_cached == IsValueCached::Yes {
+                self.refund_gas(&<T::Spec as GasSpec>::gas_to_refund_for_hot_access()).expect("Failed to refund gas for read operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
             }
 
-            fn get_decoded<V, Codec>(
-                &mut self,
-                storage_key: &SlotKey,
-                codec: &Codec,
-            ) -> Result<Option<V>, Self::Error>
-            where
-                Codec: StateCodec,
-                Codec::ValueCodec: StateItemCodec<V>,
-            {
-                let storage_value = <Self as StateReader<$namespace>>::get(self, storage_key)?;
+            Ok(val)
+        }
 
-                if let Some(storage_value) = &storage_value {
-                    match charge_decode_gas_cost::<T::Spec>(storage_value, self){
-                        Ok(gas_cost) => gas_cost,
-                        Err(e) => return Err(StateAccessorError::Decode{
+        fn get_decoded<V, Codec>(
+            &mut self,
+            storage_key: &SlotKey,
+            codec: &Codec,
+        ) -> Result<Option<V>, Self::Error>
+        where
+            Codec: StateCodec,
+            Codec::ValueCodec: StateItemCodec<V>,
+        {
+            let storage_value = <Self as StateReader<$namespace>>::get(self, storage_key)?;
+
+            if let Some(storage_value) = &storage_value {
+                match charge_decode_gas_cost::<T::Spec>(storage_value, self) {
+                    Ok(gas_cost) => gas_cost,
+                    Err(e) => {
+                        return Err(StateAccessorError::Decode {
                             key: storage_key.clone(),
                             inner: e,
                             namespace: <$namespace>::PROVABLE_NAMESPACE,
                         })
-                    };
-                }
-
-                Ok(storage_value
-                    .map(|storage_value| codec.value_codec().decode_unwrap(storage_value.value())))
+                    }
+                };
             }
+
+            Ok(storage_value
+                .map(|storage_value| codec.value_codec().decode_unwrap(storage_value.value())))
         }
+    };
 }
 
 pub(crate) use blanket_impl_metered_state_reader;
@@ -376,7 +371,7 @@ impl<T: AccessoryStateReader> StateReader<Accessory> for T {
 
     /// Get a value from the storage.
     fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
-        Ok(<Self as CachedAccessor<Accessory>>::get_cached(self, key).0)
+        Ok(self.get_value(Accessory::NAMESPACE, key).0)
     }
 
     /// Get a decoded value from the storage.
@@ -397,7 +392,7 @@ impl<T: AccessoryStateReader> StateReader<Accessory> for T {
 }
 
 /// Provides write-only access to a particular namespace
-pub trait StateWriter<N: CompileTimeNamespace>: CachedAccessor<N> {
+pub trait StateWriter<N: CompileTimeNamespace>: UniversalStateAccessor {
     /// The error type returned when a state write operation fails.
     type Error: std::error::Error + Send + Sync + 'static;
 
@@ -417,7 +412,7 @@ pub trait StateWriter<N: CompileTimeNamespace>: CachedAccessor<N> {
 /// A trait wrapper that replicates the functionality of [`StateWriter`] but with a gas metering interface.
 /// This allows a storage writer to charge gas for write operations.
 pub trait ProvableStateWriter<N: ProvableCompileTimeNamespace>:
-    CachedAccessor<N> + GasMeter
+    UniversalStateAccessor + GasMeter
 {
 }
 
@@ -427,6 +422,7 @@ macro_rules! blanket_impl_metered_state_writer {
             type Error = StateAccessorError<<T::Spec as GasSpec>::Gas>;
 
             fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Self::Error> {
+
                 let input_len = value.size() as u64;
                 self.charge_linear_gas(&<T::Spec as GasSpec>::gas_to_charge_per_byte_for_write(), input_len).map_err(|e| StateAccessorError::Set{
                     key: key.clone(),
@@ -434,7 +430,12 @@ macro_rules! blanket_impl_metered_state_writer {
                     namespace: <$namespace>::PROVABLE_NAMESPACE,
                 })?;
 
-                let is_value_cached = CachedAccessor::<$namespace>::set_cached(self, key, value);
+                let is_value_cached =  <Self as super::accessors::seal::UniversalStateAccessor>::set_value(
+                    self,
+                    <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
+                    key,
+                    value,
+                );
 
                 if is_value_cached == IsValueCached::Yes {
                     let gas_to_refund = &<T::Spec as GasSpec>::gas_to_refund_per_byte_for_hot_write().checked_scalar_product(input_len).unwrap();
@@ -446,16 +447,22 @@ macro_rules! blanket_impl_metered_state_writer {
 
             fn delete(&mut self, key: &SlotKey) -> Result<(), Self::Error> {
                 self.charge_gas(&<T::Spec as GasSpec>::gas_to_charge_for_delete()).
-                    map_err(|e| StateAccessorError::Delete{
-                        key: key.clone(),
-                        inner: e,
-                        namespace: <$namespace>::PROVABLE_NAMESPACE,
-                    })?;
-                let is_value_cached = CachedAccessor::<$namespace>::delete_cached(self, key);
+                    map_err(|e|
+                        StateAccessorError::Delete{
+                            key: key.clone(),
+                            inner: e,
+                            namespace: <$namespace>::PROVABLE_NAMESPACE,
+                        })?;
 
-                if is_value_cached == IsValueCached::Yes {
-                    self.refund_gas(&<T::Spec as GasSpec>::gas_to_refund_for_hot_delete()).expect("Failed to refund gas for delete operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
-                }
+                        let is_value_cached =  <Self as super::accessors::seal::UniversalStateAccessor>::delete_value(
+                                self,
+                                <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
+                                key,
+                            );
+
+                        if is_value_cached == IsValueCached::Yes {
+                            self.refund_gas(&<T::Spec as GasSpec>::gas_to_refund_for_hot_delete()).expect("Failed to refund gas for delete operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
+                        }
 
                 Ok(())
             }
@@ -468,20 +475,20 @@ blanket_impl_metered_state_writer!(Kernel);
 
 /// Provides write-only access to the accessory state
 /// Does not charge gas for write/delete operations.
-pub trait AccessoryStateWriter: CachedAccessor<Accessory> {}
+pub trait AccessoryStateWriter: UniversalStateAccessor {}
 
 impl<T: AccessoryStateWriter> StateWriter<Accessory> for T {
     type Error = Infallible;
 
     /// Replaces a storage value.
     fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Self::Error> {
-        <Self as CachedAccessor<Accessory>>::set_cached(self, key, value);
+        self.set_value(Accessory::NAMESPACE, key, value);
         Ok(())
     }
 
     /// Deletes a storage value.
     fn delete(&mut self, key: &SlotKey) -> Result<(), Self::Error> {
-        <Self as CachedAccessor<Accessory>>::delete_cached(self, key);
+        self.delete_value(Accessory::NAMESPACE, key);
         Ok(())
     }
 }
