@@ -34,7 +34,7 @@ services:
   tempo:
     image: grafana/tempo:2.6.1
     container_name: tempo
-    command: [ "-config.file=/etc/tempo.yaml" ]
+    command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./grafana-tempo/tempo.yaml:/etc/tempo.yaml:ro
       - ./grafana-tempo/data:/tmp/tempo
@@ -66,6 +66,10 @@ services:
       - influxdb
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc:/host/etc:ro
     ports:
       - "127.0.0.1:${TELEGRAF_PORT:-8094}:8094/udp"
     environment:
@@ -78,7 +82,8 @@ services:
     image: grafana/alloy:v1.5.1
     container_name: grafana-alloy
     ports:
-      - "127.0.0.1:${ALLOY_PORT:-4318}:4318"
+      - "127.0.0.1:${ALLOY_GRPC_PORT:-4317}:4317"
+      - "127.0.0.1:${ALLOY_HTTP_PORT:-4318}:4318"
     volumes:
       - ./grafana-alloy/config.local.alloy:/etc/alloy/config.alloy
       - ./grafana-alloy/storage:/var/lib/alloy/data
