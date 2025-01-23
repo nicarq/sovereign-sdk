@@ -3,19 +3,22 @@ use std::sync::Arc;
 
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{
-    namespaces, CompileTimeNamespace, EventContainer, IsValueCached, Namespace,
-    ProvableStorageCache, SlotKey, SlotValue, Storage,
+    namespaces, EventContainer, IsValueCached, Namespace, ProvableStorageCache, SlotKey, SlotValue,
+    Storage,
 };
 
-use super::seal::CachedAccessor;
-use super::StateCheckpoint;
+use super::{StateCheckpoint, UniversalStateAccessor};
 use crate::capabilities::{KernelWithSlotMapping, RollupHeight};
 use crate::gas::GasArray;
 use crate::{BasicGasMeter, Gas, GasMeter, GasMeteringError, Spec, TypedEvent, VersionReader};
 
-impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for ApiStateAccessor<S> {
-    fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        match N::NAMESPACE {
+impl<S: Spec> UniversalStateAccessor for ApiStateAccessor<S> {
+    fn get_value(
+        &mut self,
+        namespace: sov_state::Namespace,
+        key: &SlotKey,
+    ) -> (Option<SlotValue>, IsValueCached) {
+        match namespace {
             Namespace::User => {
                 // TODO: We should cache these values to allow accurate gas cost estimation!
                 self.user_cache.get_without_caching(
@@ -56,8 +59,13 @@ impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for ApiStateAccessor<S>
         }
     }
 
-    fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        match N::NAMESPACE {
+    fn set_value(
+        &mut self,
+        namespace: sov_state::Namespace,
+        key: &SlotKey,
+        value: SlotValue,
+    ) -> IsValueCached {
+        match namespace {
             Namespace::User => self.user_cache.set(key, value),
             Namespace::Kernel => self.kernel_cache.set(key, value),
             Namespace::Accessory => {
@@ -74,8 +82,8 @@ impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for ApiStateAccessor<S>
         }
     }
 
-    fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
-        match N::NAMESPACE {
+    fn delete_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
+        match namespace {
             Namespace::User => self.user_cache.delete(key),
             Namespace::Kernel => self.kernel_cache.delete(key),
             Namespace::Accessory => {

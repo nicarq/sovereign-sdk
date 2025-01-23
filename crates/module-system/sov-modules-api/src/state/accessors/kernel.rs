@@ -15,17 +15,26 @@ pub struct BootstrapWorkingSet<'a, S: Storage> {
     pub(super) inner: &'a mut Delta<S>,
 }
 
-impl<'a, S: Storage, N: CompileTimeNamespace> CachedAccessor<N> for BootstrapWorkingSet<'a, S> {
-    fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        self.inner.get(N::NAMESPACE, key)
+impl<'a, S: Storage> UniversalStateAccessor for BootstrapWorkingSet<'a, S> {
+    fn get_value(
+        &mut self,
+        namespace: Namespace,
+        key: &SlotKey,
+    ) -> (Option<SlotValue>, IsValueCached) {
+        self.inner.get(namespace, key)
     }
 
-    fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        self.inner.set(N::NAMESPACE, key, value)
+    fn set_value(
+        &mut self,
+        namespace: Namespace,
+        key: &SlotKey,
+        value: SlotValue,
+    ) -> IsValueCached {
+        self.inner.set(namespace, key, value)
     }
 
-    fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
-        self.inner.delete(N::NAMESPACE, key)
+    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+        self.inner.delete(namespace, key)
     }
 }
 
@@ -98,15 +107,24 @@ impl<'a, S: Spec> KernelStateAccessor<'a, S> {
 }
 
 impl<S: Spec> UniversalStateAccessor for KernelStateAccessor<'_, S> {
-    fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        self.checkpoint.get(namespace, key)
+    fn get_value(
+        &mut self,
+        namespace: Namespace,
+        key: &SlotKey,
+    ) -> (Option<SlotValue>, IsValueCached) {
+        self.checkpoint.get_value(namespace, key)
     }
 
-    fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        self.checkpoint.set(namespace, key, value)
+    fn set_value(
+        &mut self,
+        namespace: Namespace,
+        key: &SlotKey,
+        value: SlotValue,
+    ) -> IsValueCached {
+        self.checkpoint.set_value(namespace, key, value)
     }
 
-    fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        self.checkpoint.delete(namespace, key)
+    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+        self.checkpoint.delete_value(namespace, key)
     }
 }

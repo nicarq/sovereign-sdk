@@ -5,7 +5,7 @@ use sov_state::{
     StateItemDecoder,
 };
 
-use crate::state::accessors::seal::CachedAccessor;
+use super::UniversalStateAccessor;
 use crate::{StateReader, StateWriter};
 
 /// A wrapper around an accessor that does not charge gas for state accesses.
@@ -15,19 +15,26 @@ pub struct UnmeteredStateWrapper<'a, T> {
     pub(crate) inner: &'a mut T,
 }
 
-impl<'a, T: CachedAccessor<N>, N: CompileTimeNamespace> CachedAccessor<N>
-    for UnmeteredStateWrapper<'a, T>
-{
-    fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        self.inner.get_cached(key)
+impl<'a, T: UniversalStateAccessor> UniversalStateAccessor for UnmeteredStateWrapper<'a, T> {
+    fn get_value(
+        &mut self,
+        namespace: sov_state::Namespace,
+        key: &SlotKey,
+    ) -> (Option<SlotValue>, IsValueCached) {
+        self.inner.get_value(namespace, key)
     }
 
-    fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        self.inner.set_cached(key, value)
+    fn set_value(
+        &mut self,
+        namespace: sov_state::Namespace,
+        key: &SlotKey,
+        value: SlotValue,
+    ) -> IsValueCached {
+        self.inner.set_value(namespace, key, value)
     }
 
-    fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
-        self.inner.delete_cached(key)
+    fn delete_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
+        self.inner.delete_value(namespace, key)
     }
 }
 
@@ -45,7 +52,7 @@ where
     type Error = Infallible;
 
     fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
-        Ok(self.inner.get_cached(key).0)
+        Ok(self.inner.get_value(N::NAMESPACE, key).0)
     }
 
     fn get_decoded<V, Codec>(
@@ -71,12 +78,12 @@ where
     type Error = Infallible;
 
     fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Self::Error> {
-        <Self as CachedAccessor<N>>::set_cached(self, key, value);
+        self.inner.set_value(N::NAMESPACE, key, value);
         Ok(())
     }
 
     fn delete(&mut self, key: &SlotKey) -> Result<(), Self::Error> {
-        <Self as CachedAccessor<N>>::delete_cached(self, key);
+        self.inner.delete_value(N::NAMESPACE, key);
         Ok(())
     }
 }
