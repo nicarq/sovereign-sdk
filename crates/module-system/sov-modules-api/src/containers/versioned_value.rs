@@ -57,7 +57,7 @@ where
     }
 
     /// Any version_aware working set can read the current contents of a versioned value.
-    pub fn get_current<Reader: VersionReader>(
+    pub fn get_current<Reader: VersionReader + StateReader<Kernel>>(
         &self,
         state: &mut Reader,
     ) -> Result<Option<V>, <Reader as StateReader<Kernel>>::Error> {
@@ -83,7 +83,7 @@ where
     }
 
     /// Any version_aware working set can read the current contents of a versioned value.
-    pub fn get<Reader: VersionReader>(
+    pub fn get<Reader: VersionReader + StateReader<Kernel>>(
         &self,
         key: &SlotNumber,
         state: &mut Reader,

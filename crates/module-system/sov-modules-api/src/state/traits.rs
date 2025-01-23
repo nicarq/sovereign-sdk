@@ -84,9 +84,10 @@ impl<T> InfallibleKernelStateAccessor for T where
 /// access to [`User`]-space state, as well as limited visibility into the `Kernel` state.
 pub trait TxState<S: Spec>:
     StateReader<User, Error: Into<anyhow::Error>>
+    + StateReader<Kernel, Error: Into<anyhow::Error>>
     + StateWriter<User, Error = <Self as StateReader<User>>::Error>
     + StateWriter<Accessory>
-    + VersionReader<Error: Into<anyhow::Error>>
+    + VersionReader
     + EventContainer
     + GasMeter<Spec = S>
 {
@@ -94,9 +95,10 @@ pub trait TxState<S: Spec>:
 
 impl<S: Spec, T> TxState<S> for T where
     T: StateReader<User, Error: Into<anyhow::Error>>
+        + StateReader<Kernel, Error: Into<anyhow::Error>>
         + StateWriter<User, Error = <Self as StateReader<User>>::Error>
         + StateWriter<Accessory>
-        + VersionReader<Error: Into<anyhow::Error>>
+        + VersionReader
         + EventContainer
         + GasMeter<Spec = S>
 {
@@ -108,7 +110,7 @@ pub trait GenesisState<S: Spec>:
     StateReader<User, Error = Infallible>
     + StateWriter<User, Error = Infallible>
     + StateReader<Kernel, Error = Infallible>
-    + VersionReader<Error = Infallible>
+    + VersionReader
     + KernelWriter
     + AccessoryStateWriter
     + EventContainer
@@ -120,7 +122,7 @@ impl<S: Spec, T> GenesisState<S> for T where
     T: StateReader<User, Error = Infallible>
         + StateWriter<User, Error = Infallible>
         + StateReader<Kernel, Error = Infallible>
-        + VersionReader<Error = Infallible>
+        + VersionReader
         + KernelWriter
         + AccessoryStateWriter
         + EventContainer
@@ -312,7 +314,6 @@ pub trait ProvableStateReader<N: ProvableCompileTimeNamespace>:
 
 macro_rules! blanket_impl_metered_state_reader {
     ($namespace:ty) => {
-        impl<T: ProvableStateReader<$namespace>> StateReader<$namespace> for T {
             type Error = StateAccessorError<<T::Spec as GasSpec>::Gas>;
 
             fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
@@ -358,11 +359,17 @@ macro_rules! blanket_impl_metered_state_reader {
                     .map(|storage_value| codec.value_codec().decode_unwrap(storage_value.value())))
             }
         }
-    };
 }
 
-blanket_impl_metered_state_reader!(Kernel);
-blanket_impl_metered_state_reader!(User);
+pub(crate) use blanket_impl_metered_state_reader;
+
+impl<T: ProvableStateReader<Kernel>> StateReader<Kernel> for T {
+    blanket_impl_metered_state_reader!(Kernel);
+}
+
+impl<T: ProvableStateReader<User>> StateReader<User> for T {
+    blanket_impl_metered_state_reader!(User);
+}
 
 impl<T: AccessoryStateReader> StateReader<Accessory> for T {
     type Error = Infallible;
@@ -492,7 +499,7 @@ pub trait ProvenStateAccessor<N: ProvableCompileTimeNamespace>: StateReaderAndWr
 }
 
 /// A [`StateReader`] that is version-aware.
-pub trait VersionReader: StateReader<namespaces::Kernel> {
+pub trait VersionReader {
     /// Returns the largest visible slot number that the accessor is allowed to access.
     /// This may differ from the actual value of the "current" visible slot number depending on the accessor's permissions.
     // FIXME: This trait needs reworking - the number returned from this method is not always visible - that's the whole point!

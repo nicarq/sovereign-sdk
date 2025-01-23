@@ -5,13 +5,13 @@ use std::convert::Infallible;
 
 #[cfg(feature = "native")]
 use sov_state::Accessory;
+#[cfg(feature = "native")]
+use sov_state::CompileTimeNamespace;
 use sov_state::{
     Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, Storage, User,
 };
 
 use super::genesis::GenesisStateAccessor;
-#[cfg(feature = "native")]
-use super::internals::Delta;
 use super::seal::CachedAccessor;
 use super::StateProvider;
 use crate::state::traits::{AccessoryStateWriter, ProvableStateReader, ProvableStateWriter};
@@ -242,13 +242,11 @@ impl<S: Spec, I: StateProvider<S>> AccessoryStateReader for WorkingSet<S, I> {}
 impl<'a, S: Spec> StateReader<Accessory> for AccessoryStateCheckpoint<'a, S> {
     type Error = Infallible;
     fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
-        Ok(
-            <Delta<S::Storage> as CachedAccessor<Accessory>>::get_cached(
-                &mut self.checkpoint.delta,
-                key,
-            )
-            .0,
-        )
+        Ok(self
+            .checkpoint
+            .delta
+            .get(<Accessory as CompileTimeNamespace>::NAMESPACE, key)
+            .0)
     }
 
     /// Get a decoded value from the storage.

@@ -302,7 +302,7 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Returns the current time, as reported by the DA layer. This can be called within the execution context of a transaction.
-    pub fn get_time<Reader: VersionReader>(
+    pub fn get_time<Reader: VersionReader + StateReader<Kernel>>(
         &self,
         state: &mut Reader,
     ) -> Result<Time, <Reader as StateReader<Kernel>>::Error> {
@@ -313,7 +313,7 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Return the genesis hash of the module.
-    pub fn get_genesis_hash<Accessor: VersionReader>(
+    pub fn get_genesis_hash<Accessor: VersionReader + StateReader<Kernel>>(
         &self,
         state: &mut Accessor,
     ) -> Result<Option<<S::Storage as Storage>::Root>, Accessor::Error> {
@@ -349,7 +349,7 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Returns the last slot processed by the module.
-    pub fn last_slot<Reader: VersionReader>(
+    pub fn last_slot<Reader: VersionReader + StateReader<Kernel>>(
         &self,
         state: &mut Reader,
     ) -> Result<Option<SlotInformation<S>>, Reader::Error> {
@@ -357,7 +357,7 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Returns the last root processed by the module.
-    pub fn last_root<Reader: VersionReader>(
+    pub fn last_root<Reader: VersionReader + StateReader<Kernel>>(
         &self,
         state: &mut Reader,
     ) -> Result<Option<<S::Storage as Storage>::Root>, Reader::Error> {
@@ -365,7 +365,7 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Returns the root hash of the state at the provided height.
-    pub fn root_at_height<Accessor: VersionReader>(
+    pub fn root_at_height<Accessor: VersionReader + StateReader<Kernel>>(
         &self,
         slot_number: SlotNumber,
         state: &mut Accessor,
@@ -374,7 +374,7 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Returns the slot information from the state at the provided height.
-    pub fn slot_at_height<Accessor: VersionReader>(
+    pub fn slot_at_height<Accessor: VersionReader + StateReader<Kernel>>(
         &self,
         slot_number: SlotNumber,
         state: &mut Accessor,
@@ -383,7 +383,7 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Returns the completed transition associated with the provided `transition_num`.
-    pub fn get_historical_transitions<Accessor: VersionReader>(
+    pub fn get_historical_transitions<Accessor: VersionReader + StateReader<Kernel>>(
         &self,
         slot_number: SlotNumber,
         state: &mut Accessor,

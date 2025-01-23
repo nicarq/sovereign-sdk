@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_rollup_interface::da::DaSpec;
-use sov_state::{Storage, User};
+use sov_state::{Kernel, Storage, User};
 
 use crate::{Gas, KernelStateAccessor, Spec, StateReader, VersionReader};
 
@@ -42,7 +42,9 @@ pub trait ChainState {
     /// This method can return `None` if the base fee per gas for the current slot cannot be determined yet.
     /// This can happen when querying a slot too far ahead in the future.
     fn base_fee_per_gas<
-        Reader: VersionReader<Error = Infallible> + StateReader<User, Error = Infallible>,
+        Reader: VersionReader
+            + StateReader<User, Error = Infallible>
+            + StateReader<Kernel, Error = Infallible>,
     >(
         &self,
         state: &mut Reader,
@@ -50,7 +52,9 @@ pub trait ChainState {
 
     /// Returns the slot gas limit accessible at the current *virtual* slot.
     fn block_gas_limit<
-        Reader: VersionReader<Error = Infallible> + StateReader<User, Error = Infallible>,
+        Reader: VersionReader
+            + StateReader<User, Error = Infallible>
+            + StateReader<Kernel, Error = Infallible>,
     >(
         &self,
         state: &mut Reader,
