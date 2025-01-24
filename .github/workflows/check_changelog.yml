@@ -4,8 +4,9 @@ on:
   pull_request:
     types: [opened, reopened, synchronize]
     paths:
-      - 'examples/demo-rollup/**/*.rs'
-      - 'examples/demo-rollup/**/*.toml'
+      - "examples/demo-rollup/**/*.rs"
+      - "examples/demo-rollup/**/*.toml"
+      - "!examples/demo-rollup/sov-soak-testing/**"
 
 jobs:
   check-changelog:
@@ -15,7 +16,7 @@ jobs:
       - name: Check for demo-rollup changes requiring changelog
         run: |
           PR_NUMBER=$(echo $GITHUB_REF | sed 's/.*\/pull\/\([0-9]*\).*/\1/')
-          
+
           if !  grep -q "#${PR_NUMBER}" CHANGELOG.md; then
             echo "Error: Demo rollup was changed but no changelog entry found for PR #${PR_NUMBER}."
             echo "If you've already checked in a changelog entry, make sure it contains the literal string `#${PR_NUMBER}`."

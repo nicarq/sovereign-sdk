@@ -13,7 +13,7 @@ use sov_rollup_interface::zk::{
     StateTransitionPublicData, StateTransitionWitness, StateTransitionWitnessWithAddress, Zkvm,
     ZkvmHost,
 };
-use tracing::{debug, error, info};
+use tracing::{error, info, trace};
 
 use super::state::{ProverState, ProverStatus};
 use super::{ProverServiceError, Verifier};
@@ -213,7 +213,7 @@ where
             code_commitment: self.code_commitment.clone(),
         };
 
-        debug!(%public_data, "generating aggregate proof");
+        trace!(%public_data, "generating aggregate proof");
         // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/316
         // `add_hint`  should take witness instead of the public input.
         outer_vm.add_hint(public_data);
@@ -261,7 +261,7 @@ where
     });
     match result {
         Ok(ref proof) => {
-            info!(
+            trace!(
                 bytes = proof.len(),
                 "Proof generation completed successfully"
             );
