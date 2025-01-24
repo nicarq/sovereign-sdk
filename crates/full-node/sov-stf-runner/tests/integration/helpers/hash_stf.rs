@@ -94,19 +94,16 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     }
 
     #[tracing::instrument(name = "HashStf::apply_slot", skip_all)]
-    fn apply_slot<'a, I>(
+    fn apply_slot(
         &self,
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         _validity_condition: &Da::ValidityCondition,
-        relevant_blobs: RelevantBlobIters<I>,
+        relevant_blobs: RelevantBlobIters<&mut [Da::BlobTransaction]>,
         _execution_context: sov_modules_api::ExecutionContext,
-    ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self>
-    where
-        I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
-    {
+    ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self> {
         // Note: Uses native code, so won't work in ZK
         // Assumes that the DA height is 0 at rollup genesis, so SlotNumber and DA block number are the same.
         // Since this is only used for testing, this should be fine.
@@ -138,14 +135,14 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         hasher.update(existing_cache.value());
 
         let mut proof_receipts = Vec::new();
-        for blob in relevant_blobs.batch_blobs.into_iter() {
+        for blob in relevant_blobs.batch_blobs.iter_mut() {
             let data = blob.full_data();
             if !data.is_empty() {
                 hasher.update(data);
             }
         }
 
-        for blob in relevant_blobs.proof_blobs.into_iter() {
+        for blob in relevant_blobs.proof_blobs.iter_mut() {
             let raw_proof = blob.full_data();
             if raw_proof.is_empty() {
                 continue;
@@ -185,7 +182,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
             "Post apply slot root hashes",
         );
 
-        ApplySlotOutput {
+        ApplySlotOutput::<InnerVm, OuterVm, Da, Self> {
             state_root,
             change_set,
             proof_receipts,

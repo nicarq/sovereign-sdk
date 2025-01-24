@@ -275,19 +275,16 @@ where
         all(feature = "gas-constant-estimation", feature = "native"),
         track_gas_constants_usage
     )]
-    fn apply_slot<'a, I>(
+    fn apply_slot(
         &self,
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         witness: Self::Witness,
         slot_header: &<S::Da as DaSpec>::BlockHeader,
         validity_condition: &<S::Da as DaSpec>::ValidityCondition,
-        relevant_blobs: RelevantBlobIters<I>,
+        relevant_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         execution_context: ExecutionContext,
-    ) -> ApplySlotOutput<S::InnerZkvm, S::OuterZkvm, S::Da, Self>
-    where
-        I: IntoIterator<Item = &'a mut <S::Da as DaSpec>::BlobTransaction>,
-    {
+    ) -> ApplySlotOutput<S::InnerZkvm, S::OuterZkvm, S::Da, Self> {
         // Sanity checks.
         assert!(<S as GasSpec>::process_tx_pre_exec_checks_gas()
             .dim_is_less_than(&<S as GasSpec>::max_tx_check_costs()));
@@ -388,7 +385,7 @@ where
             (state_root, witness, change_set)
         };
 
-        ApplySlotOutput {
+        ApplySlotOutput::<S::InnerZkvm, S::OuterZkvm, S::Da, Self> {
             state_root,
             change_set,
             proof_receipts,

@@ -160,24 +160,37 @@ pub enum ProofOutcome<Address, Da: DaSpec, Root, StorageProof> {
 type ProofReceipts<Address, Da, StateRoot, StorageProof> =
     Vec<ProofReceipt<Address, Da, StateRoot, StorageProof>>;
 
+/// The result of applying a slot to current state. We define a helpful alias [`ApplySlotOutput`]
+/// to make the type signature of [`StateTransitionFunction::apply_slot`] more readable. Unfortunately,
+/// since this type both depends on and appears in the defintion of the [`StateTransitionFunction`] trait,
+/// we have to use a type alias to avoid introducing an unneeded [`Sized`] bound.
+pub struct ApplySlotOutputInner<Root, ChangeSet, BR, PR, Witness> {
+    /// Final state root after all blobs were applied
+    pub state_root: Root,
+    /// Container for all state alterations that happened during slot execution
+    pub change_set: ChangeSet,
+    /// Receipt for each applied proof transaction
+    pub proof_receipts: PR,
+    /// Receipt for each applied batch
+    pub batch_receipts: Vec<BR>,
+    /// Witness after applying the whole block
+    pub witness: Witness,
+}
+
 /// The result of applying a slot to current state.
-pub struct ApplySlotOutput<
+#[allow(type_alias_bounds)]
+pub type ApplySlotOutput<
     InnerVm: Zkvm,
     OuterVm: Zkvm,
     Da: DaSpec,
     Stf: StateTransitionFunction<InnerVm, OuterVm, Da>,
-> {
-    /// Final state root after all blobs were applied
-    pub state_root: Stf::StateRoot,
-    /// Container for all state alterations that happened during slot execution
-    pub change_set: Stf::ChangeSet,
-    /// Receipt for each applied proof transaction
-    pub proof_receipts: ProofReceipts<Stf::Address, Da, Stf::StateRoot, Stf::StorageProof>,
-    /// Receipt for each applied batch
-    pub batch_receipts: Vec<BatchReceipt<Stf::BatchReceiptContents, Stf::TxReceiptContents>>,
-    /// Witness after applying the whole block
-    pub witness: Stf::Witness,
-}
+> = ApplySlotOutputInner<
+    Stf::StateRoot,
+    Stf::ChangeSet,
+    BatchReceipt<Stf::BatchReceiptContents, Stf::TxReceiptContents>,
+    ProofReceipts<Stf::Address, Da, Stf::StateRoot, Stf::StorageProof>,
+    Stf::Witness,
+>;
 
 // TODO(@preston-evans98): update spec with simplified API
 /// State transition function defines business logic that responsible for changing state.
@@ -190,7 +203,7 @@ pub struct ApplySlotOutput<
 /// The STF is generic over a DA layer and two `Zkvm`s. The `InnerVm` is used to prove individual slots,
 /// while the `OuterVm` is used to generate recursive proofs over multiple slots. The two VMs *may* be set to be
 /// the  same type.
-pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec>: Sized {
+pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> {
     /// Root hash of state merkle tree
     type StateRoot: Serialize
         + DeserializeOwned
@@ -257,16 +270,14 @@ pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec>: Siz
     ///
     /// Commits state changes to the database
     #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-    fn apply_slot<'a, I>(
+    fn apply_slot(
         &self,
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
-        relevant_blobs: RelevantBlobIters<I>,
+        relevant_blobs: RelevantBlobIters<&mut [<Da as DaSpec>::BlobTransaction]>,
         execution_context: ExecutionContext,
-    ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self>
-    where
-        I: IntoIterator<Item = &'a mut Da::BlobTransaction>;
+    ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self>;
 }

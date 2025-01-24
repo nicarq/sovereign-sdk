@@ -40,20 +40,17 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         (Vec::default(), ())
     }
 
-    fn apply_slot<'a, I>(
+    fn apply_slot(
         &self,
         _pre_state_root: &Self::StateRoot,
         _base_state: Self::PreState,
         _witness: Self::Witness,
         _slot_header: &Da::BlockHeader,
         _validity_condition: &Da::ValidityCondition,
-        _relevant_blobs: RelevantBlobIters<I>,
+        _relevant_blobs: RelevantBlobIters<&mut [<Da as DaSpec>::BlobTransaction]>,
         _execution_context: ExecutionContext,
-    ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self>
-    where
-        I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
-    {
-        ApplySlotOutput {
+    ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self> {
+        ApplySlotOutput::<InnerVm, OuterVm, Da, Self> {
             state_root: Vec::default(),
             change_set: (),
             proof_receipts: vec![],
