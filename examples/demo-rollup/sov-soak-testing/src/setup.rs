@@ -26,7 +26,7 @@ use sov_transaction_generator::interface::MessageValidity;
 use sov_transaction_generator::{Distribution, GeneratedMessage, State};
 
 pub const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic;
-pub const DEFAULT_BLOCK_TIME_MS: u64 = 500;
+pub const DEFAULT_BLOCK_TIME_MS: u64 = 200;
 pub const DEFAULT_FINALIZATION_BLOCKS: u32 = 5;
 
 generate_runtime! {
@@ -200,7 +200,7 @@ pub async fn setup_rollup() -> (TestRollup<RollupBlueprint>, Setup) {
     )
     .set_config(|config| {
         config.telegraf_address = sov_metrics::MonitoringConfig::standard().telegraf_address;
-        config.automatic_batch_production = false;
+        config.automatic_batch_production = true;
         config.rollup_prover_config = RollupProverConfig::Skip;
         config.batch_builder_config = BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
             minimum_profit_per_tx: 0,

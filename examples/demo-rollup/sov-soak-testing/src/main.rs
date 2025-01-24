@@ -72,7 +72,7 @@ async fn main_loop(summary: &mut Summary) -> Result<(), anyhow::Error> {
 
         summary.txns_sent += txns.len();
 
-        client.publish_batch_with_serialized_txs(&txns).await?;
+        client.send_txs_to_sequencer(&txns).await?;
         let sleep_ms = rng.gen_range(25..100);
 
         std::thread::sleep(Duration::from_millis(sleep_ms));

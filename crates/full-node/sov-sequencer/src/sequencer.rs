@@ -169,7 +169,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         &self,
         txs: Vec<FullyBakedTx>,
     ) -> anyhow::Result<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>> {
-        tracing::info!(
+        tracing::trace!(
             txs_count = txs.len(),
             "Submit batch request has been received!"
         );
