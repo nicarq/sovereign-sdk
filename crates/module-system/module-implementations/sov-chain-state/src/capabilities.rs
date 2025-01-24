@@ -92,7 +92,9 @@ impl<S: Spec> ChainState<S> {
         self.increment_true_slot_number(state);
 
         // The previous state root is set at the beginning of the next slot execution
-        self.state_roots.push(pre_state_root, state);
+        self.state_roots
+            .push(pre_state_root, state)
+            .unwrap_infallible();
 
         // There may not be a previous slot if the slot comes right after the genesis block
         // We first extend the slot map because we are going to read from it before we set it.
@@ -112,16 +114,20 @@ impl<S: Spec> ChainState<S> {
             base_fee_per_gas,
         );
 
-        self.slots.push(
-            &SlotInformation {
-                hash: slot_header.hash(),
-                validity_condition: *validity_condition,
-                gas_info,
-            },
-            state,
-        );
+        self.slots
+            .push(
+                &SlotInformation {
+                    hash: slot_header.hash(),
+                    validity_condition: *validity_condition,
+                    gas_info,
+                },
+                state,
+            )
+            .unwrap_infallible();
 
-        self.time.set_true_current(&slot_header.time(), state);
+        self.time
+            .set_true_current(&slot_header.time(), state)
+            .unwrap_infallible();
     }
 
     /// Updates the gas used by the transition in progress at the end of each slot

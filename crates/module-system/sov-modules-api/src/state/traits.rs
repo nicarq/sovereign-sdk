@@ -84,9 +84,9 @@ impl<T> InfallibleKernelStateAccessor for T where
 /// access to [`User`]-space state, as well as limited visibility into the `Kernel` state.
 pub trait TxState<S: Spec>:
     StateReader<User, Error: Into<anyhow::Error>>
-    + StateReader<Kernel, Error: Into<anyhow::Error>>
+    + StateReader<Kernel, Error = <Self as StateReader<User>>::Error>
     + StateWriter<User, Error = <Self as StateReader<User>>::Error>
-    + StateWriter<Accessory>
+    + StateWriter<Accessory, Error = Infallible>
     + VersionReader
     + EventContainer
     + GasMeter<Spec = S>
@@ -95,9 +95,9 @@ pub trait TxState<S: Spec>:
 
 impl<S: Spec, T> TxState<S> for T where
     T: StateReader<User, Error: Into<anyhow::Error>>
-        + StateReader<Kernel, Error: Into<anyhow::Error>>
+        + StateReader<Kernel, Error = <Self as StateReader<User>>::Error>
         + StateWriter<User, Error = <Self as StateReader<User>>::Error>
-        + StateWriter<Accessory>
+        + StateWriter<Accessory, Error = Infallible>
         + VersionReader
         + EventContainer
         + GasMeter<Spec = S>
@@ -107,26 +107,7 @@ impl<S: Spec, T> TxState<S> for T where
 /// The state accessor used during genesis. It provides unrestricted
 /// access to [`User`] and `Kernel` state, as well as limited visibility into [`Accessory`] state.  
 pub trait GenesisState<S: Spec>:
-    StateReader<User, Error = Infallible>
-    + StateWriter<User, Error = Infallible>
-    + StateReader<Kernel, Error = Infallible>
-    + VersionReader
-    + KernelWriter
-    + AccessoryStateWriter
-    + EventContainer
-    + GasMeter<Spec = S>
-{
-}
-
-impl<S: Spec, T> GenesisState<S> for T where
-    T: StateReader<User, Error = Infallible>
-        + StateWriter<User, Error = Infallible>
-        + StateReader<Kernel, Error = Infallible>
-        + VersionReader
-        + KernelWriter
-        + AccessoryStateWriter
-        + EventContainer
-        + GasMeter<Spec = S>
+    TxState<S> + KernelWriter<Error = <Self as StateReader<User>>::Error>
 {
 }
 
@@ -356,8 +337,6 @@ macro_rules! blanket_impl_metered_state_reader {
     };
 }
 
-pub(crate) use blanket_impl_metered_state_reader;
-
 impl<T: ProvableStateReader<Kernel>> StateReader<Kernel> for T {
     blanket_impl_metered_state_reader!(Kernel);
 }
@@ -518,7 +497,7 @@ pub trait VersionReader {
 
 /// A trait for state accessors that can write to the kernel at the true
 /// [`SlotNumber`].
-pub trait KernelWriter: StateWriter<namespaces::Kernel, Error = Infallible> {
+pub trait KernelWriter: StateWriter<namespaces::Kernel> {
     /// Returns the current true rollup height contained in the accessor
     fn true_slot_number(&self) -> SlotNumber;
 }

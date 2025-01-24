@@ -55,7 +55,7 @@ impl<S: Spec> ChainState<S> {
         self.current_heights
             .set(&(RollupHeight::GENESIS, VisibleSlotNumber::GENESIS), state)?;
 
-        self.time.set_true_current(&config.current_time, state);
+        self.time.set_true_current(&config.current_time, state)?;
         self.operating_mode.set(&config.operating_mode, state)?;
 
         self.slot_number_history
@@ -73,7 +73,7 @@ impl<S: Spec> ChainState<S> {
         self.genesis_da_height
             .set(&config.genesis_da_height, state)?;
 
-        self.slots.initialize(state);
+        self.slots.initialize(state)?;
 
         self.slots.push(
             &SlotInformation::new(
@@ -86,9 +86,9 @@ impl<S: Spec> ChainState<S> {
                 ),
             ),
             state,
-        );
+        )?;
 
-        self.state_roots.initialize(state);
+        self.state_roots.initialize(state)?;
 
         Ok(())
     }

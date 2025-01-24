@@ -61,7 +61,7 @@ pub mod my_module {
             config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
-            self.data.set(config, state).unwrap_infallible();
+            self.data.set(config, state).unwrap();
             Ok(())
         }
 
