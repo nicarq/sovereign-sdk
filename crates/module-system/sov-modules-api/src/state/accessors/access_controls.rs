@@ -212,6 +212,7 @@ impl<'a, S: Spec> StateReader<Kernel> for GenesisStateAccessor<'a, S> {
 impl<'a, S: Spec> StateWriter<Kernel> for GenesisStateAccessor<'a, S> {
     inner_impl_unmetered_state_writer!(Kernel);
 }
+
 impl<'a, S: Spec> AccessoryStateWriter for GenesisStateAccessor<'a, S> {}
 
 impl<S: Spec> StateReader<User> for StateCheckpoint<S> {

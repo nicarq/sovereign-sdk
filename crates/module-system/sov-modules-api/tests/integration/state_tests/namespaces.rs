@@ -156,7 +156,9 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     // Native execution
     let mut state = StateCheckpoint::new(storage.clone(), &kernel);
     let mut kernel_working_set = kernel.accessor(&mut state);
-    state_value.set_true_current(&11, &mut kernel_working_set);
+    state_value
+        .set_true_current(&11, &mut kernel_working_set)
+        .unwrap();
 
     let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
 
@@ -172,7 +174,9 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     let mut state = StateCheckpoint::new(storage.clone(), &kernel);
     let mut kernel_working_set = kernel.accessor(&mut state);
     let _ = state_value.get_current(&mut kernel_working_set);
-    state_value.set_true_current(&22, &mut kernel_working_set);
+    state_value
+        .set_true_current(&22, &mut kernel_working_set)
+        .unwrap();
     let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
 
     // Then the kernel is the same but the user root hash changes

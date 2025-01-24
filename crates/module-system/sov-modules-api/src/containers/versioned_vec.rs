@@ -1,4 +1,3 @@
-use std::convert::Infallible;
 use std::iter::FusedIterator;
 use std::marker::PhantomData;
 
@@ -103,12 +102,19 @@ where
     ///
     /// ## Warning
     /// This step *needs* to be done before any other operation on the state vector to ensure that the state vector is in a valid state.
-    pub fn initialize(&self, state: &mut impl KernelWriter) {
+    pub fn initialize<Accessor: KernelWriter>(
+        &self,
+        state: &mut Accessor,
+    ) -> Result<(), Accessor::Error> {
         self.next_height
-            .set_true_current(&SlotNumber::GENESIS, state);
+            .set_true_current(&SlotNumber::GENESIS, state)
     }
-    fn set_true_len(&self, length: SlotNumber, state: &mut impl KernelWriter) {
-        self.next_height.set_true_current(&length, state);
+    fn set_true_len<Accessor: KernelWriter>(
+        &self,
+        length: SlotNumber,
+        state: &mut Accessor,
+    ) -> Result<(), Accessor::Error> {
+        self.next_height.set_true_current(&length, state)
     }
 
     fn elems(&self) -> &NamespacedStateMap<Kernel, SlotNumber, V, Codec> {
@@ -203,27 +209,27 @@ where
     /// Pushes a value to the end of the vector.
     ///
     /// This operation should be performed by a [`KernelStateAccessor`].
-    pub fn push<
-        Vq,
-        Accessor: KernelWriter + VersionReader + StateReader<Kernel, Error = Infallible>,
-    >(
+    pub fn push<Vq, Accessor>(
         &self,
         value: &Vq,
         state: &mut Accessor,
-    ) where
+    ) -> Result<(), <Accessor as StateReader<Kernel>>::Error>
+    where
         Vq: ?Sized,
         Codec::ValueCodec: EncodeLike<Vq, V>,
+        Accessor: StateReader<Kernel>,
+        Accessor: VersionReader + KernelWriter<Error = <Accessor as StateReader<Kernel>>::Error>,
     {
-        let len = self.len(state).unwrap_infallible();
-        self.elems().set(&len, value, state).unwrap_infallible();
+        let len = self.len(state)?;
+        self.elems().set(&len, value, state)?;
 
         let mut new_len = len;
         new_len.incr();
-        self.set_true_len(new_len, state);
+        self.set_true_len(new_len, state)?;
 
-        self.max_len_index
-            .set(&state.true_slot_number(), state)
-            .unwrap_infallible();
+        self.max_len_index.set(&state.true_slot_number(), state)?;
+
+        Ok(())
     }
 
     /// Returns the last value in the vector at the version visible from the accessor, or [`None`] if
@@ -397,7 +403,9 @@ mod test {
         let state_vec = VersionedStateVec::<u32>::with_codec(prefix, BorshCodec);
 
         // We need to initialize the state vector before we can run any test case.
-        state_vec.initialize(&mut kernel.accessor(&mut state));
+        state_vec
+            .initialize(&mut kernel.accessor(&mut state))
+            .unwrap_infallible();
 
         let mut kernel = MockKernel::<TestSpec>::default();
         kernel.true_slot_number = SlotNumber::GENESIS;
@@ -518,11 +526,11 @@ mod test {
             TestCaseAction::ExtendAndPush(value) => {
                 kernel.true_slot_number.incr();
                 let state = &mut KernelStateAccessor::from_checkpoint(kernel, state);
-                state_vec.push(&value, state);
+                state_vec.push(&value, state).unwrap_infallible();
             }
             TestCaseAction::Push(value) => {
                 let state = &mut KernelStateAccessor::from_checkpoint(kernel, state);
-                state_vec.push(&value, state);
+                state_vec.push(&value, state).unwrap_infallible();
             }
             TestCaseAction::CheckGet(index, expected) => {
                 let actual = state_vec

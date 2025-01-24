@@ -66,10 +66,12 @@ where
     }
 
     /// Only the kernel working set can write to versioned values
-    pub fn set_true_current<Accessor: KernelWriter>(&self, value: &V, state: &mut Accessor) {
-        self.elems
-            .set(&state.true_slot_number(), value, state)
-            .unwrap_infallible();
+    pub fn set_true_current<Accessor: KernelWriter>(
+        &self,
+        value: &V,
+        state: &mut Accessor,
+    ) -> Result<(), Accessor::Error> {
+        self.elems.set(&state.true_slot_number(), value, state)
     }
 
     /// Only the kernel working set can write to versioned values
@@ -122,7 +124,9 @@ mod tests {
 
         // Initialize a value in the kernel state during slot 4
         let mut kernel_state = kernel.accessor(&mut state);
-        value.set_true_current(&RollupHeight::new(100), &mut kernel_state);
+        value
+            .set_true_current(&RollupHeight::new(100), &mut kernel_state)
+            .unwrap_infallible();
         assert_eq!(
             value.get_current(&mut kernel_state).unwrap_infallible(),
             Some(RollupHeight::new(100))
@@ -164,7 +168,9 @@ mod tests {
                 .unwrap_infallible(),
             Some(RollupHeight::new(100))
         );
-        value.set_true_current(&RollupHeight::new(17), &mut kernel_state);
+        value
+            .set_true_current(&RollupHeight::new(17), &mut kernel_state)
+            .unwrap_infallible();
 
         // Try to read the value from user space with the rollup height set to 1. Should fail.
         assert_eq!(value.get_current(&mut state).unwrap_infallible(), None);

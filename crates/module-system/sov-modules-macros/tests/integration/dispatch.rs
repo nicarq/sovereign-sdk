@@ -1,5 +1,4 @@
 use sov_modules_api::capabilities::mocks::MockKernel;
-use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::sov_universal_wallet::schema::Schema;
 use sov_modules_api::{
     decode_borsh_serialized_message, Context, DaSpec, DispatchCall, EncodeCall, Error, Event,
@@ -65,9 +64,7 @@ pub mod first_test_module {
             _config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
-            self.state_in_first_struct
-                .set(&1, state)
-                .unwrap_infallible();
+            self.state_in_first_struct.set(&1, state).unwrap();
             Ok(())
         }
 
@@ -138,9 +135,7 @@ pub mod second_test_module {
             _config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
-            self.state_in_second_struct
-                .set(&2, state)
-                .unwrap_infallible();
+            self.state_in_second_struct.set(&2, state).unwrap();
             Ok(())
         }
 
@@ -230,7 +225,7 @@ pub mod third_test_module {
         ) -> Result<(), Error> {
             self.state_in_third_struct
                 .set(&Default::default(), state)
-                .unwrap_infallible();
+                .unwrap();
             Ok(())
         }
 

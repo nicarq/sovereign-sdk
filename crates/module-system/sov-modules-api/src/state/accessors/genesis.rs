@@ -124,3 +124,6 @@ impl<'a, S: Spec> EventContainer for GenesisStateAccessor<'a, S> {
         self.events.push(TypedEvent::new(event_key, event));
     }
 }
+
+use crate::GenesisState;
+impl<'a, S: Spec> GenesisState<S> for GenesisStateAccessor<'a, S> {}
