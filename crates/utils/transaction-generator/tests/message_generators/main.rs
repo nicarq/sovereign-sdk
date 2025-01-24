@@ -148,6 +148,7 @@ impl<R: Runtime<S>> TestGenerator<R> {
             self.randomness = vec![0; self.target_buffer_size];
         }
         randomize_buffer(&mut self.randomness[..], self.salt);
+        self.remaining_randomness = self.randomness.len();
         self.salt += 1;
     }
 
