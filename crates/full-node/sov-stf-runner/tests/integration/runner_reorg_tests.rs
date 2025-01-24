@@ -227,7 +227,7 @@ fn get_result_from_blocks(
             MockZkvm,
             MockZkvm,
             MockDaSpec,
-        >>::apply_slot::<&mut [MockBlob]>(
+        >>::apply_slot(
             &stf,
             &state_root,
             storage,

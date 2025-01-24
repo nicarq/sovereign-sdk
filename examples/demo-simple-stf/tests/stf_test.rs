@@ -46,8 +46,8 @@ fn test_stf_success() {
     }
 
     let relevant_blobs = RelevantBlobIters {
-        proof_blobs: &mut proof_blobs,
-        batch_blobs: &mut batch_blobs,
+        proof_blobs: proof_blobs.as_mut_slice(),
+        batch_blobs: batch_blobs.as_mut_slice(),
     };
 
     let result = StateTransitionFunction::<MockZkvm, MockZkvm, MockDaSpec>::apply_slot(
