@@ -8114,6 +8114,7 @@ dependencies = [
  "serde_yaml",
  "sov-api-spec",
  "sov-blob-storage",
+ "sov-chain-state",
  "sov-db",
  "sov-kernels",
  "sov-mock-da",

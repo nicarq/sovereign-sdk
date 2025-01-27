@@ -12,7 +12,9 @@ use crate::{Spec, VersionReader};
 /// A [`StateCheckpoint`] can be obtained from a [`crate::WorkingSet`] in two ways:
 ///  1. With [`crate::TxScratchpad::commit`].
 ///  2. With [`crate::WorkingSet::revert`].
+#[derive(derive_more::Debug)]
 pub struct StateCheckpoint<S: Spec> {
+    #[debug(skip)]
     pub(super) delta: Delta<S::Storage>,
     /// The rollup height visible to user-space modules
     pub(super) visible_slot_num: VisibleSlotNumber,

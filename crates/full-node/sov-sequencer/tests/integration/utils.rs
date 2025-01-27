@@ -3,10 +3,14 @@ use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::prelude::*;
 use sov_modules_api::transaction::{Transaction, TxDetails};
-use sov_modules_api::{CryptoSpec, DispatchCall, FullyBakedTx, RawTx};
+use sov_modules_api::{
+    CryptoSpec, DispatchCall, FullyBakedTx, Module, ModuleError, ModuleId, ModuleInfo, RawTx,
+    SlotHooks, StateCheckpoint, TxState,
+};
 use sov_paymaster::PaymasterPolicyInitializer;
 use sov_rollup_interface::TxHash;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
+use sov_state::Storage;
 use sov_test_utils::generators::bank::BankMessageGenerator;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::sov_paymaster::{AuthorizedSequencers, PayeePolicy, SafeVec};
@@ -135,4 +139,48 @@ pub fn valid_tx_bytes(
     );
 
     build_tx(setup, nonce, &msg)
+}
+
+#[derive(ModuleInfo, Clone)]
+pub struct ModuleWithVersionedStateAccessInSlotHook<S: Spec> {
+    #[id]
+    id: ModuleId,
+    #[phantom]
+    phantom: std::marker::PhantomData<S>,
+}
+
+impl<S: Spec> Module for ModuleWithVersionedStateAccessInSlotHook<S> {
+    type Spec = S;
+    type Config = ();
+    type CallMessage = ();
+    type Event = ();
+
+    fn call(
+        &self,
+        _msg: Self::CallMessage,
+        _context: &Context<Self::Spec>,
+        _state: &mut impl TxState<S>,
+    ) -> Result<(), ModuleError> {
+        Ok(())
+    }
+}
+
+impl<S: Spec> SlotHooks for ModuleWithVersionedStateAccessInSlotHook<S> {
+    type Spec = S;
+
+    fn begin_slot_hook(
+        &self,
+        _visible_hash: &<S::Storage as Storage>::Root,
+        _state: &mut StateCheckpoint<Self::Spec>,
+    ) {
+        //ChainState::<S>::default()
+        //    .get_time(state)
+        //    .unwrap_infallible();
+    }
+
+    fn end_slot_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {
+        //ChainState::<S>::default()
+        //    .get_time(state)
+        //    .unwrap_infallible();
+    }
 }
