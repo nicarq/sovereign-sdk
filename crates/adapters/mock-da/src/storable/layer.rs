@@ -32,7 +32,13 @@ impl StorableMockDaLayer {
         connection_string: &str,
         blocks_to_finality: u32,
     ) -> anyhow::Result<Self> {
-        let conn: DatabaseConnection = Database::connect(connection_string).await?;
+        let mut opts = sea_orm::ConnectOptions::new(connection_string);
+
+        opts.max_connections(1000);
+        opts.sqlx_logging_level(tracing::log::LevelFilter::Debug);
+
+        let conn: DatabaseConnection = Database::connect(opts).await?;
+
         entity::setup_db(&conn).await?;
         let next_height = entity::query_last_height(&conn)
             .await?
@@ -662,5 +668,19 @@ mod tests {
         ];
 
         submit_blobs_and_restart(connection_string, expected_blocks).await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn generate_mock_da_with_many_empty_blocks() -> anyhow::Result<()> {
+        let test_data = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("test_data")
+            .join("10k_empty_blocks.sqlite");
+        let connection_string = format!("sqlite://{}?mode=rwc", test_data.to_string_lossy());
+        let mut layer = StorableMockDaLayer::new_from_connection(&connection_string, 0).await?;
+        for _ in 0..10_000 {
+            layer.produce_block().await?;
+        }
+        Ok(())
     }
 }

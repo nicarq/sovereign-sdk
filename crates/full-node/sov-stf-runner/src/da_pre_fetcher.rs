@@ -167,6 +167,24 @@ where
                 start_height + self.bulk_size as u64,
                 self.last_finalized_height,
             );
+
+            // Before doing a bunch of concurrent calls to DaService,
+            // we want to make sure that results are going to fit into the channel,
+            // so we don't have a bunch of in-flight futures being stuck
+            let mut permit = match select_with_shutdown(
+                // The range is inclusive.
+                self.blocks.reserve_many(self.bulk_size as usize + 1),
+                &mut shutdown_receiver,
+                "reserve space in channel",
+            )
+            .await
+            {
+                Some(p) => p?,
+                None => {
+                    break;
+                }
+            };
+
             let start = std::time::Instant::now();
 
             let block_stream = match select_with_shutdown(
@@ -196,16 +214,10 @@ where
                     Some(Some(block_result)) => {
                         let block = block_result?;
                         blocks_fetched += 1;
-                        if select_with_shutdown(
-                            self.blocks.send(block),
-                            &mut shutdown_receiver,
-                            "self.blocks.send()",
-                        )
-                        .await
-                        .is_none()
-                        {
-                            return Ok(());
-                        }
+                        permit
+                            .next()
+                            .expect("reserved less permits that bulk_size. Bug")
+                            .send(block);
                     }
                     Some(None) => {
                         // Stream ended
@@ -285,7 +297,8 @@ mod tests {
             assert_eq!(i as u64, block.header().height());
         }
 
-        sender.send(())?;
+        // pre-fetcher might exit by that point.
+        let _ = sender.send(());
         handle.await??;
         Ok(())
     }
