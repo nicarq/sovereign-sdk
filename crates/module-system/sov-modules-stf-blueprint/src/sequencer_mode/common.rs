@@ -180,19 +180,15 @@ impl<'a, S: Spec> From<&'a BatchReceipt<S>> for BatchReceiptContents<'a, S> {
 
 pub(crate) fn apply_batch_logs<'a, S: Spec>(
     batch_receipt: impl Into<BatchReceiptContents<'a, S>>,
-    gas_used: &S::Gas,
     blob_idx: usize,
 ) {
     let batch_receipt = batch_receipt.into();
-    let batch_sequencer_receipt = batch_receipt.inner;
 
     debug!(
         blob_idx,
-        sequencer_da_address = %batch_sequencer_receipt.da_address,
         num_txs = batch_receipt.tx_receipts.len(),
         num_ignored_txs = batch_receipt.ignored_tx_receipts.len(),
         sequencer_outcome = %batch_receipt.inner,
-        %gas_used,
         "Applied blob and got the sequencer outcome"
     );
 
