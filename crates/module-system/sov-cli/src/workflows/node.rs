@@ -2,11 +2,13 @@
 use std::path::Path;
 
 use anyhow::Context;
+use futures::StreamExt;
 use reqwest::Url;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_bank::TokenId;
 use sov_modules_api::digest::Digest;
+use sov_modules_api::prelude::tokio;
 use sov_modules_api::{clap, DispatchCall};
 use sov_rollup_interface::zk::CryptoSpec;
 use sov_rollup_interface::TxHash;
@@ -58,6 +60,12 @@ pub enum NodeWorkflows<S: sov_modules_api::Spec> {
         /// (Optional) The nonce to use for the first transaction in the batch (default: the current nonce for the account). Any other transactions will
         /// be signed with sequential nonces starting from this value.
         nonce_override: Option<u64>,
+    },
+    /// Waits for the aggregated proof to become available.
+    /// This waits for the next aggregated proof after the command is invoked.
+    WaitForAggregatedProof {
+        /// The number of seconds to wait before timing out.
+        timeout_secs: Option<u64>,
     },
 }
 
@@ -157,6 +165,16 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
                 }
 
                 api_client.publish_batch(txs, *wait_for_processing).await?;
+            }
+            NodeWorkflows::WaitForAggregatedProof { timeout_secs } => {
+                let timeout = std::time::Duration::from_secs(timeout_secs.unwrap_or(120));
+                tracing::info!(?timeout, "Subscribing for aggregated proofs");
+                let mut aggregated_proofs = api_client.client.subscribe_aggregated_proof().await?;
+                let aggregated_proof = tokio::time::timeout(timeout, aggregated_proofs.next())
+                    .await?
+                    .transpose()?
+                    .ok_or_else(|| anyhow::anyhow!("Missing aggregated proof in response body"))?;
+                tracing::info!(?aggregated_proof, "Aggregated proof received");
             }
         }
 
