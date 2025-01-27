@@ -32,13 +32,14 @@ use test_strategy::Arbitrary;
 use tokio::time::sleep;
 use tracing::{debug, info};
 
-use crate::utils::generate_txs;
+use crate::utils::{generate_txs, ModuleWithVersionedStateAccessInSlotHook};
 
 generate_optimistic_runtime_with_kernel!(
     TestRuntime <=
     kernel_type: sov_kernels::soft_confirmations::SoftConfirmationsKernel<'a, S>,
     value_setter: ValueSetter<S>,
-    paymaster: Paymaster<S>
+    paymaster: Paymaster<S>,
+    slot_hook_checker: ModuleWithVersionedStateAccessInSlotHook<S>
 );
 
 type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
@@ -170,6 +171,7 @@ async fn txs_below_min_fee_are_rejected() {
                 admin: admin.address(),
             },
             PaymasterConfig::default(),
+            (),
         );
     let genesis_params = GenesisParams {
         runtime: rt_genesis_config.clone(),
@@ -215,6 +217,7 @@ async fn test_hooks_state_is_visible() {
                 admin: admin.address(),
             },
             PaymasterConfig::default(),
+            (),
         );
     let genesis_params = GenesisParams {
         runtime: rt_genesis_config.clone(),
@@ -280,6 +283,22 @@ async fn test_hooks_state_is_visible() {
             .unwrap()
             .value
     };
+
+    let begin_slot_count = query_hook_counter("begin-slot").await;
+    assert_eq!(begin_slot_count, 1);
+
+    // Accept a transaction. This causes the next batch to start and the begin slot hook to run.
+    {
+        let tx = tx_set_value(&admin.private_key, 100, 10);
+
+        test_rollup
+            .api_client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+    }
 
     let begin_slot_count = query_hook_counter("begin-slot").await;
     assert_eq!(begin_slot_count, 2);
@@ -437,6 +456,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
                 admin: admin.address(),
             },
             PaymasterConfig::default(),
+            (),
         );
     let genesis_params = GenesisParams {
         runtime: rt_genesis_config.clone(),

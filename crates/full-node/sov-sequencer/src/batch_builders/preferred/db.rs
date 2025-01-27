@@ -510,16 +510,6 @@ impl PreferredBbDbBlob {
             }) => *sequence_number,
         }
     }
-
-    /// Returns the number of visible slots to advance for this blob
-    pub fn visible_slots_to_advance(&self) -> Option<u8> {
-        match self {
-            Self::Batch(WithCachedTxHashes { inner, .. }) => {
-                Some(inner.visible_slots_to_advance.get())
-            }
-            Self::Proof(_) => None,
-        }
-    }
 }
 
 // Note: there's not always a batch in progress.
