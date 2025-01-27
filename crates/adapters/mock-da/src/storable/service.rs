@@ -195,7 +195,9 @@ impl StorableMockDaService {
         loop {
             tokio::select! {
                 _ = interval.tick() => {
-                   let current_height = self.da_layer.read().await.next_height;
+                   let current_height = {
+                        self.da_layer.read().await.next_height
+                   };
                    if current_height > height {
                         return Ok(())
                     }
@@ -245,9 +247,11 @@ impl DaService for StorableMockDaService {
 
         self.wait_for_height(height).await?;
 
-        let da_layer = self.da_layer.read().await;
+        let block = {
+            let da_layer = self.da_layer.read().await;
+            da_layer.get_block_at(height).await?
+        };
 
-        let block = da_layer.get_block_at(height).await?;
         tracing::trace!(block_header = %block.header().display(), "Block retrieved");
         Ok(block)
     }
@@ -310,21 +314,23 @@ impl DaService for StorableMockDaService {
         Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
     > {
         let (tx, rx) = oneshot::channel();
+        let should_produce_block = match &self.block_producing {
+            BlockProducing::OnBatchSubmit(_) | BlockProducing::OnAnySubmit(_) => true,
+            BlockProducing::Periodic(_) | BlockProducing::Manual => false,
+        };
         tracing::trace!(batch = hex::encode(blob), "Submitting a batch");
         let blob_hash = {
             let mut da_layer = self.da_layer.write().await;
-            da_layer
+            let blob_hash = da_layer
                 .submit_batch(blob, &self.sequencer_da_address)
                 .await
-                .unwrap()
-        };
-        match &self.block_producing {
-            BlockProducing::OnBatchSubmit(_) | BlockProducing::OnAnySubmit(_) => {
-                let mut da_layer = self.da_layer.write().await;
+                .unwrap();
+            tracing::trace!(%should_produce_block, "Batch has been sent to DA, producing block if necessary");
+            if should_produce_block {
                 da_layer.produce_block().await.unwrap();
             }
-            BlockProducing::Periodic(_) | BlockProducing::Manual => (),
-        }
+            blob_hash
+        };
         let res = Ok(SubmitBlobReceipt {
             blob_hash: HexHash::new(blob_hash.0),
             da_transaction_id: blob_hash,
@@ -346,26 +352,30 @@ impl DaService for StorableMockDaService {
             blob = hex::encode(aggregated_proof_data),
             "Sending an aggregated proof"
         );
+
+        let should_produce_block = match &self.block_producing {
+            BlockProducing::OnBatchSubmit(_) => {
+                tracing::debug!("Proof submission won't produce new DA block");
+                false
+            }
+            BlockProducing::OnAnySubmit(_) => true,
+            BlockProducing::Periodic(_) | BlockProducing::Manual => false,
+        };
+
         let blob_hash = {
             let mut da_layer = self.da_layer.write().await;
-            da_layer
+            let blob_hash = da_layer
                 .submit_proof(aggregated_proof_data, &self.sequencer_da_address)
                 .await
-                .unwrap()
+                .unwrap();
+            tracing::trace!(%should_produce_block, "Proof has been sent to DA, producing block if necessary");
+            if should_produce_block {
+                da_layer.produce_block().await.unwrap();
+            }
+            blob_hash
         };
 
         self.aggregated_proof_sender.send(()).unwrap();
-
-        match &self.block_producing {
-            BlockProducing::OnBatchSubmit(_) => {
-                tracing::debug!("Proof submission won't produce new DA block");
-            }
-            BlockProducing::OnAnySubmit(_) => {
-                let mut da_layer = self.da_layer.write().await;
-                da_layer.produce_block().await.unwrap();
-            }
-            BlockProducing::Periodic(_) | BlockProducing::Manual => (),
-        };
 
         let res = Ok(SubmitBlobReceipt {
             blob_hash: HexHash::new(blob_hash.0),
