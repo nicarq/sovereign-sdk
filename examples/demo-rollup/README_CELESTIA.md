@@ -30,6 +30,7 @@ We are developing more robust tooling to enable seamless deployment of rollups o
     - [2. Generate the Transaction](#2-generate-the-transaction)
     - [3. Submit the Transaction(s)](#3-submit-the-transactions)
     - [4. Verify the Token Supply](#4-verify-the-token-supply)
+    - [5. Wait for aggregated proof to be available](#5-wait-for-aggregated-proof-to-be-available)
   - [Makefile](#makefile)
   - [Remote setup](#remote-setup)
   - [Several full nodes](#several-full-nodes)
@@ -89,14 +90,11 @@ $ echo $MY_PERSONAL_GITHUB_TOKEN | docker login ghcr.io -u $MY_GITHUB_USERNAME -
 
 ```shell,test-ci
 $ cd examples/demo-rollup/
+$ export SOV_PROVER_MODE=execute
 $ make build
 ```
 
 4. Spin up a local Celestia instance as your DA layer. We've built a small Makefile to simplify that process:
-
-```sh,test-ci
-$ export SOV_PROVER_MODE=execute
-```
 
 ```sh,test-ci,bashtestmd:wait-until=genesis.json
 $ make clean
@@ -333,6 +331,17 @@ This command will use your default private key.
 ```bash,test-ci,bashtestmd:compare-output
 $ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_126x5str6mkes6ve8j92cnz579azyqlmrk74l6a4fg4zvd076hdxspqs3pc/total-supply | jq -c -M
 {"data":{"amount":1000000,"token_id":"token_126x5str6mkes6ve8j92cnz579azyqlmrk74l6a4fg4zvd076hdxspqs3pc"},"meta":{}}
+```
+
+#### 5. Wait for aggregated proof to be available
+
+After all transactions are submitted, let's check that aggregated proofs are available. This might take some time, because proof generation can take time and aggregated proof usually consist of several blocks.
+
+```bash,test-ci
+$ ./target/debug/sov-cli node wait-for-aggregated-proof 
+2025-01-23T10:58:58.348458Z  INFO sov_cli::workflows::node: Executing node workflow
+2025-01-23T10:58:58.371326Z  INFO sov_cli::workflows::node: Subscribing for aggregated proofs timeout=120s
+2025-01-23T10:59:02.977603Z  INFO sov_cli::workflows::node: Aggregated proof received aggregated_proof=AggregatedProof { proof: "AAAAAAGLAQAAAAAAAAMAAAAAAAAAAQEBEwAAAAAAAAAVAAAAAAAAAEhdYi6hLFLAP89xCVsbdfDdYwxF/WcFFzZGuIp+kaZW15HRe2qk3GxFnMa2Xuo0MGJo7NASojDOchgMtAoCdO2iXLMO0SPGbTpRLPlbtrPF/uBzNcmrNS3DGRVbg+F/9FWvf9BtOF5XwKXXDUx0D0bCUpD7Uf5COePkcWZQPBAwSJpvtIIdAu2tPFCwoSjEVejceh7HrWRdq44JiFPlxtckKiganGUZTFn5s07HsxKZKBTKDciu3lUHqUayXOjjaK2wdbW1c9SctB6kpXByF0jeeAjzuaBX/IiLBCJ9qImBksAL3mgkTQpGzPOobCRzlm/k90fQ2SsBRlD6Gq6HAc4AAAAAAAAAAAMAAAAAAAAAAAAAAP6mrFuHURIPti//Z7VNLqxmrvMHx93h05TeoeAAAAAA/qasW4dREg+2L/9ntU0urGau8wfH3eHTlN6h4AAAAAD+pqxbh1ESD7Yv/2e1TS6sZq7zB8fd4dOU3qHg", type_: AggregatedProof }
 ```
 
 ### Makefile

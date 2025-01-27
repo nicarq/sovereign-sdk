@@ -6487,6 +6487,7 @@ dependencies = [
  "borsh",
  "derive_more 1.0.0",
  "directories",
+ "futures",
  "hex",
  "reqwest",
  "semver 1.0.24",

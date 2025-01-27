@@ -33,6 +33,7 @@ serde_json = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 sov-node-client = { workspace = true }
 tracing = { workspace = true }
+futures = { workspace = true }
 
 [dev-dependencies]
 sov-address = { workspace = true }

@@ -26,6 +26,7 @@
     - [3. Make sure all the accounts involved have enough funds to pay for the transaction.](#3-make-sure-all-the-accounts-involved-have-enough-funds-to-pay-for-the-transaction)
     - [4. Submit the Transaction(s)](#4-submit-the-transactions)
     - [5. Verify the Token Supply](#5-verify-the-token-supply)
+    - [6. Wait for aggregated proof to be available](#6-wait-for-aggregated-proof-to-be-available)
 - [Disclaimer](#disclaimer)
 - [Interacting with your Node via REST API](#interacting-with-your-node-via-rest-api)
 - [Testing with specific DA layers](#testing-with-specific-da-layers)
@@ -360,6 +361,16 @@ $ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_1nyl0e0yweragfsatygt
 {"data":{"amount":30000000000000,"token_id":"token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"},"meta":{}}
 ```
 
+#### 6. Wait for aggregated proof to be available
+
+After all transactions are submitted, let's check that aggregated proofs are available. This might take some time, because proof generation can take time and aggregated proof usually consist of several blocks.
+
+```bash,test-ci
+$ ./target/debug/sov-cli node wait-for-aggregated-proof 
+ 2025-01-23T11:22:35.402610Z  INFO sov_cli::workflows::node: Executing node workflow
+2025-01-23T11:22:35.434135Z  INFO sov_cli::workflows::node: Subscribing for aggregated proofs timeout=120s
+2025-01-23T11:22:40.368366Z  INFO sov_cli::workflows::node: Aggregated proof received aggregated_proof=AggregatedProof { proof: "AAAAAAGLAQAAAAAAAAMAAAAAAAAAAQEBAQAAAAAAAAADAAAAAAAAAEhdYi6hLFLAP89xCVsbdfDdYwxF/WcFFzZGuIp+kaZW15HRe2qk3GxFnMa2Xuo0MGJo7NASojDOchgMtAoCdO1IXWIuoSxSwD/PcQlbG3Xw3WMMRf1nBRc2RriKfpGmVteR0XtqpNxsRZzGtl7qNDBiaOzQEqIwznIYDLQKAnTtwEGc5yzNex7lJXLa3zVI9FW1bv1QdAjVwddcSdTdLnbzj92WaWwpooMcl4rhSsyMSA4p2B1oOwUmM/xOuzFVUwunpBZJt+gXzHoMpgncYUhRoy6g2nn0J3Upj03dcxgzJdTBKEsCYGa+ZG26p+d6YCYTKcxA+Q8421V1spejjb0AAAAAAAAAAAMAAAAAAAAAAAAAAP6mrFuHURIPti//Z7VNLqxmrvMHx93h05TeoeAAAAAA/qasW4dREg+2L/9ntU0urGau8wfH3eHTlN6h4AAAAAD+pqxbh1ESD7Yv/2e1TS6sZq7zB8fd4dOU3qHg", type_: AggregatedProof }
+```
 
 ## Disclaimer
 
