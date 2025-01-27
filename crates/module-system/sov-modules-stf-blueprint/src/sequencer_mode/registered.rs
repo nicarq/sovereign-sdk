@@ -445,7 +445,7 @@ where
     };
 
     checkpoint = clean_scratchpad.commit();
-    apply_batch_logs(&batch_receipt, &total_gas_used_in_batch, blob_idx);
+    apply_batch_logs(&batch_receipt, blob_idx);
     span.exit();
     (batch_receipt, checkpoint)
 }

@@ -5,6 +5,7 @@ use std::str::FromStr;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
+use anyhow::Context;
 use derivative::Derivative;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_cli::NodeClient;
@@ -55,7 +56,7 @@ pub enum GenesisSource<S: Spec, R: Runtime<S>> {
 /// Various configuration options for [`RollupBuilder`].
 #[allow(missing_docs)]
 #[derive(Clone)]
-pub struct RollupBuilderConfig<S: Spec> {
+pub struct RollupBuilderConfig<S: Spec, StoragePath = Arc<tempfile::TempDir>> {
     pub automatic_batch_production: bool,
     pub batch_builder_config: BatchBuilderConfig,
     pub prover_address: String,
@@ -76,17 +77,17 @@ pub struct RollupBuilderConfig<S: Spec> {
     ///     [`RollupBuilderConfig::storage`] to the original directory.
     ///  6. Voila, your data is still there and you can test node behavior after
     ///     a restart.
-    pub storage: Arc<tempfile::TempDir>,
+    pub storage: StoragePath,
 }
 
 /// A one-stop shop for building entire rollups and starting them in the
 /// background to test node APIs.
 #[derive(Derivative)]
-#[derivative(Clone(bound = ""))]
-pub struct RollupBuilder<R: FullNodeBlueprint<Native>> {
+#[derivative(Clone(bound = "StoragePath: Clone"))]
+pub struct RollupBuilder<R: FullNodeBlueprint<Native>, StoragePath = Arc<tempfile::TempDir>> {
     genesis: GenesisSource<R::Spec, R::Runtime>,
     da_config: MockDaConfig,
-    config: RollupBuilderConfig<R::Spec>,
+    config: RollupBuilderConfig<R::Spec, StoragePath>,
     with_secondary_sequencer: Option<MockAddress>,
 }
 
@@ -99,6 +100,49 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
         finalization_blocks: u32,
         minimum_profit_per_tx: u64,
         zkvm_host_args: Arc<<<<R::Spec as Spec>::InnerZkvm as Zkvm>::Host as ZkvmHost>::HostArgs>,
+    ) -> Self {
+        Self::new_with_storage_path(
+            genesis,
+            block_producing,
+            finalization_blocks,
+            minimum_profit_per_tx,
+            zkvm_host_args,
+            Arc::new(tempfile::tempdir().unwrap()),
+        )
+    }
+}
+
+/// A type that can be used as a [`Path`].
+// We need a custom trait because Arc<T> doesn't implement AsRef<Path>
+// even if T does.
+pub trait AsPath: Clone {
+    /// Returns a [`Path`] reference.
+    fn as_path(&self) -> &Path;
+}
+
+// We also can't blanket impl AsPath because rustc complains that TempDir might add an `Arc<Tempdir>: AsRef<Path>` implementation in the future.
+impl AsPath for Arc<tempfile::TempDir> {
+    fn as_path(&self) -> &Path {
+        self.as_ref().as_ref()
+    }
+}
+
+impl AsPath for PathBuf {
+    fn as_path(&self) -> &Path {
+        self.as_path()
+    }
+}
+
+impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, StoragePath> {
+    /// Creates a new [`RollupBuilder`] with automatic [`StorableMockDaService`]
+    /// configuration.
+    pub fn new_with_storage_path(
+        genesis: GenesisSource<R::Spec, R::Runtime>,
+        block_producing: BlockProducingConfig,
+        finalization_blocks: u32,
+        minimum_profit_per_tx: u64,
+        zkvm_host_args: Arc<<<<R::Spec as Spec>::InnerZkvm as Zkvm>::Host as ZkvmHost>::HostArgs>,
+        storage_path: StoragePath,
     ) -> Self {
         let da_config = MockDaConfig {
             // This will be set later based on the storage path. In case of a bug,
@@ -129,7 +173,7 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
                 rollup_prover_config: get_appropriate_rollup_prover_config::<R::Spec>(
                     zkvm_host_args,
                 ),
-                storage: Arc::new(tempfile::tempdir().unwrap()),
+                storage: storage_path,
                 telegraf_address: MonitoringConfig::standard().telegraf_address,
             },
             with_secondary_sequencer: None,
@@ -138,7 +182,10 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
     }
 
     /// Allows to modify configuration options.
-    pub fn set_config(mut self, config_f: impl FnOnce(&mut RollupBuilderConfig<R::Spec>)) -> Self {
+    pub fn set_config(
+        mut self,
+        config_f: impl FnOnce(&mut RollupBuilderConfig<R::Spec, StoragePath>),
+    ) -> Self {
         config_f(&mut self.config);
         // Storage path might have changed.
         self.set_da_connection_string()
@@ -166,7 +213,7 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
 
     /// Returns the path that will be used for the mock DA database.
     pub fn mock_da_db_path(&self) -> PathBuf {
-        self.config.storage.path().join("mock_da.sqlite")
+        self.config.storage.as_path().join("mock_da.sqlite")
     }
 
     /// Get a connection string for [`sov_mock_da::storable::layer::StorableMockDaLayer`].
@@ -183,15 +230,21 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
     }
 }
 
-impl<R> RollupBuilder<R>
+impl<R, StoragePath: AsPath> RollupBuilder<R, StoragePath>
 where
     R: FullNodeBlueprint<Native, DaService = StorableMockDaService> + Default + 'static,
     R::Spec: Spec<Da = MockDaSpec>,
 {
     /// Creates a new [`TestRollup`] and starts running it in a background Tokio
     /// task. See [`TestRollup`] for usage information.
-    pub async fn start(self) -> anyhow::Result<TestRollup<R>> {
+    pub async fn start(self) -> anyhow::Result<TestRollup<R, StoragePath>> {
         let blueprint: R = Default::default();
+        std::fs::create_dir_all(self.config.storage.as_path()).with_context(|| {
+            format!(
+                "Failed to create storage directory: {}",
+                self.config.storage.as_path().display()
+            )
+        })?;
 
         let rollup_config = self.rollup_config();
         let rollup = match &self.genesis {
@@ -226,7 +279,7 @@ where
                 // We "keep" it because it is going to be deleted when the parent is deleted.
                 let second_sequencer_dir = tempfile::Builder::new()
                     .keep(true)
-                    .tempdir_in(self.config.storage.path())?;
+                    .tempdir_in(self.config.storage.as_path())?;
                 let mut rollup_config = rollup_config.clone();
                 rollup_config.storage.path = second_sequencer_dir.path().to_path_buf();
                 Some(
@@ -281,7 +334,7 @@ where
     fn rollup_config(&self) -> RollupConfig<<R::Spec as Spec>::Address, R::DaService> {
         RollupConfig {
             storage: StorageConfig {
-                path: self.config.storage.path().to_path_buf(),
+                path: self.config.storage.as_path().to_path_buf(),
             },
             runner: RunnerConfig {
                 genesis_height: 0,
@@ -415,7 +468,7 @@ pub fn get_appropriate_rollup_prover_config<S: Spec>(
 /// Represents a **running** rollup node while providing access to its
 /// [`DaService`](sov_rollup_interface::node::da::DaService) and wallet client
 /// to help run end-to-end tests against its APIs.
-pub struct TestRollup<R: FullNodeBlueprint<Native>> {
+pub struct TestRollup<R: FullNodeBlueprint<Native>, StoragePath = Arc<tempfile::TempDir>> {
     /// A wallet client that can be used to interact with the node and submit
     /// txs to the sequencer.
     pub client: NodeClient,
@@ -435,7 +488,7 @@ pub struct TestRollup<R: FullNodeBlueprint<Native>> {
     pub da_service: Arc<StorableMockDaService>,
     /// We just hold this together with [`TestRollup`] instance, so the directory
     /// is not deleted before we're done.
-    pub storage: Arc<tempfile::TempDir>,
+    pub storage: StoragePath,
     /// Allows programmatically initialize shutdown of the test-rollup.
     /// Used for checking graceful shutdown and restart.
     pub shutdown_sender: watch::Sender<()>,
@@ -446,7 +499,7 @@ pub struct TestRollup<R: FullNodeBlueprint<Native>> {
     pub secondary_test_sequencer_client: Option<sov_api_spec::client::Client>,
 }
 
-impl<R: FullNodeBlueprint<Native>> TestRollup<R> {
+impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> TestRollup<R, StoragePath> {
     /// Shuts down the rollup and waits for all background tasks to finish.
     pub async fn shutdown(self) -> anyhow::Result<()> {
         self.shutdown_sender

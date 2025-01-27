@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use sov_bank::Bank;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::capabilities::config_chain_id;
@@ -42,7 +44,7 @@ generate_runtime! {
 pub type RT = TestRuntime<S>;
 
 pub type RollupBlueprint = RtAgnosticBlueprint<S, RT>;
-pub type TestRollupBuilder = RollupBuilder<RollupBlueprint>;
+pub type TestRollupBuilder = RollupBuilder<RollupBlueprint, PathBuf>;
 
 pub const BUFFER_SIZE: usize = 100_000;
 // The minimum randomness needed to guarantee successful transaction generation
@@ -119,11 +121,13 @@ impl<R: Runtime<S>> TestGenerator<R> {
 }
 
 // Setup generation with the given params
-pub fn setup_harness<R: Runtime<S> + EncodeCall<Bank<S>> + Clone>() -> TestGenerator<R> {
+pub fn setup_harness<R: Runtime<S> + EncodeCall<Bank<S>> + Clone>(
+    rng_salt: u128,
+) -> TestGenerator<R> {
     let factory = BasicCallMessageFactory::<S, R>::new();
     let state: State<S, BasicTag> = State::new();
 
-    let random_bytes: Vec<u8> = get_random_bytes(100_000, 0);
+    let random_bytes: Vec<u8> = get_random_bytes(100_000, rng_salt);
     let u = &mut arbitrary::Unstructured::new(&random_bytes[..]);
     let remaining_randomness = u.len();
     TestGenerator {
@@ -132,7 +136,7 @@ pub fn setup_harness<R: Runtime<S> + EncodeCall<Bank<S>> + Clone>() -> TestGener
         generator: factory,
         state,
         target_buffer_size: BUFFER_SIZE,
-        salt: 1,
+        salt: rng_salt,
     }
 }
 
@@ -189,14 +193,15 @@ fn setup_roles_and_config() -> Setup {
     }
 }
 
-pub async fn setup_rollup() -> (TestRollup<RollupBlueprint>, Setup) {
+pub async fn setup_rollup(storage_path: PathBuf) -> (TestRollup<RollupBlueprint, PathBuf>, Setup) {
     let setup = setup_roles_and_config();
-    let rollup_builder = TestRollupBuilder::new(
+    let rollup_builder = TestRollupBuilder::new_with_storage_path(
         GenesisSource::CustomParams(setup.genesis_config.clone().into_genesis_params()),
         DEFAULT_BLOCK_PRODUCING_CONFIG,
         DEFAULT_FINALIZATION_BLOCKS,
         0,
         Default::default(),
+        storage_path,
     )
     .set_config(|config| {
         config.telegraf_address = sov_metrics::MonitoringConfig::standard().telegraf_address;

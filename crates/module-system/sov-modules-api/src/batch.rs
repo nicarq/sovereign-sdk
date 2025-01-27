@@ -348,14 +348,7 @@ impl<B> BlobDataWithId<B> {
 }
 
 /// The sequencer rewards.
-#[derive(
-    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, derive_more::Display,
-)]
-#[display(
-    "Rewards {{ accumulated_reward:{}, accumulated_penalty: {} }}",
-    accumulated_reward,
-    accumulated_penalty
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Rewards {
     /// Rewards accumulated by the sequencer during the batch processing
     pub accumulated_reward: u64,
@@ -363,11 +356,24 @@ pub struct Rewards {
     pub accumulated_penalty: u64,
 }
 
+impl std::fmt::Display for Rewards {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Print the net reward. We do all calculations in u64 to avoid overflows and then add the correct sign.
+        if self.accumulated_reward >= self.accumulated_penalty {
+            let output = self.accumulated_reward - self.accumulated_penalty;
+            write!(f, "{}", output)
+        } else {
+            let negative_reward = self.accumulated_penalty - self.accumulated_reward;
+            write!(f, "-{}", negative_reward)
+        }
+    }
+}
+
 /// Outcome of batch execution.
 #[derive(
     Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, derive_more::Display,
 )]
-#[display("BatchSequencerOutcome {{ rewards: {} }}", rewards)]
+#[display("{{ rewards: {} }}", rewards)]
 #[serde(rename_all = "snake_case")]
 pub struct BatchSequencerOutcome {
     /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties.
@@ -377,7 +383,7 @@ pub struct BatchSequencerOutcome {
 /// A receipt for a batch that was submitted by a sequencer to the DA layer.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Display)]
 #[display(
-    "BatchSequencerReceipt {{ da_address: {}, gas_price: {}, gas_used: {}, outcome: {} }}",
+    "{{ da_address: {}, gas_price: {}, gas_used: {}, outcome: {} }}",
     da_address,
     gas_price,
     gas_used,

@@ -7,6 +7,7 @@ authors = ["Sovereign Labs <info@sovereign.xyz>"]
 homepage = "https://www.sovereign.xyz"
 publish = false
 resolver = "2"
+default-run = "main"
 
 [dependencies]
 tokio = { version = "1.42", default-features = false }
@@ -22,8 +23,10 @@ anyhow = { version = "1.0.95" }
 derivative = { version = "2.2", features = ["use_core"] }
 strum = { version = "0.26.3", features = ["derive"] }
 rand = "0.8"
+clap = { version = "4", features = ["derive"] }
 
 
+sov-api-spec = { path = "../../../crates/full-node/sov-api-spec" }
 sov-metrics = { path = "../../../crates/full-node/sov-metrics" }
 sov-modules-rollup-blueprint = { path = "../../../crates/module-system/sov-modules-rollup-blueprint" }
 sov-transaction-generator = { path = "../../../crates/utils/transaction-generator" }
@@ -58,3 +61,12 @@ sov-bank = { path = "../../../crates/module-system/module-implementations/sov-ba
 sov-paymaster = { path = "../../../crates/module-system/module-implementations/sov-paymaster", features = [
   "native",
 ] }
+
+
+[[bin]]
+name = "main"
+path = "src/bin/main.rs"
+
+[[bin]]
+name = "generator"
+path = "src/bin/generator.rs"

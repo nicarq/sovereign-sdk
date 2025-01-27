@@ -361,7 +361,7 @@ where
     };
 
     checkpoint = scratchpad.commit();
-    apply_batch_logs(&batch_receipt, &gas_used, blob_idx);
+    apply_batch_logs(&batch_receipt, blob_idx);
 
     (batch_receipt, checkpoint)
 }
