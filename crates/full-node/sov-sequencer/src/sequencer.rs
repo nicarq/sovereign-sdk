@@ -120,6 +120,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     }
 
     /// Locks the batch builder and returns a reference to it.
+    #[tracing::instrument(skip_all)]
     pub async fn batch_builder(&self) -> MutexGuard<Ss::BatchBuilder> {
         self.inner.batch_builder.lock().await
     }
@@ -398,12 +399,13 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 }
 
 impl<Ss: SequencerSpec> Inner<Ss> {
+    #[tracing::instrument(skip_all, fields(tx = hex::encode(&tx.data)))]
     async fn accept_tx_and_notify(
         &self,
         batch_builder: &mut Ss::BatchBuilder,
         tx: FullyBakedTx,
     ) -> Result<AcceptedTx<<Ss::BatchBuilder as BatchBuilder>::Confirmation>, ErrorObject> {
-        debug!(tx = hex::encode(&tx.data), "Accepting transaction");
+        trace!("Accepting transaction");
 
         let accepted = batch_builder.accept_tx(tx).await?;
         self.notify_accepted_tx(&accepted);
@@ -411,6 +413,7 @@ impl<Ss: SequencerSpec> Inner<Ss> {
         Ok(accepted)
     }
 
+    #[tracing::instrument(skip_all)]
     fn notify_accepted_tx(
         &self,
         tx: &AcceptedTx<<Ss::BatchBuilder as BatchBuilder>::Confirmation>,
