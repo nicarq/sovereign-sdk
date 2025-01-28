@@ -1,5 +1,8 @@
 //! [sea-orm](https://www.sea-ql.org/SeaORM/docs/index/) related code.
-use sea_orm::{ConnectionTrait, DatabaseConnection, EntityTrait, QueryOrder, QuerySelect, Schema};
+use sea_orm::sea_query::{Index, IndexCreateStatement};
+use sea_orm::{
+    ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QueryOrder, QuerySelect, Schema,
+};
 
 pub mod blobs;
 pub mod block_headers;
@@ -13,6 +16,21 @@ pub(crate) async fn setup_db(db: &DatabaseConnection) -> anyhow::Result<()> {
     tracing::debug!("Setting up database");
     create_tables(db, blobs::Entity).await?;
     create_tables(db, block_headers::Entity).await?;
+    let builder = db.get_database_backend();
+    let index_stmt: IndexCreateStatement = Index::create()
+        .name("idx-blobs-block_height")
+        .table(blobs::Entity)
+        .col(blobs::Column::BlockHeight)
+        .if_not_exists()
+        .to_owned();
+    db.execute(builder.build(&index_stmt)).await?;
+    if let DbBackend::Sqlite = db.get_database_backend() {
+        db.execute(sea_orm::Statement::from_string(
+            sea_orm::DatabaseBackend::Sqlite,
+            "PRAGMA journal_mode = WAL".to_owned(),
+        ))
+        .await?;
+    }
     Ok(())
 }
 

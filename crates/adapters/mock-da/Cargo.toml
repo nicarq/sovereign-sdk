@@ -54,6 +54,7 @@ futures = { workspace = true }
 serde_json = { workspace = true }
 sov-mock-da = { path = ".", features = ["native", "arbitrary"] }
 sov-test-utils = { workspace = true, features = ["arbitrary"] }
+criterion = { version = "0.5.1" , features = ["async_tokio"]}
 tempfile = { workspace = true }
 tokio = { workspace = true, features = [
     "test-util",
@@ -84,3 +85,9 @@ native = [
     "sov-rollup-interface/native",
 ]
 postgres = ["native", "sea-orm/sqlx-postgres"]
+
+[[bench]]
+name = "concurrent_access"
+path = "benches/concurrent_access.rs"
+harness = false
+required-features = ["native"]
