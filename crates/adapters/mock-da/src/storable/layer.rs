@@ -34,7 +34,7 @@ impl StorableMockDaLayer {
     ) -> anyhow::Result<Self> {
         let mut opts = sea_orm::ConnectOptions::new(connection_string);
 
-        opts.max_connections(1000);
+        opts.max_connections(50);
         opts.sqlx_logging_level(tracing::log::LevelFilter::Debug);
 
         let conn: DatabaseConnection = Database::connect(opts).await?;
