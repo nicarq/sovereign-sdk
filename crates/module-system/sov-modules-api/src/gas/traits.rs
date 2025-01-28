@@ -487,15 +487,19 @@ pub trait GasMeter {
     /// May raises an error if the gas to charge is greater than the funds available
     fn charge_gas(
         &mut self,
-        amount: &<Self::Spec as Spec>::Gas,
-    ) -> Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>>;
+        _amount: &<Self::Spec as Spec>::Gas,
+    ) -> Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
+        Ok(())
+    }
 
     /// Charges an amount of gas equal to `amount *_point parameter`, the pointwise product of `amount` times `parameter`.
     fn charge_linear_gas(
         &mut self,
-        amount: &<Self::Spec as Spec>::Gas,
-        parameter: u64,
-    ) -> Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>>;
+        _amount: &<Self::Spec as Spec>::Gas,
+        _parameter: u64,
+    ) -> Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
+        Ok(())
+    }
 
     /// Refunds some gas to the gas meter.
     ///
@@ -504,8 +508,16 @@ pub trait GasMeter {
     /// In that case, the gas meter won't be updated and the refund will fail.
     fn refund_gas(
         &mut self,
-        gas: &<Self::Spec as Spec>::Gas,
-    ) -> Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>>;
+        _gas: &<Self::Spec as Spec>::Gas,
+    ) -> Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
+        Ok(())
+    }
+}
+
+/// Get information about gas usage
+pub trait GetGasInfo {
+    /// The spec used by this gas meter.
+    type Spec: Spec;
 
     /// Returns gas usage.
     fn gas_info(&self) -> GasInfo<<Self::Spec as Spec>::Gas>;
@@ -713,7 +725,7 @@ impl<S: Spec> GasMeter for BasicGasMeter<S> {
         &mut self,
         amount: &S::Gas,
         parameter: u64,
-    ) -> Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
+    ) -> Result<(), GasMeteringError<<S as Spec>::Gas>> {
         self.charge_gas_inner(&amount.checked_scalar_product(parameter).ok_or(
             GasMeteringError::Overflow(format!(
                 "Unable to charge gas. The product of {} to {} is overflowing",
@@ -791,7 +803,10 @@ impl<S: Spec> GasMeter for BasicGasMeter<S> {
 
         Ok(())
     }
+}
 
+impl<S: Spec> GetGasInfo for BasicGasMeter<S> {
+    type Spec = S;
     fn gas_info(&self) -> GasInfo<S::Gas> {
         let remaining_funds = if let Some(remaining_funds) = self.remaining_funds {
             remaining_funds

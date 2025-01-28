@@ -3,7 +3,7 @@ use sov_test_utils::MockZkvm;
 
 use crate::default_spec::DefaultSpec;
 use crate::execution_mode::Native;
-use crate::{BasicGasMeter, GasArray, GasMeter, GasPrice, GasUnit};
+use crate::{BasicGasMeter, GasArray, GasMeter, GasPrice, GasUnit, GetGasInfo};
 
 type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 

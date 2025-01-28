@@ -60,15 +60,13 @@ pub trait Kernel<S: Spec> {
     }
 
     /// Return the current rollup height
-    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> SlotNumber;
+    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> SlotNumber;
     /// Return the next value of the slot number at which transactions currently *appear* to be executing.
-    fn next_visible_slot_number(
-        &self,
-        state: &mut BootstrapWorkingSet<'_, S::Storage>,
-    ) -> VisibleSlotNumber;
+    fn next_visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>)
+        -> VisibleSlotNumber;
 
     /// Return the current rollup height
-    fn rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> RollupHeight;
+    fn rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S>) -> RollupHeight;
 
     /// Record the gas usage for a given rollup height.
     fn record_gas_usage(

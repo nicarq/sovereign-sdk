@@ -20,8 +20,8 @@ use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::ApiState;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
-    ExecutionContext, FullyBakedTx, Gas, GasArray, GasMeter, NestedEnumUtils, NoOpControlFlow,
-    RawTx, Spec, StateCheckpoint, StateProvider, VersionReader, WorkingSet,
+    ExecutionContext, FullyBakedTx, Gas, GasArray, GasMeter, GetGasInfo, NestedEnumUtils,
+    NoOpControlFlow, RawTx, Spec, StateCheckpoint, StateProvider, VersionReader, WorkingSet,
 };
 use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect, TxProcessingError,

@@ -4,8 +4,8 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext, Gas,
-    GasArray, GasInfo, GasMeter, GasSpec, IgnoredTransactionReceipt, Rewards, Spec, StateProvider,
-    TxScratchpad, WorkingSet,
+    GasArray, GasInfo, GasMeter, GasSpec, GetGasInfo, IgnoredTransactionReceipt, Rewards, Spec,
+    StateProvider, TxScratchpad, WorkingSet,
 };
 use sov_rollup_interface::common::VisibleSlotNumber;
 use tracing::{debug, warn};

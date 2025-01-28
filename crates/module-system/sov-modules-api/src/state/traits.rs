@@ -15,7 +15,7 @@ use super::accessors::seal::UniversalStateAccessor;
 use crate::capabilities::RollupHeight;
 #[cfg(any(feature = "test-utils", feature = "evm"))]
 use crate::UnmeteredStateWrapper;
-use crate::{Gas, GasArray, GasMeter, GasMeteringError, GasSpec, Spec};
+use crate::{Gas, GasArray, GasMeter, GasMeteringError, GasSpec, GetGasInfo, Spec};
 
 /// A type that can both read and write the normal "user-space" state of the rollup.
 ///
@@ -90,6 +90,7 @@ pub trait TxState<S: Spec>:
     + VersionReader
     + EventContainer
     + GasMeter<Spec = S>
+    + GetGasInfo<Spec = S>
 {
 }
 
@@ -101,6 +102,7 @@ impl<S: Spec, T> TxState<S> for T where
         + VersionReader
         + EventContainer
         + GasMeter<Spec = S>
+        + GetGasInfo<Spec = S>
 {
 }
 

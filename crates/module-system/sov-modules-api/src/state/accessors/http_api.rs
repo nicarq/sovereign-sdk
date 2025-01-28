@@ -10,7 +10,10 @@ use sov_state::{
 use super::{StateCheckpoint, UniversalStateAccessor};
 use crate::capabilities::{KernelWithSlotMapping, RollupHeight};
 use crate::gas::GasArray;
-use crate::{BasicGasMeter, Gas, GasMeter, GasMeteringError, Spec, TypedEvent, VersionReader};
+use crate::{
+    BasicGasMeter, Gas, GasInfo, GasMeter, GasMeteringError, GetGasInfo, Spec, TypedEvent,
+    VersionReader,
+};
 
 impl<S: Spec> UniversalStateAccessor for ApiStateAccessor<S> {
     fn get_value(
@@ -199,8 +202,11 @@ impl<S: Spec> GasMeter for ApiStateAccessor<S> {
     ) -> anyhow::Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
         self.gas_meter.charge_linear_gas(amount, parameter)
     }
+}
 
-    fn gas_info(&self) -> crate::GasInfo<S::Gas> {
+impl<S: Spec> GetGasInfo for ApiStateAccessor<S> {
+    type Spec = S;
+    fn gas_info(&self) -> GasInfo<S::Gas> {
         self.gas_meter.gas_info()
     }
 }

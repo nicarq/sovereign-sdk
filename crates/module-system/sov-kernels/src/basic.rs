@@ -33,18 +33,18 @@ impl<'a, S: Spec> BasicKernel<'a, S> {
 }
 
 impl<'a, S: Spec> KernelTrait<S> for BasicKernel<'a, S> {
-    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> SlotNumber {
+    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> SlotNumber {
         self.chain_state.true_slot_number(state).unwrap_infallible()
     }
 
     fn next_visible_slot_number(
         &self,
-        state: &mut BootstrapWorkingSet<'_, S::Storage>,
+        state: &mut BootstrapWorkingSet<'_, S>,
     ) -> VisibleSlotNumber {
         self.chain_state.next_visible_slot_number(state)
     }
 
-    fn rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> RollupHeight {
+    fn rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S>) -> RollupHeight {
         self.chain_state.rollup_height(state).unwrap_infallible()
     }
 

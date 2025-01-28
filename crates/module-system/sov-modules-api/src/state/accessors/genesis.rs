@@ -6,8 +6,8 @@ use super::UniversalStateAccessor;
 use crate::capabilities::RollupHeight;
 use crate::state::events::TypedEvent;
 use crate::{
-    BasicGasMeter, Gas, GasArray, GasMeter, GasMeteringError, Genesis, KernelWriter, Spec,
-    VersionReader,
+    BasicGasMeter, Gas, GasArray, GasInfo, GasMeter, GasMeteringError, Genesis, GetGasInfo,
+    KernelWriter, Spec, VersionReader,
 };
 
 /// A special state accessor which can only be used at genesis.
@@ -91,8 +91,11 @@ impl<'a, S: Spec> GasMeter for GenesisStateAccessor<'a, S> {
     fn refund_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.refund_gas(gas)
     }
+}
 
-    fn gas_info(&self) -> crate::GasInfo<S::Gas> {
+impl<'a, S: Spec> GetGasInfo for GenesisStateAccessor<'a, S> {
+    type Spec = S;
+    fn gas_info(&self) -> GasInfo<S::Gas> {
         self.gas_meter.gas_info()
     }
 }

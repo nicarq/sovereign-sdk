@@ -7,7 +7,7 @@ use sov_test_utils::MockDaSpec;
 
 use super::traits::{StateReader, StateWriter};
 use crate::default_spec::DefaultSpec;
-use crate::{Gas, GasArray, GasMeter, Spec, WorkingSet};
+use crate::{Gas, GasArray, GetGasInfo, Spec, WorkingSet};
 
 type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 

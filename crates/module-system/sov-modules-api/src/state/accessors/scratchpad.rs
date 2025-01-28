@@ -17,7 +17,7 @@ use crate::transaction::{
 };
 #[cfg(feature = "test-utils")]
 use crate::GasArray;
-use crate::{BasicGasMeter, GasInfo, GasMeter, GasMeteringError, VersionReader};
+use crate::{BasicGasMeter, GasInfo, GasMeter, GasMeteringError, GetGasInfo, VersionReader};
 
 /// A state diff over the storage that contains all the changes related to transaction execution.
 ///
@@ -63,6 +63,10 @@ impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for TxScratchpad<S, I>
             key,
         )
     }
+}
+
+impl<S: Spec, I: StateProvider<S>> GasMeter for TxScratchpad<S, I> {
+    type Spec = S;
 }
 
 /// The list of changes caused by a single transaction
@@ -134,7 +138,10 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for PreExecWorkingSet<S, I> {
     fn refund_gas(&mut self, gas: &S::Gas) -> anyhow::Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.refund_gas(gas)
     }
+}
 
+impl<S: Spec, I: StateProvider<S>> GetGasInfo for PreExecWorkingSet<S, I> {
+    type Spec = S;
     fn gas_info(&self) -> GasInfo<S::Gas> {
         self.gas_meter.gas_info()
     }
@@ -368,7 +375,10 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for WorkingSet<S, I> {
     ) -> anyhow::Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
         self.gas_meter.charge_linear_gas(amount, parameter)
     }
+}
 
+impl<S: Spec, I: StateProvider<S>> GetGasInfo for WorkingSet<S, I> {
+    type Spec = S;
     fn gas_info(&self) -> GasInfo<S::Gas> {
         self.gas_meter.gas_info()
     }

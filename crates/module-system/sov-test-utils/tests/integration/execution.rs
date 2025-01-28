@@ -1,7 +1,7 @@
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{DaSpec, Gas, GasMeter, Spec};
+use sov_modules_api::{DaSpec, Gas, GetGasInfo, Spec};
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::{AsUser, BatchTestCase, TestSequencer};
 use sov_value_setter::ValueSetter;
