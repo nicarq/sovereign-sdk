@@ -9,6 +9,7 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::node::da::{DaService, SlotData};
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
 use tokio::sync::mpsc::Receiver;
+use tracing::{info_span, Instrument as _};
 
 // With the block size up to 10 MB, it should fit into 32 GB of RAM.
 const MAX_BLOCKS: usize = 1_000;
@@ -73,6 +74,7 @@ where
     }
 
     /// Wrapper around [`DaService::get_block_at`]
+    #[tracing::instrument(skip(self))]
     pub async fn get_block_at(&mut self, height: u64) -> Result<Da::FilteredBlock, Da::Error> {
         if height > self.last_finalized_height || height < self.start_height {
             tracing::trace!(
@@ -84,22 +86,33 @@ where
             return self.da_service.get_block_at(height).await;
         }
 
-        while let Some(block) = self.blocks.recv().await {
-            let block_height = block.header().height();
-            self.start_height = block_height;
-            if block_height == height {
-                return Ok(block);
+        let span = info_span!("recv_channel_blocks");
+        let block_opt = async {
+            while let Some(block) = self.blocks.recv().await {
+                let block_height = block.header().height();
+                self.start_height = block_height;
+                if block_height == height {
+                    return Some(block);
+                }
+                tracing::warn!(
+                    block_header = %block.header().display(),
+                    "Skipping pre-fetched block from the channel. Reading out of order might've been occurred"
+                );
             }
-            tracing::warn!(
-                block_header = %block.header().display(),
-                "Skipping pre-fetched block from the channel. Reading out of order might've been occurred");
+            None
         }
+        .instrument(span)
+        .await;
 
-        tracing::info!(
-            height,
-            "Didn't find block in pre-fetched when it should've been, calling DaService"
-        );
-        self.da_service.get_block_at(height).await
+        if let Some(block) = block_opt {
+            Ok(block)
+        } else {
+            tracing::info!(
+                height,
+                "Didn't find block in pre-fetched when it should've been, calling DaService"
+            );
+            self.da_service.get_block_at(height).await
+        }
     }
 }
 
@@ -132,6 +145,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip_all, fields(block_count = end - start))]
     async fn fetch_blocks_in_range(
         &self,
         start: u64,
