@@ -193,7 +193,10 @@ fn setup_roles_and_config() -> Setup {
     }
 }
 
-pub async fn setup_rollup(storage_path: PathBuf) -> (TestRollup<RollupBlueprint, PathBuf>, Setup) {
+pub async fn setup_rollup(
+    storage_path: PathBuf,
+    axum_port: u16,
+) -> (TestRollup<RollupBlueprint, PathBuf>, Setup) {
     let setup = setup_roles_and_config();
     let rollup_builder = TestRollupBuilder::new_with_storage_path(
         GenesisSource::CustomParams(setup.genesis_config.clone().into_genesis_params()),
@@ -212,6 +215,7 @@ pub async fn setup_rollup(storage_path: PathBuf) -> (TestRollup<RollupBlueprint,
         });
         config.prover_address = setup.prover.user_info.address().to_string();
         config.aggregated_proof_block_jump = 3;
+        config.axum_port = axum_port;
     })
     .set_da_config(|da_config| {
         da_config.block_time_ms = DEFAULT_BLOCK_TIME_MS;

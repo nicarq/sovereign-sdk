@@ -78,6 +78,7 @@ pub struct RollupBuilderConfig<S: Spec, StoragePath = Arc<tempfile::TempDir>> {
     ///  6. Voila, your data is still there and you can test node behavior after
     ///     a restart.
     pub storage: StoragePath,
+    pub axum_port: u16,
 }
 
 /// A one-stop shop for building entire rollups and starting them in the
@@ -175,6 +176,7 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
                 ),
                 storage: storage_path,
                 telegraf_address: MonitoringConfig::standard().telegraf_address,
+                axum_port: 0,
             },
             with_secondary_sequencer: None,
         }
@@ -340,7 +342,7 @@ where
                 genesis_height: 0,
                 da_polling_interval_ms: 10,
                 rpc_config: HttpServerConfig::localhost_on_free_port(),
-                axum_config: HttpServerConfig::localhost_on_free_port(),
+                axum_config: HttpServerConfig::localhost_on_port(self.config.axum_port),
                 concurrent_sync_tasks: Some(1),
             },
             da: self.da_config.clone(),

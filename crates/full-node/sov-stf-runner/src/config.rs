@@ -72,9 +72,15 @@ impl HttpServerConfig {
     /// Creates an [`HttpServerConfig`] that requests the operating system to bind to any available port.
     /// Useful for testing as it prevents multiple threads from binding to the same port.
     pub fn localhost_on_free_port() -> Self {
+        Self::localhost_on_port(0)
+    }
+
+    /// Creates an [`HttpServerConfig`] that listens on the provided port using sensible defaults
+    /// for local testing.
+    pub fn localhost_on_port(port: u16) -> Self {
         HttpServerConfig {
             bind_host: "127.0.0.1".to_string(),
-            bind_port: 0,
+            bind_port: port,
             public_address: None,
             cors: CorsConfiguration::Enabled,
         }
