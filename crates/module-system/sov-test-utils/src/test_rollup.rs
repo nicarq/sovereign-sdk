@@ -99,15 +99,11 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
         genesis: GenesisSource<R::Spec, R::Runtime>,
         block_producing: BlockProducingConfig,
         finalization_blocks: u32,
-        minimum_profit_per_tx: u64,
-        zkvm_host_args: Arc<<<<R::Spec as Spec>::InnerZkvm as Zkvm>::Host as ZkvmHost>::HostArgs>,
     ) -> Self {
         Self::new_with_storage_path(
             genesis,
             block_producing,
             finalization_blocks,
-            minimum_profit_per_tx,
-            zkvm_host_args,
             Arc::new(tempfile::tempdir().unwrap()),
         )
     }
@@ -141,8 +137,6 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
         genesis: GenesisSource<R::Spec, R::Runtime>,
         block_producing: BlockProducingConfig,
         finalization_blocks: u32,
-        minimum_profit_per_tx: u64,
-        zkvm_host_args: Arc<<<<R::Spec as Spec>::InnerZkvm as Zkvm>::Host as ZkvmHost>::HostArgs>,
         storage_path: StoragePath,
     ) -> Self {
         let da_config = MockDaConfig {
@@ -166,13 +160,11 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
                 max_channel_size: 60,
                 max_infos_in_db: 80 + finalization_blocks as u64,
                 automatic_batch_production: true,
-                batch_builder_config: BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
-                    minimum_profit_per_tx,
-                }),
+                batch_builder_config: BatchBuilderConfig::Preferred(Default::default()),
                 prover_address: TEST_DEFAULT_PROVER_ADDRESS.to_string(),
                 aggregated_proof_block_jump: 1,
                 rollup_prover_config: get_appropriate_rollup_prover_config::<R::Spec>(
-                    zkvm_host_args,
+                    Default::default(),
                 ),
                 storage: storage_path,
                 telegraf_address: MonitoringConfig::standard().telegraf_address,
@@ -181,6 +173,25 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
             with_secondary_sequencer: None,
         }
         .set_da_connection_string()
+    }
+
+    /// See [`PreferredBatchBuilderConfig::minimum_profit_per_tx`].
+    pub fn with_preferred_seq_min_profit_per_tx(mut self, minimum_profit_per_tx: u64) -> Self {
+        self.config.batch_builder_config =
+            BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
+                minimum_profit_per_tx,
+            });
+        self
+    }
+
+    /// See [`RollupBuilderConfig::rollup_prover_config`].
+    pub fn with_zkvm_host_args(
+        mut self,
+        zkvm_host_args: Arc<<<<R::Spec as Spec>::InnerZkvm as Zkvm>::Host as ZkvmHost>::HostArgs>,
+    ) -> Self {
+        self.config.rollup_prover_config =
+            get_appropriate_rollup_prover_config::<R::Spec>(zkvm_host_args);
+        self
     }
 
     /// Allows to modify configuration options.

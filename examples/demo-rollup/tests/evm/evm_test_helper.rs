@@ -27,9 +27,8 @@ pub(crate) async fn start_node(
         test_genesis_source(sov_modules_api::OperatingMode::Zk),
         BlockProducingConfig::OnBatchSubmit,
         finalization_blocks,
-        0,
-        mock_da_risc0_host_args(),
     )
+    .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|c| {
         c.automatic_batch_production = false; // FIXME(@neysofu): finish migrating all tests off of manual batch production.
         c.rollup_prover_config = rollup_prover_config;

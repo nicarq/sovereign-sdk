@@ -38,9 +38,8 @@ pub async fn setup(
         GenesisSource::CustomParams(genesis_config.into_genesis_params()),
         DEFAULT_BLOCK_PRODUCING_CONFIG,
         DEFAULT_FINALIZATION_BLOCKS,
-        0,
-        mock_da_risc0_host_args(),
     )
+    .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|config| {
         config.prover_address = prover_address.to_string();
         config.telegraf_address = telegraf_address;

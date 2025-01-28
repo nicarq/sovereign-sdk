@@ -335,8 +335,6 @@ async fn test_with_modules(
         GenesisSource::CustomParams(setup.genesis_config.into_genesis_params()),
         DEFAULT_BLOCK_PRODUCING_CONFIG,
         DEFAULT_FINALIZATION_BLOCKS,
-        0,
-        Default::default(),
     )
     .set_config(|config| {
         config.batch_builder_config = BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
@@ -432,8 +430,6 @@ async fn test_several_sequencers(
         GenesisSource::CustomParams(setup.genesis_config.clone().into_genesis_params()),
         BlockProducingConfig::Manual,
         finalization,
-        0,
-        Default::default(),
     )
     .set_config(|config| {
         // FIXME(@neysofu): this test fails when automatic batch production is enabled.

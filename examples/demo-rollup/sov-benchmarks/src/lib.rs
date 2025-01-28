@@ -176,9 +176,8 @@ where
         GenesisSource::CustomParams(genesis_config.into_genesis_params()),
         DEFAULT_BLOCK_PRODUCING_CONFIG,
         DEFAULT_FINALIZATION_BLOCKS,
-        0,
-        host_args,
     )
+    .with_zkvm_host_args(host_args)
     .set_config(|config| {
         config.prover_address = roles.prover.user_info.address().to_string();
     })

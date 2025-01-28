@@ -85,9 +85,8 @@ async fn start_stop_empty(
                 test_genesis_source(operation_mode),
                 BlockProducingConfig::Periodic,
                 finalization_blocks,
-                0,
-                mock_da_risc0_host_args(),
             )
+            .with_zkvm_host_args(mock_da_risc0_host_args())
             .set_config(|c| {
                 c.storage = rollup_storage_dir.clone();
                 c.rollup_prover_config = rollup_prover_config.clone();
@@ -199,7 +198,6 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
 
     let rollup_storage_dir = Arc::new(tempfile::tempdir()?);
     let finalization_blocks = 0;
-    let minimum_fee_per_tx = 0;
 
     let first_chunk = 6;
     let second_chunk = 4;
@@ -209,9 +207,8 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
         test_genesis_source(OperatingMode::Zk),
         BlockProducingConfig::OnAnySubmit,
         finalization_blocks,
-        minimum_fee_per_tx,
-        mock_da_risc0_host_args(),
     )
+    .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|c| {
         c.storage = rollup_storage_dir.clone();
         c.rollup_prover_config = RollupProverConfig::Skip;
@@ -353,9 +350,8 @@ async fn check_with_increasing_stf_infos(
         test_genesis_source(operating_mode),
         BlockProducingConfig::Manual,
         finalization_blocks,
-        0,
-        mock_da_risc0_host_args(),
     )
+    .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|c| {
         c.storage = rollup_storage_dir.clone();
         c.rollup_prover_config = RollupProverConfig::Skip;
