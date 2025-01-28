@@ -96,8 +96,11 @@ async fn worker_task_inner(
             txns.push(signed_tx);
         }
 
-        tokio::time::timeout(Duration::from_secs(10), client.send_txs_to_sequencer(&txns))
-            .await??;
+        tokio::time::timeout(
+            Duration::from_secs(txns.len().try_into().unwrap()),
+            client.send_txs_to_sequencer(&txns),
+        )
+        .await??;
     }
     Ok(())
 }
