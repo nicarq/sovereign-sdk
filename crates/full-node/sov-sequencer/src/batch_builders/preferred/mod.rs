@@ -324,8 +324,12 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
             .await
             .map_err(database_error_500)?;
 
-        self.start_rollup_block(next_visible_slot_number_increase, node_state_root)
-            .await;
+        self.start_rollup_block(
+            next_visible_slot_number_increase,
+            node_state_root,
+            self.config.batch_builder.minimum_profit_per_tx,
+        )
+        .await;
 
         Ok(())
     }
@@ -390,8 +394,22 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
 
         let node_state_root = self.node_root_hash()?;
 
-        self.start_rollup_block(batch.batch.inner.visible_slots_to_advance, node_state_root)
-            .await;
+        self.start_rollup_block(
+            batch.batch.inner.visible_slots_to_advance,
+            node_state_root,
+            // When replaying batches, we wish to be deterministic and not
+            // filter out previously-accepted transactions simply because
+            // they're not considered profitable enough based on the current
+            // configuration value.
+            //
+            // TODO(@neysofu): write a test for this.
+            // TODO(@neysofu): for the very last in-progress batch, this will
+            // cause the rest of the batch to not have a minimum profit. We
+            // might want to forcibly close that batch and start a new one, or
+            // send the new configuration value over a channel.
+            0,
+        )
+        .await;
         self.replay_txs_in_preferred_batch(&batch.batch).await;
 
         if !batch.is_in_progress {
@@ -432,6 +450,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         // We pass the node state root explicitly because retrieving it is
         // fallible, so it's convenient to front-load the error-checking.
         node_state_root: <<Z::Spec as Spec>::Storage as Storage>::Root,
+        minimum_profit_per_tx: u64,
     ) {
         let InternalState::WaitForNextRollupBlock {
             mut checkpoint,
@@ -460,7 +479,6 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         let (result_sender, result_receiver) = mpsc::channel(Self::MAX_BUFFERED_TXS);
 
         let handle = tokio::runtime::Handle::current().spawn_blocking({
-            let minimum_profit_per_tx = self.config.batch_builder.minimum_profit_per_tx;
             let sequencer_address = self.config.da_address.clone();
             let admin_addresses = Arc::new(self.config.admin_addresses.clone());
             let shutdown_notifier = self.shutdown_notifier.clone();
