@@ -1,21 +1,21 @@
 use internals::Delta;
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 /// Provides specialized working set wrappers for dealing with protected state.
-use sov_state::{IsValueCached, SlotKey, SlotValue, Storage};
+use sov_state::{IsValueCached, SlotKey, SlotValue};
 
 use self::checkpoints::StateCheckpoint;
 use super::*;
 use crate::capabilities::{Kernel, RollupHeight};
 use crate::state::traits::{KernelWriter, VersionReader};
-use crate::Spec;
+use crate::{GasMeter, Spec};
 
 /// A special wrapper over a `Delta` on the storage that allows access to kernel values to bootstrap the [`StateCheckpoint`].
-pub struct BootstrapWorkingSet<'a, S: Storage> {
+pub struct BootstrapWorkingSet<'a, S: Spec> {
     /// The inner working set
-    pub(super) inner: &'a mut Delta<S>,
+    pub(super) inner: &'a mut Delta<S::Storage>,
 }
 
-impl<'a, S: Storage> UniversalStateAccessor for BootstrapWorkingSet<'a, S> {
+impl<'a, S: Spec> UniversalStateAccessor for BootstrapWorkingSet<'a, S> {
     fn get_value(
         &mut self,
         namespace: Namespace,
@@ -38,6 +38,10 @@ impl<'a, S: Storage> UniversalStateAccessor for BootstrapWorkingSet<'a, S> {
     }
 }
 
+impl<'a, S: Spec> GasMeter for BootstrapWorkingSet<'a, S> {
+    type Spec = S;
+}
+
 /// A special wrapper over [`StateCheckpoint`] that allows access to kernel values
 ///
 /// ## Note
@@ -47,6 +51,10 @@ pub struct KernelStateAccessor<'a, S: Spec> {
     /// The inner working set
     pub checkpoint: &'a mut StateCheckpoint<S>,
     pub(crate) true_slot_num: SlotNumber,
+}
+
+impl<'a, S: Spec> GasMeter for KernelStateAccessor<'a, S> {
+    type Spec = S;
 }
 
 impl<'a, S: Spec> VersionReader for KernelStateAccessor<'a, S> {

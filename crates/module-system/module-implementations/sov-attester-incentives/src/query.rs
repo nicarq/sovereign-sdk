@@ -5,7 +5,7 @@ use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::optimistic::{BondingProofService, ProofOfBond};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::rest::StateUpdateReceiver;
-use sov_modules_api::{ApiStateAccessor, Gas, GasMeter, Spec, StateCheckpoint, StateReader};
+use sov_modules_api::{ApiStateAccessor, Gas, GetGasInfo, Spec, StateCheckpoint, StateReader};
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::storage::{SlotKey, Storage, StorageProof};
 use sov_state::User;

@@ -258,7 +258,7 @@ impl<S: Spec> ChainState<S> {
     /// Returns slot number for the next slot to start execution
     pub fn next_visible_slot_number(
         &self,
-        state: &mut BootstrapWorkingSet<'_, S::Storage>,
+        state: &mut BootstrapWorkingSet<'_, S>,
     ) -> VisibleSlotNumber {
         self.next_visible_slot_number
             .get(state)

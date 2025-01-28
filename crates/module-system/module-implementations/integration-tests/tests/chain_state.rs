@@ -1,7 +1,7 @@
 use sov_chain_state::ChainState;
 use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{GasMeter, VersionReader};
+use sov_modules_api::{GetGasInfo, VersionReader};
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;

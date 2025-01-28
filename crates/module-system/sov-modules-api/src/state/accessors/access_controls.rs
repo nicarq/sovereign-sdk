@@ -5,15 +5,18 @@ use std::convert::Infallible;
 
 #[cfg(feature = "native")]
 use sov_state::Accessory;
-#[cfg(feature = "native")]
-use sov_state::CompileTimeNamespace;
 use sov_state::{
-    Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, Storage, User,
+    IsValueCached, Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder,
+    Storage, User,
 };
 
 use super::genesis::GenesisStateAccessor;
 use super::StateProvider;
-use crate::state::traits::{AccessoryStateWriter, ProvableStateReader, ProvableStateWriter};
+use crate::gas::{GasArray, GasMeter};
+use crate::module::GasSpec;
+use crate::state::traits::{
+    charge_decode_gas_cost, AccessoryStateWriter, ProvableStateReader, ProvableStateWriter,
+};
 #[cfg(feature = "native")]
 use crate::AccessoryStateCheckpoint;
 use crate::{
@@ -21,82 +24,7 @@ use crate::{
     StateWriter, TxScratchpad, WorkingSet,
 };
 
-macro_rules! inner_impl_unmetered_state_reader {
-    ($namespace:ty) => {
-        type Error = Infallible;
-
-        fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
-            Ok(
-                <Self as crate::state::accessors::UniversalStateAccessor>::get_value(
-                    self,
-                    <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
-                    key,
-                )
-                .0,
-            )
-        }
-
-        fn get_decoded<V, Codec>(
-            &mut self,
-            storage_key: &SlotKey,
-            codec: &Codec,
-        ) -> Result<Option<V>, Self::Error>
-        where
-            Codec: StateCodec,
-            Codec::ValueCodec: StateItemCodec<V>,
-        {
-            let storage_value = <Self as StateReader<$namespace>>::get(self, storage_key)?;
-
-            Ok(storage_value
-                .map(|storage_value| codec.value_codec().decode_unwrap(storage_value.value())))
-        }
-    };
-}
-
-macro_rules! inner_impl_unmetered_state_writer {
-    ($namespace:ty) => {
-        type Error = Infallible;
-
-        fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Self::Error> {
-            <Self as crate::state::accessors::UniversalStateAccessor>::set_value(
-                self,
-                <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
-                key,
-                value,
-            );
-            Ok(())
-        }
-
-        fn delete(&mut self, key: &SlotKey) -> Result<(), Self::Error> {
-            <Self as crate::state::accessors::UniversalStateAccessor>::delete_value(
-                self,
-                <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
-                key,
-            );
-
-            Ok(())
-        }
-    };
-}
-
-#[cfg(feature = "native")]
-mod http_api {
-    use std::convert::Infallible;
-
-    use sov_state::{
-        IsValueCached, Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder,
-        User,
-    };
-
-    use crate::gas::GasMeter;
-    use crate::module::GasSpec;
-    use crate::state::accessors::http_api::ApiStateAccessor;
-    use crate::state::traits::charge_decode_gas_cost;
-    use crate::{
-        AccessoryStateReader, AccessoryStateWriter, GasArray, Spec, StateReader, StateWriter,
-    };
-
-    macro_rules! inner_impl_http_api_state_reader {
+macro_rules! inner_impl_http_charge_gas_state_reader {
         ($namespace:ty) => {
         type Error = Infallible;
 
@@ -137,7 +65,7 @@ mod http_api {
         };
     }
 
-    macro_rules! inner_impl_http_api_state_writer {
+macro_rules! inner_impl_charge_gas_state_writer {
         ($namespace:ty) => {
             type Error = Infallible;
 
@@ -179,21 +107,29 @@ mod http_api {
         };
     }
 
+#[cfg(feature = "native")]
+mod http_api {
+    use super::*;
+    use crate::state::accessors::http_api::ApiStateAccessor;
+    use crate::{
+        AccessoryStateReader, AccessoryStateWriter, GasArray, Spec, StateReader, StateWriter,
+    };
+
     impl<S: Spec> AccessoryStateReader for ApiStateAccessor<S> {}
     impl<S: Spec> AccessoryStateWriter for ApiStateAccessor<S> {}
 
     impl<S: Spec> StateReader<User> for ApiStateAccessor<S> {
-        inner_impl_http_api_state_reader!(User);
+        inner_impl_http_charge_gas_state_reader!(User);
     }
     impl<S: Spec> StateWriter<User> for ApiStateAccessor<S> {
-        inner_impl_http_api_state_writer!(User);
+        inner_impl_charge_gas_state_writer!(User);
     }
 
     impl<S: Spec> StateReader<Kernel> for ApiStateAccessor<S> {
-        inner_impl_http_api_state_reader!(Kernel);
+        inner_impl_http_charge_gas_state_reader!(Kernel);
     }
     impl<S: Spec> StateWriter<Kernel> for ApiStateAccessor<S> {
-        inner_impl_http_api_state_writer!(Kernel);
+        inner_impl_charge_gas_state_writer!(Kernel);
     }
 }
 
@@ -201,32 +137,32 @@ impl<S: Storage> AccessoryStateReader for AccessoryDelta<S> {}
 impl<S: Storage> AccessoryStateWriter for AccessoryDelta<S> {}
 
 impl<'a, S: Spec> StateReader<User> for GenesisStateAccessor<'a, S> {
-    inner_impl_unmetered_state_reader!(User);
+    inner_impl_http_charge_gas_state_reader!(User);
 }
 impl<'a, S: Spec> StateWriter<User> for GenesisStateAccessor<'a, S> {
-    inner_impl_unmetered_state_writer!(User);
+    inner_impl_charge_gas_state_writer!(User);
 }
 impl<'a, S: Spec> StateReader<Kernel> for GenesisStateAccessor<'a, S> {
-    inner_impl_unmetered_state_reader!(Kernel);
+    inner_impl_http_charge_gas_state_reader!(Kernel);
 }
 impl<'a, S: Spec> StateWriter<Kernel> for GenesisStateAccessor<'a, S> {
-    inner_impl_unmetered_state_writer!(Kernel);
+    inner_impl_charge_gas_state_writer!(Kernel);
 }
 
 impl<'a, S: Spec> AccessoryStateWriter for GenesisStateAccessor<'a, S> {}
 
 impl<S: Spec> StateReader<User> for StateCheckpoint<S> {
-    inner_impl_unmetered_state_reader!(User);
+    inner_impl_http_charge_gas_state_reader!(User);
 }
 impl<S: Spec> StateWriter<User> for StateCheckpoint<S> {
-    inner_impl_unmetered_state_writer!(User);
+    inner_impl_charge_gas_state_writer!(User);
 }
 
 impl<S: Spec> StateReader<Kernel> for StateCheckpoint<S> {
-    inner_impl_unmetered_state_reader!(Kernel);
+    inner_impl_http_charge_gas_state_reader!(Kernel);
 }
 impl<S: Spec> StateWriter<Kernel> for StateCheckpoint<S> {
-    inner_impl_unmetered_state_writer!(Kernel);
+    inner_impl_charge_gas_state_writer!(Kernel);
 }
 
 impl<S: Spec> AccessoryStateWriter for StateCheckpoint<S> {}
@@ -236,18 +172,18 @@ where
     S: Spec,
     I: StateProvider<S>,
 {
-    inner_impl_unmetered_state_reader!(User);
+    inner_impl_http_charge_gas_state_reader!(User);
 }
 impl<S, I> StateReader<Kernel> for TxScratchpad<S, I>
 where
     S: Spec,
     I: StateProvider<S>,
 {
-    inner_impl_unmetered_state_reader!(Kernel);
+    inner_impl_http_charge_gas_state_reader!(Kernel);
 }
 
 impl<S: Spec, I: StateProvider<S>> StateWriter<User> for TxScratchpad<S, I> {
-    inner_impl_unmetered_state_writer!(User);
+    inner_impl_charge_gas_state_writer!(User);
 }
 
 impl<S: Spec, I: StateProvider<S>> ProvableStateReader<User> for PreExecWorkingSet<S, I> {}
@@ -274,7 +210,10 @@ impl<'a, S: Spec> StateReader<Accessory> for AccessoryStateCheckpoint<'a, S> {
         Ok(self
             .checkpoint
             .delta
-            .get(<Accessory as CompileTimeNamespace>::NAMESPACE, key)
+            .get(
+                <Accessory as sov_state::CompileTimeNamespace>::NAMESPACE,
+                key,
+            )
             .0)
     }
 
@@ -302,37 +241,38 @@ pub mod kernel_state {
     use std::convert::Infallible;
 
     use sov_state::{
-        Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, Storage, User,
+        Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, User,
     };
 
+    use super::*;
     use crate::state::accessors::BootstrapWorkingSet;
     use crate::{KernelStateAccessor, Spec, StateReader, StateWriter};
 
-    impl<'a, S: Storage> StateReader<Kernel> for BootstrapWorkingSet<'a, S> {
-        inner_impl_unmetered_state_reader!(Kernel);
+    impl<'a, S: Spec> StateReader<Kernel> for BootstrapWorkingSet<'a, S> {
+        inner_impl_http_charge_gas_state_reader!(Kernel);
     }
-    impl<'a, S: Storage> StateReader<User> for BootstrapWorkingSet<'a, S> {
-        inner_impl_unmetered_state_reader!(User);
+    impl<'a, S: Spec> StateReader<User> for BootstrapWorkingSet<'a, S> {
+        inner_impl_http_charge_gas_state_reader!(User);
     }
 
-    impl<'a, S: Storage> StateWriter<Kernel> for BootstrapWorkingSet<'a, S> {
-        inner_impl_unmetered_state_writer!(Kernel);
+    impl<'a, S: Spec> StateWriter<Kernel> for BootstrapWorkingSet<'a, S> {
+        inner_impl_charge_gas_state_writer!(Kernel);
     }
-    impl<'a, S: Storage> StateWriter<User> for BootstrapWorkingSet<'a, S> {
-        inner_impl_unmetered_state_writer!(User);
+    impl<'a, S: Spec> StateWriter<User> for BootstrapWorkingSet<'a, S> {
+        inner_impl_charge_gas_state_writer!(User);
     }
 
     impl<'a, S: Spec> StateReader<Kernel> for KernelStateAccessor<'a, S> {
-        inner_impl_unmetered_state_reader!(Kernel);
+        inner_impl_http_charge_gas_state_reader!(Kernel);
     }
     impl<'a, S: Spec> StateReader<User> for KernelStateAccessor<'a, S> {
-        inner_impl_unmetered_state_reader!(User);
+        inner_impl_http_charge_gas_state_reader!(User);
     }
 
     impl<'a, S: Spec> StateWriter<Kernel> for KernelStateAccessor<'a, S> {
-        inner_impl_unmetered_state_writer!(Kernel);
+        inner_impl_charge_gas_state_writer!(Kernel);
     }
     impl<'a, S: Spec> StateWriter<User> for KernelStateAccessor<'a, S> {
-        inner_impl_unmetered_state_writer!(User);
+        inner_impl_charge_gas_state_writer!(User);
     }
 }

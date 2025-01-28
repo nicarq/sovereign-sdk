@@ -5,7 +5,7 @@ use tracing::trace;
 use super::internals::{AccessoryDelta, Delta};
 use super::{BootstrapWorkingSet, UniversalStateAccessor};
 use crate::capabilities::{Kernel, RollupHeight};
-use crate::{Spec, VersionReader};
+use crate::{GasMeter, Spec, VersionReader};
 
 /// This structure is responsible for storing the `read-write` set.
 ///
@@ -235,4 +235,8 @@ pub mod native {
             self.checkpoint.delete_value(namespace, key)
         }
     }
+}
+
+impl<S: Spec> GasMeter for StateCheckpoint<S> {
+    type Spec = S;
 }

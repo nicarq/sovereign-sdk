@@ -1,7 +1,7 @@
 use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::macros::config_value;
-use sov_modules_api::{CryptoSpec, Gas, GasMeter, GasSpec, RawTx, Spec};
+use sov_modules_api::{CryptoSpec, Gas, GasSpec, GetGasInfo, RawTx, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;

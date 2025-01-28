@@ -4,7 +4,7 @@ use sov_attester_incentives::{AttesterIncentives, CallMessage};
 use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{ApiStateAccessor, Gas, GasArray, GasMeter, Spec, TxEffect};
+use sov_modules_api::{ApiStateAccessor, Gas, GasArray, GetGasInfo, Spec, TxEffect};
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{AsUser, BatchTestCase, BatchType, TestUser, TransactionType};
 

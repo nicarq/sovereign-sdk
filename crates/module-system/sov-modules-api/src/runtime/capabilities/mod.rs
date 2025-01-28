@@ -160,7 +160,7 @@ pub mod mocks {
     use super::{Kernel, RollupHeight, Spec};
     use crate::BootstrapWorkingSet;
     #[cfg(feature = "native")]
-    use crate::GasMeter;
+    use crate::GetGasInfo;
 
     /// A mock kernel for use in tests
     #[derive(Debug, Clone, Default)]
@@ -235,20 +235,17 @@ pub mod mocks {
     }
 
     impl<S: Spec> Kernel<S> for MockKernel<S> {
-        fn true_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> SlotNumber {
+        fn true_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S>) -> SlotNumber {
             self.true_slot_number
         }
         fn next_visible_slot_number(
             &self,
-            _ws: &mut BootstrapWorkingSet<'_, S::Storage>,
+            _ws: &mut BootstrapWorkingSet<'_, S>,
         ) -> VisibleSlotNumber {
             self.visible_slot_number
         }
 
-        fn rollup_height(
-            &self,
-            _state: &mut BootstrapWorkingSet<'_, <S as Spec>::Storage>,
-        ) -> super::RollupHeight {
+        fn rollup_height(&self, _state: &mut BootstrapWorkingSet<'_, S>) -> super::RollupHeight {
             RollupHeight::new(self.visible_slot_number.get())
         }
 
