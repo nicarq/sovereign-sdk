@@ -1,3 +1,5 @@
+## 2025-01-28
+- #2304 removes some mandatory arguments to `RollupBuilder::new` in favor of builder methods.
 ## 2025-01-23
 - #2266 Add soak testing crate for long running tests
 ## 2025-01-22

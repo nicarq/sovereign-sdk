@@ -38,9 +38,8 @@ async fn flaky_bank_tx_tests_instant_finality_using_sequencer_tx_submission() ->
         test_genesis_source(OperatingMode::Zk),
         BLOCK_PRODUCING_CONFIG,
         test_case.finalization_blocks,
-        0,
-        mock_da_risc0_host_args(),
     )
+    .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|c| {
         c.automatic_batch_production = false; // FIXME(@neysofu): finish migrating all tests off of manual batch production.
     })
@@ -69,9 +68,8 @@ async fn flaky_bank_tx_tests_non_instant_finality_using_sequencer_tx_submission(
         test_genesis_source(OperatingMode::Zk),
         BLOCK_PRODUCING_CONFIG,
         test_case.finalization_blocks,
-        0,
-        mock_da_risc0_host_args(),
     )
+    .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|c| {
         c.automatic_batch_production = false; // FIXME(@neysofu): finish migrating all tests off of manual batch production.
     })

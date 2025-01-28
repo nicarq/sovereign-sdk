@@ -37,8 +37,6 @@ async fn start_and_stop_node_in_dir(dir: Arc<TempDir>) {
         GenesisSource::CustomParams(genesis_params),
         BlockProducingConfig::Periodic,
         1,
-        0,
-        Default::default(),
     )
     .set_config(|c| {
         c.storage = dir;

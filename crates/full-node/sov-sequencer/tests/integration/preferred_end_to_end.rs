@@ -110,9 +110,8 @@ async fn new_test_rollup(
         GenesisSource::CustomParams(genesis_params),
         BlockProducingConfig::OnAnySubmit,
         FINALIZATION_BLOCKS,
-        minimum_profit_per_tx,
-        Default::default(),
     )
+    .with_preferred_seq_min_profit_per_tx(minimum_profit_per_tx)
     .set_config(|c| {
         c.rollup_prover_config = RollupProverConfig::Skip;
         c.storage = dir;
@@ -236,8 +235,6 @@ async fn test_hooks_state_is_visible() {
             GenesisSource::CustomParams(genesis_params),
             BlockProducingConfig::Manual, // Use manual block production to be sure that the changes are happening in the sequencer only, not the node.
             FINALIZATION_BLOCKS,
-            0,
-            Default::default(),
         )
         .set_config(|c| {
             c.rollup_prover_config = RollupProverConfig::Skip;
@@ -716,8 +713,6 @@ mod tests_with_basic_kernel {
             GenesisSource::CustomParams(genesis_params),
             BlockProducingConfig::Periodic,
             0,
-            0,
-            Default::default(),
         )
         .set_config(|conf| {
             conf.batch_builder_config =

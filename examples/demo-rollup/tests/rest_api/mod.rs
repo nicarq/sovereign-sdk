@@ -32,9 +32,8 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
         test_genesis_source(OperatingMode::Zk),
         BlockProducingConfig::OnBatchSubmit,
         0,
-        0,
-        mock_da_risc0_host_args(),
     )
+    .with_zkvm_host_args(mock_da_risc0_host_args())
     .with_standard_batch_builder()
     .start()
     .await?;
@@ -70,9 +69,8 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
         test_genesis_source(OperatingMode::Zk),
         BlockProducingConfig::OnBatchSubmit,
         0,
-        0,
-        mock_da_risc0_host_args(),
     )
+    .with_zkvm_host_args(mock_da_risc0_host_args())
     .start()
     .await?;
 

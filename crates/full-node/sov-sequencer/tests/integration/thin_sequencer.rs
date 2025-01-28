@@ -55,8 +55,6 @@ async fn test_thin_direct_same_transactions() -> anyhow::Result<()> {
         GenesisSource::CustomParams(genesis_params),
         BlockProducingConfig::Manual,
         1,
-        0,
-        Default::default(),
     )
     .set_config(|c| {
         c.storage = dir1;

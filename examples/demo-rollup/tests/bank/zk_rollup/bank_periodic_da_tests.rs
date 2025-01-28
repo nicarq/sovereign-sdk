@@ -32,9 +32,8 @@ async fn flaky_bank_tx_tests_periodic_da() -> anyhow::Result<()> {
         test_genesis_source(OperatingMode::Zk),
         BlockProducingConfig::Periodic,
         test_case.finalization_blocks,
-        0,
-        mock_da_risc0_host_args(),
     )
+    .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|c| {
         c.rollup_prover_config = RollupProverConfig::Skip;
     })
