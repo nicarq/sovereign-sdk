@@ -422,7 +422,6 @@ where
         let get_block_start = std::time::Instant::now();
         let filtered_block = self.sync_fetcher.get_block_at(next_da_height).await?;
         let get_block_time = get_block_start.elapsed();
-        debug!(header = %filtered_block.header().display(), request_time = ?get_block_start.elapsed(), "Fetched block header");
 
         let (stf_pre_state, filtered_block) = self
             .state_manager
