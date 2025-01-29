@@ -305,7 +305,7 @@ where
     }
 
     fn finalize(&mut self, block_header: &Da::BlockHeader) -> anyhow::Result<()> {
-        tracing::debug!(block_header = %block_header.display(), "Finalizing changes");
+        tracing::trace!(block_hash = %block_header.hash(), "Finalizing changes");
         #[cfg(debug_assertions)]
         self.validate_internal_consistency();
         self.finalize_by_hash_pair(block_header.prev_hash(), block_header.hash())?;

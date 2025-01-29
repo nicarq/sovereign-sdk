@@ -219,7 +219,12 @@ where
                 .await
                 .await?;
 
-            tracing::debug!(?receipt, "Aggregated proof has been posted to DA");
+            match receipt {
+                Ok(receipt) => {
+                    tracing::debug!(%receipt, "Successfully posted aggregate proof to DA");
+                }
+                Err(error) => tracing::warn!(%error, "Failed to post aggregate proof to DA"),
+            };
 
             // Update the next height to receive
             self.st_info_receiver

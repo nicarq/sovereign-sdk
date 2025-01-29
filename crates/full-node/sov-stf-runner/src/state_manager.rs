@@ -205,7 +205,6 @@ where
             transition_witness.da_block_header.clone();
         tracing::debug!(
             %slot_number,
-            block_header = %block_header.display(),
             current_state_root = hex::encode(self.get_state_root().as_ref()),
             next_state_root = hex::encode(new_state_root.as_ref()),
             aggregated_proofs = aggregated_proofs.len(),
