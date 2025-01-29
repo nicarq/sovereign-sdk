@@ -99,7 +99,10 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
     ) -> anyhow::Result<GenesisParams<<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisConfig>>
     {
         let rt_genesis =
-            <Self::Runtime as RuntimeTrait<Self::Spec>>::genesis_config(rt_genesis_paths)?;
+            <Self::Runtime as RuntimeTrait<Self::Spec>>::genesis_config(rt_genesis_paths)
+                .with_context(|| {
+                    format!("Failed to read rollup genesis from {:?}", rt_genesis_paths)
+                })?;
 
         Ok(GenesisParams {
             runtime: rt_genesis,
