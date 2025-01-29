@@ -113,7 +113,7 @@ async fn new_test_rollup(
     )
     .with_preferred_seq_min_profit_per_tx(minimum_profit_per_tx)
     .set_config(|c| {
-        c.rollup_prover_config = RollupProverConfig::Skip;
+        c.rollup_prover_config = Some(RollupProverConfig::Skip);
         c.storage = dir;
     })
     .set_da_config(|c| c.sender_address = sequencer_addr)
@@ -237,7 +237,7 @@ async fn test_hooks_state_is_visible() {
             FINALIZATION_BLOCKS,
         )
         .set_config(|c| {
-            c.rollup_prover_config = RollupProverConfig::Skip;
+            c.rollup_prover_config = Some(RollupProverConfig::Skip);
             c.storage = dir;
         })
         .set_da_config(|c| {

@@ -32,7 +32,7 @@ use sov_test_utils::ledger_db::sov_api_spec::types::{
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::genesis::zk::MinimalZkGenesisConfig;
 use sov_test_utils::runtime::sov_blob_storage::config_deferred_slots_count;
-use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, RollupProverConfig, TestRollup};
+use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::{
     generate_runtime, AsUser, RtAgnosticBlueprint, TestProver, TestSequencer, TestSpec as S,
     TestUser, TransactionType, TEST_DEFAULT_USER_BALANCE,
@@ -437,7 +437,7 @@ async fn test_several_sequencers(
         config.batch_builder_config = BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
             minimum_profit_per_tx: 0,
         });
-        config.rollup_prover_config = RollupProverConfig::Skip;
+        config.rollup_prover_config = None;
         config.prover_address = setup.prover.user_info.address().to_string();
         // // Setting very high aggregated proof jump to eliminate non-batches appear on DA.
         // // Can be removed later when tests are stabilized.

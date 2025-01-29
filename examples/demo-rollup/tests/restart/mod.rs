@@ -89,7 +89,7 @@ async fn start_stop_empty(
             .with_zkvm_host_args(mock_da_risc0_host_args())
             .set_config(|c| {
                 c.storage = rollup_storage_dir.clone();
-                c.rollup_prover_config = rollup_prover_config.clone();
+                c.rollup_prover_config = Some(rollup_prover_config.clone());
                 c.aggregated_proof_block_jump = 10;
             })
             .start(),
@@ -211,7 +211,7 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
     .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|c| {
         c.storage = rollup_storage_dir.clone();
-        c.rollup_prover_config = RollupProverConfig::Skip;
+        c.rollup_prover_config = Some(RollupProverConfig::Skip);
         c.aggregated_proof_block_jump = jump_size;
     });
 
@@ -354,7 +354,7 @@ async fn check_with_increasing_stf_infos(
     .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|c| {
         c.storage = rollup_storage_dir.clone();
-        c.rollup_prover_config = RollupProverConfig::Skip;
+        c.rollup_prover_config = Some(RollupProverConfig::Skip);
         c.aggregated_proof_block_jump = aggregated_proof_jump;
         c.max_channel_size = max_channel_size;
         c.max_infos_in_db = max_infos_in_db;

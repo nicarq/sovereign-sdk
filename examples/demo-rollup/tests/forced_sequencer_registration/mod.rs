@@ -10,7 +10,6 @@ use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransac
 use sov_modules_api::{CryptoSpec, OperatingMode, RawTx, Spec};
 use sov_modules_macros::config_value;
 use sov_rollup_interface::node::da::DaService;
-use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{read_private_key, RollupBuilder};
 use tokio::time::sleep;
 
@@ -44,7 +43,7 @@ async fn flaky_test_forced_sequencer_registration() -> anyhow::Result<()> {
     .with_standard_batch_builder()
     .set_config(|c| {
         c.automatic_batch_production = false; // FIXME(@neysofu): finish migrating all tests off of manual batch production.
-        c.rollup_prover_config = RollupProverConfig::Skip;
+        c.rollup_prover_config = None;
         c.max_channel_size = 1;
         c.max_infos_in_db = 1;
     })
