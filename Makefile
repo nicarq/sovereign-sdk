@@ -3,6 +3,7 @@
 # Only do check
 CHECK_ONLY_DIRS := crates/fuzz \
               examples/demo-rollup/stf \
+              examples/demo-rollup/sov-soak-testing \
               examples/demo-rollup/stf/demo-stf-json-client \
               examples/demo-simple-stf \
               examples/const-rollup-config \
