@@ -52,7 +52,7 @@ pub trait Runtime<S: Spec>:
     type GenesisConfig: Clone + Send + Sync;
 
     /// GenesisInput type.
-    type GenesisInput: Clone + Send + Sync;
+    type GenesisInput: std::fmt::Debug + Clone + Send + Sync;
 
     /// Default RPC methods and Axum router.
     fn endpoints(storage: crate::rest::ApiState<S>) -> RuntimeEndpoints;
