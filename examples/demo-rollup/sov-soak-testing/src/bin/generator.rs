@@ -30,6 +30,11 @@ struct Args {
     #[arg(short, long, default_value = "5")]
     /// The number of workers to spawn - this controls the number of concurrent transactions. Defaults to 5.
     num_workers: u32,
+
+    #[arg(short, long, default_value = "0")]
+    /// The salt to use for RNG. Use this value if you're restarting the generator and want to ensure that the generated
+    /// transactions don't overlap with the previous run.
+    salt: u32,
 }
 
 async fn worker_task(
@@ -114,7 +119,11 @@ async fn main() -> Result<(), anyhow::Error> {
     let client = Client::new(&args.api_url);
 
     for i in 0..args.num_workers {
-        worker_set.spawn(worker_task(client.clone(), rx.clone(), i as u128));
+        worker_set.spawn(worker_task(
+            client.clone(),
+            rx.clone(),
+            (i + args.salt) as u128,
+        ));
     }
 
     let mut terminate = tokio::signal::unix::signal(SignalKind::terminate())
