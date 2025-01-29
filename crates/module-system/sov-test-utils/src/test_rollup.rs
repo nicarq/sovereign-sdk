@@ -64,7 +64,7 @@ pub struct RollupBuilderConfig<S: Spec, StoragePath = Arc<tempfile::TempDir>> {
     pub max_infos_in_db: u64,
     pub max_channel_size: u64,
     pub telegraf_address: SocketAddr,
-    pub rollup_prover_config: RollupProverConfig<S::InnerZkvm>,
+    pub rollup_prover_config: Option<RollupProverConfig<S::InnerZkvm>>,
     /// This is wrapped in an [`Arc`] to enable re-use of the same directory
     /// when dropping a [`TestRollup`] and creating a new one. The pattern
     /// looks something like this:
@@ -163,9 +163,9 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
                 batch_builder_config: BatchBuilderConfig::Preferred(Default::default()),
                 prover_address: TEST_DEFAULT_PROVER_ADDRESS.to_string(),
                 aggregated_proof_block_jump: 1,
-                rollup_prover_config: get_appropriate_rollup_prover_config::<R::Spec>(
+                rollup_prover_config: Some(get_appropriate_rollup_prover_config::<R::Spec>(
                     Default::default(),
-                ),
+                )),
                 storage: storage_path,
                 telegraf_address: MonitoringConfig::standard().telegraf_address,
                 axum_port: 0,
@@ -189,8 +189,9 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
         mut self,
         zkvm_host_args: Arc<<<<R::Spec as Spec>::InnerZkvm as Zkvm>::Host as ZkvmHost>::HostArgs>,
     ) -> Self {
-        self.config.rollup_prover_config =
-            get_appropriate_rollup_prover_config::<R::Spec>(zkvm_host_args);
+        self.config.rollup_prover_config = Some(get_appropriate_rollup_prover_config::<R::Spec>(
+            zkvm_host_args,
+        ));
         self
     }
 
@@ -266,7 +267,7 @@ where
                     .create_new_rollup(
                         genesis_paths,
                         rollup_config.clone(),
-                        Some(self.config.rollup_prover_config),
+                        self.config.rollup_prover_config,
                     )
                     .await?
             }
@@ -275,7 +276,7 @@ where
                     .create_new_rollup_with_genesis_params(
                         genesis_params.clone(),
                         rollup_config.clone(),
-                        Some(self.config.rollup_prover_config),
+                        self.config.rollup_prover_config,
                     )
                     .await?
             }

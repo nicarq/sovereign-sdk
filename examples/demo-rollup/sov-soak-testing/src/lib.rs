@@ -207,7 +207,7 @@ pub async fn setup_rollup(
     .set_config(|config| {
         config.telegraf_address = sov_metrics::MonitoringConfig::standard().telegraf_address;
         config.automatic_batch_production = true;
-        config.rollup_prover_config = RollupProverConfig::Skip;
+        config.rollup_prover_config = None;
         config.batch_builder_config = BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
             minimum_profit_per_tx: 0,
         });

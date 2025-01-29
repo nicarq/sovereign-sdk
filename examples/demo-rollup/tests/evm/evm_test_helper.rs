@@ -31,7 +31,7 @@ pub(crate) async fn start_node(
     .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|c| {
         c.automatic_batch_production = false; // FIXME(@neysofu): finish migrating all tests off of manual batch production.
-        c.rollup_prover_config = rollup_prover_config;
+        c.rollup_prover_config = Some(rollup_prover_config);
         c.aggregated_proof_block_jump = 5;
         c.max_infos_in_db = 30;
         c.max_channel_size = 20;
