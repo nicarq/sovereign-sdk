@@ -1,19 +1,22 @@
 use anyhow::Context;
 use futures::StreamExt;
 use sov_api_spec::types::AggregatedProof as ApiAggregatedProof;
+use sov_bank::event::Event as BankEvent;
+use sov_bank::utils::TokenHolder;
+use sov_bank::Coins;
 use sov_cli::NodeClient;
 use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::{OperatingMode, SerializedAggregatedProof, Spec};
+use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregateProofVerifier, AggregatedProofPublicData,
 };
 use sov_state::Storage;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::RollupBuilder;
-use sov_test_utils::tx_sender::TxSender;
 
 use crate::bank::helpers::*;
 use crate::bank::TOKEN_NAME;
@@ -21,8 +24,10 @@ use crate::test_helpers::{test_genesis_source, DemoRollupSpec};
 
 type TestSpec = DemoRollupSpec;
 
+const WIT_TIME: u64 = 500;
+
 #[tokio::test(flavor = "multi_thread")]
-async fn flaky_bank_tx_tests_periodic_da() -> anyhow::Result<()> {
+async fn flaky_bank_tx_tests_periodic_da_instant_finality() -> anyhow::Result<()> {
     let test_case = TestCase {
         wait_for_aggregated_proof: true,
         finalization_blocks: 0,
@@ -40,22 +45,50 @@ async fn flaky_bank_tx_tests_periodic_da() -> anyhow::Result<()> {
     .start()
     .await?;
 
-    let sender = SequencerTxSender::default();
-
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = test_rollup.rollup_task => err?,
-        res = send_test_bank_txs(test_case, &test_rollup.client, sender) => Ok(res?),
+        res = send_test_bank_txs(test_case, &test_rollup.client) => Ok(res?),
     }?;
 
     Ok(())
 }
 
-async fn send_test_bank_txs(
-    test_case: TestCase,
-    client: &NodeClient,
-    tx_sender: SequencerTxSender,
-) -> anyhow::Result<()> {
+#[tokio::test(flavor = "multi_thread")]
+async fn flaky_bank_tx_tests_periodic_da_non_instant_finality() -> anyhow::Result<()> {
+    let test_case = TestCase {
+        wait_for_aggregated_proof: true,
+        finalization_blocks: 2,
+    };
+
+    let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
+        test_genesis_source(OperatingMode::Zk),
+        BlockProducingConfig::Periodic,
+        test_case.finalization_blocks,
+    )
+    .with_zkvm_host_args(mock_da_risc0_host_args())
+    .set_config(|c| {
+        c.rollup_prover_config = Some(RollupProverConfig::Skip);
+    })
+    .start()
+    .await?;
+
+    // If the rollup throws an error, return it and stop trying to send the transaction
+    tokio::select! {
+        err = test_rollup.rollup_task => err?,
+        res = send_test_bank_txs(test_case, &test_rollup.client) => Ok(res?),
+    }?;
+
+    Ok(())
+}
+
+async fn send_test_bank_txs(test_case: TestCase, client: &NodeClient) -> anyhow::Result<()> {
+    let (key, user_address, token_id, recipient_address) = create_keys_and_addresses();
+
+    let genesis_gas_balance = client
+        .get_balance::<TestSpec>(&user_address, &sov_bank::config_gas_token_id(), Some(0))
+        .await?;
+
     // There's no guarantee that we subscribed before the first proof is published.
     // But we know that it should be less or equal rollup_height of the first published batch
     let mut aggregated_proof_subscription = client
@@ -64,7 +97,6 @@ async fn send_test_bank_txs(
         .await
         .context("Failed to subscribe to aggregated proof")?;
 
-    let (key, user_address, token_id, recipient_address) = create_keys_and_addresses();
     let token_id_response = client
         .get_token_id::<TestSpec>(TOKEN_NAME, &user_address)
         .await?;
@@ -72,25 +104,95 @@ async fn send_test_bank_txs(
     assert_eq!(token_id, token_id_response);
 
     let tx = build_create_token_tx(&key, 0, 1000);
-    let slot_batch_1 = tx_sender.send_txs(client, &[tx]).await?;
+
+    let slot_batch_1 = send_tx_and_wait_for_status(&[tx], client).await?;
 
     assert_balance(client, 1000, token_id, user_address, None)
         .await
         .context("Initial balance at latest version")?;
 
+    tokio::time::sleep(std::time::Duration::from_millis(WIT_TIME)).await;
     // transfer 100 tokens. assert sender balance.
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 100, 1);
-    let _slot_batch_2 = tx_sender.send_txs(client, &[tx]).await?;
+    let slot_batch_2 = send_tx_and_wait_for_status(&[tx], client).await?;
+
     assert_balance(client, 900, token_id, user_address, None)
         .await
         .context("Balance decreased after first transaction, latest version")?;
 
+    tokio::time::sleep(std::time::Duration::from_millis(WIT_TIME)).await;
+
+    let gas_balance_height_1 = client
+        .get_balance::<TestSpec>(&user_address, &sov_bank::config_gas_token_id(), None)
+        .await?;
+
+    assert!(gas_balance_height_1 < genesis_gas_balance);
+
     // transfer 200 tokens. assert sender balance.
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 200, 2);
-    let _slot_batch_3 = tx_sender.send_txs(client, &[tx]).await?;
+
+    let slot_batch_3 = send_tx_and_wait_for_status(&[tx], client).await?;
+
     assert_balance(client, 700, token_id, user_address, None)
         .await
         .context("Balance decreased after second transaction, latest version")?;
+
+    tokio::time::sleep(std::time::Duration::from_millis(WIT_TIME)).await;
+
+    // 10 transfers of 10,11..20
+    let transfer_amounts: Vec<u64> = (10u64..20).collect();
+    let txs = build_multiple_transfers(&transfer_amounts, &key, token_id, recipient_address, 3);
+    let slot_batch_n = send_tx_and_wait_for_status(&txs, client).await?;
+    assert_slot_finality(client, slot_batch_n, test_case.expected_head_finality()).await;
+
+    // Test historical balance
+    assert_balance(client, 1000, token_id, user_address, Some(slot_batch_1)).await?;
+    assert_balance(client, 900, token_id, user_address, Some(slot_batch_2)).await?;
+    assert_balance(client, 700, token_id, user_address, Some(slot_batch_3)).await?;
+
+    assert_bank_event::<TestSpec>(
+        client,
+        0,
+        BankEvent::TokenCreated {
+            token_name: TOKEN_NAME.to_owned(),
+            coins: Coins {
+                amount: 1000,
+                token_id,
+            },
+            minter: TokenHolder::User(user_address),
+            mint_to_address: TokenHolder::User(user_address),
+            admins: vec![],
+        },
+    )
+    .await?;
+
+    assert_bank_event::<TestSpec>(
+        client,
+        1,
+        BankEvent::TokenTransferred {
+            from: TokenHolder::User(user_address),
+            to: TokenHolder::User(recipient_address),
+            coins: Coins {
+                amount: 100,
+                token_id,
+            },
+        },
+    )
+    .await?;
+
+    assert_bank_event::<TestSpec>(
+        client,
+        2,
+        BankEvent::TokenTransferred {
+            from: TokenHolder::User(user_address),
+            to: TokenHolder::User(recipient_address),
+            coins: Coins {
+                amount: 200,
+                token_id,
+            },
+        },
+    )
+    .await?;
 
     if test_case.wait_for_aggregated_proof {
         let aggregated_proof_resp: ApiAggregatedProof =
@@ -110,5 +212,10 @@ async fn send_test_bank_txs(
         // More thorough checks should be done in "OnSubmit" batch producing
         assert_aggregated_proof(1, 1, client).await?;
     }
+
+    if let Some(finalized_rollup_height) = test_case.get_latest_finalized_slot_after(slot_batch_n) {
+        assert_slot_finality(client, finalized_rollup_height, FinalityStatus::Finalized).await;
+    }
+
     Ok(())
 }

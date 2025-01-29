@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context};
 use demo_stf::runtime::{Runtime, RuntimeCall};
+use futures::StreamExt;
 use sov_bank::event::Event as BankEvent;
 use sov_bank::{Coins, TokenId};
 use sov_cli::NodeClient;
@@ -202,4 +203,38 @@ pub(crate) async fn assert_bank_event<S: Spec>(
     assert_eq!(bank_event_contents, expected_event);
 
     Ok(())
+}
+
+pub(crate) async fn send_tx_and_wait_for_status(
+    txs: &[Transaction<Runtime<TestSpec>, TestSpec>],
+    client: &NodeClient,
+) -> anyhow::Result<u64> {
+    let rsps = client.client.send_txs_to_sequencer(txs).await?;
+
+    // Wait for the last transaction.
+    let tx_hash = &rsps[rsps.len() - 1].data.id;
+
+    let mut tx_subscription = client
+        .client
+        .subscribe_to_tx_status_updates(tx_hash.parse()?)
+        .await
+        .context("Failed to subscribe to aggregated proof")?;
+
+    let mut c = 0;
+    while let Some(Ok(info)) = tx_subscription.next().await {
+        if info.status == sov_api_spec::types::TxStatus::Processed {
+            break;
+        }
+        // A transaction can only change status three times.
+        // The condition below is never met, but it's included as a sanity check
+        // in case something goes terribly wrong and we receive an unexpectedly large number of status updates (which should be impossible).
+        if c > 5 {
+            panic!("Invalid status {:?}", info)
+        }
+        c += 1;
+    }
+
+    let res = client.client.get_latest_slot(None).await?;
+    // We are certain that the transaction result will be visible after this height.
+    Ok(res.data.clone().unwrap().number)
 }
