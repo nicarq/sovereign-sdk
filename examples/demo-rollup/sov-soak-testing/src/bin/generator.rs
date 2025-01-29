@@ -58,7 +58,7 @@ async fn worker_task_inner(
         Default::default();
 
     let random_bytes = get_random_bytes(100_000_000, worker_id);
-    let mut u = &mut Unstructured::new(&random_bytes[..]);
+    let u = &mut Unstructured::new(&random_bytes[..]);
     let bank_harness = BankHarness::new(BankMessageGenerator::<S>::new(
         Distribution::with_equiprobable_values(vec![Transfer]),
         Percent::one_hundred(),
@@ -83,8 +83,8 @@ async fn worker_task_inner(
         let mut txns = vec![];
         for _ in 0..txn_count {
             let validity = Distribution::with_equiprobable_values(vec![MessageValidity::Valid]);
-            let validity = validity.select_value(&mut u).unwrap();
-            let msg = generator.generate(&modules, validity.clone());
+            let validity = validity.select_value(u).unwrap();
+            let msg = generator.generate(&modules, *validity);
             let tx = plain_tx_with_default_details::<RT>(&msg);
             let signed_tx = {
                 let TransactionType::Plain {
