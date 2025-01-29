@@ -411,11 +411,7 @@ where
     ) -> anyhow::Result<NextDaHeightToProcess> {
         let loop_start = std::time::Instant::now();
         let prev_state_root = self.get_state_root().clone();
-        debug!(
-            next_da_height,
-            current_state_root = hex::encode(prev_state_root.as_ref()),
-            "Requesting DA block"
-        );
+        debug!("Requesting DA block");
 
         let mut transaction_count = 0;
         let mut batch_count = 0;
@@ -541,11 +537,8 @@ where
         // Updating counters and metrics
         self.sync_state.update_synced(next_da_height);
         debug!(
-            height = next_da_height,
-            prev_state_root = hex::encode(prev_state_root.as_ref()),
-            new_state_root = hex::encode(self.get_state_root().as_ref()),
             time = ?loop_start.elapsed(),
-            "Execution of block is completed"
+            "Block execution complete"
         );
         // New influxdb metrics
         sov_metrics::track_metrics(|metrics| {

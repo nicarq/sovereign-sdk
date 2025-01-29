@@ -341,7 +341,7 @@ where
             next_rollup_height_to_receive
         );
 
-        tracing::debug!(
+        tracing::trace!(
             %next_rollup_height_to_receive,
             %write_rollup_height,
             "Done materializing stf_info"
