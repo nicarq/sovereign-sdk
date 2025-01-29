@@ -27,6 +27,7 @@ pub struct TestStatelessBatchBuilder<R, S: Spec> {
     _r: PhantomData<R>,
     // Storage is not used but needed for building WorkingSet.
     storage: S::Storage,
+    state_sender: watch::Sender<StateCheckpoint<S>>,
 }
 
 impl<R, S> TestStatelessBatchBuilder<R, S>
@@ -36,10 +37,14 @@ where
 {
     /// Creates new empty [`TestStatelessBatchBuilder`].
     pub fn new(storage: S::Storage) -> Self {
+        let runtime = R::default();
+        let kernel = Arc::new(runtime.kernel());
+        let (state_sender, _rec) = watch::channel(StateCheckpoint::new(storage.clone(), &*kernel));
         Self {
             mempool: Vec::new(),
             _r: Default::default(),
             storage,
+            state_sender,
         }
     }
 
@@ -104,13 +109,10 @@ where
 
     fn api_state(&self) -> ApiState<Self::Spec> {
         let runtime = R::default();
-        let kernel = Arc::new(runtime.kernel());
-        let (_sender, receiver) =
-            watch::channel(StateCheckpoint::new(self.storage.clone(), &*kernel));
 
         ApiState::build(
             Default::default(),
-            receiver,
+            self.state_sender.subscribe(),
             runtime.kernel_with_slot_mapping(),
             None,
         )

@@ -288,25 +288,25 @@ where
 
         let da_service = rollup.runner.da_service();
 
-        let secondary_test_sequencer_client = match self.with_secondary_sequencer {
-            Some(addr) => {
-                // We "keep" it because it is going to be deleted when the parent is deleted.
-                let second_sequencer_dir = tempfile::Builder::new()
-                    .keep(true)
-                    .tempdir_in(self.config.storage.as_path())?;
-                let mut rollup_config = rollup_config.clone();
-                rollup_config.storage.path = second_sequencer_dir.path().to_path_buf();
-                Some(
-                    Self::start_secondary_sequencer(
+        let (secondary_test_sequencer_client, secondary_sequncer_state_sender) =
+            match self.with_secondary_sequencer {
+                Some(addr) => {
+                    // We "keep" it because it is going to be deleted when the parent is deleted.
+                    let second_sequencer_dir = tempfile::Builder::new()
+                        .keep(true)
+                        .tempdir_in(self.config.storage.as_path())?;
+                    let mut rollup_config = rollup_config.clone();
+                    rollup_config.storage.path = second_sequencer_dir.path().to_path_buf();
+                    let (client, sender) = Self::start_secondary_sequencer(
                         da_service.another_on_the_same_layer(addr),
                         rollup_config.clone(),
                         shutdown_sender.subscribe(),
                     )
-                    .await?,
-                )
-            }
-            None => None,
-        };
+                    .await?;
+                    (Some(client), Some(sender))
+                }
+                None => (None, None),
+            };
 
         let rollup_task = tokio::spawn(async move {
             rollup
@@ -342,6 +342,7 @@ where
             storage: self.config.storage.clone(),
             shutdown_sender,
             secondary_test_sequencer_client,
+            _secondary_sequencer_state_sender: secondary_sequncer_state_sender,
         })
     }
 
@@ -389,7 +390,10 @@ where
         secondary_da_service: StorableMockDaService,
         rollup_config: RollupConfig<<R::Spec as Spec>::Address, R::DaService>,
         mut shutdown_receiver: tokio::sync::watch::Receiver<()>,
-    ) -> anyhow::Result<sov_api_spec::client::Client> {
+    ) -> anyhow::Result<(
+        sov_api_spec::client::Client,
+        watch::Sender<StateUpdateInfo<<R::Spec as Spec>::Storage>>,
+    )> {
         let blueprint: R = Default::default();
 
         let mut storage_manager = blueprint.create_storage_manager(&rollup_config)?;
@@ -409,7 +413,7 @@ where
             slot_number: SlotNumber::ONE,
             latest_finalized_slot_number: SlotNumber::ONE,
         };
-        let (_, state_update_receiver) = watch::channel(state_update_info);
+        let (sender, state_update_receiver) = watch::channel(state_update_info);
 
         let (sequencer, _background_handles) =
             SequencerBlueprint::<R, Native, TestStatelessBatchBuilder<R::Runtime, R::Spec>>::new(
@@ -438,10 +442,10 @@ where
                 .await
         });
 
-        Ok(sov_api_spec::client::Client::new(&format!(
-            "http://127.0.0.1:{}",
-            actual_port
-        )))
+        let client =
+            sov_api_spec::client::Client::new(&format!("http://127.0.0.1:{}", actual_port));
+
+        Ok((client, sender))
     }
 }
 
@@ -511,6 +515,10 @@ pub struct TestRollup<R: FullNodeBlueprint<Native>, StoragePath = Arc<tempfile::
     /// In case the rollup was started with a secondary sequencer, this is the
     /// client that can be used to submit transactions.
     pub secondary_test_sequencer_client: Option<sov_api_spec::client::Client>,
+    // Keep it open, so the secondary sequencer runs without errors
+    #[allow(dead_code)]
+    _secondary_sequencer_state_sender:
+        Option<watch::Sender<StateUpdateInfo<<R::Spec as Spec>::Storage>>>,
 }
 
 impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> TestRollup<R, StoragePath> {
