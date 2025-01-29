@@ -9,20 +9,18 @@ use anyhow::Context;
 use futures::stream::BoxStream;
 use futures::{Stream, StreamExt, TryStreamExt};
 use progenitor_client::ResponseValue;
-use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::storable::service::StorableMockDaService;
-use sov_mock_da::{BlockProducingConfig, MockFee};
+use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::prelude::arbitrary::{Arbitrary, Unstructured};
 use sov_modules_api::prelude::tokio;
 use sov_modules_api::prelude::tokio::time::timeout;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{CryptoSpec, FullyBakedTx, HexHash, Runtime, Spec};
+use sov_modules_api::{CryptoSpec, HexHash, Runtime, Spec};
 use sov_node_client::NodeClient;
 use sov_paymaster::{
     PayeePolicy, PayerGenesisConfig, Paymaster, PaymasterConfig, PaymasterPolicyInitializer,
     SafeVec,
 };
-use sov_rollup_interface::node::da::{DaService, SubmitBlobReceipt};
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
 use sov_sequencer::BatchBuilderConfig;
@@ -175,11 +173,6 @@ impl TxBuilder {
         TransactionType::<RT, S>::sign(message, key, &RT::CHAIN_HASH, details, &mut self.nonces)
     }
 
-    fn bake_generator_output(&mut self, gen_output: &GeneratorOutput) -> FullyBakedTx {
-        plain_tx_with_default_details::<RT>(gen_output)
-            .to_serialized_authenticated_tx(&mut self.nonces)
-    }
-
     async fn produce_and_publish_batch(
         &mut self,
         num_txs_in_batch: u64,
@@ -197,35 +190,6 @@ impl TxBuilder {
         let batch_result = self.publish_transactions(txs, client).await?;
 
         Ok((generator_outputs, batch_result))
-    }
-
-    // TODO In future will be removed and `Self::produce_and_publish_batch` will be used against TestSequencer
-    async fn produce_and_publish_batch_directly(
-        &mut self,
-        num_txs_in_batch: u64,
-        generator: &mut TestGenerator<RT>,
-        da_service: &StorableMockDaService,
-        u: &mut Unstructured<'_>,
-    ) -> anyhow::Result<(
-        Vec<GeneratorOutput>,
-        SubmitBlobReceipt<sov_mock_da::MockHash>,
-    )> {
-        let generator_outputs = self.generate_outputs(num_txs_in_batch, generator, u);
-
-        let batch: Vec<FullyBakedTx> = generator_outputs
-            .iter()
-            .map(|output| self.bake_generator_output(output))
-            .collect();
-        // TODO: Add hash to wait for those txs too
-
-        let serialize_batch = borsh::to_vec(&batch)?;
-
-        let receipt = da_service
-            .send_transaction(&serialize_batch, MockFee::zero())
-            .await
-            .await??;
-
-        Ok((generator_outputs, receipt))
     }
 
     fn generate_outputs(
@@ -398,7 +362,7 @@ async fn test_several_sequencers(
     let random_bytes = get_random_bytes(1_000_000, 31337);
     let deferred_blocks_count = config_deferred_slots_count();
     let finalization = DEFAULT_FINALIZATION_BLOCKS;
-    let blocks_till_result = deferred_blocks_count as u32 + 2;
+    let blocks_till_result = deferred_blocks_count as u32 + finalization + 5; // 5 for safety
     let u = &mut Unstructured::new(&random_bytes[..]);
 
     let mut setup = setup_roles_and_config(USER_BALANCE);
@@ -422,9 +386,6 @@ async fn test_several_sequencers(
     }
     let regular_rollup_da_address = Arbitrary::arbitrary(u)?;
     let third_rollup_da_address = Arbitrary::arbitrary(u)?;
-    let da_layer = Arc::new(tokio::sync::RwLock::new(
-        StorableMockDaLayer::new_in_memory(finalization).await?,
-    ));
 
     let preferred_rollup_builder = TestRollupBuilder::new(
         GenesisSource::CustomParams(setup.genesis_config.clone().into_genesis_params()),
@@ -432,35 +393,31 @@ async fn test_several_sequencers(
         finalization,
     )
     .set_config(|config| {
-        // FIXME(@neysofu): this test fails when automatic batch production is enabled.
-        config.automatic_batch_production = false;
+        config.automatic_batch_production = true;
         config.batch_builder_config = BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
             minimum_profit_per_tx: 0,
         });
         config.rollup_prover_config = None;
         config.prover_address = setup.prover.user_info.address().to_string();
-        // // Setting very high aggregated proof jump to eliminate non-batches appear on DA.
-        // // Can be removed later when tests are stabilized.
-        config.aggregated_proof_block_jump = 3;
     })
     .set_da_config(|da_config| {
         da_config.block_time_ms = DEFAULT_BLOCK_TIME_MS;
         da_config.sender_address = setup.sequencer.da_address;
-        da_config.da_layer = Some(da_layer.clone());
-    });
+    })
+    .with_secondary_sequencer(regular_rollup_da_address);
 
     let rollup = preferred_rollup_builder
         .start()
         .await
         .expect("Impossible to start preferred rollup");
+
+    let secondary_sequencer_client = rollup.secondary_test_sequencer_client.as_ref().unwrap();
+    let secondary_node_client = NodeClient::new_unchecked(secondary_sequencer_client.baseurl());
+
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
     let mut tx_builder =
         TxBuilder::new(TxBuilderConfig { modules, validity }, &rollup.client).await;
     let mut slots = rollup.api_client.subscribe_slots().await?;
-
-    // DA service of "second", non-preferred sequencer.
-    let second_da_service =
-        StorableMockDaService::new_manual_producing(regular_rollup_da_address, da_layer.clone());
 
     // Registering other sequencers.
     let seq_users = vec![&second_seq_user, &third_seq_user];
@@ -506,7 +463,7 @@ async fn test_several_sequencers(
         "not all sequencer registrations were applied"
     );
     wait_for_non_preferred_blobs_execution(
-        da_layer.clone(),
+        &rollup.da_service,
         blocks_till_result,
         DEFAULT_BLOCK_TIME,
         &mut slots,
@@ -519,23 +476,32 @@ async fn test_several_sequencers(
         .expect("Some transactions where not correctly executed!");
 
     let mut outputs = Vec::new();
-    for _i in 0..main_loop_iterations {
+    for i in 0..main_loop_iterations {
         let (preferred_outputs, _) = tx_builder
             .produce_and_publish_batch(transactions_per_batch, &mut generator, &rollup.client, u)
             .await?;
         outputs.extend(preferred_outputs);
+        // TODO: Known bug: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2316
+        //     preferred sequencer fails if there's non-preffered batch nearby.
+        wait_for_non_preferred_blobs_execution(
+            &rollup.da_service,
+            10,
+            DEFAULT_BLOCK_TIME,
+            &mut slots,
+        )
+        .await;
         let (regular_outputs, _) = tx_builder
-            .produce_and_publish_batch_directly(
+            .produce_and_publish_batch(
                 transactions_per_batch,
                 &mut generator,
-                &second_da_service,
+                &secondary_node_client,
                 u,
             )
             .await?;
         outputs.extend(regular_outputs);
 
         wait_for_non_preferred_blobs_execution(
-            da_layer.clone(),
+            &rollup.da_service,
             blocks_till_result,
             DEFAULT_BLOCK_TIME,
             &mut slots,
@@ -543,6 +509,7 @@ async fn test_several_sequencers(
         .await;
         timeout(DEFAULT_TIMEOUT, tx_builder.wait_for_results())
             .await
+            .with_context(|| format!("waiting for transactions from both sequencer to be processed by main rollup. iteration={}", i))
             .expect("Timed out while waiting for transactions to finish executing")
             .expect("Some transactions where not correctly executed!");
     }
@@ -565,16 +532,16 @@ async fn test_several_sequencers(
 }
 
 async fn wait_for_non_preferred_blobs_execution(
-    da_layer: Arc<tokio::sync::RwLock<StorableMockDaLayer>>,
+    da_service: &StorableMockDaService,
     blocks: u32,
     block_time: Duration,
     slots: &mut BoxStream<'_, anyhow::Result<Slot>>,
 ) {
     for i in 0..blocks {
-        {
-            let mut da = da_layer.write().await;
-            da.produce_block().await.expect("Failed to produce block");
-        }
+        da_service
+            .produce_block_now()
+            .await
+            .expect("Failed to produce block");
         tokio::time::sleep(block_time).await;
         let slot = timeout(DEFAULT_TIMEOUT, slots.next())
             .await
