@@ -66,11 +66,17 @@ impl Drop for OtelGuard {
 // Create a Resource that captures information about the entity for which telemetry is recorded.
 fn resource() -> Resource {
     let env_name = std::env::var("SOV_ENVIRONMENT_NAME").unwrap_or("develop".into());
+    let build_mode = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
     Resource::from_schema_url(
         [
             KeyValue::new(SERVICE_NAME, env!("CARGO_PKG_NAME")),
             KeyValue::new(SERVICE_VERSION, env!("CARGO_PKG_VERSION")),
             KeyValue::new(DEPLOYMENT_ENVIRONMENT_NAME, env_name),
+            KeyValue::new("build.mode", build_mode),
         ],
         SCHEMA_URL,
     )

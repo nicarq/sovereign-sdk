@@ -202,8 +202,6 @@ pub async fn setup_rollup(
         GenesisSource::CustomParams(setup.genesis_config.clone().into_genesis_params()),
         DEFAULT_BLOCK_PRODUCING_CONFIG,
         DEFAULT_FINALIZATION_BLOCKS,
-        0,
-        Default::default(),
         storage_path,
     )
     .set_config(|config| {
