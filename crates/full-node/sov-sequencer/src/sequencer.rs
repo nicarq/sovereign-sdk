@@ -294,8 +294,8 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             };
 
             if let Err(error) = changed {
-                tracing::error!(%error, "Channel notification failed");
-                continue;
+                tracing::error!(%error, "Channel notification failed, shutting down sequencer background task");
+                break;
             }
 
             // Remember: we are dealing with a `watch::Receiver`, so > 1 num. of
