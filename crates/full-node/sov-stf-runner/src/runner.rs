@@ -347,10 +347,23 @@ where
                     .await
                 {
                     FutureOrShutdownOutput::Shutdown => break,
-                    FutureOrShutdownOutput::Output(Err(_)) => continue,
+                    FutureOrShutdownOutput::Output(Err(error)) => {
+                        tracing::info!(
+                            ?error,
+                            "Received error getting head block header, continue to next tick..."
+                        );
+                        continue;
+                    }
                     FutureOrShutdownOutput::Output(Ok(header)) => {
                         let target_da_height = header.height();
-                        sync_state.update_target(target_da_height);
+                        if let Err(error) = sync_state.update_target(target_da_height) {
+                            tracing::warn!(
+                                target_da_height,
+                                ?error,
+                                "Received error updating target height, stopping background task"
+                            );
+                            break;
+                        };
                         if let SyncStatus::Syncing {
                             synced_da_height,
                             target_da_height,
@@ -375,7 +388,7 @@ where
         self.state_manager.startup().await?;
         let mut next_da_height = self.first_unprocessed_height_at_startup;
         let target_da_height = self.da_service.get_head_block_header().await?.height();
-        self.sync_state.update_target(target_da_height);
+        self.sync_state.update_target(target_da_height)?;
 
         let status_updater_handle = self.spawn_sync_status_updater(
             Duration::from_millis(self.da_polling_interval_ms),
