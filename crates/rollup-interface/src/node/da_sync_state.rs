@@ -61,16 +61,14 @@ impl SyncStatus {
 
 impl DaSyncState {
     /// Updates the target height of the sync state.
-    pub fn update_target(&self, target_da_height: u64) {
+    pub fn update_target(
+        &self,
+        target_da_height: u64,
+    ) -> Result<(), watch::error::SendError<SyncStatus>> {
         self.target_da_height
             .store(target_da_height, std::sync::atomic::Ordering::Release);
 
-        if let Err(e) = self.sync_status_sender.send(self.status()) {
-            tracing::warn!(
-                "Failed to send sync status update after updating target height: {:?}. There are no receivers for the sync status.",
-                e
-            );
-        }
+        self.sync_status_sender.send(self.status())
     }
 
     /// Updates the synced height of the sync state.
