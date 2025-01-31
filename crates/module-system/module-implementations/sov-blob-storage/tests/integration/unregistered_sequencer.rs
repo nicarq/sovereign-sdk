@@ -1,7 +1,9 @@
-use sov_blob_storage::config_unregistered_blobs_per_slot;
-use sov_mock_da::MockBlob;
+use std::num::NonZero;
+
+use sov_blob_storage::{config_deferred_slots_count, config_unregistered_blobs_per_slot};
+use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::{BlobDataWithId, CryptoSpec, Spec};
-use sov_modules_stf_blueprint::Runtime;
+use sov_modules_stf_blueprint::{BatchReceipt, Runtime};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::traits::MinimalGenesis;
@@ -141,7 +143,7 @@ fn blobs_from_non_registered_sequencers_base_sequencing() {
     let mut nonces = HashMap::new();
 
     // Make more unregistered blobs than the limit
-    let mut unregistered_blobs = make_unregistered_blobs::<BasicRT>(
+    let unregistered_blobs = make_unregistered_blobs::<BasicRT>(
         config_unregistered_blobs_per_slot() + 1,
         &non_registered_sequencer,
         &mut nonces,
@@ -150,7 +152,7 @@ fn blobs_from_non_registered_sequencers_base_sequencing() {
     let mut slot_to_send =
         build_basic_blobs(&vec![(preferred_sequencer.clone(), 0); 4], &mut nonces);
 
-    slot_to_send.batch_blobs.append(&mut unregistered_blobs);
+    slot_to_send.batch_blobs.extend(unregistered_blobs);
 
     // Send them
     let result = runner.execute::<RelevantBlobs<MockBlob>>(slot_to_send);
@@ -161,4 +163,91 @@ fn blobs_from_non_registered_sequencers_base_sequencing() {
         4 + config_unregistered_blobs_per_slot() as usize,
         "The number of blobs received should be equal to `UNREGISTERED_BLOBS_PER_SLOT` plus 4 (the registered blobs)"
     );
+}
+
+/// Tests that a forced registration from a non-registered sequencer, appearing in the same slot
+/// as a preferred empty blob, is correctly deferred and then executed. Specifically:
+/// - Creates a single forced registration blob alongside a preferred empty blob in the same slot.
+/// - Processes subsequent slots (up to `config_deferred_slots_count() + 5`) to confirm the registration
+///   isn’t lost or ignored.
+/// - Verifies that all batch receipts remain valid throughout.
+#[test]
+fn forced_registration_first_on_same_slot_as_preferred_blob() {
+    let (
+        TestData {
+            preferred_sequencer,
+            regular_sequencer: non_registered_sequencer,
+            ..
+        },
+        mut runner,
+    ) = setup_soft_confirmation_kernel();
+    let till_non_preferred_applied = config_deferred_slots_count() + 5;
+
+    // [forced_registration + slot advancing slot] + n of slot advancing bacthed
+    let expected_number_of_batches = till_non_preferred_applied + 2;
+    let mut nonces = HashMap::new();
+
+    let mut unerigestered_blobs =
+        make_unregistered_blobs::<BasicRT>(1, &non_registered_sequencer, &mut nonces);
+    let preferred_empty_blobs = vec![build_preferred_empty_blob(
+        0,
+        1,
+        preferred_sequencer.da_address,
+    )];
+    unerigestered_blobs.extend(preferred_empty_blobs);
+    let blobs_to_send = unerigestered_blobs;
+    let relevant_blobs = RelevantBlobs::<MockBlob> {
+        proof_blobs: Vec::new(),
+        batch_blobs: blobs_to_send,
+    };
+    let mut received_batches = 0;
+
+    let result = runner.execute::<RelevantBlobs<MockBlob>>(relevant_blobs);
+
+    for batch_receipt in result.batch_receipts {
+        assert_batch_is_not_at_loss(&batch_receipt);
+        received_batches += 1;
+    }
+
+    for sequence in 1..=till_non_preferred_applied {
+        let slot_to_send = RelevantBlobs::<MockBlob> {
+            proof_blobs: Vec::new(),
+            batch_blobs: vec![build_preferred_empty_blob(
+                sequence,
+                1,
+                preferred_sequencer.da_address,
+            )],
+        };
+        let result = runner.execute::<RelevantBlobs<MockBlob>>(slot_to_send);
+        for batch_receipt in result.batch_receipts {
+            assert_batch_is_not_at_loss(&batch_receipt);
+            received_batches += 1;
+        }
+    }
+
+    assert_eq!(received_batches, expected_number_of_batches);
+}
+
+fn assert_batch_is_not_at_loss(batch_receipt: &BatchReceipt<S>) {
+    assert!(
+        batch_receipt.inner.outcome.rewards.accumulated_reward
+            >= batch_receipt.inner.outcome.rewards.accumulated_penalty,
+        "Loss for batch: {:?}",
+        batch_receipt.inner
+    );
+}
+
+fn build_preferred_empty_blob(
+    sequence_number: u64,
+    slots_to_advance: u8,
+    sequencer_address: MockAddress,
+) -> MockBlob {
+    let batch_data = sov_blob_storage::PreferredBatchData {
+        sequence_number,
+        data: Vec::new(),
+        visible_slots_to_advance: NonZero::new(slots_to_advance).unwrap(),
+    };
+
+    let serialized_blob = borsh::to_vec(&batch_data).unwrap();
+    MockBlob::new_with_hash(serialized_blob, sequencer_address)
 }

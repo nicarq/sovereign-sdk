@@ -7,7 +7,6 @@ use anyhow::Context;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use futures::StreamExt;
-use reqwest::StatusCode;
 use sov_api_spec::types;
 use sov_bank::utils::TokenHolder;
 use sov_bank::{Amount, Coins, TokenId};
@@ -305,18 +304,13 @@ impl NodeClient {
         );
 
         let response = self.http_client.get(url).send().await?;
-        let response = match response
+        if !response.status().is_success() {
+            anyhow::bail!("Unsuccessful response {:?}", response);
+        }
+        let response = response
             .json::<ResponseObject<AllowedSequencerResponse<S>>>()
             .await
-        {
-            Ok(r) => r,
-            Err(err) => {
-                if err.status() == Some(StatusCode::NOT_FOUND) {
-                    return Ok(None);
-                }
-                anyhow::bail!(err);
-            }
-        };
+            .context("Deserialization of `AllowedSequencerResponse")?;
 
         let allowed_sequencer = response
             .data
