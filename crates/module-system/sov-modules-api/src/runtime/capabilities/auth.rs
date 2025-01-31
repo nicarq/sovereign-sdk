@@ -10,6 +10,7 @@ use sov_rollup_interface::TxHash;
 use sov_state::User;
 use thiserror::Error;
 
+use super::RollupHeight;
 use crate::transaction::{
     AuthenticatedTransactionAndRawHash, Credentials, Transaction, TransactionVerificationError,
 };
@@ -95,6 +96,7 @@ pub trait TransactionAuthorizer<S: Spec> {
         auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         visible_slot_number: VisibleSlotNumber,
+        rollup_height: RollupHeight,
         state: &mut impl InfallibleStateAccessor,
         context: ExecutionContext,
     ) -> anyhow::Result<Context<S>>;
@@ -105,6 +107,7 @@ pub trait TransactionAuthorizer<S: Spec> {
         auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         visible_slot_number: VisibleSlotNumber,
+        rollup_height: RollupHeight,
         state: &mut impl InfallibleStateAccessor,
         execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>>;

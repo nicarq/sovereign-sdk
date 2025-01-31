@@ -108,6 +108,7 @@ where
         BatchConstructionContext<Z::Spec>,
         Result<Option<(FullyBakedTx, TransactionReceipt<Z::Spec>)>, AddTxToBatchError>,
     ) {
+        let rollup_height = ctx.state_checkpoint.rollup_height_to_access();
         let tx = seqdb_tx.tx.clone();
 
         // To fill a batch as big as possible, we only check if valid
@@ -163,6 +164,7 @@ where
             auth_output,
             &self.config.da_address,
             ctx.visible_slot_number,
+            rollup_height,
             tx_scratchpad,
             ExecutionContext::Sequencer,
             &NoOpControlFlow,

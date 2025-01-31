@@ -52,7 +52,8 @@ where
             &RT::default().kernel(),
         );
 
-        let height = state.visible_slot_number_to_access();
+        let visible_slot_number = state.visible_slot_number_to_access();
+        let rollup_height = state.rollup_height_to_access();
 
         let gas_price = match transaction
                 .gas_price {
@@ -84,7 +85,8 @@ where
         let ctx = runtime.transaction_authorizer().resolve_context(
             &auth_data,
             &sequencer_da_address,
-            height,
+            visible_slot_number,
+            rollup_height,
             &mut scratchpad,
             // TODO(@theochap): maybe we should let the node set this variable?
             ExecutionContext::Node,

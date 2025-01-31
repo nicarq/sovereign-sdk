@@ -1,5 +1,5 @@
 use sov_modules_api::capabilities::{
-    AuthenticationError, GasEnforcer, SequencerAuthorization, SequencerRemuneration,
+    AuthenticationError, GasEnforcer, RollupHeight, SequencerAuthorization, SequencerRemuneration,
     TransactionAuthorizer, TryReserveGasError,
 };
 use sov_modules_api::transaction::TransactionConsumption;
@@ -35,6 +35,7 @@ pub fn process_tx<S, R, I, C>(
     validated_output: AuthTxOutput<S, R>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     visible_slot_number: VisibleSlotNumber,
+    rollup_height: RollupHeight,
     scratchpad: TxScratchpad<S, I>,
     execution_context: ExecutionContext,
     injected_control_flow: &C,
@@ -63,6 +64,7 @@ where
         validated_output,
         sequencer_da_address,
         visible_slot_number,
+        rollup_height,
         scratchpad,
         execution_context,
         injected_control_flow,
@@ -118,6 +120,7 @@ fn process_tx_inner<S, R, I, C>(
     validated_output: AuthTxOutput<S, R>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     visible_slot_number: VisibleSlotNumber,
+    rollup_height: RollupHeight,
     mut scratchpad: TxScratchpad<S, I>,
     execution_context: ExecutionContext,
     injected_control_flow: &C,
@@ -140,6 +143,7 @@ where
         &auth_data,
         sequencer_da_address,
         visible_slot_number,
+        rollup_height,
         &mut scratchpad,
         execution_context,
     );
@@ -293,6 +297,7 @@ pub(crate) fn apply_batch<S, RT, B>(
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
     visible_slot_number: VisibleSlotNumber,
+    rollup_height: RollupHeight,
     execution_context: ExecutionContext,
 ) -> (IncrementalBatchReceipt<S>, StateCheckpoint<S>)
 where
@@ -352,6 +357,7 @@ where
             sequencer_da_address,
             gas_price,
             visible_slot_number,
+            rollup_height,
             execution_context,
             sequencer_bond,
             idx,
@@ -495,6 +501,7 @@ fn auth_and_process_tx<S, RT, I, C>(
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
     visible_slot_number: VisibleSlotNumber,
+    rollup_height: RollupHeight,
     execution_context: ExecutionContext,
     sequencer_bond: u64,
     idx: usize,
@@ -622,6 +629,7 @@ where
         validated_output,
         sequencer_da_address,
         visible_slot_number,
+        rollup_height,
         scratchpad,
         execution_context,
         injected_control_flow,

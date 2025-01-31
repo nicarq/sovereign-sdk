@@ -1,11 +1,11 @@
 use sov_modules_api::capabilities::{
-    BatchFromUnregisteredSequencer, GasEnforcer, SequencerRemuneration, TransactionAuthorizer,
-    TryReserveGasError, UnregisteredAuthenticationError,
+    BatchFromUnregisteredSequencer, GasEnforcer, RollupHeight, SequencerRemuneration,
+    TransactionAuthorizer, TryReserveGasError, UnregisteredAuthenticationError,
 };
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext, Gas,
     GasArray, GasInfo, GasMeter, GasSpec, GetGasInfo, IgnoredTransactionReceipt, Rewards, Spec,
-    StateProvider, TxScratchpad, WorkingSet,
+    StateProvider, TxScratchpad, VersionReader, WorkingSet,
 };
 use sov_rollup_interface::common::VisibleSlotNumber;
 use tracing::{debug, warn};
@@ -27,6 +27,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     gas_info: GasInfo<S::Gas>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     visible_slot_number: VisibleSlotNumber,
+    rollup_height: RollupHeight,
     mut scratchpad: TxScratchpad<S, I>,
     execution_context: ExecutionContext,
 ) -> (
@@ -44,6 +45,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
             &auth_data,
             sequencer_da_address,
             visible_slot_number,
+            rollup_height,
             &mut scratchpad,
             execution_context,
         ) {
@@ -190,6 +192,7 @@ where
         "Applying a batch"
     );
 
+    let rollup_height = checkpoint.rollup_height_to_access();
     let scratchpad = checkpoint.to_tx_scratchpad();
 
     debug!(
@@ -305,6 +308,7 @@ where
         gas_info,
         sequencer_da_address,
         visible_slot_number,
+        rollup_height,
         scratchpad,
         execution_context,
     );

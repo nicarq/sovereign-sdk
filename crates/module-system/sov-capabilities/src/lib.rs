@@ -6,7 +6,8 @@ use sov_bank::IntoPayable;
 use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::capabilities::{
     AllowedSequencer, AuthorizationData, AuthorizeSequencerError, GasEnforcer, ProofProcessor,
-    SequencerAuthorization, SequencerRemuneration, TransactionAuthorizer, TryReserveGasError,
+    RollupHeight, SequencerAuthorization, SequencerRemuneration, TransactionAuthorizer,
+    TryReserveGasError,
 };
 use sov_modules_api::transaction::{
     AuthenticatedTransactionData, ProverRewards, RemainingFunds, SequencerReward,
@@ -224,6 +225,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
         auth_data: &AuthorizationData<S>,
         sequencer: &<S::Da as DaSpec>::Address,
         visible_slot_number: VisibleSlotNumber,
+        rollup_height: RollupHeight,
         state: &mut impl InfallibleStateAccessor,
         execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>> {
@@ -243,6 +245,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
             sequencer_rollup_address,
             sequencer.clone(),
             visible_slot_number,
+            rollup_height,
             execution_context,
         ))
     }
@@ -252,6 +255,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
         auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         visible_slot_number: VisibleSlotNumber,
+        rollup_height: RollupHeight,
         state: &mut impl InfallibleStateAccessor,
         execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>> {
@@ -267,6 +271,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
             sender,
             sequencer.clone(),
             visible_slot_number,
+            rollup_height,
             execution_context,
         ))
     }

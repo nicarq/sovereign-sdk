@@ -347,6 +347,7 @@ mod derive_genesis {
 // Wrap the test in a module rather than declaring the struct inside of the function
 // to avoid proc-macro resolution fallback error: https://github.com/rust-lang/rust/issues/83583
 mod derive_dispatch {
+    use sov_modules_api::capabilities::RollupHeight;
     use sov_modules_api::NestedEnumUtils;
     use sov_rollup_interface::common::IntoSlotNumber;
 
@@ -395,6 +396,7 @@ mod derive_dispatch {
             sequencer,
             sequencer_da,
             1.to_visible_slot_number(),
+            RollupHeight::new(1),
             ExecutionContext::Node,
         );
 
