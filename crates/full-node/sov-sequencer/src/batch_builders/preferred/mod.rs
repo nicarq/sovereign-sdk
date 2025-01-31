@@ -209,6 +209,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         self.api_state.clone()
     }
 
+    #[tracing::instrument(skip_all, level = "trace")]
     async fn update_state(&mut self, info: StateUpdateInfo<<Z::Spec as Spec>::Storage>) {
         self.try_update_state(info).await.unwrap_or_else(|err| {
             error!(%err, "Failed to update preferred batch builder state. This failure is not recoverable, although application state is likely still intact and healthy. This is either a bug or a database issue.");
@@ -220,6 +221,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         Z::Rt::encode_with_standard_auth(raw)
     }
 
+    #[tracing::instrument(skip_all, level = "trace")]
     async fn accept_tx(
         &mut self,
         baked_tx: FullyBakedTx,
@@ -301,6 +303,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         ).expect("sending the checkpoint should never fail because one receiver is always present; this is a bug, please report it");
     }
 
+    #[tracing::instrument(skip_all, level = "trace")]
     async fn create_and_start_batch_if_none_in_progress(&mut self) -> Result<(), ErrorObject> {
         if matches!(self.state, InternalState::InProgressBatch { .. }) {
             return Ok(());
@@ -380,6 +383,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all, level = "trace")]
     async fn replay_batch(&mut self, batch: &PreferredBatchToRestore) -> anyhow::Result<()> {
         assert!(
             matches!(self.state, InternalState::WaitForNextRollupBlock { .. }),
@@ -609,6 +613,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
     /// [`PreferredBatchBuilder::start_rollup_block`] and
     /// [`PreferredBatchBuilder::end_rollup_block`].
 
+    #[tracing::instrument(skip_all, level = "trace")]
     async fn tx_confirmation(
         &mut self,
         baked_tx: FullyBakedTx,
@@ -642,6 +647,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         response
     }
 
+    #[tracing::instrument(skip_all, level = "trace")]
     async fn tx_confirmation_inner_res(
         &self,
         baked_tx: FullyBakedTx,
