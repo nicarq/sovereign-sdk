@@ -48,7 +48,7 @@ pub struct AllowedSequencer<S: sov_modules_api::Spec> {
 }
 
 /// NodeClient is a collection of helper methods that can interact with rollup node via REST API.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NodeClient {
     /// Base URL where runtime, sequencer and ledger routers are mounted.
     pub base_url: String,

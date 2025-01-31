@@ -1,16 +1,22 @@
 //! Implementation for the [`MetricsTracker`] for Influxdb.
 
+use std::collections::HashMap;
+use std::fmt::Debug;
 use std::io::Write;
-use std::sync::OnceLock;
+use std::sync::{LazyLock, OnceLock, RwLock};
 
 use sov_rollup_interface::common::VisibleSlotNumber;
 
 #[cfg(feature = "gas-constant-estimation")]
 use crate::influxdb::gas_constant_estimation::GasConstantMetric;
-use crate::influxdb::{publisher, Metric};
+use crate::influxdb::{publisher, safe_telegraf_string, Metric};
 use crate::{MetricsTracker, MonitoringConfig};
 
 pub(crate) static METRICS_TRACKER: OnceLock<MetricsTracker> = OnceLock::new();
+
+/// Global metadata that is added as measurement key/value pairs of the metrics.
+pub static METRICS_METADATA: LazyLock<RwLock<HashMap<String, String>>> =
+    std::sync::LazyLock::new(|| RwLock::new(HashMap::new()));
 
 #[cfg(feature = "gas-constant-estimation")]
 pub mod gas_constant_estimation {
@@ -316,9 +322,11 @@ pub struct UserSpaceSlotProcessingMetrics {
 
 impl Metric for RunnerDaMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        let metadata = serialize_metadata();
+
         write!(
             buffer,
-            "sov_rollup_runner_da da_height={},sync_distance={},get_block_time_ms={}",
+            "sov_rollup_runner_da{metadata} da_height={},sync_distance={},get_block_time_ms={}",
             self.da_height,
             self.sync_distance,
             self.get_block_time.as_millis(),
@@ -328,9 +336,11 @@ impl Metric for RunnerDaMetrics {
 
 impl Metric for RunnerCountMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        let metadata = serialize_metadata();
+
         write!(
             buffer,
-            "sov_rollup_runner_counts da_height={},batches_c={},transactions_c={},proofs_c={},batch_bytes={},proof_bytes={}",
+            "sov_rollup_runner_counts{metadata} da_height={},batches_c={},transactions_c={},proofs_c={},batch_bytes={},proof_bytes={}",
             self.da_height,
             self.batches,
             self.transactions,
@@ -343,9 +353,11 @@ impl Metric for RunnerCountMetrics {
 
 impl Metric for RunnerTimeMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        let metadata = serialize_metadata();
+
         write!(
             buffer,
-            "sov_rollup_runner_times_us da_height={},process_slot={},apply_slot={},stf_transition={},extract_blobs={},blob_extraction_proof={}",
+            "sov_rollup_runner_times_us{metadata} da_height={},process_slot={},apply_slot={},stf_transition={},extract_blobs={},blob_extraction_proof={}",
             self.da_height,
             self.process_slot_time.as_micros(),
             self.apply_slot_time.as_micros(),
@@ -358,7 +370,9 @@ impl Metric for RunnerTimeMetrics {
 
 impl Metric for TransactionProcessingMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-        write!(buffer, "sov_rollup_transaction_execution_us,status={:?},context={:?},call_message={},sequencer={} value={},rollup_height={}",
+        let metadata = serialize_metadata();
+
+        write!(buffer, "sov_rollup_transaction_execution_us,status={:?},context={:?},call_message={},sequencer={}{metadata} value={},rollup_height={}",
                // tags
                self.tx_effect,
                self.execution_context,
@@ -373,9 +387,11 @@ impl Metric for TransactionProcessingMetrics {
 
 impl Metric for SlotProcessingMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        let metadata = serialize_metadata();
+
         write!(
             buffer,
-            "sov_rollup_slot_execution_time_us,context={:?} blobs_selection={},finalization={},visible_slot_number={},da_height={}",
+            "sov_rollup_slot_execution_time_us,context={:?}{metadata} blobs_selection={},finalization={},visible_slot_number={},da_height={}",
             // Tags
             self.execution_context,
             // Fields
@@ -389,9 +405,11 @@ impl Metric for SlotProcessingMetrics {
 
 impl Metric for UserSpaceSlotProcessingMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        let metadata = serialize_metadata();
+
         write!(
             buffer,
-            "sov_rollup_slot_execution_time_us,context={:?} begin_hooks={},blobs_processing={},end_hooks={},rollup_height={}",
+            "sov_rollup_slot_execution_time_us,context={:?}{metadata} begin_hooks={},blobs_processing={},end_hooks={},rollup_height={}",
             // Tags
             self.execution_context,
             // Fields
@@ -425,9 +443,11 @@ pub struct BatchMetrics {
 
 impl Metric for BatchMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        let metadata = serialize_metadata();
+
         write!(
             buffer,
-            "sov_rollup_batch_processing processing_time_us={},transactions={},ignored_transactions={}",
+            "sov_rollup_batch_processing{metadata} processing_time_us={},transactions={},ignored_transactions={}",
             self.processing_time.as_micros(),
             self.transactions_count,
             self.ignored_transactions_count,
@@ -454,9 +474,11 @@ pub struct HttpMetrics {
 
 impl Metric for HttpMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        let metadata = serialize_metadata();
+
         write!(
             buffer,
-            "sov_rollup_http_handlers,req_method={},resp_status={},path={} processing_time_us={},response_body_bytes={}",
+            "sov_rollup_http_handlers,req_method={},resp_status={},path={}{metadata} processing_time_us={},response_body_bytes={}",
             // Tags
             self.request_method,
             self.response_status.as_u16(),
@@ -484,28 +506,28 @@ pub struct ZkVmExecutionChunk {
 impl Metric for ZkVmExecutionChunk {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         // We are adding the metadata as measurmement tags in the influxdb line protocol.
-        let mut parsed_metadata = String::new();
+        let metadata = if !self.metadata.is_empty() {
+            let zk_metadata = self
+                .metadata
+                .iter()
+                .map(|(key, value)| {
+                    // Uses special telegraf formatting
+                    let telegraf_formatted_key = safe_telegraf_string(key);
 
-        if !self.metadata.is_empty() {
-            parsed_metadata = format!(
-                "{},",
-                self.metadata
-                    .iter()
-                    .map(|(key, value)| {
-                        // Replace spaces with underscores to make them compatible with telegraf
-                        let telegraf_formatted_key = key.replace(" ", "_");
+                    format!("{}={}", telegraf_formatted_key, value)
+                })
+                .collect::<Vec<_>>()
+                .join(",");
 
-                        format!("{}=\"{}\"", telegraf_formatted_key, value)
-                    })
-                    .collect::<Vec<_>>()
-                    .join(",")
-            );
+            format!(",{zk_metadata}{}", serialize_metadata())
+        } else {
+            serialize_metadata()
         };
 
         write!(
             buffer,
-            "sov_rollup_zkvm,name={}{} cycles_count={},free_heap_bytes={}",
-            self.name, parsed_metadata, self.cycles_count, self.free_heap_bytes
+            "sov_rollup_zkvm,name={}{metadata} cycles_count={},free_heap_bytes={}",
+            self.name, self.cycles_count, self.free_heap_bytes
         )
     }
 }
@@ -530,9 +552,11 @@ pub struct ZkProvingTime {
 
 impl Metric for ZkProvingTime {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        let metadata = serialize_metadata();
+
         write!(
             buffer,
-            "sov_rollup_zkvm_proving,is_success={},circuit={:?} proving_time_ms={}",
+            "sov_rollup_zkvm_proving,is_success={},circuit={:?}{metadata} proving_time_ms={}",
             self.is_success,
             self.zk_circuit,
             self.proving_time.as_millis()
@@ -644,6 +668,27 @@ impl Metric for SovRollupMetric {
                 t
             }
         };
-        write!(buffer, " {}", timestamp)
+
+        write!(buffer, " {timestamp}")
+    }
+}
+
+pub(crate) fn serialize_metadata() -> String {
+    let metadata = METRICS_METADATA.read().unwrap();
+
+    let metadata_string = metadata
+        .iter()
+        .map(|(key, value)| {
+            let telegraf_key = safe_telegraf_string(key);
+            let telegraf_value = safe_telegraf_string(value);
+            format!("{telegraf_key}={telegraf_value}")
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+
+    if !metadata_string.is_empty() {
+        format!(",{metadata_string}")
+    } else {
+        String::new()
     }
 }

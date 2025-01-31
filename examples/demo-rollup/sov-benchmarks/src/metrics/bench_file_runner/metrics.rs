@@ -5,7 +5,7 @@ use std::io::{BufWriter, Write};
 use futures::{pin_mut, StreamExt};
 use reqwest::Client;
 
-use crate::ParsedMetricsParameters;
+use super::ParsedMetricsParameters;
 
 /// Main function that queries metrics from telegraph and stores them to the supplied file.
 pub async fn get_metrics(

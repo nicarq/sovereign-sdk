@@ -27,7 +27,7 @@ pub use sov_modules_macros::cycle_tracker;
 /// ```rust
 /// use sov_modules_macros::track_gas_constants_usage;
 ///
-/// #[track_gas_constants_usage(input)]
+/// #[track_gas_constants_usage(_input)]
 /// fn test_metrics(_input: &mut u64) {
 ///     
 /// }

@@ -1,4 +1,7 @@
+use std::collections::HashSet;
+
 use proc_macro::TokenStream;
+use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{parse2, parse_quote, Block, Ident, ItemFn};
 
@@ -34,9 +37,7 @@ pub mod gas_estimation {
         };
 
         parse_quote!({
-            #[cfg(feature="gas-constant-estimation")] return #const_tracker_block;
-            #[cfg(not(feature="gas-constant-estimation"))]
-            #block
+            #const_tracker_block
         })
     }
 }
@@ -130,7 +131,7 @@ pub mod zk {
 pub fn wrap_function_with<F>(
     f: F,
     input: TokenStream,
-    tag_attr: Vec<Ident>,
+    mut tag_attr: HashSet<Ident>,
 ) -> Result<TokenStream, syn::Error>
 where
     F: Fn(&Ident, &Block, Vec<Ident>) -> Box<Block>,
@@ -149,7 +150,7 @@ where
         .into_iter()
         .filter_map(|i| match i {
             syn::FnArg::Typed(syn::PatType { pat, .. }) => match *pat {
-                syn::Pat::Ident(pat_ident) if tag_attr.contains(&pat_ident.ident) => {
+                syn::Pat::Ident(pat_ident) if tag_attr.remove(&pat_ident.ident) => {
                     Some(pat_ident.ident)
                 }
                 _ => None,
@@ -157,6 +158,20 @@ where
             _ => None,
         })
         .collect::<Vec<_>>();
+
+    if !tag_attr.is_empty() {
+        return Err(syn::Error::new(
+            Span::call_site(),
+            format!(
+                "The following attributes were not found in the function signature: {}",
+                tag_attr
+                    .into_iter()
+                    .map(|i| i.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        ));
+    }
 
     input.block = f(&ident, &block, tagged_inputs);
 

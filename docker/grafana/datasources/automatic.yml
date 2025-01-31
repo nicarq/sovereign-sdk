@@ -57,4 +57,3 @@ datasources:
           - cluster
           - namespace
           - pod
-

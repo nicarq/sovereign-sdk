@@ -21,7 +21,7 @@ pub type TransactionReceipt<S> =
 /// Applies a single transaction to the current state. In normal execution, we commit twice times execution:
 /// 1. After the pre-dispatch hook. This ensures that the gas charges are paid even if the transaction fails later during execution
 /// 2. After the post-dispatch hook. This ensures that the transaction can be reverted by the post-dispatch hook if desired.
-#[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
+#[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker(raw_tx_hash))]
 #[allow(clippy::too_many_arguments)]
 pub fn apply_tx<S, RT, I>(
     runtime: &RT,

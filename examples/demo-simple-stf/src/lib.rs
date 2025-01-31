@@ -1,5 +1,6 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
+use std::fmt::Display;
 use std::marker::PhantomData;
 
 use sha2::Digest;
@@ -23,11 +24,27 @@ pub enum ApplySlotResult {
     Success,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+/// An empty state root
+pub struct Root(pub [u8; 0]);
+
+impl AsRef<[u8]> for Root {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl Display for Root {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Root")
+    }
+}
+
 impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     StateTransitionFunction<InnerVm, OuterVm, Da> for CheckHashPreimageStf<Cond>
 {
     // Since our rollup is stateless, we don't need to consider the StateRoot.
-    type StateRoot = [u8; 0];
+    type StateRoot = Root;
 
     type Address = [u8; 32];
 
@@ -60,13 +77,13 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         _validity_condition: &Da::ValidityCondition,
         _base_state: Self::PreState,
         _params: Self::GenesisParams,
-    ) -> ([u8; 0], ()) {
-        ([], ())
+    ) -> (Root, ()) {
+        (Root([]), ())
     }
 
     fn apply_slot(
         &self,
-        _pre_state_root: &[u8; 0],
+        _pre_state_root: &Root,
         _base_state: Self::PreState,
         _witness: Self::Witness,
         _slot_header: &Da::BlockHeader,
@@ -101,7 +118,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         }
 
         ApplySlotOutput::<InnerVm, OuterVm, Da, Self> {
-            state_root: [],
+            state_root: Root([]),
             change_set: (),
             proof_receipts: vec![],
             batch_receipts: receipts,

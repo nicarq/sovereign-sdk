@@ -2,6 +2,7 @@
 
 use std::marker::PhantomData;
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::{DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{
     ApplySlotOutput, BatchReceipt, ExecutionContext, StateTransitionFunction,
@@ -14,11 +15,34 @@ pub struct MockStf<Cond> {
     phantom_data: PhantomData<Cond>,
 }
 
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    BorshSerialize,
+    BorshDeserialize,
+    derive_more::Display,
+    derive_more::From,
+    derive_more::AsRef,
+)]
+#[display("{}", hex::encode(self.0.clone()))]
+/// A mock state root
+pub struct MockRoot(Vec<u8>);
+
+impl AsRef<[u8]> for MockRoot {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
 impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     StateTransitionFunction<InnerVm, OuterVm, Da> for MockStf<Cond>
 {
     type Address = Vec<u8>;
-    type StateRoot = Vec<u8>;
+    type StateRoot = MockRoot;
     type GasPrice = ();
     type GenesisParams = ();
     type PreState = ();
@@ -37,7 +61,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         _base_state: Self::PreState,
         _params: Self::GenesisParams,
     ) -> (Self::StateRoot, ()) {
-        (Vec::default(), ())
+        (Vec::default().into(), ())
     }
 
     fn apply_slot(
@@ -51,7 +75,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         _execution_context: ExecutionContext,
     ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self> {
         ApplySlotOutput::<InnerVm, OuterVm, Da, Self> {
-            state_root: Vec::default(),
+            state_root: Vec::default().into(),
             change_set: (),
             proof_receipts: vec![],
             batch_receipts: vec![BatchReceipt {

@@ -11,7 +11,7 @@ mod proof_serializer;
 mod transaction;
 mod verifier;
 
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 pub use events::*;
 pub use proof_serializer::*;
@@ -210,6 +210,7 @@ pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> {
         + Clone
         + AsRef<[u8]>
         + Debug
+        + Display
         + Send
         + Sync
         + 'static;

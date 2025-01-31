@@ -465,7 +465,7 @@ mod tests {
         let (state_root, state_update) = prover_storage.compute_state_update(accesses, &w).unwrap();
         let change_set = prover_storage.materialize_changes(&state_update);
 
-        (state_root.root_hash().0.to_vec(), change_set)
+        (state_root.root_hash().0.to_vec().into(), change_set)
     }
 
     async fn process_normal_transition(
@@ -628,7 +628,7 @@ mod tests {
                 let received_storage_root = received_storage.get_root_hash(slot_number)?;
                 assert_eq!(
                     current_state_root,
-                    received_storage_root.root_hash().0.to_vec()
+                    received_storage_root.root_hash().0.to_vec().into()
                 );
                 state_roots.push(current_state_root);
             } else {

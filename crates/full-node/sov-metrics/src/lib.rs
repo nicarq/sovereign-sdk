@@ -12,7 +12,7 @@ pub use influxdb::{
     init_metrics_tracker, timestamp, track_metrics, BatchMetrics, BatchOutcome, HttpMetrics,
     MetricsTracker, MonitoringConfig, RunnerMetrics, SlotProcessingMetrics, SovRollupMetrics,
     TransactionEffect, TransactionProcessingMetrics, UserSpaceSlotProcessingMetrics, ZkCircuit,
-    ZkProvingTime, ZkVmExecutionChunk,
+    ZkProvingTime, ZkVmExecutionChunk, METRICS_METADATA,
 };
 #[cfg(all(feature = "native", feature = "gas-constant-estimation"))]
 pub use influxdb::{GasConstantTracker, GAS_CONSTANTS};

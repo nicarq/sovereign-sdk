@@ -87,10 +87,11 @@ impl Client {
                 borsh::to_vec(tx).map_err(|err| Error::InvalidRequest(err.to_string()))?;
             let tx_b64 = BASE64_STANDARD.encode(&tx_bytes);
 
-            receipts.push(
-                self.accept_tx(&types::AcceptTxBody { body: tx_b64 })
-                    .await?,
-            );
+            let res = self
+                .accept_tx(&types::AcceptTxBody { body: tx_b64 })
+                .await?;
+
+            receipts.push(res);
         }
 
         Ok(receipts)

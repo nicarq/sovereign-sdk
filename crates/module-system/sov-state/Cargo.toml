@@ -23,6 +23,7 @@ derivative = { workspace = true }
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 serde = { workspace = true, features = ["rc"] }
+derive_more = { workspace = true }
 serde-big-array = "0.5.1"
 sov-rollup-interface = { workspace = true }
 sov-db = { workspace = true, optional = true }

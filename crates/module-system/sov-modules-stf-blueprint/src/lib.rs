@@ -271,9 +271,10 @@ where
             fields(context = ?execution_context, da_height = slot_header.height())
         )
     )]
+    #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker(pre_state_root))]
     #[cfg_attr(
         all(feature = "gas-constant-estimation", feature = "native"),
-        track_gas_constants_usage
+        track_gas_constants_usage(pre_state_root)
     )]
     fn apply_slot(
         &self,
@@ -437,7 +438,11 @@ where
     /// Run the provided sequence of batches, updating the user-space rollup state as we go.
     /// Batches can inject control flow, which will be respected by the runner.
     #[allow(clippy::type_complexity)]
-    #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
+    #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker(visible_hash))]
+    #[cfg_attr(
+        all(feature = "gas-constant-estimation", feature = "native"),
+        track_gas_constants_usage(visible_hash)
+    )]
     pub fn apply_batches_in_user_space<B: IncrementalBatch<TransactionReceipt<S>, S>>(
         &self,
         blob_selector_output: BlobSelectorOutput<S, BlobDataWithId<B>>,

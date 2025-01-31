@@ -4,12 +4,14 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use clap::Parser;
 use cli::{BenchCLI, BenchCLICustomArgs};
 use demo_stf::runtime::Runtime;
 use sov_benchmarks::generator::Benchmark;
 use sov_benchmarks::BenchSpec;
+use sov_metrics::timestamp;
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_risc0_adapter::Risc0;
 use sov_test_utils::runtime::sov_bank::CallMessageDiscriminants as BankDiscriminants;
@@ -221,7 +223,8 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
     ]
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let params = BenchCLI::parse();
 
     let args = params.parse_size();
@@ -230,32 +233,50 @@ fn main() {
 
     let generation_base_path = PathBuf::from(params.path);
 
+    let mut joinset = tokio::task::JoinSet::new();
+
     for benchmark in benchmarks {
-        let mut bench_with_extension = benchmark.name.clone();
-        bench_with_extension.push_str(".bin");
+        let generation_base_path_cloned = generation_base_path.clone();
+        joinset.spawn(async move {
+            let mut bench_with_extension = benchmark.name.clone();
+            bench_with_extension.push_str(".bin");
 
-        println!("Generating benchmark {}...", benchmark.name);
+            println!("Generating benchmark {}...", benchmark.name);
 
-        let path = generation_base_path.join(bench_with_extension);
-        let path_str = path
-            .to_str()
-            .expect("Path should be well encoded")
-            .to_string();
+            let path = generation_base_path_cloned.join(bench_with_extension);
+            let path_str = path
+                .to_str()
+                .expect("Path should be well encoded")
+                .to_string();
 
-        let file = File::create(path).unwrap_or_else(|_| {
-            panic!(
-                "Impossible to generate a file at path {:?}, please ensure the path is valid",
-                path_str,
-            )
-        });
-
-        benchmark
-            .generate_and_write_benchmark_messages(&mut BufWriter::new(file))
-            .unwrap_or_else(|_| {
+            let file = File::create(path).unwrap_or_else(|_| {
                 panic!(
-                    "Impossible to generate benchmark messages for the benchmark {:?}",
-                    benchmark.name
+                    "Impossible to generate a file at path {:?}, please ensure the path is valid",
+                    path_str,
                 )
             });
+
+            let begin_stamp = timestamp();
+            benchmark
+                .generate_and_write_benchmark_messages(&mut BufWriter::new(file))
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Impossible to generate benchmark messages for the benchmark {:?}",
+                        benchmark.name
+                    )
+                });
+            let end_stamp = timestamp();
+
+            let exec_duration = Duration::from_nanos((end_stamp - begin_stamp) as u64);
+
+            println!(
+                "{} generation took {}.{} s...",
+                benchmark.name,
+                exec_duration.as_secs(),
+                exec_duration.subsec_millis()
+            );
+        });
     }
+
+    joinset.join_all().await;
 }
