@@ -41,8 +41,9 @@ async fn worker_task(
     client: sov_api_spec::Client,
     rx: Receiver<bool>,
     worker_id: u128,
+    num_workers: u32,
 ) -> anyhow::Result<()> {
-    if let Err(e) = worker_task_inner(client, rx, worker_id).await {
+    if let Err(e) = worker_task_inner(client, rx, worker_id, num_workers).await {
         tracing::error!("Worker task {worker_id} failed: {}", e);
         std::process::exit(1);
     }
@@ -53,6 +54,7 @@ async fn worker_task_inner(
     client: sov_api_spec::Client,
     rx: Receiver<bool>,
     worker_id: u128,
+    num_workers: u32,
 ) -> anyhow::Result<()> {
     let mut nonces: HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64> =
         Default::default();
@@ -67,6 +69,8 @@ async fn worker_task_inner(
     let modules = Distribution::with_equiprobable_values(modules);
     let mut generator: TestGenerator<RT> = setup_harness(worker_id);
 
+    let worker_start = std::time::Instant::now();
+    let mut total_txns = 0;
     while !*rx.borrow() {
         let txn_count = {
             // rng must fall out of scope before awaiting anything so this fn is Send
@@ -78,7 +82,6 @@ async fn worker_task_inner(
 
             rng.gen_range(10..100)
         };
-        tracing::debug!(id = %worker_id, "Generating {} transactions", txn_count);
 
         let mut txns = vec![];
         for _ in 0..txn_count {
@@ -101,11 +104,15 @@ async fn worker_task_inner(
             txns.push(signed_tx);
         }
 
+        let start = std::time::Instant::now();
         tokio::time::timeout(
             Duration::from_secs(txns.len().try_into().unwrap()),
             client.send_txs_to_sequencer(&txns),
         )
         .await??;
+        let elapsed = start.elapsed();
+        total_txns += txns.len();
+        tracing::debug!(id = %worker_id, "Sent {} transactions in {}ms. Current throughput: {}txs per second. Running throughput: {}txs per second", txns.len(), elapsed.as_millis(), (txns.len() * num_workers as usize) as f64 / elapsed.as_secs_f64(), (total_txns * num_workers as usize) as f64 / worker_start.elapsed().as_secs_f64());
     }
     Ok(())
 }
@@ -123,6 +130,7 @@ async fn main() -> Result<(), anyhow::Error> {
             client.clone(),
             rx.clone(),
             (i + args.salt) as u128,
+            args.num_workers,
         ));
     }
 
