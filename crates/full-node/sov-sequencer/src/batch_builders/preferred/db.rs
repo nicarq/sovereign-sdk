@@ -224,6 +224,7 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
     /// # Panics
     ///
     /// Panics if there's no in-progress batch. See [`Self::start_batch`].
+    #[tracing::instrument(skip_all, level = "trace")]
     pub async fn insert_tx(&mut self, tx: &SeqDbTx) -> anyhow::Result<()> {
         assert!(
             self.sequence_number_of_in_progress_batch.is_some(),
