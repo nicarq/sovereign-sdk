@@ -630,42 +630,62 @@ where
         };
 
         ws.on_upgrade(move |socket| async move {
-            let Ok(last_notified_slot) = ledger.get_latest_finalized_slot_number().await else {
-                return;
+            let initial_slot = match ledger.get_latest_finalized_slot_number().await {
+                Ok(s) => s,
+                Err(error) => {
+                    // There always should be the latest finalized slot number,
+                    // Unless there's a problem with storage.
+                    tracing::error!(
+                        error = error.to_string(),
+                        "Error fetch latest finalized slot number"
+                    );
+                    return;
+                }
             };
 
             let subscription = ledger
                 .subscribe_finalized_slots()
-                .then(|slot_num| {
-                    let ledger = ledger.clone();
-                    async move {
-                        let mut slots = vec![];
-                        for slot_number in last_notified_slot.range_inclusive(slot_num) {
-                            let slot_result = match ledger
-                                .get_slot_by_number::<B, TxReceipt, Event<E>>(
-                                    slot_number,
-                                    query_mode,
-                                )
-                                .await
-                            {
-                                Ok(Some(slot)) => Ok(Slot::<B, TxReceipt, E>::new(slot)),
-                                Ok(None) => Err(anyhow::anyhow!(
-                                    "Slot with number {} does not exist",
-                                    slot_number
-                                )),
-                                Err(err) => Err(anyhow::anyhow!(
-                                    "Failed to query slot with number: {}",
-                                    err.to_string()
-                                )),
-                            };
+                .scan(
+                    initial_slot,
+                    move |last_notified_slot, incoming_slot_num| {
+                        let old_last = *last_notified_slot;
+                        // Not ideal, since slot results with an error won't get re-notified.
+                        // An incoming slot is going to be included in the notification.
+                        *last_notified_slot = incoming_slot_num.saturating_add(1);
 
-                            slots.push(slot_result);
+                        let ledger = ledger.clone();
+                        async move {
+                            let capacity =
+                                incoming_slot_num.saturating_sub(old_last.get()).get() as usize;
+                            let mut slots = Vec::with_capacity(capacity);
+                            for slot_number in old_last.range_inclusive(incoming_slot_num) {
+                                let slot_result = match ledger
+                                    .get_slot_by_number::<B, TxReceipt, Event<E>>(
+                                        slot_number,
+                                        query_mode,
+                                    )
+                                    .await
+                                {
+                                    Ok(Some(slot)) => Ok(Slot::<B, TxReceipt, E>::new(slot)),
+                                    Ok(None) => Err(anyhow::anyhow!(
+                                        "Slot with number {} does not exist",
+                                        slot_number
+                                    )),
+                                    Err(err) => Err(anyhow::anyhow!(
+                                        "Failed to query slot with number: {}",
+                                        err.to_string()
+                                    )),
+                                };
+
+                                slots.push(slot_result);
+                            }
+
+                            // Returning `Some(...)` yields items to the *downstream*;
+                            // returning `None` would end the stream.
+                            Some(futures::stream::iter(slots))
                         }
-
-                        (slot_num, futures::stream::iter(slots))
-                    }
-                })
-                .map(|tuple| tuple.1)
+                    },
+                )
                 .flatten()
                 .boxed();
 

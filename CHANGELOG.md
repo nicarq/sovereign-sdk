@@ -1,5 +1,6 @@
 ## 2025-01-29
 - #2315 Remove manual batch production from the `bank` integration tests.
+- #2323 **Fixes the finalized slot WebSocket notification.** Now, it only sends the most recent slot information instead of resending every slot when a new one is finalized.
 ## 2025-01-28
 - #2304 removes some mandatory arguments to `RollupBuilder::new` in favor of builder methods.
 - #2310 allows to completely disable prover background test for in `RollupBuilder` for more precise testing.
