@@ -8,6 +8,7 @@
 ## 2025-01-23
 - #2266 Add soak testing crate for long running tests
 ## 2025-01-22
+- #2255 Makes it possible to generate benchmarks metrics using multiple processes.
 - #2259 removes the generic `AuthorizationData` associated type from traits (e.g. `TransactionAuthenticator`, `HasCapabilities`) and replaces it with a single concrete `AuthorizationData<S>` throughout the codebase.
 - #2267 adds `sov-cli node wait-for-aggregated-proof` command that allows to wait for next aggreggated proof to be retrievable from the node.
 

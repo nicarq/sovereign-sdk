@@ -22,34 +22,34 @@ const DEFAULT_GENERATION_PATH: &str = "./src/bench_files/generated/";
 
 const DEFAULT_INITIAL_SEED: u128 = 0;
 
-const NUM_SLOTS: u64 = 5;
+const NUM_SLOTS: u64 = 100;
 
 /// Benchmark parameters to define a small benchmark
 pub const SMALL_BENCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
-    min_txs_per_batch: 100,
-    max_txs_per_batch: 1000,
+    min_txs_per_batch: 2000,
+    max_txs_per_batch: 2000,
     min_batches_per_slot: 1,
-    max_batches_per_slot: 5,
+    max_batches_per_slot: 1,
     randomization_buffer_size: DEFAULT_RANDOMIZATION_BUFFER_SIZE / 10,
-    max_value_setter_vec_len: 1000,
+    max_value_setter_vec_len: 10,
 };
 
 /// Benchmark parameters to define a standard benchmark
 pub const STANDARD_BENCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
-    min_txs_per_batch: 1000,
-    max_txs_per_batch: 5000,
-    min_batches_per_slot: 10,
-    max_batches_per_slot: 20,
+    min_txs_per_batch: 500,
+    max_txs_per_batch: 1500,
+    min_batches_per_slot: 5,
+    max_batches_per_slot: 15,
     randomization_buffer_size: DEFAULT_RANDOMIZATION_BUFFER_SIZE,
     max_value_setter_vec_len: 10_000,
 };
 
 /// Benchmark parameters to define a large benchmark
 pub const LARGE_BENCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
-    min_txs_per_batch: 5000,
-    max_txs_per_batch: 10_000,
+    min_txs_per_batch: 1000,
+    max_txs_per_batch: 2000,
     min_batches_per_slot: 10,
-    max_batches_per_slot: 50,
+    max_batches_per_slot: 20,
     randomization_buffer_size: 10 * DEFAULT_RANDOMIZATION_BUFFER_SIZE,
     max_value_setter_vec_len: 100_000,
 };

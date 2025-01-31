@@ -1,5 +1,7 @@
 //! InfluxDB metrics for Sovereign rollups.
 
+use std::collections::HashMap;
+use std::sync::LazyLock;
 mod config;
 #[cfg(feature = "gas-constant-estimation")]
 mod gas_constant_estimation;
@@ -12,7 +14,7 @@ pub use gas_constant_estimation::{GasConstantTracker, GAS_CONSTANTS};
 pub use tracker::{
     init_metrics_tracker, timestamp, BatchMetrics, BatchOutcome, HttpMetrics, RunnerMetrics,
     SlotProcessingMetrics, SovRollupMetrics, TransactionEffect, TransactionProcessingMetrics,
-    UserSpaceSlotProcessingMetrics, ZkCircuit, ZkProvingTime, ZkVmExecutionChunk,
+    UserSpaceSlotProcessingMetrics, ZkCircuit, ZkProvingTime, ZkVmExecutionChunk, METRICS_METADATA,
 };
 
 pub(crate) type SerializableMetric = Box<dyn Metric>;
@@ -44,6 +46,29 @@ where
             f(m);
         }
     };
+}
+
+/// A simple helper that replace characters from the input using the char map.
+fn replace_chars(input: &str, char_map: &HashMap<char, &str>) -> String {
+    let mut result = String::with_capacity(input.len());
+
+    for c in input.chars() {
+        match char_map.get(&c) {
+            Some(replacement) => result.push_str(replacement),
+            None => result.push(c),
+        }
+    }
+
+    result
+}
+
+static TELEGRAF_ESCAPED_CHARS: LazyLock<HashMap<char, &'static str>> =
+    LazyLock::new(|| HashMap::from([(' ', r"\ "), ('=', r"\="), (',', r"\,")]));
+
+/// Returns a string that is the right format for telegraf.
+/// Source: (Special telegraf characters)[`https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol/#special-characters`]
+pub fn safe_telegraf_string(string: &str) -> String {
+    replace_chars(string, &TELEGRAF_ESCAPED_CHARS)
 }
 
 #[cfg(test)]

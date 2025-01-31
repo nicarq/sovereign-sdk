@@ -1,6 +1,7 @@
 //! Module storage definitions.
 
 use core::fmt;
+use std::fmt::Display;
 use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -246,6 +247,7 @@ pub trait StateRoot:
     Serialize
     + DeserializeOwned
     + fmt::Debug
+    + Display
     + Clone
     + BorshSerialize
     + BorshDeserialize

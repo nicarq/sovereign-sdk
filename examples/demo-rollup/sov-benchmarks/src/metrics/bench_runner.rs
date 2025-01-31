@@ -1,147 +1,167 @@
-//! A file that contains utilities to run benchmarks and gather metrics.
+//! Runs a benchmark of the zkvm metrics.
 
-use std::fs::File;
-use std::io::BufReader;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::time::Duration;
+use std::fs::{self};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::path::PathBuf;
 
-use anyhow::bail;
-use demo_stf::runtime::{Runtime, RuntimeCall};
-use sov_benchmarks::generator::BenchmarkData;
-use sov_benchmarks::BenchRisc0Spec;
-use sov_metrics::timestamp;
-use sov_node_client::NodeClient;
-use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
-use sov_test_utils::RtAgnosticBlueprint;
-use sov_transaction_generator::generators::basic::{
-    BasicChangeLogEntry, BasicClientConfig, BasicTag,
-};
-use sov_transaction_generator::{
-    assert_logs_against_state, GeneratedMessage, MessageOutcome, State,
-};
-use tokio::time::timeout;
+use anyhow::Context;
+use bench_file_runner::run_bench_file;
+use clap::{Parser, Subcommand};
+use sov_metrics::{MonitoringConfig, SovRollupMetrics};
 
-use crate::helpers::{setup, BatchSender};
-use crate::metrics::get_metrics;
-use crate::ParsedMetricsParameters;
+pub mod bench_file_runner;
 
-pub type S = BenchRisc0Spec;
-pub type RT = Runtime<S>;
-pub type BenchBlueprint = RtAgnosticBlueprint<S, RT>;
-pub type BenchRollup = TestRollup<BenchBlueprint>;
-pub type BenchRollupBuilder = RollupBuilder<BenchBlueprint>;
-pub type BenchState = State<S, BasicTag>;
-pub type BenchLogs = BasicChangeLogEntry<S>;
-pub type BenchMessage = GeneratedMessage<S, RuntimeCall<S>, BenchLogs>;
-pub type BenchOutcome = MessageOutcome<BasicChangeLogEntry<S>>;
+const DEFAULT_BENCH_FILES: &str = "./src/bench_files/generated";
+const DEFAULT_METRICS_OUTPUT: &str = "./src/metrics/generated";
+const DEFAULT_TELEGRAF_ADDRESS: SocketAddr = MonitoringConfig::standard().telegraf_address;
+const DEFAULT_INFLUX_DB_ADDRESS: SocketAddr =
+    SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 8086));
+const DEFAULT_NUM_THREADS: u8 = 10;
 
-/// Parses the next slot from a bench file.
-pub fn parse_next_data(reader: &mut BufReader<File>) -> anyhow::Result<BenchmarkData<S>> {
-    Ok(bincode::deserialize_from(reader)?)
+#[derive(Parser, Clone, Debug)]
+pub struct BenchMetricsCLI {
+    /// Path to the bench files. It can be either a folder name or a specific file.
+    /// If the path points to a folder, then all the bench files inside the folder will be run
+    /// in a separate process.
+    #[clap(short, long, default_value_t = DEFAULT_BENCH_FILES.to_string())]
+    pub path: String,
+    /// If set, then asserts the logs against the state. The inner value is the maximal number of
+    /// concurrent requests to the node. If not specified, then no state assertions are performed.
+    #[arg(short, long)]
+    logs: Option<u8>,
+    #[arg(short, long, default_value_t = DEFAULT_NUM_THREADS)]
+    /// Maximum number of concurrent threads to run the benchmarks.
+    threads: u8,
+    /// Specifies how to store and query the metrics. If not specified, no metrics are stored.
+    #[command(subcommand)]
+    metrics: Option<MetricsCLI>,
 }
 
-/// Runs a bench file and gathers metrics.
-pub async fn run_bench_file(
-    bench_file: File,
-    maybe_logs: Option<u8>,
-    telegraf_address: SocketAddr,
-    maybe_metrics_params: Option<ParsedMetricsParameters>,
-) -> anyhow::Result<()> {
-    // Starts by setting up the rollup for the benchmarks.
-    let mut reader = BufReader::new(bench_file);
+#[derive(Subcommand, Debug, Clone)]
+pub enum MetricsCLI {
+    /// Track metrics using telegraf.
+    Metrics {
+        /// Address of the telegraf service. Make sure that the service is up and running before running this executable.
+        #[arg(short, long, default_value_t = DEFAULT_TELEGRAF_ADDRESS)]
+        telegraf: SocketAddr,
+        /// Address of the influxdb service. Make sure that the service is up and running before running this executable.
+        #[arg(short, long, default_value_t = DEFAULT_INFLUX_DB_ADDRESS)]
+        influx: SocketAddr,
+        /// Influx token to authenticate with the influxdb service.
+        #[arg(long)]
+        influx_auth_token: String,
+        /// Influx org id to authenticate with the influxdb service.
+        #[arg(long)]
+        influx_org_id: String,
+        /// Output directory for the metrics.
+        #[arg(short, long, default_value_t = DEFAULT_METRICS_OUTPUT.to_string())]
+        output: String,
+        /// Whether to encode the metrics in gzip format. By default, the metrics are not encoded.
+        #[arg(short, long, default_value_t = false)]
+        encoded: bool,
+        /// Additional parameters to apply to the metrics. If not specified, then no filtering is applied.
+        #[command(subcommand)]
+        parameters: Option<MetricsQueryParameters>,
+    },
+}
 
-    let Ok(BenchmarkData::Genesis(genesis_config)) = parse_next_data(&mut reader) else {
-        bail!("The bench file should start with an initialization slot. The bench file is invalid");
-    };
-    let rollup = setup(genesis_config, telegraf_address).await?;
-    let client = NodeClient::new(rollup.api_client.baseurl()).await?;
-    let mut batch_sender = BatchSender::new(client).await;
+#[derive(clap::Subcommand, Debug, Clone)]
+pub enum MetricsQueryParameters {
+    /// Only keep the following measurements.
+    Measurements {
+        sov_rollup_metrics: Vec<SovRollupMetrics>,
+    },
+    /// Runs a custom query. Must be a valid flux query parameter.
+    /// Examples of query parameters:
+    /// ```
+    /// range(start: -1h)
+    /// filter(fn: (r) => r._measurement == "example-measurement" and r._field == "example-field")
+    /// filter(fn: (r) => r._measurement == "example-measurement_b" and r._field == "example-field_b")
+    /// ```
+    Custom { query_filters: Vec<String> },
+}
 
-    let Ok(BenchmarkData::Initialization(init_slot)) = parse_next_data(&mut reader) else {
-        bail!("The bench file should start with an initialization slot. The bench file is invalid");
-    };
-
-    let mut log_accumulator = maybe_logs.map(|_| Vec::<BenchLogs>::new());
-
-    let bench_start = timestamp();
-
-    let mut logs = batch_sender.produce_and_publish_batch(init_slot).await?;
-    if let Some(acc) = log_accumulator.as_mut() {
-        acc.append(&mut logs)
-    }
-
-    while let Ok(bench) = parse_next_data(&mut reader) {
-        let slot = match bench {
-            BenchmarkData::Execution {
-                batches,
-                slot_number,
-            } => {
-                println!("Executing slot {}...", slot_number);
-                batches
-            }
-            _ => {
-                panic!("Expected an execution slot.")
-            }
+impl MetricsQueryParameters {
+    /// Formats the query filters into a valid flux query.
+    fn format(self) -> String {
+        let query_vec = match self {
+            Self::Measurements { sov_rollup_metrics } => sov_rollup_metrics
+                .iter()
+                .map(|m| format!("r._measurement == \"{}\"", m.measurement_name()))
+                .collect::<Vec<_>>(),
+            Self::Custom { query_filters } => query_filters,
         };
 
-        for batch in slot {
-            let mut logs = batch_sender.produce_and_publish_batch(batch).await?;
-            if let Some(acc) = log_accumulator.as_mut() {
-                acc.append(&mut logs)
-            }
-        }
+        format!("|> filter(fn: (r) => {})", query_vec.join(" or "))
+    }
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // Parse the path of the bench files.
+    let cli = BenchMetricsCLI::parse();
+
+    let path = PathBuf::from(&cli.path);
+
+    if !path.exists() {
+        panic!(
+            "Bench file path {path:?} does not exist. Please make sure you provided a valid path."
+        );
     }
 
-    // We wait for all the results to be in.
-    println!("Waiting for submission results...");
-    timeout(Duration::from_secs(60), batch_sender.wait_for_results()).await??;
-
-    let bench_end = timestamp();
-
-    // Query metrics and assert logs in separate threads. Both operations are independent of each other.
-    // and may take a long time to complete.
-    let mut joinset = tokio::task::JoinSet::new();
-
-    if let Some(metrics_params) = maybe_metrics_params {
-        joinset.spawn(async move {
-            get_metrics(bench_start, bench_end, metrics_params)
-                .await
-                .expect("Failed to query metrics");
-        });
+    // If the path points to a file, then we simply run the bench file.
+    if path.is_file() {
+        run_bench_file(cli).await;
+        return Ok(());
     }
 
-    // Assert logs (if necessary) and shut down the rollup afterwards.
-    // Note that to assert the logs, the rollup still must be running (for the REST-api to be available).
-    joinset.spawn(async move {
-        if let Some((assert_logs, log_accumulator)) = maybe_logs.zip(log_accumulator) {
-            println!("\nAsserting logs...");
-            assert_logs_against_state(
-                log_accumulator,
-                Arc::new(BasicClientConfig {
-                    url: rollup.api_client.baseurl().clone(),
-                    rollup_height: None,
-                }),
-                assert_logs,
-            )
-            .await
-            .expect("Failed to assert logs");
-        }
+    // If the path points to a directory, then we run all the bench files inside the directory.
+    let bench_files = fs::read_dir(path).unwrap_or_else(|err| panic!("Failed to read bench directory: {err}. Please make sure you provide a valid directory or file path!"));
 
-        println!("Shutting down rollup...");
+    // Spawn a child process for each bench file. Await the processes concurrently
+    let mut processes = Vec::new();
 
-        rollup
-            .shutdown_sender
-            .send(())
-            .expect("Failed to send shutdown signal");
-        let _x = rollup
-            .rollup_task
-            .await
-            .expect("Failed to join rollup task");
-    });
+    for bench_file in bench_files {
+        // We remove both the path and its argument if it exist. They are replaced when calling the process.
+        // Note that `position` consumes the underlying iterator, hence the need to call [`args_os`] again afterwards.
+        let maybe_pos = std::env::args_os()
+            .position(|item| item.to_str().unwrap() == "-p" || item.to_str().unwrap() == "--path");
 
-    // Wait for all the tasks to finish and propagate any errors.
-    joinset.join_all().await;
+        let args = std::env::args_os();
+
+        let args: Vec<_> = if let Some(pos) = maybe_pos {
+            args.enumerate()
+                .filter_map(|(i, item)| {
+                    if i != pos && i != pos + 1 {
+                        Some(item)
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        } else {
+            args.collect()
+        };
+
+        let file_path = bench_file.unwrap().path();
+
+        // The first argument is always the process name.
+        let handle = tokio::process::Command::new(args[0].clone())
+            .args(vec![
+                "-p",
+                &file_path.into_os_string().into_string().unwrap(),
+            ])
+            .args(args.into_iter().skip(1))
+            .kill_on_drop(true)
+            .spawn()
+            .with_context(|| "Impossible to create child process")?;
+
+        processes.push(handle);
+    }
+
+    for mut process in processes {
+        process.wait().await?;
+    }
 
     Ok(())
 }

@@ -1,4 +1,4 @@
-use demo_simple_stf::{ApplySlotResult, CheckHashPreimageStf};
+use demo_simple_stf::{ApplySlotResult, CheckHashPreimageStf, Root};
 use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
@@ -52,7 +52,7 @@ fn test_stf_success() {
 
     let result = StateTransitionFunction::<MockZkvm, MockZkvm, MockDaSpec>::apply_slot(
         stf,
-        &[],
+        &Root([]),
         (),
         (),
         &MockBlockHeader::default(),

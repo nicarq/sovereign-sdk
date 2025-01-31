@@ -278,26 +278,11 @@ impl syn::parse::Parse for AttributeArgs {
     }
 }
 
-/// This macro is used to annotate functions that we want to track the usage of gas constants within the SDK.
-/// The purpose of the this macro is to measure how times different gas constants have been used within an annotated function
-/// to be able to estimate constant values.
-///
-/// One can add attribute arguments to this macro. Arguments should specify the name of the function inputs
-/// to track as metadata. For instance:
-///
-/// ```rust
-/// use sov_modules_macros::track_gas_constants_usage;
-///
-/// #[track_gas_constants_usage(input)]
-/// fn test_metrics(_input: &mut u64) {
-///     
-/// }
-/// ```
-///
-/// Will add `input={input_value}` as a metric metadata when collecting gas constant usage here.
 #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
 #[proc_macro_attribute]
 pub fn track_gas_constants_usage(attr: TokenStream, item: TokenStream) -> TokenStream {
+    use std::collections::HashSet;
+
     let attr_contents = parse_macro_input!(attr as AttributeArgs);
 
     let attr_inputs = attr_contents
@@ -309,7 +294,7 @@ pub fn track_gas_constants_usage(attr: TokenStream, item: TokenStream) -> TokenS
                 "Only path meta items are supported for the `track_gas_constants_usage` macro attribute"
             ),
         })
-        .collect::<Vec<_>>();
+        .collect::<HashSet<_>>();
 
     metrics::wrap_function_with(metrics::gas_estimation::const_tracker, item, attr_inputs)
         .unwrap_or_else(|err| err.to_compile_error().into())
@@ -333,6 +318,8 @@ pub fn track_gas_constants_usage(attr: TokenStream, item: TokenStream) -> TokenS
 #[cfg(feature = "bench")]
 #[proc_macro_attribute]
 pub fn cycle_tracker(attr: TokenStream, item: TokenStream) -> TokenStream {
+    use std::collections::HashSet;
+
     let attr_contents = parse_macro_input!(attr as AttributeArgs);
 
     let attr_inputs = attr_contents
@@ -344,7 +331,7 @@ pub fn cycle_tracker(attr: TokenStream, item: TokenStream) -> TokenStream {
                 panic!("Only path meta items are supported for the `cycle_tracker` macro attribute")
             }
         })
-        .collect::<Vec<_>>();
+        .collect::<HashSet<_>>();
 
     metrics::wrap_function_with(metrics::zk::cycles, item, attr_inputs)
         .unwrap_or_else(|err| err.to_compile_error().into())

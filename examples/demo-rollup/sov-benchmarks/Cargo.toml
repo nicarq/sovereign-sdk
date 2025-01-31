@@ -52,7 +52,9 @@ serde = { version = "1.0.208", default-features = false, features = [
     "derive",
 ] }
 progenitor = { version = "0.8" }
-tokio = { version = "1.42", default-features = false }
+tokio = { version = "1.42", default-features = false, features = [
+    "process"
+] }
 humantime = "2.1"
 hex = { version = "0.4.3" }
 clap = { version = "4.5.16", features = ["derive"] }
@@ -71,8 +73,8 @@ path = "src/node/rollup_coarse_measure.rs"
 harness = false
 
 [[bench]]
-name = "build_metrics"
-path = "src/metrics/build_metrics.rs"
+name = "bench_runner"
+path = "src/metrics/bench_runner.rs"
 harness = false
 
 [[bin]]

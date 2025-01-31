@@ -5404,6 +5404,7 @@ dependencies = [
  "bcs",
  "borsh",
  "derivative",
+ "derive_more 1.0.0",
  "hex",
  "jmt",
  "serde",

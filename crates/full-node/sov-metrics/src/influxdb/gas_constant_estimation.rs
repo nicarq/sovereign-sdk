@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Write;
 
-use crate::influxdb::tracker::SovRollupMetric;
-use crate::influxdb::Metric;
+use crate::influxdb::tracker::{serialize_metadata, SovRollupMetric};
+use crate::influxdb::{safe_telegraf_string, Metric};
 use crate::{timestamp, MetricsTracker};
 
 thread_local! {
@@ -76,28 +76,30 @@ impl MetricsTracker {
 impl Metric for GasConstantMetric {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         // We are adding the metadata as measurmement tags in the influxdb line protocol.
-        let mut parsed_metadata = String::new();
-
-        if !self.metadata.is_empty() {
-            parsed_metadata = format!(
-                "{},",
+        let parsed_metadata = if !self.metadata.is_empty() {
+            format!(
+                ",{}{}",
                 self.metadata
                     .iter()
                     .map(|(key, value)| {
                         // Replace spaces with underscores to make them compatible with telegraf
-                        let telegraf_formatted_key = key.replace(" ", "_");
+                        // Source: (Special telegraf characters)[`https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol/#special-characters`]
+                        let telegraf_formatted_key = safe_telegraf_string(key);
 
-                        format!("{}=\"{}\"", telegraf_formatted_key, value)
+                        format!("{}={}", telegraf_formatted_key, value)
                     })
                     .collect::<Vec<_>>()
-                    .join(",")
-            );
+                    .join(","),
+                serialize_metadata()
+            )
+        } else {
+            serialize_metadata()
         };
 
         write!(
             buffer,
-            "sov_rollup_gas_constant,name={},{}constant={} num_invocations={}",
-            self.name, parsed_metadata, self.constant, self.num_invocations
+            "sov_rollup_gas_constant,name={},constant={}{parsed_metadata} num_invocations={}",
+            self.name, self.constant, self.num_invocations
         )?;
         Ok(())
     }

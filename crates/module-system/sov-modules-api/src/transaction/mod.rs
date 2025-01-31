@@ -64,6 +64,19 @@ pub struct Transaction<R: TransactionCallable, S: Spec> {
     pub details: TxDetails<S>,
 }
 
+#[cfg(feature = "native")]
+impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
+    /// Computes the transaction hash as it would be computed by the rollup.
+    /// We do it so by computing the hash of the borsh-serialized transaction.
+    pub fn hash(&self) -> TxHash {
+        use digest::Digest;
+
+        let data = borsh::to_vec(&self).unwrap();
+
+        <S::CryptoSpec as CryptoSpec>::Hasher::digest(&data).into()
+    }
+}
+
 impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
     fn unmetered_deserialize_inner(buf: &mut &[u8]) -> Result<Self, io::Error> {
         let signature =

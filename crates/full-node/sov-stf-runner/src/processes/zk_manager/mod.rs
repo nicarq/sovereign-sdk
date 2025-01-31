@@ -77,6 +77,7 @@ where
 
         loop {
             let maybe_backoff_duration = backoff_iter.next();
+
             match metadata.prove(prover_service, genesis_state_root).await {
                 Ok(proof) => return Ok(proof),
                 Err((returned_metadata, error)) => {
