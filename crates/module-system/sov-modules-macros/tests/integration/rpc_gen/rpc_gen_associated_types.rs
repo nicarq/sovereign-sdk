@@ -1,5 +1,6 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::capabilities::mocks::MockKernel;
+use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
@@ -155,6 +156,7 @@ fn associated_types() {
         sequencer,
         sequencer_da,
         1.to_visible_slot_number(),
+        RollupHeight::new(1),
         ExecutionContext::Node,
     );
 

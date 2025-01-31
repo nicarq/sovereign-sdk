@@ -11,6 +11,7 @@ use sov_rollup_interface::zk::{CryptoSpec, StateTransitionPublicData, Zkvm};
 use sov_rollup_interface::BasicAddress;
 use sov_state::{Storage, StorageProof, Witness};
 
+use crate::capabilities::RollupHeight;
 use crate::gas::Gas;
 use crate::higher_kinded_types::Generic;
 use crate::transaction::Credentials;
@@ -172,6 +173,8 @@ pub struct Context<S: Spec> {
     gas_refund_recipient: S::Address,
     /// The height to report. This is set by the kernel when the context is created
     visible_slot_number: VisibleSlotNumber,
+    /// The current rollup height.
+    rollup_height: RollupHeight,
     /// Describes the context in which the transaction is being executed.
     execution_context: ExecutionContext,
 }
@@ -207,6 +210,11 @@ impl<S: Spec> Context<S> {
         &self.execution_context
     }
 
+    /// Returns the [`RollupHeight`] of the transaction.
+    pub fn rollup_height(&self) -> RollupHeight {
+        self.rollup_height
+    }
+
     /// Constructs a new Context with the provided sender as the payer.
     pub fn new(
         sender: S::Address,
@@ -214,6 +222,7 @@ impl<S: Spec> Context<S> {
         sequencer: S::Address,
         sequencer_da_address: <S::Da as DaSpec>::Address,
         visible_slot_number: VisibleSlotNumber,
+        rollup_height: RollupHeight,
         execution_context: ExecutionContext,
     ) -> Self {
         Self::with_payer(
@@ -223,6 +232,7 @@ impl<S: Spec> Context<S> {
             sequencer_da_address,
             sender,
             visible_slot_number,
+            rollup_height,
             execution_context,
         )
     }
@@ -235,6 +245,7 @@ impl<S: Spec> Context<S> {
         sequencer_da_address: <S::Da as DaSpec>::Address,
         payer: S::Address,
         visible_slot_number: VisibleSlotNumber,
+        rollup_height: RollupHeight,
         execution_context: ExecutionContext,
     ) -> Self {
         Self {
@@ -244,6 +255,7 @@ impl<S: Spec> Context<S> {
             sequencer_da_address,
             gas_refund_recipient: payer,
             visible_slot_number,
+            rollup_height,
             execution_context,
         }
     }
@@ -279,6 +291,7 @@ mod arbitrary {
     use sov_rollup_interface::da::DaSpec;
 
     use super::{Context, Spec};
+    use crate::module::spec::{RollupHeight, VisibleSlotNumber};
     impl<'a, S> Arbitrary<'a> for Context<S>
     where
         S: Spec,
@@ -289,13 +302,15 @@ mod arbitrary {
             let sender = u.arbitrary()?;
             let sequencer = u.arbitrary()?;
             let sequencer_da_address = u.arbitrary()?;
-            let height = u.arbitrary()?;
+            let height: VisibleSlotNumber = u.arbitrary()?;
+            let rollup_height = RollupHeight::new(u.int_in_range(0..=height.get())?);
             Ok(Self::new(
                 sender,
                 Default::default(),
                 sequencer,
                 sequencer_da_address,
                 height,
+                rollup_height,
                 crate::ExecutionContext::Node,
             ))
         }

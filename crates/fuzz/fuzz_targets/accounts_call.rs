@@ -9,6 +9,7 @@ use rand::seq::SliceRandom;
 use rand::{RngCore, SeedableRng};
 use sov_accounts::{AccountConfig, AccountData, Accounts, CallMessage};
 use sov_modules_api::capabilities::mocks::MockKernel;
+use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::{
     Context, CredentialId, DaSpec, ExecutionContext, Module, PrivateKey, PublicKey, Spec,
     StateCheckpoint, WorkingSet,
@@ -89,6 +90,7 @@ fuzz_target!(
                 sequencer,
                 sequencer_da,
                 VisibleSlotNumber::new_dangerous(i as _),
+                RollupHeight::new(i as _),
                 ExecutionContext::Node,
             );
 

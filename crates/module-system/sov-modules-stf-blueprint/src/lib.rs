@@ -479,6 +479,7 @@ where
             SlotGasMeter::<S>::new(block_gas_limit.clone(), preferred_sequencer);
 
         let visible_slot_number = state.visible_slot_number_to_access();
+        let rollup_height = state.rollup_height_to_access();
 
         trace!(
             blob_count = blob_selector_output.selected_blobs.len(),
@@ -522,6 +523,7 @@ where
                         &sender,
                         &gas_price,
                         visible_slot_number,
+                        rollup_height,
                         execution_context,
                     );
 
