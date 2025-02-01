@@ -2,7 +2,7 @@
 pub use actual_impl::*;
 #[cfg(feature = "sp1")]
 mod actual_impl {
-    use crate::cycle_utils::CycleMetric;
+    use crate::cycle_utils::{CycleMetric, MemoryInfo};
 
     /// File descriptor for the cycle count hook, which is used to get the cycle count.
     /// Can be any number, as long as it doesn't conflict with default/other hooks.
@@ -28,8 +28,11 @@ mod actual_impl {
     }
 
     /// Returns how many bytes of heap are still available
-    pub fn get_available_heap() -> u64 {
-        0x0C00_0000
+    pub fn get_available_heap() -> MemoryInfo {
+        MemoryInfo {
+            free: 0x0C00_0000,
+            used: 0,
+        }
     }
 }
 
@@ -38,7 +41,7 @@ pub use facade::*;
 
 #[cfg(not(feature = "sp1"))]
 mod facade {
-    use crate::cycle_utils::CycleMetric;
+    use crate::cycle_utils::{CycleMetric, MemoryInfo};
 
     /// Get the current cycle count of the sp1 zkvm, if available. Otherwise, return 0.
     pub fn get_cycle_count() -> u64 {
@@ -51,7 +54,10 @@ mod facade {
     }
 
     /// Returns how many bytes of heap are still available
-    pub fn get_available_heap() -> u64 {
-        0x0C00_0000
+    pub fn get_available_heap() -> MemoryInfo {
+        MemoryInfo {
+            free: 0x0C00_0000,
+            used: 0,
+        }
     }
 }

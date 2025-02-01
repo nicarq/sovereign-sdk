@@ -501,6 +501,8 @@ pub struct ZkVmExecutionChunk {
     pub cycles_count: u64,
     /// Available bytes on the heap after execution of the block is complete.
     pub free_heap_bytes: u64,
+    /// Amount of bytes of memory used during the execution of the block (and not reclaimed after execution is complete).
+    pub memory_used: u64,
 }
 
 impl Metric for ZkVmExecutionChunk {
@@ -526,8 +528,8 @@ impl Metric for ZkVmExecutionChunk {
 
         write!(
             buffer,
-            "sov_rollup_zkvm,name={}{metadata} cycles_count={},free_heap_bytes={}",
-            self.name, self.cycles_count, self.free_heap_bytes
+            "sov_rollup_zkvm,name={}{metadata} cycles_count={},free_heap_bytes={},memory_used={}",
+            self.name, self.cycles_count, self.free_heap_bytes, self.memory_used
         )
     }
 }

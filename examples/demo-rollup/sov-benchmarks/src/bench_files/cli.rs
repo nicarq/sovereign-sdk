@@ -22,7 +22,7 @@ const DEFAULT_GENERATION_PATH: &str = "./src/bench_files/generated/";
 
 const DEFAULT_INITIAL_SEED: u128 = 0;
 
-const NUM_SLOTS: u64 = 100;
+const NUM_SLOTS: u64 = 500;
 
 /// Benchmark parameters to define a small benchmark
 pub const SMALL_BENCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {

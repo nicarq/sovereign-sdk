@@ -14,7 +14,7 @@ pub fn metrics_callback(input: Bytes) -> anyhow::Result<Bytes> {
         name: metric,
         metadata,
         count: cycles_count,
-        free_heap_bytes,
+        memory,
     } = sov_metrics::cycle_utils::deserialize_metrics_call(input.as_ref())?;
 
     sov_metrics::track_metrics(|tracker| {
@@ -22,7 +22,8 @@ pub fn metrics_callback(input: Bytes) -> anyhow::Result<Bytes> {
             name: metric,
             metadata,
             cycles_count,
-            free_heap_bytes,
+            free_heap_bytes: memory.free as u64,
+            memory_used: memory.used as u64,
         });
     });
     Ok(Bytes::new())
