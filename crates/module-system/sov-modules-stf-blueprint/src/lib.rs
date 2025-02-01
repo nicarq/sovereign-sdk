@@ -25,7 +25,7 @@ use sov_modules_api::capabilities::{
     BatchFromUnregisteredSequencer, BlobOrigin, BlobSelector, BlobSelectorOutput, BlockGasInfo,
     ChainState, HasKernel, Kernel, SequencerRemuneration, TransactionAuthenticator,
 };
-use sov_modules_api::hooks::{KernelSlotHooks, SlotHooks};
+use sov_modules_api::hooks::{BlockHooks, KernelSlotHooks};
 use sov_modules_api::transaction::TransactionConsumption;
 pub use sov_modules_api::{BatchWithId, BlobData, Runtime};
 use sov_modules_api::{
@@ -172,13 +172,13 @@ where
     #[tracing::instrument(skip_all, name = "StfBlueprint::materialize_slot")]
     pub fn materialize_slot(
         &self,
-        should_execute_slot_hooks: bool,
+        create_rollup_block: bool,
         checkpoint: StateCheckpoint<S>,
     ) -> MaterializedUpdate<S::Storage> {
         let (next_root_hash, mut state_update, mut accessory_delta, witness, storage) =
             checkpoint.materialize_update();
 
-        if should_execute_slot_hooks {
+        if create_rollup_block {
             self.runtime
                 .finalize_hook(&next_root_hash, &mut accessory_delta);
             state_update.add_accessory_items(accessory_delta.freeze());
@@ -240,6 +240,9 @@ where
         pre_state: Self::PreState,
         params: Self::GenesisParams,
     ) -> (Self::StateRoot, Self::ChangeSet) {
+        // Sanity checks.
+        assert!(<S as GasSpec>::process_tx_pre_exec_checks_gas()
+            .dim_is_less_than(&<S as GasSpec>::max_tx_check_costs()), "Gas misconfiguration: PROCESS_TX_PRE_EXEC_GAS must be less than MAX_SEQUENCER_EXEC_GAS_PER_TX");
         let mut state_checkpoint = StateCheckpoint::new(pre_state, &self.runtime.kernel());
 
         let mut genesis_accessor =
@@ -286,21 +289,22 @@ where
         relevant_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         execution_context: ExecutionContext,
     ) -> ApplySlotOutput<S::InnerZkvm, S::OuterZkvm, S::Da, Self> {
-        // Sanity checks.
+        // Sanity check that gas limits are set correctly. This is already checked at genesis, but we check again in case
+        // Someone modifies the code after genesis.
         assert!(<S as GasSpec>::process_tx_pre_exec_checks_gas()
-            .dim_is_less_than(&<S as GasSpec>::max_tx_check_costs()));
+            .dim_is_less_than(&<S as GasSpec>::max_tx_check_costs()), "Gas misconfiguration: PROCESS_TX_PRE_EXEC_GAS must be less than MAX_SEQUENCER_EXEC_GAS_PER_TX");
 
         #[cfg(feature = "native")]
         let start_slot = std::time::Instant::now();
-        let mut state =
-            StateCheckpoint::with_witness(pre_state.clone(), witness, &self.runtime.kernel());
+        let mut state = StateCheckpoint::with_witness(pre_state, witness, &self.runtime.kernel());
 
-        let mut kernel = self.runtime.kernel().accessor(&mut state);
+        // First, we bootstrap the kernel from the previous state. The `true_slot_number` will be stale, because it's leftover from the previous slot.
+        let mut kernel_with_stale_height = self.runtime.kernel().accessor(&mut state);
 
         // WARNING: The kernel slot hooks should always be called before the runtime slot hooks.
         // That way the state of the runtime modules is always in sync with the transaction `being executed`.
         //
-        // WARNING: The true slot height gets updated in the `ChainState`'s `begin_slot_hook` method.
+        // WARNING: The true slot height gets updated in the `ChainState`'s `synchronise_chain` method.
         // The visible slot height gets updated in the `BlobStorage`'s `get_blobs_for_this_slot` method.
         // Be careful to not respect the call order: the `ChainState` hooks should be called before the `BlobStorage`'s which should be called before the
         // `Runtime`'s slot hooks.
@@ -308,9 +312,10 @@ where
             slot_header,
             validity_condition,
             pre_state_root,
-            &mut kernel,
+            &mut kernel_with_stale_height,
         );
-
+        // At this point we've "synchronized" the kernel state into the chain state module, so the `true_slot_number` is now up to date.
+        let mut kernel = kernel_with_stale_height;
         let visible_hash = self
             .runtime
             .chain_state()
@@ -319,18 +324,23 @@ where
 
         let blob_selector_output = self.select_and_validate_blobs(relevant_blobs, &mut kernel);
 
-        if blob_selector_output.should_execute_slot_hooks {
+        if blob_selector_output.create_rollup_block {
             let visible_slot_number = kernel.visible_slot_number();
             self.runtime
                 .chain_state()
                 .increment_rollup_height(&mut kernel, visible_slot_number);
+        } else {
+            // Defensive programming; if we don't create a rollup block, we aren't allowed to execute any transactions.
+            // We panic if this invariant is violated, because in this case the rollup block hooks will not be executed correctly leading
+            // To potentially inconsistent state.
+            assert_no_transactions_were_selected(&blob_selector_output);
         }
 
         #[cfg(feature = "native")]
         let blob_selection_time = start_slot.elapsed();
 
         #[cfg(feature = "native")]
-        let should_execute_slot_hooks = blob_selector_output.should_execute_slot_hooks;
+        let create_rollup_block = blob_selector_output.create_rollup_block;
 
         KernelSlotHooks::kernel_begin_slot_hook(
             &self.runtime,
@@ -371,7 +381,7 @@ where
 
             // Note the call to materialize slot mixed in with metrics operations here.
             let (state_root, witness, change_set, _) =
-                self.materialize_slot(should_execute_slot_hooks, state);
+                self.materialize_slot(create_rollup_block, state);
 
             let slot_finalization_time = slot_finalization_start.elapsed();
             sov_metrics::track_metrics(|tracker| {
@@ -487,14 +497,14 @@ where
             "Selected batch(es) for execution in current slot"
         );
 
-        // We run [`SlotHooks::begin_slot_hook`] if the visible height is updated. This is to ensure that we have the
+        // We run [`SlotHooks::begin_rollup_block_hook`] if the visible height is updated. This is to ensure that we have the
         // following invariant: the `user_space` root only updates when the `visible_slot_height`` gets increased.
         // If not enforced, this may break soft-confirmations because it will not be possible to deterministically
         // predict the user space state when executing priority blobs.
         #[cfg(feature = "native")]
         let begin_slot_start = std::time::Instant::now();
-        if blob_selector_output.should_execute_slot_hooks {
-            SlotHooks::begin_slot_hook(&self.runtime, &visible_hash, &mut state);
+        if blob_selector_output.create_rollup_block {
+            BlockHooks::begin_rollup_block_hook(&self.runtime, &visible_hash, &mut state);
         }
         #[cfg(feature = "native")]
         let begin_slot_hooks_time = begin_slot_start.elapsed();
@@ -594,8 +604,8 @@ where
 
         // Note that we run the end-slot hooks even in non-native mode, which is why this can't
         // be a single "native" block
-        if blob_selector_output.should_execute_slot_hooks {
-            SlotHooks::end_slot_hook(&self.runtime, &mut state);
+        if blob_selector_output.create_rollup_block {
+            BlockHooks::end_rollup_block_hook(&self.runtime, &mut state);
             let mut block_gas_info = BlockGasInfo::new(block_gas_limit, gas_price);
             block_gas_info.update_gas_used(slot_gas_meter.total_gas_used());
             let rollup_height = state.rollup_height_to_access();
@@ -625,5 +635,24 @@ where
             batch_receipts,
             state,
         )
+    }
+}
+
+/// Checks that the blob selector output does not contain any transactions - only proofs.
+fn assert_no_transactions_were_selected<S: Spec, B>(
+    blobs_selector_output: &BlobSelectorOutput<S, BlobDataWithId<B>>,
+) {
+    for (blob, _) in blobs_selector_output.selected_blobs.iter() {
+        match blob {
+            BlobDataWithId::Proof { .. } => {
+                // Do nothing
+            }
+            BlobDataWithId::Batch(_) => {
+                panic!("We should not be executing batches without creating a rollup block. This is a bug in the blob-selector - please report it!");
+            }
+            BlobDataWithId::EmergencyRegistration { .. } => {
+                panic!("We should not be executing emergency registrations without creating a rollup block. This is a bug in the blob-selector - please report it!");
+            }
+        }
     }
 }

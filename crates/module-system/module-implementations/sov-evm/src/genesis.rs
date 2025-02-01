@@ -166,7 +166,7 @@ where
             parent_hash: B256::default(),
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: config.coinbase,
-            // This will be set in finalize_hook or in the next begin_slot_hook
+            // This will be set in finalize_hook or in the next begin_rollup_block_hook
             state_root: KECCAK_EMPTY,
             transactions_root: EMPTY_TRANSACTIONS,
             receipts_root: EMPTY_RECEIPTS,

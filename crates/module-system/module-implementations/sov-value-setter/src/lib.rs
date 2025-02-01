@@ -34,11 +34,11 @@ pub struct ValueSetter<S: Spec> {
 
     /// The number of times the `begin_slot` hook has been called.
     #[state]
-    pub begin_slot_hook_count: StateValue<u32>,
+    pub begin_rollup_block_hook_count: StateValue<u32>,
 
     /// The number of times the `end_slot` hook has been called.
     #[state]
-    pub end_slot_hook_count: StateValue<u32>,
+    pub end_rollup_block_hook_count: StateValue<u32>,
 
     /// The number of times the `finalize` hook has been called.
     #[state]

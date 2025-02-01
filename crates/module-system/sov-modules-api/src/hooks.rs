@@ -59,36 +59,40 @@ impl<T: Module> TxHooks for &T {
     }
 }
 
-/// Hooks that execute during the `StateTransitionFunction::begin_slot` and `end_slot` functions.
-pub trait SlotHooks {
+/// Hooks that execute at the beginning and end of each rollup block.
+///
+/// A rollup block is created at the discretion of the blob-selector -
+/// on "based" rollups, this happens every time the DA layer produces a new block, regardless of the number of batches.
+/// On "soft-confirmed" rollups, this happens each time the preferred sequencer successfully lands its next batch on the DA layer.
+pub trait BlockHooks {
     /// The runtime spec.
     type Spec: Spec;
 
-    /// Hook that runs at the beginning of the `apply_slot` function inside the `StateTransitionFunction`.
-    fn begin_slot_hook(
+    /// Runs at the beginning of each rollup block. See trait description for more details.
+    fn begin_rollup_block_hook(
         &self,
         _visible_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         _state: &mut StateCheckpoint<Self::Spec>,
     ) {
     }
 
-    /// Hook that runs at the end of the `apply_slot` function inside the `StateTransitionFunction`.
-    fn end_slot_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {}
+    /// Hook that runs at the end of block execution. See trait description for more details.
+    fn end_rollup_block_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {}
 }
 
-/// Autoref blanket implementation of the [`SlotHooks`] trait.
-/// Any module can override the default behavior by implementing the [`SlotHooks`] trait.
-impl<T: Module> SlotHooks for &T {
+/// Autoref blanket implementation of the [`BlockHooks`] trait.
+/// Any module can override the default behavior by implementing the [`BlockHooks`] trait.
+impl<T: Module> BlockHooks for &T {
     type Spec = T::Spec;
 
-    fn begin_slot_hook(
+    fn begin_rollup_block_hook(
         &self,
         _visible_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         _state: &mut StateCheckpoint<Self::Spec>,
     ) {
     }
 
-    fn end_slot_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {}
+    fn end_rollup_block_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {}
 }
 
 /// Hooks allowing the runtime to get access to the DA layer state

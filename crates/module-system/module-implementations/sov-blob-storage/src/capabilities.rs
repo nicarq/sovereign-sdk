@@ -73,7 +73,7 @@ impl<S: Spec> BlobStorage<S> {
 
         BlobSelectorOutput {
             selected_blobs: self.select_blobs_da_ordering(current_blobs, state),
-            should_execute_slot_hooks: true,
+            create_rollup_block: true,
         }
     }
 
@@ -292,7 +292,7 @@ impl<S: Spec> BlobStorage<S> {
 
         BlobSelectorOutput {
             selected_blobs: blobs_with_total_size_limit.inner(),
-            should_execute_slot_hooks: true,
+            create_rollup_block: true,
         }
     }
 
@@ -551,7 +551,7 @@ impl<S: Spec> BlobStorage<S> {
 
         BlobSelectorOutput {
             selected_blobs: blobs_with_total_size_limit.inner(),
-            should_execute_slot_hooks: num_slots_to_advance > 0,
+            create_rollup_block: num_slots_to_advance > 0,
         }
     }
 

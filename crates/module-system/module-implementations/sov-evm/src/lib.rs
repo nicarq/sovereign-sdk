@@ -112,7 +112,7 @@ pub struct Evm<S: Spec> {
     #[state]
     pub(crate) cfg: StateValue<EvmChainConfig, BcsCodec>,
 
-    /// Block environment used by the evm. This field is set in `begin_slot_hook`.
+    /// Block environment used by the evm. This field is set in `begin_rollup_block_hook`.
     #[state]
     pub(crate) block_env: StateValue<BlockEnv, BcsCodec>,
 
@@ -121,13 +121,13 @@ pub struct Evm<S: Spec> {
     #[state]
     pub(crate) pending_transactions: StateVec<PendingTransaction, BcsCodec>,
 
-    /// Head of the chain. The new head is set in `end_slot_hook` but without the inclusion of the `state_root` field.
-    /// The `state_root` is added in `begin_slot_hook` of the next block because its calculation occurs after the `end_slot_hook`.
+    /// Head of the chain. The new head is set in `end_rollup_block_hook` but without the inclusion of the `state_root` field.
+    /// The `state_root` is added in `begin_rollup_block_hook` of the next block because its calculation occurs after the `end_rollup_block_hook`.
     #[state]
     pub(crate) head: StateValue<Block, BcsCodec>,
 
     /// Used only by the RPC. This represents the head of the chain and is set in two distinct stages:
-    ///  1. `end_slot_hook`: the pending head is populated with data from pending_transactions.
+    ///  1. `end_rollup_block_hook`: the pending head is populated with data from pending_transactions.
     ///  2. `finalize_hook` the `root_hash` is populated.
     ///
     /// Since this value is not authenticated, it can be modified in the

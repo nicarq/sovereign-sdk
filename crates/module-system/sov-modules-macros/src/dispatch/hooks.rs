@@ -19,7 +19,7 @@ impl HooksMacro {
         }
     }
 
-    /// Derives the [`::sov_modules_api::SlotHooks`], [`::sov_modules_api::TxHooks`] and [`::sov_modules_api::FinalizeHook`] traits.
+    /// Derives the [`::sov_modules_api::BlockHooks`], [`::sov_modules_api::TxHooks`] and [`::sov_modules_api::FinalizeHook`] traits.
     pub(crate) fn derive_hooks(&self, input: DeriveInput) -> syn::Result<proc_macro::TokenStream> {
         let DeriveInput {
             data,
@@ -95,9 +95,9 @@ impl HooksMacro {
         type_generics: &syn::TypeGenerics,
         where_clause: &Option<&syn::WhereClause>,
     ) -> proc_macro2::TokenStream {
-        let begin_slot_hook_fn = Self::make_hooks_fn(
+        let begin_rollup_block_hook_fn = Self::make_hooks_fn(
             fields,
-            &Ident::new("begin_slot_hook", Span::call_site()),
+            &Ident::new("begin_rollup_block_hook", Span::call_site()),
             &vec![],
             false,
             vec![
@@ -111,9 +111,9 @@ impl HooksMacro {
                 },
             ],
         );
-        let end_slot_hook_fn = Self::make_hooks_fn(
+        let end_rollup_block_hook_fn = Self::make_hooks_fn(
             fields,
-            &Ident::new("end_slot_hook", Span::call_site()),
+            &Ident::new("end_rollup_block_hook", Span::call_site()),
             &vec![],
             false,
             vec![&ArgWithType {
@@ -123,14 +123,14 @@ impl HooksMacro {
         );
 
         quote::quote! {
-            use ::sov_modules_api::hooks::SlotHooks;
+            use ::sov_modules_api::hooks::BlockHooks;
 
-            impl #impl_generics ::sov_modules_api::SlotHooks for #ident #type_generics #where_clause {
+            impl #impl_generics ::sov_modules_api::BlockHooks for #ident #type_generics #where_clause {
                 type Spec = <Self as ::sov_modules_api::DispatchCall>::Spec;
 
-                #begin_slot_hook_fn
+                #begin_rollup_block_hook_fn
 
-                #end_slot_hook_fn
+                #end_rollup_block_hook_fn
             }
         }
     }
@@ -142,7 +142,7 @@ impl HooksMacro {
         type_generics: &syn::TypeGenerics,
         where_clause: &Option<&syn::WhereClause>,
     ) -> proc_macro2::TokenStream {
-        let begin_slot_hook_fn = Self::make_hooks_fn(
+        let begin_rollup_block_hook_fn = Self::make_hooks_fn(
             fields,
             &Ident::new("kernel_begin_slot_hook", Span::call_site()),
             &vec![],
@@ -166,7 +166,7 @@ impl HooksMacro {
                 },
             ],
         );
-        let end_slot_hook_fn = Self::make_hooks_fn(
+        let end_rollup_block_hook_fn = Self::make_hooks_fn(
             fields,
             &Ident::new("kernel_end_slot_hook", Span::call_site()),
             &vec![],
@@ -189,9 +189,9 @@ impl HooksMacro {
             impl #impl_generics ::sov_modules_api::KernelSlotHooks for #ident #type_generics #where_clause {
                 type Spec = <Self as ::sov_modules_api::DispatchCall>::Spec;
 
-                #begin_slot_hook_fn
+                #begin_rollup_block_hook_fn
 
-                #end_slot_hook_fn
+                #end_rollup_block_hook_fn
             }
         }
     }

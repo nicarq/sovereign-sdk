@@ -25,9 +25,9 @@ impl<'a, T: BlobReaderTrait> BlobOrigin<'a, T> {
 pub struct BlobSelectorOutput<S: Spec, BlobType> {
     /// The blobs selected by the module.
     pub selected_blobs: Vec<(BlobType, <S::Da as DaSpec>::Address)>,
-    /// Whether the slot hooks should be executed. We should execute slot hooks whenever we accept blobs for execution
+    /// Whether the rollup block hooks should be executed. We should execute block hooks whenever we accept blobs for execution
     /// or when we increase the visible slot number.
-    pub should_execute_slot_hooks: bool,
+    pub create_rollup_block: bool,
 }
 
 impl<S: Spec, B> BlobSelectorOutput<S, B> {
@@ -42,7 +42,7 @@ impl<S: Spec, B> BlobSelectorOutput<S, B> {
                 .into_iter()
                 .map(|(batch, sender)| (f(batch), sender))
                 .collect(),
-            should_execute_slot_hooks: self.should_execute_slot_hooks,
+            create_rollup_block: self.create_rollup_block,
         }
     }
 }
