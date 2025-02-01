@@ -26,8 +26,8 @@ const NUM_SLOTS: u64 = 100;
 
 /// Benchmark parameters to define a small benchmark
 pub const SMALL_BENCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
-    min_txs_per_batch: 2000,
-    max_txs_per_batch: 2000,
+    min_txs_per_batch: 1500,
+    max_txs_per_batch: 1500,
     min_batches_per_slot: 1,
     max_batches_per_slot: 1,
     randomization_buffer_size: DEFAULT_RANDOMIZATION_BUFFER_SIZE / 10,
