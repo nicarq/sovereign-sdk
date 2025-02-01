@@ -1,6 +1,6 @@
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    Context, DaSpec, GenesisState, Module, ModuleError, ModuleId, ModuleInfo, SlotHooks, Spec,
+    BlockHooks, Context, DaSpec, GenesisState, Module, ModuleError, ModuleId, ModuleInfo, Spec,
     StateCheckpoint, StateVec, TxState,
 };
 use sov_state::Storage;
@@ -44,10 +44,10 @@ impl<S: Spec> Module for CorrectHooksOverride<S> {
     }
 }
 
-impl<S: Spec> SlotHooks for CorrectHooksOverride<S> {
+impl<S: Spec> BlockHooks for CorrectHooksOverride<S> {
     type Spec = S;
 
-    fn begin_slot_hook(
+    fn begin_rollup_block_hook(
         &self,
         visible_hash: &<<S as Spec>::Storage as Storage>::Root,
         state: &mut StateCheckpoint<Self::Spec>,
@@ -70,7 +70,7 @@ fn setup() -> TestRunner<RT> {
     TestRunner::new_with_genesis(genesis.into_genesis_params(), RT::default())
 }
 
-/// The hook override succeeds if the module implements the [`SlotHooks`] trait for every spec.
+/// The hook override succeeds if the module implements the [`BlockHooks`] trait for every spec.
 #[test]
 fn hook_override_succeeds_when_generic_override() {
     let mut runner = setup();

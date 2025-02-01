@@ -1,3 +1,6 @@
+## 2025-01-31
+- #2335 Renames `SlotHooks` to `BlockHooks` to better reflect the timing of these hooks.
+
 ## 2025-01-27
 - #2309 Improves metrics collection. This is not a breaking change for consumers of the SDK.
 

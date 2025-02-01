@@ -4,8 +4,8 @@ use sov_modules_api::digest::Digest;
 use sov_modules_api::prelude::*;
 use sov_modules_api::transaction::{Transaction, TxDetails};
 use sov_modules_api::{
-    CryptoSpec, DispatchCall, FullyBakedTx, Module, ModuleError, ModuleId, ModuleInfo, RawTx,
-    SlotHooks, StateCheckpoint, TxState,
+    BlockHooks, CryptoSpec, DispatchCall, FullyBakedTx, Module, ModuleError, ModuleId, ModuleInfo,
+    RawTx, StateCheckpoint, TxState,
 };
 use sov_paymaster::PaymasterPolicyInitializer;
 use sov_rollup_interface::TxHash;
@@ -165,10 +165,10 @@ impl<S: Spec> Module for ModuleWithVersionedStateAccessInSlotHook<S> {
     }
 }
 
-impl<S: Spec> SlotHooks for ModuleWithVersionedStateAccessInSlotHook<S> {
+impl<S: Spec> BlockHooks for ModuleWithVersionedStateAccessInSlotHook<S> {
     type Spec = S;
 
-    fn begin_slot_hook(
+    fn begin_rollup_block_hook(
         &self,
         _visible_hash: &<S::Storage as Storage>::Root,
         _state: &mut StateCheckpoint<Self::Spec>,
@@ -178,7 +178,7 @@ impl<S: Spec> SlotHooks for ModuleWithVersionedStateAccessInSlotHook<S> {
         //    .unwrap_infallible();
     }
 
-    fn end_slot_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {
+    fn end_rollup_block_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {
         //ChainState::<S>::default()
         //    .get_time(state)
         //    .unwrap_infallible();

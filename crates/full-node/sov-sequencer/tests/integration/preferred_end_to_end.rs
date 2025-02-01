@@ -281,8 +281,8 @@ async fn test_hooks_state_is_visible() {
             .value
     };
 
-    let begin_slot_count = query_hook_counter("begin-slot").await;
-    assert_eq!(begin_slot_count, 1);
+    let begin_block_count = query_hook_counter("begin-rollup-block").await;
+    assert_eq!(begin_block_count, 1);
 
     // Accept a transaction. This causes the next batch to start and the begin slot hook to run.
     {
@@ -297,11 +297,11 @@ async fn test_hooks_state_is_visible() {
             .unwrap();
     }
 
-    let begin_slot_count = query_hook_counter("begin-slot").await;
-    assert_eq!(begin_slot_count, 2);
+    let begin_block_count = query_hook_counter("begin-rollup-block").await;
+    assert_eq!(begin_block_count, 2);
 
     //  since we haven't finished building this batch, the end slot hook hasn't been run - so its value is still 1
-    let end_slot_count = query_hook_counter("end-slot").await;
+    let end_slot_count = query_hook_counter("end-rollup-block").await;
     assert_eq!(end_slot_count, 1);
     // The finalize hook runs during genesis, so it should have been run twice
     let finalize_count = query_hook_counter("finalize").await;
@@ -315,7 +315,7 @@ async fn test_hooks_state_is_visible() {
         })
         .await
         .unwrap();
-    let end_slot_count = query_hook_counter("end-slot").await;
+    let end_slot_count = query_hook_counter("end-rollup-block").await;
     assert_eq!(end_slot_count, 2);
     // The finalize hook should also have been run again
     let finalize_count = query_hook_counter("finalize").await;

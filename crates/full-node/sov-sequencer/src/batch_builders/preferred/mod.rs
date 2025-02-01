@@ -509,7 +509,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
                 selected_blobs.extend(additional_blobs);
                 let blob_selector_output = BlobSelectorOutput {
                     selected_blobs,
-                    should_execute_slot_hooks: true,
+                    create_rollup_block: true,
                 };
                 let stf = StfBlueprint::<Z::Spec, Z::Rt>::new();
                 let rt = Z::Rt::default();

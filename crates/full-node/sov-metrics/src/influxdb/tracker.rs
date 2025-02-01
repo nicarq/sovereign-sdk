@@ -304,7 +304,7 @@ pub struct SlotProcessingMetrics {
 #[derive(Debug)]
 pub struct UserSpaceSlotProcessingMetrics {
     /// Time it took for begin slot hooks.
-    /// Includes KernelSlotHooks and normal SlotHooks.
+    /// Includes KernelSlotHooks and BlockHooks.
     pub begin_slot_hooks_time: std::time::Duration,
 
     /// Time it took to process all blobs: Batches, Proofs and Forced registration

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "native")]
 use crate::hooks::FinalizeHook;
-use crate::hooks::{KernelSlotHooks, SlotHooks, TxHooks};
+use crate::hooks::{BlockHooks, KernelSlotHooks, TxHooks};
 use crate::{DispatchCall, Genesis, RuntimeEventProcessor, Spec};
 
 /// Flag indicating what mode the rollup is operating in.
@@ -37,7 +37,7 @@ pub trait Runtime<S: Spec>:
     + TransactionAuthenticator<S, Decodable = <Self as DispatchCall>::Decodable>
     + Genesis<Spec = S, Config = Self::GenesisConfig>
     + TxHooks<Spec = S>
-    + SlotHooks<Spec = S>
+    + BlockHooks<Spec = S>
     + KernelSlotHooks<Spec = S>
     + FinalizeHook<Spec = S>
     + Default
@@ -100,7 +100,7 @@ pub trait Runtime<S: Spec>:
     + TransactionAuthenticator<S, Decodable = <Self as DispatchCall>::Decodable>
     + Genesis<Spec = S, Config = Self::GenesisConfig>
     + TxHooks<Spec = S>
-    + SlotHooks<Spec = S>
+    + BlockHooks<Spec = S>
     + KernelSlotHooks<Spec = S>
     + Default
     + RuntimeEventProcessor

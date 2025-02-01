@@ -3,16 +3,16 @@ use reth_primitives::{Bloom, Bytes};
 use sov_modules_api::prelude::UnwrapInfallible;
 #[cfg(feature = "native")]
 use sov_modules_api::{AccessoryStateReaderAndWriter, FinalizeHook};
-use sov_modules_api::{SlotHooks, Spec, StateCheckpoint};
+use sov_modules_api::{BlockHooks, Spec, StateCheckpoint};
 use sov_state::{StateRoot, Storage};
 
 use crate::evm::primitive_types::Block;
 use crate::{BlockEnv, Evm, PendingTransaction};
 
-impl<S: Spec> SlotHooks for Evm<S> {
+impl<S: Spec> BlockHooks for Evm<S> {
     type Spec = S;
     /// Logic executed at the beginning of the slot. Here we set the root hash of the previous head.
-    fn begin_slot_hook(
+    fn begin_rollup_block_hook(
         &self,
         pre_state_user_root: &<S::Storage as Storage>::Root,
         state: &mut StateCheckpoint<S>,
@@ -61,8 +61,8 @@ impl<S: Spec> SlotHooks for Evm<S> {
     }
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
-    /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
-    fn end_slot_hook(&self, state: &mut StateCheckpoint<S>) {
+    /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_rollup_block_hook of the next slot.
+    fn end_rollup_block_hook(&self, state: &mut StateCheckpoint<S>) {
         let cfg = self.cfg.get(state).unwrap_infallible().unwrap_or_default();
 
         let block_env = self
@@ -114,7 +114,7 @@ impl<S: Spec> SlotHooks for Evm<S> {
             number: block_env.number.to(),
             ommers_hash: reth_primitives::constants::EMPTY_OMMER_ROOT_HASH,
             beneficiary: parent_block.header.beneficiary,
-            // This will be set in finalize_hook or in the next begin_slot_hook
+            // This will be set in finalize_hook or in the next begin_rollup_block_hook
             state_root: reth_primitives::constants::KECCAK_EMPTY,
             transactions_root: reth_primitives::proofs::calculate_transaction_root(
                 transactions.as_slice(),

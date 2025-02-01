@@ -11,7 +11,7 @@
 ///
 ///     let mut working_set = state_checkpoint.to_revertable();
 ///
-///     self.runtime.begin_slot_hook(slot_data, &mut working_set);
+///     self.runtime.begin_rollup_block_hook(slot_data, &mut working_set);
 ///
 ///     self.checkpoint = Some(working_set.checkpoint());
 /// }
@@ -210,7 +210,7 @@ pub use sov_modules_macros::Event;
 /// Derives the [`Genesis`](trait.Genesis.html) trait for the underlying runtime
 /// `struct`.
 pub use sov_modules_macros::Genesis;
-/// Derives the [`SlotHooks`](trait.SlotHooks.html) trait for the underlying runtime
+/// Derives the [`BlockHooks`](trait.BlockHooks.html) trait for the underlying runtime
 pub use sov_modules_macros::Hooks;
 pub use sov_modules_macros::MessageCodec;
 /// Derives the [`ModuleInfo`] trait for the underlying `struct`.
