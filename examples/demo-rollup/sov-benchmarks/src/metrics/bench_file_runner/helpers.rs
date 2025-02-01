@@ -48,6 +48,10 @@ pub async fn setup_rollup(
         config.automatic_batch_production = false;
         config.telegraf_address = telegraf_address;
         config.aggregated_proof_block_jump = 1;
+
+        // This value should be greater than the number of slots we want to run as part of the benchmark.
+        config.max_channel_size = 1_000;
+        config.max_infos_in_db = 1_000;
     })
     .set_da_config(|da_config| {
         da_config.sender_address = sequencer_da_address;

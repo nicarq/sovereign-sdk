@@ -333,7 +333,7 @@ pub fn cycle_tracker(attr: TokenStream, item: TokenStream) -> TokenStream {
         })
         .collect::<HashSet<_>>();
 
-    metrics::wrap_function_with(metrics::zk::cycles, item, attr_inputs)
+    metrics::wrap_function_with(metrics::zk::guest_metrics, item, attr_inputs)
         .unwrap_or_else(|err| err.to_compile_error().into())
 }
 

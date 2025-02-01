@@ -1,4 +1,5 @@
 ## 2025-01-31
+- #2331 Fixes memory consumption metrics. This may requires updating `risc0-zkvm` and `risc0-zk-platform` to version `1.2.1`
 - #2335 Renames `SlotHooks` to `BlockHooks` to better reflect the timing of these hooks.
 
 ## 2025-01-27

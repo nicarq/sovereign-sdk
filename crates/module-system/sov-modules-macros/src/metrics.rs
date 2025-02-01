@@ -49,9 +49,9 @@ pub mod zk {
     use super::*;
 
     /// Wrap a block with benchmarking. Fills the correct cycle counter based on the target and vendor.
-    pub fn cycles(ident: &Ident, block: &Block, tagged_inputs: Vec<Ident>) -> Box<Block> {
-        let risc0_zk_block = cycles_inner_risc0(ident, block, &tagged_inputs);
-        let sp1_zk_block = cycles_inner_sp1(ident, block, &tagged_inputs);
+    pub fn guest_metrics(ident: &Ident, block: &Block, tagged_inputs: Vec<Ident>) -> Box<Block> {
+        let risc0_zk_block = metrics_inner_risc0(ident, block, &tagged_inputs);
+        let sp1_zk_block = metrics_inner_sp1(ident, block, &tagged_inputs);
 
         parse_quote!({
             #[cfg(all(target_os = "zkvm", target_vendor = "succinct"))]
@@ -69,7 +69,7 @@ pub mod zk {
         })
     }
 
-    fn cycles_inner_risc0(ident: &Ident, block: &Block, tagged_inputs: &[Ident]) -> Box<Block> {
+    fn metrics_inner_risc0(ident: &Ident, block: &Block, tagged_inputs: &[Ident]) -> Box<Block> {
         let inputs_iter = tagged_inputs
             .iter()
             .map(|ident| quote! { (stringify!(#ident).to_string(), #ident.to_string()) })
@@ -79,18 +79,28 @@ pub mod zk {
             {
                 let inputs = vec![ #(#inputs_iter,)* ];
 
+
+                let memory_before = ::sov_metrics::cycle_utils::risc0::get_available_heap();
+
                 let cycles_before = ::sov_metrics::cycle_utils::risc0::get_cycle_count();
                 let result = (|| #block)();
                 let cycles_after = ::sov_metrics::cycle_utils::risc0::get_cycle_count();
-                let heap_bytes_free_after = ::sov_metrics::cycle_utils::risc0::get_available_heap();
+
+                let memory_after = ::sov_metrics::cycle_utils::risc0::get_available_heap();
 
                 let cycles = cycles_after.saturating_sub(cycles_before);
+
+                let memory_diff = ::sov_metrics::cycle_utils::MemoryInfo {
+                    free: memory_after.free,
+                    used: memory_after.used.saturating_sub(memory_before.used)
+                };
+
                 ::sov_metrics::cycle_utils::risc0::report_cycle_count(
                     ::sov_metrics::cycle_utils::CycleMetric {
                         name: stringify!(#ident).to_string(),
                         metadata: inputs,
                         count: cycles,
-                        free_heap_bytes: heap_bytes_free_after,
+                        memory: memory_diff,
                     }
                 );
 
@@ -99,7 +109,7 @@ pub mod zk {
         }
     }
 
-    fn cycles_inner_sp1(ident: &Ident, block: &Block, tagged_inputs: &[Ident]) -> Box<Block> {
+    fn metrics_inner_sp1(ident: &Ident, block: &Block, tagged_inputs: &[Ident]) -> Box<Block> {
         let inputs_iter = tagged_inputs
             .iter()
             .map(|ident| quote! { (stringify!(#ident).to_string(), #ident.to_string()) })
@@ -109,17 +119,23 @@ pub mod zk {
            {
                 let inputs = vec![ #(#inputs_iter,)* ];
 
+                let memory_before = ::sov_metrics::cycle_utils::sp1::get_available_heap();
                 let before = ::sov_metrics::cycle_utils::sp1::get_cycle_count();
                 let result = (move || #block)();
                 let after = ::sov_metrics::cycle_utils::sp1::get_cycle_count();
-                let heap_bytes_free_after = ::sov_metrics::cycle_utils::sp1::get_available_heap();
+                let memory_after = ::sov_metrics::cycle_utils::sp1::get_available_heap();
+
+                let memory_diff = ::sov_metrics::cycle_utils::MemoryInfo {
+                    free: memory_after.free,
+                    used: memory_after.used.saturating_sub(memory_before.used)
+                };
 
                 ::sov_metrics::cycle_utils::sp1::report_cycle_count(
                     ::sov_metrics::cycle_utils::CycleMetric {
                         name: stringify!(#ident).to_string(),
                         metadata: inputs,
                         count: after - before,
-                        free_heap_bytes: heap_bytes_free_after,
+                        memory: memory_diff,
                     });
                 result
             }

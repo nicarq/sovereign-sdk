@@ -3,8 +3,6 @@ pub use actual_impl::*;
 
 #[cfg(feature = "risc0")]
 mod actual_impl {
-    use std::hint::black_box;
-
     use risc0_zkvm;
     use risc0_zkvm_platform::syscall::{sys_cycle_count, SyscallName};
 
@@ -29,13 +27,14 @@ mod actual_impl {
     }
 
     /// Returns how many bytes of heap are still available
-    pub fn get_available_heap() -> u64 {
-        // TODO hack, this is allocating just to get a pointer to the top of the heap.
-        // Assumes bump alloc
-        // When embed alloc is fixed https://github.com/risc0/risc0/pull/2677 can use that.
-        let new_alloc = black_box(Box::new(()));
-        let available = 0x0C00_0000 - &new_alloc as *const _ as usize;
-        available as u64
+    #[cfg(target_os = "zkvm")]
+    pub fn get_available_heap() -> crate::cycle_utils::MemoryInfo {
+        use risc0_zkvm_platform::heap::{free, used};
+
+        crate::cycle_utils::MemoryInfo {
+            free: free(),
+            used: used(),
+        }
     }
 }
 
@@ -43,7 +42,7 @@ mod actual_impl {
 pub use facade::*;
 #[cfg(not(feature = "risc0"))]
 mod facade {
-    use crate::cycle_utils::CycleMetric;
+    use crate::cycle_utils::{CycleMetric, MemoryInfo};
 
     /// Gets the current cycle count. Note: this function will always return 0 if the risc0 feature is not enabled!
     pub fn get_cycle_count() -> u64 {
@@ -56,7 +55,10 @@ mod facade {
     }
 
     /// Gets the available heap. Note: this function will always return 0x0C00_0000 if the risc0 feature is not enabled!
-    pub fn get_available_heap() -> u64 {
-        0x0C00_0000
+    pub fn get_available_heap() -> MemoryInfo {
+        MemoryInfo {
+            free: 0x0C00_0000,
+            used: 0,
+        }
     }
 }

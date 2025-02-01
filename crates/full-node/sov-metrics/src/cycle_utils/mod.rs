@@ -15,12 +15,21 @@ pub struct CycleMetric {
     pub metadata: Vec<(String, String)>,
     /// Number of cycles
     pub count: u64,
-    /// Free heap bytes
-    pub free_heap_bytes: u64,
+    /// Memory usage information
+    pub memory: MemoryInfo,
 }
 
 #[cfg(feature = "native")]
 /// Deserialize the output of the metrics syscall
 pub fn deserialize_metrics_call(serialized: &[u8]) -> anyhow::Result<CycleMetric> {
     Ok(bincode::deserialize::<CycleMetric>(serialized)?)
+}
+
+/// Information on memory consumption for the zkvm
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MemoryInfo {
+    /// Amount of bytes of memory still free to use.
+    pub free: usize,
+    /// Amount of bytes of memory used during the execution of the block (and not reclaimed after execution is complete).
+    pub used: usize,
 }

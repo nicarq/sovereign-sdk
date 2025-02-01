@@ -114,7 +114,7 @@ async fn runner(
         let exec_duration = Duration::from_nanos((slot_end - slot_start) as u64);
         let throughput = num_txs as f64 / exec_duration.as_secs_f64();
 
-        trace!(
+        info!(
             bench = bench_name,
             slot = slot_number,
             transactions = num_txs,
@@ -181,7 +181,7 @@ pub async fn run_bench_file(input: BenchMetricsCLI) {
         DEFAULT_TELEGRAF_ADDRESS
     };
 
-    let mut file_path = PathBuf::from(input.path.clone());
+    let file_path = PathBuf::from(input.path.clone());
     let bench_file = File::open(file_path.clone())
         .unwrap_or_else(|_| panic!("Failed to open bench file at path {}. Make sure you provided an appropriate file name!", file_path.display()));
 
@@ -203,11 +203,13 @@ pub async fn run_bench_file(input: BenchMetricsCLI) {
         ..
     }) = input.metrics
     {
+        let bench_name = bench_name_str.to_string();
+
         // Setting the metrics metadata
         if METRICS_METADATA
             .write()
             .unwrap()
-            .insert("bench_file".to_string(), bench_name_str.to_string())
+            .insert("bench_file".to_string(), bench_name.clone())
             .is_some()
         {
             panic!("Impossible to insert metrics metadata")
@@ -220,17 +222,20 @@ pub async fn run_bench_file(input: BenchMetricsCLI) {
                     let output_dir = PathBuf::from(output);
 
                     // If the metrics are encoded, then we need to add the .gzip extension.
+                    let mut path_with_stamp = PathBuf::from(format!(
+                        "{}_{}",
+                        file_path.file_stem().unwrap().to_str().unwrap(),
+                        timestamp()
+                    ));
+
                     if encoded {
-                        file_path.set_extension("csv.gz");
+                        path_with_stamp.set_extension("csv.gz");
                     } else {
-                        file_path.set_extension("csv");
+                        path_with_stamp.set_extension("csv");
                     }
 
                     ParsedMetricsParameters {
-                        output_file: output_dir
-                            .join(file_path.clone().file_name().unwrap())
-                            .display()
-                            .to_string(),
+                        output_file: output_dir.join(path_with_stamp).display().to_string(),
                         influx_address: influx,
                         influx_auth_token,
                         influx_org_id,
@@ -241,6 +246,7 @@ pub async fn run_bench_file(input: BenchMetricsCLI) {
 
                 let start_timestamp = timestamp();
                 metrics::start_metrics_thread(
+                    bench_name,
                     start_timestamp,
                     metrics_params,
                     metrics_shutdown_receiver,

@@ -13,9 +13,10 @@ use tracing::{info, trace};
 
 use super::ParsedMetricsParameters;
 
-const METRICS_REFRESH_WINDOW: Duration = Duration::from_secs(10);
+const METRICS_REFRESH_WINDOW: Duration = Duration::from_secs(100);
 
 async fn get_metrics(
+    bench_name: String,
     start_timestamp: u128,
     end_timestamp: u128,
     metrics_params: &ParsedMetricsParameters,
@@ -24,6 +25,7 @@ async fn get_metrics(
     let metrics_query = format!(
         "from(bucket: \"sov-rollup\")
     |> range(start: time(v: {start_timestamp}), stop: time(v: {end_timestamp}))
+    |> filter(fn: (r) => r.bench_file == \"{bench_name}\")
     {}",
         metrics_params.query_filter
     );
@@ -50,9 +52,9 @@ async fn get_metrics(
     let response = response_builder.send().await?.error_for_status()?;
 
     trace!(
+        bench = bench_name,
         thread = "metrics_storage",
-        output = metrics_params.output_file,
-        "Successfully queried metrics from InfluxDB. Writing to file..."
+        "Successfully queried metrics from InfluxDB."
     );
 
     // Stream the response to the output file.
@@ -78,9 +80,10 @@ async fn get_metrics(
     writer.flush()?;
 
     trace!(
+        bench = bench_name,
         thread = "metrics_storage",
         output = metrics_params.output_file,
-        "Successfully written metrics to file."
+        "Successfully written metrics to output file."
     );
 
     Ok(())
@@ -88,6 +91,7 @@ async fn get_metrics(
 
 /// Main function that queries metrics from telegraph and stores them to the supplied file.
 pub async fn start_metrics_thread(
+    bench_name: String,
     initial_timestamp: u128,
     metrics_params: ParsedMetricsParameters,
     shutdown_receiver: tokio::sync::watch::Receiver<()>,
@@ -109,7 +113,8 @@ pub async fn start_metrics_thread(
     };
 
     // Query metrics from telegraph and store them to the output file.
-    info!(
+    trace!(
+        bench = bench_name,
         thread = "metrics_storage",
         "Querying metrics from InfluxDB..."
     );
@@ -132,6 +137,7 @@ pub async fn start_metrics_thread(
 
                 let curr_stamp = timestamp();
                 get_metrics(
+                    bench_name.clone(),
                     start_timestamp,
                     curr_stamp,
                     &metrics_params,
@@ -143,17 +149,14 @@ pub async fn start_metrics_thread(
             FutureOrShutdownOutput::Shutdown => {
                 // We store the last metrics before exiting.
                 info!(
+                    bench = bench_name,
                     thread = "metrics_storage",
                     "Metrics storage thread has received a shutdown signal. Exiting..."
                 );
 
-                trace!(
-                    thread = "metrics_storage",
-                    output = metrics_params.output_file,
-                    "Shutdown received. Storing last metrics to file..."
-                );
                 let curr_stamp = timestamp();
                 get_metrics(
+                    bench_name.clone(),
                     start_timestamp,
                     curr_stamp,
                     &metrics_params,
@@ -166,7 +169,11 @@ pub async fn start_metrics_thread(
         }
     }
 
-    trace!(thread = "metrics_storage", "Exited metrics storage thread.");
+    trace!(
+        bench = bench_name,
+        thread = "metrics_storage",
+        "Exited metrics storage thread."
+    );
 
     Ok(())
 }

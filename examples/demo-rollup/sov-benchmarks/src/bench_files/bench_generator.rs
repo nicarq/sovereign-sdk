@@ -251,7 +251,8 @@ async fn main() {
         let generation_base_path_cloned = generation_base_path.clone();
         joinset.spawn(async move {
             let mut bench_with_extension = benchmark.name.clone();
-            bench_with_extension.push_str(".bin");
+            let bench_stamp = timestamp();
+            bench_with_extension.push_str(&format!("_{bench_stamp}.bin"));
 
             info!(bench = benchmark.name, "Generating benchmark...");
 
