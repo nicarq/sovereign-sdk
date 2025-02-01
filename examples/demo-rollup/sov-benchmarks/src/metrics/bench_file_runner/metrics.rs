@@ -4,6 +4,7 @@ use std::io::{BufWriter, Write};
 
 use futures::{pin_mut, StreamExt};
 use reqwest::Client;
+use tracing::trace;
 
 use super::ParsedMetricsParameters;
 
@@ -44,7 +45,10 @@ pub async fn get_metrics(
 
     let response = response_builder.send().await?.error_for_status()?;
 
-    println!("Successfully queried metrics from InfluxDB. Writing to file...");
+    trace!(
+        thread = "metrics_storage",
+        "Successfully queried metrics from InfluxDB. Writing to file..."
+    );
 
     // Stream the response to the output file.
     let response_stream = response.bytes_stream();
@@ -68,7 +72,10 @@ pub async fn get_metrics(
 
     writer.flush()?;
 
-    println!("Successfully written metrics to file.");
+    trace!(
+        thread = "metrics_storage",
+        "Successfully written metrics to file."
+    );
 
     Ok(())
 }

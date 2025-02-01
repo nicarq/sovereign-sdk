@@ -58,7 +58,6 @@ fn replace_chars(input: &str, char_map: &HashMap<char, &str>) -> String {
             None => result.push(c),
         }
     }
-
     result
 }
 

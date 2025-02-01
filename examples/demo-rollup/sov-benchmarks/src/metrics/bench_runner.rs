@@ -1,5 +1,6 @@
 //! Runs a benchmark of the zkvm metrics.
 
+use std::env;
 use std::fs::{self};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
@@ -8,8 +9,10 @@ use anyhow::Context;
 use bench_file_runner::run_bench_file;
 use clap::{Parser, Subcommand};
 use sov_metrics::{MonitoringConfig, SovRollupMetrics};
+use sov_test_utils::initialize_logging;
+use tracing::info_span;
 
-pub mod bench_file_runner;
+mod bench_file_runner;
 
 const DEFAULT_BENCH_FILES: &str = "./src/bench_files/generated";
 const DEFAULT_METRICS_OUTPUT: &str = "./src/metrics/generated";
@@ -100,6 +103,15 @@ impl MetricsQueryParameters {
 async fn main() -> anyhow::Result<()> {
     // Parse the path of the bench files.
     let cli = BenchMetricsCLI::parse();
+
+    // We only set the logging level if the env var is not set.
+    if env::var("RUST_LOG").is_err() {
+        env::set_var("RUST_LOG", "warn,error,bench_runner=info");
+    }
+
+    initialize_logging();
+
+    info_span!("bench_runner");
 
     let path = PathBuf::from(&cli.path);
 

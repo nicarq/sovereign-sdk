@@ -1,5 +1,6 @@
 //! This file generate harness files and stores them in the harnesses `generated` folder.
 
+use std::env;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::PathBuf;
@@ -14,6 +15,7 @@ use sov_benchmarks::BenchSpec;
 use sov_metrics::timestamp;
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_risc0_adapter::Risc0;
+use sov_test_utils::initialize_logging;
 use sov_test_utils::runtime::sov_bank::CallMessageDiscriminants as BankDiscriminants;
 use sov_test_utils::runtime::sov_value_setter::CallMessageDiscriminants as ValueSetterDiscriminants;
 use sov_transaction_generator::generators::bank::harness_interface::BankHarness;
@@ -23,6 +25,7 @@ use sov_transaction_generator::generators::value_setter::{
     ValueSetterHarness, ValueSetterMessageGenerator,
 };
 use sov_transaction_generator::{Distribution, MessageValidity, Percent};
+use tracing::{info, info_span};
 type S = BenchSpec<Risc0>;
 type RT = Runtime<S>;
 
@@ -227,6 +230,15 @@ pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec
 async fn main() {
     let params = BenchCLI::parse();
 
+    // If the env var is not set, then we set it to the default value.
+    if env::var("RUST_LOG").is_err() {
+        env::set_var("RUST_LOG", "warn,error,bench_generator=info");
+    }
+
+    initialize_logging();
+
+    info_span!("bench_generator");
+
     let args = params.parse_size();
 
     let benchmarks = basic_benches(args, params.slots, params.seed);
@@ -241,7 +253,7 @@ async fn main() {
             let mut bench_with_extension = benchmark.name.clone();
             bench_with_extension.push_str(".bin");
 
-            println!("Generating benchmark {}...", benchmark.name);
+            info!(bench = benchmark.name, "Generating benchmark...");
 
             let path = generation_base_path_cloned.join(bench_with_extension);
             let path_str = path
@@ -269,11 +281,14 @@ async fn main() {
 
             let exec_duration = Duration::from_nanos((end_stamp - begin_stamp) as u64);
 
-            println!(
-                "{} generation took {}.{} s...",
-                benchmark.name,
-                exec_duration.as_secs(),
-                exec_duration.subsec_millis()
+            info!(
+                bench = benchmark.name,
+                generation_duration = format!(
+                    "{}.{}s",
+                    exec_duration.as_secs(),
+                    exec_duration.subsec_millis()
+                ),
+                "Generation complete...",
             );
         });
     }
