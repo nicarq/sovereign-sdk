@@ -1,22 +1,26 @@
 //! This module can query metrics from telegraph and store them.
 
+use std::fs::File;
 use std::io::{BufWriter, Write};
+use std::time::Duration;
 
 use futures::{pin_mut, StreamExt};
 use reqwest::Client;
-use tracing::trace;
+use sov_metrics::timestamp;
+use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
+use tokio::time::interval;
+use tracing::{info, trace};
 
 use super::ParsedMetricsParameters;
 
-/// Main function that queries metrics from telegraph and stores them to the supplied file.
-pub async fn get_metrics(
+const METRICS_REFRESH_WINDOW: Duration = Duration::from_secs(10);
+
+async fn get_metrics(
     start_timestamp: u128,
     end_timestamp: u128,
-    metrics_params: ParsedMetricsParameters,
+    metrics_params: &ParsedMetricsParameters,
+    out_file: &mut File,
 ) -> anyhow::Result<()> {
-    // Query metrics from telegraph and store them to the output file.
-    println!("Querying metrics from InfluxDB...");
-
     let metrics_query = format!(
         "from(bucket: \"sov-rollup\")
     |> range(start: time(v: {start_timestamp}), stop: time(v: {end_timestamp}))
@@ -33,7 +37,7 @@ pub async fn get_metrics(
 
     let mut response_builder = client
         .post(post_addr)
-        .bearer_auth(metrics_params.influx_auth_token)
+        .bearer_auth(metrics_params.influx_auth_token.clone())
         .header("Accept", "application/csv")
         .header("Content-type", "application/vnd.flux")
         .body(metrics_query);
@@ -47,12 +51,13 @@ pub async fn get_metrics(
 
     trace!(
         thread = "metrics_storage",
+        output = metrics_params.output_file,
         "Successfully queried metrics from InfluxDB. Writing to file..."
     );
 
     // Stream the response to the output file.
     let response_stream = response.bytes_stream();
-    let mut writer = BufWriter::new(metrics_params.output_file);
+    let mut writer = BufWriter::new(out_file);
 
     pin_mut!(response_stream);
     while let Some(chunk) = response_stream.next().await {
@@ -74,8 +79,94 @@ pub async fn get_metrics(
 
     trace!(
         thread = "metrics_storage",
+        output = metrics_params.output_file,
         "Successfully written metrics to file."
     );
+
+    Ok(())
+}
+
+/// Main function that queries metrics from telegraph and stores them to the supplied file.
+pub async fn start_metrics_thread(
+    initial_timestamp: u128,
+    metrics_params: ParsedMetricsParameters,
+    shutdown_receiver: tokio::sync::watch::Receiver<()>,
+) -> anyhow::Result<()> {
+    // Perform health checks for influxdb instance.
+    match reqwest::Client::new()
+        .get(format!("http://{}/health", metrics_params.influx_address))
+        .send()
+        .await
+    {
+        Ok(response) => {
+            if response.status() != 200 {
+                panic!("Unhealthy influxdb instance: {}. Please ensure that the instance is properly set up.", metrics_params.influx_address);
+            }
+        }
+        Err(_) => {
+            panic!("Invalid influxdb address: {}. Please ensure that the address is correct and that the service is running.", metrics_params.influx_address);
+        }
+    };
+
+    // Query metrics from telegraph and store them to the output file.
+    info!(
+        thread = "metrics_storage",
+        "Querying metrics from InfluxDB..."
+    );
+
+    let mut output_file = File::create(metrics_params.output_file.clone())
+        .expect("Failed to create metrics output file");
+
+    let mut start_timestamp = initial_timestamp;
+
+    let mut interval = interval(METRICS_REFRESH_WINDOW);
+
+    loop {
+        match future_or_shutdown(interval.tick(), &shutdown_receiver).await {
+            FutureOrShutdownOutput::Output(_) => {
+                trace!(
+                    thread = "metrics_storage",
+                    output = metrics_params.output_file,
+                    "Storing metrics to file..."
+                );
+
+                let curr_stamp = timestamp();
+                get_metrics(
+                    start_timestamp,
+                    curr_stamp,
+                    &metrics_params,
+                    &mut output_file,
+                )
+                .await?;
+                start_timestamp = curr_stamp;
+            }
+            FutureOrShutdownOutput::Shutdown => {
+                // We store the last metrics before exiting.
+                info!(
+                    thread = "metrics_storage",
+                    "Metrics storage thread has received a shutdown signal. Exiting..."
+                );
+
+                trace!(
+                    thread = "metrics_storage",
+                    output = metrics_params.output_file,
+                    "Shutdown received. Storing last metrics to file..."
+                );
+                let curr_stamp = timestamp();
+                get_metrics(
+                    start_timestamp,
+                    curr_stamp,
+                    &metrics_params,
+                    &mut output_file,
+                )
+                .await?;
+
+                break;
+            }
+        }
+    }
+
+    trace!(thread = "metrics_storage", "Exited metrics storage thread.");
 
     Ok(())
 }

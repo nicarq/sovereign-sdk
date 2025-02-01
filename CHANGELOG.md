@@ -1,7 +1,6 @@
-## 2025-01-23
-- #2270 adds logging to `sov-benchmarks`
+## 2025-01-27
+- #2309 Improves metrics collection. This is not a breaking change for consumers of the SDK.
 
-- #2266 Add soak testing crate for long running tests
 ## 2025-01-22
 - #2255 Makes it possible to generate benchmarks metrics using multiple processes.
 ## 2025-01-29
@@ -12,6 +11,8 @@
 - #2310 allows to completely disable prover background test for in `RollupBuilder` for more precise testing.
 - #2317 adds context to genesis initialization. **rollup-starter should have same update**, as it is an important usability fix.
 ## 2025-01-23
+- #2270 adds logging to `sov-benchmarks`
+
 - #2266 Add soak testing crate for long running tests
 ## 2025-01-22
 - #2255 Makes it possible to generate benchmarks metrics using multiple processes.
