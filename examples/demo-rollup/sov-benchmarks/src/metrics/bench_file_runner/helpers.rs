@@ -19,6 +19,7 @@ use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
+use tracing::{info, trace, warn};
 
 use super::{BenchLogs, BenchMessage, BenchRollup, BenchRollupBuilder, RT, S};
 
@@ -58,6 +59,9 @@ pub async fn setup_rollup(
 
 /// A simple struct that sends batches to the sequencer on behalf of the user
 pub struct BatchSender {
+    /// The name of the benchmark to execute
+    bench_name: String,
+    /// The nonces used to send transactions
     nonces: HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>,
     /// Channel used to send transactions to wait for to the receiver task
     tx_sender: Sender<HashSet<HexHash>>,
@@ -68,6 +72,8 @@ pub struct BatchSender {
 /// The counterpart of the [`BatchSender`] that waits for the results of the transactions sent to the sequencer
 /// in a separate thread.
 pub struct BatchReceiver {
+    /// The name of the benchmark to execute
+    bench_name: String,
     /// A list of transactions sent we are waiting for inclusion on DA
     txs_to_wait_for: HashSet<HexHash>,
     /// The highest slot to prove
@@ -84,8 +90,13 @@ pub struct BatchReceiver {
 
 impl BatchReceiver {
     /// Creates a new [`BatchReceiver`].
-    pub async fn new(client: NodeClient, tx_channel: Receiver<HashSet<HexHash>>) -> Self {
+    pub async fn new(
+        bench_name: String,
+        client: NodeClient,
+        tx_channel: Receiver<HashSet<HexHash>>,
+    ) -> Self {
         Self {
+            bench_name,
             txs_to_wait_for: Default::default(),
             highest_slot_proven: 0,
             highest_slot_to_prove: 0,
@@ -105,20 +116,18 @@ impl BatchReceiver {
 
     /// Starts the receiver thread.
     /// Waits for the results of the transactions sent to the sequencer to be available in the full node.
-    pub fn start_receiver(mut self, bench_name: String) -> JoinHandle<anyhow::Result<()>> {
+    pub fn start_receiver(mut self) -> JoinHandle<anyhow::Result<()>> {
         tokio::spawn(async move {
             loop {
                 select! {
                     txs = self.tx_channel.recv(), if !self.tx_channel.is_closed() => {
                         if let Some(txs) = txs {
                             self.txs_to_wait_for.extend(txs);
-                        } else {
-                            println!("{bench_name}, receiver_task: The channel of transactions to wait for has been closed!");
                         }
                     },
 
                     maybe_next_slot = self.slots_subscription.next(), if !self.txs_to_wait_for.is_empty() => {
-                        let next_slot = maybe_next_slot.ok_or_else(|| anyhow::anyhow!("{bench_name}: The stream of slots has terminated!"))?.map_err(|e| anyhow::anyhow!("{bench_name}: An error occurred while waiting for the next slot! {:?}", e))?;
+                        let next_slot = maybe_next_slot.ok_or_else(|| anyhow::anyhow!("{}: The stream of slots has terminated!", self.bench_name))?.map_err(|e| anyhow::anyhow!("{}: An error occurred while waiting for the next slot! {:?}", self.bench_name, e))?;
 
                         for batch in next_slot.batches {
                             for tx in batch.txs {
@@ -142,19 +151,19 @@ impl BatchReceiver {
                             }
                         }
 
-                        println!("{bench_name}, receiver_task: Received a slot from sender task. Still need to wait for {} transactions. Highest slot to prove {}", self.txs_to_wait_for.len(), self.highest_slot_to_prove);
+                        trace!(bench = self.bench_name, thread = "receiver", txs_to_wait_for = self.txs_to_wait_for.len(), highest_slot_to_prove = self.highest_slot_to_prove, "Received a slot from sender task.");
                     },
 
                     maybe_next_proof = self.proof_subscription.next(), if self.highest_slot_to_prove > self.highest_slot_proven => {
-                        maybe_next_proof.ok_or(anyhow::anyhow!("{bench_name}: The stream of proofs has terminated!"))?.map_err(|e| anyhow::anyhow!("{bench_name}: An error occurred while waiting for the next proof! {:?}", e))?;
+                        maybe_next_proof.ok_or(anyhow::anyhow!("{}: The stream of proofs has terminated!", self.bench_name))?.map_err(|e| anyhow::anyhow!("{}: An error occurred while waiting for the next proof! {:?}", self.bench_name, e))?;
 
                         self.highest_slot_proven += 1;
 
-                        println!("{bench_name}, receiver_task: Received a proof. Highest slot proven {} - highest slot to prove {}", self.highest_slot_proven, self.highest_slot_to_prove);
+                        info!(bench = self.bench_name, thread = "receiver", higest_slot_proven = self.highest_slot_proven, highest_slot_to_prove = self.highest_slot_to_prove, "Received a proof");
                     },
 
                     else => {
-                        println!("{bench_name}: receiver has completed");
+                        info!(bench = self.bench_name, thread = "receiver", "receiver has completed");
                         break;
                     }
                 }
@@ -167,8 +176,13 @@ impl BatchReceiver {
 
 impl BatchSender {
     /// Creates a new [`BatchSender`].
-    pub async fn new(client: NodeClient, tx_sender: Sender<HashSet<HexHash>>) -> Self {
+    pub async fn new(
+        bench_name: String,
+        client: NodeClient,
+        tx_sender: Sender<HashSet<HexHash>>,
+    ) -> Self {
         Self {
+            bench_name,
             nonces: Default::default(),
             tx_sender,
             client,
@@ -211,7 +225,12 @@ impl BatchSender {
         self.tx_sender
             .send(tx_hashes.clone())
             .await
-            .expect("Failed to send transactions to the sender task");
+            .unwrap_or_else(|err| {
+                panic!(
+                    "{}: Failed to send transactions to the receiver task. Error {:?}",
+                    self.bench_name, err
+                )
+            });
 
         let batch_result = {
             let mut curr_wait_time = WAIT_TIME;
@@ -229,7 +248,11 @@ impl BatchSender {
                         break;
                     }
                     Err(e) => {
-                        println!("An error occurred while trying to publish the batch: {e}. Trying again... \n");
+                        warn!(
+                            bench = self.bench_name,
+                            err = %e,
+                            "An error occurred while trying to publish a batch. Trying again... \n"
+                        );
                         sleep(curr_wait_time).await;
                         curr_wait_time *= 2;
                         continue;
@@ -245,7 +268,8 @@ impl BatchSender {
 
         ensure!(
             txs.len() == batch_result.tx_hashes.len(),
-            "The number of transactions sent should match the number of transactions published by the sequencer. Number sent {}, number published {}",
+            "{}: The number of transactions sent should match the number of transactions published by the sequencer. Number sent {}, number published {}",
+            self.bench_name,
             txs.len(),
             batch_result.tx_hashes.len()
         );
@@ -254,7 +278,8 @@ impl BatchSender {
             let batch_tx_hash = batch_tx_hash.parse().expect("Impossible to parse tx hash");
             ensure!(
                 tx_hashes.contains(&batch_tx_hash),
-                "The transaction hash should be included in the batch"
+                "{}: The transaction hash should be included in the batch",
+                self.bench_name
             );
         }
 

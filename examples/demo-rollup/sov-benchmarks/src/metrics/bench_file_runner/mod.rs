@@ -16,13 +16,10 @@ use sov_benchmarks::BenchRisc0Spec;
 use sov_metrics::{timestamp, METRICS_METADATA};
 use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
 use sov_test_utils::RtAgnosticBlueprint;
-use sov_transaction_generator::generators::basic::{
-    BasicChangeLogEntry, BasicClientConfig, BasicTag,
-};
-use sov_transaction_generator::{
-    assert_logs_against_state, GeneratedMessage, MessageOutcome, State,
-};
+use sov_transaction_generator::generators::basic::{BasicChangeLogEntry, BasicClientConfig};
+use sov_transaction_generator::{assert_logs_against_state, GeneratedMessage};
 use tokio::sync::mpsc;
+use tracing::{info, trace};
 
 use crate::{BenchMetricsCLI, MetricsCLI, DEFAULT_TELEGRAF_ADDRESS};
 
@@ -31,10 +28,8 @@ pub type RT = Runtime<S>;
 pub type BenchBlueprint = RtAgnosticBlueprint<S, RT>;
 pub type BenchRollup = TestRollup<BenchBlueprint>;
 pub type BenchRollupBuilder = RollupBuilder<BenchBlueprint>;
-pub type BenchState = State<S, BasicTag>;
 pub type BenchLogs = BasicChangeLogEntry<S>;
 pub type BenchMessage = GeneratedMessage<S, RuntimeCall<S>, BenchLogs>;
-pub type BenchOutcome = MessageOutcome<BasicChangeLogEntry<S>>;
 
 pub mod helpers;
 pub mod metrics;
@@ -70,10 +65,12 @@ async fn runner(
     let rollup = setup_rollup(genesis_config, telegraf_address).await?;
 
     let (batch_sender, batch_receiver) = mpsc::channel(100);
-    let mut batch_sender = BatchSender::new(rollup.client.clone(), batch_sender).await;
-    let batch_receiver = BatchReceiver::new(rollup.client.clone(), batch_receiver).await;
+    let mut batch_sender =
+        BatchSender::new(bench_name.clone(), rollup.client.clone(), batch_sender).await;
+    let batch_receiver =
+        BatchReceiver::new(bench_name.clone(), rollup.client.clone(), batch_receiver).await;
 
-    let receiver_handle = batch_receiver.start_receiver(bench_name.clone());
+    let receiver_handle = batch_receiver.start_receiver();
 
     let Ok(BenchmarkData::Initialization(init_slot)) = parse_next_data(&mut reader) else {
         bail!("{bench_name}: The bench file should start with an initialization slot. The bench file is invalid");
@@ -95,7 +92,7 @@ async fn runner(
                 batches,
                 slot_number,
             } => {
-                println!("{bench_name}: Executing slot {}...", slot_number);
+                trace!(bench = bench_name, slot = slot_number, "Executing slot...");
                 (slot_number, batches)
             }
             _ => {
@@ -121,14 +118,22 @@ async fn runner(
         let exec_duration = Duration::from_nanos((slot_end - slot_start) as u64);
         let throughput = num_txs as f64 / exec_duration.as_secs_f64();
 
-        println!(
-            "{bench_name}: Slot {slot_number} execution took {} ms. Executed {} transactions. Throughtput {} txs/sec. Producing block...",
-            exec_duration.as_millis(), num_txs, throughput.round()
+        trace!(
+            bench = bench_name,
+            slot = slot_number,
+            transactions = num_txs,
+            duration_ms = exec_duration.as_millis(),
+            throughtput = throughput.round(),
+            "Slot execution completed",
         );
     }
 
     // We wait for all the results to be in.
-    println!("{bench_name}: Waiting for submission results for the last slots...");
+    info!(
+        bench = bench_name,
+        thread = "runner",
+        "Waiting for submission results for the last slots..."
+    );
 
     // We drop the sender to ensure that the sender thread is closed which triggers completion of the receiver handle.
     drop(batch_sender);
@@ -153,7 +158,7 @@ async fn runner(
     // Note that to assert the logs, the rollup still must be running (for the REST-api to be available).
     joinset.spawn(async move {
         if let Some((assert_logs, log_accumulator)) = maybe_logs.zip(log_accumulator) {
-            println!("{bench_name}: Asserting logs...");
+            info!(bench = bench_name, thread = "shutdown", "Asserting logs...");
             assert_logs_against_state(
                 log_accumulator,
                 Arc::new(BasicClientConfig {
@@ -166,7 +171,11 @@ async fn runner(
             .expect("Failed to assert logs");
         }
 
-        println!("{bench_name}: Shutting down rollup...");
+        info!(
+            bench = bench_name,
+            thread = "shutdown",
+            "Shutting down rollup..."
+        );
 
         rollup
             .shutdown_sender
@@ -239,13 +248,13 @@ pub async fn run_bench_file(input: BenchMetricsCLI) {
         _ => (None, DEFAULT_TELEGRAF_ADDRESS),
     };
 
-    println!("Running bench file at path: {}.", input.path);
-
     let file_path = PathBuf::from(input.path.clone());
     let bench_file = File::open(file_path.clone())
         .unwrap_or_else(|_| panic!("Failed to open bench file at path {}. Make sure you provided an appropriate file name!", file_path.display()));
     let bench_name = file_path.file_stem().unwrap();
     let bench_name_str = bench_name.to_str().unwrap();
+
+    info!(path = bench_name_str, "Running bench file");
 
     // Setting the metrics metadata
     if METRICS_METADATA

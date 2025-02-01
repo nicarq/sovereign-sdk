@@ -1,3 +1,9 @@
+## 2025-01-23
+- #2270 adds logging to `sov-benchmarks`
+
+- #2266 Add soak testing crate for long running tests
+## 2025-01-22
+- #2255 Makes it possible to generate benchmarks metrics using multiple processes.
 ## 2025-01-29
 - #2315 Remove manual batch production from the `bank` integration tests.
 - #2323 **Fixes the finalized slot WebSocket notification.** Now, it only sends the most recent slot information instead of resending every slot when a new one is finalized.
