@@ -40,14 +40,6 @@ impl HooksMacro {
             &where_clause,
         );
 
-        let kernel_slot_hooks_impl = Self::derive_kernel_slot_hooks(
-            &ident,
-            &fields,
-            &impl_generics,
-            &type_generics,
-            &where_clause,
-        );
-
         let finalize_hook_impl = Self::derive_finalize_hook(
             &ident,
             &fields,
@@ -68,11 +60,6 @@ impl HooksMacro {
             mod slot_hooks {
                 use super::*;
                 #slot_hooks_impl
-            }
-
-            mod kernel_slot_hooks {
-                use super::*;
-                #kernel_slot_hooks_impl
             }
 
             mod finalize_hook {
@@ -126,67 +113,6 @@ impl HooksMacro {
             use ::sov_modules_api::hooks::BlockHooks;
 
             impl #impl_generics ::sov_modules_api::BlockHooks for #ident #type_generics #where_clause {
-                type Spec = <Self as ::sov_modules_api::DispatchCall>::Spec;
-
-                #begin_rollup_block_hook_fn
-
-                #end_rollup_block_hook_fn
-            }
-        }
-    }
-
-    fn derive_kernel_slot_hooks(
-        ident: &Ident,
-        fields: &[StructNamedField],
-        impl_generics: &syn::ImplGenerics,
-        type_generics: &syn::TypeGenerics,
-        where_clause: &Option<&syn::WhereClause>,
-    ) -> proc_macro2::TokenStream {
-        let begin_rollup_block_hook_fn = Self::make_hooks_fn(
-            fields,
-            &Ident::new("kernel_begin_slot_hook", Span::call_site()),
-            &vec![],
-            false,
-            vec![
-                &ArgWithType {
-                    arg: Ident::new("slot_header", Span::call_site()),
-                    ty: quote::quote! {&<<Self::Spec as ::sov_modules_api::Spec>::Da as ::sov_modules_api::DaSpec>::BlockHeader},
-                },
-                &ArgWithType {
-                    arg: Ident::new("validity_condition", Span::call_site()),
-                    ty: quote::quote! {&<<Self::Spec as ::sov_modules_api::Spec>::Da as ::sov_modules_api::DaSpec>::ValidityCondition},
-                },
-                &ArgWithType {
-                    arg: Ident::new("pre_state_root", Span::call_site()),
-                    ty: quote::quote! {&<<Self::Spec as ::sov_modules_api::Spec>::Storage as ::sov_modules_api::Storage>::Root},
-                },
-                &ArgWithType {
-                    arg: Ident::new("state", Span::call_site()),
-                    ty: quote::quote! {&mut ::sov_modules_api::KernelStateAccessor<Self::Spec>},
-                },
-            ],
-        );
-        let end_rollup_block_hook_fn = Self::make_hooks_fn(
-            fields,
-            &Ident::new("kernel_end_slot_hook", Span::call_site()),
-            &vec![],
-            false,
-            vec![
-                &ArgWithType {
-                    arg: Ident::new("gas_used", Span::call_site()),
-                    ty: quote::quote! {&<Self::Spec as ::sov_modules_api::Spec>::Gas},
-                },
-                &ArgWithType {
-                    arg: Ident::new("state", Span::call_site()),
-                    ty: quote::quote! {&mut ::sov_modules_api::KernelStateAccessor<Self::Spec>},
-                },
-            ],
-        );
-
-        quote::quote! {
-            use ::sov_modules_api::hooks::KernelSlotHooks;
-
-            impl #impl_generics ::sov_modules_api::KernelSlotHooks for #ident #type_generics #where_clause {
                 type Spec = <Self as ::sov_modules_api::DispatchCall>::Spec;
 
                 #begin_rollup_block_hook_fn

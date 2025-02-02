@@ -25,7 +25,7 @@ use sov_modules_api::capabilities::{
     BatchFromUnregisteredSequencer, BlobOrigin, BlobSelector, BlobSelectorOutput, BlockGasInfo,
     ChainState, HasKernel, Kernel, SequencerRemuneration, TransactionAuthenticator,
 };
-use sov_modules_api::hooks::{BlockHooks, KernelSlotHooks};
+use sov_modules_api::hooks::BlockHooks;
 use sov_modules_api::transaction::TransactionConsumption;
 pub use sov_modules_api::{BatchWithId, BlobData, Runtime};
 use sov_modules_api::{
@@ -342,14 +342,6 @@ where
         #[cfg(feature = "native")]
         let create_rollup_block = blob_selector_output.create_rollup_block;
 
-        KernelSlotHooks::kernel_begin_slot_hook(
-            &self.runtime,
-            slot_header,
-            validity_condition,
-            pre_state_root,
-            &mut kernel,
-        );
-
         #[cfg(feature = "native")]
         let visible_slot_number = state.visible_slot_number_to_access();
         let (total_gas, proof_receipts, batch_receipts, mut state) = self
@@ -365,12 +357,6 @@ where
         self.runtime
             .chain_state()
             .finalise_chain_state(&total_gas, &mut kernel_state_accessor);
-
-        KernelSlotHooks::kernel_end_slot_hook(
-            &self.runtime,
-            &total_gas,
-            &mut kernel_state_accessor,
-        );
 
         #[cfg(not(feature = "native"))]
         let (state_root, witness, change_set) = self.materialize_slot(state);
@@ -507,7 +493,7 @@ where
             BlockHooks::begin_rollup_block_hook(&self.runtime, &visible_hash, &mut state);
         }
         #[cfg(feature = "native")]
-        let begin_slot_hooks_time = begin_slot_start.elapsed();
+        let begin_block_hook_time = begin_slot_start.elapsed();
 
         let mut proof_receipts = Vec::new();
         let mut batch_receipts = Vec::new();
@@ -615,15 +601,15 @@ where
         }
         #[cfg(feature = "native")]
         {
-            let end_slot_hooks_time = end_slot_hooks_start.elapsed();
+            let end_block_hook_time = end_slot_hooks_start.elapsed();
             sov_metrics::track_metrics(|tracker| {
                 tracker.track_user_space_slot_processing(
                     sov_metrics::UserSpaceSlotProcessingMetrics {
-                        begin_slot_hooks_time,
+                        begin_block_hook_time,
                         blobs_processing_time: blob_processing_time,
                         visible_slot_number,
                         execution_context,
-                        end_slot_hooks_time,
+                        end_block_hook_time,
                     },
                 );
             });
