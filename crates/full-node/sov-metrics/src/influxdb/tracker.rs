@@ -303,15 +303,14 @@ pub struct SlotProcessingMetrics {
 /// Metrics related to processing of a single slot.
 #[derive(Debug)]
 pub struct UserSpaceSlotProcessingMetrics {
-    /// Time it took for begin slot hooks.
-    /// Includes KernelSlotHooks and BlockHooks.
-    pub begin_slot_hooks_time: std::time::Duration,
+    /// Time taken by begin_rollup_block hook.
+    pub begin_block_hook_time: std::time::Duration,
 
     /// Time it took to process all blobs: Batches, Proofs and Forced registration
     pub blobs_processing_time: std::time::Duration,
 
-    /// Time it took for end slot hooks.
-    pub end_slot_hooks_time: std::time::Duration,
+    /// Time taken by end_rollup_block hook.
+    pub end_block_hook_time: std::time::Duration,
 
     /// The visible slot number associated with these metrics.
     pub visible_slot_number: VisibleSlotNumber,
@@ -413,9 +412,9 @@ impl Metric for UserSpaceSlotProcessingMetrics {
             // Tags
             self.execution_context,
             // Fields
-            self.begin_slot_hooks_time.as_micros(),
+            self.begin_block_hook_time.as_micros(),
             self.blobs_processing_time.as_micros(),
-            self.end_slot_hooks_time.as_micros(),
+            self.end_block_hook_time.as_micros(),
             self.visible_slot_number,
         )
     }

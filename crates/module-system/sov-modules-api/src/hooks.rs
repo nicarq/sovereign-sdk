@@ -1,10 +1,9 @@
-use sov_rollup_interface::da::DaSpec;
 use sov_state::Storage;
 
 use crate::transaction::AuthenticatedTransactionData;
 #[cfg(feature = "native")]
 use crate::AccessoryStateReaderAndWriter;
-use crate::{Context, KernelStateAccessor, Module, Spec, StateCheckpoint, TxState};
+use crate::{Context, Module, Spec, StateCheckpoint, TxState};
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
 ///
@@ -93,52 +92,6 @@ impl<T: Module> BlockHooks for &T {
     }
 
     fn end_rollup_block_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {}
-}
-
-/// Hooks allowing the runtime to get access to the DA layer state
-pub trait KernelSlotHooks {
-    /// The runtime spec.
-    type Spec: Spec;
-
-    /// Called at the beginning of a slot.
-    fn kernel_begin_slot_hook(
-        &self,
-        _slot_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
-        _validity_condition: &<<Self::Spec as Spec>::Da as DaSpec>::ValidityCondition,
-        _pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
-        _state: &mut KernelStateAccessor<'_, Self::Spec>,
-    ) {
-    }
-
-    /// Called at the end of a slot
-    fn kernel_end_slot_hook(
-        &self,
-        _gas_used: &<Self::Spec as Spec>::Gas,
-        _state: &mut KernelStateAccessor<'_, Self::Spec>,
-    ) {
-    }
-}
-
-/// Autoref blanket implementation of the [`KernelSlotHooks`] trait.
-/// Any module can override the default behavior by implementing the [`KernelSlotHooks`] trait.
-impl<T: Module> KernelSlotHooks for &T {
-    type Spec = T::Spec;
-
-    fn kernel_begin_slot_hook(
-        &self,
-        _slot_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
-        _validity_condition: &<<Self::Spec as Spec>::Da as DaSpec>::ValidityCondition,
-        _pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
-        _state: &mut KernelStateAccessor<'_, Self::Spec>,
-    ) {
-    }
-
-    fn kernel_end_slot_hook(
-        &self,
-        _gas_used: &<Self::Spec as Spec>::Gas,
-        _state: &mut KernelStateAccessor<'_, Self::Spec>,
-    ) {
-    }
 }
 
 /// Trait that defines a hook that runs outside of the main slot processing loop.
