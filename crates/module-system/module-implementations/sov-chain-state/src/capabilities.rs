@@ -55,6 +55,8 @@ impl<S: Spec> ChainState<S> {
         self.slot_number_history
             .set(&next_rollup_height, &visible_slot_number, state)
             .unwrap_infallible();
+        self.set_next_visible_slot_number(visible_slot_number, state);
+
         state.update_rollup_height(next_rollup_height);
         state.update_visible_slot_number(visible_slot_number);
     }

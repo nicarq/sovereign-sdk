@@ -10,7 +10,7 @@ use sov_modules_api::{
     BatchSequencerReceipt, GasArray, GasSpec, IncrementalBatch, KernelStateAccessor, VersionReader,
 };
 mod proof_processing;
-use sov_modules_api::SlotGasMeter;
+use sov_modules_api::{KernelWriter, SlotGasMeter};
 use sov_rollup_interface::stf::ProofReceipt;
 mod sequencer_mode;
 #[cfg(feature = "test-utils")]
@@ -293,38 +293,81 @@ where
         let start_slot = std::time::Instant::now();
         let mut state = StateCheckpoint::with_witness(pre_state, witness, &self.runtime.kernel());
 
-        let mut kernel = {
-            // First, we bootstrap the kernel from the previous state. The `true_slot_number` will be stale, because it's leftover from the previous slot.
-            let mut kernel_from_bootstrap = self.runtime.kernel().accessor(&mut state);
+        // First, we bootstrap the kernel from the previous state. The
+        // `true_slot_number` will be stale, because it's leftover from the
+        // previous slot.
+        let mut kernel_with_stale_heights = self.runtime.kernel().accessor(&mut state);
 
-            // WARNING: The true slot height gets updated in the `ChainState`'s `synchronise_chain` method.
-            // The visible slot height gets updated in the `BlobStorage`'s `get_blobs_for_this_slot` method.
-            // Be careful to not respect the call order: the `ChainState` hooks should be called before the `BlobStorage`'s which should be called before the
-            // `Runtime`'s slot hooks.
-            self.runtime.chain_state().synchronise_chain(
-                slot_header,
-                pre_state_root,
-                &mut kernel_from_bootstrap,
-            );
-            // Now that we've called synchronise_chain, the kernel is safe to use
-            kernel_from_bootstrap
-        };
+        let old_true_slot_number = kernel_with_stale_heights.true_slot_number();
+        let old_visible_slot_number = kernel_with_stale_heights.visible_slot_number();
+        let old_rollup_height = kernel_with_stale_heights.rollup_height_to_access();
+
+        // WARNING: The kernel slot hooks MUST be called before the runtime slot hooks.
+        // That way the state of the runtime modules is always in sync with the
+        // transaction "being executed".
+        //
+        // WARNING: The true slot number gets updated in the
+        // `ChainState::synchronise_chain` method. The visible slot number gets
+        // updated in the `ChainState::increment_rollup_height` method.
+        //
+        // Be careful to respect the call order: the `ChainState` hooks MUST
+        // be called before the `BlobStorage`'s, which MUST be called before
+        // the `Runtime`'s slot hooks.
+        self.runtime.chain_state().synchronise_chain(
+            slot_header,
+            pre_state_root,
+            &mut kernel_with_stale_heights,
+        );
+
+        let mut kernel_with_partially_stale_heights = kernel_with_stale_heights;
+
+        assert_ne!(
+            kernel_with_partially_stale_heights.true_slot_number(),
+            old_true_slot_number,
+            "Sanity check failed (the true slot number didn't progress as expected), this is a bug and should be reported."
+        );
 
         let visible_hash = self
             .runtime
             .chain_state()
-            .current_visible_hash(&mut kernel)
+            .current_visible_hash(&mut kernel_with_partially_stale_heights)
             .expect("The current visible hash should be possible to compute at this point because the chain-state should have synchronized. This is a bug. Please report it.");
 
-        let blob_selector_output = self.select_and_validate_blobs(relevant_blobs, &mut kernel);
+        let blob_selector_output = self
+            .select_and_validate_blobs(relevant_blobs, &mut kernel_with_partially_stale_heights);
+
+        assert_eq!(
+            kernel_with_partially_stale_heights.visible_slot_number(),
+            old_visible_slot_number,
+            "Sanity check failed (the visible slot number progressed when it shouldn't have), this is a bug and should be reported."
+        );
+        assert_eq!(
+            kernel_with_partially_stale_heights.rollup_height_to_access(),
+            old_rollup_height,
+            "Sanity check failed (the rollup height progressed when it shouldn't have), this is a bug and should be reported."
+        );
 
         if blob_selector_output.creates_rollup_block() {
-            let visible_slot_number = kernel
+            let visible_slot_number = kernel_with_partially_stale_heights
                 .visible_slot_number()
-                .advance(blob_selector_output.visible_slots_number_increase.into());
-            self.runtime
-                .chain_state()
-                .increment_rollup_height(&mut kernel, visible_slot_number);
+                .advance(blob_selector_output.visible_slot_number_increase);
+
+            self.runtime.chain_state().increment_rollup_height(
+                &mut kernel_with_partially_stale_heights,
+                visible_slot_number,
+            );
+
+            // All heights have been updated.
+            assert_ne!(
+                kernel_with_partially_stale_heights.visible_slot_number(),
+                old_visible_slot_number,
+                "Sanity check failed (the visible slot number didn't progress as expected), this is a bug and should be reported."
+            );
+            assert_ne!(
+                kernel_with_partially_stale_heights.rollup_height_to_access(),
+                old_rollup_height,
+                "Sanity check failed (the rollup height didn't progress as expected), this is a bug and should be reported."
+            );
         } else {
             // Defensive programming; if we don't create a rollup block, we aren't allowed to execute any transactions.
             // We panic if this invariant is violated, because in this case the rollup block hooks will not be executed correctly leading
