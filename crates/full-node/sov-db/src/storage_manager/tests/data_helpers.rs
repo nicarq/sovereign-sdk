@@ -18,7 +18,7 @@ use crate::schema::types::EventNumber;
 use crate::state_db::StateDb;
 use crate::storage_manager::tests::TestNativeStorage;
 use crate::storage_manager::NativeChangeSet;
-use crate::test_utils::build_node_batch;
+use crate::test_utils::build_data_to_materialize;
 // Encoding/Decoding data.
 
 type H = sha2::Sha256;
@@ -69,15 +69,21 @@ pub fn produce_single_entry_native_changes(
     let jmt_handler_user = state_db.get_jmt_handler::<UserNamespace>();
     let jmt_handler_kernel = state_db.get_jmt_handler::<KernelNamespace>();
 
-    let node_batch_user =
-        build_node_batch::<_, H>(&jmt_handler_user, key.1, vec![(key_hash, value.clone())]);
-    let node_batch_kernel =
-        build_node_batch::<_, H>(&jmt_handler_kernel, key.1, vec![(key_hash, value.clone())]);
+    let data_to_materialize_user = build_data_to_materialize::<_, H>(
+        &jmt_handler_user,
+        key.1,
+        vec![(key_hash, value.clone())],
+    );
+    let data_to_materialize_kernel = build_data_to_materialize::<_, H>(
+        &jmt_handler_kernel,
+        key.1,
+        vec![(key_hash, value.clone())],
+    );
 
     let state_change_set = state_db
-        .materialize_node_batches(
-            &node_batch_kernel,
-            &node_batch_user,
+        .materialize(
+            &data_to_materialize_kernel,
+            &data_to_materialize_user,
             Some(materialized_preimages),
         )
         .unwrap();

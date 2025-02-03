@@ -11,7 +11,7 @@ use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::{SchemaBatch, DB};
 use sov_db::namespaces::KernelNamespace;
 use sov_db::state_db::StateDb;
-use sov_db::test_utils::{build_node_batch, generate_random_bytes};
+use sov_db::test_utils::{build_data_to_materialize, generate_random_bytes};
 
 type N = sov_db::namespaces::UserNamespace;
 
@@ -38,18 +38,22 @@ fn put_data(state_db: &StateDb, raw_data: Vec<Vec<u8>>, version: Version) -> Sch
     let preimages_batch = StateDb::materialize_preimages([], key_preimages).unwrap();
 
     // Writing empty data into kernel namespace to keep versions in sync
-    let kernel_node_batch = build_node_batch::<_, sha2::Sha256>(
+    let kernel_materialize = build_data_to_materialize::<_, sha2::Sha256>(
         &state_db.get_jmt_handler::<KernelNamespace>(),
         version,
         Vec::new(),
     );
-    let user_node_batch = build_node_batch::<_, sha2::Sha256>(
+    let user_materialize = build_data_to_materialize::<_, sha2::Sha256>(
         &state_db.get_jmt_handler::<KernelNamespace>(),
         version,
         batch,
     );
     state_db
-        .materialize_node_batches(&kernel_node_batch, &user_node_batch, Some(preimages_batch))
+        .materialize(
+            &kernel_materialize,
+            &user_materialize,
+            Some(preimages_batch),
+        )
         .unwrap()
 }
 

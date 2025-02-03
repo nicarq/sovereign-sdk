@@ -6,6 +6,7 @@ use sov_rollup_interface::common::SlotNumber;
 
 use crate::namespaces::ProvableCompileTimeNamespace;
 use crate::storage::{SlotKey, SlotValue, Storage};
+use crate::{NodeLeaf, NodeLeafAndValue};
 
 /// An enum that represents the temperature of a value in the storage.
 /// Used in cached-structs to determine whether this is the first read of a value or not.
@@ -21,7 +22,7 @@ pub enum IsValueCached {
 /// For example, a transaction might read a value, then take some action which causes it to be updated
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Access {
-    Read { original: Option<SlotValue> },
+    Read { original: Option<NodeLeafAndValue> },
     Write { modified: Option<SlotValue> },
 }
 
@@ -42,13 +43,7 @@ impl Access {
 
     fn add_write(&mut self, write: Option<SlotValue>) {
         match self {
-            Access::Read { original } => {
-                // We add the write only if the new value is different from the
-                // original value.
-                if original != &write {
-                    *self = Access::Write { modified: write }
-                }
-            }
+            Access::Read { original: _ } => *self = Access::Write { modified: write },
             Access::Write { modified } => {
                 // Simply override the modified value with the new modified
                 // value.
@@ -83,7 +78,7 @@ impl CacheLog {
     }
 
     // Adds a read entry to the cache.
-    fn add_read(&mut self, key: SlotKey, value: Option<SlotValue>) {
+    fn add_read(&mut self, key: SlotKey, value: Option<NodeLeafAndValue>) {
         match self.log.entry(key) {
             Entry::Occupied(existing) => {
                 // Sanity check.
@@ -119,7 +114,7 @@ pub struct ProvableStorageCache<N> {
     /// Transaction cache.
     pub tx_cache: CacheLog,
     /// Ordered reads and writes.
-    pub ordered_db_reads: Vec<(SlotKey, Option<SlotValue>)>,
+    pub ordered_db_reads: Vec<(SlotKey, Option<NodeLeaf>)>,
     phantom: core::marker::PhantomData<N>,
 }
 
@@ -137,14 +132,17 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         match self.tx_cache.log.get(key) {
             Some(access) => {
                 let value = match access {
-                    Access::Read { original } => original.clone(),
+                    Access::Read { original } => original.clone().map(|node| node.value),
                     Access::Write { modified } => modified.clone(),
                 };
                 (value, IsValueCached::Yes)
             }
             None => {
                 let storage_value = value_reader.get::<N>(key, version, witness);
-                self.add_read(key.clone(), storage_value.clone());
+                let read = storage_value
+                    .clone()
+                    .map(NodeLeafAndValue::new::<S::Hasher>);
+                self.add_read(key.clone(), read);
                 (storage_value, IsValueCached::No)
             }
         }
@@ -161,9 +159,11 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
     }
 
     // This method can be called only once per given key.
-    fn add_read(&mut self, key: SlotKey, value: Option<SlotValue>) {
-        self.tx_cache.add_read(key.clone(), value.clone());
-        self.ordered_db_reads.push((key, value));
+    fn add_read(&mut self, key: SlotKey, node: Option<NodeLeafAndValue>) {
+        self.ordered_db_reads
+            .push((key.clone(), node.as_ref().map(|n| n.leaf)));
+
+        self.tx_cache.add_read(key.clone(), node.clone());
     }
 }
 
@@ -172,7 +172,7 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
 #[derive(Debug, Default)]
 pub struct OrderedReadsAndWrites {
     /// Ordered reads.
-    pub ordered_reads: Vec<(SlotKey, Option<SlotValue>)>,
+    pub ordered_reads: Vec<(SlotKey, Option<NodeLeaf>)>,
     /// Ordered writes.
     pub ordered_writes: Vec<(SlotKey, Option<SlotValue>)>,
 }
@@ -218,8 +218,8 @@ mod tests {
         // Test read.
         {
             let mut cache_log = CacheLog::default();
-            let value = create_value(2);
-            cache_log.add_read(key.clone(), value.clone());
+            let value = create_value(2).map(NodeLeafAndValue::new::<sha2::Sha256>);
+            cache_log.add_read(key.clone(), value);
 
             let writes = cache_log.take_writes();
             assert_eq!(writes.len(), 0);
@@ -239,7 +239,7 @@ mod tests {
         // Test that write overrides read.
         {
             let mut cache_log = CacheLog::default();
-            let value = create_value(4);
+            let value = create_value(4).map(NodeLeafAndValue::new::<sha2::Sha256>);
             cache_log.add_read(key.clone(), value.clone());
 
             let next_value = create_value(5);
