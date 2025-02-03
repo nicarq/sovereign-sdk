@@ -21,7 +21,18 @@ otelcol.receiver.otlp "otlp_receiver" {
 otelcol.processor.batch "default" {
   output {
     logs    = [otelcol.exporter.loki.default.input]
-    traces  = [otelcol.exporter.otlp.grafanacloud.input]
+    traces  = [otelcol.processor.attributes.custom_labels.input]
+  }
+}
+
+otelcol.processor.attributes "custom_labels" {
+  action {
+    key = "host"
+    action = "insert"
+    value = "sov-dev-box"
+  }
+  output {
+    traces = [otelcol.exporter.otlp.grafanacloud.input]
   }
 }
 
@@ -44,8 +55,20 @@ otelcol.auth.basic "grafanacloud" {
 // OTLP -> Loki
 otelcol.exporter.loki "default" {
   forward_to = [
+    loki.process.add_hostname.receiver,
+  ]
+}
+
+loki.process "add_hostname" {
+  forward_to = [
     loki.write.grafanacloud.receiver,
   ]
+
+  stage.static_labels {
+    values = {
+      host = "sov-dev-box",
+    }
+  }
 }
 
 // Loki
