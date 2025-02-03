@@ -105,6 +105,7 @@ Leave it running while you proceed with the rest of the demo.
 After switching to a new terminal tab, let's submit our first transaction by creating a token:
 
 ```sh,test-ci
+$ sleep 5
 $ make test-create-token
 ```
 
@@ -352,7 +353,7 @@ this
 batch, you can import them now. Finally, let's submit your transaction to the rollup.
 
 ```bash,test-ci
-$ ./target/debug/sov-cli node submit-batch by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66
+$ ./target/debug/sov-cli node submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66
 ```
 
 #### 5. Verify the Token Supply

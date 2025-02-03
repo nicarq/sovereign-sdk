@@ -8,6 +8,7 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use futures::StreamExt;
 use sov_api_spec::types;
+use sov_api_spec::types::AcceptTxBody;
 use sov_bank::utils::TokenHolder;
 use sov_bank::{Amount, Coins, TokenId};
 use sov_modules_api::prelude::tracing;
@@ -206,89 +207,72 @@ impl NodeClient {
         Ok(amount)
     }
 
-    /// Sends multiple transactions to the sequencer.
-    pub async fn send_txs_to_sequencer(&self, raw_txs: Vec<Vec<u8>>) -> anyhow::Result<()> {
-        for raw_tx in raw_txs {
-            tracing::info!("Sending tx to sequencer");
-            self.client
-                .accept_tx(&types::AcceptTxBody {
-                    body: BASE64_STANDARD.encode(raw_tx),
-                })
-                .await
-                .context("Unable to send transaction to the sequencer")?;
-        }
-
-        tracing::info!("Successfully sent all transactions to the sequencer");
-        Ok(())
-    }
-
-    /// Publish batch to the sequencer.
-    pub async fn publish_batch(
+    /// Send transactions to the sequencer.
+    /// Accepts vector of borsh serialized [`sov_modules_api::transaction::Transaction`].
+    /// Returns batch submission receipt and hashes of transactions provided to this method.
+    /// If `wait_for_processing` is set to true,
+    /// it will wait for the first transaction to become processed or finalized.
+    /// (!) If automatic batch production is not enabled
+    pub async fn send_transactions_to_sequencer(
         &self,
         raw_txs: Vec<Vec<u8>>,
         wait_for_processing: bool,
-    ) -> anyhow::Result<types::SubmitBatchReceipt> {
+    ) -> anyhow::Result<Vec<types::TxHash>> {
         let txs_included = raw_txs.len();
         tracing::info!(
             txs_included = txs_included,
             "Calling `publish_batch` sequencer endpoint"
         );
 
-        let response = self
-            .client
-            .publish_batch(&types::PublishBatchBody {
-                transactions: raw_txs
-                    .into_iter()
-                    .map(|tx| BASE64_STANDARD.encode(tx))
-                    .collect(),
-            })
-            .await
-            .context("Unable to publish batch")?;
-
-        let response_data = response
-            .data
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("Response data was empty"))?;
-
-        tracing::info!(
-            reponse = ?response_data,
-            "Your batch was submitted to the sequencer for publication.",
-        );
-
-        if response_data.tx_hashes.len() < txs_included {
-            tracing::warn!("Not all transactions have been included");
+        let mut tx_hashes = Vec::with_capacity(raw_txs.len());
+        for tx in raw_txs {
+            let value = self
+                .client
+                .accept_tx(&AcceptTxBody {
+                    body: BASE64_STANDARD.encode(tx),
+                })
+                .await
+                .context("Failed to submit tx")?;
+            tx_hashes.push(value.data.id.clone());
         }
 
         if wait_for_processing {
             // We pick the first tx hash of the batch, any would work.
-            let Some(tx_hash_to_wait) = response_data.tx_hashes.first() else {
-                return Ok(response_data);
+            // Ideally we should wait for all.
+            let Some(tx_hash_to_wait) = tx_hashes.first() else {
+                return Ok(tx_hashes);
             };
-            let max_waiting_time = Duration::from_secs(300);
-            tracing::info!(?max_waiting_time, "Going to wait for batch to be processed");
-            let start_wait = Instant::now();
+            self.wait_for_tx_processing(tx_hash_to_wait).await?;
+        }
+        Ok(tx_hashes)
+    }
 
-            let mut subscription = self
-                .client
-                .subscribe_to_tx_status_updates(tx_hash_to_wait.parse()?)
-                .await?;
+    /// Waits for transactions to become processed or finalized.
+    /// Timeout is 5 minutes.
+    pub async fn wait_for_tx_processing(&self, tx_hash: &types::TxHash) -> anyhow::Result<()> {
+        let max_waiting_time = Duration::from_secs(300);
+        tracing::info!(?max_waiting_time, "Going to wait for batch to be processed");
+        let start_wait = Instant::now();
 
-            while start_wait.elapsed() < max_waiting_time {
-                if let Some(tx_info) = subscription.next().await.transpose()? {
-                    if tx_info.status == types::TxStatus::Processed
-                        || tx_info.status == types::TxStatus::Finalized
-                    {
-                        tracing::info!("Rollup has processed the submitted batch!");
-                        return Ok(response_data);
-                    }
+        let mut subscription = self
+            .client
+            .subscribe_to_tx_status_updates(tx_hash.parse()?)
+            .await?;
+
+        while start_wait.elapsed() < max_waiting_time {
+            if let Some(tx_info) = subscription.next().await.transpose()? {
+                if tx_info.status == types::TxStatus::Processed
+                    || tx_info.status == types::TxStatus::Finalized
+                {
+                    tracing::info!("Rollup has processed the submitted batch!");
+                    return Ok(());
                 }
             }
-            anyhow::bail!(
-                "Giving up waiting for target batch to be published after {:?}",
-                start_wait.elapsed()
-            );
         }
-        Ok(response_data)
+        anyhow::bail!(
+            "Giving up waiting for target batch to be published after {:?}",
+            start_wait.elapsed()
+        );
     }
 
     /// Performs a get request at given URL on the REST API socket.
