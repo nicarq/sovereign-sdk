@@ -1,11 +1,11 @@
+use std::collections::BTreeMap;
 use std::marker::PhantomData;
 
-use jmt::storage::NodeBatch;
 use jmt::{JellyfishMerkleTree, KeyHash};
 use sov_db::accessory_db::AccessoryDb;
 use sov_db::namespaces;
 use sov_db::namespaces::{KernelNamespace as DBKernelNamespace, UserNamespace as DBUserNamespace};
-use sov_db::state_db::{JmtHandler, StateDb};
+use sov_db::state_db::{JmtHandler, StateDb, StateTreeChanges};
 use sov_db::storage_manager::{InitializableNativeStorage, NativeChangeSet, StfStorageHandlers};
 use sov_rollup_interface::common::SlotNumber;
 
@@ -16,7 +16,7 @@ use crate::namespaces::{
 };
 use crate::storage::{NativeStorage, SlotKey, SlotValue, StateUpdate, Storage, StorageProof};
 use crate::storage_internals::{SparseMerkleProof, StorageRoot};
-use crate::{MerkleProofSpec, StateRoot, Witness};
+use crate::{open_merkle_proof, MerkleProofSpec, Witness};
 
 /// A [`Storage`] implementation to be used by the prover in a native execution
 /// environment (outside of the zkVM).
@@ -155,11 +155,21 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
                     .expect("Previous root hash was not populated");
                 witness.add_hint(root_hash.0);
                 // For each value that's been read from the tree, read it from the logged JMT to populate hints
-                for (key, read_value) in &state_accesses.ordered_reads {
+                for (key, read_node_leaf) in &state_accesses.ordered_reads {
                     let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
                     // TODO: Switch to the batch read API once it becomes available
-                    let (result, proof) = jmt.get_with_proof(key_hash, latest_version.get())?;
-                    if result != read_value.as_ref().map(|f| f.value().to_vec()) {
+                    let (value_from_proof, proof) =
+                        jmt.get_with_proof(key_hash, latest_version.get())?;
+
+                    let node_leaf_hash_and_size = read_node_leaf
+                        .as_ref()
+                        .map(|node| node.combine_val_hash_and_size());
+
+                    let val_hash_and_size = value_from_proof.map(|value| {
+                        SlotValue::from(value).combine_val_hash_and_size::<S::Hasher>()
+                    });
+
+                    if val_hash_and_size != node_leaf_hash_and_size {
                         anyhow::bail!("Bug! Incorrect value read from jmt");
                     }
                     witness.add_hint(proof);
@@ -169,6 +179,9 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
 
         let mut key_preimages = Vec::with_capacity(state_accesses.ordered_writes.len());
 
+        let mut original_writes = BTreeMap::default();
+        let next_version = self.db.get_next_version().get();
+
         // Compute the JMT update from the batch of write operations.
         let batch = state_accesses
             .ordered_writes
@@ -176,20 +189,30 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
             .map(|(key, value)| {
                 let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
                 key_preimages.push((key_hash, key.clone()));
-                (key_hash, value.as_ref().map(|v| v.value().to_vec()))
+
+                // Here we preserve the original wrtes that will be stored in the db.
+                let original_write = value.as_ref().map(|v| v.value().to_vec());
+                original_writes.insert((next_version, key_hash), original_write);
+
+                let node_leaf_hash_and_size = value
+                    .as_ref()
+                    .map(|v| v.combine_val_hash_and_size::<S::Hasher>());
+
+                (key_hash, node_leaf_hash_and_size)
             });
 
-        let next_version = self.db.get_next_version();
-
         let (new_root, update_proof, tree_update) = jmt
-            .put_value_set_with_proof(batch, next_version.get())
+            .put_value_set_with_proof(batch, next_version)
             .expect("JMT update must succeed");
 
         witness.add_hint(update_proof);
         witness.add_hint(new_root.0);
 
         let new_state_update = ProverStateUpdate {
-            node_batch: tree_update.node_batch,
+            data_to_materialize: StateTreeChanges {
+                node_batch: tree_update.node_batch,
+                original_write_values: original_writes,
+            },
             key_preimages,
         };
 
@@ -242,7 +265,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
 
 #[derive(Default)]
 pub struct ProverStateUpdate {
-    pub(crate) node_batch: NodeBatch,
+    pub(crate) data_to_materialize: StateTreeChanges,
     pub(crate) key_preimages: Vec<(KeyHash, SlotKey)>,
 }
 
@@ -277,6 +300,7 @@ impl NamespacedStateUpdate {
 }
 
 impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
+    type Hasher = S::Hasher;
     type Witness = S::Witness;
     type RuntimeConfig = Config;
     type Proof = SparseMerkleProof<S::Hasher>;
@@ -337,9 +361,9 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
 
         let state_change_set = self
             .db
-            .materialize_node_batches(
-                &state_update.kernel.node_batch,
-                &state_update.user.node_batch,
+            .materialize(
+                &state_update.kernel.data_to_materialize,
+                &state_update.user.data_to_materialize,
                 Some(preimages_batch),
             )
             .expect("collecting node batch must succeed");
@@ -356,23 +380,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         state_root: Self::Root,
         state_proof: StorageProof<Self::Proof>,
     ) -> anyhow::Result<(SlotKey, Option<SlotValue>)> {
-        let StorageProof {
-            key,
-            value,
-            proof,
-            namespace,
-        } = state_proof;
-        let key_hash = KeyHash::with::<S::Hasher>(key.as_ref());
-
-        // We need to verify the proof against the correct root hash.
-        // Hence we match the key against its namespace
-        proof.inner().verify(
-            jmt::RootHash(state_root.namespace_root(namespace)),
-            key_hash,
-            value.as_ref().map(|v| v.value()),
-        )?;
-
-        Ok((key, value))
+        open_merkle_proof(state_root, state_proof)
     }
 }
 

@@ -5,7 +5,7 @@ use jmt::{JellyfishMerkleTree, KeyHash};
 use rockbound::cache::delta_reader::DeltaReader;
 use sov_db::namespaces::{KernelNamespace, Namespace, UserNamespace};
 use sov_db::state_db::{JmtHandler, StateDb};
-use sov_db::test_utils::build_node_batch;
+use sov_db::test_utils::build_data_to_materialize;
 use sov_rollup_interface::common::IntoSlotNumber;
 
 type H = sha2::Sha256;
@@ -31,20 +31,20 @@ fn test_state_db_simple() {
     let preimages_schematized =
         StateDb::materialize_preimages(vec![(key_hash, &key)], vec![(key_hash, &key)]).unwrap();
 
-    let user_node_batch = build_node_batch::<_, H>(
+    let user_materialize = build_data_to_materialize::<_, H>(
         &state_db.get_jmt_handler::<UserNamespace>(),
         0,
         vec![(key_hash, Some(value_1.to_vec()))],
     );
-    let kernel_node_batch = build_node_batch::<_, H>(
+    let kernel_materialize = build_data_to_materialize::<_, H>(
         &state_db.get_jmt_handler::<KernelNamespace>(),
         0,
         vec![(key_hash, Some(value_2.to_vec()))],
     );
     let batch = state_db
-        .materialize_node_batches(
-            &kernel_node_batch,
-            &user_node_batch,
+        .materialize(
+            &kernel_materialize,
+            &user_materialize,
             Some(preimages_schematized),
         )
         .unwrap();
@@ -114,16 +114,19 @@ fn test_state_db_writing_empty_batch() {
     );
     let state_db = init_state_db(rocksdb.clone());
 
-    let user_node_batch =
-        build_node_batch::<_, H>(&state_db.get_jmt_handler::<UserNamespace>(), 0, Vec::new());
-    let kernel_node_batch = build_node_batch::<_, H>(
+    let user_materialize = build_data_to_materialize::<_, H>(
+        &state_db.get_jmt_handler::<UserNamespace>(),
+        0,
+        Vec::new(),
+    );
+    let kernel_materialize = build_data_to_materialize::<_, H>(
         &state_db.get_jmt_handler::<KernelNamespace>(),
         0,
         Vec::new(),
     );
 
     let batch = state_db
-        .materialize_node_batches(&kernel_node_batch, &user_node_batch, None)
+        .materialize(&kernel_materialize, &user_materialize, None)
         .unwrap();
     rocksdb.write_schemas(&batch).unwrap();
 
@@ -148,9 +151,13 @@ fn test_state_db_empty_nodes() {
     let state_db = init_state_db(rocksdb.clone());
 
     let materializing_error = state_db
-        .materialize_node_batches(
+        .materialize(
             &Default::default(),
-            &build_node_batch::<_, H>(&state_db.get_jmt_handler::<UserNamespace>(), 0, Vec::new()),
+            &build_data_to_materialize::<_, H>(
+                &state_db.get_jmt_handler::<UserNamespace>(),
+                0,
+                Vec::new(),
+            ),
             None,
         )
         .unwrap_err();
@@ -161,8 +168,8 @@ fn test_state_db_empty_nodes() {
     );
 
     let materializing_error = state_db
-        .materialize_node_batches(
-            &build_node_batch::<_, H>(
+        .materialize(
+            &build_data_to_materialize::<_, H>(
                 &state_db.get_jmt_handler::<KernelNamespace>(),
                 0,
                 Vec::new(),
@@ -198,7 +205,7 @@ fn test_state_db_writing_same_node_batch_both_namespaces() {
     let preimages_schematized =
         StateDb::materialize_preimages(vec![(key_hash, &key)], vec![(key_hash, &key)]).unwrap();
 
-    let user_node_batch = build_node_batch::<_, H>(
+    let user_materialize = build_data_to_materialize::<_, H>(
         &state_db.get_jmt_handler::<UserNamespace>(),
         0,
         vec![(key_hash, Some(value_1.to_vec()))],
@@ -206,9 +213,9 @@ fn test_state_db_writing_same_node_batch_both_namespaces() {
 
     // Oops!
     let batch = state_db
-        .materialize_node_batches(
-            &user_node_batch,
-            &user_node_batch,
+        .materialize(
+            &user_materialize,
+            &user_materialize,
             Some(preimages_schematized),
         )
         .unwrap();
@@ -255,18 +262,18 @@ fn test_write_node_batches_different_versions() {
     let preimages_schematized =
         StateDb::materialize_preimages(vec![(key_hash, &key)], vec![(key_hash, &key)]).unwrap();
 
-    let user_node_batch = build_node_batch::<_, H>(
+    let user_node_batch = build_data_to_materialize::<_, H>(
         &state_db.get_jmt_handler::<UserNamespace>(),
         0,
         vec![(key_hash, Some(value_1.to_vec()))],
     );
-    let kernel_node_batch = build_node_batch::<_, H>(
+    let kernel_node_batch = build_data_to_materialize::<_, H>(
         &state_db.get_jmt_handler::<KernelNamespace>(),
         1,
         vec![(key_hash, Some(value_2.to_vec()))],
     );
     let batch = state_db
-        .materialize_node_batches(
+        .materialize(
             &kernel_node_batch,
             &user_node_batch,
             Some(preimages_schematized),
@@ -309,18 +316,18 @@ fn test_namespace() {
         // Note, we populate both user/kernel preimages here for more honest testing.
         let preimages_schematized =
             StateDb::materialize_preimages(vec![(key_hash, &key)], vec![(key_hash, &key)]).unwrap();
-        let user_batch = build_node_batch::<_, H>(
+        let user_batch = build_data_to_materialize::<_, H>(
             &state_db.get_jmt_handler::<UserNamespace>(),
             version_0,
             vec![(key_hash, Some(value_1.to_vec()))],
         );
-        let kernel_node_batch = build_node_batch::<_, H>(
+        let kernel_node_batch = build_data_to_materialize::<_, H>(
             &state_db.get_jmt_handler::<KernelNamespace>(),
             version_0,
             Vec::new(),
         );
         let node_batch_schematized = state_db
-            .materialize_node_batches(&kernel_node_batch, &user_batch, Some(preimages_schematized))
+            .materialize(&kernel_node_batch, &user_batch, Some(preimages_schematized))
             .unwrap();
 
         rocksdb.write_schemas(&node_batch_schematized).unwrap();
@@ -346,18 +353,18 @@ fn test_namespace() {
     let state_db = init_state_db(rocksdb.clone());
     // Populate the kernel space of the state db with some values but for different version
     {
-        let user_batch = build_node_batch::<_, H>(
+        let user_batch = build_data_to_materialize::<_, H>(
             &state_db.get_jmt_handler::<UserNamespace>(),
             version_1,
             Vec::new(),
         );
-        let kernel_node_batch = build_node_batch::<_, H>(
+        let kernel_node_batch = build_data_to_materialize::<_, H>(
             &state_db.get_jmt_handler::<KernelNamespace>(),
             version_1,
             vec![(key_hash, Some(value_2.to_vec()))],
         );
         let node_batch_schematized = state_db
-            .materialize_node_batches(&kernel_node_batch, &user_batch, None)
+            .materialize(&kernel_node_batch, &user_batch, None)
             .unwrap();
 
         rocksdb.write_schemas(&node_batch_schematized).unwrap();

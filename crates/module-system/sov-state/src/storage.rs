@@ -6,8 +6,11 @@ use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
+use jmt::KeyHash;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use sha2::digest::typenum;
+use sha2::Digest;
 use sov_rollup_interface::common::SlotNumber;
 #[cfg(feature = "native")]
 use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
@@ -15,7 +18,9 @@ use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 use crate::bytes::Prefix;
 use crate::codec::EncodeLike;
 use crate::namespaces::{ProvableCompileTimeNamespace, ProvableNamespace};
-use crate::{StateAccesses, StateItemDecoder, Witness};
+use crate::{
+    MerkleProofSpec, SparseMerkleProof, StateAccesses, StateItemDecoder, StorageRoot, Witness,
+};
 
 type ArcFormatFn =
     Arc<dyn (Fn(&[u8], &mut fmt::Formatter<'_>) -> fmt::Result) + Send + Sync + 'static>;
@@ -141,6 +146,15 @@ impl SlotKey {
     }
 }
 
+// We return `Vec<u8>`` here to be compatybile with the `JMT::put_value_set_with_proof` method.
+fn val_hash_and_size_inner(val_hash: [u8; 32], size: u64) -> Vec<u8> {
+    let mut val_hash_and_size = Vec::with_capacity(40);
+    let size_bytes = size.to_le_bytes();
+    val_hash_and_size.extend_from_slice(&val_hash);
+    val_hash_and_size.extend_from_slice(&size_bytes);
+    val_hash_and_size
+}
+
 /// A serialized value suitable for storing. Internally uses an [`Arc<Vec<u8>>`]
 /// for cheap cloning.
 #[derive(
@@ -189,6 +203,64 @@ impl SlotValue {
     /// The size of the `SlotValue` in bytes.
     pub fn size(&self) -> usize {
         self.value.len()
+    }
+
+    /// Combines the value hash with its size..
+    pub(crate) fn combine_val_hash_and_size<H: Digest<OutputSize = typenum::U32>>(
+        &self,
+    ) -> Vec<u8> {
+        let val_hash: [u8; 32] = H::digest(self.value.as_ref()).into();
+        val_hash_and_size_inner(val_hash, self.value.len() as u64)
+    }
+}
+
+/// Size and hash of a value saved in the state.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Default,
+    Serialize,
+    serde::Deserialize,
+    BorshDeserialize,
+    BorshSerialize,
+)]
+pub struct NodeLeaf {
+    /// The size of the value.
+    pub(crate) size: u64,
+    /// The hash of the value.
+    pub(crate) val_hash: [u8; 32],
+}
+
+impl NodeLeaf {
+    pub(crate) fn make_leaf<H: Digest<OutputSize = typenum::U32>>(value: &SlotValue) -> NodeLeaf {
+        let size = value.size() as u64;
+        let val_hash: [u8; 32] = H::digest(value.value()).into();
+        NodeLeaf { size, val_hash }
+    }
+
+    /// Combines the value hash with its size..
+    pub(crate) fn combine_val_hash_and_size(&self) -> Vec<u8> {
+        val_hash_and_size_inner(self.val_hash, self.size)
+    }
+}
+
+#[derive(
+    Clone, Debug, PartialEq, Eq, Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize,
+)]
+pub(crate) struct NodeLeafAndValue {
+    pub(crate) leaf: NodeLeaf,
+    pub(crate) value: SlotValue,
+}
+
+impl NodeLeafAndValue {
+    pub(crate) fn new<H: Digest<OutputSize = typenum::U32>>(value: SlotValue) -> Self {
+        Self {
+            leaf: NodeLeaf::make_leaf::<H>(&value),
+            value,
+        }
     }
 }
 
@@ -270,6 +342,9 @@ pub trait StateRoot:
 
 /// An interface for retrieving values from the storage and producing change set of new write operations.
 pub trait Storage: Clone {
+    /// Hasher
+    type Hasher: Digest<OutputSize = typenum::U32> + Send + Sync;
+
     /// The witness type for this storage instance.
     type Witness: Witness + Send + Sync;
 
@@ -395,4 +470,33 @@ pub trait NativeStorage: Storage {
     /// Get the *global* root hash of the tree at the requested version.
     /// Returns an error if storage is empty or the requests version is not yet available.
     fn get_root_hash(&self, version: SlotNumber) -> anyhow::Result<Self::Root>;
+}
+
+pub(crate) fn open_merkle_proof<S: MerkleProofSpec>(
+    state_root: StorageRoot<S>,
+    state_proof: StorageProof<SparseMerkleProof<S::Hasher>>,
+) -> anyhow::Result<(SlotKey, Option<SlotValue>)> {
+    let StorageProof {
+        key,
+        value,
+        proof,
+        namespace,
+    } = state_proof;
+    let key_hash = KeyHash::with::<S::Hasher>(key.as_ref());
+
+    // The proof leaves contain hash(combine(val_hash, val_len)).
+    // The outer hashing is handled by the verify method, so we need to pass combine(val_hash, val_len).
+    let val_hash_and_size = value
+        .as_ref()
+        .map(|v| v.combine_val_hash_and_size::<S::Hasher>());
+
+    proof.inner().verify(
+        // We need to verify the proof against the correct root hash.
+        // Hence we match the key against its namespace
+        jmt::RootHash(state_root.namespace_root(namespace)),
+        key_hash,
+        val_hash_and_size,
+    )?;
+
+    Ok((key, value))
 }

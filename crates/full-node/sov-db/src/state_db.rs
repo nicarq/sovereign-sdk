@@ -1,8 +1,9 @@
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 
 use anyhow::{ensure, Context};
-use jmt::storage::{HasPreimage, TreeReader};
-use jmt::{KeyHash, Version};
+use jmt::storage::{HasPreimage, NodeBatch, TreeReader};
+use jmt::{KeyHash, OwnedValue, Version};
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::{SchemaBatch, SchemaKey};
 use sov_rollup_interface::common::SlotNumber;
@@ -10,6 +11,15 @@ use sov_rollup_interface::common::SlotNumber;
 use crate::namespaces::{KernelNamespace, Namespace, UserNamespace};
 use crate::schema::namespace::{JmtNodes, JmtValues, KeyHashToKey};
 use crate::DbOptions;
+
+/// Data that will be saved in the DB.
+#[derive(Default)]
+pub struct StateTreeChanges {
+    /// Node batch
+    pub node_batch: NodeBatch,
+    /// The original writes that will be stored in the DB.
+    pub original_write_values: BTreeMap<(u64, KeyHash), Option<OwnedValue>>,
+}
 
 /// A typed wrapper around the [`DeltaReader`] for materializing rollup state.
 #[derive(Debug, Clone)]
@@ -139,12 +149,12 @@ impl StateDb {
         }
     }
 
-    fn materialize_node_batch<N: Namespace>(
+    fn build_schema_batch_from_changes<N: Namespace>(
         &self,
-        node_batch: &jmt::storage::NodeBatch,
+        data_to_materialize: &StateTreeChanges,
         latest_preimages: Option<&SchemaBatch>,
     ) -> anyhow::Result<SchemaBatch> {
-        if node_batch.nodes().is_empty() {
+        if data_to_materialize.node_batch.nodes().is_empty() {
             anyhow::bail!(
                 "NodeBatch {} should have at least one Node",
                 std::any::type_name::<N>()
@@ -154,11 +164,11 @@ impl StateDb {
         // We always .put and not .delete to keep archival data.
 
         let mut batch = SchemaBatch::new();
-        for (node_key, node) in node_batch.nodes() {
+        for (node_key, node) in data_to_materialize.node_batch.nodes() {
             batch.put::<JmtNodes<N>>(node_key, node)?;
         }
 
-        for ((version, key_hash), value) in node_batch.values() {
+        for ((version, key_hash), value) in &data_to_materialize.original_write_values {
             let key_preimage = if let Some(latest_preimages) = latest_preimages {
                 latest_preimages.get_value::<KeyHashToKey<N>>(&key_hash.0)?
             } else {
@@ -185,18 +195,20 @@ impl StateDb {
     /// which might not be available in the [`StateDb`] yet.
     /// Preimages should contain values for both namespaces.
     /// Preimages batch is included in the output, so no need to write it separately.
-    pub fn materialize_node_batches(
+    pub fn materialize(
         &self,
-        kernel_node_batch: &jmt::storage::NodeBatch,
-        user_node_batch: &jmt::storage::NodeBatch,
+        kernel_data_to_materialize: &StateTreeChanges,
+        user_data_to_materialize: &StateTreeChanges,
         latest_preimages: Option<SchemaBatch>,
     ) -> anyhow::Result<SchemaBatch> {
-        let mut kernel_materialized = self.materialize_node_batch::<KernelNamespace>(
-            kernel_node_batch,
+        let mut kernel_materialized = self.build_schema_batch_from_changes::<KernelNamespace>(
+            kernel_data_to_materialize,
             latest_preimages.as_ref(),
         )?;
-        let user_materialized = self
-            .materialize_node_batch::<UserNamespace>(user_node_batch, latest_preimages.as_ref())?;
+        let user_materialized = self.build_schema_batch_from_changes::<UserNamespace>(
+            user_data_to_materialize,
+            latest_preimages.as_ref(),
+        )?;
 
         kernel_materialized.merge(user_materialized);
         if let Some(latest_preimages) = latest_preimages {

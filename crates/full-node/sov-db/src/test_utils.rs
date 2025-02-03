@@ -1,13 +1,12 @@
 use std::collections::HashSet;
 
-use jmt::storage::NodeBatch;
 use jmt::{JellyfishMerkleTree, KeyHash, SimpleHasher};
 use rand::{Rng, SeedableRng};
 use rockbound::SchemaValue;
 
 use crate::accessory_db::AccessoryDb;
 use crate::namespaces::Namespace;
-use crate::state_db::{JmtHandler, StateDb};
+use crate::state_db::{JmtHandler, StateDb, StateTreeChanges};
 use crate::storage_manager::InitializableNativeStorage;
 
 /// Simple container for unlocking testing of NativeStorage without need of ProverStorage.
@@ -57,15 +56,18 @@ pub fn generate_more_random_bytes<R: Rng>(
     samples
 }
 
-/// Helper for building proper [`NodeBatch`]
-pub fn build_node_batch<N: Namespace, H: SimpleHasher>(
+/// Helper for building proper [`StateTreeChanges`]
+pub fn build_data_to_materialize<N: Namespace, H: SimpleHasher>(
     jmt_handler: &JmtHandler<N>,
     next_version: jmt::Version,
     batch: Vec<(KeyHash, Option<SchemaValue>)>,
-) -> NodeBatch {
+) -> StateTreeChanges {
     let jmt = JellyfishMerkleTree::<JmtHandler<N>, H>::new(jmt_handler);
     let (_new_root, _update_proof, tree_update) =
         jmt.put_value_set_with_proof(batch, next_version).unwrap();
 
-    tree_update.node_batch
+    StateTreeChanges {
+        original_write_values: tree_update.node_batch.values().clone(),
+        node_batch: tree_update.node_batch,
+    }
 }

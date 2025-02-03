@@ -11,7 +11,7 @@ use crate::namespaces::CompileTimeNamespace;
 use crate::namespaces::ProvableCompileTimeNamespace;
 use crate::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use crate::storage_internals::SparseMerkleProof;
-use crate::{MerkleProofSpec, StateRoot, StorageRoot, Witness};
+use crate::{open_merkle_proof, MerkleProofSpec, StorageRoot, Witness};
 
 /// A [`Storage`] implementation designed to be used inside the zkVM.
 #[derive(Default, derivative::Derivative)]
@@ -42,10 +42,10 @@ fn jmt_verify_existence<S: MerkleProofSpec>(
         let proof: jmt::proof::SparseMerkleProof<S::Hasher> = witness.get_hint();
 
         match read_value {
-            Some(val) => proof.verify_existence(
+            Some(node_leaf) => proof.verify_existence(
                 jmt::RootHash(prev_state_root),
                 key_hash,
-                val.value().as_ref(),
+                node_leaf.combine_val_hash_and_size(),
             )?,
             None => proof.verify_nonexistence(jmt::RootHash(prev_state_root), key_hash)?,
         }
@@ -66,7 +66,10 @@ fn jmt_verify_update<S: MerkleProofSpec>(
         .into_iter()
         .map(|(key, value)| {
             let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
-            (key_hash, value.as_ref().map(|v| v.value().to_vec()))
+            let val_hash_and_size = value
+                .as_ref()
+                .map(|v| v.combine_val_hash_and_size::<S::Hasher>());
+            (key_hash, val_hash_and_size)
         })
         .collect::<Vec<_>>();
 
@@ -101,6 +104,7 @@ impl<S: MerkleProofSpec> ZkStorage<S> {
 }
 
 impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
+    type Hasher = S::Hasher;
     type Witness = S::Witness;
     type RuntimeConfig = ();
     type Proof = SparseMerkleProof<S::Hasher>;
@@ -140,23 +144,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         state_root: Self::Root,
         state_proof: StorageProof<Self::Proof>,
     ) -> anyhow::Result<(SlotKey, Option<SlotValue>)> {
-        let StorageProof {
-            key,
-            value,
-            proof,
-            namespace,
-        } = state_proof;
-        let key_hash = KeyHash::with::<S::Hasher>(key.as_ref());
-
-        // We need to verify the proof against the correct root hash,
-        // Hence we match the key against its namespace
-        proof.inner().verify(
-            jmt::RootHash(state_root.namespace_root(namespace)),
-            key_hash,
-            value.as_ref().map(|v| v.value()),
-        )?;
-
-        Ok((key, value))
+        open_merkle_proof(state_root, state_proof)
     }
 }
 
