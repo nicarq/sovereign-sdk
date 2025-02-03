@@ -193,7 +193,6 @@ impl MockDaService {
 
         MockBlock {
             header,
-            validity_cond: Default::default(),
             batch_blobs: vec![batch_blob],
             proof_blobs,
         }

@@ -3,8 +3,7 @@ use std::sync::Arc;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::{
-    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaService, MockDaSpec, MockValidityCond,
-    PlannedFork,
+    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaService, MockDaSpec, PlannedFork,
 };
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{FullyBakedTx, StateTransitionFunction};
@@ -19,7 +18,7 @@ use tempfile::TempDir;
 use crate::helpers::hash_stf::{HashStf, S};
 use crate::helpers::runner_init::{initialize_runner, InitVariant};
 
-type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkvm, MockZkvm, MockDaService>;
+type MockInitVariant = InitVariant<HashStf, MockZkvm, MockZkvm, MockDaService>;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_simple_reorg_case() {
@@ -179,7 +178,6 @@ fn get_expected_execution_hash_from(
         .enumerate()
         .map(|(idx, blob)| MockBlock {
             header: MockBlockHeader::from_height((idx + 1) as u64),
-            validity_cond: MockValidityCond::default(),
             batch_blobs: vec![MockBlob::new(
                 blob,
                 MockAddress::new([11u8; 32]),
@@ -200,19 +198,15 @@ fn get_result_from_blocks(
     let mut storage_manager = SimpleStorageManager::new();
     let storage = storage_manager.create_storage();
 
-    let stf = HashStf::<MockValidityCond>::new();
+    let stf = HashStf::new();
 
-    let (genesis_state_root, change_set) = <HashStf<MockValidityCond> as StateTransitionFunction<
-        MockZkvm,
-        MockZkvm,
-        MockDaSpec,
-    >>::init_chain(
-        &stf,
-        &Default::default(),
-        &Default::default(),
-        storage,
-        genesis_params.to_vec(),
-    );
+    let (genesis_state_root, change_set) =
+        <HashStf as StateTransitionFunction<MockZkvm, MockZkvm, MockDaSpec>>::init_chain(
+            &stf,
+            &Default::default(),
+            storage,
+            genesis_params.to_vec(),
+        );
     storage_manager.commit(change_set);
 
     let mut state_root = genesis_state_root;
@@ -223,20 +217,16 @@ fn get_result_from_blocks(
         let mut relevant_blobs = block.as_relevant_blobs();
 
         let storage = storage_manager.create_storage();
-        let result = <HashStf<MockValidityCond> as StateTransitionFunction<
-            MockZkvm,
-            MockZkvm,
-            MockDaSpec,
-        >>::apply_slot(
-            &stf,
-            &state_root,
-            storage,
-            ArrayWitness::default(),
-            &block.header,
-            &block.validity_cond,
-            relevant_blobs.as_iters(),
-            sov_modules_api::ExecutionContext::Node,
-        );
+        let result =
+            <HashStf as StateTransitionFunction<MockZkvm, MockZkvm, MockDaSpec>>::apply_slot(
+                &stf,
+                &state_root,
+                storage,
+                ArrayWitness::default(),
+                &block.header,
+                relevant_blobs.as_iters(),
+                sov_modules_api::ExecutionContext::Node,
+            );
 
         state_root = result.state_root;
         storage_manager.commit(result.change_set);

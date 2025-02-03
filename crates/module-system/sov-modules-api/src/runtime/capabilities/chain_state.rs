@@ -16,7 +16,6 @@ pub trait ChainState {
     fn synchronise_chain(
         &self,
         slot_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
-        validity_condition: &<<Self::Spec as Spec>::Da as DaSpec>::ValidityCondition,
         pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
     );

@@ -57,7 +57,7 @@ pub mod my_module {
         fn genesis(
             &self,
             _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
-            _validity_condition: &<S::Da as DaSpec>::ValidityCondition,
+            
             config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {

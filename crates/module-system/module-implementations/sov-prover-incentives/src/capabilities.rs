@@ -332,30 +332,6 @@ impl<S: Spec> ProverIncentives<S> {
             return Ok(Some(SlashingReason::IncorrectFinalSlotHash));
         }
 
-        // We may also want to check the integrity of the validity conditions along the way
-        // We first need to check the length of the validity conditions vector
-        if public_outputs.validity_conditions.len()
-            != (final_slot_num.delta(initial_slot_num) as usize + 1)
-        {
-            return Ok(Some(SlashingReason::IncorrectValidityConditions));
-        }
-
-        // We are checking all the validity conditions up to `final_slot_num` included.
-        let range = initial_slot_num.range_inclusive(final_slot_num);
-        for (slot_num, output_condition) in range.zip(public_outputs.validity_conditions.iter()) {
-            match self
-                .chain_state
-                .get_historical_transitions(slot_num, state)?
-            {
-                Some(transition) => {
-                    if transition.validity_condition() != output_condition {
-                        return Ok(Some(SlashingReason::IncorrectValidityConditions));
-                    }
-                }
-                None => return Ok(Some(SlashingReason::IncorrectValidityConditions)),
-            }
-        }
-
         Ok(None)
     }
 }

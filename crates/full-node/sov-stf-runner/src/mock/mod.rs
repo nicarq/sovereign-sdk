@@ -1,19 +1,15 @@
 //! Testing utilities.
 
-use std::marker::PhantomData;
-
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::{DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{
     ApplySlotOutput, BatchReceipt, ExecutionContext, StateTransitionFunction,
 };
-use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
+use sov_rollup_interface::zk::Zkvm;
 
 /// A mock implementation of the [`StateTransitionFunction`]
 #[derive(PartialEq, Debug, Clone, Eq, serde::Serialize, serde::Deserialize, Default)]
-pub struct MockStf<Cond> {
-    phantom_data: PhantomData<Cond>,
-}
+pub struct MockStf;
 
 #[derive(
     Debug,
@@ -38,8 +34,8 @@ impl AsRef<[u8]> for MockRoot {
     }
 }
 
-impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
-    StateTransitionFunction<InnerVm, OuterVm, Da> for MockStf<Cond>
+impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, OuterVm, Da>
+    for MockStf
 {
     type Address = Vec<u8>;
     type StateRoot = MockRoot;
@@ -51,13 +47,11 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     type TxReceiptContents = ();
     type BatchReceiptContents = ();
     type Witness = ();
-    type Condition = Cond;
 
     // Perform one-time initialization for the genesis block.
     fn init_chain(
         &self,
         _genesis_rollup_header: &Da::BlockHeader,
-        _validity_condition: &Da::ValidityCondition,
         _base_state: Self::PreState,
         _params: Self::GenesisParams,
     ) -> (Self::StateRoot, ()) {
@@ -70,7 +64,6 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         _base_state: Self::PreState,
         _witness: Self::Witness,
         _slot_header: &Da::BlockHeader,
-        _validity_condition: &Da::ValidityCondition,
         _relevant_blobs: RelevantBlobIters<&mut [<Da as DaSpec>::BlobTransaction]>,
         _execution_context: ExecutionContext,
     ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self> {

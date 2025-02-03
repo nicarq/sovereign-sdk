@@ -134,10 +134,10 @@ where
                         ..
                     } = data.stf_witness;
 
-                    let validity_condition = verifier
+                    verifier
                         .da_verifier
                         .verify_relevant_tx_list(&da_block_header, &blobs, relevant_proofs)
-                        .expect("Invalid validity condition");
+                        .expect("An honest prover provided an invalid list of relevant txs. This is a bug in the prover - please report it.");
 
                     let block_proof = proof.map(|p| BlockProof {
                         _proof: p,
@@ -145,7 +145,6 @@ where
                             initial_state_root,
                             final_state_root,
                             slot_hash: block_header_hash.clone(),
-                            validity_condition,
                             prover_address,
                         },
                         slot_number: state_transition_info.slot_number,
@@ -194,14 +193,11 @@ where
         let final_block_proof = block_proofs_data.last().unwrap();
 
         let mut rewarded_addresses = Vec::default();
-        let mut validity_conditions = Vec::default();
         for bp in block_proofs_data.iter() {
             rewarded_addresses.push(bp.st.prover_address.clone());
-            validity_conditions.push(bp.st.validity_condition);
         }
 
         let public_data = AggregatedProofPublicData::<Address, Da::Spec, StateRoot> {
-            validity_conditions,
             rewarded_addresses,
             initial_slot_number: initial_block_proof.slot_number,
             final_slot_number: final_block_proof.slot_number,

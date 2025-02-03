@@ -95,7 +95,6 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
                 height: 0,
                 time: Time::now(),
             },
-            validity_cond: Default::default(),
             batch_blobs: Default::default(),
             proof_blobs: Default::default(),
         })];

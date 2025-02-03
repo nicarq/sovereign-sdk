@@ -25,8 +25,6 @@ use tracing::trace;
 
 use crate::shares::{BlobRefIterator, NamespaceGroup};
 use crate::utils::{read_varint, BoxError};
-#[cfg(feature = "native")]
-use crate::verifier::ChainValidityCondition;
 use crate::verifier::{TmHash, PFB_NAMESPACE};
 
 pub const GENESIS_PLACEHOLDER_HASH: &[u8; 32] = &[255; 32];
@@ -252,7 +250,6 @@ impl BlockHeader for CelestiaHeader {
 #[cfg(feature = "native")]
 impl SlotData for CelestiaHeader {
     type BlockHeader = CelestiaHeader;
-    type Cond = ChainValidityCondition;
 
     fn hash(&self) -> [u8; 32] {
         match self.header.hash() {
@@ -263,13 +260,6 @@ impl SlotData for CelestiaHeader {
 
     fn header(&self) -> &Self::BlockHeader {
         self
-    }
-
-    fn validity_condition(&self) -> ChainValidityCondition {
-        ChainValidityCondition {
-            prev_hash: *self.header().prev_hash().inner(),
-            block_hash: <Self as SlotData>::hash(self),
-        }
     }
 }
 
@@ -355,8 +345,6 @@ fn next_pfb(mut data: &mut BlobRefIterator) -> Result<(MsgPayForBlobs, TxPositio
 #[cfg(test)]
 mod tests {
     use celestia_types::ExtendedHeader;
-    use sov_rollup_interface::node::da::SlotData;
-    use sov_rollup_interface::zk::ValidityCondition;
 
     use crate::test_helper::files::{
         with_rollup_batch_data, with_rollup_proof_data, without_rollup_batch_data,
@@ -368,27 +356,6 @@ mod tests {
         include_str!("../test_data/block_with_rollup_batch_data/prev_header.json"),
         include_str!("../test_data/block_with_rollup_batch_data/header.json"),
     ];
-
-    #[test]
-    fn test_validity_condition() {
-        let headers: Vec<_> = HEADER_JSON_RESPONSES
-            .iter()
-            .map(|header| {
-                let eh: ExtendedHeader = serde_json::from_str(header).unwrap();
-                CelestiaHeader::new(eh.dah, eh.header.into())
-            })
-            .collect();
-
-        let former_validity_cond = headers[0].validity_condition();
-        let latter_validity_cond = headers[1].validity_condition();
-
-        assert!(former_validity_cond
-            .combine::<sha2::Sha256>(latter_validity_cond)
-            .is_ok());
-        assert!(latter_validity_cond
-            .combine::<sha2::Sha256>(former_validity_cond)
-            .is_err());
-    }
 
     #[test]
     fn test_compact_header_serde() {

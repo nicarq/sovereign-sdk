@@ -231,12 +231,9 @@ where
 
     type Witness = <S::Storage as Storage>::Witness;
 
-    type Condition = <S::Da as DaSpec>::ValidityCondition;
-
     fn init_chain(
         &self,
         genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
-        validity_condition: &<S::Da as DaSpec>::ValidityCondition,
         pre_state: Self::PreState,
         params: Self::GenesisParams,
     ) -> (Self::StateRoot, Self::ChangeSet) {
@@ -250,7 +247,6 @@ where
 
         if let Err(e) = self.runtime.genesis(
             genesis_rollup_header,
-            validity_condition,
             &params.runtime,
             &mut genesis_accessor,
         ) {
@@ -285,7 +281,6 @@ where
         pre_state: Self::PreState,
         witness: Self::Witness,
         slot_header: &<S::Da as DaSpec>::BlockHeader,
-        validity_condition: &<S::Da as DaSpec>::ValidityCondition,
         relevant_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         execution_context: ExecutionContext,
     ) -> ApplySlotOutput<S::InnerZkvm, S::OuterZkvm, S::Da, Self> {
@@ -298,24 +293,23 @@ where
         let start_slot = std::time::Instant::now();
         let mut state = StateCheckpoint::with_witness(pre_state, witness, &self.runtime.kernel());
 
-        // First, we bootstrap the kernel from the previous state. The `true_slot_number` will be stale, because it's leftover from the previous slot.
-        let mut kernel_with_stale_height = self.runtime.kernel().accessor(&mut state);
+        let mut kernel = {
+            // First, we bootstrap the kernel from the previous state. The `true_slot_number` will be stale, because it's leftover from the previous slot.
+            let mut kernel_from_bootstrap = self.runtime.kernel().accessor(&mut state);
 
-        // WARNING: The kernel slot hooks should always be called before the runtime slot hooks.
-        // That way the state of the runtime modules is always in sync with the transaction `being executed`.
-        //
-        // WARNING: The true slot height gets updated in the `ChainState`'s `synchronise_chain` method.
-        // The visible slot height gets updated in the `BlobStorage`'s `get_blobs_for_this_slot` method.
-        // Be careful to not respect the call order: the `ChainState` hooks should be called before the `BlobStorage`'s which should be called before the
-        // `Runtime`'s slot hooks.
-        self.runtime.chain_state().synchronise_chain(
-            slot_header,
-            validity_condition,
-            pre_state_root,
-            &mut kernel_with_stale_height,
-        );
-        // At this point we've "synchronized" the kernel state into the chain state module, so the `true_slot_number` is now up to date.
-        let mut kernel = kernel_with_stale_height;
+            // WARNING: The true slot height gets updated in the `ChainState`'s `synchronise_chain` method.
+            // The visible slot height gets updated in the `BlobStorage`'s `get_blobs_for_this_slot` method.
+            // Be careful to not respect the call order: the `ChainState` hooks should be called before the `BlobStorage`'s which should be called before the
+            // `Runtime`'s slot hooks.
+            self.runtime.chain_state().synchronise_chain(
+                slot_header,
+                pre_state_root,
+                &mut kernel_from_bootstrap,
+            );
+            // Now that we've called synchronise_chain, the kernel is safe to use
+            kernel_from_bootstrap
+        };
+
         let visible_hash = self
             .runtime
             .chain_state()

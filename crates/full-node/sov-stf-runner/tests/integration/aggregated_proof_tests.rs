@@ -137,7 +137,6 @@ async fn spawn(
 ) -> (TestNode, JoinHandle<anyhow::Result<()>>) {
     let genesis_block = MockBlock {
         header: MockBlockHeader::from_height(0),
-        validity_cond: Default::default(),
         batch_blobs: vec![],
         proof_blobs: vec![],
     };

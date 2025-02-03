@@ -148,7 +148,6 @@ impl<S: Spec> Module for BlobStorage<S> {
     fn genesis(
         &self,
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
-        _validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         _config: &Self::Config,
         _state: &mut impl GenesisState<S>,
     ) -> Result<(), sov_modules_api::Error> {

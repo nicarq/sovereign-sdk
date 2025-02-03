@@ -46,7 +46,7 @@ pub mod first_test_module {
         fn genesis(
             &self,
             _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
-            _validity_condition: &<S::Da as DaSpec>::ValidityCondition,
+
             _config: &Self::Config,
             _state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
@@ -104,7 +104,7 @@ pub mod second_test_module {
         fn genesis(
             &self,
             _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
-            _validity_condition: &<S::Da as DaSpec>::ValidityCondition,
+
             _config: &Self::Config,
             _state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {

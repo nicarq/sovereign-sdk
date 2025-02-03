@@ -266,7 +266,6 @@ pub(crate) fn build_challenge(
         initial_state_root: prev_root,
         final_state_root: *current_transition.post_state_root(),
         slot_hash: *current_transition.slot_hash(),
-        validity_condition: *current_transition.validity_condition(),
         prover_address,
     };
 

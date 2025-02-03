@@ -73,7 +73,6 @@ impl<S: Spec> sov_modules_api::Module for ProverIncentives<S> {
     fn genesis(
         &self,
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
-        _validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {

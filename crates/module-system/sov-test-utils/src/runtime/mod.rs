@@ -376,7 +376,6 @@ where
         // We need to synchronize the chain state with a mock kernel state to have a correct state view.
         runtime.chain_state().synchronise_chain(
             &Default::default(),
-            &Default::default(),
             &self.state_root,
             &mut kernel_state,
         );
@@ -425,12 +424,8 @@ where
             &stf.runtime().kernel(),
         ));
 
-        let (state_root, change_set) = stf.init_chain(
-            &Default::default(),
-            &Default::default(),
-            stf_state,
-            genesis_config,
-        );
+        let (state_root, change_set) =
+            stf.init_chain(&Default::default(), stf_state, genesis_config);
 
         storage_manager.commit(change_set);
 
@@ -582,7 +577,6 @@ where
                 stf_state.clone(),
                 Default::default(),
                 &block_header,
-                &Default::default(),
                 blobs.as_iters(),
                 ExecutionContext::Node, // We care more about testing the full node than the sequencer simulation
             ),
@@ -628,7 +622,6 @@ where
                 stf_state.clone(),
                 Default::default(),
                 &block_header,
-                &Default::default(),
                 blobs.as_iters(),
                 ExecutionContext::Node,
             );

@@ -11,7 +11,7 @@ use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{DeltaReader, SchemaBatch};
 use sov_metrics::RunnerMetrics;
 use sov_rollup_interface::common::SlotNumber;
-use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait};
 use sov_rollup_interface::node::da::{DaService, SlotData};
 use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::node::{
@@ -48,12 +48,7 @@ where
     InnerVm: Zkvm,
     OuterVm: Zkvm,
     Sm: HierarchicalStorageManager<Da::Spec>,
-    Stf: StateTransitionFunction<
-        InnerVm,
-        OuterVm,
-        Da::Spec,
-        Condition = <Da::Spec as DaSpec>::ValidityCondition,
-    >,
+    Stf: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
 {
     first_unprocessed_height_at_startup: u64,
     da_polling_interval_ms: u64,
@@ -111,12 +106,8 @@ where
     // Ledger state is not used, as we know it should be empty
     let (stf_state, _ledger_state) = storage_manager.create_state_for(&block_header)?;
 
-    let (genesis_state_root, initialized_storage) = stf.init_chain(
-        &block_header,
-        &genesis_block.validity_condition(),
-        stf_state,
-        genesis_params,
-    );
+    let (genesis_state_root, initialized_storage) =
+        stf.init_chain(&block_header, stf_state, genesis_params);
 
     let data_to_commit: SlotCommit<_, Stf::BatchReceiptContents, Stf::TxReceiptContents> =
         SlotCommit::new(genesis_block);
@@ -147,7 +138,6 @@ where
         InnerVm,
         OuterVm,
         Da::Spec,
-        Condition = <Da::Spec as DaSpec>::ValidityCondition,
         PreState = Sm::StfState,
         ChangeSet = Sm::StfChangeSet,
     >,
@@ -483,7 +473,6 @@ where
             stf_pre_state,
             Default::default(),
             &filtered_block_header,
-            &filtered_block.validity_condition(),
             relevant_blobs.as_iters(),
             ExecutionContext::Node,
         );

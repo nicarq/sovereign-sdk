@@ -5,7 +5,7 @@ use sov_rollup_interface::da::Time;
 
 use crate::storable::layer::StorableMockDaLayer;
 use crate::storable::service::BlockProducing;
-use crate::{MockAddress, MockBlock, MockBlockHeader, MockHash, MockValidityCond};
+use crate::{MockAddress, MockBlock, MockBlockHeader, MockHash};
 
 /// Time in milliseconds to wait for the next block if it is not there yet.
 /// How many times wait attempts are done depends on service configuration.
@@ -21,7 +21,6 @@ pub(crate) const GENESIS_HEADER: MockBlockHeader = MockBlockHeader {
 
 pub(crate) const GENESIS_BLOCK: MockBlock = MockBlock {
     header: GENESIS_HEADER,
-    validity_cond: MockValidityCond { is_valid: true },
     batch_blobs: Vec::new(),
     proof_blobs: Vec::new(),
 };

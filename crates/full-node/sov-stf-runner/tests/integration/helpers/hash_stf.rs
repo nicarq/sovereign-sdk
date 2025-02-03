@@ -9,7 +9,7 @@ use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
-use sov_rollup_interface::zk::{ValidityCondition, ZkVerifier, Zkvm};
+use sov_rollup_interface::zk::{ZkVerifier, Zkvm};
 use sov_state::namespaces::User;
 use sov_state::storage::{NativeStorage, SlotKey, SlotValue};
 use sov_state::{
@@ -20,15 +20,11 @@ use sov_state::{
 pub type S = DefaultStorageSpec<sha2::Sha256>;
 
 #[derive(Default, Clone)]
-pub struct HashStf<Cond> {
-    phantom_data: std::marker::PhantomData<Cond>,
-}
+pub struct HashStf;
 
-impl<Cond> HashStf<Cond> {
+impl HashStf {
     pub fn new() -> Self {
-        Self {
-            phantom_data: std::marker::PhantomData,
-        }
+        Self
     }
 
     fn hash_key() -> SlotKey {
@@ -43,7 +39,7 @@ impl<Cond> HashStf<Cond> {
     ) -> (StorageRoot<S>, NativeChangeSet) {
         let result = hasher.finalize();
 
-        let hash_key = HashStf::<Cond>::hash_key();
+        let hash_key = HashStf::hash_key();
         let hash_value = SlotValue::from(result.as_slice().to_vec());
 
         let ordered_reads_writes = OrderedReadsAndWrites {
@@ -65,8 +61,8 @@ impl<Cond> HashStf<Cond> {
     }
 }
 
-impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
-    StateTransitionFunction<InnerVm, OuterVm, Da> for HashStf<Cond>
+impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, OuterVm, Da>
+    for HashStf
 {
     type Address = MockAddress;
     type StateRoot = StorageRoot<S>;
@@ -78,19 +74,18 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     type GasPrice = ();
     type BatchReceiptContents = [u8; 32];
     type Witness = ArrayWitness;
-    type Condition = Cond;
 
     fn init_chain(
         &self,
         _genesis_rollup_header: &Da::BlockHeader,
-        _validity_condition: &Da::ValidityCondition,
+
         genesis_state: Self::PreState,
         params: Self::GenesisParams,
     ) -> (Self::StateRoot, Self::ChangeSet) {
         let mut hasher = sha2::Sha256::new();
         hasher.update(params);
 
-        HashStf::<Cond>::save_from_hasher(hasher, genesis_state, &ArrayWitness::default())
+        HashStf::save_from_hasher(hasher, genesis_state, &ArrayWitness::default())
     }
 
     #[tracing::instrument(name = "HashStf::apply_slot", skip_all)]
@@ -100,7 +95,6 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         pre_state: Self::PreState,
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
-        _validity_condition: &Da::ValidityCondition,
         relevant_blobs: RelevantBlobIters<&mut [Da::BlobTransaction]>,
         _execution_context: sov_modules_api::ExecutionContext,
     ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self> {
@@ -125,7 +119,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
 
         let mut hasher = sha2::Sha256::new();
 
-        let hash_key = HashStf::<Cond>::hash_key();
+        let hash_key = HashStf::hash_key();
         let existing_cache = pre_state.get::<User>(&hash_key, None, &witness).unwrap();
         tracing::debug!(
             pre_state_root = hex::encode(pre_state_root),
@@ -173,8 +167,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
             });
         }
 
-        let (state_root, change_set) =
-            HashStf::<Cond>::save_from_hasher(hasher, pre_state, &witness);
+        let (state_root, change_set) = HashStf::save_from_hasher(hasher, pre_state, &witness);
 
         tracing::debug!(
             from = hex::encode(pre_state_root),

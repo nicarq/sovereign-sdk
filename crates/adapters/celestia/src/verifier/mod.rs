@@ -8,13 +8,9 @@ use celestia_types::{Commitment, DataAvailabilityHeader};
 use nmt_rs::NamespacedSha2Hasher;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
-    self, BlobReaderTrait, BlockHashTrait as BlockHash, BlockHeaderTrait, DaSpec, RelevantBlobs,
-    RelevantProofs,
+    self, BlobReaderTrait, BlockHashTrait as BlockHash, DaSpec, RelevantBlobs, RelevantProofs,
 };
-use sov_rollup_interface::reexports::digest::Digest;
-use sov_rollup_interface::zk::{ValidityCondition, ValidityConditionChecker};
 use sov_rollup_interface::Buf;
-use thiserror::Error;
 
 pub mod address;
 pub mod proofs;
@@ -158,11 +154,6 @@ impl DaSpec for CelestiaSpec {
 
     type Address = CelestiaAddress;
 
-    type ValidityCondition = ChainValidityCondition;
-
-    #[cfg(feature = "native")]
-    type Checker = ChainValidityConditionChecker;
-
     type InclusionMultiProof = Vec<EtxProof>;
 
     type CompletenessProof = NamespaceData;
@@ -174,53 +165,6 @@ impl DaSpec for CelestiaSpec {
 pub struct RollupParams {
     pub rollup_batch_namespace: Namespace,
     pub rollup_proof_namespace: Namespace,
-}
-
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    Hash,
-    BorshDeserialize,
-    BorshSerialize,
-)]
-/// A validity condition expressing that a chain of DA layer blocks is contiguous and canonical
-pub struct ChainValidityCondition {
-    pub prev_hash: [u8; 32],
-    pub block_hash: [u8; 32],
-}
-
-#[derive(Error, Debug)]
-pub enum ValidityConditionError {
-    #[error("conditions for validity can only be combined if the blocks are consecutive")]
-    BlocksNotConsecutive,
-}
-
-impl ValidityCondition for ChainValidityCondition {
-    type Error = ValidityConditionError;
-    fn combine<H: Digest>(&self, rhs: Self) -> Result<Self, Self::Error> {
-        if self.block_hash != rhs.prev_hash {
-            return Err(ValidityConditionError::BlocksNotConsecutive);
-        }
-        Ok(rhs)
-    }
-}
-
-/// The [`ValidityConditionChecker`] used to validate Celestia's [`ChainValidityCondition`]
-/// This validity condition checker is trivial because the validity condition consistency
-/// constraints are enforced in the `combine` method.
-#[derive(Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
-pub struct ChainValidityConditionChecker;
-
-impl ValidityConditionChecker<ChainValidityCondition> for ChainValidityConditionChecker {
-    type Error = anyhow::Error;
-    fn check(&mut self, _condition: &ChainValidityCondition) -> Result<(), Self::Error> {
-        Ok(())
-    }
 }
 
 impl da::DaVerifier for CelestiaVerifier {
@@ -244,7 +188,7 @@ impl da::DaVerifier for CelestiaVerifier {
             <Self::Spec as DaSpec>::InclusionMultiProof,
             <Self::Spec as DaSpec>::CompletenessProof,
         >,
-    ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
+    ) -> Result<(), Self::Error> {
         // Validate that the provided DAH is well-formed
         block_header.validate_dah()?;
 
@@ -264,12 +208,7 @@ impl da::DaVerifier for CelestiaVerifier {
             relevant_proofs.batch.completeness_proof,
         )?;
 
-        let validity_condition = ChainValidityCondition {
-            prev_hash: *block_header.prev_hash().inner(),
-            block_hash: *block_header.hash().inner(),
-        };
-
-        Ok(validity_condition)
+        Ok(())
     }
 }
 

@@ -32,8 +32,7 @@ use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
 use sov_modules_api::{
-    DaSpec, Error, Gas, KernelStateValue, Module, StateValue, ValidityConditionChecker,
-    VersionReader, VersionedStateValue,
+    DaSpec, Error, Gas, KernelStateValue, Module, StateValue, VersionReader, VersionedStateValue,
 };
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::codec::BcsCodec;
@@ -55,11 +54,10 @@ impl<S: Spec> StateTransition<S> {
     pub fn new(
         slot_hash: <<S as Spec>::Da as DaSpec>::SlotHash,
         post_state_root: <S::Storage as Storage>::Root,
-        validity_condition: <<S as Spec>::Da as DaSpec>::ValidityCondition,
         gas_info: BlockGasInfo<S::Gas>,
     ) -> Self {
         Self {
-            slot: SlotInformation::new(slot_hash, validity_condition, gas_info),
+            slot: SlotInformation::new(slot_hash, gas_info),
             post_state_root,
         }
     }
@@ -100,19 +98,6 @@ impl<S: Spec> StateTransition<S> {
     pub const fn gas_limit(&self) -> &S::Gas {
         self.slot.gas_info.gas_limit()
     }
-
-    /// Returns the validity condition associated with the transition
-    pub fn validity_condition(&self) -> &<<S as Spec>::Da as DaSpec>::ValidityCondition {
-        &self.slot.validity_condition
-    }
-
-    /// Checks the validity condition of a state transition
-    pub fn validity_condition_check<Checker: ValidityConditionChecker<<<S as Spec>::Da as DaSpec>::ValidityCondition>>(
-        &self,
-        checker: &mut Checker,
-    ) -> Result<(), <Checker as ValidityConditionChecker<<<S as Spec>::Da as DaSpec>::ValidityCondition>>::Error>{
-        checker.check(&self.slot.validity_condition)
-    }
 }
 
 /// Represents a transition in progress for the rollup.
@@ -120,7 +105,6 @@ impl<S: Spec> StateTransition<S> {
 #[serde(bound = "S: Spec")]
 pub struct SlotInformation<S: Spec> {
     hash: <<S as Spec>::Da as DaSpec>::SlotHash,
-    validity_condition: <<S as Spec>::Da as DaSpec>::ValidityCondition,
     gas_info: BlockGasInfo<S::Gas>,
 }
 
@@ -128,12 +112,10 @@ impl<S: Spec> SlotInformation<S> {
     /// Creates a new transition in progress
     pub fn new(
         slot_hash: <<S as Spec>::Da as DaSpec>::SlotHash,
-        validity_condition: <<S as Spec>::Da as DaSpec>::ValidityCondition,
         gas_info: BlockGasInfo<S::Gas>,
     ) -> Self {
         Self {
             hash: slot_hash,
-            validity_condition,
             gas_info,
         }
     }
@@ -460,12 +442,11 @@ impl<S: Spec> Module for ChainState<S> {
     fn genesis(
         &self,
         genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
-        validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         config: &Self::Config,
         state: &mut impl GenesisState<Self::Spec>,
     ) -> Result<(), ModuleError> {
         // The initialization logic
-        Ok(self.init_module(genesis_rollup_header, validity_condition, config, state)?)
+        Ok(self.init_module(genesis_rollup_header, config, state)?)
     }
 
     fn call(

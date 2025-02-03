@@ -3,9 +3,7 @@ use sov_rollup_interface::da::{
     BlobReaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs,
 };
 
-#[cfg(feature = "native")]
-use crate::MockValidityCondChecker;
-use crate::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier, MockHash, MockValidityCond};
+use crate::{MockAddress, MockBlob, MockBlockHeader, MockDaVerifier, MockHash};
 
 impl BlobReaderTrait for MockBlob {
     type Address = MockAddress;
@@ -55,10 +53,6 @@ impl DaSpec for MockDaSpec {
     type BlobTransaction = MockBlob;
     type TransactionId = MockHash;
     type Address = MockAddress;
-    type ValidityCondition = MockValidityCond;
-
-    #[cfg(feature = "native")]
-    type Checker = MockValidityCondChecker<MockValidityCond>;
 
     type InclusionMultiProof = [u8; 32];
     type CompletenessProof = ();
@@ -82,7 +76,7 @@ impl DaVerifier for MockDaVerifier {
             <Self::Spec as DaSpec>::InclusionMultiProof,
             <Self::Spec as DaSpec>::CompletenessProof,
         >,
-    ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error> {
-        Ok(Default::default())
+    ) -> Result<(), Self::Error> {
+        Ok(())
     }
 }

@@ -49,7 +49,7 @@ pub struct Attestation<SlotHash, StateRoot, StateProof> {
 }
 
 /// The contents of a challenge to an attestation, which are contained as a public output of the proof
-/// Generic over an address type and a validity condition
+/// Generic over an address type
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 #[cfg_attr(feature = "native", derive(UniversalWallet))]
 pub struct ChallengeContents<Address, Da: DaSpec, Root> {

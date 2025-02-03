@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockValidityCond};
+use sov_mock_da::{MockAddress, MockBlock, MockDaService};
 use sov_mock_zkvm::MockZkvm;
 
 use crate::helpers::hash_stf::HashStf;
 use crate::helpers::runner_init::{initialize_runner, InitVariant};
-type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkvm, MockZkvm, MockDaService>;
+type MockInitVariant = InitVariant<HashStf, MockZkvm, MockZkvm, MockDaService>;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn init_and_restart() {
@@ -24,7 +24,6 @@ async fn runner_initialization_fails_if_tokio_runtime_is_not_multi_threaded() {
 async fn init_and_restart_inner() {
     let genesis_block = MockBlock {
         header: Default::default(),
-        validity_cond: Default::default(),
         batch_blobs: vec![],
         proof_blobs: vec![],
     };

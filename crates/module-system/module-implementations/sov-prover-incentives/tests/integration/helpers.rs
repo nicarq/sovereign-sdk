@@ -3,7 +3,6 @@ use std::convert::Infallible;
 use serde::Serialize;
 use sov_bank::{config_gas_token_id, Bank};
 use sov_chain_state::ChainState;
-use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::prelude::tokio::runtime::{self, Handle};
 use sov_modules_api::prelude::tokio::task;
@@ -87,10 +86,8 @@ pub(crate) fn build_proof(
         .get_historical_transitions(end_slot, state)
         .unwrap()
         .unwrap();
-    let vec_validity_cond = MockValidityCond { is_valid: true };
 
     Ok(AggregatedProofPublicData {
-        validity_conditions: vec![vec_validity_cond; end_slot.delta(initial_slot) as usize + 1],
         initial_slot_number: initial_slot,
         final_slot_number: end_slot,
         initial_state_root: genesis_hash,

@@ -55,7 +55,6 @@ impl GenesisMacro {
 
                 fn genesis(&self,
                     genesis_rollup_header: &<<Self::Spec as ::sov_modules_api::Spec>::Da as ::sov_modules_api::DaSpec>::BlockHeader,
-                    validity_condition: &<<Self::Spec as ::sov_modules_api::Spec>::Da as ::sov_modules_api::DaSpec>::ValidityCondition,
                     config: &Self::Config,
                     state: &mut impl ::sov_modules_api::GenesisState<<Self as ::sov_modules_api::Genesis>::Spec>) -> core::result::Result<(), sov_modules_api::Error> {
                     #genesis_fn_body
@@ -79,7 +78,7 @@ impl GenesisMacro {
             let ident = &field.ident;
 
             quote::quote! {
-                #i => ::sov_modules_api::Genesis::genesis(&self.#ident, genesis_rollup_header, validity_condition, &config.#ident, state),
+                #i => ::sov_modules_api::Genesis::genesis(&self.#ident, genesis_rollup_header, &config.#ident, state),
             }
         });
 

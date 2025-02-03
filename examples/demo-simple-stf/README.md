@@ -56,7 +56,6 @@ Now that we have defined the necessary types, we need to implement the following
     // Perform one-time initialization for the genesis block.
     fn init_chain(&mut self, 
         genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
-        validity_condition: &<S::Da as DaSpec>::ValidityCondition,
         pre_state: Self::PreState,
         params: Self::GenesisParams) {
         // Do nothing
@@ -68,7 +67,6 @@ Now that we have defined the necessary types, we need to implement the following
         &self,
         state: &mut StateCheckpoint<S>,
         slot_header: &<S::Da as DaSpec>::BlockHeader,
-        validity_condition: &<S::Da as DaSpec>::ValidityCondition,
         pre_state_root: &<S::Storage as Storage>::Root,
         visible_hash: &<S::Storage as Storage>::Root,
     ) {
@@ -88,7 +86,6 @@ Next we need to write the core logic in `apply_slot`:
         _base_state: Self::PreState,
         _witness: Self::Witness,
         _slot_header: &Da::BlockHeader,
-        _validity_condition: &Da::ValidityCondition,
         relevant_blobs: RelevantBlobIters<I>,
     ) -> ApplySlotOutput<Vm, Da, Self>
     where
@@ -168,7 +165,7 @@ The following test checks the rollup logic. In the test, we call `init_chain, be
 
 ```rust
 use demo_simple_stf::{ApplySlotResult, CheckHashPreimageStf};
-use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
+use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
@@ -176,7 +173,7 @@ use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 fn test_stf_success() {
     let address = MockAddress::from([1; 32]);
 
-    let stf = &mut CheckHashPreimageStf::<MockValidityCond>::default();
+    let stf = &mut CheckHashPreimageStf::default();
     StateTransitionFunction::<MockZkvm, MockZkvm, MockDaSpec>::init_chain(stf, &Default::default(), &Default::default(), (), ());
 
     let mut batch_blobs = {
@@ -216,7 +213,6 @@ fn test_stf_success() {
         (),
         (),
         &MockBlockHeader::default(),
-        &MockValidityCond::default(),
         relevant_blobs,
         ExecutionContext::Node,
     );

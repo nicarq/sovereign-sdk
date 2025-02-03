@@ -74,12 +74,11 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for SoftConfirmation
     fn synchronise_chain(
         &self,
         slot_header: &<S::Da as DaSpec>::BlockHeader,
-        validity_condition: &<S::Da as DaSpec>::ValidityCondition,
         pre_state_root: &<S::Storage as Storage>::Root,
         state: &mut sov_modules_api::KernelStateAccessor<S>,
     ) {
         self.chain_state
-            .synchronize_chain(slot_header, validity_condition, pre_state_root, state);
+            .synchronize_chain(slot_header, pre_state_root, state);
     }
 
     fn finalise_chain_state(

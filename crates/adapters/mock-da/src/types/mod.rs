@@ -16,7 +16,6 @@ use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 use sov_rollup_interface::Bytes;
 
 use crate::utils::hash_to_array;
-use crate::validity_condition::MockValidityCond;
 
 /// Serialized aggregated proof.
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -192,8 +191,6 @@ impl MockBlob {
 pub struct MockBlock {
     /// The header of this block.
     pub header: MockBlockHeader,
-    /// Validity condition
-    pub validity_cond: MockValidityCond,
     /// Rollup's batch namespace.
     pub batch_blobs: Vec<MockBlob>,
     /// Rollup's proof namespace.
@@ -203,7 +200,6 @@ pub struct MockBlock {
 #[cfg(feature = "native")]
 impl SlotData for MockBlock {
     type BlockHeader = MockBlockHeader;
-    type Cond = MockValidityCond;
 
     fn hash(&self) -> [u8; 32] {
         self.header.hash.0
@@ -211,10 +207,6 @@ impl SlotData for MockBlock {
 
     fn header(&self) -> &Self::BlockHeader {
         &self.header
-    }
-
-    fn validity_condition(&self) -> MockValidityCond {
-        self.validity_cond
     }
 }
 
