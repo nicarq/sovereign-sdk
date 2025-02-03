@@ -24,7 +24,7 @@ impl<S: Spec> UniversalStateAccessor for ApiStateAccessor<S> {
         match namespace {
             Namespace::User => {
                 // TODO: We should cache these values to allow accurate gas cost estimation!
-                self.user_cache.get_without_caching(
+                self.user_cache.get_or_fetch(
                     key,
                     &self.storage,
                     &self.witness,
@@ -48,7 +48,7 @@ impl<S: Spec> UniversalStateAccessor for ApiStateAccessor<S> {
                     None
                 };
                 self.kernel_cache
-                    .get_without_caching(key, &self.storage, &self.witness, num)
+                    .get_or_fetch(key, &self.storage, &self.witness, num)
             }
             Namespace::Accessory => match self.accessory_writes.get(key).cloned() {
                 Some(Some(value)) => (Some(value), IsValueCached::Yes),
