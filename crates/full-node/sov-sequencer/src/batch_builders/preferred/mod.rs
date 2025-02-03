@@ -600,7 +600,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
                 selected_blobs.extend(additional_blobs);
                 let blob_selector_output = BlobSelectorOutput {
                     selected_blobs,
-                    visible_slots_number_increase: visible_increase.get(),
+                    visible_slot_number_increase: visible_increase.get().into(),
                 };
                 let stf = StfBlueprint::<Z::Spec, Z::Rt>::new();
                 let rt = Z::Rt::default();

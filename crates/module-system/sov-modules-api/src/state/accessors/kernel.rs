@@ -47,6 +47,7 @@ impl<'a, S: Spec> GasMeter for BootstrapWorkingSet<'a, S> {
 /// ## Note
 /// This struct implements [`VersionReader`], and the value returned by
 /// [`VersionReader::rollup_height_to_access`] is the last known rollup height.
+#[derive(Debug)]
 pub struct KernelStateAccessor<'a, S: Spec> {
     /// The inner working set
     pub checkpoint: &'a mut StateCheckpoint<S>,

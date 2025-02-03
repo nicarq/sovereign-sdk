@@ -25,17 +25,17 @@ impl<'a, T: BlobReaderTrait> BlobOrigin<'a, T> {
 pub struct BlobSelectorOutput<S: Spec, BlobType> {
     /// The blobs selected by the module.
     pub selected_blobs: Vec<(BlobType, <S::Da as DaSpec>::Address)>,
-    /// The number of slots to advance the visible slot number.
+    /// By how much the visible slot number should be increased.
     ///
-    /// This also controls rollup block creation.
-    pub visible_slots_number_increase: u8,
+    /// When greater than zero, a new rollup block will be created.
+    pub visible_slot_number_increase: u64,
 }
 
 impl<S: Spec, B> BlobSelectorOutput<S, B> {
     /// Whether the rollup block hooks should be executed. We should execute block hooks whenever we accept blobs for execution
     /// or when we increase the visible slot number.
     pub fn creates_rollup_block(&self) -> bool {
-        self.visible_slots_number_increase > 0
+        self.visible_slot_number_increase > 0
     }
 
     /// Apply the given function to each blob
@@ -49,7 +49,7 @@ impl<S: Spec, B> BlobSelectorOutput<S, B> {
                 .into_iter()
                 .map(|(batch, sender)| (f(batch), sender))
                 .collect(),
-            visible_slots_number_increase: self.visible_slots_number_increase,
+            visible_slot_number_increase: self.visible_slot_number_increase,
         }
     }
 }
