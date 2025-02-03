@@ -222,8 +222,9 @@ impl StorableMockDaService {
     /// This is especially useful at the beginning of tests, to "maximize" the
     /// finalization distance between genesis and DA chain head.
     pub async fn produce_n_blocks_now(&self, n: usize) -> anyhow::Result<()> {
+        let mut da_layer = self.da_layer.write().await;
         for _ in 0..n {
-            self.produce_block_now().await?;
+            da_layer.produce_block().await?;
         }
         Ok(())
     }

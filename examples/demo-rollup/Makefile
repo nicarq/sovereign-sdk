@@ -163,14 +163,14 @@ test-create-token:
 	@echo "Listing transactions"
 	$(SOV_CLI_REL_PATH) transactions list
 	@echo "Submitting a batch"
-	$(SOV_CLI_REL_PATH) node submit-batch by-nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY
+	$(SOV_CLI_REL_PATH) node submit-batch --wait-for-processing by-nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY
 
 test-create-token-second-seq: check-sov-cli
 test-create-token-second-seq:
 	$(SOV_CLI_REL_PATH) node set-url http://127.0.0.1:12356
 	$(SOV_CLI_REL_PATH) transactions import from-file bank --chain-id 4321 --max-fee 100000000 --path ../test-data/requests/create_token.json
 	@echo "Submitting a batch"
-	$(SOV_CLI_REL_PATH) node submit-batch by-nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY
+	$(SOV_CLI_REL_PATH) node submit-batch --wait-for-processing by-nickname DANGER__DO_NOT_USE_WITH_REAL_MONEY
 
 register-second-sequencer: check-sov-cli
 register-second-sequencer:
