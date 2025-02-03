@@ -256,10 +256,6 @@ where
             return Ok(Some(SlashingReason::TransitionInvalid));
         }
 
-        if public_outputs.validity_condition != *transition.validity_condition() {
-            return Ok(Some(SlashingReason::TransitionInvalid));
-        }
-
         Ok(None)
     }
 

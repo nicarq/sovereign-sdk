@@ -13,8 +13,6 @@ use celestia_types::{
 };
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::common::HexHash;
-#[cfg(feature = "native")]
-use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::da::CountedBufReader;
 #[cfg(feature = "native")]
 use sov_rollup_interface::node::da::SlotData;
@@ -24,8 +22,6 @@ use tracing::{debug, info, trace};
 use crate::shares::{Blob, BlobIterator, NamespaceGroup};
 use crate::utils::BoxError;
 use crate::verifier::address::CelestiaAddress;
-#[cfg(feature = "native")]
-use crate::verifier::ChainValidityCondition;
 use crate::verifier::PARITY_SHARES_NAMESPACE;
 use crate::{parse_pfb_namespace, CelestiaHeader, TxPosition};
 
@@ -158,7 +154,6 @@ pub struct FilteredCelestiaBlock {
 #[cfg(feature = "native")]
 impl SlotData for FilteredCelestiaBlock {
     type BlockHeader = CelestiaHeader;
-    type Cond = ChainValidityCondition;
 
     fn hash(&self) -> [u8; 32] {
         match self.header.header.hash() {
@@ -171,13 +166,6 @@ impl SlotData for FilteredCelestiaBlock {
 
     fn header(&self) -> &Self::BlockHeader {
         &self.header
-    }
-
-    fn validity_condition(&self) -> ChainValidityCondition {
-        ChainValidityCondition {
-            prev_hash: *self.header().prev_hash().inner(),
-            block_hash: self.hash(),
-        }
     }
 }
 

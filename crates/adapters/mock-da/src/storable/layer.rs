@@ -262,7 +262,6 @@ impl StorableMockDaLayer {
 
         Ok(MockBlock {
             header,
-            validity_cond: Default::default(),
             batch_blobs,
             proof_blobs,
         })

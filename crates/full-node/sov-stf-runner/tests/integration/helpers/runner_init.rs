@@ -12,7 +12,7 @@ use sov_db::storage_manager::NativeStorageManager;
 use sov_metrics::MonitoringConfig;
 use sov_mock_da::{
     MockAddress, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee,
-    MockHash, MockValidityCond,
+    MockHash,
 };
 use sov_mock_zkvm::{MockZkvm, MockZkvmHost};
 use sov_modules_api::provable_height_tracker::InfiniteHeight;
@@ -41,7 +41,7 @@ use tokio::task::JoinHandle;
 
 use crate::helpers::hash_stf::HashStf;
 
-type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkvm, MockZkvm, MockDaService>;
+type MockInitVariant = InitVariant<HashStf, MockZkvm, MockZkvm, MockDaService>;
 
 pub type S = DefaultStorageSpec<Sha256>;
 type StorageManager = NativeStorageManager<MockDaSpec, ProverStorage<S>>;
@@ -148,18 +148,12 @@ pub async fn initialize_runner(
     aggregated_proof_block_jump: usize,
     nb_of_prover_threads: Option<usize>,
 ) -> (
-    StateTransitionRunner<
-        HashStf<MockValidityCond>,
-        StorageManager,
-        MockDaService,
-        MockZkvm,
-        MockZkvm,
-    >,
+    StateTransitionRunner<HashStf, StorageManager, MockDaService, MockZkvm, MockZkvm>,
     TestNode,
 ) {
     let rollup_config = rollup_config(&da_service, path, aggregated_proof_block_jump);
 
-    let stf = HashStf::<MockValidityCond>::new();
+    let stf = HashStf::new();
 
     let mut storage_manager: StorageManager = NativeStorageManager::new(path).unwrap();
     let genesis_block = MockBlockHeader::from_height(0);

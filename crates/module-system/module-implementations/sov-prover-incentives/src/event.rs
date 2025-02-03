@@ -37,9 +37,6 @@ pub enum SlashingReason {
 
     /// The final slot hash contained in the [`sov_modules_api::AggregatedStateTransition`] outputs is incorrect
     IncorrectFinalSlotHash,
-
-    /// The initial slot hash contained in the [`sov_modules_api::AggregatedStateTransition`] outputs is incorrect
-    IncorrectValidityConditions,
 }
 
 #[derive(

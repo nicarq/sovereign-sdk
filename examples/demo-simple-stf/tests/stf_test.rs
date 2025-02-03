@@ -1,6 +1,6 @@
 use demo_simple_stf::{ApplySlotResult, CheckHashPreimageStf, Root};
 use sov_mock_da::verifier::MockDaSpec;
-use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockValidityCond};
+use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader};
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
@@ -9,12 +9,10 @@ use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 fn test_stf_success() {
     let address = MockAddress::from([1; 32]);
 
-    let stf: &mut CheckHashPreimageStf<MockValidityCond> =
-        &mut CheckHashPreimageStf::<MockValidityCond>::default();
+    let stf: &mut CheckHashPreimageStf = &mut CheckHashPreimageStf;
     StateTransitionFunction::<MockZkvm, MockZkvm, MockDaSpec>::init_chain(
         stf,
         &MockBlockHeader::default(),
-        &MockValidityCond::default(),
         (),
         (),
     );
@@ -56,7 +54,6 @@ fn test_stf_success() {
         (),
         (),
         &MockBlockHeader::default(),
-        &MockValidityCond::default(),
         relevant_blobs,
         ExecutionContext::Node,
     );

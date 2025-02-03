@@ -24,7 +24,7 @@ pub use verifier::StateTransitionVerifier;
 use super::optimistic::Attestation;
 use crate::da::{DaSpec, RelevantBlobIters};
 use crate::zk::aggregated_proof::{AggregatedProofPublicData, SerializedAggregatedProof};
-use crate::zk::{StateTransitionPublicData, ValidityCondition, Zkvm};
+use crate::zk::{StateTransitionPublicData, Zkvm};
 
 /// The configuration of a full node of the rollup which creates zk proofs.
 pub struct ProverConfig;
@@ -243,16 +243,12 @@ pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> {
     /// or validated together with proof during verification
     type Witness: Default + Serialize + DeserializeOwned + Send + Sync + 'static;
 
-    /// The validity condition that must be verified outside of the Vm
-    type Condition: ValidityCondition;
-
     /// Perform one-time initialization for the genesis block and
     /// returns the resulting root hash and changeset.
     /// If the init chain fails we panic.
     fn init_chain(
         &self,
         genesis_rollup_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
         genesis_state: Self::PreState,
         params: Self::GenesisParams,
     ) -> (Self::StateRoot, Self::ChangeSet);
@@ -277,7 +273,6 @@ pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> {
         pre_state: Self::PreState,
         witness: Self::Witness,
         slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
         relevant_blobs: RelevantBlobIters<&mut [<Da as DaSpec>::BlobTransaction]>,
         execution_context: ExecutionContext,
     ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self>;

@@ -85,7 +85,6 @@ async fn test_save_aggregated_proof() {
 
     for i in 0..10 {
         let public_data = AggregatedProofPublicData::<MockAddress, MockDaSpec, Vec<u8>> {
-            validity_conditions: vec![],
             initial_slot_number: i.to_slot_number(),
             final_slot_number: i.to_slot_number(),
             genesis_state_root: vec![1],

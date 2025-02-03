@@ -45,7 +45,7 @@ where
         let prover_address = data.prover_address;
         let mut data = data.stf_witness;
 
-        let validity_condition = self.da_verifier.verify_relevant_tx_list(
+        self.da_verifier.verify_relevant_tx_list(
             &data.da_block_header,
             &data.relevant_blobs,
             data.relevant_proofs,
@@ -56,7 +56,6 @@ where
             pre_state,
             data.witness,
             &data.da_block_header,
-            &validity_condition,
             data.relevant_blobs.as_iters(),
             ExecutionContext::Node,
         );
@@ -65,7 +64,6 @@ where
             initial_state_root: data.initial_state_root,
             final_state_root: result.state_root,
             slot_hash: data.da_block_header.hash(),
-            validity_condition,
             prover_address,
         };
 

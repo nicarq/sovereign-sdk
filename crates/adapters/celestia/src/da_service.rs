@@ -600,7 +600,7 @@ mod tests {
     use celestia_types::nmt::Namespace;
     use celestia_types::Blob as JsonBlob;
     use serde_json::json;
-    use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier, RelevantBlobs};
+    use sov_rollup_interface::da::{DaVerifier, RelevantBlobs};
     use sov_rollup_interface::node::da::DaService;
     use wiremock::matchers::{bearer_token, body_json, method, path};
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
@@ -866,12 +866,9 @@ mod tests {
 
             let verifier = CelestiaVerifier::new(rollup_params);
 
-            let validity_cond = verifier
+            verifier
                 .verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs)
                 .unwrap();
-
-            assert_eq!(validity_cond.prev_hash, *block.header.prev_hash().inner());
-            assert_eq!(validity_cond.block_hash, *block.header.hash().inner());
         }
     }
 
@@ -954,7 +951,7 @@ mod tests {
 
         let verifier = CelestiaVerifier::new(rollup_params);
 
-        let _validity_cond = verifier
+        verifier
             .verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs)
             .unwrap();
     }

@@ -12,7 +12,6 @@ use tracing::error;
 
 use crate::common::HexHash;
 use crate::da::{BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs};
-use crate::zk::ValidityCondition;
 
 /// Perform a checked arithmetic, returning None if the result is invalid.
 pub trait CheckedMath<Rhs = Self> {
@@ -140,10 +139,7 @@ pub trait DaService: Clone + Send + Sync + 'static {
     type Verifier: DaVerifier<Spec = Self::Spec> + Clone;
 
     /// A DA layer block, possibly excluding some irrelevant information.
-    type FilteredBlock: SlotData<
-        BlockHeader = <Self::Spec as DaSpec>::BlockHeader,
-        Cond = <Self::Spec as DaSpec>::ValidityCondition,
-    >;
+    type FilteredBlock: SlotData<BlockHeader = <Self::Spec as DaSpec>::BlockHeader>;
 
     /// Allows consuming the [`futures::Stream`] of BlockHeaders.
     type HeaderStream: futures::Stream<Item = Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error>>
@@ -305,15 +301,10 @@ pub trait SlotData:
     /// fields like `data_root` are stored in decoded form in the `CelestiaHeader` struct.
     type BlockHeader: BlockHeaderTrait;
 
-    /// The validity condition associated with the slot data.
-    type Cond: ValidityCondition;
-
     /// The canonical hash of the DA layer block.
     fn hash(&self) -> [u8; 32];
     /// The header of the DA layer block.
     fn header(&self) -> &Self::BlockHeader;
-    /// Get the validity condition set associated with the slot
-    fn validity_condition(&self) -> Self::Cond;
 }
 
 #[cfg(test)]

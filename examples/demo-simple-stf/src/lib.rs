@@ -1,19 +1,16 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 use std::fmt::Display;
-use std::marker::PhantomData;
 
 use sha2::Digest;
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{ApplySlotOutput, BatchReceipt, StateTransitionFunction};
-use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
+use sov_rollup_interface::zk::Zkvm;
 
 /// An implementation of the [`StateTransitionFunction`]
 /// that is specifically designed to check if someone knows a preimage of a specific hash.
 #[derive(PartialEq, Debug, Clone, Eq, serde::Serialize, serde::Deserialize, Default)]
-pub struct CheckHashPreimageStf<Cond> {
-    phantom_data: PhantomData<Cond>,
-}
+pub struct CheckHashPreimageStf;
 
 /// Outcome of the apply_slot method.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -40,8 +37,8 @@ impl Display for Root {
     }
 }
 
-impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
-    StateTransitionFunction<InnerVm, OuterVm, Da> for CheckHashPreimageStf<Cond>
+impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, OuterVm, Da>
+    for CheckHashPreimageStf
 {
     // Since our rollup is stateless, we don't need to consider the StateRoot.
     type StateRoot = Root;
@@ -68,13 +65,11 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     // However, in this tutorial, we won't use it.
     type Witness = ();
 
-    type Condition = Cond;
-
     // Perform one-time initialization for the genesis block.
     fn init_chain(
         &self,
         _genesis_block_header: &Da::BlockHeader,
-        _validity_condition: &Da::ValidityCondition,
+
         _base_state: Self::PreState,
         _params: Self::GenesisParams,
     ) -> (Root, ()) {
@@ -87,7 +82,6 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         _base_state: Self::PreState,
         _witness: Self::Witness,
         _slot_header: &Da::BlockHeader,
-        _validity_condition: &Da::ValidityCondition,
         relevant_blobs: RelevantBlobIters<&mut [Da::BlobTransaction]>,
         _execution_context: sov_rollup_interface::stf::ExecutionContext,
     ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self> {

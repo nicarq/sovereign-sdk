@@ -35,7 +35,6 @@ impl<S: Spec> ChainState<S> {
     pub(crate) fn init_module(
         &self,
         genesis_slot_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
-        validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         config: &<Self as Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
@@ -78,7 +77,6 @@ impl<S: Spec> ChainState<S> {
         self.slots.push(
             &SlotInformation::new(
                 genesis_slot_header.hash(),
-                *validity_condition,
                 BlockGasInfo::with_usage(
                     S::Gas::zero(),
                     S::initial_base_fee_per_gas(),

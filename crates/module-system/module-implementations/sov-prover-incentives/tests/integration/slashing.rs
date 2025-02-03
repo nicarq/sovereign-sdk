@@ -1,4 +1,3 @@
-use sov_mock_da::MockValidityCond;
 use sov_modules_api::{
     AggregatedProofPublicData, ApiStateAccessor, InvalidProofError, ProofOutcome, Spec,
 };
@@ -206,26 +205,6 @@ fn test_invalid_final_slot_number() {
                 state,
                 &prover.user_info,
                 "Invalid output FinalTransitionDoesNotExist",
-            );
-        }),
-    });
-}
-
-#[test]
-fn test_invalid_validity_condition() {
-    let (mut runner, prover, mut aggregated_proof) = prepare_for_slashing();
-    aggregated_proof
-        .validity_conditions
-        .push(MockValidityCond { is_valid: false });
-
-    runner.execute_proof::<TestProverIncentives>(ProofTestCase {
-        input: ProofInput(serialize_proof(aggregated_proof)),
-        assert: Box::new(move |result, state| {
-            assert_slashed(
-                result,
-                state,
-                &prover.user_info,
-                "Invalid output IncorrectValidityConditions",
             );
         }),
     });

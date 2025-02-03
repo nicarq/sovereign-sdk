@@ -27,8 +27,6 @@ impl core::fmt::Display for CodeCommitment {
 /// Public data of an aggregated proof.
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AggregatedProofPublicData<Address, Da: DaSpec, Root> {
-    /// Contains the validity conditions for each block in the aggregated proof.
-    pub validity_conditions: Vec<Da::ValidityCondition>,
     /// Initial rollup height.
     pub initial_slot_number: SlotNumber,
     /// Final rollup height.

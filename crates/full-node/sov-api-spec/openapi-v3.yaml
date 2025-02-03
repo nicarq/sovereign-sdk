@@ -628,11 +628,6 @@ components:
       items:
         type: string
         format: byte
-    ValidityConditions:
-      type: array
-      items:
-        type: string
-        format: byte
     IntOrHash:
       oneOf:
         - type: integer

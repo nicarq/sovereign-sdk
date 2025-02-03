@@ -379,8 +379,7 @@ mod tests {
 
     use sov_db::storage_manager::{NativeChangeSet, NativeStorageManager};
     use sov_mock_da::{
-        MockAddress, MockBlock, MockBlockHeader, MockDaService, MockDaSpec, MockFee,
-        MockValidityCond, PlannedFork,
+        MockAddress, MockBlock, MockBlockHeader, MockDaService, MockDaSpec, MockFee, PlannedFork,
     };
     use sov_mock_zkvm::MockZkvm;
     use sov_rollup_interface::common::SlotNumber;
@@ -394,7 +393,7 @@ mod tests {
     use crate::mock::MockStf;
     type Da = MockDaService;
     type Vm = MockZkvm;
-    type Stf = MockStf<MockValidityCond>;
+    type Stf = MockStf;
     type S = sov_state::DefaultStorageSpec<sha2::Sha256>;
     type StateRoot = <Stf as StateTransitionFunction<Vm, Vm, MockDaSpec>>::StateRoot;
     type TestBatchReceiptContents =

@@ -65,7 +65,6 @@ impl<S: Spec> ChainState<S> {
     pub fn synchronize_chain(
         &self,
         slot_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
-        validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         pre_state_root: &<S::Storage as Storage>::Root,
         state: &mut KernelStateAccessor<S>,
     ) {
@@ -118,7 +117,6 @@ impl<S: Spec> ChainState<S> {
             .push(
                 &SlotInformation {
                     hash: slot_header.hash(),
-                    validity_condition: *validity_condition,
                     gas_info,
                 },
                 state,

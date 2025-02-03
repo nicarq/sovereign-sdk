@@ -12,9 +12,6 @@ use sov_universal_wallet::UniversalWallet;
 
 #[cfg(feature = "native")]
 use crate as sov_rollup_interface; // Needed for UniversalWallet, as it requires global paths
-use crate::zk::ValidityCondition;
-#[cfg(feature = "native")]
-use crate::zk::ValidityConditionChecker;
 use crate::BasicAddress;
 
 /// The blob hash type of a given [`DaSpec`].
@@ -38,13 +35,6 @@ pub trait DaSpec:
 
     /// The type used to represent addresses on the DA layer.
     type Address: BasicAddress + Send + Sync;
-
-    /// Any conditions imposed by the DA layer which need to be checked outside of the SNARK
-    type ValidityCondition: ValidityCondition + Send + Sync;
-
-    /// The validity condition checker used for this DA layer.
-    #[cfg(feature = "native")]
-    type Checker: ValidityConditionChecker<Self::ValidityCondition>;
 
     /// A proof that each tx in a set of blob transactions is included in a given block.
     type InclusionMultiProof: Serialize + DeserializeOwned + Send + Sync;
@@ -85,7 +75,7 @@ pub trait DaVerifier: Send + Sync {
             <Self::Spec as DaSpec>::InclusionMultiProof,
             <Self::Spec as DaSpec>::CompletenessProof,
         >,
-    ) -> Result<<Self::Spec as DaSpec>::ValidityCondition, Self::Error>;
+    ) -> Result<(), Self::Error>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, BorshDeserialize, BorshSerialize, PartialEq)]

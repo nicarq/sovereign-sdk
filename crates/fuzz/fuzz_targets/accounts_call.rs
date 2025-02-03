@@ -63,12 +63,7 @@ fuzz_target!(
         let accounts: Accounts<S> = Accounts::default();
         let mut genesis_state = state.to_genesis_state_accessor::<Accounts<S>>(&config);
         accounts
-            .genesis(
-                &Default::default(),
-                &Default::default(),
-                &config,
-                &mut genesis_state,
-            )
+            .genesis(&Default::default(), &config, &mut genesis_state)
             .unwrap();
 
         let mut working_set: WorkingSet<S> = state.to_working_set_unmetered();
