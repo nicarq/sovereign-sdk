@@ -636,7 +636,10 @@ pub async fn query_state_update_info<S>(
         .await?
         .map(|x| x + 1)
         .unwrap_or_default();
-    let latest_finalized_slot_number = ledger_db.get_latest_finalized_slot_number().await?;
+    let latest_finalized_slot_number = ledger_db
+        .get_latest_finalized_slot_number()
+        .await?
+        .min(slot_number);
 
     Ok(StateUpdateInfo {
         storage,

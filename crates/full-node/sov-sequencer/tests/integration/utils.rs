@@ -1,3 +1,5 @@
+use sov_chain_state::ChainState;
+use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::MockDaService;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::digest::Digest;
@@ -30,8 +32,11 @@ pub type RTCall = TestOptimisticRuntimeCall<TestSpec>;
 
 pub async fn new_sequencer() -> TestSequencerSetup<MyBatchBuilder> {
     let dir = tempfile::tempdir().unwrap();
-    let da_service =
-        MockDaService::new(HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr());
+    let da_service = StorableMockDaService::new_in_memory(
+        HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr(),
+        0,
+    )
+    .await;
 
     let batch_builder_config = StdBatchBuilderConfig {
         mempool_max_txs_count: None,
@@ -171,16 +176,16 @@ impl<S: Spec> BlockHooks for ModuleWithVersionedStateAccessInSlotHook<S> {
     fn begin_rollup_block_hook(
         &self,
         _visible_hash: &<S::Storage as Storage>::Root,
-        _state: &mut StateCheckpoint<Self::Spec>,
+        state: &mut StateCheckpoint<Self::Spec>,
     ) {
-        //ChainState::<S>::default()
-        //    .get_time(state)
-        //    .unwrap_infallible();
+        ChainState::<S>::default()
+            .get_time(state)
+            .unwrap_infallible();
     }
 
-    fn end_rollup_block_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {
-        //ChainState::<S>::default()
-        //    .get_time(state)
-        //    .unwrap_infallible();
+    fn end_rollup_block_hook(&self, state: &mut StateCheckpoint<Self::Spec>) {
+        ChainState::<S>::default()
+            .get_time(state)
+            .unwrap_infallible();
     }
 }

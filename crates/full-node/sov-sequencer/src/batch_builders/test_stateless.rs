@@ -155,8 +155,9 @@ where
         Ok(self.accept_encoded_tx(tx).await)
     }
 
-    async fn assemble_batch(&mut self) -> anyhow::Result<()> {
-        Ok(())
+    async fn assemble_batch(&mut self) -> anyhow::Result<Option<()>> {
+        // There's always a batch ready.
+        Ok(Some(()))
     }
 
     async fn peek_batches(&mut self) -> anyhow::Result<Vec<WithCachedTxHashes<Self::Batch>>> {

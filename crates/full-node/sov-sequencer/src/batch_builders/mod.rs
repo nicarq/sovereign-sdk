@@ -123,7 +123,7 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     ///
     /// The logic of which transactions and how many of them are included in
     /// batch is up to implementation.
-    async fn assemble_batch(&mut self) -> anyhow::Result<()>;
+    async fn assemble_batch(&mut self) -> anyhow::Result<Option<()>>;
 
     /// Peeks all the assembled batches that haven't been removed yet.
     async fn peek_batches(&mut self) -> anyhow::Result<Vec<WithCachedTxHashes<Self::Batch>>>;

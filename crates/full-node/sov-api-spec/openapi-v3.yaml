@@ -253,6 +253,8 @@ paths:
                   - meta
         "409":
           $ref: "#/components/responses/ApiErrorResponse"
+        "500":
+          $ref: "#/components/responses/ApiErrorResponse"
   /sequencer/txs:
     post:
       summary: Submit a transaction to the rollup
@@ -289,6 +291,8 @@ paths:
         "400":
           "$ref": "#/components/responses/ApiErrorResponse"
         "403":
+          "$ref": "#/components/responses/ApiErrorResponse"
+        "500":
           "$ref": "#/components/responses/ApiErrorResponse"
         "503":
           "$ref": "#/components/responses/ApiErrorResponse"

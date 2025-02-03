@@ -33,9 +33,6 @@ pub use {sov_bank, sov_paymaster};
 mod evm;
 mod rt_agnostic_blueprint;
 
-/// Helper utilities to submit transactions to the rollup.
-pub mod tx_sender;
-
 /// End-to-end rollup node testing utilities.
 pub mod test_rollup;
 

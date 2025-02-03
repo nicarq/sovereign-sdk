@@ -33,7 +33,6 @@ use sov_value_setter::CallMessageDiscriminants as ValueSetterDiscriminants;
 
 mod bank;
 mod basic;
-mod mock_da;
 mod transactions;
 
 const USER_BALANCE: u64 = 1_000_000_000_000;

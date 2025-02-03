@@ -429,13 +429,13 @@ where
 
     /// Builds a new batch of valid transactions in order they were added to mempool.
     /// Only transactions which are dispatched successfully are included in the batch.
-    async fn assemble_batch(&mut self) -> anyhow::Result<()> {
+    async fn assemble_batch(&mut self) -> anyhow::Result<Option<()>> {
         tracing::debug!("`assemble_batch` has been called");
 
         // We already have a batch assembled. We'll wait until it's popped
         // before assembling a new one.
         if self.assembled_batch.is_some() {
-            return Ok(());
+            return Ok(None);
         }
 
         let state_checkpoint = self.checkpoint.take().unwrap();
@@ -569,7 +569,7 @@ where
         match response {
             Ok(batch) => {
                 self.assembled_batch = Some(batch);
-                Ok(())
+                Ok(Some(()))
             }
             Err(e) => Err(e),
         }

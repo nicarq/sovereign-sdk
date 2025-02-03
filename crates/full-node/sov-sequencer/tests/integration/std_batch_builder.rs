@@ -4,6 +4,7 @@ use axum::http::StatusCode;
 use base64::prelude::*;
 use borsh::BorshDeserialize;
 use sov_api_spec::types;
+use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::MockDaService;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Address, BlobReaderTrait, DispatchCall, FullyBakedTx};
@@ -163,7 +164,7 @@ async fn test_batch_building_with_out_of_gas_error() {
 async fn not_sequencer_safe_txs_are_restricted() {
     let dir = tempfile::tempdir().unwrap();
     let sequencer_addr = HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr();
-    let da_service = MockDaService::new(sequencer_addr);
+    let da_service = StorableMockDaService::new_in_memory(sequencer_addr, 0).await;
     let batch_builder_config = StdBatchBuilderConfig {
         mempool_max_txs_count: None,
         max_batch_size_bytes: None,
@@ -208,7 +209,7 @@ async fn not_sequencer_safe_txs_are_restricted() {
 async fn sequencer_safe_txs_from_admins_are_accepted() {
     let dir = tempfile::tempdir().unwrap();
     let sequencer_addr = HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr();
-    let da_service = MockDaService::new(sequencer_addr);
+    let da_service = StorableMockDaService::new_in_memory(sequencer_addr, 0).await;
     let batch_builder_config = StdBatchBuilderConfig {
         mempool_max_txs_count: None,
         max_batch_size_bytes: None,

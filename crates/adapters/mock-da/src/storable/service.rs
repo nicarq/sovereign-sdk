@@ -93,7 +93,8 @@ impl BlockProducing {
 /// DaService that works on top of [`StorableMockDaLayer`].
 #[derive(Clone)]
 pub struct StorableMockDaService {
-    sequencer_da_address: MockAddress,
+    /// The address of the sequencer.
+    pub sequencer_da_address: MockAddress,
     da_layer: Arc<RwLock<StorableMockDaLayer>>,
     block_producing: BlockProducing,
     aggregated_proof_sender: broadcast::Sender<()>,
@@ -211,13 +212,20 @@ impl StorableMockDaService {
 
     /// Trigger creation of a new block on underlying [`StorableMockDaLayer`].
     pub async fn produce_block_now(&self) -> anyhow::Result<()> {
-        anyhow::ensure!(
-            self.block_producing == BlockProducing::Manual,
-            "Can only trigger block producing in Manual mode, but current is {:?}",
-            self.block_producing
-        );
         let mut da_layer = self.da_layer.write().await;
         da_layer.produce_block().await
+    }
+
+    /// Wrapper around [`StorableMockDaService::produce_block_now`] to quickly
+    /// advance the DA by a number of blocks.
+    ///
+    /// This is especially useful at the beginning of tests, to "maximize" the
+    /// finalization distance between genesis and DA chain head.
+    pub async fn produce_n_blocks_now(&self, n: usize) -> anyhow::Result<()> {
+        for _ in 0..n {
+            self.produce_block_now().await?;
+        }
+        Ok(())
     }
 }
 

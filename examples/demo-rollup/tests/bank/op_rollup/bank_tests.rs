@@ -1,12 +1,14 @@
+use std::sync::Arc;
+
 use serde::Deserialize;
 use sov_cli::NodeClient;
 use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
+use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
 use sov_test_utils::test_rollup::RollupBuilder;
-use sov_test_utils::tx_sender::TxSender;
 
 use crate::bank::helpers::*;
 use crate::bank::TOKEN_NAME;
@@ -30,12 +32,19 @@ async fn flaky_bank_tx_tests() -> anyhow::Result<()> {
     .start()
     .await?;
 
-    let sender = SequencerTxSender::default();
+    // We need a handful of blocks for the sequencer to be able to advance the
+    // visible slot number. Fewer blocks could possibly be enough as well, I
+    // haven't counted (@neysofu).
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(3)
+        .await
+        .unwrap();
 
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = test_rollup.rollup_task => err?,
-        res = send_test_bank_txs(test_case, &test_rollup.client, sender) => Ok(res?),
+        res = send_test_bank_txs(test_case, &test_rollup.client, test_rollup.da_service.clone()) => Ok(res?),
     }?;
 
     Ok(())
@@ -44,7 +53,7 @@ async fn flaky_bank_tx_tests() -> anyhow::Result<()> {
 async fn send_test_bank_txs(
     test_case: TestCase,
     client: &NodeClient,
-    tx_sender: SequencerTxSender,
+    da_service: Arc<StorableMockDaService>,
 ) -> anyhow::Result<()> {
     let (key, user_address, token_id, recipient_address) = create_keys_and_addresses();
     let token_id_response = client
@@ -58,7 +67,11 @@ async fn send_test_bank_txs(
     // create token.
     let initial_balance = 1000;
     let tx = build_create_token_tx(&key, 0, initial_balance);
-    let slot_number = tx_sender.send_txs(client, &[tx]).await?;
+
+    let slot_number = send_tx_and_wait_for_status(&[tx], client).await?;
+
+    // Will cause a batch to be produced.
+    da_service.produce_n_blocks_now(1).await.unwrap();
 
     assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
     assert_balance(client, initial_balance, token_id, user_address, None).await?;
@@ -66,7 +79,9 @@ async fn send_test_bank_txs(
     // Make a few transfers and check that attestation height progresses
     for nonce in 1..=NUM_TRANSFERS {
         let tx = build_transfer_token_tx(&key, token_id, recipient_address, 10, nonce);
-        let slot_number = tx_sender.send_txs(client, &[tx]).await?;
+
+        let slot_number = send_tx_and_wait_for_status(&[tx], client).await?;
+
         assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
         assert_balance(
             client,
@@ -83,6 +98,8 @@ async fn send_test_bank_txs(
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
             max_attested_height = get_max_attested_height(client).await?;
         }
+
+        da_service.produce_n_blocks_now(1).await.unwrap();
     }
 
     Ok(())

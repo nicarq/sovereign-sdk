@@ -169,7 +169,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     pub async fn submit_batch(
         &self,
         txs: Vec<FullyBakedTx>,
-    ) -> anyhow::Result<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>> {
+    ) -> anyhow::Result<Option<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>>> {
         tracing::trace!(
             txs_count = txs.len(),
             "Submit batch request has been received!"
@@ -209,11 +209,12 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     async fn send_all_unsent_batches(
         &self,
         batch_builder: &mut Ss::BatchBuilder,
-    ) -> anyhow::Result<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>> {
+    ) -> anyhow::Result<Option<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>>> {
         let mut batches = batch_builder.peek_batches().await?;
 
         let Some(last_batch) = batches.pop() else {
-            panic!("Not a single batch was available for sending, but this is unexpected; this is a bug, please report it");
+            trace!("Not a single batch was available for sending, will not send anything");
+            return Ok(None);
         };
 
         for batch in batches {
@@ -235,6 +236,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
         self.react_to_batch_receipt(self.inner.send_batch(batch_builder, last_batch).await?)
             .await
+            .map(Some)
     }
 
     async fn react_to_batch_receipt(
@@ -339,9 +341,6 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             latest_processed_slot_number.range_inclusive(storage_slot_number),
         )
         .await?;
-
-        *latest_processed_slot_number = state_update_info.slot_number;
-
         // Now that we retrieved the latest state, we can produce and send a new batch.
         if automatic_batch_production {
             tracing::trace!("Producing a batch automatically");

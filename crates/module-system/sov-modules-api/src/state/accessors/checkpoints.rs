@@ -151,6 +151,13 @@ impl<S: Spec> StateCheckpoint<S> {
             }
         }
     }
+
+    /// Advances the visible slot number and rollup height.
+    #[cfg(feature = "native")]
+    pub fn advance_visible_slot_number(&mut self, advance: std::num::NonZero<u8>) {
+        self.visible_slot_num.advance(advance.get().into());
+        self.rollup_height.incr();
+    }
 }
 
 impl<S: Spec> VersionReader for StateCheckpoint<S> {

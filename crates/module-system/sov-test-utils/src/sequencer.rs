@@ -8,6 +8,7 @@ use sov_api_spec::Client;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
+use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
 use sov_modules_api::{
     DaSyncState, RuntimeEventProcessor, RuntimeEventResponse, SlotData, Spec, SyncStatus,
@@ -33,7 +34,7 @@ use crate::{TestHasher, TestPrivateKey, TestSpec, TestStfBlueprint};
 
 type TestSequencerSpec<B> = GenericSequencerSpec<
     B,
-    MockDaService,
+    StorableMockDaService,
     BatchReceipt<TestSpec>,
     TxReceiptContents<TestSpec>,
     RuntimeEventResponse<<TestOptimisticRuntime<TestSpec> as RuntimeEventProcessor>::RuntimeEvent>,
@@ -61,7 +62,7 @@ pub struct TestSequencerSetup<B: BatchBuilder<Spec = TestSpec>> {
         <B as BatchBuilder>::Config,
     >,
     /// The [`MockDaService`] used by the [`Sequencer`].
-    pub da_service: MockDaService,
+    pub da_service: StorableMockDaService,
     /// The argument passed to [`Sequencer::new`].
     pub state_update_receiver: watch::Receiver<StateUpdateInfo<<TestSpec as Spec>::Storage>>,
     /// The [`Sequencer`] used in the test.
@@ -88,7 +89,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
     /// Like [`TestSequencerSetup::new`], but with a custom [`NativeStorageManager`].
     pub async fn with_storage_manager(
         dir: TempDir,
-        da_service: MockDaService,
+        da_service: StorableMockDaService,
         batch_builder_config: B::Config,
         register_admin: bool,
         mut storage_manager: NativeStorageManager<
@@ -172,7 +173,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
         shutdown_receiver.mark_unchanged();
 
         let config = SequencerConfig {
-            da_address: da_service.sequencer_address(),
+            da_address: da_service.sequencer_da_address,
             admin_addresses,
             automatic_batch_production: true,
             max_allowed_blocks_behind: 0,
@@ -229,7 +230,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
     /// [`TestSequencerSetup`] is dropped.
     pub async fn new(
         dir: TempDir,
-        da_service: MockDaService,
+        da_service: StorableMockDaService,
         batch_builder_config: B::Config,
         register_admin: bool,
     ) -> anyhow::Result<Self> {
@@ -265,7 +266,7 @@ impl TestSequencerSetup<TestStdBatchBuilder> {
 
         TestSequencerSetup::new(
             dir,
-            MockDaService::new(MockAddress::new([172; 32])),
+            StorableMockDaService::new_in_memory(MockAddress::new([172; 32]), 0).await,
             StdBatchBuilderConfig {
                 mempool_max_txs_count: Some(mempool_max_txs_count),
                 max_batch_size_bytes: None,

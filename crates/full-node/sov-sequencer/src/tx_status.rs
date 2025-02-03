@@ -94,7 +94,7 @@ impl<Da: DaSpec> TxStatusManager<Da> {
     }
 
     /// Notifies all subscribers about the new status of a transaction.
-    #[tracing::instrument]
+    #[tracing::instrument(skip_all)]
     pub fn notify(&self, tx_hash: TxHash, status: TxStatus<Da::TransactionId>) {
         let mut senders = self.senders.write().expect(Self::LOCK_ERR);
 

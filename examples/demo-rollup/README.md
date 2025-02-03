@@ -118,6 +118,7 @@ The transaction hash can be used to query the REST API endpoint to fetch events 
 this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
+$ sleep 5
 $ curl -sS http://127.0.0.1:12346/ledger/txs/0xe9f077d7fbc4c858a3af9efa40e845927b1e90c0af4700b6e9cc36fbaa6bfbb0/events | jq
 {
   "data": [
@@ -351,7 +352,7 @@ this
 batch, you can import them now. Finally, let's submit your transaction to the rollup.
 
 ```bash,test-ci
-$ ./target/debug/sov-cli node submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66
+$ ./target/debug/sov-cli node submit-batch by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66
 ```
 
 #### 5. Verify the Token Supply

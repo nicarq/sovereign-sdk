@@ -7,6 +7,8 @@
 
 ## 2025-01-22
 - #2255 Makes it possible to generate benchmarks metrics using multiple processes.
+## 2025-01-30
+- #2320 makes several correctness improvements to the preferred sequencer's visible slot number increase logic. It also removes `SequencerTxSender` from `demo-rollup` and utilities.
 ## 2025-01-29
 - #2315 Remove manual batch production from the `bank` integration tests.
 - #2323 **Fixes the finalized slot WebSocket notification.** Now, it only sends the most recent slot information instead of resending every slot when a new one is finalized.
