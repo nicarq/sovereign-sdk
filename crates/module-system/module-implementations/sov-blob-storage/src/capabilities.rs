@@ -73,7 +73,7 @@ impl<S: Spec> BlobStorage<S> {
 
         BlobSelectorOutput {
             selected_blobs: self.select_blobs_da_ordering(current_blobs, state),
-            create_rollup_block: true,
+            visible_slots_number_increase: 1,
         }
     }
 
@@ -250,12 +250,13 @@ impl<S: Spec> BlobStorage<S> {
     {
         tracing::trace!("On recovery mode path");
 
-        // First, decide how many slots worth of stored blobs we need. It could be 0, 1, or 2.
-        let batches_needed_from_this_slot = match state
+        let increase = state
             .true_slot_number()
             .saturating_sub(state.visible_slot_number().get())
-            .get()
-        {
+            .get();
+
+        // First, decide how many slots worth of stored blobs we need. It could be 0, 1, or 2.
+        let batches_needed_from_this_slot = match increase {
             // If the visible slot has caught up to the current slot, we don't need any stored blobs.
             // In this case, we act like a normal "based" rollup
             0 => return self.select_blobs_as_based_sequencer_inner(current_blobs, state),
@@ -292,7 +293,7 @@ impl<S: Spec> BlobStorage<S> {
 
         BlobSelectorOutput {
             selected_blobs: blobs_with_total_size_limit.inner(),
-            create_rollup_block: true,
+            visible_slots_number_increase: increase.max(2) as u8,
         }
     }
 
@@ -551,7 +552,7 @@ impl<S: Spec> BlobStorage<S> {
 
         BlobSelectorOutput {
             selected_blobs: blobs_with_total_size_limit.inner(),
-            create_rollup_block: num_slots_to_advance > 0,
+            visible_slots_number_increase: num_slots_to_advance as u8,
         }
     }
 

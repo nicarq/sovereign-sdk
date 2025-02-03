@@ -1,3 +1,6 @@
+## 2025-02-01
+- #2337 fixes a bug that could cause transaction re-execution to fail in the preferred sequencer.
+
 ## 2025-01-31
 - #2331 Fixes memory consumption metrics. This may requires updating `risc0-zkvm` and `risc0-zk-platform` to version `1.2.1`
 - #2335 Renames `SlotHooks` to `BlockHooks` to better reflect the timing of these hooks.
@@ -16,6 +19,10 @@
 - #2304 removes some mandatory arguments to `RollupBuilder::new` in favor of builder methods.
 - #2310 allows to completely disable prover background test for in `RollupBuilder` for more precise testing.
 - #2317 adds context to genesis initialization. **rollup-starter should have same update**, as it is an important usability fix.
+
+## 2025-01-27
+- #2309 Improves metrics collection. This is not a breaking change for consumers of the SDK.
+
 ## 2025-01-23
 - #2270 adds logging to `sov-benchmarks`
 
@@ -28,12 +35,9 @@
 ## 2025-01-21
 - #2252 Adjust the `/dedup` API endpoint to return the next unused generation rather than the next available nonce. This follows from the earlier (#2182) that made generations the default deduplication/uniqueness mechanism for native sovereign transactions. EVM transactions still use nonces (for standard compatibility) and those can be queried using the ethereum RPC.
 Note that the recommended way to deduplicate transaction now is using the current UNIX timestamp in seconds as the generation. The `/dedup` endpoint is intended for compatibility with rollup-agnostic clients (enabling the same transaction submission flow for both nonce-based and generation-based rollups), or for state introspection.
-
-## 2025-01-20
-- #2230 The ValueSetter::SetValue call message was updated to include an optional gas parameter, which will be used for updating the value.
-## 2025-01-21
 - #2247 exports `sov_modules_rollup_blueprint::logging::should_init_open_telemetry_exporter` so there's a standard way to ensure that Open Telemetry exporter should be enabled.
 - #2245 Makes state that is *only* soft-confirmed unavailable via archival queries (i.e. API queries that include the `?rollup_height` parameter). State now becomes available via archival APIs at the same time across all node, regardless of whether the node is also providing soft confirmations. This fixes a bug where the archival APIs could return incorrect data when queried for soft-confirmed state.
+
 ## 2025-01-20
 - #2246 Adds a parameter to the `PrivateKeyAndAddress::from_json_file` method which allows skipping the check that the deserialized address matches the key's default value.
 - #2245 Makes state that is *only* soft-confirmed unavailable via archival queries (i.e. API queries that include the `?rollup_height` parameter). State now becomes available via archival APIs at the same time across all node, regardless of whether the node is also providing soft confirmations. This fixes a bug where the archival APIs could return incorrect data when queried for soft-confirmed state.

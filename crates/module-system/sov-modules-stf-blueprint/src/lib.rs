@@ -324,8 +324,10 @@ where
 
         let blob_selector_output = self.select_and_validate_blobs(relevant_blobs, &mut kernel);
 
-        if blob_selector_output.create_rollup_block {
-            let visible_slot_number = kernel.visible_slot_number();
+        if blob_selector_output.creates_rollup_block() {
+            let visible_slot_number = kernel
+                .visible_slot_number()
+                .advance(blob_selector_output.visible_slots_number_increase.into());
             self.runtime
                 .chain_state()
                 .increment_rollup_height(&mut kernel, visible_slot_number);
@@ -340,7 +342,7 @@ where
         let blob_selection_time = start_slot.elapsed();
 
         #[cfg(feature = "native")]
-        let create_rollup_block = blob_selector_output.create_rollup_block;
+        let create_rollup_block = blob_selector_output.creates_rollup_block();
 
         #[cfg(feature = "native")]
         let visible_slot_number = state.visible_slot_number_to_access();
@@ -439,6 +441,7 @@ where
         all(feature = "gas-constant-estimation", feature = "native"),
         track_gas_constants_usage(visible_hash)
     )]
+    #[tracing::instrument(skip_all, fields(context=?execution_context), level = "debug")]
     pub fn apply_batches_in_user_space<B: IncrementalBatch<TransactionReceipt<S>, S>>(
         &self,
         blob_selector_output: BlobSelectorOutput<S, BlobDataWithId<B>>,
@@ -458,6 +461,8 @@ where
         Vec<BatchReceipt<S>>,
         StateCheckpoint<S>,
     ) {
+        let creates_rollup_block = blob_selector_output.creates_rollup_block();
+
         // Note: The gas price should be computed after all the capabilities involving the [`KernelStateAccessor`] to have the
         // most recent version of the visible rollup height.
         let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut state).expect("The base fee per gas for the current slot should be known at this point! This is a bug. Please report it");
@@ -489,7 +494,7 @@ where
         // predict the user space state when executing priority blobs.
         #[cfg(feature = "native")]
         let begin_slot_start = std::time::Instant::now();
-        if blob_selector_output.create_rollup_block {
+        if creates_rollup_block {
             BlockHooks::begin_rollup_block_hook(&self.runtime, &visible_hash, &mut state);
         }
         #[cfg(feature = "native")]
@@ -590,7 +595,7 @@ where
 
         // Note that we run the end-slot hooks even in non-native mode, which is why this can't
         // be a single "native" block
-        if blob_selector_output.create_rollup_block {
+        if creates_rollup_block {
             BlockHooks::end_rollup_block_hook(&self.runtime, &mut state);
             let mut block_gas_info = BlockGasInfo::new(block_gas_limit, gas_price);
             block_gas_info.update_gas_used(slot_gas_meter.total_gas_used());

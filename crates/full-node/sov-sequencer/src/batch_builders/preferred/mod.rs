@@ -25,6 +25,7 @@ use sov_modules_api::{
     BlobDataWithId, ChangeSet, ExecutionContext, FullyBakedTx, KernelStateAccessor,
     NestedEnumUtils, RawTx, RejectReason, Runtime, RuntimeEventProcessor, RuntimeEventResponse,
     Spec, StateCheckpoint, StateUpdateInfo, SyncStatus, TxChangeSet, VersionReader,
+    VisibleSlotNumber,
 };
 use sov_modules_stf_blueprint::{StfBlueprint, TransactionReceipt, TxEffect};
 use sov_rest_utils::errors::database_error_500;
@@ -170,6 +171,10 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             config: config.clone(),
             runtime,
         };
+        tracing::debug!(
+            "Creating sequencer with latest finalized slot number: {}",
+            latest_state_update.latest_finalized_slot_number
+        );
 
         // Restore soft-confirmed state that the node hasn't processed yet.
         bb.try_update_state(latest_state_update.clone()).await?;
@@ -296,8 +301,13 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         Ok(Some(()))
     }
 
-    async fn peek_batches(&mut self) -> anyhow::Result<Vec<WithCachedTxHashes<Self::Batch>>> {
-        self.db.not_sent_yet_batches().await
+    async fn peek_batches(
+        &mut self,
+    ) -> anyhow::Result<Vec<WithCachedTxHashes<PreferredBatchData>>> {
+        self.db
+            .not_sent_yet_batches()
+            .await
+            .map(|batches| batches.into_iter().map(|batch| batch.batch).collect())
     }
 
     async fn pop_batch(&mut self) -> anyhow::Result<()> {
@@ -351,12 +361,18 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         // haven't touched the background task nor modified `self`, so
         // everything will be left in a valid state.
         self.db
-            .start_batch(visible_increase)
+            .start_batch(
+                VisibleSlotNumber::new_dangerous(
+                    self.latest_info.latest_finalized_slot_number.get(),
+                ),
+                visible_increase,
+            )
             .await
             .map_err(database_error_500)?;
 
         self.start_rollup_block(
             visible_increase,
+            None,
             node_state_root,
             self.config.batch_builder.minimum_profit_per_tx,
         )
@@ -371,7 +387,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
             .get_root_hash(self.latest_info.slot_number)
     }
 
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip_all, fields(starting_from=%info.slot_number))]
     async fn try_update_state(
         &mut self,
         info: StateUpdateInfo<<Z::Spec as Spec>::Storage>,
@@ -407,7 +423,10 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         }
 
         for batch in batches_to_process {
-            self.replay_batch(&batch).await?;
+            if let Err(e) = self.replay_batch(&batch).await {
+                tracing::error!("Error replaying batch: {:?}", e);
+                std::process::exit(1);
+            }
         }
 
         self.update_api_state().await;
@@ -433,6 +452,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
 
         self.start_rollup_block(
             batch.batch.inner.visible_slots_to_advance,
+            Some(batch.visible_slot_number_after_increase),
             node_state_root,
             // When replaying batches, we wish to be deterministic and not
             // filter out previously-accepted transactions simply because
@@ -471,10 +491,11 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
             );
 
             if let Err(err) = self.tx_confirmation(tx.clone()).await {
-                panic!(
+                tracing::error!(
                     "Transaction was soft-confirmed but failed to be re-applied; this is a bug, please report it {:?}",
                     err
                 );
+                std::process::exit(1);
             }
         }
 
@@ -484,13 +505,19 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
     async fn start_rollup_block(
         &mut self,
         visible_increase: VisibleSlotNumberIncrease,
+        visible_slot_number_after_increase: Option<VisibleSlotNumber>,
         // We pass the node state root explicitly because retrieving it is
         // fallible, so it's convenient to front-load the error-checking.
         node_state_root: <<Z::Spec as Spec>::Storage as Storage>::Root,
         minimum_profit_per_tx: u64,
     ) {
-        self.start_rollup_block_inner(visible_increase, node_state_root, minimum_profit_per_tx)
-            .await;
+        self.start_rollup_block_inner(
+            visible_increase,
+            visible_slot_number_after_increase,
+            node_state_root,
+            minimum_profit_per_tx,
+        )
+        .await;
 
         // Just a sanity check.
         assert!(
@@ -503,6 +530,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
     async fn start_rollup_block_inner(
         &mut self,
         visible_increase: VisibleSlotNumberIncrease,
+        visible_slot_number_after_increase: Option<VisibleSlotNumber>,
         node_state_root: <<Z::Spec as Spec>::Storage as Storage>::Root,
         minimum_profit_per_tx: u64,
     ) {
@@ -524,9 +552,20 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
             "Beginning new rollup block and spawning background loop"
         );
 
-        let next_visible_slot_number = checkpoint
+        let computed_visible_slot_number = checkpoint
             .visible_slot_number_to_access()
             .advance(visible_increase.get().into());
+        let next_visible_slot_number =
+            visible_slot_number_after_increase.unwrap_or(computed_visible_slot_number);
+
+        if let Some(visible_slot_number_after_increase) = visible_slot_number_after_increase {
+            // TODO: Change this to an error log and a panic once all visible slot numbers fixes are merged
+            tracing::debug!(
+                "Overriding visible slot number from {} to: {}",
+                computed_visible_slot_number,
+                visible_slot_number_after_increase
+            );
+        }
 
         let prev_state_root = prev_state_root_opt.unwrap_or(node_state_root);
 
@@ -561,7 +600,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
                 selected_blobs.extend(additional_blobs);
                 let blob_selector_output = BlobSelectorOutput {
                     selected_blobs,
-                    create_rollup_block: true,
+                    visible_slots_number_increase: visible_increase.get(),
                 };
                 let stf = StfBlueprint::<Z::Spec, Z::Rt>::new();
                 let rt = Z::Rt::default();
@@ -769,6 +808,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
 
 struct PreferredBatchToRestore {
     is_in_progress: bool,
+    visible_slot_number_after_increase: VisibleSlotNumber,
     batch: WithCachedTxHashes<PreferredBatchData>,
 }
 
@@ -920,9 +960,10 @@ async fn batches_to_process<Z: RtAwareBatchBuilderSpec>(
             PreferredBbDbBlob::Batch(batch) => Some(PreferredBatchToRestore {
                 is_in_progress: false,
                 batch: WithCachedTxHashes {
-                    inner: batch.inner,
-                    tx_hashes: batch.tx_hashes,
+                    inner: batch.batch.inner,
+                    tx_hashes: batch.batch.tx_hashes,
                 },
+                visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
             }),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2063): Process proofs.
             // Note: once we start processing proofs in addition to batches,
@@ -942,7 +983,8 @@ async fn batches_to_process<Z: RtAwareBatchBuilderSpec>(
     if let Some(batch) = db.in_progress_batch_opt().await? {
         batches.push(PreferredBatchToRestore {
             is_in_progress: true,
-            batch,
+            visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
+            batch: batch.batch,
         });
     }
 

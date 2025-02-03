@@ -248,6 +248,17 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
                     },
                 ))
             }
+            // Since we can't sensibly generate a value for this, we just generate SetValue instead.
+            CallMessageDiscriminants::AssertVisibleSlotNumber => {
+                let value = u32::arbitrary(u)?;
+                Ok(GeneratedMessage::new(
+                    CallMessage::SetValue { value, gas: None },
+                    self.admin_key.clone(),
+                    MessageOutcome::Successful {
+                        changes: vec![ValueSetterChangeLogEntry::ValueUpdated { new_value: value }],
+                    },
+                ))
+            }
         }
     }
 
@@ -292,6 +303,16 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
                 }
 
                 let message = CallMessage::SetManyValues(values);
+                Ok(GeneratedMessage {
+                    message,
+                    sender: account.private_key,
+                    outcome: MessageOutcome::Reverted,
+                })
+            }
+            CallMessageDiscriminants::AssertVisibleSlotNumber => {
+                let message = CallMessage::AssertVisibleSlotNumber {
+                    expected_visible_slot_number: u64::MAX,
+                };
                 Ok(GeneratedMessage {
                     message,
                     sender: account.private_key,
