@@ -7,7 +7,6 @@ use std::time::Duration;
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use proptest::sample::size_range;
 use sov_api_spec::types as api_types;
 use sov_api_spec::types::PublishBatchBody;
 use sov_mock_da::storable::layer::StorableMockDaLayer;
@@ -24,15 +23,15 @@ use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::{
-    default_test_signed_transaction, generate_optimistic_runtime_with_kernel, RtAgnosticBlueprint,
-    TestSpec,
+    default_test_signed_transaction, generate_optimistic_runtime_with_kernel, initialize_logging,
+    RtAgnosticBlueprint, TestSpec,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use test_strategy::Arbitrary;
 use tokio::time::sleep;
 use tracing::{debug, info};
 
-use crate::utils::{generate_txs, ModuleWithVersionedStateAccessInSlotHook};
+use crate::utils::{generate_paymaster_tx, generate_txs, ModuleWithVersionedStateAccessInSlotHook};
 
 generate_optimistic_runtime_with_kernel!(
     TestRuntime <=
@@ -48,32 +47,36 @@ type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
 /// which the sequencer ought to know how to respond.
 #[derive(Debug, Clone, Arbitrary)]
 enum TestingAction {
-    #[weight(0)] // Never generated automatically, but useful for debugging.
+    /// Never generated automatically because tests would slow down wayyy too
+    /// much. Useful for debugging.
+    #[weight(0)]
     Sleep { duration_ms: u64 },
-    /// The node is shutdown and restarted, to catch possible losses of
-    /// soft-confirmed transactions and state initialization bugs.
+    /// The node is immediately shutdown and restarted, to catch possible losses
+    /// of soft-confirmed transactions and state initialization bugs.
     Restart,
     /// A client submits a valid transaction to be included in the next batch,
     /// and for which a soft confirmation ought to be provided immediately.
     #[weight(5)] // Make it more likely to be picked (this is where all juicy stuff happens)
     AcceptTx,
+    /// Shorthand for a bunch of transactions in quick succession.
+    AcceptTxs {
+        #[strategy(0..10usize)]
+        count: usize,
+    },
     /// A client submits an **invalid** transactions, asking for it to be
     /// included in the next batch (it won't, as it's invalid).
     #[weight(2)]
     TryAcceptBadTx { invalid_reason: InvalidGeneration },
-    #[weight(3)]
-    ProduceBatch {
-        #[strategy(0..5usize)]
-        num_txs: usize,
-    },
     /// A client queries the nonce for a given address.
     ///
     /// This is an easy and effective way for us to check that all pending
     /// transactions have actually been processed by the sequencer, and that
     /// its state changes are visible to REST API clients.
+    ///
+    /// TODO(@neysofu): Switch to the message generator.
     #[weight(8)]
     QuerySetValue,
-    /// Like [`Self::QuerySetValue`], but historical queries.
+    /// Like [`TestingAction::QuerySetValue`], but historical queries.
     ///
     /// FIXME(@neysofu): historical queries only work for node-processed slots,
     /// and not soft confirmations. This is arguably fine, but this test feature
@@ -81,14 +84,10 @@ enum TestingAction {
     #[weight(0)]
     #[allow(dead_code)]
     QuerySetValueHistorical,
-    /// The node will process the latest DA slot, and inform the sequencer about
-    /// it.
-    ///
-    /// TODO(@neysofu)
-    NewDaSlot {
-        #[any(size_range(0..1).lift())]
-        _non_preferred_batches: Vec<()>,
-    },
+    /// A new DA slot will be produced and made available to the node and sequencer.
+    NewDaSlot,
+    /// Terminates the in-progress batch and publishes it to the DA layer.
+    PublishBatch,
 }
 
 /// An invalid nonce.
@@ -114,6 +113,7 @@ async fn new_test_rollup(
     .with_preferred_seq_min_profit_per_tx(minimum_profit_per_tx)
     .set_config(|c| {
         c.rollup_prover_config = Some(RollupProverConfig::Skip);
+        c.automatic_batch_production = false;
         c.storage = dir;
     })
     .set_da_config(|c| c.sender_address = sequencer_addr)
@@ -125,7 +125,7 @@ async fn new_test_rollup(
 #[derive(Debug, Default)]
 struct TestState {
     value_by_slot_number: HashMap<SlotNumber, u64>,
-    current_slot_number: SlotNumber,
+    _current_slot_number: SlotNumber,
     next_generation: u64,
     current_value: u64,
 }
@@ -159,6 +159,8 @@ struct TestState {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn txs_below_min_fee_are_rejected() {
+    initialize_logging();
+
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
     let admin = genesis_config.additional_accounts[0].clone();
@@ -179,6 +181,14 @@ async fn txs_below_min_fee_are_rejected() {
     let dir = Arc::new(tempfile::tempdir().unwrap());
 
     let test_rollup = new_test_rollup(dir.clone(), genesis_params, 1).await;
+
+    // Produce a few blocks to DA blocks to make sure there's a finalized slot after genesis.
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(5)
+        .await
+        .unwrap();
+    sleep(Duration::from_millis(200)).await;
 
     let client = test_rollup.api_client.clone();
     let tx = tx_set_value(&admin.private_key, 0, 7);
@@ -237,6 +247,7 @@ async fn test_hooks_state_is_visible() {
             FINALIZATION_BLOCKS,
         )
         .set_config(|c| {
+            c.automatic_batch_production = false;
             c.rollup_prover_config = Some(RollupProverConfig::Skip);
             c.storage = dir;
         })
@@ -249,14 +260,12 @@ async fn test_hooks_state_is_visible() {
         .unwrap()
     };
 
-    // Run one slot. This causes both begin and end slot hooks to be run.
     test_rollup
-        .api_client
-        .publish_batch(&PublishBatchBody {
-            transactions: vec![],
-        })
+        .da_service
+        .produce_n_blocks_now(8)
         .await
         .unwrap();
+    sleep(Duration::from_millis(200)).await;
 
     // By the time we query here, the sequencer has *started* the next slot, so it has run the begin slot hook a second time.
     let client = NodeClient::new(test_rollup.api_client.baseurl())
@@ -281,33 +290,42 @@ async fn test_hooks_state_is_visible() {
             .value
     };
 
-    let begin_block_count = query_hook_counter("begin-rollup-block").await;
-    assert_eq!(begin_block_count, 1);
+    let begin_slot_count = query_hook_counter("begin-rollup-block").await;
+    assert_eq!(begin_slot_count, 0);
+    let begin_slot_count = query_hook_counter("end-rollup-block").await;
+    assert_eq!(begin_slot_count, 0);
 
-    // Accept a transaction. This causes the next batch to start and the begin slot hook to run.
     {
-        let tx = tx_set_value(&admin.private_key, 100, 10);
-
-        test_rollup
-            .api_client
-            .accept_tx(&api_types::AcceptTxBody {
-                body: BASE64_STANDARD.encode(&tx),
-            })
-            .await
-            .unwrap();
+        let txs = generate_txs(admin.private_key.clone()).clone();
+        for tx in txs {
+            client
+                .client
+                .accept_tx(&api_types::AcceptTxBody {
+                    body: BASE64_STANDARD.encode(&tx.raw_tx),
+                })
+                .await
+                .unwrap();
+        }
     }
 
-    let begin_block_count = query_hook_counter("begin-rollup-block").await;
-    assert_eq!(begin_block_count, 2);
+    let begin_slot_count = query_hook_counter("begin-rollup-block").await;
+    assert_eq!(begin_slot_count, 1);
 
-    //  since we haven't finished building this batch, the end slot hook hasn't been run - so its value is still 1
+    //  since we haven't finished building this batch, the end slot hook hasn't been run - so its value is still 0
     let end_slot_count = query_hook_counter("end-rollup-block").await;
-    assert_eq!(end_slot_count, 1);
-    // The finalize hook runs during genesis, so it should have been run twice
+    assert_eq!(end_slot_count, 0);
+    // was run once during genesis
     let finalize_count = query_hook_counter("finalize").await;
-    assert_eq!(finalize_count, 2);
+    assert_eq!(finalize_count, 1);
 
-    // Finish the in-progress batch (and start the next one). Now the end slot hook should have been run again.
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(10)
+        .await
+        .unwrap();
+    sleep(Duration::from_millis(200)).await;
+
+    // Finish the in-progress batch.
     test_rollup
         .api_client
         .publish_batch(&PublishBatchBody {
@@ -315,26 +333,88 @@ async fn test_hooks_state_is_visible() {
         })
         .await
         .unwrap();
+
+    let begin_slot_count = query_hook_counter("begin-rollup-block").await;
+    assert_eq!(begin_slot_count, 1);
     let end_slot_count = query_hook_counter("end-rollup-block").await;
-    assert_eq!(end_slot_count, 2);
-    // The finalize hook should also have been run again
+    assert_eq!(end_slot_count, 1);
     let finalize_count = query_hook_counter("finalize").await;
-    assert_eq!(finalize_count, 3);
+    assert_eq!(finalize_count, 2);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn batch_production_and_accept_tx() {
     let mut actions = vec![];
     for i in 1..20 {
-        actions.push(TestingAction::ProduceBatch { num_txs: i });
+        actions.push(TestingAction::AcceptTxs { count: i });
         actions.push(TestingAction::AcceptTx);
     }
 
     preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
 }
 
+// Checks that transactions that are not sequencer safe are rejected
+// when the sender address is not configured as an admin in the sequencer config.
+#[tokio::test(flavor = "multi_thread")]
+async fn not_sequencer_safe_txs_are_restricted() {
+    let mut genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    genesis_config.initial_sequencer.bond *= 100;
+
+    let admin = genesis_config.additional_accounts[0].clone();
+
+    let rt_genesis_config =
+        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
+            genesis_config.into(),
+            ValueSetterConfig {
+                admin: admin.address(),
+            },
+            PaymasterConfig::default(),
+            (),
+        );
+    let genesis_params = GenesisParams {
+        runtime: rt_genesis_config.clone(),
+    };
+
+    let dir = Arc::new(tempfile::tempdir().unwrap());
+
+    let test_rollup = new_test_rollup(dir.clone(), genesis_params, 0).await;
+
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(10)
+        .await
+        .unwrap();
+
+    // Wait for all blocks to be processed by the node+sequencer. TODO: better
+    // logic not prone to race conditions.
+    sleep(Duration::from_millis(500)).await;
+
+    let tx = generate_paymaster_tx(admin.private_key.clone());
+    {
+        if let Err(e) = test_rollup
+            .client
+            .client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+        {
+            assert!(
+                e.to_string().contains("Only designated admins are allowed"),
+                "Unexpected error: {}",
+                e
+            );
+        } else {
+            panic!("Sequencer accepted admin tx from non-admin sender");
+        }
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn restart_and_query_value() {
+    initialize_logging();
+
     let actions = vec![TestingAction::Restart, TestingAction::QuerySetValue];
 
     preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
@@ -344,14 +424,14 @@ async fn restart_and_query_value() {
 async fn batch_production_and_state_query() {
     let actions = vec![
         TestingAction::AcceptTx,
-        TestingAction::ProduceBatch { num_txs: 4 },
-        TestingAction::ProduceBatch { num_txs: 4 },
-        TestingAction::ProduceBatch { num_txs: 4 },
-        TestingAction::ProduceBatch { num_txs: 4 },
-        TestingAction::ProduceBatch { num_txs: 4 },
-        TestingAction::ProduceBatch { num_txs: 4 },
+        TestingAction::AcceptTxs { count: 4 },
+        TestingAction::AcceptTxs { count: 4 },
+        TestingAction::AcceptTxs { count: 4 },
+        TestingAction::AcceptTxs { count: 4 },
+        TestingAction::AcceptTxs { count: 4 },
+        TestingAction::AcceptTxs { count: 4 },
         TestingAction::QuerySetValue,
-        TestingAction::ProduceBatch { num_txs: 4 },
+        TestingAction::AcceptTxs { count: 4 },
         TestingAction::AcceptTx,
         TestingAction::QuerySetValue,
     ];
@@ -365,7 +445,7 @@ async fn api_state_race_condition_regression() {
         TestingAction::QuerySetValue,
         TestingAction::AcceptTx,
         TestingAction::QuerySetValue,
-        TestingAction::ProduceBatch { num_txs: 1 },
+        TestingAction::AcceptTxs { count: 1 },
         TestingAction::QuerySetValue,
         TestingAction::AcceptTx,
         TestingAction::AcceptTx,
@@ -382,18 +462,16 @@ async fn api_state_race_condition_regression() {
         TestingAction::TryAcceptBadTx {
             invalid_reason: InvalidGeneration::TooOld,
         },
-        TestingAction::NewDaSlot {
-            _non_preferred_batches: vec![],
-        },
+        TestingAction::NewDaSlot {},
         TestingAction::QuerySetValue,
         TestingAction::QuerySetValue,
         TestingAction::QuerySetValue,
         TestingAction::QuerySetValue,
-        TestingAction::ProduceBatch { num_txs: 4 },
+        TestingAction::AcceptTxs { count: 4 },
         TestingAction::TryAcceptBadTx {
             invalid_reason: InvalidGeneration::TooOld,
         },
-        TestingAction::ProduceBatch { num_txs: 4 },
+        TestingAction::AcceptTxs { count: 4 },
         TestingAction::QuerySetValue,
     ];
 
@@ -403,11 +481,11 @@ async fn api_state_race_condition_regression() {
 #[tokio::test(flavor = "multi_thread")]
 async fn restart_after_big_batch_regression() {
     let actions = vec![
-        TestingAction::ProduceBatch { num_txs: 1 },
-        TestingAction::ProduceBatch { num_txs: 5 },
+        TestingAction::AcceptTxs { count: 1 },
+        TestingAction::AcceptTxs { count: 5 },
         TestingAction::AcceptTx,
         TestingAction::Restart,
-        TestingAction::ProduceBatch { num_txs: 10 },
+        TestingAction::AcceptTxs { count: 10 },
         TestingAction::Restart,
         TestingAction::AcceptTx,
     ];
@@ -418,13 +496,13 @@ async fn restart_after_big_batch_regression() {
 #[tokio::test(flavor = "multi_thread")]
 async fn batch_production_with_immediate_finalization() {
     let actions = vec![
-        TestingAction::ProduceBatch { num_txs: 1 },
-        TestingAction::ProduceBatch { num_txs: 50 },
+        TestingAction::AcceptTxs { count: 1 },
+        TestingAction::AcceptTxs { count: 50 },
         TestingAction::Restart,
         TestingAction::AcceptTx,
         TestingAction::Sleep { duration_ms: 50 },
         TestingAction::Restart,
-        TestingAction::ProduceBatch { num_txs: 50 },
+        TestingAction::AcceptTxs { count: 50 },
         TestingAction::Restart,
         TestingAction::AcceptTx,
         TestingAction::AcceptTx,
@@ -432,8 +510,8 @@ async fn batch_production_with_immediate_finalization() {
         TestingAction::AcceptTx,
         TestingAction::AcceptTx,
         TestingAction::AcceptTx,
-        TestingAction::ProduceBatch { num_txs: 3 },
-        TestingAction::ProduceBatch { num_txs: 50 },
+        TestingAction::AcceptTxs { count: 3 },
+        TestingAction::AcceptTxs { count: 50 },
     ];
 
     preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
@@ -462,6 +540,17 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
     let dir = Arc::new(tempfile::tempdir().unwrap());
 
     let test_rollup = new_test_rollup(dir.clone(), genesis_params, 0).await;
+
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(10)
+        .await
+        .unwrap();
+
+    // Wait for all blocks to be processed by the node+sequencer. TODO: better
+    // logic not prone to race conditions.
+    sleep(Duration::from_millis(500)).await;
+
     let client = test_rollup.api_client.clone();
 
     let mut test_state = TestState {
@@ -592,25 +681,33 @@ async fn run_action_against_test_rollup(
                 })
                 .await?;
         }
-        TestingAction::ProduceBatch { num_txs } => {
-            let mut txs = vec![];
-            for _ in 0..num_txs {
+        TestingAction::AcceptTxs { count } => {
+            for _ in 0..count {
                 let tx = tx_set_value(
                     key,
                     test_state.next_generation,
                     test_state.current_value + 1,
                 );
+
+                test_state.next_generation += 1;
                 test_state.current_value += 1;
 
-                txs.push(tx.data);
+                test_rollup
+                    .api_client
+                    .accept_tx(&api_types::AcceptTxBody {
+                        body: BASE64_STANDARD.encode(&tx),
+                    })
+                    .await?;
             }
-            test_state.next_generation += 1;
-
-            test_rollup.client.publish_batch(txs, true).await?;
-            test_state.current_slot_number.incr();
-            test_state
-                .value_by_slot_number
-                .insert(test_state.current_slot_number, test_state.current_value);
+        }
+        TestingAction::PublishBatch => {
+            test_rollup
+                .api_client
+                .publish_batch(&PublishBatchBody {
+                    transactions: vec![],
+                })
+                .await
+                .ok();
         }
         TestingAction::NewDaSlot { .. } => {}
         TestingAction::QuerySetValueHistorical => {

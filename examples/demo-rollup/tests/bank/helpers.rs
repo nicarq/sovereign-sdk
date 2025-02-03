@@ -19,9 +19,6 @@ use crate::test_helpers::{DemoRollupSpec, CHAIN_HASH};
 
 type TestSpec = DemoRollupSpec;
 
-pub type SequencerTxSender =
-    sov_test_utils::tx_sender::SequencerTxSender<Runtime<TestSpec>, TestSpec>;
-
 pub(crate) struct TestCase {
     pub(crate) wait_for_aggregated_proof: bool,
     pub(crate) finalization_blocks: u32,

@@ -17,7 +17,7 @@ use schemars::JsonSchema;
 use serde_with::serde_as;
 use sov_blob_storage::PreferredBatchData;
 use sov_modules_api::capabilities::{
-    BlobSelector, BlobSelectorOutput, ChainState, HasKernel, Kernel, TransactionAuthenticator,
+    BlobSelector, BlobSelectorOutput, ChainState, HasKernel, TransactionAuthenticator,
 };
 use sov_modules_api::rest::utils::{json_obj, ErrorObject};
 use sov_modules_api::rest::ApiState;
@@ -76,7 +76,7 @@ enum InternalState<S: Spec> {
     Placeholder,
     /// The [`BatchBuilder`] is currently idle and is not processing
     /// transactions for the next rollup block yet.
-    WaitForNextRollupBlock {
+    Idle {
         checkpoint: StateCheckpoint<S>,
         /// When set to [`None`], the next rollup block is built on top of node
         /// state instead of sequencer state.
@@ -85,8 +85,9 @@ enum InternalState<S: Spec> {
         prev_state_root_opt: Option<<S::Storage as Storage>::Root>,
     },
     /// The [`BatchBuilder`] is currently accepting transactions from the
-    /// [`PreferredBatch`] of a rollup block. Note that every rollup block
-    /// has exactly one [`PreferredBatch`].
+    /// preferred batch of a rollup block. Note that every rollup block
+    /// (under normal operations, not e.g. in recovery mode) has exactly one
+    /// preferred batch.
     InProgressBatch {
         checkpoint: StateCheckpoint<S>,
         task_state: BackgroundTaskState<S>,
@@ -97,18 +98,11 @@ impl<S: Spec> InternalState<S> {
     fn node(info: &StateUpdateInfo<S::Storage>, runtime: &impl Runtime<S>) -> Self {
         let checkpoint = StateCheckpoint::new(info.storage.clone(), &runtime.kernel());
 
-        InternalState::WaitForNextRollupBlock {
+        InternalState::Idle {
             checkpoint,
             prev_state_root_opt: None,
         }
     }
-}
-
-/// A helper function to allow recovering an associated consant from an *instance* of a type
-/// when the type itself is unknown. This is useful when a function returns `impl Trait` and we
-/// want to get an associated item from that trait implementation.
-fn accepts_preferred_batches<B: BlobSelector>(_blob_selector: B) -> bool {
-    B::ACCEPTS_PREFERRED_BATCHES
 }
 
 #[async_trait]
@@ -226,9 +220,16 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         &mut self,
         baked_tx: FullyBakedTx,
     ) -> Result<AcceptedTx<Self::Confirmation>, ErrorObject> {
-        self.create_and_start_batch_if_none_in_progress().await?;
+        if self
+            .try_to_create_and_start_batch_if_none_in_progress(false)
+            .await?
+            .is_none()
+        {
+            panic!("No batch in progress, and no batch can be started. This is either because of (1) a bug, or (2) misuse of the `POST /sequencer/batches` endpoint. Please use automatic batch production exclusively, and report this bug if necessary. {:?} {:?}", self.state, self.latest_info);
+        }
 
         let response = self.tx_confirmation(baked_tx.clone()).await;
+
         match &response {
             Ok(ok) => {
                 trace!(
@@ -263,16 +264,36 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         Ok(TxStatus::Unknown)
     }
 
-    async fn assemble_batch(&mut self) -> anyhow::Result<()> {
-        self.create_and_start_batch_if_none_in_progress()
+    async fn assemble_batch(&mut self) -> anyhow::Result<Option<()>> {
+        let checkpoint = match &self.state {
+            InternalState::InProgressBatch { checkpoint, .. } |
+            InternalState::Idle { checkpoint, .. } => checkpoint,
+            InternalState::Placeholder => panic!("The sequencer contains an invalid internal state. This is a bug. Please report it."),
+        };
+
+        // Check if we have enough slots to create a new batch immediately after
+        // this one. If we don't, let's not assemble a batch.
+        //
+        // TODO(@neysofu): this check is currently necessary but likely can be folded into
+        // `try_to_create_and_start_batch_if_none_in_progress`... somehow. As of
+        // right now, it's a hair too bug-prone.
+        if next_visible_slot_number_increase(checkpoint, &self.latest_info, true).is_none() {
+            return Ok(None);
+        }
+
+        let new_batch_res = self.try_to_create_and_start_batch_if_none_in_progress(true)
             .await
-            .map_err(|_| anyhow::anyhow!("Unable to start a new batch; this is likely a database issue or a bug, please report it"))?;
+            .map_err(|_| anyhow::anyhow!("Unable to start a new batch; this is likely a database issue or a bug, please report it"));
+
+        if new_batch_res?.is_none() {
+            return Ok(None);
+        }
 
         self.db.terminate_batch().await?;
-        self.end_rollup_block_if_in_progress(true).await;
+        self.end_rollup_block_if_in_progress().await;
 
         self.update_api_state().await;
-        Ok(())
+        Ok(Some(()))
     }
 
     async fn peek_batches(&mut self) -> anyhow::Result<Vec<WithCachedTxHashes<Self::Batch>>> {
@@ -293,7 +314,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
     /// Syncs [`ApiState`]s with the latest [`StateCheckpoint`].
     async fn update_api_state(&self) {
         let checkpoint = match &self.state {
-            InternalState::WaitForNextRollupBlock { checkpoint, .. }
+            InternalState::Idle { checkpoint, .. }
             | InternalState::InProgressBatch { checkpoint, .. } => checkpoint,
             InternalState::Placeholder => panic!("The sequencer contains an invalid internal state. This is a bug, please report it."),
         };
@@ -304,37 +325,44 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
-    async fn create_and_start_batch_if_none_in_progress(&mut self) -> Result<(), ErrorObject> {
-        if matches!(self.state, InternalState::InProgressBatch { .. }) {
-            return Ok(());
-        }
+    async fn try_to_create_and_start_batch_if_none_in_progress(
+        &mut self,
+        leave_space_for_next_batch: bool,
+    ) -> Result<Option<()>, ErrorObject> {
+        let checkpoint = match &self.state {
+            InternalState::Idle { checkpoint, .. } => checkpoint,
+            InternalState::InProgressBatch { .. } => return Ok(Some(())),
+            InternalState::Placeholder => panic!("The sequencer contains an invalid internal state. This is a bug, please report it."),
+        };
 
-        let next_visible_slot_number_increase =
-            next_visible_slot_number_increase(&self.latest_info, &self.runtime.kernel());
+        let Some(visible_increase) = next_visible_slot_number_increase(
+            checkpoint,
+            &self.latest_info,
+            leave_space_for_next_batch,
+        ) else {
+            return Ok(None);
+        };
 
-        debug!(
-            next_visible_slot_number_increase,
-            "No in-progress batch, starting a new one"
-        );
+        debug!(visible_increase, "No in-progress batch, starting a new one");
 
         let node_state_root = self.node_root_hash().map_err(database_error_500)?;
 
         // If the database operation fails here it's okay because we still
-        // haven't touched the background task, so it will be left in a
-        // valid state.
+        // haven't touched the background task nor modified `self`, so
+        // everything will be left in a valid state.
         self.db
-            .start_batch(next_visible_slot_number_increase)
+            .start_batch(visible_increase)
             .await
             .map_err(database_error_500)?;
 
         self.start_rollup_block(
-            next_visible_slot_number_increase,
+            visible_increase,
             node_state_root,
             self.config.batch_builder.minimum_profit_per_tx,
         )
         .await;
 
-        Ok(())
+        Ok(Some(()))
     }
 
     fn node_root_hash(&self) -> anyhow::Result<<<Z::Spec as Spec>::Storage as Storage>::Root> {
@@ -348,46 +376,51 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         &mut self,
         info: StateUpdateInfo<<Z::Spec as Spec>::Storage>,
     ) -> anyhow::Result<()> {
-        self.end_rollup_block_if_in_progress(false).await;
+        self.end_rollup_block_if_in_progress().await;
 
         self.next_event_number = info.next_event_number;
         self.latest_info = info;
-
-        debug!(
-            ?self.latest_info,
-            "The sequencer will now re-apply transaction state changes on top of the latest state processed by the node"
-        );
+        self.state = InternalState::node(&self.latest_info, &self.runtime);
 
         let batches_to_process = batches_to_process::<Z>(&self.db, &self.latest_info).await?;
 
         {
-            let txs_count_by_sequence_number = batches_to_process.iter().map(|batch| {
-                (
-                    batch.batch.inner.sequence_number,
-                    batch.batch.inner.data.len(),
-                )
-            });
+            debug!(
+                ?self.latest_info,
+                "The sequencer will now re-apply transaction state changes on top of the latest state processed by the node"
+            );
+
+            let batch_details_to_log = batches_to_process
+                .iter()
+                .map(|batch| {
+                    (
+                        batch.batch.inner.sequence_number,
+                        batch.batch.inner.visible_slots_to_advance,
+                        batch.batch.inner.data.len(),
+                    )
+                })
+                .collect::<Vec<_>>();
             trace!(
-                txs_count_by_sequence_number = ?txs_count_by_sequence_number.collect::<Vec<_>>(),
+                ?batch_details_to_log,
                 "Prepared batches to apply to the state"
             );
         }
-
-        self.state = InternalState::node(&self.latest_info, &self.runtime);
 
         for batch in batches_to_process {
             self.replay_batch(&batch).await?;
         }
 
         self.update_api_state().await;
+        debug!("Sequencer state re-sync completed");
+
         Ok(())
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
     async fn replay_batch(&mut self, batch: &PreferredBatchToRestore) -> anyhow::Result<()> {
         assert!(
-            matches!(self.state, InternalState::WaitForNextRollupBlock { .. }),
-            "Replaying a preferred batch, but the invalid state is invalid and doesn't allow it ({:?}). This is a bug, please report it.",
+            matches!(self.state, InternalState::Idle { .. }),
+            "Replaying a preferred batch, but the state is invalid and doesn't allow it ({:?}). This is a bug, please report it.",
             self.state
         );
 
@@ -417,7 +450,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         self.replay_txs_in_preferred_batch(&batch.batch).await;
 
         if !batch.is_in_progress {
-            self.end_rollup_block_if_in_progress(true).await;
+            self.end_rollup_block_if_in_progress().await;
         } else {
             trace!("The batch is still in progress; will keep the background task running");
         }
@@ -456,7 +489,24 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         node_state_root: <<Z::Spec as Spec>::Storage as Storage>::Root,
         minimum_profit_per_tx: u64,
     ) {
-        let InternalState::WaitForNextRollupBlock {
+        self.start_rollup_block_inner(visible_increase, node_state_root, minimum_profit_per_tx)
+            .await;
+
+        // Just a sanity check.
+        assert!(
+            matches!(self.state, InternalState::InProgressBatch { .. }),
+            "We just started a rollup block, but the state is not as expected ({:?}). This is a bug, please report it",
+            self.state,
+        );
+    }
+
+    async fn start_rollup_block_inner(
+        &mut self,
+        visible_increase: VisibleSlotNumberIncrease,
+        node_state_root: <<Z::Spec as Spec>::Storage as Storage>::Root,
+        minimum_profit_per_tx: u64,
+    ) {
+        let InternalState::Idle {
             mut checkpoint,
             prev_state_root_opt,
         } = replace(&mut self.state, InternalState::Placeholder)
@@ -467,16 +517,18 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
             );
         };
 
+        trace!(
+            ?checkpoint,
+            ?self.latest_info,
+            %visible_increase,
+            "Beginning new rollup block and spawning background loop"
+        );
+
         let next_visible_slot_number = checkpoint
             .visible_slot_number_to_access()
             .advance(visible_increase.get().into());
 
         let prev_state_root = prev_state_root_opt.unwrap_or(node_state_root);
-
-        trace!(
-            ?checkpoint,
-            "Beginning new rollup block and spawning background loop"
-        );
 
         let (setup_sender, setup_receiver) = oneshot::channel();
         let (tx_sender, tx_receiver) = mpsc::channel(Self::MAX_BUFFERED_TXS);
@@ -491,7 +543,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
 
             move || {
                 let _span = tracing::trace_span!(
-                    "sequencer_tx_acceptor",
+                    "preferred_bb_bg_task",
                     checkpoint_height = %checkpoint.rollup_height_to_access(),
                 )
                 .entered();
@@ -518,8 +570,8 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
                     KernelStateAccessor::from_checkpoint(&kernel, &mut checkpoint);
                 kernel.increment_rollup_height(&mut accessor, next_visible_slot_number);
                 tracing::info!(
-                    "Applying batches in user space. using visible_slot_number: {}",
-                    next_visible_slot_number
+                    %next_visible_slot_number,
+                    "Applying batches in user space"
                 );
                 let (_, _, _, checkpoint) = stf.apply_batches_in_user_space(
                     blob_selector_output,
@@ -551,6 +603,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
             trace!("Applied setup changes");
 
             checkpoint.apply_changes(setup_changes);
+            checkpoint.advance_visible_slot_number(visible_increase);
         }
 
         self.state = InternalState::InProgressBatch {
@@ -563,7 +616,18 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         };
     }
 
-    async fn end_rollup_block_if_in_progress(&mut self, apply_teardown_changes: bool) {
+    async fn end_rollup_block_if_in_progress(&mut self) {
+        self.end_rollup_block_if_in_progress_inner().await;
+
+        // Just a sanity check.
+        assert!(
+            matches!(self.state, InternalState::Idle { .. }),
+            "Just ended a rollup block, but the state is not as expected ({:?}). This is a bug, please report it.",
+            self.state
+        );
+    }
+
+    async fn end_rollup_block_if_in_progress_inner(&mut self) {
         trace!("Ending rollup block");
 
         let (mut checkpoint, task_state) =
@@ -575,33 +639,28 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
                 other => {
                     // Restore previous state.
                     self.state = other;
-                    trace!("No need to end rollup block");
+
+                    trace!("No in-progress rollup block, nothing to do");
                     return;
                 }
             };
 
-        // Drop everything except the handle. This closes the background task to
-        // close, and then we'll wait for it to finish.
         let BackgroundTaskState {
             handle,
             tx_sender,
-            result_receiver,
+            result_receiver: _result_receiver,
         } = task_state;
 
-        // NOTE: the drop order is important here, or we get a
-        // deadlock.
+        // Must be dropped before the result receiver, or a deadlock happens.
         drop(tx_sender);
-        drop(result_receiver);
 
         let (state_root, changes) = handle.await.expect(
             "Transaction acceptor task failed unexpectedly! This is a bug, please report it.",
         );
 
-        if apply_teardown_changes {
-            checkpoint.apply_changes(changes);
-        }
+        checkpoint.apply_changes(changes);
 
-        self.state = InternalState::WaitForNextRollupBlock {
+        self.state = InternalState::Idle {
             checkpoint,
             prev_state_root_opt: Some(state_root),
         };
@@ -611,8 +670,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
 
     /// Calls to this method must happen "between"
     /// [`PreferredBatchBuilder::start_rollup_block`] and
-    /// [`PreferredBatchBuilder::end_rollup_block`].
-
+    /// [`PreferredBatchBuilder::end_rollup_block_if_in_progress`].
     #[tracing::instrument(skip_all, level = "trace")]
     async fn tx_confirmation(
         &mut self,
@@ -627,7 +685,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         };
 
         let response = self
-            .tx_confirmation_inner_res(
+            .tx_confirmation_inner_result(
                 baked_tx,
                 &mut checkpoint,
                 &mut task_state,
@@ -648,7 +706,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
-    async fn tx_confirmation_inner_res(
+    async fn tx_confirmation_inner_result(
         &self,
         baked_tx: FullyBakedTx,
         checkpoint: &mut StateCheckpoint<Z::Spec>,
@@ -891,10 +949,30 @@ async fn batches_to_process<Z: RtAwareBatchBuilderSpec>(
     Ok(batches)
 }
 
-fn next_visible_slot_number_increase<S: Spec, K: Kernel<S>>(
-    _info: &StateUpdateInfo<S::Storage>,
-    _kernel: &K,
-) -> NonZero<u8> {
-    // FIXME(@neysofu): finalized slot number -aware logic.
-    NonZero::new(1).unwrap()
+fn next_visible_slot_number_increase<S: Spec>(
+    checkpoint: &StateCheckpoint<S>,
+    info: &StateUpdateInfo<S::Storage>,
+    leave_space_for_next_batch: bool,
+) -> Option<NonZero<u8>> {
+    trace!(?checkpoint, ?info, %leave_space_for_next_batch, "Calculating next visible slot number");
+
+    let mut delta = info
+        .latest_finalized_slot_number
+        .checked_sub(checkpoint.visible_slot_number_to_access().get());
+
+    if leave_space_for_next_batch {
+        delta = delta.and_then(|x| x.checked_sub(1));
+    }
+
+    match delta {
+        Some(delta) => NonZero::new(delta.get().try_into().unwrap_or(u8::MAX)),
+        None => None,
+    }
+}
+
+/// A helper function to allow recovering an associated consant from an *instance* of a type
+/// when the type itself is unknown. This is useful when a function returns `impl Trait` and we
+/// want to get an associated item from that trait implementation.
+fn accepts_preferred_batches<B: BlobSelector>(_blob_selector: B) -> bool {
+    B::ACCEPTS_PREFERRED_BATCHES
 }

@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::time::Duration;
 
 use anyhow::Context;
 use demo_stf::runtime::{Runtime, RuntimeCall};
@@ -67,12 +68,19 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
 async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
     let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
         test_genesis_source(OperatingMode::Zk),
-        BlockProducingConfig::OnBatchSubmit,
+        BlockProducingConfig::Periodic,
         0,
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
     .start()
     .await?;
+
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(5)
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(200)).await;
 
     // Based on an assumption that this key is admin in sov-value-setter
     let key_and_address = read_private_key::<TestSpec>("tx_signer_private_key.json");
@@ -91,9 +99,15 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
     test_rollup
         .client
         .client
-        .publish_batch_with_serialized_txs(&[tx])
+        .send_txs_to_sequencer(&[tx])
         .await?;
     slot_subscription.next().await;
+
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(3)
+        .await
+        .unwrap();
 
     Ok(demo_stf_json_client::Client::new(
         &test_rollup.client.base_url,

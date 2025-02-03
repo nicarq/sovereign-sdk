@@ -20,6 +20,9 @@ impl<S: Spec> ValueSetter<S> {
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
         self.admin.set(&admin_config.admin, state)?;
+        self.begin_rollup_block_hook_count.set(&0, state)?;
+        self.end_rollup_block_hook_count.set(&0, state)?;
+        self.finalize_hook_count.set(&0, state)?;
         Ok(())
     }
 }

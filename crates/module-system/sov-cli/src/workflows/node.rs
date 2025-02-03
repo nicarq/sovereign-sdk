@@ -164,7 +164,11 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
                     tracing::info!(index = i, %tx_hash, "Submitting tx");
                 }
 
-                api_client.publish_batch(txs, *wait_for_processing).await?;
+                if *wait_for_processing {
+                    api_client.publish_batch(txs, *wait_for_processing).await?;
+                } else {
+                    api_client.send_txs_to_sequencer(txs).await?;
+                }
             }
             NodeWorkflows::WaitForAggregatedProof { timeout_secs } => {
                 let timeout = std::time::Duration::from_secs(timeout_secs.unwrap_or(120));

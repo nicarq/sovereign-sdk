@@ -206,6 +206,22 @@ impl NodeClient {
         Ok(amount)
     }
 
+    /// Sends multiple transactions to the sequencer.
+    pub async fn send_txs_to_sequencer(&self, raw_txs: Vec<Vec<u8>>) -> anyhow::Result<()> {
+        for raw_tx in raw_txs {
+            tracing::info!("Sending tx to sequencer");
+            self.client
+                .accept_tx(&types::AcceptTxBody {
+                    body: BASE64_STANDARD.encode(raw_tx),
+                })
+                .await
+                .context("Unable to send transaction to the sequencer")?;
+        }
+
+        tracing::info!("Successfully sent all transactions to the sequencer");
+        Ok(())
+    }
+
     /// Publish batch to the sequencer.
     pub async fn publish_batch(
         &self,

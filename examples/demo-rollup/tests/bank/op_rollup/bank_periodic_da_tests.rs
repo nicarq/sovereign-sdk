@@ -1,4 +1,5 @@
 use core::time::Duration;
+use std::sync::Arc;
 use std::thread::sleep;
 
 use anyhow::Context;
@@ -6,13 +7,13 @@ use futures::StreamExt;
 use serde::Deserialize;
 use sov_cli::NodeClient;
 use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
+use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
 use sov_test_utils::test_rollup::RollupBuilder;
-use sov_test_utils::tx_sender::TxSender;
 
 use crate::bank::helpers::*;
 use crate::bank::TOKEN_NAME;
@@ -37,12 +38,16 @@ async fn flaky_bank_tx_periodic_da_tests() -> anyhow::Result<()> {
     .start()
     .await?;
 
-    let sender = SequencerTxSender::default();
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(3)
+        .await
+        .unwrap();
 
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = test_rollup.rollup_task => err?,
-        res = send_test_bank_txs(test_case, &test_rollup.client, sender) => Ok(res?),
+        res = send_test_bank_txs(test_case, &test_rollup.client, test_rollup.da_service.clone()) => Ok(res?),
     }?;
 
     Ok(())
@@ -51,7 +56,7 @@ async fn flaky_bank_tx_periodic_da_tests() -> anyhow::Result<()> {
 async fn send_test_bank_txs(
     test_case: TestCase,
     client: &NodeClient,
-    tx_sender: SequencerTxSender,
+    da_service: Arc<StorableMockDaService>,
 ) -> anyhow::Result<()> {
     let mut slots_subscription = client.client.subscribe_slots().await?;
 
@@ -64,7 +69,10 @@ async fn send_test_bank_txs(
     // create token. height 1
     let initial_balance = 1000;
     let tx = build_create_token_tx(&key, 0, initial_balance);
-    let batch_1_rollup_height = tx_sender.send_txs(client, &[tx]).await?;
+
+    da_service.produce_n_blocks_now(3).await.unwrap();
+
+    let batch_1_rollup_height = send_tx_and_wait_for_status(&[tx], client).await?;
 
     assert!(batch_1_rollup_height >= 1);
 

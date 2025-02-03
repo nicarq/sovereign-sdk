@@ -28,37 +28,18 @@ const WIT_TIME: u64 = 500;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_bank_tx_tests_periodic_da_instant_finality() -> anyhow::Result<()> {
-    let test_case = TestCase {
-        wait_for_aggregated_proof: true,
-        finalization_blocks: 0,
-    };
-
-    let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
-        test_genesis_source(OperatingMode::Zk),
-        BlockProducingConfig::Periodic,
-        test_case.finalization_blocks,
-    )
-    .with_zkvm_host_args(mock_da_risc0_host_args())
-    .set_config(|c| {
-        c.rollup_prover_config = Some(RollupProverConfig::Skip);
-    })
-    .start()
-    .await?;
-
-    // If the rollup throws an error, return it and stop trying to send the transaction
-    tokio::select! {
-        err = test_rollup.rollup_task => err?,
-        res = send_test_bank_txs(test_case, &test_rollup.client) => Ok(res?),
-    }?;
-
-    Ok(())
+    inner(0).await
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_bank_tx_tests_periodic_da_non_instant_finality() -> anyhow::Result<()> {
+    inner(2).await
+}
+
+async fn inner(finalization_blocks: u32) -> anyhow::Result<()> {
     let test_case = TestCase {
         wait_for_aggregated_proof: true,
-        finalization_blocks: 2,
+        finalization_blocks,
     };
 
     let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
@@ -72,6 +53,14 @@ async fn flaky_bank_tx_tests_periodic_da_non_instant_finality() -> anyhow::Resul
     })
     .start()
     .await?;
+
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(5)
+        .await
+        .unwrap();
+
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
@@ -105,7 +94,7 @@ async fn send_test_bank_txs(test_case: TestCase, client: &NodeClient) -> anyhow:
 
     let tx = build_create_token_tx(&key, 0, 1000);
 
-    let slot_batch_1 = send_tx_and_wait_for_status(&[tx], client).await?;
+    let _slot_batch_1 = send_tx_and_wait_for_status(&[tx], client).await?;
 
     assert_balance(client, 1000, token_id, user_address, None)
         .await
@@ -114,7 +103,7 @@ async fn send_test_bank_txs(test_case: TestCase, client: &NodeClient) -> anyhow:
     tokio::time::sleep(std::time::Duration::from_millis(WIT_TIME)).await;
     // transfer 100 tokens. assert sender balance.
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 100, 1);
-    let slot_batch_2 = send_tx_and_wait_for_status(&[tx], client).await?;
+    let _slot_batch_2 = send_tx_and_wait_for_status(&[tx], client).await?;
 
     assert_balance(client, 900, token_id, user_address, None)
         .await
@@ -131,7 +120,7 @@ async fn send_test_bank_txs(test_case: TestCase, client: &NodeClient) -> anyhow:
     // transfer 200 tokens. assert sender balance.
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 200, 2);
 
-    let slot_batch_3 = send_tx_and_wait_for_status(&[tx], client).await?;
+    let _slot_batch_3 = send_tx_and_wait_for_status(&[tx], client).await?;
 
     assert_balance(client, 700, token_id, user_address, None)
         .await
@@ -145,10 +134,13 @@ async fn send_test_bank_txs(test_case: TestCase, client: &NodeClient) -> anyhow:
     let slot_batch_n = send_tx_and_wait_for_status(&txs, client).await?;
     assert_slot_finality(client, slot_batch_n, test_case.expected_head_finality()).await;
 
-    // Test historical balance
-    assert_balance(client, 1000, token_id, user_address, Some(slot_batch_1)).await?;
-    assert_balance(client, 900, token_id, user_address, Some(slot_batch_2)).await?;
-    assert_balance(client, 700, token_id, user_address, Some(slot_batch_3)).await?;
+    // FIXME(@neysofu,
+    // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2341): these
+    // tests use slot numbers as rollup heights. This is not correct.
+    // // Test historical balance
+    // assert_balance(client, 1000, token_id, user_address, Some(slot_batch_1)).await?;
+    // assert_balance(client, 900, token_id, user_address, Some(slot_batch_2)).await?;
+    // assert_balance(client, 700, token_id, user_address, Some(slot_batch_3)).await?;
 
     assert_bank_event::<TestSpec>(
         client,
@@ -200,14 +192,19 @@ async fn send_test_bank_txs(test_case: TestCase, client: &NodeClient) -> anyhow:
 
         let proof: SerializedAggregatedProof = aggregated_proof_resp.try_into()?;
         let verifier = AggregateProofVerifier::<MockZkVerifier>::new(MockCodeCommitment::default());
-        let pub_data: AggregatedProofPublicData<
+        let _pub_data: AggregatedProofPublicData<
             <TestSpec as Spec>::Address,
             <TestSpec as Spec>::Da,
             <<TestSpec as Spec>::Storage as Storage>::Root,
         > = verifier.verify(&proof)?;
 
-        assert!(slot_batch_1 >= pub_data.initial_slot_number.get());
-        assert!(slot_batch_1 >= pub_data.final_slot_number.get());
+        // FIXME(@neysofu,
+        // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2341):
+        // relates to the FIXME above (misuse of slot numbers
+        // as rollup heights).
+        // assert!(slot_batch_1 >= pub_data.initial_slot_number.get());
+        // assert!(slot_batch_1 >= pub_data.final_slot_number.get());
+
         // We can only check this under periodic block producing.
         // More thorough checks should be done in "OnSubmit" batch producing
         assert_aggregated_proof(1, 1, client).await?;
