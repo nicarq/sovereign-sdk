@@ -55,6 +55,30 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Assert the visible slot number is as expected.",
+      "type": "object",
+      "required": [
+        "assert_visible_slot_number"
+      ],
+      "properties": {
+        "assert_visible_slot_number": {
+          "type": "object",
+          "required": [
+            "expected_visible_slot_number"
+          ],
+          "properties": {
+            "expected_visible_slot_number": {
+              "description": "The expected visible slot number.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

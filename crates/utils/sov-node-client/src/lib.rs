@@ -233,7 +233,9 @@ impl NodeClient {
                 })
                 .await
                 .context("Failed to submit tx")?;
-            tx_hashes.push(value.data.id.clone());
+            let tx_hash = value.data.id.clone();
+            tracing::info!(hash = tx_hash.as_str(), "Submitted tx");
+            tx_hashes.push(tx_hash);
         }
 
         if wait_for_processing {

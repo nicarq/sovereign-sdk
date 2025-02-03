@@ -21,7 +21,9 @@ use sov_db::{
     define_table_with_seek_key_codec, define_table_without_codec, impl_borsh_value_codec,
 };
 use sov_modules_api::capabilities::BlobSelector;
-use sov_modules_api::{KernelStateAccessor, Runtime, Spec, StateCheckpoint, StateUpdateInfo};
+use sov_modules_api::{
+    KernelStateAccessor, Runtime, Spec, StateCheckpoint, StateUpdateInfo, VisibleSlotNumber,
+};
 use tracing::{error, trace};
 
 use crate::batch_builders::{SeqDbTx, SeqDbTxId, WithCachedTxHashes};
@@ -238,9 +240,7 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
         Ok(())
     }
 
-    pub async fn in_progress_batch_opt(
-        &self,
-    ) -> anyhow::Result<Option<WithCachedTxHashes<PreferredBatchData>>> {
+    pub async fn in_progress_batch_opt(&self) -> anyhow::Result<Option<SavedBatch>> {
         let Some(info) = self.db.get::<tables::SingletonInProgressBatchInfo>(&())? else {
             return Ok(None);
         };
@@ -264,25 +264,26 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
             tx_hashes.push(item.value.hash);
         }
 
-        Ok(Some(WithCachedTxHashes {
-            inner: PreferredBatchData {
-                sequence_number,
-                data: txs,
-                visible_slots_to_advance: info.visible_slots_to_advance,
+        Ok(Some(SavedBatch {
+            batch: WithCachedTxHashes {
+                inner: PreferredBatchData {
+                    sequence_number,
+                    data: txs,
+                    visible_slots_to_advance: info.visible_slots_to_advance,
+                },
+                tx_hashes,
             },
-            tx_hashes,
+            visible_slot_number_after_increase: info.visible_slot_number_after_increase,
         }))
     }
 
     /// Terminates the current in-progress batch and returns its [`SequenceNumber`].
-    pub async fn terminate_batch(
-        &mut self,
-    ) -> anyhow::Result<WithCachedTxHashes<PreferredBatchData>> {
+    pub async fn terminate_batch(&mut self) -> anyhow::Result<SavedBatch> {
         let batch = self
             .in_progress_batch_opt()
             .await?
             .expect("No in-progress batch; this is a bug, please report it");
-        let sequence_number = batch.inner.sequence_number;
+        let sequence_number = batch.batch.inner.sequence_number;
         let blob = PreferredBbDbBlob::Batch(batch.clone());
 
         // DB operations.
@@ -324,6 +325,7 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
     /// Starts a new in-progress batch.
     pub async fn start_batch(
         &mut self,
+        visible_slot_number_after_increase: VisibleSlotNumber,
         visible_slots_to_advance: NonZero<u8>,
     ) -> anyhow::Result<SequenceNumber> {
         assert!(
@@ -339,6 +341,7 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
             &(),
             &InProgressBatchInfo {
                 sequence_number,
+                visible_slot_number_after_increase,
                 visible_slots_to_advance,
             },
         )?;
@@ -378,9 +381,7 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
     /// Returns all batches stored in
     /// this [`PreferredBbDb`] that haven't been successfully sent to the DA
     /// yet.
-    pub async fn not_sent_yet_batches(
-        &mut self,
-    ) -> anyhow::Result<Vec<WithCachedTxHashes<PreferredBatchData>>> {
+    pub async fn not_sent_yet_batches(&mut self) -> anyhow::Result<Vec<SavedBatch>> {
         let Some(sequence_number) = self
             .sequence_number_of_earliest_batch_not_sent_yet()
             .await?
@@ -497,15 +498,24 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub(crate) struct SavedBatch {
+    pub batch: WithCachedTxHashes<PreferredBatchData>,
+    pub visible_slot_number_after_increase: VisibleSlotNumber,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub enum PreferredBbDbBlob {
-    Batch(WithCachedTxHashes<PreferredBatchData>),
+    Batch(SavedBatch),
     Proof(PreferredProofData),
 }
 
 impl PreferredBbDbBlob {
     pub fn sequence_number(&self) -> SequenceNumber {
         match self {
-            Self::Batch(WithCachedTxHashes { inner, .. }) => inner.sequence_number,
+            Self::Batch(SavedBatch {
+                batch: WithCachedTxHashes { inner, .. },
+                ..
+            }) => inner.sequence_number,
             Self::Proof(PreferredProofData {
                 sequence_number, ..
             }) => *sequence_number,
@@ -517,6 +527,7 @@ impl PreferredBbDbBlob {
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct InProgressBatchInfo {
     pub sequence_number: SequenceNumber,
+    pub visible_slot_number_after_increase: VisibleSlotNumber,
     pub visible_slots_to_advance: NonZero<u8>,
 }
 

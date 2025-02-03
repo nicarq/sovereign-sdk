@@ -40,6 +40,11 @@ pub enum CallMessage<S: Spec> {
         /// Many new values.
         Vec<u8>,
     ),
+    /// Assert the visible slot number is as expected.
+    AssertVisibleSlotNumber {
+        /// The expected visible slot number.
+        expected_visible_slot_number: u64,
+    },
 }
 
 /// Example of a custom error.
@@ -105,6 +110,22 @@ impl<S: Spec> ValueSetter<S> {
 
         // This is how we set a new value:
         self.many_values.set_all(new_value, state)?;
+        Ok(())
+    }
+
+    pub(crate) fn assert_visible_slot_number(
+        &self,
+        expected_visible_slot_number: u64,
+        context: &Context<S>,
+        _state: &mut impl TxState<S>,
+    ) -> Result<()> {
+        let visible_height = context.visible_slot_number();
+        anyhow::ensure!(
+            visible_height.get() == expected_visible_slot_number,
+            "Visible height is not as expected. Expected {}, but got {}",
+            expected_visible_slot_number,
+            visible_height.get()
+        );
         Ok(())
     }
 }

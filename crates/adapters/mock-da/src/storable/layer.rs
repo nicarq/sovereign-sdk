@@ -120,9 +120,10 @@ impl StorableMockDaLayer {
             .await?;
         let blobs_count = blobs.len();
         tracing::trace!(
-            %blobs_count,
+            blobs_count,
             height = self.next_height,
-            "Extracted blobs for this block");
+            "Extracted blobs for this block"
+        );
 
         for blob in &blobs {
             hasher.update(&blob.hash[..]);
