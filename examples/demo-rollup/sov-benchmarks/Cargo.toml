@@ -72,16 +72,9 @@ name = "rollup_coarse_measure"
 path = "src/node/rollup_coarse_measure.rs"
 harness = false
 
-[[bench]]
-name = "bench_runner"
-path = "src/metrics/bench_runner.rs"
-harness = false
-
-[[bin]]
-name = "bench_generator"
-path = "src/bench_files/bench_generator.rs"
-harness = false
-test = false
-
 [features]
-gas-constant-estimation = ["sov-modules-api/gas-constant-estimation", "sov-metrics/gas-constant-estimation", "sov-modules-stf-blueprint/gas-constant-estimation"]
+gas-constant-estimation = [
+    "sov-modules-api/gas-constant-estimation",
+    "sov-metrics/gas-constant-estimation",
+    "sov-modules-stf-blueprint/gas-constant-estimation"
+]
