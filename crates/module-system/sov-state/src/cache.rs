@@ -6,7 +6,7 @@ use sov_rollup_interface::common::SlotNumber;
 
 use crate::namespaces::ProvableCompileTimeNamespace;
 use crate::storage::{SlotKey, SlotValue, Storage};
-use crate::{NodeLeaf, NodeLeafAndValue};
+use crate::{NodeLeaf, NodeLeafAndMaybeValue, ReadType};
 
 /// An enum that represents the temperature of a value in the storage.
 /// Used in cached-structs to determine whether this is the first read of a value or not.
@@ -22,8 +22,12 @@ pub enum IsValueCached {
 /// For example, a transaction might read a value, then take some action which causes it to be updated
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Access {
-    Read { original: Option<NodeLeafAndValue> },
-    Write { modified: Option<SlotValue> },
+    Read {
+        original: Option<NodeLeafAndMaybeValue>,
+    },
+    Write {
+        modified: Option<SlotValue>,
+    },
 }
 
 impl Access {
@@ -78,7 +82,7 @@ impl CacheLog {
     }
 
     // Adds a read entry to the cache.
-    fn add_read(&mut self, key: SlotKey, value: Option<NodeLeafAndValue>) {
+    fn add_read(&mut self, key: SlotKey, value: Option<NodeLeafAndMaybeValue>) {
         match self.log.entry(key) {
             Entry::Occupied(existing) => {
                 // Sanity check.
@@ -119,29 +123,96 @@ pub struct ProvableStorageCache<N> {
 }
 
 // We implement these methods only for *provable* state values because the internal cache
-// does extra bookkeeping which is not useful for accessory state.
+// Typical workflow for fetching a value from storage:
+//
+// In NATIVE execution:
+// 1. The caller requests the value size by calling `get_size_or_fetch`.
+// 2. If the value is accessed for the first time, it is fetched from the DB and stored in the cache as `GetSizeValueFetched(value)`.
+// 3. If the caller then wants to read the full value, they call `get_or_fetch`, transitioning `GetSizeValueFetched` to `Read`.
+//    The value is then passed to the witness, allowing ZK execution to access it.
+//
+// In ZK execution:
+// 1. The caller requests the value size by calling `get_size_or_fetch`.
+// 2. If the value is accessed for the first time, only the `NodeLeaf` is fetched from the witness.
+//    This avoids passing the entire value to the witness just to determine its size.
+//    Unlike native execution, the full value is *not* stored in the cache when requesting its size.
+// 3. If the caller then wants to read the full value, they call `get_or_fetch`, and the value is fetched from the witness.
+//
+// The key difference is that in ZK mode, values are loaded lazily, only when needed, whereas in native mode, values are eagerly
+// fetched and cached—even when only requesting the size. This is because, in native execution, it's acceptable to cache the full
+// value, but in ZK execution, arbitrary large values cannot be stored as hints in the witness.
+
 impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
+    /// Get the size of the value.
+    pub fn get_size_or_fetch<S: Storage>(
+        &mut self,
+        key: &SlotKey,
+        storage: &S,
+        witness: &S::Witness,
+        version: Option<SlotNumber>,
+    ) -> Option<u64> {
+        match self.tx_cache.log.get(key) {
+            Some(Access::Read { original }) => original.as_ref().map(|node| node.leaf.size),
+            Some(Access::Write { modified }) => modified.as_ref().map(|value| value.size()),
+            None => {
+                let maybe_leaf = storage.get_leaf::<N>(key, version, witness);
+                let size = maybe_leaf.as_ref().map(|leaf| leaf.leaf.size);
+                self.add_read(key.clone(), maybe_leaf);
+                size
+            }
+        }
+    }
+
     /// Gets a value from the cache or reads it from the provided `ValueReader`.
     pub fn get_or_fetch<S: Storage>(
         &mut self,
         key: &SlotKey,
-        value_reader: &S,
+        storage: &S,
         witness: &S::Witness,
         version: Option<SlotNumber>,
     ) -> (Option<SlotValue>, IsValueCached) {
-        match self.tx_cache.log.get(key) {
+        match self.tx_cache.log.get_mut(key) {
             Some(access) => {
                 let value = match access {
-                    Access::Read { original } => original.clone().map(|node| node.value),
+                    Access::Read {
+                        original: Some(node),
+                    } => match node.value.clone() {
+                        ReadType::GetSizeValueNotFetched => {
+                            let slot_value = storage
+                                .get::<N>(key, version, witness)
+                                // This unwrap is justified because in the `ReadType::GetSizeValueFetched` branch,
+                                // we inserted `Some(slot_value)`.
+                                .unwrap_or_else(|| {
+                                    panic!(
+                                        "Invalid read for {:?}, provided witness is invalid",
+                                        key
+                                    )
+                                });
+
+                            let node_leaf = NodeLeaf::make_leaf::<S::Hasher>(&slot_value);
+                            assert_eq!(node.leaf, node_leaf);
+
+                            node.value = ReadType::Read(slot_value.clone());
+                            Some(slot_value)
+                        }
+                        ReadType::GetSizeValueFetched(slot_value) => {
+                            // Insert `slot_value` in the witness
+                            storage.put_in_witness(Some(slot_value.clone()), witness);
+                            node.value = ReadType::Read(slot_value.clone());
+                            Some(slot_value.clone())
+                        }
+                        ReadType::Read(slot_value) => Some(slot_value),
+                    },
+                    Access::Read { original: None } => None,
                     Access::Write { modified } => modified.clone(),
                 };
                 (value, IsValueCached::Yes)
             }
             None => {
-                let storage_value = value_reader.get::<N>(key, version, witness);
+                let storage_value = storage.get::<N>(key, version, witness);
                 let read = storage_value
                     .clone()
-                    .map(NodeLeafAndValue::new::<S::Hasher>);
+                    .map(NodeLeafAndMaybeValue::new_from_value_read::<S::Hasher>);
                 self.add_read(key.clone(), read);
                 (storage_value, IsValueCached::No)
             }
@@ -159,7 +230,7 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
     }
 
     // This method can be called only once per given key.
-    fn add_read(&mut self, key: SlotKey, node: Option<NodeLeafAndValue>) {
+    fn add_read(&mut self, key: SlotKey, node: Option<NodeLeafAndMaybeValue>) {
         self.ordered_db_reads
             .push((key.clone(), node.as_ref().map(|n| n.leaf)));
 
@@ -218,7 +289,8 @@ mod tests {
         // Test read.
         {
             let mut cache_log = CacheLog::default();
-            let value = create_value(2).map(NodeLeafAndValue::new::<sha2::Sha256>);
+            let value =
+                create_value(2).map(NodeLeafAndMaybeValue::new_from_value_read::<sha2::Sha256>);
             cache_log.add_read(key.clone(), value);
 
             let writes = cache_log.take_writes();
@@ -239,7 +311,8 @@ mod tests {
         // Test that write overrides read.
         {
             let mut cache_log = CacheLog::default();
-            let value = create_value(4).map(NodeLeafAndValue::new::<sha2::Sha256>);
+            let value =
+                create_value(4).map(NodeLeafAndMaybeValue::new_from_value_read::<sha2::Sha256>);
             cache_log.add_read(key.clone(), value.clone());
 
             let next_value = create_value(5);

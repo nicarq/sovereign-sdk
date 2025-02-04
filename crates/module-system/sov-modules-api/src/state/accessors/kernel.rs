@@ -16,6 +16,10 @@ pub struct BootstrapWorkingSet<'a, S: Spec> {
 }
 
 impl<'a, S: Spec> UniversalStateAccessor for BootstrapWorkingSet<'a, S> {
+    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+        self.inner.get_size(namespace, key)
+    }
+
     fn get_value(
         &mut self,
         namespace: Namespace,
@@ -116,6 +120,10 @@ impl<'a, S: Spec> KernelStateAccessor<'a, S> {
 }
 
 impl<S: Spec> UniversalStateAccessor for KernelStateAccessor<'_, S> {
+    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+        self.checkpoint.get_size(namespace, key)
+    }
+
     fn get_value(
         &mut self,
         namespace: Namespace,

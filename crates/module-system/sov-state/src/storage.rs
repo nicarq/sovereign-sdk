@@ -201,16 +201,59 @@ impl SlotValue {
     }
 
     /// The size of the `SlotValue` in bytes.
-    pub fn size(&self) -> usize {
-        self.value.len()
+    pub fn size(&self) -> u64 {
+        self.value.len() as u64
     }
 
-    /// Combines the value hash with its size..
+    /// Combines the value hash with its size.
     pub(crate) fn combine_val_hash_and_size<H: Digest<OutputSize = typenum::U32>>(
         &self,
     ) -> Vec<u8> {
         let val_hash: [u8; 32] = H::digest(self.value.as_ref()).into();
-        val_hash_and_size_inner(val_hash, self.value.len() as u64)
+        val_hash_and_size_inner(val_hash, self.size())
+    }
+}
+
+#[derive(
+    Clone, Debug, PartialEq, Eq, Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize,
+)]
+pub(crate) enum ReadType {
+    // `get_size` didn't return the full value.
+    GetSizeValueNotFetched,
+    // `get_size` returned the full value.
+    GetSizeValueFetched(SlotValue),
+    // Read operation.
+    Read(SlotValue),
+}
+
+/// Data that is saved in the `Read` cache.
+#[derive(
+    Clone, Debug, PartialEq, Eq, Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize,
+)]
+pub struct NodeLeafAndMaybeValue {
+    pub(crate) leaf: NodeLeaf,
+    pub(crate) value: ReadType,
+}
+
+impl NodeLeafAndMaybeValue {
+    pub(crate) fn new_from_value_read<H: Digest<OutputSize = typenum::U32>>(
+        value: SlotValue,
+    ) -> Self {
+        Self {
+            leaf: NodeLeaf::make_leaf::<H>(&value),
+            value: ReadType::Read(value),
+        }
+    }
+
+    #[cfg(feature = "native")]
+    pub(crate) fn new_from_get_size<H: Digest<OutputSize = typenum::U32>>(
+        value: SlotValue,
+    ) -> Self {
+        let leaf = NodeLeaf::make_leaf::<H>(&value);
+        Self {
+            leaf,
+            value: ReadType::GetSizeValueFetched(value),
+        }
     }
 }
 
@@ -236,7 +279,7 @@ pub struct NodeLeaf {
 
 impl NodeLeaf {
     pub(crate) fn make_leaf<H: Digest<OutputSize = typenum::U32>>(value: &SlotValue) -> NodeLeaf {
-        let size = value.size() as u64;
+        let size = value.size();
         let val_hash: [u8; 32] = H::digest(value.value()).into();
         NodeLeaf { size, val_hash }
     }
@@ -244,23 +287,6 @@ impl NodeLeaf {
     /// Combines the value hash with its size..
     pub(crate) fn combine_val_hash_and_size(&self) -> Vec<u8> {
         val_hash_and_size_inner(self.val_hash, self.size)
-    }
-}
-
-#[derive(
-    Clone, Debug, PartialEq, Eq, Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize,
-)]
-pub(crate) struct NodeLeafAndValue {
-    pub(crate) leaf: NodeLeaf,
-    pub(crate) value: SlotValue,
-}
-
-impl NodeLeafAndValue {
-    pub(crate) fn new<H: Digest<OutputSize = typenum::U32>>(value: SlotValue) -> Self {
-        Self {
-            leaf: NodeLeaf::make_leaf::<H>(&value),
-            value,
-        }
     }
 }
 
@@ -375,6 +401,17 @@ pub trait Storage: Clone {
     #[cfg(feature = "native")]
     /// Gets the latest version available in the storage.
     fn latest_version(&self) -> SlotNumber;
+
+    /// Puts the value in the witness.
+    fn put_in_witness(&self, value: Option<SlotValue>, witness: &Self::Witness);
+
+    /// Get the node leaf. This method does not need to load the full value into memory.
+    fn get_leaf<N: ProvableCompileTimeNamespace>(
+        &self,
+        key: &SlotKey,
+        version: Option<SlotNumber>,
+        witness: &Self::Witness,
+    ) -> Option<NodeLeafAndMaybeValue>;
 
     /// Returns the value corresponding to the key or None if key is absent.
     fn get<N: ProvableCompileTimeNamespace>(

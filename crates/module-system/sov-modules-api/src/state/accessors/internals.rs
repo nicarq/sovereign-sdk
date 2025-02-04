@@ -100,6 +100,27 @@ impl<S: Storage> Delta<S> {
 }
 
 impl<S: Storage> Delta<S> {
+    pub fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+        match namespace {
+            Namespace::User => {
+                self.user_cache
+                    .get_size_or_fetch(key, &self.inner, &self.witness, self.version)
+            }
+            Namespace::Kernel => {
+                self.kernel_cache
+                    .get_size_or_fetch(key, &self.inner, &self.witness, self.version)
+            }
+            Namespace::Accessory => match self.accessory_writes.get(key).cloned() {
+                Some(Some(value)) => Some(value.size()),
+                Some(None) => None,
+                None => {
+                    let val = self.inner.get_accessory(key, self.version);
+                    val.map(|v| v.size())
+                }
+            },
+        }
+    }
+
     pub fn get(
         &mut self,
         namespace: Namespace,
@@ -182,6 +203,15 @@ impl<S: Storage> AccessoryDelta<S> {
 }
 
 impl<S: Storage> UniversalStateAccessor for AccessoryDelta<S> {
+    fn get_size(&mut self, _namespace: Namespace, key: &SlotKey) -> Option<u64> {
+        if let Some(value) = self.writes.get(key) {
+            return value.clone().map(|v| v.size());
+        }
+
+        let val = self.storage.get_accessory(key, self.version);
+        val.map(|v| v.size())
+    }
+
     fn get_value(
         &mut self,
         _namespace: Namespace,
@@ -281,6 +311,14 @@ impl<T> UniversalStateAccessor for RevertableWriter<T>
 where
     T: UniversalStateAccessor,
 {
+    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+        if let Some(value) = self.writes.get(&(key.clone(), namespace)) {
+            value.as_ref().map(|v| v.size())
+        } else {
+            <T as UniversalStateAccessor>::get_size(&mut self.inner, namespace, key)
+        }
+    }
+
     fn get_value(
         &mut self,
         namespace: Namespace,

@@ -171,6 +171,10 @@ impl<S: Spec> VersionReader for StateCheckpoint<S> {
 }
 
 impl<S: Spec> UniversalStateAccessor for StateCheckpoint<S> {
+    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+        self.delta.get_size(namespace, key)
+    }
+
     fn get_value(
         &mut self,
         namespace: Namespace,
@@ -217,6 +221,10 @@ pub mod native {
     }
 
     impl<'a, S: Spec> UniversalStateAccessor for AccessoryStateCheckpoint<'a, S> {
+        fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u64> {
+            self.checkpoint.get_size(namespace, key)
+        }
+
         fn get_value(
             &mut self,
             namespace: sov_state::Namespace,

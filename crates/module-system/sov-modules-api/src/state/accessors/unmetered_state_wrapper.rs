@@ -16,6 +16,10 @@ pub struct UnmeteredStateWrapper<'a, T> {
 }
 
 impl<'a, T: UniversalStateAccessor> UniversalStateAccessor for UnmeteredStateWrapper<'a, T> {
+    fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u64> {
+        self.inner.get_size(namespace, key)
+    }
+
     fn get_value(
         &mut self,
         namespace: sov_state::Namespace,

@@ -15,41 +15,69 @@ use crate::{
     VersionReader,
 };
 
+fn get_slot_number(visible_slot_number: Option<VisibleSlotNumber>) -> Option<SlotNumber> {
+    // TODO: This is an ugly hack to work around the dual use of self.visible_slot_number.
+    // We use it inside `VersionReader` to determine what state the accessor is allowed to access (which requires it to be set)
+    // but also here to determine what state version to query *from disk*. Unfortunately, those two numbers don't always agree *during initialization*,
+    // so we have to use u64::MAX as a marker value to say "the accessor should be allowed to access any value and should use the latest info from storage as necessary."
+    // We should separate out the notion of permissions from the notion of what state version to query from disk.
+    if let Some(num) = visible_slot_number {
+        if num.get() != u64::MAX {
+            Some(num.as_true())
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
 impl<S: Spec> UniversalStateAccessor for ApiStateAccessor<S> {
+    fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u64> {
+        match namespace {
+            Namespace::User => self.user_cache.get_size_or_fetch(
+                key,
+                &self.storage,
+                &self.witness,
+                self.safe_true_slot_number_to_use,
+            ),
+            Namespace::Kernel => self.kernel_cache.get_size_or_fetch(
+                key,
+                &self.storage,
+                &self.witness,
+                get_slot_number(self.visible_slot_number),
+            ),
+            Namespace::Accessory => match self.accessory_writes.get(key).cloned() {
+                Some(Some(value)) => Some(value.size()),
+                Some(None) => None,
+                None => {
+                    let val = self
+                        .storage
+                        .get_accessory(key, self.safe_true_slot_number_to_use);
+                    val.map(|v| v.size())
+                }
+            },
+        }
+    }
+
     fn get_value(
         &mut self,
         namespace: sov_state::Namespace,
         key: &SlotKey,
     ) -> (Option<SlotValue>, IsValueCached) {
         match namespace {
-            Namespace::User => {
-                // TODO: We should cache these values to allow accurate gas cost estimation!
-                self.user_cache.get_or_fetch(
-                    key,
-                    &self.storage,
-                    &self.witness,
-                    self.safe_true_slot_number_to_use,
-                )
-            }
-            Namespace::Kernel => {
-                // TODO: We should cache this value *unless visible_slot_number is None*
-                // TODO: This is an ugly hack to work around the dual use of self.visible_slot_number.
-                // We use it inside `VersionReader` to determine what state the accessor is allowed to access (which requires it to be set)
-                // but also here to determine what state version to query *from disk*. Unfortunately, those two numbers don't always agree *during initialization*,
-                // so we have to use u64::MAX as a marker value to say "the accessor should be allowed to access any value and should use the latest info from storage as necessary."
-                // We should separate out the notion of permissions from the notion of what state version to query from disk.
-                let num = if let Some(num) = self.visible_slot_number {
-                    if num.get() != u64::MAX {
-                        Some(num.as_true())
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                };
-                self.kernel_cache
-                    .get_or_fetch(key, &self.storage, &self.witness, num)
-            }
+            Namespace::User => self.user_cache.get_or_fetch(
+                key,
+                &self.storage,
+                &self.witness,
+                self.safe_true_slot_number_to_use,
+            ),
+            Namespace::Kernel => self.kernel_cache.get_or_fetch(
+                key,
+                &self.storage,
+                &self.witness,
+                get_slot_number(self.visible_slot_number),
+            ),
             Namespace::Accessory => match self.accessory_writes.get(key).cloned() {
                 Some(Some(value)) => (Some(value), IsValueCached::Yes),
                 Some(None) => (None, IsValueCached::Yes),
