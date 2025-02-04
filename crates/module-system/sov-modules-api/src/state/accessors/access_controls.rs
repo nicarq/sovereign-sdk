@@ -6,14 +6,11 @@ use std::convert::Infallible;
 #[cfg(feature = "native")]
 use sov_state::Accessory;
 use sov_state::{
-    IsValueCached, Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder,
-    Storage, User,
+    Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, Storage, User,
 };
 
 use super::genesis::GenesisStateAccessor;
 use super::StateProvider;
-use crate::gas::{GasArray, GasMeter};
-use crate::module::GasSpec;
 use crate::state::traits::{
     charge_decode_gas_cost, AccessoryStateWriter, ProvableStateReader, ProvableStateWriter,
 };
@@ -24,23 +21,17 @@ use crate::{
     StateWriter, TxScratchpad, WorkingSet,
 };
 
-macro_rules! inner_impl_http_charge_gas_state_reader {
-        ($namespace:ty) => {
+macro_rules! inner_impl_charge_gas_state_infallible_reader {
+    ($namespace:ty) => {
         type Error = Infallible;
 
         fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Infallible> {
-            self.charge_gas(&S::gas_to_charge_for_access()).expect("We should never fail to charge gas for read operation of api accessors. This is a bug!");
-
-            let (val, is_value_cached) =   <Self as crate::state::accessors::UniversalStateAccessor>::get_value(
-                    self,
-                    <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
-                    key,
-                );
-
-            if is_value_cached == IsValueCached::Yes {
-                self.refund_gas(&S::gas_to_refund_for_hot_access()).expect("Failed to refund gas for read operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
-            }
-
+            let val = crate::state::traits::get_inner(
+                self,
+                <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
+                key,
+            )
+            .expect("We should never fail to charge gas for infallible accessor. This is a bug!");
             Ok(val)
         }
 
@@ -56,80 +47,67 @@ macro_rules! inner_impl_http_charge_gas_state_reader {
             let storage_value = <Self as StateReader<$namespace>>::get(self, storage_key)?;
 
             if let Some(storage_value) = &storage_value {
-                charge_decode_gas_cost::<S>(storage_value, self).expect("We should never fail to charge gas for read operation of api accessors. This is a bug!");
+                charge_decode_gas_cost::<S>(storage_value, self).expect(
+                    "We should never fail to charge gas for infallible accessor. This is a bug!",
+                );
             }
 
             Ok(storage_value
                 .map(|storage_value| codec.value_codec().decode_unwrap(storage_value.value())))
         }
-        };
-    }
+    };
+}
 
-macro_rules! inner_impl_charge_gas_state_writer {
-        ($namespace:ty) => {
-            type Error = Infallible;
+macro_rules! inner_impl_charge_gas_infallible_state_writer {
+    ($namespace:ty) => {
+        type Error = Infallible;
 
-            fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Infallible> {
-                let input_len = value.size() as u64;
-                self.charge_linear_gas(&S::gas_to_charge_per_byte_for_write(), input_len).expect("We should never fail to charge gas for write operation of api accessors. This is a bug!");
+        fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Infallible> {
+            crate::state::traits::set_inner(
+                self,
+                <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
+                key,
+                value,
+            )
+            .expect("We should never fail to charge gas for infallible accessor. This is a bug!");
 
-                let is_value_cached = <Self as crate::state::accessors::UniversalStateAccessor>::set_value(
-                    self,
-                    <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
-                    key,
-                    value,
-                );
+            Ok(())
+        }
 
-                if is_value_cached == IsValueCached::Yes {
-                    let gas_to_refund = &S::gas_to_refund_per_byte_for_hot_write().checked_scalar_product(input_len).expect("Impossible happened: Failed to calualate gas refund. ");
-                    self.refund_gas(gas_to_refund).expect("Failed to refund gas for write operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
-                };
-                Ok(())
-            }
+        fn delete(&mut self, key: &SlotKey) -> Result<(), Infallible> {
+            crate::state::traits::delete_inner(
+                self,
+                <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
+                key,
+            )
+            .expect("We should never fail to charge gas for infallible accessor. This is a bug!");
 
-            fn delete(&mut self, key: &SlotKey) -> Result<(), Infallible> {
-                self.charge_gas(&S::gas_to_charge_for_delete())
-                    .expect("We should never fail to charge gas for write operation of api accessors. This is a bug!");
-
-                let is_value_cached = <Self as crate::state::accessors::UniversalStateAccessor>::delete_value(
-                    self,
-                    <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
-                    key,
-                );
-
-                if is_value_cached == IsValueCached::Yes {
-                    self.refund_gas(&S::gas_to_refund_for_hot_delete()).expect("Failed to refund gas for delete operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
-                }
-
-
-                Ok(())
-            }
-        };
-    }
+            Ok(())
+        }
+    };
+}
 
 #[cfg(feature = "native")]
 mod http_api {
     use super::*;
     use crate::state::accessors::http_api::ApiStateAccessor;
-    use crate::{
-        AccessoryStateReader, AccessoryStateWriter, GasArray, Spec, StateReader, StateWriter,
-    };
+    use crate::{AccessoryStateReader, AccessoryStateWriter, Spec, StateReader, StateWriter};
 
     impl<S: Spec> AccessoryStateReader for ApiStateAccessor<S> {}
     impl<S: Spec> AccessoryStateWriter for ApiStateAccessor<S> {}
 
     impl<S: Spec> StateReader<User> for ApiStateAccessor<S> {
-        inner_impl_http_charge_gas_state_reader!(User);
+        inner_impl_charge_gas_state_infallible_reader!(User);
     }
     impl<S: Spec> StateWriter<User> for ApiStateAccessor<S> {
-        inner_impl_charge_gas_state_writer!(User);
+        inner_impl_charge_gas_infallible_state_writer!(User);
     }
 
     impl<S: Spec> StateReader<Kernel> for ApiStateAccessor<S> {
-        inner_impl_http_charge_gas_state_reader!(Kernel);
+        inner_impl_charge_gas_state_infallible_reader!(Kernel);
     }
     impl<S: Spec> StateWriter<Kernel> for ApiStateAccessor<S> {
-        inner_impl_charge_gas_state_writer!(Kernel);
+        inner_impl_charge_gas_infallible_state_writer!(Kernel);
     }
 }
 
@@ -137,32 +115,32 @@ impl<S: Storage> AccessoryStateReader for AccessoryDelta<S> {}
 impl<S: Storage> AccessoryStateWriter for AccessoryDelta<S> {}
 
 impl<'a, S: Spec> StateReader<User> for GenesisStateAccessor<'a, S> {
-    inner_impl_http_charge_gas_state_reader!(User);
+    inner_impl_charge_gas_state_infallible_reader!(User);
 }
 impl<'a, S: Spec> StateWriter<User> for GenesisStateAccessor<'a, S> {
-    inner_impl_charge_gas_state_writer!(User);
+    inner_impl_charge_gas_infallible_state_writer!(User);
 }
 impl<'a, S: Spec> StateReader<Kernel> for GenesisStateAccessor<'a, S> {
-    inner_impl_http_charge_gas_state_reader!(Kernel);
+    inner_impl_charge_gas_state_infallible_reader!(Kernel);
 }
 impl<'a, S: Spec> StateWriter<Kernel> for GenesisStateAccessor<'a, S> {
-    inner_impl_charge_gas_state_writer!(Kernel);
+    inner_impl_charge_gas_infallible_state_writer!(Kernel);
 }
 
 impl<'a, S: Spec> AccessoryStateWriter for GenesisStateAccessor<'a, S> {}
 
 impl<S: Spec> StateReader<User> for StateCheckpoint<S> {
-    inner_impl_http_charge_gas_state_reader!(User);
+    inner_impl_charge_gas_state_infallible_reader!(User);
 }
 impl<S: Spec> StateWriter<User> for StateCheckpoint<S> {
-    inner_impl_charge_gas_state_writer!(User);
+    inner_impl_charge_gas_infallible_state_writer!(User);
 }
 
 impl<S: Spec> StateReader<Kernel> for StateCheckpoint<S> {
-    inner_impl_http_charge_gas_state_reader!(Kernel);
+    inner_impl_charge_gas_state_infallible_reader!(Kernel);
 }
 impl<S: Spec> StateWriter<Kernel> for StateCheckpoint<S> {
-    inner_impl_charge_gas_state_writer!(Kernel);
+    inner_impl_charge_gas_infallible_state_writer!(Kernel);
 }
 
 impl<S: Spec> AccessoryStateWriter for StateCheckpoint<S> {}
@@ -172,18 +150,18 @@ where
     S: Spec,
     I: StateProvider<S>,
 {
-    inner_impl_http_charge_gas_state_reader!(User);
+    inner_impl_charge_gas_state_infallible_reader!(User);
 }
 impl<S, I> StateReader<Kernel> for TxScratchpad<S, I>
 where
     S: Spec,
     I: StateProvider<S>,
 {
-    inner_impl_http_charge_gas_state_reader!(Kernel);
+    inner_impl_charge_gas_state_infallible_reader!(Kernel);
 }
 
 impl<S: Spec, I: StateProvider<S>> StateWriter<User> for TxScratchpad<S, I> {
-    inner_impl_charge_gas_state_writer!(User);
+    inner_impl_charge_gas_infallible_state_writer!(User);
 }
 
 impl<S: Spec, I: StateProvider<S>> ProvableStateReader<User> for PreExecWorkingSet<S, I> {}
@@ -249,30 +227,30 @@ pub mod kernel_state {
     use crate::{KernelStateAccessor, Spec, StateReader, StateWriter};
 
     impl<'a, S: Spec> StateReader<Kernel> for BootstrapWorkingSet<'a, S> {
-        inner_impl_http_charge_gas_state_reader!(Kernel);
+        inner_impl_charge_gas_state_infallible_reader!(Kernel);
     }
     impl<'a, S: Spec> StateReader<User> for BootstrapWorkingSet<'a, S> {
-        inner_impl_http_charge_gas_state_reader!(User);
+        inner_impl_charge_gas_state_infallible_reader!(User);
     }
 
     impl<'a, S: Spec> StateWriter<Kernel> for BootstrapWorkingSet<'a, S> {
-        inner_impl_charge_gas_state_writer!(Kernel);
+        inner_impl_charge_gas_infallible_state_writer!(Kernel);
     }
     impl<'a, S: Spec> StateWriter<User> for BootstrapWorkingSet<'a, S> {
-        inner_impl_charge_gas_state_writer!(User);
+        inner_impl_charge_gas_infallible_state_writer!(User);
     }
 
     impl<'a, S: Spec> StateReader<Kernel> for KernelStateAccessor<'a, S> {
-        inner_impl_http_charge_gas_state_reader!(Kernel);
+        inner_impl_charge_gas_state_infallible_reader!(Kernel);
     }
     impl<'a, S: Spec> StateReader<User> for KernelStateAccessor<'a, S> {
-        inner_impl_http_charge_gas_state_reader!(User);
+        inner_impl_charge_gas_state_infallible_reader!(User);
     }
 
     impl<'a, S: Spec> StateWriter<Kernel> for KernelStateAccessor<'a, S> {
-        inner_impl_charge_gas_state_writer!(Kernel);
+        inner_impl_charge_gas_infallible_state_writer!(Kernel);
     }
     impl<'a, S: Spec> StateWriter<User> for KernelStateAccessor<'a, S> {
-        inner_impl_charge_gas_state_writer!(User);
+        inner_impl_charge_gas_infallible_state_writer!(User);
     }
 }
