@@ -35,6 +35,9 @@ pub const DEFAULT_TIMEOUT: Duration = Duration::new(10, 0);
 /// Node benchmarking utilities
 pub mod node;
 
+/// Defines cli utilities
+pub mod cli;
+
 /// Benchmark transaction generator. Stores the transactions generated in benchmark files.
 pub mod generator;
 

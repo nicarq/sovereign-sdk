@@ -2,11 +2,10 @@
 
 use clap::{Args, Parser, Subcommand};
 use demo_stf::genesis_config::EvmConfig;
-use demo_stf::runtime::GenesisConfig;
-use sov_benchmarks::generator::{Benchmark, DEFAULT_RANDOMIZATION_BUFFER_SIZE};
-use sov_benchmarks::mock_da_risc0_host_args;
+use demo_stf::runtime::{GenesisConfig, Runtime};
 use sov_modules_api::{CryptoSpec, Spec};
 use sov_risc0_adapter::host::Risc0Host;
+use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::sov_paymaster::{
@@ -16,7 +15,11 @@ use sov_test_utils::runtime::ValueSetterConfig;
 use sov_transaction_generator::generators::basic::BasicModuleRef;
 use sov_transaction_generator::{Distribution, MessageValidity};
 
-use crate::{RT, S};
+use crate::generator::{Benchmark, DEFAULT_RANDOMIZATION_BUFFER_SIZE};
+use crate::{mock_da_risc0_host_args, BenchSpec};
+
+type S = BenchSpec<Risc0>;
+type RT = Runtime<S>;
 
 const DEFAULT_GENERATION_PATH: &str = "./src/bench_files/generated/";
 

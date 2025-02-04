@@ -8,8 +8,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use clap::Parser;
-use cli::{BenchCLI, BenchCLICustomArgs};
 use demo_stf::runtime::Runtime;
+use sov_benchmarks::cli::{BenchCLI, BenchCLICustomArgs};
 use sov_benchmarks::generator::Benchmark;
 use sov_benchmarks::BenchSpec;
 use sov_metrics::timestamp;
@@ -26,11 +26,9 @@ use sov_transaction_generator::generators::value_setter::{
 };
 use sov_transaction_generator::{Distribution, MessageValidity, Percent};
 use tracing::{info, info_span};
+
 type S = BenchSpec<Risc0>;
 type RT = Runtime<S>;
-
-/// Defines cli utilities
-pub mod cli;
 
 /// A basic benchmark that tries to emulate variable behaviors from transaction execution.
 pub fn basic_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec<Benchmark<S>> {

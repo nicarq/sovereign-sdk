@@ -81,7 +81,7 @@ test-excluded:  ## Runs test for all crates excluded from workspace
 
 bench-all:
 	@cargo bench;
-	@set -e; for dir in $(BECH_DIRS); do \
+	@set -e; for dir in $(BENCH_DIRS); do \
 		echo "$$(date) Running bench in $$dir"; \
 		(cargo bench --manifest-path "$$dir/Cargo.toml"); \
 	done;

@@ -1,5 +1,6 @@
 ## 2025-02-01
 - #2337 fixes a bug that could cause transaction re-execution to fail in the preferred sequencer.
+- #2359 cleans up `sov-benchmark`
 
 ## 2025-01-31
 - #2333 Remove the notion of `ValidityCondition`s from the SDK, including DA blocks and the module system. This feature was (to our knowledge) unused - any code that used them may be safely deleted.
