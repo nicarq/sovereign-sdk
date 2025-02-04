@@ -34,6 +34,10 @@ pub struct TxScratchpad<S: Spec, I: StateProvider<S>> {
 }
 
 impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for TxScratchpad<S, I> {
+    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+        <RevertableWriter<I> as UniversalStateAccessor>::get_size(&mut self.inner, namespace, key)
+    }
+
     fn get_value(
         &mut self,
         namespace: Namespace,
@@ -148,6 +152,10 @@ impl<S: Spec, I: StateProvider<S>> GetGasInfo for PreExecWorkingSet<S, I> {
 }
 
 impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for PreExecWorkingSet<S, I> {
+    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+        <TxScratchpad<S, I> as UniversalStateAccessor>::get_size(&mut self.inner, namespace, key)
+    }
+
     fn get_value(
         &mut self,
         namespace: Namespace,
@@ -385,6 +393,10 @@ impl<S: Spec, I: StateProvider<S>> GetGasInfo for WorkingSet<S, I> {
 }
 
 impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for WorkingSet<S, I> {
+    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+        self.delta.get_size(namespace, key)
+    }
+
     fn get_value(
         &mut self,
         namespace: Namespace,

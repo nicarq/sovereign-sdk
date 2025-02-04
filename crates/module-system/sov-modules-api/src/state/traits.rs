@@ -503,10 +503,10 @@ pub(crate) fn set_inner<Accressor: UniversalStateAccessor + GasMeter>(
     key: &SlotKey,
     value: SlotValue,
 ) -> Result<(), GasMeteringError<<Accressor::Spec as Spec>::Gas>> {
-    let input_len = value.size() as u64;
+    let input_len = value.size();
     accessor.charge_linear_gas(
         &<Accressor::Spec as GasSpec>::gas_to_charge_per_byte_for_write(),
-        input_len,
+        value.size(),
     )?;
 
     let is_value_cached = accessor.set_value(namespace, key, value);

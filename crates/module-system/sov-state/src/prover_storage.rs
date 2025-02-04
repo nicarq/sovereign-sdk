@@ -16,7 +16,7 @@ use crate::namespaces::{
 };
 use crate::storage::{NativeStorage, SlotKey, SlotValue, StateUpdate, Storage, StorageProof};
 use crate::storage_internals::{SparseMerkleProof, StorageRoot};
-use crate::{open_merkle_proof, MerkleProofSpec, Witness};
+use crate::{open_merkle_proof, MerkleProofSpec, NodeLeafAndMaybeValue, Witness};
 
 /// A [`Storage`] implementation to be used by the prover in a native execution
 /// environment (outside of the zkVM).
@@ -307,6 +307,22 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     type Root = StorageRoot<S>;
     type StateUpdate = NamespacedStateUpdate;
     type ChangeSet = NativeChangeSet;
+
+    fn put_in_witness(&self, value: Option<SlotValue>, witness: &Self::Witness) {
+        witness.add_hint(value);
+    }
+
+    fn get_leaf<N: ProvableCompileTimeNamespace>(
+        &self,
+        key: &SlotKey,
+        version: Option<SlotNumber>,
+        witness: &Self::Witness,
+    ) -> Option<NodeLeafAndMaybeValue> {
+        let val = self.read_value::<N>(key, version);
+        let node_leaf = val.map(NodeLeafAndMaybeValue::new_from_get_size::<S::Hasher>);
+        witness.add_hint(node_leaf.clone());
+        node_leaf
+    }
 
     fn get<N: ProvableCompileTimeNamespace>(
         &self,

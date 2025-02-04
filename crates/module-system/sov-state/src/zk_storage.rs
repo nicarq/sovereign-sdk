@@ -11,7 +11,9 @@ use crate::namespaces::CompileTimeNamespace;
 use crate::namespaces::ProvableCompileTimeNamespace;
 use crate::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use crate::storage_internals::SparseMerkleProof;
-use crate::{open_merkle_proof, MerkleProofSpec, StorageRoot, Witness};
+use crate::{
+    open_merkle_proof, MerkleProofSpec, NodeLeafAndMaybeValue, ReadType, StorageRoot, Witness,
+};
 
 /// A [`Storage`] implementation designed to be used inside the zkVM.
 #[derive(Default, derivative::Derivative)]
@@ -115,6 +117,20 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     #[cfg(feature = "native")]
     fn latest_version(&self) -> SlotNumber {
         unimplemented!("Latest version is not available for ZkStorage");
+    }
+
+    fn put_in_witness(&self, _value: Option<SlotValue>, _witness: &Self::Witness) {}
+
+    fn get_leaf<N: CompileTimeNamespace>(
+        &self,
+        _key: &SlotKey,
+        _version: Option<SlotNumber>,
+        witness: &Self::Witness,
+    ) -> Option<NodeLeafAndMaybeValue> {
+        let leaf = witness.get_hint::<Option<NodeLeafAndMaybeValue>>()?;
+        // The zk-storage does not pre-load the full value.
+        assert_eq!(leaf.value, ReadType::GetSizeValueNotFetched);
+        Some(leaf)
     }
 
     #[cfg_attr(feature = "bench", cycle_tracker)]
