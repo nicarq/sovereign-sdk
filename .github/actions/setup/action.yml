@@ -67,3 +67,7 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
       with:
         tool: bashtestmd@0.4
+    # CI always operates on the entire workspace
+    - run: cargo switcheroo disable
+      shell: bash
+

@@ -141,7 +141,7 @@ pub fn setup_harness<R: Runtime<S> + EncodeCall<Bank<S>> + Clone>(
 }
 
 pub struct Setup {
-    /// A user who is pre-registered as a payer for [`sequencer`]
+    /// A user who is pre-registered as a payer for [`Setup::sequencer`].
     #[allow(dead_code)]
     pub paymaster: TestUser<S>,
     /// The pre-registered sequencer

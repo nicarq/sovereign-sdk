@@ -10,57 +10,52 @@ resolver = "2"
 
 [dependencies]
 # Sovereign dependencies
-sov-rollup-interface = { path = "../../../crates/rollup-interface", features = ["arbitrary"] }
-sov-modules-api = { path = "../../../crates/module-system/sov-modules-api", features = ["arbitrary", "bench", "native"] }
-sov-test-utils = { path = "../../../crates/module-system/sov-test-utils", features = ["arbitrary"] }
-sov-sequencer = { path = "../../../crates/full-node/sov-sequencer", default-features = false }
-sov-address = { path = "../../../crates/module-system/sov-address" }
-sov-state = { path = "../../../crates/module-system/sov-state", features = ["arbitrary"] }
-sov-modules-stf-blueprint = { path = "../../../crates/module-system/sov-modules-stf-blueprint", features = ["bench"] }
-sov-transaction-generator = { path = "../../../crates/utils/transaction-generator" }
-sov-modules-rollup-blueprint = { path = "../../../crates/module-system/sov-modules-rollup-blueprint", default-features = false }
-sov-node-client = { path = "../../../crates/utils/sov-node-client" }
-sov-metrics = { path = "../../../crates/full-node/sov-metrics", default-features = false }
+sov-rollup-interface = { workspace = true, features = ["arbitrary"] }
+sov-modules-api = { workspace = true, features = ["arbitrary", "bench"] }
+sov-test-utils = { workspace = true, features = ["arbitrary"] }
+sov-sequencer = { workspace = true, default-features = false }
+sov-address = { workspace = true }
+sov-state = { workspace = true, features = ["arbitrary"] }
+sov-modules-stf-blueprint = { workspace = true, features = ["bench"] }
+sov-transaction-generator = { workspace = true }
+sov-modules-rollup-blueprint = { workspace = true, default-features = false }
+sov-node-client = { workspace = true }
+sov-metrics = { workspace = true, default-features = false }
 
+sov-mock-da = { workspace = true, features = ["arbitrary", "native"] }
+sov-celestia-adapter = { workspace = true, features = ["arbitrary", "bench", "native"] }
 
-sov-mock-da = { path = "../../../crates/adapters/mock-da", features = ["arbitrary", "native"] }
-sov-celestia-adapter = { path = "../../../crates/adapters/celestia", features = ["arbitrary", "bench", "native"] }
+demo-stf = { workspace = true, features = ["test-utils"] }
+reqwest = { workspace = true, features = ["rustls-tls", "stream"], default-features = false }
 
-demo-stf = { path = "../stf", features = ["test-utils"] }
-reqwest = { version = "0.12", features = [
-    "rustls-tls", "stream",
-], default-features = false }
-
-sov-risc0-adapter = { path = "../../../crates/adapters/risc0", features = ["arbitrary", "bench", "native"] }
-sov-sp1-adapter = { path = "../../../crates/adapters/sp1", features = ["arbitrary", "bench", "native"] }
+sov-risc0-adapter = { workspace = true, features = ["arbitrary", "bench", "native"] }
+sov-sp1-adapter = { workspace = true, features = ["arbitrary", "bench", "native"] }
 
 # Provers
 risc0 = { path = "../provers/risc0", features = ["bench"] }
 sp1 = { path = "../provers/sp1", features = ["bench"] }
 
 # Other dependencies
-derive_more = { version = "1.0", default-features = false, features = ["std"] }
-tracing = { version = "0.1.40", default-features = false }
+derive_more = { workspace = true, default-features = false, features = ["std"] }
+tracing = { workspace = true, default-features = false }
 prettytable-rs = "^0.10"
 criterion = "0.5.1"
-borsh = { version = "1", features = ["derive"] }
-bincode = "1.3.3"
-derivative = { version = "2.2", features = ["use_core"] }
-anyhow = { version = "1.0.95" }
-serde = { version = "1.0.208", default-features = false, features = [
+borsh = { workspace = true, features = ["derive"] }
+bincode = { workspace = true }
+derivative = { workspace = true, features = ["use_core"] }
+anyhow = { workspace = true }
+serde = { workspace = true, default-features = false, features = [
     "alloc",
     "derive",
 ] }
 progenitor = { version = "0.8" }
-tokio = { version = "1.42", default-features = false, features = [
-    "process"
-] }
+tokio = { workspace = true, default-features = false, features = ["process"] }
 humantime = "2.1"
-hex = { version = "0.4.3" }
+hex = { workspace = true }
 clap = { version = "4.5.16", features = ["derive"] }
-tempfile = "3.12"
-strum = { version = "0.26.3", features = ["derive"] }
-futures = { version = "0.3", default-features = false }
+tempfile = { workspace = true }
+strum = { workspace = true, features = ["derive"] }
+futures = { workspace = true, default-features = false }
 
 [[bench]]
 name = "rollup_bench"

@@ -62,15 +62,15 @@ tokio = { version = "1.42", default-features = false, optional = true, features 
 tower = { version = "0.4", default-features = false, optional = true }
 tracing = { version = "0.1.40", default-features = false }
 
-sov-metrics = { path = "../../full-node/sov-metrics", optional = true }
-sov-modules-macros = { path = "../../module-system/sov-modules-macros", optional = true }
-sov-rollup-interface = { path = "../../rollup-interface" }
+sov-metrics = { workspace = true, optional = true }
+sov-modules-macros = { workspace = true, optional = true }
+sov-rollup-interface = { workspace = true }
 
 [dev-dependencies]
 postcard = { version = "1", features = ["use-std"] }
-reltester = { git = "https://github.com/sovereign-labs/reltester.git", rev = "d6209abff72929f5ba41614f5cea3e4a748428c3" }
+reltester = { workspace = true }
 sov-celestia-adapter = { path = ".", features = ["native", "arbitrary"] }
-sov-test-utils = { path = "../../module-system/sov-test-utils", features = ["arbitrary"] }
+sov-test-utils = { workspace = true, features = ["arbitrary"] }
 wiremock = "0.6"
 test-strategy = "0.4.0"
 tokio = { version = "1.42", default-features = false, features = [
@@ -86,16 +86,17 @@ bincode = { version = "1.3.3" }
 [features]
 default = []
 native = [
-    "backon",
-    "tendermint/default",
-    "dep:celestia-rpc",
-    "dep:futures",
-    "dep:jsonrpsee",
-    "dep:tokio",
-    "sov-celestia-adapter/native",
-    "sov-rollup-interface/native",
-    "sov-metrics?/native",
-    "dep:tower",
+	"backon",
+	"tendermint/default",
+	"dep:celestia-rpc",
+	"dep:futures",
+	"dep:jsonrpsee",
+	"dep:tokio",
+	"sov-celestia-adapter/native",
+	"sov-rollup-interface/native",
+	"sov-metrics?/native",
+	"dep:tower",
+	"sov-modules-macros?/native"
 ]
 bench = [
     "dep:sov-metrics",

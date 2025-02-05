@@ -57,9 +57,14 @@ pub const LARGE_BENCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
     max_value_setter_vec_len: 100_000,
 };
 
-/// This program automatically generates benchmarks using the `sov-transaction-generator`. Please note that:
-/// - The files that are generated systematically come from the [`crate::basic_benches`]. In the future we may want to add more control over the benchmark to generate.
-/// - The path argument should either define a relative path from the root of this crate (ie `sov-benchmarks`), or any absolute path.
+/// This program automatically generates benchmarks using the
+/// `sov-transaction-generator`. Please note that:
+///
+/// - The files that are generated systematically come from the
+///   `basic_benches`. In the future we may want to add more control over
+///   the benchmark to generate.
+/// - The path argument should either define a relative path from the root of
+///   this crate (ie `sov-benchmarks`), or any absolute path.
 #[derive(Parser, Debug)]
 #[command(
     version,
