@@ -2,17 +2,16 @@
 
 use std::fs::File;
 use std::io::BufReader;
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{bail, Context};
+use cli::BenchRunnerCLI;
 use demo_stf::runtime::{Runtime, RuntimeCall};
 use helpers::{setup_rollup, BatchReceiver, BatchSender};
-use sov_benchmarks::generator::BenchmarkData;
-use sov_benchmarks::BenchRisc0Spec;
-use sov_metrics::{timestamp, METRICS_METADATA};
+use sov_metrics::{timestamp, MonitoringConfig, METRICS_METADATA};
 use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
 use sov_test_utils::RtAgnosticBlueprint;
 use sov_transaction_generator::generators::basic::{BasicChangeLogEntry, BasicClientConfig};
@@ -20,7 +19,9 @@ use sov_transaction_generator::{assert_logs_against_state, GeneratedMessage};
 use tokio::sync::mpsc;
 use tracing::{info, trace};
 
-use crate::{BenchMetricsCLI, MetricsCLI, DEFAULT_TELEGRAF_ADDRESS};
+use crate::bench_generator::BenchmarkData;
+use crate::bench_runner::cli::MetricsCLI;
+use crate::BenchRisc0Spec;
 
 pub type S = BenchRisc0Spec;
 pub type RT = Runtime<S>;
@@ -30,8 +31,16 @@ pub type BenchRollupBuilder = RollupBuilder<BenchBlueprint>;
 pub type BenchLogs = BasicChangeLogEntry<S>;
 pub type BenchMessage = GeneratedMessage<S, RuntimeCall<S>, BenchLogs>;
 
+pub mod cli;
 pub mod helpers;
 pub mod metrics;
+
+pub const DEFAULT_BENCH_FILES: &str = "./src/bench_files";
+pub const DEFAULT_METRICS_OUTPUT: &str = "./src/metrics";
+pub const DEFAULT_TELEGRAF_ADDRESS: SocketAddr = MonitoringConfig::standard().telegraf_address;
+pub const DEFAULT_INFLUX_DB_ADDRESS: SocketAddr =
+    SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 8086));
+pub const DEFAULT_NUM_THREADS: u8 = 10;
 
 pub struct ParsedMetricsParameters {
     pub(crate) influx_address: SocketAddr,
@@ -170,7 +179,7 @@ async fn runner(
     Ok(())
 }
 
-pub async fn run_bench_file(input: BenchMetricsCLI) {
+pub async fn run_bench_file(input: BenchRunnerCLI) {
     // Collect and store metrics to file in a separate thread.
     let (metrics_shutdown_sender, metrics_shutdown_receiver) =
         tokio::sync::watch::channel::<()>(());

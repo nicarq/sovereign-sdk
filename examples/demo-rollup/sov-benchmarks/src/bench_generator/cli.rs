@@ -15,7 +15,7 @@ use sov_test_utils::runtime::ValueSetterConfig;
 use sov_transaction_generator::generators::basic::BasicModuleRef;
 use sov_transaction_generator::{Distribution, MessageValidity};
 
-use crate::generator::{Benchmark, DEFAULT_RANDOMIZATION_BUFFER_SIZE};
+use super::{Benchmark, DEFAULT_RANDOMIZATION_BUFFER_SIZE};
 use crate::{mock_da_risc0_host_args, BenchSpec};
 
 type S = BenchSpec<Risc0>;

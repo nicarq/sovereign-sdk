@@ -5,7 +5,6 @@ use std::pin::Pin;
 use anyhow::ensure;
 use demo_stf::runtime::GenesisConfig;
 use futures::{Stream, StreamExt};
-use sov_benchmarks::{mock_da_risc0_host_args, DEFAULT_FINALIZATION_BLOCKS};
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::transaction::TxDetails;
@@ -22,6 +21,7 @@ use tokio::time::sleep;
 use tracing::{info, trace, warn};
 
 use super::{BenchLogs, BenchMessage, BenchRollup, BenchRollupBuilder, RT, S};
+use crate::{mock_da_risc0_host_args, DEFAULT_FINALIZATION_BLOCKS};
 
 /// Setups the rollup for the benchmarks.
 /// We give the maximum possible gas balance to the prover and sequencer to ensure that they can pay for the transactions.
