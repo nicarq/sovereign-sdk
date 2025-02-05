@@ -34,38 +34,37 @@ pub struct TxScratchpad<S: Spec, I: StateProvider<S>> {
 }
 
 impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for TxScratchpad<S, I> {
+    fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
+        <RevertableWriter<I> as UniversalStateAccessor>::is_value_cached(
+            &self.inner,
+            namespace,
+            key,
+        )
+    }
+
     fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
         <RevertableWriter<I> as UniversalStateAccessor>::get_size(&mut self.inner, namespace, key)
     }
 
-    fn get_value(
-        &mut self,
-        namespace: Namespace,
-        key: &SlotKey,
-    ) -> (Option<SlotValue>, IsValueCached) {
+    fn get_value(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue> {
         <RevertableWriter<I> as UniversalStateAccessor>::get_value(&mut self.inner, namespace, key)
     }
 
-    fn set_value(
-        &mut self,
-        namespace: Namespace,
-        key: &SlotKey,
-        value: SlotValue,
-    ) -> IsValueCached {
+    fn set_value(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) {
         <RevertableWriter<I> as UniversalStateAccessor>::set_value(
             &mut self.inner,
             namespace,
             key,
             value,
-        )
+        );
     }
 
-    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) {
         <RevertableWriter<I> as UniversalStateAccessor>::delete_value(
             &mut self.inner,
             namespace,
             key,
-        )
+        );
     }
 }
 
@@ -138,10 +137,6 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for PreExecWorkingSet<S, I> {
     ) -> anyhow::Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
         self.gas_meter.charge_linear_gas(amount, parameter)
     }
-
-    fn refund_gas(&mut self, gas: &S::Gas) -> anyhow::Result<(), GasMeteringError<S::Gas>> {
-        self.gas_meter.refund_gas(gas)
-    }
 }
 
 impl<S: Spec, I: StateProvider<S>> GetGasInfo for PreExecWorkingSet<S, I> {
@@ -152,38 +147,33 @@ impl<S: Spec, I: StateProvider<S>> GetGasInfo for PreExecWorkingSet<S, I> {
 }
 
 impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for PreExecWorkingSet<S, I> {
+    fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
+        <TxScratchpad<S, I> as UniversalStateAccessor>::is_value_cached(&self.inner, namespace, key)
+    }
+
     fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
         <TxScratchpad<S, I> as UniversalStateAccessor>::get_size(&mut self.inner, namespace, key)
     }
 
-    fn get_value(
-        &mut self,
-        namespace: Namespace,
-        key: &SlotKey,
-    ) -> (Option<SlotValue>, IsValueCached) {
+    fn get_value(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue> {
         <TxScratchpad<S, I> as UniversalStateAccessor>::get_value(&mut self.inner, namespace, key)
     }
 
-    fn set_value(
-        &mut self,
-        namespace: Namespace,
-        key: &SlotKey,
-        value: SlotValue,
-    ) -> IsValueCached {
+    fn set_value(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) {
         <TxScratchpad<S, I> as UniversalStateAccessor>::set_value(
             &mut self.inner,
             namespace,
             key,
             value,
-        )
+        );
     }
 
-    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) {
         <TxScratchpad<S, I> as UniversalStateAccessor>::delete_value(
             &mut self.inner,
             namespace,
             key,
-        )
+        );
     }
 }
 
@@ -372,10 +362,6 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for WorkingSet<S, I> {
         self.gas_meter.charge_gas(gas)
     }
 
-    fn refund_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
-        self.gas_meter.refund_gas(gas)
-    }
-
     fn charge_linear_gas(
         &mut self,
         amount: &<Self::Spec as Spec>::Gas,
@@ -393,28 +379,23 @@ impl<S: Spec, I: StateProvider<S>> GetGasInfo for WorkingSet<S, I> {
 }
 
 impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for WorkingSet<S, I> {
+    fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
+        self.delta.is_value_cached(namespace, key)
+    }
+
     fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
         self.delta.get_size(namespace, key)
     }
 
-    fn get_value(
-        &mut self,
-        namespace: Namespace,
-        key: &SlotKey,
-    ) -> (Option<SlotValue>, IsValueCached) {
+    fn get_value(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue> {
         self.delta.get_value(namespace, key)
     }
-    fn set_value(
-        &mut self,
-        namespace: Namespace,
-        key: &SlotKey,
-        value: SlotValue,
-    ) -> IsValueCached {
-        self.delta.set_value(namespace, key, value)
+    fn set_value(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) {
+        self.delta.set_value(namespace, key, value);
     }
 
-    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        self.delta.delete_value(namespace, key)
+    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) {
+        self.delta.delete_value(namespace, key);
     }
 }
 

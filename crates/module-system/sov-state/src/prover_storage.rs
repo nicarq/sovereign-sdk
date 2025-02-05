@@ -16,7 +16,9 @@ use crate::namespaces::{
 };
 use crate::storage::{NativeStorage, SlotKey, SlotValue, StateUpdate, Storage, StorageProof};
 use crate::storage_internals::{SparseMerkleProof, StorageRoot};
-use crate::{open_merkle_proof, MerkleProofSpec, NodeLeafAndMaybeValue, Witness};
+use crate::{
+    open_merkle_proof, MerkleProofSpec, NodeLeaf, NodeLeafAndMaybeValue, ReadType, Witness,
+};
 
 /// A [`Storage`] implementation to be used by the prover in a native execution
 /// environment (outside of the zkVM).
@@ -319,9 +321,27 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         witness: &Self::Witness,
     ) -> Option<NodeLeafAndMaybeValue> {
         let val = self.read_value::<N>(key, version);
-        let node_leaf = val.map(NodeLeafAndMaybeValue::new_from_get_size::<S::Hasher>);
-        witness.add_hint(node_leaf.clone());
-        node_leaf
+
+        // First, we create a node that we put in the cache. This one contains the value.
+        let node_leaf_with_fetched_value = val.map(|v| {
+            let leaf = NodeLeaf::make_leaf::<S::Hasher>(&v);
+            NodeLeafAndMaybeValue {
+                leaf,
+                value: ReadType::GetSizeValueFetched(v),
+            }
+        });
+
+        // Second, we create a node that we put in the witness. This one doesn't contain the value.
+        let node_leaf_without_value =
+            node_leaf_with_fetched_value
+                .clone()
+                .map(|node| NodeLeafAndMaybeValue {
+                    leaf: node.leaf,
+                    value: ReadType::GetSizeValueNotFetched,
+                });
+
+        witness.add_hint(node_leaf_without_value);
+        node_leaf_with_fetched_value
     }
 
     fn get<N: ProvableCompileTimeNamespace>(

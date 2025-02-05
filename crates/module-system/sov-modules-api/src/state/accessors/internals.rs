@@ -100,6 +100,20 @@ impl<S: Storage> Delta<S> {
 }
 
 impl<S: Storage> Delta<S> {
+    pub fn is_value_cached(&self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+        match namespace {
+            Namespace::User => self.user_cache.is_value_cached(key),
+            Namespace::Kernel => self.kernel_cache.is_value_cached(key),
+            Namespace::Accessory => {
+                if self.accessory_writes.contains_key(key) {
+                    IsValueCached::Yes
+                } else {
+                    IsValueCached::No
+                }
+            }
+        }
+    }
+
     pub fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
         match namespace {
             Namespace::User => {
@@ -121,11 +135,7 @@ impl<S: Storage> Delta<S> {
         }
     }
 
-    pub fn get(
-        &mut self,
-        namespace: Namespace,
-        key: &SlotKey,
-    ) -> (Option<SlotValue>, IsValueCached) {
+    pub fn get(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue> {
         match namespace {
             Namespace::User => {
                 self.user_cache
@@ -136,44 +146,29 @@ impl<S: Storage> Delta<S> {
                     .get_or_fetch(key, &self.inner, &self.witness, self.version)
             }
             Namespace::Accessory => match self.accessory_writes.get(key).cloned() {
-                Some(Some(value)) => (Some(value), IsValueCached::Yes),
-                Some(None) => (None, IsValueCached::Yes),
-                None => (
-                    self.inner.get_accessory(key, self.version),
-                    IsValueCached::No,
-                ),
+                Some(Some(value)) => Some(value),
+                Some(None) => None,
+                None => self.inner.get_accessory(key, self.version),
             },
         }
     }
 
-    pub fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
+    pub fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) {
         match namespace {
             Namespace::User => self.user_cache.set(key, value),
             Namespace::Kernel => self.kernel_cache.set(key, value),
             Namespace::Accessory => {
-                if self
-                    .accessory_writes
-                    .insert(key.clone(), Some(value))
-                    .is_none()
-                {
-                    IsValueCached::No
-                } else {
-                    IsValueCached::Yes
-                }
+                self.accessory_writes.insert(key.clone(), Some(value));
             }
         }
     }
 
-    pub fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+    pub fn delete(&mut self, namespace: Namespace, key: &SlotKey) {
         match namespace {
             Namespace::User => self.user_cache.delete(key),
             Namespace::Kernel => self.kernel_cache.delete(key),
             Namespace::Accessory => {
-                if self.accessory_writes.remove(key).is_none() {
-                    IsValueCached::No
-                } else {
-                    IsValueCached::Yes
-                }
+                self.accessory_writes.remove(key);
             }
         }
     }
@@ -203,6 +198,14 @@ impl<S: Storage> AccessoryDelta<S> {
 }
 
 impl<S: Storage> UniversalStateAccessor for AccessoryDelta<S> {
+    fn is_value_cached(&self, _namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
+        if self.writes.contains_key(key) {
+            IsValueCached::Yes
+        } else {
+            IsValueCached::No
+        }
+    }
+
     fn get_size(&mut self, _namespace: Namespace, key: &SlotKey) -> Option<u64> {
         if let Some(value) = self.writes.get(key) {
             return value.clone().map(|v| v.size());
@@ -212,40 +215,20 @@ impl<S: Storage> UniversalStateAccessor for AccessoryDelta<S> {
         val.map(|v| v.size())
     }
 
-    fn get_value(
-        &mut self,
-        _namespace: Namespace,
-        key: &SlotKey,
-    ) -> (Option<SlotValue>, IsValueCached) {
+    fn get_value(&mut self, _namespace: Namespace, key: &SlotKey) -> Option<SlotValue> {
         if let Some(value) = self.writes.get(key) {
-            return (value.clone().map(Into::into), IsValueCached::Yes);
+            return value.clone().map(Into::into);
         }
 
-        (
-            self.storage.get_accessory(key, self.version),
-            IsValueCached::No,
-        )
+        self.storage.get_accessory(key, self.version)
     }
 
-    fn set_value(
-        &mut self,
-        _namespace: Namespace,
-        key: &SlotKey,
-        value: SlotValue,
-    ) -> IsValueCached {
-        if self.writes.insert(key.clone(), Some(value)).is_none() {
-            IsValueCached::No
-        } else {
-            IsValueCached::Yes
-        }
+    fn set_value(&mut self, _namespace: Namespace, key: &SlotKey, value: SlotValue) {
+        self.writes.insert(key.clone(), Some(value));
     }
 
-    fn delete_value(&mut self, _namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        if self.writes.insert(key.clone(), None).is_none() {
-            IsValueCached::No
-        } else {
-            IsValueCached::Yes
-        }
+    fn delete_value(&mut self, _namespace: Namespace, key: &SlotKey) {
+        self.writes.insert(key.clone(), None);
     }
 }
 
@@ -311,6 +294,13 @@ impl<T> UniversalStateAccessor for RevertableWriter<T>
 where
     T: UniversalStateAccessor,
 {
+    fn is_value_cached(&self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+        if self.writes.contains_key(&(key.clone(), namespace)) {
+            IsValueCached::Yes
+        } else {
+            <T as UniversalStateAccessor>::is_value_cached(&self.inner, namespace, key)
+        }
+    }
     fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
         if let Some(value) = self.writes.get(&(key.clone(), namespace)) {
             value.as_ref().map(|v| v.size())
@@ -319,40 +309,19 @@ where
         }
     }
 
-    fn get_value(
-        &mut self,
-        namespace: Namespace,
-        key: &SlotKey,
-    ) -> (Option<SlotValue>, IsValueCached) {
+    fn get_value(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue> {
         if let Some(value) = self.writes.get(&(key.clone(), namespace)) {
-            (value.as_ref().cloned().map(Into::into), IsValueCached::Yes)
+            value.as_ref().cloned().map(Into::into)
         } else {
             <T as UniversalStateAccessor>::get_value(&mut self.inner, namespace, key)
         }
     }
 
-    fn set_value(
-        &mut self,
-        namespace: Namespace,
-        key: &SlotKey,
-        value: SlotValue,
-    ) -> IsValueCached {
-        if self
-            .writes
-            .insert((key.clone(), namespace), Some(value))
-            .is_none()
-        {
-            IsValueCached::No
-        } else {
-            IsValueCached::Yes
-        }
+    fn set_value(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) {
+        self.writes.insert((key.clone(), namespace), Some(value));
     }
 
-    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        if self.writes.insert((key.clone(), namespace), None).is_none() {
-            IsValueCached::No
-        } else {
-            IsValueCached::Yes
-        }
+    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) {
+        self.writes.insert((key.clone(), namespace), None);
     }
 }

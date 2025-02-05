@@ -1,3 +1,6 @@
+## 2025-02-04
+#2345 Refactor gas charging and for acessing values via StateWriter/StateReader: This is a breaking change due to updates in `constants.toml and constants.testing.toml`
+
 ## 2025-02-01
 - #2337 fixes a bug that could cause transaction re-execution to fail in the preferred sequencer.
 - #2359 cleans up `sov-benchmark`

@@ -33,6 +33,20 @@ fn get_slot_number(visible_slot_number: Option<VisibleSlotNumber>) -> Option<Slo
 }
 
 impl<S: Spec> UniversalStateAccessor for ApiStateAccessor<S> {
+    fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
+        match namespace {
+            Namespace::User => self.user_cache.is_value_cached(key),
+            Namespace::Kernel => self.kernel_cache.is_value_cached(key),
+            Namespace::Accessory => {
+                if self.accessory_writes.contains_key(key) {
+                    IsValueCached::Yes
+                } else {
+                    IsValueCached::No
+                }
+            }
+        }
+    }
+
     fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u64> {
         match namespace {
             Namespace::User => self.user_cache.get_size_or_fetch(
@@ -60,11 +74,7 @@ impl<S: Spec> UniversalStateAccessor for ApiStateAccessor<S> {
         }
     }
 
-    fn get_value(
-        &mut self,
-        namespace: sov_state::Namespace,
-        key: &SlotKey,
-    ) -> (Option<SlotValue>, IsValueCached) {
+    fn get_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<SlotValue> {
         match namespace {
             Namespace::User => self.user_cache.get_or_fetch(
                 key,
@@ -79,50 +89,31 @@ impl<S: Spec> UniversalStateAccessor for ApiStateAccessor<S> {
                 get_slot_number(self.visible_slot_number),
             ),
             Namespace::Accessory => match self.accessory_writes.get(key).cloned() {
-                Some(Some(value)) => (Some(value), IsValueCached::Yes),
-                Some(None) => (None, IsValueCached::Yes),
-                None => (
-                    self.storage
-                        .get_accessory(key, self.safe_true_slot_number_to_use),
-                    IsValueCached::No,
-                ),
+                Some(Some(value)) => Some(value),
+                Some(None) => None,
+                None => self
+                    .storage
+                    .get_accessory(key, self.safe_true_slot_number_to_use),
             },
         }
     }
 
-    fn set_value(
-        &mut self,
-        namespace: sov_state::Namespace,
-        key: &SlotKey,
-        value: SlotValue,
-    ) -> IsValueCached {
+    fn set_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey, value: SlotValue) {
         match namespace {
             Namespace::User => self.user_cache.set(key, value),
             Namespace::Kernel => self.kernel_cache.set(key, value),
             Namespace::Accessory => {
-                if self
-                    .accessory_writes
-                    .insert(key.clone(), Some(value))
-                    .is_none()
-                {
-                    IsValueCached::No
-                } else {
-                    IsValueCached::Yes
-                }
+                self.accessory_writes.insert(key.clone(), Some(value));
             }
         }
     }
 
-    fn delete_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
+    fn delete_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey) {
         match namespace {
             Namespace::User => self.user_cache.delete(key),
             Namespace::Kernel => self.kernel_cache.delete(key),
             Namespace::Accessory => {
-                if self.accessory_writes.remove(key).is_none() {
-                    IsValueCached::No
-                } else {
-                    IsValueCached::Yes
-                }
+                self.accessory_writes.remove(key);
             }
         }
     }
@@ -217,10 +208,6 @@ impl<S: Spec> GasMeter for ApiStateAccessor<S> {
 
     fn charge_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_gas(gas)
-    }
-
-    fn refund_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
-        self.gas_meter.refund_gas(gas)
     }
 
     fn charge_linear_gas(

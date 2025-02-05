@@ -235,28 +235,6 @@ pub struct NodeLeafAndMaybeValue {
     pub(crate) value: ReadType,
 }
 
-impl NodeLeafAndMaybeValue {
-    pub(crate) fn new_from_value_read<H: Digest<OutputSize = typenum::U32>>(
-        value: SlotValue,
-    ) -> Self {
-        Self {
-            leaf: NodeLeaf::make_leaf::<H>(&value),
-            value: ReadType::Read(value),
-        }
-    }
-
-    #[cfg(feature = "native")]
-    pub(crate) fn new_from_get_size<H: Digest<OutputSize = typenum::U32>>(
-        value: SlotValue,
-    ) -> Self {
-        let leaf = NodeLeaf::make_leaf::<H>(&value);
-        Self {
-            leaf,
-            value: ReadType::GetSizeValueFetched(value),
-        }
-    }
-}
-
 /// Size and hash of a value saved in the state.
 #[derive(
     Clone,

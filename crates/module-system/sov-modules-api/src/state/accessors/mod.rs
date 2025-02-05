@@ -44,22 +44,15 @@ pub(super) mod seal {
     /// Structs that implements this trait also implement [`CachedAccessor`] for any namespace by default.
     /// Useful to represent structs with caches containing different state value namespaces that can be committed to the storage.
     pub trait UniversalStateAccessor {
+        fn is_value_cached(&self, namespace: Namespace, key: &SlotKey) -> IsValueCached;
+
         fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64>;
 
-        fn get_value(
-            &mut self,
-            namespace: Namespace,
-            key: &SlotKey,
-        ) -> (Option<SlotValue>, IsValueCached);
+        fn get_value(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue>;
 
-        fn set_value(
-            &mut self,
-            namespace: Namespace,
-            key: &SlotKey,
-            value: SlotValue,
-        ) -> IsValueCached;
+        fn set_value(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue);
 
-        fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached;
+        fn delete_value(&mut self, namespace: Namespace, key: &SlotKey);
     }
 }
 

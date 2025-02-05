@@ -171,29 +171,24 @@ impl<S: Spec> VersionReader for StateCheckpoint<S> {
 }
 
 impl<S: Spec> UniversalStateAccessor for StateCheckpoint<S> {
+    fn is_value_cached(&self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+        self.delta.is_value_cached(namespace, key)
+    }
+
     fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
         self.delta.get_size(namespace, key)
     }
 
-    fn get_value(
-        &mut self,
-        namespace: Namespace,
-        key: &SlotKey,
-    ) -> (Option<SlotValue>, IsValueCached) {
+    fn get_value(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue> {
         self.delta.get(namespace, key)
     }
 
-    fn set_value(
-        &mut self,
-        namespace: Namespace,
-        key: &SlotKey,
-        value: SlotValue,
-    ) -> IsValueCached {
-        self.delta.set(namespace, key, value)
+    fn set_value(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) {
+        self.delta.set(namespace, key, value);
     }
 
-    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        self.delta.delete(namespace, key)
+    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) {
+        self.delta.delete(namespace, key);
     }
 }
 
@@ -221,6 +216,10 @@ pub mod native {
     }
 
     impl<'a, S: Spec> UniversalStateAccessor for AccessoryStateCheckpoint<'a, S> {
+        fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
+            self.checkpoint.is_value_cached(namespace, key)
+        }
+
         fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u64> {
             self.checkpoint.get_size(namespace, key)
         }
@@ -229,25 +228,16 @@ pub mod native {
             &mut self,
             namespace: sov_state::Namespace,
             key: &SlotKey,
-        ) -> (Option<SlotValue>, IsValueCached) {
+        ) -> Option<SlotValue> {
             self.checkpoint.get_value(namespace, key)
         }
 
-        fn set_value(
-            &mut self,
-            namespace: sov_state::Namespace,
-            key: &SlotKey,
-            value: SlotValue,
-        ) -> IsValueCached {
-            self.checkpoint.set_value(namespace, key, value)
+        fn set_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey, value: SlotValue) {
+            self.checkpoint.set_value(namespace, key, value);
         }
 
-        fn delete_value(
-            &mut self,
-            namespace: sov_state::Namespace,
-            key: &SlotKey,
-        ) -> IsValueCached {
-            self.checkpoint.delete_value(namespace, key)
+        fn delete_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey) {
+            self.checkpoint.delete_value(namespace, key);
         }
     }
 }

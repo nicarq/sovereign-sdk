@@ -12,7 +12,7 @@ use sov_state::{
 use super::genesis::GenesisStateAccessor;
 use super::StateProvider;
 use crate::state::traits::{
-    charge_decode_gas_cost, AccessoryStateWriter, ProvableStateReader, ProvableStateWriter,
+    get_inner, AccessoryStateWriter, ProvableStateReader, ProvableStateWriter,
 };
 #[cfg(feature = "native")]
 use crate::AccessoryStateCheckpoint;
@@ -26,12 +26,13 @@ macro_rules! inner_impl_charge_gas_state_infallible_reader {
         type Error = Infallible;
 
         fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Infallible> {
-            let val = crate::state::traits::get_inner(
+            let val = get_inner(
                 self,
                 <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
                 key,
             )
             .expect("We should never fail to charge gas for infallible accessor. This is a bug!");
+
             Ok(val)
         }
 
@@ -45,13 +46,6 @@ macro_rules! inner_impl_charge_gas_state_infallible_reader {
             Codec::ValueCodec: StateItemCodec<V>,
         {
             let storage_value = <Self as StateReader<$namespace>>::get(self, storage_key)?;
-
-            if let Some(storage_value) = &storage_value {
-                charge_decode_gas_cost::<S>(storage_value, self).expect(
-                    "We should never fail to charge gas for infallible accessor. This is a bug!",
-                );
-            }
-
             Ok(storage_value
                 .map(|storage_value| codec.value_codec().decode_unwrap(storage_value.value())))
         }
@@ -185,14 +179,10 @@ impl<S: Spec, I: StateProvider<S>> AccessoryStateReader for WorkingSet<S, I> {}
 impl<'a, S: Spec> StateReader<Accessory> for AccessoryStateCheckpoint<'a, S> {
     type Error = Infallible;
     fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
-        Ok(self
-            .checkpoint
-            .delta
-            .get(
-                <Accessory as sov_state::CompileTimeNamespace>::NAMESPACE,
-                key,
-            )
-            .0)
+        Ok(self.checkpoint.delta.get(
+            <Accessory as sov_state::CompileTimeNamespace>::NAMESPACE,
+            key,
+        ))
     }
 
     /// Get a decoded value from the storage.
