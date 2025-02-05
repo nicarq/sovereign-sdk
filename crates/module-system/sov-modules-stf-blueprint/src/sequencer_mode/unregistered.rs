@@ -1,13 +1,12 @@
 use sov_modules_api::capabilities::{
-    BatchFromUnregisteredSequencer, GasEnforcer, RollupHeight, SequencerRemuneration,
-    TransactionAuthorizer, TryReserveGasError, UnregisteredAuthenticationError,
+    BatchFromUnregisteredSequencer, GasEnforcer, SequencerRemuneration, TransactionAuthorizer,
+    TryReserveGasError, UnregisteredAuthenticationError,
 };
 use sov_modules_api::{
-    BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext, Gas,
-    GasArray, GasInfo, GasMeter, GasSpec, GetGasInfo, IgnoredTransactionReceipt, Rewards, Spec,
-    StateProvider, TxScratchpad, VersionReader, WorkingSet,
+    BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, Gas, GasArray, GasInfo,
+    GasMeter, GasSpec, GetGasInfo, IgnoredTransactionReceipt, Rewards, Spec, StateProvider,
+    TxScratchpad, WorkingSet,
 };
-use sov_rollup_interface::common::VisibleSlotNumber;
 use tracing::{debug, warn};
 
 use crate::sequencer_mode::common::{
@@ -26,10 +25,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     validated_output: AuthTxOutput<S, R>,
     gas_info: GasInfo<S::Gas>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
-    visible_slot_number: VisibleSlotNumber,
-    rollup_height: RollupHeight,
     mut scratchpad: TxScratchpad<S, I>,
-    execution_context: ExecutionContext,
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
     TxScratchpad<S, I>,
@@ -41,14 +37,8 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
 
     let mut ctx = match runtime
         .transaction_authorizer()
-        .resolve_unregistered_context(
-            &auth_data,
-            sequencer_da_address,
-            visible_slot_number,
-            rollup_height,
-            &mut scratchpad,
-            execution_context,
-        ) {
+        .resolve_unregistered_context(&auth_data, sequencer_da_address, &mut scratchpad)
+    {
         Ok(ctx) => ctx,
         Err(e) => {
             return (
@@ -178,8 +168,6 @@ pub(crate) fn apply_batch<S, RT>(
     blob_idx: usize,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
-    visible_slot_number: VisibleSlotNumber,
-    execution_context: ExecutionContext,
 ) -> (BatchReceipt<S>, StateCheckpoint<S>)
 where
     S: Spec,
@@ -192,7 +180,6 @@ where
         "Applying a batch"
     );
 
-    let rollup_height = checkpoint.rollup_height_to_access();
     let scratchpad = checkpoint.to_tx_scratchpad();
 
     debug!(
@@ -307,10 +294,7 @@ where
         validated_output,
         gas_info,
         sequencer_da_address,
-        visible_slot_number,
-        rollup_height,
         scratchpad,
-        execution_context,
     );
 
     let mut tx_receipts = Vec::new();

@@ -7,9 +7,7 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::prelude::*;
 use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
-use sov_modules_api::{
-    DaSpec, ExecutionContext, Gas, GasArray, Spec, StateCheckpoint, VersionReader, WorkingSet,
-};
+use sov_modules_api::{DaSpec, Gas, GasArray, Spec, StateCheckpoint, WorkingSet};
 use sov_modules_stf_blueprint::{apply_tx, ApplyTxResult, Runtime};
 use sov_rollup_interface::common::HexString;
 
@@ -52,9 +50,6 @@ where
             &RT::default().kernel(),
         );
 
-        let visible_slot_number = state.visible_slot_number_to_access();
-        let rollup_height = state.rollup_height_to_access();
-
         let gas_price = match transaction
                 .gas_price {
                     Some(gas_price) => gas_price,
@@ -85,11 +80,7 @@ where
         let ctx = runtime.transaction_authorizer().resolve_context(
             &auth_data,
             &sequencer_da_address,
-            visible_slot_number,
-            rollup_height,
             &mut scratchpad,
-            // TODO(@theochap): maybe we should let the node set this variable?
-            ExecutionContext::Node,
         )?;
 
         let working_set_gas_meter = match tx_data.gas_meter(&gas_price.clone(), &<S::Gas>::MAX) {

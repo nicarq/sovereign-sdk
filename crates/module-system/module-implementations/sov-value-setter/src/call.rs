@@ -116,10 +116,10 @@ impl<S: Spec> ValueSetter<S> {
     pub(crate) fn assert_visible_slot_number(
         &self,
         expected_visible_slot_number: u64,
-        context: &Context<S>,
-        _state: &mut impl TxState<S>,
+        _context: &Context<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<()> {
-        let visible_height = context.visible_slot_number();
+        let visible_height = state.visible_slot_number_to_access();
         anyhow::ensure!(
             visible_height.get() == expected_visible_slot_number,
             "Visible height is not as expected. Expected {}, but got {}",
