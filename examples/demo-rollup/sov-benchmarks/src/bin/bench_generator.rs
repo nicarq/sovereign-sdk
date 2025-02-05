@@ -9,8 +9,8 @@ use std::time::Duration;
 
 use clap::Parser;
 use demo_stf::runtime::Runtime;
-use sov_benchmarks::cli::{BenchCLI, BenchCLICustomArgs};
-use sov_benchmarks::generator::Benchmark;
+use sov_benchmarks::bench_generator::cli::{BenchCLI, BenchCLICustomArgs};
+use sov_benchmarks::bench_generator::Benchmark;
 use sov_benchmarks::BenchSpec;
 use sov_metrics::timestamp;
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};

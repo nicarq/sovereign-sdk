@@ -1,3 +1,7 @@
+//! Utilities for benchmark transaction generation
+
+pub mod cli;
+
 use core::ops;
 use std::io::{BufWriter, Write};
 

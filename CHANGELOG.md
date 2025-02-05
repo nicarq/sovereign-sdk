@@ -1,4 +1,5 @@
 ## 2025-02-05
+- #2365 reorganizes `sov-benchmarks` following workspace unification
 - #2363 removes `ExecutionContext`, `RollupHeight`, and `VisibleSlotNumber` from the transaction execution context `struct Context`. `RollupHeight` and `VisibleSlotNumber` can be accessed via `TxState` and other state accessors. The `ExecutionContext` information is not available anymore, please reach out to the team to submit a use case that requires it.
 
 ## 2025-02-04
