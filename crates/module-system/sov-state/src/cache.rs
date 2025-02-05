@@ -141,8 +141,16 @@ pub struct ProvableStorageCache<N> {
 // The key difference is that in ZK mode, values are loaded lazily, only when needed, whereas in native mode, values are eagerly
 // fetched and cached—even when only requesting the size. This is because, in native execution, it's acceptable to cache the full
 // value, but in ZK execution, arbitrary large values cannot be stored as hints in the witness.
-
 impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
+    /// Checks if a value corresponding to a given key is cached.
+    pub fn is_value_cached(&self, key: &SlotKey) -> IsValueCached {
+        if self.tx_cache.log.contains_key(key) {
+            IsValueCached::Yes
+        } else {
+            IsValueCached::No
+        }
+    }
+
     /// Get the size of the value.
     pub fn get_size_or_fetch<S: Storage>(
         &mut self,
@@ -170,10 +178,10 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         storage: &S,
         witness: &S::Witness,
         version: Option<SlotNumber>,
-    ) -> (Option<SlotValue>, IsValueCached) {
+    ) -> Option<SlotValue> {
         match self.tx_cache.log.get_mut(key) {
             Some(access) => {
-                let value = match access {
+                match access {
                     Access::Read {
                         original: Some(node),
                     } => match node.value.clone() {
@@ -205,28 +213,28 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
                     },
                     Access::Read { original: None } => None,
                     Access::Write { modified } => modified.clone(),
-                };
-                (value, IsValueCached::Yes)
+                }
             }
             None => {
                 let storage_value = storage.get::<N>(key, version, witness);
-                let read = storage_value
-                    .clone()
-                    .map(NodeLeafAndMaybeValue::new_from_value_read::<S::Hasher>);
+                let read = storage_value.clone().map(|v| NodeLeafAndMaybeValue {
+                    leaf: NodeLeaf::make_leaf::<S::Hasher>(&v),
+                    value: ReadType::Read(v),
+                });
                 self.add_read(key.clone(), read);
-                (storage_value, IsValueCached::No)
+                storage_value
             }
         }
     }
 
     /// Replaces the keyed value on the storage.
-    pub fn set(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        self.tx_cache.add_write(key.clone(), Some(value))
+    pub fn set(&mut self, key: &SlotKey, value: SlotValue) {
+        self.tx_cache.add_write(key.clone(), Some(value));
     }
 
     /// Deletes a keyed value from the cache.
-    pub fn delete(&mut self, key: &SlotKey) -> IsValueCached {
-        self.tx_cache.add_write(key.clone(), None)
+    pub fn delete(&mut self, key: &SlotKey) {
+        self.tx_cache.add_write(key.clone(), None);
     }
 
     // This method can be called only once per given key.
@@ -289,8 +297,10 @@ mod tests {
         // Test read.
         {
             let mut cache_log = CacheLog::default();
-            let value =
-                create_value(2).map(NodeLeafAndMaybeValue::new_from_value_read::<sha2::Sha256>);
+            let value = create_value(2).map(|v| NodeLeafAndMaybeValue {
+                leaf: NodeLeaf::make_leaf::<sha2::Sha256>(&v),
+                value: ReadType::Read(v),
+            });
             cache_log.add_read(key.clone(), value);
 
             let writes = cache_log.take_writes();
@@ -311,8 +321,11 @@ mod tests {
         // Test that write overrides read.
         {
             let mut cache_log = CacheLog::default();
-            let value =
-                create_value(4).map(NodeLeafAndMaybeValue::new_from_value_read::<sha2::Sha256>);
+            let value = create_value(4).map(|v| NodeLeafAndMaybeValue {
+                leaf: NodeLeaf::make_leaf::<sha2::Sha256>(&v),
+                value: ReadType::Read(v),
+            });
+
             cache_log.add_read(key.clone(), value.clone());
 
             let next_value = create_value(5);

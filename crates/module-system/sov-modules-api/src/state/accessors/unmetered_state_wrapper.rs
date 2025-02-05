@@ -16,29 +16,24 @@ pub struct UnmeteredStateWrapper<'a, T> {
 }
 
 impl<'a, T: UniversalStateAccessor> UniversalStateAccessor for UnmeteredStateWrapper<'a, T> {
+    fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
+        self.inner.is_value_cached(namespace, key)
+    }
+
     fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u64> {
         self.inner.get_size(namespace, key)
     }
 
-    fn get_value(
-        &mut self,
-        namespace: sov_state::Namespace,
-        key: &SlotKey,
-    ) -> (Option<SlotValue>, IsValueCached) {
+    fn get_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<SlotValue> {
         self.inner.get_value(namespace, key)
     }
 
-    fn set_value(
-        &mut self,
-        namespace: sov_state::Namespace,
-        key: &SlotKey,
-        value: SlotValue,
-    ) -> IsValueCached {
-        self.inner.set_value(namespace, key, value)
+    fn set_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey, value: SlotValue) {
+        self.inner.set_value(namespace, key, value);
     }
 
-    fn delete_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
-        self.inner.delete_value(namespace, key)
+    fn delete_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey) {
+        self.inner.delete_value(namespace, key);
     }
 }
 
@@ -56,7 +51,7 @@ where
     type Error = Infallible;
 
     fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
-        Ok(self.inner.get_value(N::NAMESPACE, key).0)
+        Ok(self.inner.get_value(N::NAMESPACE, key))
     }
 
     fn get_decoded<V, Codec>(

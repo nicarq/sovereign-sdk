@@ -6,8 +6,8 @@ use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::StorageProof;
 use sov_state::{
     namespaces, Accessory, CompileTimeNamespace, EventContainer, IsValueCached, Kernel, Namespace,
-    ProvableCompileTimeNamespace, ProvableNamespace, SlotKey, SlotValue, StateCodec,
-    StateItemCodec, StateItemDecoder, User,
+    ProvableCompileTimeNamespace, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder,
+    User,
 };
 use thiserror::Error;
 
@@ -15,7 +15,7 @@ use super::accessors::seal::UniversalStateAccessor;
 use crate::capabilities::RollupHeight;
 #[cfg(any(feature = "test-utils", feature = "evm"))]
 use crate::UnmeteredStateWrapper;
-use crate::{Gas, GasArray, GasMeter, GasMeteringError, GasSpec, GetGasInfo, Spec};
+use crate::{Gas, GasMeter, GasMeteringError, GasSpec, GetGasInfo, Spec};
 
 /// A type that can both read and write the normal "user-space" state of the rollup.
 ///
@@ -163,24 +163,8 @@ pub enum StateAccessorError<GU: Gas> {
         /// The error that occurred while trying to delete the value.
         inner: GasMeteringError<GU>,
         /// The namespace that was queried.
-        namespace: ProvableNamespace,
+        namespace: Namespace,
     },
-}
-
-/// Returns the gas to charge for a decoding operation.
-///
-/// ## NOTE
-/// The constants' value should be updated based on benchmarks to ensure that the gas cost of the read operation is
-/// optimal
-pub(crate) fn charge_decode_gas_cost<S: Spec>(
-    input: &SlotValue,
-    meter: &mut impl GasMeter<Spec = S>,
-) -> Result<(), GasMeteringError<S::Gas>> {
-    let gas_cost = S::gas_to_charge_for_decoding();
-    let input_len = input.value().len();
-    meter.charge_linear_gas(&gas_cost, input_len as u64)?;
-
-    Ok(())
 }
 
 /// A trait that represents a [`StateReader`] and [`StateWriter`] to a given namespace that never fails on state accesses. Accessing the state with structs that implement
@@ -312,20 +296,6 @@ macro_rules! blanket_impl_metered_state_reader {
             Codec::ValueCodec: StateItemCodec<V>,
         {
             let storage_value = <Self as StateReader<$namespace>>::get(self, storage_key)?;
-
-            if let Some(storage_value) = &storage_value {
-                match charge_decode_gas_cost::<T::Spec>(storage_value, self) {
-                    Ok(gas_cost) => gas_cost,
-                    Err(e) => {
-                        return Err(StateAccessorError::Decode {
-                            key: storage_key.clone(),
-                            inner: e,
-                            namespace: <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
-                        })
-                    }
-                };
-            }
-
             Ok(storage_value
                 .map(|storage_value| codec.value_codec().decode_unwrap(storage_value.value())))
         }
@@ -345,7 +315,7 @@ impl<T: AccessoryStateReader> StateReader<Accessory> for T {
 
     /// Get a value from the storage.
     fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
-        Ok(self.get_value(Accessory::NAMESPACE, key).0)
+        Ok(self.get_value(Accessory::NAMESPACE, key))
     }
 
     /// Get a decoded value from the storage.
@@ -420,7 +390,7 @@ macro_rules! blanket_impl_metered_state_writer {
                 .map_err(|e| StateAccessorError::Delete {
                     key: key.clone(),
                     inner: e,
-                    namespace: <$namespace>::PROVABLE_NAMESPACE,
+                    namespace: <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
                 })?;
                 Ok(())
             }
@@ -486,15 +456,30 @@ pub(crate) fn get_inner<Accressor: UniversalStateAccessor + GasMeter>(
     namespace: Namespace,
     key: &SlotKey,
 ) -> Result<Option<SlotValue>, GasMeteringError<<Accressor::Spec as Spec>::Gas>> {
-    accessor.charge_gas(&<Accressor::Spec as GasSpec>::gas_to_charge_for_access())?;
+    let is_value_cached = accessor.is_value_cached(namespace, key);
 
-    let (val, is_value_cached) = accessor.get_value(namespace, key);
+    let (gas_for_access, gas_cost_per_byte_for_load) = if is_value_cached == IsValueCached::Yes {
+        (
+            <Accressor::Spec as GasSpec>::gas_to_charge_for_hot_access(),
+            <Accressor::Spec as GasSpec>::gas_to_charge_per_byte_for_hot_load(),
+        )
+    } else {
+        (
+            <Accressor::Spec as GasSpec>::gas_to_charge_for_cold_access(),
+            <Accressor::Spec as GasSpec>::gas_to_charge_per_byte_for_cold_load(),
+        )
+    };
 
-    if is_value_cached == IsValueCached::Yes {
-        accessor.refund_gas(&<Accressor::Spec as GasSpec>::gas_to_refund_for_hot_access()).expect("Failed to refund gas for read operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
-    }
+    accessor.charge_gas(&gas_for_access)?;
 
-    Ok(val)
+    let val_size = if let Some(size) = accessor.get_size(namespace, key) {
+        size
+    } else {
+        return Ok(None);
+    };
+
+    accessor.charge_linear_gas(&gas_cost_per_byte_for_load, val_size)?;
+    Ok(accessor.get_value(namespace, key))
 }
 
 pub(crate) fn set_inner<Accressor: UniversalStateAccessor + GasMeter>(
@@ -503,20 +488,15 @@ pub(crate) fn set_inner<Accressor: UniversalStateAccessor + GasMeter>(
     key: &SlotKey,
     value: SlotValue,
 ) -> Result<(), GasMeteringError<<Accressor::Spec as Spec>::Gas>> {
-    let input_len = value.size();
-    accessor.charge_linear_gas(
-        &<Accressor::Spec as GasSpec>::gas_to_charge_per_byte_for_write(),
-        value.size(),
-    )?;
+    let is_value_cached = accessor.is_value_cached(namespace, key);
+    let gas_per_byte_for_write = if is_value_cached == IsValueCached::Yes {
+        <Accressor::Spec as GasSpec>::gas_to_charge_per_byte_for_hot_write()
+    } else {
+        <Accressor::Spec as GasSpec>::gas_to_charge_per_byte_for_cold_write()
+    };
 
-    let is_value_cached = accessor.set_value(namespace, key, value);
-
-    if is_value_cached == IsValueCached::Yes {
-        let gas_to_refund = &<Accressor::Spec as GasSpec>::gas_to_refund_per_byte_for_hot_write()
-            .checked_scalar_product(input_len)
-            .unwrap();
-        accessor.refund_gas(gas_to_refund).expect("Failed to refund gas for write operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
-    }
+    accessor.charge_linear_gas(&gas_per_byte_for_write, value.size())?;
+    accessor.set_value(namespace, key, value);
 
     Ok(())
 }
@@ -526,13 +506,16 @@ pub(crate) fn delete_inner<Accressor: UniversalStateAccessor + GasMeter>(
     namespace: Namespace,
     key: &SlotKey,
 ) -> Result<(), GasMeteringError<<Accressor::Spec as Spec>::Gas>> {
-    accessor.charge_gas(&<Accressor::Spec as GasSpec>::gas_to_charge_for_delete())?;
+    let is_value_cached = accessor.is_value_cached(namespace, key);
 
-    let is_value_cached = accessor.delete_value(namespace, key);
+    let gas_for_delete = if is_value_cached == IsValueCached::Yes {
+        <Accressor::Spec as GasSpec>::gas_to_charge_for_hot_delete()
+    } else {
+        <Accressor::Spec as GasSpec>::gas_to_charge_for_cold_delete()
+    };
 
-    if is_value_cached == IsValueCached::Yes {
-        accessor.refund_gas(&<Accressor::Spec as GasSpec>::gas_to_refund_for_hot_delete()).expect("Failed to refund gas for delete operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
-    }
+    accessor.charge_gas(&gas_for_delete)?;
+    accessor.delete_value(namespace, key);
 
     Ok(())
 }

@@ -53,29 +53,24 @@ impl<S: Spec> VersionReader for GenesisStateAccessor<'_, S> {
 }
 
 impl<'a, S: Spec> UniversalStateAccessor for GenesisStateAccessor<'a, S> {
+    fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
+        self.checkpoint.is_value_cached(namespace, key)
+    }
+
     fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u64> {
         self.checkpoint.get_size(namespace, key)
     }
 
-    fn get_value(
-        &mut self,
-        namespace: sov_state::Namespace,
-        key: &SlotKey,
-    ) -> (Option<SlotValue>, IsValueCached) {
+    fn get_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<SlotValue> {
         self.checkpoint.get_value(namespace, key)
     }
 
-    fn set_value(
-        &mut self,
-        namespace: sov_state::Namespace,
-        key: &SlotKey,
-        value: SlotValue,
-    ) -> IsValueCached {
-        self.checkpoint.set_value(namespace, key, value)
+    fn set_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey, value: SlotValue) {
+        self.checkpoint.set_value(namespace, key, value);
     }
 
-    fn delete_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
-        self.checkpoint.delete_value(namespace, key)
+    fn delete_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey) {
+        self.checkpoint.delete_value(namespace, key);
     }
 }
 
@@ -90,10 +85,6 @@ impl<'a, S: Spec> GasMeter for GenesisStateAccessor<'a, S> {
         parameter: u64,
     ) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_linear_gas(amount, parameter)
-    }
-
-    fn refund_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
-        self.gas_meter.refund_gas(gas)
     }
 }
 

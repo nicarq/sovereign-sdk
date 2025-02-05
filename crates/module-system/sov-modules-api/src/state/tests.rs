@@ -5,9 +5,9 @@ use sov_state::{SlotKey, SlotValue, User};
 use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::MockDaSpec;
 
-use super::traits::{StateReader, StateWriter};
+use super::traits::StateWriter;
 use crate::default_spec::DefaultSpec;
-use crate::{Gas, GasArray, GetGasInfo, Spec, WorkingSet};
+use crate::{Gas, GasArray, GetGasInfo, Spec, StateReader, WorkingSet};
 
 type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
@@ -24,9 +24,10 @@ fn create_working_set(
 fn test_charge_gas_to_set() {
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from([1; 2]);
     let value = SlotValue::from("value");
-    let gas_set_cost = <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_PER_BYTE_FOR_WRITE"))
-        .checked_scalar_product(value.size())
-        .unwrap();
+    let gas_set_cost =
+        <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_PER_BYTE_FOR_COLD_WRITE"))
+            .checked_scalar_product(value.size())
+            .unwrap();
     let remaining_funds = gas_set_cost.value(&gas_price);
 
     let mut working_set = create_working_set(remaining_funds, &gas_price);
@@ -47,19 +48,19 @@ fn test_charge_gas_to_set() {
 #[test]
 fn test_charge_gas_retrieve() {
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from([1; 2]);
-    let gas_access_cost = <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_FOR_ACCESS"));
+    let gas_access_cost = <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_FOR_COLD_ACCESS"));
     let remaining_funds = gas_access_cost.value(&gas_price);
 
     let mut working_set = create_working_set(remaining_funds, &gas_price);
 
     assert!(
-        StateReader::<User>::get(&mut working_set, &SlotKey::from_slice(b"key")) 
+        StateReader::<User>::get(&mut working_set, &SlotKey::from_slice(b"key"))
             .is_ok(),
         "The get operation should succeed because there should be enough funds in the metered working set"
     );
 
     assert!(
-        StateReader::<User>::get(&mut working_set, &SlotKey::from_slice(b"key2")) 
+        StateReader::<User>::get(&mut working_set, &SlotKey::from_slice(b"key2"))
             .is_err(),
         "The get operation should fail because there should be not enough funds left in the metered working set"
     );
@@ -67,18 +68,23 @@ fn test_charge_gas_retrieve() {
 
 #[test]
 fn test_charge_gas_set_then_retrieve() {
+    let value = SlotValue::from("value");
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from([1; 2]);
 
-    let gas_access_cost = <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_FOR_ACCESS"));
-    let gas_hot_access_refund =
-        <S as Spec>::Gas::from(config_value!("GAS_TO_REFUND_FOR_HOT_ACCESS"));
+    let gas_access_cost = <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_FOR_HOT_ACCESS"));
+    let gas_load_cost =
+        <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_PER_BYTE_FOR_HOT_LOAD"))
+            .checked_scalar_product(value.size())
+            .unwrap();
 
-    let value = SlotValue::from("value");
-    let gas_set_cost = <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_PER_BYTE_FOR_WRITE"))
-        .checked_scalar_product(value.size())
-        .unwrap();
+    let gas_set_cost =
+        <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_PER_BYTE_FOR_COLD_WRITE"))
+            .checked_scalar_product(value.size())
+            .unwrap();
 
-    let remaining_funds = gas_access_cost.value(&gas_price) + gas_set_cost.value(&gas_price);
+    let remaining_funds = gas_access_cost.value(&gas_price)
+        + gas_set_cost.value(&gas_price)
+        + gas_load_cost.value(&gas_price);
 
     let mut working_set = create_working_set(remaining_funds, &gas_price);
 
@@ -90,7 +96,7 @@ fn test_charge_gas_set_then_retrieve() {
 
     assert_eq!(
         working_set.gas_info().remaining_funds,
-        gas_access_cost.value(&gas_price),
+        gas_access_cost.value(&gas_price) + gas_load_cost.value(&gas_price),
         "The remaining funds should have decreased by the amount of gas to charge for a write"
     );
 
@@ -101,11 +107,5 @@ fn test_charge_gas_set_then_retrieve() {
         Err(err) => panic!("The get operation should succeed because there should be enough funds in the metered working set, error {err:?}"),
     }
 
-    // There should be some funds left in the metered working set because the second operation was a hot read
-    let expected_remaining_funds = gas_hot_access_refund.value(&gas_price);
-    assert_eq!(
-        working_set.gas_info().remaining_funds,
-        expected_remaining_funds,
-        "The remaining funds should be equal to the expected value, some gas should have been refunded because of the hot read"
-    );
+    assert_eq!(working_set.gas_info().remaining_funds, 0);
 }
