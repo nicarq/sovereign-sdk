@@ -21,13 +21,12 @@ use sov_modules_api::rest::ApiState;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     ExecutionContext, FullyBakedTx, Gas, GasArray, GasMeter, GetGasInfo, NestedEnumUtils,
-    NoOpControlFlow, RawTx, Spec, StateCheckpoint, StateProvider, VersionReader, WorkingSet,
+    NoOpControlFlow, RawTx, Spec, StateCheckpoint, StateProvider, WorkingSet,
 };
 use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect, TxProcessingError,
 };
 use sov_rest_utils::json_obj;
-use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::DaSyncState;
 use thiserror::Error;
@@ -108,7 +107,6 @@ where
         BatchConstructionContext<Z::Spec>,
         Result<Option<(FullyBakedTx, TransactionReceipt<Z::Spec>)>, AddTxToBatchError>,
     ) {
-        let rollup_height = ctx.state_checkpoint.rollup_height_to_access();
         let tx = seqdb_tx.tx.clone();
 
         // To fill a batch as big as possible, we only check if valid
@@ -163,8 +161,6 @@ where
             &<<Z::Spec as Spec>::Gas>::MAX,
             auth_output,
             &self.config.da_address,
-            ctx.visible_slot_number,
-            rollup_height,
             tx_scratchpad,
             ExecutionContext::Sequencer,
             &NoOpControlFlow,
@@ -439,7 +435,6 @@ where
         }
 
         let state_checkpoint = self.checkpoint.take().unwrap();
-        let visible_slot_number = state_checkpoint.visible_slot_number_to_access();
 
         // This closure helps us make sure that we always put the
         // `StateCheckpoint` back into `self` at the end of the function.
@@ -447,7 +442,6 @@ where
             let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut checkpoint).expect("Impossible to get the gas price for the current slot. This is a bug. Please report it");
 
             let mut ctx = BatchConstructionContext {
-                visible_slot_number,
                 reward: SequencerReward::ZERO,
                 gas_price,
                 state_checkpoint: checkpoint,
@@ -600,7 +594,6 @@ where
 
 struct BatchConstructionContext<S: Spec> {
     state_checkpoint: StateCheckpoint<S>,
-    visible_slot_number: VisibleSlotNumber,
     reward: SequencerReward,
     gas_price: <S::Gas as Gas>::Price,
     current_batch_size_in_bytes: usize,

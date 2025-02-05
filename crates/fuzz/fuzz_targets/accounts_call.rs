@@ -9,12 +9,9 @@ use rand::seq::SliceRandom;
 use rand::{RngCore, SeedableRng};
 use sov_accounts::{AccountConfig, AccountData, Accounts, CallMessage};
 use sov_modules_api::capabilities::mocks::MockKernel;
-use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::{
-    Context, CredentialId, DaSpec, ExecutionContext, Module, PrivateKey, PublicKey, Spec,
-    StateCheckpoint, WorkingSet,
+    Context, CredentialId, DaSpec, Module, PrivateKey, PublicKey, Spec, StateCheckpoint, WorkingSet,
 };
-use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
@@ -76,18 +73,10 @@ fuzz_target!(
             .collect();
         let addresses: Vec<_> = state.keys().copied().collect();
 
-        for i in 0..iterations {
+        for _ in 0..iterations {
             // we use slices for better select performance
             let sender = addresses.choose(rng).unwrap();
-            let context = Context::<S>::new(
-                *sender,
-                Default::default(),
-                sequencer,
-                sequencer_da,
-                VisibleSlotNumber::new_dangerous(i as _),
-                RollupHeight::new(i as _),
-                ExecutionContext::Node,
-            );
+            let context = Context::<S>::new(*sender, Default::default(), sequencer, sequencer_da);
 
             // clear previous state
             let previous = state.get(sender).unwrap().as_hex();

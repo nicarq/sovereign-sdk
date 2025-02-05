@@ -1,5 +1,8 @@
+## 2025-02-05
+- #2363 removes `ExecutionContext`, `RollupHeight`, and `VisibleSlotNumber` from the transaction execution context `struct Context`. `RollupHeight` and `VisibleSlotNumber` can be accessed via `TxState` and other state accessors. The `ExecutionContext` information is not available anymore, please reach out to the team to submit a use case that requires it.
+
 ## 2025-02-04
-#2345 Refactor gas charging and for acessing values via StateWriter/StateReader: This is a breaking change due to updates in `constants.toml and constants.testing.toml`
+- #2345 Refactor gas charging and for acessing values via StateWriter/StateReader: This is a breaking change due to updates in `constants.toml and constants.testing.toml`
 
 ## 2025-02-01
 - #2337 fixes a bug that could cause transaction re-execution to fail in the preferred sequencer.

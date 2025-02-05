@@ -3,19 +3,17 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value_private;
-use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_rollup_interface::crypto::{CredentialId, PublicKey};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::TxHash;
 use sov_state::User;
 use thiserror::Error;
 
-use super::RollupHeight;
 use crate::transaction::{
     AuthenticatedTransactionAndRawHash, Credentials, Transaction, TransactionVerificationError,
 };
 use crate::{
-    Context, CryptoSpec, DispatchCall, ExecutionContext, FullyBakedTx, GasMeter, GasMeteringError,
+    Context, CryptoSpec, DispatchCall, FullyBakedTx, GasMeter, GasMeteringError,
     InfallibleStateAccessor, MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher,
     ProvableStateReader, RawTx, Spec,
 };
@@ -95,10 +93,7 @@ pub trait TransactionAuthorizer<S: Spec> {
         &self,
         auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
-        visible_slot_number: VisibleSlotNumber,
-        rollup_height: RollupHeight,
         state: &mut impl InfallibleStateAccessor,
-        context: ExecutionContext,
     ) -> anyhow::Result<Context<S>>;
 
     /// Resolves the context for an unregistered transaction.
@@ -106,10 +101,7 @@ pub trait TransactionAuthorizer<S: Spec> {
         &self,
         auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
-        visible_slot_number: VisibleSlotNumber,
-        rollup_height: RollupHeight,
         state: &mut impl InfallibleStateAccessor,
-        execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>>;
 
     /// Prevents duplicate transactions from running.

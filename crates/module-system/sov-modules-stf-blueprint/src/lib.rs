@@ -516,12 +516,8 @@ where
         let mut slot_gas_meter =
             SlotGasMeter::<S>::new(block_gas_limit.clone(), preferred_sequencer);
 
-        let visible_slot_number = state.visible_slot_number_to_access();
-        let rollup_height = state.rollup_height_to_access();
-
         trace!(
             blob_count = blob_selector_output.selected_blobs.len(),
-            visible_slot = %visible_slot_number,
             "Selected batch(es) for execution in current slot"
         );
 
@@ -560,8 +556,6 @@ where
                         blob_idx,
                         &sender,
                         &gas_price,
-                        visible_slot_number,
-                        rollup_height,
                         execution_context,
                     );
 
@@ -595,8 +589,6 @@ where
                         blob_idx,
                         &sender,
                         &gas_price,
-                        visible_slot_number,
-                        execution_context,
                     );
 
                     let gas_used = &batch_receipt.inner.gas_used;
@@ -649,7 +641,7 @@ where
                     sov_metrics::UserSpaceSlotProcessingMetrics {
                         begin_block_hook_time,
                         blobs_processing_time: blob_processing_time,
-                        visible_slot_number,
+                        visible_slot_number: state.visible_slot_number_to_access(),
                         execution_context,
                         end_block_hook_time,
                     },

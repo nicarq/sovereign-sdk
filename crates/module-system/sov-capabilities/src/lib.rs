@@ -6,18 +6,16 @@ use sov_bank::IntoPayable;
 use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::capabilities::{
     AllowedSequencer, AuthorizationData, AuthorizeSequencerError, GasEnforcer, ProofProcessor,
-    RollupHeight, SequencerAuthorization, SequencerRemuneration, TransactionAuthorizer,
-    TryReserveGasError,
+    SequencerAuthorization, SequencerRemuneration, TransactionAuthorizer, TryReserveGasError,
 };
 use sov_modules_api::transaction::{
     AuthenticatedTransactionData, ProverRewards, RemainingFunds, SequencerReward,
 };
 use sov_modules_api::{
-    AggregatedProofPublicData, Context, DaSpec, ExecutionContext, Gas, InfallibleStateAccessor,
-    InvalidProofError, ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec, Storage,
-    TxState,
+    AggregatedProofPublicData, Context, DaSpec, Gas, InfallibleStateAccessor, InvalidProofError,
+    ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec, Storage, TxState,
 };
-use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 #[cfg(feature = "native")]
 use sov_rollup_interface::StateUpdateInfo;
@@ -224,10 +222,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
         &self,
         auth_data: &AuthorizationData<S>,
         sequencer: &<S::Da as DaSpec>::Address,
-        visible_slot_number: VisibleSlotNumber,
-        rollup_height: RollupHeight,
         state: &mut impl InfallibleStateAccessor,
-        execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>> {
         // TODO(@preston-evans98): This is a temporary hack to get the sequencer address
         // This should be resolved by the sequencer registry during blob selection
@@ -244,9 +239,6 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
             auth_data.credentials.clone(),
             sequencer_rollup_address,
             sequencer.clone(),
-            visible_slot_number,
-            rollup_height,
-            execution_context,
         ))
     }
 
@@ -254,10 +246,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
         &self,
         auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
-        visible_slot_number: VisibleSlotNumber,
-        rollup_height: RollupHeight,
         state: &mut impl InfallibleStateAccessor,
-        execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>> {
         let sender = self.accounts.resolve_sender_address(
             &auth_data.default_address,
@@ -270,9 +259,6 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
             auth_data.credentials.clone(),
             sender,
             sequencer.clone(),
-            visible_slot_number,
-            rollup_height,
-            execution_context,
         ))
     }
 }
