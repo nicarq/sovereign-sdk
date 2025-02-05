@@ -119,6 +119,7 @@ The transaction hash can be used to query the REST API endpoint to fetch events 
 this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
+$ sleep 5
 $ curl -sS http://127.0.0.1:12346/ledger/txs/0xb638748371b5c1ea9328755b283c112b3b4563f2ef6c9472a1ca9e5baf1885b8/events | jq
 {
   "data": [
@@ -174,7 +175,7 @@ You'll need the `sov-cli` binary in order to create transactions. Build it with 
 ```bash,test-ci,bashtestmd:compare-output
 # Make sure you're still in `examples/demo-rollup`
 $ SKIP_GUEST_BUILD=1 cargo build --bin sov-cli
-$ ./target/debug/sov-cli --help
+$ ./../../target/debug/sov-cli --help
 Usage: sov-cli <COMMAND>
 
 Commands:
@@ -287,7 +288,7 @@ using `make test-create-token`.
 To generate transactions you can use the `transactions import from-file` subcommand, as shown below:
 
 ```bash,test-ci,bashtestmd:compare-output
-$ ./target/debug/sov-cli transactions import from-file -h
+$ ./../../target/debug/sov-cli transactions import from-file -h
 Import a transaction from a JSON file at the provided path
 
 Usage: sov-cli transactions import from-file <COMMAND>
@@ -312,7 +313,7 @@ Options:
 Let's go ahead and import the transaction into the wallet
 
 ```bash,test-ci,bashtestmd:compare-output
-$ ./target/debug/sov-cli transactions import from-file bank --max-fee 100000000 --path ../test-data/requests/transfer.json
+$ ./../../target/debug/sov-cli transactions import from-file bank --max-fee 100000000 --path ../test-data/requests/transfer.json
 Adding the following transaction to batch:
 {
   "tx": {
@@ -352,7 +353,7 @@ this
 batch, you can import them now. Finally, let's submit your transaction to the rollup.
 
 ```bash,test-ci
-$ ./target/debug/sov-cli node submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66
+$ ./../../target/debug/sov-cli node submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66
 ```
 
 #### 5. Verify the Token Supply
@@ -367,7 +368,7 @@ $ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_1nyl0e0yweragfsatygt
 After all transactions are submitted, let's check that aggregated proofs are available. This might take some time, because proof generation can take time and aggregated proof usually consist of several blocks.
 
 ```bash,test-ci
-$ ./target/debug/sov-cli node wait-for-aggregated-proof 
+$ ./../../target/debug/sov-cli node wait-for-aggregated-proof 
  2025-01-23T11:22:35.402610Z  INFO sov_cli::workflows::node: Executing node workflow
 2025-01-23T11:22:35.434135Z  INFO sov_cli::workflows::node: Subscribing for aggregated proofs timeout=120s
 2025-01-23T11:22:40.368366Z  INFO sov_cli::workflows::node: Aggregated proof received aggregated_proof=AggregatedProof { proof: "AAAAAAGLAQAAAAAAAAMAAAAAAAAAAQEBAQAAAAAAAAADAAAAAAAAAEhdYi6hLFLAP89xCVsbdfDdYwxF/WcFFzZGuIp+kaZW15HRe2qk3GxFnMa2Xuo0MGJo7NASojDOchgMtAoCdO1IXWIuoSxSwD/PcQlbG3Xw3WMMRf1nBRc2RriKfpGmVteR0XtqpNxsRZzGtl7qNDBiaOzQEqIwznIYDLQKAnTtwEGc5yzNex7lJXLa3zVI9FW1bv1QdAjVwddcSdTdLnbzj92WaWwpooMcl4rhSsyMSA4p2B1oOwUmM/xOuzFVUwunpBZJt+gXzHoMpgncYUhRoy6g2nn0J3Upj03dcxgzJdTBKEsCYGa+ZG26p+d6YCYTKcxA+Q8421V1spejjb0AAAAAAAAAAAMAAAAAAAAAAAAAAP6mrFuHURIPti//Z7VNLqxmrvMHx93h05TeoeAAAAAA/qasW4dREg+2L/9ntU0urGau8wfH3eHTlN6h4AAAAAD+pqxbh1ESD7Yv/2e1TS6sZq7zB8fd4dOU3qHg", type_: AggregatedProof }

@@ -54,6 +54,7 @@ The final piece of the puzzle is your app's runtime. A runtime is just a list of
 module to your app, just add an additional field to the runtime.
 
 ```rust,no_run
+use sov_modules_api::prelude::*;
 use sov_modules_api::{Genesis, DispatchCall, MessageCodec, Spec};
 use sov_modules_api::macros::expose_rpc;
 

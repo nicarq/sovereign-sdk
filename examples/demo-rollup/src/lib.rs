@@ -1,5 +1,8 @@
+//! A simple rollup that uses the Sovereign SDK.
+//!
+//! See the README for more information.
+// TODO: #![doc = include_str!("../README.md")]
 #![deny(missing_docs)]
-#![doc = include_str!("../README.md")]
 
 use const_rollup_config::{ROLLUP_BATCH_NAMESPACE_RAW, ROLLUP_PROOF_NAMESPACE_RAW};
 use sov_celestia_adapter::types::Namespace;

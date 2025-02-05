@@ -107,6 +107,7 @@ mod helpers {
 
     use anyhow::Context;
     use demo_stf::runtime::{Runtime, RuntimeCall};
+    use sov_address::{EthereumAddress, FromVmAddress};
     use sov_bank::types::TokenIdResponse;
     use sov_cli::wallet_state::PrivateKeyAndAddress;
     use sov_modules_api::prelude::serde::de::DeserializeOwned;
@@ -129,10 +130,11 @@ mod helpers {
             Self(client)
         }
 
-        pub async fn send_transactions<S: Spec>(
-            &self,
-            transactions: &[Transaction<Runtime<S>, S>],
-        ) {
+        pub async fn send_transactions<S>(&self, transactions: &[Transaction<Runtime<S>, S>])
+        where
+            S: Spec,
+            S::Address: FromVmAddress<EthereumAddress>,
+        {
             let _submitted_batch_info = self
                 .0
                 .publish_batch_with_serialized_txs(transactions)
@@ -180,9 +182,10 @@ mod helpers {
         url: String,
     ) -> (<TestSpec as Spec>::Address, String) {
         let client = Client::new(&url);
-        let keys = PrivateKeyAndAddress::<TestSpec>::from_json_file(Path::new(private_key_file), true)
-            .context(format!("File does not exist: {:?}", private_key_file))
-            .unwrap();
+        let keys =
+            PrivateKeyAndAddress::<TestSpec>::from_json_file(Path::new(private_key_file), true)
+                .context(format!("File does not exist: {:?}", private_key_file))
+                .unwrap();
         let priv_key = keys.private_key;
         let sender = keys.address;
         let tx = build_create_token_tx(&priv_key, 0, 100);

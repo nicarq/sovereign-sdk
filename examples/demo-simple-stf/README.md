@@ -164,7 +164,7 @@ You can find more details in the `stf_test.rs` file.
 The following test checks the rollup logic. In the test, we call `init_chain, begin_slot, and end_slot` for completeness, even though these methods do nothing.
 
 ```rust
-use demo_simple_stf::{ApplySlotResult, CheckHashPreimageStf};
+use demo_simple_stf::{ApplySlotResult, CheckHashPreimageStf, Root};
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::RelevantBlobIters;
@@ -174,7 +174,7 @@ fn test_stf_success() {
     let address = MockAddress::from([1; 32]);
 
     let stf = &mut CheckHashPreimageStf::default();
-    StateTransitionFunction::<MockZkvm, MockZkvm, MockDaSpec>::init_chain(stf, &Default::default(), &Default::default(), (), ());
+    StateTransitionFunction::<MockZkvm, MockZkvm, MockDaSpec>::init_chain(stf, &Default::default(), (), ());
 
     let mut batch_blobs = {
         let incorrect_preimage = vec![1; 32];
@@ -203,13 +203,13 @@ fn test_stf_success() {
     }
 
     let relevant_blobs = RelevantBlobIters {
-        proof_blobs: &mut proof_blobs,
-        batch_blobs: &mut batch_blobs,
+        proof_blobs: proof_blobs.as_mut_slice(),
+        batch_blobs: batch_blobs.as_mut_slice(),
     };
 
     let result = StateTransitionFunction::<MockZkvm, MockZkvm, MockDaSpec>::apply_slot(
         stf,
-        &[],
+        &Root([]),
         (),
         (),
         &MockBlockHeader::default(),

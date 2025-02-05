@@ -16,16 +16,12 @@ rand = "0.8"
 sha2 = "0.10.6"
 
 # Sovereign-maintained dependencies.
-sov-celestia-adapter = { path = "../adapters/celestia", features = ["native", "arbitrary"] }
-sov-modules-api = { path = "../module-system/sov-modules-api", features = ["arbitrary", "native"] }
-sov-accounts = { path = "../module-system/module-implementations/sov-accounts", features = ["arbitrary", "native"] }
-sov-bank = { path = "../module-system/module-implementations/sov-bank", features = ["native"] }
-sov-rollup-interface = { path = "../rollup-interface" }
-sov-test-utils = { path = "../module-system/sov-test-utils", features = ["arbitrary"] }
-
-# Prevent this from interfering with workspaces.
-[workspace]
-members = ["."]
+sov-celestia-adapter = { workspace = true, features = ["native", "arbitrary"] }
+sov-modules-api = { workspace = true, features = ["arbitrary", "native"] }
+sov-accounts = { workspace = true, features = ["arbitrary", "native"] }
+sov-bank = { workspace = true, features = ["native"] }
+sov-rollup-interface = { workspace = true }
+sov-test-utils = { workspace = true, features = ["arbitrary"] }
 
 [[bin]]
 name = "parse_address"

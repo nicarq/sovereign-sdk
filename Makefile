@@ -1,31 +1,12 @@
 .PHONY: help
 
-# Only do check
-CHECK_ONLY_DIRS := crates/fuzz \
-              examples/demo-rollup/stf \
-              examples/demo-rollup/sov-soak-testing \
-              examples/demo-rollup/stf/demo-stf-json-client \
-              examples/demo-simple-stf \
-              examples/const-rollup-config \
-# Also do tests
-TEST_DIRS := examples/demo-rollup \
-             examples/demo-simple-stf \
-             crates/adapters/celestia \
-             crates/adapters/risc0 \
-             crates/adapters/sp1
-# Also do bench
-BENCH_DIRS := examples/demo-rollup/sov-benchmarks
-
 PROVER_DIRS := examples/demo-rollup/provers/risc0/guest-mock \
                examples/demo-rollup/provers/risc0/guest-celestia \
   			   examples/demo-rollup/provers/sp1/guest-mock \
 			   examples/demo-rollup/provers/sp1/guest-celestia
 
-# All directories where we run at least some checks in CI
-MONITORED_DIRS := $(CHECK_ONLY_DIRS) $(TEST_DIRS) $(BENCH_DIRS)
-
 # Absolutely all dirs
-ALL_DIRS := $(MONITORED_DIRS) $(PROVER_DIRS)
+ALL_DIRS := $(PROVER_DIRS)
 
 # We run `cargo hack` with the `--partition 1/1` by default, but overrides allow
 # CI to parallelize checks.
@@ -62,29 +43,11 @@ total-clean:
     done;
 	rm -rf "examples/demo-rollup/tests/evm/uniswap/node_modules"
 
-
-test-legacy: ## Runs test suite with output from tests printed
-	@cargo test -- --nocapture -Zunstable-options --report-time
-
 test:  ## Runs test suite using next test
-	@cargo nextest run --no-fail-fast --workspace --all-features --status-level skip
+	@cargo nextest run --no-fail-fast --status-level skip --all-features
 
 test-default-features:  ## Runs test suite using default features
-	@cargo nextest run --no-fail-fast --workspace --status-level skip
-
-test-excluded:  ## Runs test for all crates excluded from workspace
-	@set -e; for dir in $(TEST_DIRS); do \
-		echo "$$(date) Running test in $$dir"; \
-		cargo nextest run --no-fail-fast --status-level skip --cargo-quiet --manifest-path "$$dir/Cargo.toml"; \
-		cargo nextest run --no-fail-fast --all-features --cargo-quiet --status-level skip --manifest-path "$$dir/Cargo.toml"; \
-	done;
-
-bench-all:
-	@cargo bench;
-	@set -e; for dir in $(BENCH_DIRS); do \
-		echo "$$(date) Running bench in $$dir"; \
-		(cargo bench --manifest-path "$$dir/Cargo.toml"); \
-	done;
+	@cargo nextest run --no-fail-fast --status-level skip
 
 install-dev-tools:  ## Installs all necessary cargo helpers
 install-dev-tools: install-risc0-toolchain install-sp1-toolchain
@@ -117,13 +80,6 @@ install-sp1-toolchain:  ## install SP1 toolchain
 	@echo "SP1 toolchain version:"
 	cargo +succinct --version
 
-check-excluded:   ## cargo check in non attached crates
-	@set -e; for dir in $(ALL_DIRS); do \
-		echo "$$(date) Running cargo fmt + check in $$dir"; \
-		cargo +nightly fmt --all --check --quiet --manifest-path "$$dir/Cargo.toml"; \
-		cargo check --all-targets --all-features --quiet --manifest-path "$$dir/Cargo.toml"; \
-	done
-
 lint:  ## cargo fmt, check and clippy.
 	## fmt first, because it's the cheapest
 	cargo +nightly fmt --all --check
@@ -134,24 +90,11 @@ lint:  ## cargo fmt, check and clippy.
 	zepter
 	$(MAKE) clippy
 
-lint-excluded:  ## cargo fmt, check and clippy for crates not included in workspace
-	@set -e; for dir in $(MONITORED_DIRS); do \
-		echo "Running lint in $$dir"; \
-		cargo +nightly fmt --all --check --manifest-path "$$dir/Cargo.toml"; \
-		cargo check --all-targets --all-features --manifest-path "$$dir/Cargo.toml"; \
-		SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features --manifest-path "$$dir/Cargo.toml" -- -A clippy::too_many_arguments; \
-		zepter; \
-	done;
-
 clippy:  ## runs cargo clippy. skips clippy on guest code since it's not supported by risc0
 	SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features -- -A clippy::too_many_arguments
 
 cargo-deny-check-licenses:
 	cargo deny check licenses
-	@set -e; for dir in $(MONITORED_DIRS); do \
-		echo "Running license check in $$dir"; \
-		SKIP_GUEST_BUILD=1 cargo deny --manifest-path "$$dir/Cargo.toml" check --config $(CURDIR)/deny.toml licenses; \
-	done;
 
 cargo-deny-check:   ## Runs a global cargo-deny check, not just the licenses.
 	cargo deny check --hide-inclusion-graph
@@ -161,20 +104,11 @@ lint-fix:  ## cargo fmt, fix and clippy. Skip clippy on guest code since it's no
 	cargo fix --allow-dirty
 	SKIP_GUEST_BUILD=1 cargo clippy --fix --allow-dirty
 
-lint-excluded-fix: lint-fix
-	@set -e; for dir in $(MONITORED_DIRS); do \
-		echo "Running lint in $$dir"; \
-		cargo +nightly fmt --all --manifest-path "$$dir/Cargo.toml"; \
-		cargo fix --allow-dirty --manifest-path "$$dir/Cargo.toml"; \
-		SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features --fix --allow-dirty --manifest-path "$$dir/Cargo.toml" -- -A clippy::too_many_arguments; \
-		zepter; \
-	done;
-
 check-features: ## Checks that project compiles with all combinations of features.
-	cargo hack check --workspace --feature-powerset --exclude-features default --all-targets --partition $(CARGO_HACK_PARTITION_N)/$(CARGO_HACK_PARTITION_M)
+	cargo hack check --feature-powerset --exclude-features default --partition $(CARGO_HACK_PARTITION_N)/$(CARGO_HACK_PARTITION_M) --all-targets
 
 check-features-default-targets:
-	cargo hack check --workspace --feature-powerset --exclude-features default --partition $(CARGO_HACK_PARTITION_N)/$(CARGO_HACK_PARTITION_M)
+	cargo hack check --feature-powerset --exclude-features default --partition $(CARGO_HACK_PARTITION_N)/$(CARGO_HACK_PARTITION_M)
 
 check-constant-overriding-is-disabled-in-release-mode:
 	# Passes in release mode...
@@ -185,9 +119,6 @@ check-constant-overriding-is-disabled-in-release-mode:
 		exit 1; \
 	fi
 	@echo "Check succeeded!"
-
-check-fuzz: ## Checks that fuzz member compiles
-	$(MAKE) -C crates/fuzz check
 
 find-unused-deps: ## Prints unused dependencies for project. Note: requires nightly
 	cargo +nightly udeps --all-targets --all-features
@@ -211,13 +142,13 @@ docs-generate: ## Generate documentation but don't open it, to verify that it wo
 	cargo doc --no-deps --all-features
 
 doctest:
-	cargo test --workspace --doc --all-features
-
-doctest-excluded:
-	@set -e; for dir in $(MONITORED_DIRS); do \
-		echo "Running doctest in $$dir"; \
-		(cargo test --workspace --doc --all-features --manifest-path "$$dir/Cargo.toml"); \
-	done;
+	cargo test --doc --all-features
 
 mini-ci: ## Runs multiple checks that can most often fail CI as a single command: lint, test, and doctest.
-mini-ci: lint lint-excluded test test-excluded doctest docs-generate
+	cargo switcheroo save _backup
+	cargo switcheroo disable
+	$(MAKE) lint
+	$(MAKE) test
+	$(MAKE) doctest
+	$(MAKE) docs-generate
+	cargo switcheroo set _backup

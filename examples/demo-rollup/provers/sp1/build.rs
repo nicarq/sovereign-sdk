@@ -3,7 +3,7 @@ use sp1_build::{build_program_with_args, BuildArgs};
 fn should_skip_guest_build() -> bool {
     match std::env::var("SKIP_GUEST_BUILD")
         .as_ref()
-        .map(|arg0: &String| String::as_str(&arg0))
+        .map(|arg0: &String| String::as_str(arg0))
     {
         Ok("1") | Ok("true") | Ok("sp1") => true,
         Ok("0") | Ok("false") | Ok(_) | Err(_) => false,
