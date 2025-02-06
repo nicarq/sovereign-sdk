@@ -31,7 +31,7 @@ impl<S: Spec> Accounts<S> {
         config: &<Self as sov_modules_api::Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
-        for acc in config.accounts.iter() {
+        for acc in &config.accounts {
             if self.accounts.get(&acc.credential_id, state)?.is_some() {
                 bail!("Account already exists")
             }
