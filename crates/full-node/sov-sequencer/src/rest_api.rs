@@ -191,7 +191,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             Ok(Some(info)) => Ok(info.into()),
             Ok(None) => Err(ErrorObject {
                 status: StatusCode::BAD_REQUEST,
-                title: "Can't produce a batch at this time, wait until the DA has progressed more slots".to_string(),
+                title: "Can't produce a batch at this time, wait until the DA has progressed more slots or ensure that valid transactions are available".to_string(),
                 details: json_obj!({}),
             }.into_response()),
             Err(err) => Err(ErrorObject {

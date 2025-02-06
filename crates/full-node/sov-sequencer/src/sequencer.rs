@@ -304,13 +304,17 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             // *lost*, but *skipped* as in "superseded by a newer value").
 
             let info = (*state_update_receiver.borrow()).clone();
-            self.handle_state_update_info(
-                info,
-                &mut latest_processed_slot_number,
-                &ledger_db,
-                automatic_batch_production,
-            )
-            .await?;
+            if let Err(error) = self
+                .handle_state_update_info(
+                    info,
+                    &mut latest_processed_slot_number,
+                    &ledger_db,
+                    automatic_batch_production,
+                )
+                .await
+            {
+                tracing::error!(%error, "An error occurred while handling sequencer state update. This may cause a delay in batch submission, or a loss of some slot processing notifications.");
+            }
         }
 
         debug!("The background loop of the sequencer is shutting down");
