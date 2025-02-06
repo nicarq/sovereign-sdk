@@ -43,6 +43,7 @@ sea-orm = { version = "0.12", features = [
     "with-chrono",
 ], default-features = false, optional = true }
 chrono = { workspace = true, optional = true }
+rand = { workspace = true, optional = true, features = ["small_rng"] }
 # Needed to prevent ` use of unstable library feature 'error_in_core'` with our rust version
 # Can be attempted to remove when sea-orm upgraded beyond 1 or rust toolchain is updated.
 idna = { version = "1.0.3", default-features = false, features = ["std"] }
@@ -54,7 +55,7 @@ futures = { workspace = true }
 serde_json = { workspace = true }
 sov-mock-da = { path = ".", features = ["native", "arbitrary"] }
 sov-test-utils = { workspace = true, features = ["arbitrary"] }
-criterion = { version = "0.5.1" , features = ["async_tokio"]}
+criterion = { version = "0.5.1", features = ["async_tokio"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = [
     "test-util",
@@ -83,6 +84,7 @@ native = [
     "dep:tokio",
     "sov-mock-da/native",
     "sov-rollup-interface/native",
+    "dep:rand",
 ]
 postgres = ["native", "sea-orm/sqlx-postgres"]
 

@@ -1,6 +1,8 @@
 //! Data Availability layer is a single entry to all available blocks.
 
 use chrono::DateTime;
+use rand::prelude::{SliceRandom, SmallRng};
+use rand::SeedableRng;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Database, DatabaseConnection, EntityTrait, QueryFilter, Set,
 };
@@ -24,6 +26,7 @@ pub struct StorableMockDaLayer {
     /// Zero means instant finality.
     blocks_to_finality: u32,
     pub(crate) finalized_header_sender: broadcast::Sender<MockBlockHeader>,
+    blobs_ordering_seed: Option<[u8; 32]>,
 }
 
 impl StorableMockDaLayer {
@@ -57,6 +60,7 @@ impl StorableMockDaLayer {
             next_height,
             blocks_to_finality,
             finalized_header_sender,
+            blobs_ordering_seed: None,
         })
     }
 
@@ -240,7 +244,7 @@ impl StorableMockDaLayer {
 
         let header = self.get_header_at(height).await?;
 
-        let blobs = Blobs::find()
+        let mut blobs = Blobs::find()
             .filter(blobs::Column::BlockHeight.eq(height))
             .all(&self.conn)
             .await?;
@@ -249,6 +253,22 @@ impl StorableMockDaLayer {
         // so we are willing to pay for extra allocation when only proofs were submitted.
         let mut batch_blobs = Vec::with_capacity(blobs.len());
         let mut proof_blobs = Vec::new();
+
+        if let Some(seed) = self.blobs_ordering_seed {
+            // Producing a seed for randomizer based on top of blobs_ordering_seed and height
+            let mut hasher = sha2::Sha256::new();
+            hasher.update(seed);
+            // Adding height to have different order for different batches.
+            hasher.update(height.to_le_bytes());
+            // Adding hash to have different ordering for different forks.
+            hasher.update(header.hash.0);
+            let result = hasher.finalize();
+            let mut hashed_seed = [0u8; 32];
+            hashed_seed.copy_from_slice(&result[..32]);
+
+            let mut rng = SmallRng::from_seed(hashed_seed);
+            blobs.shuffle(&mut rng);
+        }
 
         for blob in blobs {
             match blob.namespace.as_str() {
@@ -265,6 +285,15 @@ impl StorableMockDaLayer {
             batch_blobs,
             proof_blobs,
         })
+    }
+
+    /// Configures randomized retrieval of blobs when fetching a block.
+    /// # Arguments
+    ///
+    /// * `seed` - An optional 32-byte array used as a seed for randomizing
+    ///   the order in which blobs are fetched. `None` disables randomization.
+    pub fn set_randomized_blobs_retrieval(&mut self, seed: Option<[u8; 32]>) {
+        self.blobs_ordering_seed = seed;
     }
 }
 
@@ -288,6 +317,7 @@ mod tests {
         Proof(Vec<u8>),
     }
 
+    const DEFAULT_SENDER: MockAddress = MockAddress::new([1; 32]);
     const ISSUE_REMINDER: &str = "Leave a comment in https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1396 if you see this error";
     const ASYNC_OPERATION_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -511,19 +541,17 @@ mod tests {
         let db_path = tempdir.path().join("mock_da.sqlite");
         let connection_string = format!("sqlite://{}?mode=rwc", db_path.to_string_lossy());
 
-        let sender_1 = MockAddress::new([1; 32]);
-
         let expected_blocks = vec![
             // Block 1
-            vec![(TestBlob::Batch(vec![1, 1, 1, 1]), sender_1)],
+            vec![(TestBlob::Batch(vec![1, 1, 1, 1]), DEFAULT_SENDER)],
             // Block 2
             Vec::new(),
             // Block 3,
             Vec::new(),
             // Block 4
             vec![
-                (TestBlob::Batch(vec![4, 4, 1, 1]), sender_1),
-                (TestBlob::Batch(vec![4, 4, 3, 3]), sender_1),
+                (TestBlob::Batch(vec![4, 4, 1, 1]), DEFAULT_SENDER),
+                (TestBlob::Batch(vec![4, 4, 3, 3]), DEFAULT_SENDER),
             ],
         ];
 
@@ -565,7 +593,6 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn close_before_producing_block() -> anyhow::Result<()> {
         let tempdir = tempfile::tempdir()?;
-        let sender_1 = MockAddress::new([1; 32]);
 
         let batch_1 = vec![1, 1, 1, 1];
         let batch_2 = vec![1, 1, 2, 2];
@@ -579,26 +606,26 @@ mod tests {
         {
             let mut da_layer = StorableMockDaLayer::new_in_path(tempdir.path(), 0).await?;
             check_da_layer_consistency(&da_layer).await?;
-            da_layer.submit_batch(&batch_1, &sender_1).await?;
-            da_layer.submit_proof(&proof_1, &sender_1).await?;
+            da_layer.submit_batch(&batch_1, &DEFAULT_SENDER).await?;
+            da_layer.submit_proof(&proof_1, &DEFAULT_SENDER).await?;
         }
         {
             let mut da_layer = StorableMockDaLayer::new_in_path(tempdir.path(), 0).await?;
-            da_layer.submit_batch(&batch_2, &sender_1).await?;
-            da_layer.submit_proof(&proof_2, &sender_1).await?;
+            da_layer.submit_batch(&batch_2, &DEFAULT_SENDER).await?;
+            da_layer.submit_proof(&proof_2, &DEFAULT_SENDER).await?;
             da_layer.produce_block().await?;
             check_da_layer_consistency(&da_layer).await?;
         }
         {
             let mut da_layer = StorableMockDaLayer::new_in_path(tempdir.path(), 0).await?;
             check_da_layer_consistency(&da_layer).await?;
-            da_layer.submit_batch(&batch_3, &sender_1).await?;
-            da_layer.submit_proof(&proof_3, &sender_1).await?;
+            da_layer.submit_batch(&batch_3, &DEFAULT_SENDER).await?;
+            da_layer.submit_proof(&proof_3, &DEFAULT_SENDER).await?;
         }
         {
             let mut da_layer = StorableMockDaLayer::new_in_path(tempdir.path(), 0).await?;
-            da_layer.submit_batch(&batch_4, &sender_1).await?;
-            da_layer.submit_proof(&proof_4, &sender_1).await?;
+            da_layer.submit_batch(&batch_4, &DEFAULT_SENDER).await?;
+            da_layer.submit_proof(&proof_4, &DEFAULT_SENDER).await?;
             da_layer.produce_block().await?;
             check_da_layer_consistency(&da_layer).await?;
         }
@@ -649,7 +676,7 @@ mod tests {
             node.get_host_port_ipv4(5432).await?
         );
 
-        let sender_1 = MockAddress::new([1; 32]);
+        let sender_1 = DEFAULT_SENDER;
         let sender_2 = MockAddress::new([2; 32]);
 
         // Blobs per each block, with sender
@@ -682,5 +709,128 @@ mod tests {
             layer.produce_block().await?;
         }
         Ok(())
+    }
+
+    /// Idea of the test is check that `StorableMockDaLayer` can return blobs out of order if related option is set.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn blobs_out_of_order_works_for_single_block() -> anyhow::Result<()> {
+        // Initialize some batch and proofs and submit them in a single block
+        let blobs = vec![
+            (TestBlob::Batch(vec![10, 10]), DEFAULT_SENDER),
+            (TestBlob::Batch(vec![2, 2]), DEFAULT_SENDER),
+            (TestBlob::Proof(vec![30, 30]), DEFAULT_SENDER),
+            (TestBlob::Batch(vec![4, 4]), DEFAULT_SENDER),
+            (TestBlob::Proof(vec![5, 5]), DEFAULT_SENDER),
+            (TestBlob::Proof(vec![60, 60]), DEFAULT_SENDER),
+            (TestBlob::Batch(vec![7, 7]), DEFAULT_SENDER),
+        ];
+
+        let mut in_order_batches = Vec::new();
+        let mut in_order_proofs = Vec::new();
+        let mut da_layer = StorableMockDaLayer::new_in_memory(1).await?;
+        for (blob, sender) in &blobs {
+            match blob {
+                TestBlob::Batch(batch) => {
+                    da_layer.submit_batch(batch, sender).await?;
+                    in_order_batches.push(batch.clone());
+                }
+                TestBlob::Proof(proof) => {
+                    da_layer.submit_proof(proof, sender).await?;
+                    in_order_proofs.push(proof.clone());
+                }
+            }
+        }
+        da_layer.produce_block().await?;
+
+        // First, we validate that blobs are returned in the same way they were submitted.
+        let in_order_block = da_layer.get_block_at(1).await?;
+        let (actual_in_order_batches, actual_in_order_proofs) = get_raw_data(in_order_block);
+
+        assert_eq!(actual_in_order_batches, in_order_batches);
+        assert_eq!(actual_in_order_proofs, in_order_proofs);
+
+        // Now let's change the ordering.
+        da_layer.set_randomized_blobs_retrieval(Some([42; 32]));
+
+        let out_of_order_block = da_layer.get_block_at(1).await?;
+        let (mut out_of_order_batches, mut out_of_order_proofs) = get_raw_data(out_of_order_block);
+
+        // They are not equal, because unordered.
+        assert_ne!(out_of_order_batches, in_order_batches);
+        assert_ne!(out_of_order_proofs, in_order_proofs);
+
+        // But if we sort them, they are equal, meaning that data is the same!
+        out_of_order_batches.sort();
+        out_of_order_proofs.sort();
+        let mut sorted_submitted_batches = in_order_batches.clone();
+        sorted_submitted_batches.sort();
+        let mut sorted_submitted_proofs = in_order_proofs.clone();
+        sorted_submitted_proofs.sort();
+
+        assert_eq!(out_of_order_batches, sorted_submitted_batches);
+        assert_eq!(out_of_order_proofs, sorted_submitted_proofs);
+
+        // Disabling randomization retrieaval makes brings submission order back
+        da_layer.set_randomized_blobs_retrieval(None);
+        let in_order_block = da_layer.get_block_at(1).await?;
+        let (batches_after_disabling, proofs_after_disabling) = get_raw_data(in_order_block);
+
+        assert_eq!(batches_after_disabling, in_order_batches);
+        assert_eq!(proofs_after_disabling, in_order_proofs);
+        Ok(())
+    }
+
+    /// To make sure that randomization is different between blocks.
+    /// Test validates that by submitting the same blobs in the same order in different blocks
+    /// Then checking that order is different.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn blobs_out_of_order_different_order_for_different_blocks() -> anyhow::Result<()> {
+        // We only test batches for simplicity.
+        let batches = vec![
+            vec![1, 1],
+            vec![4, 4],
+            vec![3, 3],
+            vec![8, 8],
+            vec![9, 9],
+            vec![11, 11],
+        ];
+        let blocks = 5;
+        let mut da_layer = StorableMockDaLayer::new_in_memory(1).await?;
+        for _ in 0..blocks {
+            for batch in &batches {
+                da_layer.submit_batch(batch, &DEFAULT_SENDER).await?;
+            }
+            da_layer.produce_block().await?;
+        }
+
+        da_layer.set_randomized_blobs_retrieval(Some([42; 32]));
+        // Batches fetched in each block
+        let mut seen_batches_per_block: Vec<Vec<Vec<u8>>> = Vec::new();
+        for height in 1..=blocks {
+            let block = da_layer.get_block_at(height).await?;
+            let (fetched_batches_this_block, _) = get_raw_data(block);
+            for previous_batches in &seen_batches_per_block {
+                assert_ne!(&fetched_batches_this_block, previous_batches);
+            }
+            seen_batches_per_block.push(fetched_batches_this_block);
+        }
+
+        Ok(())
+    }
+
+    // Returns tuple of all raw batches and raw proofs
+    fn get_raw_data(mut block: MockBlock) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
+        let mut batches = Vec::new();
+        let mut proofs = Vec::new();
+
+        for batch in block.batch_blobs.iter_mut() {
+            let batch_data = batch.full_data().to_vec();
+            batches.push(batch_data);
+        }
+        for proof in block.proof_blobs.iter_mut() {
+            let proof_data = proof.full_data().to_vec();
+            proofs.push(proof_data);
+        }
+        (batches, proofs)
     }
 }
