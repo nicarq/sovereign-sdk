@@ -18,7 +18,7 @@ async fn main() -> anyhow::Result<()> {
 
     // We only set the logging level if the env var is not set.
     if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "warn,error,bench_runner=info");
+        env::set_var("RUST_LOG", "warn,error,sov_benchmarks=info");
     }
 
     initialize_logging();

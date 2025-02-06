@@ -230,7 +230,7 @@ async fn main() {
 
     // If the env var is not set, then we set it to the default value.
     if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "warn,error,bench_generator=info");
+        env::set_var("RUST_LOG", "warn,error,sov_benchmarks=info");
     }
 
     initialize_logging();
