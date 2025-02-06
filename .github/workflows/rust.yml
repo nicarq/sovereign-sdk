@@ -92,6 +92,7 @@ jobs:
       - check-constant-overriding-is-disabled-in-release-mode
       - validate-packages-to-publish-yml
       - cargo-switcheroo-default
+      - check-web3-js-sdk-integration
     steps:
       - name: Compute whether the needed jobs succeeded or failed
         uses: re-actors/alls-green@release/v1
@@ -542,4 +543,51 @@ jobs:
       - run: cargo switcheroo set default
         # Exit status 0 means no changes were made.
       - run: git diff --exit-code
-      
+
+
+  check-web3-js-sdk-integration:
+    runs-on:
+      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
+      - nscloud-cache-tag-demo-rollup
+      - nscloud-cache-size-100gb
+    needs:
+      - check
+    timeout-minutes: 60
+    env:
+      SP1_SKIP_PROGRAM_BUILD: "true"
+      SKIP_GUEST_BUILD: "1"
+      CARGO_NET_GIT_FETCH_WITH_CLI: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: rust
+      - name: Setup Zkvm toolchains + Rust
+        uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          install_zkvm: "0"
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.SELF_ACCESS_TOKEN }}
+            ${{ secrets.SOV_SDK_WEB3_JS_ACCESS_TOKEN }}
+      - name: Checkout web3-js SDK
+        uses: actions/checkout@v4
+        with:
+          repository: 'Sovereign-Labs/sovereign-sdk-web3-js'
+          path: 'examples/demo-rollup/web3-js-sdk'
+          ref: 'a2f1b92ff9bd6c3e2e32c176876836fe23da337f'
+          ssh-key: |
+            ${{ secrets.SOV_SDK_WEB3_JS_ACCESS_TOKEN }}
+      - name: Run web3-js SDK tests against demo-rollup
+        # See script for more details about what to do if job
+        run: |
+          cd examples/demo-rollup
+          bash ./web3-js-sdk-test-runner.sh
