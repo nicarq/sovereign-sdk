@@ -135,7 +135,7 @@ async fn start_stop_empty(
         (
             Level::WARN,
             "The preferred sequencer is **experimental** and may not work as expected. Please report any issues you encounter.".to_string()
-        )
+        ),
     ];
 
     let mut recorded_errors_warnings =

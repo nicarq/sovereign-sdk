@@ -5,6 +5,7 @@ use std::io::BufReader;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::thread::sleep;
 use std::time::Duration;
 
 use anyhow::{bail, Context};
@@ -42,6 +43,9 @@ pub const DEFAULT_INFLUX_DB_ADDRESS: SocketAddr =
     SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 8086));
 pub const DEFAULT_NUM_THREADS: u8 = 10;
 
+/// Number of slots the DA layer has to produce before the sequencer can start producing batches.
+const BOOTSTRAP_SLOTS_NUM: usize = 2;
+
 pub struct ParsedMetricsParameters {
     pub(crate) influx_address: SocketAddr,
     pub(crate) output_file: String,
@@ -71,11 +75,29 @@ async fn runner(
     };
     let rollup = setup_rollup(genesis_config, telegraf_address).await?;
 
-    let (batch_sender, batch_receiver) = mpsc::channel(100);
+    info!(bench = bench_name, "Bootstrapping the rollup");
+
+    // Bootstrap the rollup by producing blocks.
+    rollup
+        .da_service
+        .produce_n_blocks_now(BOOTSTRAP_SLOTS_NUM)
+        .await?;
+
+    // Sleep to be sure the sequencer state is up to date.
+    sleep(Duration::from_secs(1));
+
+    info!(bench = bench_name, "Starting batch submission");
+
+    let (batch_sender, batch_receiver) = mpsc::channel(500);
     let mut batch_sender =
         BatchSender::new(bench_name.clone(), rollup.client.clone(), batch_sender).await;
-    let batch_receiver =
-        BatchReceiver::new(bench_name.clone(), rollup.client.clone(), batch_receiver).await;
+    let batch_receiver = BatchReceiver::new(
+        bench_name.clone(),
+        rollup.client.clone(),
+        batch_receiver,
+        &rollup.da_service,
+    )
+    .await;
 
     let receiver_handle = batch_receiver.start_receiver();
 
@@ -85,10 +107,12 @@ async fn runner(
 
     let mut log_accumulator = maybe_logs.map(|_| Vec::<BenchLogs>::new());
 
-    let mut logs = batch_sender.produce_and_publish_batch(init_slot).await?;
+    let mut logs = batch_sender.send_txs_to_sequencer(init_slot).await?;
     if let Some(acc) = log_accumulator.as_mut() {
         acc.append(&mut logs)
     }
+
+    rollup.da_service.produce_block_now().await?;
 
     while let Ok(bench) = parse_next_data(&mut reader) {
         let slot_start = timestamp();
@@ -112,13 +136,15 @@ async fn runner(
         let num_txs = batches.len();
 
         let mut logs = batch_sender
-            .produce_and_publish_batch(batches)
+            .send_txs_to_sequencer(batches)
             .await
             .with_context(|| format!("{bench_name}: Failed to produce and publish batch"))?;
         if let Some(acc) = log_accumulator.as_mut() {
             acc.append(&mut logs)
         }
         let slot_end = timestamp();
+
+        rollup.da_service.produce_block_now().await?;
 
         let exec_duration = Duration::from_nanos((slot_end - slot_start) as u64);
         let throughput = num_txs as f64 / exec_duration.as_secs_f64();

@@ -1,24 +1,26 @@
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::pin::Pin;
+use std::sync::Arc;
 
 use anyhow::ensure;
 use demo_stf::runtime::GenesisConfig;
 use futures::{Stream, StreamExt};
+use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::transaction::TxDetails;
 use sov_modules_api::{CryptoSpec, HexHash, Runtime, Spec};
 use sov_node_client::NodeClient;
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
-use sov_test_utils::ledger_db::sov_api_spec::types::{AggregatedProof, Slot, TxReceiptResult};
+use sov_test_utils::ledger_db::sov_api_spec::types::{Slot, TxReceiptResult};
 use sov_test_utils::test_rollup::GenesisSource;
 use sov_test_utils::{TransactionType, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 use tokio::select;
+use tokio::sync::broadcast;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
-use tokio::time::sleep;
-use tracing::{info, trace, warn};
+use tracing::{info, trace};
 
 use super::{BenchLogs, BenchMessage, BenchRollup, BenchRollupBuilder, RT, S};
 use crate::{mock_da_risc0_host_args, DEFAULT_FINALIZATION_BLOCKS};
@@ -39,19 +41,19 @@ pub async fn setup_rollup(
 
     let rollup_builder = BenchRollupBuilder::new(
         GenesisSource::CustomParams(genesis_config.into_genesis_params()),
-        BlockProducingConfig::Periodic,
+        BlockProducingConfig::Manual,
         DEFAULT_FINALIZATION_BLOCKS,
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|config| {
         config.prover_address = prover_address.to_string();
-        config.automatic_batch_production = false;
+        config.automatic_batch_production = true;
         config.telegraf_address = telegraf_address;
         config.aggregated_proof_block_jump = 1;
 
         // This value should be greater than the number of slots we want to run as part of the benchmark.
-        config.max_channel_size = 1_000;
-        config.max_infos_in_db = 1_000;
+        config.max_channel_size = 1_500;
+        config.max_infos_in_db = 1_500;
     })
     .set_da_config(|da_config| {
         da_config.sender_address = sequencer_da_address;
@@ -89,7 +91,9 @@ pub struct BatchReceiver {
     /// For now we use a slot subscription until we can reliably receive [`TxStatus::Processed`] from the full-node
     slots_subscription: Pin<Box<dyn Stream<Item = Result<Slot, anyhow::Error>> + Send>>,
     /// We use a proof subscription to know how far we have generated proofs
-    proof_subscription: Pin<Box<dyn Stream<Item = Result<AggregatedProof, anyhow::Error>> + Send>>,
+    proof_subscription: broadcast::Receiver<()>,
+    /// The DA service used to send transactions to the sequencer
+    da_service: Arc<StorableMockDaService>,
 }
 
 impl BatchReceiver {
@@ -98,6 +102,7 @@ impl BatchReceiver {
         bench_name: String,
         client: NodeClient,
         tx_channel: Receiver<HashSet<HexHash>>,
+        da_service: &Arc<StorableMockDaService>,
     ) -> Self {
         Self {
             bench_name,
@@ -110,11 +115,8 @@ impl BatchReceiver {
                 .subscribe_finalized_slots_with_children(IncludeChildren::new(true))
                 .await
                 .expect("Impossible to subscribe to the slots"),
-            proof_subscription: client
-                .client
-                .subscribe_aggregated_proof()
-                .await
-                .expect("Failed to subscribe to aggregated proofs"),
+            proof_subscription: da_service.subscribe_proof_posted(),
+            da_service: da_service.clone(),
         }
     }
 
@@ -158,12 +160,15 @@ impl BatchReceiver {
                         trace!(bench = self.bench_name, thread = "receiver", txs_to_wait_for = self.txs_to_wait_for.len(), highest_slot_to_prove = self.highest_slot_to_prove, "Received a slot from sender task.");
                     },
 
-                    maybe_next_proof = self.proof_subscription.next(), if self.highest_slot_to_prove > self.highest_slot_proven => {
-                        maybe_next_proof.ok_or(anyhow::anyhow!("{}: The stream of proofs has terminated!", self.bench_name))?.map_err(|e| anyhow::anyhow!("{}: An error occurred while waiting for the next proof! {:?}", self.bench_name, e))?;
+                    maybe_next_proof = self.proof_subscription.recv(), if self.highest_slot_to_prove > self.highest_slot_proven => {
+                        maybe_next_proof.map_err(|e| anyhow::anyhow!("{}: An error occurred while waiting for the next proof! {:?}", self.bench_name, e))?;
 
                         self.highest_slot_proven += 1;
 
                         info!(bench = self.bench_name, thread = "receiver", higest_slot_proven = self.highest_slot_proven, highest_slot_to_prove = self.highest_slot_to_prove, "Received a proof");
+
+                        // We need to produce a block to ensure that the proof is included in the DA layer.
+                        self.da_service.produce_block_now().await?;
                     },
 
                     else => {
@@ -194,15 +199,10 @@ impl BatchSender {
     }
 
     /// Produces a batch of transactions from bench messages and publishes it to DA through the sequencer.
-    pub async fn produce_and_publish_batch(
+    pub async fn send_txs_to_sequencer(
         &mut self,
         batch: Vec<BenchMessage>,
     ) -> Result<Vec<BenchLogs>, anyhow::Error> {
-        /// Maximum number of attempts to publish a batch before giving up.
-        const MAX_PUBLICATION_ATTEMPTS: u64 = 4;
-        /// Time to wait between publication attempts, this is the initial wait time. After each attempt, the wait time is doubled.
-        const WAIT_TIME: std::time::Duration = std::time::Duration::from_millis(2000);
-
         let (txs, outcomes): (Vec<_>, Vec<_>) = batch
             .into_iter()
             .map(|output| {
@@ -236,52 +236,28 @@ impl BatchSender {
                 )
             });
 
-        let batch_result = {
-            let mut curr_wait_time = WAIT_TIME;
-            let mut out = None;
-
-            for _ in 0..MAX_PUBLICATION_ATTEMPTS {
-                match self
-                    .client
-                    .client
-                    .publish_batch_with_serialized_txs(&txs)
-                    .await
-                {
-                    Ok(batch_result) => {
-                        out = Some(batch_result);
-                        break;
-                    }
-                    Err(e) => {
-                        warn!(
-                            bench = self.bench_name,
-                            err = %e,
-                            "An error occurred while trying to publish a batch. Trying again... \n"
-                        );
-                        sleep(curr_wait_time).await;
-                        curr_wait_time *= 2;
-                        continue;
-                    }
-                }
-            }
-
-            out
-        }
-        .ok_or_else(|| {
-            anyhow::anyhow!("Failed to publish batch after maximum number of attempts")
-        })?;
+        let batch_hashes = self
+            .client
+            .client
+            .send_txs_to_sequencer(&txs)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to publish batch. Error {e}"))?
+            .iter()
+            .map(|val| val.data.id.clone())
+            .collect::<Vec<_>>();
 
         ensure!(
-            txs.len() == batch_result.tx_hashes.len(),
+            txs.len() == batch_hashes.len(),
             "{}: The number of transactions sent should match the number of transactions published by the sequencer. Number sent {}, number published {}",
             self.bench_name,
             txs.len(),
-            batch_result.tx_hashes.len()
+            batch_hashes.len()
         );
 
-        for batch_tx_hash in &batch_result.tx_hashes {
-            let batch_tx_hash = batch_tx_hash.parse().expect("Impossible to parse tx hash");
+        for tx_hash in &batch_hashes {
+            let tx_hash = tx_hash.parse().expect("Impossible to parse tx hash");
             ensure!(
-                tx_hashes.contains(&batch_tx_hash),
+                tx_hashes.contains(&tx_hash),
                 "{}: The transaction hash should be included in the batch",
                 self.bench_name
             );
