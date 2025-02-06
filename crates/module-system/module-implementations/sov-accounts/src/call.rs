@@ -35,15 +35,15 @@ impl<S: Spec> Accounts<S> {
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
-        self.exit_if_account_exists(&new_credential_id, state)?;
+        self.exit_if_credential_exists(&new_credential_id, state)?;
 
-        // Insert the new credential id.
+        // Insert the new credential id -> account mapping
         let account = Account {
             addr: context.sender().clone(),
         };
-
         self.accounts.set(&new_credential_id, &account, state)?;
 
+        // Add it to the account -> credential ids mapping
         let mut credential_ids = self
             .credential_ids
             .get_or_err(context.sender(), state)
@@ -56,7 +56,7 @@ impl<S: Spec> Accounts<S> {
         Ok(())
     }
 
-    fn exit_if_account_exists(
+    fn exit_if_credential_exists(
         &self,
         new_credential_id: &CredentialId,
         state: &mut impl StateReader<User>,

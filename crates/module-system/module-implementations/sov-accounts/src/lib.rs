@@ -10,7 +10,6 @@ pub use genesis::*;
 mod query;
 #[cfg(feature = "native")]
 pub use query::*;
-mod event;
 #[cfg(test)]
 mod tests;
 pub use call::CallMessage;
@@ -18,8 +17,6 @@ use sov_modules_api::{
     Context, CredentialId, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
     ModuleRestApi, Spec, StateMap, TxState,
 };
-
-use crate::event::Event;
 
 /// An account on the rollup.
 #[derive(
@@ -45,11 +42,11 @@ pub struct Accounts<S: Spec> {
     #[id]
     pub id: ModuleId,
 
-    /// Mapping from an account address to a corresponding credential ids.
+    /// Mapping from an account address to the corresponding credential ids.
     #[state]
     pub(crate) credential_ids: StateMap<S::Address, Vec<CredentialId>>,
 
-    /// Mapping from a credential to a corresponding account.
+    /// Mapping from a credential to its corresponding account.
     #[state]
     pub(crate) accounts: StateMap<CredentialId, Account<S>>,
 }
@@ -61,7 +58,7 @@ impl<S: Spec> Module for Accounts<S> {
 
     type CallMessage = call::CallMessage;
 
-    type Event = Event;
+    type Event = ();
 
     fn genesis(
         &self,

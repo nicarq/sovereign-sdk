@@ -186,7 +186,7 @@ fn test_register_new_account() {
 }
 
 #[test]
-fn test_resolve_sender_address_non_default_address() {
+fn test_resolve_sender_address_no_default_address_non_registered() {
     let (
         TestData {
             non_registered_account,
@@ -204,11 +204,25 @@ fn test_resolve_sender_address_non_default_address() {
                 .unwrap_err()
                 .to_string(),
             format!(
-                "No default address found for {}",
+                "No account found for {}, and no default address was provided",
                 non_registered_account.credential_id()
             )
         );
+    });
+}
 
+#[test]
+fn test_resolve_sender_address_with_default_address_non_registered() {
+    let (
+        TestData {
+            non_registered_account,
+            ..
+        },
+        runner,
+    ) = setup();
+
+    runner.query_visible_state(|state| {
+        let accounts = Accounts::<S>::default();
         assert_eq!(
             accounts
                 .resolve_sender_address(
@@ -223,8 +237,15 @@ fn test_resolve_sender_address_non_default_address() {
 }
 
 #[test]
-fn test_resolve_sender_address_default_address() {
-    let (TestData { account_1, .. }, runner) = setup();
+fn test_resolve_sender_address_registered() {
+    let (
+        TestData {
+            account_1,
+            account_2,
+            ..
+        },
+        runner,
+    ) = setup();
 
     runner.query_visible_state(|state| {
         let accounts = Accounts::<S>::default();
@@ -236,10 +257,11 @@ fn test_resolve_sender_address_default_address() {
             account_1.address()
         );
 
+        // Ensure correct (registered) address is used even if another fallback is provided
         assert_eq!(
             accounts
                 .resolve_sender_address(
-                    &Some(account_1.address()),
+                    &Some(account_2.address()),
                     &account_1.credential_id(),
                     state
                 )
@@ -297,7 +319,10 @@ fn test_resolve_address_if_more_than_one_credential() {
     });
 }
 
-/// Test that when one precises a default address, this address is used and the credentials are not resolved.
+/// This test should verify that when a new credential is specified with an existing account's
+/// address as fallback, that the credential is appended to that address. However
+/// query_visible_state doesn't mutate the state so it simply verifies that the fallback address is
+/// returned correctly
 #[test]
 fn test_resolve_with_different_default_address() {
     let (TestData { account_1, .. }, runner) = setup();
