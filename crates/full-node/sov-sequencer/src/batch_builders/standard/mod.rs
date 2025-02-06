@@ -30,7 +30,7 @@ use sov_rest_utils::json_obj;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::DaSyncState;
 use thiserror::Error;
-use tokio::sync::watch;
+use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
 use tracing::error;
 
@@ -42,6 +42,12 @@ use crate::batch_builders::{
 };
 use crate::sequencer::SequencerNotReadyDetails;
 use crate::{SequencerConfig, TxHash, TxStatus, TxStatusManager};
+
+struct Inner<Z: RtAwareBatchBuilderSpec> {
+    assembled_batch: Option<WithCachedTxHashes<Vec<FullyBakedTx>>>,
+    checkpoint: Option<StateCheckpoint<Z::Spec>>,
+    mempool: Mempool<StdBatchBuilder<Z>>,
+}
 
 /// Configuration for [`StdBatchBuilder`].
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
@@ -63,11 +69,9 @@ pub struct StdBatchBuilderConfig {
 pub struct StdBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     runtime: Z::Rt,
     txsm: TxStatusManager<<Z::Spec as Spec>::Da>,
-    mempool: Mempool<Self>,
-    checkpoint: Option<StateCheckpoint<Z::Spec>>,
+    inner: Mutex<Inner<Z>>,
     checkpoint_sender: watch::Sender<StateCheckpoint<Z::Spec>>,
     api_state: ApiState<Z::Spec>,
-    assembled_batch: Option<WithCachedTxHashes<Vec<FullyBakedTx>>>,
     config:
         SequencerConfig<<Z::Spec as Spec>::Da, <Z::Spec as Spec>::Address, StdBatchBuilderConfig>,
 }
@@ -249,23 +253,26 @@ where
 
         let checkpoint =
             StateCheckpoint::new(latest_state_update.storage.clone(), &runtime.kernel());
+        let inner = Inner {
+            checkpoint: Some(checkpoint),
+            assembled_batch: None,
+            mempool: Mempool::new(
+                txsm.clone(),
+                config
+                    .batch_builder
+                    .mempool_max_txs_count
+                    .unwrap_or(default_mempool_max_txs_count()),
+                StandardBbDb::new(storage_path).await?,
+            )?,
+        };
 
         Ok((
             Self {
-                mempool: Mempool::new(
-                    txsm.clone(),
-                    config
-                        .batch_builder
-                        .mempool_max_txs_count
-                        .unwrap_or(default_mempool_max_txs_count()),
-                    StandardBbDb::new(storage_path).await?,
-                )?,
-                assembled_batch: None,
+                inner: inner.into(),
                 txsm,
                 api_state,
                 runtime: Z::Rt::default(),
                 checkpoint_sender,
-                checkpoint: Some(checkpoint),
                 config: config.clone(),
             },
             None,
@@ -287,7 +294,7 @@ where
     }
 
     async fn update_state(
-        &mut self,
+        &self,
         StateUpdateInfo {
             storage,
             slot_number,
@@ -304,11 +311,12 @@ where
         self.checkpoint_sender
             .send(checkpoint.clone_with_empty_witness())
             .ok();
-        self.checkpoint = Some(checkpoint);
+        let mut inner = self.inner.lock().await;
+        inner.checkpoint = Some(checkpoint);
     }
 
     async fn accept_tx(
-        &mut self,
+        &self,
         baked_tx: FullyBakedTx,
     ) -> Result<AcceptedTx<Self::Confirmation>, ErrorObject> {
         tracing::trace!(
@@ -327,7 +335,8 @@ where
             });
         }
 
-        let state_checkpoint = self
+        let mut inner = self.inner.lock().await;
+        let state_checkpoint = inner
             .checkpoint
             .take()
             .expect("Absent checkpoint; this is a bug, please report it");
@@ -387,19 +396,19 @@ where
                 );
             };
 
-            {
-                self.mempool.add_new_tx(tx_hash, baked_tx.clone());
-                tracing::trace!(
-                    %tx_hash,
-                    "Transaction has been added to the mempool"
-                );
-            }
-
             (working_set.finalize().0.commit(), Ok(tx_hash))
         })(state_checkpoint);
 
-        self.checkpoint = Some(new_checkpoint);
         let tx_hash = response?;
+        {
+            inner.mempool.add_new_tx(tx_hash, baked_tx.clone());
+            tracing::trace!(
+                %tx_hash,
+                "Transaction has been added to the mempool"
+            );
+        }
+
+        inner.checkpoint = Some(new_checkpoint);
 
         Ok(AcceptedTx {
             tx: baked_tx,
@@ -415,8 +424,12 @@ where
         TxStatus<<<Self::Spec as Spec>::Da as sov_modules_api::DaSpec>::TransactionId>,
     > {
         if let Some(status) = self.txsm.get_cached(tx_hash) {
-            Ok(status)
-        } else if self.mempool.contains(tx_hash) {
+            return Ok(status);
+        }
+
+        let inner = self.inner.lock().await;
+
+        if inner.mempool.contains(tx_hash) {
             Ok(TxStatus::Submitted)
         } else {
             Ok(TxStatus::Unknown)
@@ -425,16 +438,18 @@ where
 
     /// Builds a new batch of valid transactions in order they were added to mempool.
     /// Only transactions which are dispatched successfully are included in the batch.
-    async fn assemble_batch(&mut self) -> anyhow::Result<Option<()>> {
+    async fn assemble_batch(&self) -> anyhow::Result<Option<()>> {
         tracing::debug!("`assemble_batch` has been called");
+        let mut inner = self.inner.lock().await;
 
         // We already have a batch assembled. We'll wait until it's popped
         // before assembling a new one.
-        if self.assembled_batch.is_some() {
+        if inner.assembled_batch.is_some() {
             return Ok(None);
         }
 
-        let state_checkpoint = self.checkpoint.take().unwrap();
+        let state_checkpoint = inner.checkpoint.take().unwrap();
+        let mempool = &mut inner.mempool;
 
         // This closure helps us make sure that we always put the
         // `StateCheckpoint` back into `self` at the end of the function.
@@ -450,7 +465,7 @@ where
 
             let mut txs = Vec::new();
 
-            let count_before = self.mempool.len();
+            let count_before = mempool.len();
             tracing::debug!(
                 txs_count = count_before,
                 "Going to build batch from transactions in mempool"
@@ -458,7 +473,7 @@ where
 
             let mut cursor = self.mempool_cursor(&ctx);
 
-            while let Some(mempool_tx) = self.mempool.next(&mut cursor) {
+            while let Some(mempool_tx) = mempool.next(&mut cursor) {
                 let (context, tx_receipt) = self.try_add_tx_to_batch(&mempool_tx, ctx);
                 ctx = context;
 
@@ -470,8 +485,10 @@ where
                             // never submit it succesfully so drop it from the mempool
                             PreExecError::AuthError(AuthenticationError::FatalError(_, _)) => {
                                 tracing::info!(hash= %mempool_tx.hash, error = %pre_exec_error, "Invalid tx detected in mempool; dropping tx",);
-                                self.mempool
-                                    .drop(&mempool_tx.hash, "Transaction is invalid".to_string());
+                                mempool.drop_and_notify(
+                                    &mempool_tx.hash,
+                                    "Transaction is invalid".to_string(),
+                                );
                                 continue;
                             }
                             PreExecError::SequencerError(_)
@@ -485,8 +502,7 @@ where
                             continue;
                         }
                         AddTxToBatchError::PermissionDenied(module) => {
-                            self.mempool
-                                .drop(&mempool_tx.hash, add_tx_error.to_string());
+                            mempool.drop_and_notify(&mempool_tx.hash, add_tx_error.to_string());
                             tracing::info!(hash= %mempool_tx.hash, target_module = %module, "Tx attempted to invoke a sequencer-unsafe module without appropriate permissions; dropping tx");
                             continue;
                         }
@@ -558,33 +574,35 @@ where
             )
         })(state_checkpoint);
 
-        self.checkpoint = Some(new_checkpoint);
+        inner.checkpoint = Some(new_checkpoint);
 
         match response {
             Ok(batch) => {
-                self.assembled_batch = Some(batch);
+                inner.assembled_batch = Some(batch);
                 Ok(Some(()))
             }
             Err(e) => Err(e),
         }
     }
 
-    async fn peek_batches(&mut self) -> anyhow::Result<Vec<WithCachedTxHashes<Self::Batch>>> {
-        if let Some(batch) = &self.assembled_batch {
+    async fn peek_batches(&self) -> anyhow::Result<Vec<WithCachedTxHashes<Self::Batch>>> {
+        let inner = self.inner.lock().await;
+        if let Some(batch) = &inner.assembled_batch {
             Ok(vec![batch.clone()])
         } else {
             Ok(vec![])
         }
     }
 
-    async fn pop_batch(&mut self) -> anyhow::Result<()> {
-        if let Some(batch) = self.assembled_batch.take() {
+    async fn pop_batch(&self) -> anyhow::Result<()> {
+        let mut inner = self.inner.lock().await;
+        if let Some(batch) = inner.assembled_batch.take() {
             for tx_hash in batch.tx_hashes {
                 // We're not dropping transactions because we're evicting them,
                 // but rather because we don't need them anymore after
                 // submitting them. Thus, sending a "drop" notification to users
                 // would be semantically wrong.
-                self.mempool.drop_without_notifying(&tx_hash);
+                inner.mempool.drop_without_notifying(&tx_hash);
             }
         }
 

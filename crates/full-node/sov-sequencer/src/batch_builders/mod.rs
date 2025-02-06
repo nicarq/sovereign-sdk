@@ -108,14 +108,14 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     ) -> anyhow::Result<(Self, Option<JoinHandle<()>>)>;
 
     /// Updates the sequencer's view of the state of the rollup.
-    async fn update_state(&mut self, update_info: StateUpdateInfo<<Self::Spec as Spec>::Storage>);
+    async fn update_state(&self, update_info: StateUpdateInfo<<Self::Spec as Spec>::Storage>);
 
     /// Adds a **not-encoded** transaction to the mempool. The [`BatchBuilder`]
     /// implementation itself is responsible for "encoding" the transaction.
     ///
     /// Can return an error if transaction is invalid or mempool is full.
     async fn accept_tx(
-        &mut self,
+        &self,
         tx: FullyBakedTx,
     ) -> Result<AcceptedTx<Self::Confirmation>, ErrorObject>;
 
@@ -123,15 +123,15 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     ///
     /// The logic of which transactions and how many of them are included in
     /// batch is up to implementation.
-    async fn assemble_batch(&mut self) -> anyhow::Result<Option<()>>;
+    async fn assemble_batch(&self) -> anyhow::Result<Option<()>>;
 
     /// Peeks all the assembled batches that haven't been removed yet.
-    async fn peek_batches(&mut self) -> anyhow::Result<Vec<WithCachedTxHashes<Self::Batch>>>;
+    async fn peek_batches(&self) -> anyhow::Result<Vec<WithCachedTxHashes<Self::Batch>>>;
 
     /// Pops the earliest assembled batch that hasn't been popped yet.
     ///
     /// Popped batches are lost forever.
-    async fn pop_batch(&mut self) -> anyhow::Result<()>;
+    async fn pop_batch(&self) -> anyhow::Result<()>;
 }
 
 /// A transaction that has been accepted by the batch builder.

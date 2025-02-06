@@ -11,22 +11,27 @@ use sov_rest_utils::ErrorObject;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::{StateUpdateInfo, TxHash};
-use tokio::sync::watch;
+use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
 
 use crate::batch_builders::{AcceptedTx, BatchBuilder, EmptyConfirmation, WithCachedTxHashes};
 use crate::sequencer::SequencerNotReadyDetails;
 use crate::{SequencerConfig, TxStatus, TxStatusManager};
 
+#[derive(Clone)]
+struct Inner<S: Spec> {
+    // Storage is not used but needed for building WorkingSet.
+    storage: S::Storage,
+    mempool: Vec<FullyBakedTx>,
+}
+
 /// BatchBuilder that accepts any transaction without verification.
 /// Build a batch out of all accepted transactions in the order they were received.
 /// Does not impose any restrictions on transaction validity or batch size.
 #[derive(Clone)]
 pub struct TestStatelessBatchBuilder<R, S: Spec> {
-    mempool: Vec<FullyBakedTx>,
+    inner: Arc<Mutex<Inner<S>>>,
     _r: PhantomData<R>,
-    // Storage is not used but needed for building WorkingSet.
-    storage: S::Storage,
     state_sender: watch::Sender<StateCheckpoint<S>>,
 }
 
@@ -39,18 +44,22 @@ where
     pub fn new(storage: S::Storage) -> Self {
         let runtime = R::default();
         let kernel = Arc::new(runtime.kernel());
-        let (state_sender, _rec) = watch::channel(StateCheckpoint::new(storage.clone(), &*kernel));
+        let inner = Mutex::new(Inner {
+            storage: storage.clone(),
+            mempool: vec![],
+        });
+        let (state_sender, _rec) = watch::channel(StateCheckpoint::new(storage, &*kernel));
         Self {
-            mempool: Vec::new(),
+            inner: inner.into(),
             _r: Default::default(),
-            storage,
             state_sender,
         }
     }
 
-    async fn accept_encoded_tx(&mut self, tx: FullyBakedTx) -> AcceptedTx<EmptyConfirmation<R>> {
-        let tx_hash = self.get_tx_hash(&tx);
-        self.mempool.push(tx.clone());
+    async fn accept_encoded_tx(&self, tx: FullyBakedTx) -> AcceptedTx<EmptyConfirmation<R>> {
+        let mut inner = self.inner.lock().await;
+        let tx_hash = self.get_tx_hash(&tx, inner.storage.clone());
+        inner.mempool.push(tx.clone());
         AcceptedTx {
             tx,
             tx_hash,
@@ -58,11 +67,14 @@ where
         }
     }
 
-    async fn take_batch(&mut self) -> WithCachedTxHashes<Vec<FullyBakedTx>> {
-        let mempool_txs = std::mem::take(&mut self.mempool);
+    async fn take_batch(&self) -> WithCachedTxHashes<Vec<FullyBakedTx>> {
+        let (mempool_txs, storage) = {
+            let mut inner = self.inner.lock().await;
+            (std::mem::take(&mut inner.mempool), inner.storage.clone())
+        };
         let tx_hashes: Vec<_> = mempool_txs
             .iter()
-            .map(|fully_baked_tx| self.get_tx_hash(fully_baked_tx))
+            .map(|fully_baked_tx| self.get_tx_hash(fully_baked_tx, storage.clone()))
             .collect();
         WithCachedTxHashes {
             inner: mempool_txs,
@@ -70,10 +82,10 @@ where
         }
     }
 
-    fn get_tx_hash(&self, tx: &FullyBakedTx) -> TxHash {
+    fn get_tx_hash(&self, tx: &FullyBakedTx, storage: S::Storage) -> TxHash {
         let runtime = R::default();
 
-        let checkpoint = StateCheckpoint::new(self.storage.clone(), &runtime.kernel());
+        let checkpoint = StateCheckpoint::new(storage, &runtime.kernel());
         let mut tx_scratchpad = checkpoint.to_working_set_unmetered();
 
         match runtime.authenticate(tx, &mut tx_scratchpad) {
@@ -144,28 +156,30 @@ where
         Ok((Self::new(latest_state_info.storage), None))
     }
 
-    async fn update_state(&mut self, update_info: StateUpdateInfo<<Self::Spec as Spec>::Storage>) {
-        self.storage = update_info.storage;
+    async fn update_state(&self, update_info: StateUpdateInfo<<Self::Spec as Spec>::Storage>) {
+        let mut inner = self.inner.lock().await;
+        inner.storage = update_info.storage;
     }
 
     async fn accept_tx(
-        &mut self,
+        &self,
         tx: FullyBakedTx,
     ) -> Result<AcceptedTx<Self::Confirmation>, ErrorObject> {
         Ok(self.accept_encoded_tx(tx).await)
     }
 
-    async fn assemble_batch(&mut self) -> anyhow::Result<Option<()>> {
+    async fn assemble_batch(&self) -> anyhow::Result<Option<()>> {
         // There's always a batch ready.
         Ok(Some(()))
     }
 
-    async fn peek_batches(&mut self) -> anyhow::Result<Vec<WithCachedTxHashes<Self::Batch>>> {
+    async fn peek_batches(&self) -> anyhow::Result<Vec<WithCachedTxHashes<Self::Batch>>> {
         Ok(vec![self.take_batch().await])
     }
 
-    async fn pop_batch(&mut self) -> anyhow::Result<()> {
-        self.mempool.clear();
+    async fn pop_batch(&self) -> anyhow::Result<()> {
+        let mut inner = self.inner.lock().await;
+        inner.mempool.clear();
         Ok(())
     }
 }
