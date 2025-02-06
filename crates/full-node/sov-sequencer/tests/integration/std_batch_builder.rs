@@ -32,7 +32,7 @@ async fn test_submit_on_empty_mempool() {
         .unwrap_err();
 
     dbg!(&error_response);
-    assert_eq!(error_response.status().map(|s| s.as_u16()), Some(409));
+    assert_eq!(error_response.status().map(|s| s.as_u16()), Some(400));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -193,8 +193,9 @@ async fn not_sequencer_safe_txs_are_restricted() {
             .await
         {
             assert!(
+                // We return "BAD_REQUEST" on manual calls to publish_batch when no transactions are available.
                 e.status()
-                    .is_some_and(|status| status == StatusCode::CONFLICT),
+                    .is_some_and(|status| status == StatusCode::BAD_REQUEST),
                 "{e}"
             );
         } else {

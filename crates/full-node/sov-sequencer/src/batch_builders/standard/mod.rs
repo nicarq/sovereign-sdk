@@ -546,13 +546,7 @@ where
             }
 
             if txs.is_empty() {
-                return (
-                    ctx.state_checkpoint,
-                    Err(anyhow::anyhow!(
-                        "No valid transactions are available out of {} were in the pool",
-                        count_before
-                    )),
-                );
+                return (ctx.state_checkpoint, Ok(None));
             }
 
             tracing::info!(
@@ -567,10 +561,10 @@ where
 
             (
                 ctx.state_checkpoint,
-                Ok(WithCachedTxHashes {
+                Ok(Some(WithCachedTxHashes {
                     inner: txs,
                     tx_hashes,
-                }),
+                })),
             )
         })(state_checkpoint);
 
@@ -578,8 +572,9 @@ where
 
         match response {
             Ok(batch) => {
-                inner.assembled_batch = Some(batch);
-                Ok(Some(()))
+                inner.assembled_batch = batch;
+                // Return Some(()) if and only if the batch is some
+                Ok(inner.assembled_batch.as_ref().map(|_| ()))
             }
             Err(e) => Err(e),
         }
