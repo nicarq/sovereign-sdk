@@ -10,9 +10,7 @@ use sov_state::{
 use super::{StateCheckpoint, UniversalStateAccessor};
 use crate::capabilities::{KernelWithSlotMapping, RollupHeight};
 use crate::gas::GasArray;
-use crate::{
-    BasicGasMeter, Gas, GasMeter, GasMeteringError, GetGasPrice, Spec, TypedEvent, VersionReader,
-};
+use crate::{Gas, GasMeter, GetGasPrice, Spec, TypedEvent, VersionReader};
 
 fn get_slot_number(visible_slot_number: Option<VisibleSlotNumber>) -> Option<SlotNumber> {
     // TODO: This is an ugly hack to work around the dual use of self.visible_slot_number.
@@ -134,7 +132,7 @@ pub struct ApiStateAccessor<S: Spec> {
     #[debug(skip)]
     witness: <<S as Spec>::Storage as Storage>::Witness,
     events: Vec<TypedEvent>,
-    gas_meter: BasicGasMeter<S>,
+    gas_price: <S::Gas as Gas>::Price,
     kernel_cache: ProvableStorageCache<namespaces::Kernel>,
     user_cache: ProvableStorageCache<namespaces::User>,
     accessory_writes: HashMap<SlotKey, Option<SlotValue>>,
@@ -204,24 +202,12 @@ const _: () = {
 
 impl<S: Spec> GasMeter for ApiStateAccessor<S> {
     type Spec = S;
-
-    fn charge_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
-        self.gas_meter.charge_gas(gas)
-    }
-
-    fn charge_linear_gas(
-        &mut self,
-        amount: &<Self::Spec as Spec>::Gas,
-        parameter: u64,
-    ) -> anyhow::Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
-        self.gas_meter.charge_linear_gas(amount, parameter)
-    }
 }
 
 impl<S: Spec> GetGasPrice for ApiStateAccessor<S> {
     type Spec = S;
     fn gas_price(&self) -> &<S::Gas as Gas>::Price {
-        self.gas_meter.gas_price()
+        &self.gas_price
     }
 }
 
@@ -333,8 +319,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         let mut out = Self {
             storage: delta.inner.clone(),
             witness: Default::default(),
-            // TODO: #1490. Remove u64::MAX
-            gas_meter: BasicGasMeter::new_with_gas(<S::Gas as Gas>::max(), gas_price),
+            gas_price,
             events: Vec::new(),
             kernel_cache: delta.kernel_cache.clone(),
             user_cache: delta.user_cache.clone(),
@@ -369,10 +354,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     ) -> Self {
         Self {
             events: Vec::new(),
-            gas_meter: BasicGasMeter::new_with_gas(
-                <S::Gas as Gas>::max(),
-                <S::Gas as Gas>::Price::ZEROED,
-            ),
+            gas_price: <S::Gas as Gas>::Price::ZEROED,
             storage: storage.clone(),
             witness: Default::default(),
             kernel_cache: Default::default(),
@@ -408,7 +390,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
 
     /// Sets the gas price for the accessor.
     pub fn set_gas_price(&mut self, gas_price: <S::Gas as Gas>::Price) {
-        self.gas_meter.set_gas_price(gas_price);
+        self.gas_price = gas_price;
     }
 
     fn build_archival_state(
@@ -449,7 +431,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         };
         state.visible_slot_number = Some(visible_slot_number);
         state.safe_true_slot_number_to_use = Some(true_slot_number);
-        state.gas_meter.set_gas_price(base_fee_per_gas);
+        state.set_gas_price(base_fee_per_gas);
 
         // Clear out any new values that were put in cache during initialization. Otherwise, we'd incorrectly estimate gas costs for
         // the first accesses to those values since they would be incorrectly shown as cached.

@@ -646,12 +646,6 @@ impl<S: Spec> BasicGasMeter<S> {
         }
     }
 
-    /// Replaces the gas price in the provided meter.
-    #[cfg(feature = "native")]
-    pub(crate) fn set_gas_price(&mut self, gas_price: <S::Gas as Gas>::Price) {
-        self.gas_price = gas_price;
-    }
-
     fn compute_remaining_funds(
         &self,
         remaining_funds: &u64,
