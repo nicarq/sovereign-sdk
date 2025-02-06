@@ -11,8 +11,8 @@ pub use genesis::*;
 use sov_bank::Amount;
 use sov_modules_api::runtime::OperatingMode;
 use sov_modules_api::{
-    Context, DaSpec, Error, Gas, GenesisState, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateMap,
-    StateReader, StateValue, TxState,
+    Context, DaSpec, Error, Gas, GenesisState, GetGasPrice, ModuleId, ModuleInfo, ModuleRestApi,
+    Spec, StateMap, StateReader, StateValue, TxState,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::User;
@@ -115,12 +115,12 @@ impl<S: Spec> ProverIncentives<S> {
     }
 
     /// Returns the proving penalty as a [`u64`] value using the gas price contained in the state accessor.
-    pub fn proving_penalty_value<State: TxState<S>>(
+    pub fn proving_penalty_value<State: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         state: &mut State,
     ) -> Result<Option<u64>, <State as StateReader<User>>::Error> {
-        self.proving_penalty.get(state).map(|maybe_penalty| {
-            maybe_penalty.map(|penalty| penalty.value(&state.gas_info().gas_price))
-        })
+        self.proving_penalty
+            .get(state)
+            .map(|maybe_penalty| maybe_penalty.map(|penalty| penalty.value(state.gas_price())))
     }
 }

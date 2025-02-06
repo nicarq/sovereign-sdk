@@ -11,7 +11,7 @@ use sov_rollup_interface::zk::aggregated_proof::{
 use super::HasKernel;
 #[cfg(feature = "native")]
 use crate::rest::StateUpdateReceiver;
-use crate::{SovAttestation, SovStateTransitionPublicData, Spec, Storage, TxState};
+use crate::{GetGasPrice, SovAttestation, SovStateTransitionPublicData, Spec, Storage, TxState};
 
 /// The `ProofProcessor` capability is responsible for processing proofs inside
 /// the stf-blueprint.
@@ -31,11 +31,11 @@ pub trait ProofProcessor<S: Spec> {
 
     /// Called by the stf once the zk-proof is received.
     #[allow(clippy::type_complexity)]
-    fn process_aggregated_proof(
+    fn process_aggregated_proof<ST: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         proof: SerializedAggregatedProof,
         prover_address: &S::Address,
-        state: &mut impl TxState<S>,
+        state: &mut ST,
     ) -> Result<
         (
             AggregatedProofPublicData<S::Address, S::Da, <S::Storage as Storage>::Root>,
@@ -45,19 +45,19 @@ pub trait ProofProcessor<S: Spec> {
     >;
 
     /// Called by the stf once the attestation is received.
-    fn process_attestation(
+    fn process_attestation<ST: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         proof: SerializedAttestation,
         prover_address: &S::Address,
-        state: &mut impl TxState<S>,
+        state: &mut ST,
     ) -> Result<SovAttestation<S>, InvalidProofError>;
 
     /// Called by the stf once the challenge is received.
-    fn process_challenge(
+    fn process_challenge<ST: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         proof: SerializedChallenge,
         rollup_height: SlotNumber,
         prover_address: &S::Address,
-        state: &mut impl TxState<S>,
+        state: &mut ST,
     ) -> anyhow::Result<SovStateTransitionPublicData<S>, InvalidProofError>;
 }

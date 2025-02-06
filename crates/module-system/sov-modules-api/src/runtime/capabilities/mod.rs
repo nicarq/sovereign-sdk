@@ -160,7 +160,7 @@ pub mod mocks {
     use super::{Kernel, RollupHeight, Spec};
     use crate::BootstrapWorkingSet;
     #[cfg(feature = "native")]
-    use crate::GetGasInfo;
+    use crate::GetGasPrice;
 
     /// A mock kernel for use in tests
     #[derive(Debug, Clone, Default)]
@@ -230,7 +230,7 @@ pub mod mocks {
             _height: super::RollupHeight,
             state: &mut crate::state::ApiStateAccessor<S>,
         ) -> Option<<<S as Spec>::Gas as crate::Gas>::Price> {
-            Some(state.gas_info().gas_price)
+            Some(state.gas_price().clone())
         }
     }
 

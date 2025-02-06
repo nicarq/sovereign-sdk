@@ -4,7 +4,7 @@ use sov_bank::{config_gas_token_id, BurnRate, Coins, IntoPayable};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
-    DaSpec, Gas, Spec, StateAccessor, StateReader, StateTransitionPublicData, TxState,
+    DaSpec, Gas, GetGasPrice, Spec, StateAccessor, StateReader, StateTransitionPublicData, TxState,
     VersionReader,
 };
 use sov_rollup_interface::common::SlotNumber;
@@ -132,7 +132,7 @@ where
     /// The proof must refer to a valid state of the rollup. The initial root hash must represent a state between
     /// the bonding proof one and the current state.
     #[allow(clippy::type_complexity)]
-    pub(crate) fn check_bonding_proof<ST: TxState<S>>(
+    pub(crate) fn check_bonding_proof<ST: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         sender: &S::Address,
         attestation: &Attestation<
@@ -180,7 +180,7 @@ where
             .expect("The minimum bond should be set at genesis");
 
         // We then have to check that the bond was greater than the minimum bond
-        if bond < minimum_bond.value(&state.gas_info().gas_price) {
+        if bond < minimum_bond.value(state.gas_price()) {
             return Err(ProcessAttestationErrors::AttesterNotBonded);
         }
 

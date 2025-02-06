@@ -11,8 +11,7 @@ use super::{StateCheckpoint, UniversalStateAccessor};
 use crate::capabilities::{KernelWithSlotMapping, RollupHeight};
 use crate::gas::GasArray;
 use crate::{
-    BasicGasMeter, Gas, GasInfo, GasMeter, GasMeteringError, GetGasInfo, Spec, TypedEvent,
-    VersionReader,
+    BasicGasMeter, Gas, GasMeter, GasMeteringError, GetGasPrice, Spec, TypedEvent, VersionReader,
 };
 
 fn get_slot_number(visible_slot_number: Option<VisibleSlotNumber>) -> Option<SlotNumber> {
@@ -219,10 +218,10 @@ impl<S: Spec> GasMeter for ApiStateAccessor<S> {
     }
 }
 
-impl<S: Spec> GetGasInfo for ApiStateAccessor<S> {
+impl<S: Spec> GetGasPrice for ApiStateAccessor<S> {
     type Spec = S;
-    fn gas_info(&self) -> GasInfo<S::Gas> {
-        self.gas_meter.gas_info()
+    fn gas_price(&self) -> &<S::Gas as Gas>::Price {
+        self.gas_meter.gas_price()
     }
 }
 

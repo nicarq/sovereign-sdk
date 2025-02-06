@@ -6,7 +6,7 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    BasicGasMeter, DaSpec, Gas, GasArray, GasMeter, GasSpec, GetGasInfo, InvalidProofError,
+    BasicGasMeter, DaSpec, Gas, GasArray, GasMeter, GasSpec, InvalidProofError,
     MeteredBorshDeserialize, PreExecWorkingSet, ProofOutcome, ProofReceipt, ProofReceiptContents,
     Spec, StateCheckpoint, StateProvider, TxScratchpad, WorkingSet,
 };

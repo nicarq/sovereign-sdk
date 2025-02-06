@@ -5,7 +5,8 @@ use core::result::Result::Ok;
 use sov_bank::{config_gas_token_id, Amount, Coins, IntoPayable};
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
 use sov_modules_api::{
-    BasicAddress, Gas, ModuleId, Spec, StateAccessor, StateMap, StateReader, StateValue, TxState,
+    BasicAddress, Gas, GetGasPrice, ModuleId, Spec, StateAccessor, StateMap, StateReader,
+    StateValue, TxState,
 };
 use sov_state::User;
 use thiserror::Error;
@@ -75,13 +76,13 @@ where
 
     type Spec = S;
 
-    fn get_minimum_bond<ST: TxState<S>>(
+    fn get_minimum_bond<ST: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         state: &mut ST,
     ) -> Result<Option<Amount>, <ST as sov_modules_api::StateWriter<sov_state::User>>::Error> {
         self.minimum_bond
             .get(state)
-            .map(|maybe_bond| maybe_bond.map(|bond| bond.value(&state.gas_info().gas_price)))
+            .map(|maybe_bond| maybe_bond.map(|bond| bond.value(state.gas_price())))
     }
 
     fn get_allowed_staker<ST: StateAccessor>(
