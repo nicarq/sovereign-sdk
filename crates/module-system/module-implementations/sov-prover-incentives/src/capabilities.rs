@@ -3,8 +3,8 @@ use std::cmp::max;
 use sov_bank::{config_gas_token_id, Coins, IntoPayable};
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{
-    AggregatedProofPublicData, Gas, InvalidProofError, SerializedAggregatedProof, Spec,
-    StateReader, Storage, TxState, VersionReader, ZkVerifier, Zkvm,
+    AggregatedProofPublicData, Gas, GetGasPrice, InvalidProofError, SerializedAggregatedProof,
+    Spec, StateReader, Storage, TxState, VersionReader, ZkVerifier, Zkvm,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::Kernel;
@@ -70,11 +70,11 @@ enum Paycheck {
 impl<S: Spec> ProverIncentives<S> {
     /// Try to process a zk proof, if the prover is bonded.
     #[allow(clippy::type_complexity)]
-    pub fn process_proof(
+    pub fn process_proof<ST: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         proof: &SerializedAggregatedProof,
         prover_address: &S::Address,
-        state: &mut impl TxState<S>,
+        state: &mut ST,
     ) -> Result<
         AggregatedProofPublicData<S::Address, S::Da, <S::Storage as Storage>::Root>,
         ProcessProofError,
@@ -218,11 +218,11 @@ impl<S: Spec> ProverIncentives<S> {
         }
     }
 
-    fn penalize_prover(
+    fn penalize_prover<ST: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         old_balance: u64,
         prover_address: &S::Address,
-        state: &mut impl TxState<S>,
+        state: &mut ST,
     ) -> Result<(), ProcessProofError> {
         // Penalize the prover
         let fine = self

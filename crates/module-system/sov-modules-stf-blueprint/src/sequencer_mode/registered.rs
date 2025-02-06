@@ -7,9 +7,9 @@ use sov_modules_api::transaction::TransactionConsumption;
 use sov_modules_api::NestedEnumUtils;
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext,
-    FullyBakedTx, Gas, GasArray, GasMeter, GasSpec, GetGasInfo, IgnoredTransactionReceipt,
-    IncrementalBatch, InjectedControlFlow, PreExecWorkingSet, ProvisionalSequencerOutcome, Rewards,
-    SlotGasMeter, Spec, StateCheckpoint, StateProvider, TxControlFlow, TxScratchpad, WorkingSet,
+    FullyBakedTx, Gas, GasArray, GasMeter, GasSpec, IgnoredTransactionReceipt, IncrementalBatch,
+    InjectedControlFlow, PreExecWorkingSet, ProvisionalSequencerOutcome, Rewards, SlotGasMeter,
+    Spec, StateCheckpoint, StateProvider, TxControlFlow, TxScratchpad, WorkingSet,
 };
 use sov_rollup_interface::TxHash;
 use tracing::{trace, warn};

@@ -2,8 +2,9 @@
 use core::result::Result::Ok;
 
 use sov_modules_api::{
-    Gas, InvalidProofError, SerializedAttestation, SerializedChallenge, SovAttestation,
-    SovStateTransitionPublicData, Spec, StateTransitionPublicData, TxState, ZkVerifier, Zkvm,
+    Gas, GetGasPrice, InvalidProofError, SerializedAttestation, SerializedChallenge,
+    SovAttestation, SovStateTransitionPublicData, Spec, StateTransitionPublicData, TxState,
+    ZkVerifier, Zkvm,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::storage::Storage;
@@ -128,7 +129,7 @@ where
     /// This function returns an error (hence ignores the transaction) when the attester is not bonded
     /// or when the module is unable to verify the bonding proof.
     #[allow(clippy::type_complexity)]
-    pub fn process_attestation<State: TxState<S>>(
+    pub fn process_attestation<State: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         sender: &S::Address,
         serialized_attestation: SerializedAttestation,
@@ -289,7 +290,7 @@ where
     /// offense, we want to be able to exit gracefully.
 
     #[allow(clippy::type_complexity)]
-    pub fn process_challenge<State: TxState<S>>(
+    pub fn process_challenge<State: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         sender: &S::Address,
         serialized_challenge: &SerializedChallenge,
@@ -316,7 +317,7 @@ where
             .map_err(Into::<anyhow::Error>::into)?
             .expect("Should be set at genesis");
 
-        if old_balance < minimum_bond.value(&state.gas_info().gas_price) {
+        if old_balance < minimum_bond.value(state.gas_price()) {
             return Err(ProcessChallengeErrors::ChallengerNotBonded);
         }
 

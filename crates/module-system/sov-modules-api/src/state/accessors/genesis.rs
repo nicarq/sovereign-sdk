@@ -5,17 +5,13 @@ use super::checkpoints::StateCheckpoint;
 use super::UniversalStateAccessor;
 use crate::capabilities::RollupHeight;
 use crate::state::events::TypedEvent;
-use crate::{
-    BasicGasMeter, Gas, GasArray, GasInfo, GasMeter, GasMeteringError, Genesis, GetGasInfo,
-    KernelWriter, Spec, VersionReader,
-};
+use crate::{GasMeter, Genesis, KernelWriter, Spec, VersionReader};
 
 /// A special state accessor which can only be used at genesis.
 /// Since genesis is unproven, this state accessor may read and write to every namespace, and it is not metered.
 pub struct GenesisStateAccessor<'a, S: Spec> {
     checkpoint: &'a mut StateCheckpoint<S>,
     pub(super) events: Vec<TypedEvent>,
-    gas_meter: BasicGasMeter<S>,
 }
 
 impl<S: Spec> StateCheckpoint<S> {
@@ -27,10 +23,6 @@ impl<S: Spec> StateCheckpoint<S> {
     ) -> GenesisStateAccessor<S> {
         GenesisStateAccessor {
             checkpoint: self,
-            gas_meter: BasicGasMeter::new_with_gas(
-                <S::Gas as Gas>::max(),
-                <S::Gas as Gas>::Price::ZEROED,
-            ),
             events: Default::default(),
         }
     }
@@ -76,23 +68,6 @@ impl<'a, S: Spec> UniversalStateAccessor for GenesisStateAccessor<'a, S> {
 
 impl<'a, S: Spec> GasMeter for GenesisStateAccessor<'a, S> {
     type Spec = S;
-    fn charge_gas(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
-        self.gas_meter.charge_gas(amount)
-    }
-    fn charge_linear_gas(
-        &mut self,
-        amount: &S::Gas,
-        parameter: u64,
-    ) -> Result<(), GasMeteringError<S::Gas>> {
-        self.gas_meter.charge_linear_gas(amount, parameter)
-    }
-}
-
-impl<'a, S: Spec> GetGasInfo for GenesisStateAccessor<'a, S> {
-    type Spec = S;
-    fn gas_info(&self) -> GasInfo<S::Gas> {
-        self.gas_meter.gas_info()
-    }
 }
 
 impl<'a, S: Spec> GenesisStateAccessor<'a, S> {

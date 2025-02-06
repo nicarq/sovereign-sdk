@@ -1,7 +1,7 @@
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{DaSpec, Gas, GetGasInfo, Spec};
+use sov_modules_api::{DaSpec, Gas, GetGasPrice, Spec};
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::{AsUser, BatchTestCase, TestSequencer};
 use sov_value_setter::ValueSetter;
@@ -60,7 +60,7 @@ fn test_register_sequencer() {
 
     let user_stake_value = runner.query_visible_state(|state| {
         <S as Spec>::Gas::from(config_value!("MAX_SEQUENCER_EXEC_GAS_PER_TX"))
-            .value(&state.gas_info().gas_price)
+            .value(state.gas_price())
     });
 
     let new_sequencer = TestSequencer::<S> {

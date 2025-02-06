@@ -5,7 +5,7 @@ use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::optimistic::{BondingProofService, ProofOfBond};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::rest::StateUpdateReceiver;
-use sov_modules_api::{ApiStateAccessor, Gas, GetGasInfo, Spec, StateCheckpoint, StateReader};
+use sov_modules_api::{ApiStateAccessor, Gas, GetGasPrice, Spec, StateCheckpoint, StateReader};
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::storage::{SlotKey, Storage, StorageProof};
 use sov_state::User;
@@ -78,7 +78,7 @@ where
             .get(state)
             .unwrap_infallible()
             .expect("The minimum attester bond should be set at genesis")
-            .value(&state.gas_info().gas_price)
+            .value(state.gas_price())
     }
 
     /// Returns the value of the `minimum_challenger_bond` at the current gas price.
@@ -87,7 +87,7 @@ where
             .get(state)
             .unwrap_infallible()
             .expect("The minimum challenger bond should be set at genesis")
-            .value(&state.gas_info().gas_price)
+            .value(state.gas_price())
     }
 
     /// Returns the unbonding amount of the given address.

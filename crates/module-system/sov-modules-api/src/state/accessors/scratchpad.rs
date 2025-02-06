@@ -17,7 +17,7 @@ use crate::transaction::{
 };
 #[cfg(feature = "test-utils")]
 use crate::GasArray;
-use crate::{BasicGasMeter, GasInfo, GasMeter, GasMeteringError, GetGasInfo, VersionReader};
+use crate::{BasicGasMeter, Gas, GasInfo, GasMeter, GasMeteringError, GetGasPrice, VersionReader};
 
 /// A state diff over the storage that contains all the changes related to transaction execution.
 ///
@@ -139,10 +139,10 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for PreExecWorkingSet<S, I> {
     }
 }
 
-impl<S: Spec, I: StateProvider<S>> GetGasInfo for PreExecWorkingSet<S, I> {
+impl<S: Spec, I: StateProvider<S>> GetGasPrice for PreExecWorkingSet<S, I> {
     type Spec = S;
-    fn gas_info(&self) -> GasInfo<S::Gas> {
-        self.gas_meter.gas_info()
+    fn gas_price(&self) -> &<S::Gas as Gas>::Price {
+        self.gas_meter.gas_price()
     }
 }
 
@@ -224,6 +224,11 @@ pub struct WorkingSet<S: Spec, I: StateProvider<S> = StateCheckpoint<S>> {
 }
 
 impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
+    /// Get the `GasInfo` for the WorkingSet.
+    pub fn gas_info(&self) -> GasInfo<<S as Spec>::Gas> {
+        self.gas_meter.gas_info()
+    }
+
     /// Creates a new [`WorkingSet`] from the provided [`TxScratchpad`] and [`AuthenticatedTransactionData`].
     pub fn create_working_set(
         scratchpad: TxScratchpad<S, I>,
@@ -371,10 +376,10 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for WorkingSet<S, I> {
     }
 }
 
-impl<S: Spec, I: StateProvider<S>> GetGasInfo for WorkingSet<S, I> {
+impl<S: Spec, I: StateProvider<S>> GetGasPrice for WorkingSet<S, I> {
     type Spec = S;
-    fn gas_info(&self) -> GasInfo<S::Gas> {
-        self.gas_meter.gas_info()
+    fn gas_price(&self) -> &<S::Gas as Gas>::Price {
+        self.gas_meter.gas_price()
     }
 }
 

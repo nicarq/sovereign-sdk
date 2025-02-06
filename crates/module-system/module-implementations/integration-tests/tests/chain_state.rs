@@ -1,7 +1,7 @@
 use sov_chain_state::ChainState;
 use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{GetGasInfo, VersionReader};
+use sov_modules_api::{GetGasPrice, VersionReader};
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
@@ -239,18 +239,18 @@ fn test_archival_state_updates_gas_price() {
     );
 
     runner.query_visible_state(|state| {
-        let gas_price = state.gas_info().gas_price;
+        let gas_price = state.gas_price();
 
         assert_eq!(
-            gas_price, current_gas_price,
+            gas_price, &current_gas_price,
             "The gas price stored in the accessor should be the same as the current gas price"
         );
 
         let archival_state = state.get_archival_state(RollupHeight::new(1)).unwrap();
 
         assert_eq!(
-            archival_state.gas_info().gas_price,
-            initial_base_fee_per_gas,
+            archival_state.gas_price(),
+            &initial_base_fee_per_gas,
             "The gas price stored in the archival state should be the same as the initial gas price"
         );
     });

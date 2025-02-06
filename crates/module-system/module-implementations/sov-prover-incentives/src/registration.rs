@@ -1,7 +1,7 @@
 use anyhow::Result;
 use sov_bank::{config_gas_token_id, Coins, IntoPayable};
 use sov_modules_api::registration_lib::StakeRegistration;
-use sov_modules_api::{Gas, ModuleInfo, Spec, StateAccessor, TxState};
+use sov_modules_api::{Gas, GetGasPrice, ModuleInfo, Spec, StateAccessor, TxState};
 use sov_state::User;
 
 use crate::{CustomError, ProverIncentives};
@@ -15,12 +15,12 @@ impl<S: Spec> StakeRegistration for ProverIncentives<S> {
 
     type CustomError = CustomError;
 
-    fn get_minimum_bond<ST: TxState<S>>(
+    fn get_minimum_bond<ST: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         state: &mut ST,
     ) -> Result<Option<u64>, <ST as sov_modules_api::StateWriter<User>>::Error> {
         self.minimum_bond.get(state).map(|maybe_minimum_bond| {
-            maybe_minimum_bond.map(|minimum_bond| minimum_bond.value(&state.gas_info().gas_price))
+            maybe_minimum_bond.map(|minimum_bond| minimum_bond.value(state.gas_price()))
         })
     }
 

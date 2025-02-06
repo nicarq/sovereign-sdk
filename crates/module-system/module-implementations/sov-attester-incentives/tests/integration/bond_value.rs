@@ -4,7 +4,7 @@ use sov_attester_incentives::{AttesterIncentives, CallMessage};
 use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{ApiStateAccessor, Gas, GasArray, GetGasInfo, Spec, TxEffect};
+use sov_modules_api::{ApiStateAccessor, Gas, GasArray, GetGasPrice, Spec, TxEffect};
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{AsUser, BatchTestCase, BatchType, TestUser, TransactionType};
 
@@ -74,7 +74,7 @@ fn test_cannot_prove_when_gas_price_is_too_high(role: TestRole) {
 
     let additional_user_bond = role.minimal_bond(&runner);
 
-    let initial_gas_price = runner.query_visible_state(|state| state.gas_info().gas_price);
+    let initial_gas_price = runner.query_visible_state(|state| state.gas_price().clone());
 
     let bank_signed = user
         .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Burn {
@@ -129,10 +129,10 @@ fn test_cannot_prove_when_gas_price_is_too_high(role: TestRole) {
     let new_bond_amount = role.minimal_bond(&runner);
 
     runner.query_visible_state(|state| {
-        let new_gas_price = state.gas_info().gas_price;
+        let new_gas_price = state.gas_price();
 
         assert!(
-            initial_gas_price.dim_is_less_than(&new_gas_price),
+            initial_gas_price.dim_is_less_than(new_gas_price),
             "The new gas price {new_gas_price} should be higher than the initial gas price {initial_gas_price}"
         );
 

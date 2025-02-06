@@ -3,7 +3,7 @@ pub use errors::*;
 use sov_rollup_interface::BasicAddress;
 use sov_state::User;
 
-use crate::{StateAccessor, StateWriter, TxState};
+use crate::{GetGasPrice, StateAccessor, StateWriter, TxState};
 
 /// A trait that abstracts the generic logic for staking and un-staking across various sov-modules.
 pub trait StakeRegistration {
@@ -132,7 +132,7 @@ pub trait StakeRegistration {
     }
 
     /// The minimum allowed bond.
-    fn get_minimum_bond<ST: TxState<Self::Spec>>(
+    fn get_minimum_bond<ST: TxState<Self::Spec> + GetGasPrice<Spec = Self::Spec>>(
         &self,
         state: &mut ST,
     ) -> Result<Option<u64>, <ST as StateWriter<User>>::Error>;

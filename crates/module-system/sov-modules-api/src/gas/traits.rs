@@ -502,13 +502,13 @@ pub trait GasMeter {
     }
 }
 
-/// Get information about gas usage
-pub trait GetGasInfo {
+/// Get gas price
+pub trait GetGasPrice {
     /// The spec used by this gas meter.
     type Spec: Spec;
 
-    /// Returns gas usage.
-    fn gas_info(&self) -> GasInfo<<Self::Spec as Spec>::Gas>;
+    /// Returns gas price.
+    fn gas_price(&self) -> &<<Self::Spec as Spec>::Gas as Gas>::Price;
 }
 
 /// A gas meter that tracks the gas used for a slot.
@@ -597,6 +597,31 @@ pub struct BasicGasMeter<S: Spec> {
 }
 
 impl<S: Spec> BasicGasMeter<S> {
+    /// Get gas info from the `BasicGasMeter`
+    pub fn gas_info(&self) -> GasInfo<S::Gas> {
+        let remaining_funds = if let Some(remaining_funds) = self.remaining_funds {
+            remaining_funds
+        } else {
+            self.remaining_gas.value(&self.gas_price)
+        };
+
+        let gas_used = self
+            .initial_gas
+            .checked_sub(&self.remaining_gas)
+            .expect("The remaining gas can't be greater than the initial gas");
+
+        let gas_value = gas_used
+            .checked_value(&self.gas_price)
+            .expect("The gas value should be possible to compute");
+
+        GasInfo {
+            gas_value,
+            gas_used,
+            gas_price: self.gas_price.clone(),
+            remaining_funds,
+        }
+    }
+
     /// Creates a new `BasicGasMeter`.
     pub fn new_with_funds_and_gas(
         remaining_funds: u64,
@@ -740,30 +765,10 @@ impl<S: Spec> GasMeter for BasicGasMeter<S> {
     }
 }
 
-impl<S: Spec> GetGasInfo for BasicGasMeter<S> {
+impl<S: Spec> GetGasPrice for BasicGasMeter<S> {
     type Spec = S;
-    fn gas_info(&self) -> GasInfo<S::Gas> {
-        let remaining_funds = if let Some(remaining_funds) = self.remaining_funds {
-            remaining_funds
-        } else {
-            self.remaining_gas.value(&self.gas_price)
-        };
-
-        let gas_used = self
-            .initial_gas
-            .checked_sub(&self.remaining_gas)
-            .expect("The remaining gas can't be greater than the initial gas");
-
-        let gas_value = gas_used
-            .checked_value(&self.gas_price)
-            .expect("The gas value should be possible to compute");
-
-        GasInfo {
-            gas_value,
-            gas_used,
-            gas_price: self.gas_price.clone(),
-            remaining_funds,
-        }
+    fn gas_price(&self) -> &<<Self::Spec as Spec>::Gas as Gas>::Price {
+        &self.gas_price
     }
 }
 

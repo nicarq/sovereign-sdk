@@ -12,8 +12,9 @@ use sov_modules_api::transaction::{
     AuthenticatedTransactionData, ProverRewards, RemainingFunds, SequencerReward,
 };
 use sov_modules_api::{
-    AggregatedProofPublicData, Context, DaSpec, Gas, InfallibleStateAccessor, InvalidProofError,
-    ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec, Storage, TxState,
+    AggregatedProofPublicData, Context, DaSpec, Gas, GetGasPrice, InfallibleStateAccessor,
+    InvalidProofError, ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec, Storage,
+    TxState,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
@@ -287,11 +288,11 @@ impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, 
     }
 
     #[allow(clippy::type_complexity)]
-    fn process_aggregated_proof(
+    fn process_aggregated_proof<ST: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         proof: SerializedAggregatedProof,
         prover_address: &S::Address,
-        state: &mut impl TxState<S>,
+        state: &mut ST,
     ) -> Result<
         (
             AggregatedProofPublicData<S::Address, S::Da, <S::Storage as Storage>::Root>,
@@ -306,11 +307,11 @@ impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, 
         Ok((result, proof))
     }
 
-    fn process_attestation(
+    fn process_attestation<ST: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         proof: sov_rollup_interface::optimistic::SerializedAttestation,
         prover_address: &<S as Spec>::Address,
-        state: &mut impl TxState<S>,
+        state: &mut ST,
     ) -> Result<SovAttestation<S>, InvalidProofError> {
         let result = self
             .attester_incentives
@@ -319,12 +320,12 @@ impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, 
         Ok(result)
     }
 
-    fn process_challenge(
+    fn process_challenge<ST: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         proof: sov_rollup_interface::optimistic::SerializedChallenge,
         rollup_height: SlotNumber,
         prover_address: &<S as Spec>::Address,
-        state: &mut impl TxState<S>,
+        state: &mut ST,
     ) -> Result<SovStateTransitionPublicData<S>, InvalidProofError> {
         let result = self.attester_incentives.process_challenge(
             prover_address,
