@@ -99,7 +99,7 @@ impl<Bb: BatchBuilder> Mempool<Bb> {
     }
 
     /// Drop a transaction from the mempool and notify subscribers.
-    pub fn drop(&mut self, hash: &TxHash, reason: String) {
+    pub fn drop_and_notify(&mut self, hash: &TxHash, reason: String) {
         self.drop_without_notifying(hash);
         // Notify about the drop.
         self.txsm.notify(*hash, TxStatus::Dropped { reason });
@@ -122,7 +122,7 @@ impl<Bb: BatchBuilder> Mempool<Bb> {
                 "Evicting transaction from the mempool to make space for a new one"
             );
 
-            self.drop(&tx_hash, "Mempool is full".to_string());
+            self.drop_and_notify(&tx_hash, "Mempool is full".to_string());
         }
     }
 
