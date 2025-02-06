@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::Runtime;
+use sov_modules_rollup_blueprint::logging::initialize_logging;
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder};
@@ -14,6 +15,9 @@ type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_test_rollup_shutdown_works_as_expected() {
+    std::env::set_var("RUST_LOG", "warn");
+    let _guard = initialize_logging();
+
     let dir = Arc::new(tempfile::tempdir().unwrap());
 
     start_and_stop_node_in_dir(dir.clone()).await;
