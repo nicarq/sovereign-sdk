@@ -228,6 +228,12 @@ impl StorableMockDaService {
         }
         Ok(())
     }
+
+    /// Passes randomized blob retrieval to underlying [`StorableMockDaLayer::set_randomized_blobs_retrieval`].
+    pub async fn set_randomized_blobs_retrieval(&self, seed: Option<[u8; 32]>) {
+        let mut da_layer = self.da_layer.write().await;
+        da_layer.set_randomized_blobs_retrieval(seed);
+    }
 }
 
 #[async_trait]
