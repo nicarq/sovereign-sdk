@@ -26,7 +26,7 @@ impl<S: MerkleProofSpec> ZkStorage<S> {
     /// Creates a new [`ZkStorage`] instance. Identical to [`Default::default`].
     pub fn new() -> Self {
         Self {
-            _phantom_hasher: Default::default(),
+            _phantom_hasher: PhantomData,
         }
     }
 }
@@ -70,7 +70,7 @@ fn jmt_verify_update<S: MerkleProofSpec>(
             let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
             let val_hash_and_size = value
                 .as_ref()
-                .map(|v| v.combine_val_hash_and_size::<S::Hasher>());
+                .map(SlotValue::combine_val_hash_and_size::<S::Hasher>);
             (key_hash, val_hash_and_size)
         })
         .collect::<Vec<_>>();
@@ -90,7 +90,6 @@ fn jmt_verify_update<S: MerkleProofSpec>(
 
 impl<S: MerkleProofSpec> ZkStorage<S> {
     fn compute_state_update_namespace(
-        &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &S::Witness,
     ) -> anyhow::Result<jmt::RootHash> {
@@ -148,8 +147,10 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         state_accesses: StateAccesses,
         witness: &Self::Witness,
     ) -> anyhow::Result<(Self::Root, Self::StateUpdate)> {
-        let user_root = self.compute_state_update_namespace(state_accesses.user, witness)?;
-        let kernel_root = self.compute_state_update_namespace(state_accesses.kernel, witness)?;
+        let user_root =
+            ZkStorage::<S>::compute_state_update_namespace(state_accesses.user, witness)?;
+        let kernel_root =
+            ZkStorage::<S>::compute_state_update_namespace(state_accesses.kernel, witness)?;
 
         Ok((StorageRoot::<S>::new(user_root, kernel_root), ()))
     }

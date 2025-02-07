@@ -113,7 +113,7 @@ impl SlotKey {
                 let key = &key_bytes[prefix_len..];
                 let key = KC::try_decode(&codec, key).map_err(|_| std::fmt::Error)?;
                 let prefix_str = std::str::from_utf8(prefix).map_err(|_e| std::fmt::Error)?;
-                write!(formatter, "{}{}", prefix_str, key)
+                write!(formatter, "{prefix_str}{key}")
             },
         ));
         Self {
@@ -449,7 +449,7 @@ pub trait Storage: Clone {
             self,
             state_accesses,
             witness,
-            Default::default(),
+            Vec::default(),
         )
     }
 
@@ -503,7 +503,7 @@ pub(crate) fn open_merkle_proof<S: MerkleProofSpec>(
     // The outer hashing is handled by the verify method, so we need to pass combine(val_hash, val_len).
     let val_hash_and_size = value
         .as_ref()
-        .map(|v| v.combine_val_hash_and_size::<S::Hasher>());
+        .map(SlotValue::combine_val_hash_and_size::<S::Hasher>);
 
     proof.inner().verify(
         // We need to verify the proof against the correct root hash.

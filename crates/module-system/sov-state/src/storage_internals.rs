@@ -87,7 +87,7 @@ impl<S: MerkleProofSpec> StorageRoot<S> {
 
         Self {
             root_hashes,
-            phantom: Default::default(),
+            phantom: PhantomData,
         }
     }
 

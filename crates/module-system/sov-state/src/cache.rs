@@ -57,7 +57,7 @@ impl Access {
     }
 }
 
-/// CacheLog keeps track of the original and current values of each key accessed.
+/// `CacheLog` keeps track of the original and current values of each key accessed.
 /// By tracking original values, we can detect and eliminate write patterns where a key is
 /// changed temporarily and then reset to its original value
 #[derive(Default, Debug, Clone)]
@@ -161,7 +161,7 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
     ) -> Option<u64> {
         match self.tx_cache.log.get(key) {
             Some(Access::Read { original }) => original.as_ref().map(|node| node.leaf.size),
-            Some(Access::Write { modified }) => modified.as_ref().map(|value| value.size()),
+            Some(Access::Write { modified }) => modified.as_ref().map(SlotValue::size),
             None => {
                 let maybe_leaf = storage.get_leaf::<N>(key, version, witness);
                 let size = maybe_leaf.as_ref().map(|leaf| leaf.leaf.size);
@@ -179,51 +179,45 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         witness: &S::Witness,
         version: Option<SlotNumber>,
     ) -> Option<SlotValue> {
-        match self.tx_cache.log.get_mut(key) {
-            Some(access) => {
-                match access {
-                    Access::Read {
-                        original: Some(node),
-                    } => match node.value.clone() {
-                        ReadType::GetSizeValueNotFetched => {
-                            let slot_value = storage
-                                .get::<N>(key, version, witness)
-                                // This unwrap is justified because in the `ReadType::GetSizeValueFetched` branch,
-                                // we inserted `Some(slot_value)`.
-                                .unwrap_or_else(|| {
-                                    panic!(
-                                        "Invalid read for {:?}, provided witness is invalid",
-                                        key
-                                    )
-                                });
+        if let Some(access) = self.tx_cache.log.get_mut(key) {
+            match access {
+                Access::Read {
+                    original: Some(node),
+                } => match node.value.clone() {
+                    ReadType::GetSizeValueNotFetched => {
+                        let slot_value = storage
+                            .get::<N>(key, version, witness)
+                            // This unwrap is justified because in the `ReadType::GetSizeValueFetched` branch,
+                            // we inserted `Some(slot_value)`.
+                            .unwrap_or_else(|| {
+                                panic!("Invalid read for {:?}, provided witness is invalid", key)
+                            });
 
-                            let node_leaf = NodeLeaf::make_leaf::<S::Hasher>(&slot_value);
-                            assert_eq!(node.leaf, node_leaf);
+                        let node_leaf = NodeLeaf::make_leaf::<S::Hasher>(&slot_value);
+                        assert_eq!(node.leaf, node_leaf);
 
-                            node.value = ReadType::Read(slot_value.clone());
-                            Some(slot_value)
-                        }
-                        ReadType::GetSizeValueFetched(slot_value) => {
-                            // Insert `slot_value` in the witness
-                            storage.put_in_witness(Some(slot_value.clone()), witness);
-                            node.value = ReadType::Read(slot_value.clone());
-                            Some(slot_value.clone())
-                        }
-                        ReadType::Read(slot_value) => Some(slot_value),
-                    },
-                    Access::Read { original: None } => None,
-                    Access::Write { modified } => modified.clone(),
-                }
+                        node.value = ReadType::Read(slot_value.clone());
+                        Some(slot_value)
+                    }
+                    ReadType::GetSizeValueFetched(slot_value) => {
+                        // Insert `slot_value` in the witness
+                        storage.put_in_witness(Some(slot_value.clone()), witness);
+                        node.value = ReadType::Read(slot_value.clone());
+                        Some(slot_value.clone())
+                    }
+                    ReadType::Read(slot_value) => Some(slot_value),
+                },
+                Access::Read { original: None } => None,
+                Access::Write { modified } => modified.clone(),
             }
-            None => {
-                let storage_value = storage.get::<N>(key, version, witness);
-                let read = storage_value.clone().map(|v| NodeLeafAndMaybeValue {
-                    leaf: NodeLeaf::make_leaf::<S::Hasher>(&v),
-                    value: ReadType::Read(v),
-                });
-                self.add_read(key.clone(), read);
-                storage_value
-            }
+        } else {
+            let storage_value = storage.get::<N>(key, version, witness);
+            let read = storage_value.clone().map(|v| NodeLeafAndMaybeValue {
+                leaf: NodeLeaf::make_leaf::<S::Hasher>(&v),
+                value: ReadType::Read(v),
+            });
+            self.add_read(key.clone(), read);
+            storage_value
         }
     }
 
@@ -242,7 +236,7 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         self.ordered_db_reads
             .push((key.clone(), node.as_ref().map(|n| n.leaf)));
 
-        self.tx_cache.add_read(key.clone(), node.clone());
+        self.tx_cache.add_read(key, node);
     }
 }
 
