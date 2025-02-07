@@ -234,6 +234,13 @@ impl StorableMockDaService {
         let mut da_layer = self.da_layer.write().await;
         da_layer.set_randomized_blobs_retrieval(seed);
     }
+
+    /// Re-org simulation: Rewinds the underlying [`StorableMockDaLayer`] to the specified height.
+    /// Refer to [`StorableMockDaLayer::rewind_to_height`] for more details.
+    pub async fn rewind_to_height(&self, height: u32) -> anyhow::Result<()> {
+        let mut da_layer = self.da_layer.write().await;
+        da_layer.rewind_to_height(height).await
+    }
 }
 
 #[async_trait]
