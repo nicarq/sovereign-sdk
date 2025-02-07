@@ -13,7 +13,7 @@ use crate::config::{GENESIS_BLOCK, GENESIS_HEADER};
 use crate::storable::entity;
 use crate::storable::entity::blobs::Entity as Blobs;
 use crate::storable::entity::block_headers::Entity as BlockHeaders;
-use crate::storable::entity::{blobs, block_headers};
+use crate::storable::entity::{blobs, block_headers, finalized_height};
 use crate::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockHash};
 
 /// Struct that stores blobs and block headers. Controller of the sea orm entities.
@@ -22,6 +22,8 @@ pub struct StorableMockDaLayer {
     conn: DatabaseConnection,
     /// Height which is currently being built.
     pub(crate) next_height: u32,
+    /// Recording it separately, as rewinding forbits relying on `next_height` to compute it.
+    last_finalized_height: u32,
     /// Defines how many blocks should be submitted before the block is finalized.
     /// Zero means instant finality.
     blocks_to_finality: u32,
@@ -47,6 +49,8 @@ impl StorableMockDaLayer {
             .await?
             .checked_add(1)
             .expect("next_height overflow");
+
+        let last_finalized_height = entity::query_last_finalized_height(&conn).await?;
         let (finalized_header_sender, mut rx) = broadcast::channel(100);
 
         // Spawn a task, so the receiver is not dropped, and the channel is not
@@ -58,6 +62,7 @@ impl StorableMockDaLayer {
         Ok(StorableMockDaLayer {
             conn,
             next_height,
+            last_finalized_height,
             blocks_to_finality,
             finalized_header_sender,
             blobs_ordering_seed: None,
@@ -155,14 +160,19 @@ impl StorableMockDaLayer {
 
         self.next_height += 1;
 
-        let last_finalized_height = self.get_last_finalized_height();
+        let next_finalized_height = self
+            .next_height
+            .checked_sub(self.blocks_to_finality.saturating_add(1))
+            .unwrap_or_default();
         // Meaning that "chain head - blocks to finalization" has moved beyond genesis block.
-        if last_finalized_height > 0 {
+        if next_finalized_height > 0 && next_finalized_height > self.last_finalized_height {
+            self.last_finalized_height = next_finalized_height;
+            finalized_height::update_value(&self.conn, self.last_finalized_height).await?;
             tracing::trace!(
-                height = last_finalized_height,
+                height = next_finalized_height,
                 "Submitting finalized header at"
             );
-            let finalized_header = self.get_header_at(last_finalized_height).await?;
+            let finalized_header = self.get_header_at(next_finalized_height).await?;
             match self.finalized_header_sender.send(finalized_header) {
                 Ok(received_count) => {
                     tracing::trace!(receivers = received_count, "Finalized header sent");
@@ -199,12 +209,6 @@ impl StorableMockDaLayer {
         Ok(header)
     }
 
-    fn get_last_finalized_height(&self) -> u32 {
-        self.next_height
-            .checked_sub(self.blocks_to_finality.saturating_add(1))
-            .unwrap_or_default()
-    }
-
     pub(crate) async fn submit_batch(
         &mut self,
         batch_data: &[u8],
@@ -231,7 +235,7 @@ impl StorableMockDaLayer {
     }
 
     pub(crate) async fn get_last_finalized_block_header(&self) -> anyhow::Result<MockBlockHeader> {
-        self.get_header_at(self.get_last_finalized_height()).await
+        self.get_header_at(self.last_finalized_height).await
     }
 
     pub(crate) async fn get_block_at(&self, height: u32) -> anyhow::Result<MockBlock> {
@@ -294,6 +298,39 @@ impl StorableMockDaLayer {
     ///   the order in which blobs are fetched. `None` disables randomization.
     pub fn set_randomized_blobs_retrieval(&mut self, seed: Option<[u8; 32]>) {
         self.blobs_ordering_seed = seed;
+    }
+
+    /// Passed `height` becomes new head height.
+    /// All previously submmited blobs above passed height are removed
+    /// Newly submitted blobs will be included in `height + 1`.
+    /// Returns an error if passed height below finalized height.
+    pub async fn rewind_to_height(&mut self, height: u32) -> anyhow::Result<()> {
+        let last_finalized_height = self.last_finalized_height;
+        if height < last_finalized_height {
+            anyhow::bail!(
+                "Cannot rewind to height: {} because it is below last finalized height: {}",
+                height,
+                last_finalized_height
+            );
+        }
+
+        Blobs::delete_many()
+            .filter(blobs::Column::BlockHeight.gt(height))
+            .exec(&self.conn)
+            .await?;
+
+        BlockHeaders::delete_many()
+            .filter(block_headers::Column::Height.gt(height))
+            .exec(&self.conn)
+            .await?;
+
+        self.next_height = height + 1;
+        tracing::info!(
+            next_height = self.next_height,
+            "StorableMockDaLayer rewound"
+        );
+
+        Ok(())
     }
 }
 
@@ -487,7 +524,7 @@ mod tests {
         assert_eq!(GENESIS_HEADER, head_block_header);
         let head_block = da_layer.get_block_at(GENESIS_HEADER.height as u32).await?;
         assert_eq!(GENESIS_BLOCK, head_block);
-        let last_finalized_height = da_layer.get_last_finalized_height();
+        let last_finalized_height = da_layer.last_finalized_height;
         assert_eq!(0, last_finalized_height);
 
         // Non-existing
@@ -832,5 +869,212 @@ mod tests {
             proofs.push(proof_data);
         }
         (batches, proofs)
+    }
+
+    /// This test ensures that old blobs are removed after rewinding and that only new blobs
+    /// are returned in their place. Specifically, it validates the behavior of the data
+    /// availability (DA) layer's rewinding mechanism by simulating a fork scenario.
+    ///
+    /// Test steps:
+    /// 1. Set finalization to 10 blocks.
+    /// 2. Submit 15 batches (1 per block). At this point, block 5 becomes the last finalized height.
+    /// 3. Rewind to height 5, effectively starting a new fork from that point.
+    /// 4. Submit 10 more blocks, making the head height return to 15.
+    /// 5. Fetch all blobs in the chain and validate:
+    ///     - Up to the rewind point (height 5), the original blobs remain.
+    ///     - Beyond the rewind point, the blobs from the fork are included.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn storable_mock_da_rewinds_and_replaces_blobs() -> anyhow::Result<()> {
+        let finality = 10;
+        let end_height = 15;
+        // The height **after** which new fork is going to be built.
+        let fork_height = 5;
+        let mut da_layer = StorableMockDaLayer::new_in_memory(finality).await?;
+
+        // Submit the first 15 blobs
+        let original_blobs: Vec<Vec<u8>> = (1u8..=end_height).map(|x| vec![x, x]).collect();
+        for blob in &original_blobs {
+            da_layer.submit_batch(blob, &DEFAULT_SENDER).await?;
+            da_layer.produce_block().await?;
+        }
+
+        let head_header_before = da_layer.get_head_block_header().await?;
+        assert_eq!(head_header_before.height(), end_height as u64);
+        let last_finalized_header_before = da_layer.get_last_finalized_block_header().await?;
+        assert_eq!(last_finalized_header_before.height(), fork_height as u64);
+
+        da_layer.rewind_to_height(fork_height).await?;
+
+        let head_header_after = da_layer.get_head_block_header().await?;
+        assert_eq!(head_header_after.height(), fork_height as u64);
+        let last_finalized_header_after = da_layer.get_last_finalized_block_header().await?;
+        // No change in the last finalized header.
+        assert_eq!(last_finalized_header_after, last_finalized_header_before);
+
+        // Submit another 10 blobs
+        let fork_blobs: Vec<Vec<u8>> = ((fork_height as u8 + 1)..=end_height)
+            .map(|x| vec![x * 10, x])
+            .collect();
+        for blob in &fork_blobs {
+            da_layer.submit_batch(blob, &DEFAULT_SENDER).await?;
+            da_layer.produce_block().await?;
+        }
+
+        // Iterate through the chain from the beginning and validate blobs
+        let mut all_fetched_blobs = Vec::new();
+        for height in 1..=15 {
+            let block = da_layer.get_block_at(height).await?;
+            let (fetched_batches, _) = get_raw_data(block);
+            all_fetched_blobs.extend(fetched_batches);
+        }
+
+        // Original blobs up to fork point + new blobs after.
+        let expected_blobs: Vec<_> = (1u8..=(fork_height as u8))
+            .map(|x| vec![x, x])
+            .chain(((fork_height as u8 + 1)..=end_height).map(|x| vec![x * 10, x]))
+            .collect();
+
+        assert_eq!(all_fetched_blobs, expected_blobs);
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn cannot_rewind_below_finalized_height() -> anyhow::Result<()> {
+        let finality = 3;
+        let mut da_layer = StorableMockDaLayer::new_in_memory(finality).await?;
+        da_layer.rewind_to_height(0).await?;
+        for _ in 0..=finality {
+            da_layer.produce_block().await?;
+        }
+        let err = da_layer.rewind_to_height(0).await.unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Cannot rewind to height: 0 because it is below last finalized height: 1"
+        );
+
+        da_layer.produce_block().await?;
+        let result = da_layer.rewind_to_height(1).await;
+        assert!(result.is_err());
+
+        Ok(())
+    }
+
+    /// We want to make sure, that when rewind happens,
+    /// last_finalized height will be shown correctly even if rewinding has happened.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_last_finalized_height_saved_between_restarts() -> anyhow::Result<()> {
+        let tempdir = tempfile::tempdir()?;
+        let finality = 3;
+        let blocks = 5;
+        let expected_last_finalized_height = 2;
+        // Create blocks, so finalization happens.
+        // Rewind to the last finalized height.
+        {
+            let mut da_layer = StorableMockDaLayer::new_in_path(tempdir.path(), finality).await?;
+            for _ in 0..blocks {
+                da_layer.produce_block().await?;
+            }
+            assert_eq!(
+                da_layer.get_last_finalized_block_header().await?.height(),
+                expected_last_finalized_height
+            );
+            assert_eq!(
+                da_layer.get_head_block_header().await?.height(),
+                blocks as u64
+            );
+            da_layer
+                .rewind_to_height(expected_last_finalized_height as u32)
+                .await?;
+        }
+        // Last finalized height == head
+        {
+            let mut da_layer = StorableMockDaLayer::new_in_path(tempdir.path(), finality).await?;
+            assert_eq!(
+                da_layer.get_last_finalized_block_header().await?.height(),
+                expected_last_finalized_height
+            );
+            assert_eq!(
+                da_layer.get_head_block_header().await?.height(),
+                expected_last_finalized_height,
+            );
+            // Producing new blocks ensures finalize height increased correctly.
+            for i in 1..=finality {
+                da_layer.produce_block().await?;
+                assert_eq!(
+                    da_layer.get_last_finalized_block_header().await?.height(),
+                    expected_last_finalized_height
+                );
+                assert_eq!(
+                    da_layer.get_head_block_header().await?.height(),
+                    expected_last_finalized_height + i as u64,
+                );
+            }
+            // Now last finalized head increases
+            da_layer.produce_block().await?;
+            assert_eq!(
+                da_layer.get_last_finalized_block_header().await?.height(),
+                expected_last_finalized_height + 1
+            );
+            assert_eq!(
+                da_layer.get_head_block_header().await?.height(),
+                expected_last_finalized_height + finality as u64 + 1,
+            );
+        }
+        Ok(())
+    }
+
+    /// Number of blocks to finalization is a parameter to the constructor.
+    /// Thus it is possible to change it for the same database.
+    /// Imagine this scenario.
+    /// 1. DaLayer initialized with finalization of 5 blocks.
+    /// 2. 10 blocks are produced, so the last finalized height is 5.
+    /// 3. DaLayer is closed and re-opened with the finalization of 3 blocks.
+    /// 4. 11th block is produced. Last finalized height is 11 - 3 = 8.
+    ///
+    /// By design StorableMockDaLayer only send notification about last finalized height.
+    ///
+    #[tokio::test(flavor = "multi_thread")]
+    async fn finalization_notifications_are_skipped_when_parameter_changes() -> anyhow::Result<()> {
+        let tempdir = tempfile::tempdir()?;
+        let initial_finality = 5;
+        let changed_finality = 3;
+        let first_round_blocks = 10;
+        let expected_initial_finalized_height = 5;
+        let mut finalized_heights_received = Vec::new();
+        {
+            let mut da_layer =
+                StorableMockDaLayer::new_in_path(tempdir.path(), initial_finality).await?;
+            let mut rx = da_layer.finalized_header_sender.subscribe();
+
+            for _ in 0..first_round_blocks {
+                da_layer.produce_block().await?;
+                if let Ok(finalized_header) = rx.try_recv() {
+                    finalized_heights_received.push(finalized_header.height());
+                }
+            }
+            assert_eq!(
+                da_layer.get_last_finalized_block_header().await?.height(),
+                expected_initial_finalized_height
+            );
+            assert_eq!(
+                da_layer.get_head_block_header().await?.height(),
+                first_round_blocks as u64
+            );
+        }
+        {
+            let mut da_layer =
+                StorableMockDaLayer::new_in_path(tempdir.path(), changed_finality).await?;
+            let mut rx = da_layer.finalized_header_sender.subscribe();
+
+            da_layer.produce_block().await?;
+            let finalized_header = rx.try_recv()?;
+            finalized_heights_received.push(finalized_header.height());
+        }
+        // We aknowledge skipping of finalized heights 6 and 7, because this has changed parameters.
+        // Tehcnically this can be fixed in the future.
+        let expected_finalized_heights = vec![1, 2, 3, 4, 5, 8];
+        assert_eq!(finalized_heights_received, expected_finalized_heights);
+        Ok(())
     }
 }

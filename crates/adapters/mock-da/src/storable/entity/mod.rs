@@ -6,6 +6,7 @@ use sea_orm::{
 
 pub mod blobs;
 pub mod block_headers;
+pub mod finalized_height;
 
 pub(crate) const BATCH_NAMESPACE: &str = "batches";
 pub(crate) const PROOF_NAMESPACE: &str = "proofs";
@@ -16,6 +17,7 @@ pub(crate) async fn setup_db(db: &DatabaseConnection) -> anyhow::Result<()> {
     tracing::debug!("Setting up database");
     create_tables(db, blobs::Entity).await?;
     create_tables(db, block_headers::Entity).await?;
+    create_tables(db, finalized_height::Entity).await?;
     let builder = db.get_database_backend();
     let index_stmt: IndexCreateStatement = Index::create()
         .name("idx-blobs-block_height")
@@ -53,15 +55,24 @@ pub(crate) async fn create_tables<E: EntityTrait>(
 }
 
 pub(crate) async fn query_last_height(db: &DatabaseConnection) -> anyhow::Result<u32> {
-    tracing::debug!("Loading latest height from database");
-
-    Ok(block_headers::Entity::find()
+    let db_value = block_headers::Entity::find()
         .order_by_desc(block_headers::Column::Height)
         .select_only()
         .column(block_headers::Column::Height)
         .into_tuple::<(i32,)>()
         .one(db)
         .await?
-        .map(|i| i.0 as u32)
-        .unwrap_or_default())
+        .map(|i| i.0 as u32);
+    tracing::trace!(last_height = ?db_value, "Loaded latest height from database");
+    Ok(db_value.unwrap_or_default())
+}
+
+pub(crate) async fn query_last_finalized_height(db: &DatabaseConnection) -> anyhow::Result<u32> {
+    let db_value = finalized_height::Entity::find_by_id(finalized_height::ID)
+        .one(db)
+        .await?
+        .map(|model| model.value as u32);
+
+    tracing::trace!(finalized_height = ?db_value, "Loaded latest finalized height from database");
+    Ok(db_value.unwrap_or_default())
 }
