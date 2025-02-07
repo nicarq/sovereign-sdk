@@ -32,18 +32,6 @@ impl<S: Spec> Accounts<S> {
                     };
                     self.accounts.set(credential_id, &new_account, state)?;
 
-                    // 2. Append to, or create, the account -> credential mapping
-                    let mut credential_ids = self
-                        .credential_ids
-                        .get(default_address, state)
-                        .unwrap_infallible()
-                        .unwrap_or_default();
-
-                    credential_ids.push(*credential_id);
-
-                    self.credential_ids
-                        .set(default_address, &credential_ids, state)?;
-
                     Ok(default_address.clone())
                 }
                 None => anyhow::bail!(

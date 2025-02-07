@@ -42,10 +42,6 @@ pub struct Accounts<S: Spec> {
     #[id]
     pub id: ModuleId,
 
-    /// Mapping from an account address to the corresponding credential ids.
-    #[state]
-    pub(crate) credential_ids: StateMap<S::Address, Vec<CredentialId>>,
-
     /// Mapping from a credential to its corresponding account.
     #[state]
     pub(crate) accounts: StateMap<CredentialId, Account<S>>,

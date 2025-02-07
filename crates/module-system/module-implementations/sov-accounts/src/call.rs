@@ -43,16 +43,6 @@ impl<S: Spec> Accounts<S> {
         };
         self.accounts.set(&new_credential_id, &account, state)?;
 
-        // Add it to the account -> credential ids mapping
-        let mut credential_ids = self
-            .credential_ids
-            .get_or_err(context.sender(), state)
-            .map_err(|e| anyhow::anyhow!("Error raised while getting credential ids: {e:?}"))??;
-
-        credential_ids.push(new_credential_id);
-        self.credential_ids
-            .set(context.sender(), &credential_ids, state)?;
-
         Ok(())
     }
 

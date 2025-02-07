@@ -1,5 +1,7 @@
 ## 2025-02-06
 - #2368 Changes the computation of the hash passed to `begin_block_hook`. Now, that hash is from an older block, where the exact amount of the delay is configurable by a constant `STATE_ROOT_DELAY_BLOCKS`. If `STATE_ROOT_DELAY_BLOCKS` is zero, the behavior is identical to the old behavior. The default delay is currently set to 5 blocks. 
+## 2025-02-07
+- #2377 Removed the `credential_ids` mapping from the `sov-accounts` module. It was unused, but had been automatically exposed as aREST API, so any end-to-end API tests relying on it will need to be adjusted or removed.
 
 ## 2025-02-05
 - #2369 fixes `sov-benchmarks` following workspace unification + preferred sequencer fixes. This is not a breaking change.

@@ -41,9 +41,6 @@ impl<S: Spec> Accounts<S> {
             };
 
             self.accounts.set(&acc.credential_id, &new_account, state)?;
-
-            self.credential_ids
-                .set(&acc.address, &vec![acc.credential_id], state)?;
         }
 
         Ok(())
