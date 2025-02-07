@@ -111,20 +111,22 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for SoftConfirmation
         self.chain_state.block_gas_limit(state).unwrap_infallible()
     }
 
-    fn current_visible_hash(
+    fn visible_hash_for(
         &self,
+        rollup_height: RollupHeight,
         state: &mut sov_modules_api::KernelStateAccessor<S>,
     ) -> Option<<<Self::Spec as Spec>::Storage as Storage>::Root> {
-        self.chain_state.current_visible_hash(state)
+        self.chain_state.visible_hash_for(rollup_height, state)
     }
 
     fn increment_rollup_height(
         &self,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
         visible_slot_number: VisibleSlotNumber,
+        user_state_root: &[u8; 32],
     ) {
         self.chain_state
-            .increment_rollup_height(state, visible_slot_number);
+            .increment_rollup_height(state, visible_slot_number, user_state_root);
     }
 }
 

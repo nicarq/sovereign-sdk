@@ -15,6 +15,8 @@ CHAIN_ID = 4321
 # on the speed of inclusion for forced transactions, since they will always be included ASAP.)
 # Setting this parameter to 0 disables soft-confirmations entirely.
 DEFERRED_SLOTS_COUNT = 5
+# How many *rollup blocks* we wait before making a state root visible to the rollup.
+STATE_ROOT_DELAY_BLOCKS = 5
 # How many blobs from unregistered sequencers we will accept per slot
 # We can't slash misbehaving senders because they aren't a registered sequencer with a stake so
 # this serves as protection against spam.

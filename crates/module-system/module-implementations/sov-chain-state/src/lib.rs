@@ -28,7 +28,6 @@ pub mod capabilities;
 #[cfg(feature = "native")]
 mod query;
 use borsh::{BorshDeserialize, BorshSerialize};
-use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
 use sov_modules_api::{
@@ -40,10 +39,8 @@ use sov_state::namespaces::Kernel;
 use sov_state::{Storage, User};
 use tracing::trace;
 
-#[derive(Derivative, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
-// We need to use derivative here because `Storage` doesn't implement `Eq` and `PartialEq`
-#[derivative(PartialEq(bound = "S: Spec"), Eq(bound = "S: Spec"))]
-/// Structure that contains the information needed to represent a single state transition.
+#[derive(Clone, Debug)]
+/// A handy struct that groups the post state root of a slot with the information about the slot.
 pub struct StateTransition<S: Spec> {
     post_state_root: <S::Storage as Storage>::Root,
     slot: SlotInformation<S>,
@@ -51,52 +48,21 @@ pub struct StateTransition<S: Spec> {
 
 impl<S: Spec> StateTransition<S> {
     /// Creates a new state transition.
-    pub fn new(
-        slot_hash: <<S as Spec>::Da as DaSpec>::SlotHash,
-        post_state_root: <S::Storage as Storage>::Root,
-        gas_info: BlockGasInfo<S::Gas>,
-    ) -> Self {
+    pub fn new(post_state_root: <S::Storage as Storage>::Root, slot: SlotInformation<S>) -> Self {
         Self {
-            slot: SlotInformation::new(slot_hash, gas_info),
+            slot,
             post_state_root,
         }
     }
-}
 
-impl<S: Spec> StateTransition<S> {
-    /// Compare the transition block hash and state root with the provided input couple. If
-    /// the pairs are equal, return [`true`].
-    pub fn compare_hashes(
-        &self,
-        slot_hash: &<<S as Spec>::Da as DaSpec>::SlotHash,
-        post_state_root: &<S::Storage as Storage>::Root,
-    ) -> bool {
-        self.slot.hash == *slot_hash && self.post_state_root == *post_state_root
+    /// Returns the slot information of the state transition
+    pub fn slot(&self) -> &SlotInformation<S> {
+        &self.slot
     }
 
-    /// Returns the post state root of a state transition
+    /// Returns the post state root of the state transition
     pub fn post_state_root(&self) -> &<S::Storage as Storage>::Root {
         &self.post_state_root
-    }
-
-    /// Returns the slot hash of a state transition
-    pub fn slot_hash(&self) -> &<<S as Spec>::Da as DaSpec>::SlotHash {
-        &self.slot.hash
-    }
-
-    /// Returns the total gas used for the block execution
-    pub const fn gas_used(&self) -> &S::Gas {
-        self.slot.gas_info.gas_used()
-    }
-
-    /// Returns the gas price computed for the block execution
-    pub const fn gas_price(&self) -> &<S::Gas as Gas>::Price {
-        self.slot.gas_info.base_fee_per_gas()
-    }
-
-    /// Returns the gas limit of used for the block execution
-    pub const fn gas_limit(&self) -> &S::Gas {
-        self.slot.gas_info.gas_limit()
     }
 }
 
@@ -106,6 +72,7 @@ impl<S: Spec> StateTransition<S> {
 pub struct SlotInformation<S: Spec> {
     hash: <<S as Spec>::Da as DaSpec>::SlotHash,
     gas_info: BlockGasInfo<S::Gas>,
+    prev_state_root: <S::Storage as Storage>::Root,
 }
 
 impl<S: Spec> SlotInformation<S> {
@@ -113,10 +80,12 @@ impl<S: Spec> SlotInformation<S> {
     pub fn new(
         slot_hash: <<S as Spec>::Da as DaSpec>::SlotHash,
         gas_info: BlockGasInfo<S::Gas>,
+        prev_state_root: <S::Storage as Storage>::Root,
     ) -> Self {
         Self {
             hash: slot_hash,
             gas_info,
+            prev_state_root,
         }
     }
 
@@ -135,9 +104,14 @@ impl<S: Spec> SlotInformation<S> {
         self.gas_info.gas_limit()
     }
 
-    /// Returns the block hash of the transition in progress
-    pub const fn hash(&self) -> &<<S as Spec>::Da as DaSpec>::SlotHash {
+    /// Returns the hash of the DA block assocaited with this slot.
+    pub const fn slot_hash(&self) -> &<<S as Spec>::Da as DaSpec>::SlotHash {
         &self.hash
+    }
+
+    /// Returns the pre state root for this slot.
+    pub const fn prev_state_root(&self) -> &<S::Storage as Storage>::Root {
+        &self.prev_state_root
     }
 
     /// Returns the gas info of the transition.
@@ -200,7 +174,7 @@ pub struct ChainState<S: Spec> {
     /// most up to date state root inside the current slot. We have to wait for the next slot to start getting processed and return
     /// the pre-state root.
     #[state]
-    state_roots: VersionedStateVec<<S::Storage as Storage>::Root, BcsCodec>,
+    past_user_state_roots: StateMap<RollupHeight, [u8; 32]>,
 
     /// The height of the first DA block.
     /// Set at the rollup genesis. Since the rollup is always delayed by a constant amount of blocks,
@@ -299,7 +273,10 @@ impl<S: Spec> ChainState<S> {
         &self,
         state: &mut Accessor,
     ) -> Result<Option<<S::Storage as Storage>::Root>, Accessor::Error> {
-        self.state_roots.get(SlotNumber::GENESIS, state)
+        Ok(self
+            .slots
+            .get(SlotNumber::ONE, state)?
+            .map(|slot| slot.prev_state_root))
     }
 
     /// Return the code commitment to be used for verifying the rollup's execution
@@ -343,7 +320,7 @@ impl<S: Spec> ChainState<S> {
         &self,
         state: &mut Reader,
     ) -> Result<Option<<S::Storage as Storage>::Root>, Reader::Error> {
-        self.state_roots.last(state)
+        Ok(self.slots.last(state)?.map(|slot| slot.prev_state_root))
     }
 
     /// Returns the root hash of the state at the provided height.
@@ -352,7 +329,44 @@ impl<S: Spec> ChainState<S> {
         slot_number: SlotNumber,
         state: &mut Accessor,
     ) -> Result<Option<<S::Storage as Storage>::Root>, Accessor::Error> {
-        self.state_roots.get(slot_number, state)
+        let Some(next_slot_number) = slot_number.checked_add(1) else {
+            return Ok(None);
+        };
+        Ok(self
+            .slots
+            .get(next_slot_number, state)?
+            .map(|slot| slot.prev_state_root))
+    }
+
+    /// Returns the root hash of the state at the provided height.
+    pub fn pre_state_root_at_height<Accessor: VersionReader + StateReader<Kernel>>(
+        &self,
+        slot_number: SlotNumber,
+        state: &mut Accessor,
+    ) -> Result<Option<<S::Storage as Storage>::Root>, Accessor::Error> {
+        Ok(self
+            .slots
+            .get(slot_number, state)?
+            .map(|slot| slot.prev_state_root))
+    }
+
+    /// Returns the post-state root hash of the state at the provided height.
+    pub fn user_root_at_height<Accessor: StateReader<User>>(
+        &self,
+        rollup_height: RollupHeight,
+        state: &mut Accessor,
+    ) -> Result<Option<[u8; 32]>, Accessor::Error> {
+        self.past_user_state_roots.get(&rollup_height, state)
+    }
+
+    /// Returns the pre-state root hash of the state at the provided height.
+    pub fn user_pre_state_root_at_height<Accessor: StateReader<User>>(
+        &self,
+        rollup_height: RollupHeight,
+        state: &mut Accessor,
+    ) -> Result<Option<[u8; 32]>, Accessor::Error> {
+        self.past_user_state_roots
+            .get(&rollup_height.saturating_sub(1), state)
     }
 
     /// Returns the slot information from the state at the provided height.
@@ -364,24 +378,23 @@ impl<S: Spec> ChainState<S> {
         self.slots.get(slot_number, state)
     }
 
-    /// Returns the completed transition associated with the provided `transition_num`.
-    pub fn get_historical_transitions<Accessor: VersionReader + StateReader<Kernel>>(
+    /// Returns the complete StateTransition for the provided slot number, including the post state root.
+    /// Note that this function is marked "dangerous" because it requires the slot *after* the provided slot number to be visible.
+    pub fn get_historical_transition_dangerous<Accessor: VersionReader + StateReader<Kernel>>(
         &self,
         slot_number: SlotNumber,
         state: &mut Accessor,
     ) -> Result<Option<StateTransition<S>>, Accessor::Error> {
-        if let Some(root) = self.state_roots.get(slot_number, state)? {
-            return Ok({
-                let maybe_slot = self.slots.get(slot_number, state)?;
-
-                maybe_slot.map(|slot| StateTransition {
-                    post_state_root: root,
-                    slot,
-                })
-            });
-        }
-
-        Ok(None)
+        let Some(next_slot_num) = slot_number.checked_add(1) else {
+            return Ok(None);
+        };
+        let Some(next_slot) = self.slots.get(next_slot_num, state)? else {
+            return Ok(None);
+        };
+        let Some(slot) = self.slots.get(slot_number, state)? else {
+            return Ok(None);
+        };
+        Ok(Some(StateTransition::new(next_slot.prev_state_root, slot)))
     }
 
     /// Record the gas usage for a given rollup height.

@@ -67,7 +67,17 @@ pub trait BlockHooks {
     /// The runtime spec.
     type Spec: Spec;
 
-    /// Runs at the beginning of each rollup block. See trait description for more details.
+    /// Runs at the beginning of each rollup block.
+    ///
+    /// ## Visible Hash
+    /// The `visible_hash` argument passed to this hook is a rollup state root suitable for making storage proofs.
+    /// Recall that the rollup state root has two components: a "user space" state root where normal modules store their state, and a "kernel space" state root
+    /// where information from the DA layer is stored as it comes in.
+    ///
+    /// The *user* space state root passed to this hook is simply the pre-state root of the `N-STATE_ROOT_DELAY_BLOCKS`th rollup block.
+    /// The *kernel* space state root is the pre-state root of the visible slot number associated with `N-STATE_ROOT_DELAY_BLOCKS` block.
+    /// Suppose STATE_ROOT_DELAY_BLOCKS = 0. Then the state roots passed are simply the
+    /// pre-state roots of the current block.
     fn begin_rollup_block_hook(
         &self,
         _visible_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,

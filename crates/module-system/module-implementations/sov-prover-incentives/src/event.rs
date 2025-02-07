@@ -28,6 +28,9 @@ pub enum SlashingReason {
     /// The initial slot hash contained in the [`sov_modules_api::AggregatedStateTransition`] outputs is incorrect
     IncorrectInitialSlotHash,
 
+    /// The initial slot number is greater than or equal to the final slot number
+    InvalidSlotNumbers,
+
     /// The final transition slot contained in the [`sov_modules_api::AggregatedStateTransition`] has no associated transition
     /// in the chain state module.
     FinalTransitionDoesNotExist,

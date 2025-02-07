@@ -198,25 +198,30 @@ where
         >,
         state: &mut ST,
     ) -> Result<CheckTransitionStatus, ST::Error> {
-        if let Some(curr_tx) = self
+        if let Some(saved_transition) = self
             .chain_state
-            .get_historical_transitions(claimed_slot_number, state)?
+            .get_historical_transition_dangerous(claimed_slot_number, state)?
         {
             // We first need to compare the initial block hash to the previous post state root
-            if !curr_tx.compare_hashes(&attestation.slot_hash, &attestation.post_state_root) {
+            if saved_transition.slot().slot_hash() != &attestation.slot_hash {
                 debug!(
                     %claimed_slot_number,
                     attestation_slot_hash = ?attestation.slot_hash,
-                    attestation_post_state = ?attestation.post_state_root,
-                    curr_tx_slot_hash = ?curr_tx.slot_hash(),
-                    curr_tx_state_root = ?curr_tx.post_state_root(),
-                    "The attestation has an invalid block hash or post state root");
-                // Check if the attestation has the same slot_hash and post_state_root as the actual transition
-                // that we found in state. If not, slash the attester.
-                // If so, the attestation is valid, so return Ok
+                    actual_transition_slot_hash = ?saved_transition.slot().slot_hash(),
+                    "The attestation has an invalid DA block hash");
+                return Ok(CheckTransitionStatus::SlashInvalidateWrongHash);
+            }
+
+            if saved_transition.post_state_root() != &attestation.post_state_root {
+                debug!(
+                    %claimed_slot_number,
+                    attestation_post_state_root = ?attestation.post_state_root,
+                    actual_post_state_root = ?saved_transition.post_state_root(),
+                    "The attestation has an invalid post state root");
                 return Ok(CheckTransitionStatus::SlashInvalidateWrongHash);
             }
         } else {
+            debug!(%claimed_slot_number, "No historical state transition found for claimed slot number. Recall that state transitions are not visible until the slot *after* the transition is visible.");
             // Case where we cannot get the transition from the chain state historical transitions.
             return Ok(CheckTransitionStatus::SlashedNoHistoricalTransition);
         }
@@ -236,19 +241,12 @@ where
         height: SlotNumber,
         state: &mut ST,
     ) -> anyhow::Result<Option<SlashingReason>, ST::Error> {
-        let transition = match self.chain_state.get_historical_transitions(height, state)? {
+        let transition = match self.chain_state.slot_at_height(height, state)? {
             Some(transition) => transition,
             None => return Ok(Some(SlashingReason::TransitionInvalid)),
         };
 
-        let Some(initial_hash) = self
-            .chain_state
-            .root_at_height(height.saturating_sub(1), state)?
-        else {
-            return Ok(Some(SlashingReason::TransitionInvalid));
-        };
-
-        if public_outputs.initial_state_root != initial_hash {
+        if &public_outputs.initial_state_root != transition.prev_state_root() {
             return Ok(Some(SlashingReason::InvalidInitialHash));
         }
 

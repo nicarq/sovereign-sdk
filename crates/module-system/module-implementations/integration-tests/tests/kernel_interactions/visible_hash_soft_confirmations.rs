@@ -1,7 +1,4 @@
 use sov_modules_api::macros::config_value;
-use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Spec, Storage};
-use sov_rollup_interface::common::SlotNumber;
 use sov_state::{ProvableNamespace, StateRoot};
 use sov_test_utils::{generate_bare_runtime, impl_standard_runtime_authenticator, TestSequencer};
 
@@ -120,65 +117,194 @@ fn begin_slot_hash_soft_confirmations_kernel() {
 
     let genesis_hash = *runner.state_root();
 
-    let num_slots: u64 = config_value!("DEFERRED_SLOTS_COUNT") - 1;
+    let num_slots_before_first_rollup_block: u64 = config_value!("DEFERRED_SLOTS_COUNT") - 1;
+    let state_root_delay_blocks: u64 = config_value!("STATE_ROOT_DELAY_BLOCKS");
 
-    let module = TestVisibleHashModule::<S>::default();
+    if num_slots_before_first_rollup_block <= 1 {
+        panic!("DEFERRED_SLOTS_COUNT must be at least 3 for this test to function. If you're not using soft confirmations, you can safely ignore this failure. Otherwise, set your deferred slots count to at least 3.");
+    }
 
-    // We run `DEFERRED_SLOTS_COUNT` - 1 slots. The user hash should not update
-    runner.advance_slots(num_slots as usize);
-
-    // We run 1 more slot. The begin slot hash should update
+    //  Get the post state roots of the first two slots.
+    let mut first_slot_post_root = None;
     last_state_root_closure(
         &mut |TestClosureArgs {
-                  begin_slot_hash, ..
+                  current_slot_hash, ..
               }| {
-            assert_eq!(begin_slot_hash.unwrap(), genesis_hash);
+            first_slot_post_root = Some(current_slot_hash);
         },
         &mut runner,
         1,
     );
 
-    let expected_begin_slot_hash = runner.query_state(|state| {
-        let pre_state_root = runner.state_root();
-
-        let user_root = pre_state_root.namespace_root(sov_state::ProvableNamespace::User);
-
-        let root_at_height = module
-            .chain_state
-            .root_at_height(runner.visible_slot_number().as_true(), state)
-            .unwrap_infallible()
-            .unwrap();
-
-        let kernel_root = root_at_height.namespace_root(sov_state::ProvableNamespace::Kernel);
-
-        <<S as Spec>::Storage as Storage>::Root::from_namespace_roots(user_root, kernel_root)
-    });
-
-    let slot_hash_at_height_one = runner.query_state(|state| {
-        module
-            .chain_state
-            .root_at_height(SlotNumber::ONE, state)
-            .unwrap_infallible()
-            .unwrap()
-    });
-
-    // We run 1 more slot. The begin slot hash should update
+    let mut second_slot_post_root = None;
     last_state_root_closure(
         &mut |TestClosureArgs {
-                  begin_slot_hash, ..
+                  current_slot_hash, ..
+              }| {
+            second_slot_post_root = Some(current_slot_hash);
+        },
+        &mut runner,
+        1,
+    );
+
+    // Run more slots, stopping before the first rollup block is created..
+    // You can verify that after this call total number of slots will be num_slots_before_first_rollup_block - 1
+    runner.advance_slots(num_slots_before_first_rollup_block.saturating_sub(3) as usize);
+
+    // Run one more slot, bring our total to exactly `num_slots_before_first_rollup_block`.
+    // Since we're still before the first rollup block, the user space root should still match the genesis hash after this slot.
+    last_state_root_closure(
+        &mut |TestClosureArgs {
+                  current_slot_hash, ..
               }| {
             assert_eq!(
-                begin_slot_hash.unwrap(),
-                expected_begin_slot_hash,
-                "The begin slot hash should be the same as the computed visible hash"
-            );
-
-            assert_ne!(
-                begin_slot_hash.unwrap(), slot_hash_at_height_one,
-                "The begin slot hash should be different than the slot hash at height 1. That is because the user space root should have updated afterwards"
+                current_slot_hash.namespace_root(ProvableNamespace::User),
+                genesis_hash.namespace_root(ProvableNamespace::User)
             );
         },
         &mut runner,
         1,
+    );
+
+    // Run a slot. This will create the first rollup block.
+    let mut first_rollup_block_root = None;
+    last_state_root_closure(
+        &mut |TestClosureArgs {
+                  begin_slot_hash,
+                  current_slot_hash,
+                  ..
+              }| {
+            // This slot should still only have the genesis hash visible to it.
+            assert_eq!(begin_slot_hash.unwrap(), genesis_hash);
+            // Since we've created a rollup block, the output user state root should be different than the genesis hash
+            assert_ne!(
+                current_slot_hash.namespace_root(ProvableNamespace::User),
+                genesis_hash.namespace_root(ProvableNamespace::User)
+            );
+            first_rollup_block_root = Some(current_slot_hash);
+        },
+        &mut runner,
+        1,
+    );
+    let mut has_asserted_1 = false;
+    let mut has_asserted_2 = false;
+
+    // Run another slot. This will create the second rollup block.
+    let mut second_rollup_block_root = None;
+    last_state_root_closure(
+        &mut |TestClosureArgs {
+                  begin_slot_hash,
+                  current_slot_hash,
+                  ..
+              }| {
+            // Since we've created a rollup block, the output user state root should be different than the previous rollup block
+            assert_ne!(
+                current_slot_hash.namespace_root(ProvableNamespace::User),
+                first_rollup_block_root
+                    .unwrap()
+                    .namespace_root(ProvableNamespace::User)
+            );
+            second_rollup_block_root = Some(current_slot_hash);
+            if state_root_delay_blocks == 0 {
+                has_asserted_1 = true;
+                assert_eq!(
+                    begin_slot_hash
+                        .unwrap()
+                        .namespace_root(ProvableNamespace::User),
+                    first_rollup_block_root
+                        .unwrap()
+                        .namespace_root(ProvableNamespace::User)
+                );
+                assert_eq!(
+                    begin_slot_hash
+                        .unwrap()
+                        .namespace_root(ProvableNamespace::Kernel),
+                    first_slot_post_root
+                        .unwrap()
+                        .namespace_root(ProvableNamespace::Kernel),
+                    "Kernel roots didn't match. Found {}",
+                    hex::encode(
+                        begin_slot_hash
+                            .unwrap()
+                            .namespace_root(ProvableNamespace::Kernel)
+                    )
+                );
+            }
+        },
+        &mut runner,
+        1,
+    );
+
+    for prev_block_number in 2..=(state_root_delay_blocks + 2) {
+        last_state_root_closure(
+            &mut |TestClosureArgs {
+                      begin_slot_hash, ..
+                  }| {
+                // Assert that the begin slot hash is what we expected
+                let block_that_should_be_visible =
+                    prev_block_number.saturating_sub(state_root_delay_blocks);
+                if block_that_should_be_visible == 0 {
+                    assert_eq!(begin_slot_hash.unwrap(), genesis_hash);
+                } else if block_that_should_be_visible == 1 {
+                    assert_eq!(
+                        begin_slot_hash
+                            .unwrap()
+                            .namespace_root(ProvableNamespace::User),
+                        first_rollup_block_root
+                            .unwrap()
+                            .namespace_root(ProvableNamespace::User)
+                    );
+                    assert_eq!(
+                        begin_slot_hash
+                            .unwrap()
+                            .namespace_root(ProvableNamespace::Kernel),
+                        first_slot_post_root
+                            .unwrap()
+                            .namespace_root(ProvableNamespace::Kernel),
+                        "Kernel roots didn't match. Found {}",
+                        hex::encode(
+                            begin_slot_hash
+                                .unwrap()
+                                .namespace_root(ProvableNamespace::Kernel)
+                        )
+                    );
+                    has_asserted_1 = true;
+                } else {
+                    assert_eq!(
+                        begin_slot_hash
+                            .unwrap()
+                            .namespace_root(ProvableNamespace::User),
+                        second_rollup_block_root
+                            .unwrap()
+                            .namespace_root(ProvableNamespace::User)
+                    );
+                    assert_eq!(
+                        begin_slot_hash
+                            .unwrap()
+                            .namespace_root(ProvableNamespace::Kernel),
+                        second_slot_post_root
+                            .unwrap()
+                            .namespace_root(ProvableNamespace::Kernel),
+                        "Kernel roots didn't match. Found {}",
+                        hex::encode(
+                            begin_slot_hash
+                                .unwrap()
+                                .namespace_root(ProvableNamespace::Kernel)
+                        )
+                    );
+                    has_asserted_2 = true;
+                }
+            },
+            &mut runner,
+            1,
+        );
+    }
+    assert!(
+        has_asserted_1,
+        "We should have asserted the first rollup block"
+    );
+    assert!(
+        has_asserted_2,
+        "We should have asserted the second rollup block"
     );
 }

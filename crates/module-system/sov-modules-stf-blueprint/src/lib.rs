@@ -9,6 +9,7 @@ use sov_modules_api::track_gas_constants_usage;
 use sov_modules_api::{
     BatchSequencerReceipt, GasArray, GasSpec, IncrementalBatch, KernelStateAccessor, VersionReader,
 };
+use sov_state::StateRoot;
 mod proof_processing;
 use sov_modules_api::{KernelWriter, SlotGasMeter};
 use sov_rollup_interface::stf::ProofReceipt;
@@ -327,12 +328,6 @@ where
             "Sanity check failed (the true slot number didn't progress as expected), this is a bug and should be reported."
         );
 
-        let visible_hash = self
-            .runtime
-            .chain_state()
-            .current_visible_hash(&mut kernel_with_partially_stale_heights)
-            .expect("The current visible hash should be possible to compute at this point because the chain-state should have synchronized. This is a bug. Please report it.");
-
         let blob_selector_output = self
             .select_and_validate_blobs(relevant_blobs, &mut kernel_with_partially_stale_heights);
 
@@ -355,6 +350,7 @@ where
             self.runtime.chain_state().increment_rollup_height(
                 &mut kernel_with_partially_stale_heights,
                 visible_slot_number,
+                &pre_state_root.namespace_root(sov_state::ProvableNamespace::User),
             );
 
             // All heights have been updated.
@@ -374,6 +370,14 @@ where
             // To potentially inconsistent state.
             assert_no_transactions_were_selected(&blob_selector_output);
         }
+        let mut kernel = kernel_with_partially_stale_heights;
+        let new_rollup_height = kernel.rollup_height_to_access();
+
+        let visible_hash = self
+            .runtime
+            .chain_state()
+            .visible_hash_for(new_rollup_height, &mut kernel)
+            .expect("The current visible hash should be possible to compute at this point because the chain-state should have synchronized. This is a bug. Please report it.");
 
         #[cfg(feature = "native")]
         let blob_selection_time = start_slot.elapsed();

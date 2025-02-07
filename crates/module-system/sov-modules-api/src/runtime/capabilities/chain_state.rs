@@ -4,6 +4,7 @@ use sov_rollup_interface::common::VisibleSlotNumber;
 use sov_rollup_interface::da::DaSpec;
 use sov_state::{Kernel, Storage, User};
 
+use super::RollupHeight;
 use crate::{Gas, KernelStateAccessor, Spec, StateReader, VersionReader};
 
 /// Capabilities allowing the kernel to update and access the DA layer state.
@@ -25,6 +26,7 @@ pub trait ChainState {
         &self,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
         visible_slot_number: VisibleSlotNumber,
+        user_state_root: &[u8; 32],
     );
 
     /// Called at the end of a slot. Updates the chain state module
@@ -63,8 +65,9 @@ pub trait ChainState {
     ///
     /// ## Note
     /// This method can return `None` if the visible root hash for the current rollup height cannot be determined yet.
-    fn current_visible_hash(
+    fn visible_hash_for(
         &self,
+        rollup_height: RollupHeight,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
     ) -> Option<<<Self::Spec as Spec>::Storage as Storage>::Root>;
 }

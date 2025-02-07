@@ -145,7 +145,7 @@ fn test_chain_state_root_updates() {
 
     runner.query_state(|kernel| {
         let first_transition = ChainState::<S>::default()
-            .get_historical_transitions(SlotNumber::ONE, kernel)
+            .get_historical_transition_dangerous(SlotNumber::ONE, kernel)
             .unwrap_infallible()
             .unwrap();
 
@@ -184,12 +184,12 @@ fn test_chain_state_historical_transition_update() {
 
     runner.query_state(|kernel| {
         let first_transition = ChainState::<S, >::default()
-            .get_historical_transitions(SlotNumber::ONE, kernel)
+            .slot_at_height(SlotNumber::ONE, kernel)
             .unwrap_infallible()
             .unwrap();
 
         assert_eq!(
-            in_progress_transition.hash(),
+            in_progress_transition.slot_hash(),
             first_transition.slot_hash(),
             "The slot hashes of the in progress and the first historical transition should be the same"
         );
