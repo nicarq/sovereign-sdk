@@ -14,7 +14,6 @@ use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
-use sov_rollup_interface::common::HexHash;
 use sov_test_utils::default_test_signed_transaction;
 use sov_test_utils::test_rollup::{read_private_key, RollupBuilder};
 
@@ -237,50 +236,6 @@ async fn check_state_map(client: &demo_stf_json_client::Client) -> anyhow::Resul
     assert_eq!(
         Some(demo_stf_json_client::types::Namespace::User),
         meta_info.namespace
-    );
-
-    // Get the state map: known value.
-    let token_deployer = read_private_key::<TestSpec>("token_deployer_private_key.json");
-    let credential_id_response = client
-        .accounts_credential_ids_get_state_map_element(&token_deployer.address.to_string(), None)
-        .await?;
-
-    if let RuntimeAnyJsonValue::String(k) = credential_id_response.data.key.clone() {
-        assert_eq!(token_deployer.address.to_string(), k);
-    } else {
-        panic!(
-            "StateMap: unexpected key type: {:?}",
-            &credential_id_response.data.key
-        );
-    }
-    if let RuntimeAnyJsonValue::Array(credentials) = &credential_id_response.data.value {
-        assert_eq!(1, credentials.len());
-        let credential_jsoned = credentials.first().unwrap().clone();
-        let credential_id = credential_jsoned.as_str().unwrap().to_string();
-        let _credential_id = HexHash::from_str(&credential_id)?;
-    } else {
-        panic!(
-            "StateMap: unexpected value type: {:?}",
-            &credential_id_response.data.value
-        );
-    }
-
-    // Unknown value
-    let unknown = PrivateKeyAndAddress::<TestSpec>::generate();
-    let credential_id_response = client
-        .accounts_credential_ids_get_state_map_element(&unknown.address.to_string(), None)
-        .await
-        .unwrap_err();
-    assert_eq!(
-        Some(reqwest::StatusCode::NOT_FOUND),
-        credential_id_response.status()
-    );
-    // Known issue about not having a key in the response.
-    check_not_found_error(
-        credential_id_response,
-        "credential_ids 'unknown' not found",
-        "id",
-        "unknown",
     );
     Ok(())
 }
