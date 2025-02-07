@@ -263,7 +263,7 @@ where
             // We reward the attester with the amount of gas used for the transition.
             let transition = self
                 .chain_state
-                .get_historical_transitions(new_height_to_attest, state)
+                .slot_at_height(new_height_to_attest, state)
                 .map_err(Into::<anyhow::Error>::into)?
                 .expect("The transition should exist. The check has been done above");
 

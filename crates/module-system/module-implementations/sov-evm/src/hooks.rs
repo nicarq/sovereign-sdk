@@ -1,10 +1,12 @@
 use reth_primitives::revm_primitives::{B256, U256};
 use reth_primitives::{Bloom, Bytes};
+#[cfg(feature = "native")]
+use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 #[cfg(feature = "native")]
 use sov_modules_api::{AccessoryStateReaderAndWriter, FinalizeHook};
 use sov_modules_api::{BlockHooks, Spec, StateCheckpoint};
-use sov_state::{StateRoot, Storage};
+use sov_state::{ProvableNamespace, StateRoot, Storage};
 
 use crate::evm::primitive_types::Block;
 use crate::{BlockEnv, Evm, PendingTransaction};
@@ -23,8 +25,10 @@ impl<S: Spec> BlockHooks for Evm<S> {
             .unwrap_infallible()
             .expect("Head block should always be set");
 
-        let pre_state_user_root: [u8; 32] = pre_state_user_root.global_root();
+        let pre_state_user_root: [u8; 32] =
+            pre_state_user_root.namespace_root(ProvableNamespace::User);
 
+        // Here we set the parent's state root to the previous state root
         parent_block.header.state_root =
             // We have to force the conversion to [u8;32] to prevent the `from_slice` method from panicking
             B256::from_slice(&pre_state_user_root);
@@ -218,7 +222,29 @@ impl<S: Spec> FinalizeHook for Evm<S> {
             expected_block_number, block.header.number
         );
 
-        let root_hash_bytes: [u8; 32] = root_hash.global_root();
+        // The new state root provided here won't be used for `STATE_ROOT_DELAY_BLOCKS`. We make this easy
+        // by keeping a queue of the next `STATE_ROOT_DELAY_BLOCKS` state roots that'll need to be used in order
+        // in accessory state.
+        let future_root_hash: [u8; 32] = root_hash.namespace_root(ProvableNamespace::User);
+        let mut pending_state_roots = self
+            .pending_state_roots
+            .get(state)
+            .unwrap_infallible()
+            .unwrap_or_default();
+        pending_state_roots.push_back(future_root_hash);
+        let root_hash_bytes =
+            if pending_state_roots.len() > config_value!("STATE_ROOT_DELAY_BLOCKS") {
+                // Safety: We just pushed so the deque is non-empty
+                pending_state_roots.pop_front().unwrap()
+            } else {
+                // Safety: We just pushed so the deque is non-empty
+                *pending_state_roots.front().unwrap()
+            };
+
+        self.pending_state_roots
+            .set(&pending_state_roots, state)
+            .unwrap_infallible();
+
         block.header.state_root = root_hash_bytes.into();
 
         let sealed_block = block.seal();

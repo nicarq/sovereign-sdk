@@ -79,11 +79,11 @@ pub(crate) fn build_proof(
         .unwrap()
         .expect("Genesis hash must be set");
     let initial_transition = chain_state
-        .get_historical_transitions(initial_slot, state)
+        .slot_at_height(initial_slot, state)
         .unwrap()
         .unwrap();
     let end_transition = chain_state
-        .get_historical_transitions(end_slot, state)
+        .get_historical_transition_dangerous(end_slot, state)
         .unwrap()
         .unwrap();
 
@@ -94,7 +94,7 @@ pub(crate) fn build_proof(
         genesis_state_root: genesis_hash,
         final_state_root: *end_transition.post_state_root(),
         initial_slot_hash: *initial_transition.slot_hash(),
-        final_slot_hash: *end_transition.slot_hash(),
+        final_slot_hash: *end_transition.slot().slot_hash(),
         code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
         rewarded_addresses: vec![prover_address],
     })

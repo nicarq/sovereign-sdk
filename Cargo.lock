@@ -10633,6 +10633,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
+ "sov-test-module",
  "sov-test-utils",
  "sov-value-setter",
  "strum 0.26.3",
@@ -10801,6 +10802,26 @@ dependencies = [
  "tower-layer",
  "tracing",
  "tracing-subscriber 0.3.18",
+]
+
+[[package]]
+name = "sov-test-module"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "hex",
+ "schemars",
+ "serde",
+ "sov-address",
+ "sov-modules-api",
+ "sov-state",
+ "sov-test-module",
+ "sov-test-utils",
+ "strum 0.26.3",
+ "tempfile",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]

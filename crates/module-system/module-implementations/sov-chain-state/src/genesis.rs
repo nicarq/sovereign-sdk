@@ -6,6 +6,7 @@ use sov_modules_api::{
     CodeCommitmentFor, DaSpec, Gas, GasSpec, GenesisState, Module, OperatingMode, Spec,
 };
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
+use sov_state::{StateRoot, Storage};
 
 use crate::{BlockGasInfo, ChainState, SlotInformation};
 
@@ -82,11 +83,11 @@ impl<S: Spec> ChainState<S> {
                     S::initial_base_fee_per_gas(),
                     S::Gas::zero(),
                 ),
+                // Use the zero root as the previous root of genesis.
+                <S::Storage as Storage>::Root::from_namespace_roots([0; 32], [0; 32]),
             ),
             state,
         )?;
-
-        self.state_roots.initialize(state)?;
 
         Ok(())
     }

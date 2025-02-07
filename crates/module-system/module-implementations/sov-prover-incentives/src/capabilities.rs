@@ -198,7 +198,7 @@ impl<S: Spec> ProverIncentives<S> {
             // whose integrity was checked beforehand.
             if let Some(transition) = self
                 .chain_state
-                .get_historical_transitions(slot_num, state)
+                .slot_at_height(slot_num, state)
                 .map_err(Into::<anyhow::Error>::into)?
             {
                 let curr_reward = transition.gas_used().value(transition.gas_price());
@@ -285,51 +285,39 @@ impl<S: Spec> ProverIncentives<S> {
 
         // We start with the initial state values
         let initial_slot_num = public_outputs.initial_slot_number;
-
-        let initial_transition = match self
-            .chain_state
-            .get_historical_transitions(initial_slot_num, state)?
-        {
-            Some(initial_transition) => initial_transition,
-            None => return Ok(Some(SlashingReason::InitialTransitionDoesNotExist)),
+        let Some(initial_slot) = self.chain_state.slot_at_height(initial_slot_num, state)? else {
+            return Ok(Some(SlashingReason::InitialTransitionDoesNotExist));
         };
 
-        let initial_state_root = if let Some(prev_transition) = self
-            .chain_state
-            .get_historical_transitions(initial_slot_num.saturating_sub(1), state)?
-        {
-            prev_transition.post_state_root().clone()
-        } else {
-            expected_genesis_hash
-        };
-
-        if initial_state_root != public_outputs.initial_state_root {
+        if initial_slot.prev_state_root() != &public_outputs.initial_state_root {
             return Ok(Some(SlashingReason::IncorrectInitialStateRoot));
         }
 
-        let initial_transition_hash = initial_transition.slot_hash();
-
+        let initial_transition_hash = initial_slot.slot_hash();
         if initial_transition_hash != &public_outputs.initial_slot_hash {
             return Ok(Some(SlashingReason::IncorrectInitialSlotHash));
         }
 
         // Let's move on to the final state values
         let final_slot_num = public_outputs.final_slot_number;
-
+        // Check that the final da block hash is correct
         let expected_final_transition = match self
             .chain_state
-            .get_historical_transitions(final_slot_num, state)?
+            .get_historical_transition_dangerous(final_slot_num, state)?
         {
             Some(expected_final_transition) => expected_final_transition,
-            None => return Ok(Some(SlashingReason::FinalTransitionDoesNotExist)),
+            None => {
+                tracing::debug!(%final_slot_num, "No historical state transition found for final slot number. Recall that state transitions are not visible until the slot *after* the transition is visible.");
+                return Ok(Some(SlashingReason::FinalTransitionDoesNotExist));
+            }
         };
+
+        if expected_final_transition.slot().slot_hash() != &public_outputs.final_slot_hash {
+            return Ok(Some(SlashingReason::IncorrectFinalSlotHash));
+        }
 
         if expected_final_transition.post_state_root() != &public_outputs.final_state_root {
             return Ok(Some(SlashingReason::IncorrectFinalStateRoot));
-        }
-
-        if expected_final_transition.slot_hash() != &public_outputs.final_slot_hash {
-            return Ok(Some(SlashingReason::IncorrectFinalSlotHash));
         }
 
         Ok(None)

@@ -41,6 +41,7 @@ members = [
     "crates/module-system/module-implementations/sov-attester-incentives",
     "crates/module-system/module-implementations/sov-sequencer-registry",
     "crates/module-system/module-implementations/sov-value-setter",
+    "crates/module-system/module-implementations/sov-test-module",
     "crates/module-system/module-implementations/module-template",
     "crates/module-system/module-implementations/integration-tests",
     "crates/module-system/sov-capabilities",
@@ -111,6 +112,7 @@ sov-sequencer-registry = { path = "crates/module-system/module-implementations/s
 sov-node-client = { path = "crates/utils/sov-node-client", default-features = false, version = "0.3" }
 sov-prover-incentives = { path = "crates/module-system/module-implementations/sov-prover-incentives", default-features = false, version = "0.3" }
 sov-value-setter = { path = "crates/module-system/module-implementations/sov-value-setter", default-features = false, version = "0.3" }
+sov-test-module = { path = "crates/module-system/module-implementations/sov-test-module", default-features = false, version = "0.3" }
 sov-chain-state = { path = "crates/module-system/module-implementations/sov-chain-state", default-features = false, version = "0.3" }
 sov-blob-storage = { path = "crates/module-system/module-implementations/sov-blob-storage", default-features = false, version = "0.3" }
 sov-evm = { path = "crates/module-system/module-implementations/sov-evm", default-features = false, version = "0.3" }

@@ -20,13 +20,13 @@ use sov_rest_utils::ResponseObject;
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
 use sov_stf_runner::processes::RollupProverConfig;
+use sov_test_module::{TestModule as ValueSetter, TestModuleConfig as ValueSetterConfig};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::{
     default_test_signed_transaction, generate_optimistic_runtime_with_kernel, initialize_logging,
     RtAgnosticBlueprint, TestSpec,
 };
-use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use test_strategy::Arbitrary;
 use tokio::time::sleep;
 use tokio_stream::StreamExt;
@@ -323,6 +323,155 @@ async fn replay_uses_correct_visible_slot_number() {
         "Replay in the sequencer was successful, but replay on the node failed: {:?}",
         next.batches[0],
     );
+}
+
+/// This test checks that the visible hash of the rollup block is the same in the node and the sequencer.
+///
+/// This test currently works by running a loop of...
+/// - Send a transaction to trigger the sequencer to start a batch.
+/// - Query the current state root from the sequencer.
+/// - Send a transaction that asserts the correct state root. Ensure it is accepted
+/// - Produce a block, triggering the sequencer to close out its current batch and post it on DA
+/// - Check that the state root assertion suceeded on the node as well.
+#[tokio::test(flavor = "multi_thread")]
+async fn visible_hashes_match_across_node_and_sequencer() {
+    sov_test_utils::initialize_logging();
+    const FINALIZATION_BLOCKS: u32 = 0;
+    let genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    let admin = genesis_config.additional_accounts[0].clone();
+
+    let rt_genesis_config =
+        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
+            genesis_config.into(),
+            ValueSetterConfig {
+                admin: admin.address(),
+            },
+            PaymasterConfig::default(),
+            (),
+        );
+    let genesis_params = GenesisParams {
+        runtime: rt_genesis_config.clone(),
+    };
+
+    let dir = Arc::new(tempfile::tempdir().unwrap());
+
+    let da_layer = Arc::new(tokio::sync::RwLock::new(
+        StorableMockDaLayer::new_in_memory(FINALIZATION_BLOCKS)
+            .await
+            .unwrap(),
+    ));
+    let test_rollup = {
+        let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
+        RollupBuilder::<TestBlueprint>::new(
+            GenesisSource::CustomParams(genesis_params),
+            BlockProducingConfig::Manual, // Use manual block production to be sure that the changes are happening in the sequencer only, not the node.
+            FINALIZATION_BLOCKS,
+        )
+        .set_config(|c| {
+            c.rollup_prover_config = Some(RollupProverConfig::Skip);
+            c.storage = dir;
+        })
+        .set_da_config(|c| {
+            c.sender_address = sequencer_addr;
+            c.da_layer = Some(da_layer.clone());
+        })
+        .start()
+        .await
+        .unwrap()
+    };
+
+    let mut slot_subscription = test_rollup
+        .api_client
+        .subscribe_slots_with_children(IncludeChildren::new(true))
+        .await
+        .unwrap();
+
+    #[derive(Debug, serde::Deserialize)]
+    struct StateRootResponse {
+        root_hashes: Vec<u8>,
+    }
+    #[derive(Debug, serde::Deserialize)]
+    struct ValueResponse {
+        value: StateRootResponse,
+    }
+    async fn get_state_root(test_rollup: &TestRollup<TestBlueprint>) -> StateRootResponse {
+        let state_root_url = format!(
+            "{}/modules/value-setter/state/latest-state-root/",
+            test_rollup.api_client.baseurl()
+        );
+        let response = test_rollup
+            .api_client
+            .client()
+            .get(state_root_url)
+            .send()
+            .await
+            .unwrap();
+        let response = response
+            .json::<ResponseObject<ValueResponse>>()
+            .await
+            .expect("Hooks must have run");
+        let root = response
+            .data
+            .ok_or_else(|| anyhow::anyhow!("No state root in response"))
+            .unwrap();
+        root.value
+    }
+    // Produce some empty blocks to ensure that the sequencer has a batch in progress.
+    da_layer.write().await.produce_block().await.unwrap();
+    slot_subscription.next().await.unwrap().unwrap();
+    da_layer.write().await.produce_block().await.unwrap();
+    slot_subscription.next().await.unwrap().unwrap();
+    sleep(Duration::from_millis(50)).await;
+
+    // Run a few rounds of checking the state root to be extra sure nothing gets screwed up over time.
+    let mut current_nonce = 0;
+    for i in 0..10 {
+        // Send a transaction to ensure that the sequencer has a batch in progress. This is necessary
+        // because we start a new rollup block (with a new visible hash) each time we start a batch.
+        let tx = tx_set_value(&admin.private_key, current_nonce, i).clone();
+        test_rollup
+            .api_client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+        current_nonce += 1;
+
+        // Query the current state root from the node.
+        let root = get_state_root(&test_rollup).await;
+        tracing::info!(
+            "Sending assert state root tx: {}",
+            hex::encode(&root.root_hashes)
+        );
+
+        // Send a transaction that asserts the correct state root.
+        let tx = tx_assert_state_root(&admin.private_key, current_nonce, root.root_hashes.clone())
+            .clone();
+        test_rollup
+            .api_client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+
+        current_nonce += 1;
+
+        // Produce a block. This will trigger the sequencer to close out its current batch and start a new one.
+        da_layer.write().await.produce_block().await.unwrap();
+        let slot = slot_subscription.next().await.unwrap().unwrap();
+        if !slot.batches.is_empty() && !slot.batches[0].txs.is_empty() {
+            // Assert that the second transaction in the batch (the one that asserts the state root) succeeded.
+            assert_eq!(
+                slot.batches[0].txs[1].receipt.result,
+                TxReceiptResult::Successful
+            );
+        }
+        // Sleep to ensure that the sequencer has time to process `update_state` and submit its batch before the next loop iteration.
+        sleep(Duration::from_millis(200)).await;
+    }
 }
 
 /// This test checks that state changes from the begin/end slot and finalize hooks are visible via the sequencer's REST API.
@@ -875,7 +1024,7 @@ async fn query_set_value(
 
 fn tx_set_value(key: &Ed25519PrivateKey, nonce: u64, value_to_set: u64) -> RawTx {
     let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
-        sov_value_setter::CallMessage::SetValue {
+        sov_test_module::CallMessage::SetValue {
             value: value_to_set as u32,
             gas: None,
         },
@@ -890,8 +1039,22 @@ fn tx_assert_visible_slot_number(
     assert_visible_slot_number: u64,
 ) -> RawTx {
     let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
-        sov_value_setter::CallMessage::AssertVisibleSlotNumber {
+        sov_test_module::CallMessage::AssertVisibleSlotNumber {
             expected_visible_slot_number: assert_visible_slot_number,
+        },
+    );
+
+    encode_call(key, nonce, &msg)
+}
+
+fn tx_assert_state_root(
+    key: &Ed25519PrivateKey,
+    nonce: u64,
+    expected_state_root: Vec<u8>,
+) -> RawTx {
+    let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
+        sov_test_module::CallMessage::AssertStateRoot {
+            expected_state_root,
         },
     );
 

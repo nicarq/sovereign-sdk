@@ -125,7 +125,7 @@ fn test_chain_state_update_state_root() {
                 previous_state_root = Some(result.state_root);
             } else {
                 let previous_transition = ChainState::<S>::default()
-                    .get_historical_transitions(round, kernel)
+                    .get_historical_transition_dangerous(round, kernel)
                     .unwrap_infallible()
                     .unwrap();
 
@@ -176,7 +176,7 @@ fn test_chain_state_update_transitions() {
                     let expected_previous_transition = historical_transition;
 
                     let stored_previous_transition = ChainState::<S>::default()
-                        .get_historical_transitions(height, kernel)
+                        .slot_at_height(height, kernel)
                         .unwrap_infallible()
                         .unwrap();
 
@@ -199,7 +199,7 @@ fn test_chain_state_update_transitions() {
                     );
 
                     assert_eq!(
-                        expected_previous_transition.hash(),
+                        expected_previous_transition.slot_hash(),
                         stored_previous_transition.slot_hash(),
                         "The slot hashes don't match"
                     );

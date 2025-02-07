@@ -133,15 +133,15 @@ pub(crate) fn build_proof(
 
     // Get the values for the transition being attested
     let current_transition = chain_state
-        .get_historical_transitions(height_to_attest, state)?
+        .get_historical_transition_dangerous(height_to_attest, state)?
         .unwrap();
 
     let prev_root = if rollup_height_to_attest == 1 {
         chain_state.get_genesis_hash(state)?
     } else {
         chain_state
-            .get_historical_transitions(height_to_attest.prev(), state)?
-            .map(|t| *t.post_state_root())
+            .slot_at_height(height_to_attest, state)?
+            .map(|slot| *slot.prev_state_root())
     }
     .unwrap();
 
@@ -156,7 +156,7 @@ pub(crate) fn build_proof(
 
     Ok(Attestation {
         initial_state_root: prev_root,
-        slot_hash: *current_transition.slot_hash(),
+        slot_hash: *current_transition.slot().slot_hash(),
         post_state_root: *current_transition.post_state_root(),
         proof_of_bond: sov_modules_api::optimistic::ProofOfBond {
             claimed_slot_number: height_to_attest,
@@ -246,26 +246,17 @@ pub(crate) fn build_challenge(
     let chain_state = ChainState::<S>::default();
     // Get the values for the transition being attested
     let current_transition = chain_state
-        .get_historical_transitions(challenge_slot, state)?
+        .get_historical_transition_dangerous(challenge_slot, state)?
         .unwrap();
-
-    let prev_root = if challenge_slot.get() == 1 {
-        chain_state.get_genesis_hash(state)?
-    } else {
-        chain_state
-            .get_historical_transitions(challenge_slot.prev(), state)?
-            .map(|t| *t.post_state_root())
-    }
-    .unwrap();
 
     let challenge: StateTransitionPublicData<
         <S as Spec>::Address,
         MockDaSpec,
         <<S as Spec>::Storage as Storage>::Root,
     > = StateTransitionPublicData {
-        initial_state_root: prev_root,
+        initial_state_root: *current_transition.slot().prev_state_root(),
         final_state_root: *current_transition.post_state_root(),
-        slot_hash: *current_transition.slot_hash(),
+        slot_hash: *current_transition.slot().slot_hash(),
         prover_address,
     };
 

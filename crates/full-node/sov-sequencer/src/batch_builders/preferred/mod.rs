@@ -31,7 +31,7 @@ use sov_modules_stf_blueprint::{StfBlueprint, TransactionReceipt, TxEffect};
 use sov_rest_utils::errors::database_error_500;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
-use sov_state::{Namespace, NativeStorage, StateUpdate, Storage};
+use sov_state::{Namespace, NativeStorage, StateRoot, StateUpdate, Storage};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::{oneshot, watch, Mutex};
@@ -299,6 +299,7 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
             let shutdown_notifier = self.shutdown_notifier.clone();
             let additional_blobs = vec![]; // TODO.
             let mut checkpoint = checkpoint.clone_with_empty_witness();
+            let old_rollup_height = checkpoint.rollup_height_to_access();
 
             move || {
                 let _span = tracing::trace_span!(
@@ -327,7 +328,15 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
                 let kernel = rt.kernel();
                 let mut accessor: KernelStateAccessor<'_, Z::Spec> =
                     KernelStateAccessor::from_checkpoint(&kernel, &mut checkpoint);
-                kernel.increment_rollup_height(&mut accessor, next_visible_slot_number);
+                kernel.increment_rollup_height(
+                    &mut accessor,
+                    next_visible_slot_number,
+                    &prev_state_root.namespace_root(sov_state::ProvableNamespace::User),
+                );
+                let next_root = kernel
+                    .visible_hash_for(old_rollup_height.saturating_add(1), &mut accessor)
+                    .unwrap();
+
                 tracing::info!(
                     %next_visible_slot_number,
                     "Applying batches in user space"
@@ -336,7 +345,7 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
                     blob_selector_output,
                     checkpoint,
                     ExecutionContext::Sequencer,
-                    prev_state_root,
+                    next_root,
                 );
                 let mut changes = checkpoint.changes();
                 let (state_root, _witness, _change_set, state_update) =

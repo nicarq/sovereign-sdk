@@ -39,51 +39,61 @@ fn setup() -> (TestUser<S>, TestRunner<RT>) {
 #[test]
 fn visible_hash_basic_kernel() {
     let (_, mut runner) = setup();
+    let genesis_hash = *runner.state_root();
 
     const NUM_SLOTS: u64 = 10;
+    let state_root_delay_blocks: u64 =
+        sov_modules_api::macros::config_value!("STATE_ROOT_DELAY_BLOCKS");
+    let mut roots = Vec::new();
+    roots.push(genesis_hash);
+    for prev_block_number in 0..=(NUM_SLOTS + state_root_delay_blocks) {
+        last_state_root_closure(
+            &mut |TestClosureArgs {
+                      prev_finalize_hook_hash,
+                      prev_slot_hash,
+                      finalize_hook_hash,
+                      current_slot_hash,
+                      begin_slot_hash,
+                  }| {
+                assert_eq!(
+                    prev_finalize_hook_hash, prev_slot_hash,
+                    "The previous finalize hash should always match the previous slot hash"
+                );
 
-    last_state_root_closure(
-        &mut |TestClosureArgs {
-                  prev_finalize_hook_hash,
-                  prev_slot_hash,
-                  finalize_hook_hash,
-                  current_slot_hash,
-                  begin_slot_hash,
-              }| {
-            assert_eq!(
-                prev_finalize_hook_hash, prev_slot_hash,
-                "The previous finalize hash should always match the previous slot hash"
-            );
+                assert_eq!(
+                    finalize_hook_hash, current_slot_hash,
+                    "The current finalize hash should always match the current slot hash"
+                );
 
-            assert_eq!(
-                finalize_hook_hash, current_slot_hash,
-                "The current finalize hash should always match the current slot hash"
-            );
+                roots.push(current_slot_hash);
 
-            assert_eq!(
-                begin_slot_hash.unwrap(),
-                prev_slot_hash,
-                "The begin slot hash should be the same as the previous slot hash"
-            );
+                assert_eq!(
+                    begin_slot_hash.unwrap(),
+                    roots[prev_block_number.saturating_sub(state_root_delay_blocks) as usize],
+                    "The current slot hash should match the expected hash"
+                );
 
-            assert_ne!(
-                current_slot_hash, prev_slot_hash,
-                "The slot hash should always update"
-            );
+                let current_block_number = prev_block_number + 1;
+                if current_block_number > state_root_delay_blocks {
+                    assert_ne!(
+                        current_slot_hash, prev_slot_hash,
+                        "The slot hash should always update"
+                    );
+                    assert_ne!(
+                        current_slot_hash.namespace_root(ProvableNamespace::Kernel),
+                        prev_slot_hash.namespace_root(ProvableNamespace::Kernel),
+                        "The kernel hash should always update in the basic kernel"
+                    );
 
-            assert_ne!(
-                current_slot_hash.namespace_root(ProvableNamespace::Kernel),
-                prev_slot_hash.namespace_root(ProvableNamespace::Kernel),
-                "The kernel hash should always update in the basic kernel"
-            );
-
-            assert_ne!(
-                current_slot_hash.namespace_root(ProvableNamespace::User),
-                prev_slot_hash.namespace_root(ProvableNamespace::User),
-                "The user hash should always update in the basic kernel"
-            );
-        },
-        &mut runner,
-        NUM_SLOTS,
-    );
+                    assert_ne!(
+                        current_slot_hash.namespace_root(ProvableNamespace::User),
+                        prev_slot_hash.namespace_root(ProvableNamespace::User),
+                        "The user hash should always update in the basic kernel"
+                    );
+                }
+            },
+            &mut runner,
+            1,
+        );
+    }
 }
