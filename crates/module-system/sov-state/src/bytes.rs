@@ -45,27 +45,15 @@ impl fmt::Display for Prefix {
     }
 }
 
-impl Extend<u8> for Prefix {
-    fn extend<T: IntoIterator<Item = u8>>(&mut self, iter: T) {
-        self.prefix.extend(iter);
-    }
-}
-
 impl Prefix {
     /// Creates a new prefix from a byte vector.
     pub fn new(prefix: Vec<u8>) -> Self {
         Self { prefix }
     }
 
-    /// Creates a new prefix by extending an existing one with additional bytes.
-    /// This method is particularly useful for the creation of nested sov containers.
-    ///
-    /// Caution: This method does not validate prefix collisions in the state tree. It is the caller's responsibility to ensure
-    /// that the resulting prefix is unique.
-    pub fn with_parent(parent_prefix: &Self, extra_prefix: &dyn AsRef<[u8]>) -> Self {
-        let mut new_prefix = parent_prefix.as_ref().to_vec();
-        new_prefix.extend_from_slice(extra_prefix.as_ref());
-        Self::new(new_prefix)
+    /// Returns `true` if the prefix is empty, `false` otherwise.
+    pub fn is_empty(&self) -> bool {
+        self.prefix.is_empty()
     }
 
     /// Returns the length in bytes of the prefix.
@@ -73,17 +61,11 @@ impl Prefix {
         self.prefix.len()
     }
 
-    /// Returns `true` if the prefix is empty, `false` otherwise.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.prefix.is_empty()
-    }
-
     /// Returns a new prefix allocated on the fly, by extending the current
     /// prefix with the given bytes.
     pub fn extended(&self, bytes: &[u8]) -> Self {
         let mut prefix = self.clone();
-        prefix.extend(bytes.iter().copied());
+        prefix.prefix.extend(bytes.iter().copied());
         prefix
     }
 }

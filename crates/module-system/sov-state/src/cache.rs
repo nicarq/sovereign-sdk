@@ -18,7 +18,7 @@ pub enum IsValueCached {
     No,
 }
 
-/// `Access` represents a sequence of events on a particular value.
+/// [`Access`] represents a sequence of events on a particular value.
 /// For example, a transaction might read a value, then take some action which causes it to be updated
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Access {
@@ -57,7 +57,7 @@ impl Access {
     }
 }
 
-/// `CacheLog` keeps track of the original and current values of each key accessed.
+/// [`CacheLog`] keeps track of the original and current values of each key accessed.
 /// By tracking original values, we can detect and eliminate write patterns where a key is
 /// changed temporarily and then reset to its original value
 #[derive(Default, Debug, Clone)]
