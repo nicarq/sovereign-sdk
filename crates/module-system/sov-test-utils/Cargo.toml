@@ -62,7 +62,7 @@ sov-sequencer-registry = { workspace = true, features = ["native"] }
 sov-chain-state = { workspace = true, features = ["native", "test-utils"] }
 sov-blob-storage = { workspace = true, features = ["native"] }
 sov-db = { workspace = true }
-sov-state = { workspace = true }
+sov-state = { workspace = true, features = ["native"] }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true, features = ["native"] }
 strum = { workspace = true }

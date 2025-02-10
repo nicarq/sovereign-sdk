@@ -61,13 +61,14 @@ utoipa-swagger-ui = { workspace = true, optional = true }
 unwrap-infallible = { workspace = true }
 
 [dev-dependencies]
+sov-state = { workspace = true, features = ["native", "test-utils"]}
 bincode = { workspace = true }
 tempfile = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true, features = ["native"] }
 sov-sequencer-registry = { workspace = true, features = ["native"] }
-sov-modules-api = { path = ".", features = ["test-utils"] }
+sov-modules-api = { path = ".", features = ["native", "test-utils"] }
 sov-test-utils = { workspace = true }
 reqwest = { workspace = true }
 # Debug for more convinient tests output
@@ -119,6 +120,6 @@ native = [
 	"sov-sequencer-registry/native",
 	"sov-metrics?/native",
 ]
-test-utils = ["dep:tracing-test"]
+test-utils = ["dep:tracing-test", "sov-state/test-utils"]
 evm = []
 gas-constant-estimation = ["sov-metrics/gas-constant-estimation", "sov-modules-macros/gas-constant-estimation"]

@@ -7,8 +7,6 @@ use sov_rollup_interface::common::SlotNumber;
 use crate::cache::{OrderedReadsAndWrites, StateAccesses};
 use crate::jmt::KeyHash;
 use crate::namespaces::CompileTimeNamespace;
-#[cfg(feature = "native")]
-use crate::namespaces::ProvableCompileTimeNamespace;
 use crate::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use crate::storage_internals::SparseMerkleProof;
 use crate::{
@@ -107,16 +105,10 @@ impl<S: MerkleProofSpec> ZkStorage<S> {
 impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     type Hasher = S::Hasher;
     type Witness = S::Witness;
-    type RuntimeConfig = ();
     type Proof = SparseMerkleProof<S::Hasher>;
     type Root = StorageRoot<S>;
     type StateUpdate = ();
     type ChangeSet = ();
-
-    #[cfg(feature = "native")]
-    fn latest_version(&self) -> SlotNumber {
-        unimplemented!("Latest version is not available for ZkStorage");
-    }
 
     fn put_in_witness(&self, _value: Option<SlotValue>, _witness: &Self::Witness) {}
 
@@ -165,9 +157,16 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     }
 }
 
-#[cfg(feature = "native")]
+#[cfg(feature = "test-utils")]
+// `NativeStorage`` is implemented for `ZkStorage` solely for testing purposes.
+// In some tests, we use both `ProverStorage`` and `ZkStorage`.
+// Due to feature unification, we must provide this implementation even though it is not used.
 impl<S: MerkleProofSpec> crate::storage::NativeStorage for ZkStorage<S> {
-    fn get_with_proof<N: ProvableCompileTimeNamespace>(
+    fn latest_version(&self) -> SlotNumber {
+        unimplemented!("Latest version is not available for ZkStorage");
+    }
+
+    fn get_with_proof<N: crate::namespaces::ProvableCompileTimeNamespace>(
         &self,
         _key: SlotKey,
         _version: Option<SlotNumber>,

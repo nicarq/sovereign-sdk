@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{
-    namespaces, EventContainer, IsValueCached, Namespace, ProvableStorageCache, SlotKey, SlotValue,
-    Storage,
+    namespaces, EventContainer, IsValueCached, Namespace, NativeStorage, ProvableStorageCache,
+    SlotKey, SlotValue, Storage,
 };
 
 use super::{StateCheckpoint, UniversalStateAccessor};
