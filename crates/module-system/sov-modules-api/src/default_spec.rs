@@ -1,6 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::execution_mode;
 #[cfg(feature = "native")]
 use sov_rollup_interface::execution_mode::{Native, WitnessGeneration};
 use sov_rollup_interface::zk::{CryptoSpec, ZkVerifier, Zkvm};
@@ -120,8 +119,9 @@ where
     type Witness = ArrayWitness;
 }
 
+#[cfg(any(not(feature = "native"), feature = "test-utils"))]
 impl<Da: DaSpec, InnerZkvm: Zkvm, OuterZkvm: Zkvm> Spec
-    for DefaultSpec<Da, InnerZkvm, OuterZkvm, execution_mode::Zk>
+    for DefaultSpec<Da, InnerZkvm, OuterZkvm, crate::execution_mode::Zk>
 where
     <InnerZkvm::Verifier as ZkVerifier>::CryptoSpec: crate::CryptoSpecExt,
 {

@@ -54,3 +54,5 @@ native = [
 	"sov-metrics?/native",
 	"sov-modules-macros?/native"
 ]
+
+test-utils = ["native"]

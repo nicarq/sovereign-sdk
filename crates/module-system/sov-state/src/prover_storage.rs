@@ -10,7 +10,6 @@ use sov_db::storage_manager::{InitializableNativeStorage, NativeChangeSet, StfSt
 use sov_rollup_interface::common::SlotNumber;
 
 use crate::cache::{OrderedReadsAndWrites, StateAccesses};
-use crate::config::Config;
 use crate::namespaces::{
     Accessory, CompileTimeNamespace, Namespace, ProvableCompileTimeNamespace, ProvableNamespace,
 };
@@ -304,7 +303,6 @@ impl NamespacedStateUpdate {
 impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     type Hasher = S::Hasher;
     type Witness = S::Witness;
-    type RuntimeConfig = Config;
     type Proof = SparseMerkleProof<S::Hasher>;
     type Root = StorageRoot<S>;
     type StateUpdate = NamespacedStateUpdate;
@@ -353,10 +351,6 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         let val = self.read_value::<N>(key, version);
         witness.add_hint(val.clone());
         val
-    }
-
-    fn latest_version(&self) -> SlotNumber {
-        self.db.get_next_version().saturating_sub(1)
     }
 
     fn get_accessory(&self, key: &SlotKey, version: Option<SlotNumber>) -> Option<SlotValue> {
@@ -421,6 +415,10 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
 }
 
 impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
+    fn latest_version(&self) -> SlotNumber {
+        self.db.get_next_version().saturating_sub(1)
+    }
+
     fn get_with_proof<N: ProvableCompileTimeNamespace>(
         &self,
         key: SlotKey,

@@ -352,9 +352,6 @@ pub trait Storage: Clone {
     /// The witness type for this storage instance.
     type Witness: Witness + Send + Sync;
 
-    /// The runtime config for this storage instance.
-    type RuntimeConfig;
-
     /// A cryptographic proof that a particular key has a particular value, or is absent.
     type Proof: Serialize
         + DeserializeOwned
@@ -375,10 +372,6 @@ pub trait Storage: Clone {
 
     /// Collections of all the writes that have been made on top of this instance of the storage;
     type ChangeSet: Send + Sync;
-
-    #[cfg(feature = "native")]
-    /// Gets the latest version available in the storage.
-    fn latest_version(&self) -> SlotNumber;
 
     /// Puts the value in the witness.
     fn put_in_witness(&self, value: Option<SlotValue>, witness: &Self::Witness);
@@ -470,9 +463,13 @@ impl From<&str> for SlotValue {
     }
 }
 
+#[cfg(feature = "native")]
 /// A [`Storage`] that is suitable for use in native execution environments
 /// (outside of the zkVM).
 pub trait NativeStorage: Storage {
+    /// Gets the latest version available in the storage.
+    fn latest_version(&self) -> SlotNumber;
+
     /// Returns the value corresponding to the key or None if the key is absent and a proof to
     /// get the value.
     /// Returns an error if storage is empty or the passed version is not yet available.
