@@ -61,18 +61,11 @@ impl Access {
 /// By tracking original values, we can detect and eliminate write patterns where a key is
 /// changed temporarily and then reset to its original value
 #[derive(Default, Debug, Clone)]
-pub struct CacheLog {
+struct CacheLog {
     log: std::collections::HashMap<SlotKey, Access>,
 }
 
 impl CacheLog {
-    /// Returns the owned set of key/value pairs of the cache.
-    pub fn get_writes(&self) -> impl Iterator<Item = (&SlotKey, Option<&SlotValue>)> {
-        self.log
-            .iter()
-            .filter_map(|(k, access)| access.modified().map(|v| (k, v)))
-    }
-
     // Returns the owned set of key/value pairs of the cache.
     fn take_writes(self) -> Vec<(SlotKey, Option<SlotValue>)> {
         self.log
@@ -115,10 +108,10 @@ impl CacheLog {
 /// the cache checks if the value we read was inserted before.
 #[derive(Default, Debug, Clone)]
 pub struct ProvableStorageCache<N> {
-    /// Transaction cache.
-    pub tx_cache: CacheLog,
-    /// Ordered reads and writes.
-    pub ordered_db_reads: Vec<(SlotKey, Option<NodeLeaf>)>,
+    // Transaction cache.
+    tx_cache: CacheLog,
+    // Ordered reads and writes.
+    ordered_db_reads: Vec<(SlotKey, Option<NodeLeaf>)>,
     phantom: core::marker::PhantomData<N>,
 }
 
@@ -142,6 +135,14 @@ pub struct ProvableStorageCache<N> {
 // fetched and cached—even when only requesting the size. This is because, in native execution, it's acceptable to cache the full
 // value, but in ZK execution, arbitrary large values cannot be stored as hints in the witness.
 impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
+    /// Returns an iterator over the writes
+    pub fn get_writes(&self) -> impl Iterator<Item = (&SlotKey, Option<&SlotValue>)> {
+        self.tx_cache
+            .log
+            .iter()
+            .filter_map(|(k, access)| access.modified().map(|v| (k, v)))
+    }
+
     /// Checks if a value corresponding to a given key is cached.
     pub fn is_value_cached(&self, key: &SlotKey) -> IsValueCached {
         if self.tx_cache.log.contains_key(key) {
