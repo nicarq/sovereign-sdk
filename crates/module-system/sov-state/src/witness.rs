@@ -1,4 +1,4 @@
-use std::sync::atomic::AtomicUsize;
+use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -26,8 +26,8 @@ pub trait Witness: Default + Serialize + DeserializeOwned {
     /// Retrieves a "hint" from the witness value.
     fn get_hint<T: BorshDeserialize>(&self) -> T;
 
-    /// Adds all hints from `rhs` to `self`.
-    fn merge(&self, rhs: &Self);
+    /// Returns true if the witness is empty.
+    fn is_empty(&self) -> bool;
 }
 
 /// A [`Vec`]-based implementation of [`Witness`] with no special logic.
@@ -47,8 +47,7 @@ pub trait Witness: Default + Serialize + DeserializeOwned {
 /// ```
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct ArrayWitness {
-    next_idx: AtomicUsize,
-    hints: Mutex<Vec<Vec<u8>>>,
+    hints: Mutex<VecDeque<Vec<u8>>>,
 }
 
 impl Witness for ArrayWitness {
@@ -56,22 +55,23 @@ impl Witness for ArrayWitness {
         self.hints
             .lock()
             .unwrap()
-            .push(borsh::to_vec(&hint).unwrap());
+            .push_back(borsh::to_vec(&hint).unwrap());
     }
 
     fn get_hint<T: BorshDeserialize>(&self) -> T {
-        let idx = self
-            .next_idx
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        let hints_lock = self.hints.lock().unwrap();
-        T::deserialize(&mut hints_lock[idx].as_slice())
-            .expect("Hint deserialization should never fail")
+        let mut hints_lock = self.hints.lock().unwrap();
+        T::deserialize(
+            &mut hints_lock
+                .pop_front()
+                .expect(
+                    "Cannot call `get_hint` on an empty witness. This is a bug! Please report it.",
+                )
+                .as_slice(),
+        )
+        .expect("Hint deserialization should never fail")
     }
 
-    fn merge(&self, rhs: &Self) {
-        let rhs_next_idx = rhs.next_idx.load(std::sync::atomic::Ordering::SeqCst);
-        let mut lhs_hints_lock = self.hints.lock().unwrap();
-        let mut rhs_hints_lock = rhs.hints.lock().unwrap();
-        lhs_hints_lock.extend(rhs_hints_lock.drain(rhs_next_idx..));
+    fn is_empty(&self) -> bool {
+        self.hints.lock().unwrap().is_empty()
     }
 }
