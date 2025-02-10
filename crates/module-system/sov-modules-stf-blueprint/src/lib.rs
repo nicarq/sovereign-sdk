@@ -200,9 +200,11 @@ where
         <S::Storage as Storage>::Witness,
         <S::Storage as Storage>::ChangeSet,
     ) {
+        use sov_state::Witness;
         let (next_root_hash, state_update, _, witness, storage) = checkpoint.materialize_update();
 
         let change_set = storage.materialize_changes(&state_update);
+        assert!(witness.is_empty(), "Non-native execution must completely consume the witness! The prover may be malicious, or this may be a bug.");
 
         (next_root_hash, witness, change_set)
     }
