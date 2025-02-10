@@ -331,7 +331,8 @@ const _: () = {
                 .0
         }
 
-        fn true_slot_number_at_height(
+        #[cfg(feature = "native")]
+        fn true_slot_number_at_historical_height(
             &self,
             height: RollupHeight,
             state: &mut ApiStateAccessor<S>,

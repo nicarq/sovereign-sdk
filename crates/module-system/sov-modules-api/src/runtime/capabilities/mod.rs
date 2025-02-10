@@ -217,7 +217,8 @@ pub mod mocks {
             Some(VisibleSlotNumber::new_dangerous(height.get()))
         }
 
-        fn true_slot_number_at_height(
+        #[cfg(feature = "native")]
+        fn true_slot_number_at_historical_height(
             &self,
             height: super::RollupHeight,
             _state: &mut crate::state::ApiStateAccessor<S>,

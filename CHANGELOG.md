@@ -4,6 +4,7 @@
 - #2377 Removed the `credential_ids` mapping from the `sov-accounts` module. It was unused, but had been automatically exposed as aREST API, so any end-to-end API tests relying on it will need to be adjusted or removed.
 
 ## 2025-02-05
+- #2367 gates `true_slot_number_at_height` behind the `"native"` feature and renames it to `true_slot_number_at_historical_height` to better reflect that only historical slot numbers (not the latest slots) are available.
 - #2369 fixes `sov-benchmarks` following workspace unification + preferred sequencer fixes. This is not a breaking change.
 - #2365 reorganizes `sov-benchmarks` following workspace unification
 - #2363 removes `ExecutionContext`, `RollupHeight`, and `VisibleSlotNumber` from the transaction execution context `struct Context`. `RollupHeight` and `VisibleSlotNumber` can be accessed via `TxState` and other state accessors. The `ExecutionContext` information is not available anymore, please reach out to the team to submit a use case that requires it.
