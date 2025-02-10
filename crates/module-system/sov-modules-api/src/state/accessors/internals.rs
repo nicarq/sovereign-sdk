@@ -80,12 +80,10 @@ impl<S: Storage> Delta<S> {
     pub(super) fn changes(&self) -> ChangeSet {
         let changes = self
             .user_cache
-            .tx_cache
             .get_writes()
             .map(|(k, v)| ((k.clone(), Namespace::User), v.cloned()))
             .chain(
                 self.kernel_cache
-                    .tx_cache
                     .get_writes()
                     .map(|(k, v)| ((k.clone(), Namespace::Kernel), v.cloned())),
             )
