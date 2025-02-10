@@ -32,7 +32,7 @@ pub trait KernelWithSlotMapping<S: Spec>: Sync + Send + 'static {
     /// finalized on the DA layer. However, the results of a slot may be known well before that point
     /// (assuming that the sequencer is not malicious). In other words, querying for the true slot number
     /// may return `None` even if the rollup height has already finished processing.
-    fn true_slot_number_at_height(
+    fn true_slot_number_at_historical_height(
         &self,
         height: RollupHeight,
         state: &mut crate::state::ApiStateAccessor<S>,
