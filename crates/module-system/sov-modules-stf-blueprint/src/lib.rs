@@ -4,6 +4,8 @@ mod stf_blueprint;
 
 use sequencer_mode::{registered, unregistered};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "native")]
+use sov_modules_api::capabilities::RollupHeight;
 #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
 use sov_modules_api::track_gas_constants_usage;
 use sov_modules_api::{
@@ -168,6 +170,9 @@ where
     RT: Runtime<S>,
 {
     /// Compute the new state root and change set after running a batch.
+    ///  
+    /// This method is quite complicated because it invokes the `finalize_hook` using the visible hash that will become available
+    /// for the *next* rollup block.
     #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
     #[cfg(feature = "native")]
     #[tracing::instrument(skip_all, name = "StfBlueprint::materialize_slot")]
@@ -176,17 +181,57 @@ where
         create_rollup_block: bool,
         checkpoint: StateCheckpoint<S>,
     ) -> MaterializedUpdate<S::Storage> {
+        use sov_modules_api::macros::config_value;
+
+        let state_root_delay_blocks = config_value!("STATE_ROOT_DELAY_BLOCKS");
+        if state_root_delay_blocks == 0 {
+            // TODO: If the user is running soft confirmations and has STATE_ROOT_DELAY_BLOCKS set to 0, this might cause an error.
+            tracing::error!("Setting state root delay blocks to 0 is currently unsupported. If you need state roots with no delay, please contact the SDK maintainers.");
+            panic!("STATE_ROOT_DELAY_BLOCKS is set to 0.");
+        }
+
+        let rollup_height = checkpoint.rollup_height_to_access();
         let (next_root_hash, mut state_update, mut accessory_delta, witness, storage) =
             checkpoint.materialize_update();
 
-        if create_rollup_block {
+        // Special case: at genesis, we save the genesis root to the accessory state here. This ensure's it's available even before
+        // the next slot causes `synchronise_chain` to be called.
+        if rollup_height == RollupHeight::GENESIS
+            && self
+                .runtime
+                .chain_state()
+                .genesis_root(&mut accessory_delta)
+                .is_none()
+        {
             self.runtime
-                .finalize_hook(&next_root_hash, &mut accessory_delta);
-            state_update.add_accessory_items(accessory_delta.freeze());
+                .chain_state()
+                .save_genesis_root(&mut accessory_delta, &next_root_hash);
         }
 
-        let change_set = storage.materialize_changes(&state_update);
+        // Run the finalize hook if necesary
+        if create_rollup_block {
+            // Compute the next visible hash.
+            //
+            // We have a special case at genesis, where we need to explicitly fetch the genesis root from the accessory state because
+            // the `synchronise_chain` method (which populates state root information in the accessory state) is not called until after
+            // the genesis invocation of `materialize_slot`.
+            let next_visible_hash = if rollup_height.saturating_sub(state_root_delay_blocks)
+                == RollupHeight::GENESIS
+            {
+                self.runtime
+                    .chain_state()
+                    .genesis_root(&mut accessory_delta).expect("genesis root must be set on first iteration of `materialize_slot`. This is a bug - please report it")
+            } else {
+                self.runtime.chain_state().visible_hash_with_accessory_state(rollup_height.saturating_add(1), &mut accessory_delta)
+                    .expect("next visible hash must be known in advance, but was unable to get it for rollup height {}. This is a bug - please report it")
+            };
 
+            // Invoke the finalize hook and save the accessory state changes.
+            self.runtime
+                .finalize_hook(&next_visible_hash, &mut accessory_delta);
+        }
+        state_update.add_accessory_items(accessory_delta.freeze());
+        let change_set = storage.materialize_changes(&state_update);
         (next_root_hash, witness, change_set, state_update)
     }
 

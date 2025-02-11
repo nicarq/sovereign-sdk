@@ -51,18 +51,14 @@ fn visible_hash_basic_kernel() {
             &mut |TestClosureArgs {
                       prev_finalize_hook_hash,
                       prev_slot_hash,
-                      finalize_hook_hash,
                       current_slot_hash,
                       begin_slot_hash,
+                      ..
                   }| {
                 assert_eq!(
-                    prev_finalize_hook_hash, prev_slot_hash,
-                    "The previous finalize hash should always match the previous slot hash"
-                );
-
-                assert_eq!(
-                    finalize_hook_hash, current_slot_hash,
-                    "The current finalize hash should always match the current slot hash"
+                    prev_finalize_hook_hash,
+                    begin_slot_hash.unwrap(),
+                    "The previous finalize hash should always match the begin slot hash"
                 );
 
                 roots.push(current_slot_hash);

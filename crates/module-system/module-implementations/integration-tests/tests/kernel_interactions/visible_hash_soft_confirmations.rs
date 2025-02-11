@@ -85,7 +85,6 @@ fn visible_hash_soft_confirmations_kernel() {
         &mut |TestClosureArgs {
                   current_slot_hash,
                   prev_slot_hash,
-                  finalize_hook_hash,
                   ..
               }| {
             assert_ne!(
@@ -98,12 +97,6 @@ fn visible_hash_soft_confirmations_kernel() {
                 current_slot_hash.namespace_root(ProvableNamespace::Kernel),
                 prev_slot_hash.namespace_root(ProvableNamespace::Kernel),
                 "The kernel state root should update at every slot"
-            );
-
-            // The finalize hook hash should always match the most recent slot hash
-            assert_eq!(
-                finalize_hook_hash, current_slot_hash,
-                "The finalize hash should always match the most recent slot hash"
             );
         },
         &mut runner,
@@ -153,14 +146,18 @@ fn begin_slot_hash_soft_confirmations_kernel() {
 
     // Run one more slot, bring our total to exactly `num_slots_before_first_rollup_block`.
     // Since we're still before the first rollup block, the user space root should still match the genesis hash after this slot.
+    let mut prev_finalize_hook_hash = None;
     last_state_root_closure(
         &mut |TestClosureArgs {
-                  current_slot_hash, ..
+                  current_slot_hash,
+                  finalize_hook_hash,
+                  ..
               }| {
             assert_eq!(
                 current_slot_hash.namespace_root(ProvableNamespace::User),
                 genesis_hash.namespace_root(ProvableNamespace::User)
             );
+            prev_finalize_hook_hash = Some(finalize_hook_hash);
         },
         &mut runner,
         1,
@@ -172,15 +169,22 @@ fn begin_slot_hash_soft_confirmations_kernel() {
         &mut |TestClosureArgs {
                   begin_slot_hash,
                   current_slot_hash,
+                  finalize_hook_hash,
                   ..
               }| {
             // This slot should still only have the genesis hash visible to it.
             assert_eq!(begin_slot_hash.unwrap(), genesis_hash);
+            assert_eq!(
+                begin_slot_hash.unwrap(),
+                prev_finalize_hook_hash.unwrap(),
+                "The begin slot hash should always match the previous finalize hook hash"
+            );
             // Since we've created a rollup block, the output user state root should be different than the genesis hash
             assert_ne!(
                 current_slot_hash.namespace_root(ProvableNamespace::User),
                 genesis_hash.namespace_root(ProvableNamespace::User)
             );
+            prev_finalize_hook_hash = Some(finalize_hook_hash);
             first_rollup_block_root = Some(current_slot_hash);
         },
         &mut runner,
@@ -195,6 +199,7 @@ fn begin_slot_hash_soft_confirmations_kernel() {
         &mut |TestClosureArgs {
                   begin_slot_hash,
                   current_slot_hash,
+                  finalize_hook_hash,
                   ..
               }| {
             // Since we've created a rollup block, the output user state root should be different than the previous rollup block
@@ -203,6 +208,11 @@ fn begin_slot_hash_soft_confirmations_kernel() {
                 first_rollup_block_root
                     .unwrap()
                     .namespace_root(ProvableNamespace::User)
+            );
+            assert_eq!(
+                begin_slot_hash.unwrap(),
+                prev_finalize_hook_hash.unwrap(),
+                "The begin slot hash should always match the previous finalize hook hash"
             );
             second_rollup_block_root = Some(current_slot_hash);
             if state_root_delay_blocks == 0 {
@@ -230,6 +240,7 @@ fn begin_slot_hash_soft_confirmations_kernel() {
                     )
                 );
             }
+            prev_finalize_hook_hash = Some(finalize_hook_hash);
         },
         &mut runner,
         1,
@@ -238,11 +249,18 @@ fn begin_slot_hash_soft_confirmations_kernel() {
     for prev_block_number in 2..=(state_root_delay_blocks + 2) {
         last_state_root_closure(
             &mut |TestClosureArgs {
-                      begin_slot_hash, ..
+                      begin_slot_hash,
+                      finalize_hook_hash,
+                      ..
                   }| {
                 // Assert that the begin slot hash is what we expected
                 let block_that_should_be_visible =
                     prev_block_number.saturating_sub(state_root_delay_blocks);
+                assert_eq!(
+                    begin_slot_hash.unwrap(),
+                    prev_finalize_hook_hash.unwrap(),
+                    "The begin slot hash should always match the previous finalize hook hash"
+                );
                 if block_that_should_be_visible == 0 {
                     assert_eq!(begin_slot_hash.unwrap(), genesis_hash);
                 } else if block_that_should_be_visible == 1 {
@@ -294,6 +312,7 @@ fn begin_slot_hash_soft_confirmations_kernel() {
                     );
                     has_asserted_2 = true;
                 }
+                prev_finalize_hook_hash = Some(finalize_hook_hash);
             },
             &mut runner,
             1,

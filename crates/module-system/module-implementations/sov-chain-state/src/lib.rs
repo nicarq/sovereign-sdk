@@ -3,7 +3,10 @@
 
 use sov_modules_api::capabilities::{BlockGasInfo, RollupHeight};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{KernelStateMap, ModuleRestApi, NotInstantiable, StateCheckpoint, StateMap};
+use sov_modules_api::{
+    AccessoryStateMap, AccessoryStateValue, KernelStateMap, ModuleRestApi, NotInstantiable,
+    StateCheckpoint, StateMap,
+};
 /// Contains the call methods used by the module
 mod call;
 mod gas;
@@ -136,8 +139,16 @@ pub struct ChainState<S: Spec> {
     #[state]
     current_heights: StateValue<(RollupHeight, VisibleSlotNumber)>,
 
+    /// A mapping from rollup height to the visible slot number.
     #[state]
     slot_number_history: StateMap<RollupHeight, VisibleSlotNumber>,
+
+    /// The slot number history duplicated in the accessory state.
+    ///
+    /// The duplication is required to enable the `finalize_hook` in materialize_slot, which needs to
+    /// compute the visible hash using only accessory state.
+    #[state]
+    accessory_slot_number_history: AccessoryStateMap<RollupHeight, VisibleSlotNumber>,
 
     #[state]
     true_slot_number_history: KernelStateMap<RollupHeight, SlotNumber>,
@@ -164,6 +175,20 @@ pub struct ChainState<S: Spec> {
     #[state]
     slots: VersionedStateVec<SlotInformation<S>, BcsCodec>,
 
+    /// A record of all the pre-state roots for each slot, stored in the accessory state.
+    ///
+    /// The duplication is required to enable the `finalize_hook` in materialize_slot, which needs to
+    /// compute the visible hash using only accessory state.
+    #[state]
+    accessory_pre_state_roots:
+        AccessoryStateMap<SlotNumber, <<S as Spec>::Storage as Storage>::Root>,
+
+    /// The genesis state root of the rollup.
+    #[state]
+    #[cfg_attr(not(feature = "native"), allow(dead_code))]
+    // This value is unreachable when the `native` feature is disabled
+    genesis_root: AccessoryStateValue<<S::Storage as Storage>::Root>,
+
     /// A record of all previous rollup heights' gas information.
     #[state]
     gas_info: StateMap<RollupHeight, BlockGasInfo<S::Gas>>,
@@ -175,6 +200,13 @@ pub struct ChainState<S: Spec> {
     /// the pre-state root.
     #[state]
     past_user_state_roots: StateMap<RollupHeight, [u8; 32]>,
+
+    /// The state root hashes from genesis to the current slot, duplicated into accessory state.
+    ///
+    /// The duplication is required to enable the `finalize_hook` in materialize_slot, which needs to
+    /// compute the visible hash using only accessory state.
+    #[state]
+    accessory_past_user_state_roots: AccessoryStateMap<RollupHeight, [u8; 32]>,
 
     /// The height of the first DA block.
     /// Set at the rollup genesis. Since the rollup is always delayed by a constant amount of blocks,

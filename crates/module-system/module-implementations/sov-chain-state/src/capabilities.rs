@@ -4,14 +4,140 @@ use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
+#[cfg(feature = "native")]
+use sov_modules_api::AccessoryStateReaderAndWriter;
 use sov_modules_api::{DaSpec, GasSpec, KernelStateAccessor, KernelWriter, Spec, StateReader};
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{Kernel, ProvableNamespace, Storage, User};
 
 use crate::{BlockGasInfo, ChainState, SlotInformation, VersionReader};
 
+/// A helper trait for computing the visible hash for a given rollup height.
+trait VisibleHashHelper<S: Spec> {
+    fn visible_slot_number_for(
+        &mut self,
+        chain_state: &ChainState<S>,
+        rollup_height: RollupHeight,
+    ) -> Option<VisibleSlotNumber>;
+    fn pre_state_root_at_height(
+        &mut self,
+        chain_state: &ChainState<S>,
+        slot_number: SlotNumber,
+    ) -> Option<<S::Storage as Storage>::Root>;
+
+    fn user_pre_state_root_at_height(
+        &mut self,
+        chain_state: &ChainState<S>,
+        rollup_height: RollupHeight,
+    ) -> Option<[u8; 32]>;
+}
+
+impl<S: Spec> VisibleHashHelper<S> for KernelStateAccessor<'_, S> {
+    fn visible_slot_number_for(
+        &mut self,
+        chain_state: &ChainState<S>,
+        rollup_height: RollupHeight,
+    ) -> Option<VisibleSlotNumber> {
+        chain_state
+            .slot_number_history
+            .get(&rollup_height, self)
+            .unwrap_infallible()
+    }
+    fn pre_state_root_at_height(
+        &mut self,
+        chain_state: &ChainState<S>,
+        slot_number: SlotNumber,
+    ) -> Option<<S::Storage as Storage>::Root> {
+        chain_state
+            .pre_state_root_at_height(slot_number, self)
+            .unwrap_infallible()
+    }
+    fn user_pre_state_root_at_height(
+        &mut self,
+        chain_state: &ChainState<S>,
+        rollup_height: RollupHeight,
+    ) -> Option<[u8; 32]> {
+        chain_state
+            .user_pre_state_root_at_height(rollup_height, self)
+            .unwrap_infallible()
+    }
+}
+
+#[cfg(feature = "native")]
+impl<S: Spec> VisibleHashHelper<S> for sov_modules_api::AccessoryDelta<S::Storage> {
+    fn visible_slot_number_for(
+        &mut self,
+        chain_state: &ChainState<S>,
+        rollup_height: RollupHeight,
+    ) -> Option<VisibleSlotNumber> {
+        chain_state
+            .accessory_slot_number_history
+            .get(&rollup_height, self)
+            .unwrap_infallible()
+    }
+    fn pre_state_root_at_height(
+        &mut self,
+        chain_state: &ChainState<S>,
+        slot_number: SlotNumber,
+    ) -> Option<<S::Storage as Storage>::Root> {
+        chain_state
+            .accessory_pre_state_roots
+            .get(&slot_number, self)
+            .unwrap_infallible()
+    }
+    fn user_pre_state_root_at_height(
+        &mut self,
+        chain_state: &ChainState<S>,
+        rollup_height: RollupHeight,
+    ) -> Option<[u8; 32]> {
+        chain_state
+            .accessory_past_user_state_roots
+            .get(&rollup_height.saturating_sub(1), self)
+            .unwrap_infallible()
+    }
+}
+
 impl<S: Spec> ChainState<S> {
-    /// This is the *pre* execution state root for the specified rollup height, delayed by a configurable number of blocks ("STATE_ROOT_DELAY_BLOCKS").
+    /// Get the *pre* execution state root for the specified rollup height, delayed by a configurable number of blocks ("STATE_ROOT_DELAY_BLOCKS").
+    ///
+    /// We use the *pre* state root because we need to be guaranteed that the root is available in kernel state even if the node
+    /// is lagging behind and has not processed another slot.
+    ///
+    /// ## Note
+    /// If the state root at the requested height is not available yet, this method will return `None`.
+    fn visible_hash_for_inner(
+        &self,
+        rollup_height: RollupHeight,
+        state: &mut impl VisibleHashHelper<S>,
+    ) -> Option<<S::Storage as Storage>::Root> {
+        use sov_state::StateRoot;
+
+        let state_root_delay_blocks: u64 = config_value!("STATE_ROOT_DELAY_BLOCKS");
+        let rollup_height_to_use: RollupHeight =
+            rollup_height.saturating_sub(state_root_delay_blocks);
+        let slot_number = state.visible_slot_number_for(self, rollup_height_to_use)?;
+        // We never return anything before the genesis root because the pre-state root from genesis isn't really meaningful.
+        if slot_number == VisibleSlotNumber::GENESIS {
+            return state.pre_state_root_at_height(self, SlotNumber::ONE);
+        }
+
+        let kernel_root = state.pre_state_root_at_height(self, slot_number.as_true())?;
+
+        // We have to special case the genesis user space root because we don't call `increment_rollup_height` for the genesis block until
+        // we create the first rollup block. Since we use *pre* state roots here, rollup height 1 also uses the genesis state root.
+        if rollup_height_to_use <= RollupHeight::ONE {
+            Some(kernel_root)
+        } else {
+            // Return the pre-state root for the rollup_height_to_use
+            let user_root = state.user_pre_state_root_at_height(self, rollup_height_to_use)?;
+            Some(<S::Storage as Storage>::Root::from_namespace_roots(
+                user_root,
+                kernel_root.namespace_root(ProvableNamespace::Kernel),
+            ))
+        }
+    }
+
+    /// Get the *pre* execution state root for the specified rollup height, delayed by a configurable number of blocks ("STATE_ROOT_DELAY_BLOCKS").
     ///
     /// We use the *pre* state root because we need to be guaranteed that the root is available in kernel state even if the node
     /// is lagging behind and has not processed another slot.
@@ -23,41 +149,45 @@ impl<S: Spec> ChainState<S> {
         rollup_height: RollupHeight,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> Option<<S::Storage as Storage>::Root> {
-        use sov_state::StateRoot;
+        self.visible_hash_for_inner(rollup_height, state)
+    }
 
-        let state_root_delay_blocks: u64 = config_value!("STATE_ROOT_DELAY_BLOCKS");
-        let rollup_height_to_use: RollupHeight =
-            rollup_height.saturating_sub(state_root_delay_blocks);
-        let slot_number = self
-            .slot_number_history
-            .get(&rollup_height_to_use, state)
-            .unwrap_infallible()?;
+    /// Get the *pre* execution state root for the specified rollup height, delayed by a configurable number of blocks ("STATE_ROOT_DELAY_BLOCKS")
+    /// reading from the accessory state.
+    ///
+    /// We use the *pre* state root because we need to be guaranteed that the root is available in kernel state even if the node
+    /// is lagging behind and has not processed another slot.
+    ///
+    /// ## Note
+    /// If the state root at the requested height is not available yet, this method will return `None`.
+    #[cfg(feature = "native")]
+    pub fn visible_hash_with_accessory_state(
+        &self,
+        rollup_height: RollupHeight,
+        state: &mut sov_modules_api::AccessoryDelta<S::Storage>,
+    ) -> Option<<S::Storage as Storage>::Root> {
+        self.visible_hash_for_inner(rollup_height, state)
+    }
 
-        // We never return anything before the genesis root because the pre-state root from genesis isn't really meaningful.
-        if slot_number == VisibleSlotNumber::GENESIS {
-            return self
-                .pre_state_root_at_height(SlotNumber::ONE, state)
-                .unwrap_infallible();
-        }
+    /// Saves the genesis state root to the chain state module.
+    #[cfg(feature = "native")]
+    pub fn save_genesis_root(
+        &self,
+        state: &mut impl AccessoryStateReaderAndWriter,
+        genesis_root: &<S::Storage as Storage>::Root,
+    ) {
+        self.genesis_root
+            .set(genesis_root, state)
+            .unwrap_infallible();
+    }
 
-        let kernel_root = self
-            .pre_state_root_at_height(slot_number.as_true(), state)
-            .unwrap_infallible()?;
-
-        // We have to special case the genesis user space root because we don't call `increment_rollup_height` for the genesis block until
-        // we create the first rollup block. Since we use *pre* state roots here, rollup height 1 also uses the genesis state root.
-        if rollup_height_to_use <= RollupHeight::ONE {
-            Some(kernel_root)
-        } else {
-            // Return the pre-state root for the rollup_height_to_use
-            let user_root = self
-                .user_pre_state_root_at_height(rollup_height_to_use, state)
-                .unwrap_infallible()?;
-            Some(<S::Storage as Storage>::Root::from_namespace_roots(
-                user_root,
-                kernel_root.namespace_root(ProvableNamespace::Kernel),
-            ))
-        }
+    /// Saves the genesis state root to the chain state module.
+    #[cfg(feature = "native")]
+    pub fn genesis_root(
+        &self,
+        state: &mut impl AccessoryStateReaderAndWriter,
+    ) -> Option<<S::Storage as Storage>::Root> {
+        self.genesis_root.get(state).unwrap_infallible()
     }
 
     /// Increments the rollup height stored in state and updates the accessor to match.
@@ -73,12 +203,20 @@ impl<S: Spec> ChainState<S> {
         self.past_user_state_roots
             .set(&stale_rollup_height, user_state_root, state)
             .unwrap_infallible();
+        // Duplicate the user space state root to the accessory state
+        self.accessory_past_user_state_roots
+            .set(&stale_rollup_height, user_state_root, state)
+            .unwrap_infallible();
         // Update the rollup height
         let next_rollup_height = stale_rollup_height.saturating_add(1);
         self.current_heights
             .set(&(next_rollup_height, visible_slot_number), state)
             .unwrap_infallible();
         self.slot_number_history
+            .set(&next_rollup_height, &visible_slot_number, state)
+            .unwrap_infallible();
+        // Duplicate the slot number history to the accessory state
+        self.accessory_slot_number_history
             .set(&next_rollup_height, &visible_slot_number, state)
             .unwrap_infallible();
         self.set_next_visible_slot_number(visible_slot_number, state);
@@ -136,6 +274,10 @@ impl<S: Spec> ChainState<S> {
             base_fee_per_gas,
         );
 
+        // We duplicate the pre-state root to the accessory state
+        self.accessory_pre_state_roots
+            .set(&state.true_slot_number(), pre_state_root, state)
+            .unwrap_infallible();
         self.slots
             .push(
                 &SlotInformation {

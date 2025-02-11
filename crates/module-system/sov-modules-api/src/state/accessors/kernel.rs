@@ -7,7 +7,7 @@ use self::checkpoints::StateCheckpoint;
 use super::*;
 use crate::capabilities::{Kernel, RollupHeight};
 use crate::state::traits::{KernelWriter, VersionReader};
-use crate::{GasMeter, Spec};
+use crate::{AccessoryStateWriter, GasMeter, Spec};
 
 /// A special wrapper over a `Delta` on the storage that allows access to kernel values to bootstrap the [`StateCheckpoint`].
 pub struct BootstrapWorkingSet<'a, S: Spec> {
@@ -72,6 +72,8 @@ impl<'a, S: Spec> KernelWriter for KernelStateAccessor<'a, S> {
         self.true_slot_num
     }
 }
+
+impl<'a, S: Spec> AccessoryStateWriter for KernelStateAccessor<'a, S> {}
 
 impl<'a, S: Spec> KernelStateAccessor<'a, S> {
     /// Instantiates a new [`KernelStateAccessor`].
