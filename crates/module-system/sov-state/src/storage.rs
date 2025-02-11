@@ -393,15 +393,7 @@ pub trait Storage: Clone {
     ) -> Option<SlotValue>;
 
     /// Returns the value corresponding to the key or None if key is absent.
-    ///
-    /// # About accessory state
-    /// This method is blanket-implemented to return [`None`]. **Only native
-    /// execution environments** (i.e. outside of the zmVM) **SHOULD** override
-    /// this method to return a value. This is because accessory state **MUST
-    /// NOT** be readable from within the zmVM.
-    fn get_accessory(&self, _key: &SlotKey, _version: Option<SlotNumber>) -> Option<SlotValue> {
-        None
-    }
+    fn get_accessory(&self, _key: &SlotKey, _version: Option<SlotNumber>) -> Option<SlotValue>;
 
     /// Calculates new state root but does not commit any changes to the database.
     fn compute_state_update(
