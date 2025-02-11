@@ -110,6 +110,10 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     type StateUpdate = ();
     type ChangeSet = ();
 
+    fn get_accessory(&self, _key: &SlotKey, _version: Option<SlotNumber>) -> Option<SlotValue> {
+        unimplemented!("The ZkStorage does not have access to the accessory state.")
+    }
+
     fn put_in_witness(&self, _value: Option<SlotValue>, _witness: &Self::Witness) {}
 
     fn get_leaf<N: CompileTimeNamespace>(
