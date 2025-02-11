@@ -7,6 +7,8 @@ use sov_chain_state::ChainState;
 use sov_modules_api::capabilities::{BlobOrigin, BlobSelectorOutput, BlockGasInfo, RollupHeight};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel as KernelTrait};
+#[cfg(feature = "native")]
+use sov_modules_api::AccessoryStateReaderAndWriter;
 use sov_modules_api::{
     BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, IterableBatchWithId, KernelStateAccessor,
     Spec, StateReader, VersionReader, VisibleSlotNumber,
@@ -140,5 +142,32 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, 
     ) {
         self.chain_state
             .increment_rollup_height(state, visible_slot_number, user_state_root);
+    }
+
+    #[cfg(feature = "native")]
+    fn save_genesis_root(
+        &self,
+        state: &mut impl AccessoryStateReaderAndWriter,
+        genesis_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+    ) {
+        self.chain_state.save_genesis_root(state, genesis_root);
+    }
+
+    #[cfg(feature = "native")]
+    fn genesis_root(
+        &self,
+        state: &mut impl AccessoryStateReaderAndWriter,
+    ) -> Option<<S::Storage as Storage>::Root> {
+        self.chain_state.genesis_root(state)
+    }
+
+    #[cfg(feature = "native")]
+    fn visible_hash_with_accessory_state(
+        &self,
+        rollup_height: RollupHeight,
+        state: &mut sov_modules_api::AccessoryDelta<<Self::Spec as Spec>::Storage>,
+    ) -> Option<<<Self::Spec as Spec>::Storage as Storage>::Root> {
+        self.chain_state
+            .visible_hash_with_accessory_state(rollup_height, state)
     }
 }

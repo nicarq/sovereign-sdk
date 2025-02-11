@@ -26,8 +26,6 @@ mod event;
 #[cfg(feature = "native")]
 mod helpers;
 
-use std::collections::VecDeque;
-
 pub use authenticate::{authenticate, decode_evm_tx, EthereumAuthenticator};
 pub use reth_primitives::revm_primitives::SpecId;
 use reth_primitives::revm_primitives::{Address, BlockEnv, B256};
@@ -127,10 +125,6 @@ pub struct Evm<S: Spec> {
     /// The `state_root` is added in `begin_rollup_block_hook` of the next block because its calculation occurs after the `end_rollup_block_hook`.
     #[state]
     pub(crate) head: StateValue<Block, BcsCodec>,
-
-    /// The state roots for the next `STATE_ROOT_DELAY_BLOCKS` blocks, in the order they'll be used.
-    #[state]
-    pub(crate) pending_state_roots: AccessoryStateValue<VecDeque<[u8; 32]>>,
 
     /// Used only by the RPC. This represents the head of the chain and is set in two distinct stages:
     ///  1. `end_rollup_block_hook`: the pending head is populated with data from pending_transactions.

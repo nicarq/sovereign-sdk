@@ -5,6 +5,8 @@ use sov_rollup_interface::da::DaSpec;
 use sov_state::{Kernel, Storage, User};
 
 use super::RollupHeight;
+#[cfg(feature = "native")]
+use crate::AccessoryStateReaderAndWriter;
 use crate::{Gas, KernelStateAccessor, Spec, StateReader, VersionReader};
 
 /// Capabilities allowing the kernel to update and access the DA layer state.
@@ -61,13 +63,39 @@ pub trait ChainState {
         state: &mut Reader,
     ) -> Option<<Self::Spec as Spec>::Gas>;
 
-    /// Returns the visible root hash accessible at the current *visible* rollup height
+    /// Returns the visible root hash accessible at the requested rollup height
     ///
     /// ## Note
-    /// This method can return `None` if the visible root hash for the current rollup height cannot be determined yet.
+    /// This method can return `None` if the visible root hash for the rollup height cannot be determined yet.
     fn visible_hash_for(
         &self,
         rollup_height: RollupHeight,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
+    ) -> Option<<<Self::Spec as Spec>::Storage as Storage>::Root>;
+
+    /// Returns the visible root hash accessible at the requested rollup height using the accessory state.
+    ///
+    /// ## Note
+    /// This method can return `None` if the visible root hash for the rollup height cannot be determined yet.
+    #[cfg(feature = "native")]
+    fn visible_hash_with_accessory_state(
+        &self,
+        rollup_height: RollupHeight,
+        state: &mut crate::AccessoryDelta<<Self::Spec as Spec>::Storage>,
+    ) -> Option<<<Self::Spec as Spec>::Storage as Storage>::Root>;
+
+    #[cfg(feature = "native")]
+    /// Saves the genesis state root to the chain state module.
+    fn save_genesis_root(
+        &self,
+        state: &mut impl AccessoryStateReaderAndWriter,
+        genesis_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+    );
+
+    #[cfg(feature = "native")]
+    /// Returns the genesis state root of the rollup from accessory state
+    fn genesis_root(
+        &self,
+        state: &mut impl AccessoryStateReaderAndWriter,
     ) -> Option<<<Self::Spec as Spec>::Storage as Storage>::Root>;
 }

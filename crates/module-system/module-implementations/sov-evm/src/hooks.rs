@@ -1,7 +1,5 @@
 use reth_primitives::revm_primitives::{B256, U256};
 use reth_primitives::{Bloom, Bytes};
-#[cfg(feature = "native")]
-use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 #[cfg(feature = "native")]
 use sov_modules_api::{AccessoryStateReaderAndWriter, FinalizeHook};
@@ -221,31 +219,8 @@ impl<S: Spec> FinalizeHook for Evm<S> {
             "Pending head must be set to block {}, but found block {}",
             expected_block_number, block.header.number
         );
-
-        // The new state root provided here won't be used for `STATE_ROOT_DELAY_BLOCKS`. We make this easy
-        // by keeping a queue of the next `STATE_ROOT_DELAY_BLOCKS` state roots that'll need to be used in order
-        // in accessory state.
-        let future_root_hash: [u8; 32] = root_hash.namespace_root(ProvableNamespace::User);
-        let mut pending_state_roots = self
-            .pending_state_roots
-            .get(state)
-            .unwrap_infallible()
-            .unwrap_or_default();
-        pending_state_roots.push_back(future_root_hash);
-        let root_hash_bytes =
-            if pending_state_roots.len() > config_value!("STATE_ROOT_DELAY_BLOCKS") {
-                // Safety: We just pushed so the deque is non-empty
-                pending_state_roots.pop_front().unwrap()
-            } else {
-                // Safety: We just pushed so the deque is non-empty
-                *pending_state_roots.front().unwrap()
-            };
-
-        self.pending_state_roots
-            .set(&pending_state_roots, state)
-            .unwrap_infallible();
-
-        block.header.state_root = root_hash_bytes.into();
+        let user_space_root_hash: [u8; 32] = root_hash.namespace_root(ProvableNamespace::User);
+        block.header.state_root = user_space_root_hash.into();
 
         let sealed_block = block.seal();
 
