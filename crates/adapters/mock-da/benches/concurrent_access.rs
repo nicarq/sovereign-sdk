@@ -40,9 +40,11 @@ fn bench_storable_mock_da_service(c: &mut Criterion) {
                 connection_string: format!("sqlite://{}?mode=rwc", path.display()),
                 sender_address: Default::default(),
                 finalization_blocks: 0,
-                block_producing: sov_mock_da::BlockProducingConfig::Periodic,
-                block_time_ms: BLOCK_TIME_MS,
+                block_producing: sov_mock_da::BlockProducingConfig::Periodic {
+                    block_time_ms: BLOCK_TIME_MS,
+                },
                 da_layer: None,
+                randomization: None,
             },
             receiver.clone(),
         )

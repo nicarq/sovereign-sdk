@@ -14,6 +14,7 @@ use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
+use sov_test_utils::{TEST_DEFAULT_MOCK_DA_ON_ANY_SUBMIT, TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING};
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{registry, Layer};
@@ -83,7 +84,7 @@ async fn start_stop_empty(
             ROLLUP_START_TIMEOUT,
             RollupBuilder::<MockDemoRollup<Native>>::new(
                 test_genesis_source(operation_mode),
-                BlockProducingConfig::Periodic,
+                TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING,
                 finalization_blocks,
             )
             .with_zkvm_host_args(mock_da_risc0_host_args())
@@ -205,7 +206,7 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
 
     let rollup_builder = RollupBuilder::<MockDemoRollup<Native>>::new(
         test_genesis_source(OperatingMode::Zk),
-        BlockProducingConfig::OnAnySubmit,
+        TEST_DEFAULT_MOCK_DA_ON_ANY_SUBMIT,
         finalization_blocks,
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())

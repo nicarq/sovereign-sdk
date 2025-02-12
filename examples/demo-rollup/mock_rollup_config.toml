@@ -8,17 +8,13 @@ connection_string = "sqlite://mock_da.sqlite?mode=rwc"
 # For initial full node should match genesis of sequencer-registry.
 # It is going to be a DA address that blobs from this node will be associated.
 sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
-# Defines how new blocks should be produced.
-# Can be 2 options:
-#  - periodic: new blocks produced periodically every `block_time_ms`.
-#              Empty blocks can be produced with this option.
-#  - on_submit: new blocks are produced on submission of batch/blob.
-#              `block_time_ms` defines maximum waiting time for a new block
-block_producing = "periodic"
-# Block time depends on `block_producing`:
-# For `periodic` it defines how often new blocks will be produced, approximately.
-# For `on_submit` it defines max time service will wait for a new block.
+finalization = 40
+[da.block_producing.periodic]
 block_time_ms = 1_000
+[da.randomization]
+seed = "0x0000000000000000000000000000000000000000000000000000000000000012"
+[da.randomization.behaviour.shuffle_non_finalized_blobs]
+drop_percent = 0
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.

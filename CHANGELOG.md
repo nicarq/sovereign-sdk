@@ -1,3 +1,21 @@
+## 2025-02-07
+- #2378 **Breaking**. Configuration for `MockDa` is changed. `block_producing` is now section. To keep periodic block producing, use the following configuration:
+  ```toml
+  [da]
+  # No change
+  connection_string = "sqlite://mock_da.sqlite?mode=rwc"
+  # No change
+  sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
+  # Removed:
+  # block_producing = "periodic"
+  # Moved to `da.block_producing.periodic` section:
+  # block_time_ms = 1_000
+  
+  # New section:
+  [da.block_producing.periodic]
+  block_time_ms = 1_000
+  ```
+  Please refer documentation of `MockDaConfig` for more information about potential configuration options
 ## 2025-02-06
 - #2368 Changes the computation of the hash passed to `begin_block_hook`. Now, that hash is from an older block, where the exact amount of the delay is configurable by a constant `STATE_ROOT_DELAY_BLOCKS`. If `STATE_ROOT_DELAY_BLOCKS` is zero, the behavior is identical to the old behavior. The default delay is currently set to 5 blocks. 
 ## 2025-02-07

@@ -18,38 +18,35 @@ use tokio::time::{interval, sleep};
 use tracing::Instrument;
 
 use crate::config::WAIT_ATTEMPT_PAUSE;
-use crate::storable::layer::StorableMockDaLayer;
+use crate::storable::layer::{Randomizer, StorableMockDaLayer};
 use crate::{
-    MockAddress, MockBlock, MockBlockHeader, MockDaConfig, MockDaSpec, MockDaVerifier, MockFee,
+    BlockProducingConfig, MockAddress, MockBlock, MockBlockHeader, MockDaConfig, MockDaSpec,
+    MockDaVerifier, MockFee, RandomizationBehaviour, RandomizationConfig,
+    DEFAULT_BLOCK_WAITING_TIME_MS,
 };
 
 const DEFAULT_BLOCK_WAITING_TIME: Duration = Duration::from_secs(120);
 // Time to accommodate rare cases of lock waiting time or latency to the database.
 const EXTRA_TIME_FOR_MAX_BLOCK: Duration = Duration::from_secs(10);
 
-/// Defines how StorableMockService should produce new blocks.
-#[derive(Debug, Clone, PartialEq)]
-pub enum BlockProducing {
-    /// Produced a new block at every time. Not guaranteed to have precise block time.
-    Periodic(Duration),
-    /// Produces a new block at every submission of a batch only, not proof.
-    /// Means single batch blob per block, but can be batch and proof blobs.
-    /// Inner duration is a timeout for a new block to be submitted.
-    OnBatchSubmit(Duration),
-    /// Produces a new block at every submission of a batch or proof.
-    OnAnySubmit(Duration),
-    /// Block producing is controlled externally.
-    Manual,
-}
-
-impl BlockProducing {
+impl BlockProducingConfig {
     fn get_max_waiting_time_for_block(&self) -> Duration {
         match self {
-            BlockProducing::OnBatchSubmit(duration)
-            | BlockProducing::Periodic(duration)
-            | BlockProducing::OnAnySubmit(duration) => *duration + EXTRA_TIME_FOR_MAX_BLOCK,
             // Use a large number to prevent infinite blocking.
-            BlockProducing::Manual => DEFAULT_BLOCK_WAITING_TIME * 1000,
+            BlockProducingConfig::Manual => DEFAULT_BLOCK_WAITING_TIME,
+            BlockProducingConfig::Periodic { block_time_ms } => {
+                Duration::from_millis(*block_time_ms) + EXTRA_TIME_FOR_MAX_BLOCK
+            }
+            BlockProducingConfig::OnBatchSubmit {
+                block_wait_timeout_ms,
+            }
+            | BlockProducingConfig::OnAnySubmit {
+                block_wait_timeout_ms,
+            } => {
+                Duration::from_millis(
+                    block_wait_timeout_ms.unwrap_or(DEFAULT_BLOCK_WAITING_TIME_MS),
+                ) + EXTRA_TIME_FOR_MAX_BLOCK
+            }
         }
     }
 
@@ -59,34 +56,41 @@ impl BlockProducing {
         shutdown_receiver: watch::Receiver<()>,
         da_layer: Arc<RwLock<StorableMockDaLayer>>,
     ) -> Option<JoinHandle<()>> {
-        let BlockProducing::Periodic(duration) = self else {
+        let BlockProducingConfig::Periodic { block_time_ms } = self else {
             return None;
         };
 
-        let duration = *duration;
+        let block_time = Duration::from_millis(*block_time_ms);
         let span = tracing::info_span!("periodic_batch_producer");
 
-        Some(tokio::spawn(async move {
-            tracing::debug!(interval = ?duration, "Spawning a task for periodic producing");
-            loop {
-                match future_or_shutdown(tokio::time::sleep(duration), &shutdown_receiver).await {
-                    FutureOrShutdownOutput::Shutdown => {
-                        tracing::debug!("Received shutdown signal, stopping block production...");
-                        break;
-                    }
-                    FutureOrShutdownOutput::Output(_) => {
-                        let mut da_layer = da_layer.write().await;
-                        match da_layer.produce_block().await {
-                            Ok(_) => {}
-                            Err(err) => {
-                                tracing::warn!(error = ?err, "Error producing new block. Will try next time.");
+        Some(tokio::spawn(
+            async move {
+                tracing::debug!(interval = ?block_time, "Spawning a task for periodic producing");
+                loop {
+                    match future_or_shutdown(tokio::time::sleep(block_time), &shutdown_receiver)
+                        .await
+                    {
+                        FutureOrShutdownOutput::Shutdown => {
+                            tracing::debug!(
+                                "Received shutdown signal, stopping block production..."
+                            );
+                            break;
+                        }
+                        FutureOrShutdownOutput::Output(_) => {
+                            let mut da_layer = da_layer.write().await;
+                            if let Err(error) = da_layer.produce_block().await {
+                                tracing::warn!(
+                                    ?error,
+                                    "Error producing new block. Will try next time."
+                                );
                             }
                         }
                     }
                 }
+                tracing::info!("Periodic block producing is stopped");
             }
-            tracing::info!("Periodic block producing is stopped");
-        }.instrument(span)))
+            .instrument(span),
+        ))
     }
 }
 
@@ -96,7 +100,7 @@ pub struct StorableMockDaService {
     /// The address of the sequencer.
     pub sequencer_da_address: MockAddress,
     da_layer: Arc<RwLock<StorableMockDaLayer>>,
-    block_producing: BlockProducing,
+    block_producing: BlockProducingConfig,
     aggregated_proof_sender: broadcast::Sender<()>,
     block_producer_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
@@ -105,7 +109,7 @@ impl StorableMockDaService {
     fn construct(
         sequencer_da_address: MockAddress,
         da_layer: Arc<RwLock<StorableMockDaLayer>>,
-        block_producing: BlockProducing,
+        block_producing: BlockProducingConfig,
         block_producer_handle: Option<JoinHandle<()>>,
     ) -> Self {
         let (aggregated_proof_subscription, mut rec) = broadcast::channel(16);
@@ -123,18 +127,18 @@ impl StorableMockDaService {
     pub fn new(
         sequencer_da_address: MockAddress,
         da_layer: Arc<RwLock<StorableMockDaLayer>>,
-        block_producing: BlockProducing,
+        block_producing: BlockProducingConfig,
     ) -> Self {
         Self::construct(sequencer_da_address, da_layer, block_producing, None)
     }
 
-    /// Create a new [` StorableMockDaService `] with the given address and [`BlockProducing::Manual`].
+    /// Create a new [` StorableMockDaService `] with the given address and [`BlockProducingConfig::Manual`].
     /// Shorter constructor.
     pub fn new_manual_producing(
         sequencer_da_address: MockAddress,
         da_layer: Arc<RwLock<StorableMockDaLayer>>,
     ) -> Self {
-        Self::new(sequencer_da_address, da_layer, BlockProducing::Manual)
+        Self::new(sequencer_da_address, da_layer, BlockProducingConfig::Manual)
     }
 
     /// Creates a new instance with different address, but on the same [`StorableMockDaLayer`].
@@ -161,7 +165,9 @@ impl StorableMockDaService {
         let da_layer = StorableMockDaLayer::new_in_memory(blocks_to_finality)
             .await
             .expect("Failed to initialize StorableMockDaLayer");
-        let producing = BlockProducing::OnBatchSubmit(DEFAULT_BLOCK_WAITING_TIME);
+        let producing = BlockProducingConfig::OnBatchSubmit {
+            block_wait_timeout_ms: None,
+        };
         Self::new(
             sequencer_da_address,
             Arc::new(RwLock::new(da_layer)),
@@ -172,20 +178,33 @@ impl StorableMockDaService {
     /// Creates new in memory [`StorableMockDaService`] from [`MockDaConfig`].
     pub async fn from_config(config: MockDaConfig, shutdown_receiver: watch::Receiver<()>) -> Self {
         let da_layer = match config.da_layer.as_ref() {
-            None => Arc::new(RwLock::new(
-                StorableMockDaLayer::new_from_connection(
+            None => {
+                let mut da_layer = StorableMockDaLayer::new_from_connection(
                     &config.connection_string,
                     config.finalization_blocks,
                 )
                 .await
-                .expect("Failed to initialize StorableMockDaLayer"),
-            )),
+                .expect("Failed to initialize StorableMockDaLayer");
+                if let Some(randomization) = &config.randomization {
+                    tracing::debug!(
+                        config = ?randomization,
+                        "StorableMockDaLayer will have randomizer"
+                    );
+                    da_layer.set_randomizer(Randomizer::from_config(randomization.clone()));
+                }
+                Arc::new(RwLock::new(da_layer))
+            }
             Some(da_layer) => da_layer.clone(),
         };
-        let block_producing = config.block_producing();
-        let handle =
-            block_producing.spawn_block_producing_if_needed(shutdown_receiver, da_layer.clone());
-        Self::construct(config.sender_address, da_layer, block_producing, handle)
+        let handle = config
+            .block_producing
+            .spawn_block_producing_if_needed(shutdown_receiver, da_layer.clone());
+        Self::construct(
+            config.sender_address,
+            da_layer,
+            config.block_producing,
+            handle,
+        )
     }
 
     async fn wait_for_height(&self, height: u32) -> anyhow::Result<()> {
@@ -229,10 +248,20 @@ impl StorableMockDaService {
         Ok(())
     }
 
-    /// Passes randomized blob retrieval to underlying [`StorableMockDaLayer::set_randomized_blobs_retrieval`].
+    /// Sets randomized blob retrieval by adjust [`Randomizer`] in underlying [`StorableMockDaLayer`].
+    /// Passing None disables randomization.
+    /// Passing Some enables or changes randomization to be out of order on retrieval.
     pub async fn set_randomized_blobs_retrieval(&self, seed: Option<[u8; 32]>) {
         let mut da_layer = self.da_layer.write().await;
-        da_layer.set_randomized_blobs_retrieval(seed);
+        match seed {
+            Some(seed) => da_layer.set_randomizer(Randomizer::from_config(RandomizationConfig {
+                seed: HexHash::new(seed),
+                behaviour: RandomizationBehaviour::OutOfOrderBlobs,
+            })),
+            None => {
+                let _ = da_layer.disable_randomizer();
+            }
+        }
     }
 
     /// Re-org simulation: Rewinds the underlying [`StorableMockDaLayer`] to the specified height.
@@ -337,8 +366,9 @@ impl DaService for StorableMockDaService {
     > {
         let (tx, rx) = oneshot::channel();
         let should_produce_block = match &self.block_producing {
-            BlockProducing::OnBatchSubmit(_) | BlockProducing::OnAnySubmit(_) => true,
-            BlockProducing::Periodic(_) | BlockProducing::Manual => false,
+            BlockProducingConfig::OnBatchSubmit { .. }
+            | BlockProducingConfig::OnAnySubmit { .. } => true,
+            BlockProducingConfig::Periodic { .. } | BlockProducingConfig::Manual => false,
         };
         tracing::trace!(batch = hex::encode(blob), "Submitting a batch");
         let blob_hash = {
@@ -376,12 +406,12 @@ impl DaService for StorableMockDaService {
         );
 
         let should_produce_block = match &self.block_producing {
-            BlockProducing::OnBatchSubmit(_) => {
+            BlockProducingConfig::OnBatchSubmit { .. } => {
                 tracing::debug!("Proof submission won't produce new DA block");
                 false
             }
-            BlockProducing::OnAnySubmit(_) => true,
-            BlockProducing::Periodic(_) | BlockProducing::Manual => false,
+            BlockProducingConfig::OnAnySubmit { .. } => true,
+            BlockProducingConfig::Periodic { .. } | BlockProducingConfig::Manual => false,
         };
 
         let blob_hash = {
@@ -464,7 +494,9 @@ mod tests {
     async fn multiple_threads_producing_reading() -> anyhow::Result<()> {
         let da_layer = Arc::new(RwLock::new(StorableMockDaLayer::new_in_memory(0).await?));
         let block_time = Duration::from_millis(50);
-        let block_producing = BlockProducing::Periodic(block_time);
+        let block_producing = BlockProducingConfig::Periodic {
+            block_time_ms: block_time.as_millis() as u64,
+        };
 
         let (shutdown_sender, mut shutdown_receiver) = tokio::sync::watch::channel(());
         shutdown_receiver.mark_unchanged();
@@ -528,7 +560,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn querying_height_above_u32_max() -> anyhow::Result<()> {
-        let producing = BlockProducing::OnBatchSubmit(Duration::from_millis(10));
+        let producing = BlockProducingConfig::OnBatchSubmit {
+            block_wait_timeout_ms: Some(10),
+        };
         let mut service = StorableMockDaService::new_in_memory(MockAddress::new([0; 32]), 0).await;
         service.block_producing = producing;
 

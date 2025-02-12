@@ -27,8 +27,11 @@ use sov_transaction_generator::interface::rng_utils::{get_random_bytes, randomiz
 use sov_transaction_generator::interface::MessageValidity;
 use sov_transaction_generator::{Distribution, GeneratedMessage, State};
 
-pub const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic;
 pub const DEFAULT_BLOCK_TIME_MS: u64 = 200;
+pub const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic {
+    block_time_ms: DEFAULT_BLOCK_TIME_MS,
+};
+
 pub const DEFAULT_FINALIZATION_BLOCKS: u32 = 5;
 
 generate_runtime! {
@@ -216,7 +219,6 @@ pub async fn setup_rollup(
         config.axum_port = axum_port;
     })
     .set_da_config(|da_config| {
-        da_config.block_time_ms = DEFAULT_BLOCK_TIME_MS;
         da_config.sender_address = setup.sequencer.da_address;
     });
     let rollup = rollup_builder

@@ -14,6 +14,7 @@ pub use rt_agnostic_blueprint::RtAgnosticBlueprint;
 use serde::{Deserialize, Serialize};
 pub use sov_db::schema::SchemaBatch;
 pub use sov_mock_da::verifier::MockDaSpec;
+use sov_mock_da::BlockProducingConfig;
 pub use sov_mock_zkvm::{MockZkvm, MockZkvmCryptoSpec};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::macros::config_value;
@@ -122,8 +123,23 @@ pub const TEST_GAS_TOKEN_NAME: &str = "TestGasToken";
 pub const TEST_DEFAULT_PROVER_ADDRESS: &str =
     "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66";
 
-/// Default [`sov_mock_da::MockDaConfig::block_time_ms`] value in tests.
+/// Default wait time value for different [`sov_mock_da::BlockProducingConfig`] value in tests.
 pub const TEST_DEFAULT_MOCK_DA_BLOCK_TIME_MS: u64 = 100;
+/// Default [`BlockProducingConfig`] for tests that need periodic block producing.
+pub const TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING: BlockProducingConfig =
+    BlockProducingConfig::Periodic {
+        block_time_ms: TEST_DEFAULT_MOCK_DA_BLOCK_TIME_MS,
+    };
+/// Default [`BlockProducingConfig`] for tests that need on batch submit variant
+pub const TEST_DEFAULT_MOCK_DA_ON_SUBMIT: BlockProducingConfig =
+    BlockProducingConfig::OnBatchSubmit {
+        block_wait_timeout_ms: Some(TEST_DEFAULT_MOCK_DA_BLOCK_TIME_MS),
+    };
+/// Default [`BlockProducingConfig`] for tests that need on any submit variant
+pub const TEST_DEFAULT_MOCK_DA_ON_ANY_SUBMIT: BlockProducingConfig =
+    BlockProducingConfig::OnAnySubmit {
+        block_wait_timeout_ms: Some(TEST_DEFAULT_MOCK_DA_BLOCK_TIME_MS),
+    };
 
 /// Generates a default [`TxDetails`] for testing.
 pub fn default_test_tx_details<S: Spec>() -> TxDetails<S> {

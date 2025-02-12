@@ -19,8 +19,11 @@ use crate::bank::helpers::*;
 use crate::bank::TOKEN_NAME;
 use crate::test_helpers::{test_genesis_source, DemoRollupSpec};
 
-const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic;
-const ESTIMATED_BLOCK_PROCESSING_TIME: Duration = Duration::from_millis(100);
+const BLOCK_TIME_MS: u64 = 100;
+const ESTIMATED_BLOCK_PROCESSING_TIME: Duration = Duration::from_millis(BLOCK_TIME_MS);
+const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic {
+    block_time_ms: BLOCK_TIME_MS,
+};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_bank_tx_periodic_da_tests() -> anyhow::Result<()> {

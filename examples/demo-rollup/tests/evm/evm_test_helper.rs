@@ -25,7 +25,9 @@ pub(crate) async fn start_node(
     // Don't provide a prover since the EVM is not currently provable
     RollupBuilder::new(
         test_genesis_source(sov_modules_api::OperatingMode::Zk),
-        BlockProducingConfig::OnBatchSubmit,
+        BlockProducingConfig::OnBatchSubmit {
+            block_wait_timeout_ms: Some(1_000),
+        },
         finalization_blocks,
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
@@ -35,9 +37,6 @@ pub(crate) async fn start_node(
         c.aggregated_proof_block_jump = 5;
         c.max_infos_in_db = 30;
         c.max_channel_size = 20;
-    })
-    .set_da_config(|c| {
-        c.block_time_ms = 1_000;
     })
     .start()
     .await

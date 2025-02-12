@@ -4,17 +4,15 @@ use serde::Deserialize;
 use sov_cli::NodeClient;
 use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
 use sov_mock_da::storable::service::StorableMockDaService;
-use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
 use sov_test_utils::test_rollup::RollupBuilder;
+use sov_test_utils::TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING;
 
 use crate::bank::helpers::*;
 use crate::bank::TOKEN_NAME;
 use crate::test_helpers::*;
-
-const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_bank_tx_tests() -> anyhow::Result<()> {
@@ -25,7 +23,7 @@ async fn flaky_bank_tx_tests() -> anyhow::Result<()> {
 
     let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
         test_genesis_source(OperatingMode::Optimistic),
-        BLOCK_PRODUCING_CONFIG,
+        TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING,
         test_case.finalization_blocks,
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
