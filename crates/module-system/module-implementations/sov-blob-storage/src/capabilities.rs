@@ -96,14 +96,14 @@ impl<S: Spec> BlobStorage<S> {
                                 .push_or_ignore((data, blob.sender().clone()));
                         }
                     } else {
-                        self.log_discarded_blob(blob, BlobDiscardReason::SenderInsufficientStake);
+                        Self::log_discarded_blob(blob, &BlobDiscardReason::SenderInsufficientStake);
                     }
                 }
                 BlobOrigin::Batch(blob) => {
                     tracing::trace!("processing as batch");
                     match self.validate_blob_and_sender(blob, unregistered_blobs, state) {
                         ValidateBlobOutcome::Discard(reason) => {
-                            self.log_discarded_blob(blob, reason);
+                            Self::log_discarded_blob(blob, &reason);
                         }
                         ValidateBlobOutcome::Accept(sequencer_status) => {
                             let from_registered_sequencer =
@@ -169,11 +169,7 @@ impl<S: Spec> BlobStorage<S> {
         }
     }
 
-    fn log_discarded_blob(
-        &self,
-        blob: &<S::Da as DaSpec>::BlobTransaction,
-        reason: BlobDiscardReason,
-    ) {
+    fn log_discarded_blob(blob: &<S::Da as DaSpec>::BlobTransaction, reason: &BlobDiscardReason) {
         info!(
             blob_hash = hex::encode(blob.hash()),
             sender = hex::encode(blob.sender()),
@@ -217,7 +213,7 @@ impl<S: Spec> BlobStorage<S> {
             }
             (Ordering::Less, _) => {
                 // If the sequence number is less than the expected one, we discard the blob
-                self.log_discarded_blob(blob, BlobDiscardReason::SequenceNumberTooLow);
+                Self::log_discarded_blob(blob, &BlobDiscardReason::SequenceNumberTooLow);
                 None
             }
         }
@@ -362,13 +358,13 @@ impl<S: Spec> BlobStorage<S> {
                             new_forced_blobs.push((data, blob.sender()));
                         }
                     } else {
-                        self.log_discarded_blob(blob, BlobDiscardReason::SenderInsufficientStake);
+                        Self::log_discarded_blob(blob, &BlobDiscardReason::SenderInsufficientStake);
                     }
                 }
                 BlobOrigin::Batch(blob) => {
                     match self.validate_blob_and_sender(blob, unregistered_blobs, state) {
                         ValidateBlobOutcome::Discard(reason) => {
-                            self.log_discarded_blob(blob, reason);
+                            Self::log_discarded_blob(blob, &reason);
                         }
                         ValidateBlobOutcome::Accept(sequencer_status) => {
                             let from_registered_sequencer =
@@ -380,14 +376,13 @@ impl<S: Spec> BlobStorage<S> {
 
                             // Check if the blob is from the preferred sequencer
                             if &blob.sender() == preferred_sender {
-                                let batch = if let Some(batch) = self
+                                let Some(batch) = self
                                     .deserialize_or_try_slash_sender::<PreferredBatchData>(
                                         blob,
                                         from_registered_sequencer,
                                         state,
-                                    ) {
-                                    batch
-                                } else {
+                                    )
+                                else {
                                     continue;
                                 };
 
@@ -480,14 +475,14 @@ impl<S: Spec> BlobStorage<S> {
                 "Requested to advance slots"
             );
 
-            if preferred_batch.visible_slots_to_advance.get() as u64 > max_slots_to_advance {
+            if u64::from(preferred_batch.visible_slots_to_advance.get()) > max_slots_to_advance {
                 warn!(
                     "Preferred sequencer requested {} slots, but we can only advance {} slots",
                     preferred_batch.visible_slots_to_advance, max_slots_to_advance
                 );
                 max_slots_to_advance
             } else {
-                preferred_batch.visible_slots_to_advance.get() as u64
+                u64::from(preferred_batch.visible_slots_to_advance.get())
             }
         } else {
             // If there's no preferred blob, advance only if the we would otherwise exceed the maximum deferred slots count
