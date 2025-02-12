@@ -143,18 +143,15 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvi
     batch: &BatchFromUnregisteredSequencer,
     scratchpad: TxScratchpad<S, I>,
 ) -> (
-    Result<(AuthTxOutput<S, R>, GasInfo<S::Gas>), UnregisteredAuthenticationError>,
+    Result<AuthTxOutput<S, R>, UnregisteredAuthenticationError>,
     TxScratchpad<S, I>,
+    GasInfo<S::Gas>,
 ) {
     let mut pre_exec_working_set = scratchpad.to_pre_exec_working_set(meter);
 
     let res = runtime.authenticate_unregistered(batch, &mut pre_exec_working_set);
     let (scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
-
-    match res {
-        Err(e) => (Err(e), scratchpad),
-        Ok(ok) => (Ok((ok, gas_meter.gas_info())), scratchpad),
-    }
+    (res, scratchpad, gas_meter.gas_info())
 }
 
 #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
@@ -239,15 +236,13 @@ where
     let authentication_result = authenticate_unregistered_tx(runtime, meter, &batch, scratchpad);
 
     let (validated_output, gas_info, scratchpad) = match authentication_result {
-        (Ok((auth_output, gas_info)), scratchpad) => (auth_output, gas_info, scratchpad),
-        // We do not consume gas for failed authentication of an unregistered sequencer, as there is no one to pay for this gas.
-        // The slot gas will not decrease, but since we rate-limit the number of unregistered transactions and `max_unregistered_tx_check_costs`
-        // *should* be small, we do not consider it a potential attack vector.
-        (Err(UnregisteredAuthenticationError::FatalError(err, tx_hash)), scratchpad) => {
+        (Ok(auth_output), scratchpad, gas_info) => (auth_output, gas_info, scratchpad),
+        // Note that on failure no one to pays for the gas used. However, we still meter it so that it counts against the slot gas limit.
+        (Err(UnregisteredAuthenticationError::FatalError(err, tx_hash)), scratchpad, gas_info) => {
             let err_str = format!("Unregistered sequencer authentication failed: {}", err);
             warn!(error = ?err_str);
 
-            let gas_used = S::Gas::zero();
+            let gas_used = gas_info.gas_used;
 
             let skipped = SkippedTxContents {
                 error: TxProcessingError::AuthenticationFailed(err_str),
@@ -264,13 +259,13 @@ where
             );
         }
 
-        (Err(UnregisteredAuthenticationError::OutOfGas(reason)), scratchpad) => {
+        (Err(UnregisteredAuthenticationError::OutOfGas(reason)), scratchpad, gas_info) => {
             warn!(
                 error = %reason,
                 "Not enough gas to authenticate the batch",
             );
 
-            let gas_used = S::Gas::zero();
+            let gas_used = gas_info.gas_used;
 
             let ignored = IgnoredTransactionReceipt::<TxReceiptContents<S>> {
                 ignored: IgnoredTxContents {
