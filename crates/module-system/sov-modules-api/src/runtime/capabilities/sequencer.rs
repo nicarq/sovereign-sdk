@@ -63,7 +63,7 @@ pub trait SequencerRemuneration<S: Spec> {
         state: &mut impl InfallibleStateAccessor,
     );
 
-    /// Gets the address of the preferred sequencer.
+    /// Gets the address of the preferred sequencer, if one exists.
     fn preferred_sequencer(
         &self,
         scratchpad: &mut impl InfallibleStateAccessor,

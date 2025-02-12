@@ -22,9 +22,9 @@ use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 #[serde(rename_all = "snake_case")]
 /// The namespaces used in the rollup. Related to the db's namespaces.
 pub enum Namespace {
-    /// The user namespace. Used by the User modules and is synchronised with the visible height.
+    /// The user namespace. Used by the User modules and is synchronized with the visible height.
     User,
-    /// The kernel namespace. Used by the Kernel modules and is synchronised with the true height.
+    /// The kernel namespace. Used by the Kernel modules and is synchronized with the true height.
     Kernel,
     /// The accessory namespace. Values in this namespace are writeable but not readable inside the state transition
     /// function. They are used to provide auxiliary data via API.

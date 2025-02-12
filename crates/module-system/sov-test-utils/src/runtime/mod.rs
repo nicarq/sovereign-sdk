@@ -374,7 +374,7 @@ where
         let mut kernel_state = runtime.kernel().accessor(&mut state);
 
         // We need to synchronize the chain state with a mock kernel state to have a correct state view.
-        runtime.chain_state().synchronise_chain(
+        runtime.chain_state().synchronize_chain(
             &Default::default(),
             &self.state_root,
             &mut kernel_state,

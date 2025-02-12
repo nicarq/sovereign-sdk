@@ -1573,17 +1573,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "http"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f16ca2af56261c99fba8bac40a10251ce8188205a4c448fbb745a2e4daa76fea"
-dependencies = [
- "bytes",
- "fnv",
- "itoa",
-]
-
-[[package]]
 name = "iana-time-zone"
 version = "0.1.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3476,15 +3465,10 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "bincode",
- "derivative",
- "derive_more 1.0.0",
- "http",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "serde",
  "sov-rollup-interface",
- "strum",
- "tracing",
 ]
 
 [[package]]
