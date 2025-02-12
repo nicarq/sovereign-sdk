@@ -108,7 +108,9 @@ async fn new_test_rollup(
 
     RollupBuilder::<TestBlueprint>::new(
         GenesisSource::CustomParams(genesis_params),
-        BlockProducingConfig::OnAnySubmit,
+        BlockProducingConfig::OnAnySubmit {
+            block_wait_timeout_ms: None,
+        },
         FINALIZATION_BLOCKS,
     )
     .with_preferred_seq_min_profit_per_tx(minimum_profit_per_tx)
@@ -1077,10 +1079,9 @@ fn encode_call(
 }
 
 mod tests_with_basic_kernel {
-    use sov_mock_da::BlockProducingConfig;
     use sov_modules_stf_blueprint::GenesisParams;
     use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder};
-    use sov_test_utils::RtAgnosticBlueprint;
+    use sov_test_utils::{RtAgnosticBlueprint, TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING};
 
     use super::{
         generate_optimistic_runtime_with_kernel, HighLevelOptimisticGenesisConfig, TestSpec,
@@ -1102,7 +1103,7 @@ mod tests_with_basic_kernel {
 
         RollupBuilder::<RtAgnosticBlueprint<TestSpec, RtWithBasicKernel<TestSpec>>>::new(
             GenesisSource::CustomParams(genesis_params),
-            BlockProducingConfig::Periodic,
+            TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING,
             0,
         )
         .set_config(|conf| {

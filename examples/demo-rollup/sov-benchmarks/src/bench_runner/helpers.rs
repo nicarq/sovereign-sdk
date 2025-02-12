@@ -57,7 +57,6 @@ pub async fn setup_rollup(
     })
     .set_da_config(|da_config| {
         da_config.sender_address = sequencer_da_address;
-        da_config.block_time_ms = 3_000;
     });
 
     rollup_builder.start().await

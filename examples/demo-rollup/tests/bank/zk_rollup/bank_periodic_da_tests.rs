@@ -6,7 +6,6 @@ use sov_bank::utils::TokenHolder;
 use sov_bank::Coins;
 use sov_cli::NodeClient;
 use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
-use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::{OperatingMode, SerializedAggregatedProof, Spec};
@@ -17,6 +16,7 @@ use sov_rollup_interface::zk::aggregated_proof::{
 use sov_state::Storage;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::RollupBuilder;
+use sov_test_utils::TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING;
 
 use crate::bank::helpers::*;
 use crate::bank::TOKEN_NAME;
@@ -24,7 +24,7 @@ use crate::test_helpers::{test_genesis_source, DemoRollupSpec};
 
 type TestSpec = DemoRollupSpec;
 
-const WIT_TIME: u64 = 500;
+const WAIT_TIME: u64 = 500;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_bank_tx_tests_periodic_da_instant_finality() -> anyhow::Result<()> {
@@ -44,7 +44,7 @@ async fn inner(finalization_blocks: u32) -> anyhow::Result<()> {
 
     let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
         test_genesis_source(OperatingMode::Zk),
-        BlockProducingConfig::Periodic,
+        TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING,
         test_case.finalization_blocks,
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
@@ -100,7 +100,7 @@ async fn send_test_bank_txs(test_case: TestCase, client: &NodeClient) -> anyhow:
         .await
         .context("Initial balance at latest version")?;
 
-    tokio::time::sleep(std::time::Duration::from_millis(WIT_TIME)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(WAIT_TIME)).await;
     // transfer 100 tokens. assert sender balance.
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 100, 1);
     let _slot_batch_2 = send_tx_and_wait_for_status(&[tx], client).await?;
@@ -109,7 +109,7 @@ async fn send_test_bank_txs(test_case: TestCase, client: &NodeClient) -> anyhow:
         .await
         .context("Balance decreased after first transaction, latest version")?;
 
-    tokio::time::sleep(std::time::Duration::from_millis(WIT_TIME)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(WAIT_TIME)).await;
 
     let gas_balance_height_1 = client
         .get_balance::<TestSpec>(&user_address, &sov_bank::config_gas_token_id(), None)
@@ -126,7 +126,7 @@ async fn send_test_bank_txs(test_case: TestCase, client: &NodeClient) -> anyhow:
         .await
         .context("Balance decreased after second transaction, latest version")?;
 
-    tokio::time::sleep(std::time::Duration::from_millis(WIT_TIME)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(WAIT_TIME)).await;
 
     // 10 transfers of 10,11..20
     let transfer_amounts: Vec<u64> = (10u64..20).collect();

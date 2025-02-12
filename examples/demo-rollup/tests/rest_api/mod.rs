@@ -10,12 +10,14 @@ use serde::Deserialize;
 use sov_bank::config_gas_token_id;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
-use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
-use sov_test_utils::default_test_signed_transaction;
 use sov_test_utils::test_rollup::{read_private_key, RollupBuilder};
+use sov_test_utils::{
+    default_test_signed_transaction, TEST_DEFAULT_MOCK_DA_ON_SUBMIT,
+    TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING,
+};
 
 use crate::test_helpers::{test_genesis_source, DemoRollupSpec, CHAIN_HASH};
 
@@ -30,7 +32,7 @@ struct ValueResponse {
 async fn trailing_slashes_handled() -> anyhow::Result<()> {
     let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
         test_genesis_source(OperatingMode::Zk),
-        BlockProducingConfig::OnBatchSubmit,
+        TEST_DEFAULT_MOCK_DA_ON_SUBMIT,
         0,
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
@@ -67,7 +69,7 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
 async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
     let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
         test_genesis_source(OperatingMode::Zk),
-        BlockProducingConfig::Periodic,
+        TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING,
         0,
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())

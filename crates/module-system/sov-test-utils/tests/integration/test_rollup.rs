@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
-use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::Runtime;
 use sov_modules_rollup_blueprint::logging::initialize_logging;
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder};
-use sov_test_utils::{generate_optimistic_runtime, RtAgnosticBlueprint, TestSpec};
+use sov_test_utils::{
+    generate_optimistic_runtime, RtAgnosticBlueprint, TestSpec,
+    TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING,
+};
 use tempfile::TempDir;
 
 generate_optimistic_runtime!(TestRuntime <=);
@@ -38,7 +40,7 @@ async fn start_and_stop_node_in_dir(dir: Arc<TempDir>) {
 
     let test_rollup = RollupBuilder::<TestBlueprint>::new(
         GenesisSource::CustomParams(genesis_params),
-        BlockProducingConfig::Periodic,
+        TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING,
         1,
     )
     .set_config(|c| {

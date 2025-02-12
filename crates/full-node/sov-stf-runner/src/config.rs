@@ -155,7 +155,7 @@ mod tests {
             [da]
             connection_string = "sqlite:///tmp/mockda.sqlite?mode=rwc"
             sender_address = "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"
-            block_producing = "periodic"
+            [da.block_producing.periodic]
             block_time_ms = 1_000
             [storage]
             path = "/tmp"

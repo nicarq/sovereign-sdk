@@ -25,8 +25,10 @@ use sov_test_utils::{
 
 use crate::sov_paymaster::PaymasterConfig;
 
-pub const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic;
 pub const DEFAULT_BLOCK_TIME_MS: u64 = 150;
+pub const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic {
+    block_time_ms: DEFAULT_BLOCK_TIME_MS,
+};
 pub const DEFAULT_FINALIZATION_BLOCKS: u32 = 0;
 pub const DEFAULT_TXS_PER_BATCH: u64 = 10;
 pub const MAX_TXS_PER_BATCH: u64 = 1000;
@@ -184,7 +186,6 @@ where
         config.prover_address = roles.prover.user_info.address().to_string();
     })
     .set_da_config(|da_config| {
-        da_config.block_time_ms = DEFAULT_BLOCK_TIME_MS;
         da_config.sender_address = roles.preferred_sequencer.sequencer_info.da_address;
     });
 

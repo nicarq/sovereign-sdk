@@ -1,4 +1,3 @@
-use core::time::Duration;
 use std::sync::Arc;
 
 use demo_stf::runtime::{Runtime, RuntimeCall};
@@ -6,7 +5,7 @@ use futures::StreamExt;
 use sov_blob_storage::config_deferred_slots_count;
 use sov_cli::NodeClient;
 use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
-use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaSpec};
+use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{CryptoSpec, OperatingMode, RawTx, Spec};
@@ -14,6 +13,7 @@ use sov_modules_macros::config_value;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
 use sov_test_utils::test_rollup::{read_private_key, RollupBuilder};
+use sov_test_utils::TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING;
 
 use crate::test_helpers::{test_genesis_source, DemoRollupSpec, CHAIN_HASH};
 
@@ -23,7 +23,6 @@ type TestPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey
 const MAX_TX_FEE: u64 = 100_000_000;
 const UNREGISTERED_SENDER: MockAddress = MockAddress::new([121; 32]);
 const MINIMUM_BOND: u64 = 100_000_000;
-const ESTIMATED_BLOCK_PROCESSING_TIME: Duration = Duration::from_millis(200);
 const FINALIZATION_BLOCKS: u32 = 1;
 
 // Verifies that a rollup with a preferred sequencer can handle forced registration from a different DA address.
@@ -36,7 +35,9 @@ const FINALIZATION_BLOCKS: u32 = 1;
 async fn flaky_test_forced_sequencer_registration() -> anyhow::Result<()> {
     let rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
         test_genesis_source(OperatingMode::Zk),
-        BlockProducingConfig::Periodic,
+        // We need to set the block producing mode to periodic to ensure that the forced registration
+        // eventually succeeds because the registration batch is deferred.
+        TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING,
         FINALIZATION_BLOCKS,
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
@@ -46,18 +47,8 @@ async fn flaky_test_forced_sequencer_registration() -> anyhow::Result<()> {
         c.max_channel_size = 1;
         c.max_infos_in_db = 1;
     })
-    .set_da_config(|c| {
-        // We need to set the block producing mode to periodic to ensure that the forced registration
-        // eventually succeeds because the registration batch is deferred.
-        c.block_producing = BlockProducingConfig::Periodic;
-        c.block_time_ms = ESTIMATED_BLOCK_PROCESSING_TIME
-            .as_millis()
-            .try_into()
-            .unwrap();
-    })
     .start()
-    .await
-    .unwrap();
+    .await?;
 
     let da_service = Arc::new(
         rollup

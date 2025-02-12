@@ -61,6 +61,7 @@ install-dev-tools: install-risc0-toolchain install-sp1-toolchain
 	cargo install cargo-udeps
 	cargo install cargo-deny
 	cargo install flaky-finder
+	cargo install cargo-insta
 	cargo install cargo-nextest --locked
 	cargo install zepter
 	rustup target add wasm32-unknown-unknown

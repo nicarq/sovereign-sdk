@@ -35,7 +35,7 @@ use sov_stf_runner::{
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-use crate::{TEST_DEFAULT_MOCK_DA_BLOCK_TIME_MS, TEST_DEFAULT_PROVER_ADDRESS};
+use crate::TEST_DEFAULT_PROVER_ADDRESS;
 
 /// Specifies how to source the genesis data for a rollup.
 #[derive(Derivative)]
@@ -149,8 +149,8 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
             sender_address: MockAddress::new([0; 32]),
             finalization_blocks,
             block_producing,
-            block_time_ms: TEST_DEFAULT_MOCK_DA_BLOCK_TIME_MS,
             da_layer: None,
+            randomization: None,
         };
 
         Self {

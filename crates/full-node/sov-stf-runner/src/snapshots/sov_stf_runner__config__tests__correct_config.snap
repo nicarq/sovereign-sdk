@@ -27,8 +27,12 @@ expression: config
     "connection_string": "sqlite:///tmp/mockda.sqlite?mode=rwc",
     "sender_address": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
     "finalization_blocks": 0,
-    "block_producing": "periodic",
-    "block_time_ms": 1000
+    "block_producing": {
+      "periodic": {
+        "block_time_ms": 1000
+      }
+    },
+    "randomization": null
   },
   "proof_manager": {
     "aggregated_proof_block_jump": 22,

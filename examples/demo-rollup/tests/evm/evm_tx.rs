@@ -12,12 +12,20 @@ use super::test_client::TestClient;
 async fn evm_tx_tests_instant_finality() -> anyhow::Result<()> {
     let rollup_prover_config =
         get_appropriate_rollup_prover_config::<MockRollupSpec<Native>>(mock_da_risc0_host_args());
-    evm_tx_test(0, rollup_prover_config).await
+    tokio::time::timeout(
+        std::time::Duration::from_secs(300),
+        evm_tx_test(0, rollup_prover_config),
+    )
+    .await?
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn evm_tx_tests_non_instant_finality() -> anyhow::Result<()> {
-    evm_tx_test(3, RollupProverConfig::Skip).await
+    tokio::time::timeout(
+        std::time::Duration::from_secs(300),
+        evm_tx_test(3, RollupProverConfig::Skip),
+    )
+    .await?
 }
 
 async fn evm_tx_test(

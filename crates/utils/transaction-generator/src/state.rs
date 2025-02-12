@@ -112,4 +112,10 @@ impl<S: Spec, Tag: Eq + Hash, T> State<S, Tag, T> {
 
         output
     }
+
+    /// Insert an outside account into state.
+    pub fn insert_account(&mut self, account: AccountState<S, T>) {
+        let address: <S as Spec>::Address = (&account.private_key.pub_key()).into();
+        self.accounts.insert(address, account);
+    }
 }
