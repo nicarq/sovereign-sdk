@@ -48,7 +48,7 @@ pub struct BlobStorage<S: Spec> {
     /// Caller controls the order of blobs in the vector
     #[state]
     #[allow(clippy::type_complexity)]
-    pub(crate) deferred_blobs: KernelStateMap<
+    deferred_blobs: KernelStateMap<
         SlotNumber,
         Vec<(
             BlobDataWithId<BatchWithId>,
