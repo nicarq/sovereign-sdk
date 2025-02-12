@@ -65,6 +65,13 @@ pub trait TransactionAuthenticator<S: Spec> {
 
     /// Authenticates raw transaction that is submitted from unregistered sequencers for the
     /// purpose of forced registration (circumventing censorship by currently registered sequencers).
+    ///
+    /// Implementers of this method should take care to ensure that the gas consumption of this method is low because
+    /// (if authentication fails) no one pays for the gas consumed by the authentication check.
+    ///
+    /// This is *not*  a significant DOS vector as long as gas consumption *during authentication* is reasonably low because (1)
+    /// the blob storage capability bounds the number of unregistered blobs that can be submitted,
+    /// and (2) if authentication succeeds then the gas for the blob is paid by the submitter.
     fn authenticate_unregistered<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,
         batch: &BatchFromUnregisteredSequencer,
