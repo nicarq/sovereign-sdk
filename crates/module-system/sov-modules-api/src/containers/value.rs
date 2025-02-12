@@ -73,7 +73,7 @@ where
     }
 
     /// Encodes the provided value into a slot value
-    fn slot_value(&self, value: &V) -> SlotValue
+    pub(crate) fn slot_value(&self, value: &V) -> SlotValue
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateItemCodec<V>,

@@ -9,6 +9,9 @@ mod access_controls;
 mod checkpoints;
 mod genesis;
 mod internals;
+
+#[cfg(test)]
+mod tests;
 #[cfg(any(feature = "test-utils", feature = "evm"))]
 mod unmetered_state_wrapper;
 
@@ -41,8 +44,6 @@ pub(super) mod seal {
     use sov_state::{IsValueCached, Namespace, SlotKey, SlotValue};
 
     /// A helper trait allowing a type to access any namespace by their *runtime* enum variant.
-    /// Structs that implements this trait also implement [`CachedAccessor`] for any namespace by default.
-    /// Useful to represent structs with caches containing different state value namespaces that can be committed to the storage.
     pub trait UniversalStateAccessor {
         fn is_value_cached(&self, namespace: Namespace, key: &SlotKey) -> IsValueCached;
 
