@@ -134,6 +134,7 @@ pub struct ProvableStorageCache<N> {
 // The key difference is that in ZK mode, values are loaded lazily, only when needed, whereas in native mode, values are eagerly
 // fetched and cached—even when only requesting the size. This is because, in native execution, it's acceptable to cache the full
 // value, but in ZK execution, arbitrary large values cannot be stored as hints in the witness.
+
 impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
     /// Returns an iterator over the writes
     pub fn get_writes(&self) -> impl Iterator<Item = (&SlotKey, Option<&SlotValue>)> {
@@ -275,6 +276,11 @@ impl<N> From<ProvableStorageCache<N>> for OrderedReadsAndWrites {
 
 #[cfg(test)]
 mod tests {
+    // Testing `ProvableStorageCache` requires higher-level types from `sov-modules-api`.
+    // While adding `sov-modules-api` as a dev-dependency is an option, we chose to place the relevant tests directly in `sov-modules-api` for the following reasons:
+    // 1. The tests rely on concepts and types that are more closely related to `sov-modules-api`.
+    // 2. The `UniversalStateAccessor` trait is sealed and cannot be exported from `sov-modules-api`.
+
     use super::*;
 
     pub fn create_key(key: u8) -> SlotKey {
