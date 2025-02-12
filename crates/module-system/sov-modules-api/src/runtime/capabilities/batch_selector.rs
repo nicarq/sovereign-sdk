@@ -66,6 +66,13 @@ pub trait BlobSelector {
     const ACCEPTS_PREFERRED_BATCHES: bool;
 
     /// Returns a vector of blobs that should be processed in the current slot.
+    ///
+    /// The blob selector is responsible for crucial security properties of the rollup. It should...
+    /// - Limit the number of "emergency registration" blobs that it accepts to a sensible number
+    /// - Ensure that the total amount of blobs stored in the blob selector is not too large
+    /// - Ensure that no blob is read without being paid for unless there is a very good reason (i.e. a small number of emergency registrations per slot)
+    /// - Ensure that no blobs are selected for execution without a corresponding virtual height increase
+    /// - Ensure that the preferred sequencer can't censor blobs by consuming all available rollup-block space.
     #[allow(clippy::type_complexity)]
     fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,

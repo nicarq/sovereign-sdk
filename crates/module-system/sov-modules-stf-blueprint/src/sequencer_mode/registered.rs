@@ -395,6 +395,7 @@ where
                 tx_receipts.push(receipt);
             }
             TxControlFlow::IgnoreTx => {
+                // We don't actually `ignore` transactions unless we're just provisionally executing in the sequencer.
                 if !execution_context.is_sequencer() {
                     // SAFETY: It is safe to unwrap here because the total gas used is guaranteed to be less than the slot gas limit.
                     slot_gas_meter

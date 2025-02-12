@@ -86,7 +86,7 @@ impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
 impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, S> {
     type Spec = S;
 
-    fn synchronise_chain(
+    fn synchronize_chain(
         &self,
         slot_header: &<S::Da as DaSpec>::BlockHeader,
         pre_state_root: &<S::Storage as Storage>::Root,
@@ -96,7 +96,7 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, 
             .synchronize_chain(slot_header, pre_state_root, state);
     }
 
-    fn finalise_chain_state(
+    fn finalize_chain_state(
         &self,
         gas_used: &S::Gas,
         state: &mut sov_modules_api::KernelStateAccessor<S>,

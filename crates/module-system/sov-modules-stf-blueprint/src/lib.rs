@@ -4,6 +4,7 @@ mod stf_blueprint;
 
 use sequencer_mode::{registered, unregistered};
 use serde::{Deserialize, Serialize};
+use sov_metrics::{save_elapsed, start_timer};
 #[cfg(feature = "native")]
 use sov_modules_api::capabilities::RollupHeight;
 #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
@@ -195,7 +196,7 @@ where
             checkpoint.materialize_update();
 
         // Special case: at genesis, we save the genesis root to the accessory state here. This ensure's it's available even before
-        // the next slot causes `synchronise_chain` to be called.
+        // the next slot causes `synchronize_chain` to be called.
         if rollup_height == RollupHeight::GENESIS
             && self
                 .runtime
@@ -213,7 +214,7 @@ where
             // Compute the next visible hash.
             //
             // We have a special case at genesis, where we need to explicitly fetch the genesis root from the accessory state because
-            // the `synchronise_chain` method (which populates state root information in the accessory state) is not called until after
+            // the `synchronize_chain` method (which populates state root information in the accessory state) is not called until after
             // the genesis invocation of `materialize_slot`.
             let next_visible_hash = if rollup_height.saturating_sub(state_root_delay_blocks)
                 == RollupHeight::GENESIS
@@ -239,6 +240,7 @@ where
     #[cfg(not(feature = "native"))]
     fn materialize_slot(
         &self,
+        _create_rollup_block: bool,
         checkpoint: StateCheckpoint<S>,
     ) -> (
         <S::Storage as Storage>::Root,
@@ -305,11 +307,42 @@ where
         #[cfg(feature = "native")]
         let (genesis_hash, _, change_set, _) = self.materialize_slot(true, state_checkpoint);
         #[cfg(not(feature = "native"))]
-        let (genesis_hash, _, change_set) = self.materialize_slot(state_checkpoint);
+        let (genesis_hash, _, change_set) = self.materialize_slot(true, state_checkpoint);
 
         (genesis_hash, change_set)
     }
 
+    /// Run a state transition using the STF blueprint.
+    ///
+    /// ## How it Works
+    ///
+    /// Ths Sovereign SDK invokes this function exactly once for each block produced on the DA layer. A "slot" is a block on the DA layer.
+    /// Reorgs on the underlying DA chain are handled externally by the Sovereign SDK, and it's the job of this function to implement a "pure"
+    /// state transition from its inputs to its outputs.
+    ///
+    /// This *implementation* of `apply_slot` has two key units of transition: a "slot", which causes bookkeeping changes to the rollup state that are not *primarily*
+    /// intended to be user facing, and a "rollup block", a state transition in user space which involves processing some batches of transactions. Every single DA layer block
+    /// causes a "slot" to be processed, and each slot contains either zero or one "rollup block".
+    ///
+    /// Since we're buidling "sovereign" rollups which don't rely on external smart contracts, the rollup has to keep track of all the data that appears on the DA layer in order
+    /// to enforce censorship resistance. But, we still want sequencers to be able to give out "soft-confirmations" *before* transactions are finalized on the DA layer. This
+    /// requires that we have some mechanism to prevent minor changes on the DA layer from impacting the outcome of transactions. We do this by partitioning the state
+    /// into two spaces. "Kernel" state contains an exact record of all the DA layer data from the moment it appears on the DA layer, while "User" state contains the
+    /// the state created by transactions. During transaction processing, all user state is visible, but access to "kernel" state is restricted to data older than some
+    /// "visible" rollup height. This "visible" height is set by the "preferred" sequencer, and corresponds to the height of the latest DA layer block that the preferred
+    /// sequencer had seen at the time he built each batch of transactions (assuming the preferred sequencer is honest). For security, we constrain the "visible" height
+    /// to be no more than some constant ("DEFERRED_SLOTS_COUNT") behind the "true" slot number.
+    ///
+    /// ## Divergences Between Native and Non-Native Execution
+    ///
+    /// The native and non-native execution paths diverge in the `apply_slot` method in only a small handfull of places. These divergences need to be carefully
+    /// audited when making changes to this code, because all reads or writes to state must be done in exactly the same order in both execution paths in order to
+    /// generate the correct witness.  (Exception: Accessory state may be read or written anywhere in native code without a corresponding access in non-native code).
+    ///
+    /// - Metrics are not tracked or emitted in non-native mode. (Note: The vast majority of #[cfg] gates in this module are related to metrics tracking)
+    /// - Events are not emitted in non-native mode.
+    /// - The `FinalizeHook` is not invoked in non-native mode
+    /// - The return type of `materialize_slot` is different in native and non-native mode
     #[cfg_attr(
         feature = "native",
         tracing::instrument(
@@ -337,38 +370,34 @@ where
         assert!(<S as GasSpec>::process_tx_pre_exec_checks_gas()
             .dim_is_less_than(&<S as GasSpec>::max_tx_check_costs()), "Gas misconfiguration: PROCESS_TX_PRE_EXEC_GAS must be less than MAX_SEQUENCER_EXEC_GAS_PER_TX");
 
-        #[cfg(feature = "native")]
-        let start_slot = std::time::Instant::now();
-        let mut state = StateCheckpoint::with_witness(pre_state, witness, &self.runtime.kernel());
+        start_timer!(start_slot);
 
+        let mut state = StateCheckpoint::with_witness(pre_state, witness, &self.runtime.kernel());
         // First, we bootstrap the kernel from the previous state. The
-        // `true_slot_number` will be stale, because it's leftover from the
+        // `true_slot_number`, will *always* be stale because it's leftover from the
         // previous slot.
         let mut kernel_with_stale_heights = self.runtime.kernel().accessor(&mut state);
 
+        // `visible_slot_number`, and `rollup_height` may or may not be stale. If we don't produce a rollup block,
+        // during this slot, then the visible slot number and rollup height will not progress, so the old values are still accurate.
         let old_true_slot_number = kernel_with_stale_heights.true_slot_number();
         let old_visible_slot_number = kernel_with_stale_heights.visible_slot_number();
         let old_rollup_height = kernel_with_stale_heights.rollup_height_to_access();
 
-        // WARNING: The kernel slot hooks MUST be called before the runtime slot hooks.
-        // That way the state of the runtime modules is always in sync with the
-        // transaction "being executed".
-        //
         // WARNING: The true slot number gets updated in the
-        // `ChainState::synchronise_chain` method. The visible slot number gets
+        // `ChainState::synchronize_chain` method. The visible slot number gets
         // updated in the `ChainState::increment_rollup_height` method.
         //
         // Be careful to respect the call order: the `ChainState` hooks MUST
         // be called before the `BlobStorage`'s, which MUST be called before
         // the `Runtime`'s slot hooks.
-        self.runtime.chain_state().synchronise_chain(
+        self.runtime.chain_state().synchronize_chain(
             slot_header,
             pre_state_root,
             &mut kernel_with_stale_heights,
         );
 
         let mut kernel_with_partially_stale_heights = kernel_with_stale_heights;
-
         assert_ne!(
             kernel_with_partially_stale_heights.true_slot_number(),
             old_true_slot_number,
@@ -378,6 +407,8 @@ where
         let blob_selector_output = self
             .select_and_validate_blobs(relevant_blobs, &mut kernel_with_partially_stale_heights);
 
+        // The blob selector *must* not mutate the visible slot number or rollup height internally. instead, it must return an output
+        // indicating whether a rollup block should be created and, if so, what the new visible slot number should be.
         assert_eq!(
             kernel_with_partially_stale_heights.visible_slot_number(),
             old_visible_slot_number,
@@ -394,6 +425,7 @@ where
                 .visible_slot_number()
                 .advance(blob_selector_output.visible_slot_number_increase);
 
+            // "Increment rollup height" updates the rollup state to reflect the new rollup block and visible slot numbers and modifies the accessor's cached heights.
             self.runtime.chain_state().increment_rollup_height(
                 &mut kernel_with_partially_stale_heights,
                 visible_slot_number,
@@ -417,23 +449,21 @@ where
             // To potentially inconsistent state.
             assert_no_transactions_were_selected(&blob_selector_output);
         }
+
         let mut kernel = kernel_with_partially_stale_heights;
         let new_rollup_height = kernel.rollup_height_to_access();
 
+        // Compute the state root to show to transactions during execution.
         let visible_hash = self
             .runtime
             .chain_state()
             .visible_hash_for(new_rollup_height, &mut kernel)
             .expect("The current visible hash should be possible to compute at this point because the chain-state should have synchronized. This is a bug. Please report it.");
 
-        #[cfg(feature = "native")]
-        let blob_selection_time = start_slot.elapsed();
+        save_elapsed!(blob_selection_time SINCE start_slot);
 
-        #[cfg(feature = "native")]
         let create_rollup_block = blob_selector_output.creates_rollup_block();
 
-        #[cfg(feature = "native")]
-        let visible_slot_number = state.visible_slot_number_to_access();
         let (total_gas, proof_receipts, batch_receipts, mut state) = self
             .apply_batches_in_user_space(
                 blob_selector_output,
@@ -446,30 +476,36 @@ where
 
         self.runtime
             .chain_state()
-            .finalise_chain_state(&total_gas, &mut kernel_state_accessor);
+            .finalize_chain_state(&total_gas, &mut kernel_state_accessor);
 
-        #[cfg(not(feature = "native"))]
-        let (state_root, witness, change_set) = self.materialize_slot(state);
-
-        #[cfg(feature = "native")]
         let (state_root, witness, change_set) = {
-            let slot_finalization_start = std::time::Instant::now();
+            // We can't use `if cfg!` here because `materialize_slot` returns different types in native and non-native mode.
+            // So we structure this code to make it obvious that we're handling both cases.
+            #[cfg(not(feature = "native"))]
+            {
+                self.materialize_slot(create_rollup_block, state)
+            }
+            #[cfg(feature = "native")]
+            {
+                let slot_finalization_start = std::time::Instant::now();
+                let visible_slot_number = state.visible_slot_number_to_access();
 
-            // Note the call to materialize slot mixed in with metrics operations here.
-            let (state_root, witness, change_set, _) =
-                self.materialize_slot(create_rollup_block, state);
+                // Note the call to materialize slot mixed in with metrics operations here.
+                let (state_root, witness, change_set, _) =
+                    self.materialize_slot(create_rollup_block, state);
 
-            let slot_finalization_time = slot_finalization_start.elapsed();
-            sov_metrics::track_metrics(|tracker| {
-                tracker.track_slot_processing(sov_metrics::SlotProcessingMetrics {
-                    blobs_selection_time: blob_selection_time,
-                    slot_finalization_time,
-                    da_height: slot_header.height(),
-                    execution_context,
-                    visible_slot_number,
+                let slot_finalization_time = slot_finalization_start.elapsed();
+                sov_metrics::track_metrics(|tracker| {
+                    tracker.track_slot_processing(sov_metrics::SlotProcessingMetrics {
+                        blobs_selection_time: blob_selection_time,
+                        slot_finalization_time,
+                        da_height: slot_header.height(),
+                        execution_context,
+                        visible_slot_number,
+                    });
                 });
-            });
-            (state_root, witness, change_set)
+                (state_root, witness, change_set)
+            }
         };
 
         ApplySlotOutput::<S::InnerZkvm, S::OuterZkvm, S::Da, Self> {
@@ -523,6 +559,23 @@ where
 {
     /// Run the provided sequence of batches, updating the user-space rollup state as we go.
     /// Batches can inject control flow, which will be respected by the runner.
+    ///
+    /// ## DOS and Censorship Resistance
+    /// TResponsibility for censorship resistance
+    /// and DOS protection is *shared* between the blob selector and this method. The blob selector is responsible
+    /// for ensuring that the costs of deserializing and (if applicable) storing *blobs* is paid for by someone,
+    /// and for ensuring some level of fairness in selection of blobs to pass to the rollup. Specifically, the blob selector
+    /// should be careful to ensure that actors other than the preferred sequencer can get their blobs selected for execution.
+    ///
+    /// This method is responsible for apportioning *execution resources* (i.e. gas) between different actors. It should
+    /// ensure that the preferred sequencer cannot use all available block-space in order to censor other actors, and that
+    /// all execution is paid for by someone.
+    ///
+    /// ## Assumptions
+    /// This method assumes that the underlying DA layer provides a reasonable degree of fairness in ordering, so that
+    /// executing blobs in FIFO order is not significantly worse than for censorship resistance than executing them in
+    /// any other order.
+    ///
     #[allow(clippy::type_complexity)]
     #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker(visible_hash))]
     #[cfg_attr(
@@ -573,31 +626,26 @@ where
         );
 
         // We run [`SlotHooks::begin_rollup_block_hook`] if the visible height is updated. This is to ensure that we have the
-        // following invariant: the `user_space` root only updates when the `visible_slot_height`` gets increased.
+        // following invariant: the `user_space` root only updates when the `visible_slot_height` gets increased.
         // If not enforced, this may break soft-confirmations because it will not be possible to deterministically
         // predict the user space state when executing priority blobs.
-        #[cfg(feature = "native")]
-        let begin_slot_start = std::time::Instant::now();
+        start_timer!(begin_slot_start);
         if creates_rollup_block {
             BlockHooks::begin_rollup_block_hook(&self.runtime, &visible_hash, &mut state);
         }
-        #[cfg(feature = "native")]
-        let begin_block_hook_time = begin_slot_start.elapsed();
+        save_elapsed!(begin_block_hook_time SINCE begin_slot_start);
 
         let mut proof_receipts = Vec::new();
         let mut batch_receipts = Vec::new();
 
-        #[cfg(feature = "native")]
-        let blob_processing_start = std::time::Instant::now();
+        start_timer!(blob_processing_start);
 
-        // TODO: Inject closure to report state changes here
         for (blob_idx, (blob, sender)) in
             blob_selector_output.selected_blobs.into_iter().enumerate()
         {
             match blob {
                 BlobDataWithId::Batch(batch) => {
-                    #[cfg(feature = "native")]
-                    let start_batch_processing = std::time::Instant::now();
+                    start_timer!(start_batch_processing);
                     let batch_id = batch.id();
                     let (batch_receipt, next_checkpoint) = registered::apply_batch::<S, RT, B>(
                         &self.runtime,
@@ -613,8 +661,7 @@ where
                     // Metrics section
                     #[cfg(feature = "native")]
                     {
-                        let processing_time = start_batch_processing.elapsed();
-
+                        save_elapsed!(processing_time SINCE start_batch_processing);
                         let transactions_count = batch_receipt.tx_receipts.len();
                         let ignored_transactions_count = batch_receipt.tx_receipts.len();
 
@@ -668,10 +715,8 @@ where
             }
         }
 
-        #[cfg(feature = "native")]
-        let blob_processing_time = blob_processing_start.elapsed();
-        #[cfg(feature = "native")]
-        let end_slot_hooks_start = std::time::Instant::now();
+        save_elapsed!(blob_processing_time SINCE blob_processing_start);
+        start_timer!(end_slot_hooks_start);
 
         // Note that we run the end-slot hooks even in non-native mode, which is why this can't
         // be a single "native" block
@@ -684,9 +729,9 @@ where
                 .kernel()
                 .record_gas_usage(&mut state, block_gas_info, rollup_height);
         }
+        save_elapsed!(end_block_hook_time SINCE end_slot_hooks_start);
         #[cfg(feature = "native")]
         {
-            let end_block_hook_time = end_slot_hooks_start.elapsed();
             sov_metrics::track_metrics(|tracker| {
                 tracker.track_user_space_slot_processing(
                     sov_metrics::UserSpaceSlotProcessingMetrics {

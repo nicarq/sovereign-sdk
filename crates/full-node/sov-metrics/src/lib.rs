@@ -16,3 +16,21 @@ pub use influxdb::{
 };
 #[cfg(all(feature = "native", feature = "gas-constant-estimation"))]
 pub use influxdb::{GasConstantTracker, GAS_CONSTANTS};
+
+#[macro_export]
+/// Starts a timer if the `native` feature is enabled. Otherwise does nothing.
+macro_rules! start_timer {
+    ($timer:ident) => {
+        #[cfg(feature = "native")]
+        let $timer = std::time::Instant::now();
+    };
+}
+
+#[macro_export]
+/// Returns the elapsed time since the timer if the `native` feature is enabled. Otherwise does nothing.
+macro_rules! save_elapsed {
+    ($end:ident SINCE $start:ident) => {
+        #[cfg(feature = "native")]
+        let $end = $start.elapsed();
+    };
+}
