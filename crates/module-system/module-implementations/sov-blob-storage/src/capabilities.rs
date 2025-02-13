@@ -238,16 +238,19 @@ impl<S: Spec> BlobStorage<S> {
             .saturating_sub(state.visible_slot_number().get())
             .get();
 
+        let mut blobs_with_total_size_limit = BlobsWithTotalSizeLimit::<S>::new();
+
         // First, decide how many slots worth of stored blobs we need. It could be 0, 1, or 2.
-        let batches_needed_from_this_slot = match delta {
+        let (batches_needed_from_this_slot, current_orderred_blobs) = match delta {
             // If the visible slot has caught up to the current slot, we don't need any stored blobs.
             // In this case, we act like a normal "based" rollup
             0 => return self.select_blobs_as_based_sequencer_inner(current_blobs, state),
+
             // If the visible slot is only trailing by one, we process one stored slot (to catch up) and
             // then process the new blobs from this slot
             1 => {
-                self.select_blobs_as_based_sequencer_inner(current_blobs, state);
-                1
+                let blobs = self.select_blobs_as_based_sequencer_inner(current_blobs, state);
+                (1, Some(blobs))
             }
             // Otherwise, we need to process two slots from storage  - which means that we need to save the new blobs
             _ => {
@@ -257,11 +260,15 @@ impl<S: Spec> BlobStorage<S> {
                     .map(|(batch, seq)| (batch, seq.clone()))
                     .collect();
                 self.store_batches(&new_batches, state);
-                2
+                (2, None)
             }
         };
 
-        let mut blobs_with_total_size_limit = BlobsWithTotalSizeLimit::<S>::new();
+        if let Some(blobs) = current_orderred_blobs {
+            for (batch, sender) in blobs.selected_blobs.into_iter() {
+                blobs_with_total_size_limit.push_or_ignore((batch, sender));
+            }
+        }
 
         for slot in 0..=batches_needed_from_this_slot {
             let slot_to_check = state.visible_slot_number().saturating_add(slot);
