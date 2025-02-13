@@ -681,17 +681,19 @@ impl<S: Spec> BasicGasMeter<S> {
     }
 
     fn charge_gas_inner(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
+        let mut new_remaining_funds = None;
+
         if let Some(remaining_funds) = &self.remaining_funds {
-            self.remaining_funds = Some(self.compute_remaining_funds(remaining_funds, amount)?);
+            new_remaining_funds = Some(self.compute_remaining_funds(remaining_funds, amount)?);
         }
 
-        let remaining_gas = self.compute_remaining_gas(&self.remaining_gas, amount)?;
+        let new_remaining_gas = self.compute_remaining_gas(&self.remaining_gas, amount)?;
         // Here we check that the current gas_used won't overflow when multiplied by the price.
         // This ensures that after execution, it is always safe to convert the total gas used to a token value.
         {
             let gas_used = self
                 .initial_gas
-                .checked_sub(&remaining_gas)
+                .checked_sub(&new_remaining_gas)
                 .expect("The remaining gas can't be greater than the initial gas");
 
             gas_used.checked_value(&self.gas_price).ok_or_else(|| {
@@ -701,7 +703,9 @@ impl<S: Spec> BasicGasMeter<S> {
                 )
             })?;
         }
-        self.remaining_gas = remaining_gas;
+
+        self.remaining_funds = new_remaining_funds;
+        self.remaining_gas = new_remaining_gas;
 
         Ok(())
     }
@@ -1075,6 +1079,27 @@ mod tests {
                 "Charge Funds: Unable to charge gas, because the calculation overflows".to_string()
             ))
         );
+    }
+
+    #[test]
+    fn gas_meter_charge_atomic_update() {
+        let remaining_gas = GasUnit::<2>::from([5, 5]);
+        let remaining_funds = 1000000;
+        let gas_price = GasPrice::<2>::from([10; 2]);
+
+        let mut gas_meter = BasicGasMeter::<S>::new_with_funds_and_gas(
+            remaining_funds,
+            remaining_gas.clone(),
+            gas_price.clone(),
+        );
+
+        let gas = GasUnit::<2>::from([10; 2]);
+        let res = gas_meter.charge_gas(&gas.clone());
+
+        // We have enough funds to charge but not enough gas.
+        assert!(res.is_err());
+        assert_eq!(gas_meter.remaining_funds, Some(remaining_funds));
+        assert_eq!(gas_meter.remaining_gas, remaining_gas);
     }
 
     #[test]
