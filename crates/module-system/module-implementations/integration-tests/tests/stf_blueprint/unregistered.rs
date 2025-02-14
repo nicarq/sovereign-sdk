@@ -187,7 +187,7 @@ fn blob_too_expensive_tests() {
 fn blob_test_max_slot_size() {
     reset_constants();
     env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE",
+        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE",
         "1",
     );
 

@@ -559,7 +559,7 @@ fn blobs_with_high_sequencer_number_get_deferred() {
 #[test]
 fn check_blob_selection() {
     env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE",
+        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE",
         "1000",
     );
 
