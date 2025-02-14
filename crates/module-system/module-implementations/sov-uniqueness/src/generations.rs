@@ -11,7 +11,7 @@ impl<S: Spec> Uniqueness<S> {
         transaction_hash: TxHash,
         state_checkpoint: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
-        let senders_buckets = self
+        let mut senders_buckets = self
             .generations
             .get(credential_id, state_checkpoint)?
             .unwrap_or_default();
@@ -45,12 +45,38 @@ impl<S: Spec> Uniqueness<S> {
 
         // If we're within the active range, we check the hash against previously stored hashes in
         // the same generation
-        let maybe_bucket = senders_buckets.get(&transaction_generation);
-        if maybe_bucket
-            .map(|bucket| bucket.contains(&transaction_hash))
-            .unwrap_or(false)
-        {
-            anyhow::bail!("Duplicate transaction for credential_id {credential_id} at generation {transaction_generation}: hash {transaction_hash:?} has already been seen");
+        if let Some(bucket) = senders_buckets.get(&transaction_generation) {
+            if bucket.contains(&transaction_hash) {
+                anyhow::bail!("Duplicate transaction for credential_id {credential_id} at generation {transaction_generation}: hash {transaction_hash:} has already been seen");
+            }
+        };
+        // If we reach this point, the transaction is not a duplicate. However, we may still need to reject it to avoid overflowing our capacity for
+        // remembering past transactions.
+
+        // If we're above the currently active generation range, then we'll prune some old buckets when we accept this tx. Ignore the buckets that will be pruned
+        // in calculating the post-size.
+        if transaction_generation > latest_generation {
+            // Prune older generations
+            let next_lower_bound = transaction_generation
+                .saturating_sub(config_value!("PAST_TRANSACTION_GENERATIONS"));
+            // IMPORTANT: We don't save our changes to the senders buckets here. We'll do that in mark_generational_tx_attempted() if necessary.
+            senders_buckets = senders_buckets.split_off(&next_lower_bound);
+        }
+
+        let num_txs_after_increment = senders_buckets
+            .values()
+            .map(|bucket| bucket.len())
+            .sum::<usize>()
+            + 1;
+        if num_txs_after_increment > config_value!("MAX_STORED_TX_HASHES_PER_CREDENTIAL") {
+            // If we overflow, compute the next generation number that the user needs and include it in the error message.
+            let first_non_empty_generation = senders_buckets
+                .keys()
+                .next()
+                .expect("Bucket was just checked to be non-empty.");
+            let last_generation_before_pruning = first_non_empty_generation
+                .saturating_add(config_value!("PAST_TRANSACTION_GENERATIONS"));
+            anyhow::bail!("Too many transactions for credential_id {credential_id} at generation {transaction_generation}: hash {transaction_hash:} would cause the bucket to overflow. Increment your generation number to a value greater than {last_generation_before_pruning} and try again.");
         }
 
         Ok(())

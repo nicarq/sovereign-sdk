@@ -176,7 +176,7 @@ where
             .check_uniqueness(&auth_data, &ctx, &mut scratchpad)
     {
         return (
-            Err(TxProcessingError::IncorrectNonce(err.to_string())),
+            Err(TxProcessingError::NotUnique(err.to_string())),
             scratchpad,
         );
     }

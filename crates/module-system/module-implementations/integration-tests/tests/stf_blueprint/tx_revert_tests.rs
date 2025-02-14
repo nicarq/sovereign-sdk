@@ -212,10 +212,7 @@ fn test_tx_bad_nonce() {
 
     match &tx_receipts[1].receipt {
         sov_modules_api::TxEffect::Skipped(skipped) => {
-            assert!(matches!(
-                skipped.error,
-                TxProcessingError::IncorrectNonce(..)
-            ));
+            assert!(matches!(skipped.error, TxProcessingError::NotUnique(..)));
         }
         receipt => panic!(
             "Expected Skipped error, but got a different TxEffect: {:?}",

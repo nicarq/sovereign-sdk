@@ -54,10 +54,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
             .transaction_authorizer()
             .check_uniqueness(&auth_data, &ctx, &mut scratchpad)
     {
-        return (
-            Err(TxProcessingError::IncorrectNonce(e.to_string())),
-            scratchpad,
-        );
+        return (Err(TxProcessingError::NotUnique(e.to_string())), scratchpad);
     }
 
     // After this check, we are confident that the transaction sender can cover the costs of transaction processing.
