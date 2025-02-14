@@ -11,7 +11,7 @@ use sov_modules_api::{
 use sov_sequencer_registry::AllowedSequencerError;
 use tracing::{debug, error, info, warn};
 
-use crate::max_size_checker::{take_blobs_with_size_limit, BlobsWithTotalSizeLimit};
+use crate::max_size_checker::BlobsWithTotalSizeLimit;
 use crate::{
     config_deferred_slots_count, config_unregistered_blobs_per_slot, BlobStorage,
     PreferredBatchData, PreferredBlobData, PreferredBlobDataWithId, PreferredProofData,
@@ -351,7 +351,7 @@ impl<S: Spec> BlobStorage<S> {
 
                             // Only push the blobs that are within the total size limit.
                             blobs_with_total_size_limit
-                                .push_or_ignore((data, preferred_sender.clone()));
+                                .push_preffered_or_ignore((data, preferred_sender.clone()));
                         }
                     } else if self
                         .sequencer_registry
@@ -450,8 +450,9 @@ impl<S: Spec> BlobStorage<S> {
                         let data = BlobData::Proof(p.data).with_id(next_blob.id);
 
                         // Only push the blobs that are within the total size limit.
+
                         blobs_with_total_size_limit
-                            .push_or_ignore((data, preferred_sender.clone()));
+                            .push_preffered_or_ignore((data, preferred_sender.clone()));
                     }
                 }
             } else {
@@ -474,7 +475,8 @@ impl<S: Spec> BlobStorage<S> {
             let next_batch = BlobDataWithId::Batch(BatchWithId::new(preferred_batch.data, id));
 
             // Only push the blobs that are within the total size limit.
-            blobs_with_total_size_limit.push_or_ignore((next_batch, preferred_sender.clone()));
+            blobs_with_total_size_limit
+                .push_preffered_or_ignore((next_batch, preferred_sender.clone()));
 
             tracing::trace!(
                 seq_number = preferred_batch.sequence_number,
@@ -597,7 +599,6 @@ impl<S: Spec> BlobStorage<S> {
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
-        let current_blobs = take_blobs_with_size_limit::<_, S>(current_blobs);
         // If `DEFERRED_SLOTS_COUNT` is 0, we treat the rollup as having no preferred sequencer.
         // In this case, we just process blobs in the order that they appeared on the DA layer
         if config_deferred_slots_count() == 0 {
@@ -630,8 +631,6 @@ impl<S: Spec> BlobStorage<S> {
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
-        let current_blobs = take_blobs_with_size_limit::<_, S>(current_blobs);
-
         self.select_blobs_as_based_sequencer_inner(current_blobs, state)
     }
 }

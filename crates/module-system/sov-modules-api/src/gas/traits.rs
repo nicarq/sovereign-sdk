@@ -511,6 +511,29 @@ pub trait GetGasPrice {
     fn gas_price(&self) -> &<<Self::Spec as Spec>::Gas as Gas>::Price;
 }
 
+/// Represents a mathematical fraction with a numerator and a denominator.
+pub struct Fraction {
+    /// Numerator
+    pub numerator: u32,
+    /// Denominator
+    /// SAFETY: should be bigger than the numerator.
+    pub denominator: u32,
+}
+
+impl Fraction {
+    const fn preffered_data_fraction() -> Self {
+        // SAFETY: Denominator is bigger than numerator.
+        Self {
+            numerator: 9,
+            denominator: 10,
+        }
+    }
+}
+
+/// The maximum portion of the resource allocated to the preferred sequencer.
+/// This can refer to either slot space or slot gas limit.
+pub const PREFFERERD_DATA_FRACTION: Fraction = Fraction::preffered_data_fraction();
+
 /// A gas meter that tracks the gas used for a slot.
 pub struct SlotGasMeter<S: Spec> {
     preferred_sequencer: Option<<S::Da as DaSpec>::Address>,
@@ -526,11 +549,11 @@ impl<S: Spec> SlotGasMeter<S> {
         remaining_slot_gas: S::Gas,
         preferred_sequencer: Option<<S::Da as DaSpec>::Address>,
     ) -> Self {
-        // remaining_preferred_slot_gas = 0.9 * remaining_slot_gas
         let remaining_preferred_slot_gas = remaining_slot_gas
             .clone()
-            .scalar_division(10)
-            .checked_scalar_product(9)
+            .scalar_division(PREFFERERD_DATA_FRACTION.denominator as u64)
+            .checked_scalar_product(PREFFERERD_DATA_FRACTION.numerator as u64)
+            // This cannot overflow because the PREFFERERD_DATA_FRACTION must be less than 1.
             .unwrap();
 
         Self {

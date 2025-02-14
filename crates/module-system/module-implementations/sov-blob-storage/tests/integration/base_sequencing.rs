@@ -73,7 +73,7 @@ fn store_and_retrieve_standard_basic_kernel() {
 #[test]
 fn check_blob_selection() {
     env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE",
+        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE",
         "1000",
     );
     let (
@@ -87,7 +87,6 @@ fn check_blob_selection() {
     let mut nonces = HashMap::new();
 
     {
-        // Only 2 first slots are included. (Total size less than MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE)
         let slot_to_send = build_basic_blobs(
             &vec![
                 (preferred_sequencer.clone(), 220),
@@ -99,11 +98,11 @@ fn check_blob_selection() {
         );
 
         let result = runner.execute::<RelevantBlobs<MockBlob>>(slot_to_send);
-        assert_eq!(result.batch_receipts.len(), 2);
+        assert_eq!(result.batch_receipts.len(), 3);
     }
 
     {
-        // First slot bigger than MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE
+        // First slot bigger than MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE
         let slot_to_send = build_basic_blobs(
             &vec![
                 (preferred_sequencer.clone(), 1001),
@@ -113,7 +112,7 @@ fn check_blob_selection() {
         );
 
         let result = runner.execute::<RelevantBlobs<MockBlob>>(slot_to_send);
-        assert_eq!(result.batch_receipts.len(), 0);
+        assert_eq!(result.batch_receipts.len(), 1);
     }
 
     // Test the edge cases.
@@ -127,7 +126,7 @@ fn check_blob_selection() {
         );
 
         let result = runner.execute::<RelevantBlobs<MockBlob>>(slot_to_send);
-        assert_eq!(result.batch_receipts.len(), 0);
+        assert_eq!(result.batch_receipts.len(), 1);
     }
 
     {
