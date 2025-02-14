@@ -78,9 +78,9 @@ pub enum TxProcessingError {
     /// Transaction authentication failed.
     #[error(" Transaction authentication failed {0}.")]
     AuthenticationFailed(String),
-    /// The transaction had an invalid nonce.
-    #[error("The transaction had an invalid nonce, reason: {0}.")]
-    IncorrectNonce(String),
+    /// The transaction was a duplicate.
+    #[error("The transaction was a duplicate. Reason: {0}.")]
+    NotUnique(String),
     /// Impossible to reserve gas for the transaction to be executed.
     #[error("Impossible to reserve gas for the transaction to be executed, reason: {0}.")]
     CannotReserveGas(String),
