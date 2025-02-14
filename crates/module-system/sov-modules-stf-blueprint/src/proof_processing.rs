@@ -357,16 +357,7 @@ where
         // The transaction will execute until one of the following conditions is met:
         // 1. It consumes more funds than `tx.max_fee`.
         // 2. The `Gas::calculate_min(tx.gas_limit, slot_gas)` is exhausted.
-        let working_set_gas_meter = match auth_tx.gas_meter(gas_price, slot_gas) {
-            Ok(ws) => ws,
-            Err(e) => {
-                return self.make_early_return(
-                    scratchpad,
-                    format!("Insufficient slot gas {}", e),
-                    gas_info.gas_used,
-                );
-            }
-        };
+        let working_set_gas_meter = auth_tx.gas_meter(gas_price, slot_gas);
 
         let mut working_set =
             WorkingSet::create_working_set(scratchpad, &auth_tx, working_set_gas_meter);

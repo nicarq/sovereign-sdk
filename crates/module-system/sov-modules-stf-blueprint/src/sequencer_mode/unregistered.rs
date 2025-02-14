@@ -75,15 +75,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     // The transaction will execute until one of the following conditions is met:
     // 1. It consumes more funds than `tx.max_fee`.
     // 2. The `Gas::calculate_min(tx.gas_limit, slot_gas)` is exhausted.
-    let working_set_gas_meter = match tx.gas_meter(&gas_info.gas_price, slot_gas) {
-        Ok(ws) => ws,
-        Err(reason) => {
-            return (
-                Err(TxProcessingError::OutOfGas(reason.to_string())),
-                scratchpad,
-            )
-        }
-    };
+    let working_set_gas_meter = tx.gas_meter(&gas_info.gas_price, slot_gas);
 
     let mut working_set = WorkingSet::create_working_set(scratchpad, tx, working_set_gas_meter);
 
@@ -300,7 +292,8 @@ where
 
     match tx_result {
         Err(error) => {
-            // We don't consume gas for failed transactions.
+            // TODO: We should still account for the gas consumed before failure to ensure that the slot gas limit is enforced accurately.
+            // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2357
             gas_used = S::Gas::zero();
             let skipped = SkippedTxContents {
                 error,

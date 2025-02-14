@@ -76,6 +76,9 @@ pub trait GasEnforcer<S: Spec> {
     );
 
     /// The sequencer refunds the prover for the authentication of the transactions.
+    /// This method is unmetered, so implementers MUST ensure that its cost is small.
+    /// This is not difficult to do - in general, this  method should simply do one token transfer
+    /// between known addresses.
     fn transfer_funds_from_sequencer_to_prover(
         &self,
         amount: u64,

@@ -24,7 +24,7 @@ pub use sequencer_mode::apply_tx;
 pub use sequencer_mode::common::{
     get_gas_used, AuthTxOutput, BatchReceipt, TransactionReceipt, ValidatedAuthOutput,
 };
-pub use sequencer_mode::registered::{process_tx, PreExecError};
+pub use sequencer_mode::registered::{process_tx_and_reward_sequencer, PreExecError};
 use sov_modules_api::capabilities::{
     BatchFromUnregisteredSequencer, BlobOrigin, BlobSelector, BlobSelectorOutput, BlockGasInfo,
     ChainState, HasKernel, Kernel, SequencerRemuneration, TransactionAuthenticator,
@@ -147,7 +147,7 @@ impl<S: Spec> sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents
 }
 
 /// The result of applying a transaction to the state.
-/// This is the value returned when [`process_tx`] succeeds.
+/// This is the value returned when [`process_tx_and_reward_sequencer`] succeeds.
 /// It contains the new transaction checkpoint, transaction receipt and the amount of gas tokens that the sequencer should be rewarded.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(bound = "S: Spec")]
