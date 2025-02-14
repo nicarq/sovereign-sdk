@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use sov_mock_da::{MockBlob, MockDaSpec, MockHash};
-use sov_modules_api::{BlobDataWithId, BlobReaderTrait, DaSpec, Spec, VersionReader};
+use sov_modules_api::{
+    BlobDataWithId, BlobReaderTrait, DaSpec, IterableBatchWithId, Spec, VersionReader,
+};
 use sov_modules_stf_blueprint::{BatchReceipt, Runtime};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::traits::MinimalGenesis;
@@ -30,7 +32,9 @@ pub struct TestData<S: Spec> {
 type TestRunner<RT> = sov_test_utils::runtime::TestRunner<RT, S>;
 
 /// Returns the current visible rollup height in the runner.
-pub fn visible_slot<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S>>(
+pub fn visible_slot<
+    RT: Runtime<S, BlobType = BlobDataWithId<IterableBatchWithId<S>>> + MinimalGenesis<S>,
+>(
     runner: &TestRunner<RT>,
 ) -> u64 {
     runner
@@ -39,7 +43,9 @@ pub fn visible_slot<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S
 }
 
 /// Returns the last `k` slot receipts
-pub fn last_slot_receipts<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S>>(
+pub fn last_slot_receipts<
+    RT: Runtime<S, BlobType = BlobDataWithId<IterableBatchWithId<S>>> + MinimalGenesis<S>,
+>(
     runner: &TestRunner<RT>,
     k: usize,
 ) -> &[SlotReceipt<S>] {
@@ -100,7 +106,9 @@ impl SequenceInfo {
 /// [`TestRunner`] will emit the receipts in the expected order. This helper method is
 /// used in [`helpers_basic_kernel::assert_blobs_are_correctly_received_basic_kernel`] and [`helpers_soft_confirmations::assert_blobs_are_correctly_received_soft_confirmation`].
 fn assert_blobs_are_correctly_received_helper<
-    RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S> + EncodeCall<ValueSetter<S>>,
+    RT: Runtime<S, BlobType = BlobDataWithId<IterableBatchWithId<S>>>
+        + MinimalGenesis<S>
+        + EncodeCall<ValueSetter<S>>,
 >(
     slots_to_send: Vec<RelevantBlobs<MockBlob>>,
     receive_order: Vec<Vec<SequenceInfo>>,

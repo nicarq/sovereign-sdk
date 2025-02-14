@@ -1,5 +1,5 @@
 use sov_modules_api::macros::config_value;
-use sov_modules_api::{BatchWithId, BlobDataWithId, DaSpec, Spec};
+use sov_modules_api::Spec;
 use tracing::error;
 
 use crate::BlobAndSender;
@@ -52,7 +52,7 @@ impl BlobSizeChecker {
 /// Example
 /// If the maximum allowed size is 10MB, and the blobs are inserted in the following order [3MB, 20MB, 1MB], the `BlobsWithTotalSizeLimit` will only hold the first and the last blobs because their total size is less than 10MB.
 pub(crate) struct BlobsWithTotalSizeLimit<S: Spec> {
-    blobs_with_address: Vec<(BlobDataWithId<BatchWithId>, <S::Da as DaSpec>::Address)>,
+    blobs_with_address: Vec<BlobAndSender<S>>,
     blob_size_checker: BlobSizeChecker,
     max_total_size: u32,
     // `max_total_size` is always greater than `max_preferred_blob_size`,
@@ -120,7 +120,7 @@ impl<S: Spec> BlobsWithTotalSizeLimit<S> {
 #[cfg(test)]
 mod tests {
     use sov_mock_da::MockAddress;
-    use sov_modules_api::FullyBakedTx;
+    use sov_modules_api::{BatchWithId, BlobDataWithId, FullyBakedTx};
 
     use super::*;
     pub type S = sov_test_utils::TestSpec;
@@ -157,8 +157,8 @@ mod tests {
 
         let mut expected_addresses = Vec::new();
         for (i, b) in txs.into_iter().enumerate() {
-            let b = BlobDataWithId::Batch(BatchWithId::new(b, [0; 32]));
-            let addr = MockAddress::new([i as u8; 32]);
+            let b = BlobDataWithId::Batch(BatchWithId::new(b, [0; 32], [i as u8; 28].into()));
+            let addr = [i as u8; 32].into();
             if expected_indexes.contains(&(i as u8)) {
                 expected_addresses.push(addr);
             }
@@ -174,10 +174,11 @@ mod tests {
         assert_eq!(inner, expected_addresses);
     }
 
-    fn create_blob(size: usize) -> BlobDataWithId<BatchWithId> {
+    fn create_blob(size: usize) -> BlobDataWithId<BatchWithId<S>> {
         BlobDataWithId::Batch(BatchWithId::new(
             vec![FullyBakedTx::new(vec![0; size])],
             [0; 32],
+            [0; 28].into(),
         ))
     }
 

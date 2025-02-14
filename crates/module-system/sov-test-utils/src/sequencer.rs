@@ -119,6 +119,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
             value_setter_config,
             paymaster_config,
         );
+        let sequencer_rollup_address = genesis_config.sequencer_registry.seq_rollup_address;
 
         let params = GenesisParams {
             runtime: genesis_config,
@@ -173,6 +174,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
 
         let config = SequencerConfig {
             da_address: da_service.sequencer_da_address,
+            rollup_address: sequencer_rollup_address,
             admin_addresses,
             automatic_batch_production: true,
             max_allowed_blocks_behind: 0,

@@ -888,6 +888,9 @@ components:
         sequencer:
           type: string
           format: byte
+        sequencer_rollup_address:
+          type: string
+          format: byte
         encoded_call_message:
           type: string
           format: byte

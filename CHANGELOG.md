@@ -1,3 +1,14 @@
+## 2025-02-13
+- #2426 **Breaking** Configuration for the sequencer now requires a rollup address to be specified.
+
+  ```toml
+  [sequencer]
+  max_allowed_blocks_behind = 5
+  da_address = "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s"
+  # This field was added! This is must be set to the address of the sequencer on the rollup.
+  rollup_address = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
+```
+
 ## 2025-02-07
 - #2378 **Breaking**. Configuration for `MockDa` is changed. `block_producing` is now section. To keep periodic block producing, use the following configuration:
   ```toml

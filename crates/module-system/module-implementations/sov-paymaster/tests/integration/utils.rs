@@ -1,4 +1,4 @@
-use sov_modules_api::{BlobDataWithId, CryptoSpec, SafeVec, Spec};
+use sov_modules_api::{BlobDataWithId, CryptoSpec, IterableBatchWithId, SafeVec, Spec};
 use sov_paymaster::{PayeePolicy, PayerGenesisConfig, PaymasterConfig, PaymasterPolicyInitializer};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -44,7 +44,7 @@ pub trait DoValueSetterTx<S: Spec> {
 impl<RT: Runtime<S>, S: Spec> DoValueSetterTx<S> for TestRunner<RT, S>
 where
     RT: 'static
-        + Runtime<S, BlobType = BlobDataWithId>
+        + Runtime<S, BlobType = BlobDataWithId<IterableBatchWithId<S>>>
         + MinimalGenesis<S>
         + EncodeCall<ValueSetter<S>>,
     S: Spec<

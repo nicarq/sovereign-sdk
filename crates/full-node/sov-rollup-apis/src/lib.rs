@@ -31,6 +31,7 @@ pub use default_provider::DefaultRollupStateProvider;
 pub struct RollupTxRouter<T: RollupStateProvider> {
     state_update_recv: StateUpdateReceiver<<T::Spec as Spec>::Storage>,
     default_sequencer: <<T::Spec as Spec>::Da as DaSpec>::Address,
+    default_sequencer_rollup_address: <T::Spec as Spec>::Address,
     sync_status_receiver: watch::Receiver<SyncStatus>,
 }
 
@@ -67,6 +68,8 @@ pub struct PartialTransaction<S: Spec> {
     pub gas_price: Option<<S::Gas as Gas>::Price>,
     /// The sequencer address of the transaction. If not provided, default sequencer address will be used.
     pub sequencer: Option<<S::Da as DaSpec>::Address>,
+    /// The rollup address of the sequencer. If not provided, default sequencer rollup address will be used.
+    pub sequencer_rollup_address: Option<S::Address>,
 }
 
 impl<S: Spec> From<PartialTransaction<S>> for AuthorizationData<S> {
@@ -115,6 +118,7 @@ pub trait RollupStateProvider: Clone + Send + Sync {
     fn simulate_execution(
         storage: &StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
         default_sequencer: <<Self::Spec as Spec>::Da as DaSpec>::Address,
+        default_sequencer_rollup_address: <Self::Spec as Spec>::Address,
         transaction: PartialTransaction<Self::Spec>,
     ) -> Result<ApplyTxResult<Self::Spec>, Self::Error>;
 }
@@ -128,6 +132,7 @@ where
     pub fn axum_router(
         state_update_recv: StateUpdateReceiver<<T::Spec as Spec>::Storage>,
         default_sequencer: <<T::Spec as Spec>::Da as DaSpec>::Address,
+        default_sequencer_rollup_address: <T::Spec as Spec>::Address,
         sync_status_receiver: watch::Receiver<SyncStatus>,
     ) -> axum::Router<()> {
         preconfigured_router_layers(
@@ -141,6 +146,7 @@ where
                 .with_state(RollupTxRouter {
                     state_update_recv,
                     default_sequencer,
+                    default_sequencer_rollup_address,
                     sync_status_receiver,
                 }),
         )
@@ -176,6 +182,7 @@ where
         State(RollupTxRouter {
             state_update_recv,
             default_sequencer,
+            default_sequencer_rollup_address,
             ..
         }): State<Self>,
         Json(req): Json<types::SimulateBody>,
@@ -185,7 +192,7 @@ where
             .try_into()
             .map_err(|err| errors::bad_request_400("Malformatted partial transaction", err))?;
 
-        match T::simulate_execution(&state_update_recv, default_sequencer, transaction) {
+        match T::simulate_execution(&state_update_recv, default_sequencer, default_sequencer_rollup_address, transaction) {
             Ok(apply_tx_result) =>
             {
                 let simulate_execution_response: types::SimulateExecutionResponse = SimulateExecutionContainer { apply_tx_result }.try_into()

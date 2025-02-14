@@ -100,6 +100,7 @@ pub trait TransactionAuthorizer<S: Spec> {
         &self,
         auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
+        sequencer_rollup_address: S::Address,
         state: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<Context<S>>;
 

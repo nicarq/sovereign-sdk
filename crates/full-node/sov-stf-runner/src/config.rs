@@ -183,6 +183,7 @@ mod tests {
             [sequencer]
             max_allowed_blocks_behind = 5
             da_address = "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"
+            rollup_address = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
             [sequencer.standard]
         "#;
 

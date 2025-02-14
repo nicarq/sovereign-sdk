@@ -30,14 +30,14 @@ enum BlobDiscardReason {
 }
 
 #[derive(Debug)]
-enum SequencerStatus {
-    Registered,
+enum SequencerStatus<S: Spec> {
+    Registered(S::Address),
     Unregistered,
 }
 
-enum ValidateBlobOutcome {
+enum ValidateBlobOutcome<S: Spec> {
     Discard(BlobDiscardReason),
-    Accept(SequencerStatus),
+    Accept(SequencerStatus<S>),
 }
 
 impl<S: Spec> BlobStorage<S> {
@@ -47,7 +47,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S>,
-    ) -> BlobSelectorOutput<S, BlobDataWithId<BatchWithId>>
+    ) -> BlobSelectorOutput<S, BlobDataWithId<BatchWithId<S>>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
@@ -64,11 +64,12 @@ impl<S: Spec> BlobStorage<S> {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     fn select_blobs_da_ordering<'a, 'k, I>(
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S>,
-    ) -> Vec<(BlobDataWithId<BatchWithId>, <S::Da as DaSpec>::Address)>
+    ) -> Vec<(BlobDataWithId<BatchWithId<S>>, <S::Da as DaSpec>::Address)>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
@@ -106,25 +107,23 @@ impl<S: Spec> BlobStorage<S> {
                             Self::log_discarded_blob(blob, &reason);
                         }
                         ValidateBlobOutcome::Accept(sequencer_status) => {
-                            let from_registered_sequencer =
-                                matches!(sequencer_status, SequencerStatus::Registered);
+                            let maybe_known_sequencer = match sequencer_status {
+                                SequencerStatus::Registered(address) => Some(address),
+                                SequencerStatus::Unregistered => None,
+                            };
 
-                            tracing::trace!(%from_registered_sequencer);
-                            let res = if from_registered_sequencer {
+                            tracing::trace!(
+                                from_registered_sequencer = &maybe_known_sequencer.is_some()
+                            );
+                            let res = if let Some(sequencer) = maybe_known_sequencer {
                                 self.deserialize_or_try_slash_sender::<Vec<FullyBakedTx>>(
-                                    blob,
-                                    from_registered_sequencer,
-                                    state,
+                                    blob, true, state,
                                 )
-                                .map(BlobData::new_batch)
+                                .map(|batch| BlobData::new_batch(batch, sequencer))
                             } else {
                                 unregistered_blobs += 1;
-                                self.deserialize_or_try_slash_sender::<RawTx>(
-                                    blob,
-                                    from_registered_sequencer,
-                                    state,
-                                )
-                                .map(BlobData::EmergencyRegistration)
+                                self.deserialize_or_try_slash_sender::<RawTx>(blob, false, state)
+                                    .map(BlobData::EmergencyRegistration)
                             };
 
                             if let Some(data) = res {
@@ -153,12 +152,14 @@ impl<S: Spec> BlobStorage<S> {
         blob: &<S::Da as DaSpec>::BlobTransaction,
         unregistered_blobs_processed: u64,
         state: &mut KernelStateAccessor<S>,
-    ) -> ValidateBlobOutcome {
+    ) -> ValidateBlobOutcome<S> {
         match self
             .sequencer_registry
             .is_sender_allowed(&blob.sender(), state)
         {
-            Ok(_) => ValidateBlobOutcome::Accept(SequencerStatus::Registered),
+            Ok(sequencer) => {
+                ValidateBlobOutcome::Accept(SequencerStatus::Registered(sequencer.address))
+            }
             Err(AllowedSequencerError::NotRegistered) => {
                 if unregistered_blobs_processed >= config_unregistered_blobs_per_slot() {
                     ValidateBlobOutcome::Discard(BlobDiscardReason::MaxAllowedUnregisteredBlobs)
@@ -227,7 +228,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S>,
-    ) -> BlobSelectorOutput<S, BlobDataWithId<BatchWithId>>
+    ) -> BlobSelectorOutput<S, BlobDataWithId<BatchWithId<S>>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
@@ -307,7 +308,8 @@ impl<S: Spec> BlobStorage<S> {
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S>,
         preferred_sender: &<S::Da as DaSpec>::Address,
-    ) -> BlobSelectorOutput<S, BlobDataWithId<BatchWithId>>
+        preferred_sequencer: S::Address,
+    ) -> BlobSelectorOutput<S, BlobDataWithId<BatchWithId<S>>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
@@ -374,8 +376,11 @@ impl<S: Spec> BlobStorage<S> {
                             Self::log_discarded_blob(blob, &reason);
                         }
                         ValidateBlobOutcome::Accept(sequencer_status) => {
-                            let from_registered_sequencer =
-                                matches!(sequencer_status, SequencerStatus::Registered);
+                            let maybe_known_sequencer = match sequencer_status {
+                                SequencerStatus::Registered(address) => Some(address),
+                                SequencerStatus::Unregistered => None,
+                            };
+                            let from_registered_sequencer = maybe_known_sequencer.is_some();
 
                             if !from_registered_sequencer {
                                 unregistered_blobs += 1;
@@ -407,13 +412,13 @@ impl<S: Spec> BlobStorage<S> {
                             } else {
                                 // Otherwise, the batch is from a valid sender (checked in step 1) but not the preferred sender
                                 // Deserialize it as a normal batch and store it in memory
-                                let data = if from_registered_sequencer {
+                                let data = if let Some(seq_addr) = maybe_known_sequencer {
                                     self.deserialize_or_try_slash_sender::<Vec<FullyBakedTx>>(
                                         blob,
                                         from_registered_sequencer,
                                         state,
                                     )
-                                    .map(BlobData::new_batch)
+                                    .map(|batch| BlobData::new_batch(batch, seq_addr))
                                 } else {
                                     self.deserialize_or_try_slash_sender::<RawTx>(
                                         blob,
@@ -472,7 +477,11 @@ impl<S: Spec> BlobStorage<S> {
             .set(&next_sequence_number, state)
             .unwrap_infallible();
         let num_slots_to_advance = if let Some((preferred_batch, id)) = next_preferred_batch {
-            let next_batch = BlobDataWithId::Batch(BatchWithId::new(preferred_batch.data, id));
+            let next_batch = BlobDataWithId::Batch(BatchWithId::new(
+                preferred_batch.data,
+                id,
+                preferred_sequencer.clone(),
+            ));
 
             // Only push the blobs that are within the total size limit.
             blobs_with_total_size_limit
@@ -595,7 +604,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S>,
-    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId>>>
+    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId<S>>>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
@@ -608,9 +617,9 @@ impl<S: Spec> BlobStorage<S> {
         }
 
         // If there's a preferred sequencer, sequence accordingly.
-        if let Some(preferred_sender) = self.get_preferred_sequencer(state) {
+        if let Some((pref_da, pref_seq)) = self.get_preferred_sequencer(state) {
             return Ok(self
-                .select_blobs_for_preferred_sequencer(current_blobs, state, &preferred_sender)
+                .select_blobs_for_preferred_sequencer(current_blobs, state, &pref_da, pref_seq)
                 .map_blobs(|b| b.map_batch(IterableBatchWithId::new)));
         }
 
@@ -627,7 +636,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S>,
-    ) -> BlobSelectorOutput<S, BlobDataWithId<BatchWithId>>
+    ) -> BlobSelectorOutput<S, BlobDataWithId<BatchWithId<S>>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {

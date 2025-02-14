@@ -154,7 +154,7 @@ macro_rules! generate_bare_runtime {
             S: ::sov_modules_api::Spec,
             $($runtime_trait_impl_bounds)*
         {
-            type BlobType = sov_modules_api::BlobDataWithId;
+            type BlobType = sov_modules_api::BlobDataWithId<sov_modules_api::IterableBatchWithId<S>>;
             type Kernel<'a> = $kernel_type;
 
             fn inner(&self) -> sov_modules_api::capabilities::Guard<Self::Kernel<'_>> {

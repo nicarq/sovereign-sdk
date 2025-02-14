@@ -47,6 +47,7 @@ impl TestData {
             HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
 
         let sequencer_da_address = genesis_config.initial_sequencer.da_address;
+        let sequencer_rollup_address = genesis_config.initial_sequencer.user_info.address();
 
         let user = genesis_config.additional_accounts[0].clone();
 
@@ -76,6 +77,7 @@ impl TestData {
             RollupTxRouter::<Arc<DefaultRollupStateProvider<S, RT>>>::axum_router(
                 state_update_receiver,
                 sequencer_da_address,
+                sequencer_rollup_address,
                 sync_receiver,
             );
 

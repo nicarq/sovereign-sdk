@@ -371,6 +371,7 @@ fn rollup_config(
             dropped_tx_ttl_secs: 0,
             admin_addresses: vec![],
             da_address: da_service.sequencer_address(),
+            rollup_address: MockAddress::new([0u8; 32]),
             batch_builder: BatchBuilderConfig::Standard(StdBatchBuilderConfig {
                 mempool_max_txs_count: None,
                 max_batch_size_bytes: None,

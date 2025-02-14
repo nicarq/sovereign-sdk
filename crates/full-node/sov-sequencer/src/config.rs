@@ -45,6 +45,8 @@ pub struct SequencerConfig<Da: DaSpec, Address, BbConfig = BatchBuilderConfig> {
     pub dropped_tx_ttl_secs: u64,
     /// DA address of the sequencer.
     pub da_address: Da::Address,
+    /// Rollup address of the sequencer.
+    pub rollup_address: Address,
     /// The list of addresses that are allowed to perform admin operations on
     /// the sequencer.
     // The custom "default" is equivalent to Serde's default default, but
@@ -70,6 +72,7 @@ impl<Da: DaSpec, Addr: Clone, BbConfig> SequencerConfig<Da, Addr, BbConfig> {
             automatic_batch_production: self.automatic_batch_production,
             dropped_tx_ttl_secs: self.dropped_tx_ttl_secs,
             da_address: self.da_address.clone(),
+            rollup_address: self.rollup_address.clone(),
             max_allowed_blocks_behind: self.max_allowed_blocks_behind,
             admin_addresses: self.admin_addresses.clone(),
             batch_builder: bb_config,
