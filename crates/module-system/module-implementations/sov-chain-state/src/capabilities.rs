@@ -312,9 +312,6 @@ impl<S: Spec> ChainState<S> {
             .set_if_absent(
                 &state.true_slot_number(),
                 // The true slot number was already incremented.
-                //
-                // TODO: audit this and make sure there's no off-by-one error
-                // here.
                 &state.visible_slot_number(),
                 state,
             )

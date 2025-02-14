@@ -24,7 +24,8 @@ use sov_modules_api::{
     RawTx, Spec, StateCheckpoint, StateProvider, WorkingSet,
 };
 use sov_modules_stf_blueprint::{
-    process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect, TxProcessingError,
+    process_tx_and_reward_sequencer, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect,
+    TxProcessingError,
 };
 use sov_rest_utils::json_obj;
 use sov_rollup_interface::node::da::DaService;
@@ -37,8 +38,8 @@ use tracing::error;
 use self::mempool::{Mempool, MempoolCursor};
 use super::{sender_is_allowed, EmptyConfirmation, RtAwareBatchBuilderSpec, SeqDbTx};
 use crate::batch_builders::{
-    generic_accept_tx_error, pre_exec_err_to_accept_tx_err, tx_auth, AcceptedTx, BatchBuilder,
-    StateUpdateInfo, WithCachedTxHashes,
+    pre_exec_err_to_accept_tx_err, tx_auth, AcceptedTx, BatchBuilder, StateUpdateInfo,
+    WithCachedTxHashes,
 };
 use crate::sequencer::SequencerNotReadyDetails;
 use crate::{SequencerConfig, TxHash, TxStatus, TxStatusManager};
@@ -158,7 +159,7 @@ where
             );
         }
 
-        let (res, tx_scratchpad) = process_tx(
+        let (res, tx_scratchpad) = process_tx_and_reward_sequencer(
             &self.runtime,
             &gas_meter,
             // Currently the sequencer doesn't take into account the slot gas limit.
@@ -370,13 +371,7 @@ where
             let tx = auth_output.0.authenticated_tx;
 
             let working_set_gas_meter =
-                match tx.gas_meter(&gas_info.gas_price.clone(), &<<Z::Spec as Spec>::Gas>::MAX) {
-                    Ok(ws) => ws,
-                    Err(err) => {
-                        return (tx_scratchpad.revert(), Err(generic_accept_tx_error(err)));
-                    }
-                };
-
+                tx.gas_meter(&gas_info.gas_price.clone(), &<<Z::Spec as Spec>::Gas>::MAX);
             let mut working_set =
                 WorkingSet::create_working_set(tx_scratchpad, &tx, working_set_gas_meter);
 

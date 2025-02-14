@@ -24,10 +24,13 @@ use crate::{
 };
 
 /// Executes the entire transaction lifecycle.
+///
+/// The caller is responsible to penalize the sequencer if this method returns an error. If the tx can be attempted,
+/// this method must return Ok(()) and handle any sequencer rewards internally.
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
 #[cfg_attr(feature = "native", tracing::instrument(skip_all, name = "StfBlueprint::process_tx", fields(context = ?execution_context)))]
 #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
-pub fn process_tx<S, R, I, C>(
+pub fn process_tx_and_reward_sequencer<S, R, I, C>(
     runtime: &R,
     pre_exec_gas_meter: &BasicGasMeter<S>,
     slot_gas: &S::Gas,
@@ -58,7 +61,7 @@ where
         )
     };
 
-    let result = process_tx_inner(
+    let result = process_tx_and_reward_sequencer_inner(
         runtime,
         pre_exec_gas_meter,
         slot_gas,
@@ -110,8 +113,11 @@ fn track_transaction_metrics<S: Spec>(
 }
 
 /// Actual processing of transaction.
+///
+/// The caller is responsible to penalize the sequencer if this method returns an error. If the tx can be attempted,
+/// this method must return Ok(()) and handle any sequencer rewards internally.
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
-fn process_tx_inner<S, R, I, C>(
+fn process_tx_and_reward_sequencer_inner<S, R, I, C>(
     runtime: &R,
     pre_exec_gas_meter: &BasicGasMeter<S>,
     slot_gas: &S::Gas,
@@ -183,23 +189,13 @@ where
         );
     }
 
-    let working_set_gas_meter =
-       // The transaction will execute until one of the following conditions is met:
-       // 1. It consumes more funds than `tx.max_fee`.
-       // 2. The `Gas::calculate_min(tx.gas_limit, slot_gas)` is exhausted.
-        match tx.gas_meter(&pre_exec_gas_meter.gas_info().gas_price, slot_gas) {
-            Ok(ws) => ws,
-            Err(reason) => {
-                return (
-                    Err(TxProcessingError::OutOfGas(reason.to_string())),
-                    scratchpad,
-                )
-            }
-        };
-
+    // The transaction will execute until one of the following conditions is met:
+    // 1. It consumes more funds than `tx.max_fee`.
+    // 2. The `Gas::calculate_min(tx.gas_limit, slot_gas)` is exhausted.
+    let working_set_gas_meter = tx.gas_meter(&pre_exec_gas_meter.gas_info().gas_price, slot_gas);
     let mut working_set = WorkingSet::create_working_set(scratchpad, tx, working_set_gas_meter);
 
-    // Recover the authentication cost form the user.
+    // Recover the authentication cost from the user.
     if let Err(err) = working_set.charge_gas(&pre_exec_gas_meter.gas_info().gas_used) {
         let (mut scratchpad, transaction_consumption) = working_set.revert();
 
@@ -334,11 +330,13 @@ where
 
         let sequencer_bond = sequencer.balance;
 
+        // Authorize and process the transaction, handling sequencer rewards/penalties internally.
+        // The caller is responsible for maintaining the global gas limit.
         let AuthAndProcessOutput {
             gas_used,
             scratchpad: dirty_scratchpad,
             outcome,
-        } = auth_and_process_tx(
+        } = auth_and_process_tx_and_incentivize_sequencer(
             runtime,
             clean_scratchpad,
             // Here we make sure that a tx can't use more gas that remaining gas in the slot gas meter.
@@ -395,7 +393,6 @@ where
                 tx_receipts.push(receipt);
             }
             TxControlFlow::IgnoreTx => {
-                // We don't actually `ignore` transactions unless we're just provisionally executing in the sequencer.
                 if !execution_context.is_sequencer() {
                     // SAFETY: It is safe to unwrap here because the total gas used is guaranteed to be less than the slot gas limit.
                     slot_gas_meter
@@ -416,6 +413,8 @@ where
 
                     ignored_tx_receipts.push(ignored);
                 }
+                // If we *are* provisionally executing in the sequencer and we run out of funds, the transaction should not be added to the batch.
+                // The injected control flow is responsible for handling this case
             }
         }
         clean_scratchpad = new_checkpoint.to_tx_scratchpad();
@@ -480,9 +479,10 @@ fn penalize_sequencer<S: Spec, RT: Runtime<S>, I: StateProvider<S>>(
         .expect("Sequencer should have enough funds to pay for the pre-execution checks");
 }
 
+/// Executes the authentication and processing of a transaction, and rewards/penalizes the sequencer
 #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 #[allow(clippy::too_many_arguments)]
-fn auth_and_process_tx<S, RT, I, C>(
+fn auth_and_process_tx_and_incentivize_sequencer<S, RT, I, C>(
     runtime: &RT,
     mut scratchpad: TxScratchpad<S, I>,
     slot_gas: &S::Gas,
@@ -550,7 +550,7 @@ where
     let mut pre_exec_working_set: PreExecWorkingSet<S, _> =
         scratchpad.to_pre_exec_working_set(pre_exec_gas_meter);
 
-    // Charge gas for all the checks in the `process_tx`.
+    // Charge gas for all the checks in the `process_tx_and_reward_sequencer`.
     // SAFETY: We can unwrap here because, we asserted that max_tx_check_costs > process_tx_pre_exec_checks_gas.
     pre_exec_working_set
         .charge_gas(&<S as GasSpec>::process_tx_pre_exec_checks_gas())
@@ -609,7 +609,9 @@ where
     let raw_tx_hash = validated_output.0.raw_tx_hash;
     let span = tracing::info_span!("transaction", id = %raw_tx_hash, idx = %idx).entered();
 
-    let process_tx_result = process_tx(
+    // Process the transaction and reward the sequencer if everything went well. Responsibility for
+    // penalizing the sequencer if the transaction cannot be executed due to sequencer error is with the caller.
+    let process_tx_result = process_tx_and_reward_sequencer(
         runtime,
         &pre_exec_gas_meter,
         slot_gas,
