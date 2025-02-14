@@ -50,14 +50,14 @@ impl<'a, S: Spec> KernelTrait<S> for SoftConfirmationsKernel<'a, S> {
 
 impl<'b, S: Spec> BlobSelector for SoftConfirmationsKernel<'b, S> {
     type Spec = S;
-    type BlobType = BlobDataWithId;
+    type BlobType = BlobDataWithId<IterableBatchWithId<S>>;
     const ACCEPTS_PREFERRED_BATCHES: bool = true;
 
     fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, Self::Spec>,
-    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId>>>
+    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId<S>>>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {

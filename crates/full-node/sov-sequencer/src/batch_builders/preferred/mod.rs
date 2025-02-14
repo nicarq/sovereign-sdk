@@ -295,6 +295,7 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
 
         let handle = tokio::runtime::Handle::current().spawn_blocking({
             let sequencer_address = self.config.da_address.clone();
+            let sequencer_rollup_address = self.config.rollup_address.clone();
             let admin_addresses = Arc::new(self.config.admin_addresses.clone());
             let shutdown_notifier = self.shutdown_notifier.clone();
             let additional_blobs = vec![]; // TODO.
@@ -311,6 +312,7 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
                 let mut selected_blobs = vec![(
                     BlobDataWithId::Batch(AsyncBatch::new_async(
                         tx_receiver,
+                        sequencer_rollup_address,
                         setup_sender,
                         result_sender,
                         minimum_profit_per_tx,

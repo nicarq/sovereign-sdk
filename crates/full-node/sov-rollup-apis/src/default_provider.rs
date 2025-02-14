@@ -41,6 +41,7 @@ where
     fn simulate_execution(
         state_update_receiver: &StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
         default_sequencer: <<Self::Spec as Spec>::Da as DaSpec>::Address,
+        default_sequencer_rollup_address: <Self::Spec as Spec>::Address,
         transaction: PartialTransaction<Self::Spec>,
     ) -> Result<ApplyTxResult<S>, Self::Error> {
         let auth_data =
@@ -62,7 +63,9 @@ where
             };
 
         let sequencer_da_address = transaction.sequencer.unwrap_or(default_sequencer);
-
+        let sequencer_rollup_address = transaction
+            .sequencer_rollup_address
+            .unwrap_or(default_sequencer_rollup_address);
         let runtime = RT::default();
 
         let tx_data = AuthenticatedTransactionData {
@@ -80,6 +83,7 @@ where
         let ctx = runtime.transaction_authorizer().resolve_context(
             &auth_data,
             &sequencer_da_address,
+            sequencer_rollup_address,
             &mut scratchpad,
         )?;
 

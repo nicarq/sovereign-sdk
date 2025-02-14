@@ -177,6 +177,11 @@ impl<S: Spec> TryInto<types::PartialTransaction> for crate::PartialTransaction<S
             .map(|sequencer| serde_json::to_string(&sequencer))
             .transpose()?;
 
+        let sequencer_rollup_address = self
+            .sequencer_rollup_address
+            .map(|address| serde_json::to_string(&address))
+            .transpose()?;
+
         Ok(types::PartialTransaction {
             sender_pub_key,
             generation,
@@ -184,6 +189,7 @@ impl<S: Spec> TryInto<types::PartialTransaction> for crate::PartialTransaction<S
             details,
             gas_price,
             sequencer,
+            sequencer_rollup_address,
         })
     }
 }
@@ -215,6 +221,11 @@ impl<S: Spec> TryFrom<types::PartialTransaction> for crate::PartialTransaction<S
             .map(|sequencer| serde_json::from_str(&sequencer))
             .transpose()?;
 
+        let sequencer_rollup_address = value
+            .sequencer_rollup_address
+            .map(|address| serde_json::from_str(&address))
+            .transpose()?;
+
         Ok(Self {
             sender_pub_key,
             generation,
@@ -222,6 +233,7 @@ impl<S: Spec> TryFrom<types::PartialTransaction> for crate::PartialTransaction<S
             details,
             gas_price,
             sequencer,
+            sequencer_rollup_address,
         })
     }
 }

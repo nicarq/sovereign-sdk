@@ -64,7 +64,7 @@ impl<'a, S: Spec> KernelTrait<S> for BasicKernel<'a, S> {
 impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
     type Spec = S;
 
-    type BlobType = BlobDataWithId;
+    type BlobType = BlobDataWithId<IterableBatchWithId<S>>;
 
     const ACCEPTS_PREFERRED_BATCHES: bool = false;
 
@@ -72,7 +72,7 @@ impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, Self::Spec>,
-    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId>>>
+    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId<S>>>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {

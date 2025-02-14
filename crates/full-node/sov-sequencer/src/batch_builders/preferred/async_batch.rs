@@ -17,14 +17,14 @@ use crate::batch_builders::sender_is_allowed;
 
 /// A batch that might be received async from some producer
 #[derive(Debug)]
-pub enum MaybeAsync {
+pub enum MaybeAsync<S: Spec> {
     /// The batch is received async from a channel
-    Async(Receiver<FullyBakedTx>),
+    Async((Receiver<FullyBakedTx>, <S as Spec>::Address)),
     /// The batch is already known
     // This is unused because we decided to split execution of kernel blobs into a separate PR.
     // Kernel blobs will be sync.
     #[allow(dead_code)]
-    Sync(IterableBatchWithId),
+    Sync(IterableBatchWithId<S>),
 }
 
 /// The control flow injector for an async batch.
@@ -72,7 +72,7 @@ impl<T: TxReceiptContents, S: Spec> InjectedControlFlow<TransactionReceipt<T>, S
 #[derive(Debug)]
 pub struct AsyncBatch<R, S: Spec> {
     /// The batch contents, which may be sync or async
-    pub contents: MaybeAsync,
+    pub contents: MaybeAsync<S>,
     /// The channel to send responses on
     pub result_channel: Sender<Result<(R, TxChangeSet), RejectReason>>,
     /// A channel for sending the state changes from "setup" (everything before execution of the first sequencer tx)
@@ -88,13 +88,14 @@ impl<R, S: Spec> AsyncBatch<R, S> {
     /// Create a new batch with a receiver for transactions
     pub fn new_async(
         tx_receiver: Receiver<FullyBakedTx>,
+        sequencer_address: <S as Spec>::Address,
         setup_channel: oneshot::Sender<ChangeSet>,
         result_channel: Sender<Result<(R, TxChangeSet), RejectReason>>,
         tx_profit_threshold: u64,
         sequencer_admins: Arc<Vec<S::Address>>,
     ) -> Self {
         Self {
-            contents: MaybeAsync::Async(tx_receiver),
+            contents: MaybeAsync::Async((tx_receiver, sequencer_address)),
             result_channel,
             setup_channel: Some(setup_channel),
             tx_profit_threshold,
@@ -203,6 +204,14 @@ impl<T: TxReceiptContents, S: Spec> IncrementalBatch<TransactionReceipt<T>, S>
         // If the receiver is no longer available, we don't care about sending the changes.
         let _  = self.setup_channel.take().expect("The pre-flight hook of a single batch was invoked multiple times! This is a bug - please report it.").send(changes);
     }
+
+    fn sequencer_address(&self) -> S::Address {
+        use MaybeAsync::*;
+        match &self.contents {
+            Async((_, sequencer_address)) => sequencer_address.clone(),
+            Sync(batch) => batch.sequencer_address.clone(),
+        }
+    }
 }
 
 impl<R, S: Spec> Iterator for AsyncBatch<R, S> {
@@ -214,7 +223,7 @@ impl<R, S: Spec> Iterator for AsyncBatch<R, S> {
         // from the channel. This is coupled to the implementation of the sequencer,
         // which requires that the apply_slot function be spawned on a blocking thread
         match &mut self.contents {
-            Async(receiver) => Handle::current().block_on(receiver.recv()).map(|item| {
+            Async((receiver, _)) => Handle::current().block_on(receiver.recv()).map(|item| {
                 (
                     item,
                     MaybeAsyncControlFlow::Async(AsyncBatchResponder {

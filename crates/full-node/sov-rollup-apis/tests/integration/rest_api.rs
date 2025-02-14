@@ -129,6 +129,7 @@ async fn test_simulation() {
         generation: 0,
         gas_price: None,
         sequencer: None,
+        sequencer_rollup_address: None,
     }
     .try_into()
     .unwrap();

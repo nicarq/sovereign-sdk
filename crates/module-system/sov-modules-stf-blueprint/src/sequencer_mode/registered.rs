@@ -36,6 +36,7 @@ pub fn process_tx_and_reward_sequencer<S, R, I, C>(
     slot_gas: &S::Gas,
     validated_output: AuthTxOutput<S, R>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
+    sequencer_rollup_address: S::Address,
     scratchpad: TxScratchpad<S, I>,
     #[allow(unused_variables)] execution_context: ExecutionContext,
     injected_control_flow: &C,
@@ -67,6 +68,7 @@ where
         slot_gas,
         validated_output,
         sequencer_da_address,
+        sequencer_rollup_address,
         scratchpad,
         injected_control_flow,
     );
@@ -123,6 +125,7 @@ fn process_tx_and_reward_sequencer_inner<S, R, I, C>(
     slot_gas: &S::Gas,
     validated_output: AuthTxOutput<S, R>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
+    sequencer_rollup_address: S::Address,
     mut scratchpad: TxScratchpad<S, I>,
     injected_control_flow: &C,
 ) -> (
@@ -143,6 +146,7 @@ where
     let maybe_ctx = runtime.transaction_authorizer().resolve_context(
         &auth_data,
         sequencer_da_address,
+        sequencer_rollup_address,
         &mut scratchpad,
     );
     let mut ctx = match maybe_ctx {
@@ -321,6 +325,7 @@ where
     let mut ignored_tx_receipts = Vec::default();
     let mut accumulated_reward = 0;
     let mut accumulated_penalty = 0;
+    let sequencer_address = batch_with_id.sequencer_address();
 
     for (idx, (raw_tx, injected_control_flow)) in batch_with_id.enumerate() {
         let sequencer = runtime
@@ -343,6 +348,7 @@ where
             slot_gas_meter.remaining_slot_gas(sequencer_da_address),
             &raw_tx,
             sequencer_da_address,
+            sequencer_address.clone(),
             gas_price,
             execution_context,
             sequencer_bond,
@@ -488,6 +494,7 @@ fn auth_and_process_tx_and_incentivize_sequencer<S, RT, I, C>(
     slot_gas: &S::Gas,
     raw_tx: &FullyBakedTx,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
+    sequencer_rollup_address: S::Address,
     gas_price: &<S::Gas as Gas>::Price,
     execution_context: ExecutionContext,
     sequencer_bond: u64,
@@ -617,6 +624,7 @@ where
         slot_gas,
         validated_output,
         sequencer_da_address,
+        sequencer_rollup_address,
         scratchpad,
         execution_context,
         injected_control_flow,

@@ -502,7 +502,8 @@
       ],
       "required": [
         "da_address",
-        "max_allowed_blocks_behind"
+        "max_allowed_blocks_behind",
+        "rollup_address"
       ],
       "properties": {
         "admin_addresses": {
@@ -537,6 +538,14 @@
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
+        },
+        "rollup_address": {
+          "description": "Rollup address of the sequencer.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Address"
+            }
+          ]
         }
       }
     },

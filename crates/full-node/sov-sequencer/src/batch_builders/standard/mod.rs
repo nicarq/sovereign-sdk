@@ -166,6 +166,7 @@ where
             &<<Z::Spec as Spec>::Gas>::MAX,
             auth_output,
             &self.config.da_address,
+            self.config.rollup_address.clone(),
             tx_scratchpad,
             ExecutionContext::Sequencer,
             &NoOpControlFlow,

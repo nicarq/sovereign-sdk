@@ -61,9 +61,10 @@ fn test_default_sequencer() {
 
             assert_eq!(
                 TestSequencerRegistry::default()
-                    .resolve_da_address(&test_sequencer_da_address, state)
-                    .unwrap_infallible(),
-                Some(test_sequencer_address)
+                    .is_sender_allowed(&test_sequencer_da_address, state)
+                    .unwrap()
+                    .address,
+                test_sequencer_address
             );
         }),
     });
@@ -399,6 +400,7 @@ fn test_get_preferred_sequencer() {
             TestSequencerRegistry::default()
                 .get_preferred_sequencer(state)
                 .unwrap_infallible()
+                .map(|(da, _seq)| da)
         );
     });
 }
@@ -498,13 +500,6 @@ fn test_non_registered_sequencer_is_not_allowed() {
                 .is_sender_allowed(&MockAddress::from(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
                 .is_err(),
             "Non-registered sequencers should not be allowed"
-        );
-
-        assert_eq!(
-            TestSequencerRegistry::default()
-                .resolve_da_address(&MockAddress::from(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
-                .unwrap_infallible(),
-            None
         );
     });
 }

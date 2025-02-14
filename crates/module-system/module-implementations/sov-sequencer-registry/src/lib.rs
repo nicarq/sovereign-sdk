@@ -143,41 +143,20 @@ impl<S: Spec> SequencerRegistry<S> {
     ///
     /// Read about [`SequencerConfig::is_preferred_sequencer`] to learn about
     /// preferred sequencers.
+    #[allow(clippy::type_complexity)]
     pub fn get_preferred_sequencer<Reader: StateReader<User>>(
         &self,
         state: &mut Reader,
-    ) -> Result<Option<<S::Da as DaSpec>::Address>, Reader::Error> {
-        self.preferred_sequencer.get(state)
-    }
-
-    /// Resolve a DA address to a rollup address.
-    pub fn resolve_da_address<Reader: StateReader<User>>(
-        &self,
-        address: &<S::Da as DaSpec>::Address,
-        state: &mut Reader,
-    ) -> Result<Option<S::Address>, Reader::Error> {
-        self.allowed_sequencers
-            .get(address, state)
-            .map(|s| s.map(|s| s.address))
-    }
-
-    /// Returns the rollup address of the preferred sequencer, or [`None`] it wasn't set.
-    ///
-    /// Read about [`SequencerConfig::is_preferred_sequencer`] to learn about
-    /// preferred sequencers.
-    pub fn get_preferred_sequencer_rollup_address<Reader: StateReader<User>>(
-        &self,
-        state: &mut Reader,
-    ) -> Result<Option<S::Address>, Reader::Error> {
-        Ok(match self.preferred_sequencer.get(state)? {
-            Some(da_addr) => Some(
-                self.allowed_sequencers
-                    .get(&da_addr, state)?
-                    .expect("Preferred Sequencer must have known address on rollup")
-                    .address,
-            ),
-            None => None,
-        })
+    ) -> Result<Option<(<S::Da as DaSpec>::Address, S::Address)>, Reader::Error> {
+        if let Some(da_addr) = self.preferred_sequencer.get(state)? {
+            // If the preferred sequencer address is set but they're not currently authorized, act like there is no preferred sequencer
+            Ok(self
+                .allowed_sequencers
+                .get(&da_addr, state)?
+                .map(|seq| (da_addr, seq.address)))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Checks whether `sender` is a registered sequencer with enough staked amount.

@@ -58,6 +58,7 @@ where
         >::axum_router(
             state_update_receiver,
             config.sequencer.da_address.clone(),
+            config.sequencer.rollup_address.clone(),
             sync_status_receiver,
         );
         endpoints.axum_router = endpoints.axum_router.merge(rollup_router);

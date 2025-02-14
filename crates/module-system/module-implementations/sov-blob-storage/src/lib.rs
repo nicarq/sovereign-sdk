@@ -17,7 +17,7 @@ use sov_rollup_interface::common::SlotNumber;
 use sov_state::codec::BcsCodec;
 
 type BlobAndSender<S> = (
-    BlobDataWithId<BatchWithId>,
+    BlobDataWithId<BatchWithId<S>>,
     <<S as Spec>::Da as DaSpec>::Address,
 );
 
@@ -51,7 +51,7 @@ pub struct BlobStorage<S: Spec> {
     deferred_blobs: KernelStateMap<
         SlotNumber,
         Vec<(
-            BlobDataWithId<BatchWithId>,
+            BlobDataWithId<BatchWithId<S>>,
             <<S as Spec>::Da as DaSpec>::Address,
         )>,
         BcsCodec,
@@ -78,10 +78,7 @@ impl<S: Spec> BlobStorage<S> {
     /// Store blobs for given block number, overwrite if already exists
     pub fn store_batches(
         &self,
-        batches: &[(
-            BlobDataWithId<BatchWithId>,
-            <<S as Spec>::Da as DaSpec>::Address,
-        )],
+        batches: &[BlobAndSender<S>],
         state: &mut (impl InfallibleKernelStateAccessor + VersionReader),
     ) {
         self.deferred_blobs
@@ -95,10 +92,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         slot_number: SlotNumber,
         state: &mut impl InfallibleKernelStateAccessor,
-    ) -> Vec<(
-        BlobDataWithId<BatchWithId>,
-        <<S as Spec>::Da as DaSpec>::Address,
-    )> {
+    ) -> Vec<BlobAndSender<S>> {
         self.deferred_blobs
             .remove(&slot_number, state)
             .unwrap_infallible()
@@ -108,7 +102,7 @@ impl<S: Spec> BlobStorage<S> {
     pub(crate) fn get_preferred_sequencer(
         &self,
         state: &mut impl InfallibleStateAccessor,
-    ) -> Option<<S::Da as DaSpec>::Address> {
+    ) -> Option<(<<S as Spec>::Da as DaSpec>::Address, <S as Spec>::Address)> {
         self.sequencer_registry
             .get_preferred_sequencer(state)
             .unwrap_infallible()

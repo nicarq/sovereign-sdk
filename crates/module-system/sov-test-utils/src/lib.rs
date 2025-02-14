@@ -123,6 +123,10 @@ pub const TEST_GAS_TOKEN_NAME: &str = "TestGasToken";
 pub const TEST_DEFAULT_PROVER_ADDRESS: &str =
     "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66";
 
+/// Default [`sov_sequencer::SequencerConfig::rollup_address`] value in tests.
+pub const TEST_DEFAULT_SEQUENCER_ADDRESS: &str =
+    "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66";
+
 /// Default wait time value for different [`sov_mock_da::BlockProducingConfig`] value in tests.
 pub const TEST_DEFAULT_MOCK_DA_BLOCK_TIME_MS: u64 = 100;
 /// Default [`BlockProducingConfig`] for tests that need periodic block producing.

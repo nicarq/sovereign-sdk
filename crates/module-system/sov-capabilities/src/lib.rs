@@ -223,13 +223,11 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
         &self,
         auth_data: &AuthorizationData<S>,
         sequencer: &<S::Da as DaSpec>::Address,
+        sequencer_rollup_address: S::Address,
         state: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<Context<S>> {
         // TODO(@preston-evans98): This is a temporary hack to get the sequencer address
         // This should be resolved by the sequencer registry during blob selection
-        let sequencer_rollup_address = self.
-        sequencer_registry.resolve_da_address(sequencer, state)?
-            .ok_or(anyhow::anyhow!("Sequencer was no longer registered by the time of context resolution. This is a bug")).unwrap();
         let sender = self.accounts.resolve_sender_address(
             &auth_data.default_address,
             &auth_data.credential_id,

@@ -35,7 +35,7 @@ use sov_stf_runner::{
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
-use crate::TEST_DEFAULT_PROVER_ADDRESS;
+use crate::{TEST_DEFAULT_PROVER_ADDRESS, TEST_DEFAULT_SEQUENCER_ADDRESS};
 
 /// Specifies how to source the genesis data for a rollup.
 #[derive(Derivative)]
@@ -60,6 +60,7 @@ pub struct RollupBuilderConfig<S: Spec, StoragePath = Arc<tempfile::TempDir>> {
     pub automatic_batch_production: bool,
     pub batch_builder_config: BatchBuilderConfig,
     pub prover_address: String,
+    pub sequencer_address: String,
     pub aggregated_proof_block_jump: usize,
     pub max_infos_in_db: u64,
     pub max_channel_size: u64,
@@ -162,6 +163,7 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
                 automatic_batch_production: true,
                 batch_builder_config: BatchBuilderConfig::Preferred(Default::default()),
                 prover_address: TEST_DEFAULT_PROVER_ADDRESS.to_string(),
+                sequencer_address: TEST_DEFAULT_SEQUENCER_ADDRESS.to_string(),
                 aggregated_proof_block_jump: 1,
                 rollup_prover_config: Some(get_appropriate_rollup_prover_config::<R::Spec>(
                     Default::default(),
@@ -374,6 +376,8 @@ where
                 // Set ttl to zero to disable for testing. This prevents nondeterminism.
                 dropped_tx_ttl_secs: 0,
                 da_address: self.da_config.sender_address,
+                rollup_address: FromStr::from_str(&self.config.sequencer_address)
+                    .expect("Sequencer address is not valid"),
                 admin_addresses: vec![],
                 batch_builder: self.config.batch_builder_config.clone(),
             },

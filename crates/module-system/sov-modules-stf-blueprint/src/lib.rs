@@ -10,7 +10,8 @@ use sov_modules_api::capabilities::RollupHeight;
 #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
 use sov_modules_api::track_gas_constants_usage;
 use sov_modules_api::{
-    BatchSequencerReceipt, GasArray, GasSpec, IncrementalBatch, KernelStateAccessor, VersionReader,
+    BatchSequencerReceipt, GasArray, GasSpec, IncrementalBatch, IterableBatchWithId,
+    KernelStateAccessor, VersionReader,
 };
 use sov_state::StateRoot;
 mod proof_processing;
@@ -261,7 +262,7 @@ impl<S, RT> StateTransitionFunction<S::InnerZkvm, S::OuterZkvm, S::Da> for StfBl
 where
     S: Spec,
     RT: Runtime<S>,
-    RT: HasKernel<S, BlobType = BlobDataWithId>,
+    RT: HasKernel<S, BlobType = BlobDataWithId<IterableBatchWithId<S>>>,
 {
     type StateRoot = <S::Storage as Storage>::Root;
 
@@ -522,14 +523,14 @@ impl<S, RT> StfBlueprint<S, RT>
 where
     S: Spec,
     RT: Runtime<S>,
-    RT: HasKernel<S, BlobType = BlobDataWithId>,
+    RT: HasKernel<S, BlobType = BlobDataWithId<IterableBatchWithId<S>>>,
 {
     #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
     fn select_and_validate_blobs<'a, I>(
         &self,
         relevant_blobs: RelevantBlobIters<I>,
         kernel: &mut KernelStateAccessor<S>,
-    ) -> BlobSelectorOutput<S, BlobDataWithId>
+    ) -> BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId<S>>>
     where
         I: IntoIterator<Item = &'a mut <S::Da as DaSpec>::BlobTransaction>,
     {
