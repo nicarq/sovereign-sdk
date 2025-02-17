@@ -186,32 +186,6 @@ fn test_register_new_account() {
 }
 
 #[test]
-fn test_resolve_sender_address_no_default_address_non_registered() {
-    let (
-        TestData {
-            non_registered_account,
-            ..
-        },
-        runner,
-    ) = setup();
-
-    runner.query_visible_state(|state| {
-        let accounts = Accounts::<S>::default();
-
-        assert_eq!(
-            accounts
-                .resolve_sender_address(&None, &non_registered_account.credential_id(), state)
-                .unwrap_err()
-                .to_string(),
-            format!(
-                "No account found for {}, and no default address was provided",
-                non_registered_account.credential_id()
-            )
-        );
-    });
-}
-
-#[test]
 fn test_resolve_sender_address_with_default_address_non_registered() {
     let (
         TestData {
@@ -226,7 +200,7 @@ fn test_resolve_sender_address_with_default_address_non_registered() {
         assert_eq!(
             accounts
                 .resolve_sender_address(
-                    &Some(non_registered_account.address()),
+                    &non_registered_account.address(),
                     &non_registered_account.credential_id(),
                     state
                 )
@@ -250,21 +224,10 @@ fn test_resolve_sender_address_registered() {
     runner.query_visible_state(|state| {
         let accounts = Accounts::<S>::default();
 
-        assert_eq!(
-            accounts
-                .resolve_sender_address(&None, &account_1.credential_id(), state)
-                .unwrap(),
-            account_1.address()
-        );
-
         // Ensure correct (registered) address is used even if another fallback is provided
         assert_eq!(
             accounts
-                .resolve_sender_address(
-                    &Some(account_2.address()),
-                    &account_1.credential_id(),
-                    state
-                )
+                .resolve_sender_address(&account_2.address(), &account_1.credential_id(), state)
                 .unwrap(),
             account_1.address()
         );
@@ -282,13 +245,13 @@ fn test_resolve_address_if_more_than_one_credential() {
         mut runner,
     ) = setup();
 
-    let credential_1 = TestPrivateKey::generate()
-        .pub_key()
-        .credential_id::<TestHasher>();
+    let pub_key_1 = TestPrivateKey::generate().pub_key();
+    let credential_1 = pub_key_1.credential_id::<TestHasher>();
+    let default_address_1 = (&pub_key_1).into();
 
-    let credential_2 = TestPrivateKey::generate()
-        .pub_key()
-        .credential_id::<TestHasher>();
+    let pub_key_2 = TestPrivateKey::generate().pub_key();
+    let credential_2 = pub_key_2.credential_id::<TestHasher>();
+    let default_address_2 = (&pub_key_1).into();
 
     runner.execute(
         non_registered_account
@@ -305,14 +268,14 @@ fn test_resolve_address_if_more_than_one_credential() {
 
         assert_eq!(
             accounts
-                .resolve_sender_address(&None, &credential_1, state)
+                .resolve_sender_address(&default_address_1, &credential_1, state)
                 .unwrap(),
             non_registered_account.address()
         );
 
         assert_eq!(
             accounts
-                .resolve_sender_address(&None, &credential_2, state)
+                .resolve_sender_address(&default_address_2, &credential_2, state)
                 .unwrap(),
             non_registered_account.address()
         );
@@ -336,7 +299,7 @@ fn test_resolve_with_different_default_address() {
 
         assert_eq!(
             accounts
-                .resolve_sender_address(&Some(account_1.address()), &random_credential, state)
+                .resolve_sender_address(&account_1.address(), &random_credential, state)
                 .unwrap(),
             account_1.address()
         );

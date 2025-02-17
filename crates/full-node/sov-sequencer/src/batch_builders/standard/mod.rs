@@ -146,7 +146,7 @@ where
         if !sender_is_allowed(
             &self.runtime,
             message,
-            authz_data.default_address.as_ref(),
+            &authz_data.default_address,
             &self.config.da_address,
             &self.config.admin_addresses,
         ) {

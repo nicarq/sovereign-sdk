@@ -12,7 +12,7 @@ impl<S: Spec> Accounts<S> {
     /// If the credential is not registered AND no fallback is provided, returns an error.
     pub fn resolve_sender_address(
         &self,
-        maybe_fallback_address: &Option<S::Address>,
+        default_address: &S::Address,
         credential_id: &CredentialId,
         state: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<S::Address> {
@@ -24,21 +24,15 @@ impl<S: Spec> Accounts<S> {
 
         match maybe_address {
             Some(address) => Ok(address),
-            None => match maybe_fallback_address {
-                Some(default_address) => {
-                    // 1. Add the credential -> account mapping
-                    let new_account = Account {
-                        addr: default_address.clone(),
-                    };
-                    self.accounts.set(credential_id, &new_account, state)?;
+            None => {
+                // 1. Add the credential -> account mapping
+                let new_account = Account {
+                    addr: default_address.clone(),
+                };
+                self.accounts.set(credential_id, &new_account, state)?;
 
-                    Ok(default_address.clone())
-                }
-                None => anyhow::bail!(
-                    "No account found for {}, and no default address was provided",
-                    credential_id
-                ),
-            },
+                Ok(default_address.clone())
+            }
         }
     }
 }

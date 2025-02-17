@@ -67,7 +67,7 @@ where
         tx_hash: hash,
         credential_id,
         credentials,
-        default_address: Some(S::Address::from_vm_address(ethereum_address)),
+        default_address: S::Address::from_vm_address(ethereum_address),
     };
     let call = CallMessage { rlp };
     Ok((tx_and_raw_hash, auth_data, call))

@@ -216,8 +216,8 @@ pub struct AuthorizationData<S: Spec> {
     /// provides information about which `Authenticator` was used to authenticate the transaction.
     pub credentials: Credentials,
 
-    /// The default address exists only if the original transaction was signed with the default signature schema.
-    pub default_address: Option<S::Address>,
+    /// The default address.
+    pub default_address: S::Address,
 }
 
 fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
@@ -266,7 +266,7 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
             tx_hash: raw_tx_hash,
             credential_id,
             credentials,
-            default_address: Some(default_address),
+            default_address,
         },
         runtime_call,
     ))

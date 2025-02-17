@@ -131,7 +131,7 @@ impl<T: TxReceiptContents, S: Spec> AsyncBatchResponder<TransactionReceipt<T>, S
         if sender_is_allowed(
             runtime,
             call,
-            Some(context.sender()),
+            context.sender(),
             context.sequencer_da_address(),
             self.admins.as_slice(),
         ) {
