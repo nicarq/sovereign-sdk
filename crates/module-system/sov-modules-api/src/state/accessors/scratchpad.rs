@@ -122,6 +122,20 @@ impl<S: Spec, I: StateProvider<S>> PreExecWorkingSet<S, I> {
     pub fn to_scratchpad_and_gas_meter(self) -> (TxScratchpad<S, I>, BasicGasMeter<S>) {
         (self.inner, self.gas_meter)
     }
+
+    /// Commits the contents of the [`PreExecWorkingSet`].
+    pub fn commit(self) -> Self {
+        let inner = self.inner.commit();
+        let scratchpad = inner.to_tx_scratchpad();
+        scratchpad.to_pre_exec_working_set(self.gas_meter)
+    }
+
+    /// Reverts all changes up to the last commit.
+    pub fn revert(self) -> (TxScratchpad<S, I>, BasicGasMeter<S>) {
+        let inner = self.inner.revert();
+        let scratchpad = inner.to_tx_scratchpad();
+        (scratchpad, self.gas_meter)
+    }
 }
 
 impl<S: Spec, I: StateProvider<S>> GasMeter for PreExecWorkingSet<S, I> {
@@ -432,7 +446,10 @@ mod tests {
     use crate::capabilities::mocks::MockKernel;
     use crate::capabilities::Kernel as _;
     use crate::execution_mode::Native;
-    use crate::{StateCheckpoint, StateReader, StateWriter, WorkingSet};
+    use crate::{
+        BasicGasMeter, GasArray, Spec, StateAccessor, StateCheckpoint, StateProvider, StateReader,
+        StateWriter, WorkingSet,
+    };
 
     type TestSpec = crate::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
@@ -476,6 +493,76 @@ mod tests {
         assert_eq!(
             Some(storage_value),
             StateReader::<Kernel>::get(&mut working_set, &storage_key)
+                .expect("This should be unfaillible")
+        );
+    }
+
+    fn save_and_check_value<ST: StateAccessor>(key: &SlotKey, val: SlotValue, accessor: &mut ST) {
+        StateWriter::<User>::set(accessor, key, val.clone()).expect("This should be unfaillible");
+        assert_eq!(
+            Some(val),
+            StateReader::<User>::get(accessor, key).expect("This should be unfaillible")
+        );
+    }
+
+    #[test]
+    fn test_pre_exec_ws() {
+        let codec = BcsCodec {};
+        let storage_manager = SimpleStorageManager::new();
+        let storage = storage_manager.create_storage();
+        let kernel: MockKernel<TestSpec> = MockKernel::new(4, 1);
+
+        let checkpoint = StateCheckpoint::<TestSpec>::new(storage.clone(), &kernel);
+        let mut scratchpad = checkpoint.to_tx_scratchpad();
+
+        // Save some values in the scratchpad.
+        let storage_key_1 = SlotKey::from(vec![1]);
+        let storage_value_1 = SlotValue::new(&vec![11], &codec);
+        save_and_check_value(&storage_key_1, storage_value_1.clone(), &mut scratchpad);
+
+        let gas_meter = BasicGasMeter::new_with_gas(
+            <<TestSpec as Spec>::Gas as crate::Gas>::max(),
+            <<TestSpec as Spec>::Gas as crate::Gas>::Price::ZEROED,
+        );
+        let mut pre_exec_ws = scratchpad.to_pre_exec_working_set(gas_meter);
+
+        assert_eq!(
+            Some(storage_value_1.clone()),
+            StateReader::<User>::get(&mut pre_exec_ws, &storage_key_1)
+                .expect("This should be unfaillible")
+        );
+
+        // Save some values in the pre_exec_ws
+        let storage_key_2 = SlotKey::from(vec![2]);
+        let storage_value_2 = SlotValue::new(&vec![22], &codec);
+        save_and_check_value(&storage_key_2, storage_value_2.clone(), &mut pre_exec_ws);
+
+        // Commit changes
+        let mut pre_exec_ws = pre_exec_ws.commit();
+
+        // Save some values in the pre_exec_ws
+        let storage_key_3 = SlotKey::from(vec![3]);
+        let storage_value_3 = SlotValue::new(&vec![33], &codec);
+        save_and_check_value(&storage_key_3, storage_value_3.clone(), &mut pre_exec_ws);
+
+        let (mut new_scratchpad, _) = pre_exec_ws.revert();
+
+        // After reverting, only the values set before the `commit` should be visible.
+        assert_eq!(
+            Some(storage_value_1),
+            StateReader::<User>::get(&mut new_scratchpad, &storage_key_1)
+                .expect("This should be unfaillible")
+        );
+
+        assert_eq!(
+            Some(storage_value_2),
+            StateReader::<User>::get(&mut new_scratchpad, &storage_key_2)
+                .expect("This should be unfaillible")
+        );
+
+        assert_eq!(
+            None,
+            StateReader::<User>::get(&mut new_scratchpad, &storage_key_3)
                 .expect("This should be unfaillible")
         );
     }
