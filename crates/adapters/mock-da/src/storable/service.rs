@@ -310,6 +310,29 @@ impl DaService for StorableMockDaService {
         Ok(block)
     }
 
+    async fn get_block_header_at(
+        &self,
+        height: u64,
+    ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
+        tracing::trace!(%height, "Getting block header at");
+        if height > u32::MAX as u64 {
+            return Err(anyhow::anyhow!(
+                "Height {} is too big for StorableMockDaService. Max is {}",
+                height,
+                u32::MAX
+            ));
+        }
+
+        let height = height as u32;
+        let block_header = {
+            let da_layer = self.da_layer.read().await;
+            da_layer.get_block_header_at(height).await?
+        };
+
+        tracing::trace!(block_header = %block_header.display(), "Block header retrieved");
+        Ok(block_header)
+    }
+
     async fn get_last_finalized_block_header(
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {

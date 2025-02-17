@@ -257,6 +257,19 @@ impl Fee for CelestiaFee {
     }
 }
 impl CelestiaService {
+    async fn get_block_header_at_inner(
+        &self,
+        height: u64,
+    ) -> Result<CelestiaHeader, MaybeRetryable<anyhow::Error>> {
+        let client = &self.read_client;
+        let extended_header = client
+            .header_get_by_height(height)
+            .await
+            .map_err(|e| MaybeRetryable::Transient(e.into()))?;
+
+        Ok(extended_header.into())
+    }
+
     async fn get_block_at_inner(
         &self,
         height: u64,
@@ -368,6 +381,19 @@ impl DaService for CelestiaService {
     type HeaderStream = BoxStream<'static, Result<CelestiaHeader, Self::Error>>;
     type Error = BoxError;
     type Fee = CelestiaFee;
+
+    #[instrument(skip(self))]
+    async fn get_block_header_at(
+        &self,
+        height: u64,
+    ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || self.get_block_header_at_inner(height),
+            "get_block_header_at",
+        )
+        .await
+    }
 
     #[instrument(skip(self))]
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
