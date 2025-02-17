@@ -85,13 +85,13 @@ pub type TestStorageManager =
 // Blessed gas parameters
 
 /// The default max fee to set for a transaction. This should be enough to be able to execute most standard transactions for the test rollup.
-pub const TEST_DEFAULT_MAX_FEE: u64 = 100_000_000;
+pub const TEST_DEFAULT_MAX_FEE: u64 = 1_000_000_000;
 /// The default gas limit to set for a transaction. This is an optional parameter.
 /// This value should be high enough to be able to execute most standard transactions for the test rollup.
-pub const TEST_DEFAULT_GAS_LIMIT: [u64; 2] = [1_000_000, 1_000_000];
+pub const TEST_DEFAULT_GAS_LIMIT: [u64; 2] = [10_000_000, 10_000_000];
 /// The default amount of tokens that should be staked by a user (prover, sequencer, etc.). This value is roughly equal to the
 /// max fee for a transaction because sequencers need to pre-emptively pay for all transactions' pre-execution checks using their stake.
-pub const TEST_DEFAULT_USER_STAKE: [u64; 2] = [500_000, 500_000];
+pub const TEST_DEFAULT_USER_STAKE: [u64; 2] = [1_000_000_000, 1_000_000_000];
 /// The default amount of tokens that should be in the user's bank account. This amount should always be higher than [`TEST_DEFAULT_MAX_FEE`] and
 /// [`TEST_DEFAULT_USER_STAKE`]. This value is set so that the user can send a dozen transactions without having to refill its bank account.
 pub const TEST_DEFAULT_USER_BALANCE: u64 = 1_000_000_000_000;

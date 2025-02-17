@@ -1,4 +1,5 @@
 ## 2025-02-17
+- #2447 Bumps some gas constant values - in particular `MAX_SEQUENCER_EXEC_GAS_PER_TX` and `INITIAL_GAS_LIMIT`. Users of the SDK may need to update their genesis configuration file by increasing the sequencer bond inside the `sequencer_registry.json` config file.
 - #2436 Adds the optional `DaService::get_block_header_at` method. 
   The default implementation relies on the less efficient `get_block_at` method. 
   Third-party DA adapters are encouraged to implement this method to improve performance.
