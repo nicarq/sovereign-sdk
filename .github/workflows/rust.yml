@@ -55,6 +55,7 @@ env:
   # This is faster for CI: https://github.com/dtolnay/rust-toolchain/issues/26.
   CARGO_INCREMENTAL: "0"
   CARGO_NET_GIT_FETCH_WITH_CLI: true
+  NO_COLOR: 1
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>

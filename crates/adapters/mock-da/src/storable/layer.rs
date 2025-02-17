@@ -8,6 +8,7 @@ use sea_orm::{
     QueryOrder, Set,
 };
 use sha2::Digest;
+use sov_rollup_interface::common::{HexHash, HexString};
 use tokio::sync::broadcast;
 
 use crate::config::{GENESIS_BLOCK, GENESIS_HEADER};
@@ -100,10 +101,11 @@ impl StorableMockDaLayer {
     ) -> anyhow::Result<()> {
         tracing::trace!(
             next_height = self.next_height,
+            ?timestamp,
             "Start producing a new block at"
         );
         if self.next_height >= i32::MAX as u32 {
-            anyhow::bail!("Due to database limitation cannot produce anymore blocks");
+            anyhow::bail!("Due to database limitation cannot produce anymore blocks: {} is more than max supported height {}", self.next_height, i32::MAX);
         }
 
         let prev_block_hash = if self.next_height > 1 {
@@ -149,6 +151,8 @@ impl StorableMockDaLayer {
         tracing::trace!(
             blobs_count,
             height = self.next_height,
+            prev_hash = %HexHash::new(prev_block_hash),
+            hash = %HexHash::new(this_block_hash),
             "New block has been produced"
         );
 
@@ -162,11 +166,11 @@ impl StorableMockDaLayer {
         if next_finalized_height > 0 && next_finalized_height > self.last_finalized_height {
             self.last_finalized_height = next_finalized_height;
             finalized_height::update_value(&self.conn, self.last_finalized_height).await?;
+            let finalized_header = self.get_header_at(next_finalized_height).await?;
             tracing::trace!(
-                height = next_finalized_height,
+                header = %finalized_header,
                 "Submitting finalized header at"
             );
-            let finalized_header = self.get_header_at(next_finalized_height).await?;
             match self.finalized_header_sender.send(finalized_header) {
                 Ok(received_count) => {
                     tracing::trace!(receivers = received_count, "Finalized header sent");
@@ -183,6 +187,7 @@ impl StorableMockDaLayer {
 
     /// Saves new block header into a database.
     pub async fn produce_block(&mut self) -> anyhow::Result<()> {
+        tracing::trace!("Produce block has been called");
         let timestamp = sov_rollup_interface::da::Time::now();
 
         // Temporarily remove the randomizer from `self` so it won't collide
@@ -190,11 +195,17 @@ impl StorableMockDaLayer {
         let mut randomizer = self.randomizer.take();
 
         // Saving result and not using `?`, because need to restore randomizer back
+        let start = std::time::Instant::now();
         let result = match &mut randomizer {
             None => self.produce_block_with_timestamp(timestamp).await,
             Some(randomizer) => randomizer.produce_block(self, timestamp).await,
         };
         self.randomizer = randomizer;
+        tracing::trace!(
+            ?result,
+            time = ?start.elapsed(),
+            "Produce block has been completed"
+        );
         result
     }
 
@@ -219,8 +230,20 @@ impl StorableMockDaLayer {
         batch_data: &[u8],
         sender: &MockAddress,
     ) -> anyhow::Result<MockHash> {
+        tracing::trace!(
+            batch_bytes = batch_data.len(),
+            %sender,
+            next_da_height = self.next_height,
+            "Submitting batch is received"
+        );
         let (blob, hash) = blobs::build_batch_blob(self.next_height as i32, batch_data, sender);
         blob.insert(&self.conn).await?;
+        tracing::trace!(
+            %hash,
+            %sender,
+            next_da_height = self.next_height,
+            "Submitted batch is saved"
+        );
         Ok(hash)
     }
 
@@ -229,8 +252,20 @@ impl StorableMockDaLayer {
         proof_data: &[u8],
         sender: &MockAddress,
     ) -> anyhow::Result<MockHash> {
+        tracing::trace!(
+            proof_bytes = proof_data.len(),
+            %sender,
+            next_da_height = self.next_height,
+            "Submitting proof is received"
+        );
         let (blob, hash) = blobs::build_proof_blob(self.next_height as i32, proof_data, sender);
         blob.insert(&self.conn).await?;
+        tracing::trace!(
+            %hash,
+            %sender,
+            next_da_height = self.next_height,
+            "Submitted proof is saved"
+        );
         Ok(hash)
     }
 
@@ -400,8 +435,8 @@ impl StorableMockDaLayer {
             }
             // Note: Currently, it is possible that all blobs can be moved to non produced(next) block.
             // It is fine, just to keep in mind.
-            let new_height = rng.gen_range(0..new_non_finalised_order.len());
-            new_non_finalised_order[new_height].push(blob);
+            let new_relative_height = rng.gen_range(0..new_non_finalised_order.len());
+            new_non_finalised_order[new_relative_height].push(blob);
         }
 
         let mut prev_hash = last_finalized_header.hash.0;
@@ -420,6 +455,7 @@ impl StorableMockDaLayer {
             let new_hash =
                 self.calculate_block_hash(block_header.height as u32, &prev_hash, &blobs);
             let blobs_ids = blobs.iter().map(|blob| blob.id).collect::<Vec<_>>();
+            let blobs_count = blobs_ids.len();
 
             Blobs::update_many()
                 .filter(blobs::Column::Id.is_in(blobs_ids))
@@ -432,10 +468,11 @@ impl StorableMockDaLayer {
 
             tracing::trace!(
                 height = block_header.height,
-                old_hash = hex::encode(&block_header.hash),
-                new_hash = hex::encode(new_hash),
-                old_prev_hash = hex::encode(block_header.prev_hash),
-                new_prev_hash = hex::encode(prev_hash),
+                old_prev_hash = %(HexString::from(&block_header.prev_hash)),
+                old_hash = %(HexString::from(&block_header.hash)),
+                new_prev_hash = %HexHash::new(prev_hash),
+                new_hash = %HexHash::new(new_hash),
+                new_blobs_count = blobs_count,
                 "Updating block header",
             );
             BlockHeaders::update_many()

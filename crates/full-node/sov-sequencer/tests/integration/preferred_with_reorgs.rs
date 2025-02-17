@@ -339,7 +339,7 @@ async fn test_check_no_reorgs_longer() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "Node gets stuck on reorg"]
+#[ignore = "Unblock later, when sequencer stabilized, and state manager is performant"]
 async fn test_small_reshuffle_no_drops() -> anyhow::Result<()> {
     // sov_test_utils::initialize_logging();
     let randomization_config = RandomizationConfig {

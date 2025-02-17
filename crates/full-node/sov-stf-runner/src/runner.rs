@@ -432,9 +432,12 @@ where
             debug!(
                 existing_next_da_height = next_da_height,
                 new_next_da_height = filtered_block_header.height(),
-                "Updating next_da_height after storage_manager "
+                "Updating next_da_height after storage_manager, as reorg happened."
             );
             next_da_height = filtered_block_header.height();
+            tracing::Span::current().record("new_next_da_height", next_da_height);
+            self.sync_state
+                .update_synced(next_da_height.saturating_sub(1));
         }
 
         // STF execution
@@ -490,6 +493,13 @@ where
             .map(|b| b.verified_data().len() as u64)
             .sum();
         let proof_blobs_processed = slot_result.proof_receipts.len();
+        tracing::trace!(
+            ?apply_slot_time,
+            batch_receipts = slot_result.batch_receipts.len(),
+            %batch_bytes_processed,
+            proof_receipts = proof_blobs_processed,
+            "Apply slot completed"
+        );
         // --- End metric extraction ---
 
         let get_relevant_proofs_start = std::time::Instant::now();
@@ -520,14 +530,9 @@ where
         let aggregated_proofs =
             Self::collect_aggregated_proofs(slot_result.proof_receipts.into_iter());
 
-        // Processing finalized headers.
-        let last_finalized = self.da_service.get_last_finalized_block_header().await?;
-        debug!(header = %last_finalized.display(), "Got last finalized header");
-        let last_finalized_height = last_finalized.height();
-
         self.state_manager
             .process_stf_changes(
-                last_finalized_height,
+                &self.da_service,
                 self.da_height_at_genesis,
                 slot_result.change_set,
                 transition_data,
@@ -535,6 +540,7 @@ where
                 aggregated_proofs,
             )
             .await?;
+        trace!("Stf changes processing is completed");
 
         // Updating counters and metrics
         self.sync_state.update_synced(next_da_height);
