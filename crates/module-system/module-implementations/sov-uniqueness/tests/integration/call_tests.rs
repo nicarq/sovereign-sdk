@@ -96,7 +96,7 @@ fn do_max_stored_tx_hashes_per_credential_test() {
                 panic!("Transaction should be skipped");
             };
             match skipped.error {
-                TxProcessingError::NotUnique(reason) => {
+                TxProcessingError::CheckUniquenessFailed(reason) => {
                     assert!(reason.contains("Too many transactions for credential_id"));
                 }
                 _ => {

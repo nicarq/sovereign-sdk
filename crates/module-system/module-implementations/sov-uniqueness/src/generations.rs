@@ -1,6 +1,5 @@
 use sov_modules_api::macros::config_value;
-use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{CredentialId, InfallibleStateAccessor, Spec, StateAccessor, TxHash};
+use sov_modules_api::{CredentialId, Spec, StateAccessor, TxHash};
 
 use crate::Uniqueness;
 impl<S: Spec> Uniqueness<S> {
@@ -87,12 +86,11 @@ impl<S: Spec> Uniqueness<S> {
         credential_id: &CredentialId,
         transaction_generation: u64,
         transaction_hash: TxHash,
-        tx_scratchpad: &mut impl InfallibleStateAccessor,
-    ) {
+        state: &mut impl StateAccessor,
+    ) -> anyhow::Result<()> {
         let mut senders_buckets = self
             .generations
-            .get(credential_id, tx_scratchpad)
-            .unwrap_infallible()
+            .get(credential_id, state)?
             .unwrap_or_default();
 
         let latest_generation = senders_buckets
@@ -127,7 +125,8 @@ impl<S: Spec> Uniqueness<S> {
             .insert(transaction_hash));
 
         self.generations
-            .set(credential_id, &senders_buckets, tx_scratchpad)
-            .unwrap_infallible();
+            .set(credential_id, &senders_buckets, state)?;
+
+        Ok(())
     }
 }

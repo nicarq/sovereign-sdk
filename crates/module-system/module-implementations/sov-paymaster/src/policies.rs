@@ -48,7 +48,7 @@ impl<S: Spec> PayeePolicy<S> {
         &self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
-    ) -> Result<(), ReserveGasError<S>> {
+    ) -> Result<(), ReserveGasError> {
         if !self.authorizes_max_fee(tx.max_fee) {
             tracing::debug!(allowed_max_fee = ?self.max_fee(), requested_max_fee = %tx.max_fee, "Paymaster policy denied transaction payment due to max fee");
             return Err(ReserveGasError::InsufficientBalanceToReserveGas);

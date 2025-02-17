@@ -14,8 +14,8 @@ use crate::transaction::{
 };
 use crate::{
     Context, CryptoSpec, DispatchCall, FullyBakedTx, GasMeter, GasMeteringError,
-    InfallibleStateAccessor, MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher,
-    ProvableStateReader, RawTx, Spec,
+    MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher, ProvableStateReader,
+    RawTx, Spec, StateAccessor,
 };
 
 /// The chain ID of the rollup.
@@ -101,7 +101,7 @@ pub trait TransactionAuthorizer<S: Spec> {
         auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         sequencer_rollup_address: S::Address,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<Context<S>>;
 
     /// Resolves the context for an unregistered transaction.
@@ -109,7 +109,7 @@ pub trait TransactionAuthorizer<S: Spec> {
         &self,
         auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<Context<S>>;
 
     /// Prevents duplicate transactions from running.
@@ -117,7 +117,7 @@ pub trait TransactionAuthorizer<S: Spec> {
         &self,
         auth_data: &AuthorizationData<S>,
         context: &Context<S>,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<()>;
 
     /// Marks a transaction as having been executed, preventing it from executing again.
@@ -125,8 +125,8 @@ pub trait TransactionAuthorizer<S: Spec> {
         &self,
         auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
-        state: &mut impl InfallibleStateAccessor,
-    );
+        state: &mut impl StateAccessor,
+    ) -> anyhow::Result<()>;
 }
 
 /// Output of the authentication.

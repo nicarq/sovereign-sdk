@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use sov_modules_api::capabilities::{
-    GasEnforcer, ProofProcessor, SequencerAuthorization, SequencerRemuneration, TryReserveGasError,
+    GasEnforcer, ProofProcessor, SequencerAuthorization, SequencerRemuneration,
 };
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
@@ -338,21 +338,25 @@ where
         sequencer_rollup_address: &S::Address,
         gas_price: &<S::Gas as Gas>::Price,
         auth_tx: AuthenticatedTransactionData<S>,
-        pre_exec_working_set: PreExecWorkingSet<S, I>,
+        mut pre_exec_working_set: PreExecWorkingSet<S, I>,
     ) -> WorkflowResult<WorkingSet<S, I>, S, I> {
-        let (mut scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
-        let gas_info = gas_meter.gas_info();
-
-        if let Err(TryReserveGasError { reason }) =
-            self.runtime.gas_enforcer().try_reserve_gas_for_proof(
-                &auth_tx,
-                gas_price,
-                sequencer_rollup_address,
-                &mut scratchpad,
-            )
-        {
-            return self.make_early_return(scratchpad, reason, gas_info.gas_used);
+        pre_exec_working_set = pre_exec_working_set.commit();
+        if let Err(err) = self.runtime.gas_enforcer().try_reserve_gas_for_proof(
+            &auth_tx,
+            gas_price,
+            sequencer_rollup_address,
+            &mut pre_exec_working_set,
+        ) {
+            let (scratchpad, gas_meter) = pre_exec_working_set.revert();
+            return self.make_early_return(
+                scratchpad,
+                err.to_string(),
+                gas_meter.gas_info().gas_used,
+            );
         }
+
+        let (scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
+        let gas_info = gas_meter.gas_info();
 
         // The transaction will execute until one of the following conditions is met:
         // 1. It consumes more funds than `tx.max_fee`.

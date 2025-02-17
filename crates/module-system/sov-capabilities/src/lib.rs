@@ -6,15 +6,15 @@ use sov_bank::IntoPayable;
 use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::capabilities::{
     AllowedSequencer, AuthorizationData, AuthorizeSequencerError, GasEnforcer, ProofProcessor,
-    SequencerAuthorization, SequencerRemuneration, TransactionAuthorizer, TryReserveGasError,
+    SequencerAuthorization, SequencerRemuneration, TransactionAuthorizer,
 };
 use sov_modules_api::transaction::{
     AuthenticatedTransactionData, ProverRewards, RemainingFunds, SequencerReward,
 };
 use sov_modules_api::{
     AggregatedProofPublicData, Context, DaSpec, Gas, GetGasPrice, InfallibleStateAccessor,
-    InvalidProofError, ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec, Storage,
-    TxState,
+    InvalidProofError, ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec,
+    StateAccessor, Storage, TxState,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
@@ -62,8 +62,8 @@ trait HasGasPayer<S: Spec> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &mut Context<S>,
-        state: &mut impl InfallibleStateAccessor,
-    ) -> Result<(), TryReserveGasError>;
+        state: &mut impl StateAccessor,
+    ) -> anyhow::Result<()>;
 }
 
 impl<'a, S: Spec> HasGasPayer<S> for StandardProvenRollupCapabilities<'a, S> {
@@ -73,10 +73,10 @@ impl<'a, S: Spec> HasGasPayer<S> for StandardProvenRollupCapabilities<'a, S> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &mut Context<S>,
-        scratchpad: &mut impl InfallibleStateAccessor,
-    ) -> Result<(), TryReserveGasError> {
+        state: &mut impl StateAccessor,
+    ) -> anyhow::Result<()> {
         self.gas_payer
-            .reserve_gas(tx, gas_price, context.sender(), scratchpad)
+            .reserve_gas(tx, gas_price, context.sender(), state)
             .map_err(Into::into)
     }
 }
@@ -90,10 +90,10 @@ impl<'a, S: Spec> HasGasPayer<S>
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &mut Context<S>,
-        scratchpad: &mut impl InfallibleStateAccessor,
-    ) -> Result<(), TryReserveGasError> {
+        state: &mut impl StateAccessor,
+    ) -> anyhow::Result<()> {
         self.gas_payer
-            .try_reserve_gas(tx, gas_price, context, scratchpad)
+            .try_reserve_gas(tx, gas_price, context, state)
             .map_err(Into::into)
     }
 }
@@ -108,8 +108,8 @@ where
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &mut Context<S>,
-        state: &mut impl InfallibleStateAccessor,
-    ) -> Result<(), TryReserveGasError> {
+        state: &mut impl StateAccessor,
+    ) -> anyhow::Result<()> {
         self.try_reserve_gas_from_payer(tx, gas_price, context, state)
             .map_err(Into::into)
     }
@@ -119,8 +119,8 @@ where
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         sender: &S::Address,
-        state: &mut impl InfallibleStateAccessor,
-    ) -> Result<(), TryReserveGasError> {
+        state: &mut impl StateAccessor,
+    ) -> anyhow::Result<()> {
         self.bank
             .reserve_gas(tx, gas_price, sender, state)
             .map_err(Into::into)
@@ -193,7 +193,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
         &self,
         auth_data: &AuthorizationData<S>,
         _context: &Context<S>,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
         self.uniqueness.check_uniqueness(
             &auth_data.credential_id,
@@ -208,14 +208,14 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
         &self,
         auth_data: &AuthorizationData<S>,
         _sequencer: &<S::Da as DaSpec>::Address,
-        state: &mut impl InfallibleStateAccessor,
-    ) {
+        state: &mut impl StateAccessor,
+    ) -> anyhow::Result<()> {
         self.uniqueness.mark_tx_attempted(
             &auth_data.credential_id,
             auth_data.uniqueness,
             auth_data.tx_hash,
             state,
-        );
+        )
     }
 
     /// Resolves the context for a transaction.
@@ -224,7 +224,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
         auth_data: &AuthorizationData<S>,
         sequencer: &<S::Da as DaSpec>::Address,
         sequencer_rollup_address: S::Address,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<Context<S>> {
         // TODO(@preston-evans98): This is a temporary hack to get the sequencer address
         // This should be resolved by the sequencer registry during blob selection
@@ -245,7 +245,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
         &self,
         auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut impl StateAccessor,
     ) -> anyhow::Result<Context<S>> {
         let sender = self.accounts.resolve_sender_address(
             &auth_data.default_address,

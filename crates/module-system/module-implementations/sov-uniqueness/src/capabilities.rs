@@ -1,5 +1,5 @@
 use sov_modules_api::capabilities::UniquenessData;
-use sov_modules_api::{CredentialId, InfallibleStateAccessor, Spec, StateAccessor, TxHash};
+use sov_modules_api::{CredentialId, Spec, StateAccessor, TxHash};
 
 use crate::Uniqueness;
 
@@ -31,15 +31,15 @@ impl<S: Spec> Uniqueness<S> {
         credential_id: &CredentialId,
         transaction_generation: UniquenessData,
         transaction_hash: TxHash,
-        tx_scratchpad: &mut impl InfallibleStateAccessor,
-    ) {
+        state: &mut impl StateAccessor,
+    ) -> anyhow::Result<()> {
         match transaction_generation {
-            UniquenessData::Nonce(_) => self.mark_nonce_tx_attempted(credential_id, tx_scratchpad),
+            UniquenessData::Nonce(_) => self.mark_nonce_tx_attempted(credential_id, state),
             UniquenessData::Generation(generation) => self.mark_generational_tx_attempted(
                 credential_id,
                 generation,
                 transaction_hash,
-                tx_scratchpad,
+                state,
             ),
         }
     }

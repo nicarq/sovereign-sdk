@@ -247,7 +247,7 @@ fn test_reserve_gas_no_account() {
             {
                 assert_eq!(
                     reason,
-                    ReserveGasError::<S>::AccountDoesNotExist {
+                    ReserveGasError::AccountDoesNotExist {
                         account: user_no_account.address().to_string(),
                     }
                     .to_string(),
@@ -316,7 +316,7 @@ fn test_reserve_gas_not_enough_balance() {
             {
                 assert_eq!(
                     reason,
-                    ReserveGasError::<S>::InsufficientBalanceToReserveGas.to_string(),
+                    ReserveGasError::InsufficientBalanceToReserveGas.to_string(),
                     "The inner reserve gas error is incorrect"
                 );
             } else {
@@ -364,7 +364,7 @@ fn test_reserve_gas_price_too_high() {
             {
                 assert_eq!(
                     reason,
-                    ReserveGasError::<S>::CurrentGasPriceTooHigh.to_string(),
+                    ReserveGasError::CurrentGasPriceTooHigh.to_string(),
                     "The inner reserve gas error is incorrect"
                 );
             } else {

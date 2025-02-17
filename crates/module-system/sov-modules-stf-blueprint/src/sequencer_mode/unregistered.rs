@@ -1,11 +1,11 @@
 use sov_modules_api::capabilities::{
     BatchFromUnregisteredSequencer, GasEnforcer, SequencerRemuneration, TransactionAuthorizer,
-    TryReserveGasError, UnregisteredAuthenticationError,
+    UnregisteredAuthenticationError,
 };
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, Gas, GasArray, GasMeter,
-    GasSpec, IgnoredTransactionReceipt, PreExecWorkingSet, Rewards, Spec, StateProvider,
-    TxScratchpad, WorkingSet,
+    GasSpec, GetGasPrice, IgnoredTransactionReceipt, PreExecWorkingSet, Rewards, Spec,
+    StateProvider, TxScratchpad, WorkingSet,
 };
 use tracing::{debug, warn};
 
@@ -21,7 +21,7 @@ use crate::{
 #[allow(clippy::too_many_arguments)]
 pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
-    pre_exec_ws: PreExecWorkingSet<S, I>,
+    mut pre_exec_working_set: PreExecWorkingSet<S, I>,
     slot_gas: &S::Gas,
     validated_output: AuthTxOutput<S, R>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
@@ -29,8 +29,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     Result<ApplyTxResult<S>, TxProcessingError>,
     TxScratchpad<S, I>,
 ) {
-    let (mut scratchpad, gas_meter) = pre_exec_ws.to_scratchpad_and_gas_meter();
-    let gas_info = gas_meter.gas_info();
+    pre_exec_working_set = pre_exec_working_set.commit();
     let (auth_tx, auth_data, message) = validated_output;
 
     let raw_tx_hash = auth_tx.raw_tx_hash;
@@ -38,10 +37,11 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
 
     let mut ctx = match runtime
         .transaction_authorizer()
-        .resolve_unregistered_context(&auth_data, sequencer_da_address, &mut scratchpad)
+        .resolve_unregistered_context(&auth_data, sequencer_da_address, &mut pre_exec_working_set)
     {
         Ok(ctx) => ctx,
         Err(e) => {
+            let (scratchpad, _pre_exec_gas_meter) = pre_exec_working_set.revert();
             return (
                 Err(TxProcessingError::CannotResolveContext(e.to_string())),
                 scratchpad,
@@ -50,25 +50,46 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     };
 
     // Check that the transaction isn't a duplicate
-    if let Err(e) =
-        runtime
-            .transaction_authorizer()
-            .check_uniqueness(&auth_data, &ctx, &mut scratchpad)
-    {
-        return (Err(TxProcessingError::NotUnique(e.to_string())), scratchpad);
-    }
-
-    // After this check, we are confident that the transaction sender can cover the costs of transaction processing.
-    if let Err(TryReserveGasError { reason }) =
-        runtime
-            .gas_enforcer()
-            .try_reserve_gas(tx, &gas_info.gas_price, &mut ctx, &mut scratchpad)
-    {
+    if let Err(e) = runtime.transaction_authorizer().check_uniqueness(
+        &auth_data,
+        &ctx,
+        &mut pre_exec_working_set,
+    ) {
+        let (scratchpad, _pre_exec_gas_meter) = pre_exec_working_set.revert();
         return (
-            Err(TxProcessingError::CannotReserveGas(reason.to_string())),
+            Err(TxProcessingError::CheckUniquenessFailed(e.to_string())),
             scratchpad,
         );
     }
+
+    if let Err(err) = runtime.transaction_authorizer().mark_tx_attempted(
+        &auth_data,
+        sequencer_da_address,
+        &mut pre_exec_working_set,
+    ) {
+        let (scratchpad, _pre_exec_gas_meter) = pre_exec_working_set.revert();
+        return (
+            Err(TxProcessingError::MarkTxAttemptedFailed(err.to_string())),
+            scratchpad,
+        );
+    }
+
+    let gas_price = pre_exec_working_set.gas_price().clone();
+    // After this check, we are confident that the transaction sender can cover the costs of transaction processing.
+    if let Err(err) =
+        runtime
+            .gas_enforcer()
+            .try_reserve_gas(tx, &gas_price, &mut ctx, &mut pre_exec_working_set)
+    {
+        let (scratchpad, _pre_exec_gas_meter) = pre_exec_working_set.revert();
+        return (
+            Err(TxProcessingError::CannotReserveGas(err.to_string())),
+            scratchpad,
+        );
+    }
+
+    let (scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
+    let gas_info = gas_meter.gas_info();
 
     // The transaction will execute until one of the following conditions is met:
     // 1. It consumes more funds than `tx.max_fee`.
@@ -97,12 +118,6 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     let (apply_tx, mut scratchpad) = apply_tx(runtime, &ctx, tx, raw_tx_hash, message, working_set);
 
     let transaction_consumption = &apply_tx.transaction_consumption;
-
-    runtime.transaction_authorizer().mark_tx_attempted(
-        &auth_data,
-        sequencer_da_address,
-        &mut scratchpad,
-    );
 
     runtime.gas_enforcer().refund_remaining_gas(
         ctx.gas_refund_recipient(),
@@ -309,7 +324,6 @@ where
                 accumulated_reward += sequencer_reward.0;
             }
             gas_used = get_gas_used(&receipt);
-
             tx_receipts.push(receipt);
         }
     }

@@ -14,11 +14,10 @@ pub use event::Event;
 pub use genesis::*;
 pub use policies::*;
 use sov_bank::ReserveGasError;
-use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    Context, DaSpec, Error, Gas, GenesisState, InfallibleStateAccessor, InnerEnumVariant, Module,
-    ModuleId, ModuleInfo, ModuleRestApi, Spec, StateMap, TxState,
+    Context, DaSpec, Error, Gas, GenesisState, InnerEnumVariant, Module, ModuleId, ModuleInfo,
+    ModuleRestApi, Spec, StateAccessor, StateMap, TxState,
 };
 use sov_state::{BorshCodec, EncodeLike};
 
@@ -185,21 +184,29 @@ impl<S: Spec> Paymaster<S> {
         &self,
         payer: &S::Address,
         context: &Context<S>,
-        state: &mut impl InfallibleStateAccessor,
-    ) -> Option<PayeePolicy<S>> {
-        let policy = self.payers.get(payer, state).unwrap_infallible()?;
+        state: &mut impl StateAccessor,
+    ) -> Result<Option<PayeePolicy<S>>, ReserveGasError> {
+        let policy = self
+            .payers
+            .get(payer, state)
+            .map_err(|e| ReserveGasError::StateAccessError(e.to_string()))?;
+
+        let Some(policy) = policy else {
+            return Ok(None);
+        };
+
         if !policy
             .authorized_sequencers
             .covers(context.sequencer_da_address())
         {
-            return None;
+            return Ok(None);
         }
-        Some(
+        Ok(Some(
             self.policies
                 .get(&(Payer(payer), context.sender()), state)
-                .unwrap_infallible()
+                .map_err(|e| ReserveGasError::StateAccessError(e.to_string()))?
                 .unwrap_or(policy.default_payee_policy),
-        )
+        ))
     }
 
     /// Try to reserve gas for the transaction using the payer's balance if possible and falling back to the sender's balance if not.
@@ -208,9 +215,9 @@ impl<S: Spec> Paymaster<S> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &mut Context<S>,
-        state: &mut impl InfallibleStateAccessor,
-    ) -> Result<(), ReserveGasError<S>> {
-        if let Some(payer) = self.gas_from_paymaster(tx, gas_price, context, state) {
+        state: &mut impl StateAccessor,
+    ) -> Result<(), ReserveGasError> {
+        if let Some(payer) = self.gas_from_paymaster(tx, gas_price, context, state)? {
             context.set_gas_refund_recipient(payer);
             return Ok(());
         }
@@ -231,21 +238,23 @@ impl<S: Spec> Paymaster<S> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &Context<S>,
-        state: &mut impl InfallibleStateAccessor,
-    ) -> Option<S::Address> {
+        state: &mut impl StateAccessor,
+    ) -> Result<Option<S::Address>, ReserveGasError> {
         let payer = self
             .sequencer_to_payer
             .get(context.sequencer_da_address(), state)
-            .unwrap_infallible()?;
+            .map_err(|e| ReserveGasError::StateAccessError(e.to_string()))?;
+
+        let Some(payer) = payer else { return Ok(None) };
 
         // If this sequencer acts as a paymaster, it reserves the gas for the transaction.
         if let Some(payee_policy) =
-            self.get_payee_policy_if_sequencer_authorized(&payer, context, state)
+            self.get_payee_policy_if_sequencer_authorized(&payer, context, state)?
         {
             // If the paymaster pays for the gas, it also needs to get the refund
             match self.try_purchase_paymaster_gas(tx, gas_price, &payer, &payee_policy, state) {
                 Ok(()) => {
-                    return Some(payer);
+                    return Ok(Some(payer));
                 }
                 Err(e) => {
                     tracing::debug!(reason = %e, "Failed to pay gas using paymaster");
@@ -255,14 +264,15 @@ impl<S: Spec> Paymaster<S> {
             // If the sequencer isn't authorized for this payer, our map is stale. Remove the stale entry
             self.sequencer_to_payer
                 .remove(context.sequencer_da_address(), state)
-                .unwrap_infallible();
+                .map_err(|e| ReserveGasError::StateAccessError(e.to_string()))?;
+
             tracing::debug!(
                 sequencer = %context.sequencer_da_address(),
                 attempted_payer = %payer,
                 "Sequencer is not authorized for payer. Removing sequencer_to_payer entry.",
             );
         }
-        None
+        Ok(None)
     }
 
     /// Purchases the gas for the transaction using the payer's balance if possible.
@@ -272,8 +282,8 @@ impl<S: Spec> Paymaster<S> {
         gas_price: &<S::Gas as Gas>::Price,
         payer: &S::Address,
         policy: &PayeePolicy<S>,
-        state: &mut impl InfallibleStateAccessor,
-    ) -> Result<(), ReserveGasError<S>> {
+        state: &mut impl StateAccessor,
+    ) -> Result<(), ReserveGasError> {
         policy.authorize_transaction(tx, gas_price)?;
         self.bank.reserve_gas(tx, gas_price, payer, state)
     }
