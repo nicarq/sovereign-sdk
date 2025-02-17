@@ -129,6 +129,9 @@ impl StorableMockDaService {
         da_layer: Arc<RwLock<StorableMockDaLayer>>,
         block_producing: BlockProducingConfig,
     ) -> Self {
+        if !matches!(block_producing, BlockProducingConfig::Periodic { .. }) {
+            tracing::warn!("Periodic block should be spawned separately, please use Self::from_config otherwise");
+        }
         Self::construct(sequencer_da_address, da_layer, block_producing, None)
     }
 

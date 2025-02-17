@@ -10777,6 +10777,8 @@ dependencies = [
  "insta",
  "jsonrpsee",
  "num_cpus",
+ "proptest",
+ "rand",
  "rayon",
  "rockbound",
  "schemars",

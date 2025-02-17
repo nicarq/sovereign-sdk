@@ -311,11 +311,19 @@ where
             };
 
         let rollup_task = tokio::spawn(async move {
-            rollup
+            match rollup
                 .run_and_report_addr(Some(rpc_addr_tx), Some(rest_addr_tx))
-                .await?;
-            tracing::info!("Completed running a rollup");
-            Ok(())
+                .await
+            {
+                Ok(()) => {
+                    tracing::info!("Completed running a rollup");
+                    Ok(())
+                }
+                Err(error) => {
+                    tracing::error!(?error, "Rollup execution returned an error");
+                    Err(error)
+                }
+            }
         });
 
         let rest_addr = rest_addr_rx.await?;

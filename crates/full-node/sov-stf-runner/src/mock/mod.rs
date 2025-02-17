@@ -12,7 +12,6 @@ use sov_rollup_interface::zk::Zkvm;
 pub struct MockStf;
 
 #[derive(
-    Debug,
     Clone,
     PartialEq,
     Eq,
@@ -21,10 +20,12 @@ pub struct MockStf;
     BorshSerialize,
     BorshDeserialize,
     derive_more::Display,
+    derive_more::Debug,
     derive_more::From,
     derive_more::AsRef,
 )]
-#[display("{}", hex::encode(self.0.clone()))]
+#[display("{}", hex::encode(&self.0))]
+#[debug("MockRoot({})", hex::encode(&self.0))]
 /// A mock state root
 pub struct MockRoot(Vec<u8>);
 
