@@ -4,13 +4,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
 use crate::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
-use crate::{Context, Gas, InfallibleStateAccessor, Spec};
-
-/// The error type returned by the [`GasEnforcer::try_reserve_gas`] method.
-pub struct TryReserveGasError {
-    /// The reason why it was not possible to reserve gas.
-    pub reason: String,
-}
+use crate::{Context, Gas, InfallibleStateAccessor, Spec, StateAccessor};
 
 /// Enforces gas limits and penalties for transactions.
 pub trait GasEnforcer<S: Spec> {
@@ -29,8 +23,8 @@ pub trait GasEnforcer<S: Spec> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         ctx: &mut Context<S>,
-        scratchpad: &mut impl InfallibleStateAccessor,
-    ) -> Result<(), TryReserveGasError>;
+        state: &mut impl StateAccessor,
+    ) -> anyhow::Result<()>;
 
     /// Checks that the proof or attestation has enough gas to be processed.
     ///
@@ -47,8 +41,8 @@ pub trait GasEnforcer<S: Spec> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         sender: &S::Address,
-        scratchpad: &mut impl InfallibleStateAccessor,
-    ) -> Result<(), TryReserveGasError>;
+        scratchpad: &mut impl StateAccessor,
+    ) -> anyhow::Result<()>;
 
     /// Rewards the prover
     /// This method should not fail.

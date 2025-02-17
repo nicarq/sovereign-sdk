@@ -1,5 +1,5 @@
-use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{CredentialId, InfallibleStateAccessor, Spec};
+use sov_modules_api::{CredentialId, Spec, StateAccessor, StateWriter};
+use sov_state::User;
 
 use crate::{Account, Accounts};
 
@@ -10,17 +10,13 @@ impl<S: Spec> Accounts<S> {
     ///
     /// # Errors
     /// If the credential is not registered AND no fallback is provided, returns an error.
-    pub fn resolve_sender_address(
+    pub fn resolve_sender_address<ST: StateAccessor>(
         &self,
         default_address: &S::Address,
         credential_id: &CredentialId,
-        state: &mut impl InfallibleStateAccessor,
-    ) -> anyhow::Result<S::Address> {
-        let maybe_address = self
-            .accounts
-            .get(credential_id, state)
-            .unwrap_infallible()
-            .map(|a| a.addr);
+        state: &mut ST,
+    ) -> Result<S::Address, <ST as StateWriter<User>>::Error> {
+        let maybe_address = self.accounts.get(credential_id, state)?.map(|a| a.addr);
 
         match maybe_address {
             Some(address) => Ok(address),

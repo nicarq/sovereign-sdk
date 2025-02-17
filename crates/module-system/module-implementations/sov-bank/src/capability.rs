@@ -1,7 +1,5 @@
-use sov_modules_api::capabilities::TryReserveGasError;
-use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
-use sov_modules_api::{Gas, InfallibleStateAccessor, Spec, StateAccessorError};
+use sov_modules_api::{Gas, InfallibleStateAccessor, Spec, StateAccessor};
 use thiserror::Error;
 
 use crate::utils::IntoPayable;
@@ -9,7 +7,7 @@ use crate::{config_gas_token_id, Bank, Coins, Payable};
 
 /// Error types that can be raised by the `reserve_gas` method
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
-pub enum ReserveGasError<S: Spec> {
+pub enum ReserveGasError {
     #[error("The payer {account} does not have an account in the `Bank` module for the gas token")]
     /// The payer does not have an account in the `Bank` module for the gas token
     AccountDoesNotExist {
@@ -30,15 +28,7 @@ pub enum ReserveGasError<S: Spec> {
     ImpossibleToTransferGas(String),
     /// Error occurred while accessing the state
     #[error("An error occurred while accessing the state: {0}")]
-    StateAccessError(StateAccessorError<S::Gas>),
-}
-
-impl<S: Spec> From<ReserveGasError<S>> for TryReserveGasError {
-    fn from(err: ReserveGasError<S>) -> Self {
-        Self {
-            reason: err.to_string(),
-        }
-    }
+    StateAccessError(String),
 }
 
 /// The [`Bank::reserve_gas`] and [`Bank::refund_remaining_gas`] are used to reserve and then lock transaction base gas and tip
@@ -51,12 +41,12 @@ impl<S: Spec> Bank<S> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         payer: &S::Address,
-        scratchpad: &mut impl InfallibleStateAccessor,
-    ) -> Result<(), ReserveGasError<S>> {
+        state: &mut impl StateAccessor,
+    ) -> Result<(), ReserveGasError> {
         // We need to do the explicit check (outside of a closure) because otherwise `state_checkpoint` would be captured.
         let balance = match self
-            .get_balance_of(&payer.clone(), config_gas_token_id(), scratchpad)
-            .unwrap_infallible()
+            .get_balance_of(&payer.clone(), config_gas_token_id(), state)
+            .map_err(|e| ReserveGasError::StateAccessError(e.to_string()))?
         {
             Some(balance) => balance,
             None => {
@@ -100,7 +90,7 @@ impl<S: Spec> Bank<S> {
                 amount: tx.max_fee,
                 token_id: config_gas_token_id(),
             },
-            scratchpad,
+            state,
         ) {
             return Err(ReserveGasError::ImpossibleToTransferGas(err.to_string()));
         }

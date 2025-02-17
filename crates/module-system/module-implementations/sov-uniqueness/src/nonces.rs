@@ -1,5 +1,4 @@
-use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{CredentialId, InfallibleStateAccessor, Spec, StateAccessor};
+use sov_modules_api::{CredentialId, Spec, StateAccessor};
 
 use crate::Uniqueness;
 impl<S: Spec> Uniqueness<S> {
@@ -25,18 +24,14 @@ impl<S: Spec> Uniqueness<S> {
     pub(crate) fn mark_nonce_tx_attempted(
         &self,
         credential_id: &CredentialId,
-        tx_scratchpad: &mut impl InfallibleStateAccessor,
-    ) {
-        let nonce = self
-            .nonces
-            .get(credential_id, tx_scratchpad)
-            .unwrap_infallible()
-            .unwrap_or_default();
+        state: &mut impl StateAccessor,
+    ) -> anyhow::Result<()> {
+        let nonce = self.nonces.get(credential_id, state)?.unwrap_or_default();
 
         let nonce = nonce + 1;
 
-        self.nonces
-            .set(credential_id, &nonce, tx_scratchpad)
-            .unwrap_infallible();
+        self.nonces.set(credential_id, &nonce, state)?;
+
+        Ok(())
     }
 }

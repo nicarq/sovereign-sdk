@@ -105,7 +105,10 @@ fn send_tx_bad_nonce() {
         input: generate_default_tx(UniquenessData::Nonce(5), &admin, &evm_account),
         assert: Box::new(move |ctx, _state| {
             if let TxEffect::Skipped(skipped) = &ctx.tx_receipt {
-                assert!(matches!(skipped.error, TxProcessingError::NotUnique(_)));
+                assert!(matches!(
+                    skipped.error,
+                    TxProcessingError::CheckUniquenessFailed(_)
+                ));
             } else {
                 panic!(
                     "Expected Skipped error, but got a different TxEffect: {:?}",
@@ -132,7 +135,10 @@ fn send_tx_bad_generation_duplicate() {
         input: generate_default_tx(UniquenessData::Generation(5), &admin, &evm_account),
         assert: Box::new(move |ctx, _state| {
             if let TxEffect::Skipped(skipped) = &ctx.tx_receipt {
-                assert!(matches!(skipped.error, TxProcessingError::NotUnique(_)));
+                assert!(matches!(
+                    skipped.error,
+                    TxProcessingError::CheckUniquenessFailed(_)
+                ));
             } else {
                 panic!(
                     "Expected Skipped error, but got a different TxEffect: {:?}",
@@ -159,7 +165,10 @@ fn send_tx_bad_generation_too_old() {
         input: generate_default_tx(UniquenessData::Generation(0), &admin, &evm_account),
         assert: Box::new(move |ctx, _state| {
             if let TxEffect::Skipped(skipped) = &ctx.tx_receipt {
-                assert!(matches!(skipped.error, TxProcessingError::NotUnique(_)));
+                assert!(matches!(
+                    skipped.error,
+                    TxProcessingError::CheckUniquenessFailed(_)
+                ));
             } else {
                 panic!(
                     "Expected Skipped error, but got a different TxEffect: {:?}",

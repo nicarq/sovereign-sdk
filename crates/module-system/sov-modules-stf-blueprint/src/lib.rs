@@ -78,9 +78,9 @@ pub enum TxProcessingError {
     /// Transaction authentication failed.
     #[error(" Transaction authentication failed {0}.")]
     AuthenticationFailed(String),
-    /// The transaction was a duplicate.
-    #[error("The transaction was a duplicate. Reason: {0}.")]
-    NotUnique(String),
+    /// The uniqueness check failed.
+    #[error("The uniqueness check failed. Reason: {0}.")]
+    CheckUniquenessFailed(String),
     /// Impossible to reserve gas for the transaction to be executed.
     #[error("Impossible to reserve gas for the transaction to be executed, reason: {0}.")]
     CannotReserveGas(String),
@@ -90,6 +90,9 @@ pub enum TxProcessingError {
     /// Rejected by a pre-flight check.
     #[error("The transaction was rejected by a pre-flight check.")]
     RejectedByPreFlight,
+    /// Failed to mark trasnaction.
+    #[error("Failed to mark trasnaction, reason: {0}.")]
+    MarkTxAttemptedFailed(String),
     /// The transaction ran out of gas
     #[error("The transaction ran out of gas, reason: {0}.")]
     OutOfGas(String),
