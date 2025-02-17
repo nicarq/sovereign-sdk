@@ -159,15 +159,15 @@ where
             );
         }
 
-        let (res, tx_scratchpad) = process_tx_and_reward_sequencer(
+        let pre_exec_working_set = tx_scratchpad.to_pre_exec_working_set(gas_meter);
+        let (res, tx_scratchpad, _gas_meter) = process_tx_and_reward_sequencer(
             &self.runtime,
-            &gas_meter,
+            pre_exec_working_set,
             // Currently the sequencer doesn't take into account the slot gas limit.
             &<<Z::Spec as Spec>::Gas>::MAX,
             auth_output,
             &self.config.da_address,
             self.config.rollup_address.clone(),
-            tx_scratchpad,
             ExecutionContext::Sequencer,
             &NoOpControlFlow,
         );

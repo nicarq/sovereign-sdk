@@ -32,17 +32,17 @@ use crate::{
 #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 pub fn process_tx_and_reward_sequencer<S, R, I, C>(
     runtime: &R,
-    pre_exec_gas_meter: &BasicGasMeter<S>,
+    pre_exec_working_set: PreExecWorkingSet<S, I>,
     slot_gas: &S::Gas,
     validated_output: AuthTxOutput<S, R>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     sequencer_rollup_address: S::Address,
-    scratchpad: TxScratchpad<S, I>,
     #[allow(unused_variables)] execution_context: ExecutionContext,
     injected_control_flow: &C,
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
     TxScratchpad<S, I>,
+    BasicGasMeter<S>,
 )
 where
     S: Spec,
@@ -52,7 +52,7 @@ where
 {
     #[cfg(feature = "native")]
     let visible_slot_number =
-        sov_modules_api::VersionReader::visible_slot_number_to_access(&scratchpad);
+        sov_modules_api::VersionReader::visible_slot_number_to_access(&pre_exec_working_set);
 
     #[cfg(feature = "native")]
     let (start, discriminant) = {
@@ -64,12 +64,11 @@ where
 
     let result = process_tx_and_reward_sequencer_inner(
         runtime,
-        pre_exec_gas_meter,
+        pre_exec_working_set,
         slot_gas,
         validated_output,
         sequencer_da_address,
         sequencer_rollup_address,
-        scratchpad,
         injected_control_flow,
     );
 
@@ -121,16 +120,16 @@ fn track_transaction_metrics<S: Spec>(
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
 fn process_tx_and_reward_sequencer_inner<S, R, I, C>(
     runtime: &R,
-    pre_exec_gas_meter: &BasicGasMeter<S>,
+    pre_exec_working_set: PreExecWorkingSet<S, I>,
     slot_gas: &S::Gas,
     validated_output: AuthTxOutput<S, R>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     sequencer_rollup_address: S::Address,
-    mut scratchpad: TxScratchpad<S, I>,
     injected_control_flow: &C,
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
     TxScratchpad<S, I>,
+    BasicGasMeter<S>,
 )
 where
     S: Spec,
@@ -138,6 +137,8 @@ where
     I: StateProvider<S>,
     C: InjectedControlFlow<TransactionReceipt<S>, S>,
 {
+    let (mut scratchpad, pre_exec_gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
+
     let (auth_tx, auth_data, message) = validated_output;
 
     let raw_tx_hash = auth_tx.raw_tx_hash;
@@ -155,6 +156,7 @@ where
             return (
                 Err(TxProcessingError::CannotResolveContext(err.to_string())),
                 scratchpad,
+                pre_exec_gas_meter,
             );
         }
     };
@@ -165,6 +167,7 @@ where
             return (
                 Err(TxProcessingError::RejectedByPreFlight),
                 scratchpad.revert().to_tx_scratchpad(),
+                pre_exec_gas_meter,
             )
         }
     }
@@ -178,6 +181,7 @@ where
         return (
             Err(TxProcessingError::NotUnique(err.to_string())),
             scratchpad,
+            pre_exec_gas_meter,
         );
     }
 
@@ -190,6 +194,7 @@ where
         return (
             Err(TxProcessingError::CannotReserveGas(reason.to_string())),
             scratchpad,
+            pre_exec_gas_meter,
         );
     }
 
@@ -213,6 +218,7 @@ where
         return (
             Err(TxProcessingError::OutOfGas(err.to_string())),
             scratchpad,
+            pre_exec_gas_meter,
         );
     }
 
@@ -244,7 +250,7 @@ where
         &mut scratchpad,
     );
 
-    (Ok(apply_tx), scratchpad)
+    (Ok(apply_tx), scratchpad, pre_exec_gas_meter)
 }
 
 #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
@@ -490,7 +496,7 @@ fn penalize_sequencer<S: Spec, RT: Runtime<S>, I: StateProvider<S>>(
 #[allow(clippy::too_many_arguments)]
 fn auth_and_process_tx_and_incentivize_sequencer<S, RT, I, C>(
     runtime: &RT,
-    mut scratchpad: TxScratchpad<S, I>,
+    scratchpad: TxScratchpad<S, I>,
     slot_gas: &S::Gas,
     raw_tx: &FullyBakedTx,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
@@ -566,50 +572,50 @@ where
     let authentication_result =
         deserialize_and_authenticate(runtime, raw_tx, &mut pre_exec_working_set);
 
-    let (next_scratchpad, returned_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
-    let pre_exec_gas_meter = returned_meter;
-
-    scratchpad = next_scratchpad;
-
     let validated_output = match authentication_result {
         Ok(auth_output) => auth_output,
-        Err(pre_exec_error) => match pre_exec_error {
-            AuthenticationError::FatalError(err, tx_hash) => {
-                penalize_sequencer(
-                    runtime,
-                    pre_exec_gas_meter.gas_info().gas_value,
-                    sequencer_da_address,
-                    &mut scratchpad,
-                );
+        Err(pre_exec_error) => {
+            let (mut scratchpad, pre_exec_gas_meter) =
+                pre_exec_working_set.to_scratchpad_and_gas_meter();
 
-                let gas_used_for_authentication = pre_exec_gas_meter.gas_info().gas_used;
-                return AuthAndProcessOutput {
-                    scratchpad,
-                    gas_used: gas_used_for_authentication,
-                    outcome: AuthAndProcessOutcome::Skipped {
-                        error: TxProcessingError::AuthenticationFailed(err.to_string()),
-                        tx_hash,
-                    },
-                };
-            }
-            AuthenticationError::OutOfGas(e) => {
-                penalize_sequencer(
-                    runtime,
-                    pre_exec_gas_meter.gas_info().gas_value,
-                    sequencer_da_address,
-                    &mut scratchpad,
-                );
+            match pre_exec_error {
+                AuthenticationError::FatalError(err, tx_hash) => {
+                    penalize_sequencer(
+                        runtime,
+                        pre_exec_gas_meter.gas_info().gas_value,
+                        sequencer_da_address,
+                        &mut scratchpad,
+                    );
 
-                let gas_used_for_authentication = pre_exec_gas_meter.gas_info().gas_used;
-                return AuthAndProcessOutput {
+                    let gas_used_for_authentication = pre_exec_gas_meter.gas_info().gas_used;
+                    return AuthAndProcessOutput {
+                        scratchpad,
+                        gas_used: gas_used_for_authentication,
+                        outcome: AuthAndProcessOutcome::Skipped {
+                            error: TxProcessingError::AuthenticationFailed(err.to_string()),
+                            tx_hash,
+                        },
+                    };
+                }
+                AuthenticationError::OutOfGas(e) => {
+                    penalize_sequencer(
+                        runtime,
+                        pre_exec_gas_meter.gas_info().gas_value,
+                        sequencer_da_address,
+                        &mut scratchpad,
+                    );
+
+                    let gas_used_for_authentication = pre_exec_gas_meter.gas_info().gas_used;
+                    return AuthAndProcessOutput {
                         scratchpad,
                         gas_used: gas_used_for_authentication,
                         outcome: AuthAndProcessOutcome::IllegalSequencer {
                             reason: format!("The sequencer did not have sufficient funds to cover tx authentication: {}", e),
                         },
                     };
+                }
             }
-        },
+        }
     };
 
     // Begin the transaction processing phase.
@@ -620,30 +626,29 @@ where
     // penalizing the sequencer if the transaction cannot be executed due to sequencer error is with the caller.
     let process_tx_result = process_tx_and_reward_sequencer(
         runtime,
-        &pre_exec_gas_meter,
+        pre_exec_working_set,
         slot_gas,
         validated_output,
         sequencer_da_address,
         sequencer_rollup_address,
-        scratchpad,
         execution_context,
         injected_control_flow,
     );
 
     span.exit();
 
-    let (tx_result, mut scratchpad) = process_tx_result;
+    let (tx_result, mut scratchpad, gas_meter) = process_tx_result;
 
     match tx_result {
         Err(error) => {
             penalize_sequencer(
                 runtime,
-                pre_exec_gas_meter.gas_info().gas_value,
+                gas_meter.gas_info().gas_value,
                 sequencer_da_address,
                 &mut scratchpad,
             );
 
-            let gas_used = pre_exec_gas_meter.gas_info().gas_used;
+            let gas_used = gas_meter.gas_info().gas_used;
             AuthAndProcessOutput {
                 outcome: AuthAndProcessOutcome::Skipped {
                     error,

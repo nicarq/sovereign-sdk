@@ -3,9 +3,9 @@ use sov_modules_api::capabilities::{
     TryReserveGasError, UnregisteredAuthenticationError,
 };
 use sov_modules_api::{
-    BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, Gas, GasArray, GasInfo,
-    GasMeter, GasSpec, IgnoredTransactionReceipt, Rewards, Spec, StateProvider, TxScratchpad,
-    WorkingSet,
+    BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, Gas, GasArray, GasMeter,
+    GasSpec, IgnoredTransactionReceipt, PreExecWorkingSet, Rewards, Spec, StateProvider,
+    TxScratchpad, WorkingSet,
 };
 use tracing::{debug, warn};
 
@@ -21,15 +21,16 @@ use crate::{
 #[allow(clippy::too_many_arguments)]
 pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
+    pre_exec_ws: PreExecWorkingSet<S, I>,
     slot_gas: &S::Gas,
     validated_output: AuthTxOutput<S, R>,
-    gas_info: GasInfo<S::Gas>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
-    mut scratchpad: TxScratchpad<S, I>,
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
     TxScratchpad<S, I>,
 ) {
+    let (mut scratchpad, gas_meter) = pre_exec_ws.to_scratchpad_and_gas_meter();
+    let gas_info = gas_meter.gas_info();
     let (auth_tx, auth_data, message) = validated_output;
 
     let raw_tx_hash = auth_tx.raw_tx_hash;
@@ -128,19 +129,10 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
 #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
-    meter: BasicGasMeter<S>,
     batch: &BatchFromUnregisteredSequencer,
-    scratchpad: TxScratchpad<S, I>,
-) -> (
-    Result<AuthTxOutput<S, R>, UnregisteredAuthenticationError>,
-    TxScratchpad<S, I>,
-    GasInfo<S::Gas>,
-) {
-    let mut pre_exec_working_set = scratchpad.to_pre_exec_working_set(meter);
-
-    let res = runtime.authenticate_unregistered(batch, &mut pre_exec_working_set);
-    let (scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
-    (res, scratchpad, gas_meter.gas_info())
+    pre_exec_working_set: &mut PreExecWorkingSet<S, I>,
+) -> Result<AuthTxOutput<S, R>, UnregisteredAuthenticationError> {
+    runtime.authenticate_unregistered(batch, pre_exec_working_set)
 }
 
 #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
@@ -222,12 +214,17 @@ where
     // Additionally, we rate-limit (during blob selection) the number of forced registrations to further reduce the effectiveness of such attacks.
     let meter = BasicGasMeter::new_with_gas(max_unregistered_tx_check_costs, gas_price.clone());
 
-    let authentication_result = authenticate_unregistered_tx(runtime, meter, &batch, scratchpad);
+    let mut pre_exec_working_set = scratchpad.to_pre_exec_working_set(meter);
+    let authentication_result =
+        authenticate_unregistered_tx(runtime, &batch, &mut pre_exec_working_set);
 
-    let (validated_output, gas_info, scratchpad) = match authentication_result {
-        (Ok(auth_output), scratchpad, gas_info) => (auth_output, gas_info, scratchpad),
+    let validated_output = match authentication_result {
+        Ok(auth_output) => auth_output,
         // Note that on failure no one to pays for the gas used. However, we still meter it so that it counts against the slot gas limit.
-        (Err(UnregisteredAuthenticationError::FatalError(err, tx_hash)), scratchpad, gas_info) => {
+        Err(UnregisteredAuthenticationError::FatalError(err, tx_hash)) => {
+            let (scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
+            let gas_info = gas_meter.gas_info();
+
             let err_str = format!("Unregistered sequencer authentication failed: {}", err);
             warn!(error = ?err_str);
 
@@ -248,7 +245,10 @@ where
             );
         }
 
-        (Err(UnregisteredAuthenticationError::OutOfGas(reason)), scratchpad, gas_info) => {
+        Err(UnregisteredAuthenticationError::OutOfGas(reason)) => {
+            let (scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
+            let gas_info = gas_meter.gas_info();
+
             warn!(
                 error = %reason,
                 "Not enough gas to authenticate the batch",
@@ -274,11 +274,10 @@ where
 
     let process_tx_result = process_unauthorized_tx(
         runtime,
+        pre_exec_working_set,
         slot_gas,
         validated_output,
-        gas_info,
         sequencer_da_address,
-        scratchpad,
     );
 
     let mut tx_receipts = Vec::new();
