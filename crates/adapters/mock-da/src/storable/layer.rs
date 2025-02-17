@@ -278,6 +278,16 @@ impl StorableMockDaLayer {
         self.get_header_at(self.last_finalized_height).await
     }
 
+    pub(crate) async fn get_block_header_at(&self, height: u32) -> anyhow::Result<MockBlockHeader> {
+        if height >= self.next_height {
+            anyhow::bail!("Block at height {} has not been produced yet", height);
+        }
+        if height == 0 {
+            return Ok(GENESIS_HEADER);
+        }
+        self.get_header_at(height).await
+    }
+
     pub(crate) async fn get_block_at(&self, height: u32) -> anyhow::Result<MockBlock> {
         if height >= self.next_height {
             anyhow::bail!("Block at height {} has not been produced yet", height);

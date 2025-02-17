@@ -163,6 +163,16 @@ pub trait DaService: Clone + Send + Sync + 'static {
     /// Should always returns the block at that height on the best fork.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error>;
 
+    /// Similar to [`Self::get_block_at`], but only returns the block header and not the whole block.
+    /// All constraints and limitations of [`Self::get_block_at`] apply
+    async fn get_block_header_at(
+        &self,
+        height: u64,
+    ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
+        let block = self.get_block_at(height).await?;
+        Ok(block.header().clone())
+    }
+
     /// How long the node should wait after a block is produced before
     /// submitting a transaction.
     ///
