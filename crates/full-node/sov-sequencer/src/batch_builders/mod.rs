@@ -297,13 +297,13 @@ where
 fn sender_is_allowed<RT: Runtime<S>, S: Spec>(
     runtime: &RT,
     call: &<RT as DispatchCall>::Decodable,
-    sender: Option<&S::Address>,
+    sender: &S::Address,
     sequencer_address: &<S::Da as DaSpec>::Address,
     admins: &[S::Address],
 ) -> bool {
     let destination_module = <RT as DispatchCall>::module_info(runtime, call.discriminant());
     destination_module.is_safe_for_sequencer(call.contents(), sequencer_address)
-        || sender.is_some_and(|addr| admins.contains(addr))
+        || admins.contains(sender)
 }
 
 /// ID of a [`SeqDbTx`].
