@@ -120,6 +120,8 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
         );
 
         assert_eq!(batch_receipt.inner.gas_used, total_gas);
+        // Ensure that a transaction, including a failed one, still incurs gas costs.
+        assert!(<<S as Spec>::Gas>::zero().dim_is_less_than(&total_gas));
     }
 
     assert_eq!(nb_of_valid_txs, valid_tx_count);
