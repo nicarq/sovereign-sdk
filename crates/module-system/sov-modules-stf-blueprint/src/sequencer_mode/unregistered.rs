@@ -28,6 +28,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
     TxScratchpad<S, I>,
+    BasicGasMeter<S>,
 ) {
     pre_exec_working_set = pre_exec_working_set.commit();
     let (auth_tx, auth_data, message) = validated_output;
@@ -41,10 +42,11 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     {
         Ok(ctx) => ctx,
         Err(e) => {
-            let (scratchpad, _pre_exec_gas_meter) = pre_exec_working_set.revert();
+            let (scratchpad, pre_exec_gas_meter) = pre_exec_working_set.revert();
             return (
                 Err(TxProcessingError::CannotResolveContext(e.to_string())),
                 scratchpad,
+                pre_exec_gas_meter,
             );
         }
     };
@@ -55,10 +57,11 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         &ctx,
         &mut pre_exec_working_set,
     ) {
-        let (scratchpad, _pre_exec_gas_meter) = pre_exec_working_set.revert();
+        let (scratchpad, pre_exec_gas_meter) = pre_exec_working_set.revert();
         return (
             Err(TxProcessingError::CheckUniquenessFailed(e.to_string())),
             scratchpad,
+            pre_exec_gas_meter,
         );
     }
 
@@ -67,10 +70,11 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         sequencer_da_address,
         &mut pre_exec_working_set,
     ) {
-        let (scratchpad, _pre_exec_gas_meter) = pre_exec_working_set.revert();
+        let (scratchpad, pre_exec_gas_meter) = pre_exec_working_set.revert();
         return (
             Err(TxProcessingError::MarkTxAttemptedFailed(err.to_string())),
             scratchpad,
+            pre_exec_gas_meter,
         );
     }
 
@@ -81,15 +85,16 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
             .gas_enforcer()
             .try_reserve_gas(tx, &gas_price, &mut ctx, &mut pre_exec_working_set)
     {
-        let (scratchpad, _pre_exec_gas_meter) = pre_exec_working_set.revert();
+        let (scratchpad, pre_exec_gas_meter) = pre_exec_working_set.revert();
         return (
             Err(TxProcessingError::CannotReserveGas(err.to_string())),
             scratchpad,
+            pre_exec_gas_meter,
         );
     }
 
-    let (scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
-    let gas_info = gas_meter.gas_info();
+    let (scratchpad, pre_exec_gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
+    let gas_info = pre_exec_gas_meter.gas_info();
 
     // The transaction will execute until one of the following conditions is met:
     // 1. It consumes more funds than `tx.max_fee`.
@@ -111,6 +116,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         return (
             Err(TxProcessingError::OutOfGas(err.to_string())),
             scratchpad,
+            pre_exec_gas_meter,
         );
     }
 
@@ -137,7 +143,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         &mut scratchpad,
     );
 
-    (Ok(apply_tx), scratchpad)
+    (Ok(apply_tx), scratchpad, pre_exec_gas_meter)
 }
 
 #[allow(clippy::type_complexity)]
@@ -299,13 +305,13 @@ where
     let gas_used;
     let mut accumulated_reward = 0;
 
-    let (tx_result, scratchpad) = process_tx_result;
+    let (tx_result, scratchpad, pre_exec_gas_meter) = process_tx_result;
 
     match tx_result {
         Err(error) => {
-            // TODO: We should still account for the gas consumed before failure to ensure that the slot gas limit is enforced accurately.
-            // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2357
-            gas_used = S::Gas::zero();
+            // There is no one to charge for the pre-execution gas because the sequencer was not registered at the time of the error.
+            // However, we deduct the gas from the slot gas meter.
+            gas_used = pre_exec_gas_meter.gas_info().gas_used;
             let skipped = SkippedTxContents {
                 error,
                 gas_used: gas_used.clone(),
