@@ -8,10 +8,12 @@ use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::{
-    ApiStateAccessor, Gas, GasArray, GasSpec, GasUnit, ModuleInfo, RawTx, Rewards,
+    ApiStateAccessor, Gas, GasArray, GasSpec, GasUnit, ModuleInfo, RawTx, Rewards, Spec,
+    TransactionReceipt,
 };
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::da::RelevantBlobs;
+use sov_test_utils::TxReceiptContents;
 
 use super::{get_balance, get_seq_bond, TxStatus};
 use crate::stf_blueprint::{create_tx_valid, setup};
@@ -31,7 +33,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
 
     let txs_len = tx_statuses.len();
 
-    let mock_blob = create_txs(
+    let mock_blob = create_blob(
         &tx_statuses,
         priority_fee_bips,
         &actors.admin_account,
@@ -195,7 +197,7 @@ fn non_existing_seq_da_tests() {
 
     let bad_da_address: [u8; 32] = [33u8; 32];
 
-    let mock_blob = create_txs(
+    let mock_blob = create_blob(
         &tx_statuses,
         priority_fee_bips,
         &actors.admin_account,
@@ -265,6 +267,73 @@ fn slot_out_of_gas_tests() {
     assert!(matches!(tx_receipt, TxEffect::Reverted(_)));
 }
 
+// This test verifies that the gas used for executing a batch matches the total gas consumed for executing all transactions within the batch.
+#[test]
+fn test_batch_gas_used() {
+    let priority_fee_bips = PriorityFeeBips::from_percentage(5);
+    let (mut runner, users, sequencer_account) = setup(2);
+
+    let actors = Actors {
+        admin_account: users[0].clone(),
+        not_admin_account: users[1].clone(),
+        sequencer_account,
+    };
+
+    let mut txs = create_txs(
+        &[
+            TxStatus::Success,
+            TxStatus::Success,
+            TxStatus::Success,
+            TxStatus::Success,
+        ],
+        priority_fee_bips,
+        &actors.admin_account,
+        &actors.not_admin_account,
+    );
+
+    let seq_da_address = runner.config.sequencer_da_address;
+
+    // Create two batches with two transactions each.
+    let batch_blobs = vec![
+        MockBlob::new_with_hash(
+            borsh::to_vec(&vec![txs.remove(0), txs.remove(0)]).unwrap(),
+            seq_da_address,
+        ),
+        MockBlob::new_with_hash(
+            borsh::to_vec(&vec![txs.remove(0), txs.remove(0)]).unwrap(),
+            seq_da_address,
+        ),
+    ];
+
+    let blobs = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs,
+    };
+
+    let result = runner.execute::<RelevantBlobs<MockBlob>>(blobs);
+    let batch_receipt_1 = result.batch_receipts[0].clone();
+    let batch_receipt_2 = result.batch_receipts[1].clone();
+
+    let gas_used = get_gas_from_txs(&batch_receipt_1.tx_receipts);
+    assert_eq!(batch_receipt_1.inner.gas_used, gas_used);
+
+    let gas_used = get_gas_from_txs(&batch_receipt_2.tx_receipts);
+    assert_eq!(batch_receipt_2.inner.gas_used, gas_used);
+
+    fn get_gas_from_txs(receipts: &[TransactionReceipt<TxReceiptContents<S>>]) -> <S as Spec>::Gas {
+        let mut gas_in_batch = <<S as Spec>::Gas>::zero();
+        for receipt in receipts {
+            match &receipt.receipt {
+                sov_modules_api::TxEffect::Successful(tx_contents) => {
+                    gas_in_batch = gas_in_batch.checked_combine(&tx_contents.gas_used).unwrap();
+                }
+                _ => panic!("Transactions should succeed"),
+            }
+        }
+        gas_in_batch
+    }
+}
+
 mod helpers {
     use sov_modules_api::macros::config_value;
     use sov_modules_api::transaction::PriorityFeeBips;
@@ -319,8 +388,7 @@ mod helpers {
         max_priority_fee_bips: PriorityFeeBips,
         admin: &TestUser<S>,
         not_admin: &TestUser<S>,
-        seq_da_address: <<S as Spec>::Da as DaSpec>::Address,
-    ) -> MockBlob {
+    ) -> Vec<FullyBakedTx> {
         let mut generation = 10;
         let mut txs: Vec<FullyBakedTx> = Vec::new();
         for status in statuses {
@@ -407,6 +475,18 @@ mod helpers {
                 }
             }
         }
+        txs
+    }
+
+    pub(crate) fn create_blob(
+        statuses: &[TxStatus],
+        max_priority_fee_bips: PriorityFeeBips,
+        admin: &TestUser<S>,
+        not_admin: &TestUser<S>,
+        seq_da_address: <<S as Spec>::Da as DaSpec>::Address,
+    ) -> MockBlob {
+        let txs: Vec<FullyBakedTx> = create_txs(statuses, max_priority_fee_bips, admin, not_admin);
+
         let blob = borsh::to_vec(&txs).unwrap();
         MockBlob::new_with_hash(blob, seq_da_address)
     }
