@@ -1199,7 +1199,7 @@ mod tests {
                 let mut da_layer = da_layer.write().await;
                 da_layer.shuffle_non_finalized_blobs(&mut rng, 0).await?;
             }
-            // First check if we need to submit blob, so it will keep floating
+            // First, check if we need to submit a blob, so it will keep floating
             // TO
             // last_finalized_header = da_service.get_last_finalized_block_header().await?;
 
@@ -1315,7 +1315,9 @@ mod tests {
                 da_layer: None,
                 randomization: Some(RandomizationConfig {
                     seed: HexHash::from(SEED_1),
-                    behaviour: RandomizationBehaviour::ShuffleNonFinalizedBlobs { drop_percent: 0 },
+                    // At every new block
+                    reorg_interval: 1..2,
+                    behaviour: RandomizationBehaviour::only_shuffle(0),
                 }),
             },
             receiver,

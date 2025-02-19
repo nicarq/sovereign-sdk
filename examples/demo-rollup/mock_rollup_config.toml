@@ -11,10 +11,15 @@ sender_address = "00000000000000000000000000000000000000000000000000000000000000
 finalization = 40
 [da.block_producing.periodic]
 block_time_ms = 1_000
-[da.randomization]
-seed = "0x0000000000000000000000000000000000000000000000000000000000000012"
-[da.randomization.behaviour.shuffle_non_finalized_blobs]
-drop_percent = 0
+# Disable reorg for now, for better stability
+#[da.randomization]
+#seed = "0x0000000000000000000000000000000000000000000000000000000000000012"
+#reorg_interval = [10, 20]
+#[da.randomization.behaviour.shuffle_and_resize]
+## No drop
+#drop_percent = 0
+## No resize
+# adjust_head_height = [0, 1]
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.

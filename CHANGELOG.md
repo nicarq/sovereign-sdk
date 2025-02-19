@@ -1,3 +1,15 @@
+## 2025-02-18
+- #2448- Randomization now includes a new mandatory parameter for `MockDaConfig`: `reorg_interval = [n, m]`.
+  This parameter defines how often reorganization-like randomization should occur.
+  If you were previously using the `[da.randomization]` parameter, update your configuration to include `reorg_interval` to maintain the same behavior. Example:
+  ```toml
+  [da.randomization]
+  seed = "0x0000000000000000000000000000000000000000000000000000000000000012"
+  # **new section**: Reorg on every new block  
+  reorg_interval = [1, 2]
+  [da.randomization.behaviour.shuffle_non_finalized_blobs]
+  drop_percent = 0
+  ```
 ## 2025-02-17
 - #2447 Bumps some gas constant values - in particular `MAX_SEQUENCER_EXEC_GAS_PER_TX` and `INITIAL_GAS_LIMIT`. Users of the SDK may need to update their genesis configuration file by increasing the sequencer bond inside the `sequencer_registry.json` config file.
 - #2436 Adds the optional `DaService::get_block_header_at` method. 

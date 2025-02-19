@@ -257,10 +257,15 @@ impl StorableMockDaService {
     pub async fn set_randomized_blobs_retrieval(&self, seed: Option<[u8; 32]>) {
         let mut da_layer = self.da_layer.write().await;
         match seed {
-            Some(seed) => da_layer.set_randomizer(Randomizer::from_config(RandomizationConfig {
-                seed: HexHash::new(seed),
-                behaviour: RandomizationBehaviour::OutOfOrderBlobs,
-            })),
+            Some(seed) => {
+                let finality = da_layer.blocks_to_finality;
+                da_layer.set_randomizer(Randomizer::from_config(RandomizationConfig {
+                    seed: HexHash::new(seed),
+                    // Not really applicable for this scenario, but still put something sensible.
+                    reorg_interval: 1..finality,
+                    behaviour: RandomizationBehaviour::OutOfOrderBlobs,
+                }));
+            }
             None => {
                 let _ = da_layer.disable_randomizer();
             }
