@@ -13,6 +13,10 @@ expression: config
   },
   "randomization": {
     "seed": "0x0000000000000000000000000000000000000000000000000000000000000012",
+    "reorg_interval": {
+      "start": 3,
+      "end": 5
+    },
     "behaviour": "rewind"
   }
 }

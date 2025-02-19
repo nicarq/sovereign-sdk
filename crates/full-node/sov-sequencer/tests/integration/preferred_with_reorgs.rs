@@ -342,13 +342,15 @@ async fn test_check_no_reorgs_longer() -> anyhow::Result<()> {
 #[ignore = "Unblock later, when sequencer stabilized, and state manager is performant"]
 async fn test_small_reshuffle_no_drops() -> anyhow::Result<()> {
     // sov_test_utils::initialize_logging();
+    let finality = 5;
     let randomization_config = RandomizationConfig {
         seed: TEST_RANDOMIZATION_SEED,
-        behaviour: RandomizationBehaviour::ShuffleNonFinalizedBlobs { drop_percent: 0 },
+        reorg_interval: 1..finality,
+        behaviour: RandomizationBehaviour::only_shuffle(0),
     };
     tokio::time::timeout(
         TEST_TIMEOUT,
-        test_stream_of_transactions(500, 5, 3, 10, 20, Some(randomization_config)),
+        test_stream_of_transactions(500, finality, 3, 10, 20, Some(randomization_config)),
     )
     .await?
 }
@@ -357,13 +359,16 @@ async fn test_small_reshuffle_no_drops() -> anyhow::Result<()> {
 #[ignore = "Node gets stuck on reorg: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2399"]
 async fn test_small_reshuffle_half_dropped() -> anyhow::Result<()> {
     // sov_test_utils::initialize_logging();
+    let finality = 10;
     let randomization_config = RandomizationConfig {
         seed: HexHash::new([100; 32]),
-        behaviour: RandomizationBehaviour::ShuffleNonFinalizedBlobs { drop_percent: 50 },
+        // It can rest for 3 blocks.
+        reorg_interval: 3..finality,
+        behaviour: RandomizationBehaviour::only_shuffle(50),
     };
     tokio::time::timeout(
         TEST_TIMEOUT,
-        test_stream_of_transactions(500, 10, 30, 10, 20, Some(randomization_config)),
+        test_stream_of_transactions(500, finality, 30, 10, 20, Some(randomization_config)),
     )
     .await?
 }

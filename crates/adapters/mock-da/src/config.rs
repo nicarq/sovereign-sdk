@@ -1,3 +1,4 @@
+use std::ops::Range;
 use std::time::Duration;
 
 use schemars::JsonSchema;
@@ -59,29 +60,93 @@ pub enum BlockProducingConfig {
     Manual,
 }
 
-/// What randomization we expect.
+/// Defines the behavior of randomization applied to blobs or blocks.
+///
+/// This configurable behavior determines how blobs are processed and returned to the caller
+/// during various stages of the block production process.
+/// Randomization may involve reordering, shuffling, skipping, or altering the chain's length,
+/// while preserving certain constraints such as finality.
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RandomizationBehaviour {
-    /// Blobs inside a single blob are going to be out of order,
-    /// but blobs will never pass the block boundary.
+    /// Blobs inside a single block are rearranged in a random order when read.
+    /// This does not affect the boundary between blocks, meaning no blob will
+    /// cross its original block's boundary.
+    ///
+    /// Notes:
+    /// - Does not impact how new blocks are produced, and block hashes are not changed.
+    /// - Finalized blocks may have their blobs reordered within this mode.
+    /// - This does not change the stored order of blobs.
+    /// - If randomization is disabled, blobs will be returned in their original order.
+    /// - Order guaranteed to be deterministic for each block with the same randomizer configuration.
     OutOfOrderBlobs,
-    /// Blobs in non-finalized blocks are going to be shuffled across all non-finalized blobs.
-    /// The height of the chain is not going to be changed.
-    ShuffleNonFinalizedBlobs {
-        /// The percentage of blobs is going to be skipped forever.
-        drop_percent: u8,
-    },
-    /// The height of the chain is going to be rewound to some height between last finalized and current.
+    /// Rewinds the chain to a specific height, chosen randomly between
+    /// the most recently finalized block and the current head of the chain.
+    ///
+    /// This operation adjusts the chain height but maintains finalization constraints.
     Rewind,
+    /// Combines blob shuffling with chain height adjustment:
+    ///
+    /// 1. All non-finalized blobs, including those being added to a new block,
+    ///    are shuffled across all blobs that are part of the new chain state.
+    /// 2. The chain height is adjusted (rewound or extended) within the constraints
+    ///    of the finality window.
+    ///
+    /// **Constraints**:
+    /// - Rewinding can only occur as far back as the finality window allows.
+    /// - Extending is not possible if the finality window is already full.
+    /// - Rewinding is not triggered if there is only one non-finalized block.
+    /// - The specified percentage of blobs (`drop_percent`) is always respected.
+    ShuffleAndResize {
+        /// Percentage of blobs to be permanently skipped during this process.
+        ///
+        /// A value of `100` means all non-finalized blobs will be dropped.
+        drop_percent: u8,
+        /// Range of possible adjustments to the chain head height:
+        /// - Negative values represent rewinding the chain length (moving backward in height).
+        /// - Positive values represent extending the chain length (adding new blocks).
+        /// - This adjustment is constrained by the finality window.
+        ///
+        /// The actual value is selected by [`crate::storable::layer::Randomizer`] from this range.
+        adjust_head_height: Range<i32>,
+    },
 }
 
-/// Configuration of randomization for non-finalized blocks.
+impl RandomizationBehaviour {
+    /// Only shuffling without adjusting height of the rollup,
+    pub fn only_shuffle(drop_percent: u8) -> Self {
+        Self::ShuffleAndResize {
+            drop_percent,
+            adjust_head_height: 0..1,
+        }
+    }
+}
+
+/// Configuration for randomization applied.
+///
+/// This struct defines how randomization is performed, including the seed for the randomizer,
+/// the timing of chain reorganization, and the specific randomization behavior applied.
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize, JsonSchema)]
 pub struct RandomizationConfig {
-    /// Seed for Randomizer.
+    /// Seed used by the randomizer to ensure deterministic but randomized behavior.
     pub seed: HexHash,
-    /// What randomizer should do.
+    /// The interval, in produced blocks, at which chain reorganization may occur.
+    /// Applicable for all cases except [`RandomizationBehaviour::OutOfOrderBlobs`],
+    /// which does not affect block production.
+    ///
+    /// For a range `m..n`:
+    /// - A reorganization can occur at every `m`-th block produced after the last reorganization.
+    /// - A reorganization will definitely occur at or before the `n`-th block produced since the last reorganization.
+    ///
+    /// Note:
+    /// - The interval is counted starting from the height at which the last reorganization happened,
+    ///   rather than the current state of the chain.
+    /// - This allows the chain to progress consistently within the specified bounds between reorganizations.
+    pub reorg_interval: Range<u32>,
+    /// Defines the specific behavior of the randomizer during randomization.
+    ///
+    /// This determines how blobs or blocks are processed, including their ordering,
+    /// shuffling, skipping, or potential adjustments affecting the chain.
     pub behaviour: RandomizationBehaviour,
 }
 
@@ -136,12 +201,67 @@ impl MockDaConfig {
     /// Create [`MockDaConfig`] with instant finality.
     pub fn instant_with_sender(sender: MockAddress) -> Self {
         MockDaConfig {
-            connection_string: "sqlite::memory:".to_string(),
+            connection_string: Self::sqlite_in_memory(),
             sender_address: sender,
             finalization_blocks: 0,
             block_producing: default_block_producing(),
             da_layer: None,
             randomization: None,
+        }
+    }
+
+    /// Connection string for in-memory SQLite.
+    pub fn sqlite_in_memory() -> String {
+        "sqlite::memory:".to_string()
+    }
+
+    /// Builds SQlite connection string and checks if a given directory exists.
+    pub fn sqlite_in_dir(dir: impl AsRef<std::path::Path>) -> anyhow::Result<String> {
+        let path = dir.as_ref();
+        if !path.exists() {
+            anyhow::bail!("Path {} does no exist", path.display());
+        }
+        let db_path = path.join("mock_da.sqlite");
+        tracing::debug!(path = %db_path.display(), "Opening StorableMockDa");
+        Ok(format!("sqlite://{}?mode=rwc", db_path.to_string_lossy()))
+    }
+
+    /// Instance of [`MockDaConfig`] that resembles Celestia DA. Batch production is periodic.
+    pub fn celestia_like(connection_string: String, sender: MockAddress, seed: HexHash) -> Self {
+        MockDaConfig {
+            connection_string,
+            sender_address: sender,
+            finalization_blocks: 0,
+            block_producing: BlockProducingConfig::Periodic {
+                block_time_ms: 6_000,
+            },
+            da_layer: None,
+            randomization: Some(RandomizationConfig {
+                seed,
+                // Not really applicable
+                reorg_interval: Default::default(),
+                // Just to spice things up a bit
+                behaviour: RandomizationBehaviour::OutOfOrderBlobs,
+            }),
+        }
+    }
+
+    /// Instance of [`MockDaConfig`] that resembles Solana DA. Batch production is periodic.
+    pub fn solana_like(connection_string: String, sender: MockAddress, seed: HexHash) -> Self {
+        MockDaConfig {
+            connection_string,
+            sender_address: sender,
+            finalization_blocks: 45,
+            block_producing: BlockProducingConfig::Periodic { block_time_ms: 250 },
+            da_layer: None,
+            randomization: Some(RandomizationConfig {
+                seed,
+                reorg_interval: 10..20,
+                behaviour: RandomizationBehaviour::ShuffleAndResize {
+                    drop_percent: 5,
+                    adjust_head_height: -10..10,
+                },
+            }),
         }
     }
 }
@@ -175,7 +295,7 @@ mod tests {
     }
 
     #[test]
-    fn with_randomization_shuffle() {
+    fn with_randomization_shuffle_and_resize() {
         let config_s = r#"
             connection_string = "sqlite:///tmp/mockda.sqlite?mode=rwc"
             sender_address = "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"
@@ -184,8 +304,10 @@ mod tests {
             block_time_ms = 1_000
             [randomization]
             seed = "0x0000000000000000000000000000000000000000000000000000000000000012"
-            [randomization.behaviour.shuffle_non_finalized_blobs]
-            drop_percent = 0
+            reorg_interval = [3, 5]
+            [randomization.behaviour.shuffle_and_resize]
+            drop_percent = 10
+            adjust_head_height = [-3, 2]
         "#;
         let config = toml::from_str::<MockDaConfig>(config_s).unwrap();
         insta::assert_json_snapshot!(config);
@@ -201,6 +323,9 @@ mod tests {
             block_time_ms = 1_000
             [randomization]
             seed = "0x0000000000000000000000000000000000000000000000000000000000000012"
+            [randomization.reorg_interval]
+            start = 3
+            end = 5
             [randomization.behaviour.rewind]
         "#;
         let config = toml::from_str::<MockDaConfig>(config_s).unwrap();

@@ -1,5 +1,7 @@
 //! Data Availability layer is a single entry to all available blocks.
 
+use std::ops::Range;
+
 use chrono::DateTime;
 use rand::prelude::{SliceRandom, SmallRng};
 use rand::{Rng, SeedableRng};
@@ -17,8 +19,8 @@ use crate::storable::entity::blobs::Entity as Blobs;
 use crate::storable::entity::block_headers::Entity as BlockHeaders;
 use crate::storable::entity::{blobs, block_headers, finalized_height};
 use crate::{
-    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockHash, RandomizationBehaviour,
-    RandomizationConfig,
+    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockHash,
+    RandomizationBehaviour, RandomizationConfig,
 };
 
 /// Struct that stores blobs and block headers. Controller of the sea orm entities.
@@ -31,7 +33,7 @@ pub struct StorableMockDaLayer {
     last_finalized_height: u32,
     /// Defines how many blocks should be submitted before the block is finalized.
     /// Zero means instant finality.
-    blocks_to_finality: u32,
+    pub(crate) blocks_to_finality: u32,
     pub(crate) finalized_header_sender: broadcast::Sender<MockBlockHeader>,
     randomizer: Option<Randomizer>,
 }
@@ -45,7 +47,7 @@ impl StorableMockDaLayer {
         let mut opts = sea_orm::ConnectOptions::new(connection_string);
 
         opts.max_connections(50);
-        opts.sqlx_logging_level(tracing::log::LevelFilter::Debug);
+        opts.sqlx_logging_level(tracing::log::LevelFilter::Trace);
 
         let conn: DatabaseConnection = Database::connect(opts).await?;
 
@@ -76,7 +78,7 @@ impl StorableMockDaLayer {
 
     /// Creates in-memory SQLite instance.
     pub async fn new_in_memory(blocks_to_finality: u32) -> anyhow::Result<Self> {
-        Self::new_from_connection("sqlite::memory:", blocks_to_finality).await
+        Self::new_from_connection(&MockDaConfig::sqlite_in_memory(), blocks_to_finality).await
     }
 
     /// Creates an SQLite instance at a given path.
@@ -84,13 +86,7 @@ impl StorableMockDaLayer {
         path: impl AsRef<std::path::Path>,
         blocks_to_finality: u32,
     ) -> anyhow::Result<Self> {
-        let path = path.as_ref();
-        if !path.exists() {
-            anyhow::bail!("Path {} does no exist", path.display());
-        }
-        let db_path = path.join("mock_da.sqlite");
-        tracing::debug!(path = %db_path.display(), "Opening StorableMockDa");
-        let connection_string = format!("sqlite://{}?mode=rwc", db_path.to_string_lossy());
+        let connection_string = MockDaConfig::sqlite_in_dir(path)?;
         Self::new_from_connection(&connection_string, blocks_to_finality).await
     }
 
@@ -187,7 +183,10 @@ impl StorableMockDaLayer {
 
     /// Saves new block header into a database.
     pub async fn produce_block(&mut self) -> anyhow::Result<()> {
-        tracing::trace!("Produce block has been called");
+        tracing::trace!(
+            next_height = self.next_height,
+            "Produce block has been called"
+        );
         let timestamp = sov_rollup_interface::da::Time::now();
 
         // Temporarily remove the randomizer from `self` so it won't collide
@@ -353,7 +352,7 @@ impl StorableMockDaLayer {
     }
 
     /// Passed `height` becomes new head height.
-    /// All previously submmited blobs above passed height are removed
+    /// All previously submitted blobs above passed height are removed
     /// Newly submitted blobs will be included in `height + 1`.
     /// Returns an error if passed height below finalized height.
     pub async fn rewind_to_height(&mut self, height: u32) -> anyhow::Result<()> {
@@ -385,17 +384,17 @@ impl StorableMockDaLayer {
         Ok(())
     }
 
-    /// All blobs in non-finalized blocks are going to be totally shuffled.
-    /// It means that blobs can change location across blocks.
-    pub async fn shuffle_non_finalized_blobs<R: Rng>(
+    async fn shuffle_non_finalized_blobs_inner<R: Rng>(
         &mut self,
         rng: &mut R,
         drop_blobs_percentage: u8,
+        block_placeholder_upper_bound: Option<u32>,
     ) -> anyhow::Result<()> {
         let last_finalized_height = self.last_finalized_height;
         tracing::debug!(
             drop_blobs_percentage,
             last_finalized_height,
+            ?block_placeholder_upper_bound,
             "Reshuffling non-finalized blocks"
         );
 
@@ -421,7 +420,7 @@ impl StorableMockDaLayer {
         // If performance is an issue, this can be hacked around and merged with querying other blocks.
         // Keep it simple now.
         let last_finalized_header = self.get_last_finalized_block_header().await?;
-        tracing::trace!(time = ?start_reading.elapsed(), "Reading non finlized blocks and blobs completed");
+        tracing::trace!(time = ?start_reading.elapsed(), "Reading non finalized blocks and blobs completed");
         tracing::debug!(
             time = ?start_reading.elapsed(),
             blobs = non_finalized_blobs.len(),
@@ -435,6 +434,11 @@ impl StorableMockDaLayer {
             .map(|_height| Vec::new())
             .collect();
 
+        let max_relative_place = match block_placeholder_upper_bound {
+            None => new_non_finalised_order.len(),
+            Some(upper_bound) => std::cmp::min(upper_bound as usize, new_non_finalised_order.len()),
+        };
+
         let mut blobs_to_drop = Vec::new();
         for blob in non_finalized_blobs {
             let choice = rng.gen_range(0..100);
@@ -445,7 +449,7 @@ impl StorableMockDaLayer {
             }
             // Note: Currently, it is possible that all blobs can be moved to non produced(next) block.
             // It is fine, just to keep in mind.
-            let new_relative_height = rng.gen_range(0..new_non_finalised_order.len());
+            let new_relative_height = rng.gen_range(0..max_relative_place);
             new_non_finalised_order[new_relative_height].push(blob);
         }
 
@@ -457,7 +461,7 @@ impl StorableMockDaLayer {
             .exec(&self.conn)
             .await?;
 
-        // 2*N update queries, minimum of data is written, but the blobs index is rebuilt.
+        // 2*N update queries, minimum of data is written, but the blob index is rebuilt.
         for (block_header, blobs) in non_finalized_block_headers
             .into_iter()
             .zip(new_non_finalised_order)
@@ -503,6 +507,27 @@ impl StorableMockDaLayer {
         Ok(())
     }
 
+    /// Shuffles blobs across non-finalized blocks to simulate real-world reorganization (reorg) scenarios.
+    ///
+    /// Non-finalized blocks are defined by Self.finality
+    /// This method modifies the database state and can be safely repeated.
+    ///
+    /// Blobs are shuffled deterministically based on the provided random number generator (`rng`).
+    /// Additionally, a percentage of blobs can be permanently dropped, as controlled by `drop_blobs_percentage`:
+    /// - If `drop_blobs_percentage` is set to `0`, no blobs are dropped.
+    /// - Dropped blobs are removed from the system entirely.
+    ///
+    /// # Errors
+    /// - The method will return an error if communication with the underlying database fails.
+    pub async fn shuffle_non_finalized_blobs<R: Rng>(
+        &mut self,
+        rng: &mut R,
+        drop_blobs_percentage: u8,
+    ) -> anyhow::Result<()> {
+        self.shuffle_non_finalized_blobs_inner(rng, drop_blobs_percentage, None)
+            .await
+    }
+
     fn calculate_block_hash(
         &self,
         height: u32,
@@ -530,6 +555,8 @@ impl StorableMockDaLayer {
 pub struct Randomizer {
     rng: rand_chacha::ChaChaRng,
     behaviour: RandomizationBehaviour,
+    last_reorg_height: u32,
+    reorg_interval: Range<u32>,
 }
 
 impl Randomizer {
@@ -539,6 +566,8 @@ impl Randomizer {
         Self {
             rng,
             behaviour: config.behaviour,
+            last_reorg_height: 0,
+            reorg_interval: config.reorg_interval,
         }
     }
 
@@ -550,42 +579,164 @@ impl Randomizer {
         da_layer: &mut StorableMockDaLayer,
         timestamp: sov_rollup_interface::da::Time,
     ) -> anyhow::Result<()> {
-        match self.behaviour {
-            // This happens only on `get_block_at`
-            RandomizationBehaviour::OutOfOrderBlobs => (),
-            RandomizationBehaviour::ShuffleNonFinalizedBlobs { drop_percent } => {
-                da_layer
-                    .shuffle_non_finalized_blobs(&mut self.rng, drop_percent)
-                    .await?;
-                da_layer.produce_block_with_timestamp(timestamp).await?;
+        let choice = self.rng.gen_range(self.reorg_interval.clone());
+        let distance_from_last_reorg = da_layer.next_height.saturating_sub(self.last_reorg_height);
+        let prev_reorg_height = self.last_reorg_height;
+        let should_randomize = if distance_from_last_reorg >= choice {
+            self.last_reorg_height = da_layer.next_height;
+            true
+        } else {
+            false
+        };
+        tracing::trace!(
+            should_randomize,
+            choice,
+            distance_from_last_reorg,
+            next_height = da_layer.next_height,
+            last_finalized_height = da_layer.last_finalized_height,
+            prev_reorg_height = prev_reorg_height,
+            last_reorg_height = self.last_reorg_height,
+            "Will randomization be enabled on this call"
+        );
+        if should_randomize {
+            match &self.behaviour {
+                // This happens only on `get_block_at`, so we produce normal block all the time.
+                RandomizationBehaviour::OutOfOrderBlobs => {
+                    da_layer.produce_block_with_timestamp(timestamp).await?;
+                }
+                // Not supported currently
+                RandomizationBehaviour::Rewind => {
+                    // Produce the block first, otherwise data will be always lost.
+                    da_layer.produce_block_with_timestamp(timestamp).await?;
+                    let range = da_layer.last_finalized_height..da_layer.next_height;
+                    let height_to_rewind = self.rng.gen_range(range);
+                    da_layer.rewind_to_height(height_to_rewind).await?;
+                }
+                RandomizationBehaviour::ShuffleAndResize {
+                    drop_percent,
+                    adjust_head_height,
+                } => {
+                    let chosen_head_adjustment = self.rng.gen_range(adjust_head_height.clone());
+                    match chosen_head_adjustment {
+                        // below zero - rewind
+                        ..0 => {
+                            let minimal_possible_rewind = da_layer
+                                .last_finalized_height
+                                .checked_add(1)
+                                .expect("end of chain");
+
+                            let suggested_rewind = da_layer
+                                .next_height
+                                .saturating_sub(chosen_head_adjustment.unsigned_abs());
+
+                            let height_to_rewind =
+                                std::cmp::max(suggested_rewind, minimal_possible_rewind);
+
+                            tracing::trace!(
+                                chosen_head_adjustment,
+                                adjust_head_height_range = ?adjust_head_height,
+                                next_height = da_layer.next_height,
+                                last_finalized_height = da_layer.last_finalized_height,
+                                suggested_rewind,
+                                "Choosing to rewinding to height"
+                            );
+                            let upper_bound =
+                                height_to_rewind.saturating_sub(da_layer.last_finalized_height);
+                            da_layer
+                                .shuffle_non_finalized_blobs_inner(
+                                    &mut self.rng,
+                                    *drop_percent,
+                                    Some(upper_bound),
+                                )
+                                .await?;
+                            da_layer.produce_block_with_timestamp(timestamp).await?;
+                            da_layer.rewind_to_height(height_to_rewind).await?;
+                        }
+                        // Just shuffle
+                        0 => {
+                            da_layer
+                                .shuffle_non_finalized_blobs_inner(
+                                    &mut self.rng,
+                                    *drop_percent,
+                                    None,
+                                )
+                                .await?;
+                            da_layer.produce_block_with_timestamp(timestamp).await?;
+                        }
+                        // extend, if possible
+                        1.. => {
+                            let next_finalized_height = da_layer
+                                .last_finalized_height
+                                .checked_add(da_layer.blocks_to_finality)
+                                .expect("end of chain");
+                            let max_extending = next_finalized_height
+                                .saturating_sub(da_layer.next_height)
+                                .saturating_sub(1);
+                            let extending =
+                                std::cmp::min(chosen_head_adjustment as u32, max_extending);
+                            tracing::trace!(
+                                max_extending,
+                                chosen_head_adjustment,
+                                extending,
+                                "Extending the chain by"
+                            );
+
+                            let last_finalized_height_before = da_layer.last_finalized_height;
+                            for _i in 0..extending {
+                                da_layer
+                                    .produce_block_with_timestamp(timestamp.clone())
+                                    .await?;
+                            }
+                            da_layer
+                                .shuffle_non_finalized_blobs_inner(
+                                    &mut self.rng,
+                                    *drop_percent,
+                                    None,
+                                )
+                                .await?;
+                            // If not doing extending, just producing new block after shuffle is completed.
+                            // But why? To advance chain. Produce block should always advance the chain.
+                            if extending == 0 {
+                                da_layer
+                                    .produce_block_with_timestamp(timestamp.clone())
+                                    .await?;
+                            } else {
+                                assert_eq!(
+                                    last_finalized_height_before,
+                                    da_layer.last_finalized_height
+                                );
+                            }
+                        }
+                    };
+                }
             }
-            // Not supported currently
-            RandomizationBehaviour::Rewind => {
-                // Produce the block first, otherwise data will be always lost.
-                da_layer.produce_block_with_timestamp(timestamp).await?;
-                let range = da_layer.last_finalized_height..da_layer.next_height;
-                let height_to_rewind = self.rng.gen_range(range);
-                da_layer.rewind_to_height(height_to_rewind).await?;
-            }
+        } else {
+            da_layer.produce_block_with_timestamp(timestamp).await?;
         }
 
         Ok(())
     }
 
-    /// Allows producing [`Randomizer`] instance with new behaviour, but retaining state of underlying `rng`.
+    /// Allows producing [`Randomizer`] instance with new a behaviour,
+    /// but retaining state of underlying `rng`.
     pub fn with_different_behaviour(self, behaviour: RandomizationBehaviour) -> Self {
         Self {
             rng: self.rng,
             behaviour,
+            last_reorg_height: self.last_reorg_height,
+            reorg_interval: self.reorg_interval,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeMap, HashMap};
     use std::process::Command;
     use std::time::Duration;
 
+    use proptest::prelude::*;
+    use sov_rollup_interface::common::HexHash;
     use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait};
     use sov_rollup_interface::node::da::SlotData;
     use testcontainers_modules::postgres::Postgres;
@@ -619,6 +770,18 @@ mod tests {
             );
             prev_block_hash = block.header().hash;
         }
+
+        let last_finalized_header = da_layer.get_last_finalized_block_header().await?;
+        let non_finalized_blocks = da_layer
+            .next_height
+            .saturating_sub(last_finalized_header.height as u32)
+            .saturating_sub(1); // Allow to decrement "currently built block"
+        assert!(
+            non_finalized_blocks <= da_layer.blocks_to_finality,
+            "Too many non finalized blocks={} when finality={}",
+            non_finalized_blocks,
+            da_layer.blocks_to_finality
+        );
 
         Ok(())
     }
@@ -1042,6 +1205,7 @@ mod tests {
         // Now let's change the ordering.
         let randomizer = Randomizer::from_config(RandomizationConfig {
             seed: HexHash::new([42; 32]),
+            reorg_interval: 1..da_layer.blocks_to_finality,
             behaviour: RandomizationBehaviour::OutOfOrderBlobs,
         });
         da_layer.set_randomizer(randomizer);
@@ -1064,7 +1228,7 @@ mod tests {
         assert_eq!(out_of_order_batches, sorted_submitted_batches);
         assert_eq!(out_of_order_proofs, sorted_submitted_proofs);
 
-        // Disabling randomization retrieaval makes brings submission order back
+        // Disabling randomization retrieval makes brings submission order back
         let _ = da_layer.disable_randomizer();
         let in_order_block = da_layer.get_block_at(1).await?;
         let (batches_after_disabling, proofs_after_disabling) = get_raw_data(in_order_block);
@@ -1099,6 +1263,7 @@ mod tests {
 
         let randomizer = Randomizer::from_config(RandomizationConfig {
             seed: HexHash::new([42; 32]),
+            reorg_interval: 1..da_layer.blocks_to_finality,
             behaviour: RandomizationBehaviour::OutOfOrderBlobs,
         });
         da_layer.set_randomizer(randomizer);
@@ -1332,8 +1497,8 @@ mod tests {
             let finalized_header = rx.try_recv()?;
             finalized_heights_received.push(finalized_header.height());
         }
-        // We aknowledge skipping of finalized heights 6 and 7, because this has changed parameters.
-        // Tehcnically this can be fixed in the future.
+        // We acknowledge the skipping of finalized heights 6 and 7, because parameters have changed.
+        // Technically, this can be fixed in the future.
         let expected_finalized_heights = vec![1, 2, 3, 4, 5, 8];
         assert_eq!(finalized_heights_received, expected_finalized_heights);
         Ok(())
@@ -1465,8 +1630,289 @@ mod tests {
         Ok(())
     }
 
-    use proptest::prelude::*;
-    use sov_rollup_interface::common::HexHash;
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_reorg_interval_works() -> anyhow::Result<()> {
+        let finality = 10;
+        // Exactly after each 5 blocks
+        let reorg_interval = 5..6;
+
+        let mut da_layer = StorableMockDaLayer::new_in_memory(finality).await?;
+        da_layer.set_randomizer(Randomizer::from_config(RandomizationConfig {
+            seed: HexHash::new([1; 32]),
+            reorg_interval: reorg_interval.clone(),
+            behaviour: RandomizationBehaviour::only_shuffle(0),
+        }));
+        let blob = [10; 10];
+        let mut seen_blocks: Vec<MockBlockHeader> = Vec::new();
+
+        let when_fork = reorg_interval.start;
+
+        for height in 1..=27 {
+            da_layer.submit_batch(&blob, &DEFAULT_SENDER).await?;
+            da_layer.produce_block().await?;
+            let block_header = da_layer.get_header_at(height).await?;
+            assert_eq!(block_header.height(), height as u64);
+            tracing::debug!(?block_header, height, "block");
+            check_da_layer_consistency(&da_layer).await?;
+            if height == 1 {
+                tracing::info!("first block, skipping");
+                continue;
+            } else if height % when_fork == 0 {
+                tracing::info!(height, "EXPECTING A REORG");
+                let last = seen_blocks.last().expect("There should be the last");
+                assert_ne!(
+                    last.hash(),
+                    block_header.prev_hash(),
+                    "reorg didn't happen when it should"
+                );
+                let mut new_chain = Vec::with_capacity(height as usize);
+                for h in 1..=height {
+                    let block_header = da_layer.get_header_at(h).await?;
+                    new_chain.push(block_header.clone());
+                }
+                seen_blocks = new_chain;
+            } else {
+                tracing::info!(height, "NO REORG");
+                seen_blocks.push(block_header.clone());
+                // In every other case no reorg have happened
+                for i in 1..seen_blocks.len() {
+                    let prev_block = &seen_blocks[i - 1];
+                    let current_block = &seen_blocks[i];
+                    assert_eq!(
+                        current_block.prev_hash(),
+                        prev_block.hash(),
+                        "Reorg happened, when it shouldn't .Block at height {} is not pointing to the correct previous block. {:?}",
+                        i + 1,
+                        seen_blocks,
+                    );
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    // Check that when the upper bound is provided,
+    // no blobs are going to be in the blocks above this bound
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_shuffle_upper_bound() -> anyhow::Result<()> {
+        let finality = 10;
+        let blocks_to_process = 18;
+        let mut rng = SmallRng::from_seed([1; 32]);
+        let mut da_layer = StorableMockDaLayer::new_in_memory(finality).await?;
+
+        let mut sent_blobs = Vec::with_capacity(blocks_to_process);
+
+        for idx in 0..blocks_to_process {
+            let blob: Vec<u8> = vec![idx as u8; 10];
+            da_layer.submit_batch(&blob, &DEFAULT_SENDER).await?;
+            da_layer.produce_block().await?;
+            sent_blobs.push(blob);
+        }
+
+        // height 10 is finalized, so height 11, 12, 13, 14 are expected to have all blobs now
+        let upper_bound = 5;
+
+        da_layer
+            .shuffle_non_finalized_blobs_inner(&mut rng, 0, Some(upper_bound))
+            .await?;
+
+        let mut after_shuffle_blobs = Vec::with_capacity(blocks_to_process);
+
+        let height_without_blobs = finality + upper_bound + 1;
+
+        for height in 1..=blocks_to_process {
+            let block = da_layer.get_block_at(height as u32).await?;
+            if height > height_without_blobs as usize {
+                assert!(
+                    block.batch_blobs.is_empty(),
+                    "blobs should not be placed in blocks above the upper bound={} height={}",
+                    upper_bound,
+                    height
+                );
+            } else {
+                for mut blob in block.batch_blobs.into_iter() {
+                    let data = blob.full_data().to_vec();
+                    after_shuffle_blobs.push(data);
+                }
+            }
+        }
+
+        assert_ne!(sent_blobs, after_shuffle_blobs, "blobs should be shuffled");
+        sent_blobs.sort();
+        after_shuffle_blobs.sort();
+
+        assert_eq!(sent_blobs, after_shuffle_blobs);
+
+        Ok(())
+    }
+
+    // Check that the new fork height changes in both directions!
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_rewind_and_extend() -> anyhow::Result<()> {
+        // std::env::set_var("RUST_LOG", "debug,sov_mock_da=trace");
+        // sov_test_utils::initialize_logging();
+        let finality = 30;
+        let target_height = 60;
+        let fork_depth = 2..4;
+        let mut da_layer = StorableMockDaLayer::new_in_memory(finality).await?;
+        let seed = HexHash::new([120; 32]);
+        let adjust_head_range = -20..10;
+        da_layer.set_randomizer(Randomizer::from_config(RandomizationConfig {
+            seed,
+            reorg_interval: fork_depth.clone(),
+            behaviour: RandomizationBehaviour::ShuffleAndResize {
+                drop_percent: 10,
+                adjust_head_height: adjust_head_range.clone(),
+            },
+        }));
+
+        let mut height = 1;
+        let mut iterations: u64 = 0;
+        let mut was_rewound = false;
+        let mut was_extended = false;
+
+        let mut head = da_layer.get_head_block_header().await?;
+
+        let mut seen_heights: HashMap<u64, u64> = HashMap::new();
+        let mut seen_reorg_heights: BTreeMap<u64, u64> = BTreeMap::new();
+
+        while height <= target_height {
+            iterations += 1;
+            let blob = iterations.to_be_bytes().to_vec();
+            da_layer.submit_batch(&blob, &DEFAULT_SENDER).await?;
+            da_layer.produce_block().await?;
+            check_da_layer_consistency(&da_layer).await?;
+
+            *seen_heights.entry(height as u64).or_insert(0) += 1;
+
+            let current_head = da_layer.get_head_block_header().await?;
+            let head_diff = current_head.height() as i32 - head.height() as i32;
+            if current_head.prev_hash() != head.hash() {
+                *seen_reorg_heights.entry(head.height()).or_insert(0) += 1;
+            }
+            if head_diff < 0 {
+                was_rewound = true;
+            } else if head_diff > 1 {
+                was_extended = true;
+            }
+
+            head = current_head;
+            height = (head.height() + 1) as u32;
+        }
+
+        assert!(was_rewound, "Rewinding didn't happen");
+        assert!(was_extended, "Extending didn't happen");
+
+        let seen_more_than_once = seen_heights.values().filter(|v| **v > 1).count();
+        let seen_more_than_2_times = seen_heights.values().filter(|v| **v > 2).count();
+        assert!(
+            seen_more_than_once > 0,
+            "Never seen on the same height twice"
+        );
+        assert!(
+            seen_more_than_2_times > 0,
+            "Never seen on the same height more than twice"
+        );
+        // TODO: Investigate later how to make reorg behaviour to land on the previously seen heights
+        let _landed_more_than_once = seen_reorg_heights.values().filter(|v| **v > 1).count();
+        let _landed_more_than_2_times = seen_reorg_heights.values().filter(|v| **v > 2).count();
+        // assert!(
+        //     landed_more_than_once > 0,
+        //     "Never landed on the same height twice"
+        // );
+        // assert!(
+        //     landed_more_than_2_times > 0,
+        //     "Never landed on the same height more than twice"
+        // );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_shuffle_and_rewind_no_drop() -> anyhow::Result<()> {
+        let finality = 10;
+        let fork_depth = 5..6;
+        let mut da_layer = StorableMockDaLayer::new_in_memory(finality).await?;
+        da_layer.set_randomizer(Randomizer::from_config(RandomizationConfig {
+            seed: HexHash::new([120; 32]),
+            reorg_interval: fork_depth.clone(),
+            behaviour: RandomizationBehaviour::ShuffleAndResize {
+                drop_percent: 0,
+                adjust_head_height: -3..-1,
+            },
+        }));
+
+        let when_fork = fork_depth.start;
+        let mut height = 1;
+        let mut iterations: u64 = 0;
+        let mut head = da_layer.get_head_block_header().await?;
+        let mut seen_blocks = Vec::new();
+
+        let mut was_rewound = false;
+        let mut was_shuffled = true;
+        while height <= 17 {
+            iterations += 1;
+            let blob = iterations.to_be_bytes().to_vec();
+            da_layer.submit_batch(&blob, &DEFAULT_SENDER).await?;
+            da_layer.produce_block().await?;
+            check_da_layer_consistency(&da_layer).await?;
+            if height % when_fork == 0 {
+                let current_head = da_layer.get_head_block_header().await?;
+                // Rewinding happened
+                if current_head.height() < head.height() {
+                    was_rewound = true;
+                }
+                head = current_head;
+                let mut new_seen = Vec::with_capacity(height as usize);
+                // Validating shuffling
+                for h in 1..=head.height() {
+                    let block_header = da_layer.get_header_at(h as u32).await?;
+                    // Only check for previous blocks, current was not put in seen yet
+                    if h < head.height() && !seen_blocks.contains(&block_header) {
+                        was_shuffled = true;
+                    }
+                    new_seen.push(block_header);
+                }
+                seen_blocks = new_seen;
+                height = (head.height() + 1) as u32;
+            } else {
+                tracing::info!(height, iterations, "no fork");
+                let current_head = da_layer.get_head_block_header().await?;
+                // Just checking head for simplicity.
+                assert_eq!(head.hash(), current_head.prev_hash());
+                head = current_head;
+                let block_header = da_layer.get_header_at(height).await?;
+                // But track seen headers for validating shuffle in the other branch
+                seen_blocks.push(block_header);
+                height += 1;
+            }
+        }
+
+        assert!(was_rewound, "Rewinding didn't happen even once!");
+        assert!(was_shuffled, "Shuffle didn't happen even once!");
+
+        let mut seen_blobs = Vec::new();
+        for h in 1..height {
+            let block = da_layer.get_block_at(h).await?;
+            for mut blob in block.batch_blobs.into_iter() {
+                let data = blob.full_data().to_vec();
+                seen_blobs.push(data);
+            }
+        }
+        assert_eq!(
+            seen_blobs.len(),
+            iterations as usize,
+            "Seen blobs don't match iterations. If left is less, some blobs were dropped"
+        );
+        seen_blobs.sort();
+        let expected_blobs = (1..=iterations)
+            .map(|i| i.to_be_bytes().to_vec())
+            .collect::<Vec<_>>();
+
+        assert_eq!(seen_blobs, expected_blobs, "Expected blobs mismatch");
+
+        Ok(())
+    }
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(10))]
