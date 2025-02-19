@@ -345,6 +345,8 @@ where
     let mut accumulated_penalty = 0;
     let sequencer_address = batch_with_id.sequencer_address();
 
+    let initial_slot_gas_used = slot_gas_meter.total_gas_used();
+
     for (idx, (raw_tx, injected_control_flow)) in batch_with_id.enumerate() {
         let sequencer = runtime
             .sequencer_authorization()
@@ -443,7 +445,12 @@ where
         }
         clean_scratchpad = new_checkpoint.to_tx_scratchpad();
     }
-    let total_gas_used_in_batch = slot_gas_meter.total_gas_used();
+
+    let total_gas_used_in_batch = slot_gas_meter
+        .total_gas_used()
+        .checked_sub(&initial_slot_gas_used)
+        // SAFETY: During batch execution, gas is consumed. This means that the total gas used after execution is always greater than before.
+        .expect("initial_slot_gas_used can't be bigger than gas used after batch execution");
 
     // End of the transaction processing phase.
     let batch_receipt = IncrementalBatchReceipt {
@@ -452,7 +459,7 @@ where
         inner: BatchSequencerReceipt {
             da_address: sequencer_da_address.clone(),
             gas_price: gas_price.clone(),
-            gas_used: total_gas_used_in_batch.clone(),
+            gas_used: total_gas_used_in_batch,
             outcome: BatchSequencerOutcome {
                 rewards: Rewards {
                     accumulated_reward,
@@ -590,16 +597,18 @@ where
             let (mut scratchpad, pre_exec_gas_meter) =
                 pre_exec_working_set.to_scratchpad_and_gas_meter();
 
+            let gas_used_for_authentication = pre_exec_gas_meter.gas_info().gas_used;
+            let funds_used_for_authentication = pre_exec_gas_meter.gas_info().gas_value;
+
             match pre_exec_error {
                 AuthenticationError::FatalError(err, tx_hash) => {
                     penalize_sequencer(
                         runtime,
-                        pre_exec_gas_meter.gas_info().gas_value,
+                        funds_used_for_authentication,
                         sequencer_da_address,
                         &mut scratchpad,
                     );
 
-                    let gas_used_for_authentication = pre_exec_gas_meter.gas_info().gas_used;
                     return AuthAndProcessOutput {
                         scratchpad,
                         gas_used: gas_used_for_authentication,
@@ -612,12 +621,11 @@ where
                 AuthenticationError::OutOfGas(e) => {
                     penalize_sequencer(
                         runtime,
-                        pre_exec_gas_meter.gas_info().gas_value,
+                        funds_used_for_authentication,
                         sequencer_da_address,
                         &mut scratchpad,
                     );
 
-                    let gas_used_for_authentication = pre_exec_gas_meter.gas_info().gas_used;
                     return AuthAndProcessOutput {
                         scratchpad,
                         gas_used: gas_used_for_authentication,
@@ -649,18 +657,18 @@ where
 
     span.exit();
 
-    let (tx_result, mut scratchpad, gas_meter) = process_tx_result;
+    let (tx_result, mut scratchpad, pre_exec_gas_meter) = process_tx_result;
 
     match tx_result {
         Err(error) => {
             penalize_sequencer(
                 runtime,
-                gas_meter.gas_info().gas_value,
+                pre_exec_gas_meter.gas_info().gas_value,
                 sequencer_da_address,
                 &mut scratchpad,
             );
 
-            let gas_used = gas_meter.gas_info().gas_used;
+            let gas_used = pre_exec_gas_meter.gas_info().gas_used;
             AuthAndProcessOutput {
                 outcome: AuthAndProcessOutcome::Skipped {
                     error,
@@ -674,6 +682,7 @@ where
             transaction_consumption,
             receipt,
         }) => {
+            // The gas_used in the receipt is the sum of pre_exec_gas_meter.gas_used and the gas consumed during transaction execution.
             let gas_used = get_gas_used(&receipt);
 
             AuthAndProcessOutput {
