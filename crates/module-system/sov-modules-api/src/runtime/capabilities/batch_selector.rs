@@ -27,7 +27,8 @@ pub struct BlobSelectorOutput<ValidatedBlobType> {
     pub selected_blobs: Vec<ValidatedBlobType>,
     /// By how much the visible slot number should be increased.
     ///
-    /// When greater than zero, a new rollup block will be created.
+    /// When greater than zero, a new rollup block will be created. If this value is zero,
+    /// the list of selected blobs must also be empty. This is enforced by the rollup blueprint.
     pub visible_slot_number_increase: u64,
 }
 
