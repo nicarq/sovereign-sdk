@@ -341,6 +341,7 @@ where
 
     let mut tx_receipts = Vec::with_capacity(batch_with_id.known_remaining_txs().unwrap_or(128));
     let mut ignored_tx_receipts = Vec::default();
+
     let mut accumulated_reward = 0;
     let mut accumulated_penalty = 0;
     let sequencer_address = batch_with_id.sequencer_address();
@@ -379,12 +380,19 @@ where
         let provisional_outcome = match outcome {
             AuthAndProcessOutcome::IllegalSequencer { reason } => {
                 tracing::warn!("Transaction could not be attempted due to sequencer error. If this error persists, check that your sequencer has sufficient funds. Error: {}", reason);
-                ProvisionalSequencerOutcome::out_of_funds(&gas_used, gas_price)
+                ProvisionalSequencerOutcome::out_of_funds(
+                    // SAFETY: `gas_used` is either Zero or comes from `BasicGasMeter`, which ensures overflow protection.
+                    gas_used
+                        .checked_value(gas_price)
+                        .expect("gas_used value overflowed"),
+                )
             }
             AuthAndProcessOutcome::Skipped { error, tx_hash } => {
                 ProvisionalSequencerOutcome::penalize(
-                    &gas_used,
-                    gas_price,
+                    // SAFETY: `gas_used`  comes from `BasicGasMeter`, which ensures overflow protection.
+                    gas_used
+                        .checked_value(gas_price)
+                        .expect("gas_used value overflowed"),
                     create_tx_receipt(
                         SkippedTxContents {
                             error,
@@ -412,8 +420,9 @@ where
                 // SAFETY: It is safe to unwrap here because the total gas used is guaranteed to be less than the slot gas limit.
                 slot_gas_meter
                     .charge_gas(&gas_used, sequencer_da_address)
-                    .expect("Gas Overflow");
+                    .expect("Impossible happend: SlotGasMeter underflows when charging gas.");
 
+                // SAFETY: This won't overflow because rewards/penalties cannot exceed `TOKEN::total_supply` value, which is of type u64.
                 accumulated_reward += provisional_reward;
                 accumulated_penalty += provisional_penalty;
                 tx_receipts.push(receipt);
@@ -423,8 +432,11 @@ where
                     // SAFETY: It is safe to unwrap here because the total gas used is guaranteed to be less than the slot gas limit.
                     slot_gas_meter
                         .charge_gas(&gas_used, sequencer_da_address)
-                        .expect("Gas Overflow");
+                        .expect("Impossible happend: SlotGasMeter underflows when charging gas.");
 
+                    // SAFETY: This won't overflow because rewards and penalties cannot exceed `TOKEN::total_supply`, which is of type `u64`.
+                    // This is ensured as it's impossible to accumulate more funds than `TOKEN::total_supply`,
+                    // since all rewards and penalties originate from user balances or the sequencer stake.
                     accumulated_reward += provisional_reward;
                     accumulated_penalty += provisional_penalty;
 

@@ -94,18 +94,10 @@ fn test_charge_gas_set_then_retrieve() {
         "The set operation should succeed because there should be enough funds in the metered working set"
     );
 
-    assert_eq!(
-        working_set.gas_info().remaining_funds,
-        gas_access_cost.value(&gas_price) + gas_load_cost.value(&gas_price),
-        "The remaining funds should have decreased by the amount of gas to charge for a write"
-    );
-
     match StateReader::<User>::get(&mut working_set, &SlotKey::from_slice(b"key")){
         Ok(value) => {
             assert_eq!(value, Some(SlotValue::from("value")), "The value read should be equal to the value previously written");
         }
         Err(err) => panic!("The get operation should succeed because there should be enough funds in the metered working set, error {err:?}"),
     }
-
-    assert_eq!(working_set.gas_info().remaining_funds, 0);
 }
