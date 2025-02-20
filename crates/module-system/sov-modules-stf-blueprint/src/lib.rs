@@ -450,10 +450,13 @@ where
                 "Sanity check failed (the rollup height didn't progress as expected), this is a bug and should be reported."
             );
         } else {
-            // Defensive programming; if we don't create a rollup block, we aren't allowed to execute any transactions.
+            // Defensive programming; if we don't create a rollup block, we aren't allowed to execute any blobs.
             // We panic if this invariant is violated, beccause in this case the rollup block hooks will not be executed correctly leading
             // To potentially inconsistent state.
-            assert_no_transactions_were_selected(&blob_selector_output);
+            assert!(
+                blob_selector_output.selected_blobs.is_empty(),
+                "Sanity check failed: no rollup block was created but blobs were selected for processing. This is a bug and should be reported."
+            );
         }
 
         let mut kernel = kernel_with_partially_stale_heights;
@@ -767,24 +770,5 @@ where
             batch_receipts,
             state,
         )
-    }
-}
-
-/// Checks that the blob selector output does not contain any transactions - only proofs.
-fn assert_no_transactions_were_selected<S: Spec, B>(
-    blobs_selector_output: &BlobSelectorOutput<SelectedBlob<S, B>>,
-) {
-    for blob in blobs_selector_output.selected_blobs.iter() {
-        match blob.blob_data {
-            BlobDataWithId::Proof { .. } => {
-                // Do nothing
-            }
-            BlobDataWithId::Batch(_) => {
-                panic!("We should not be executing batches without creating a rollup block. This is a bug in the blob-selector - please report it!");
-            }
-            BlobDataWithId::EmergencyRegistration { .. } => {
-                panic!("We should not be executing emergency registrations without creating a rollup block. This is a bug in the blob-selector - please report it!");
-            }
-        }
     }
 }
