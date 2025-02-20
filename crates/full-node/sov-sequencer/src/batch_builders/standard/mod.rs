@@ -24,7 +24,7 @@ use sov_modules_api::{
     RawTx, Spec, StateCheckpoint, StateProvider, WorkingSet,
 };
 use sov_modules_stf_blueprint::{
-    process_tx_and_reward_sequencer, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect,
+    process_tx_and_reward_prover, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect,
     TxProcessingError,
 };
 use sov_rest_utils::json_obj;
@@ -160,7 +160,7 @@ where
         }
 
         let pre_exec_working_set = tx_scratchpad.to_pre_exec_working_set(gas_meter);
-        let (res, tx_scratchpad, _gas_meter) = process_tx_and_reward_sequencer(
+        let (res, tx_scratchpad, _gas_meter) = process_tx_and_reward_prover(
             &self.runtime,
             pre_exec_working_set,
             // Currently the sequencer doesn't take into account the slot gas limit.

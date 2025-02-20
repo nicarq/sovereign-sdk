@@ -27,9 +27,9 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::rest::{ApiState, HasRestApi};
 use sov_modules_api::{
-    ApiStateAccessor, ApplySlotOutput, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall, Error, Gas,
-    Genesis, InfallibleStateAccessor, IterableBatchWithId, Module, PrivateKey, Spec,
-    StateCheckpoint, TxEffect, VersionReader, VisibleSlotNumber,
+    ApiStateAccessor, ApplySlotOutput, CryptoSpec, DaSpec, EncodeCall, Error, Gas, Genesis,
+    InfallibleStateAccessor, Module, PrivateKey, SelectedBlob, Spec, StateCheckpoint, TxEffect,
+    VersionReader, VisibleSlotNumber,
 };
 use sov_modules_stf_blueprint::{
     get_gas_used, StfBlueprint, TransactionReceipt, TxReceiptContents,
@@ -209,7 +209,7 @@ impl ApiPath {
 
 impl<RT, S> TestRunner<RT, S>
 where
-    RT: Runtime<S, BlobType = BlobDataWithId<IterableBatchWithId<S>>> + MinimalGenesis<S>,
+    RT: Runtime<S, BlobType = SelectedBlob<S>> + MinimalGenesis<S>,
     S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>, Da = MockDaSpec>,
 {
     /// Returns the runtime of the test runner.
@@ -744,9 +744,7 @@ where
 
 impl<RT, S> TestRunner<RT, S>
 where
-    RT: Runtime<S, BlobType = BlobDataWithId<IterableBatchWithId<S>>>
-        + MinimalGenesis<S>
-        + HasRestApi<S>,
+    RT: Runtime<S, BlobType = SelectedBlob<S>> + MinimalGenesis<S> + HasRestApi<S>,
     S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>, Da = MockDaSpec>,
 {
     /// Sets up a REST-api server for frameworks whose runtime that implements [`HasRestApi`].

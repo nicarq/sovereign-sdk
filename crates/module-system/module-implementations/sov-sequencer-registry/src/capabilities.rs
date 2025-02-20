@@ -99,7 +99,6 @@ impl<S: Spec> SequencerRegistry<S> {
                 amount,
                 token_id: config_gas_token_id(),
             };
-
             self.bank
                 .transfer_from(sender, self.id.to_payable(), coins, state)?;
 

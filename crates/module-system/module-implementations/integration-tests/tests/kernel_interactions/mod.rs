@@ -1,9 +1,9 @@
 use sov_chain_state::ChainState;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    AccessoryStateReaderAndWriter, AccessoryStateVec, BlobDataWithId, BlockHooks, Context, DaSpec,
-    FinalizeHook, GenesisState, IterableBatchWithId, Module, ModuleError, ModuleId, ModuleInfo,
-    Spec, StateCheckpoint, StateVec, TxState,
+    AccessoryStateReaderAndWriter, AccessoryStateVec, BlockHooks, Context, DaSpec, FinalizeHook,
+    GenesisState, Module, ModuleError, ModuleId, ModuleInfo, SelectedBlob, Spec, StateCheckpoint,
+    StateVec, TxState,
 };
 use sov_modules_stf_blueprint::Runtime;
 use sov_state::Storage;
@@ -100,9 +100,7 @@ struct TestClosureArgs<S: Storage> {
 /// A helper method for the visible hash tests. It advances the module state by `num_slots` and runs a closure with
 /// the specified test arguments after each iteration.
 
-fn last_state_root_closure<
-    RT: Runtime<S, BlobType = BlobDataWithId<IterableBatchWithId<S>>> + MinimalGenesis<S>,
->(
+fn last_state_root_closure<RT: Runtime<S, BlobType = SelectedBlob<S>> + MinimalGenesis<S>>(
     test_closure: &mut impl FnMut(TestClosureArgs<<S as Spec>::Storage>),
     runner: &mut TestRunner<RT>,
     num_slots: u64,

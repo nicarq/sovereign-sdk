@@ -191,7 +191,7 @@ pub struct ChainState<S: Spec> {
 
     /// A record of all previous rollup heights' gas information.
     #[state]
-    gas_info: StateMap<RollupHeight, BlockGasInfo<S::Gas>>,
+    pub gas_info: StateMap<RollupHeight, BlockGasInfo<S::Gas>>,
 
     /// The state root hashes from genesis to the current slot.
     /// ## Note
@@ -471,6 +471,34 @@ impl<S: Spec> ChainState<S> {
         state: &mut Accessor,
     ) -> Result<Option<VisibleSlotNumber>, Accessor::Error> {
         self.slot_number_history.get(&height, state)
+    }
+
+    /// Returns the next gas price starting from the provided rollup height using the given visible height increase.
+    pub fn compute_next_gas_price<
+        Reader: VersionReader + StateReader<User, Error = E> + StateReader<Kernel, Error = E>,
+        E,
+    >(
+        &self,
+        stale_rollup_height: RollupHeight,
+        provisional_visible_height_increase: u64,
+        state: &mut Reader,
+    ) -> Result<<<S as Spec>::Gas as Gas>::Price, <Reader as StateReader<Kernel>>::Error> {
+        use sov_modules_api::GasSpec;
+        if stale_rollup_height.get() == 0 {
+            return Ok(S::initial_base_fee_per_gas());
+        }
+        let prev_gas_info =
+            self.gas_info
+                .get(&stale_rollup_height, state)?
+                .unwrap_or(BlockGasInfo::new(
+                    S::initial_gas_limit(),
+                    S::initial_base_fee_per_gas(),
+                ));
+
+        Ok(Self::compute_base_fee_per_gas(
+            prev_gas_info,
+            provisional_visible_height_increase,
+        ))
     }
 }
 

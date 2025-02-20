@@ -10,12 +10,15 @@ mod event;
 mod genesis;
 mod registration;
 
+use anyhow::bail;
 use borsh::{BorshDeserialize, BorshSerialize};
 pub use call::*;
 pub use event::Event;
 pub use genesis::*;
+use registration::gas_coins;
 use serde::{Deserialize, Serialize};
-use sov_bank::Amount;
+use sov_bank::derived_holder::DerivedHolder;
+use sov_bank::{Amount, IntoPayable};
 use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
@@ -157,6 +160,77 @@ impl<S: Spec> SequencerRegistry<S> {
         } else {
             Ok(None)
         }
+    }
+
+    /// Retrieves the escrowed funds and transfers the amount needed for pre-execution checks to the bank module.
+    /// The remaining amount is transferred back to the selected recipient.
+    pub fn retrieve_funds_from_escrow(
+        &self,
+        holder: &DerivedHolder,
+        recipient: &S::Address,
+        tokens_needed_for_pre_exec_checks: u64,
+        state: &mut impl InfallibleStateAccessor,
+    ) -> Result<(), anyhow::Error> {
+        let Some(reserved_balance) = self
+            .bank
+            .get_balance_of(holder.to_payable(), sov_bank::config_gas_token_id(), state)
+            .unwrap_infallible()
+        else {
+            bail!("No reserved balance found for holder {}", holder);
+        };
+
+        let Some(amount_to_refund) =
+            reserved_balance.checked_sub(tokens_needed_for_pre_exec_checks)
+        else {
+            bail!(
+                "Not enough reserved balance to refund {} from holder {}. Needed {}, but only {} was available",
+                recipient,
+                holder,
+                tokens_needed_for_pre_exec_checks,
+                reserved_balance
+            );
+        };
+
+        self.bank.transfer_from(
+            holder.to_payable(),
+            recipient,
+            gas_coins(amount_to_refund),
+            state,
+        )?;
+        self.bank
+            .transfer_from(
+                holder.to_payable(),
+                self.bank.id().to_payable(),
+                gas_coins(tokens_needed_for_pre_exec_checks),
+                state,
+            )
+            .expect("Failed to transfer a valid balance. This should never happen.");
+        Ok(())
+    }
+
+    /// Refunds the holder for the unneeded reserved gas.
+    pub fn refund_all_reserved_gas(
+        &self,
+        holder: &DerivedHolder,
+        recipient: &S::Address,
+        state: &mut impl InfallibleStateAccessor,
+    ) {
+        let Some(reserved_balance) = self
+            .bank
+            .get_balance_of(holder.to_payable(), sov_bank::config_gas_token_id(), state)
+            .unwrap_infallible()
+        else {
+            // If the holder has no reserved balance, we're done.
+            return;
+        };
+        self.bank
+            .transfer_from(
+                holder.to_payable(),
+                recipient,
+                gas_coins(reserved_balance),
+                state,
+            )
+            .expect("Failed to transfer a valid balance. This should never happen.");
     }
 
     /// Checks whether `sender` is a registered sequencer with enough staked amount.

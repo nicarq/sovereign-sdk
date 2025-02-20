@@ -125,10 +125,10 @@ where
     /// Generates a new high-level genesis config with random addresses, constant amounts (1_000_000_000 tokens)
     /// and no additional accounts.
     pub fn generate() -> Self {
-        // The stake value is doubled to ensure that sequencers can still send batches when gas price fluctuates
+        // The stake value is 10x'd to ensure that sequencers can still send batches when gas price fluctuates
         let user_stake_value = <S as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE)
             .value(&S::initial_base_fee_per_gas())
-            * 2;
+            * 10;
 
         let prover_sequencer = TestUser::generate(user_stake_value * 3 + TEST_DEFAULT_USER_BALANCE);
 

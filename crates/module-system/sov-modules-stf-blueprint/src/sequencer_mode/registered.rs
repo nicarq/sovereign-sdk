@@ -1,6 +1,5 @@
 use sov_modules_api::capabilities::{
-    AuthenticationError, GasEnforcer, SequencerAuthorization, SequencerRemuneration,
-    TransactionAuthorizer,
+    AuthenticationError, GasEnforcer, SequencerAuthorization, TransactionAuthorizer,
 };
 use sov_modules_api::transaction::TransactionConsumption;
 #[cfg(feature = "native")]
@@ -9,7 +8,8 @@ use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext,
     FullyBakedTx, Gas, GasArray, GasMeter, GasSpec, GetGasPrice, IgnoredTransactionReceipt,
     IncrementalBatch, InjectedControlFlow, PreExecWorkingSet, ProvisionalSequencerOutcome, Rewards,
-    SlotGasMeter, Spec, StateCheckpoint, StateProvider, TxControlFlow, TxScratchpad, WorkingSet,
+    SequencerBondForTx, SlotGasMeter, Spec, StateCheckpoint, StateProvider, TxControlFlow,
+    TxScratchpad, WorkingSet,
 };
 use sov_rollup_interface::TxHash;
 use tracing::{trace, warn};
@@ -30,7 +30,7 @@ use crate::{
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
 #[cfg_attr(feature = "native", tracing::instrument(skip_all, name = "StfBlueprint::process_tx", fields(context = ?execution_context)))]
 #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
-pub fn process_tx_and_reward_sequencer<S, R, I, C>(
+pub fn process_tx_and_reward_prover<S, R, I, C>(
     runtime: &R,
     pre_exec_working_set: PreExecWorkingSet<S, I>,
     slot_gas: &S::Gas,
@@ -62,7 +62,7 @@ where
         )
     };
 
-    let result = process_tx_and_reward_sequencer_inner(
+    let result = process_tx_and_reward_prover_inner(
         runtime,
         pre_exec_working_set,
         slot_gas,
@@ -118,7 +118,7 @@ fn track_transaction_metrics<S: Spec>(
 /// The caller is responsible to penalize the sequencer if this method returns an error. If the tx can be attempted,
 /// this method must return Ok(()) and handle any sequencer rewards internally.
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
-fn process_tx_and_reward_sequencer_inner<S, R, I, C>(
+fn process_tx_and_reward_prover_inner<S, R, I, C>(
     runtime: &R,
     mut pre_exec_working_set: PreExecWorkingSet<S, I>,
     slot_gas: &S::Gas,
@@ -255,13 +255,6 @@ where
         .gas_enforcer()
         .reward_prover(&transaction_consumption.base_fee_value(), &mut scratchpad);
 
-    let sequencer_reward = transaction_consumption.priority_fee();
-    runtime.sequencer_remuneration().reward_sequencer(
-        sequencer_da_address,
-        sequencer_reward,
-        &mut scratchpad,
-    );
-
     (Ok(apply_tx), scratchpad, pre_exec_gas_meter)
 }
 
@@ -305,6 +298,7 @@ pub(crate) fn apply_batch<S, RT, B>(
     mut batch_with_id: B,
     blob_idx: usize,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
+    sequencer_bond: u64,
     gas_price: &<S::Gas as Gas>::Price,
     execution_context: ExecutionContext,
 ) -> (IncrementalBatchReceipt<S>, StateCheckpoint<S>)
@@ -326,6 +320,13 @@ where
     );
 
     batch_with_id.pre_flight(&checkpoint);
+
+    // We require non-preferred sequencer to bond for their entire batch up front.
+    // Howver, the *preferred* sequencer streams transactions, so it can't know the total number of transactions in advance.
+    // Because of that, we allow the preferred sequencer to bond enough for only a single transaction and we do accounting in real time.
+    let is_preferred_sequencer = runtime
+        .sequencer_authorization()
+        .is_preferred_sequencer(sequencer_da_address, &mut checkpoint);
     let mut clean_scratchpad = checkpoint.to_tx_scratchpad();
 
     trace!("Verifying & executing transactions");
@@ -346,16 +347,20 @@ where
     let mut accumulated_penalty = 0;
     let sequencer_address = batch_with_id.sequencer_address();
 
+    let mut sequencer_bond_per_tx = if is_preferred_sequencer {
+        SequencerBondForTx::Preferred(sequencer_bond)
+    } else {
+        // Split the bond evenly across all the transactions in the batch.
+        let amount = sequencer_bond
+            / batch_with_id
+                .known_remaining_txs()
+                .expect("Batch sizes from non-preferred sequencers are always known in advance")
+                .min(1) as u64;
+        SequencerBondForTx::Standard(amount)
+    };
     let initial_slot_gas_used = slot_gas_meter.total_gas_used();
 
     for (idx, (raw_tx, injected_control_flow)) in batch_with_id.enumerate() {
-        let sequencer = runtime
-            .sequencer_authorization()
-            .authorize_sequencer(sequencer_da_address, &mut clean_scratchpad)
-            .expect("Blob selection must guarantee that sequencer is registered");
-
-        let sequencer_bond = sequencer.balance;
-
         // Authorize and process the transaction, handling sequencer rewards/penalties internally.
         // The caller is responsible for maintaining the global gas limit.
         let AuthAndProcessOutput {
@@ -372,7 +377,7 @@ where
             sequencer_address.clone(),
             gas_price,
             execution_context,
-            sequencer_bond,
+            sequencer_bond_per_tx,
             idx,
             &injected_control_flow,
         );
@@ -439,6 +444,14 @@ where
                     // since all rewards and penalties originate from user balances or the sequencer stake.
                     accumulated_reward += provisional_reward;
                     accumulated_penalty += provisional_penalty;
+                    if is_preferred_sequencer {
+                        // SAFETY: We've already charged this gas amount, so it can't overflow at this point.
+                        // If we're penalizing the preferred sequencer, we need to account for that in the authorizing the next transaction.
+                        sequencer_bond_per_tx = SequencerBondForTx::Preferred(
+                            sequencer_bond
+                                .saturating_sub(gas_used.checked_value(gas_price).unwrap()),
+                        );
+                    }
 
                     // In onchain mode, transactions that make the sequencer run out of gas are treated as "ignored".
                     // While they consume gas, their hashes cannot be computed, so they are not indexed in the database.
@@ -451,8 +464,8 @@ where
 
                     ignored_tx_receipts.push(ignored);
                 }
-                // If we *are* provisionally executing in the sequencer and we run out of funds, the transaction should not be added to the batch.
-                // The injected control flow is responsible for handling this case
+                // If we *are* provisionally executing in the sequencer and we run out of funds, the transaction will not be added to the batch.
+                // In that case, we need to undo the accounting for penalization of the sequencer.
             }
         }
         clean_scratchpad = new_checkpoint.to_tx_scratchpad();
@@ -464,6 +477,10 @@ where
         // SAFETY: During batch execution, gas is consumed. This means that the total gas used after execution is always greater than before.
         .expect("initial_slot_gas_used can't be bigger than gas used after batch execution");
 
+    let rewards = Rewards {
+        accumulated_reward,
+        accumulated_penalty,
+    };
     // End of the transaction processing phase.
     let batch_receipt = IncrementalBatchReceipt {
         tx_receipts,
@@ -473,15 +490,18 @@ where
             gas_price: gas_price.clone(),
             gas_used: total_gas_used_in_batch,
             outcome: BatchSequencerOutcome {
-                rewards: Rewards {
-                    accumulated_reward,
-                    accumulated_penalty,
-                },
+                rewards: rewards.clone(),
             },
         },
     };
 
     checkpoint = clean_scratchpad.commit();
+    runtime.gas_enforcer().return_escrowed_funds_to_sequencer(
+        sequencer_bond,
+        rewards,
+        sequencer_da_address,
+        &mut checkpoint,
+    );
     apply_batch_logs(&batch_receipt, blob_idx);
     span.exit();
     (batch_receipt, checkpoint)
@@ -512,12 +532,12 @@ struct AuthAndProcessOutput<S: Spec, I: StateProvider<S>> {
 fn penalize_sequencer<S: Spec, RT: Runtime<S>, I: StateProvider<S>>(
     runtime: &RT,
     auth_cost: u64,
-    sequencer_da_address: &<S::Da as DaSpec>::Address,
+    sequencer_address: &S::Address,
     tx_scratchpad: &mut TxScratchpad<S, I>,
 ) {
     runtime
         .gas_enforcer()
-        .transfer_funds_from_sequencer_to_prover(auth_cost, sequencer_da_address, tx_scratchpad)
+        .reward_prover_from_sequencer_balance(auth_cost, sequencer_address, tx_scratchpad)
         // We ensure that the sequencer bond is at least `max_tx_check_value` so this should never fail.
         .expect("Sequencer should have enough funds to pay for the pre-execution checks");
 }
@@ -534,7 +554,7 @@ fn auth_and_process_tx_and_incentivize_sequencer<S, RT, I, C>(
     sequencer_rollup_address: S::Address,
     gas_price: &<S::Gas as Gas>::Price,
     execution_context: ExecutionContext,
-    sequencer_bond: u64,
+    sequencer_bond: SequencerBondForTx,
     idx: usize,
     injected_control_flow: &C,
 ) -> AuthAndProcessOutput<S, I>
@@ -561,13 +581,12 @@ where
         }
     };
 
-    // 2. The sequencer has more funds than are needed for transaction validation..
-    if sequencer_bond <= max_tx_check_value {
+    if sequencer_bond.amount() < max_tx_check_value {
         return AuthAndProcessOutput {
             outcome: AuthAndProcessOutcome::IllegalSequencer {
                 reason: format!(
                     "The sequencer did not have sufficient funds to cover tx authentication checks, sequencer bond is {}, but the cost of checking the transaction is {}",
-                    sequencer_bond,
+                    sequencer_bond.amount(),
                     max_tx_check_value
                 ),
             },
@@ -594,7 +613,7 @@ where
     let mut pre_exec_working_set: PreExecWorkingSet<S, _> =
         scratchpad.to_pre_exec_working_set(pre_exec_gas_meter);
 
-    // Charge gas for all the checks in the `process_tx_and_reward_sequencer`.
+    // Charge gas for all the checks in the `process_tx_and_reward_prover`.
     // SAFETY: We can unwrap here because, we asserted that max_tx_check_costs > process_tx_pre_exec_checks_gas.
     pre_exec_working_set
         .charge_gas(&<S as GasSpec>::process_tx_pre_exec_checks_gas())
@@ -617,7 +636,7 @@ where
                     penalize_sequencer(
                         runtime,
                         funds_used_for_authentication,
-                        sequencer_da_address,
+                        &sequencer_rollup_address,
                         &mut scratchpad,
                     );
 
@@ -634,7 +653,7 @@ where
                     penalize_sequencer(
                         runtime,
                         funds_used_for_authentication,
-                        sequencer_da_address,
+                        &sequencer_rollup_address,
                         &mut scratchpad,
                     );
 
@@ -656,13 +675,13 @@ where
 
     // Process the transaction and reward the sequencer if everything went well. Responsibility for
     // penalizing the sequencer if the transaction cannot be executed due to sequencer error is with the caller.
-    let process_tx_result = process_tx_and_reward_sequencer(
+    let process_tx_result = process_tx_and_reward_prover(
         runtime,
         pre_exec_working_set,
         slot_gas,
         validated_output,
         sequencer_da_address,
-        sequencer_rollup_address,
+        sequencer_rollup_address.clone(),
         execution_context,
         injected_control_flow,
     );
@@ -676,7 +695,7 @@ where
             penalize_sequencer(
                 runtime,
                 pre_exec_gas_meter.gas_info().gas_value,
-                sequencer_da_address,
+                &sequencer_rollup_address,
                 &mut scratchpad,
             );
 

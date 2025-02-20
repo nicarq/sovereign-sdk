@@ -13,7 +13,7 @@ use sov_modules_api::transaction::{
 };
 use sov_modules_api::{
     AggregatedProofPublicData, Context, DaSpec, Gas, GetGasPrice, InfallibleStateAccessor,
-    InvalidProofError, ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec,
+    InvalidProofError, ModuleInfo, Rewards, SovAttestation, SovStateTransitionPublicData, Spec,
     StateAccessor, Storage, TxState,
 };
 use sov_rollup_interface::common::SlotNumber;
@@ -98,6 +98,13 @@ impl<'a, S: Spec> HasGasPayer<S>
     }
 }
 
+fn gas_coins(amount: u64) -> Coins {
+    Coins {
+        amount,
+        token_id: config_gas_token_id(),
+    }
+}
+
 impl<'a, S: Spec, T> GasEnforcer<S> for StandardProvenRollupCapabilities<'a, S, T>
 where
     Self: HasGasPayer<S>,
@@ -169,31 +176,38 @@ where
             .expect("Caller failed to ensure sufficient funds are reserved, but this is required for refund_remaining_gas to remain infallible");
     }
 
-    fn transfer_funds_from_sequencer_to_prover(
+    fn reward_prover_from_sequencer_balance(
         &self,
         amount: u64,
-        sequencer: &<S::Da as DaSpec>::Address,
+        _sequencer: &S::Address,
         state: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<()> {
         let rewarded_prover_module = self.get_prover_token_holder(state);
-        self.sequencer_registry.remove_part_of_the_stake(
-            sequencer,
+        // Transfer the penalty from the sequencer bank to the sequencer
+        self.bank.transfer_from(
+            self.bank.id().to_payable(),
             rewarded_prover_module,
-            amount,
+            gas_coins(amount),
             state,
         )
     }
 
-    fn transfer_authentication_cost_from_user_to_sequencer(
+    fn return_escrowed_funds_to_sequencer(
         &self,
-        amount: u64,
-        user: &S::Address,
+        bond_amount: u64,
+        reward: Rewards,
         sequencer: &<S::Da as DaSpec>::Address,
         state: &mut impl InfallibleStateAccessor,
     ) {
-        self.sequencer_registry
-            .add_to_stake(user, sequencer, amount, state)
-            .unwrap_or_else(|e| panic!("Unable to increase the sequencer's stake {}", e));
+        let mut net_amount = bond_amount.checked_sub(reward.accumulated_penalty).expect("A sequencer can never be penalized more than the amount they have escrowed, regardless of reward accumulation!");
+        net_amount = net_amount.checked_add(reward.accumulated_reward).expect("Total sequencer reward + escrow amount is greater than the max possible token supply. This is a bug in gas accounting.");
+
+        self.sequencer_registry.add_to_stake(
+            self.bank.id().to_payable(),
+            sequencer,
+            net_amount,
+            state,
+        ).expect("Attempted to send more funds to the sequencer than they have escrowed. This is a bug in gas accounting.");
     }
 }
 
@@ -205,6 +219,14 @@ impl<'a, S: Spec, T> SequencerAuthorization<S> for StandardProvenRollupCapabilit
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError> {
         self.sequencer_registry
             .authorize_sequencer(sequencer, state)
+    }
+
+    fn is_preferred_sequencer(
+        &self,
+        sequencer: &<S::Da as DaSpec>::Address,
+        state: &mut impl InfallibleStateAccessor,
+    ) -> bool {
+        self.sequencer_registry.preferred_sequencer(state).as_ref() == Some(sequencer)
     }
 }
 
@@ -359,18 +381,6 @@ impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, 
 }
 
 impl<'a, S: Spec, T> SequencerRemuneration<S> for StandardProvenRollupCapabilities<'a, S, T> {
-    fn reward_sequencer(
-        &self,
-        sequencer: &<S::Da as DaSpec>::Address,
-        reward: SequencerReward,
-        state: &mut impl InfallibleStateAccessor,
-    ) {
-        self.sequencer_registry
-            .add_to_stake(self.bank.id().to_payable(), sequencer, reward.into(), state)
-            // SAFETY: It is safe to unwrap here because the caller must ensure that sufficient funds are reserved.
-            .unwrap_or_else(|e| panic!("Caller failed to ensure sufficient funds are reserved. Unable to increase the sequencer's stake {}", e));
-    }
-
     fn reward_sequencer_or_refund(
         &self,
         sequencer: &<S::Da as DaSpec>::Address,

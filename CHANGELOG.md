@@ -1,3 +1,6 @@
+## 2025-02-19
+- #2449 overhauls the internals of the blob selector to hid sequencer balances from user space. This change is not primarily user facing, but the `authorize_sequencer` public method has been removed from `sov-sequencer-registry`
+
 ## 2025-02-18
 - #2448- Randomization now includes a new mandatory parameter for `MockDaConfig`: `reorg_interval = [n, m]`.
   This parameter defines how often reorganization-like randomization should occur.
