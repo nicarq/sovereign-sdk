@@ -22,9 +22,9 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::rest::utils::{json_obj, ErrorObject};
 use sov_modules_api::rest::ApiState;
 use sov_modules_api::{
-    BlobDataWithId, ChangeSet, ExecutionContext, FullyBakedTx, KernelStateAccessor,
+    BlobDataWithId, ChangeSet, ExecutionContext, FullyBakedTx, Gas, GasSpec, KernelStateAccessor,
     NestedEnumUtils, RawTx, RejectReason, Runtime, RuntimeEventProcessor, RuntimeEventResponse,
-    Spec, StateCheckpoint, StateUpdateInfo, SyncStatus, TxChangeSet, VersionReader,
+    SelectedBlob, Spec, StateCheckpoint, StateUpdateInfo, SyncStatus, TxChangeSet, VersionReader,
     VisibleSlotNumber,
 };
 use sov_modules_stf_blueprint::{StfBlueprint, TransactionReceipt, TxEffect};
@@ -309,8 +309,8 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
                 )
                 .entered();
 
-                let mut selected_blobs = vec![(
-                    BlobDataWithId::Batch(AsyncBatch::new_async(
+                let mut selected_blobs = vec![SelectedBlob {
+                    blob_data: BlobDataWithId::Batch(AsyncBatch::new_async(
                         tx_receiver,
                         sequencer_rollup_address,
                         setup_sender,
@@ -318,10 +318,11 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
                         minimum_profit_per_tx,
                         admin_addresses,
                     )),
-                    sequencer_address,
-                )];
+                    reserved_gas_tokens: None, // We overwrite this value below.
+                    sender: sequencer_address,
+                }];
                 selected_blobs.extend(additional_blobs);
-                let blob_selector_output = BlobSelectorOutput {
+                let mut blob_selector_output = BlobSelectorOutput {
                     selected_blobs,
                     visible_slot_number_increase: visible_increase.get().into(),
                 };
@@ -338,6 +339,17 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
                 let next_root = kernel
                     .visible_hash_for(old_rollup_height.saturating_add(1), &mut accessor)
                     .unwrap();
+
+                // Now that we've incremented the rollup height, we can get the next gas price. Do that and use it to compute the amount of funds that we should
+                // reserve for the preferred sequencer.
+                let next_gas_price = kernel
+                    .base_fee_per_gas(&mut accessor)
+                    .unwrap_or(Z::Spec::initial_base_fee_per_gas());
+                let needed_gas_escrow = Z::Spec::max_tx_check_costs().checked_value(&next_gas_price).expect("Gas price overflow! This is a bug, please report it.");
+                kernel.escrow_funds_for_preferred_sequencer(needed_gas_escrow, &mut accessor).expect("Failed to escrow funds for the preferred sequencer. The sequencer is too low on funds, which could cause soft confirmations to be invalidated. Increase your bond and restart the sequencer.");
+                blob_selector_output.selected_blobs[0].reserved_gas_tokens = Some(needed_gas_escrow);
+
+
 
                 tracing::info!(
                     %next_visible_slot_number,

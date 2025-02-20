@@ -99,6 +99,7 @@ where
                 ))?,
         };
 
+        let attestation_height = attestation.proof_of_bond.claimed_slot_number;
         let serialized_attestation = SerializedAttestation::from_attestation(&attestation)?;
 
         let serialized_blob = self
@@ -113,7 +114,7 @@ where
             .send_proof(&serialized_blob, fee)
             .await
             .await??;
-        tracing::debug!(?receipt, %slot_number, "Attestation has been posted to DA");
+        tracing::debug!(%receipt, %slot_number, %attestation_height, "Attestation has been posted to DA");
 
         self.st_info_receiver.inc_next_height_to_receive();
         Ok(())

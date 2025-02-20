@@ -10,8 +10,8 @@ use sov_modules_api::capabilities::RollupHeight;
 #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
 use sov_modules_api::track_gas_constants_usage;
 use sov_modules_api::{
-    BatchSequencerReceipt, GasArray, GasSpec, IncrementalBatch, IterableBatchWithId,
-    KernelStateAccessor, VersionReader,
+    BatchSequencerReceipt, GasArray, GasSpec, IncrementalBatch, KernelStateAccessor, SelectedBlob,
+    VersionReader,
 };
 use sov_state::StateRoot;
 mod proof_processing;
@@ -25,10 +25,10 @@ pub use sequencer_mode::apply_tx;
 pub use sequencer_mode::common::{
     get_gas_used, AuthTxOutput, BatchReceipt, TransactionReceipt, ValidatedAuthOutput,
 };
-pub use sequencer_mode::registered::{process_tx_and_reward_sequencer, PreExecError};
+pub use sequencer_mode::registered::{process_tx_and_reward_prover, PreExecError};
 use sov_modules_api::capabilities::{
-    BatchFromUnregisteredSequencer, BlobOrigin, BlobSelector, BlobSelectorOutput, BlockGasInfo,
-    ChainState, HasKernel, Kernel, SequencerRemuneration, TransactionAuthenticator,
+    BatchFromUnregisteredSequencer, BlobSelector, BlobSelectorOutput, BlockGasInfo, ChainState,
+    HasKernel, Kernel, SequencerRemuneration, TransactionAuthenticator,
 };
 use sov_modules_api::hooks::BlockHooks;
 use sov_modules_api::transaction::TransactionConsumption;
@@ -151,7 +151,7 @@ impl<S: Spec> sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents
 }
 
 /// The result of applying a transaction to the state.
-/// This is the value returned when [`process_tx_and_reward_sequencer`] succeeds.
+/// This is the value returned when [`process_tx_and_reward_prover`] succeeds.
 /// It contains the new transaction checkpoint, transaction receipt and the amount of gas tokens that the sequencer should be rewarded.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(bound = "S: Spec")]
@@ -265,7 +265,7 @@ impl<S, RT> StateTransitionFunction<S::InnerZkvm, S::OuterZkvm, S::Da> for StfBl
 where
     S: Spec,
     RT: Runtime<S>,
-    RT: HasKernel<S, BlobType = BlobDataWithId<IterableBatchWithId<S>>>,
+    RT: HasKernel<S, BlobType = SelectedBlob<S>>,
 {
     type StateRoot = <S::Storage as Storage>::Root;
 
@@ -408,8 +408,10 @@ where
             "Sanity check failed (the true slot number didn't progress as expected), this is a bug and should be reported."
         );
 
+        tracing::trace!("Selecting blobs");
         let blob_selector_output = self
             .select_and_validate_blobs(relevant_blobs, &mut kernel_with_partially_stale_heights);
+        tracing::trace!("Done selecting blobs");
 
         // The blob selector *must* not mutate the visible slot number or rollup height internally. instead, it must return an output
         // indicating whether a rollup block should be created and, if so, what the new visible slot number should be.
@@ -449,7 +451,7 @@ where
             );
         } else {
             // Defensive programming; if we don't create a rollup block, we aren't allowed to execute any transactions.
-            // We panic if this invariant is violated, because in this case the rollup block hooks will not be executed correctly leading
+            // We panic if this invariant is violated, beccause in this case the rollup block hooks will not be executed correctly leading
             // To potentially inconsistent state.
             assert_no_transactions_were_selected(&blob_selector_output);
         }
@@ -526,31 +528,17 @@ impl<S, RT> StfBlueprint<S, RT>
 where
     S: Spec,
     RT: Runtime<S>,
-    RT: HasKernel<S, BlobType = BlobDataWithId<IterableBatchWithId<S>>>,
+    RT: HasKernel<S, BlobType = SelectedBlob<S>>,
 {
     #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
-    fn select_and_validate_blobs<'a, I>(
+    fn select_and_validate_blobs(
         &self,
-        relevant_blobs: RelevantBlobIters<I>,
+        relevant_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         kernel: &mut KernelStateAccessor<S>,
-    ) -> BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId<S>>>
-    where
-        I: IntoIterator<Item = &'a mut <S::Da as DaSpec>::BlobTransaction>,
-    {
-        let all_blobs = relevant_blobs
-            .batch_blobs
-            .into_iter()
-            .map(BlobOrigin::Batch)
-            .chain(
-                relevant_blobs
-                    .proof_blobs
-                    .into_iter()
-                    .map(BlobOrigin::Proof),
-            );
-
+    ) -> BlobSelectorOutput<SelectedBlob<S>> {
         self.runtime
             .blob_selector()
-            .get_blobs_for_this_slot(all_blobs, kernel)
+            .get_blobs_for_this_slot(relevant_blobs, kernel)
             .expect("blob selection must succeed, probably serialization failed")
     }
 }
@@ -589,7 +577,7 @@ where
     #[tracing::instrument(skip_all, fields(context=?execution_context), level = "debug")]
     pub fn apply_batches_in_user_space<B: IncrementalBatch<TransactionReceipt<S>, S>>(
         &self,
-        blob_selector_output: BlobSelectorOutput<S, BlobDataWithId<B>>,
+        blob_selector_output: BlobSelectorOutput<SelectedBlob<S, B>>,
         mut state: StateCheckpoint<S>,
         execution_context: ExecutionContext,
         visible_hash: <<S as Spec>::Storage as Storage>::Root,
@@ -644,13 +632,21 @@ where
 
         start_timer!(blob_processing_start);
 
-        for (blob_idx, (blob, sender)) in
-            blob_selector_output.selected_blobs.into_iter().enumerate()
+        for (
+            blob_idx,
+            SelectedBlob {
+                blob_data,
+                sender,
+                reserved_gas_tokens,
+            },
+        ) in blob_selector_output.selected_blobs.into_iter().enumerate()
         {
-            match blob {
+            match blob_data {
                 BlobDataWithId::Batch(batch) => {
                     start_timer!(start_batch_processing);
                     let batch_id = batch.id();
+                    let sequencer_bond = reserved_gas_tokens
+                        .expect("Batches from registered sequencers must have reserved gas tokens");
                     let (batch_receipt, next_checkpoint) = registered::apply_batch::<S, RT, B>(
                         &self.runtime,
                         state,
@@ -658,6 +654,7 @@ where
                         batch,
                         blob_idx,
                         &sender,
+                        sequencer_bond,
                         &gas_price,
                         execution_context,
                     );
@@ -683,6 +680,7 @@ where
                 }
                 BlobDataWithId::EmergencyRegistration { tx, id } => {
                     let slot_gas = slot_gas_meter.remaining_slot_gas(&sender);
+                    assert!(reserved_gas_tokens.is_none(), "Emergency registration transactions come from unknown sequenceerrs, so gas cannot be reserved. This is a bug.");
                     let (batch_receipt, next_checkpoint) = unregistered::apply_batch::<S, RT>(
                         &self.runtime,
                         state,
@@ -703,10 +701,24 @@ where
                     batch_receipts.push(batch_receipt);
                     state = next_checkpoint;
                 }
-                BlobDataWithId::Proof { proof, id } => {
+                BlobDataWithId::Proof {
+                    proof,
+                    id,
+                    sequencer_address,
+                } => {
                     let slot_gas = slot_gas_meter.remaining_slot_gas(&sender);
-                    let (receipt, next_checkpoint, gas_used) =
-                        self.process_proof(id, slot_gas, &sender, &gas_price, proof, state);
+                    let sequencer_bond = reserved_gas_tokens
+                        .expect("Proofs always come from registered sequencers and must have reserved gas tokens");
+                    let (receipt, next_checkpoint, gas_used) = self.process_proof(
+                        id,
+                        slot_gas,
+                        &sender,
+                        &sequencer_address,
+                        sequencer_bond,
+                        &gas_price,
+                        proof,
+                        state,
+                    );
 
                     // SAFETY: Within `process_proof`, we always ensure the pre execution and tx gas meters are initialized with less than the remaining gas in the slot gas meter.
                     slot_gas_meter
@@ -760,10 +772,10 @@ where
 
 /// Checks that the blob selector output does not contain any transactions - only proofs.
 fn assert_no_transactions_were_selected<S: Spec, B>(
-    blobs_selector_output: &BlobSelectorOutput<S, BlobDataWithId<B>>,
+    blobs_selector_output: &BlobSelectorOutput<SelectedBlob<S, B>>,
 ) {
-    for (blob, _) in blobs_selector_output.selected_blobs.iter() {
-        match blob {
+    for blob in blobs_selector_output.selected_blobs.iter() {
+        match blob.blob_data {
             BlobDataWithId::Proof { .. } => {
                 // Do nothing
             }

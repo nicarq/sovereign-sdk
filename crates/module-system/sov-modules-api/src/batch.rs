@@ -56,6 +56,38 @@ impl RawTx {
     }
 }
 
+/// A blob that has been selected for execution
+pub struct SelectedBlob<S: Spec, B = IterableBatchWithId<S>> {
+    /// The blob data
+    pub blob_data: BlobDataWithId<S, B>,
+    /// The da address of the blob's sender
+    pub sender: <<S as Spec>::Da as DaSpec>::Address,
+    /// The tokens reserved for pre-execution checks from the sender's account.
+    /// In principle, the location where these tokens are reserved is up to the implementation of the blob selector -
+    /// in practice, this is always in the bank's balance at `self.bank.id()`
+    pub reserved_gas_tokens: Option<u64>,
+}
+
+/// The amount of tokens reserved for pre-execution checks *for a particular transaction* from the sender's account.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SequencerBondForTx {
+    /// When the balance comes from the preferred sequencer, this amount is shared across all transactions in the batch.
+    /// If one transaction fails, the reserved amount will decrease causing cascading failures.
+    Preferred(u64),
+    /// When the balance comes from the standard sequencer, each transaction has its own separate reserved pool,
+    /// so the failure of one transaction does not affect the reserved tokens for other transactions.
+    Standard(u64),
+}
+
+impl SequencerBondForTx {
+    /// The amount of tokens available for pre-execution checks.
+    pub fn amount(&self) -> u64 {
+        match self {
+            SequencerBondForTx::Preferred(amount) | SequencerBondForTx::Standard(amount) => *amount,
+        }
+    }
+}
+
 /// Contains raw transactions obtained from the DA blob.
 
 /// A Batch with its ID.
@@ -94,19 +126,23 @@ pub enum BlobData<S: Spec> {
     /// Emergency Registration
     EmergencyRegistration(RawTx),
     /// Aggregated proof posted on the DA.
-    Proof(Vec<u8>),
+    Proof((Vec<u8>, S::Address)),
 }
 
 impl<S: Spec> BlobData<S> {
     /// Tag the blob with the given ID.
-    pub fn with_id(self, id: [u8; 32]) -> BlobDataWithId<BatchWithId<S>> {
+    pub fn with_id(self, id: [u8; 32]) -> BlobDataWithId<S, BatchWithId<S>> {
         match self {
             Self::Batch((batch, seq_addr)) => BlobDataWithId::Batch(BatchWithId {
                 batch,
                 id,
                 sequencer_address: seq_addr,
             }),
-            Self::Proof(proof) => BlobDataWithId::Proof { proof, id },
+            Self::Proof((proof, seq_addr)) => BlobDataWithId::Proof {
+                proof,
+                id,
+                sequencer_address: seq_addr,
+            },
             Self::EmergencyRegistration(tx) => BlobDataWithId::EmergencyRegistration { tx, id },
         }
     }
@@ -116,7 +152,7 @@ impl<S: Spec> BlobData<S> {
 //
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum BlobDataWithId<B> {
+pub enum BlobDataWithId<S: Spec, B = IterableBatchWithId<S>> {
     /// Batch of transactions.
     Batch(B),
     /// Emergency Registration
@@ -132,17 +168,38 @@ pub enum BlobDataWithId<B> {
         proof: Vec<u8>,
         /// The id of the blob on the DA layer
         id: [u8; 32],
+        /// The address of the sequencer that submitted the proof
+        sequencer_address: S::Address,
     },
 }
 
-impl<S: Spec> BlobDataWithId<BatchWithId<S>> {
+impl<S: Spec> BlobDataWithId<S, BatchWithId<S>> {
     /// The size of the blob in bytes.
     pub fn blob_size(&self) -> usize {
         match self {
             BlobDataWithId::Batch(b) => b.batch_size(),
-            BlobDataWithId::Proof { proof, .. } => proof.len(),
-            BlobDataWithId::EmergencyRegistration { tx, .. } => tx.data.len(),
+            BlobDataWithId::Proof {
+                proof,
+                sequencer_address,
+                ..
+            } => proof.len() + 32 + sequencer_address.as_ref().len(),
+            BlobDataWithId::EmergencyRegistration { tx, .. } => tx.data.len() + 32,
         }
+    }
+
+    /// Returns the ID of the blob.
+    pub fn id(&self) -> [u8; 32] {
+        match self {
+            BlobDataWithId::Batch(b) => b.id,
+            BlobDataWithId::Proof { id, .. } | BlobDataWithId::EmergencyRegistration { id, .. } => {
+                *id
+            }
+        }
+    }
+
+    /// Returns true if the blob is an emergency registration.
+    pub fn is_emergency_registration(&self) -> bool {
+        matches!(self, BlobDataWithId::EmergencyRegistration { .. })
     }
 }
 
@@ -349,17 +406,25 @@ impl<S: Spec> BlobData<S> {
     }
 
     /// Proof variant constructor.
-    pub fn new_proof(proof: Vec<u8>) -> Self {
-        BlobData::Proof(proof)
+    pub fn new_proof(proof: Vec<u8>, sequencer_address: S::Address) -> Self {
+        BlobData::Proof((proof, sequencer_address))
     }
 }
 
-impl<B> BlobDataWithId<B> {
+impl<S: Spec, B> BlobDataWithId<S, B> {
     /// Convert the inner `Batch` type to another type, if applicable
-    pub fn map_batch<Target>(self, f: impl FnOnce(B) -> Target) -> BlobDataWithId<Target> {
+    pub fn map_batch<Target>(self, f: impl FnOnce(B) -> Target) -> BlobDataWithId<S, Target> {
         match self {
             Self::Batch(b) => BlobDataWithId::Batch(f(b)),
-            Self::Proof { proof, id } => BlobDataWithId::Proof { proof, id },
+            Self::Proof {
+                proof,
+                id,
+                sequencer_address,
+            } => BlobDataWithId::Proof {
+                proof,
+                id,
+                sequencer_address,
+            },
             Self::EmergencyRegistration { tx, id } => {
                 BlobDataWithId::EmergencyRegistration { tx, id }
             }

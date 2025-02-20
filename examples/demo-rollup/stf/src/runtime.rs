@@ -39,9 +39,7 @@ use sov_modules_api::capabilities::{Guard, HasCapabilities, HasKernel};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{
-    BlobDataWithId, DispatchCall, Event, Genesis, Hooks, IterableBatchWithId, MessageCodec, Spec,
-};
+use sov_modules_api::{DispatchCall, Event, Genesis, Hooks, MessageCodec, SelectedBlob, Spec};
 
 #[cfg(feature = "native")]
 use crate::genesis_config::GenesisPaths;
@@ -154,7 +152,7 @@ impl<S: Spec> HasKernel<S> for Runtime<S>
 where
     S::Address: FromVmAddress<EthereumAddress>,
 {
-    type BlobType = BlobDataWithId<IterableBatchWithId<S>>;
+    type BlobType = SelectedBlob<S>;
     type Kernel<'a> = SoftConfirmationsKernel<'a, S>;
 
     fn inner(&self) -> Guard<Self::Kernel<'_>> {

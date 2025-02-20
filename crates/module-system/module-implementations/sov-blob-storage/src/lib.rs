@@ -2,24 +2,23 @@
 #![doc = include_str!("../README.md")]
 mod capabilities;
 mod max_size_checker;
+mod validation;
+use std::collections::BTreeMap;
 use std::num::NonZero;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use sov_bank::derived_holder::DerivedHolder;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     BatchWithId, BlobDataWithId, DaSpec, FullyBakedTx, GenesisState, InfallibleKernelStateAccessor,
-    InfallibleStateAccessor, KernelStateMap, KernelStateValue, Module, ModuleId, ModuleInfo,
-    NotInstantiable, Spec, VersionReader,
+    InfallibleStateAccessor, IterableBatchWithId, KernelStateMap, KernelStateValue, Module,
+    ModuleId, ModuleInfo, NotInstantiable, SelectedBlob, Spec, VersionReader,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::codec::BcsCodec;
-
-type BlobAndSender<S> = (
-    BlobDataWithId<BatchWithId<S>>,
-    <<S as Spec>::Da as DaSpec>::Address,
-);
 
 /// For how many slots deferred blobs are stored before being executed
 pub fn config_deferred_slots_count() -> u64 {
@@ -33,8 +32,116 @@ pub fn config_unregistered_blobs_per_slot() -> u64 {
     config_value!("UNREGISTERED_BLOBS_PER_SLOT")
 }
 
+/// An escrow account for storing the reserved gas for a blob.
+#[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Debug, PartialEq)]
+pub enum Escrow {
+    /// The gas is held in a derived holder account in the bank module.
+    DerivedHolder(DerivedHolder),
+    /// The given number of tokens is held directly in the sequencer module.
+    Direct(u64),
+    /// No gas is reserved.
+    None,
+}
+
+/// A blob whose sender is allowed - either because he has sufficient balance or because it's one of the few
+/// lucky "unregistered" sequencers who are being allowed to register this slot.
+#[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Debug, PartialEq)]
+#[serde(bound = "S: Spec, B: Serialize + DeserializeOwned")]
+pub struct ValidatedBlob<S: Spec, B = IterableBatchWithId<S>> {
+    blob: BlobDataWithId<S, B>,
+    sender: <<S as Spec>::Da as DaSpec>::Address,
+    balance_store: Escrow,
+}
+
+impl<S: Spec> ValidatedBlob<S, BatchWithId<S>> {
+    // TODO: Add proptests to confirm accuracy of this.
+    pub(crate) fn conservative_serialized_size(
+        blob: &BlobDataWithId<S, BatchWithId<S>>,
+        sender: &<<S as Spec>::Da as DaSpec>::Address,
+    ) -> usize {
+        let mut size = blob.blob_size();
+        size += 1; // for the blob enum discriminant
+        size += sender.as_ref().len();
+        size += 33; // For the option discriminant and derived holder size
+        size += 12; // Account for serializing the blob length, the length of the sender field, and the length of the seqeuncer address if it's a proof
+        size
+    }
+}
+impl<S: Spec> ValidatedBlob<S, BatchWithId<S>> {
+    /// Converts a validated blob into a selected blob at the given gas price.
+    ///
+    /// # Panics
+    /// Panics if the gas calculation overflows. This is assumed to have been checked already.
+    pub fn into_selected_blob(self) -> SelectedBlob<S> {
+        let gas_tokens = match self.balance_store {
+            Escrow::DerivedHolder(_) => panic!("A blob reached the end of selection with its funds still in a deferred escrow. This is a bug!"),
+            Escrow::Direct(amount) => Some(amount),
+            Escrow::None => {
+                assert!(self.blob.is_emergency_registration(), "Blob from known sender does not have reserved balance. This is a bug!");
+                None
+            },
+        };
+        SelectedBlob {
+            blob_data: self.blob.map_batch(|b| IterableBatchWithId::new(b)),
+            sender: self.sender,
+            reserved_gas_tokens: gas_tokens,
+        }
+    }
+}
+impl<S: Spec, B: Serialize + DeserializeOwned> ValidatedBlob<S, B> {
+    /// Create a new validated blob.
+    pub fn new(
+        blob: BlobDataWithId<S, B>,
+        sender: <<S as Spec>::Da as DaSpec>::Address,
+        balance_store: Escrow,
+    ) -> Self {
+        Self {
+            blob,
+            sender,
+            balance_store,
+        }
+    }
+}
+
 /// The sequence number for a batch from the preferred sequencer.   
 pub type SequenceNumber = u64;
+
+#[derive(
+    Clone,
+    Copy,
+    BorshSerialize,
+    BorshDeserialize,
+    Serialize,
+    Deserialize,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+)]
+pub(crate) enum BlobType {
+    Batch,
+    Proof,
+}
+
+impl BlobType {
+    pub fn is_batch(&self) -> bool {
+        matches!(self, BlobType::Batch)
+    }
+}
+
+/// Tracks the sequence numbers of the preferred sequencer.
+#[derive(
+    Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Debug, PartialEq, Default,
+)]
+pub struct SequencerNumberTracker {
+    /// The next sequence number that we expect to see.
+    next_sequence_number: SequenceNumber,
+    /// A map of sequence numbers to the type of blob they correspond to. This lets us
+    /// quickly decide whether we have a valid sequence of blobs to produce a rollup block without paying
+    /// to load the entire set of blobs
+    saved_sequencer_numbers: BTreeMap<SequenceNumber, BlobType>,
+}
 
 /// Blob storage contains only address and vector of blobs
 #[derive(Clone, ModuleInfo)]
@@ -48,29 +155,25 @@ pub struct BlobStorage<S: Spec> {
     /// Caller controls the order of blobs in the vector
     #[state]
     #[allow(clippy::type_complexity)]
-    deferred_blobs: KernelStateMap<
-        SlotNumber,
-        Vec<(
-            BlobDataWithId<BatchWithId<S>>,
-            <<S as Spec>::Da as DaSpec>::Address,
-        )>,
-        BcsCodec,
-    >,
+    deferred_blobs: KernelStateMap<SlotNumber, Vec<ValidatedBlob<S, BatchWithId<S>>>, BcsCodec>,
 
     /// Any preferred sequencer blobs which were received out of order. Mapped from sequence number to batch.
     #[state]
     pub(crate) deferred_preferred_sequencer_blobs:
         KernelStateMap<SequenceNumber, PreferredBlobDataWithId>,
 
-    /// The next sequence number for the preferred sequencer. This is used to determine if a batch is out of order.
+    /// A tracker for the upcoming sequence numbers for the preferred sequencer.
     #[state]
-    next_sequence_number: KernelStateValue<SequenceNumber>,
+    pub(crate) upcoming_sequence_numbers: KernelStateValue<SequencerNumberTracker>,
 
     #[module]
     pub(crate) sequencer_registry: sov_sequencer_registry::SequencerRegistry<S>,
 
     #[module]
     chain_state: sov_chain_state::ChainState<S>,
+
+    #[module]
+    bank: sov_bank::Bank<S>,
 }
 
 /// Non standard methods for blob storage
@@ -78,7 +181,7 @@ impl<S: Spec> BlobStorage<S> {
     /// Store blobs for given block number, overwrite if already exists
     pub fn store_batches(
         &self,
-        batches: &[BlobAndSender<S>],
+        batches: &[ValidatedBlob<S, BatchWithId<S>>],
         state: &mut (impl InfallibleKernelStateAccessor + VersionReader),
     ) {
         self.deferred_blobs
@@ -92,7 +195,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         slot_number: SlotNumber,
         state: &mut impl InfallibleKernelStateAccessor,
-    ) -> Vec<BlobAndSender<S>> {
+    ) -> Vec<ValidatedBlob<S, BatchWithId<S>>> {
         self.deferred_blobs
             .remove(&slot_number, state)
             .unwrap_infallible()
@@ -124,9 +227,10 @@ impl<S: Spec> BlobStorage<S> {
     /// What the [`SequenceNumber`] of the next [`PreferredBlobData`]s MUST
     /// be.
     pub fn next_sequence_number(&self, state: &mut impl InfallibleKernelStateAccessor) -> u64 {
-        self.next_sequence_number
+        self.upcoming_sequence_numbers
             .get(state)
             .unwrap_infallible()
+            .map(|tracker| tracker.next_sequence_number)
             // The very first sequence number is always 0.
             .unwrap_or_default()
     }
@@ -247,5 +351,13 @@ impl PreferredBlobData {
     /// Returns true if the blob is a batch.
     pub fn is_batch(&self) -> bool {
         matches!(self, PreferredBlobData::Batch(_))
+    }
+
+    /// Returns the number of visible slots to advance after processing the blob if it's a batch.
+    pub fn visible_slot_number_increase(&self) -> Option<u8> {
+        match self {
+            PreferredBlobData::Batch(b) => Some(b.visible_slots_to_advance.get()),
+            PreferredBlobData::Proof(_) => None,
+        }
     }
 }

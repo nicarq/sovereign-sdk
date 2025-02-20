@@ -556,6 +556,75 @@ fn blobs_with_high_sequencer_number_get_deferred() {
     );
 }
 
+/// Check that blobs with higher sequencer numbers get deferred.
+/// We test the following situation:
+/// - Slot 1: Send [(Batch 0, Priority, Sequencer number 2), (Batch 1, Priority, Sequencer number 1)]. Receive []
+/// - Slot 2: Send []. Receive []
+/// - Slot 3: Send [(Batch 2, Priority, Sequencer number 0)]. Receive [Batch 2]
+/// - Slot 4: Send []. Receive [Batch 1]
+/// - Slot 5: Send []. Receive [Batch 0]
+#[test]
+fn blobs_with_out_of_order_sequencer_number_in_single_slot_get_deferred() {
+    let (
+        TestData {
+            preferred_sequencer,
+            ..
+        },
+        mut runner,
+    ) = setup_soft_confirmation_kernel();
+
+    let slots = vec![
+        vec![
+            (
+                preferred_sequencer.clone(),
+                SequencerInfo::Preferred {
+                    slots_to_advance: 1,
+                    sequence_number: 2,
+                },
+            ),
+            (
+                preferred_sequencer.clone(),
+                SequencerInfo::Preferred {
+                    slots_to_advance: 1,
+                    sequence_number: 1,
+                },
+            ),
+        ],
+        vec![],
+        vec![(
+            preferred_sequencer.clone(),
+            SequencerInfo::Preferred {
+                slots_to_advance: 1,
+                sequence_number: 0,
+            },
+        )],
+    ];
+
+    let receive_order = vec![
+        vec![],
+        vec![],
+        vec![SequenceInfo {
+            id: 2,
+            sequence_number: Some(0),
+        }],
+        vec![SequenceInfo {
+            id: 1,
+            sequence_number: Some(1),
+        }],
+        vec![SequenceInfo {
+            id: 0,
+            sequence_number: Some(2),
+        }],
+    ];
+
+    assert_blobs_are_correctly_received_soft_confirmation(
+        slots,
+        receive_order,
+        vec![0, 0, 1, 1, 1],
+        &mut runner,
+    );
+}
+
 #[test]
 fn check_blob_selection() {
     env::set_var(

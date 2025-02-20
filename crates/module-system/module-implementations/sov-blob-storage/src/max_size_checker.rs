@@ -1,15 +1,16 @@
 use sov_modules_api::macros::config_value;
-use sov_modules_api::Spec;
+use sov_modules_api::{BatchWithId, Spec};
 use tracing::error;
 
-use crate::BlobAndSender;
+use crate::capabilities::BlobDiscardReason;
+use crate::{BlobStorage, ValidatedBlob};
 
 struct BlobSizeChecker {
     accumulated_size: u32,
 }
 
 impl BlobSizeChecker {
-    fn can_process_blob(&mut self, blob_len: usize, max_size: u32) -> bool {
+    fn can_process_blob(&self, blob_len: usize, max_size: u32) -> bool {
         // On certain ZKVM platforms, usize is equivalent to u32. While we check for overflows here,
         // it is practically infeasible to encounter batches exceeding 2^32 bytes.
 
@@ -25,10 +26,7 @@ impl BlobSizeChecker {
         let maybe_accumulated_size = self.accumulated_size.checked_add(blob_len);
 
         match maybe_accumulated_size {
-            Some(new_accumulated_size) if new_accumulated_size <= max_size => {
-                self.accumulated_size = new_accumulated_size;
-                true
-            }
+            Some(new_accumulated_size) if new_accumulated_size <= max_size => true,
             _ => {
                 // The full-node/prover is capable of processing batches of up to hundreds of megabytes in size.
                 // However, the slot limits on the DAs are in the range of single megabytes, making it impossible to reach these limits.
@@ -52,7 +50,7 @@ impl BlobSizeChecker {
 /// Example
 /// If the maximum allowed size is 10MB, and the blobs are inserted in the following order [3MB, 20MB, 1MB], the `BlobsWithTotalSizeLimit` will only hold the first and the last blobs because their total size is less than 10MB.
 pub(crate) struct BlobsWithTotalSizeLimit<S: Spec> {
-    blobs_with_address: Vec<BlobAndSender<S>>,
+    blobs_with_address: Vec<ValidatedBlob<S, BatchWithId<S>>>,
     blob_size_checker: BlobSizeChecker,
     max_total_size: u32,
     // `max_total_size` is always greater than `max_preferred_blob_size`,
@@ -87,42 +85,64 @@ impl<S: Spec> BlobsWithTotalSizeLimit<S> {
         }
     }
 
-    pub(crate) fn push_preffered_or_ignore(&mut self, elem: BlobAndSender<S>) -> bool {
+    pub(crate) fn push_preffered_or_ignore(
+        &mut self,
+        elem: ValidatedBlob<S, BatchWithId<S>>,
+    ) -> bool {
         let can_process_blob = self
             .blob_size_checker
-            .can_process_blob(elem.0.blob_size(), self.max_preffered_blob_size);
+            .can_process_blob(elem.blob.blob_size(), self.max_preffered_blob_size);
 
         if can_process_blob {
+            // SAFETY: we checked that the blob size checker has capacity for this blob just above, which ensures that this addition will not overflow.
+            self.blob_size_checker
+                .accumulated_size
+                .checked_add(elem.blob.blob_size() as u32)
+                .unwrap();
             self.blobs_with_address.push(elem);
         }
 
         can_process_blob
+    }
+
+    /// Returns true if the blob can be accepted.
+    pub(crate) fn can_accept_blob(&self, blob_len: usize) -> bool {
+        self.blob_size_checker
+            .can_process_blob(blob_len, self.max_total_size)
     }
 
     /// Stores the blob internally if the total size of stored blobs didn't corss the preconfigued limit.
-    pub(crate) fn push_or_ignore(&mut self, elem: BlobAndSender<S>) -> bool {
+    pub(crate) fn push_or_ignore(&mut self, elem: ValidatedBlob<S, BatchWithId<S>>) -> bool {
         let can_process_blob = self
             .blob_size_checker
-            .can_process_blob(elem.0.blob_size(), self.max_total_size);
+            .can_process_blob(elem.blob.blob_size(), self.max_total_size);
 
         if can_process_blob {
+            // SAFETY: We just checked that the blob size checker has capacity for this blob so this computation will not overflow.
+            self.blob_size_checker.accumulated_size += elem.blob.blob_size() as u32;
             self.blobs_with_address.push(elem);
+        } else {
+            BlobStorage::<S>::log_discarded_item(
+                &elem.sender,
+                elem.blob.id(),
+                &BlobDiscardReason::OutOfCapacity,
+            );
         }
 
         can_process_blob
     }
 
-    pub(crate) fn inner(self) -> Vec<BlobAndSender<S>> {
+    pub(crate) fn inner(self) -> Vec<ValidatedBlob<S, BatchWithId<S>>> {
         self.blobs_with_address
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use sov_mock_da::MockAddress;
     use sov_modules_api::{BatchWithId, BlobDataWithId, FullyBakedTx};
 
     use super::*;
+    use crate::Escrow;
     pub type S = sov_test_utils::TestSpec;
 
     #[test]
@@ -157,29 +177,37 @@ mod tests {
 
         let mut expected_addresses = Vec::new();
         for (i, b) in txs.into_iter().enumerate() {
-            let b = BlobDataWithId::Batch(BatchWithId::new(b, [0; 32], [i as u8; 28].into()));
             let addr = [i as u8; 32].into();
+            let b = ValidatedBlob::new(
+                BlobDataWithId::Batch(BatchWithId::new(b, [0; 32], [i as u8; 28].into())),
+                addr,
+                Escrow::None,
+            );
             if expected_indexes.contains(&(i as u8)) {
                 expected_addresses.push(addr);
             }
-            blobs_with_total_size_limit.push_or_ignore((b, addr));
+            blobs_with_total_size_limit.push_or_ignore(b);
         }
 
         let inner = blobs_with_total_size_limit
             .inner()
             .into_iter()
-            .map(|(_, addr)| addr)
+            .map(|b| b.sender)
             .collect::<Vec<_>>();
 
         assert_eq!(inner, expected_addresses);
     }
 
-    fn create_blob(size: usize) -> BlobDataWithId<BatchWithId<S>> {
-        BlobDataWithId::Batch(BatchWithId::new(
-            vec![FullyBakedTx::new(vec![0; size])],
-            [0; 32],
-            [0; 28].into(),
-        ))
+    fn create_blob(size: usize) -> ValidatedBlob<S, BatchWithId<S>> {
+        ValidatedBlob::new(
+            BlobDataWithId::Batch(BatchWithId::new(
+                vec![FullyBakedTx::new(vec![0; size])],
+                [0; 32],
+                [0; 28].into(),
+            )),
+            [0; 32].into(),
+            Escrow::None,
+        )
     }
 
     #[test]
@@ -191,18 +219,16 @@ mod tests {
         let blob_size = 95;
         let blob = create_blob(blob_size);
 
-        let mock_address = MockAddress::new([0; 32]);
-
         // The blob is too large to be processed as a preferred blob.
         {
             let can_process_blob =
-                blobs_with_total_size_limit.push_preffered_or_ignore((blob.clone(), mock_address));
+                blobs_with_total_size_limit.push_preffered_or_ignore(blob.clone());
             assert!(!can_process_blob);
         }
 
         // The blob can be processed as a regular blob.
         {
-            let can_process_blob = blobs_with_total_size_limit.push_or_ignore((blob, mock_address));
+            let can_process_blob = blobs_with_total_size_limit.push_or_ignore(blob);
             assert!(can_process_blob);
         }
     }
@@ -216,11 +242,8 @@ mod tests {
         let blob_size = 80;
         let blob = create_blob(blob_size);
 
-        let mock_address = MockAddress::new([0; 32]);
-
         {
-            let can_process_blob =
-                blobs_with_total_size_limit.push_preffered_or_ignore((blob, mock_address));
+            let can_process_blob = blobs_with_total_size_limit.push_preffered_or_ignore(blob);
             assert!(can_process_blob);
         }
 
@@ -228,7 +251,7 @@ mod tests {
         let blob = create_blob(blob_size);
 
         {
-            let can_process_blob = blobs_with_total_size_limit.push_or_ignore((blob, mock_address));
+            let can_process_blob = blobs_with_total_size_limit.push_or_ignore(blob);
             assert!(can_process_blob);
         }
     }

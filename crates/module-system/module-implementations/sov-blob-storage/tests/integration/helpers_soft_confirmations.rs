@@ -29,7 +29,9 @@ pub fn setup_soft_confirmation_kernel() -> (TestData<S>, TestRunner<SoftConfRT>)
     let regular_sequencer_da_address = MockAddress::new([42; 32]);
 
     let user_stake = <S as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE);
-    let user_stake_value = user_stake.value(&S::initial_base_fee_per_gas());
+    let user_stake_value = user_stake
+        .checked_value(&S::initial_base_fee_per_gas())
+        .unwrap();
 
     let regular_sequencer = TestSequencer {
         user_info: regular_sequencer,
@@ -72,6 +74,8 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (TestData<S>, TestR
     let user_stake_value = runner.query_visible_state(|state| {
         <S as Spec>::Gas::from(config_value!("MAX_SEQUENCER_EXEC_GAS_PER_TX"))
             .value(state.gas_price())
+            .checked_mul(10)
+            .unwrap()
     });
 
     // We currently have to manually build the soft-confirmation blob

@@ -359,16 +359,14 @@ impl<S: Spec> ChainState<S> {
             .expect("Current heights must be set at genesis");
 
         if height == current_rollup_height {
-            let prev_gas_info = self
-                .historical_gas_info_at(height.saturating_sub(1), state)?
-                .expect("Gas info must be set at the end of each slot");
             let prev_visible_height = self
                 .visible_slot_number_at_height(height.saturating_sub(1), state)?
                 .unwrap_or_else(|| panic!("Slot number history must be set at genesis and updated at each slot. Could not find entry for height: {}", height.saturating_sub(1)));
             let slots_elapsed = current_visible_slot_number
                 .get()
                 .saturating_sub(prev_visible_height.get());
-            let next_base_price = Self::compute_base_fee_per_gas(prev_gas_info, slots_elapsed);
+            let next_base_price =
+                self.compute_next_gas_price(height.saturating_sub(1), slots_elapsed, state)?;
             return Ok(Some(next_base_price));
         }
 

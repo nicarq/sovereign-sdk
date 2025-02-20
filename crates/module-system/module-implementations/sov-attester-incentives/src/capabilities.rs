@@ -196,9 +196,12 @@ where
         // Which with our variable gives:
         // min_height <= bonding_proof.rollup_height <= new_height_to_attest
         // If this invariant is respected, we can be sure that the attester was bonded at new_height_to_attest.
-        if !(min_height <= attestation.proof_of_bond.claimed_slot_number
-            && attestation.proof_of_bond.claimed_slot_number <= new_height_to_attest)
-        {
+        if min_height > attestation.proof_of_bond.claimed_slot_number {
+            tracing::debug!(%min_height, claimed_slot_number = %attestation.proof_of_bond.claimed_slot_number, "Invalid transition invariant: min_height > bonding_proof.rollup_height");
+            return Err(ProcessAttestationErrors::InvalidTransitionInvariant);
+        }
+        if attestation.proof_of_bond.claimed_slot_number > new_height_to_attest {
+            tracing::debug!(%attestation.proof_of_bond.claimed_slot_number, %new_height_to_attest, "Invalid transition invariant: bonding_proof.rollup_height > new_height_to_attest");
             return Err(ProcessAttestationErrors::InvalidTransitionInvariant);
         }
 

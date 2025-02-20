@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
 use crate::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
-use crate::{Context, Gas, InfallibleStateAccessor, Spec, StateAccessor};
+use crate::{Context, Gas, InfallibleStateAccessor, Rewards, Spec, StateAccessor};
 
 /// Enforces gas limits and penalties for transactions.
 pub trait GasEnforcer<S: Spec> {
@@ -71,22 +71,21 @@ pub trait GasEnforcer<S: Spec> {
 
     /// The sequencer refunds the prover for the authentication of the transactions.
     /// This method is unmetered, so implementers MUST ensure that its cost is small.
-    /// This is not difficult to do - in general, this  method should simply do one token transfer
+    /// This is not difficult to do - in general, this  method should simply do a token transfer
     /// between known addresses.
-    fn transfer_funds_from_sequencer_to_prover(
+    fn reward_prover_from_sequencer_balance(
         &self,
-        amount: u64,
-        sequencer: &<<S as Spec>::Da as DaSpec>::Address,
+        funds_used: u64,
+        sequencer: &S::Address,
         tx_scratchpad: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<()>;
 
-    /// The user refunds the sequencer for the authentication of its transaction.
-    /// The caller should ensure that the user's balance will cover the cost; otherwise, the call will panic.
-    fn transfer_authentication_cost_from_user_to_sequencer(
+    /// Returns the remaining funds escrowed from pre-execution checks to the sequencer.
+    fn return_escrowed_funds_to_sequencer(
         &self,
-        amount: u64,
-        user: &S::Address,
-        sequencer: &<<S as Spec>::Da as DaSpec>::Address,
+        initial_escrow: u64,
+        reward: Rewards,
+        sequencer: &<S::Da as DaSpec>::Address,
         tx_scratchpad: &mut impl InfallibleStateAccessor,
     );
 }

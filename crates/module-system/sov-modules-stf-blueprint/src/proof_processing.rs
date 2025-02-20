@@ -1,14 +1,12 @@
 use std::marker::PhantomData;
 
-use sov_modules_api::capabilities::{
-    GasEnforcer, ProofProcessor, SequencerAuthorization, SequencerRemuneration,
-};
+use sov_modules_api::capabilities::{GasEnforcer, ProofProcessor};
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
     BasicGasMeter, DaSpec, Gas, GasArray, GasMeter, GasSpec, InvalidProofError,
     MeteredBorshDeserialize, PreExecWorkingSet, ProofOutcome, ProofReceipt, ProofReceiptContents,
-    Spec, StateCheckpoint, StateProvider, TxScratchpad, WorkingSet,
+    Rewards, Spec, StateCheckpoint, StateProvider, TxScratchpad, WorkingSet,
 };
 use sov_state::{Storage, StorageProof};
 
@@ -28,6 +26,8 @@ pub(crate) fn process_proof<S, RT>(
     slot_gas: &S::Gas,
     blob_hash: [u8; 32],
     sequencer_da_address: &<S::Da as DaSpec>::Address,
+    sequencer_rollup_address: &S::Address,
+    sequencer_bond: u64,
     gas_price: &<S::Gas as Gas>::Price,
     raw_proof: Vec<u8>,
     state: StateCheckpoint<S>,
@@ -39,16 +39,20 @@ where
     let workflow = ProofProcessingWorkflow::new(runtime, blob_hash, sequencer_da_address);
 
     // Check if the sequencer is bonded, and create `pre_exec_working_set`.
-    let (sequencer_rollup_address, mut pre_exec_working_set) =
-        match workflow.authorize_sequencer(slot_gas, gas_price, state.to_tx_scratchpad()) {
-            WorkflowResult::Proceed(pre_exec_working_set) => pre_exec_working_set,
-            WorkflowResult::EarlyReturn(out, scratchpad) => {
-                tracing::debug!("{LOG_PREFIX}: unable to create pre execution working set");
+    let mut pre_exec_working_set = match workflow.authorize_sequencer(
+        slot_gas,
+        sequencer_bond,
+        gas_price,
+        state.to_tx_scratchpad(),
+    ) {
+        WorkflowResult::Proceed(pre_exec_working_set) => pre_exec_working_set,
+        WorkflowResult::EarlyReturn(out, scratchpad) => {
+            tracing::debug!("{LOG_PREFIX}: unable to create pre execution working set");
 
-                // If sequencer authorization failed we don't charge any gas.
-                return (out, scratchpad.commit());
-            }
-        };
+            // If sequencer authorization failed we don't charge any gas.
+            return (out, scratchpad.commit());
+        }
+    };
 
     // The `pre_exec_working_set` is initialized, indicating that the sequencer is bonded and we can begin charging gas.
     match SerializeProofWithDetails::<S>::deserialize(
@@ -59,7 +63,7 @@ where
             // Reserve gas for the proof verification.
             let mut working_set = match workflow.try_reserve_gas(
                 slot_gas,
-                &sequencer_rollup_address,
+                sequencer_rollup_address,
                 gas_price,
                 proof_with_details.details.into(),
                 pre_exec_working_set,
@@ -82,8 +86,9 @@ where
                         // SAFETY: Unwrapping is safe here because `gas_used` comes from `BasicGasMeter``, which ensures overflow does not occur.
                         .expect("The gas value can't overflow");
 
+                    // TODO: We need to accept the actual number of reserved gas tokens as an argument to this fn.
                     let state = workflow
-                        .charge_sequencer_and_reward_prover(gas_value, scratchpad)
+                        .charge_sequencer_and_reward_prover(gas_value, sequencer_bond, scratchpad)
                         .commit();
 
                     return (out, state);
@@ -94,12 +99,12 @@ where
             let receipt_contents = match proof_with_details.proof {
                 ProofType::ZkAggregatedProof(proof) => runtime
                     .proof_processor()
-                    .process_aggregated_proof(proof, &sequencer_rollup_address, &mut working_set)
+                    .process_aggregated_proof(proof, sequencer_rollup_address, &mut working_set)
                     .map(|(pub_data, proof)| ProofReceiptContents::AggregateProof(pub_data, proof)),
 
                 ProofType::OptimisticProofAttestation(proof) => runtime
                     .proof_processor()
-                    .process_attestation(proof, &sequencer_rollup_address, &mut working_set)
+                    .process_attestation(proof, sequencer_rollup_address, &mut working_set)
                     .map(ProofReceiptContents::Attestation),
 
                 ProofType::OptimisticProofChallenge(proof, rollup_height) => runtime
@@ -107,7 +112,7 @@ where
                     .process_challenge(
                         proof,
                         rollup_height,
-                        &sequencer_rollup_address,
+                        sequencer_rollup_address,
                         &mut working_set,
                     )
                     .map(ProofReceiptContents::BlockProof),
@@ -141,7 +146,7 @@ where
             };
 
             runtime.gas_enforcer().refund_remaining_gas(
-                &sequencer_rollup_address,
+                sequencer_rollup_address,
                 &transaction_consumption.remaining_funds(),
                 &mut scratchpad,
             );
@@ -150,10 +155,14 @@ where
                 .gas_enforcer()
                 .reward_prover(&transaction_consumption.base_fee_value(), &mut scratchpad);
 
-            let sequencer_reward = transaction_consumption.priority_fee();
-            runtime.sequencer_remuneration().reward_sequencer(
-                sequencer_da_address,
+            let sequencer_reward = Rewards {
+                accumulated_reward: transaction_consumption.priority_fee().0,
+                accumulated_penalty: 0,
+            };
+            runtime.gas_enforcer().return_escrowed_funds_to_sequencer(
+                sequencer_bond,
                 sequencer_reward,
+                sequencer_da_address,
                 &mut scratchpad,
             );
 
@@ -182,8 +191,17 @@ where
                 "The sequencer paid for the transaction.",
             );
 
+            // SAFETY: We compute this value at the beginning of the function when we create the `pre_exec_working_set`. If that failed, we'll never reach this point.
+            let max_tx_check_value = <S as GasSpec>::max_tx_check_costs()
+                .checked_value(gas_price)
+                .unwrap();
+
             let state = workflow
-                .charge_sequencer_and_reward_prover(gas_meter.gas_info().gas_value, state)
+                .charge_sequencer_and_reward_prover(
+                    gas_meter.gas_info().gas_value,
+                    max_tx_check_value,
+                    state,
+                )
                 .commit();
 
             let gas_used = gas_meter.gas_info().gas_used;
@@ -227,7 +245,7 @@ enum WorkflowResult<Arg, S: Spec, I: StateProvider<S>> {
 struct ProofProcessingWorkflow<'a, S: Spec, RT: Runtime<S>> {
     runtime: &'a RT,
     blob_hash: [u8; 32],
-    sequencer_da_address: &'a <<S as Spec>::Da as DaSpec>::Address,
+    sequencer_da_address: &'a <S::Da as DaSpec>::Address,
     _phantom: PhantomData<S>,
 }
 
@@ -239,7 +257,7 @@ where
     fn new(
         runtime: &'a RT,
         blob_hash: [u8; 32],
-        sequencer_da_address: &'a <<S as Spec>::Da as DaSpec>::Address,
+        sequencer_da_address: &'a <S::Da as DaSpec>::Address,
     ) -> Self {
         Self {
             runtime,
@@ -252,8 +270,9 @@ where
     fn authorize_sequencer<I: StateProvider<S>>(
         &self,
         slot_gas: &S::Gas,
+        sequencer_bond: u64,
         gas_price: &<S::Gas as Gas>::Price,
-        mut tx_scratchpad: TxScratchpad<S, I>,
+        tx_scratchpad: TxScratchpad<S, I>,
     ) -> PreExecWorkingSetResult<S, I> {
         // CHECKS:
         // 1. `max_tx_check_costs` will not cause an overflow when converted to a token value.
@@ -278,22 +297,15 @@ where
             }
         };
 
-        let sequencer = self
-            .runtime
-            .sequencer_authorization()
-            .authorize_sequencer(self.sequencer_da_address, &mut tx_scratchpad)
-            .expect("Blob selection must guarantee that sequencer is registered");
-
-        // 2. The sequencer has more funds than are needed for transaction validation..
-        if sequencer.balance <= max_tx_check_value {
+        // 2. Check that the sequencer has enough bond to cover the max_tx_check_costs
+        if max_tx_check_value > sequencer_bond {
             return WorkflowResult::EarlyReturn(
                 ProcessProofOutput {
                     proof_receipt: invalid_proof_receipt::<S>(
                         self.blob_hash,
-                        InvalidProofError::PreconditionNotMet(format!(
-                            "Sequencer balance insufficient for tx check costs: {}",
-                            sequencer.balance
-                        )),
+                        InvalidProofError::PreconditionNotMet(
+                            "Sequencer bond is too low".to_string(),
+                        ),
                     ),
                     gas_used: S::Gas::zero(),
                 },
@@ -301,7 +313,7 @@ where
             );
         }
 
-        // 3. The slot gas is higher than the gas needed to validate the transaction.
+        // 3. Check that the slot gas is higher than the gas needed to validate the transaction.
         if slot_gas.dim_is_less_or_eq(&max_tx_check_costs) {
             return WorkflowResult::EarlyReturn(
                 ProcessProofOutput {
@@ -329,7 +341,7 @@ where
             // SAFETY: It is ok to expect here because `pre_exec_gas_meter` was initialized with `max_tx_check_costs` which is bigger than process_tx_pre_exec_checks_gas.
             .expect("The gas meter should be able to charge the pre-execution checks");
 
-        WorkflowResult::Proceed((sequencer.address, pre_exec_working_set))
+        WorkflowResult::Proceed(pre_exec_working_set)
     }
 
     fn try_reserve_gas<I: StateProvider<S>>(
@@ -378,17 +390,21 @@ where
     fn charge_sequencer_and_reward_prover<I: StateProvider<S>>(
         &self,
         max_auth_cost: u64,
+        reserved_gas_tokens: u64,
         mut state: TxScratchpad<S, I>,
     ) -> TxScratchpad<S, I> {
+        let sequencer_reward = Rewards {
+            accumulated_reward: 0,
+            accumulated_penalty: max_auth_cost,
+        };
         self.runtime
             .gas_enforcer()
-            .transfer_funds_from_sequencer_to_prover(
-                max_auth_cost,
+            .return_escrowed_funds_to_sequencer(
+                reserved_gas_tokens,
+                sequencer_reward,
                 self.sequencer_da_address,
                 &mut state,
-            )
-            // SAFETY: This **should** never fail because we initialize gas meter with `max_tx_check_costs` which is lower than the sequencer bond..
-            .expect("Sequencer should have enough funds to pay for the penalty");
+            );
 
         state
     }
@@ -430,5 +446,4 @@ fn invalid_proof_receipt<S: Spec>(
     }
 }
 
-type PreExecWorkingSetResult<S, I> =
-    WorkflowResult<(<S as Spec>::Address, PreExecWorkingSet<S, I>), S, I>;
+type PreExecWorkingSetResult<S, I> = WorkflowResult<PreExecWorkingSet<S, I>, S, I>;

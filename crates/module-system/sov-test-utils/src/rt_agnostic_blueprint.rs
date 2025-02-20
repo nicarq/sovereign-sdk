@@ -11,8 +11,7 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::prelude::axum::async_trait;
 use sov_modules_api::rest::{HasRestApi, StateUpdateReceiver};
 use sov_modules_api::{
-    BlobDataWithId, CryptoSpec, IterableBatchWithId, RuntimeEndpoints, Spec, SyncStatus,
-    ZkVerifier, Zkvm,
+    CryptoSpec, RuntimeEndpoints, SelectedBlob, Spec, SyncStatus, ZkVerifier, Zkvm,
 };
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
@@ -35,9 +34,9 @@ impl<S, R> RollupBlueprint<Native> for RtAgnosticBlueprint<S, R>
 where
     S: Spec + PluggableSpec,
     R: RuntimeTrait<S>
-        + HasKernel<S, BlobType = BlobDataWithId<IterableBatchWithId<S>>>
+        + HasKernel<S, BlobType = SelectedBlob<S>>
         + HasCapabilities<S>
-        + HasKernel<S, BlobType = BlobDataWithId<IterableBatchWithId<S>>>,
+        + HasKernel<S, BlobType = SelectedBlob<S>>,
 {
     type Spec = S;
     type Runtime = R;
@@ -56,7 +55,7 @@ where
     R: RuntimeTrait<S>
         + HasRestApi<S>
         + HasCapabilities<S>
-        + HasKernel<S, BlobType = BlobDataWithId<IterableBatchWithId<S>>>
+        + HasKernel<S, BlobType = SelectedBlob<S>>
         + 'static,
 {
     type DaService = StorableMockDaService;

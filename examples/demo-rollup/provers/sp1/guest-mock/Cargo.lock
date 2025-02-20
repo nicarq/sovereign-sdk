@@ -4676,6 +4676,7 @@ dependencies = [
  "hex",
  "schemars",
  "serde",
+ "sov-bank",
  "sov-chain-state",
  "sov-modules-api",
  "sov-rollup-interface",

@@ -4,16 +4,17 @@ use std::convert::Infallible;
 
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
-use sov_modules_api::capabilities::{BlobOrigin, BlobSelectorOutput, BlockGasInfo, RollupHeight};
+use sov_modules_api::capabilities::{BlobSelectorOutput, BlockGasInfo, RollupHeight};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel as KernelTrait};
 #[cfg(feature = "native")]
 use sov_modules_api::AccessoryStateReaderAndWriter;
 use sov_modules_api::{
-    BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, IterableBatchWithId, KernelStateAccessor,
-    Spec, StateReader, VersionReader, VisibleSlotNumber,
+    BootstrapWorkingSet, DaSpec, Gas, KernelStateAccessor, SelectedBlob, Spec, StateReader,
+    VersionReader, VisibleSlotNumber,
 };
 use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::da::RelevantBlobIters;
 use sov_state::{Kernel, Storage, User};
 
 /// A kernel supporting based sequencing with soft confirmations
@@ -50,19 +51,26 @@ impl<'a, S: Spec> KernelTrait<S> for SoftConfirmationsKernel<'a, S> {
 
 impl<'b, S: Spec> BlobSelector for SoftConfirmationsKernel<'b, S> {
     type Spec = S;
-    type BlobType = BlobDataWithId<IterableBatchWithId<S>>;
+    type BlobType = SelectedBlob<S>;
     const ACCEPTS_PREFERRED_BATCHES: bool = true;
 
-    fn get_blobs_for_this_slot<'a, 'k, I>(
+    fn get_blobs_for_this_slot(
         &self,
-        current_blobs: I,
-        state: &mut KernelStateAccessor<'k, Self::Spec>,
-    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId<S>>>>
-    where
-        I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
-    {
+        current_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
+        state: &mut KernelStateAccessor<'_, S>,
+    ) -> anyhow::Result<BlobSelectorOutput<SelectedBlob<S>>> {
         self.blob_storage
             .get_blobs_for_this_slot(current_blobs, state)
+    }
+
+    #[cfg(feature = "native")]
+    fn escrow_funds_for_preferred_sequencer(
+        &self,
+        amount: u64,
+        state: &mut KernelStateAccessor<'_, S>,
+    ) -> anyhow::Result<()> {
+        self.blob_storage
+            .escrow_funds_for_preferred_sequencer(amount, state)
     }
 
     fn next_sequence_number(&self, state: &mut KernelStateAccessor<'_, Self::Spec>) -> u64 {

@@ -2,7 +2,7 @@ use std::num::NonZero;
 
 use sov_blob_storage::{config_deferred_slots_count, config_unregistered_blobs_per_slot};
 use sov_mock_da::{MockAddress, MockBlob};
-use sov_modules_api::{BlobDataWithId, CryptoSpec, IterableBatchWithId, Spec};
+use sov_modules_api::{CryptoSpec, SelectedBlob, Spec};
 use sov_modules_stf_blueprint::{BatchReceipt, Runtime};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
@@ -18,9 +18,7 @@ use crate::helpers_soft_confirmations::{
 use crate::{HashMap, TestData, S};
 
 fn make_unregistered_blobs<
-    RT: Runtime<S, BlobType = BlobDataWithId<IterableBatchWithId<S>>>
-        + MinimalGenesis<S>
-        + EncodeCall<SequencerRegistry<S>>,
+    RT: Runtime<S, BlobType = SelectedBlob<S>> + MinimalGenesis<S> + EncodeCall<SequencerRegistry<S>>,
 >(
     num_blobs: u64,
     sender: &TestSequencer<S>,
