@@ -1,9 +1,9 @@
-use sov_modules_api::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
-use sov_modules_api::{Gas, InfallibleStateAccessor, Spec, StateAccessor};
+use sov_modules_api::transaction::AuthenticatedTransactionData;
+use sov_modules_api::{Gas, Spec, StateAccessor};
 use thiserror::Error;
 
 use crate::utils::IntoPayable;
-use crate::{config_gas_token_id, Bank, Coins, Payable};
+use crate::{config_gas_token_id, Bank, Coins};
 
 /// Error types that can be raised by the `reserve_gas` method
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
@@ -31,7 +31,6 @@ pub enum ReserveGasError {
     StateAccessError(String),
 }
 
-/// The [`Bank::reserve_gas`] and [`Bank::refund_remaining_gas`] are used to reserve and then lock transaction base gas and tip
 impl<S: Spec> Bank<S> {
     /// Reserve the gas necessary to execute a transaction. The gas is locked at the bank's address
     /// This method loosely follows the-EIP 1559 gas price calculation.
@@ -96,46 +95,5 @@ impl<S: Spec> Bank<S> {
         }
 
         Ok(())
-    }
-
-    /// Computes and allocates the gas consumed by the transaction to the base fee and the tip recipients.
-    pub fn reward_prover(
-        &self,
-        // The address that receives the base fee. Typically, this is the module id of either the `ProverIncentives` or the `AttesterIncentives` module.
-        base_fee_recipient: &impl Payable<S>,
-        base_fee: &ProverRewards,
-        tx_scratchpad: &mut impl InfallibleStateAccessor,
-    ) {
-        self.transfer_from(
-            self.id.to_payable(),
-            base_fee_recipient.as_token_holder(),
-            Coins {
-                amount: base_fee.0,
-                token_id: config_gas_token_id(),
-            },
-            tx_scratchpad,
-        )
-        .expect("Transferring the consumed base fee gas is infallible");
-    }
-
-    /// Refunds any remaining gas to the payer from the bank module after the transaction is processed.
-    pub fn refund_remaining_gas(
-        &self,
-        payer: &S::Address,
-        remaining_funds: &RemainingFunds,
-        tx_scratchpad: &mut impl InfallibleStateAccessor,
-    ) {
-        // We refund the payer. We need to give back the remaining funds on the gas meter, plus the unspent tip.
-        // This is also the maximum fee minus everything that was spent for the tip and base fee (ie the total reward).
-        self.transfer_from(
-            self.id.to_payable(),
-            payer,
-            Coins {
-                amount: remaining_funds.0,
-                token_id: config_gas_token_id(),
-            },
-            tx_scratchpad,
-        )
-        .expect("Refunding unspent gas is infallible");
     }
 }

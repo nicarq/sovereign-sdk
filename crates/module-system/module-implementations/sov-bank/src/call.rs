@@ -417,7 +417,7 @@ impl<S: Spec> Bank<S> {
     /// Transfer the amount `amount` of tokens from the address `from` to the address `to`.
     /// First checks that there is enough token of that type stored in `from`. If so, update
     /// the balances of the `from` and `to` accounts.
-    pub(crate) fn do_transfer(
+    fn do_transfer(
         &self,
         from: TokenHolderRef<'_, S>,
         to: TokenHolderRef<'_, S>,

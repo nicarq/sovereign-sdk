@@ -261,6 +261,7 @@ impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
     /// Builds a [`crate::TransactionConsumption`] from the [`WorkingSet`].
     pub(crate) fn transaction_consumption(&self) -> TransactionConsumption<S::Gas> {
         // The base fee is the amount of gas consumed by the transaction execution.
+        // The `base_fee` is retrieved from self.gas_meter, which guards against base_fee * gas_price overflow.
         let base_fee = self.gas_meter.gas_info().gas_used;
         let gas_price = self.gas_meter.gas_info().gas_price;
 

@@ -48,8 +48,8 @@ pub trait GasEnforcer<S: Spec> {
     /// This method should not fail.
     ///
     /// ## Correctness note
-    /// TODO(@theochap): The rollup developer has to make sure to pre-allocate enough gas to prevent the
-    /// transaction sender from underpaying for this operation.
+    /// The caller of this method must ensure that sufficient funds are reserved.  
+    /// If there are not enough funds reserved, the method will panic.
     fn reward_prover(
         &self,
         prover_rewards: &ProverRewards,
@@ -60,8 +60,8 @@ pub trait GasEnforcer<S: Spec> {
     /// This method should not fail.
     ///
     /// ## Correctness note
-    /// TODO(@theochap): The rollup developer has to make sure to pre-allocate enough gas to prevent the
-    /// transaction sender from underpaying for this operation.
+    /// The caller of this method must ensure that sufficient funds are reserved.  
+    /// If there are not enough funds reserved, the method will panic.
     fn refund_remaining_gas(
         &self,
         sender: &S::Address,

@@ -457,8 +457,6 @@ pub struct GasInfo<GU: Gas> {
     pub gas_used: GU,
     /// The current gas price
     pub gas_price: GU::Price,
-    /// The remaining amount of tokens locked in the meter
-    pub remaining_funds: u64,
 }
 
 #[macro_export]
@@ -622,12 +620,6 @@ pub struct BasicGasMeter<S: Spec> {
 impl<S: Spec> BasicGasMeter<S> {
     /// Get gas info from the `BasicGasMeter`
     pub fn gas_info(&self) -> GasInfo<S::Gas> {
-        let remaining_funds = if let Some(remaining_funds) = self.remaining_funds {
-            remaining_funds
-        } else {
-            self.remaining_gas.value(&self.gas_price)
-        };
-
         let gas_used = self
             .initial_gas
             .checked_sub(&self.remaining_gas)
@@ -635,13 +627,13 @@ impl<S: Spec> BasicGasMeter<S> {
 
         let gas_value = gas_used
             .checked_value(&self.gas_price)
-            .expect("The gas value should be possible to compute");
+            // SAFETY: This is impossible becouse we check for oveflows in `BasicGasMeter::charge_gas_inner`.
+            .expect("BasicGasMeter error. The gas value should be possible to compute");
 
         GasInfo {
             gas_value,
             gas_used,
             gas_price: self.gas_price.clone(),
-            remaining_funds,
         }
     }
 
@@ -1027,11 +1019,6 @@ mod tests {
                 "The gas used should be the same as the gas charged"
             );
             assert_eq!(gas_meter.gas_info().gas_price, gas_price);
-            assert_eq!(
-                gas_meter.gas_info().remaining_funds,
-                0,
-                "There should be no more gas left in the meter"
-            );
 
             assert!(
             gas_meter.charge_gas(&GasUnit::<2>::from([1; 2])).is_err(),
@@ -1056,12 +1043,6 @@ mod tests {
                 "The gas used should be the same as the gas charged"
             );
             assert_eq!(gas_meter.gas_info().gas_price, gas_price);
-
-            assert_eq!(
-                gas_meter.gas_info().remaining_funds,
-                0,
-                "There should be no more gas left in the meter"
-            );
 
             assert!(
                 gas_meter.charge_gas(&GasUnit::<2>::from([1; 2])).is_err(),

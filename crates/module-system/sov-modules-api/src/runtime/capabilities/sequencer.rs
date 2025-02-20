@@ -46,6 +46,8 @@ pub trait SequencerAuthorization<S: Spec> {
 pub trait SequencerRemuneration<S: Spec> {
     /// Reward the sequencer for correctly processing the transaction batch.
     /// This reward increases its staked balance.
+    /// The caller of this method must ensure that sufficient funds are reserved.  
+    /// If there are not enough funds reserved, the method will panic.
     fn reward_sequencer(
         &self,
         sequencer: &<S::Da as DaSpec>::Address,
@@ -55,6 +57,8 @@ pub trait SequencerRemuneration<S: Spec> {
 
     /// Reward the sequencer for correctly processing the forced registration.
     /// If the registration was reverted, refund the sequencer rollup address.
+    /// The caller of this method must ensure that sufficient funds are reserved.  
+    /// If there are not enough funds reserved, the method will panic.
     fn reward_sequencer_or_refund(
         &self,
         sequencer: &<S::Da as DaSpec>::Address,

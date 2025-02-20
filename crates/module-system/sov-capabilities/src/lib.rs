@@ -1,7 +1,7 @@
 #[cfg(feature = "native")]
 use sov_attester_incentives::BondingProofServiceImpl;
 use sov_bank::utils::TokenHolderRef;
-use sov_bank::IntoPayable;
+use sov_bank::{config_gas_token_id, Coins, IntoPayable, Payable};
 #[cfg(feature = "native")]
 use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::capabilities::{
@@ -134,7 +134,17 @@ where
         let rewarded_module = self.get_prover_token_holder(state);
 
         self.bank
-            .reward_prover(&rewarded_module, prover_rewards, state);
+            .transfer_from(
+                self.bank.id.to_payable(),
+                rewarded_module.as_token_holder(),
+                Coins {
+                    amount: prover_rewards.0,
+                    token_id: config_gas_token_id(),
+                },
+                state,
+            )
+            // SAFETY: It is safe to unwrap here because the caller must ensure that sufficient funds are reserved.
+            .expect("Caller failed to ensure sufficient funds are reserved, but this is required for reward_prover to remain infallible");
     }
 
     fn refund_remaining_gas(
@@ -143,8 +153,20 @@ where
         remaining_funds: &RemainingFunds,
         state: &mut impl InfallibleStateAccessor,
     ) {
+        // We refund the payer. We need to give back the remaining funds on the gas meter, plus the unspent tip.
+        // This is also the maximum fee minus everything that was spent for the tip and base fee (ie the total reward).
         self.bank
-            .refund_remaining_gas(recipient, remaining_funds, state);
+            .transfer_from(
+                self.bank.id.to_payable(),
+                recipient,
+                Coins {
+                    amount: remaining_funds.0,
+                    token_id: config_gas_token_id(),
+                },
+                state,
+            )
+            // SAFETY: It is safe to unwrap here because the caller must ensure that sufficient funds are reserved.
+            .expect("Caller failed to ensure sufficient funds are reserved, but this is required for refund_remaining_gas to remain infallible");
     }
 
     fn transfer_funds_from_sequencer_to_prover(
@@ -345,7 +367,8 @@ impl<'a, S: Spec, T> SequencerRemuneration<S> for StandardProvenRollupCapabiliti
     ) {
         self.sequencer_registry
             .add_to_stake(self.bank.id().to_payable(), sequencer, reward.into(), state)
-            .unwrap_or_else(|e| panic!("Unable to increase the sequencer's stake {}", e));
+            // SAFETY: It is safe to unwrap here because the caller must ensure that sufficient funds are reserved.
+            .unwrap_or_else(|e| panic!("Caller failed to ensure sufficient funds are reserved. Unable to increase the sequencer's stake {}", e));
     }
 
     fn reward_sequencer_or_refund(
@@ -365,11 +388,18 @@ impl<'a, S: Spec, T> SequencerRemuneration<S> for StandardProvenRollupCapabiliti
         // The error indicates that the forced registration was reverted.
         // In this case, we will refund the rewards to the user.
         if stake_increased.is_err() {
-            self.bank.refund_remaining_gas(
-                sequencer_rollup_address,
-                &RemainingFunds(reward.0),
-                state,
-            );
+            self.bank
+                .transfer_from(
+                    self.bank.id.to_payable(),
+                    sequencer_rollup_address.as_token_holder(),
+                    Coins {
+                        amount: reward.0,
+                        token_id: config_gas_token_id(),
+                    },
+                    state,
+                )
+                // SAFETY: It is safe to unwrap here because the caller must ensure that sufficient funds are reserved.
+                .expect("Caller failed to ensure sufficient funds are reserved. Transferring the consumed base fee gas is infallible");
         }
     }
 

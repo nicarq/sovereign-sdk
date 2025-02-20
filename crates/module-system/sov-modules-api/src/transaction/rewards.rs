@@ -63,7 +63,12 @@ impl<GU: Gas> TransactionConsumption<GU> {
     /// The base fee reward of the transaction expressed as a gas token amount.
     /// This amounts to compute the scalar product of [`Self::base_fee`] by the current gas price.
     pub fn base_fee_value(&self) -> ProverRewards {
-        ProverRewards(self.base_fee.value(&self.gas_price))
+        ProverRewards(
+            self.base_fee
+                .checked_value(&self.gas_price)
+                // SAFETY: `base_fee` comes from `BasicGasMeter`, which ensures overflow protection.
+                .expect("Base fee value overflowed"),
+        )
     }
 
     /// The priority fee reward of the transaction expressed as a gas token amount.
@@ -121,7 +126,10 @@ pub(crate) fn transaction_consumption_helper<S: Spec>(
     max_fee: u64,
     max_priority_fee_bips: PriorityFeeBips,
 ) -> TransactionConsumption<S::Gas> {
-    let base_fee_value = base_fee.value(gas_price);
+    let base_fee_value = base_fee
+        .checked_value(gas_price)
+        // SAFETY: `base_fee` comes from `BasicGasMeter`, which ensures overflow protection.
+        .expect("Base fee value overflowed");
 
     let max_remaining_funds = max_fee - base_fee_value;
 

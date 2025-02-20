@@ -175,19 +175,19 @@ pub enum MaybeExecuted<R> {
 impl<R> ProvisionalSequencerOutcome<R> {
     /// A convenient constructor for provisionally penalizing the sequencer and indicating
     /// that the sequencer has run out of funds.
-    pub fn out_of_funds<G: Gas>(gas_used: &G, gas_price: &G::Price) -> Self {
+    pub fn out_of_funds(penalty: u64) -> Self {
         Self {
             reward: 0,
-            penalty: gas_used.value(gas_price),
+            penalty,
             execution_status: MaybeExecuted::SequencerOutOfFunds,
         }
     }
 
     /// A convenient constructor for provisionally penalizing the sequencer
-    pub fn penalize<G: Gas>(gas_used: &G, gas_price: &G::Price, receipt: R) -> Self {
+    pub fn penalize(penalty: u64, receipt: R) -> Self {
         Self {
             reward: 0,
-            penalty: gas_used.value(gas_price),
+            penalty,
             execution_status: MaybeExecuted::Executed(receipt),
         }
     }
