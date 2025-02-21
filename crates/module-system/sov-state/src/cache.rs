@@ -265,6 +265,7 @@ pub struct StateAccesses {
 impl<N> From<ProvableStorageCache<N>> for OrderedReadsAndWrites {
     fn from(val: ProvableStorageCache<N>) -> Self {
         let mut writes = val.tx_cache.take_writes();
+        //This TODO is for performance enhancement, not a security concern.
         // TODO: Make this more efficient
         writes.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
         Self {

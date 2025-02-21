@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 /// added and the zkVM circuit can then read the same hint. Hints are replayed
 /// to [`Witness::get_hint`] in the same order
 /// they were added via [`Witness::add_hint`].
+// This TODO is for performance enhancement, not a security concern.
 // TODO: Refactor witness trait so it only require Serialize / Deserialize
 //   https://github.com/Sovereign-Labs/sovereign-sdk/issues/263
 pub trait Witness: Default + Serialize + DeserializeOwned {

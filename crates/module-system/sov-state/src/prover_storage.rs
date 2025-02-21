@@ -158,6 +158,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
                 // For each value that's been read from the tree, read it from the logged JMT to populate hints
                 for (key, read_node_leaf) in &state_accesses.ordered_reads {
                     let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
+                    // This TODO is for performance enhancement, not a security concern.
                     // TODO: Switch to the batch read API once it becomes available
                     let (value_from_proof, proof) =
                         jmt.get_with_proof(key_hash, latest_version.get())?;
