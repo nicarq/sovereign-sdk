@@ -292,7 +292,7 @@ where
                     let mut rollup_config = rollup_config.clone();
                     rollup_config.storage.path = second_sequencer_dir.path().to_path_buf();
                     let (client, sender) = Self::start_secondary_sequencer(
-                        da_service.another_on_the_same_layer(addr),
+                        da_service.another_on_the_same_layer(addr).await,
                         rollup_config.clone(),
                         shutdown_sender.subscribe(),
                     )

@@ -2,22 +2,21 @@
 
 use std::ops::Range;
 
-use chrono::DateTime;
 use rand::prelude::{SliceRandom, SmallRng};
 use rand::{Rng, SeedableRng};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Database, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, Set,
+    QueryOrder,
 };
 use sha2::Digest;
 use sov_rollup_interface::common::{HexHash, HexString};
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, watch};
 
 use crate::config::{GENESIS_BLOCK, GENESIS_HEADER};
 use crate::storable::entity;
 use crate::storable::entity::blobs::Entity as Blobs;
 use crate::storable::entity::block_headers::Entity as BlockHeaders;
-use crate::storable::entity::{blobs, block_headers, finalized_height};
+use crate::storable::entity::{blobs, block_headers, finalized_height, query_last_saved_block};
 use crate::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockHash,
     RandomizationBehaviour, RandomizationConfig,
@@ -28,13 +27,13 @@ use crate::{
 pub struct StorableMockDaLayer {
     conn: DatabaseConnection,
     /// The height which is currently being built.
-    pub(crate) next_height: u32,
-    /// Recording it separately, as rewinding forbids relying on `next_height` to compute it.
+    next_height: u32,
     last_finalized_height: u32,
     /// Defines how many blocks should be submitted before the block is finalized.
     /// Zero means instant finality.
     pub(crate) blocks_to_finality: u32,
     pub(crate) finalized_header_sender: broadcast::Sender<MockBlockHeader>,
+    head_header_sender: watch::Sender<MockBlockHeader>,
     randomizer: Option<Randomizer>,
 }
 
@@ -52,8 +51,8 @@ impl StorableMockDaLayer {
         let conn: DatabaseConnection = Database::connect(opts).await?;
 
         entity::setup_db(&conn).await?;
-        let next_height = entity::query_last_height(&conn)
-            .await?
+        let last_seen_block = entity::query_last_saved_block(&conn).await?;
+        let next_height = (last_seen_block.height as u32)
             .checked_add(1)
             .expect("next_height overflow");
 
@@ -66,12 +65,15 @@ impl StorableMockDaLayer {
         // error and the task will exit.
         tokio::spawn(async move { while rx.recv().await.is_ok() {} });
 
+        let (sender, _receiver) = watch::channel(last_seen_block);
+
         Ok(StorableMockDaLayer {
             conn,
             next_height,
             last_finalized_height,
             blocks_to_finality,
             finalized_header_sender,
+            head_header_sender: sender,
             randomizer: None,
         })
     }
@@ -134,16 +136,16 @@ impl StorableMockDaLayer {
 
         let this_block_hash = self.calculate_block_hash(self.next_height, &prev_block_hash, &blobs);
 
-        let block = block_headers::ActiveModel {
-            height: Set(self.next_height as i32),
-            prev_hash: Set(prev_block_hash.to_vec()),
-            hash: Set(this_block_hash.to_vec()),
-            created_at: Set(
-                DateTime::from_timestamp(timestamp.secs(), timestamp.subsec_nanos()).unwrap(),
-            ),
-            ..Default::default()
+        let new_head = MockBlockHeader {
+            height: self.next_height as u64,
+            prev_hash: MockHash(prev_block_hash),
+            hash: MockHash(this_block_hash),
+            time: timestamp,
         };
-        block.insert(&self.conn).await?;
+
+        let block_model = block_headers::ActiveModel::from(new_head.clone());
+        block_model.insert(&self.conn).await?;
+        let _ = self.head_header_sender.send_replace(new_head);
         tracing::trace!(
             blobs_count,
             height = self.next_height,
@@ -273,6 +275,11 @@ impl StorableMockDaLayer {
         self.get_header_at(self.next_height.saturating_sub(1)).await
     }
 
+    /// Get updates on the latest head block
+    pub fn subscribe_to_head_updates(&self) -> watch::Receiver<MockBlockHeader> {
+        self.head_header_sender.subscribe()
+    }
+
     pub(crate) async fn get_last_finalized_block_header(&self) -> anyhow::Result<MockBlockHeader> {
         self.get_header_at(self.last_finalized_height).await
     }
@@ -383,7 +390,7 @@ impl StorableMockDaLayer {
             "StorableMockDaLayer rewound"
         );
 
-        Ok(())
+        self.reload_head().await
     }
 
     async fn shuffle_non_finalized_blobs_inner<R: Rng>(
@@ -527,7 +534,14 @@ impl StorableMockDaLayer {
         drop_blobs_percentage: u8,
     ) -> anyhow::Result<()> {
         self.shuffle_non_finalized_blobs_inner(rng, drop_blobs_percentage, None)
-            .await
+            .await?;
+        self.reload_head().await
+    }
+
+    async fn reload_head(&self) -> anyhow::Result<()> {
+        let new_head = query_last_saved_block(&self.conn).await?;
+        self.head_header_sender.send_replace(new_head);
+        Ok(())
     }
 
     fn calculate_block_hash(
@@ -664,6 +678,7 @@ impl Randomizer {
                                 )
                                 .await?;
                             da_layer.produce_block_with_timestamp(timestamp).await?;
+                            da_layer.reload_head().await?;
                         }
                         // extend, if possible
                         1.. => {
@@ -708,6 +723,7 @@ impl Randomizer {
                                     da_layer.last_finalized_height
                                 );
                             }
+                            da_layer.reload_head().await?;
                         }
                     };
                 }
@@ -1318,12 +1334,16 @@ mod tests {
         // The height **after** which new fork is going to be built.
         let fork_height = 5;
         let mut da_layer = StorableMockDaLayer::new_in_memory(finality).await?;
+        let head_block_receiver = da_layer.subscribe_to_head_updates();
 
         // Submit the first 15 blobs
         let original_blobs: Vec<Vec<u8>> = (1u8..=end_height).map(|x| vec![x, x]).collect();
         for blob in &original_blobs {
             da_layer.submit_batch(blob, &DEFAULT_SENDER).await?;
             da_layer.produce_block().await?;
+            let head_block_received = head_block_receiver.borrow().clone();
+            let head_block = da_layer.get_head_block_header().await?;
+            assert_eq!(head_block_received, head_block);
         }
 
         let head_header_before = da_layer.get_head_block_header().await?;
@@ -1335,6 +1355,9 @@ mod tests {
 
         let head_header_after = da_layer.get_head_block_header().await?;
         assert_eq!(head_header_after.height(), fork_height as u64);
+        let head_received = head_block_receiver.borrow().clone();
+        assert_eq!(head_received, head_header_after);
+
         let last_finalized_header_after = da_layer.get_last_finalized_block_header().await?;
         // No change in the last finalized header.
         assert_eq!(last_finalized_header_after, last_finalized_header_before);
@@ -1519,12 +1542,16 @@ mod tests {
     ) -> anyhow::Result<()> {
         let mut rng = SmallRng::from_seed(seed);
         let mut da_layer = StorableMockDaLayer::new_in_memory(finality_blocks).await?;
+        let head_block_receiver = da_layer.subscribe_to_head_updates();
 
         // We submit 1 batch per block, with batch content derived from height.
         for height in 1..=blocks_to_process {
             let blob = vec![height; blob_size];
             da_layer.submit_batch(&blob, &DEFAULT_SENDER).await?;
             da_layer.produce_block().await?;
+            let head_block_received = head_block_receiver.borrow().clone();
+            let head_block = da_layer.get_head_block_header().await?;
+            assert_eq!(head_block_received, head_block);
         }
 
         let head_before = da_layer.get_head_block_header().await?;
@@ -1536,6 +1563,8 @@ mod tests {
 
         check_da_layer_consistency(&da_layer).await?;
         let head_after = da_layer.get_head_block_header().await?;
+        let head_received = head_block_receiver.borrow().clone();
+        assert_eq!(head_received, head_after);
         let finalized_after = da_layer.get_last_finalized_block_header().await?;
         // Head block can only change with finality is
         // finality == 0: no shuffling happens
@@ -1758,6 +1787,7 @@ mod tests {
         let target_height = 60;
         let fork_depth = 2..4;
         let mut da_layer = StorableMockDaLayer::new_in_memory(finality).await?;
+        let head_block_receiver = da_layer.subscribe_to_head_updates();
         let seed = HexHash::new([120; 32]);
         let adjust_head_range = -20..10;
         da_layer.set_randomizer(Randomizer::from_config(RandomizationConfig {
@@ -1789,6 +1819,9 @@ mod tests {
             *seen_heights.entry(height as u64).or_insert(0) += 1;
 
             let current_head = da_layer.get_head_block_header().await?;
+            let head_block_received = head_block_receiver.borrow().clone();
+            assert_eq!(head_block_received, current_head);
+
             let head_diff = current_head.height() as i32 - head.height() as i32;
             if current_head.prev_hash() != head.hash() {
                 *seen_reorg_heights.entry(head.height()).or_insert(0) += 1;

@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
+use sea_orm::Set;
 use sov_rollup_interface::da::{NanoSeconds, Time};
 
 use crate::{MockBlockHeader, MockHash};
@@ -39,6 +40,21 @@ impl From<Model> for MockBlockHeader {
             hash,
             height: value.height as u64,
             time,
+        }
+    }
+}
+
+impl From<MockBlockHeader> for ActiveModel {
+    fn from(block_header: MockBlockHeader) -> Self {
+        let timestamp =
+            DateTime::from_timestamp(block_header.time.secs(), block_header.time.subsec_nanos())
+                .unwrap();
+        ActiveModel {
+            height: Set(block_header.height as i32),
+            prev_hash: Set(block_header.prev_hash.0.to_vec()),
+            hash: Set(block_header.hash.0.to_vec()),
+            created_at: Set(timestamp),
+            ..Default::default()
         }
     }
 }

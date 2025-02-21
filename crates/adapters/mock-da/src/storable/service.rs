@@ -102,11 +102,12 @@ pub struct StorableMockDaService {
     da_layer: Arc<RwLock<StorableMockDaLayer>>,
     block_producing: BlockProducingConfig,
     aggregated_proof_sender: broadcast::Sender<()>,
+    head_block: watch::Receiver<MockBlockHeader>,
     block_producer_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
 
 impl StorableMockDaService {
-    fn construct(
+    async fn construct(
         sequencer_da_address: MockAddress,
         da_layer: Arc<RwLock<StorableMockDaLayer>>,
         block_producing: BlockProducingConfig,
@@ -114,17 +115,22 @@ impl StorableMockDaService {
     ) -> Self {
         let (aggregated_proof_subscription, mut rec) = broadcast::channel(16);
         tokio::spawn(async move { while rec.recv().await.is_ok() {} });
+        let head_block = {
+            let da_layer = da_layer.read().await;
+            da_layer.subscribe_to_head_updates()
+        };
         Self {
             sequencer_da_address,
             da_layer,
             block_producing,
             aggregated_proof_sender: aggregated_proof_subscription,
+            head_block,
             block_producer_handle: Arc::new(Mutex::new(block_producer_handle)),
         }
     }
 
     /// Create a new [` StorableMockDaService `] with the given address.
-    pub fn new(
+    pub async fn new(
         sequencer_da_address: MockAddress,
         da_layer: Arc<RwLock<StorableMockDaLayer>>,
         block_producing: BlockProducingConfig,
@@ -132,27 +138,27 @@ impl StorableMockDaService {
         if !matches!(block_producing, BlockProducingConfig::Periodic { .. }) {
             tracing::warn!("Periodic block should be spawned separately, please use Self::from_config otherwise");
         }
-        Self::construct(sequencer_da_address, da_layer, block_producing, None)
+        Self::construct(sequencer_da_address, da_layer, block_producing, None).await
     }
 
     /// Create a new [` StorableMockDaService `] with the given address and [`BlockProducingConfig::Manual`].
     /// Shorter constructor.
-    pub fn new_manual_producing(
+    pub async fn new_manual_producing(
         sequencer_da_address: MockAddress,
         da_layer: Arc<RwLock<StorableMockDaLayer>>,
     ) -> Self {
-        Self::new(sequencer_da_address, da_layer, BlockProducingConfig::Manual)
+        Self::new(sequencer_da_address, da_layer, BlockProducingConfig::Manual).await
     }
 
     /// Creates a new instance with different address, but on the same [`StorableMockDaLayer`].
     /// Block production of this new instance is manual.
     /// Panics if passed address is the same as the original one.
-    pub fn another_on_the_same_layer(&self, new_da_address: MockAddress) -> Self {
+    pub async fn another_on_the_same_layer(&self, new_da_address: MockAddress) -> Self {
         if new_da_address == self.sequencer_da_address {
             panic!("DA address equal self, just call .clone()");
         }
         let da_layer = self.da_layer.clone();
-        Self::new_manual_producing(new_da_address, da_layer)
+        Self::new_manual_producing(new_da_address, da_layer).await
     }
 
     /// Will receive notification one block before the proof is included on the DA.
@@ -176,6 +182,7 @@ impl StorableMockDaService {
             Arc::new(RwLock::new(da_layer)),
             producing,
         )
+        .await
     }
 
     /// Creates new in memory [`StorableMockDaService`] from [`MockDaConfig`].
@@ -208,6 +215,7 @@ impl StorableMockDaService {
             config.block_producing,
             handle,
         )
+        .await
     }
 
     async fn wait_for_height(&self, height: u32) -> anyhow::Result<()> {
@@ -217,11 +225,17 @@ impl StorableMockDaService {
 
         loop {
             tokio::select! {
+                // self.head_block.changed() requires &mut self
+                // But at least we aren't touching rw lock to shared layer.
+                // It can be wrapped in Arc<RwLock> too
                 _ = interval.tick() => {
-                   let current_height = {
-                        self.da_layer.read().await.next_height
-                   };
-                   if current_height > height {
+                    // current height is height of currently building block.
+                    let current_head_height = {
+                        self.head_block.borrow().height as u32
+                    };
+
+                    // Head can be queried.
+                    if current_head_height >= height {
                         return Ok(())
                     }
                 }
@@ -330,6 +344,7 @@ impl DaService for StorableMockDaService {
 
         let height = height as u32;
         let block_header = {
+            // TODO: What if future ?
             let da_layer = self.da_layer.read().await;
             da_layer.get_block_header_at(height).await?
         };
@@ -367,7 +382,8 @@ impl DaService for StorableMockDaService {
     async fn get_head_block_header(
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
-        self.da_layer.read().await.get_head_block_header().await
+        let head_block_header = { self.head_block.borrow().clone() };
+        Ok(head_block_header)
     }
 
     fn extract_relevant_blobs(
@@ -502,6 +518,11 @@ mod tests {
         let mut prev_block_hash = GENESIS_HEADER.prev_hash;
 
         let head_block = da_service.get_head_block_header().await?;
+        {
+            let da_layer = da_service.da_layer.read().await;
+            let db_head_block = da_layer.get_head_block_header().await?;
+            assert_eq!(head_block, db_head_block);
+        }
 
         let mut total_blobs_count = 0;
         for height in 0..=head_block.height() {
@@ -559,7 +580,7 @@ mod tests {
             let fee = MockFee::zero();
             handlers.push(tokio::spawn(async move {
                 let da_service =
-                    StorableMockDaService::new(address, this_da_layer, this_block_producing);
+                    StorableMockDaService::new(address, this_da_layer, this_block_producing).await;
                 for (wait, blob) in this_service_blobs {
                     sleep(wait).await;
                     da_service
@@ -579,7 +600,7 @@ mod tests {
         sleep(block_time * 2).await;
 
         let da_service =
-            StorableMockDaService::new(MockAddress::new([1; 32]), da_layer, block_producing);
+            StorableMockDaService::new(MockAddress::new([1; 32]), da_layer, block_producing).await;
         check_consistency(&da_service, services_count * blobs_per_service).await?;
 
         shutdown_sender.send(())?;

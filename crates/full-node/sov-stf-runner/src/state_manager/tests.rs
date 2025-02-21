@@ -394,7 +394,8 @@ async fn test_progressing_with_shuffle(
         BlockProducingConfig::OnBatchSubmit {
             block_wait_timeout_ms: Some(3_000),
         },
-    );
+    )
+    .await;
     let mut rng = rand::rngs::SmallRng::from_seed(seed);
 
     // Empty padding
@@ -733,7 +734,8 @@ async fn test_chain_progress_between_prepare_storage_and_save_changes(
         BlockProducingConfig::OnBatchSubmit {
             block_wait_timeout_ms: Some(3_000),
         },
-    );
+    )
+    .await;
     // To kick start things.
     da_service.produce_block_now().await?;
 
