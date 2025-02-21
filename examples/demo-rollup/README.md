@@ -112,7 +112,7 @@ $ make test-create-token
 Once a batch is submitted the output should also contain the transaction hashes that have been submitted. For example -
 
 ```text
-Your batch was submitted to the sequencer for publication. reponse=SubmitBatchReceipt { blob_hash: Hash("0x679c7d07df9f90b8eaeee2408ee38d24d2d1bacb67c9b856b914a5529fb029db"), da_transaction_id: Variant1([153, 190, 36, 139, 186, 161, 57, 37, 28, 223, 224, 41, 213, 206, 45, 122, 14, 218, 95, 189, 54, 56, 72, 142, 132, 66, 146, 182, 221, 233, 20, 232]), tx_hashes: [TxHash("0xb638748371b5c1ea9328755b283c112b3b4563f2ef6c9472a1ca9e5baf1885b8")] }
+Your batch was submitted to the sequencer for publication. reponse=SubmitBatchReceipt { blob_hash: Hash("0x679c7d07df9f90b8eaeee2408ee38d24d2d1bacb67c9b856b914a5529fb029db"), da_transaction_id: Variant1([153, 190, 36, 139, 186, 161, 57, 37, 28, 223, 224, 41, 213, 206, 45, 122, 14, 218, 95, 189, 54, 56, 72, 142, 132, 66, 146, 182, 221, 233, 20, 232]), tx_hashes: [TxHash("0x4a1bc76016310255de59e6b8f5410369b1df211213a8bc2c95505afc112bdfa3")] }
 ```
 
 The transaction hash can be used to query the REST API endpoint to fetch events belonging to the transaction, which should in
@@ -120,7 +120,7 @@ this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
 $ sleep 5
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0xb638748371b5c1ea9328755b283c112b3b4563f2ef6c9472a1ca9e5baf1885b8/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0x4a1bc76016310255de59e6b8f5410369b1df211213a8bc2c95505afc112bdfa3/events | jq
 {
   "data": [
     {
@@ -327,7 +327,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0x3be5784cee75a7aeae6943bf9a1cbdb03b867e0a22bab98b2b89d7518cfe74bf",
+  "chain_hash": "0x8055f22c0b4494ba65b7c1907729828cc0d61821509faef1a757e51c1090eee4",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": 100000000,

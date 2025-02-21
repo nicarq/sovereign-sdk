@@ -14,8 +14,8 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     BatchWithId, BlobDataWithId, DaSpec, FullyBakedTx, GenesisState, InfallibleKernelStateAccessor,
-    InfallibleStateAccessor, IterableBatchWithId, KernelStateMap, KernelStateValue, Module,
-    ModuleId, ModuleInfo, NotInstantiable, SelectedBlob, Spec, VersionReader,
+    IterableBatchWithId, KernelStateAccessor, KernelStateMap, KernelStateValue, Module, ModuleId,
+    ModuleInfo, NotInstantiable, SelectedBlob, Spec, VersionReader,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::codec::BcsCodec;
@@ -204,7 +204,7 @@ impl<S: Spec> BlobStorage<S> {
 
     pub(crate) fn get_preferred_sequencer(
         &self,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut KernelStateAccessor<'_, S>,
     ) -> Option<(<<S as Spec>::Da as DaSpec>::Address, <S as Spec>::Address)> {
         self.sequencer_registry
             .get_preferred_sequencer(state)

@@ -142,7 +142,6 @@ where
             &self.runtime,
             tx_scratchpad,
             ctx.gas_price.clone(),
-            &self.config.da_address,
             &seqdb_tx.tx,
         );
 
@@ -572,7 +571,6 @@ where
                 &self.runtime,
                 checkpoint.to_tx_scratchpad(),
                 gas_price,
-                &self.config.da_address,
                 &baked_tx.clone(),
             );
 

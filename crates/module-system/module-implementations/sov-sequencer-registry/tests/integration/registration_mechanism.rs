@@ -1,4 +1,5 @@
 use sov_mock_da::MockAddress;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::Error::ModuleError;
@@ -230,6 +231,9 @@ fn test_exit_happy_path() {
 
     let other_sequencer_balance_ref = AtomicNumber::new(additional_sequencer.available_gas_balance);
     let other_sequencer_balance_ref_1 = other_sequencer_balance_ref.clone();
+    let other_sequencer_balance_ref_2 = other_sequencer_balance_ref.clone();
+    let other_sequencer_balance_ref_3 = other_sequencer_balance_ref.clone();
+    let other_sequencer_balance_ref_4 = other_sequencer_balance_ref.clone();
 
     let register = TransactionTestCase {
         input: additional_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
@@ -243,7 +247,7 @@ fn test_exit_happy_path() {
             assert!(
                 TestSequencerRegistry::default()
                     .is_sender_allowed(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
-                    .is_ok(),
+                    .is_ok_and(|allowed_sequencer| allowed_sequencer.balance_state.is_active()),
                 "The sequencer is not registered"
             );
             // Update the other sequencer's balance
@@ -257,7 +261,83 @@ fn test_exit_happy_path() {
     };
     let exit = TransactionTestCase {
         input: additional_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
-            sov_sequencer_registry::CallMessage::Exit {
+            sov_sequencer_registry::CallMessage::InitiateWithdrawal {
+                da_address: other_sequencer_da_address,
+            },
+        ),
+        assert: Box::new(move |result, state| {
+            // Assert that the sequencer has correctly been unregistered
+            assert!(
+                TestSequencerRegistry::default()
+                    .is_sender_allowed(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
+                    .is_ok_and(|allowed_sequencer| allowed_sequencer
+                        .balance_state
+                        .is_pending_withdrawal()),
+                "The sequencer should be registered and pending withdrawal"
+            );
+            // Assert that an exit event has been emitted
+            assert!(result.events.iter().any(|event| matches!(
+                event,
+                TestRuntimeEvent::SequencerRegistry(
+                    sov_sequencer_registry::Event::InitiatedWithdrawal { sequencer }
+                ) if *sequencer == other_sequencer_address
+            )));
+            other_sequencer_balance_ref_1.sub(result.gas_value_used);
+        }),
+    };
+
+    let failed_withdrawal = TransactionTestCase {
+        input: additional_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
+            sov_sequencer_registry::CallMessage::Withdraw {
+                da_address: other_sequencer_da_address,
+            },
+        ),
+        assert: Box::new(move |result, _state| {
+            let TxEffect::Reverted(contents) = result.tx_receipt else {
+                panic!(
+                    "Expected transaction to revert, but got: {:?}",
+                    result.tx_receipt
+                );
+            };
+            assert!(
+                contents
+                    .reason
+                    .to_string()
+                    .contains("Sequencers may not withdraw without first initiating a withdrawal"),
+                "Unexpected reason: {}",
+                contents.reason
+            );
+            other_sequencer_balance_ref_2.sub(result.gas_value_used);
+        }),
+    };
+
+    let failed_withdrawal_2 = TransactionTestCase {
+        input: additional_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
+            sov_sequencer_registry::CallMessage::Withdraw {
+                da_address: other_sequencer_da_address,
+            },
+        ),
+        assert: Box::new(move |result, _state| {
+            let TxEffect::Reverted(contents) = result.tx_receipt else {
+                panic!(
+                    "Expected transaction to revert, but got: {:?}",
+                    result.tx_receipt
+                );
+            };
+            assert!(
+                contents.reason.to_string().contains(
+                    " may not withdraw before the withdrawal is ready. Current visible height"
+                ),
+                "Unexpected reason: {}",
+                contents.reason
+            );
+            other_sequencer_balance_ref_3.sub(result.gas_value_used);
+        }),
+    };
+
+    let withdraw = TransactionTestCase {
+        input: additional_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
+            sov_sequencer_registry::CallMessage::Withdraw {
                 da_address: other_sequencer_da_address,
             },
         ),
@@ -267,29 +347,97 @@ fn test_exit_happy_path() {
                 TestSequencerRegistry::default()
                     .is_sender_allowed(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
                     .is_err(),
-                "The sequencer should be registered"
+                "The sequencer should be unregistered"
             );
             let expected_balance_to_withdraw = SEQUENCE_STAKE;
             // Assert that an exit event has been emitted
             assert!(result.events.iter().any(|event| matches!(
                 event,
                 TestRuntimeEvent::SequencerRegistry(
-                    sov_sequencer_registry::Event::Exited { sequencer, amount_withdrawn }
+                    sov_sequencer_registry::Event::Withdrew { sequencer, amount_withdrawn }
                 ) if *sequencer == other_sequencer_address && *amount_withdrawn == expected_balance_to_withdraw
             )));
             // Update the other sequencer's balance
-            other_sequencer_balance_ref_1.sub(result.gas_value_used);
+            other_sequencer_balance_ref_4.sub(result.gas_value_used);
             // Assert that the other sequencer balance has been updated and that he recovered his bond
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&other_sequencer_address, state),
-                Some(other_sequencer_balance_ref_1.get())
+                Some(other_sequencer_balance_ref_4.get())
             );
         }),
     };
 
     runner
         .execute_transaction(register)
-        .execute_transaction(exit);
+        .execute_transaction(failed_withdrawal)
+        .execute_transaction(exit)
+        .execute_transaction(failed_withdrawal_2)
+        .advance_slots(config_value!("DEFERRED_SLOTS_COUNT"))
+        .execute_transaction(withdraw);
+}
+
+/// Tests that an other sequencer can register and exit.
+#[test]
+fn test_deposit_resets_balance_state() {
+    let (roles, mut runner) = setup();
+
+    let additional_sequencer = roles.additional_sequencer;
+
+    let other_sequencer_da_address = MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS);
+
+    // let other_sequencer_balance_ref = AtomicNumber::new(additional_sequencer.available_gas_balance);
+    // let other_sequencer_balance_ref_1 = other_sequencer_balance_ref.clone();
+    // let other_sequencer_balance_ref_2 = other_sequencer_balance_ref.clone();
+
+    let register = TransactionTestCase {
+        input: additional_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
+            sov_sequencer_registry::CallMessage::Register {
+                da_address: other_sequencer_da_address,
+                amount: SEQUENCE_STAKE,
+            },
+        ),
+        assert: Box::new(move |result, _state| {
+            // Assert that the sequencer has correctly been registered
+            assert!(result.tx_receipt.is_successful());
+        }),
+    };
+    let exit = TransactionTestCase {
+        input: additional_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
+            sov_sequencer_registry::CallMessage::InitiateWithdrawal {
+                da_address: other_sequencer_da_address,
+            },
+        ),
+        assert: Box::new(move |result, _state| {
+            // Assert that the sequencer has correctly been unregistered
+            assert!(result.tx_receipt.is_successful());
+        }),
+    };
+
+    let deposit = TransactionTestCase {
+        input: additional_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
+            sov_sequencer_registry::CallMessage::Deposit {
+                da_address: other_sequencer_da_address,
+                amount: 1,
+            },
+        ),
+        assert: Box::new(move |result, state| {
+            assert!(result.tx_receipt.is_successful());
+            assert!(
+                TestSequencerRegistry::default()
+                    .is_sender_allowed(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
+                    .is_ok_and(
+                        |allowed_sequencer| allowed_sequencer.balance_state.is_active()
+                            && allowed_sequencer.balance == SEQUENCE_STAKE + 1
+                    ),
+                "The sequencer should be unregistered"
+            );
+        }),
+    };
+
+    runner
+        .execute_transaction(register)
+        .execute_transaction(exit)
+        .execute_transaction(deposit);
 }
 
 /// Tests that an other sequencer cannot exit in their own batch.
@@ -304,7 +452,7 @@ fn cannot_exit_with_own_batch() {
 
     runner.execute_transaction(TransactionTestCase {
         input: default_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
-            CallMessage::Exit {
+            CallMessage::InitiateWithdrawal {
                 da_address: default_sequencer.da_address,
             },
         ),
@@ -354,12 +502,51 @@ fn test_exit_different_sender_fails() {
                 amount: SEQUENCE_STAKE,
             },
         );
+    let second_sequencer_address = second_sequencer.address();
+    let additional_sequencer_address = additional_sequencer.address();
     runner.execute(additional_sequencer_register);
     runner.execute(second_sequencer_register);
 
     runner.execute_transaction(TransactionTestCase {
         input: additional_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
-            sov_sequencer_registry::CallMessage::Exit {
+            sov_sequencer_registry::CallMessage::InitiateWithdrawal {
+                da_address: ANOTHER_SEQUENCER_DA_ADDRESS.into(),
+            },
+        ),
+        assert: Box::new(move |result, _state| match &result.tx_receipt {
+            TxEffect::Reverted(reason) => {
+                assert_eq!(
+                    reason.reason,
+                    ModuleError(
+                        TestSequencerRegistryError::Custom(
+                            CustomError::SuppliedAddressDoesNotMatchTxSender {
+                                parameter: second_sequencer_address,
+                                sender: additional_sequencer_address,
+                            },
+                        )
+                        .into(),
+                    ),
+                    "Transaction reverted, but with unexpected reason"
+                );
+            }
+            unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
+        }),
+    });
+
+    runner.execute_transaction(TransactionTestCase {
+        input: second_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
+            sov_sequencer_registry::CallMessage::InitiateWithdrawal {
+                da_address: ANOTHER_SEQUENCER_DA_ADDRESS.into(),
+            },
+        ),
+        assert: Box::new(move |result, _state| {
+            assert!(result.tx_receipt.is_successful());
+        }),
+    });
+    runner.advance_slots(config_value!("DEFERRED_SLOTS_COUNT") + 1);
+    runner.execute_transaction(TransactionTestCase {
+        input: additional_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
+            sov_sequencer_registry::CallMessage::Withdraw {
                 da_address: ANOTHER_SEQUENCER_DA_ADDRESS.into(),
             },
         ),
@@ -426,9 +613,17 @@ fn test_get_preferred_sequencer_after_exit() {
                 amount: SEQUENCE_STAKE,
             },
         );
+
+    let initiate_withdrawal_default_sequencer = default_sequencer
+        .create_plain_message::<RT, TestSequencerRegistry>(
+            sov_sequencer_registry::CallMessage::InitiateWithdrawal {
+                da_address: default_sequencer.da_address,
+            },
+        );
+
     let exit_default_sequencer = default_sequencer
         .create_plain_message::<RT, TestSequencerRegistry>(
-            sov_sequencer_registry::CallMessage::Exit {
+            sov_sequencer_registry::CallMessage::Withdraw {
                 da_address: default_sequencer.da_address,
             },
         );
@@ -438,6 +633,8 @@ fn test_get_preferred_sequencer_after_exit() {
 
     runner.config.sequencer_da_address = additional_sequencer_da_address.into();
     // Then exit the normal sequencer
+    runner.execute(initiate_withdrawal_default_sequencer);
+    runner.advance_slots(config_value!("DEFERRED_SLOTS_COUNT"));
     runner.execute(exit_default_sequencer);
 
     // Check that the normal sequencer is no longer the preferred sequencer

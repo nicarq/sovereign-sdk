@@ -86,12 +86,14 @@ where
                         // SAFETY: Unwrapping is safe here because `gas_used` comes from `BasicGasMeter``, which ensures overflow does not occur.
                         .expect("The gas value can't overflow");
 
-                    // TODO: We need to accept the actual number of reserved gas tokens as an argument to this fn.
-                    let state = workflow
-                        .charge_sequencer_and_reward_prover(gas_value, sequencer_bond, scratchpad)
-                        .commit();
+                    let mut checkpoint = scratchpad.commit();
+                    workflow.charge_sequencer_and_reward_prover(
+                        gas_value,
+                        sequencer_bond,
+                        &mut checkpoint,
+                    );
 
-                    return (out, state);
+                    return (out, checkpoint);
                 }
             };
 
@@ -159,11 +161,12 @@ where
                 accumulated_reward: transaction_consumption.priority_fee().0,
                 accumulated_penalty: 0,
             };
+            let mut checkpoint = scratchpad.commit();
             runtime.gas_enforcer().return_escrowed_funds_to_sequencer(
                 sequencer_bond,
                 sequencer_reward,
                 sequencer_da_address,
-                &mut scratchpad,
+                &mut checkpoint,
             );
 
             let gas_used = transaction_consumption.base_fee().clone();
@@ -177,7 +180,7 @@ where
                     },
                     gas_used,
                 },
-                scratchpad.commit(),
+                checkpoint,
             )
         }
         Err(e) => {
@@ -196,13 +199,13 @@ where
                 .checked_value(gas_price)
                 .unwrap();
 
-            let state = workflow
-                .charge_sequencer_and_reward_prover(
-                    gas_meter.gas_info().gas_value,
-                    max_tx_check_value,
-                    state,
-                )
-                .commit();
+            let mut checkpoint = state.commit();
+
+            workflow.charge_sequencer_and_reward_prover(
+                gas_meter.gas_info().gas_value,
+                max_tx_check_value,
+                &mut checkpoint,
+            );
 
             let gas_used = gas_meter.gas_info().gas_used;
             (
@@ -215,7 +218,7 @@ where
                     ),
                     gas_used,
                 },
-                state,
+                checkpoint,
             )
         }
     }
@@ -387,12 +390,12 @@ where
         WorkflowResult::Proceed(working_set)
     }
 
-    fn charge_sequencer_and_reward_prover<I: StateProvider<S>>(
+    fn charge_sequencer_and_reward_prover(
         &self,
         max_auth_cost: u64,
         reserved_gas_tokens: u64,
-        mut state: TxScratchpad<S, I>,
-    ) -> TxScratchpad<S, I> {
+        state: &mut StateCheckpoint<S>,
+    ) {
         let sequencer_reward = Rewards {
             accumulated_reward: 0,
             accumulated_penalty: max_auth_cost,
@@ -403,10 +406,8 @@ where
                 reserved_gas_tokens,
                 sequencer_reward,
                 self.sequencer_da_address,
-                &mut state,
+                state,
             );
-
-        state
     }
 
     fn make_early_return<I: StateProvider<S>>(

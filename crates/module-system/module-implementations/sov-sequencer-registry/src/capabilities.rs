@@ -1,7 +1,10 @@
+use std::convert::Infallible;
+
 use sov_bank::{config_gas_token_id, Coins, IntoPayable, Payable};
-use sov_modules_api::capabilities::AuthorizeSequencerError;
+use sov_modules_api::capabilities::BalanceState;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{DaSpec, InfallibleStateAccessor, Spec};
+use sov_modules_api::{DaSpec, InfallibleStateAccessor, Spec, StateReader, StateWriter};
+use sov_state::{Kernel, User};
 
 use crate::{AllowedSequencer, SequencerRegistry};
 
@@ -14,33 +17,32 @@ impl<S: Spec> SequencerRegistry<S> {
         self.preferred_sequencer.get(scratchpad).unwrap_infallible()
     }
 
-    /// Checks whether `sender` is a registered sequencer with enough staked amount.
-    pub fn authorize_sequencer(
-        &self,
-        sender: &<S::Da as DaSpec>::Address,
-        scratchpad: &mut impl InfallibleStateAccessor,
-    ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError> {
-        let allowed_sequencer = match self.is_sender_allowed(sender, scratchpad) {
-            Ok(seq) => seq,
-            Err(e) => return Err(AuthorizeSequencerError { reason: e.into() }),
-        };
-
-        Ok(allowed_sequencer)
-    }
-
     /// Transfers a portion of the sequencer's stake to the beneficiary and decreases the staked balance.
-    pub fn remove_part_of_the_stake(
+    pub fn remove_part_of_the_stake<
+        Accessor: StateWriter<Kernel, Error = Infallible>
+            + StateWriter<User, Error = Infallible>
+            + StateReader<Kernel, Error = Infallible>
+            + StateReader<User, Error = Infallible>,
+    >(
         &self,
         sequencer: &<S::Da as DaSpec>::Address,
         beneficiary: impl Payable<S>,
         amount: u64,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut Accessor,
     ) -> Result<(), anyhow::Error> {
-        if let Some(AllowedSequencer { address, balance }) = self
+        if let Some(AllowedSequencer {
+            address,
+            balance,
+            balance_state,
+        }) = self
             .allowed_sequencers
             .get(sequencer, state)
             .unwrap_infallible()
         {
+            // The sequencer has to be active in order to use their stake for blob submission.
+            if balance_state != BalanceState::Active {
+                anyhow::bail!("Sequencer {} is not active", sequencer);
+            }
             let new_balance = balance.checked_sub(amount).ok_or_else(|| {
                 anyhow::anyhow!(
                     "Sequencer's: {} stake is too low. Current stake: {}, amount to deduct: {}",
@@ -64,6 +66,7 @@ impl<S: Spec> SequencerRegistry<S> {
                     &AllowedSequencer {
                         address,
                         balance: new_balance,
+                        balance_state,
                     },
                     state,
                 )
@@ -76,18 +79,30 @@ impl<S: Spec> SequencerRegistry<S> {
     }
 
     /// Increases the staked balance of the sequencer by transferring the given amount from the sender to the SequencerRegistry module.
-    pub fn add_to_stake(
+    pub fn add_to_stake<
+        Accessor: StateWriter<Kernel, Error = Infallible>
+            + StateWriter<User, Error = Infallible>
+            + StateReader<Kernel, Error = Infallible>
+            + StateReader<User, Error = Infallible>,
+    >(
         &self,
         sender: impl Payable<S>,
         sequencer: &<S::Da as DaSpec>::Address,
         amount: u64,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut Accessor,
     ) -> anyhow::Result<()> {
-        if let Some(AllowedSequencer { address, balance }) = self
+        if let Some(AllowedSequencer {
+            address,
+            balance,
+            balance_state,
+        }) = self
             .allowed_sequencers
             .get(sequencer, state)
             .unwrap_infallible()
         {
+            // Note that we don't check if the sequencer is active here, because the sequencer can get
+            // refunded from escrow while their withdrawal is pending. In fact, that's the whole point of the
+            // withdrawal period - to wait until all possible escrows involving the sequencer are resolved.
             let new_balance = balance.checked_add(amount).ok_or_else(|| {
                 anyhow::anyhow!(
                     "Sequencer {}: overflow error unable to increase sequencer's stake",
@@ -108,6 +123,7 @@ impl<S: Spec> SequencerRegistry<S> {
                     &AllowedSequencer {
                         address,
                         balance: new_balance,
+                        balance_state,
                     },
                     state,
                 )

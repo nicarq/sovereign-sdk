@@ -257,11 +257,10 @@ where
     /// A simple helper function to get the the staked balance of a sequencer.
     pub fn get_sequencer_staking_balance(
         sequencer: &<S::Da as DaSpec>::Address,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut ApiStateAccessor<S>,
     ) -> Option<u64> {
         sov_sequencer_registry::SequencerRegistry::<S>::default()
-            .get_sender_balance(sequencer, state)
-            .unwrap_infallible()
+            .get_sender_balance_via_api(sequencer, state)
     }
 
     /// Returns the slot receipts accumulated by the state runner

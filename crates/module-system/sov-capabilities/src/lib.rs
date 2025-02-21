@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 #[cfg(feature = "native")]
 use sov_attester_incentives::BondingProofServiceImpl;
 use sov_bank::utils::TokenHolderRef;
@@ -5,8 +7,8 @@ use sov_bank::{config_gas_token_id, Coins, IntoPayable, Payable};
 #[cfg(feature = "native")]
 use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::capabilities::{
-    AllowedSequencer, AuthorizationData, AuthorizeSequencerError, GasEnforcer, ProofProcessor,
-    SequencerAuthorization, SequencerRemuneration, TransactionAuthorizer,
+    AuthorizationData, GasEnforcer, ProofProcessor, SequencerAuthorization, SequencerRemuneration,
+    TransactionAuthorizer,
 };
 use sov_modules_api::transaction::{
     AuthenticatedTransactionData, ProverRewards, RemainingFunds, SequencerReward,
@@ -14,14 +16,14 @@ use sov_modules_api::transaction::{
 use sov_modules_api::{
     AggregatedProofPublicData, Context, DaSpec, Gas, GetGasPrice, InfallibleStateAccessor,
     InvalidProofError, ModuleInfo, Rewards, SovAttestation, SovStateTransitionPublicData, Spec,
-    StateAccessor, StateReader, Storage, TxState,
+    StateAccessor, StateReader, StateWriter, Storage, TxState,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 #[cfg(feature = "native")]
 use sov_rollup_interface::StateUpdateInfo;
 use sov_sequencer_registry::SequencerRegistry;
-use sov_state::User;
+use sov_state::{Kernel, User};
 
 /// Implements the basic capabilities required for a zk-rollup runtime.
 pub struct StandardProvenRollupCapabilities<'a, S: Spec, GasPayer = sov_bank::Bank<S>> {
@@ -193,12 +195,17 @@ where
         )
     }
 
-    fn return_escrowed_funds_to_sequencer(
+    fn return_escrowed_funds_to_sequencer<
+        Accessor: StateReader<Kernel, Error = Infallible>
+            + StateWriter<Kernel, Error = Infallible>
+            + StateWriter<User, Error = Infallible>
+            + StateReader<User, Error = Infallible>,
+    >(
         &self,
         bond_amount: u64,
         reward: Rewards,
         sequencer: &<S::Da as DaSpec>::Address,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut Accessor,
     ) {
         let mut net_amount = bond_amount.checked_sub(reward.accumulated_penalty).expect("A sequencer can never be penalized more than the amount they have escrowed, regardless of reward accumulation!");
         net_amount = net_amount.checked_add(reward.accumulated_reward).expect("Total sequencer reward + escrow amount is greater than the max possible token supply. This is a bug in gas accounting.");
@@ -213,15 +220,6 @@ where
 }
 
 impl<'a, S: Spec, T> SequencerAuthorization<S> for StandardProvenRollupCapabilities<'a, S, T> {
-    fn authorize_sequencer(
-        &self,
-        sequencer: &<S::Da as DaSpec>::Address,
-        state: &mut impl InfallibleStateAccessor,
-    ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError> {
-        self.sequencer_registry
-            .authorize_sequencer(sequencer, state)
-    }
-
     fn is_preferred_sequencer(
         &self,
         sequencer: &<S::Da as DaSpec>::Address,
@@ -380,12 +378,17 @@ impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, 
 }
 
 impl<'a, S: Spec, T> SequencerRemuneration<S> for StandardProvenRollupCapabilities<'a, S, T> {
-    fn reward_sequencer_or_refund(
+    fn reward_sequencer_or_refund<
+        Accessor: StateReader<Kernel, Error = Infallible>
+            + StateWriter<Kernel, Error = Infallible>
+            + StateWriter<User, Error = Infallible>
+            + StateReader<User, Error = Infallible>,
+    >(
         &self,
         sequencer: &<S::Da as DaSpec>::Address,
         sequencer_rollup_address: &S::Address,
         reward: SequencerReward,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut Accessor,
     ) {
         let stake_increased = self.sequencer_registry.add_to_stake(
             self.bank.id().to_payable(),

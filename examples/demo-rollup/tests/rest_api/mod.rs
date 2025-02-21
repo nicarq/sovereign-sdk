@@ -236,7 +236,7 @@ async fn check_state_map(client: &demo_stf_json_client::Client) -> anyhow::Resul
     assert!(meta_info.prefix.unwrap().starts_with("0x"));
     assert_eq!(Some("state_map"), meta_info.type_.as_deref());
     assert_eq!(
-        Some(demo_stf_json_client::types::Namespace::User),
+        Some(demo_stf_json_client::types::Namespace::Kernel),
         meta_info.namespace
     );
     Ok(())

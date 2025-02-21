@@ -86,6 +86,7 @@ pub trait TxState<S: Spec>:
     StateReader<User, Error: Into<anyhow::Error>>
     + StateReader<Kernel, Error = <Self as StateReader<User>>::Error>
     + StateWriter<User, Error = <Self as StateReader<User>>::Error>
+    + StateWriter<Kernel, Error = <Self as StateReader<User>>::Error>
     + StateWriter<Accessory, Error = Infallible>
     + VersionReader
     + EventContainer
@@ -96,6 +97,7 @@ pub trait TxState<S: Spec>:
 impl<S: Spec, T> TxState<S> for T where
     T: StateReader<User, Error: Into<anyhow::Error>>
         + StateReader<Kernel, Error = <Self as StateReader<User>>::Error>
+        + StateWriter<Kernel, Error = <Self as StateReader<User>>::Error>
         + StateWriter<User, Error = <Self as StateReader<User>>::Error>
         + StateWriter<Accessory, Error = Infallible>
         + VersionReader

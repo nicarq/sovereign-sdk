@@ -5,7 +5,7 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, Gas, GasArray, GasMeter,
     GasSpec, GetGasPrice, IgnoredTransactionReceipt, PreExecWorkingSet, Rewards, Spec,
-    StateProvider, TxScratchpad, WorkingSet,
+    StateProvider, WorkingSet,
 };
 use tracing::{debug, warn};
 
@@ -19,15 +19,15 @@ use crate::{
 
 #[allow(clippy::result_large_err)]
 #[allow(clippy::too_many_arguments)]
-pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
+pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
     runtime: &R,
-    mut pre_exec_working_set: PreExecWorkingSet<S, I>,
+    mut pre_exec_working_set: PreExecWorkingSet<S, StateCheckpoint<S>>,
     slot_gas: &S::Gas,
     validated_output: AuthTxOutput<S, R>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
-    TxScratchpad<S, I>,
+    StateCheckpoint<S>,
     BasicGasMeter<S>,
 ) {
     pre_exec_working_set = pre_exec_working_set.commit();
@@ -45,7 +45,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
             let (scratchpad, pre_exec_gas_meter) = pre_exec_working_set.revert();
             return (
                 Err(TxProcessingError::CannotResolveContext(e.to_string())),
-                scratchpad,
+                scratchpad.commit(),
                 pre_exec_gas_meter,
             );
         }
@@ -60,7 +60,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         let (scratchpad, pre_exec_gas_meter) = pre_exec_working_set.revert();
         return (
             Err(TxProcessingError::CheckUniquenessFailed(e.to_string())),
-            scratchpad,
+            scratchpad.commit(),
             pre_exec_gas_meter,
         );
     }
@@ -73,7 +73,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         let (scratchpad, pre_exec_gas_meter) = pre_exec_working_set.revert();
         return (
             Err(TxProcessingError::MarkTxAttemptedFailed(err.to_string())),
-            scratchpad,
+            scratchpad.commit(),
             pre_exec_gas_meter,
         );
     }
@@ -88,7 +88,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         let (scratchpad, pre_exec_gas_meter) = pre_exec_working_set.revert();
         return (
             Err(TxProcessingError::CannotReserveGas(err.to_string())),
-            scratchpad,
+            scratchpad.commit(),
             pre_exec_gas_meter,
         );
     }
@@ -115,7 +115,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         );
         return (
             Err(TxProcessingError::OutOfGas(err.to_string())),
-            scratchpad,
+            scratchpad.commit(),
             pre_exec_gas_meter,
         );
     }
@@ -135,15 +135,16 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         .gas_enforcer()
         .reward_prover(&transaction_consumption.base_fee_value(), &mut scratchpad);
 
+    let mut checkpoint = scratchpad.commit();
     let sequencer_reward = transaction_consumption.priority_fee();
     runtime.sequencer_remuneration().reward_sequencer_or_refund(
         sequencer_da_address,
         ctx.gas_refund_recipient(),
         sequencer_reward,
-        &mut scratchpad,
+        &mut checkpoint,
     );
 
-    (Ok(apply_tx), scratchpad, pre_exec_gas_meter)
+    (Ok(apply_tx), checkpoint, pre_exec_gas_meter)
 }
 
 #[allow(clippy::type_complexity)]
@@ -161,7 +162,7 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvi
 #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 pub(crate) fn apply_batch<S, RT>(
     runtime: &RT,
-    mut checkpoint: StateCheckpoint<S>,
+    checkpoint: StateCheckpoint<S>,
     slot_gas: &S::Gas,
     batch: BatchFromUnregisteredSequencer,
     blob_idx: usize,
@@ -305,7 +306,7 @@ where
     let gas_used;
     let mut accumulated_reward = 0;
 
-    let (tx_result, scratchpad, pre_exec_gas_meter) = process_tx_result;
+    let (tx_result, checkpoint, pre_exec_gas_meter) = process_tx_result;
 
     match tx_result {
         Err(error) => {
@@ -352,7 +353,6 @@ where
         },
     };
 
-    checkpoint = scratchpad.commit();
     apply_batch_logs(&batch_receipt, blob_idx);
 
     (batch_receipt, checkpoint)

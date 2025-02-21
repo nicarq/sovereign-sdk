@@ -70,13 +70,39 @@
       "additionalProperties": false
     },
     {
-      "description": "Remove a sequencer from the sequencer registry.",
+      "description": "Initiate a withdrawal of a sequencer's balance.",
       "type": "object",
       "required": [
-        "exit"
+        "initiate_withdrawal"
       ],
       "properties": {
-        "exit": {
+        "initiate_withdrawal": {
+          "type": "object",
+          "required": [
+            "da_address"
+          ],
+          "properties": {
+            "da_address": {
+              "description": "The  Da address of the sequencer you're removing.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/MockAddress"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Withdraw a sequencer's balance after waiting for the withdrawal period.",
+      "type": "object",
+      "required": [
+        "withdraw"
+      ],
+      "properties": {
+        "withdraw": {
           "type": "object",
           "required": [
             "da_address"

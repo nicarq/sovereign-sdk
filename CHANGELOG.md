@@ -1,3 +1,6 @@
+## 2025-02-20
+- #2457 adds a 2-phase withdrawal process to the sequencer registry. This requires splitting the `Exit` Callmessage into two calls. After this change, withdrawers must call `InitiateWithdrawal`, then wait for an unbonding period before calling `Withdraw`. This prevents transactions from breaking soft confirmations in some edge cases.
+
 ## 2025-02-21
 - #2467 overhauls the internals of the `StorableMockDaLayer`, 
   reducing amount of disk access when querying head block or waiting for future block to be produced. No major user change.
