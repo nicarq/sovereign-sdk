@@ -10,8 +10,8 @@ use sov_paymaster::{
     PayeePolicy, PayerGenesisConfig, Paymaster, PaymasterConfig, PaymasterPolicyInitializer,
     SafeVec,
 };
-use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
-use sov_sequencer::BatchBuilderConfig;
+use sov_sequencer::preferred::PreferredSequencerConfig;
+use sov_sequencer::SequencerKindConfig;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::genesis::zk::MinimalZkGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
@@ -211,8 +211,9 @@ pub async fn setup_rollup(
         config.telegraf_address = sov_metrics::MonitoringConfig::standard().telegraf_address;
         config.automatic_batch_production = true;
         config.rollup_prover_config = None;
-        config.batch_builder_config = BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
+        config.sequencer_config = SequencerKindConfig::Preferred(PreferredSequencerConfig {
             minimum_profit_per_tx: 0,
+            ..Default::default()
         });
         config.prover_address = setup.prover.user_info.address().to_string();
         config.aggregated_proof_block_jump = 3;

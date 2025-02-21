@@ -5,10 +5,8 @@ use rockbound::gen_rocksdb_options;
 use sov_db::{define_table_with_default_codec, define_table_without_codec, impl_borsh_value_codec};
 use sov_rollup_interface::TxHash;
 
-use crate::batch_builders::SeqDbTx;
+use crate::common::SeqDbTx;
 
-/// A database for [`crate::batch_builders::StandardBatchBuilder`] and its
-/// mempool.
 #[derive(Clone, Debug)]
 pub struct StandardBbDb {
     db: Arc<rockbound::DB>,
@@ -16,7 +14,7 @@ pub struct StandardBbDb {
 
 impl StandardBbDb {
     const TABLES: &'static [&'static str] = &[MempoolTxs::table_name()];
-    const DB_NAME: &'static str = "standard_batch_builder";
+    const DB_NAME: &'static str = "standard_sequencer";
 
     /// Initializes a new [`StandardBbDb`] at the given path.
     pub async fn new(path: &Path) -> anyhow::Result<Self> {

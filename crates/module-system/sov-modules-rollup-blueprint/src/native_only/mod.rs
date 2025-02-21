@@ -4,7 +4,6 @@ pub mod proof_serializer;
 mod telemetry;
 mod wallet;
 
-use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -19,21 +18,17 @@ use sov_modules_api::prelude::axum;
 use sov_modules_api::provable_height_tracker::MaximumProvableHeight;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
-    BatchSequencerReceipt, OperatingMode, ProofSerializer, RuntimeEndpoints, RuntimeEventProcessor,
-    RuntimeEventResponse, Spec, StateUpdateInfo, SyncStatus, ZkVerifier,
+    OperatingMode, ProofSerializer, RuntimeEndpoints, Spec, StateUpdateInfo, SyncStatus, ZkVerifier,
 };
-use sov_modules_stf_blueprint::{
-    GenesisParams, Runtime as RuntimeTrait, StfBlueprint, TxReceiptContents,
-};
+use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::ProvableHeightTracker;
-use sov_sequencer::batch_builders::preferred::PreferredBatchBuilder;
-use sov_sequencer::batch_builders::standard::StdBatchBuilder;
-use sov_sequencer::batch_builders::BatchBuilder;
-use sov_sequencer::{BatchBuilderConfig, SequenceNumberProvider, Sequencer, SequencerSpec};
+use sov_sequencer::preferred::PreferredSequencer;
+use sov_sequencer::standard::StdSequencer;
+use sov_sequencer::{SequenceNumberProvider, Sequencer, SequencerApis, SequencerKindConfig};
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
 use sov_stf_runner::processes::{ProverService, RollupProverConfig, WorkflowProcessManager};
@@ -164,6 +159,14 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             .await
     }
 
+    /// Injects additional HTTP APIs for the sequencer.
+    async fn sequencer_additional_apis<Seq: Sequencer>(
+        &self,
+        _sequencer: Arc<Seq>,
+    ) -> anyhow::Result<axum::Router<()>> {
+        Ok(axum::Router::new())
+    }
+
     /// Creates a new sequencer and provides a [`SequencerCreationReceipt`] with
     /// some information about said sequencer.
     async fn create_sequencer(
@@ -175,52 +178,48 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         da_service: &Self::DaService,
         shutdown_receiver: watch::Receiver<()>,
     ) -> anyhow::Result<SequencerCreationReceipt<Self::Spec>> {
-        match &rollup_config.sequencer.batch_builder {
-            BatchBuilderConfig::Standard(bb_config) => {
-                let (sequencer, background_handles) = SequencerBlueprint::<
-                    Self,
-                    M,
-                    StdBatchBuilder<(Self::DaService, Self::Spec, Self::Runtime)>,
-                >::new(
-                    state_update_receiver.clone(),
-                    da_service.clone(),
-                    da_sync_state,
-                    &rollup_config.storage.path,
-                    ledger_db.clone(),
-                    &rollup_config.sequencer.with_bb_config(bb_config.clone()),
-                    shutdown_receiver,
-                )
-                .await?;
+        match &rollup_config.sequencer.sequencer_kind_config {
+            SequencerKindConfig::Standard(seq_config) => {
+                let (sequencer, background_handles) =
+                    StdSequencer::<Self::Spec, Self::Runtime, Self::DaService>::create(
+                        da_service.clone(),
+                        state_update_receiver.clone(),
+                        da_sync_state,
+                        &rollup_config.storage.path,
+                        &rollup_config.sequencer.with_seq_config(seq_config.clone()),
+                        ledger_db.clone(),
+                        shutdown_receiver,
+                    )
+                    .await?;
 
                 Ok(SequencerCreationReceipt {
                     api_state: sequencer.api_state(),
-                    axum_router: sequencer.rest_api_server(),
+                    axum_router: SequencerApis::rest_api_server(sequencer.clone())
+                        .merge(self.sequencer_additional_apis(sequencer).await?),
                     background_handles,
                     sequence_number_provider: None,
                 })
             }
 
-            BatchBuilderConfig::Preferred(bb_config) => {
-                let (sequencer, background_handles) = SequencerBlueprint::<
-                    Self,
-                    M,
-                    PreferredBatchBuilder<(Self::DaService, Self::Spec, Self::Runtime)>,
-                >::new(
-                    state_update_receiver.clone(),
-                    da_service.clone(),
-                    da_sync_state,
-                    &rollup_config.storage.path,
-                    ledger_db.clone(),
-                    &rollup_config.sequencer.with_bb_config(bb_config.clone()),
-                    shutdown_receiver,
-                )
-                .await?;
+            SequencerKindConfig::Preferred(seq_config) => {
+                let (sequencer, background_handles) =
+                    PreferredSequencer::<Self::Spec, Self::Runtime, Self::DaService>::create(
+                        da_service.clone(),
+                        state_update_receiver.clone(),
+                        da_sync_state,
+                        &rollup_config.storage.path,
+                        &rollup_config.sequencer.with_seq_config(seq_config.clone()),
+                        ledger_db.clone(),
+                        shutdown_receiver,
+                    )
+                    .await?;
 
                 Ok(SequencerCreationReceipt {
                     api_state: sequencer.api_state(),
-                    axum_router: sequencer.rest_api_server(),
+                    axum_router: SequencerApis::rest_api_server(sequencer.clone())
+                        .merge(self.sequencer_additional_apis(sequencer.clone()).await?),
                     background_handles,
-                    sequence_number_provider: Some(Arc::new(sequencer)),
+                    sequence_number_provider: Some(sequencer),
                 })
             }
         }
@@ -512,27 +511,6 @@ impl<S: FullNodeBlueprint<M>, M: ExecutionMode> Rollup<S, M> {
         tracing::debug!("Rollup completed run");
         Ok(())
     }
-}
-
-/// A [`Sequencer`] that for a rollup built with [`RollupBlueprint`].
-pub type SequencerBlueprint<B, M, Bb> = Sequencer<RollupBlueprintSequencerSpec<B, M, Bb>>;
-
-/// The [`SequencerSpec`] of a [`SequencerBlueprint`].
-#[derive(derivative::Derivative)]
-#[derivative(Clone(bound = ""))]
-pub struct RollupBlueprintSequencerSpec<B, M, Bb>(PhantomData<(B, M, Bb)>);
-
-impl<B, M, Bb> SequencerSpec for RollupBlueprintSequencerSpec<B, M, Bb>
-where
-    B: FullNodeBlueprint<M> + Send + Sync + 'static,
-    M: ExecutionMode + Send + Sync + 'static,
-    Bb: BatchBuilder<Spec = B::Spec>,
-{
-    type BatchBuilder = Bb;
-    type Da = B::DaService;
-    type BatchReceipt = BatchSequencerReceipt<B::Spec>;
-    type TxReceipt = TxReceiptContents<B::Spec>;
-    type Event = RuntimeEventResponse<<B::Runtime as RuntimeEventProcessor>::RuntimeEvent>;
 }
 
 fn spawn_os_signal_handler(shutdown_sender: tokio::sync::watch::Sender<()>) {

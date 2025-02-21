@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::node::da::DaService;
-use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
+use sov_sequencer::{SequencerConfig, SequencerKindConfig};
 
 pub const DEFAULT_CONCURRENT_SYNC_TASKS: u8 = 5;
 pub use sov_metrics::MonitoringConfig;
@@ -122,7 +122,7 @@ pub struct RollupConfig<Address, Da: DaService> {
     /// Proof manager configuration.
     pub proof_manager: ProofManagerConfig<Address>,
     /// Sequencer (and batch builder) configuration.
-    pub sequencer: SequencerConfig<Da::Spec, Address, BatchBuilderConfig>,
+    pub sequencer: SequencerConfig<Da::Spec, Address, SequencerKindConfig>,
     /// Monitoring configuration.
     pub monitoring: MonitoringConfig,
 }

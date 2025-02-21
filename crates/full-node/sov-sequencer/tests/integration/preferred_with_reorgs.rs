@@ -19,8 +19,8 @@ use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
 use sov_rollup_interface::zk::CryptoSpec;
 use sov_rollup_interface::TxHash;
-use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
-use sov_sequencer::BatchBuilderConfig;
+use sov_sequencer::preferred::PreferredSequencerConfig;
+use sov_sequencer::SequencerKindConfig;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::genesis::zk::MinimalZkGenesisConfig;
 use sov_test_utils::sov_bank::{config_gas_token_id, CallMessageDiscriminants, Coins};
@@ -217,8 +217,9 @@ async fn test_stream_of_transactions(
         finalization_blocks,
     )
     .set_config(|config| {
-        config.batch_builder_config = BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
+        config.sequencer_config = SequencerKindConfig::Preferred(PreferredSequencerConfig {
             minimum_profit_per_tx: 0,
+            ..Default::default()
         });
         config.rollup_prover_config = None;
         config.automatic_batch_production = true;

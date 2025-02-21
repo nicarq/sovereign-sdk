@@ -1,86 +1,73 @@
-//! Defines the [`BatchBuilder`] trait and related types. Implementations of the trait
-//! are nested under this module.
+//! Defines the [`Sequencer`] trait and related types.
 
 use std::fmt::Debug;
-use std::marker::PhantomData;
+use std::future::Future;
 use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use axum::http::StatusCode;
 use borsh::{BorshDeserialize, BorshSerialize};
+use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::{
-    AuthenticationOutput, AuthorizeSequencerError, HasCapabilities, SequencerAuthorization,
-    TransactionAuthenticator,
+    AuthenticationOutput, AuthorizeSequencerError, SequencerAuthorization,
 };
 use sov_modules_api::rest::utils::ErrorObject;
-use sov_modules_api::rest::ApiState;
+use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
-    BasicGasMeter, DaSpec, DispatchCall, EventModuleName, FullyBakedTx, Gas, GasSpec,
-    NestedEnumUtils, RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateProvider,
+    BasicGasMeter, BatchSequencerReceipt, DaSpec, DispatchCall, FullyBakedTx, Gas, GasSpec,
+    NestedEnumUtils, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateProvider,
     StateUpdateInfo, TxScratchpad,
 };
-use sov_modules_stf_blueprint::{PreExecError, Runtime};
+use sov_modules_stf_blueprint::{PreExecError, Runtime, TxReceiptContents};
 use sov_rest_utils::json_obj;
 use sov_rollup_interface::node::da::DaService;
-use sov_rollup_interface::node::DaSyncState;
+use sov_rollup_interface::node::ledger_api::{ItemOrHash, LedgerStateProvider, QueryMode};
+use sov_rollup_interface::node::{future_or_shutdown, DaSyncState, FutureOrShutdownOutput};
+use tokio::sync::{broadcast, watch, Mutex};
 use tokio::task::JoinHandle;
-use tracing::{error, trace};
+use tracing::{error, info, trace};
 use uuid::Uuid;
 
-use crate::sequencer::SequencerNotReadyDetails;
-use crate::{SequencerConfig, TxHash, TxStatus, TxStatusManager};
+use crate::{
+    SequencerConfig, SequencerEvent, SequencerNotReadyDetails, SubmitBatchReceipt, TxHash,
+    TxStatus, TxStatusManager,
+};
 
-pub mod preferred;
-pub mod standard;
-#[cfg(feature = "test-utils")]
-pub mod test_stateless;
-
-/// An aggregator of types for [`Runtime`]-aware
-/// [`BatchBuilder`]s
-///
-/// This trait serves no purpose other than to reduce generics clutter in `impl`
-/// blocks.
-pub trait RtAwareBatchBuilderSpec: Send + Sync + 'static {
-    /// The DA service.
-    type DaService: DaService;
-    /// The `Spec` defines the rollup's types.
-    type Spec: Spec;
-    /// The runtime of the rollup.
-    type Rt: Runtime<Self::Spec>
-        + HasCapabilities<Self::Spec>
-        + TransactionAuthenticator<Self::Spec>;
-}
-
-impl<Da, S, Rt> RtAwareBatchBuilderSpec for (Da, S, Rt)
-where
-    Da: DaService,
-    S: Spec,
-    Rt: Runtime<S> + HasCapabilities<S> + TransactionAuthenticator<S> + 'static,
-{
-    type DaService = Da;
-    type Spec = S;
-    type Rt = Rt;
-}
-
-/// [`BatchBuilder`] trait is responsible for accepting transactions and
+/// The [`Sequencer`] trait is responsible for accepting transactions and
 /// assembling them into batches.
 #[async_trait]
-pub trait BatchBuilder: Sized + Send + Sync + 'static {
+pub trait Sequencer: Sized + Send + Sync + 'static {
     /// What data is returned to clients when a transaction is accepted.
-    type Confirmation: SequencerConfirmation;
-    /// The batch type that will be serialized and sent to the DA layer.
-    type Batch: BorshSerialize + Debug + Send + Sync + 'static;
-    /// Arbitrary configuration value(s) fed to [`BatchBuilder::create`].
+    type Confirmation: serde::Serialize + Send + Sync + 'static;
+    /// Arbitrary configuration value(s) fed to [`Sequencer::create`].
     type Config: Clone + Debug + Send + Sync + 'static;
     /// The rollup spec.
     type Spec: Spec;
+    /// The rollup's [`Runtime`].
+    type Rt: Runtime<Self::Spec>;
+    /// The [`DaService`] used by the node (and sequencer).
+    type Da: DaService<Spec = <Self::Spec as Spec>::Da>;
 
-    /// Enables submission of batche of DA in parallel.
-    const PARALLEL_DA_SUBMISSION: bool;
+    /// Creates a new [`Sequencer`].
+    async fn create(
+        da: Self::Da,
+        state_update_receiver: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
+        da_sync_state: Arc<DaSyncState>,
+        storage_path: &Path,
+        config: &SequencerConfig<
+            <Self::Spec as Spec>::Da,
+            <Self::Spec as Spec>::Address,
+            Self::Config,
+        >,
+        ledger_db: LedgerDb,
+        shutdown_receiver: watch::Receiver<()>,
+    ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)>;
 
-    /// Encodes the transaction into the format accepted by [`BatchBuilder::accept_tx`].
-    fn encode_tx(raw: RawTx) -> FullyBakedTx;
+    /// Only available if the [`Sequencer`] supports events streaming.
+    async fn subscribe_events(&self) -> Option<broadcast::Receiver<SequencerEvent<Self::Rt>>> {
+        None
+    }
 
     /// Returns an [`ApiState`] subscribed to updates of the batch builder's state.
     fn api_state(&self) -> ApiState<Self::Spec>;
@@ -94,23 +81,10 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
         tx_hash: &TxHash,
     ) -> anyhow::Result<TxStatus<<<Self::Spec as Spec>::Da as DaSpec>::TransactionId>>;
 
-    /// Creates a new [`BatchBuilder`].
-    async fn create(
-        latest_state_info: StateUpdateInfo<<Self::Spec as Spec>::Storage>,
-        tx_status_manager: TxStatusManager<<Self::Spec as Spec>::Da>,
-        da_sync_state: Arc<DaSyncState>,
-        storage_path: &Path,
-        config: &SequencerConfig<
-            <Self::Spec as Spec>::Da,
-            <Self::Spec as Spec>::Address,
-            Self::Config,
-        >,
-    ) -> anyhow::Result<(Self, Option<JoinHandle<()>>)>;
-
     /// Updates the sequencer's view of the state of the rollup.
     async fn update_state(&self, update_info: StateUpdateInfo<<Self::Spec as Spec>::Storage>);
 
-    /// Adds a **not-encoded** transaction to the mempool. The [`BatchBuilder`]
+    /// Adds a **not-encoded** transaction to the mempool. The [`Sequencer`]
     /// implementation itself is responsible for "encoding" the transaction.
     ///
     /// Can return an error if transaction is invalid or mempool is full.
@@ -119,19 +93,16 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
         tx: FullyBakedTx,
     ) -> Result<AcceptedTx<Self::Confirmation>, ErrorObject>;
 
-    /// Builds a new batch out of transactions in mempool.
+    /// The [`TxStatusManager`] originally passed to [`Sequencer::create`].
     ///
-    /// The logic of which transactions and how many of them are included in
-    /// batch is up to implementation.
-    async fn assemble_batch(&self) -> anyhow::Result<Option<()>>;
+    /// Can be used to query and update the status of transactions.
+    fn tx_status_manager(&self) -> &TxStatusManager<<Self::Spec as Spec>::Da>;
 
-    /// Peeks all the assembled batches that haven't been removed yet.
-    async fn peek_batches(&self) -> anyhow::Result<Vec<WithCachedTxHashes<Self::Batch>>>;
-
-    /// Pops the earliest assembled batch that hasn't been popped yet.
-    ///
-    /// Popped batches are lost forever.
-    async fn pop_batch(&self) -> anyhow::Result<()>;
+    /// Produces a batch containing the given transactions.
+    async fn submit_batch(
+        &self,
+        txs: Vec<FullyBakedTx>,
+    ) -> anyhow::Result<Option<SubmitBatchReceipt<<Self::Da as DaService>::Spec>>>;
 }
 
 /// A transaction that has been accepted by the batch builder.
@@ -158,46 +129,17 @@ impl<C> AcceptedTx<C> {
     }
 }
 
-/// The return type of [`BatchBuilder::peek_batches`].
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct WithCachedTxHashes<I> {
-    /// Inner batch data.
     pub inner: I,
-    /// Metadata about the transactions contained in the batch. This data is
-    /// *not* part of the batch itself nor will it be posted onto the DA layer.
     pub tx_hashes: Vec<TxHash>,
 }
 
-/// Common interface for [`BatchBuilder::Confirmation`].
-pub trait SequencerConfirmation: serde::Serialize + Send + Sync + 'static {
-    /// The generic type of [`RuntimeEventResponse`].
-    type EventInner: EventModuleName
-        + Clone
-        + borsh::BorshDeserialize
-        + borsh::BorshSerialize
-        + serde::Serialize
-        + serde::de::DeserializeOwned
-        + Send
-        + Sync
-        + 'static;
-
-    /// Extracts all events from this transaction confirmation.
-    fn events(&self) -> Vec<RuntimeEventResponse<Self::EventInner>>;
-}
-
-/// Empty transaction confirmation data. See [`standard::StdBatchBuilder`].
+/// Empty transaction confirmation data.
+///
+/// Serializes as an empty JSON object.
 #[derive(Clone, serde::Serialize)]
-pub struct EmptyConfirmation<Z>(pub(crate) PhantomData<Z>);
-
-impl<Z: RuntimeEventProcessor + Send + Sync + 'static> SequencerConfirmation
-    for EmptyConfirmation<Z>
-{
-    type EventInner = Z::RuntimeEvent;
-
-    fn events(&self) -> Vec<RuntimeEventResponse<Self::EventInner>> {
-        vec![]
-    }
-}
+pub struct EmptyConfirmation {}
 
 type AuthRes<S, Rt, I> = (
     TxScratchpad<S, I>,
@@ -210,7 +152,108 @@ type AuthRes<S, Rt, I> = (
     >,
 );
 
-fn pre_exec_err_to_accept_tx_err(err: PreExecError) -> ErrorObject {
+/// Does something -anything- in a loop every time the [`StateUpdateReceiver`]
+/// receives a new value.
+///
+/// Automagically handles shutdown and error checking for you.
+pub async fn react_to_state_updates<S, Fut>(
+    mut state_update_receiver: StateUpdateReceiver<S::Storage>,
+    shutdown_receiver: watch::Receiver<()>,
+    task_name: &'static str,
+    mut closure: impl FnMut(StateUpdateInfo<S::Storage>) -> Fut,
+) where
+    S: Spec,
+    Fut: Future<Output = anyhow::Result<()>>,
+{
+    loop {
+        let fut = future_or_shutdown(state_update_receiver.changed(), &shutdown_receiver);
+        let FutureOrShutdownOutput::Output(changed) = fut.await else {
+            info!(
+                task_name,
+                "Shutdown signal receiver, exiting sequencer background task"
+            );
+            break;
+        };
+
+        if let Err(error) = changed {
+            tracing::error!(%error, task_name, "Channel notification failed, exiting sequencer background task. This is a bug, please report it");
+            break;
+        }
+
+        let info = (*state_update_receiver.borrow()).clone();
+        if let Err(err) = closure(info).await {
+            tracing::error!(%err, task_name, "Error inside the sequencer background task's closure; this is a bug, please report it");
+            break;
+        }
+    }
+}
+
+pub async fn loop_call_update_state<Seq: Sequencer>(
+    seq: Arc<Seq>,
+    state_update_receiver: StateUpdateReceiver<<Seq::Spec as Spec>::Storage>,
+    shutdown_receiver: watch::Receiver<()>,
+) {
+    react_to_state_updates::<Seq::Spec, _>(
+        state_update_receiver,
+        shutdown_receiver,
+        "loop_call_update_state",
+        |info| async {
+            seq.update_state(info).await;
+            Ok(())
+        },
+    )
+    .await;
+}
+
+pub async fn loop_send_tx_notifications<S: Spec, Rt: RuntimeEventProcessor>(
+    state_update_receiver: StateUpdateReceiver<S::Storage>,
+    shutdown_receiver: watch::Receiver<()>,
+    ledger_db: &LedgerDb,
+    txsm: &TxStatusManager<S::Da>,
+) {
+    // `Arc<Mutex<...>>` is, I suspect, overkill here. It's just a workaround
+    // around the `FnMut` closure issues I was banging my head against while writing
+    // this.
+    let latest_processed_slot_number =
+        Arc::new(Mutex::new(state_update_receiver.borrow().slot_number));
+
+    react_to_state_updates::<S, _>(state_update_receiver, shutdown_receiver, "loop_send_tx_notifications", move |info| {
+        let latest_processed_slot_number = latest_processed_slot_number.clone();
+        async move {
+            let storage_slot_number = info.slot_number;
+            let range = latest_processed_slot_number.lock().await.range_inclusive(storage_slot_number);
+
+            for slot_number in range {
+                let slot = ledger_db
+                    .get_slot_by_number::<BatchSequencerReceipt<S>, TxReceiptContents<S>, RuntimeEventResponse<Rt::RuntimeEvent>>(
+                        slot_number,
+                        QueryMode::Full,
+                    )
+                    .await?
+                    .expect("Received slot notification from node, but it's absent in the ledger. This is a bug, please report it");
+
+                for batch in slot.batches.unwrap_or_default().iter() {
+                    let ItemOrHash::Full(batch) = batch else {
+                        continue;
+                    };
+                    for tx in batch.txs.as_deref().unwrap_or_default().iter() {
+                        let ItemOrHash::Full(tx) = tx else {
+                            continue;
+                        };
+
+                        txsm.notify(TxHash::new(tx.hash), TxStatus::Processed);
+                    }
+                }
+            }
+            *latest_processed_slot_number.lock().await =info.slot_number;
+
+            Ok(())
+        }
+    })
+    .await;
+}
+
+pub fn pre_exec_err_to_accept_tx_err(err: PreExecError) -> ErrorObject {
     match err{
         PreExecError::SequencerError(error) => {
             ErrorObject {
@@ -238,7 +281,7 @@ fn pre_exec_err_to_accept_tx_err(err: PreExecError) -> ErrorObject {
     }
 }
 
-fn generic_accept_tx_error(details: impl std::fmt::Debug) -> ErrorObject {
+pub fn generic_accept_tx_error(details: impl std::fmt::Debug) -> ErrorObject {
     ErrorObject {
         status: StatusCode::BAD_REQUEST,
         title: "The transaction is invalid".to_string(),
@@ -248,7 +291,7 @@ fn generic_accept_tx_error(details: impl std::fmt::Debug) -> ErrorObject {
     }
 }
 
-fn tx_auth<S, Rt, I>(
+pub fn tx_auth<S, Rt, I>(
     runtime: &Rt,
     mut tx_scratchpad: TxScratchpad<S, I>,
     gas_price: <S::Gas as Gas>::Price,
@@ -294,7 +337,7 @@ where
 /// Returns true if either...
 /// 1. The message is `sequencer_safe`, meaning that submitting will never change the sequencer's config
 /// 2. The sender is an admin for this sequencer
-fn sender_is_allowed<RT: Runtime<S>, S: Spec>(
+pub fn sender_is_allowed<RT: Runtime<S>, S: Spec>(
     runtime: &RT,
     call: &<RT as DispatchCall>::Decodable,
     sender: &S::Address,
@@ -316,8 +359,8 @@ pub(crate) type SeqDbTxId = u128;
 /// [UUIDv7](https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_7_(timestamp_and_random)),
 /// which is then converted to a [`u128`].
 ///
-/// Note, this is not part of the [`BatchBuilder`] interface and it's just a
-/// utility that [`BatchBuilder`] implementations MAY use.
+/// Note, this is **not** part of the [`Sequencer`] interface and it's just a
+/// utility that [`Sequencer`] implementations MAY use.
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub(crate) struct SeqDbTx {
     /// The encoded transaction bytes.

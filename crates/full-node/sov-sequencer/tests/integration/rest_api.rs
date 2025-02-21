@@ -2,11 +2,13 @@ use base64::prelude::*;
 use sov_api_spec::types::PublishBatchBody;
 use sov_test_utils::sequencer::TestSequencerSetup;
 
-use crate::utils::generate_txs;
+use crate::utils::{generate_txs, RT};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn axum_submit_batch_ok() {
-    let sequencer = TestSequencerSetup::with_real_batch_builder().await.unwrap();
+    let sequencer = TestSequencerSetup::<RT>::with_real_sequencer()
+        .await
+        .unwrap();
     let client = sequencer.client();
 
     let txs = generate_txs(sequencer.admin_private_key.clone());

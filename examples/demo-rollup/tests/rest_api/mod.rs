@@ -36,7 +36,7 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
         0,
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
-    .with_standard_batch_builder()
+    .with_standard_sequencer()
     .start()
     .await?;
 

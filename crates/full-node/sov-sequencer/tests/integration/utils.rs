@@ -11,7 +11,7 @@ use sov_modules_api::{
 };
 use sov_paymaster::PaymasterPolicyInitializer;
 use sov_rollup_interface::TxHash;
-use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
+use sov_sequencer::standard::{StdSequencer, StdSequencerConfig};
 use sov_state::Storage;
 use sov_test_utils::generators::bank::BankMessageGenerator;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -25,12 +25,11 @@ use sov_test_utils::{
     TransactionType, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
 
-pub type MyBatchBuilder =
-    StdBatchBuilder<(MockDaService, TestSpec, TestOptimisticRuntime<TestSpec>)>;
+pub type MySequencer = StdSequencer<TestSpec, RT, MockDaService>;
 pub type RT = TestOptimisticRuntime<TestSpec>;
 pub type RTCall = TestOptimisticRuntimeCall<TestSpec>;
 
-pub async fn new_sequencer() -> TestSequencerSetup<MyBatchBuilder> {
+pub async fn new_sequencer() -> TestSequencerSetup<RT> {
     let dir = tempfile::tempdir().unwrap();
     let da_service = StorableMockDaService::new_in_memory(
         HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr(),
@@ -38,18 +37,18 @@ pub async fn new_sequencer() -> TestSequencerSetup<MyBatchBuilder> {
     )
     .await;
 
-    let batch_builder_config = StdBatchBuilderConfig {
+    let sequencer_config = StdSequencerConfig {
         mempool_max_txs_count: None,
         max_batch_size_bytes: None,
     };
 
-    TestSequencerSetup::new(dir, da_service, batch_builder_config, true)
+    TestSequencerSetup::<RT>::new(dir, da_service, sequencer_config, true)
         .await
         .unwrap()
 }
 
 pub fn build_tx(
-    setup: &TestSequencerSetup<MyBatchBuilder>,
+    setup: &TestSequencerSetup<RT>,
     nonce: u64,
     call_message: &<RT as DispatchCall>::Decodable,
 ) -> RawTx {
@@ -131,11 +130,7 @@ pub fn generate_paymaster_tx(key: TestPrivateKey) -> RawTx {
     )
 }
 
-pub fn valid_tx_bytes(
-    setup: &TestSequencerSetup<MyBatchBuilder>,
-    nonce: u64,
-    value_to_set: u32,
-) -> RawTx {
+pub fn valid_tx_bytes(setup: &TestSequencerSetup<RT>, nonce: u64, value_to_set: u32) -> RawTx {
     let msg = <TestOptimisticRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
         sov_value_setter::CallMessage::SetValue {
             value: value_to_set,

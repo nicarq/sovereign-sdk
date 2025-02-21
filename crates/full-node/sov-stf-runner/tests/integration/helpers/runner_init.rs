@@ -25,8 +25,8 @@ use sov_rollup_interface::node::ledger_api::{AggregatedProofResponse, LedgerStat
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_rollup_interface::zk::Zkvm;
-use sov_sequencer::batch_builders::standard::StdBatchBuilderConfig;
-use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
+use sov_sequencer::standard::StdSequencerConfig;
+use sov_sequencer::{SequencerConfig, SequencerKindConfig};
 use sov_state::{DefaultStorageSpec, NativeStorage, ProverStorage};
 use sov_stf_runner::processes::{
     ParallelProverService, RollupProverConfigDiscriminants, WorkflowProcessManager,
@@ -372,7 +372,7 @@ pub fn rollup_config_with_da<Da: DaService<Config = MockDaConfig>>(
             admin_addresses: vec![],
             da_address: sequencer_address,
             rollup_address: MockAddress::new([0u8; 32]),
-            batch_builder: BatchBuilderConfig::Standard(StdBatchBuilderConfig {
+            sequencer_kind_config: SequencerKindConfig::Standard(StdSequencerConfig {
                 mempool_max_txs_count: None,
                 max_batch_size_bytes: None,
             }),

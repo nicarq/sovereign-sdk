@@ -13,7 +13,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::oneshot;
 
 use super::{RejectReason, Spec, StateCheckpoint};
-use crate::batch_builders::sender_is_allowed;
+use crate::common::sender_is_allowed;
 
 /// A batch that might be received async from some producer
 #[derive(Debug)]

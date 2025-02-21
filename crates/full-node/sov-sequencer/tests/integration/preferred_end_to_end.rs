@@ -1105,8 +1105,8 @@ mod tests_with_basic_kernel {
             0,
         )
         .set_config(|conf| {
-            conf.batch_builder_config =
-                sov_sequencer::BatchBuilderConfig::Preferred(Default::default());
+            conf.sequencer_config =
+                sov_sequencer::SequencerKindConfig::Preferred(Default::default());
         })
         .start()
         .await

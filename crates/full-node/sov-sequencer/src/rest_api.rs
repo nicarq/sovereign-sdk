@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Context;
 use axum::extract::ws::WebSocket;
 use axum::extract::{ws, Request, State, WebSocketUpgrade};
@@ -8,7 +10,8 @@ use axum::{middleware, Json};
 use futures::{StreamExt, TryStreamExt};
 use serde_with::base64::Base64;
 use serde_with::serde_as;
-use sov_modules_api::{RawTx, Spec};
+use sov_modules_api::capabilities::TransactionAuthenticator;
+use sov_modules_api::RawTx;
 use sov_rest_utils::{
     errors, json_obj, preconfigured_router_layers, serve_generic_ws_subscription, to_json_object,
     ApiResult, ErrorObject, Path,
@@ -18,28 +21,32 @@ use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::TxHash;
 use tokio_stream::wrappers::BroadcastStream;
 
-use crate::batch_builders::BatchBuilder;
-use crate::sequencer::SequencerNotReadyDetails;
-use crate::{Sequencer, SequencerSpec, SubmitBatchReceipt, TxStatus};
+use crate::common::Sequencer;
+use crate::{SequencerNotReadyDetails, SubmitBatchReceipt, TxStatus};
 
-// Web server and Axum-related methods.
-impl<Ss: SequencerSpec> Sequencer<Ss> {
+/// Provides REST APIs for any [`Sequencer`]. See [`SequencerApis::rest_api_server`].
+#[derive(derivative::Derivative)]
+#[derivative(Clone(bound = ""))]
+pub struct SequencerApis<Seq: Sequencer>(Arc<Seq>);
+
+impl<Seq: Sequencer> SequencerApis<Seq> {
     /// Creates a new Axum router for this sequencer.
-    pub fn rest_api_server(&self) -> axum::Router<()> {
+    pub fn rest_api_server(seq: Arc<Seq>) -> axum::Router<()> {
+        let state = Self(seq);
         let routes_that_require_synced_node = axum::Router::new()
             .route("/txs", axum::routing::post(Self::axum_accept_tx))
             .route("/batches", axum::routing::post(Self::axum_submit_batch))
-            .with_state(self.clone())
+            .with_state(state.clone())
             .layer(middleware::from_fn_with_state(
-                self.clone(),
-                Sequencer::<Ss>::ready_middleware,
+                state.clone(),
+                Self::ready_middleware,
             ));
         let routes_always_available = axum::Router::new()
             .route("/ready", axum::routing::get(Self::axum_get_ready))
             .route("/txs/:tx_hash", axum::routing::get(Self::axum_get_tx))
             .route("/txs/:tx_hash/ws", axum::routing::get(Self::axum_get_tx_ws))
             .route("/events/ws", axum::routing::get(Self::subscribe_to_events))
-            .with_state(self.clone());
+            .with_state(state.clone());
 
         preconfigured_router_layers(
             axum::Router::new()
@@ -53,7 +60,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         request: Request,
         next: Next,
     ) -> Result<Response, Response> {
-        match sequencer.is_ready().await {
+        match sequencer.0.is_ready() {
             Ok(()) => Ok(next.run(request).await),
             Err(details) => Err(error_not_fully_synced(details).into_response()),
         }
@@ -66,7 +73,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     ) -> anyhow::Result<()> {
         // Send a message with the initial status of the transaction,
         // without waiting for it to change for the first time.
-        let initial_status = self.tx_status(&tx_hash).await?;
+        let initial_status = self.0.tx_status(&tx_hash).await?;
         let ws_msg = ws::Message::Text(serde_json::to_string(&TxInfo {
             id: tx_hash,
             status: initial_status,
@@ -81,7 +88,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         tx_hash: Path<TxHash>,
         ws: ws::WebSocketUpgrade,
     ) -> impl IntoResponse {
-        let tx_status_manager = sequencer.tx_status_manager().clone();
+        let tx_status_manager = sequencer.0 .0.tx_status_manager().clone();
 
         ws.on_upgrade(move |mut socket| async move {
             let (_dropper, receiver) = tx_status_manager.subscribe(tx_hash.0);
@@ -131,7 +138,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     }
 
     async fn axum_get_ready(sequencer: State<Self>) -> ApiResult<()> {
-        match sequencer.is_ready().await {
+        match sequencer.0 .0.is_ready() {
             Ok(()) => Ok(().into()),
             Err(details) => Err(error_not_fully_synced(details).into_response()),
         }
@@ -140,8 +147,8 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     async fn axum_get_tx(
         sequencer: State<Self>,
         tx_hash: Path<TxHash>,
-    ) -> ApiResult<TxInfo<<<Ss::Da as DaService>::Spec as DaSpec>::TransactionId>> {
-        let tx_status = sequencer.tx_status(&tx_hash.0).await;
+    ) -> ApiResult<TxInfo<<<Seq::Da as DaService>::Spec as DaSpec>::TransactionId>> {
+        let tx_status = sequencer.0 .0.tx_status(&tx_hash.0).await;
 
         if let Ok(tx_status) = tx_status {
             Ok(TxInfo {
@@ -157,11 +164,14 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     async fn axum_accept_tx(
         sequencer: State<Self>,
         tx: Json<AcceptTx>,
-    ) -> ApiResult<TxInfo<DaBlobHash<<Ss::Da as DaService>::Spec>>> {
+    ) -> ApiResult<TxInfo<DaBlobHash<<Seq::Da as DaService>::Spec>>> {
         let raw_tx = RawTx::new(tx.0.body.blob);
-        let baked_tx = sequencer.encode_tx(raw_tx);
+        let baked_tx =
+            <Seq::Rt as TransactionAuthenticator<Seq::Spec>>::encode_with_standard_auth(raw_tx);
 
         let tx_with_hash = sequencer
+            .0
+             .0
             .accept_tx(baked_tx)
             .await
             .map_err(IntoResponse::into_response)?;
@@ -176,18 +186,18 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     async fn axum_submit_batch(
         sequencer: State<Self>,
         batch: Json<SubmitBatch>,
-    ) -> ApiResult<SubmitBatchReceipt<<<Ss::BatchBuilder as BatchBuilder>::Spec as Spec>::Da>> {
+    ) -> ApiResult<SubmitBatchReceipt<<Seq::Da as DaService>::Spec>> {
         let batch = batch
             .0
             .transactions
             .into_iter()
             .map(|tx| {
                 let raw_tx = RawTx::new(tx.blob);
-                sequencer.encode_tx(raw_tx)
+                <Seq::Rt as TransactionAuthenticator<Seq::Spec>>::encode_with_standard_auth(raw_tx)
             })
             .collect::<Vec<_>>();
 
-        match sequencer.submit_batch(batch).await {
+        match sequencer.0.0.submit_batch(batch).await {
             Ok(Some(info)) => Ok(info.into()),
             Ok(None) => Err(ErrorObject {
                 status: StatusCode::BAD_REQUEST,
@@ -210,10 +220,16 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         ws: WebSocketUpgrade,
     ) -> impl IntoResponse {
         ws.on_upgrade(|socket| async move {
-            let receiver = sequencer.subscribe_events().await;
-            let stream = BroadcastStream::new(receiver)
-                .map_err(|err| anyhow::anyhow!("Error creating broadcast stream: {err}"))
-                .boxed();
+            let stream = sequencer
+                .0
+                .subscribe_events()
+                .await
+                .map(|receiver| {
+                    BroadcastStream::new(receiver)
+                        .map_err(|err| anyhow::anyhow!("Error creating broadcast stream: {err}"))
+                        .boxed()
+                })
+                .unwrap_or_else(|| futures::stream::empty().boxed());
             serve_generic_ws_subscription(socket, stream).await;
         })
     }
