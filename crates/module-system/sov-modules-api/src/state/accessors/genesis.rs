@@ -5,7 +5,7 @@ use super::checkpoints::StateCheckpoint;
 use super::UniversalStateAccessor;
 use crate::capabilities::RollupHeight;
 use crate::state::events::TypedEvent;
-use crate::{GasMeter, Genesis, KernelWriter, Spec, VersionReader};
+use crate::{GasMeter, Genesis, PrivilegedKernelAccessor, Spec, VersionReader};
 
 /// A special state accessor which can only be used at genesis.
 /// Since genesis is unproven, this state accessor may read and write to every namespace, and it is not metered.
@@ -28,15 +28,19 @@ impl<S: Spec> StateCheckpoint<S> {
     }
 }
 
-impl<S: Spec> KernelWriter for GenesisStateAccessor<'_, S> {
+impl<S: Spec> PrivilegedKernelAccessor for GenesisStateAccessor<'_, S> {
     fn true_slot_number(&self) -> SlotNumber {
         SlotNumber::GENESIS
     }
 }
 
 impl<S: Spec> VersionReader for GenesisStateAccessor<'_, S> {
-    fn visible_slot_number_to_access(&self) -> VisibleSlotNumber {
+    fn current_visible_slot_number(&self) -> VisibleSlotNumber {
         VisibleSlotNumber::GENESIS
+    }
+
+    fn max_allowed_slot_number_to_access(&self) -> SlotNumber {
+        VisibleSlotNumber::GENESIS.as_true()
     }
 
     fn rollup_height_to_access(&self) -> RollupHeight {

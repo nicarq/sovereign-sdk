@@ -52,7 +52,7 @@ where
 {
     #[cfg(feature = "native")]
     let visible_slot_number =
-        sov_modules_api::VersionReader::visible_slot_number_to_access(&pre_exec_working_set);
+        sov_modules_api::VersionReader::current_visible_slot_number(&pre_exec_working_set);
 
     #[cfg(feature = "native")]
     let (start, discriminant) = {

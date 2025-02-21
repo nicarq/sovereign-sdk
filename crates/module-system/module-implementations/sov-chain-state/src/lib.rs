@@ -6,8 +6,8 @@ use sov_modules_api::prelude::UnwrapInfallible;
 #[cfg(feature = "native")]
 use sov_modules_api::ApiStateAccessor;
 use sov_modules_api::{
-    AccessoryStateMap, AccessoryStateValue, ModuleRestApi, NotInstantiable, StateCheckpoint,
-    StateMap, VersionReader,
+    AccessoryStateMap, AccessoryStateValue, ModuleRestApi, NotInstantiable,
+    PrivilegedKernelAccessor, StateCheckpoint, StateMap, VersionReader,
 };
 /// Contains the call methods used by the module
 mod call;
@@ -351,12 +351,20 @@ impl<S: Spec> ChainState<S> {
         self.genesis_da_height.get(state)
     }
 
-    /// Returns the last slot processed by the module.
-    pub fn last_slot<Reader: VersionReader + StateReader<Kernel>>(
+    /// Returns the last visible slot processed by the module.
+    pub fn latest_visible_slot<Reader: VersionReader + StateReader<Kernel>>(
         &self,
         state: &mut Reader,
     ) -> Result<Option<SlotInformation<S>>, Reader::Error> {
         self.slots.get_current(state)
+    }
+
+    /// Returns the "true" last slot processed by the rollup, even if it is not yet visible in user space.
+    pub fn kernel_true_latest_slot<Reader: PrivilegedKernelAccessor + StateReader<Kernel>>(
+        &self,
+        state: &mut Reader,
+    ) -> Result<Option<SlotInformation<S>>, <Reader as StateReader<Kernel>>::Error> {
+        self.slots.get_true_current(state)
     }
 
     /// Returns the last root processed by the module.

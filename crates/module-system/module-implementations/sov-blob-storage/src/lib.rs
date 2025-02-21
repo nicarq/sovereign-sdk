@@ -15,7 +15,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     BatchWithId, BlobDataWithId, DaSpec, FullyBakedTx, GenesisState, InfallibleKernelStateAccessor,
     IterableBatchWithId, KernelStateAccessor, KernelStateMap, KernelStateValue, Module, ModuleId,
-    ModuleInfo, NotInstantiable, SelectedBlob, Spec, VersionReader,
+    ModuleInfo, NotInstantiable, PrivilegedKernelAccessor, SelectedBlob, Spec,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::codec::BcsCodec;
@@ -179,19 +179,20 @@ pub struct BlobStorage<S: Spec> {
 /// Non standard methods for blob storage
 impl<S: Spec> BlobStorage<S> {
     /// Store blobs for given block number, overwrite if already exists
-    pub fn store_batches(
+    pub(crate) fn store_batches(
         &self,
         batches: &[ValidatedBlob<S, BatchWithId<S>>],
-        state: &mut (impl InfallibleKernelStateAccessor + VersionReader),
+        state: &mut KernelStateAccessor<'_, S>,
     ) {
+        // For the kernel state accessor, the `max_allowed_slot_number_to_access` is the true slot number
         self.deferred_blobs
-            .set(&state.visible_slot_number_to_access(), batches, state)
+            .set(&state.true_slot_number(), batches, state)
             .unwrap_infallible();
     }
 
     /// Take all blobs for given block number, return empty vector if not exists
     /// Returned blobs are removed from the storage
-    pub fn take_blobs_for_slot(
+    pub(crate) fn take_blobs_for_slot(
         &self,
         slot_number: SlotNumber,
         state: &mut impl InfallibleKernelStateAccessor,

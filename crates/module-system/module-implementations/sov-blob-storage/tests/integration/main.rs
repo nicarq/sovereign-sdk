@@ -34,7 +34,7 @@ pub fn visible_slot<RT: Runtime<S, BlobType = SelectedBlob<S>> + MinimalGenesis<
     runner: &TestRunner<RT>,
 ) -> u64 {
     runner
-        .query_visible_state(|state| state.visible_slot_number_to_access())
+        .query_visible_state(|state| state.current_visible_slot_number())
         .get()
 }
 

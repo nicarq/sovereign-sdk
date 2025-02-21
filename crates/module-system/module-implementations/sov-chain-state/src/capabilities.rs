@@ -6,7 +6,9 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 #[cfg(feature = "native")]
 use sov_modules_api::AccessoryStateReaderAndWriter;
-use sov_modules_api::{DaSpec, GasSpec, KernelStateAccessor, KernelWriter, Spec, StateReader};
+use sov_modules_api::{
+    DaSpec, GasSpec, KernelStateAccessor, PrivilegedKernelAccessor, Spec, StateReader,
+};
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{Kernel, ProvableNamespace, Storage, User};
 
@@ -298,7 +300,7 @@ impl<S: Spec> ChainState<S> {
     pub fn finalize_chain_state(&self, gas_used: &S::Gas, state: &mut KernelStateAccessor<S>) {
         // We retrieve the last slot in progress, update its gas information and store it back to the state
         let mut in_progress_slot = self
-            .last_slot(state)
+            .kernel_true_latest_slot(state)
             .unwrap_infallible()
             .expect("There should always be a transition in progress");
 

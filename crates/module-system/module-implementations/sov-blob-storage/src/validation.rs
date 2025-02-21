@@ -4,7 +4,7 @@ use sov_modules_api::digest::Digest;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     BatchWithId, BlobDataWithId, CryptoSpec, DaSpec, Gas, GasArray, GasSpec, KernelStateAccessor,
-    ModuleInfo, Spec, VersionReader,
+    ModuleInfo, PrivilegedKernelAccessor, Spec,
 };
 
 use crate::max_size_checker::BlobsWithTotalSizeLimit;
@@ -149,7 +149,7 @@ impl<S: Spec> BlobStorage<S> {
         let mut hasher = <S::CryptoSpec as CryptoSpec>::Hasher::new();
         hasher.update(blob.id());
         hasher.update(idx.to_le_bytes());
-        hasher.update(state.visible_slot_number_to_access().get().to_le_bytes());
+        hasher.update(state.true_slot_number().get().to_le_bytes());
         let hash: [u8; 32] = hasher.finalize().into();
         DerivedHolder::from(hash)
     }

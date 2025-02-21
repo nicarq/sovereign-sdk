@@ -40,7 +40,7 @@ fn chain_state_kernel_updates_basic_kernel() {
 
     runner.query_state(|state| {
         assert_eq!(
-            state.visible_slot_number_to_access(),
+            state.current_visible_slot_number(),
             VisibleSlotNumber::GENESIS,
             "The kernel should be initialized to zero"
         );
@@ -48,7 +48,7 @@ fn chain_state_kernel_updates_basic_kernel() {
 
     runner.query_visible_state(|state| {
         assert_eq!(
-            state.visible_slot_number_to_access(),
+            state.current_visible_slot_number(),
             VisibleSlotNumber::GENESIS,
             "The kernel visible slot should be initialized to zero"
         );
@@ -63,7 +63,7 @@ fn chain_state_kernel_updates_basic_kernel() {
 
     runner.query_state(|state| {
         assert_eq!(
-            state.visible_slot_number_to_access(),
+            state.current_visible_slot_number(),
             VisibleSlotNumber::ONE,
             "The kernel should be updated to one"
         );
@@ -71,7 +71,7 @@ fn chain_state_kernel_updates_basic_kernel() {
 
     runner.query_visible_state(|state| {
         assert_eq!(
-            state.visible_slot_number_to_access(),
+            state.current_visible_slot_number(),
             VisibleSlotNumber::ONE,
             "The kernel visible slot should be updated to one"
         );
@@ -101,7 +101,7 @@ fn test_chain_state_gas_updates() {
         let gas_consumed = get_gas_used(&output.batch_receipts[0].tx_receipts[0]);
 
         let in_progress_transition = ChainState::<S>::default()
-            .last_slot(kernel)
+            .latest_visible_slot(kernel)
             .unwrap_infallible()
             .unwrap();
 
@@ -170,7 +170,7 @@ fn test_chain_state_historical_transition_update() {
 
     let in_progress_transition = runner.query_state(|kernel| {
         ChainState::<S>::default()
-            .last_slot(kernel)
+            .latest_visible_slot(kernel)
             .unwrap_infallible()
             .unwrap()
     });

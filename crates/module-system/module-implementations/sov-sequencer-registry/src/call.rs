@@ -197,7 +197,7 @@ impl<S: Spec> SequencerRegistry<S> {
         // In the worst case, this could take up to `DEFERRED_SLOTS_COUNT` slots, so wait until the slot after that.
         existing_sequencer.balance_state = BalanceState::PendingWithdrawal {
             ready_at: state
-                .visible_slot_number_to_access()
+                .current_visible_slot_number()
                 .advance(config_value!("DEFERRED_SLOTS_COUNT") + 1),
         };
         self.allowed_sequencers
@@ -227,10 +227,10 @@ impl<S: Spec> SequencerRegistry<S> {
                 CustomError::WithdrawalNotInitiated(da_address.clone()),
             ));
         };
-        if ready_at > state.visible_slot_number_to_access() {
+        if ready_at > state.current_visible_slot_number() {
             return Err(RegistrationError::Custom(CustomError::WithdrawalNotReady {
                 sequencer: da_address.clone(),
-                current_visible_height: state.visible_slot_number_to_access(),
+                current_visible_height: state.current_visible_slot_number(),
                 ready_at,
             }));
         }

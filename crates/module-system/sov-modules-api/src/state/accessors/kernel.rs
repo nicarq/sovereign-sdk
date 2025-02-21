@@ -6,7 +6,7 @@ use sov_state::{IsValueCached, SlotKey, SlotValue};
 use self::checkpoints::StateCheckpoint;
 use super::*;
 use crate::capabilities::{Kernel, RollupHeight};
-use crate::state::traits::{KernelWriter, VersionReader};
+use crate::state::traits::{PrivilegedKernelAccessor, VersionReader};
 use crate::{AccessoryStateWriter, GasMeter, Spec};
 
 /// A special wrapper over a `Delta` on the storage that allows access to kernel values to bootstrap the [`StateCheckpoint`].
@@ -58,8 +58,12 @@ impl<'a, S: Spec> GasMeter for KernelStateAccessor<'a, S> {
 }
 
 impl<'a, S: Spec> VersionReader for KernelStateAccessor<'a, S> {
-    fn visible_slot_number_to_access(&self) -> VisibleSlotNumber {
-        VisibleSlotNumber::new_dangerous(self.true_slot_num.get())
+    fn current_visible_slot_number(&self) -> VisibleSlotNumber {
+        self.checkpoint.current_visible_slot_number()
+    }
+
+    fn max_allowed_slot_number_to_access(&self) -> SlotNumber {
+        self.true_slot_num
     }
 
     fn rollup_height_to_access(&self) -> RollupHeight {
@@ -67,7 +71,7 @@ impl<'a, S: Spec> VersionReader for KernelStateAccessor<'a, S> {
     }
 }
 
-impl<'a, S: Spec> KernelWriter for KernelStateAccessor<'a, S> {
+impl<'a, S: Spec> PrivilegedKernelAccessor for KernelStateAccessor<'a, S> {
     fn true_slot_number(&self) -> SlotNumber {
         self.true_slot_num
     }

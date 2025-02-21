@@ -109,7 +109,7 @@ impl<S: Spec, T> TxState<S> for T where
 /// The state accessor used during genesis. It provides unrestricted
 /// access to [`User`] and `Kernel` state, as well as limited visibility into [`Accessory`] state.  
 pub trait GenesisState<S: Spec>:
-    TxState<S> + KernelWriter<Error = <Self as StateReader<User>>::Error>
+    TxState<S> + PrivilegedKernelAccessor<Error = <Self as StateReader<User>>::Error>
 {
 }
 
@@ -435,18 +435,22 @@ pub trait ProvenStateAccessor<N: ProvableCompileTimeNamespace>: StateReaderAndWr
 
 /// A [`StateReader`] that is version-aware.
 pub trait VersionReader {
-    /// Returns the largest visible slot number that the accessor is allowed to access.
-    /// This may differ from the actual value of the "current" visible slot number depending on the accessor's permissions.
-    // FIXME: This trait needs reworking - the number returned from this method is not always visible - that's the whole point!
-    fn visible_slot_number_to_access(&self) -> VisibleSlotNumber;
+    /// Returns the largest slot number that the accessor is allowed to access. During transaction execution,
+    /// this is the same as the value returned by [`VersionReader::current_visible_slot_number`]. When executing with kernel,
+    /// permissions, this is the true slot number. Note: Kernel permissions are only applicable to maintainers of the SDK.
+    fn max_allowed_slot_number_to_access(&self) -> SlotNumber;
+
+    /// Returns the current visible slot number.
+    fn current_visible_slot_number(&self) -> VisibleSlotNumber;
 
     /// Returns the current version of the state accessor
     fn rollup_height_to_access(&self) -> RollupHeight;
 }
 
-/// A trait for state accessors that can write to the kernel at the true
-/// [`SlotNumber`].
-pub trait KernelWriter: StateWriter<namespaces::Kernel> {
+/// A trait for state accessors that can know the true [`SlotNumber`] and use it to read/write the kernel.
+/// Note that this trait should be implemented with extreme care, since misuse can cause accidental breakage of
+/// soft confirmations. In particular, this trait should never be added to [`TxState`].
+pub trait PrivilegedKernelAccessor: StateWriter<namespaces::Kernel> {
     /// Returns the current true rollup height contained in the accessor
     fn true_slot_number(&self) -> SlotNumber;
 }
