@@ -11,7 +11,7 @@ fn chain_state_kernel_genesis() {
 
     runner.query_state(|kernel| {
         assert_eq!(
-            ChainState::<S>::default().true_slot_number(kernel).unwrap(),
+            ChainState::<S>::default().true_slot_number_via_api(kernel),
             SlotNumber::GENESIS,
             "The kernel should be initialized to zero"
         );
@@ -19,7 +19,7 @@ fn chain_state_kernel_genesis() {
         assert_eq!(
             0,
             ChainState::<S>::default()
-                .get_next_visible_slot_number(kernel)
+                .get_next_visible_slot_number_via_api(kernel)
                 .get(),
             "The kernel visible slot should be initialized to zero"
         );

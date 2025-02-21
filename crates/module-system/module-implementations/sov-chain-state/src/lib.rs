@@ -3,9 +3,11 @@
 
 use sov_modules_api::capabilities::{BlockGasInfo, RollupHeight};
 use sov_modules_api::prelude::UnwrapInfallible;
+#[cfg(feature = "native")]
+use sov_modules_api::ApiStateAccessor;
 use sov_modules_api::{
-    AccessoryStateMap, AccessoryStateValue, KernelStateMap, ModuleRestApi, NotInstantiable,
-    StateCheckpoint, StateMap,
+    AccessoryStateMap, AccessoryStateValue, ModuleRestApi, NotInstantiable, StateCheckpoint,
+    StateMap, VersionReader,
 };
 /// Contains the call methods used by the module
 mod call;
@@ -14,7 +16,7 @@ mod gas;
 mod tests;
 use sov_modules_api::{
     BootstrapWorkingSet, CodeCommitmentFor, GenesisState, KernelStateAccessor, ModuleError,
-    ModuleId, ModuleInfo, Spec, StateAccessor, StateReader, StateReaderAndWriter,
+    ModuleId, ModuleInfo, Spec, StateAccessor, StateReader,
 };
 
 mod genesis;
@@ -33,7 +35,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
 use sov_modules_api::{
-    DaSpec, Error, Gas, KernelStateValue, Module, StateValue, VersionReader, VersionedStateValue,
+    DaSpec, Error, Gas, KernelStateValue, Module, StateValue, VersionedStateValue,
 };
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::codec::BcsCodec;
@@ -150,10 +152,10 @@ pub struct ChainState<S: Spec> {
     accessory_slot_number_history: AccessoryStateMap<RollupHeight, VisibleSlotNumber>,
 
     #[state]
-    true_slot_number_history: KernelStateMap<RollupHeight, SlotNumber>,
+    true_slot_number_history: AccessoryStateMap<RollupHeight, SlotNumber>,
+
     #[state]
-    true_to_visible_slot_number_history:
-        sov_modules_api::KernelStateMap<SlotNumber, VisibleSlotNumber>,
+    true_to_visible_slot_number_history: VersionedStateValue<VisibleSlotNumber>,
 
     /// The real rollup height of the rollup.
     /// This value is also required to create a [`sov_state::storage::KernelStateAccessor`]. See note on `visible_slot_number` above.
@@ -189,7 +191,7 @@ pub struct ChainState<S: Spec> {
 
     /// A record of all previous rollup heights' gas information.
     #[state]
-    pub gas_info: StateMap<RollupHeight, BlockGasInfo<S::Gas>>,
+    gas_info: StateMap<RollupHeight, BlockGasInfo<S::Gas>>,
 
     /// The state root hashes from genesis to the current slot.
     /// ## Note
@@ -230,15 +232,27 @@ pub struct ChainState<S: Spec> {
 }
 
 impl<S: Spec> ChainState<S> {
-    /// Returns transition height in the current slot
-    pub fn true_slot_number<T>(
+    /// Returns the slot number of the current slot using a `BootstrapWorkingSet`. This value is likely
+    /// to be stale, because the BootstrapWorkingSet usually only exists at the very start of the state transition before `synchronize_chain` has been called.
+    pub fn true_slot_number_at_bootstrap(
         &self,
-        state: &mut T,
-    ) -> Result<SlotNumber, <T as StateReader<Kernel>>::Error>
-    where
-        T: StateReaderAndWriter<Kernel>,
-    {
-        Ok(self.true_slot_number.get(state)?.unwrap_or_default())
+        state: &mut BootstrapWorkingSet<'_, S>,
+    ) -> SlotNumber {
+        self.true_slot_number
+            .get(state)
+            .unwrap_infallible()
+            .unwrap_or_default()
+    }
+
+    /// Returns the slot number of the current slot using a `BootstrapWorkingSet`. This value is likely
+    /// to be stale, because the BootstrapWorkingSet usually only exists at the very start of the state transition before `synchronize_chain` has been called.
+    // TODO: Consider exposing this as a custom rest api endpoint
+    #[cfg(feature = "native")]
+    pub fn true_slot_number_via_api(&self, state: &mut ApiStateAccessor<S>) -> SlotNumber {
+        self.true_slot_number
+            .get(state)
+            .unwrap_infallible()
+            .unwrap_or_default()
     }
 
     /// Returns slot number for the next slot to start execution
@@ -259,7 +273,7 @@ impl<S: Spec> ChainState<S> {
         state: &mut T,
     ) -> Result<Option<VisibleSlotNumber>, T::Error>
     where
-        T: StateReader<Kernel>,
+        T: VersionReader + StateReader<Kernel>,
     {
         if true_slot_number == SlotNumber::GENESIS {
             return Ok(Some(VisibleSlotNumber::GENESIS));

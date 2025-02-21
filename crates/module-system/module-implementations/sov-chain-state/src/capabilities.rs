@@ -309,8 +309,7 @@ impl<S: Spec> ChainState<S> {
             .expect("An error occurred while setting the last slot in progress. This is a bug. Please report it.");
 
         self.true_to_visible_slot_number_history
-            .set_if_absent(
-                &state.true_slot_number(),
+            .set_true_current(
                 // The true slot number was already incremented.
                 &state.visible_slot_number(),
                 state,
@@ -319,14 +318,11 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Returns the gas info from a *previous* rollup height.
-    pub fn historical_gas_info_at<
-        Reader: VersionReader + StateReader<User, Error = E> + StateReader<Kernel, Error = E>,
-        E,
-    >(
+    pub fn historical_gas_info_at<Reader: StateReader<User>>(
         &self,
         height: RollupHeight,
         state: &mut Reader,
-    ) -> Result<Option<BlockGasInfo<S::Gas>>, <Reader as StateReader<Kernel>>::Error> {
+    ) -> Result<Option<BlockGasInfo<S::Gas>>, Reader::Error> {
         if height == RollupHeight::GENESIS {
             return Ok(Some(BlockGasInfo::new(
                 S::initial_gas_limit(),
