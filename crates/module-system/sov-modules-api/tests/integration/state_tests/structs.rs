@@ -72,7 +72,6 @@ impl StateThing for StateVecSet {
     fn change(&self, state: &mut impl InfallibleStateAccessor) {
         let mut value = self.value(state);
         for v in value.iter_mut() {
-            // TODO: More sophisticated ways of updating it
             *v += 1;
         }
         self.0.set_all(value, state).unwrap_infallible();

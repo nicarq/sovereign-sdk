@@ -13,6 +13,7 @@ use crate::gas::GasArray;
 use crate::{Gas, GasMeter, GetGasPrice, Spec, TypedEvent, VersionReader};
 
 fn get_slot_number(visible_slot_number: Option<VisibleSlotNumber>) -> Option<SlotNumber> {
+    // This TODO is not a security risk.
     // TODO: This is an ugly hack to work around the dual use of self.visible_slot_number.
     // We use it inside `VersionReader` to determine what state the accessor is allowed to access (which requires it to be set)
     // but also here to determine what state version to query *from disk*. Unfortunately, those two numbers don't always agree *during initialization*,

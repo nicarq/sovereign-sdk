@@ -243,6 +243,7 @@ impl<S: Spec, T> ApiState<S, T> {
         };
         tracing::trace!(?maybe_height, ?state, "Building an API state accessor");
 
+        // This is not a security isse and this code runs offchain.
         // TODO: Move this inside the constructor
         // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2244>
         let gas_price = self

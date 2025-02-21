@@ -130,16 +130,7 @@ impl<S: Spec> StateCheckpoint<S> {
     /// during normal execution, since changes should happen through `StateValue` types which
     /// use the UniversalStateAccessor API. It is primarily intended for use in the sequencer, which has to manage
     /// its own state.
-    // TODO: Remove this method if we stop using `StateCheckpoint` in the sequencer
-    #[cfg(feature = "native")]
-    pub fn apply_tx_changes(&mut self, changeset: super::TxChangeSet) {
-        self.apply_changes(changeset.0);
-    }
-
-    /// Directly apply a set of changes to the state checkpoint. This method should generally *not* be used
-    /// during normal execution, since changes should happen through `StateValue` types which
-    /// use the UniversalStateAccessor API. It is primarily intended for use in the sequencer, which has to manage
-    /// its own state.
+    // This TODO is not a security risk, it is used only in sequencer as intended.
     // TODO: Remove this method if we stop using `StateCheckpoint` in the sequencer
     #[cfg(feature = "native")]
     pub fn apply_changes(&mut self, changeset: ChangeSet) {
