@@ -90,6 +90,9 @@ where
         key: &SlotNumber,
         state: &mut Reader,
     ) -> Result<Option<V>, Reader::Error> {
+        if key.get() > state.visible_slot_number_to_access().get() {
+            return Ok(None);
+        }
         self.elems.get(key, state)
     }
 }
@@ -181,6 +184,15 @@ mod tests {
         assert_eq!(
             value.get_current(&mut state).unwrap_infallible(),
             Some(RollupHeight::new(100))
+        );
+
+        // Try to read a future value from user space with the rollup height set to 1. Should fail.
+        state.update_version(1);
+        assert_eq!(
+            value
+                .get(&2.to_slot_number(), &mut state)
+                .unwrap_infallible(),
+            None
         );
 
         // Try to read the value from user space with the rollup height set to 4. Should succeed.
