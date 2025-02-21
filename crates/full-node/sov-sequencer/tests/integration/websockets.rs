@@ -1,13 +1,14 @@
 use futures::stream::StreamExt;
 use sov_api_spec::types::TxStatus;
+use sov_sequencer::Sequencer;
 use sov_test_utils::sequencer::TestSequencerSetup;
 
-use crate::utils::generate_txs;
+use crate::utils::{generate_txs, RT};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn mempool_eviction_event() {
     let mempool_max_txs_count = 1;
-    let sequencer = TestSequencerSetup::with_real_batch_builder_and_mempool_max_txs_count(
+    let sequencer = TestSequencerSetup::<RT>::with_real_sequencer_and_mempool_max_txs_count(
         mempool_max_txs_count.try_into().unwrap(),
     )
     .await
@@ -58,7 +59,9 @@ async fn mempool_eviction_event() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn rpc_subscribe() {
-    let sequencer = TestSequencerSetup::with_real_batch_builder().await.unwrap();
+    let sequencer = TestSequencerSetup::<RT>::with_real_sequencer()
+        .await
+        .unwrap();
     let client = sequencer.client();
 
     let txs = generate_txs(sequencer.admin_private_key.clone());

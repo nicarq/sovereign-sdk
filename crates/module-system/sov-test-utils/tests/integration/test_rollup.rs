@@ -18,7 +18,6 @@ type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "Fails to often on my machine"]
 async fn flaky_test_rollup_shutdown_works_as_expected() {
-    std::env::set_var("RUST_LOG", "warn");
     let _guard = initialize_logging();
 
     let dir = Arc::new(tempfile::tempdir().unwrap());
@@ -48,7 +47,7 @@ async fn start_and_stop_node_in_dir(dir: Arc<TempDir>) {
         c.storage = dir;
         c.rollup_prover_config = None;
     })
-    .with_standard_batch_builder()
+    .with_standard_sequencer()
     .start()
     .await
     .unwrap();

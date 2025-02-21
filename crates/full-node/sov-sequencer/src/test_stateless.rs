@@ -1,22 +1,31 @@
-//! BatchBuilder without any validation or state.
+#![allow(dead_code)]
+
+//! Sequencer without any validation or state.
 use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::AuthenticationError;
-use sov_modules_api::rest::ApiState;
-use sov_modules_api::{FullyBakedTx, RawTx, Runtime, Spec, StateCheckpoint};
+use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
+use sov_modules_api::{FullyBakedTx, Runtime, Spec, StateCheckpoint};
 use sov_rest_utils::ErrorObject;
 use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::{StateUpdateInfo, TxHash};
 use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
 
-use crate::batch_builders::{AcceptedTx, BatchBuilder, EmptyConfirmation, WithCachedTxHashes};
-use crate::sequencer::SequencerNotReadyDetails;
-use crate::{SequencerConfig, TxStatus, TxStatusManager};
+use crate::blob_sender::BlobSender;
+use crate::common::{
+    loop_call_update_state, loop_send_tx_notifications, AcceptedTx, EmptyConfirmation, Sequencer,
+    WithCachedTxHashes,
+};
+use crate::{
+    SequencerConfig, SequencerNotReadyDetails, SubmitBatchReceipt, TxStatus, TxStatusManager,
+};
 
 #[derive(Clone)]
 struct Inner<S: Spec> {
@@ -25,45 +34,32 @@ struct Inner<S: Spec> {
     mempool: Vec<FullyBakedTx>,
 }
 
-/// BatchBuilder that accepts any transaction without verification.
+/// Sequencer that accepts any transaction without verification.
 /// Build a batch out of all accepted transactions in the order they were received.
 /// Does not impose any restrictions on transaction validity or batch size.
 #[derive(Clone)]
-pub struct TestStatelessBatchBuilder<R, S: Spec> {
+pub struct TestStatelessSequencer<R, S: Spec, Da: DaService> {
     inner: Arc<Mutex<Inner<S>>>,
+    blob_sender: Arc<BlobSender<Da, Vec<FullyBakedTx>>>,
+    tx_status_manager: TxStatusManager<S::Da>,
     _r: PhantomData<R>,
     state_sender: watch::Sender<StateCheckpoint<S>>,
 }
 
-impl<R, S> TestStatelessBatchBuilder<R, S>
+impl<R, S, Da> TestStatelessSequencer<R, S, Da>
 where
     R: Runtime<S>,
     S: Spec,
+    Da: DaService<Spec = S::Da>,
 {
-    /// Creates new empty [`TestStatelessBatchBuilder`].
-    pub fn new(storage: S::Storage) -> Self {
-        let runtime = R::default();
-        let kernel = Arc::new(runtime.kernel());
-        let inner = Mutex::new(Inner {
-            storage: storage.clone(),
-            mempool: vec![],
-        });
-        let (state_sender, _rec) = watch::channel(StateCheckpoint::new(storage, &*kernel));
-        Self {
-            inner: inner.into(),
-            _r: Default::default(),
-            state_sender,
-        }
-    }
-
-    async fn accept_encoded_tx(&self, tx: FullyBakedTx) -> AcceptedTx<EmptyConfirmation<R>> {
+    async fn accept_encoded_tx(&self, tx: FullyBakedTx) -> AcceptedTx<EmptyConfirmation> {
         let mut inner = self.inner.lock().await;
         let tx_hash = self.get_tx_hash(&tx, inner.storage.clone());
         inner.mempool.push(tx.clone());
         AcceptedTx {
             tx,
             tx_hash,
-            confirmation: EmptyConfirmation(PhantomData),
+            confirmation: EmptyConfirmation {},
         }
     }
 
@@ -104,20 +100,17 @@ where
 }
 
 #[async_trait]
-impl<R, S> BatchBuilder for TestStatelessBatchBuilder<R, S>
+impl<R, S, Da> Sequencer for TestStatelessSequencer<R, S, Da>
 where
     R: Runtime<S>,
     S: Spec,
+    Da: DaService<Spec = S::Da>,
 {
-    type Confirmation = EmptyConfirmation<R>;
-    type Batch = Vec<FullyBakedTx>;
+    type Confirmation = EmptyConfirmation;
     type Config = ();
     type Spec = S;
-    const PARALLEL_DA_SUBMISSION: bool = false;
-
-    fn encode_tx(raw: RawTx) -> FullyBakedTx {
-        R::encode_with_standard_auth(raw)
-    }
+    type Rt = R;
+    type Da = Da;
 
     fn api_state(&self) -> ApiState<Self::Spec> {
         let runtime = R::default();
@@ -142,23 +135,82 @@ where
         Ok(TxStatus::Unknown)
     }
 
+    fn tx_status_manager(&self) -> &TxStatusManager<<Self::Spec as Spec>::Da> {
+        &self.tx_status_manager
+    }
+
     async fn create(
-        latest_state_info: StateUpdateInfo<<Self::Spec as Spec>::Storage>,
-        _tx_status_manager: TxStatusManager<<Self::Spec as Spec>::Da>,
+        da: Self::Da,
+        state_update_receiver: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
         _da_sync_state: Arc<DaSyncState>,
-        _storage_path: &Path,
+        storage_path: &Path,
         _config: &SequencerConfig<
             <Self::Spec as Spec>::Da,
             <Self::Spec as Spec>::Address,
             Self::Config,
         >,
-    ) -> anyhow::Result<(Self, Option<JoinHandle<()>>)> {
-        Ok((Self::new(latest_state_info.storage), None))
+        ledger_db: LedgerDb,
+        shutdown_receiver: watch::Receiver<()>,
+    ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
+        let runtime = R::default();
+        let storage = state_update_receiver.borrow().storage.clone();
+        let inner = Mutex::new(Inner {
+            storage: storage.clone(),
+            mempool: vec![],
+        });
+        let (state_sender, _rec) = watch::channel(StateCheckpoint::new(storage, &runtime.kernel()));
+        let tx_status_manager = TxStatusManager::default();
+
+        let seq = Arc::new(Self {
+            inner: inner.into(),
+            blob_sender: Arc::new(
+                BlobSender::new(
+                    da,
+                    storage_path,
+                    tx_status_manager.clone(),
+                    true,
+                    shutdown_receiver.clone(),
+                )
+                .await?,
+            ),
+            tx_status_manager,
+            _r: Default::default(),
+            state_sender,
+        });
+
+        let mut handles = vec![];
+        handles.push(tokio::spawn({
+            loop_call_update_state(
+                seq.clone(),
+                state_update_receiver.clone(),
+                shutdown_receiver.clone(),
+            )
+        }));
+        handles.push(tokio::spawn({
+            let ledger_db = ledger_db.clone();
+            let seq = seq.clone();
+            async move {
+                loop_send_tx_notifications::<S, R>(
+                    state_update_receiver,
+                    shutdown_receiver,
+                    &ledger_db,
+                    seq.tx_status_manager(),
+                )
+                .await;
+            }
+        }));
+
+        Ok((seq, handles))
     }
 
     async fn update_state(&self, update_info: StateUpdateInfo<<Self::Spec as Spec>::Storage>) {
         let mut inner = self.inner.lock().await;
         inner.storage = update_info.storage;
+
+        self.blob_sender
+            .publish_batch_and_wait(self.take_batch().await)
+            .await
+            .ok();
     }
 
     async fn accept_tx(
@@ -168,18 +220,17 @@ where
         Ok(self.accept_encoded_tx(tx).await)
     }
 
-    async fn assemble_batch(&self) -> anyhow::Result<Option<()>> {
-        // There's always a batch ready.
-        Ok(Some(()))
-    }
+    async fn submit_batch(
+        &self,
+        txs: Vec<FullyBakedTx>,
+    ) -> anyhow::Result<Option<SubmitBatchReceipt<Da::Spec>>> {
+        for tx in txs {
+            self.accept_tx(tx).await.ok();
+        }
 
-    async fn peek_batches(&self) -> anyhow::Result<Vec<WithCachedTxHashes<Self::Batch>>> {
-        Ok(vec![self.take_batch().await])
-    }
-
-    async fn pop_batch(&self) -> anyhow::Result<()> {
-        let mut inner = self.inner.lock().await;
-        inner.mempool.clear();
-        Ok(())
+        self.blob_sender
+            .publish_batch_and_wait(self.take_batch().await)
+            .await
+            .map(Some)
     }
 }

@@ -300,10 +300,17 @@
         }
       }
     },
-    "PreferredBatchBuilderConfig": {
-      "description": "Configuration for [`PreferredBatchBuilder`].",
+    "PreferredSequencerConfig": {
+      "description": "Configuration for [`PreferredSequencer`].",
       "type": "object",
       "properties": {
+        "events_channel_size": {
+          "description": "The size of the Tokio channel used to stream events.\n\nDon't deviate from the default unless you know what you're doing.",
+          "default": 100,
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
         "minimum_profit_per_tx": {
           "description": "The minimum fee that the preferred sequencer is willing to accept, denominated in rollup tokens. Defaults to zero. Sequencers should set this to a non-zero value if they wish to cover their DA costs.",
           "default": 0,
@@ -528,27 +535,27 @@
       "type": "object",
       "oneOf": [
         {
-          "description": "A standard batch builder, which can post transactions to the rollup but not give soft confirmations.",
+          "description": "A \"Standard\" sequencer, which can post transactions to the rollup but not give soft confirmations.",
           "type": "object",
           "required": [
             "standard"
           ],
           "properties": {
             "standard": {
-              "$ref": "#/definitions/StdBatchBuilderConfig"
+              "$ref": "#/definitions/StdSequencerConfig"
             }
           },
           "additionalProperties": false
         },
         {
-          "description": "A \"Preferred\" batch builder which is allowed to give soft confirmations.",
+          "description": "A \"Preferred\" sequencer which is allowed to give soft confirmations.",
           "type": "object",
           "required": [
             "preferred"
           ],
           "properties": {
             "preferred": {
-              "$ref": "#/definitions/PreferredBatchBuilderConfig"
+              "$ref": "#/definitions/PreferredSequencerConfig"
             }
           },
           "additionalProperties": false
@@ -603,8 +610,8 @@
         }
       }
     },
-    "StdBatchBuilderConfig": {
-      "description": "Configuration for [`StdBatchBuilder`].",
+    "StdSequencerConfig": {
+      "description": "Configuration for [`StdSequencer`].",
       "type": "object",
       "properties": {
         "max_batch_size_bytes": {

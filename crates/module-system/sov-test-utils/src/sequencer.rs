@@ -9,20 +9,17 @@ use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::storable::service::StorableMockDaService;
-use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
-use sov_modules_api::{
-    DaSyncState, RuntimeEventProcessor, RuntimeEventResponse, SlotData, Spec, SyncStatus,
-};
-use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, TxReceiptContents};
+use sov_mock_da::{MockAddress, MockBlock, MockDaSpec};
+use sov_modules_api::{DaSyncState, Runtime, SlotData, Spec, SyncStatus};
+use sov_modules_stf_blueprint::GenesisParams;
 use sov_paymaster::{PaymasterConfig, SafeVec};
 use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::StateUpdateInfo;
-use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
-pub use sov_sequencer::batch_builders::test_stateless::TestStatelessBatchBuilder;
-use sov_sequencer::batch_builders::BatchBuilder;
-use sov_sequencer::{GenericSequencerSpec, SequenceNumberProvider, Sequencer, SequencerConfig};
+use sov_sequencer::standard::{StdSequencer, StdSequencerConfig};
+pub use sov_sequencer::test_stateless::TestStatelessSequencer;
+use sov_sequencer::{SequenceNumberProvider, Sequencer, SequencerApis, SequencerConfig};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_value_setter::ValueSetterConfig;
 use tempfile::TempDir;
@@ -32,41 +29,19 @@ use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::{GenesisConfig, TestOptimisticRuntime};
 use crate::{TestHasher, TestPrivateKey, TestSpec, TestStfBlueprint};
 
-type TestSequencerSpec<B> = GenericSequencerSpec<
-    B,
-    StorableMockDaService,
-    BatchReceipt<TestSpec>,
-    TxReceiptContents<TestSpec>,
-    RuntimeEventResponse<<TestOptimisticRuntime<TestSpec> as RuntimeEventProcessor>::RuntimeEvent>,
->;
-
-/// The default test sequencer type. A [`Sequencer`] with a [`MockDaService`] for DA interactions.
-pub type TestSequencer<B> = Sequencer<TestSequencerSpec<B>>;
-
-/// The default test fair batch builder type.
-/// An alias for a [`StdBatchBuilder`] with a [`TestSpec`],
-/// a [`MockDaService`] for DA interactions,
-/// a [`TestOptimisticRuntime`] and a [`sov_kernels::basic::BasicKernel`].
-pub type TestStdBatchBuilder =
-    StdBatchBuilder<(MockDaService, TestSpec, TestOptimisticRuntime<TestSpec>)>;
-
 /// A `struct` that contains a [`Sequencer`] and a copy of its running Axum
 /// server, for use in tests. See [`TestSequencerSetup::new`] and
-/// [`TestSequencerSetup::with_real_batch_builder`].
-pub struct TestSequencerSetup<B: BatchBuilder<Spec = TestSpec>> {
+/// [`TestSequencerSetup::with_real_sequencer`].
+pub struct TestSequencerSetup<Rt: Runtime<TestSpec>> {
     _dir: TempDir,
     /// The [`SequencerConfig`] used in this test.
-    pub config: SequencerConfig<
-        <<B as BatchBuilder>::Spec as Spec>::Da,
-        <<B as BatchBuilder>::Spec as Spec>::Address,
-        <B as BatchBuilder>::Config,
-    >,
-    /// The [`MockDaService`] used by the [`Sequencer`].
+    pub config: SequencerConfig<MockDaSpec, <TestSpec as Spec>::Address, StdSequencerConfig>,
+    /// The DA service used by the [`Sequencer`].
     pub da_service: StorableMockDaService,
-    /// The argument passed to [`Sequencer::new`].
+    /// What was passed to [`Sequencer::create`].
     pub state_update_receiver: watch::Receiver<StateUpdateInfo<<TestSpec as Spec>::Storage>>,
     /// The [`Sequencer`] used in the test.
-    pub sequencer: TestSequencer<B>,
+    pub sequencer: Arc<StdSequencer<TestSpec, Rt, StorableMockDaService>>,
     /// The admin private key used to create an external user account for transaction handling.
     pub admin_private_key: TestPrivateKey,
     /// The Axum server handle used to start the Axum server.
@@ -77,7 +52,7 @@ pub struct TestSequencerSetup<B: BatchBuilder<Spec = TestSpec>> {
     pub shutdown_sender: watch::Sender<()>,
 }
 
-impl<B: BatchBuilder<Spec = TestSpec>> Drop for TestSequencerSetup<B> {
+impl<Rt: Runtime<TestSpec>> Drop for TestSequencerSetup<Rt> {
     fn drop(&mut self) {
         // Error means that senders are already shut down.
         let _ = self.shutdown_sender.send(());
@@ -85,12 +60,12 @@ impl<B: BatchBuilder<Spec = TestSpec>> Drop for TestSequencerSetup<B> {
     }
 }
 
-impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
+impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
     /// Like [`TestSequencerSetup::new`], but with a custom [`NativeStorageManager`].
     pub async fn with_storage_manager(
         dir: TempDir,
         da_service: StorableMockDaService,
-        batch_builder_config: B::Config,
+        sequencer_config: StdSequencerConfig,
         register_admin: bool,
         mut storage_manager: NativeStorageManager<
             MockDaSpec,
@@ -179,22 +154,22 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
             automatic_batch_production: true,
             max_allowed_blocks_behind: 0,
             dropped_tx_ttl_secs: 0,
-            batch_builder: batch_builder_config,
+            sequencer_kind_config: sequencer_config,
         };
 
-        let (sequencer, _) = Sequencer::new(
-            state_update_receiver.clone(),
+        let (sequencer, _) = StdSequencer::<TestSpec, Rt, StorableMockDaService>::create(
             da_service.clone(),
+            state_update_receiver.clone(),
             da_sync_state,
             dir.path(),
-            ledger_db,
             &config,
+            ledger_db,
             shutdown_receiver,
         )
         .await?;
 
         let (axum_addr, sequencer_axum_server) = {
-            let router = sequencer.rest_api_server();
+            let router = SequencerApis::rest_api_server(sequencer.clone());
             let handle = axum_server::Handle::new();
 
             let handle1 = handle.clone();
@@ -223,7 +198,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
     }
 
     /// Instantiates a new [`Sequencer`] with a [`TestOptimisticRuntime`] and an empty
-    /// [`MockDaService`].
+    /// [`StorableMockDaService`].
     ///
     /// The RPC and Axum servers for the newly generated [`Sequencer`] are created
     /// on the fly, and their handles are stored inside a [`TestSequencerSetup`].
@@ -232,7 +207,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
     pub async fn new(
         dir: TempDir,
         da_service: StorableMockDaService,
-        batch_builder_config: B::Config,
+        sequencer_config: StdSequencerConfig,
         register_admin: bool,
     ) -> anyhow::Result<Self> {
         let storage_manager = NativeStorageManager::<
@@ -243,7 +218,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
         Self::with_storage_manager(
             dir,
             da_service,
-            batch_builder_config,
+            sequencer_config,
             register_admin,
             storage_manager,
         )
@@ -256,19 +231,19 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
     }
 }
 
-impl TestSequencerSetup<TestStdBatchBuilder> {
-    /// Like [`TestSequencerSetup::with_real_batch_builder`], but allows to
+impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
+    /// Like [`TestSequencerSetup::with_real_sequencer`], but allows to
     /// specify the maximum number of transactions in the mempool before
     /// eviction.
-    pub async fn with_real_batch_builder_and_mempool_max_txs_count(
+    pub async fn with_real_sequencer_and_mempool_max_txs_count(
         mempool_max_txs_count: NonZero<usize>,
     ) -> anyhow::Result<Self> {
         let dir = tempfile::tempdir()?;
 
-        TestSequencerSetup::new(
+        TestSequencerSetup::<Rt>::new(
             dir,
             StorableMockDaService::new_in_memory(MockAddress::new([172; 32]), 0).await,
-            StdBatchBuilderConfig {
+            StdSequencerConfig {
                 mempool_max_txs_count: Some(mempool_max_txs_count),
                 max_batch_size_bytes: None,
             },
@@ -278,10 +253,9 @@ impl TestSequencerSetup<TestStdBatchBuilder> {
     }
 
     /// Creates a new [`TestSequencerSetup`]. Instantiates a new [`TestOptimisticRuntime`], [`NativeStorageManager`], executes genesis
-    /// and then builds a new [`StdBatchBuilder`] to instantiate a [`Sequencer`]. Instantiates an Axum server in a separate thread.
-    pub async fn with_real_batch_builder() -> anyhow::Result<Self> {
-        Self::with_real_batch_builder_and_mempool_max_txs_count(NonZero::new(usize::MAX).unwrap())
-            .await
+    /// and then builds a new [`StdSequencer`] to instantiate a [`Sequencer`]. Instantiates an Axum server in a separate thread.
+    pub async fn with_real_sequencer() -> anyhow::Result<Self> {
+        Self::with_real_sequencer_and_mempool_max_txs_count(NonZero::new(usize::MAX).unwrap()).await
     }
 }
 

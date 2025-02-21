@@ -26,9 +26,9 @@ use sov_modules_api::{
 };
 use tracing::{error, trace};
 
-use crate::batch_builders::{SeqDbTx, SeqDbTxId, WithCachedTxHashes};
+use crate::common::{SeqDbTx, SeqDbTxId, WithCachedTxHashes};
 
-/// Holds data related to [`super::PreferredBatchBuilder`]:
+/// Holds data related to [`super::PreferredSequencer`]:
 ///
 ///  1. The current in-progress batch.
 ///  2. All preferred blobs that haven't been finalized yet.
@@ -54,12 +54,11 @@ pub struct PreferredBbDb<S: Spec, R: Runtime<S>> {
 }
 
 impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
-    const DB_NAME: &'static str = "preferred_batch_builder";
+    const DB_NAME: &'static str = "preferred_sequencer";
     const TABLES: &'static [&'static str] = &[
         tables::SingletonInProgressBatchInfo::table_name(),
         tables::NotFinalizedPreferredBlobs::table_name(),
         tables::InProgressBatchTxs::table_name(),
-        tables::BatchesWaitingToBePublished::table_name(),
     ];
 
     /// Opens a new [`PreferredBbDb`] at the given path.
@@ -311,7 +310,6 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
             }
 
             s.put::<tables::NotFinalizedPreferredBlobs>(&sequence_number, &blob)?;
-            s.put::<tables::BatchesWaitingToBePublished>(&sequence_number, &())?;
             s.delete::<tables::SingletonInProgressBatchInfo>(&())?;
 
             self.db.write_schemas_async(&s).await?;
@@ -376,72 +374,6 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
         self.sequence_number_of_next_blob += 1;
 
         Ok(sequence_number)
-    }
-
-    /// Returns all batches stored in
-    /// this [`PreferredBbDb`] that haven't been successfully sent to the DA
-    /// yet.
-    pub async fn not_sent_yet_batches(&mut self) -> anyhow::Result<Vec<SavedBatch>> {
-        let Some(sequence_number) = self
-            .sequence_number_of_earliest_batch_not_sent_yet()
-            .await?
-        else {
-            return Ok(vec![]);
-        };
-
-        let mut iter = self.db.iter::<tables::BatchesWaitingToBePublished>()?;
-        iter.seek(&sequence_number)?;
-
-        let mut batches = vec![];
-
-        for iter_res in iter {
-            let sequence_number = iter_res?.key;
-
-            let Some(batch) = self
-                .db
-                .get::<tables::NotFinalizedPreferredBlobs>(&sequence_number)?
-            else {
-                continue;
-            };
-
-            // We only want batches, not proofs.
-            if let PreferredBbDbBlob::Batch(batch) = batch {
-                batches.push(batch);
-            } else {
-                panic!("Database error: expected to find batch, but a proof blob was found instead. Either db is corrupted or this is a bug.");
-            }
-        }
-
-        Ok(batches)
-    }
-
-    /// Removes the [`SequenceNumber`] of [`PreferredBbDb::`].
-    pub async fn advance_not_sent_yet_cursor(&mut self) -> anyhow::Result<()> {
-        let Some(sequence_number) = self
-            .sequence_number_of_earliest_batch_not_sent_yet()
-            .await?
-        else {
-            return Ok(());
-        };
-
-        self.db
-            .delete::<tables::BatchesWaitingToBePublished>(&sequence_number)?;
-
-        Ok(())
-    }
-
-    async fn sequence_number_of_earliest_batch_not_sent_yet(
-        &self,
-    ) -> anyhow::Result<Option<SequenceNumber>> {
-        let Some(item_res) = self
-            .db
-            .iter::<tables::BatchesWaitingToBePublished>()?
-            .next()
-        else {
-            return Ok(None);
-        };
-
-        Ok(Some(item_res?.key))
     }
 
     async fn remove(&mut self, sequence_number: SequenceNumber) -> anyhow::Result<()> {
@@ -573,9 +505,5 @@ mod tables {
 
     define_table_with_seek_key_codec!(
         (InProgressBatchTxs) SeqDbTxId => SeqDbTx
-    );
-
-    define_table_with_seek_key_codec!(
-        (BatchesWaitingToBePublished) SequenceNumber => ()
     );
 }

@@ -5,18 +5,17 @@ use base64::prelude::*;
 use borsh::BorshDeserialize;
 use sov_api_spec::types;
 use sov_mock_da::storable::service::StorableMockDaService;
-use sov_mock_da::MockDaService;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Address, BlobReaderTrait, DispatchCall, FullyBakedTx};
 use sov_rollup_interface::node::da::DaService;
-use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
+use sov_sequencer::standard::StdSequencerConfig;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{config_gas_token_id, Coins, TestOptimisticRuntime};
 use sov_test_utils::sequencer::TestSequencerSetup;
 use sov_test_utils::{TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_USER_BALANCE};
 
 use crate::utils::{
-    build_tx, generate_paymaster_tx, new_sequencer, valid_tx_bytes, wrap_with_auth,
+    build_tx, generate_paymaster_tx, new_sequencer, valid_tx_bytes, wrap_with_auth, RT,
 };
 
 #[tokio::test(flavor = "multi_thread")]
@@ -165,16 +164,14 @@ async fn not_sequencer_safe_txs_are_restricted() {
     let dir = tempfile::tempdir().unwrap();
     let sequencer_addr = HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr();
     let da_service = StorableMockDaService::new_in_memory(sequencer_addr, 0).await;
-    let batch_builder_config = StdBatchBuilderConfig {
+    let sequencer_config = StdSequencerConfig {
         mempool_max_txs_count: None,
         max_batch_size_bytes: None,
     };
 
-    let sequencer = TestSequencerSetup::<
-        StdBatchBuilder<(MockDaService, TestSpec, TestOptimisticRuntime<TestSpec>)>,
-    >::new(dir, da_service, batch_builder_config, false)
-    .await
-    .unwrap();
+    let sequencer = TestSequencerSetup::<RT>::new(dir, da_service, sequencer_config, false)
+        .await
+        .unwrap();
 
     let tx = generate_paymaster_tx(sequencer.admin_private_key.clone());
     {
@@ -211,16 +208,14 @@ async fn sequencer_safe_txs_from_admins_are_accepted() {
     let dir = tempfile::tempdir().unwrap();
     let sequencer_addr = HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr();
     let da_service = StorableMockDaService::new_in_memory(sequencer_addr, 0).await;
-    let batch_builder_config = StdBatchBuilderConfig {
+    let sequencer_config = StdSequencerConfig {
         mempool_max_txs_count: None,
         max_batch_size_bytes: None,
     };
 
-    let sequencer = TestSequencerSetup::<
-        StdBatchBuilder<(MockDaService, TestSpec, TestOptimisticRuntime<TestSpec>)>,
-    >::new(dir, da_service, batch_builder_config, true)
-    .await
-    .unwrap();
+    let sequencer = TestSequencerSetup::<RT>::new(dir, da_service, sequencer_config, true)
+        .await
+        .unwrap();
 
     let tx = generate_paymaster_tx(sequencer.admin_private_key.clone());
     {

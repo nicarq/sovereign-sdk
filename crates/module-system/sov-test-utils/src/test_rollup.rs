@@ -17,16 +17,16 @@ use sov_modules_api::prelude::axum;
 use sov_modules_api::prelude::axum::extract::Request;
 use sov_modules_api::prelude::axum::ServiceExt;
 use sov_modules_api::{Spec, Zkvm};
-use sov_modules_rollup_blueprint::{FullNodeBlueprint, SequencerBlueprint};
+use sov_modules_rollup_blueprint::FullNodeBlueprint;
 use sov_modules_stf_blueprint::{GenesisParams, Runtime};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::{DaSyncState, SyncStatus};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_rollup_interface::StateUpdateInfo;
-use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
-use sov_sequencer::batch_builders::test_stateless::TestStatelessBatchBuilder;
-use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
+use sov_sequencer::preferred::PreferredSequencerConfig;
+use sov_sequencer::test_stateless::TestStatelessSequencer;
+use sov_sequencer::{Sequencer, SequencerApis, SequencerConfig, SequencerKindConfig};
 pub use sov_stf_runner::processes::RollupProverConfig;
 use sov_stf_runner::{
     HttpServerConfig, MonitoringConfig, ProofManagerConfig, RollupConfig, RunnerConfig,
@@ -58,7 +58,7 @@ pub enum GenesisSource<S: Spec, R: Runtime<S>> {
 #[derive(Clone)]
 pub struct RollupBuilderConfig<S: Spec, StoragePath = Arc<tempfile::TempDir>> {
     pub automatic_batch_production: bool,
-    pub batch_builder_config: BatchBuilderConfig,
+    pub sequencer_config: SequencerKindConfig,
     pub prover_address: String,
     pub sequencer_address: String,
     pub aggregated_proof_block_jump: usize,
@@ -161,7 +161,7 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
                 max_channel_size: 60,
                 max_infos_in_db: 80 + finalization_blocks as u64,
                 automatic_batch_production: true,
-                batch_builder_config: BatchBuilderConfig::Preferred(Default::default()),
+                sequencer_config: SequencerKindConfig::Preferred(Default::default()),
                 prover_address: TEST_DEFAULT_PROVER_ADDRESS.to_string(),
                 sequencer_address: TEST_DEFAULT_SEQUENCER_ADDRESS.to_string(),
                 aggregated_proof_block_jump: 1,
@@ -177,12 +177,12 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
         .set_da_connection_string()
     }
 
-    /// See [`PreferredBatchBuilderConfig::minimum_profit_per_tx`].
+    /// See [`PreferredSequencerConfig::minimum_profit_per_tx`].
     pub fn with_preferred_seq_min_profit_per_tx(mut self, minimum_profit_per_tx: u64) -> Self {
-        self.config.batch_builder_config =
-            BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
-                minimum_profit_per_tx,
-            });
+        self.config.sequencer_config = SequencerKindConfig::Preferred(PreferredSequencerConfig {
+            minimum_profit_per_tx,
+            ..Default::default()
+        });
         self
     }
 
@@ -213,14 +213,14 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
         self
     }
 
-    /// Sets the batch builder mode to [`BatchBuilderConfig::Standard`].
-    pub fn with_standard_batch_builder(self) -> Self {
+    /// Sets the sequencer "kind" to [`SequencerKindConfig::Standard`].
+    pub fn with_standard_sequencer(self) -> Self {
         self.set_config(|c| {
-            c.batch_builder_config = BatchBuilderConfig::Standard(Default::default());
+            c.sequencer_config = SequencerKindConfig::Standard(Default::default());
         })
     }
 
-    /// Runs a secondary sequencer with [`TestStatelessBatchBuilder`] on the same DA layer
+    /// Runs a secondary sequencer with [`TestStatelessSequencer`] on the same DA layer
     /// with the provided DA Address.
     pub fn with_secondary_sequencer(mut self, sequencer_da_address: MockAddress) -> Self {
         self.with_secondary_sequencer = Some(sequencer_da_address);
@@ -379,7 +379,7 @@ where
                 rollup_address: FromStr::from_str(&self.config.sequencer_address)
                     .expect("Sequencer address is not valid"),
                 admin_addresses: vec![],
-                batch_builder: self.config.batch_builder_config.clone(),
+                sequencer_kind_config: self.config.sequencer_config.clone(),
             },
 
             monitoring: MonitoringConfig {
@@ -420,18 +420,18 @@ where
         let (sender, state_update_receiver) = watch::channel(state_update_info);
 
         let (sequencer, _background_handles) =
-            SequencerBlueprint::<R, Native, TestStatelessBatchBuilder<R::Runtime, R::Spec>>::new(
-                state_update_receiver,
+            TestStatelessSequencer::<R::Runtime, R::Spec, StorableMockDaService>::create(
                 secondary_da_service,
+                state_update_receiver,
                 da_sync_state,
                 &rollup_config.storage.path,
+                &rollup_config.sequencer.with_seq_config(()),
                 ledger_db,
-                &rollup_config.sequencer.with_bb_config(()),
                 shutdown_receiver.clone(),
             )
             .await?;
 
-        let router = sequencer.rest_api_server();
+        let router = SequencerApis::rest_api_server(sequencer.clone());
 
         let addr = SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 0));
         let listener = tokio::net::TcpListener::bind(addr).await?;

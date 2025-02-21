@@ -3,6 +3,8 @@
   reducing amount of disk access when querying head block or waiting for future block to be produced. No major user change.
   `runner.da_polling_interval_ms` can be safely reduced for mock_da rollups.
 ## 2025-02-19
+
+- #2452 merges the `BatchBuilder` trait and the `Sequencer` struct into a single `Sequencer` trait. REST APIs are unchanged, but this is a breaking change for `sov_test_utils` such as `TestRollup` and `TestSequencerSetup`.
 - #2449 overhauls the internals of the blob selector to hid sequencer balances from user space. This change is not primarily user facing, but the `authorize_sequencer` public method has been removed from `sov-sequencer-registry`
 
 ## 2025-02-18

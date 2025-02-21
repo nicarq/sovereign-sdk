@@ -2,32 +2,32 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::schemars::JsonSchema;
 use sov_modules_api::DaSpec;
 
-use crate::batch_builders::preferred::PreferredBatchBuilderConfig;
-use crate::batch_builders::standard::StdBatchBuilderConfig;
+use crate::preferred::PreferredSequencerConfig;
+use crate::standard::StdSequencerConfig;
 
-/// See [`SequencerConfig::batch_builder`].
+/// See [`SequencerConfig::sequencer_kind_config`].
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum BatchBuilderConfig {
-    /// A standard batch builder, which can post transactions to the rollup but not give soft confirmations.
-    Standard(StdBatchBuilderConfig),
-    /// A "Preferred" batch builder which is allowed to give soft confirmations.
-    Preferred(PreferredBatchBuilderConfig),
+pub enum SequencerKindConfig {
+    /// A "Standard" sequencer, which can post transactions to the rollup but not give soft confirmations.
+    Standard(StdSequencerConfig),
+    /// A "Preferred" sequencer which is allowed to give soft confirmations.
+    Preferred(PreferredSequencerConfig),
 }
 
-impl Default for BatchBuilderConfig {
+impl Default for SequencerKindConfig {
     fn default() -> Self {
-        BatchBuilderConfig::Preferred(Default::default())
+        SequencerKindConfig::Preferred(Default::default())
     }
 }
 
 /// Sequencer configuration.
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 #[schemars(
-    bound = "Da: DaSpec, Address: JsonSchema, BbConfig: JsonSchema",
+    bound = "Da: DaSpec, Address: JsonSchema, Sc: JsonSchema",
     rename = "SequencerConfig"
 )]
-pub struct SequencerConfig<Da: DaSpec, Address, BbConfig = BatchBuilderConfig> {
+pub struct SequencerConfig<Da: DaSpec, Address, Sc = SequencerKindConfig> {
     /// When enabled, submitted transactions are periodically assembled into
     /// batches and automatically posted to the DA layer. When disabled, the
     /// batch production endpoint has to be called explicitly.
@@ -53,9 +53,9 @@ pub struct SequencerConfig<Da: DaSpec, Address, BbConfig = BatchBuilderConfig> {
     // without the bound `Address: Default`.
     #[serde(default = "Vec::<Address>::new")]
     pub admin_addresses: Vec<Address>,
-    /// Batch builder configuration.
+    /// Sequencer-type specific configuration.
     #[serde(flatten)]
-    pub batch_builder: BbConfig,
+    pub sequencer_kind_config: Sc,
 }
 
 fn default_automatic_batch_production() -> bool {
@@ -63,11 +63,8 @@ fn default_automatic_batch_production() -> bool {
 }
 
 impl<Da: DaSpec, Addr: Clone, BbConfig> SequencerConfig<Da, Addr, BbConfig> {
-    /// Replaces the value of [`SequencerConfig::batch_builder`].
-    pub fn with_bb_config<BbConfig2>(
-        &self,
-        bb_config: BbConfig2,
-    ) -> SequencerConfig<Da, Addr, BbConfig2> {
+    /// Replaces the value of [`SequencerConfig::sequencer_kind_config`].
+    pub fn with_seq_config<Sc2>(&self, seq_config: Sc2) -> SequencerConfig<Da, Addr, Sc2> {
         SequencerConfig {
             automatic_batch_production: self.automatic_batch_production,
             dropped_tx_ttl_secs: self.dropped_tx_ttl_secs,
@@ -75,15 +72,18 @@ impl<Da: DaSpec, Addr: Clone, BbConfig> SequencerConfig<Da, Addr, BbConfig> {
             rollup_address: self.rollup_address.clone(),
             max_allowed_blocks_behind: self.max_allowed_blocks_behind,
             admin_addresses: self.admin_addresses.clone(),
-            batch_builder: bb_config,
+            sequencer_kind_config: seq_config,
         }
     }
 }
 
 impl<Da: DaSpec, Addr> SequencerConfig<Da, Addr> {
-    /// Returns true if the batch builder uses [`BatchBuilderConfig::Preferred`].
+    /// Returns true if the sequencer uses [`SequencerKindConfig::Preferred`].
     pub fn is_preferred_sequencer(&self) -> bool {
-        matches!(self.batch_builder, BatchBuilderConfig::Preferred(_))
+        matches!(
+            self.sequencer_kind_config,
+            SequencerKindConfig::Preferred(_)
+        )
     }
 }
 

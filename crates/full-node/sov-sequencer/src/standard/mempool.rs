@@ -4,13 +4,13 @@ use std::num::NonZero;
 use std::ops::Bound;
 use std::sync::Arc;
 
-use sov_modules_api::{FullyBakedTx, Spec};
+use sov_modules_api::{DaSpec, FullyBakedTx};
 use sov_rollup_interface::common::HexString;
 use sov_rollup_interface::TxHash;
 use tracing::{debug, warn};
 
 use super::db::StandardBbDb;
-use crate::batch_builders::{BatchBuilder, SeqDbTx, SeqDbTxId};
+use crate::common::{SeqDbTx, SeqDbTxId};
 use crate::{TxStatus, TxStatusManager};
 
 // mempool picks transactions in this order:
@@ -18,10 +18,10 @@ use crate::{TxStatus, TxStatusManager};
 // - gas per byte
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
-pub struct Mempool<Bb: BatchBuilder> {
+pub struct Mempool<Da: DaSpec> {
     db: StandardBbDb,
     max_txs_count: NonZero<usize>,
-    txsm: TxStatusManager<<<Bb as BatchBuilder>::Spec as Spec>::Da>,
+    txsm: TxStatusManager<Da>,
     // Transaction data
     // ----------------
     txs_ordered_by_most_fair_fit: BTreeMap<MempoolCursor, Arc<SeqDbTx>>,
@@ -29,11 +29,11 @@ pub struct Mempool<Bb: BatchBuilder> {
     txs_by_hash: HashMap<TxHash, Arc<SeqDbTx>>,
 }
 
-impl<Bb: BatchBuilder> Mempool<Bb> {
+impl<Da: DaSpec> Mempool<Da> {
     /// Creates a new [`Mempool`] with the given capacity and initializes it
     /// with the given transactions.
     pub fn new(
-        txsm: TxStatusManager<<<Bb as BatchBuilder>::Spec as Spec>::Da>,
+        txsm: TxStatusManager<Da>,
         max_txs_count: NonZero<usize>,
         db: StandardBbDb,
     ) -> anyhow::Result<Self> {

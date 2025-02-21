@@ -1,4 +1,4 @@
-//! See [`PreferredBatchBuilder`].
+//! See [`PreferredSequencer`].
 
 mod async_batch;
 mod db;
@@ -16,58 +16,68 @@ use db::PreferredBbDb;
 use schemars::JsonSchema;
 use serde_with::serde_as;
 use sov_blob_storage::PreferredBatchData;
-use sov_modules_api::capabilities::{
-    BlobSelector, BlobSelectorOutput, ChainState, HasKernel, TransactionAuthenticator,
-};
+use sov_db::ledger_db::LedgerDb;
+use sov_modules_api::capabilities::{BlobSelector, BlobSelectorOutput, ChainState};
 use sov_modules_api::rest::utils::{json_obj, ErrorObject};
-use sov_modules_api::rest::ApiState;
+use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
     BlobDataWithId, ChangeSet, ExecutionContext, FullyBakedTx, Gas, GasSpec, KernelStateAccessor,
-    NestedEnumUtils, RawTx, RejectReason, Runtime, RuntimeEventProcessor, RuntimeEventResponse,
+    NestedEnumUtils, RejectReason, Runtime, RuntimeEventProcessor, RuntimeEventResponse,
     SelectedBlob, Spec, StateCheckpoint, StateUpdateInfo, SyncStatus, TxChangeSet, VersionReader,
     VisibleSlotNumber,
 };
 use sov_modules_stf_blueprint::{StfBlueprint, TransactionReceipt, TxEffect};
 use sov_rest_utils::errors::database_error_500;
+use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
 use sov_state::{Namespace, NativeStorage, StateRoot, StateUpdate, Storage};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::{self, Sender};
-use tokio::sync::{oneshot, watch, Mutex};
+use tokio::sync::{broadcast, oneshot, watch, Mutex};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, trace};
 
-use super::{generic_accept_tx_error, RtAwareBatchBuilderSpec, SeqDbTx, SequencerConfirmation};
-use crate::batch_builders::preferred::db::PreferredBbDbBlob;
-use crate::batch_builders::{AcceptedTx, BatchBuilder, WithCachedTxHashes};
-use crate::sequencer::SequencerNotReadyDetails;
+use crate::blob_sender::BlobSender;
+use crate::common::{
+    generic_accept_tx_error, loop_call_update_state, loop_send_tx_notifications, AcceptedTx,
+    SeqDbTx, Sequencer, WithCachedTxHashes,
+};
+use crate::preferred::db::PreferredBbDbBlob;
 use crate::{
-    SequenceNumberProvider, Sequencer, SequencerConfig, SequencerSpec, TxStatus, TxStatusManager,
+    SequenceNumberProvider, SequencerConfig, SequencerEvent, SequencerNotReadyDetails,
+    SubmitBatchReceipt, TxStatus, TxStatusManager,
 };
 
 type VisibleSlotNumberIncrease = NonZero<u8>;
 
 /// A inner batch builder struct containing state that requires synchronized access.
-struct Inner<Z: RtAwareBatchBuilderSpec> {
-    db: PreferredBbDb<Z::Spec, Z::Rt>,
-    state: InternalState<Z::Spec>,
-    latest_info: StateUpdateInfo<<Z::Spec as Spec>::Storage>,
-    checkpoint_sender: watch::Sender<StateCheckpoint<Z::Spec>>,
+struct Inner<S, Rt, Da>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+    Da: DaService<Spec = S::Da>,
+{
+    state: InternalState<S>,
+    latest_info: StateUpdateInfo<S::Storage>,
+    checkpoint_sender: watch::Sender<StateCheckpoint<S>>,
     next_event_number: u64,
-    runtime: Z::Rt,
-    config: SequencerConfig<
-        <Z::Spec as Spec>::Da,
-        <Z::Spec as Spec>::Address,
-        PreferredBatchBuilderConfig,
-    >,
+    blob_sender: BlobSender<Da, PreferredBatchData>,
+    db: PreferredBbDb<S, Rt>,
+    runtime: Rt,
+    config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     // A sender notifying that this acceptor has successfully shut down. We give a handle to
     // each background task when it is spawned, ensuring that this channel remains open as long
     // as any background task is operational even if the acceptor is dropped.
     shutdown_notifier: Sender<()>,
 }
 
-impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
+impl<S, Rt, Da> Inner<S, Rt, Da>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+    Da: DaService<Spec = S::Da>,
+{
     /// The maximum number of transactions that can be buffered before incoming txs start getting
     /// rejected.
     const MAX_BUFFERED_TXS: usize = 1;
@@ -80,17 +90,14 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
     }
 
     #[tracing::instrument(skip_all, fields(starting_from=%info.slot_number))]
-    async fn update_state(
-        &mut self,
-        info: StateUpdateInfo<<Z::Spec as Spec>::Storage>,
-    ) -> anyhow::Result<()> {
+    async fn update_state(&mut self, info: StateUpdateInfo<S::Storage>) -> anyhow::Result<()> {
         self.end_rollup_block_if_in_progress().await;
 
         self.next_event_number = info.next_event_number;
         self.latest_info = info;
         self.state = InternalState::node(&self.latest_info, &self.runtime);
 
-        let batches_to_process = batches_to_process::<Z>(&self.db, &self.latest_info).await?;
+        let batches_to_process = batches_to_process::<S, Rt>(&self.db, &self.latest_info).await?;
 
         {
             debug!(
@@ -124,7 +131,43 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
         self.update_api_state().await;
         debug!("Sequencer state re-sync completed");
 
+        if self.config.automatic_batch_production {
+            if let Some(batch) = self.produce_batch_if_possible().await? {
+                self.blob_sender.publish_batch(batch).await?;
+            }
+        }
+
         Ok(())
+    }
+
+    async fn produce_batch_if_possible(
+        &mut self,
+    ) -> anyhow::Result<Option<WithCachedTxHashes<PreferredBatchData>>> {
+        let checkpoint = self.state.checkpoint_ref();
+
+        // Check if we have enough slots to create a new batch immediately after
+        // this one. If we don't, let's not assemble a batch.
+        //
+        // TODO(@neysofu): this check is currently necessary but likely can be folded into
+        // `try_to_create_and_start_batch_if_none_in_progress`... somehow. As of
+        // right now, it's a hair too bug-prone.
+        if next_visible_slot_number_increase(checkpoint, &self.latest_info, true).is_none() {
+            return Ok(None);
+        }
+
+        let new_batch_res = self.try_to_create_and_start_batch_if_none_in_progress(true)
+            .await
+            .map_err(|_| anyhow::anyhow!("Unable to start a new batch; this is likely a database issue or a bug, please report it"));
+
+        if new_batch_res?.is_none() {
+            return Ok(None);
+        }
+
+        let batch = self.db.terminate_batch().await?.batch;
+        self.end_rollup_block_if_in_progress().await;
+
+        self.update_api_state().await;
+        Ok(Some(batch))
     }
 
     async fn end_rollup_block_if_in_progress(&mut self) {
@@ -228,7 +271,7 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
         visible_slot_number_after_increase: Option<VisibleSlotNumber>,
         // We pass the node state root explicitly because retrieving it is
         // fallible, so it's convenient to front-load the error-checking.
-        node_state_root: <<Z::Spec as Spec>::Storage as Storage>::Root,
+        node_state_root: <S::Storage as Storage>::Root,
         minimum_profit_per_tx: u64,
     ) {
         self.start_rollup_block_inner(
@@ -251,7 +294,7 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
         &mut self,
         visible_increase: VisibleSlotNumberIncrease,
         visible_slot_number_after_increase: Option<VisibleSlotNumber>,
-        node_state_root: <<Z::Spec as Spec>::Storage as Storage>::Root,
+        node_state_root: <S::Storage as Storage>::Root,
         minimum_profit_per_tx: u64,
     ) {
         let InternalState::Idle {
@@ -304,7 +347,7 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
 
             move || {
                 let _span = tracing::trace_span!(
-                    "preferred_bb_bg_task",
+                    "preferred_seq_bg_task",
                     checkpoint_height = %checkpoint.rollup_height_to_access(),
                 )
                 .entered();
@@ -326,10 +369,10 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
                     selected_blobs,
                     visible_slot_number_increase: visible_increase.get().into(),
                 };
-                let stf = StfBlueprint::<Z::Spec, Z::Rt>::new();
-                let rt = Z::Rt::default();
+                let stf = StfBlueprint::<S, Rt>::new();
+                let rt = Rt::default();
                 let kernel = rt.kernel();
-                let mut accessor: KernelStateAccessor<'_, Z::Spec> =
+                let mut accessor: KernelStateAccessor<'_, S> =
                     KernelStateAccessor::from_checkpoint(&kernel, &mut checkpoint);
                 kernel.increment_rollup_height(
                     &mut accessor,
@@ -344,8 +387,8 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
                 // reserve for the preferred sequencer.
                 let next_gas_price = kernel
                     .base_fee_per_gas(&mut accessor)
-                    .unwrap_or(Z::Spec::initial_base_fee_per_gas());
-                let needed_gas_escrow = Z::Spec::max_tx_check_costs().checked_value(&next_gas_price).expect("Gas price overflow! This is a bug, please report it.");
+                    .unwrap_or(S::initial_base_fee_per_gas());
+                let needed_gas_escrow = S::max_tx_check_costs().checked_value(&next_gas_price).expect("Gas price overflow! This is a bug, please report it.");
                 kernel.escrow_funds_for_preferred_sequencer(needed_gas_escrow, &mut accessor).expect("Failed to escrow funds for the preferred sequencer. The sequencer is too low on funds, which could cause soft confirmations to be invalidated. Increase your bond and restart the sequencer.");
                 blob_selector_output.selected_blobs[0].reserved_gas_tokens = Some(needed_gas_escrow);
 
@@ -398,7 +441,7 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
         };
     }
 
-    fn node_root_hash(&self) -> anyhow::Result<<<Z::Spec as Spec>::Storage as Storage>::Root> {
+    fn node_root_hash(&self) -> anyhow::Result<<S::Storage as Storage>::Root> {
         self.latest_info
             .storage
             .get_root_hash(self.latest_info.slot_number)
@@ -429,13 +472,13 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
     }
 
     /// Calls to this method must happen "between"
-    /// [`PreferredBatchBuilder::start_rollup_block`] and
-    /// [`PreferredBatchBuilder::end_rollup_block_if_in_progress`].
+    /// [`PreferredSequencer::start_rollup_block`] and
+    /// [`PreferredSequencer::end_rollup_block_if_in_progress`].
     #[tracing::instrument(skip_all, level = "trace")]
     async fn tx_confirmation(
         &mut self,
         baked_tx: FullyBakedTx,
-    ) -> Result<AcceptedTx<Confirmation<Z>>, ErrorObject> {
+    ) -> Result<AcceptedTx<Confirmation<S, Rt>>, ErrorObject> {
         let InternalState::InProgressBatch {
             mut checkpoint,
             mut task_state,
@@ -469,13 +512,13 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
     async fn tx_confirmation_inner_result(
         &self,
         baked_tx: FullyBakedTx,
-        checkpoint: &mut StateCheckpoint<Z::Spec>,
-        task_state: &mut BackgroundTaskState<Z::Spec>,
+        checkpoint: &mut StateCheckpoint<S>,
+        task_state: &mut BackgroundTaskState<S>,
         next_event_number: u64,
-    ) -> Result<AcceptedTx<Confirmation<Z>>, ErrorObject> {
+    ) -> Result<AcceptedTx<Confirmation<S, Rt>>, ErrorObject> {
         assert!(matches!(self.state, InternalState::Placeholder));
 
-        let call = match Z::Rt::decode_serialized_tx(&self.runtime, &baked_tx) {
+        let call = match Rt::decode_serialized_tx(&self.runtime, &baked_tx) {
             Ok((call, _)) => call,
             Err(e) => {
                 let error = ErrorObject {
@@ -566,7 +609,7 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
             visible_increase,
             None,
             node_state_root,
-            self.config.batch_builder.minimum_profit_per_tx,
+            self.config.sequencer_kind_config.minimum_profit_per_tx,
         )
         .await;
 
@@ -574,10 +617,17 @@ impl<Z: RtAwareBatchBuilderSpec> Inner<Z> {
     }
 }
 
-/// A batch builder with instant transaction confirmation.
-pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
-    inner: Mutex<Inner<Z>>,
-    api_state: ApiState<Z::Spec>,
+/// A [`Sequencer`] with instant transaction confirmation.
+pub struct PreferredSequencer<S, Rt, Da>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+    Da: DaService<Spec = S::Da>,
+{
+    inner: Mutex<Inner<S, Rt, Da>>,
+    tx_status_manager: TxStatusManager<S::Da>,
+    events_sender: broadcast::Sender<SequencerEvent<Rt>>,
+    api_state: ApiState<S>,
     da_sync_state: Arc<DaSyncState>,
 }
 
@@ -587,17 +637,17 @@ enum InternalState<S: Spec> {
     /// Invalid state, used when we need to temporarily own the
     /// [`StateCheckpoint`].
     Placeholder,
-    /// The [`BatchBuilder`] is currently idle and is not processing
+    /// The [`Sequencer`] is currently idle and is not processing
     /// transactions for the next rollup block yet.
     Idle {
         checkpoint: StateCheckpoint<S>,
         /// When set to [`None`], the next rollup block is built on top of node
         /// state instead of sequencer state.
         ///
-        /// See [`PreferredBatchBuilder::latest_info`].
+        /// See [`PreferredSequencer::latest_info`].
         prev_state_root_opt: Option<<S::Storage as Storage>::Root>,
     },
-    /// The [`BatchBuilder`] is currently accepting transactions from the
+    /// The [`Sequencer`] is currently accepting transactions from the
     /// preferred batch of a rollup block. Note that every rollup block
     /// (under normal operations, not e.g. in recovery mode) has exactly one
     /// preferred batch.
@@ -627,34 +677,42 @@ impl<S: Spec> InternalState<S> {
 }
 
 #[async_trait]
-impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
-    type Confirmation = Confirmation<Z>;
-    type Batch = PreferredBatchData;
-    type Config = PreferredBatchBuilderConfig;
-    type Spec = Z::Spec;
+impl<S, Rt, Da> Sequencer for PreferredSequencer<S, Rt, Da>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+    Da: DaService<Spec = S::Da>,
+{
+    type Confirmation = Confirmation<S, Rt>;
+    type Config = PreferredSequencerConfig;
+    type Spec = S;
+    type Rt = Rt;
+    type Da = Da;
 
-    const PARALLEL_DA_SUBMISSION: bool = true;
-
-    /// At the time of writing, the [`PreferredBatchBuilder`] doesn't use
+    /// At the time of writing, the [`PreferredSequencer`] doesn't use
     /// the [`TxStatusManager`].
     ///
     /// The [`Sequencer`] itself already updates the
     /// [`TxStatusManager`] after all operations, so we'd only need it if we
     /// ever "drop" previously-accepted transactions. The whole point of the
-    /// [`PreferredBatchBuilder`] is that we *don't* do that.
+    /// [`PreferredSequencer`] is that we *don't* do that.
     async fn create(
-        latest_state_update: StateUpdateInfo<<Self::Spec as Spec>::Storage>,
-        _tx_status_manager: TxStatusManager<<Self::Spec as Spec>::Da>,
+        da: Da,
+        state_update_receiver: StateUpdateReceiver<S::Storage>,
         da_sync_state: Arc<DaSyncState>,
         storage_path: &Path,
-        config: &SequencerConfig<<Z::Spec as Spec>::Da, <Z::Spec as Spec>::Address, Self::Config>,
-    ) -> anyhow::Result<(Self, Option<JoinHandle<()>>)> {
+        config: &SequencerConfig<S::Da, S::Address, Self::Config>,
+        ledger_db: LedgerDb,
+        shutdown_receiver: watch::Receiver<()>,
+    ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
+        let latest_state_update = state_update_receiver.borrow().clone();
         debug!(
             ?latest_state_update,
             "Instantiating the preferred batch builder"
         );
 
-        let runtime: Z::Rt = Default::default();
+        let runtime: Rt = Default::default();
+        let tx_status_manager = TxStatusManager::default();
 
         assert!(
             accepts_preferred_batches(runtime.blob_selector()),
@@ -673,32 +731,66 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         );
 
         let (shutdown_notifier, mut shutdown_rx) = mpsc::channel(1);
-        let shutdown_handle = tokio::task::spawn(async move {
+        let mut handles = vec![tokio::task::spawn(async move {
             // This task blocks until we receive a notification that all
             // background tasks have been shut down.
             let _ = shutdown_rx.recv().await;
-        });
+        })];
+
+        let (events_sender, _) =
+            broadcast::channel(config.sequencer_kind_config.events_channel_size);
 
         let mut inner = Inner {
             db: PreferredBbDb::new(storage_path, &latest_state_update).await?,
+            blob_sender: BlobSender::new(
+                da,
+                storage_path,
+                tx_status_manager.clone(),
+                true,
+                shutdown_receiver.clone(),
+            )
+            .await?,
             state: InternalState::node(&latest_state_update, &runtime),
             latest_info: latest_state_update.clone(),
             checkpoint_sender,
             next_event_number: latest_state_update.next_event_number,
             config: config.clone(),
             runtime,
-            shutdown_notifier,
+            shutdown_notifier: shutdown_notifier.clone(),
         };
 
         inner.update_state(latest_state_update.clone()).await?;
 
-        let bb = Self {
+        let seq = Arc::new(PreferredSequencer {
             inner: inner.into(),
+            tx_status_manager,
+            events_sender,
             da_sync_state,
             api_state,
-        };
+        });
 
-        Ok((bb, Some(shutdown_handle)))
+        handles.push(tokio::spawn({
+            loop_call_update_state(
+                seq.clone(),
+                state_update_receiver.clone(),
+                shutdown_receiver.clone(),
+            )
+        }));
+        handles.push(tokio::spawn({
+            let ledger_db = ledger_db.clone();
+            let seq = seq.clone();
+            async move {
+                loop_send_tx_notifications::<S, Rt>(
+                    state_update_receiver,
+                    shutdown_receiver,
+                    &ledger_db,
+                    seq.tx_status_manager(),
+                )
+                .await;
+            }
+        }));
+
+        Ok((seq, handles))
     }
 
     fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
@@ -728,7 +820,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
-    async fn update_state(&self, info: StateUpdateInfo<<Z::Spec as Spec>::Storage>) {
+    async fn update_state(&self, info: StateUpdateInfo<S::Storage>) {
         let mut inner = self.inner.lock().await;
         inner.update_state(info).await.unwrap_or_else(|err| {
             error!(%err, "Failed to update preferred batch builder state. This failure is not recoverable, although application state is likely still intact and healthy. This is either a bug or a database issue.");
@@ -736,8 +828,12 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         });
     }
 
-    fn encode_tx(raw: RawTx) -> FullyBakedTx {
-        Z::Rt::encode_with_standard_auth(raw)
+    fn tx_status_manager(&self) -> &TxStatusManager<<Self::Spec as Spec>::Da> {
+        &self.tx_status_manager
+    }
+
+    async fn subscribe_events(&self) -> Option<broadcast::Receiver<SequencerEvent<Rt>>> {
+        Some(self.events_sender.subscribe())
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
@@ -770,6 +866,18 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
                     .map_err(database_error_500)?;
 
                 inner.update_api_state().await;
+
+                self.tx_status_manager
+                    .notify(ok.tx_hash, TxStatus::Submitted);
+
+                for event in ok.confirmation.events.iter().cloned() {
+                    self.events_sender
+                        .send(SequencerEvent {
+                            tx_hash: ok.tx_hash,
+                            event,
+                        })
+                        .ok();
+                }
             }
             Err(error) => {
                 debug!(error.title, "Transaction was rejected by the sequencer");
@@ -791,48 +899,25 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         Ok(TxStatus::Unknown)
     }
 
-    async fn assemble_batch(&self) -> anyhow::Result<Option<()>> {
-        let mut inner = self.inner.lock().await;
-        let checkpoint = inner.state.checkpoint_ref();
-
-        // Check if we have enough slots to create a new batch immediately after
-        // this one. If we don't, let's not assemble a batch.
-        //
-        // TODO(@neysofu): this check is currently necessary but likely can be folded into
-        // `try_to_create_and_start_batch_if_none_in_progress`... somehow. As of
-        // right now, it's a hair too bug-prone.
-        if next_visible_slot_number_increase(checkpoint, &inner.latest_info, true).is_none() {
-            return Ok(None);
+    async fn submit_batch(
+        &self,
+        txs: Vec<FullyBakedTx>,
+    ) -> anyhow::Result<Option<SubmitBatchReceipt<Da::Spec>>> {
+        for tx in txs.iter() {
+            self.accept_tx(tx.clone()).await.ok(); // FIXME(@neysofu): handle error.
         }
 
-        let new_batch_res = inner.try_to_create_and_start_batch_if_none_in_progress(true)
-            .await
-            .map_err(|_| anyhow::anyhow!("Unable to start a new batch; this is likely a database issue or a bug, please report it"));
+        let mut inner = self.inner.lock().await;
 
-        if new_batch_res?.is_none() {
-            return Ok(None);
+        if let Some(batch) = inner.produce_batch_if_possible().await? {
+            inner
+                .blob_sender
+                .publish_batch_and_wait(batch)
+                .await
+                .map(Some)
+        } else {
+            Ok(None)
         }
-
-        inner.db.terminate_batch().await?;
-        inner.end_rollup_block_if_in_progress().await;
-
-        inner.update_api_state().await;
-        Ok(Some(()))
-    }
-
-    async fn peek_batches(&self) -> anyhow::Result<Vec<WithCachedTxHashes<PreferredBatchData>>> {
-        let mut inner = self.inner.lock().await;
-        inner
-            .db
-            .not_sent_yet_batches()
-            .await
-            .map(|batches| batches.into_iter().map(|batch| batch.batch).collect())
-    }
-
-    async fn pop_batch(&self) -> anyhow::Result<()> {
-        let mut inner = self.inner.lock().await;
-        inner.db.advance_not_sent_yet_cursor().await?;
-        Ok(())
     }
 }
 
@@ -842,29 +927,47 @@ struct PreferredBatchToRestore {
     batch: WithCachedTxHashes<PreferredBatchData>,
 }
 
-/// Configuration for [`PreferredBatchBuilder`].
-#[derive(
-    Debug, Default, Clone, serde::Serialize, serde::Deserialize, Eq, PartialEq, JsonSchema,
-)]
-pub struct PreferredBatchBuilderConfig {
+/// Configuration for [`PreferredSequencer`].
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Eq, PartialEq, JsonSchema)]
+pub struct PreferredSequencerConfig {
     /// The minimum fee that the preferred sequencer is willing to accept, denominated in rollup tokens. Defaults to zero.
     /// Sequencers should set this to a non-zero value if they wish to cover their DA costs.
     #[serde(default)]
     pub minimum_profit_per_tx: u64,
+    /// The size of the Tokio channel used to stream events.
+    ///
+    /// Don't deviate from the default unless you know what you're doing.
+    #[serde(default = "default_events_channel_size")]
+    pub events_channel_size: usize,
+}
+
+impl Default for PreferredSequencerConfig {
+    fn default() -> Self {
+        Self {
+            minimum_profit_per_tx: 0,
+            events_channel_size: default_events_channel_size(),
+        }
+    }
+}
+
+fn default_events_channel_size() -> usize {
+    100
 }
 
 #[async_trait]
-impl<Z, Ss> SequenceNumberProvider for Sequencer<Ss>
+impl<S, Rt, Da> SequenceNumberProvider for PreferredSequencer<S, Rt, Da>
 where
-    Z: RtAwareBatchBuilderSpec,
-    Ss: SequencerSpec<BatchBuilder = PreferredBatchBuilder<Z>>,
-    //                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    // One should not be able to use a non-preferred sequencer to produce
-    // sequence numbers.
+    S: Spec,
+    Rt: Runtime<S>,
+    Da: DaService<Spec = S::Da>,
 {
     async fn generate_sequence_number(&self, preferred_blob: &[u8]) -> anyhow::Result<u64> {
-        let mut inner = self.batch_builder().inner.lock().await;
-        inner.db.insert_proof_blob(preferred_blob.to_vec()).await
+        self.inner
+            .lock()
+            .await
+            .db
+            .insert_proof_blob(preferred_blob.to_vec())
+            .await
     }
 }
 
@@ -879,21 +982,18 @@ struct BackgroundTaskState<S: Spec> {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct TxBody(#[serde_as(as = "serde_with::base64::Base64")] Vec<u8>);
 
-/// Transaction confirmation data of [`PreferredBatchBuilder`].
+/// Transaction confirmation data of [`PreferredSequencer`].
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Confirmation<Z: RtAwareBatchBuilderSpec> {
+#[serde(bound = "S: Spec, Rt: Runtime<S>")]
+pub struct Confirmation<S, Rt>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
     tx_hash: TxHash,
     tx: Option<TxBody>,
-    events: Vec<RuntimeEventResponse<<Z::Rt as RuntimeEventProcessor>::RuntimeEvent>>,
-    receipt: TxEffect<Z::Spec>,
-}
-
-impl<Z: RtAwareBatchBuilderSpec> SequencerConfirmation for Confirmation<Z> {
-    type EventInner = <Z::Rt as RuntimeEventProcessor>::RuntimeEvent;
-
-    fn events(&self) -> Vec<RuntimeEventResponse<Self::EventInner>> {
-        self.events.clone()
-    }
+    events: Vec<RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>,
+    receipt: TxEffect<S>,
 }
 
 fn reject_reason_to_error(
@@ -939,10 +1039,14 @@ fn reject_reason_to_error(
     }
 }
 
-fn confirmation<Z: RtAwareBatchBuilderSpec>(
-    receipt: TransactionReceipt<Z::Spec>,
+fn confirmation<S, Rt>(
+    receipt: TransactionReceipt<S>,
     next_event_number: u64,
-) -> anyhow::Result<Confirmation<Z>> {
+) -> anyhow::Result<Confirmation<S, Rt>>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
     Ok(Confirmation {
         tx_hash: receipt.tx_hash,
         tx: receipt.body_to_save.map(TxBody),
@@ -951,7 +1055,7 @@ fn confirmation<Z: RtAwareBatchBuilderSpec>(
             .into_iter()
             .zip(next_event_number..)
             .map(|(event, number)| {
-                <RuntimeEventResponse<<Z::Rt as RuntimeEventProcessor>::RuntimeEvent>>::try_from((
+                <RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>::try_from((
                     number, event,
                 ))
             })
@@ -960,10 +1064,14 @@ fn confirmation<Z: RtAwareBatchBuilderSpec>(
     })
 }
 
-async fn batches_to_process<Z: RtAwareBatchBuilderSpec>(
-    db: &PreferredBbDb<Z::Spec, Z::Rt>,
-    info: &StateUpdateInfo<<Z::Spec as Spec>::Storage>,
-) -> anyhow::Result<Vec<PreferredBatchToRestore>> {
+async fn batches_to_process<S, Rt>(
+    db: &PreferredBbDb<S, Rt>,
+    info: &StateUpdateInfo<S::Storage>,
+) -> anyhow::Result<Vec<PreferredBatchToRestore>>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
     let blobs_to_apply = match db.all_subsequent_blobs(info).await {
         Ok(b) => b,
         Err(err) => {
