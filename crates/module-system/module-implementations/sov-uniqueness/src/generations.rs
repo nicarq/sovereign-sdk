@@ -1,5 +1,6 @@
 use sov_modules_api::macros::config_value;
-use sov_modules_api::{CredentialId, Spec, StateAccessor, TxHash};
+use sov_modules_api::{CredentialId, Spec, StateAccessor, StateReader, TxHash};
+use sov_state::User;
 
 use crate::Uniqueness;
 impl<S: Spec> Uniqueness<S> {
@@ -8,11 +9,11 @@ impl<S: Spec> Uniqueness<S> {
         credential_id: &CredentialId,
         transaction_generation: u64,
         transaction_hash: TxHash,
-        state_checkpoint: &mut impl StateAccessor,
+        state: &mut impl StateReader<User>,
     ) -> anyhow::Result<()> {
         let mut senders_buckets = self
             .generations
-            .get(credential_id, state_checkpoint)?
+            .get(credential_id, state)?
             .unwrap_or_default();
 
         // The "currently active" generations is the range containing the latest seen generation
