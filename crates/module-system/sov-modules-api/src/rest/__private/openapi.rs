@@ -13,7 +13,7 @@ use super::StateItemInfo;
 use crate::containers::map::NamespacedStateMap;
 use crate::containers::value::NamespacedStateValue;
 use crate::containers::vec::NamespacedStateVec;
-use crate::{VersionedStateValue, VersionedStateVec};
+use crate::VersionedStateValue;
 
 const OPENAPI_TEMPLATE: &str = include_str!("openapi-templates/runtime-base.yaml");
 
@@ -267,19 +267,6 @@ where
 {
     fn state_item_open_api(&self, module_name: &str) -> OpenApi {
         let paths = state_value_paths(module_name, &self.state_item_info.name);
-        spec_from_json_paths(paths)
-    }
-}
-
-impl<V, Codec> StateItemOpenApiSpec for StateItemOpenApiSpecImpl<VersionedStateVec<V, Codec>>
-where
-    V: Serialize + Clone + Send + Sync + 'static,
-    Codec: StateCodec,
-    Codec::KeyCodec: StateItemCodec<u64>,
-    Codec::ValueCodec: StateItemCodec<V>,
-{
-    fn state_item_open_api(&self, module_name: &str) -> OpenApi {
-        let paths = state_vec_paths(module_name, &self.state_item_info.name);
         spec_from_json_paths(paths)
     }
 }

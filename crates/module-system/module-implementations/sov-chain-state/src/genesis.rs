@@ -73,9 +73,7 @@ impl<S: Spec> ChainState<S> {
         self.genesis_da_height
             .set(&config.genesis_da_height, state)?;
 
-        self.slots.initialize(state)?;
-
-        self.slots.push(
+        self.slots.set_true_current(
             &SlotInformation::new(
                 genesis_slot_header.hash(),
                 BlockGasInfo::with_usage(

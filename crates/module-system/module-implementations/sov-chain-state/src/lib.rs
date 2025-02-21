@@ -15,7 +15,6 @@ mod tests;
 use sov_modules_api::{
     BootstrapWorkingSet, CodeCommitmentFor, GenesisState, KernelStateAccessor, ModuleError,
     ModuleId, ModuleInfo, Spec, StateAccessor, StateReader, StateReaderAndWriter,
-    VersionedStateVec,
 };
 
 mod genesis;
@@ -172,7 +171,7 @@ pub struct ChainState<S: Spec> {
     /// A record of all previous slots' information which are available to the VM.
     /// Currently, this includes *all* slots, but that may change in the future.
     #[state]
-    slots: VersionedStateVec<SlotInformation<S>, BcsCodec>,
+    slots: VersionedStateValue<SlotInformation<S>, BcsCodec>,
 
     /// A record of all the pre-state roots for each slot, stored in the accessory state.
     ///
@@ -306,7 +305,7 @@ impl<S: Spec> ChainState<S> {
     ) -> Result<Option<<S::Storage as Storage>::Root>, Accessor::Error> {
         Ok(self
             .slots
-            .get(SlotNumber::ONE, state)?
+            .get(&SlotNumber::ONE, state)?
             .map(|slot| slot.prev_state_root))
     }
 
@@ -343,7 +342,7 @@ impl<S: Spec> ChainState<S> {
         &self,
         state: &mut Reader,
     ) -> Result<Option<SlotInformation<S>>, Reader::Error> {
-        self.slots.last(state)
+        self.slots.get_current(state)
     }
 
     /// Returns the last root processed by the module.
@@ -351,7 +350,10 @@ impl<S: Spec> ChainState<S> {
         &self,
         state: &mut Reader,
     ) -> Result<Option<<S::Storage as Storage>::Root>, Reader::Error> {
-        Ok(self.slots.last(state)?.map(|slot| slot.prev_state_root))
+        Ok(self
+            .slots
+            .get_current(state)?
+            .map(|slot| slot.prev_state_root))
     }
 
     /// Returns the root hash of the state at the provided height.
@@ -365,7 +367,7 @@ impl<S: Spec> ChainState<S> {
         };
         Ok(self
             .slots
-            .get(next_slot_number, state)?
+            .get(&next_slot_number, state)?
             .map(|slot| slot.prev_state_root))
     }
 
@@ -377,7 +379,7 @@ impl<S: Spec> ChainState<S> {
     ) -> Result<Option<<S::Storage as Storage>::Root>, Accessor::Error> {
         Ok(self
             .slots
-            .get(slot_number, state)?
+            .get(&slot_number, state)?
             .map(|slot| slot.prev_state_root))
     }
 
@@ -406,7 +408,7 @@ impl<S: Spec> ChainState<S> {
         slot_number: SlotNumber,
         state: &mut Accessor,
     ) -> Result<Option<SlotInformation<S>>, Accessor::Error> {
-        self.slots.get(slot_number, state)
+        self.slots.get(&slot_number, state)
     }
 
     /// Returns the complete StateTransition for the provided slot number, including the post state root.
@@ -419,10 +421,10 @@ impl<S: Spec> ChainState<S> {
         let Some(next_slot_num) = slot_number.checked_add(1) else {
             return Ok(None);
         };
-        let Some(next_slot) = self.slots.get(next_slot_num, state)? else {
+        let Some(next_slot) = self.slots.get(&next_slot_num, state)? else {
             return Ok(None);
         };
-        let Some(slot) = self.slots.get(slot_number, state)? else {
+        let Some(slot) = self.slots.get(&slot_number, state)? else {
             return Ok(None);
         };
         Ok(Some(StateTransition::new(next_slot.prev_state_root, slot)))
