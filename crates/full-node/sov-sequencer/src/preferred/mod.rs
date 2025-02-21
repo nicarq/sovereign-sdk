@@ -560,7 +560,7 @@ where
         }
 
         // If we made it this far, the tx was successful. Update our state with the changes and accept.
-        checkpoint.apply_tx_changes(change_set);
+        checkpoint.apply_changes(change_set.0);
 
         Ok(AcceptedTx {
             tx: baked_tx,

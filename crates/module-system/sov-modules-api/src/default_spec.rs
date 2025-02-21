@@ -106,6 +106,7 @@ where
     type Address = Address<<Self::CryptoSpec as CryptoSpec>::Hasher>;
     type Gas = GasUnit<2>;
 
+    // This TODO is for performance enhancement, not a security concern.
     // TODO: Replace ProverStorage with an optimized impl!
     type Storage =
         sov_state::ProverStorage<DefaultStorageSpec<<Self::CryptoSpec as CryptoSpec>::Hasher>>;
@@ -115,6 +116,7 @@ where
 
     type CryptoSpec = <InnerZkvm::Verifier as ZkVerifier>::CryptoSpec;
 
+    // This TODO is for performance enhancement, not a security concern.
     // TODO: Replace Array witness with an empty struct
     type Witness = ArrayWitness;
 }

@@ -95,7 +95,6 @@ pub trait TransactionAuthenticator<S: Spec> {
 /// Authorizes transactions to be executed.
 pub trait TransactionAuthorizer<S: Spec> {
     /// Resolves the [`Context`] for a transaction.
-    // TODO(@preston-evans98): This should be a read-only method `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/384>`
     fn resolve_context(
         &self,
         auth_data: &AuthorizationData<S>,

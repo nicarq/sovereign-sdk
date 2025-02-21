@@ -123,6 +123,7 @@ where
     type Address = Address;
     type Gas = GasUnit<2>;
 
+    // This TODO is for performance enhancement, not a security concern.
     // TODO: Replace ProverStorage with an optimized impl!
     type Storage =
         sov_state::ProverStorage<DefaultStorageSpec<<Self::CryptoSpec as CryptoSpecT>::Hasher>>;
@@ -132,6 +133,7 @@ where
 
     type CryptoSpec = CryptoSpec;
 
+    // This TODO is for performance enhancement, not a security concern.
     // TODO: Replace Array witness with an empty struct
     type Witness = ArrayWitness;
 }
