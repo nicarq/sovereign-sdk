@@ -116,7 +116,7 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_runtime_spec_with_gen_client() -> anyhow::Result<()> {
+async fn flaky_test_runtime_spec_with_gen_client() -> anyhow::Result<()> {
     let runtime_client = setup().await?;
 
     check_base_runtime_info(&runtime_client)

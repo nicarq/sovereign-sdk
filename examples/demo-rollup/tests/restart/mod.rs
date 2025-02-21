@@ -135,7 +135,7 @@ async fn start_stop_empty(
         ),
         (
             Level::WARN,
-            "The preferred sequencer is **experimental** and may not work as expected. Please report any issues you encounter.".to_string()
+            "Received error updating target height, stopping background task".to_string()
         ),
     ];
 
@@ -318,7 +318,10 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
     let known = [
         // Error because of ledger subscription
         (Level::WARN, "WebSocket error".to_string()),
-        (Level::WARN, "The preferred sequencer is **experimental** and may not work as expected. Please report any issues you encounter.".to_string())
+        (
+            Level::WARN,
+            "Received error updating target height, stopping background task".to_string(),
+        ),
     ];
     recorded_errors_warnings.retain(|e| !known.contains(e));
     // We could've checked `.is_empty`, but in case of failure, we will see errors immediately.

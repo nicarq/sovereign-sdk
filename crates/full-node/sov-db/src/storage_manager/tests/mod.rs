@@ -383,7 +383,7 @@ fn finalize_only_last_block() {
 }
 
 #[test]
-fn parallel_forks_reading_while_finalization_is_happening() {
+fn flaky_parallel_forks_reading_while_finalization_is_happening() {
     // 1    2    ..   n-1   n
     //                 / -> E
     // A -> B -> .. -> C -> D

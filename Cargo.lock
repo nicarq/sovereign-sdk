@@ -10796,7 +10796,6 @@ dependencies = [
  "sov-sequencer",
  "sov-sequencer-registry",
  "sov-state",
- "sov-stf-runner",
  "sov-test-utils",
  "strum 0.26.3",
  "tempfile",
@@ -10807,7 +10806,6 @@ dependencies = [
  "tower-http",
  "tower-layer",
  "tracing",
- "tracing-subscriber 0.3.18",
 ]
 
 [[package]]

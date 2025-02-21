@@ -19,16 +19,22 @@ use crate::{MerkleProofSpec, ProvableNamespace, StateRoot};
 /// We use the generic `S: MerkleProofSpec` to specify the hash function used to compute the global root hash.
 /// The global root hash is computed by hashing the user hash and the kernel hash together.
 #[derive(
-    Derivative, BorshDeserialize, BorshSerialize, Serialize, Deserialize, derive_more::Display,
+    Derivative,
+    BorshDeserialize,
+    BorshSerialize,
+    Serialize,
+    Deserialize,
+    derive_more::Display,
+    derive_more::Debug,
 )]
 #[cfg_attr(feature = "native", derive(UniversalWallet))]
 #[derivative(
-    Debug(bound = "S: MerkleProofSpec"),
     Eq(bound = "S: MerkleProofSpec"),
     PartialEq(bound = "S: MerkleProofSpec"),
     Copy(bound = "S: MerkleProofSpec")
 )]
 #[display("{}", hex::encode(self.root_hashes))]
+#[debug("StorageRoot {{ root_hashes: {} }}", hex::encode(self.root_hashes))]
 pub struct StorageRoot<S: MerkleProofSpec> {
     #[serde(with = "BigArray")]
     root_hashes: [u8; 64],

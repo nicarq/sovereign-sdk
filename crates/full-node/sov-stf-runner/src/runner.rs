@@ -1,8 +1,9 @@
 use std::net::SocketAddr;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::Context;
 use axum::body::HttpBody;
 use axum::extract::Request;
 use axum::ServiceExt;
@@ -81,7 +82,6 @@ impl TryFrom<(u64, StoredEvent)> for DiscardEvents {
 pub async fn initialize_state<Stf, InnerVm, OuterVm, Da, Sm>(
     stf: &Stf,
     storage_manager: &mut Sm,
-    ledger_db: &LedgerDb,
     genesis_block: Da::FilteredBlock,
     genesis_params: GenesisParams<Stf, InnerVm, OuterVm, Da::Spec>,
 ) -> anyhow::Result<Stf::StateRoot>
@@ -103,8 +103,8 @@ where
         header = %block_header.display(),
         "No history detected. Initializing chain on the block header..."
     );
-    // Ledger state is not used, as we know it should be empty
-    let (stf_state, _ledger_state) = storage_manager.create_state_for(&block_header)?;
+    let (stf_state, ledger_state) = storage_manager.create_state_for(&block_header)?;
+    let ledger_db = LedgerDb::with_reader(ledger_state)?;
 
     let (genesis_state_root, initialized_storage) =
         stf.init_chain(&block_header, stf_state, genesis_params);
@@ -359,12 +359,29 @@ where
                             target_da_height,
                         } = sync_state.status()
                         {
-                            let distance = target_da_height - synced_da_height;
-                            if distance > 1 {
-                                info!(synced_da_height, target_da_height, "Sync in progress");
-                            } else {
-                                trace!(synced_da_height, target_da_height, "Sync in progress");
-                            }
+                            match target_da_height.checked_sub(synced_da_height) {
+                                None => {
+                                    trace!(
+                                        target_da_height,
+                                        synced_da_height,
+                                        "Reorg happened, switch is in progress"
+                                    );
+                                }
+                                Some(distance) => {
+                                    if distance > 1 {
+                                        info!(
+                                            synced_da_height,
+                                            target_da_height, "Sync in progress"
+                                        );
+                                    } else {
+                                        trace!(
+                                            synced_da_height,
+                                            target_da_height,
+                                            "Sync in progress"
+                                        );
+                                    }
+                                }
+                            };
                         }
                         future_or_shutdown(interval.tick(), &shutdown_receiver).await;
                     }
@@ -397,9 +414,16 @@ where
             }
         }
         info!("Runner main loop is completed, keep shutting down...");
-        status_updater_handle.await?;
-        debug!("Status updater stopped, sending secondary shutdown for runner");
-        self.secondary_shutdown_sender.send(())?;
+        if let Err(e) = self.secondary_shutdown_sender.send(()) {
+            tracing::warn!(
+                ?e,
+                "Failed to send secondary shutdown signal. Happens if no HTTP handlers are running"
+            );
+        }
+        info!("Secondary shutdown sent, waiting for status updater to stop...");
+        status_updater_handle
+            .await
+            .context("Status update handler")?;
         let background_handles = std::mem::take(&mut self.background_handles);
         for handle in background_handles {
             let _ = handle.await?;
@@ -419,7 +443,7 @@ where
         let mut transaction_count = 0;
         let mut batch_count = 0;
         let get_block_start = std::time::Instant::now();
-        let filtered_block = self.sync_fetcher.get_block_at(next_da_height).await?;
+        let filtered_block = self.fetch_block_reorg_aware(next_da_height).await?;
         let get_block_time = get_block_start.elapsed();
 
         let (stf_pre_state, filtered_block) = self
@@ -577,6 +601,41 @@ where
         });
 
         Ok(next_da_height + 1)
+    }
+
+    // Fetches block, but short-circuit [`DaService::get_block_at`] future
+    // if head height goes way below the requested height.
+    async fn fetch_block_reorg_aware(&mut self, height: u64) -> anyhow::Result<Da::FilteredBlock> {
+        tracing::trace!(height, "Fetch polling for a block");
+        let mut requested_height = height;
+        let mut interval =
+            tokio::time::interval(Duration::from_millis(self.da_polling_interval_ms));
+
+        loop {
+            tokio::select! {
+                result = self.sync_fetcher.get_block_at(requested_height) => {
+                    tracing::trace!(requested_height, original_height = height, is_err = result.is_err(), "returning result from `get_block_at`");
+                    return result;
+                }
+                _ = interval.tick() => {
+                    let target_height = self
+                        .sync_state
+                        .target_da_height.load(Ordering::Relaxed);
+
+                    // Allow requesting height next after head, this is a normal operation.
+                    let highest_allowed_to_request = target_height.saturating_add(1);
+
+                    if highest_allowed_to_request < requested_height {
+                        tracing::info!(
+                            new_head_height = target_height,
+                            requested_height,
+                            "Head height decreased below currently requesting, re-requesting at new head"
+                        );
+                        requested_height = target_height;
+                    }
+                }
+            }
+        }
     }
 
     /// Allows reading current state root

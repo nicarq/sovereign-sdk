@@ -474,6 +474,11 @@ pub trait NativeStorage: Storage {
     /// Get the *global* root hash of the tree at the requested version.
     /// Returns an error if storage is empty or the requests version is not yet available.
     fn get_root_hash(&self, version: SlotNumber) -> anyhow::Result<Self::Root>;
+
+    /// Get a root hash at the latest version
+    fn get_latest_root_hash(&self) -> anyhow::Result<Self::Root> {
+        self.get_root_hash(self.latest_version())
+    }
 }
 
 pub(crate) fn open_merkle_proof<S: MerkleProofSpec>(

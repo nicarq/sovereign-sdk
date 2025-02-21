@@ -290,7 +290,6 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     initialize_state::<_, _, _, Self::DaService, _>(
                         &native_stf,
                         &mut storage_manager,
-                        &ledger_db,
                         rollup_genesis_block,
                         genesis_params,
                     )

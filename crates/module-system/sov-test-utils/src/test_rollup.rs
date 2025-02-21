@@ -227,21 +227,13 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
         self
     }
 
-    /// Returns the path that will be used for the mock DA database.
-    pub fn mock_da_db_path(&self) -> PathBuf {
-        self.config.storage.as_path().join("mock_da.sqlite")
-    }
-
-    /// Get a connection string for [`sov_mock_da::storable::layer::StorableMockDaLayer`].
-    pub fn mock_da_connection_string(&self) -> String {
-        format!("sqlite://{}?mode=rwc", self.mock_da_db_path().display())
-    }
-
     fn set_da_connection_string(mut self) -> Self {
         // We store DA data in the same directory as the rollup data. This
         // ensures that, when reusing the same path, we restore not only node
         // data but also DA history.
-        self.da_config.connection_string = self.mock_da_connection_string();
+        self.da_config.connection_string =
+            MockDaConfig::sqlite_in_dir(self.config.storage.as_path())
+                .expect("storage folder should exist by this time");
         self
     }
 }
@@ -363,7 +355,7 @@ where
             },
             runner: RunnerConfig {
                 genesis_height: 0,
-                da_polling_interval_ms: 10,
+                da_polling_interval_ms: 30,
                 rpc_config: HttpServerConfig::localhost_on_free_port(),
                 axum_config: HttpServerConfig::localhost_on_port(self.config.axum_port),
                 concurrent_sync_tasks: Some(1),

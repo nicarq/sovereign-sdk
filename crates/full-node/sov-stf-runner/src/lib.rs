@@ -3,8 +3,6 @@
 
 mod config;
 mod da_pre_fetcher;
-#[cfg(feature = "mock")]
-pub mod mock;
 pub mod processes;
 
 mod runner;

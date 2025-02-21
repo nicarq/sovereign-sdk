@@ -5,7 +5,6 @@ use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::{
     AggregatedProofPublicData, ProofOutcome, ProofReceipt, ProofReceiptContents, Storage,
 };
-use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
@@ -99,11 +98,9 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, 
         _execution_context: sov_modules_api::ExecutionContext,
     ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self> {
         // Note: Uses native code, so won't work in ZK
-        // Assumes that the DA height is 0 at rollup genesis, so SlotNumber and DA block number are the same.
-        // Since this is only used for testing, this should be fine.
         let storage_root_hash = pre_state
-            .get_root_hash(SlotNumber::new_dangerous(slot_header.height() - 1))
-            .unwrap();
+            .get_latest_root_hash()
+            .expect("pre state always should have root hash");
 
         tracing::debug!(
             header = %slot_header.display(),

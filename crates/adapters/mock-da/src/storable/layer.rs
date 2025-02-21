@@ -375,8 +375,10 @@ impl StorableMockDaLayer {
             .exec(&self.conn)
             .await?;
 
+        let past_next_height = self.next_height;
         self.next_height = height + 1;
         tracing::info!(
+            past_next_height,
             next_height = self.next_height,
             "StorableMockDaLayer rewound"
         );
