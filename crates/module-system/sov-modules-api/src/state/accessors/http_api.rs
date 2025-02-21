@@ -176,8 +176,8 @@ const _: () = {
 
             // Temporarily give access to all visible slot numbers for the purpose of retrieving the mapping between true and visible slots.
             // We'll set the value back to more scoped permissions at the end of this function
-            let visible_slot_num = self.visible_slot_number;
-            self.visible_slot_number = Some(VisibleSlotNumber::MAX);
+            let safe_true_slot_number_to_use = self.safe_true_slot_number_to_use;
+            self.safe_true_slot_number_to_use = None;
             let slot_num = match self.state_to_access {
                 StateToAccess::RollupHeight(rollup_height) => self
                     .kernel
@@ -186,7 +186,7 @@ const _: () = {
                 StateToAccess::TrueSlotNumber(slot_number) => Some(slot_number),
             };
             // We set the permissions back to the original value here
-            self.visible_slot_number = visible_slot_num;
+            self.safe_true_slot_number_to_use = safe_true_slot_number_to_use;
             let slot_num = slot_num?;
 
             match self.storage.get_with_proof::<N>(key, Some(slot_num)) {

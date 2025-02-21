@@ -25,7 +25,7 @@ pub struct SoftConfirmationsKernel<'a, S: Spec> {
 
 impl<'a, S: Spec> KernelTrait<S> for SoftConfirmationsKernel<'a, S> {
     fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> SlotNumber {
-        self.chain_state.true_slot_number(state).unwrap_infallible()
+        self.chain_state.true_slot_number_at_bootstrap(state)
     }
     fn next_visible_slot_number(
         &self,
