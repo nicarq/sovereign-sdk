@@ -340,6 +340,9 @@ where
     type Item = Result<V, <W as StateWriter<N>>::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.next_i >= self.len {
+            return None;
+        }
         match self.state_vec.get(self.next_i, self.state) {
             Err(e) => Some(Err(e)),
             Ok(None) => None,
@@ -383,7 +386,7 @@ where
     W: StateReaderAndWriter<N>,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
-        if self.len == 0 {
+        if self.len == self.next_i {
             return None;
         }
 
@@ -411,9 +414,7 @@ mod test {
     type TestSpec = crate::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
     #[test]
-    // FIXME: this test should not panic. This is a repro for <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2121>.
-    #[should_panic]
-    fn double_ended_iterator_is_broken() {
+    fn double_ended_iterator_from_back() {
         let storage_manager = SimpleStorageManager::new();
         let storage = storage_manager.create_storage();
         let mut state: StateCheckpoint<TestSpec> =
@@ -422,13 +423,39 @@ mod test {
         let prefix = Prefix::new("test".as_bytes().to_vec());
         let state_vec = StateVec::<u32>::with_codec(prefix, BorshCodec);
 
-        // Only one element in the vec
         state_vec.push(&0, &mut state).unwrap();
+        state_vec.push(&1, &mut state).unwrap();
 
         let mut iter = state_vec.iter(&mut state).unwrap();
+        assert_eq!(iter.next_back(), Some(Ok(1)));
         assert_eq!(iter.next_back(), Some(Ok(0)));
-        // The first and only element was "consumed" already by `.next_back()`.
+        // Everything was consumed by next_back
         assert_eq!(iter.next(), None);
+        assert_eq!(iter.next_back(), None);
+    }
+
+    #[test]
+    // FIXME: this test should not panic. This is a repro for <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2121>.
+    fn double_ended_iterator_meet_in_the_middle() {
+        let storage_manager = SimpleStorageManager::new();
+        let storage = storage_manager.create_storage();
+        let mut state: StateCheckpoint<TestSpec> =
+            StateCheckpoint::new(storage, &MockKernel::<TestSpec>::default());
+
+        let prefix = Prefix::new("test".as_bytes().to_vec());
+        let state_vec = StateVec::<u32>::with_codec(prefix, BorshCodec);
+
+        state_vec.push(&0, &mut state).unwrap();
+        state_vec.push(&1, &mut state).unwrap();
+        state_vec.push(&2, &mut state).unwrap();
+
+        let mut iter = state_vec.iter(&mut state).unwrap();
+        assert_eq!(iter.next(), Some(Ok(0)));
+        assert_eq!(iter.next_back(), Some(Ok(2)));
+        assert_eq!(iter.next(), Some(Ok(1)));
+        // Everything was consumed
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next_back(), None);
     }
 
     #[test]
