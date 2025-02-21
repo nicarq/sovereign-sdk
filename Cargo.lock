@@ -10671,7 +10671,6 @@ dependencies = [
  "sov-test-utils",
  "sov-value-setter",
  "strum 0.26.3",
- "tempfile",
  "thiserror",
  "tracing",
 ]

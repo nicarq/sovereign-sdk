@@ -30,7 +30,6 @@ borsh = { workspace = true, features = ["rc"] }
 tracing = { workspace = true }
 
 [dev-dependencies]
-tempfile = { workspace = true }
 strum = { workspace = true }
 sov-sequencer-registry = { path = ".", features = ["native"] }
 sov-value-setter = { workspace = true }

@@ -57,7 +57,7 @@
               "minimum": 0.0
             },
             "da_address": {
-              "description": "The  Da address of the sequencer.",
+              "description": "The DA address of the sequencer.",
               "allOf": [
                 {
                   "$ref": "#/definitions/MockAddress"
@@ -109,7 +109,7 @@
           ],
           "properties": {
             "da_address": {
-              "description": "The  Da address of the sequencer you're removing.",
+              "description": "The DA address of the sequencer you're removing.",
               "allOf": [
                 {
                   "$ref": "#/definitions/MockAddress"
