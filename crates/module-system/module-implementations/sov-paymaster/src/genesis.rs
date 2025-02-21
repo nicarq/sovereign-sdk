@@ -49,7 +49,7 @@ impl<S: Spec> Paymaster<S> {
             payer_address,
             policy,
             sequencers_to_register,
-        } in config.payers.iter()
+        } in &config.payers
         {
             self.do_registration(
                 payer_address,

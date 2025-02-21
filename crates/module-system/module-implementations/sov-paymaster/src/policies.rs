@@ -49,6 +49,14 @@ impl<S: Spec> PayeePolicy<S> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
     ) -> Result<(), ReserveGasError> {
+        if matches!(self, PayeePolicy::Deny) {
+            tracing::debug!(
+                "Paymaster policy denied transaction payment due to having a Deny policy"
+            );
+            // Return InsufficientBalanceToReserveGas as a surrogate error - this is not shown to
+            // the user anywhere since it simply makes gas payment fall back to the user balance
+            return Err(ReserveGasError::InsufficientBalanceToReserveGas);
+        }
         if !self.authorizes_max_fee(tx.max_fee) {
             tracing::debug!(allowed_max_fee = ?self.max_fee(), requested_max_fee = %tx.max_fee, "Paymaster policy denied transaction payment due to max fee");
             return Err(ReserveGasError::InsufficientBalanceToReserveGas);
@@ -85,9 +93,7 @@ impl<S: Spec> PayeePolicy<S> {
         match self {
             PayeePolicy::Allow { max_gas_price, .. } => {
                 if let Some(max_gas_price) = max_gas_price {
-                    // Check that each dimension of the gas price is within the allowed range by subtracting the current price
-                    // from the max allowed value and checking that the result is non-negative in each dimension.
-                    max_gas_price.checked_sub(current_gas_price).is_some()
+                    current_gas_price.dim_is_less_or_eq(max_gas_price)
                 } else {
                     true
                 }
@@ -106,9 +112,7 @@ impl<S: Spec> PayeePolicy<S> {
                     let Some(tx_gas_limit) = tx_gas_limit else {
                         return false;
                     };
-                    // Check that each dimension of the gas limit is within the allowed range by subtracting the tx gas limit
-                    // from the policy limit and checking that the result is non-negative in each dimension.
-                    policy_gas_limit.checked_sub(tx_gas_limit).is_some()
+                    tx_gas_limit.dim_is_less_or_eq(policy_gas_limit)
                 } else {
                     true
                 }

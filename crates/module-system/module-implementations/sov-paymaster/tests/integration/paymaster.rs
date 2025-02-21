@@ -50,8 +50,7 @@ fn test_basic() {
     runner.do_value_setter_tx(&setup.user, TxOutcome::Executed);
 }
 
-// Test that a transaction for a user succeeds even when the user has no balance to pay for gas
-// if the paymaster is willing to cover that user.
+// Test that a policy can be updated and its outcome changes accordingly for the user
 #[test]
 fn test_basic_policy_update() {
     let setup = setup(0);
@@ -312,7 +311,7 @@ fn test_blocking_and_unblocking_payee() {
     runner.do_value_setter_tx(&setup.user, TxOutcome::Executed);
 }
 
-// Test registering an exception to allow a specific payee to transact when most cannot.
+// Test unregistering the sequencer from its paymaster
 #[test]
 fn test_unregistering_sequencer() {
     let setup = setup(0);
@@ -439,7 +438,7 @@ fn test_updates_using_alternate_address() {
         }),
     });
 
-    // Update the sequencer policy to remove our user from the updaters list.
+    // Update the sequencer policy to re-add our user to the updaters list.
     runner.execute_transaction(TransactionTestCase {
         input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::UpdatePolicy {
@@ -703,7 +702,6 @@ fn test_granular_policies() {
                 assert!(result.tx_receipt.is_successful());
             }),
         });
-        //
         runner.do_value_setter_tx(&setup.user, TxOutcome::Skipped);
     }
 }

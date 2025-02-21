@@ -102,12 +102,14 @@ impl<S: Spec> PolicyUpdate<S> {
     }
 
     /// Authorize all sequencers to use this payer
+    #[must_use]
     pub fn allow_all_sequencers(mut self) -> Self {
         self.sequencer_update = Some(SequencerSetUpdate::AllowAll);
         self
     }
 
     /// Update the set of sequencers allowed to use this payer
+    #[must_use]
     pub fn update_allowed_sequencers(
         mut self,
         mut sequencer_update: AllowedSequencerUpdate<S::Da>,
@@ -124,7 +126,8 @@ impl<S: Spec> PolicyUpdate<S> {
         self
     }
 
-    /// Add an address  to the set of addresses authorized to update this policy
+    /// Add an address to the set of addresses authorized to update this policy
+    #[must_use]
     pub fn add_updater(mut self, updater_to_add: S::Address) -> Self {
         retain_elts_if(&mut self.updaters_to_remove, |updater_to_remove| {
             updater_to_remove != &updater_to_add
@@ -137,6 +140,7 @@ impl<S: Spec> PolicyUpdate<S> {
     }
 
     /// Remove an address from the set of addresses authorized to update this policy
+    #[must_use]
     pub fn remove_updater(mut self, updater_to_remove: S::Address) -> Self {
         retain_elts_if(&mut self.updaters_to_add, |updater_to_add| {
             updater_to_add != &updater_to_remove
@@ -149,6 +153,7 @@ impl<S: Spec> PolicyUpdate<S> {
     }
 
     /// Add a payee to this policy
+    #[must_use]
     pub fn add_payee_policy(mut self, payee_to_add: S::Address, policy: PayeePolicy<S>) -> Self {
         retain_elts_if(&mut self.payee_policies_to_delete, |payee_to_delete| {
             payee_to_delete != &payee_to_add
@@ -161,6 +166,7 @@ impl<S: Spec> PolicyUpdate<S> {
     }
 
     /// Remove a payee from this policy
+    #[must_use]
     pub fn remove_payee_policy(mut self, payee_to_delete: S::Address) -> Self {
         retain_elts_if(&mut self.payee_policies_to_set, |payee_to_add| {
             payee_to_add.0 != payee_to_delete
@@ -173,6 +179,7 @@ impl<S: Spec> PolicyUpdate<S> {
     }
 
     /// Set the default policy for this payer
+    #[must_use]
     pub fn set_default_policy(mut self, policy: PayeePolicy<S>) -> Self {
         self.default_policy = Some(policy);
         self
@@ -235,6 +242,7 @@ impl<Da: DaSpec> AllowedSequencerUpdate<Da> {
     }
 
     /// Create a new update which removes the sequencer
+    #[must_use]
     pub fn remove(address: Da::Address) -> Self {
         let mut to_remove = SafeVec::new();
         to_remove
@@ -247,6 +255,7 @@ impl<Da: DaSpec> AllowedSequencerUpdate<Da> {
     }
 
     /// Create a new update which adds the given sequencer.
+    #[must_use]
     pub fn add(address: Da::Address) -> Self {
         let mut to_add = SafeVec::new();
         to_add
@@ -271,7 +280,7 @@ impl<Da: DaSpec> AllowedSequencerUpdate<Da> {
             .get_or_insert(SafeVec::new())
             .try_push(sequencer_to_add)
         {
-            Ok(_) => Ok(self),
+            Ok(()) => Ok(self),
             Err(_) => Err(CapacityError::new(self)),
         }
     }
@@ -289,7 +298,7 @@ impl<Da: DaSpec> AllowedSequencerUpdate<Da> {
             .get_or_insert(SafeVec::new())
             .try_push(sequencer_to_remove)
         {
-            Ok(_) => Ok(self),
+            Ok(()) => Ok(self),
             Err(_) => Err(CapacityError::new(self)),
         }
     }
@@ -555,7 +564,7 @@ impl<S: Spec> Paymaster<S> {
 
             SequencerSetUpdate::Update(sequencer_update_list) => {
                 let to_remove = sequencer_update_list.to_remove.unwrap_or_default();
-                for address in to_remove.iter() {
+                for address in &to_remove {
                     if self.sequencer_to_payer.remove(address, state)?.is_some() {
                         self.emit_event(
                             state,
