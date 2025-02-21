@@ -1,4 +1,5 @@
-use sov_modules_api::{CredentialId, Spec, StateAccessor};
+use sov_modules_api::{CredentialId, Spec, StateAccessor, StateReader};
+use sov_state::User;
 
 use crate::Uniqueness;
 impl<S: Spec> Uniqueness<S> {
@@ -6,12 +7,9 @@ impl<S: Spec> Uniqueness<S> {
         &self,
         credential_id: &CredentialId,
         transaction_nonce: u64,
-        state_checkpoint: &mut impl StateAccessor,
+        state: &mut impl StateReader<User>,
     ) -> anyhow::Result<()> {
-        let nonce = self
-            .nonces
-            .get(credential_id, state_checkpoint)?
-            .unwrap_or_default();
+        let nonce = self.nonces.get(credential_id, state)?.unwrap_or_default();
 
         anyhow::ensure!(
             nonce == transaction_nonce,

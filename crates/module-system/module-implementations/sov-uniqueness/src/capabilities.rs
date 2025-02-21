@@ -1,5 +1,6 @@
 use sov_modules_api::capabilities::UniquenessData;
-use sov_modules_api::{CredentialId, Spec, StateAccessor, TxHash};
+use sov_modules_api::{CredentialId, Spec, StateAccessor, StateReader, TxHash};
+use sov_state::User;
 
 use crate::Uniqueness;
 
@@ -10,18 +11,15 @@ impl<S: Spec> Uniqueness<S> {
         credential_id: &CredentialId,
         transaction_uniqueness: UniquenessData,
         transaction_hash: TxHash,
-        state_checkpoint: &mut impl StateAccessor,
+        state: &mut impl StateReader<User>,
     ) -> anyhow::Result<()> {
         match transaction_uniqueness {
             UniquenessData::Nonce(nonce) => {
-                self.check_nonce_uniqueness(credential_id, nonce, state_checkpoint)
+                self.check_nonce_uniqueness(credential_id, nonce, state)
             }
-            UniquenessData::Generation(generation) => self.check_generation_uniqueness(
-                credential_id,
-                generation,
-                transaction_hash,
-                state_checkpoint,
-            ),
+            UniquenessData::Generation(generation) => {
+                self.check_generation_uniqueness(credential_id, generation, transaction_hash, state)
+            }
         }
     }
 

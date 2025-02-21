@@ -14,13 +14,14 @@ use sov_modules_api::transaction::{
 use sov_modules_api::{
     AggregatedProofPublicData, Context, DaSpec, Gas, GetGasPrice, InfallibleStateAccessor,
     InvalidProofError, ModuleInfo, Rewards, SovAttestation, SovStateTransitionPublicData, Spec,
-    StateAccessor, Storage, TxState,
+    StateAccessor, StateReader, Storage, TxState,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 #[cfg(feature = "native")]
 use sov_rollup_interface::StateUpdateInfo;
 use sov_sequencer_registry::SequencerRegistry;
+use sov_state::User;
 
 /// Implements the basic capabilities required for a zk-rollup runtime.
 pub struct StandardProvenRollupCapabilities<'a, S: Spec, GasPayer = sov_bank::Bank<S>> {
@@ -232,12 +233,11 @@ impl<'a, S: Spec, T> SequencerAuthorization<S> for StandardProvenRollupCapabilit
 
 impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<'a, S, T> {
     /// Prevents duplicate transactions from running.
-    // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
     fn check_uniqueness(
         &self,
         auth_data: &AuthorizationData<S>,
         _context: &Context<S>,
-        state: &mut impl StateAccessor,
+        state: &mut impl StateReader<User>,
     ) -> anyhow::Result<()> {
         self.uniqueness.check_uniqueness(
             &auth_data.credential_id,
@@ -270,7 +270,6 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
         sequencer_rollup_address: S::Address,
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<Context<S>> {
-        // TODO(@preston-evans98): This is a temporary hack to get the sequencer address
         // This should be resolved by the sequencer registry during blob selection
         let sender = self.accounts.resolve_sender_address(
             &auth_data.default_address,
