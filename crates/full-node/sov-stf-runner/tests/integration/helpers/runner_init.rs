@@ -11,8 +11,7 @@ use sov_db::schema::DeltaReader;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_metrics::MonitoringConfig;
 use sov_mock_da::{
-    MockAddress, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee,
-    MockHash,
+    MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee, MockHash,
 };
 use sov_mock_zkvm::{MockZkvm, MockZkvmHost};
 use sov_modules_api::provable_height_tracker::InfiniteHeight;
@@ -20,6 +19,7 @@ use sov_modules_api::{
     FullyBakedTx, ProofSerializer, StateTransitionFunction, StateUpdateInfo, SyncStatus,
 };
 use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -44,7 +44,8 @@ use crate::helpers::hash_stf::HashStf;
 type MockInitVariant = InitVariant<HashStf, MockZkvm, MockZkvm, MockDaService>;
 
 pub type S = DefaultStorageSpec<Sha256>;
-type StorageManager = NativeStorageManager<MockDaSpec, ProverStorage<S>>;
+pub type StorageManager = NativeStorageManager<MockDaSpec, ProverStorage<S>>;
+pub type HashStfRunner<Da> = StateTransitionRunner<HashStf, StorageManager, Da, MockZkvm, MockZkvm>;
 
 /// TestNode simulates a full-node.
 pub struct TestNode {
@@ -70,8 +71,7 @@ impl TestNode {
         self.da
             .send_transaction(&serialized_batch, MockFee::zero())
             .await
-            .await
-            .unwrap()
+            .await?
             .map(|receipt| receipt.da_transaction_id)
     }
 
@@ -82,8 +82,7 @@ impl TestNode {
         self.da
             .send_transaction(&serialized_batch, MockFee::zero())
             .await
-            .await
-            .unwrap()
+            .await?
             .map(|receipt| receipt.da_transaction_id)
     }
 
@@ -140,63 +139,65 @@ impl ProofSerializer for DummyProofSerializer {
     }
 }
 
-#[allow(clippy::type_complexity)]
+// Returns genesis state root, prev state root for given init variant and initial value for state update info.
+pub async fn bootstrap_state_update_info(
+    storage_manager: &mut StorageManager,
+) -> anyhow::Result<StateUpdateInfo<ProverStorage<S>>> {
+    let (stf_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
+    let ledger_db = LedgerDb::with_reader(ledger_state)?;
+
+    let state_update_info = {
+        let slot_number = ledger_db.get_head_slot_number().await?.unwrap_or_default();
+        let next_event_number = ledger_db
+            .get_latest_event_number()
+            .await?
+            .map(|x| x + 1)
+            .unwrap_or_default();
+        let latest_finalized_slot_number = ledger_db.get_latest_finalized_slot_number().await?;
+
+        StateUpdateInfo {
+            storage: stf_storage,
+            next_event_number,
+            slot_number,
+            latest_finalized_slot_number,
+        }
+    };
+
+    Ok(state_update_info)
+}
+
 pub async fn initialize_runner(
     da_service: Arc<MockDaService>,
     path: &std::path::Path,
     init_variant: MockInitVariant,
     aggregated_proof_block_jump: usize,
     nb_of_prover_threads: Option<usize>,
-) -> (
-    StateTransitionRunner<HashStf, StorageManager, MockDaService, MockZkvm, MockZkvm>,
-    TestNode,
-) {
-    let rollup_config = rollup_config(&da_service, path, aggregated_proof_block_jump);
-
+) -> (HashStfRunner<MockDaService>, TestNode) {
     let stf = HashStf::new();
+    let inner_vm = MockZkvmHost::new();
+    let outer_vm = MockZkvmHost::new_non_blocking();
+    let verifier = MockDaVerifier::default();
 
+    let rollup_config = rollup_config(&da_service, path, aggregated_proof_block_jump);
     let mut storage_manager: StorageManager = NativeStorageManager::new(path).unwrap();
-    let genesis_block = MockBlockHeader::from_height(0);
-    let (genesis_storage, ledger_state) = storage_manager.create_state_for(&genesis_block).unwrap();
 
-    let mut ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
-
-    let (state_update_sender, _state_update_recv) = {
-        let slot_number = ledger_db
-            .get_head_slot_number()
+    let (state_update_sender, _state_update_recv) = watch::channel(
+        bootstrap_state_update_info(&mut storage_manager)
             .await
-            .unwrap()
-            .unwrap_or_default();
-        let next_event_number = ledger_db
-            .get_latest_event_number()
-            .await
-            .unwrap()
-            .map(|x| x + 1)
-            .unwrap_or_default();
-        let latest_finalized_slot_number =
-            ledger_db.get_latest_finalized_slot_number().await.unwrap();
-
-        watch::channel(StateUpdateInfo {
-            storage: genesis_storage,
-            next_event_number,
-            slot_number,
-            latest_finalized_slot_number,
-        })
-    };
+            .unwrap(),
+    );
 
     let (sync_sender, _sync_status_receiver) = watch::channel(SyncStatus::START);
     let (shutdown_sender, mut shutdown_receiver) = watch::channel(());
     shutdown_receiver.mark_unchanged();
 
-    let inner_vm = MockZkvmHost::new();
-    let outer_vm = MockZkvmHost::new_non_blocking();
-    let verifier = MockDaVerifier::default();
-
     let (prev_state_root, genesis_state_root) = init_variant
-        .initialize(&mut ledger_db, &stf, &mut storage_manager)
+        .initialize(&stf, &mut storage_manager)
         .await
         .unwrap();
 
+    let (_, ledger_state) = storage_manager.create_bootstrap_state().unwrap();
+    let ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
     let mut runner = StateTransitionRunner::new(
         rollup_config.runner.clone(),
         if nb_of_prover_threads.is_some() {
@@ -299,9 +300,8 @@ where
     OuterVm: Zkvm,
     Da: DaService,
 {
-    async fn initialize<Sm>(
+    pub async fn initialize<Sm>(
         self,
-        ledger_db: &mut LedgerDb,
         stf: &Stf,
         storage_manager: &mut Sm,
     ) -> anyhow::Result<(Stf::StateRoot, Stf::StateRoot)>
@@ -328,7 +328,6 @@ where
                 let genesis_state_root = initialize_state::<Stf, InnerVm, OuterVm, Da, Sm>(
                     stf,
                     storage_manager,
-                    ledger_db,
                     block,
                     params,
                 )
@@ -341,11 +340,12 @@ where
     }
 }
 
-fn rollup_config(
-    da_service: &MockDaService,
+pub fn rollup_config_with_da<Da: DaService<Config = MockDaConfig>>(
     path: &std::path::Path,
+    da_config: MockDaConfig,
+    sequencer_address: <Da::Spec as DaSpec>::Address,
     aggregated_proof_block_jump: usize,
-) -> RollupConfig<MockAddress, MockDaService> {
+) -> RollupConfig<MockAddress, Da> {
     RollupConfig {
         storage: StorageConfig {
             path: path.to_path_buf(),
@@ -357,7 +357,7 @@ fn rollup_config(
             axum_config: HttpServerConfig::localhost_on_free_port(),
             concurrent_sync_tasks: Some(1),
         },
-        da: MockDaConfig::instant_with_sender(da_service.sequencer_address()),
+        da: da_config,
         proof_manager: ProofManagerConfig {
             aggregated_proof_block_jump: NonZero::new(aggregated_proof_block_jump).unwrap(),
             prover_address: MockAddress::new([0u8; 32]),
@@ -370,7 +370,7 @@ fn rollup_config(
             // Set ttl to zero to disable for testing. This prevents nondeterminism.
             dropped_tx_ttl_secs: 0,
             admin_addresses: vec![],
-            da_address: da_service.sequencer_address(),
+            da_address: sequencer_address,
             rollup_address: MockAddress::new([0u8; 32]),
             batch_builder: BatchBuilderConfig::Standard(StdBatchBuilderConfig {
                 mempool_max_txs_count: None,
@@ -379,4 +379,17 @@ fn rollup_config(
         },
         monitoring: MonitoringConfig::standard(),
     }
+}
+
+fn rollup_config(
+    da_service: &MockDaService,
+    path: &std::path::Path,
+    aggregated_proof_block_jump: usize,
+) -> RollupConfig<MockAddress, MockDaService> {
+    rollup_config_with_da::<MockDaService>(
+        path,
+        MockDaConfig::instant_with_sender(da_service.sequencer_address()),
+        da_service.sequencer_address(),
+        aggregated_proof_block_jump,
+    )
 }

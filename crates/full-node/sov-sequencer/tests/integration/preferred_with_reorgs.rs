@@ -6,7 +6,9 @@ use std::sync::Arc;
 use futures::{Stream, StreamExt, TryStreamExt};
 use sov_api_spec::types::{Slot, TxStatus};
 use sov_blob_storage::config_deferred_slots_count;
-use sov_mock_da::{BlockProducingConfig, RandomizationBehaviour, RandomizationConfig};
+use sov_mock_da::{
+    BlockProducingConfig, MockDaConfig, RandomizationBehaviour, RandomizationConfig,
+};
 use sov_modules_api::prelude::arbitrary::Unstructured;
 use sov_modules_api::{Runtime, Spec};
 use sov_paymaster::{
@@ -223,7 +225,7 @@ async fn test_stream_of_transactions(
     })
     .set_da_config(|da_config| {
         // We don't need to test restarts, so let's save disk accesses and file descriptors.
-        da_config.connection_string = "sqlite::memory:".to_string();
+        da_config.connection_string = MockDaConfig::sqlite_in_memory();
         da_config.sender_address = genesis_config.sequencer_registry.seq_da_address;
         da_config.randomization = randomization_config;
     });
@@ -339,9 +341,8 @@ async fn test_check_no_reorgs_longer() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "Unblock later, when sequencer stabilized, and state manager is performant"]
+#[ignore = "Unblock later when state manager is performant and stable"]
 async fn test_small_reshuffle_no_drops() -> anyhow::Result<()> {
-    // sov_test_utils::initialize_logging();
     let finality = 5;
     let randomization_config = RandomizationConfig {
         seed: TEST_RANDOMIZATION_SEED,
@@ -351,6 +352,25 @@ async fn test_small_reshuffle_no_drops() -> anyhow::Result<()> {
     tokio::time::timeout(
         TEST_TIMEOUT,
         test_stream_of_transactions(500, finality, 3, 10, 20, Some(randomization_config)),
+    )
+    .await?
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "Unblock later when state manager is performant and stable"]
+async fn test_small_shuffle_rewind() -> anyhow::Result<()> {
+    let finality = 20;
+    let randomization_config = RandomizationConfig {
+        seed: TEST_RANDOMIZATION_SEED,
+        reorg_interval: 2..5,
+        behaviour: RandomizationBehaviour::ShuffleAndResize {
+            drop_percent: 0,
+            adjust_head_height: -15..4,
+        },
+    };
+    tokio::time::timeout(
+        TEST_TIMEOUT,
+        test_stream_of_transactions(500, finality, 25, 10, 20, Some(randomization_config)),
     )
     .await?
 }

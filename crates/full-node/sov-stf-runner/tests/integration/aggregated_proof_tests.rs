@@ -157,7 +157,12 @@ async fn spawn(
     )
     .await;
 
-    let join_handle = tokio::spawn(async move { runner.run_in_process().await });
+    let join_handle = tokio::spawn(async move {
+        runner.run_in_process().await.map_err(|error| {
+            tracing::warn!(?error, "Runner returned a error during execution");
+            error
+        })
+    });
 
     (test_node, join_handle)
 }

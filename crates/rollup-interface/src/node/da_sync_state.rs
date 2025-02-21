@@ -76,6 +76,20 @@ impl DaSyncState {
         self.synced_da_height
             .store(synced_da_height, std::sync::atomic::Ordering::Release);
 
+        self.target_da_height
+            .fetch_update(
+                std::sync::atomic::Ordering::AcqRel,
+                std::sync::atomic::Ordering::Acquire,
+                |current_target| {
+                    if current_target < synced_da_height {
+                        Some(synced_da_height)
+                    } else {
+                        None
+                    }
+                },
+            )
+            .ok();
+
         if let Err(e) = self.sync_status_sender.send(self.status()) {
             tracing::warn!(
                 "Failed to send sync status update after updating synced height: {:?}. There are no receivers for the sync status.",

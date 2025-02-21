@@ -1,24 +1,37 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
+use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{
-    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaService, MockDaSpec, PlannedFork,
+    BlockProducingConfig, MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig,
+    MockDaService, MockDaSpec, MockFee, PlannedFork, RandomizationBehaviour, RandomizationConfig,
 };
 use sov_mock_zkvm::MockZkvm;
+use sov_modules_api::provable_height_tracker::InfiniteHeight;
 use sov_modules_api::{FullyBakedTx, StateTransitionFunction};
-use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::common::HexHash;
+use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::node::da::DaService;
+use sov_rollup_interface::node::SyncStatus;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
 use sov_state::{ArrayWitness, ProverStorage, Storage, StorageRoot};
+use sov_stf_runner::StateTransitionRunner;
 use sov_test_utils::storage::SimpleStorageManager;
 use tempfile::TempDir;
+use tokio::sync::watch;
 
 use crate::helpers::hash_stf::{HashStf, S};
-use crate::helpers::runner_init::{initialize_runner, InitVariant};
+use crate::helpers::runner_init::{
+    bootstrap_state_update_info, initialize_runner, HashStfRunner, InitVariant,
+};
 
 type MockInitVariant = InitVariant<HashStf, MockZkvm, MockZkvm, MockDaService>;
+
+const STANDARD_SENDER: MockAddress = MockAddress::new([0u8; 32]);
+const TREE_MINUTES: std::time::Duration = std::time::Duration::from_secs(60 * 3);
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_simple_reorg_case() {
@@ -79,16 +92,174 @@ async fn test_simple_reorg_case() {
     check_runner(da_service, &tmp_dir, init_variant, expected_state_root).await;
 
     let committed_root_hash = get_saved_root_hash(tmp_dir.path()).unwrap().unwrap();
-    assert_eq!(expected_committed_root_hash.unwrap(), committed_root_hash);
+    assert_eq!(expected_committed_root_hash, committed_root_hash);
+}
+
+async fn test_runner_with_background_da_service(
+    target_height: u64,
+    da_config: MockDaConfig,
+) -> anyhow::Result<()> {
+    // std::env::set_var("RUST_LOG", "info,sov_stf_runner=trace,sov_mock_da=debug");
+    // std::env::set_var("RUST_LOG", "info");
+    // sov_test_utils::initialize_logging();
+    let (shutdown_sender, mut shutdown_receiver) = watch::channel(());
+    shutdown_receiver.mark_unchanged();
+
+    let sequencer_address = da_config.sender_address;
+    let da_service =
+        StorableMockDaService::from_config(da_config.clone(), shutdown_receiver.clone()).await;
+    let da_service = Arc::new(da_service);
+    let tempdir = tempfile::tempdir()?;
+    let finality = da_config.finalization_blocks;
+    let rollup_config = crate::helpers::runner_init::rollup_config_with_da::<StorableMockDaService>(
+        tempdir.path(),
+        da_config,
+        sequencer_address,
+        1,
+    );
+
+    let stf = HashStf::new();
+
+    let mut storage_manager: crate::helpers::runner_init::StorageManager =
+        NativeStorageManager::new(tempdir.path())?;
+
+    let (state_update_sender, _state_update_recv) =
+        watch::channel(bootstrap_state_update_info(&mut storage_manager).await?);
+    let (sync_sender, mut sync_status_receiver) = watch::channel(SyncStatus::START);
+    sync_status_receiver.mark_unchanged();
+
+    let genesis_params = vec![1, 2, 3, 4, 5];
+    let init_variant: MockInitVariant = InitVariant::Genesis {
+        block: da_service.get_block_at(0).await?,
+        genesis_params,
+    };
+    let (prev_state_root, _genesis_state_root) =
+        init_variant.initialize(&stf, &mut storage_manager).await?;
+
+    let (_, ledger_state) = storage_manager.create_bootstrap_state().unwrap();
+    let ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
+    let mut runner: HashStfRunner<StorableMockDaService> = StateTransitionRunner::new(
+        rollup_config.runner.clone(),
+        None,
+        da_service.clone(),
+        ledger_db.clone(),
+        stf,
+        storage_manager,
+        state_update_sender,
+        prev_state_root,
+        sync_sender,
+        Box::new(InfiniteHeight),
+        shutdown_receiver.clone(),
+        rollup_config.monitoring.clone(),
+    )
+    .await?;
+
+    let runner_task = tokio::spawn(async move {
+        runner.run_in_process().await.map_err(|error| {
+            tracing::warn!(?error, "Runner return execution with error");
+            error
+        })
+    });
+
+    let mut synced_da_height = 0;
+    // TODO: Adjust this to be more realistic and with actual motivation
+    let seen_da_height_boundary = target_height + finality as u64 + 30;
+
+    while synced_da_height <= target_height {
+        let batch = vec![FullyBakedTx {
+            data: vec![1, 2, 3],
+        }];
+
+        let serialized_batch = borsh::to_vec(&batch)?;
+        let _ = da_service
+            .send_transaction(&serialized_batch, MockFee::zero())
+            .await
+            .await?;
+
+        sync_status_receiver.changed().await?;
+
+        let sync_status = { *sync_status_receiver.borrow() };
+
+        synced_da_height = match sync_status {
+            SyncStatus::Synced { synced_da_height }
+            | SyncStatus::Syncing {
+                synced_da_height, ..
+            } => synced_da_height,
+        };
+
+        let head = da_service.get_head_block_header().await?;
+        if head.height() > seen_da_height_boundary {
+            anyhow::bail!("Runner didn't manage to sync in time.");
+        }
+    }
+
+    shutdown_sender.send(())?;
+    runner_task
+        .await?
+        .context("Runner did not completed with success")?;
+
+    Ok(())
+}
+
+fn build_da_config(
+    finality: u32,
+    block_time_ms: u64,
+    randomization: RandomizationConfig,
+) -> MockDaConfig {
+    let block_producing = BlockProducingConfig::Periodic { block_time_ms };
+    MockDaConfig {
+        connection_string: MockDaConfig::sqlite_in_memory(),
+        sender_address: STANDARD_SENDER,
+        finalization_blocks: finality,
+        block_producing,
+        da_layer: None,
+        randomization: Some(randomization),
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "TBD"]
-async fn test_several_reorgs() {}
+async fn flaky_test_runner_multiple_reorg_shuffle() -> anyhow::Result<()> {
+    let finality = 50;
+    let block_time_ms = 400;
+    let randomization = RandomizationConfig {
+        seed: HexHash::from([1; 32]),
+        reorg_interval: 1..3,
+        // TODO: It also messes up things with shorer block_time. get back to this later
+        behaviour: RandomizationBehaviour::only_shuffle(20),
+    };
+    let da_config = build_da_config(finality, block_time_ms, randomization);
+
+    tokio::time::timeout(
+        TREE_MINUTES,
+        test_runner_with_background_da_service(40, da_config),
+    )
+    .await?
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn flaky_test_runner_multiple_reorg_with_rewind() -> anyhow::Result<()> {
+    let finality = 20;
+    let block_time_ms = 400;
+    let randomization = RandomizationConfig {
+        seed: HexHash::from([1; 32]),
+        reorg_interval: 1..3,
+        behaviour: RandomizationBehaviour::ShuffleAndResize {
+            drop_percent: 10,
+            adjust_head_height: -15..15,
+        },
+    };
+    let da_config = build_da_config(finality, block_time_ms, randomization);
+
+    tokio::time::timeout(
+        TREE_MINUTES,
+        test_runner_with_background_da_service(40, da_config),
+    )
+    .await?
+}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_instant_finality_data_stored() -> anyhow::Result<()> {
-    let tmp_dir = tempfile::tempdir().unwrap();
+    let tmp_dir = tempfile::tempdir()?;
     let sequencer_address = MockAddress::new([11u8; 32]);
     let genesis_params = vec![1, 2, 3, 4, 5];
 
@@ -131,7 +302,7 @@ async fn test_instant_finality_data_stored() -> anyhow::Result<()> {
     check_runner(da_service, &tmp_dir, init_variant, expected_state_root).await;
 
     let saved_root_hash = get_saved_root_hash(tmp_dir.path()).unwrap().unwrap();
-    assert_eq!(expected_root_hash.unwrap(), saved_root_hash);
+    assert_eq!(expected_root_hash, saved_root_hash);
     Ok(())
 }
 
@@ -172,7 +343,7 @@ fn get_saved_root_hash(
 fn get_expected_execution_hash_from(
     genesis_params: &[u8],
     blobs: Vec<Vec<u8>>,
-) -> (StorageRoot<S>, Option<<ProverStorage<S> as Storage>::Root>) {
+) -> (StorageRoot<S>, <ProverStorage<S> as Storage>::Root) {
     let blocks: Vec<MockBlock> = blobs
         .into_iter()
         .enumerate()
@@ -194,7 +365,7 @@ fn get_expected_execution_hash_from(
 fn get_result_from_blocks(
     genesis_params: &[u8],
     blocks: &[MockBlock],
-) -> (StorageRoot<S>, Option<<ProverStorage<S> as Storage>::Root>) {
+) -> (StorageRoot<S>, <ProverStorage<S> as Storage>::Root) {
     let mut storage_manager = SimpleStorageManager::new();
     let storage = storage_manager.create_storage();
 
@@ -210,8 +381,6 @@ fn get_result_from_blocks(
     storage_manager.commit(change_set);
 
     let mut state_root = genesis_state_root;
-
-    let l = blocks.len();
 
     for block in blocks {
         let mut relevant_blobs = block.as_relevant_blobs();
@@ -233,12 +402,13 @@ fn get_result_from_blocks(
     }
 
     let storage = storage_manager.create_storage();
-    let root_hash = storage
-        .get_root_hash(SlotNumber::new_dangerous(l as u64))
-        .ok();
+    let root_hash = storage.get_latest_root_hash().unwrap();
     (state_root, root_hash)
 }
 
-fn batch(data: Vec<u8>) -> Vec<u8> {
-    borsh::to_vec(&vec![FullyBakedTx { data }]).unwrap()
+fn batch(serialized_tx: Vec<u8>) -> Vec<u8> {
+    borsh::to_vec(&vec![FullyBakedTx {
+        data: serialized_tx,
+    }])
+    .unwrap()
 }

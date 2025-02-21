@@ -171,7 +171,14 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
                     });
 
                     if val_hash_and_size != node_leaf_hash_and_size {
-                        anyhow::bail!("Bug! Incorrect value read from jmt");
+                        anyhow::bail!(
+                            "Bug! Incorrect value read from jmt. key={}, value_hash_and_size={:?}, node_leaf_hash_and_size={:?}",
+                            key,
+                            val_hash_and_size.map(|v| hex::encode(&v[..])),
+                            node_leaf_hash_and_size.map(|leaf| hex::encode(
+                                &leaf[..]
+                            ))
+                        );
                     }
                     witness.add_hint(proof);
                 }

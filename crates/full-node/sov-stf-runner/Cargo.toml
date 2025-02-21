@@ -18,7 +18,6 @@ anyhow = { workspace = true }
 axum = { workspace = true, features = ["tokio", "http1", "http2"] }
 rockbound = { workspace = true }
 bincode = { workspace = true }
-derive_more = { workspace = true, optional = true }
 derivative = { workspace = true }
 backon = { workspace = true }
 num_cpus = { workspace = true }
@@ -50,6 +49,7 @@ insta = { workspace = true }
 tempfile = { workspace = true }
 sha2 = { workspace = true }
 proptest = { workspace = true }
+derive_more = { workspace = true }
 
 sov-sequencer-registry = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true, features = ["native"] }
@@ -60,19 +60,10 @@ sov-sequencer = { workspace = true }
 
 sov-state = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["native"] }
-sov-stf-runner = { workspace = true, features = ["mock"] }
 
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }
 rand = { workspace = true, features = ["small_rng"] }
 
-tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
-
-
-[features]
-default = []
-mock = [
-    "dep:derive_more",
-]

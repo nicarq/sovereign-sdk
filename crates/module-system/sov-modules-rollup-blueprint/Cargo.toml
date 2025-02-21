@@ -76,5 +76,5 @@ native = [
     "opentelemetry-otlp",
     "opentelemetry-appender-tracing",
     "opentelemetry-semantic-conventions",
-    "tracing-opentelemetry"
+    "tracing-opentelemetry",
 ]
