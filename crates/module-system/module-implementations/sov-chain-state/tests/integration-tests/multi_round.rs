@@ -75,7 +75,7 @@ fn test_chain_state_update_gas_used() {
                 });
 
             let in_progress_tx = ChainState::<S>::default()
-                .last_slot(kernel)
+                .latest_visible_slot(kernel)
                 .unwrap_infallible()
                 .unwrap();
 
@@ -166,7 +166,7 @@ fn test_chain_state_update_transitions() {
         &mut |round, kernel, _result| {
             if round == SlotNumber::GENESIS {
                 let in_progress_transition = ChainState::<S>::default()
-                    .last_slot(kernel)
+                    .latest_visible_slot(kernel)
                     .unwrap_infallible()
                     .unwrap();
                 historical_transitions.push(in_progress_transition);
@@ -207,7 +207,7 @@ fn test_chain_state_update_transitions() {
 
                 historical_transitions.push(
                     ChainState::<S>::default()
-                        .last_slot(kernel)
+                        .latest_visible_slot(kernel)
                         .unwrap_infallible()
                         .unwrap(),
                 );

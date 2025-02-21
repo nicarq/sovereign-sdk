@@ -15,7 +15,7 @@ use sov_modules_api::{
 };
 use sov_state::StateRoot;
 mod proof_processing;
-use sov_modules_api::{KernelWriter, SlotGasMeter};
+use sov_modules_api::{PrivilegedKernelAccessor, SlotGasMeter};
 use sov_rollup_interface::stf::ProofReceipt;
 mod sequencer_mode;
 #[cfg(feature = "test-utils")]
@@ -497,7 +497,7 @@ where
             #[cfg(feature = "native")]
             {
                 let slot_finalization_start = std::time::Instant::now();
-                let visible_slot_number = state.visible_slot_number_to_access();
+                let visible_slot_number = state.current_visible_slot_number();
 
                 // Note the call to materialize slot mixed in with metrics operations here.
                 let (state_root, witness, change_set, _) =
@@ -756,7 +756,7 @@ where
                     sov_metrics::UserSpaceSlotProcessingMetrics {
                         begin_block_hook_time,
                         blobs_processing_time: blob_processing_time,
-                        visible_slot_number: state.visible_slot_number_to_access(),
+                        visible_slot_number: state.current_visible_slot_number(),
                         execution_context,
                         end_block_hook_time,
                     },

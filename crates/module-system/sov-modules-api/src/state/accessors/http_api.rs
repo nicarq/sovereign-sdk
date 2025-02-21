@@ -458,9 +458,13 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
 }
 
 impl<S: Spec> VersionReader for ApiStateAccessor<S> {
-    fn visible_slot_number_to_access(&self) -> VisibleSlotNumber {
+    fn current_visible_slot_number(&self) -> VisibleSlotNumber {
         self.visible_slot_number
             .expect("Visible slot number must be set during accessor initialization")
+    }
+
+    fn max_allowed_slot_number_to_access(&self) -> SlotNumber {
+        self.current_visible_slot_number().as_true()
     }
 
     fn rollup_height_to_access(&self) -> RollupHeight {

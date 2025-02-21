@@ -1,26 +1,13 @@
 use std::collections::HashMap;
 use std::env;
 
-use sov_blob_storage::BlobStorage;
 use sov_mock_da::MockBlob;
-use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
 use sov_rollup_interface::da::RelevantBlobs;
 
 use crate::helpers_basic_kernel::{
     assert_blobs_are_correctly_received_basic_kernel, build_basic_blobs, setup_basic_kernel,
 };
-use crate::{TestData, S};
-
-#[test]
-fn empty_test() {
-    let (_, runner) = setup_basic_kernel();
-
-    runner.query_visible_state(|state| {
-        assert!(BlobStorage::<S>::default()
-            .take_blobs_for_slot(SlotNumber::ONE, state)
-            .is_empty());
-    });
-}
+use crate::TestData;
 
 /// Tests that the blob storage module can store and retrieve blobs.
 /// The test creates a batch of blobs, and then checks that the blobs are stored and retrieved correctly by
@@ -34,23 +21,6 @@ fn store_and_retrieve_standard_basic_kernel() {
         },
         mut runner,
     ) = setup_basic_kernel();
-
-    runner.query_visible_state(|state| {
-        let blob_storage = BlobStorage::<S>::default();
-
-        assert!(blob_storage
-            .take_blobs_for_slot(1.to_slot_number(), state)
-            .is_empty());
-        assert!(blob_storage
-            .take_blobs_for_slot(2.to_slot_number(), state)
-            .is_empty());
-        assert!(blob_storage
-            .take_blobs_for_slot(3.to_slot_number(), state)
-            .is_empty());
-        assert!(blob_storage
-            .take_blobs_for_slot(4.to_slot_number(), state)
-            .is_empty());
-    });
 
     runner.advance_slots(1);
 

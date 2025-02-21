@@ -316,7 +316,7 @@ where
         );
 
         let computed_visible_slot_number = checkpoint
-            .visible_slot_number_to_access()
+            .current_visible_slot_number()
             .advance(visible_increase.get().into());
         let next_visible_slot_number =
             visible_slot_number_after_increase.unwrap_or(computed_visible_slot_number);
@@ -1135,7 +1135,7 @@ fn next_visible_slot_number_increase<S: Spec>(
 
     let mut delta = info
         .latest_finalized_slot_number
-        .checked_sub(checkpoint.visible_slot_number_to_access().get());
+        .checked_sub(checkpoint.current_visible_slot_number().get());
 
     if leave_space_for_next_batch {
         delta = delta.and_then(|x| x.checked_sub(1));

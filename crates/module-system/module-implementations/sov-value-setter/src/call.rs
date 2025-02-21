@@ -119,7 +119,7 @@ impl<S: Spec> ValueSetter<S> {
         _context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
-        let visible_height = state.visible_slot_number_to_access();
+        let visible_height = state.current_visible_slot_number();
         anyhow::ensure!(
             visible_height.get() == expected_visible_slot_number,
             "Visible height is not as expected. Expected {}, but got {}",

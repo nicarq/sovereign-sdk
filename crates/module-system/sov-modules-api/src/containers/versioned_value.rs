@@ -4,7 +4,7 @@ use sov_state::{BorshCodec, Kernel, Namespace, Prefix, StateCodec, StateItemCode
 use unwrap_infallible::UnwrapInfallible;
 
 use super::map::NamespacedStateMap;
-use crate::{KernelStateAccessor, KernelWriter, Spec, StateReader, VersionReader};
+use crate::{KernelStateAccessor, PrivilegedKernelAccessor, Spec, StateReader, VersionReader};
 
 /// A `versioned` value stored in kernel state.
 ///
@@ -61,12 +61,19 @@ where
         &self,
         state: &mut Reader,
     ) -> Result<Option<V>, <Reader as StateReader<Kernel>>::Error> {
-        self.elems
-            .get(&state.visible_slot_number_to_access(), state)
+        self.elems.get(&state.current_visible_slot_number(), state)
+    }
+
+    /// Get the current value at the latest *true* slot number.
+    pub fn get_true_current<Accessor: PrivilegedKernelAccessor + StateReader<Kernel>>(
+        &self,
+        state: &mut Accessor,
+    ) -> Result<Option<V>, <Accessor as StateReader<Kernel>>::Error> {
+        self.elems.get(&state.true_slot_number(), state)
     }
 
     /// Only the kernel working set can write to versioned values
-    pub fn set_true_current<Accessor: KernelWriter>(
+    pub fn set_true_current<Accessor: PrivilegedKernelAccessor>(
         &self,
         value: &V,
         state: &mut Accessor,
@@ -90,7 +97,7 @@ where
         key: &SlotNumber,
         state: &mut Reader,
     ) -> Result<Option<V>, Reader::Error> {
-        if key.get() > state.visible_slot_number_to_access().get() {
+        if key.get() > state.max_allowed_slot_number_to_access().get() {
             return Ok(None);
         }
         self.elems.get(key, state)
@@ -131,7 +138,9 @@ mod tests {
             .set_true_current(&RollupHeight::new(100), &mut kernel_state)
             .unwrap_infallible();
         assert_eq!(
-            value.get_current(&mut kernel_state).unwrap_infallible(),
+            value
+                .get_true_current(&mut kernel_state)
+                .unwrap_infallible(),
             Some(RollupHeight::new(100))
         );
 

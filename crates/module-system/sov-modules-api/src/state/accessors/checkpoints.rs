@@ -1,4 +1,4 @@
-use sov_rollup_interface::common::VisibleSlotNumber;
+use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{IsValueCached, Namespace, SlotKey, SlotValue, StateAccesses, Storage};
 use tracing::trace;
 
@@ -152,8 +152,12 @@ impl<S: Spec> StateCheckpoint<S> {
 }
 
 impl<S: Spec> VersionReader for StateCheckpoint<S> {
-    fn visible_slot_number_to_access(&self) -> VisibleSlotNumber {
+    fn current_visible_slot_number(&self) -> VisibleSlotNumber {
         self.visible_slot_num
+    }
+
+    fn max_allowed_slot_number_to_access(&self) -> SlotNumber {
+        self.visible_slot_num.as_true()
     }
 
     fn rollup_height_to_access(&self) -> RollupHeight {

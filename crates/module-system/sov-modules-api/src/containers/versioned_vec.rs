@@ -11,8 +11,8 @@ use unwrap_infallible::UnwrapInfallible;
 use super::map::NamespacedStateMap;
 use super::{KernelStateValue, VersionedStateValue};
 use crate::{
-    InfallibleStateReaderAndWriter, KernelStateAccessor, KernelWriter, Spec, StateReader,
-    VersionReader,
+    InfallibleStateReaderAndWriter, KernelStateAccessor, PrivilegedKernelAccessor, Spec,
+    StateReader, VersionReader,
 };
 
 /// A growable array of values stored as JMT-backed state.
@@ -102,14 +102,14 @@ where
     ///
     /// ## Warning
     /// This step *needs* to be done before any other operation on the state vector to ensure that the state vector is in a valid state.
-    pub fn initialize<Accessor: KernelWriter>(
+    pub fn initialize<Accessor: PrivilegedKernelAccessor>(
         &self,
         state: &mut Accessor,
     ) -> Result<(), Accessor::Error> {
         self.next_height
             .set_true_current(&SlotNumber::GENESIS, state)
     }
-    fn set_true_len<Accessor: KernelWriter>(
+    fn set_true_len<Accessor: PrivilegedKernelAccessor>(
         &self,
         length: SlotNumber,
         state: &mut Accessor,
@@ -218,7 +218,8 @@ where
         Vq: ?Sized,
         Codec::ValueCodec: EncodeLike<Vq, V>,
         Accessor: StateReader<Kernel>,
-        Accessor: VersionReader + KernelWriter<Error = <Accessor as StateReader<Kernel>>::Error>,
+        Accessor: VersionReader
+            + PrivilegedKernelAccessor<Error = <Accessor as StateReader<Kernel>>::Error>,
     {
         let len = self.len(state)?;
         self.elems().set(&len, value, state)?;

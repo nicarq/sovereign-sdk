@@ -21,8 +21,8 @@ pub use traits::ProvenStateAccessor;
 pub use traits::{
     AccessoryStateReader, AccessoryStateReaderAndWriter, AccessoryStateWriter, GenesisState,
     InfallibleKernelStateAccessor, InfallibleStateAccessor, InfallibleStateReaderAndWriter,
-    KernelWriter, ProvableStateReader, ProvableStateWriter, StateAccessor, StateAccessorError,
-    StateReader, StateReaderAndWriter, StateWriter, TxState, VersionReader,
+    PrivilegedKernelAccessor, ProvableStateReader, ProvableStateWriter, StateAccessor,
+    StateAccessorError, StateReader, StateReaderAndWriter, StateWriter, TxState, VersionReader,
 };
 
 #[cfg(feature = "native")]
@@ -56,7 +56,10 @@ pub mod provable_height_tracker {
             let storage = self.state_update_receiver.borrow().storage.clone();
             let checkpoint = StateCheckpoint::new(storage, &self.kernel.kernel());
             // Substract 1 because the state root at slot height `i` is only available at slot height `i + 1`.
-            checkpoint.visible_slot_number_to_access().saturating_sub(1)
+            checkpoint
+                .current_visible_slot_number()
+                .as_true()
+                .saturating_sub(1)
         }
     }
 

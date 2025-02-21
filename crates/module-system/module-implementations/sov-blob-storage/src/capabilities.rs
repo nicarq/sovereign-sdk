@@ -7,8 +7,7 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     BatchWithId, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, FullyBakedTx, Gas, GasArray,
-    GasSpec, KernelStateAccessor, KernelWriter, ModuleInfo, RawTx, SelectedBlob, Spec,
-    VersionReader,
+    GasSpec, KernelStateAccessor, ModuleInfo, PrivilegedKernelAccessor, RawTx, SelectedBlob, Spec,
 };
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_sequencer_registry::AllowedSequencerError;
@@ -455,8 +454,11 @@ impl<S: Spec> BlobStorage<S> {
         } else if state
             .visible_slot_number()
             .advance(config_deferred_slots_count())
-            <= state.visible_slot_number_to_access()
+            .as_true()
+            <= state.true_slot_number()
         {
+            // If the visible slot is lagging behind the current true slot number by the full DEFERRED_SLOTS_COUNT,
+            // we need to force create a rollup block even though the preferred sequencer didn't request one
             1
         } else {
             0

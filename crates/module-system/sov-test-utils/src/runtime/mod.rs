@@ -231,16 +231,15 @@ where
     /// Returns the current "true" rollup height.
     ///
     /// ## Note (soft-confirmations)
-    /// This value may be different from the value that would be returned by the [`ApiStateAccessor::visible_slot_number_to_access`] method inside
-    /// [`TestRunner::query_visible_state`], the reason for that is that this version of the [`ApiStateAccessor`] only has access to the state up to the
-    /// current _visible height_. See our soft-confirmation documentation for more details.
+    /// This value may be different from the value that would be returned by the [`ApiStateAccessor::current_visible_slot_number`] method inside
+    /// [`TestRunner::query_visible_state`].
     pub fn true_slot_number(&self) -> SlotNumber {
         SlotNumber::new(self.slot_receipts.len() as u64)
     }
 
     /// Returns the current visible slot number accessible from the transaction context.
     pub fn visible_slot_number(&self) -> VisibleSlotNumber {
-        self.query_visible_state(|state| state.visible_slot_number_to_access())
+        self.query_visible_state(|state| state.current_visible_slot_number())
     }
 
     /// A simple helper function to get the balance of a given address in the gas token currency with an [`InfallibleStateAccessor`].
@@ -294,9 +293,9 @@ where
             &state_checkpoint,
             runtime.kernel_with_slot_mapping(),
             state_checkpoint.rollup_height_to_access(),
-            state_checkpoint.visible_slot_number_to_access(),
+            state_checkpoint.current_visible_slot_number(),
             base_fee_per_gas,
-        ).unwrap_or_else(|_| panic!("ApiStateAccessor creation failed but the requested block height {} or visible height {} is accessible. This is a bug. Please report it.", state_checkpoint.rollup_height_to_access(), state_checkpoint.visible_slot_number_to_access()))
+        ).unwrap_or_else(|_| panic!("ApiStateAccessor creation failed but the requested block height {} or visible height {} is accessible. This is a bug. Please report it.", state_checkpoint.rollup_height_to_access(), state_checkpoint.current_visible_slot_number()))
     }
 
     /// Returns the state of the rollup at the most recent version of the rollup.

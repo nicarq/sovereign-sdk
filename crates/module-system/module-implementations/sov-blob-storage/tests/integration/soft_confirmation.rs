@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::env;
 
-use sov_blob_storage::{config_deferred_slots_count, BlobStorage};
+use sov_blob_storage::config_deferred_slots_count;
 use sov_mock_da::MockBlob;
-use sov_rollup_interface::common::IntoSlotNumber;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::SequencerInfo;
 
@@ -11,7 +10,7 @@ use crate::helpers_soft_confirmations::{
     assert_blobs_are_correctly_received_soft_confirmation, build_soft_confirmation_blobs,
     setup_soft_confirmation_kernel, setup_with_registration_soft_confirmation_kernel,
 };
-use crate::{SequenceInfo, TestData, S};
+use crate::{SequenceInfo, TestData};
 
 /// Tests the soft confirmation kernel functionality by executing one batch per slot for the preferred sequencer.
 /// Expected result:
@@ -28,23 +27,6 @@ fn store_and_retrieve_standard_soft_confirmation_kernel() {
         },
         mut runner,
     ) = setup_soft_confirmation_kernel();
-
-    runner.query_visible_state(|state| {
-        let blob_storage = BlobStorage::<S>::default();
-
-        assert!(blob_storage
-            .take_blobs_for_slot(1.to_slot_number(), state)
-            .is_empty());
-        assert!(blob_storage
-            .take_blobs_for_slot(2.to_slot_number(), state)
-            .is_empty());
-        assert!(blob_storage
-            .take_blobs_for_slot(3.to_slot_number(), state)
-            .is_empty());
-        assert!(blob_storage
-            .take_blobs_for_slot(4.to_slot_number(), state)
-            .is_empty());
-    });
 
     runner.advance_slots(1);
 

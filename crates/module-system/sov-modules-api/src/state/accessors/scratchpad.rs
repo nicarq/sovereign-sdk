@@ -2,7 +2,7 @@
 
 use std::marker::PhantomData;
 
-use sov_rollup_interface::common::VisibleSlotNumber;
+use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{EventContainer, IsValueCached, Namespace, SlotKey, SlotValue};
 
 use super::checkpoints::StateCheckpoint;
@@ -106,8 +106,12 @@ impl<S: Spec, I: StateProvider<S>> VersionReader for TxScratchpad<S, I> {
         self.inner.inner.rollup_height_to_access()
     }
 
-    fn visible_slot_number_to_access(&self) -> VisibleSlotNumber {
-        self.inner.inner.visible_slot_number_to_access()
+    fn current_visible_slot_number(&self) -> VisibleSlotNumber {
+        self.inner.inner.current_visible_slot_number()
+    }
+
+    fn max_allowed_slot_number_to_access(&self) -> SlotNumber {
+        self.inner.inner.max_allowed_slot_number_to_access()
     }
 }
 
@@ -196,8 +200,12 @@ impl<S: Spec, I: StateProvider<S>> VersionReader for PreExecWorkingSet<S, I> {
         self.inner.rollup_height_to_access()
     }
 
-    fn visible_slot_number_to_access(&self) -> VisibleSlotNumber {
-        self.inner.visible_slot_number_to_access()
+    fn current_visible_slot_number(&self) -> VisibleSlotNumber {
+        self.inner.current_visible_slot_number()
+    }
+
+    fn max_allowed_slot_number_to_access(&self) -> SlotNumber {
+        self.inner.max_allowed_slot_number_to_access()
     }
 }
 
@@ -430,8 +438,12 @@ impl<S: Spec, I: StateProvider<S>> VersionReader for WorkingSet<S, I> {
         self.delta.inner.rollup_height_to_access()
     }
 
-    fn visible_slot_number_to_access(&self) -> VisibleSlotNumber {
-        self.delta.inner.visible_slot_number_to_access()
+    fn current_visible_slot_number(&self) -> VisibleSlotNumber {
+        self.delta.inner.current_visible_slot_number()
+    }
+
+    fn max_allowed_slot_number_to_access(&self) -> SlotNumber {
+        self.delta.inner.max_allowed_slot_number_to_access()
     }
 }
 
