@@ -3,13 +3,11 @@ mod versioned_value;
 pub(crate) mod map;
 pub(crate) mod value;
 pub(crate) mod vec;
-pub(crate) mod versioned_vec;
 
 pub use map::{AccessoryStateMap, KernelStateMap, StateMap, StateMapError};
 pub use value::{AccessoryStateValue, KernelStateValue, StateValue, StateValueError};
 pub use vec::{AccessoryStateVec, KernelStateVec, StateVec};
 pub use versioned_value::VersionedStateValue;
-pub use versioned_vec::VersionedStateVec;
 
 #[cfg(test)]
 mod test {

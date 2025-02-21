@@ -2,9 +2,7 @@
 //!
 //! See also <https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/1824>.
 
-use sov_modules_api::{
-    Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, VersionedStateValue, VersionedStateVec,
-};
+use sov_modules_api::{Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, VersionedStateValue};
 
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
 struct TestModule<S: Spec> {
@@ -16,10 +14,8 @@ struct TestModule<S: Spec> {
     #[state]
     state_value: VersionedStateValue<u64>,
 
-    #[allow(unused)]
-    #[rest_api(include)]
-    #[state]
-    state_vec: VersionedStateVec<S::Address>,
+    #[phantom]
+    phantom: std::marker::PhantomData<S>,
 }
 
 impl<S: Spec> Module for TestModule<S> {

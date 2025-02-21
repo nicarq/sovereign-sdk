@@ -26,12 +26,12 @@ use sov_state::{CompileTimeNamespace, Kernel, Namespace, StateCodec, StateItemCo
 use unwrap_infallible::UnwrapInfallible;
 
 use super::types::StateItemContents;
-use super::{ApiState, ModuleSendSync, RollupHeight, RollupHeightQueryParam, StateItemInfo};
+use super::{ApiState, ModuleSendSync, RollupHeightQueryParam, StateItemInfo};
 use crate::map::NamespacedStateMap;
 use crate::rest::{json_obj, StatusCode};
 use crate::value::NamespacedStateValue;
 use crate::vec::NamespacedStateVec;
-use crate::{ApiStateAccessor, Module, StateReader, VersionedStateValue, VersionedStateVec};
+use crate::{ApiStateAccessor, Module, StateReader, VersionedStateValue};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -266,62 +266,6 @@ where
     }
 }
 
-impl<M, T, Codec> StateItemRestApiImpl<M, VersionedStateVec<T, Codec>>
-where
-    M: ModuleSendSync,
-    ApiStateAccessor<M::Spec>: StateReader<Kernel, Error = Infallible>,
-    T: Serialize,
-    Codec: StateCodec,
-    Codec::KeyCodec: StateItemCodec<SlotNumber>,
-    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<SlotNumber> + StateItemCodec<u64>,
-{
-    fn vec(&self) -> VersionedStateVec<T, Codec> {
-        VersionedStateVec::with_codec(self.state_item_info.prefix.0.clone(), Codec::default())
-    }
-
-    async fn get_state_vec_route(
-        state: State<Self>,
-        mut accessor: ApiStateAccessor<M::Spec>,
-    ) -> ApiResult<StateItemContents<T, T>> {
-        let state_vec = state.vec();
-        let length = state_vec.len(&mut accessor).unwrap_infallible().get();
-
-        Ok(StateItemContents::Vec { length }.into())
-    }
-
-    async fn get_state_vec_item_route(
-        state: State<Self>,
-        mut accessor: ApiStateAccessor<M::Spec>,
-        Path(rollup_height): Path<RollupHeight>,
-    ) -> ApiResult<StateItemContents<T, T>> {
-        let state_vec = state.vec();
-
-        let Some(visible_slot_number) = state
-            .api_state
-            .kernel
-            .clone()
-            .rollup_height_to_visible_slot_number(rollup_height, &mut accessor)
-        else {
-            return Err(not_found_404(&state.state_item_info.name, rollup_height));
-        };
-
-        let value = match state_vec
-            .get(visible_slot_number.as_true(), &mut accessor)
-            .unwrap_infallible()
-        {
-            None => {
-                return Err(not_found_404(&state.state_item_info.name, rollup_height));
-            }
-            Some(v) => v,
-        };
-        Ok(StateItemContents::VecElement {
-            index: rollup_height.get(),
-            value,
-        }
-        .into())
-    }
-}
-
 impl<N, M, K, V, Codec> StateItemRestApi
     for StateItemRestApiImpl<M, NamespacedStateMap<N, K, V, Codec>>
 where
@@ -358,23 +302,6 @@ where
     }
 }
 
-impl<M, V, Codec> StateItemRestApi for StateItemRestApiImpl<M, VersionedStateVec<V, Codec>>
-where
-    M: ModuleSendSync,
-    ApiStateAccessor<M::Spec>: StateReader<Kernel, Error = Infallible>,
-    V: Serialize + Clone + Send + Sync + 'static,
-    Codec: StateCodec,
-    Codec::KeyCodec: StateItemCodec<SlotNumber> + StateItemCodec<u64>,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<SlotNumber> + StateItemCodec<u64>,
-{
-    fn state_item_rest_api(&self) -> axum::Router<()> {
-        axum::Router::new()
-            .route("/", get(Self::get_state_vec_route))
-            .route("/items/:key", get(Self::get_state_vec_item_route))
-            .with_state(self.clone())
-    }
-}
-
 impl<N, M, T, Codec> StateItemRestApiExists
     for StateItemRestApiImpl<M, NamespacedStateValue<N, T, Codec>>
 where
@@ -400,13 +327,6 @@ where
 }
 
 impl<M, V, Codec> StateItemRestApiExists for StateItemRestApiImpl<M, VersionedStateValue<V, Codec>>
-where
-    M: Module,
-    Self: StateItemRestApi,
-{
-}
-
-impl<M, V, Codec> StateItemRestApiExists for StateItemRestApiImpl<M, VersionedStateVec<V, Codec>>
 where
     M: Module,
     Self: StateItemRestApi,
@@ -444,10 +364,5 @@ where
 
 impl<V, Codec> GetStateItemInfo for VersionedStateValue<V, Codec> {
     const STATE_ITEM_KIND: StateItemKind = StateItemKind::StateValue;
-    const NAMESPACE: sov_state::Namespace = Namespace::Kernel;
-}
-
-impl<V, Codec> GetStateItemInfo for VersionedStateVec<V, Codec> {
-    const STATE_ITEM_KIND: StateItemKind = StateItemKind::StateVec;
     const NAMESPACE: sov_state::Namespace = Namespace::Kernel;
 }

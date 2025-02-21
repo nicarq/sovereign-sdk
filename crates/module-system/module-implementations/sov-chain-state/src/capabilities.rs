@@ -260,7 +260,7 @@ impl<S: Spec> ChainState<S> {
         // We first extend the slot map because we are going to read from it before we set it.
         let maybe_previous_slot = self
             .slots
-            .get(state.visible_slot_number().as_true(), state)
+            .get(&state.visible_slot_number().as_true(), state)
             .unwrap_infallible();
 
         // We compute the base fee per gas from the previous slot if it exists
@@ -279,7 +279,7 @@ impl<S: Spec> ChainState<S> {
             .set(&state.true_slot_number(), pre_state_root, state)
             .unwrap_infallible();
         self.slots
-            .push(
+            .set_true_current(
                 &SlotInformation {
                     hash: slot_header.hash(),
                     gas_info,
@@ -305,7 +305,7 @@ impl<S: Spec> ChainState<S> {
         in_progress_slot.gas_info.update_gas_used(gas_used.clone());
 
         self.slots
-            .set_last(&in_progress_slot, state)
+            .set_true_current(&in_progress_slot, state)
             .expect("An error occurred while setting the last slot in progress. This is a bug. Please report it.");
 
         self.true_to_visible_slot_number_history
