@@ -196,8 +196,9 @@ impl<S: Spec> BlobStorage<S> {
                                 );
                                 continue;
                             };
-                            // TODO: If the preferred sequencer advanced the visible slot number too much, blobs will get dropped here. We should consider trying to
-                            // detect and slash for this.
+                            // TODO: If the preferred sequencer advanced the visible slot number too much, blobs will get dropped here.
+                            // This could be used for censorship, but the attack is not economically feasible (analysis available upon request).
+                            // We should consider trying to detect and slash for this.
                             blobs_with_total_size_limit.push_or_ignore(validated);
                         }
                         ValidateBlobOutcome::Accept(SequencerStatus::Unregistered) => {
@@ -467,6 +468,7 @@ impl<S: Spec> BlobStorage<S> {
         // 5. Select the non-preferred blobs from storage
         let gas_price_for_new_block = self.get_new_gas_price(visible_height_increase as u64, state);
         // TODO: If we start dropping blobs on the *second* slot in this loop, the preferred sequencer is doing some sneaky censorship
+        // Tthe attack is not economically feasible (analysis available upon request).
         // by increasing the visible slot number too quickly, causing blobs to be dropped. We should consider slashing in this case.
         self.retrieve_stored_blobs_and_add_to_selection(
             visible_height_increase as u64,
