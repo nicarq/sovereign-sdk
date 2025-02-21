@@ -152,7 +152,6 @@ pub struct ChainState<S: Spec> {
 
     #[state]
     true_slot_number_history: KernelStateMap<RollupHeight, SlotNumber>,
-
     #[state]
     true_to_visible_slot_number_history:
         sov_modules_api::KernelStateMap<SlotNumber, VisibleSlotNumber>,
