@@ -170,8 +170,7 @@ fn get_attester_stake_for_block(
         let runtime = IntegTestRuntime::<TestSpec>::default();
         runtime
             .sequencer_registry
-            .get_sender_balance(sequencer_address, state)
-            .unwrap_infallible()
+            .get_sender_balance_via_api(sequencer_address, state)
             .expect("The sequencer should be registered")
     })
 }

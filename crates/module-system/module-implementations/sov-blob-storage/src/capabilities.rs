@@ -1,12 +1,14 @@
 use borsh::BorshDeserialize;
 use sov_bank::derived_holder::DerivedHolder;
 use sov_bank::IntoPayable;
-use sov_modules_api::capabilities::{AllowedSequencer, BlobOrigin, BlobSelectorOutput};
+use sov_modules_api::capabilities::{
+    AllowedSequencer, BalanceState, BlobOrigin, BlobSelectorOutput,
+};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     BatchWithId, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, FullyBakedTx, Gas, GasArray,
-    GasSpec, InfallibleStateAccessor, KernelStateAccessor, KernelWriter, ModuleInfo, RawTx,
-    SelectedBlob, Spec, VersionReader,
+    GasSpec, KernelStateAccessor, KernelWriter, ModuleInfo, RawTx, SelectedBlob, Spec,
+    VersionReader,
 };
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_sequencer_registry::AllowedSequencerError;
@@ -439,7 +441,6 @@ impl<S: Spec> BlobStorage<S> {
             let available_balance = self
                 .sequencer_registry
                 .get_sender_balance(preferred_sender, state)
-                .unwrap_infallible()
                 .unwrap_or(0);
             self.add_preferred_blobs_to_selection(
                 selected_preferred_blobs,
@@ -747,6 +748,10 @@ impl<S: Spec> BlobStorage<S> {
             .sequencer_registry
             .is_sender_allowed(&blob.sender(), state)
             .ok()?;
+        // This is checked elsewhere, but we check it again here to be extra sure.
+        if sequencer.balance_state != BalanceState::Active {
+            return None;
+        }
 
         let proof = self.deserialize_or_try_slash_sender::<Vec<u8>>(blob, true, state)?;
         self.validate_blob(
@@ -772,6 +777,10 @@ impl<S: Spec> BlobStorage<S> {
         state: &mut KernelStateAccessor<'_, S>,
     ) -> Option<ValidatedBlob<S, BatchWithId<S>>> {
         let batch = self.deserialize_or_try_slash_sender::<Vec<FullyBakedTx>>(blob, true, state)?;
+        // This is checked elsewhere, but we check it again here to be extra sure.
+        if sequencer.balance_state != BalanceState::Active {
+            return None;
+        }
         self.validate_blob(
             idx,
             BlobData::Batch((batch, sequencer.address)).with_id(blob.hash().into()),
@@ -861,7 +870,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         blob: &mut <S::Da as DaSpec>::BlobTransaction,
         registered_sender: bool,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut KernelStateAccessor<'_, S>,
     ) -> Option<B> {
         match B::try_from_slice(data_for_deserialization(blob)) {
             Ok(batch) => Some(batch),

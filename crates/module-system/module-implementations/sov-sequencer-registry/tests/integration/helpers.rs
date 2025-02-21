@@ -1,5 +1,5 @@
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::capabilities::AllowedSequencer;
+use sov_modules_api::capabilities::{AllowedSequencer, BalanceState};
 use sov_modules_api::ApiStateAccessor;
 use sov_sequencer_registry::{SequencerRegistry, SequencerRegistryError};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -64,6 +64,7 @@ pub fn setup_with_custom_runtime(runtime: RT) -> (TestRoles, TestRunner<TestRunt
             Ok(AllowedSequencer {
                 address: genesis_sequencer_address,
                 balance: genesis_sequencer_bond,
+                balance_state: BalanceState::Active,
             }),
             "The genesis attester should be bonded"
         );

@@ -10,6 +10,8 @@ mod event;
 mod genesis;
 mod registration;
 
+use std::convert::Infallible;
+
 use anyhow::bail;
 use borsh::{BorshDeserialize, BorshSerialize};
 pub use call::*;
@@ -21,12 +23,15 @@ use sov_bank::derived_holder::DerivedHolder;
 use sov_bank::{Amount, IntoPayable};
 use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
+use sov_modules_api::registration_lib::RegistrationError;
+#[cfg(feature = "native")]
+use sov_modules_api::ApiStateAccessor;
 use sov_modules_api::{
-    BasicAddress, Context, DaSpec, Error, GenesisState, InfallibleStateAccessor, Module, ModuleId,
-    ModuleInfo, ModuleRestApi, Spec, StateAccessor, StateMap, StateReader, StateValue, TxState,
+    BasicAddress, Context, DaSpec, Error, GenesisState, InfallibleStateAccessor,
+    KernelStateAccessor, KernelStateMap, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    StateAccessor, StateReader, StateValue, StateWriter, TxState, VisibleSlotNumber,
 };
-use sov_state::User;
+use sov_state::{Kernel, User};
 use thiserror::Error;
 
 /// Errors that can be raised by the [`SequencerRegistry`] module during hooks execution.
@@ -67,7 +72,7 @@ pub struct SequencerRegistry<S: Spec> {
     /// We need to map the DA address to the rollup address because the sequencer interacts with the rollup
     /// through the DA layer.
     #[state]
-    pub(crate) allowed_sequencers: StateMap<<S::Da as DaSpec>::Address, AllowedSequencer<S>>,
+    pub(crate) allowed_sequencers: KernelStateMap<<S::Da as DaSpec>::Address, AllowedSequencer<S>>,
 
     /// Optional preferred sequencer.
     /// If set, batches from this sequencer will be processed first in block,
@@ -82,6 +87,21 @@ pub enum CustomError<RollupAddress: BasicAddress, DaAddress: BasicAddress> {
     /// The sequencer tried to unregister itself during the execution of its own batch.
     #[error("Sequencers may not unregister during execution of their own batch")]
     CannotUnregisterDuringOwnBatch(DaAddress),
+
+    /// The sequencer tried to withdraw without first initiating a withdrawal and waiting for the withdrawal to be ready.
+    #[error("Sequencers may not withdraw without first initiating a withdrawal and waiting for the withdrawal to be ready")]
+    WithdrawalNotInitiated(DaAddress),
+
+    /// The sequencer tried to withdraw before the withdrawal was ready.
+    #[error("Sequencer {sequencer} may not withdraw before the withdrawal is ready. Current visible height: {current_visible_height}, Ready at: {ready_at}")]
+    WithdrawalNotReady {
+        /// The address of the sequencer that tried to withdraw.
+        sequencer: DaAddress,
+        /// The current visible height of the chain.
+        current_visible_height: VisibleSlotNumber,
+        /// The slot number at which the withdrawal will be ready.
+        ready_at: VisibleSlotNumber,
+    },
 
     #[error("The address provided as a parameter to the `exit` method does not match the transaction sender")]
     /// The address provided as a parameter to the `exit` method does not match the transaction sender.
@@ -133,8 +153,11 @@ impl<S: Spec> Module for SequencerRegistry<S> {
             CallMessage::Deposit { da_address, amount } => self
                 .deposit(&da_address, amount, context, state)
                 .map_err(|e| Error::ModuleError(e.into()))?,
-            CallMessage::Exit { da_address } => self
-                .exit(&da_address, context, state)
+            CallMessage::InitiateWithdrawal { da_address } => self
+                .initiate_withdrawal(&da_address, context, state)
+                .map_err(|e| Error::ModuleError(e.into()))?,
+            CallMessage::Withdraw { da_address } => self
+                .withdraw(&da_address, context, state)
                 .map_err(|e| Error::ModuleError(e.into()))?,
         }
         Ok(())
@@ -147,10 +170,13 @@ impl<S: Spec> SequencerRegistry<S> {
     /// Read about [`SequencerConfig::is_preferred_sequencer`] to learn about
     /// preferred sequencers.
     #[allow(clippy::type_complexity)]
-    pub fn get_preferred_sequencer<Reader: StateReader<User>>(
+    pub fn get_preferred_sequencer<
+        Reader: StateReader<Kernel, Error = E> + StateReader<User, Error = E>,
+        E,
+    >(
         &self,
         state: &mut Reader,
-    ) -> Result<Option<(<S::Da as DaSpec>::Address, S::Address)>, Reader::Error> {
+    ) -> Result<Option<(<S::Da as DaSpec>::Address, S::Address)>, E> {
         if let Some(da_addr) = self.preferred_sequencer.get(state)? {
             // If the preferred sequencer address is set but they're not currently authorized, act like there is no preferred sequencer
             Ok(self
@@ -239,7 +265,7 @@ impl<S: Spec> SequencerRegistry<S> {
     pub fn is_sender_allowed(
         &self,
         sender: &<S::Da as DaSpec>::Address,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut impl StateReader<Kernel, Error = Infallible>,
     ) -> Result<AllowedSequencer<S>, AllowedSequencerError> {
         if let Some(sequencer) = self
             .allowed_sequencers
@@ -253,45 +279,75 @@ impl<S: Spec> SequencerRegistry<S> {
     }
 
     /// Returns the balance of the provided sender, if present.
-    pub fn get_sender_balance<Reader: StateReader<User>>(
+    pub fn get_sender_balance(
         &self,
         sender: &<S::Da as DaSpec>::Address,
-        state: &mut Reader,
-    ) -> Result<Option<Amount>, Reader::Error> {
-        Ok(self
-            .allowed_sequencers
-            .get(sender, state)?
-            .map(|s| s.balance))
+        state: &mut KernelStateAccessor<'_, S>,
+    ) -> Option<Amount> {
+        self.allowed_sequencers
+            .get(sender, state)
+            .unwrap_infallible()
+            .map(|s| s.balance)
+    }
+
+    /// Returns the balance of the provided sender, if present.
+    ///
+    /// This method is only available in via API, since sequencer balances depend directly on the state of the DA layer.
+    /// If you need access to balances on-chain, use the `get_sender_balance` method with a `KernelStateAccessor`.
+    #[cfg(feature = "native")]
+    pub fn get_sender_balance_via_api(
+        &self,
+        sender: &<S::Da as DaSpec>::Address,
+        state: &mut ApiStateAccessor<S>,
+    ) -> Option<Amount> {
+        self.allowed_sequencers
+            .get(sender, state)
+            .unwrap_infallible()
+            .map(|s| s.balance)
     }
 
     /// Returns the rollup address of the sequencer with the given DA address.
-    pub fn get_sequencer_address<Reader: StateReader<User>>(
+    #[cfg(feature = "native")]
+    pub fn get_sequencer_address(
         &self,
         da_address: <S::Da as DaSpec>::Address,
-        state_accessor: &mut Reader,
-    ) -> Result<Option<S::Address>, Reader::Error> {
+        state_accessor: &mut ApiStateAccessor<S>,
+    ) -> Result<Option<S::Address>, Infallible> {
         Ok(self
             .allowed_sequencers
-            .get(&da_address, state_accessor)?
+            .get(&da_address, state_accessor)
+            .unwrap_infallible()
             .map(|s| s.address))
     }
 
     /// Slash the sequencer with the given address.
-    pub fn slash_sequencer(
+    pub fn slash_sequencer<
+        Accessor: StateWriter<Kernel, Error = Infallible>
+            + StateReader<User, Error = Infallible>
+            + StateWriter<User, Error = Infallible>,
+    >(
         &self,
         da_address: &<S::Da as DaSpec>::Address,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut Accessor,
     ) {
-        self.delete_allowed_staker(da_address, state)
+        self.allowed_sequencers
+            .delete(da_address, state)
             .unwrap_infallible();
+
+        if let Some(preferred_sequencer) = self.preferred_sequencer.get(state).unwrap_infallible() {
+            if da_address == &preferred_sequencer {
+                self.preferred_sequencer.delete(state).unwrap_infallible();
+            }
+        }
     }
 
     /// Check if the provided `Da::Address` belongs to a registered sequencer.
-    pub fn is_registered_sequencer<Reader: StateReader<User>>(
+    #[cfg(feature = "native")]
+    pub fn is_registered_sequencer(
         &self,
         da_address: &<S::Da as DaSpec>::Address,
-        state: &mut Reader,
-    ) -> Result<bool, Reader::Error> {
+        state: &mut ApiStateAccessor<S>,
+    ) -> Result<bool, Infallible> {
         Ok(self.allowed_sequencers.get(da_address, state)?.is_some())
     }
 }

@@ -197,8 +197,8 @@ fn test_penalize_sequencer() {
             }
 
             let current_stake = sov_sequencer_registry::SequencerRegistry::<S>::default()
-                .get_sender_balance(&default_sequencer_da_address, state)
-                .unwrap_infallible().unwrap();
+                .get_sender_balance_via_api(&default_sequencer_da_address, state)
+                .unwrap();
             let genesis_stake = default_sequencer_stake;
 
             assert!(

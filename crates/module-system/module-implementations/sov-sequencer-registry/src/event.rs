@@ -20,9 +20,15 @@ pub enum Event<S: Spec> {
         amount: u64,
     },
 
+    /// A sequencer initiated a withdrawal.
+    InitiatedWithdrawal {
+        /// The address of the sequencer that initiated the withdrawal.
+        sequencer: S::Address,
+    },
+
     /// A sequencer exited.
-    Exited {
-        /// The address of the sequencer that was exited.
+    Withdrew {
+        /// The address of the sequencer that exited.
         sequencer: S::Address,
         /// The amount that was withdrawn.
         amount_withdrawn: u64,

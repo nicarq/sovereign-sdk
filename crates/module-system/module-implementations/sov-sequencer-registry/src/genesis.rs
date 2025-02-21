@@ -1,7 +1,6 @@
 use anyhow::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{DaSpec, GenesisState, Spec};
 
 use crate::SequencerRegistry;
@@ -50,8 +49,8 @@ impl<S: Spec> SequencerRegistry<S> {
 
         self.register_staker(
             &config.seq_da_address,
-            &config.seq_rollup_address,
             config.seq_bond,
+            config.seq_rollup_address.clone(),
             state,
         )?;
 

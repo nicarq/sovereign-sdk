@@ -1,10 +1,15 @@
+use std::convert::Infallible;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
+use sov_state::{Kernel, User};
 
 use crate::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
-use crate::{Context, Gas, InfallibleStateAccessor, Rewards, Spec, StateAccessor};
+use crate::{
+    Context, Gas, InfallibleStateAccessor, Rewards, Spec, StateAccessor, StateReader, StateWriter,
+};
 
 /// Enforces gas limits and penalties for transactions.
 pub trait GasEnforcer<S: Spec> {
@@ -81,12 +86,17 @@ pub trait GasEnforcer<S: Spec> {
     ) -> anyhow::Result<()>;
 
     /// Returns the remaining funds escrowed from pre-execution checks to the sequencer.
-    fn return_escrowed_funds_to_sequencer(
+    fn return_escrowed_funds_to_sequencer<
+        Accessor: StateReader<Kernel, Error = Infallible>
+            + StateWriter<Kernel, Error = Infallible>
+            + StateWriter<User, Error = Infallible>
+            + StateReader<User, Error = Infallible>,
+    >(
         &self,
         initial_escrow: u64,
         reward: Rewards,
         sequencer: &<S::Da as DaSpec>::Address,
-        tx_scratchpad: &mut impl InfallibleStateAccessor,
+        tx_scratchpad: &mut Accessor,
     );
 }
 

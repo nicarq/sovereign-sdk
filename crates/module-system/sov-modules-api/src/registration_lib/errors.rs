@@ -13,8 +13,8 @@ pub enum RegistrationError<
     /// The provided address is not registered.
     IsNotRegistered(NotRegAddress),
 
-    #[error("Insufficient funds on the sender's account to top up it's staked balance")]
-    /// Insufficient funds on the sender's account to top up it's staked balance
+    #[error("Insufficient funds on the sender's account to top up its staked balance")]
+    /// Insufficient funds on the sender's account to top up its staked balance
     InsufficientFundsToTopUpAccount {
         /// The address of the sender's account.
         address: RollupAddress,
@@ -64,6 +64,10 @@ pub enum RegistrationError<
     #[error("The user is already registered")]
     /// The user is already registered.
     AlreadyRegistered(RollupAddress),
+
+    #[error("The user has already initiated a withdrawal")]
+    /// The user has already initiated a withdrawal.
+    WithdrawalAlreadyPending(RollupAddress),
 
     #[error("The sender's account does not have enough funds to register itself")]
     /// The sender's account does not have enough funds to register itself.

@@ -169,6 +169,7 @@ impl<S: Spec, I: StateProvider<S>> ProvableStateReader<User> for WorkingSet<S, I
 /// to find a way to enforce that.
 impl<S: Spec, I: StateProvider<S>> ProvableStateReader<Kernel> for WorkingSet<S, I> {}
 impl<S: Spec, I: StateProvider<S>> ProvableStateWriter<User> for WorkingSet<S, I> {}
+impl<S: Spec, I: StateProvider<S>> ProvableStateWriter<Kernel> for WorkingSet<S, I> {}
 
 impl<S: Spec, I: StateProvider<S>> AccessoryStateWriter for WorkingSet<S, I> {}
 

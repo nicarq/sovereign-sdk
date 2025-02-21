@@ -9,9 +9,7 @@ use async_trait::async_trait;
 use axum::http::StatusCode;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_db::ledger_db::LedgerDb;
-use sov_modules_api::capabilities::{
-    AuthenticationOutput, AuthorizeSequencerError, SequencerAuthorization,
-};
+use sov_modules_api::capabilities::AuthenticationOutput;
 use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
@@ -26,7 +24,7 @@ use sov_rollup_interface::node::ledger_api::{ItemOrHash, LedgerStateProvider, Qu
 use sov_rollup_interface::node::{future_or_shutdown, DaSyncState, FutureOrShutdownOutput};
 use tokio::sync::{broadcast, watch, Mutex};
 use tokio::task::JoinHandle;
-use tracing::{error, info, trace};
+use tracing::{info, trace};
 use uuid::Uuid;
 
 use crate::{
@@ -293,9 +291,8 @@ pub fn generic_accept_tx_error(details: impl std::fmt::Debug) -> ErrorObject {
 
 pub fn tx_auth<S, Rt, I>(
     runtime: &Rt,
-    mut tx_scratchpad: TxScratchpad<S, I>,
+    tx_scratchpad: TxScratchpad<S, I>,
     gas_price: <S::Gas as Gas>::Price,
-    sequencer_address: &<S::Da as DaSpec>::Address,
     baked_tx: &FullyBakedTx,
 ) -> AuthRes<S, Rt, I>
 where
@@ -303,20 +300,7 @@ where
     Rt: Runtime<S>,
     I: StateProvider<S>,
 {
-    let gas_meter: BasicGasMeter<S> = match runtime
-        .sequencer_authorization()
-        .authorize_sequencer(sequencer_address, &mut tx_scratchpad)
-    {
-        Ok(sequencer) => BasicGasMeter::new_with_funds_and_gas(
-            sequencer.balance,
-            <S as GasSpec>::max_tx_check_costs(),
-            gas_price,
-        ),
-        Err(AuthorizeSequencerError { reason }) => {
-            error!(%reason, "Sequencer authorization failed");
-            return (tx_scratchpad, Err(PreExecError::SequencerError(reason)));
-        }
-    };
+    let gas_meter = BasicGasMeter::new_with_gas(<S as GasSpec>::max_tx_check_costs(), gas_price);
 
     let mut pre_exec_ws = tx_scratchpad.to_pre_exec_working_set(gas_meter);
 

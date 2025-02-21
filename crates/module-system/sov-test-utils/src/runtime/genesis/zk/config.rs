@@ -313,9 +313,7 @@ mod tests {
             let sequencer_registry = crate::runtime::SequencerRegistry::<S>::default();
 
             assert_eq!(
-                sequencer_registry
-                    .get_sender_balance(&sequencer.da_address, state)
-                    .unwrap(),
+                sequencer_registry.get_sender_balance_via_api(&sequencer.da_address, state),
                 Some(sequencer.bond),
                 "Should be bonded sequencer"
             );
