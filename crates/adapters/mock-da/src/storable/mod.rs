@@ -28,10 +28,8 @@ mod tests {
     async fn manually_triggered_blocks_are_fetched_after_await() -> anyhow::Result<()> {
         // This test checks that if `get_block_at` has been called before `produce_block`,
         // caller of `get_block_at` will get the new block.
-        let tempdir = tempfile::tempdir()?;
-
         let config = MockDaConfig {
-            connection_string: format!("sqlite://{}/da.sqlite?mode=rwc", tempdir.path().display()),
+            connection_string: MockDaConfig::sqlite_in_memory(),
             sender_address: Default::default(),
             finalization_blocks: 0,
             block_producing: BlockProducingConfig::Manual,
@@ -110,9 +108,11 @@ mod tests {
         ));
 
         let sender_1 = MockAddress::new([0; 32]);
-        let da_service_1 = StorableMockDaService::new_manual_producing(sender_1, da_layer.clone());
+        let da_service_1 =
+            StorableMockDaService::new_manual_producing(sender_1, da_layer.clone()).await;
         let sender_2 = MockAddress::new([1; 32]);
-        let da_service_2 = StorableMockDaService::new_manual_producing(sender_2, da_layer.clone());
+        let da_service_2 =
+            StorableMockDaService::new_manual_producing(sender_2, da_layer.clone()).await;
 
         let blob_0_0 = vec![0, 0];
         let blob_0_1 = vec![0, 0];
@@ -177,14 +177,15 @@ mod tests {
             }
         }
 
-        fn build_da_services(
+        async fn build_da_services(
             da_layer: Arc<RwLock<StorableMockDaLayer>>,
         ) -> HashMap<TestDaSender, StorableMockDaService> {
             let mut da_services: HashMap<TestDaSender, StorableMockDaService> = HashMap::new();
             for sender in [TestDaSender::One, TestDaSender::Two, TestDaSender::Three] {
                 da_services.insert(
                     sender,
-                    StorableMockDaService::new_manual_producing(sender.address(), da_layer.clone()),
+                    StorableMockDaService::new_manual_producing(sender.address(), da_layer.clone())
+                        .await,
                 );
             }
 
@@ -238,7 +239,7 @@ mod tests {
             StorableMockDaLayer::new_in_path(tempdir.path(), 0).await?,
         ));
 
-        let da_services = TestDaSender::build_da_services(da_layer.clone());
+        let da_services = TestDaSender::build_da_services(da_layer.clone()).await;
         // Indexes are needed to produce different blobs from the same senders.
         let mut batch_indexes: HashMap<TestDaSender, u8> = HashMap::new();
         let mut proof_indexes: HashMap<TestDaSender, u8> = HashMap::new();

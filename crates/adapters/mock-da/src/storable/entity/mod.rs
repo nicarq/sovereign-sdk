@@ -1,8 +1,9 @@
 //! [sea-orm](https://www.sea-ql.org/SeaORM/docs/index/) related code.
 use sea_orm::sea_query::{Index, IndexCreateStatement};
-use sea_orm::{
-    ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QueryOrder, QuerySelect, Schema,
-};
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QueryOrder, Schema};
+
+use crate::config::GENESIS_HEADER;
+use crate::MockBlockHeader;
 
 pub mod blobs;
 pub mod block_headers;
@@ -54,17 +55,16 @@ pub(crate) async fn create_tables<E: EntityTrait>(
     Ok(())
 }
 
-pub(crate) async fn query_last_height(db: &DatabaseConnection) -> anyhow::Result<u32> {
+pub(crate) async fn query_last_saved_block(
+    db: &DatabaseConnection,
+) -> anyhow::Result<MockBlockHeader> {
     let db_value = block_headers::Entity::find()
         .order_by_desc(block_headers::Column::Height)
-        .select_only()
-        .column(block_headers::Column::Height)
-        .into_tuple::<(i32,)>()
         .one(db)
         .await?
-        .map(|i| i.0 as u32);
-    tracing::trace!(last_height = ?db_value, "Loaded latest height from database");
-    Ok(db_value.unwrap_or_default())
+        .map(MockBlockHeader::from);
+    tracing::trace!(?db_value, "Loaded latest block header from database");
+    Ok(db_value.unwrap_or(GENESIS_HEADER))
 }
 
 pub(crate) async fn query_last_finalized_height(db: &DatabaseConnection) -> anyhow::Result<u32> {

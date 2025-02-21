@@ -53,7 +53,8 @@ async fn flaky_test_forced_sequencer_registration() -> anyhow::Result<()> {
     let da_service = Arc::new(
         rollup
             .da_service
-            .another_on_the_same_layer(UNREGISTERED_SENDER),
+            .another_on_the_same_layer(UNREGISTERED_SENDER)
+            .await,
     );
 
     tokio::select! {
