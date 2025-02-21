@@ -38,7 +38,7 @@ pub enum CallMessage<S: Spec> {
     /// Increases the balance of the sequencer, transferring the funds from the sequencer account
     /// to the rollup.
     Deposit {
-        /// The  Da address of the sequencer.
+        /// The DA address of the sequencer.
         da_address: <S::Da as DaSpec>::Address,
         /// The amount to increase.
         amount: Amount,
@@ -50,7 +50,7 @@ pub enum CallMessage<S: Spec> {
     },
     /// Withdraw a sequencer's balance after waiting for the withdrawal period.
     Withdraw {
-        /// The  Da address of the sequencer you're removing.
+        /// The DA address of the sequencer you're removing.
         da_address: <S::Da as DaSpec>::Address,
     },
 }

@@ -10,7 +10,6 @@ use crate::SequencerRegistry;
 /// This `struct` must be passed as an argument to
 /// [`Module::genesis`](sov_modules_api::Module::genesis).
 ///
-// TODO: Allow multiple sequencers: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/278
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, JsonSchema)]
 #[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
 #[schemars(
@@ -81,14 +80,14 @@ mod tests {
                 .unwrap()
                 .into();
 
-        let seq_da_addreess = MockAddress::from_str(
+        let seq_da_address = MockAddress::from_str(
             "0000000000000000000000000000000000000000000000000000000000000000",
         )
         .unwrap();
 
         let config = SequencerConfig::<TestSpec> {
             seq_rollup_address,
-            seq_da_address: seq_da_addreess,
+            seq_da_address,
             seq_bond: 100,
             is_preferred_sequencer: true,
         };
