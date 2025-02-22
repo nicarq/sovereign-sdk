@@ -272,6 +272,8 @@ impl<S: Spec> ChainState<S> {
 
         let gas_info = BlockGasInfo::new(
             // TODO(@theochap): the gas limit should be updated dynamically `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/271`
+            // This TODO is for performance enhancement, not a security concern. Updating the gas limit dynamically would allow
+            // the work of the prover to follow high level industry trends of the costs to compute zk-proofs.
             S::initial_gas_limit(),
             base_fee_per_gas,
         );
@@ -393,7 +395,8 @@ impl<S: Spec> ChainState<S> {
 
         if height == current_rollup_height {
             // TODO(@theochap): the gas limit should be updated dynamically `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/271`
-            // TODO: Compute a new gas limit here
+            // This TODO is for performance enhancement, not a security concern. Updating the gas limit dynamically would allow
+            // the work of the prover to follow high level industry trends of the costs to compute zk-proofs.
             return Ok(Some(S::initial_gas_limit()));
         }
 
