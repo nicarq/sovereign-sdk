@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables, unused_mut)]
 use core::time::Duration;
 use std::sync::Arc;
 use std::thread::sleep;
@@ -28,7 +29,8 @@ const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Perio
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_bank_tx_periodic_da_tests() -> anyhow::Result<()> {
     let test_case = TestCase {
-        wait_for_aggregated_proof: true,
+        // TODO: The proof namespace is disabled, see: #2487
+        wait_for_aggregated_proof: false,
         finalization_blocks: 0,
     };
 
@@ -38,6 +40,10 @@ async fn flaky_bank_tx_periodic_da_tests() -> anyhow::Result<()> {
         test_case.finalization_blocks,
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
+    .set_config(|c| {
+        // TODO: The proof namespace is disabled, see: #2487
+        c.rollup_prover_config = None;
+    })
     .start()
     .await?;
 
@@ -102,26 +108,28 @@ async fn send_test_bank_txs(
 
     let mut rollup_height = 1;
     let mut verified_attested_height = 0;
+
+    // TODO: The proof namespace is disabled, see: #2487
     // How many slots rollup allowed to lag behind in posting attestations
-    let attestation_publish_threshold = 1000;
-
-    while verified_attested_height <= batch_1_rollup_height {
-        let slot = slots_subscription.next().await.unwrap()?;
-        assert!(slot.number >= rollup_height);
-
-        let max_attested_height = get_max_attested_height(client, Some(rollup_height)).await?;
-        if max_attested_height >= verified_attested_height {
-            // We can have several attestations in the same DA block, so we need to set `verified_attested_height` to the `max_attested_height`.
-            verified_attested_height = max_attested_height;
-        }
-        rollup_height += 1;
-        if rollup_height > (batch_1_rollup_height + attestation_publish_threshold) {
-            panic!(
-                "Attestations haven't been posted after {} slots passed since batch publication",
-                attestation_publish_threshold
-            );
-        }
-    }
+    // let attestation_publish_threshold = 1000;
+    //
+    // while verified_attested_height <= batch_1_rollup_height {
+    //     let slot = slots_subscription.next().await.unwrap()?;
+    //     assert!(slot.number >= rollup_height);
+    //
+    //     let max_attested_height = get_max_attested_height(client, Some(rollup_height)).await?;
+    //     if max_attested_height >= verified_attested_height {
+    //         // We can have several attestations in the same DA block, so we need to set `verified_attested_height` to the `max_attested_height`.
+    //         verified_attested_height = max_attested_height;
+    //     }
+    //     rollup_height += 1;
+    //     if rollup_height > (batch_1_rollup_height + attestation_publish_threshold) {
+    //         panic!(
+    //             "Attestations haven't been posted after {} slots passed since batch publication",
+    //             attestation_publish_threshold
+    //         );
+    //     }
+    // }
 
     Ok(())
 }
