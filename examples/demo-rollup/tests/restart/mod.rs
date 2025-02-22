@@ -1,3 +1,4 @@
+#![allow(unused_variables)]
 //! Tests for shutdown/restart cases.
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
@@ -147,6 +148,7 @@ async fn start_stop_empty(
     Ok(())
 }
 
+#[ignore = "TODO: The proof namespace is disabled, see: #2487"]
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_test_start_stop_zk_instant_finality() -> anyhow::Result<()> {
     start_stop_empty(OperatingMode::Zk, 0, RollupProverConfig::Skip).await?;
@@ -156,6 +158,7 @@ async fn flaky_test_start_stop_zk_instant_finality() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[ignore = "TODO: The proof namespace is disabled, see: #2487"]
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_test_start_stop_zk_non_instant_finality() -> anyhow::Result<()> {
     start_stop_empty(OperatingMode::Zk, 3, RollupProverConfig::Skip).await?;
@@ -165,6 +168,7 @@ async fn flaky_test_start_stop_zk_non_instant_finality() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[ignore = "TODO: The proof namespace is disabled, see: #2487"]
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_test_start_stop_optimistic_instant_finality() -> anyhow::Result<()> {
     start_stop_empty(OperatingMode::Optimistic, 0, RollupProverConfig::Skip).await?;
@@ -174,6 +178,7 @@ async fn flaky_test_start_stop_optimistic_instant_finality() -> anyhow::Result<(
     Ok(())
 }
 
+#[ignore = "TODO: The proof namespace is disabled, see: #2487"]
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_test_start_stop_optimistic_non_instant_finality() -> anyhow::Result<()> {
     start_stop_empty(OperatingMode::Optimistic, 3, RollupProverConfig::Skip).await?;
@@ -188,6 +193,7 @@ async fn flaky_test_start_stop_optimistic_non_instant_finality() -> anyhow::Resu
 //     matches!(skip_guest_build.to_lowercase().as_str(), "" | "0" | "false")
 // }
 
+#[ignore = "TODO: The proof namespace is disabled, see: #2487"]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_start_prover_manual() -> anyhow::Result<()> {
     let records = Arc::new(Mutex::new(Vec::new()));

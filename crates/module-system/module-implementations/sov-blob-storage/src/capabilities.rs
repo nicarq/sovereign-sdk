@@ -379,20 +379,16 @@ impl<S: Spec> BlobStorage<S> {
             .unwrap_or_default();
 
         // 1. Extract all the new preferred blobs from the input
-        let separated_proofs =
-            self.separate_preffered_blobs(current_blobs.proof_blobs, preferred_sender);
+        // TODO: The proof namespace is disabled, see: #2487
+        // let separated_proofs =
+        //    self.separate_preffered_blobs(current_blobs.proof_blobs, preferred_sender);
         let separated_batches =
             self.separate_preffered_blobs(current_blobs.batch_blobs, preferred_sender);
-        let well_formed_preferred_blobs = separated_proofs
+        let well_formed_preferred_blobs = separated_batches
             .preferred_blobs
             .into_iter()
-            .map(BlobOrigin::Proof)
-            .chain(
-                separated_batches
-                    .preferred_blobs
-                    .into_iter()
-                    .map(BlobOrigin::Batch),
-            )
+            // TODO: The proof namespace is disabled, see: #2487
+            .map(BlobOrigin::Batch)
             .filter_map(|blob| match blob {
                 BlobOrigin::Proof(proof_blob) => self
                     .deserialize_or_try_slash_sender::<PreferredProofData>(proof_blob, true, state)
@@ -489,13 +485,9 @@ impl<S: Spec> BlobStorage<S> {
         let all_non_preferred_blobs = separated_batches
             .non_preferred_blobs
             .into_iter()
-            .map(BlobOrigin::Batch)
-            .chain(
-                separated_proofs
-                    .non_preferred_blobs
-                    .into_iter()
-                    .map(BlobOrigin::Proof),
-            );
+            // TODO: The proof namespace is disabled, see: #2487
+            .map(BlobOrigin::Batch);
+
         if should_use_blobs_from_this_slot {
             self.select_blobs_da_ordering_helper(
                 all_non_preferred_blobs,

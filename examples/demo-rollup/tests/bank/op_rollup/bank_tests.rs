@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)]
 use std::sync::Arc;
 
 use serde::Deserialize;
@@ -17,7 +18,8 @@ use crate::test_helpers::*;
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_bank_tx_tests() -> anyhow::Result<()> {
     let test_case = TestCase {
-        wait_for_aggregated_proof: true,
+        // TODO: The proof namespace is disabled, see: #2487
+        wait_for_aggregated_proof: false,
         finalization_blocks: 0,
     };
 
@@ -27,6 +29,10 @@ async fn flaky_bank_tx_tests() -> anyhow::Result<()> {
         test_case.finalization_blocks,
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
+    .set_config(|c| {
+        // TODO: The proof namespace is disabled, see: #2487
+        c.rollup_prover_config = None;
+    })
     .start()
     .await?;
 
@@ -90,12 +96,13 @@ async fn send_test_bank_txs(
         )
         .await?;
 
-        let mut max_attested_height = get_max_attested_height(client).await?;
-        while max_attested_height < slot_number {
-            // In some cases, the attestation may not be ready just yet. Let's try again in a bit.
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-            max_attested_height = get_max_attested_height(client).await?;
-        }
+        // TODO: The proof namespace is disabled, see: #2487
+        // let mut max_attested_height = get_max_attested_height(client).await?;
+        // while max_attested_height < slot_number {
+        // // In some cases, the attestation may not be ready just yet. Let's try again in a bit.
+        //     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        //     max_attested_height = get_max_attested_height(client).await?;
+        // }
 
         da_service.produce_n_blocks_now(1).await.unwrap();
     }
