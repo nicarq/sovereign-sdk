@@ -186,14 +186,7 @@ where
         create_rollup_block: bool,
         checkpoint: StateCheckpoint<S>,
     ) -> MaterializedUpdate<S::Storage> {
-        use sov_modules_api::macros::config_value;
-
-        let state_root_delay_blocks = config_value!("STATE_ROOT_DELAY_BLOCKS");
-        if state_root_delay_blocks == 0 {
-            // TODO: If the user is running soft confirmations and has STATE_ROOT_DELAY_BLOCKS set to 0, this might cause an error.
-            tracing::error!("Setting state root delay blocks to 0 is currently unsupported. If you need state roots with no delay, please contact the SDK maintainers.");
-            panic!("STATE_ROOT_DELAY_BLOCKS is set to 0.");
-        }
+        let state_root_delay_blocks = Self::check_state_root_delay();
 
         let rollup_height = checkpoint.rollup_height_to_access();
         let (next_root_hash, mut state_update, mut accessory_delta, witness, storage) =
@@ -252,12 +245,26 @@ where
         <S::Storage as Storage>::ChangeSet,
     ) {
         use sov_state::Witness;
+
+        Self::check_state_root_delay();
+
         let (next_root_hash, state_update, _, witness, storage) = checkpoint.materialize_update();
 
         let change_set = storage.materialize_changes(&state_update);
         assert!(witness.is_empty(), "Non-native execution must completely consume the witness! The prover may be malicious, or this may be a bug.");
 
         (next_root_hash, witness, change_set)
+    }
+
+    fn check_state_root_delay() -> u64 {
+        let state_root_delay_blocks =
+            sov_modules_api::macros::config_value!("STATE_ROOT_DELAY_BLOCKS");
+        if state_root_delay_blocks == 0 {
+            tracing::error!("Setting state root delay blocks to 0 is currently unsupported. If you need state roots with no delay, please contact the SDK maintainers.");
+            panic!("STATE_ROOT_DELAY_BLOCKS is set to 0.");
+        }
+
+        state_root_delay_blocks
     }
 }
 
