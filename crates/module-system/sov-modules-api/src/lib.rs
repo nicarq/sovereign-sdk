@@ -383,3 +383,9 @@ macro_rules! native_only {
 macro_rules! native_only {
     ($($code:tt)*) => {};
 }
+
+/// Interprets usize as u32, panicking if it overflows.
+pub fn as_u32_or_panic(val: usize) -> u32 {
+    val.try_into()
+        .expect("Overflow: Unable to cast usize to u32.")
+}

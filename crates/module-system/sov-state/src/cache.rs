@@ -160,7 +160,7 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         storage: &S,
         witness: &S::Witness,
         version: Option<SlotNumber>,
-    ) -> Option<u64> {
+    ) -> Option<u32> {
         match self.tx_cache.log.get(key) {
             Some(Access::Read { original }) => original.as_ref().map(|node| node.leaf.size),
             Some(Access::Write { modified }) => modified.as_ref().map(SlotValue::size),

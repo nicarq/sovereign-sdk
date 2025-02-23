@@ -20,7 +20,7 @@ impl<'a, S: Spec> UniversalStateAccessor for BootstrapWorkingSet<'a, S> {
         self.inner.is_value_cached(namespace, key)
     }
 
-    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         self.inner.get_size(namespace, key)
     }
 
@@ -125,7 +125,7 @@ impl<S: Spec> UniversalStateAccessor for KernelStateAccessor<'_, S> {
         self.checkpoint.is_value_cached(namespace, key)
     }
 
-    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         self.checkpoint.get_size(namespace, key)
     }
 

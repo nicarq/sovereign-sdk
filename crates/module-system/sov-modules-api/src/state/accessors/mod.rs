@@ -47,7 +47,7 @@ pub(super) mod seal {
     pub trait UniversalStateAccessor {
         fn is_value_cached(&self, namespace: Namespace, key: &SlotKey) -> IsValueCached;
 
-        fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64>;
+        fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32>;
 
         fn get_value(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue>;
 

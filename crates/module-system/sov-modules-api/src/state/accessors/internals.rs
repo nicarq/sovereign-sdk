@@ -112,7 +112,7 @@ impl<S: Storage> Delta<S> {
         }
     }
 
-    pub fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+    pub fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         match namespace {
             Namespace::User => {
                 self.user_cache
@@ -204,7 +204,7 @@ impl<S: Storage> UniversalStateAccessor for AccessoryDelta<S> {
         }
     }
 
-    fn get_size(&mut self, _namespace: Namespace, key: &SlotKey) -> Option<u64> {
+    fn get_size(&mut self, _namespace: Namespace, key: &SlotKey) -> Option<u32> {
         if let Some(value) = self.writes.get(key) {
             return value.clone().map(|v| v.size());
         }
@@ -299,7 +299,7 @@ where
             <T as UniversalStateAccessor>::is_value_cached(&self.inner, namespace, key)
         }
     }
-    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         if let Some(value) = self.writes.get(&(key.clone(), namespace)) {
             value.as_ref().map(|v| v.size())
         } else {

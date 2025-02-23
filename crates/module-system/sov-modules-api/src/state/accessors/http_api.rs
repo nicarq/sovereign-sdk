@@ -45,7 +45,7 @@ impl<S: Spec> UniversalStateAccessor for ApiStateAccessor<S> {
         }
     }
 
-    fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u64> {
+    fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u32> {
         match namespace {
             Namespace::User => self.user_cache.get_size_or_fetch(
                 key,
