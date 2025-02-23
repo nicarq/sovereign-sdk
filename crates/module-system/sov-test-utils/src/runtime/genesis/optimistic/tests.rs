@@ -167,6 +167,7 @@ fn create_test_rt_genesis_config<S: Spec>(
         bank: BankConfig {
             gas_token_config: sov_bank::GasTokenConfig {
                 token_name: token_name.clone(),
+                supply_cap: None,
                 address_and_balances: {
                     let mut additional_accounts_vec = additional_accounts.to_vec();
                     additional_accounts_vec.append(&mut vec![

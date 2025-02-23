@@ -1,5 +1,6 @@
 ---
 source: crates/full-node/sov-ledger-apis/tests/integration/main.rs
+assertion_line: 166
 expression: response.data
 ---
 {
@@ -22,6 +23,7 @@ expression: response.data
       "minter": {
         "module": "module_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqn7stmj"
       },
+      "supply_cap": 18446744073709551615,
       "token_name": "token"
     }
   }

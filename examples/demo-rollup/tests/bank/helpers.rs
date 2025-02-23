@@ -69,6 +69,7 @@ pub(crate) fn build_create_token_tx(
         initial_balance,
         mint_to_address: user_address.into(),
         admins: SafeVec::new(),
+        supply_cap: None,
     });
     default_test_signed_transaction(key, &msg, nonce, &CHAIN_HASH)
 }

@@ -13,6 +13,7 @@ fn test_create_token() {
     let msg = CallMessage::CreateToken::<S> {
         token_name: "my-token".try_into().unwrap(),
         initial_balance: 100_000_000,
+        supply_cap: None,
         mint_to_address: <S as Spec>::Address::from_str(
             "sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s85ar2a",
         )
@@ -20,7 +21,7 @@ fn test_create_token() {
         admins: SafeVec::new(),
     };
 
-    assert_eq!(schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(), "CreateToken { token_name: \"my-token\", initial_balance: 100000000, mint_to_address: sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s85ar2a, admins: [] }");
+    assert_eq!(schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(), "CreateToken { token_name: \"my-token\", initial_balance: 100000000, mint_to_address: sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s85ar2a, admins: [], supply_cap: None }");
 }
 
 #[test]

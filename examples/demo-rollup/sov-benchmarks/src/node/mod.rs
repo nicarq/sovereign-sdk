@@ -62,6 +62,7 @@ fn generate_initial_slots(
             admins: vec![roles.bank_admin.address()]
                 .try_into()
                 .expect("Tokens can have at least one minter"),
+            supply_cap: None,
         },
     );
 

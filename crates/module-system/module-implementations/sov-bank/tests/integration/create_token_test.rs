@@ -1,5 +1,5 @@
 use sov_bank::utils::TokenHolder;
-use sov_bank::{get_token_id, Bank};
+use sov_bank::{get_token_id, Amount, Bank};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::genesis::TestTokenName;
@@ -36,6 +36,7 @@ fn create_token() {
             token_name: token_name.try_into().unwrap(),
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: user_high_token_balance_address,
+            supply_cap: Some(INITIAL_TOKEN_BALANCE),
             admins: vec![user_no_token_balance_address, minter_address]
                 .try_into()
                 .expect("Tokens can have at least one minter"),
@@ -56,7 +57,8 @@ fn create_token() {
                     admins: vec![
                         TokenHolder::User(user_no_token_balance_address),
                         TokenHolder::User(minter_address)
-                    ]
+                    ],
+                    supply_cap: INITIAL_TOKEN_BALANCE,
                 }),
                 "The event should be a TokenCreated event"
             );
@@ -125,6 +127,7 @@ fn create_token_and_mint() {
             token_name: token_name.try_into().unwrap(),
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: minter_address,
+            supply_cap: None,
             admins: vec![minter_address]
                 .try_into()
                 .expect("Tokens can have at least one minter"),
@@ -142,7 +145,8 @@ fn create_token_and_mint() {
                     },
                     minter: sov_bank::utils::TokenHolder::User(minter_address),
                     mint_to_address: sov_bank::utils::TokenHolder::User(minter_address),
-                    admins: vec![sov_bank::utils::TokenHolder::User(minter_address)]
+                    admins: vec![sov_bank::utils::TokenHolder::User(minter_address)],
+                    supply_cap: Amount::MAX,
                 }),
                 "The event should be a TokenCreated event"
             );
@@ -207,6 +211,95 @@ fn create_token_and_mint() {
     });
 }
 
+/// Check that we can create a token and mint them to a user.
+#[test]
+fn create_token_and_mint_fails_if_exceeds_supply_cap() {
+    let (
+        TestData {
+            minter,
+            user_no_token_balance,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    const INITIAL_TOKEN_BALANCE: u64 = 1000;
+
+    let user_no_token_balance_address = user_no_token_balance.address();
+    let minter_address = minter.as_user().address();
+    let token_name = "Token1";
+    let token_id = get_token_id::<S>(token_name, &minter_address);
+
+    // Try to create a token and mint more than the supply cap. SHuld fail
+    runner.execute_transaction(TransactionTestCase {
+        input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::CreateToken {
+            token_name: token_name.try_into().unwrap(),
+            initial_balance: INITIAL_TOKEN_BALANCE,
+            mint_to_address: minter_address,
+            supply_cap: Some(INITIAL_TOKEN_BALANCE - 1),
+            admins: vec![minter_address]
+                .try_into()
+                .expect("Tokens can have at least one minter"),
+        }),
+        assert: Box::new(move |result, _state| {
+            assert!(result.tx_receipt.is_reverted());
+        }),
+    });
+
+    // Try to create a token with the correct supply cap. Should succeed
+    runner.execute_transaction(TransactionTestCase {
+        input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::CreateToken {
+            token_name: token_name.try_into().unwrap(),
+            initial_balance: INITIAL_TOKEN_BALANCE,
+            mint_to_address: minter_address,
+            supply_cap: Some(INITIAL_TOKEN_BALANCE),
+            admins: vec![minter_address]
+                .try_into()
+                .expect("Tokens can have at least one minter"),
+        }),
+        assert: Box::new(move |result, state| {
+            assert!(result.tx_receipt.is_successful());
+            assert_eq!(result.events.len(), 1, "There should be one event emitted");
+            assert_eq!(
+                result.events[0],
+                TestBankRuntimeEvent::Bank(sov_bank::event::Event::TokenCreated {
+                    token_name: token_name.to_string(),
+                    coins: sov_bank::Coins {
+                        amount: INITIAL_TOKEN_BALANCE,
+                        token_id
+                    },
+                    minter: sov_bank::utils::TokenHolder::User(minter_address),
+                    mint_to_address: sov_bank::utils::TokenHolder::User(minter_address),
+                    admins: vec![sov_bank::utils::TokenHolder::User(minter_address)],
+                    supply_cap: INITIAL_TOKEN_BALANCE,
+                }),
+                "The event should be a TokenCreated event"
+            );
+
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_balance_of(&user_no_token_balance_address, token_id, state)
+                    .unwrap(),
+                None
+            );
+        }),
+    });
+
+    // Try to mint more than the supply cap. Should fail
+    runner.execute_transaction(TransactionTestCase {
+        input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Mint {
+            coins: sov_bank::Coins {
+                amount: 1,
+                token_id,
+            },
+            mint_to_address: user_no_token_balance_address,
+        }),
+        assert: Box::new(move |result, _state| {
+            assert!(result.tx_receipt.is_reverted());
+        }),
+    });
+}
+
 #[test]
 fn test_create_token_fails_with_duplicate_ids() {
     let (
@@ -233,6 +326,7 @@ fn test_create_token_fails_with_duplicate_ids() {
                 token_name: token_name.try_into().unwrap(),
                 initial_balance: INITIAL_TOKEN_BALANCE,
                 mint_to_address: user_high_token_balance_address,
+                supply_cap: None,
                 admins: vec![user_no_token_balance_address, minter_address]
                     .try_into()
                     .expect("Tokens can have at least one minter"),
@@ -246,6 +340,7 @@ fn test_create_token_fails_with_duplicate_ids() {
                 token_name: token_name.try_into().unwrap(),
                 initial_balance: INITIAL_TOKEN_BALANCE,
                 mint_to_address: user_high_token_balance_address,
+                supply_cap: None,
                 admins: vec![user_no_token_balance_address, minter_address]
                     .try_into()
                     .expect("Tokens can have at least one minter"),

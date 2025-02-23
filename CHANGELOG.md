@@ -1,3 +1,6 @@
+## 2025-02-22
+- #2492 Allows setting the supply cap of a token during initialization. This cap cannot be modified later on, even by authorized minters. 
+
 ## 2025-02-20
 - #2483 Disable the proof processing code path in the STF blueprint. See Issue #2487.
 ## 2025-02-20

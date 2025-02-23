@@ -35,6 +35,7 @@ impl<S: Spec> BankMessageGenerator<S> {
                 initial_balance: Arbitrary::arbitrary(u)?,
                 mint_to_address: Arbitrary::arbitrary(u)?,
                 admins: Arbitrary::arbitrary(u)?,
+                supply_cap: None,
             },
             acct.private_key.clone(),
             MessageOutcome::Reverted,
@@ -110,6 +111,7 @@ impl<S: Spec> BankMessageGenerator<S> {
                 initial_balance: amount,
                 mint_to_address: recipient_address.clone(),
                 admins: minters,
+                supply_cap: None,
             },
             creator_key,
             MessageOutcome::Successful {

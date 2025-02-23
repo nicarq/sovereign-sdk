@@ -65,6 +65,15 @@
             "$ref": "#/definitions/Address"
           }
         },
+        "supply_cap": {
+          "description": "The supply cap of the token, if any.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
         "token_name": {
           "description": "The name of the token.",
           "type": "string"
@@ -106,6 +115,15 @@
           "items": {
             "$ref": "#/definitions/Address"
           }
+        },
+        "supply_cap": {
+          "description": "The supply cap of the token, if any.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
         },
         "token_id": {
           "description": "Predetermined ID of the token. Allowed only for genesis tokens.",

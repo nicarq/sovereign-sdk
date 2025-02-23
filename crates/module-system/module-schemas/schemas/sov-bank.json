@@ -41,6 +41,15 @@
                 }
               ]
             },
+            "supply_cap": {
+              "description": "The supply cap of the new token, if any.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "token_name": {
               "description": "The name of the new token.",
               "allOf": [

@@ -123,6 +123,7 @@ fn generate_tx_with_nonce(user: &TestUser<TestSpec>, nonce: u64) -> RawTx {
             initial_balance: 1000,
             mint_to_address: user.address(),
             admins: SafeVec::new(),
+            supply_cap: None,
         },
     );
 

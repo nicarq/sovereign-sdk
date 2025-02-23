@@ -1,4 +1,4 @@
-pub const CHAIN_HASH: [u8; 32] = [128, 85, 242, 44, 11, 68, 148, 186, 101, 183, 193, 144, 119, 41, 130, 140, 192, 214, 24, 33, 80, 159, 174, 241, 167, 87, 229, 28, 16, 144, 238, 228];
+pub const CHAIN_HASH: [u8; 32] = [223, 93, 41, 54, 234, 33, 26, 121, 202, 10, 125, 38, 71, 195, 155, 139, 17, 238, 24, 200, 99, 128, 48, 139, 65, 195, 8, 146, 128, 147, 133, 8];
 
 #[allow(dead_code)]
 pub const SCHEMA_JSON: &str = r#"{
@@ -126,7 +126,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "sequencer_registry",
             "template": null,
             "value": {
-              "ByIndex": 19
+              "ByIndex": 20
             }
           },
           {
@@ -134,7 +134,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "value_setter",
             "template": null,
             "value": {
-              "ByIndex": 26
+              "ByIndex": 27
             }
           },
           {
@@ -142,7 +142,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "attester_incentives",
             "template": null,
             "value": {
-              "ByIndex": 34
+              "ByIndex": 35
             }
           },
           {
@@ -150,7 +150,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "prover_incentives",
             "template": null,
             "value": {
-              "ByIndex": 39
+              "ByIndex": 40
             }
           },
           {
@@ -158,7 +158,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "accounts",
             "template": null,
             "value": {
-              "ByIndex": 43
+              "ByIndex": 44
             }
           },
           {
@@ -166,7 +166,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "uniqueness",
             "template": null,
             "value": {
-              "ByIndex": 48
+              "ByIndex": 49
             }
           },
           {
@@ -174,7 +174,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "chain_state",
             "template": null,
             "value": {
-              "ByIndex": 50
+              "ByIndex": 51
             }
           },
           {
@@ -182,7 +182,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "blob_storage",
             "template": null,
             "value": {
-              "ByIndex": 51
+              "ByIndex": 52
             }
           },
           {
@@ -190,7 +190,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "paymaster",
             "template": null,
             "value": {
-              "ByIndex": 52
+              "ByIndex": 53
             }
           },
           {
@@ -237,7 +237,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "transfer",
             "template": "Transfer to address {} {}.",
             "value": {
-              "ByIndex": 13
+              "ByIndex": 14
             }
           },
           {
@@ -245,7 +245,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "burn",
             "template": null,
             "value": {
-              "ByIndex": 16
+              "ByIndex": 17
             }
           },
           {
@@ -253,7 +253,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "mint",
             "template": null,
             "value": {
-              "ByIndex": 17
+              "ByIndex": 18
             }
           },
           {
@@ -261,7 +261,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "freeze",
             "template": null,
             "value": {
-              "ByIndex": 18
+              "ByIndex": 19
             }
           }
         ],
@@ -312,6 +312,15 @@ pub const SCHEMA_JSON: &str = r#"{
             "silent": false,
             "value": {
               "ByIndex": 12
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "supply_cap",
+            "serde_display_name": "supply_cap",
+            "silent": false,
+            "value": {
+              "ByIndex": 13
             },
             "doc": ""
           }
@@ -421,6 +430,18 @@ pub const SCHEMA_JSON: &str = r#"{
       }
     },
     {
+      "Option": {
+        "value": {
+          "Immediate": {
+            "Integer": [
+              "u64",
+              "Decimal"
+            ]
+          }
+        }
+      }
+    },
+    {
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_Transfer",
         "serde_type_name": "__SovVirtualWallet_CallMessage_Transfer",
@@ -440,7 +461,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "coins",
             "silent": false,
             "value": {
-              "ByIndex": 14
+              "ByIndex": 15
             },
             "doc": ""
           }
@@ -472,7 +493,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "token_id",
             "silent": false,
             "value": {
-              "ByIndex": 15
+              "ByIndex": 16
             },
             "doc": ""
           }
@@ -513,7 +534,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "coins",
             "silent": false,
             "value": {
-              "ByIndex": 14
+              "ByIndex": 15
             },
             "doc": ""
           }
@@ -531,7 +552,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "coins",
             "silent": false,
             "value": {
-              "ByIndex": 14
+              "ByIndex": 15
             },
             "doc": ""
           },
@@ -558,7 +579,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "token_id",
             "silent": false,
             "value": {
-              "ByIndex": 15
+              "ByIndex": 16
             },
             "doc": ""
           }
@@ -571,7 +592,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 20
+              "ByIndex": 21
             },
             "silent": false,
             "doc": ""
@@ -589,7 +610,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "register",
             "template": null,
             "value": {
-              "ByIndex": 21
+              "ByIndex": 22
             }
           },
           {
@@ -597,7 +618,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "deposit",
             "template": null,
             "value": {
-              "ByIndex": 23
+              "ByIndex": 24
             }
           },
           {
@@ -605,7 +626,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "initiate_withdrawal",
             "template": null,
             "value": {
-              "ByIndex": 24
+              "ByIndex": 25
             }
           },
           {
@@ -613,7 +634,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "withdraw",
             "template": null,
             "value": {
-              "ByIndex": 25
+              "ByIndex": 26
             }
           }
         ],
@@ -631,7 +652,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "da_address",
             "silent": false,
             "value": {
-              "ByIndex": 22
+              "ByIndex": 23
             },
             "doc": ""
           },
@@ -682,7 +703,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "da_address",
             "silent": false,
             "value": {
-              "ByIndex": 22
+              "ByIndex": 23
             },
             "doc": ""
           },
@@ -714,7 +735,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "da_address",
             "silent": false,
             "value": {
-              "ByIndex": 22
+              "ByIndex": 23
             },
             "doc": ""
           }
@@ -732,7 +753,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "da_address",
             "silent": false,
             "value": {
-              "ByIndex": 22
+              "ByIndex": 23
             },
             "doc": ""
           }
@@ -745,7 +766,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 27
+              "ByIndex": 28
             },
             "silent": false,
             "doc": ""
@@ -763,7 +784,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "set_value",
             "template": null,
             "value": {
-              "ByIndex": 28
+              "ByIndex": 29
             }
           },
           {
@@ -771,7 +792,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "set_many_values",
             "template": null,
             "value": {
-              "ByIndex": 32
+              "ByIndex": 33
             }
           },
           {
@@ -779,7 +800,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "assert_visible_slot_number",
             "template": null,
             "value": {
-              "ByIndex": 33
+              "ByIndex": 34
             }
           }
         ],
@@ -811,7 +832,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "gas",
             "silent": false,
             "value": {
-              "ByIndex": 29
+              "ByIndex": 30
             },
             "doc": ""
           }
@@ -821,7 +842,7 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Option": {
         "value": {
-          "ByIndex": 30
+          "ByIndex": 31
         }
       }
     },
@@ -831,7 +852,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 31
+              "ByIndex": 32
             },
             "silent": false,
             "doc": ""
@@ -899,7 +920,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 35
+              "ByIndex": 36
             },
             "silent": false,
             "doc": ""
@@ -917,7 +938,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "register_attester",
             "template": null,
             "value": {
-              "ByIndex": 36
+              "ByIndex": 37
             }
           },
           {
@@ -937,7 +958,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "register_challenger",
             "template": null,
             "value": {
-              "ByIndex": 37
+              "ByIndex": 38
             }
           },
           {
@@ -951,7 +972,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "deposit_attester",
             "template": null,
             "value": {
-              "ByIndex": 38
+              "ByIndex": 39
             }
           }
         ],
@@ -1021,7 +1042,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 40
+              "ByIndex": 41
             },
             "silent": false,
             "doc": ""
@@ -1039,7 +1060,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "register",
             "template": null,
             "value": {
-              "ByIndex": 41
+              "ByIndex": 42
             }
           },
           {
@@ -1047,7 +1068,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "deposit",
             "template": null,
             "value": {
-              "ByIndex": 42
+              "ByIndex": 43
             }
           },
           {
@@ -1104,7 +1125,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 44
+              "ByIndex": 45
             },
             "silent": false,
             "doc": ""
@@ -1122,7 +1143,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "insert_credential_id",
             "template": null,
             "value": {
-              "ByIndex": 45
+              "ByIndex": 46
             }
           }
         ],
@@ -1135,7 +1156,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 46
+              "ByIndex": 47
             },
             "silent": false,
             "doc": ""
@@ -1149,7 +1170,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 47
+              "ByIndex": 48
             },
             "silent": false,
             "doc": ""
@@ -1182,7 +1203,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 49
+              "ByIndex": 50
             },
             "silent": false,
             "doc": ""
@@ -1204,7 +1225,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 49
+              "ByIndex": 50
             },
             "silent": false,
             "doc": ""
@@ -1218,7 +1239,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 49
+              "ByIndex": 50
             },
             "silent": false,
             "doc": ""
@@ -1232,7 +1253,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 53
+              "ByIndex": 54
             },
             "silent": false,
             "doc": ""
@@ -1250,7 +1271,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "register_paymaster",
             "template": null,
             "value": {
-              "ByIndex": 54
+              "ByIndex": 55
             }
           },
           {
@@ -1284,7 +1305,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "policy",
             "silent": false,
             "value": {
-              "ByIndex": 55
+              "ByIndex": 56
             },
             "doc": ""
           }
@@ -1302,7 +1323,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "default_payee_policy",
             "silent": false,
             "value": {
-              "ByIndex": 56
+              "ByIndex": 57
             },
             "doc": ""
           },
@@ -1346,7 +1367,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_name": "allow",
             "template": null,
             "value": {
-              "ByIndex": 57
+              "ByIndex": 58
             }
           },
           {
@@ -1370,7 +1391,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "max_fee",
             "silent": false,
             "value": {
-              "ByIndex": 58
+              "ByIndex": 13
             },
             "doc": ""
           },
@@ -1379,7 +1400,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "gas_limit",
             "silent": false,
             "value": {
-              "ByIndex": 29
+              "ByIndex": 30
             },
             "doc": ""
           },
@@ -1393,18 +1414,6 @@ pub const SCHEMA_JSON: &str = r#"{
             "doc": ""
           }
         ]
-      }
-    },
-    {
-      "Option": {
-        "value": {
-          "Immediate": {
-            "Integer": [
-              "u64",
-              "Decimal"
-            ]
-          }
-        }
       }
     },
     {
@@ -1425,7 +1434,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "value",
             "silent": false,
             "value": {
-              "ByIndex": 31
+              "ByIndex": 32
             },
             "doc": ""
           }
@@ -1452,7 +1461,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "value": {
-              "ByIndex": 56
+              "ByIndex": 57
             },
             "silent": false,
             "doc": ""
@@ -1500,7 +1509,7 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Vec": {
         "value": {
-          "ByIndex": 22
+          "ByIndex": 23
         }
       }
     },
@@ -1707,7 +1716,7 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Option": {
         "value": {
-          "ByIndex": 56
+          "ByIndex": 57
         }
       }
     },
@@ -1799,7 +1808,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "gas_limit",
             "silent": false,
             "value": {
-              "ByIndex": 29
+              "ByIndex": 30
             },
             "doc": ""
           },
@@ -1887,38 +1896,38 @@ pub const SCHEMA_JSON: &str = r#"{
     3
   ],
   "metadata_hash": [
-    5,
-    49,
-    216,
-    221,
-    44,
-    218,
-    79,
-    11,
-    34,
-    77,
-    88,
-    27,
-    253,
-    0,
-    141,
-    14,
-    253,
-    49,
-    247,
-    80,
-    73,
-    116,
-    181,
-    199,
-    116,
+    175,
+    222,
+    243,
+    83,
+    231,
+    182,
+    15,
+    118,
     43,
-    194,
-    99,
-    185,
-    153,
-    117,
-    198
+    57,
+    242,
+    60,
+    77,
+    159,
+    58,
+    46,
+    33,
+    55,
+    48,
+    73,
+    187,
+    196,
+    123,
+    229,
+    147,
+    249,
+    81,
+    226,
+    70,
+    215,
+    150,
+    75
   ],
   "templates": [
     {},
@@ -1957,7 +1966,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "token_id",
             {
               "type_link": {
-                "ByIndex": 15
+                "ByIndex": 16
               },
               "offset": 2
             }

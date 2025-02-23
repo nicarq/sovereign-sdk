@@ -47,6 +47,7 @@ fn gas_test_setup(
         input: user.create_plain_message::<RT, Bank<S>>(CallMessage::CreateToken {
             token_name: "sov-test-token".try_into().unwrap(),
             initial_balance: 1000,
+            supply_cap: None,
             mint_to_address: user.address(),
             admins: SafeVec::new(),
         }),

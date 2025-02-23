@@ -44,6 +44,8 @@ pub enum CallMessage<S: Spec> {
         mint_to_address: S::Address,
         /// Admins list.
         admins: SafeVec<S::Address, MAX_ADMINS>,
+        /// The supply cap of the new token, if any.
+        supply_cap: Option<Amount>,
     },
 
     /// Transfers a specified amount of tokens to the specified address.
@@ -88,10 +90,19 @@ impl<S: Spec> Bank<S> {
         initial_balance: Amount,
         mint_to_address: impl Payable<S>,
         admins: Vec<impl Payable<S>>,
+        supply_cap: Option<Amount>,
         minter: impl Payable<S>,
         state: &mut impl TxState<S>,
     ) -> Result<TokenId> {
         tracing::trace!(%minter, "Create token request");
+
+        if initial_balance > supply_cap.unwrap_or(Amount::MAX) {
+            bail!(
+                "Requested initial balance {} is greater than the supply cap {}",
+                initial_balance,
+                supply_cap.unwrap_or(Amount::MAX)
+            );
+        }
 
         let mint_to_address = mint_to_address.as_token_holder();
         let admins = admins
@@ -105,6 +116,7 @@ impl<S: Spec> Bank<S> {
         let token = Token::<S> {
             name: token_name.to_owned(),
             total_supply: initial_balance,
+            supply_cap: supply_cap.unwrap_or(Amount::MAX),
             admins: admins.clone(),
         };
 
@@ -141,6 +153,7 @@ impl<S: Spec> Bank<S> {
                 },
                 mint_to_address: mint_to_address.into(),
                 minter: minter.as_token_holder().into(),
+                supply_cap: supply_cap.unwrap_or(Amount::MAX),
                 admins,
             },
         );
