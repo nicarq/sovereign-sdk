@@ -26,7 +26,7 @@ fn test_charge_gas_to_set() {
     let value = SlotValue::from("value");
     let gas_set_cost =
         <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_PER_BYTE_FOR_COLD_WRITE"))
-            .checked_scalar_product(value.size())
+            .checked_scalar_product(value.size() as u64)
             .unwrap();
     let remaining_funds = gas_set_cost.value(&gas_price);
 
@@ -74,12 +74,12 @@ fn test_charge_gas_set_then_retrieve() {
     let gas_access_cost = <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_FOR_HOT_ACCESS"));
     let gas_load_cost =
         <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_PER_BYTE_FOR_HOT_LOAD"))
-            .checked_scalar_product(value.size())
+            .checked_scalar_product(value.size() as u64)
             .unwrap();
 
     let gas_set_cost =
         <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_PER_BYTE_FOR_COLD_WRITE"))
-            .checked_scalar_product(value.size())
+            .checked_scalar_product(value.size() as u64)
             .unwrap();
 
     let remaining_funds = gas_access_cost.value(&gas_price)

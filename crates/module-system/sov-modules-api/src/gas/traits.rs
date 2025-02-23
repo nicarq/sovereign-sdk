@@ -494,7 +494,7 @@ pub trait GasMeter {
     fn charge_linear_gas(
         &mut self,
         _amount: &<Self::Spec as Spec>::Gas,
-        _parameter: u64,
+        _parameter: u32,
     ) -> Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
         Ok(())
     }
@@ -750,9 +750,9 @@ impl<S: Spec> GasMeter for BasicGasMeter<S> {
     fn charge_linear_gas(
         &mut self,
         amount: &S::Gas,
-        parameter: u64,
+        parameter: u32,
     ) -> Result<(), GasMeteringError<<S as Spec>::Gas>> {
-        self.charge_gas_inner(&amount.checked_scalar_product(parameter).ok_or(
+        self.charge_gas_inner(&amount.checked_scalar_product(parameter as u64).ok_or(
             GasMeteringError::Overflow(format!(
                 "Unable to charge gas. The product of {} to {} is overflowing",
                 amount, parameter
@@ -762,7 +762,7 @@ impl<S: Spec> GasMeter for BasicGasMeter<S> {
         #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
         if let Some(name) = amount.name() {
             sov_metrics::GAS_CONSTANTS.with(|var| {
-                let param_i64 = parameter.try_into().unwrap();
+                let param_i64 = parameter.into();
 
                 let mut var = var.borrow_mut();
 

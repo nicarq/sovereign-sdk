@@ -3,8 +3,8 @@ use sov_bank::IntoPayable;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    BatchWithId, BlobDataWithId, CryptoSpec, DaSpec, Gas, GasArray, GasSpec, KernelStateAccessor,
-    ModuleInfo, PrivilegedKernelAccessor, Spec,
+    as_u32_or_panic, BatchWithId, BlobDataWithId, CryptoSpec, DaSpec, Gas, GasArray, GasSpec,
+    KernelStateAccessor, ModuleInfo, PrivilegedKernelAccessor, Spec,
 };
 
 use crate::max_size_checker::BlobsWithTotalSizeLimit;
@@ -32,7 +32,7 @@ impl<S: Spec> BlobStorage<S> {
     /// That check can be done with no guesswork.
     pub(crate) fn validate_blob(
         &self,
-        idx: u64,
+        idx: u32,
         blob: BlobDataWithId<S, BatchWithId<S>>,
         sender: <<S as Spec>::Da as DaSpec>::Address,
         available_balance: u64,
@@ -58,7 +58,7 @@ impl<S: Spec> BlobStorage<S> {
 
         // We need to run 1 pre-flight check for each tx in the batch, or 1 for the proof
         let num_pre_exec_checks_needed = if let BlobDataWithId::Batch(batch) = &blob {
-            batch.batch.len()
+            as_u32_or_panic(batch.batch.len())
         } else {
             1
         };
@@ -143,7 +143,7 @@ impl<S: Spec> BlobStorage<S> {
     fn compute_derived_holder(
         &self,
         blob: &BlobDataWithId<S, BatchWithId<S>>,
-        idx: u64,
+        idx: u32,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> DerivedHolder {
         let mut hasher = <S::CryptoSpec as CryptoSpec>::Hasher::new();
@@ -154,9 +154,9 @@ impl<S: Spec> BlobStorage<S> {
         DerivedHolder::from(hash)
     }
 
-    pub(crate) fn num_pre_exec_checks_needed(blob: &BlobDataWithId<S, BatchWithId<S>>) -> u64 {
+    pub(crate) fn num_pre_exec_checks_needed(blob: &BlobDataWithId<S, BatchWithId<S>>) -> u32 {
         if let BlobDataWithId::Batch(batch) = blob {
-            batch.batch.len() as u64
+            as_u32_or_panic(batch.batch.len())
         } else {
             1
         }
@@ -174,11 +174,11 @@ impl<S: Spec> BlobStorage<S> {
 
         let num_pre_exec_checks_needed = Self::num_pre_exec_checks_needed(blob);
         let estimated_bytes_to_store =
-            ValidatedBlob::conservative_serialized_size(blob, sender) as u64;
+            as_u32_or_panic(ValidatedBlob::conservative_serialized_size(blob, sender));
 
         // In the worst case that we handle, the gas price will double - so we need to reserve enough funds to cover the pre exec checks one more time.
         let worst_case_increase_in_pre_exec_checks_gas = <S as GasSpec>::max_tx_check_costs()
-            .checked_scalar_product(num_pre_exec_checks_needed)?;
+            .checked_scalar_product(num_pre_exec_checks_needed as u64)?;
         let worst_case_increase_in_pre_exec_checks_tokens =
             worst_case_increase_in_pre_exec_checks_gas.checked_value(current_gas_price)?;
 
@@ -186,7 +186,7 @@ impl<S: Spec> BlobStorage<S> {
         let fixed_cost_of_storing =
             <S as GasSpec>::gas_to_charge_for_cold_access().checked_value(current_gas_price)?;
         let variable_cost_of_storing = <S as GasSpec>::gas_to_charge_per_byte_for_cold_write()
-            .checked_scalar_product(estimated_bytes_to_store)?
+            .checked_scalar_product(estimated_bytes_to_store as u64)?
             .checked_value(current_gas_price)?;
         let tokens_needed_for_storage =
             fixed_cost_of_storing.checked_add(variable_cost_of_storing)?;
@@ -197,7 +197,9 @@ impl<S: Spec> BlobStorage<S> {
             .checked_scalar_product(WORST_CASE_GAS_PRICE_INCREASE)?
             .checked_value(current_gas_price)?;
         let variable_cost_of_retrieval = <S as GasSpec>::gas_to_charge_per_byte_for_cold_load()
-            .checked_scalar_product(WORST_CASE_GAS_PRICE_INCREASE * estimated_bytes_to_store)?
+            .checked_scalar_product(
+                WORST_CASE_GAS_PRICE_INCREASE * (estimated_bytes_to_store as u64),
+            )?
             .checked_value(current_gas_price)?;
         let tokens_needed_for_retrieval =
             fixed_cost_of_retrieval.checked_add(variable_cost_of_retrieval)?;

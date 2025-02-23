@@ -170,7 +170,7 @@ impl<S: Spec> UniversalStateAccessor for StateCheckpoint<S> {
         self.delta.is_value_cached(namespace, key)
     }
 
-    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         self.delta.get_size(namespace, key)
     }
 
@@ -215,7 +215,7 @@ pub mod native {
             self.checkpoint.is_value_cached(namespace, key)
         }
 
-        fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u64> {
+        fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u32> {
             self.checkpoint.get_size(namespace, key)
         }
 

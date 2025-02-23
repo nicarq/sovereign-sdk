@@ -147,7 +147,7 @@ impl SlotKey {
 }
 
 // We return `Vec<u8>`` here to be compatybile with the `JMT::put_value_set_with_proof` method.
-fn val_hash_and_size_inner(val_hash: [u8; 32], size: u64) -> Vec<u8> {
+fn val_hash_and_size_inner(val_hash: [u8; 32], size: u32) -> Vec<u8> {
     let mut val_hash_and_size = Vec::with_capacity(40);
     let size_bytes = size.to_le_bytes();
     val_hash_and_size.extend_from_slice(&val_hash);
@@ -201,8 +201,12 @@ impl SlotValue {
     }
 
     /// The size of the `SlotValue` in bytes.
-    pub fn size(&self) -> u64 {
-        self.value.len() as u64
+    /// Panics if size can't be represented as u32.
+    pub fn size(&self) -> u32 {
+        self.value
+            .len()
+            .try_into()
+            .expect("Overflow: Unable to cast usize to u32.")
     }
 
     /// Combines the value hash with its size.
@@ -250,7 +254,7 @@ pub struct NodeLeafAndMaybeValue {
 )]
 pub struct NodeLeaf {
     /// The size of the value.
-    pub(crate) size: u64,
+    pub(crate) size: u32,
     /// The hash of the value.
     pub(crate) val_hash: [u8; 32],
 }

@@ -7,7 +7,7 @@ use sov_rollup_interface::crypto::{SigVerificationError, Signature};
 use thiserror::Error;
 
 use crate::gas::traits::{Gas, GasMeter, GasMeteringError};
-use crate::{GasSpec, Spec};
+use crate::{as_u32_or_panic, GasSpec, Spec};
 
 /// A metered hasher that charges gas for each operation.
 /// This data structure should be used in the module system to charge gas when hashing data.
@@ -47,8 +47,10 @@ impl<'a, Meter: GasMeter, Hasher: Digest<OutputSize = U32>> MeteredHasher<'a, Me
 
     /// Update the [`MeteredHasher`] with the given data. Performs the same operation as [`Digest::update`] but charges gas.
     pub fn update(&mut self, data: &[u8]) -> Result<(), MeteringError<Meter>> {
-        self.meter
-            .charge_linear_gas(&self.gas_to_charge_for_hash_update, data.len() as u64)?;
+        self.meter.charge_linear_gas(
+            &self.gas_to_charge_for_hash_update,
+            as_u32_or_panic(data.len()),
+        )?;
         self.inner.update(data);
         Ok(())
     }
@@ -140,7 +142,7 @@ impl<GU: Gas, Sign: Signature> MeteredSignature<GU, Sign> {
         meter
             .charge_linear_gas(
                 &self.gas_to_charge_per_byte_for_verification,
-                msg.len() as u64,
+                as_u32_or_panic(msg.len()),
             )
             .map_err(MeteredSigVerificationError::GasError)?;
 
@@ -170,8 +172,8 @@ pub trait MeteredBorshDeserialize<S: Spec>: Sized {
     ) -> Result<(), MeteredBorshDeserializeError<<S as GasSpec>::Gas>> {
         let deserialization_cost = S::gas_to_charge_per_byte_borsh_deserialization();
 
-        // This is safe to cast here as we don't support platforms where usize > u64.
-        let buf_len: u64 = buf.len() as u64;
+        // This is safe to cast here. We won't have data bigger thane 4GB.
+        let buf_len: u32 = as_u32_or_panic(buf.len());
 
         meter
             .charge_linear_gas(&deserialization_cost, buf_len)

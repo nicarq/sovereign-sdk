@@ -42,7 +42,7 @@ impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for TxScratchpad<S, I>
         )
     }
 
-    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         <RevertableWriter<I> as UniversalStateAccessor>::get_size(&mut self.inner, namespace, key)
     }
 
@@ -151,7 +151,7 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for PreExecWorkingSet<S, I> {
     fn charge_linear_gas(
         &mut self,
         amount: &<Self::Spec as Spec>::Gas,
-        parameter: u64,
+        parameter: u32,
     ) -> anyhow::Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
         self.gas_meter.charge_linear_gas(amount, parameter)
     }
@@ -169,7 +169,7 @@ impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for PreExecWorkingSet<
         <TxScratchpad<S, I> as UniversalStateAccessor>::is_value_cached(&self.inner, namespace, key)
     }
 
-    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         <TxScratchpad<S, I> as UniversalStateAccessor>::get_size(&mut self.inner, namespace, key)
     }
 
@@ -393,7 +393,7 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for WorkingSet<S, I> {
     fn charge_linear_gas(
         &mut self,
         amount: &<Self::Spec as Spec>::Gas,
-        parameter: u64,
+        parameter: u32,
     ) -> anyhow::Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
         self.gas_meter.charge_linear_gas(amount, parameter)
     }
@@ -411,7 +411,7 @@ impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for WorkingSet<S, I> {
         self.delta.is_value_cached(namespace, key)
     }
 
-    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u64> {
+    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         self.delta.get_size(namespace, key)
     }
 

@@ -1,6 +1,6 @@
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec, RelevantBlobIters};
 
-use crate::{KernelStateAccessor, Spec};
+use crate::{as_u32_or_panic, KernelStateAccessor, Spec};
 
 /// The namespace in which a blob appeared.
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -13,10 +13,10 @@ pub enum BlobOrigin<'a, T> {
 
 impl<'a, T: BlobReaderTrait> BlobOrigin<'a, T> {
     /// Returns the total number of bytes in the blob.
-    pub fn total_len(&self) -> usize {
+    pub fn total_len(&self) -> u32 {
         match self {
-            BlobOrigin::Batch(b) => b.total_len(),
-            BlobOrigin::Proof(p) => p.total_len(),
+            BlobOrigin::Batch(b) => as_u32_or_panic(b.total_len()),
+            BlobOrigin::Proof(p) => as_u32_or_panic(p.total_len()),
         }
     }
 }

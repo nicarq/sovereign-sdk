@@ -6,8 +6,9 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    BatchWithId, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, FullyBakedTx, Gas, GasArray,
-    GasSpec, KernelStateAccessor, ModuleInfo, PrivilegedKernelAccessor, RawTx, SelectedBlob, Spec,
+    as_u32_or_panic, BatchWithId, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, FullyBakedTx,
+    Gas, GasArray, GasSpec, KernelStateAccessor, ModuleInfo, PrivilegedKernelAccessor, RawTx,
+    SelectedBlob, Spec,
 };
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_sequencer_registry::AllowedSequencerError;
@@ -158,7 +159,7 @@ impl<S: Spec> BlobStorage<S> {
                         continue;
                     }
                     let Some(proof) = self.try_validate_proof_and_reserve_funds(
-                        idx as u64,
+                        as_u32_or_panic(idx),
                         blob,
                         blobs_with_total_size_limit,
                         account_for_deferral,
@@ -181,7 +182,7 @@ impl<S: Spec> BlobStorage<S> {
                         ValidateBlobOutcome::Accept(SequencerStatus::Registered(sequencer)) => {
                             let Some(validated) = self
                                 .try_validate_batch_and_reserve_funds_if_needed(
-                                    idx as u64,
+                                    as_u32_or_panic(idx),
                                     blob,
                                     sequencer,
                                     blobs_with_total_size_limit,
@@ -671,7 +672,7 @@ impl<S: Spec> BlobStorage<S> {
             BlobDataWithId::Proof { sequencer_address, .. } => sequencer_address,
         };
         if let Some(gas_needed_for_pre_exec_checks) = <S as GasSpec>::max_tx_check_costs()
-            .checked_scalar_product(Self::num_pre_exec_checks_needed(&batch.blob))
+            .checked_scalar_product(Self::num_pre_exec_checks_needed(&batch.blob) as u64)
             .and_then(|gas_needed| gas_needed.checked_value(gas_price_for_new_block))
         {
             let retrieval_result = self.sequencer_registry.retrieve_funds_from_escrow(
@@ -732,7 +733,7 @@ impl<S: Spec> BlobStorage<S> {
 
     fn try_validate_proof_and_reserve_funds(
         &self,
-        idx: u64,
+        idx: u32,
         blob: &mut <S::Da as DaSpec>::BlobTransaction,
         blobs_to_select: &BlobsWithTotalSizeLimit<S>,
         account_for_deferral: bool,
@@ -764,7 +765,7 @@ impl<S: Spec> BlobStorage<S> {
 
     fn try_validate_batch_and_reserve_funds_if_needed(
         &self,
-        idx: u64,
+        idx: u32,
         blob: &mut <S::Da as DaSpec>::BlobTransaction,
         sequencer: AllowedSequencer<S>,
         blobs_to_select: &BlobsWithTotalSizeLimit<S>,

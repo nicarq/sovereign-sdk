@@ -20,7 +20,7 @@ impl<'a, T: UniversalStateAccessor> UniversalStateAccessor for UnmeteredStateWra
         self.inner.is_value_cached(namespace, key)
     }
 
-    fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u64> {
+    fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u32> {
         self.inner.get_size(namespace, key)
     }
 
