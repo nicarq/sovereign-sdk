@@ -157,6 +157,7 @@ async fn send_test_bank_txs(test_case: TestCase, client: &NodeClient) -> anyhow:
             minter: TokenHolder::User(user_address),
             mint_to_address: TokenHolder::User(user_address),
             admins: vec![],
+            supply_cap: u64::MAX,
         },
     )
     .await?;

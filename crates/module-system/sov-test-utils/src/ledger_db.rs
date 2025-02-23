@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use sha2::Digest;
 use sov_bank::utils::TokenHolder;
-use sov_bank::{Coins, TokenId};
+use sov_bank::{Amount, Coins, TokenId};
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::SchemaBatch;
 use sov_ledger_apis::LedgerRoutes;
@@ -73,6 +73,7 @@ fn events() -> Vec<StoredEvent> {
         minter: holder.clone(),
         mint_to_address: holder.clone(),
         admins: vec![],
+        supply_cap: Amount::MAX,
     });
     let event_value2 = TestEvent::Bank(sov_bank::event::Event::TokenFrozen {
         token_id,

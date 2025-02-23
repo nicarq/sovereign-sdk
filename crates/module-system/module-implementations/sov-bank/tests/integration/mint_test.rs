@@ -118,6 +118,7 @@ fn try_create_token_and_mint_should_fail_if_not_authorized() {
     runner.execute(
         user.create_plain_message::<RT, Bank<S>>(CallMessage::CreateToken {
             token_name: token_name.to_string().try_into().unwrap(),
+            supply_cap: None,
             initial_balance: 100,
             mint_to_address: user.address(),
             admins: SafeVec::new(),

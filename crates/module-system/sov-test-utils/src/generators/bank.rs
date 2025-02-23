@@ -33,6 +33,8 @@ pub struct TokenCreateData<S: Spec> {
     pub minter_pkey: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
     /// The admins.
     pub admins: SafeVec<S::Address, MAX_ADMINS>,
+    /// The supply cap of the token, if any.
+    pub supply_cap: u64,
 }
 
 impl<S: Spec> TokenCreateData<S> {
@@ -111,6 +113,7 @@ where
                 mint_to_address: (&minter_pkey.pub_key()).into(),
                 minter_pkey,
                 admins,
+                supply_cap: u64::MAX,
             }],
             transfer_txs: vec![],
         }
@@ -152,6 +155,7 @@ where
             admins: Vec::from([minter.clone()])
                 .try_into()
                 .expect("Tokens can have at least one minter"),
+            supply_cap: u64::MAX,
         };
         Self {
             token_create_txs: Vec::from([create_data]),
@@ -193,6 +197,7 @@ impl BankMessageGenerator<TestSpec> {
             admins: Vec::from([minter])
                 .try_into()
                 .expect("Tokens can have at least one minter"),
+            supply_cap: u64::MAX,
         };
         Self {
             token_create_txs: Vec::from([token_create_data]),
@@ -221,6 +226,7 @@ pub(crate) fn create_token_tx<S: Spec>(input: &TokenCreateData<S>) -> CallMessag
         initial_balance: input.initial_balance,
         mint_to_address: input.mint_to_address.clone(),
         admins: input.admins.clone(),
+        supply_cap: Some(input.supply_cap),
     }
 }
 

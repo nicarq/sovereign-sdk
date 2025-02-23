@@ -117,7 +117,7 @@ this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
 $ sleep 5
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0x4a1bc76016310255de59e6b8f5410369b1df211213a8bc2c95505afc112bdfa3/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0x58d021f848dd63053057f2e1c3f61841a7ab4490e147241b1fa512c50cd8fff1/events | jq
 {
   "data": [
     {
@@ -137,6 +137,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0x4a1bc76016310255de59e6b8f5410369b
           "minter": {
             "user": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
           },
+          "supply_cap": 18446744073709552000,
           "admins": [
             {
               "user": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
@@ -324,7 +325,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0x8055f22c0b4494ba65b7c1907729828cc0d61821509faef1a757e51c1090eee4",
+  "chain_hash": "0xdf5d2936ea211a79ca0a7d2647c39b8b11ee18c86380308b41c3089280938508",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": 100000000,

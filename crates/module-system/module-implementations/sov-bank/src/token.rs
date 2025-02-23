@@ -197,6 +197,8 @@ pub struct Token<S: Spec> {
     pub(crate) name: String,
     /// Total supply of the coins.
     pub(crate) total_supply: u64,
+    /// The supply cap of the token, if any.
+    pub(crate) supply_cap: Amount,
 
     /// Vector containing the admins
     /// Empty vector indicates that the token supply is frozen.
@@ -249,12 +251,17 @@ impl<S: Spec> Token<S> {
 
         self.assert_is_admin(authorizer)?;
 
-        self.total_supply = self
+        let new_supply = self
             .total_supply
             .checked_add(amount)
             .ok_or(anyhow::Error::msg(
                 "Total Supply overflow in the mint method of bank module",
             ))?;
+        if new_supply > self.supply_cap {
+            anyhow::bail!("Attempted to mint more than the supply cap of token. Max supply: {}. Current supply: {}. Minted amount: {}", self.supply_cap, self.total_supply, amount)
+        }
+
+        self.total_supply = new_supply;
 
         Ok(())
     }

@@ -34,6 +34,8 @@ pub struct TokenConfig<S: Spec> {
     pub address_and_balances: Vec<(S::Address, u64)>,
     /// The addresses that are authorized to mint the token.
     pub admins: Vec<S::Address>,
+    /// The supply cap of the token, if any.
+    pub supply_cap: Option<Amount>,
 }
 
 /// [`GasTokenConfig`] specifies a configuration for the rollup's gas token.
@@ -47,6 +49,8 @@ pub struct GasTokenConfig<S: Spec> {
     pub address_and_balances: Vec<(S::Address, u64)>,
     /// The addresses that are authorized to mint the token.
     pub admins: Vec<S::Address>,
+    /// The supply cap of the token, if any.
+    pub supply_cap: Option<Amount>,
 }
 
 impl<S: Spec> From<GasTokenConfig<S>> for TokenConfig<S> {
@@ -56,6 +60,7 @@ impl<S: Spec> From<GasTokenConfig<S>> for TokenConfig<S> {
             token_id: crate::config_gas_token_id(),
             address_and_balances: gas_token_config.address_and_balances,
             admins: gas_token_config.admins,
+            supply_cap: gas_token_config.supply_cap,
         }
     }
 }
@@ -117,6 +122,7 @@ impl<S: Spec> Bank<S> {
             let token = Token::<S> {
                 name: token_config.token_name.to_owned(),
                 total_supply,
+                supply_cap: token_config.supply_cap.unwrap_or(Amount::MAX),
                 admins,
             };
 
@@ -161,12 +167,14 @@ mod tests {
                 token_name: "sov-gas-token".to_owned(),
                 address_and_balances: vec![(sender_address, 100000000)],
                 admins: vec![sender_address],
+                supply_cap: None,
             },
             tokens: vec![TokenConfig {
                 token_name: "sov-demo-token".to_owned(),
                 token_id,
                 address_and_balances: vec![(sender_address, 1000)],
                 admins: vec![sender_address],
+                supply_cap: None,
             }],
         };
 

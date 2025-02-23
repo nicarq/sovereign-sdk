@@ -113,6 +113,7 @@ impl<S: Spec> Module for Bank<S> {
                 token_name,
                 initial_balance,
                 mint_to_address,
+                supply_cap,
                 admins,
             } => {
                 self.charge_gas(state, &self.gas.create_token)?;
@@ -127,6 +128,7 @@ impl<S: Spec> Module for Bank<S> {
                     initial_balance,
                     &mint_to_address,
                     admins,
+                    supply_cap,
                     context.sender(),
                     state,
                 )?;
