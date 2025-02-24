@@ -212,10 +212,7 @@ tracing-test = { version = "0.2.5", features = [
     "no-env-filter",
 ] } # https://docs.rs/tracing-test/latest/tracing_test/#per-crate-filtering
 utoipa = "4.2"
-# Based on top of 7.1, but have fix for infinite redirect. Should be good to switch back to crates version, when 7.2 is released.
-utoipa-swagger-ui = { git = "https://github.com/juhaku/utoipa.git", rev = "a985d8c1340f80ab69b2b0e5de799df98d567732", features = [
-    "axum",
-] }
+utoipa-swagger-ui = {git = "https://github.com/juhaku/utoipa.git", rev = "a985d8c1340f80ab69b2b0e5de799df98d567732", features = ["axum"] }
 unwrap-infallible = "0.1.5"
 tiny-keccak = "2.0.2"
 bech32 = { version = "0.11" }
