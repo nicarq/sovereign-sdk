@@ -3,7 +3,7 @@ use std::vec;
 
 use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{BatchSequencerOutcome, FullyBakedTx, Spec};
+use sov_modules_api::{Amount, BatchSequencerOutcome, FullyBakedTx, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::generators::bank::get_default_token_id;
 use sov_test_utils::TestSpec;
@@ -62,7 +62,9 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
             .supply_of(None, get_default_token_id::<S>(&admin_address), state);
         assert_eq!(
             resp.unwrap(),
-            sov_bank::TotalSupplyResponse { amount: Some(1000) }
+            sov_bank::TotalSupplyResponse {
+                amount: Some(Amount::new(1000))
+            }
         );
 
         assert_eq!(
@@ -114,7 +116,9 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
             .supply_of(None, get_default_token_id::<S>(&admin_address), state);
         assert_eq!(
             resp.unwrap(),
-            sov_bank::TotalSupplyResponse { amount: Some(1000) }
+            sov_bank::TotalSupplyResponse {
+                amount: Some(Amount::new(1000))
+            }
         );
 
         assert_eq!(

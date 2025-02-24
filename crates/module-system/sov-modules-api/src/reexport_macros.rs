@@ -682,7 +682,7 @@ pub mod macros {
     /// #[derive(UniversalWallet, borsh::BorshSerialize)]
     /// pub struct Coins {
     ///     #[sov_wallet(template("transfer" = input("amount")))]
-    ///     pub amount: u64,
+    ///     pub amount: u128,
     ///     #[sov_wallet(template("transfer" = value("MY_TOKEN_ID")))]
     ///     pub token_id: SafeString,
     /// }

@@ -118,7 +118,7 @@ impl<S: Spec> ProverIncentives<S> {
     pub fn proving_penalty_value<State: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         state: &mut State,
-    ) -> Result<Option<u64>, <State as StateReader<User>>::Error> {
+    ) -> Result<Option<Amount>, <State as StateReader<User>>::Error> {
         self.proving_penalty
             .get(state)
             .map(|maybe_penalty| maybe_penalty.map(|penalty| penalty.value(state.gas_price())))

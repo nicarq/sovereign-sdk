@@ -9,7 +9,7 @@ use sov_modules_api::prelude::tokio::task;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{
-    AggregatedProofPublicData, ApiStateAccessor, CodeCommitment, ProofSerializer as _,
+    AggregatedProofPublicData, Amount, ApiStateAccessor, CodeCommitment, ProofSerializer as _,
     SerializedAggregatedProof, Spec, Storage,
 };
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
@@ -29,13 +29,15 @@ pub(crate) const MOCK_CODE_COMMITMENT: MockCodeCommitment = MockCodeCommitment([
 generate_zk_runtime!(TestRuntime <= );
 
 /// Returns the minimal bond required to register a prover at the current slot.
-pub fn minimal_bond(runner: &TestRunner<TestRuntime<S>, S>) -> u64 {
-    runner.query_visible_state(|state| {
-        TestProverIncentives::default()
-            .get_minimum_bond(state)
-            .unwrap_infallible()
-            .unwrap()
-    })
+pub fn minimal_bond(runner: &TestRunner<TestRuntime<S>, S>) -> u128 {
+    runner
+        .query_visible_state(|state| {
+            TestProverIncentives::default()
+                .get_minimum_bond(state)
+                .unwrap_infallible()
+                .unwrap()
+        })
+        .0
 }
 
 pub(crate) fn setup_with_custom_runtime(
@@ -105,7 +107,7 @@ pub(crate) fn consume_gas_tx_for_signer(signer: &TestUser<S>) -> TransactionType
     signer.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
         to: recipient.address(),
         coins: sov_bank::Coins {
-            amount: 1000,
+            amount: Amount::new(1000),
             token_id: config_gas_token_id(),
         },
     })

@@ -1,3 +1,4 @@
+use sov_modules_api::Amount;
 use sov_test_utils::TestSpec;
 
 use crate::ChainState;
@@ -5,13 +6,13 @@ use crate::ChainState;
 struct BaseFeeUpdateConfig {
     gas_limit: u64,
     gas_used: u64,
-    base_fee_per_gas: u64,
+    base_fee_per_gas: Amount,
 }
 
 /// These tests ensure that the unidimensional base fee per gas update function has the correct behavior
 fn assert_correct_gas_update(
     prev_block_gas_info: BaseFeeUpdateConfig,
-    expected_base_fee_per_gas: u64,
+    expected_base_fee_per_gas: Amount,
     assert_error_message: &str,
 ) {
     let computed_base_fee_per_gas = ChainState::<TestSpec>::compute_base_fee_per_gas_unidimensional(
@@ -37,9 +38,9 @@ fn test_zero_base_fee_gas_below_target() {
         BaseFeeUpdateConfig {
             gas_limit: 0,
             gas_used: 0,
-            base_fee_per_gas: 0,
+            base_fee_per_gas: Amount::ZERO,
         },
-        0,
+        Amount::ZERO,
         "When the base fee per gas is zero, it should remain to zero if the gas used is below the target",
     );
 }
@@ -48,16 +49,18 @@ fn test_zero_base_fee_gas_below_target() {
 #[test]
 fn test_zero_base_fee_gas_above_target() {
     const GAS_LIMIT: u64 = 100;
-    let gas_target: u64 =
-        ChainState::<TestSpec>::config_elasticity_multiplier().apply_div(GAS_LIMIT);
+    let gas_target: u64 = ChainState::<TestSpec>::config_elasticity_multiplier()
+        .apply_div(GAS_LIMIT as u128)
+        .try_into()
+        .unwrap();
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
             gas_limit: GAS_LIMIT,
             gas_used: gas_target + 1,
-            base_fee_per_gas: 0,
+            base_fee_per_gas: Amount::ZERO,
         },
-        1,
+       Amount::new(1),
         "When the base fee per gas is zero, it should be equal to one if the gas used is above the target",
     );
 }
@@ -65,10 +68,12 @@ fn test_zero_base_fee_gas_above_target() {
 /// The base fee per gas should not change if the gas used is the same as the target
 #[test]
 fn test_base_fee_target_reached() {
-    const INITIAL_BASE_FEE_PER_GAS: u64 = 10000;
+    const INITIAL_BASE_FEE_PER_GAS: Amount = Amount::new(10000);
     const GAS_LIMIT: u64 = 100;
-    let gas_target: u64 =
-        ChainState::<TestSpec>::config_elasticity_multiplier().apply_div(GAS_LIMIT);
+    let gas_target: u64 = ChainState::<TestSpec>::config_elasticity_multiplier()
+        .apply_div(GAS_LIMIT as u128)
+        .try_into()
+        .unwrap();
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
@@ -84,38 +89,42 @@ fn test_base_fee_target_reached() {
 /// The base fee per gas should increase by `base_fee_per_gas * 1/config_base_fee_change_denominator()` if the gas used is twice as much as the target
 #[test]
 fn test_base_fee_increases_if_gas_used_is_twice_target() {
-    const INITIAL_BASE_FEE_PER_GAS: u64 = 100;
+    const INITIAL_BASE_FEE_PER_GAS: u128 = 100;
 
-    let expected_base_fee_per_gas: u64 = INITIAL_BASE_FEE_PER_GAS
+    let expected_base_fee_per_gas: u128 = INITIAL_BASE_FEE_PER_GAS
         + ChainState::<TestSpec>::config_base_fee_change_denominator()
             .apply_div(INITIAL_BASE_FEE_PER_GAS);
 
     let gas_limit: u64 = 100;
-    let gas_target: u64 =
-        ChainState::<TestSpec>::config_elasticity_multiplier().apply_div(gas_limit);
+    let gas_target: u64 = ChainState::<TestSpec>::config_elasticity_multiplier()
+        .apply_div(gas_limit as u128)
+        .try_into()
+        .unwrap();
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
             gas_limit,
             gas_used: 2 * gas_target,
-            base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS,
+            base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS.into(),
         },
-        expected_base_fee_per_gas,
+        expected_base_fee_per_gas.into(),
         "The base fee per gas should increase by `base_fee_per_gas * (1/config_base_fee_change_denominator())` if the gas used is twice as much as the target",
     );
 
     // The new value of the base fee should not depend on the value of the gas used, as long as it is twice as much as the target
     let new_gas_limit: u64 = 100 * gas_limit;
-    let new_gas_target: u64 =
-        ChainState::<TestSpec>::config_elasticity_multiplier().apply_div(new_gas_limit);
+    let new_gas_target: u64 = ChainState::<TestSpec>::config_elasticity_multiplier()
+        .apply_div(new_gas_limit as u128)
+        .try_into()
+        .unwrap();
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
             gas_limit: new_gas_limit,
             gas_used: 2 * new_gas_target,
-            base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS,
+            base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS.into(),
         },
-        expected_base_fee_per_gas,
+        expected_base_fee_per_gas.into(),
         "The base fee per gas should increase by `base_fee_per_gas * (1/config_base_fee_change_denominator())` if the gas used is twice as much as the target. The new base fee should not depend on the value of the gas used, as long as it is twice as much as the target",
     );
 }
@@ -123,39 +132,43 @@ fn test_base_fee_increases_if_gas_used_is_twice_target() {
 /// The base fee per gas should decrease by `base_fee_per_gas * 1/(2*config_base_fee_change_denominator())` if the gas used is half as much as the target
 #[test]
 fn base_fee_decreases_if_gas_used_is_half_target() {
-    const INITIAL_BASE_FEE_PER_GAS: u64 = 10000;
+    const INITIAL_BASE_FEE_PER_GAS: u128 = 10000;
 
-    let expected_base_fee_per_gas: u64 = INITIAL_BASE_FEE_PER_GAS
+    let expected_base_fee_per_gas: u128 = INITIAL_BASE_FEE_PER_GAS
         - ChainState::<TestSpec>::config_base_fee_change_denominator()
             .apply_div(INITIAL_BASE_FEE_PER_GAS)
             / 2;
 
     let gas_limit: u64 = 100;
-    let gas_target: u64 =
-        ChainState::<TestSpec>::config_elasticity_multiplier().apply_div(gas_limit);
+    let gas_target: u64 = ChainState::<TestSpec>::config_elasticity_multiplier()
+        .apply_div(gas_limit as u128)
+        .try_into()
+        .unwrap();
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
             gas_limit,
             gas_used: gas_target/2,
-            base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS,
+            base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS.into(),
         },
-        expected_base_fee_per_gas,
+        expected_base_fee_per_gas.into(),
         "The base fee per gas should decrease by `base_fee_per_gas * 1/(2*config_base_fee_change_denominator)` if the gas used is half the target",
     );
 
     // The new value of the base fee should not depend on the value of the gas used, as long as it is half of the target
     let new_gas_limit: u64 = 100 * gas_limit;
-    let new_gas_target: u64 =
-        ChainState::<TestSpec>::config_elasticity_multiplier().apply_div(new_gas_limit);
+    let new_gas_target: u64 = ChainState::<TestSpec>::config_elasticity_multiplier()
+        .apply_div(new_gas_limit as u128)
+        .try_into()
+        .unwrap();
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
             gas_limit: new_gas_limit,
             gas_used: new_gas_target/2,
-            base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS,
+            base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS.into(),
         },
-        expected_base_fee_per_gas,
+        expected_base_fee_per_gas.into(),
         "The base fee per gas should increase by `base_fee_per_gas * 1/(2*config_base_fee_change_denominator)` if the gas used is half the target. The new base fee should not depend on the value of the gas used",
     );
 }

@@ -5,9 +5,9 @@ use sov_modules_api::capabilities::{AllowedSequencer, BlobOrigin, BlobSelectorOu
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    as_u32_or_panic, BatchWithId, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, FullyBakedTx,
-    Gas, GasArray, GasSpec, KernelStateAccessor, ModuleInfo, PrivilegedKernelAccessor, RawTx,
-    SelectedBlob, Spec,
+    as_u32_or_panic, Amount, BatchWithId, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec,
+    FullyBakedTx, Gas, GasArray, GasSpec, KernelStateAccessor, ModuleInfo,
+    PrivilegedKernelAccessor, RawTx, SelectedBlob, Spec,
 };
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_sequencer_registry::AllowedSequencerError;
@@ -460,7 +460,7 @@ impl<S: Spec> BlobStorage<S> {
             let available_balance = self
                 .sequencer_registry
                 .get_sender_balance(preferred_sender, state)
-                .unwrap_or(0);
+                .unwrap_or(Amount::ZERO);
             self.add_preferred_blobs_to_selection(
                 selected_preferred_blobs,
                 &mut blobs_to_select,
@@ -687,7 +687,7 @@ impl<S: Spec> BlobStorage<S> {
         escrow: &DerivedHolder,
         gas_price_for_new_block: &<S::Gas as Gas>::Price,
         state: &mut KernelStateAccessor<'_, S>,
-    ) -> Result<u64, anyhow::Error> {
+    ) -> Result<Amount, anyhow::Error> {
         let refund_recipient = match &batch.blob {
             BlobDataWithId::Batch(b) => &b.sequencer_address,
             BlobDataWithId::EmergencyRegistration { .. } => panic!("Emergency registrations don't reserve gas because the sender is unknown. This is a bug!"),
@@ -720,7 +720,7 @@ impl<S: Spec> BlobStorage<S> {
         blobs_to_select: &mut BlobsWithTotalSizeLimit<S>,
         preferred_sender: &<S::Da as DaSpec>::Address,
         preferred_sequencer: &S::Address,
-        available_balance: u64,
+        available_balance: Amount,
         visible_height_increase: u64,
         state: &mut KernelStateAccessor<'_, S>,
     ) {
@@ -1001,7 +1001,7 @@ impl<S: Spec> BlobStorage<S> {
     /// Escrow funds for the preferred sequencer.
     pub fn escrow_funds_for_preferred_sequencer(
         &self,
-        amount: u64,
+        amount: Amount,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> anyhow::Result<()> {
         let preferred_sequencer = self

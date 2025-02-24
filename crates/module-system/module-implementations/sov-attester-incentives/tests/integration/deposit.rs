@@ -1,5 +1,6 @@
 use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::Amount;
 use sov_test_utils::{AsUser, TransactionTestCase};
 
 use crate::helpers::{setup, TestAttesterIncentives, RT, S};
@@ -15,7 +16,7 @@ fn test_deposit_successful() {
 
     runner.execute_transaction(TransactionTestCase {
         input: attester.create_plain_message::<RT, TestAttesterIncentives>(
-            sov_attester_incentives::CallMessage::DepositAttester(extra_bond),
+            sov_attester_incentives::CallMessage::DepositAttester(extra_bond.into()),
         ),
         assert: Box::new(move |result, state| {
             assert_eq!(
@@ -23,13 +24,15 @@ fn test_deposit_successful() {
                     .bonded_attesters
                     .get(&attester_address, state)
                     .unwrap(),
-                Some(starting_bond + extra_bond),
+                Some(Amount::new(starting_bond + extra_bond)),
             );
             assert_eq!(
                 Bank::<S>::default()
                     .get_balance_of(&attester_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(starting_free_balance - extra_bond - result.gas_value_used),
+                Some(Amount::new(
+                    starting_free_balance - extra_bond - result.gas_value_used
+                )),
             );
         }),
     });

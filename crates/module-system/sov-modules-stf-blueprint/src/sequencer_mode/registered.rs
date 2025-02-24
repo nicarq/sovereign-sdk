@@ -5,7 +5,7 @@ use sov_modules_api::transaction::TransactionConsumption;
 #[cfg(feature = "native")]
 use sov_modules_api::NestedEnumUtils;
 use sov_modules_api::{
-    BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext,
+    Amount, BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext,
     FullyBakedTx, Gas, GasArray, GasMeter, GasSpec, GetGasPrice, IgnoredTransactionReceipt,
     IncrementalBatch, InjectedControlFlow, PreExecWorkingSet, ProvisionalSequencerOutcome, Rewards,
     SequencerBondForTx, SlotGasMeter, Spec, StateCheckpoint, StateProvider, TxControlFlow,
@@ -298,7 +298,7 @@ pub(crate) fn apply_batch<S, RT, B>(
     mut batch_with_id: B,
     blob_idx: usize,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
-    sequencer_bond: u64,
+    sequencer_bond: Amount,
     gas_price: &<S::Gas as Gas>::Price,
     execution_context: ExecutionContext,
 ) -> (IncrementalBatchReceipt<S>, StateCheckpoint<S>)
@@ -343,19 +343,21 @@ where
     let mut tx_receipts = Vec::with_capacity(batch_with_id.known_remaining_txs().unwrap_or(128));
     let mut ignored_tx_receipts = Vec::default();
 
-    let mut accumulated_reward = 0;
-    let mut accumulated_penalty = 0;
+    let mut accumulated_reward = Amount::ZERO;
+    let mut accumulated_penalty = Amount::ZERO;
     let sequencer_address = batch_with_id.sequencer_address();
 
     let mut sequencer_bond_per_tx = if is_preferred_sequencer {
         SequencerBondForTx::Preferred(sequencer_bond)
     } else {
         // Split the bond evenly across all the transactions in the batch.
+        let divisor = batch_with_id
+            .known_remaining_txs()
+            .expect("Batch sizes from non-preferred sequencers are always known in advance")
+            .max(1) as u128;
         let amount = sequencer_bond
-            / batch_with_id
-                .known_remaining_txs()
-                .expect("Batch sizes from non-preferred sequencers are always known in advance")
-                .min(1) as u64;
+            .checked_div(Amount::new(divisor))
+            .expect("Amount underflowed");
         SequencerBondForTx::Standard(amount)
     };
     let initial_slot_gas_used = slot_gas_meter.total_gas_used();
@@ -411,7 +413,7 @@ where
                 transaction_consumption,
                 receipt,
             } => ProvisionalSequencerOutcome::reward(
-                transaction_consumption.priority_fee().0,
+                Amount::new(transaction_consumption.priority_fee().0),
                 receipt,
             ),
         };
@@ -427,9 +429,13 @@ where
                     .charge_gas(&gas_used, sequencer_da_address)
                     .expect("Impossible happend: SlotGasMeter underflows when charging gas.");
 
-                // SAFETY: This won't overflow because rewards/penalties cannot exceed `TOKEN::total_supply` value, which is of type u64.
-                accumulated_reward += provisional_reward;
-                accumulated_penalty += provisional_penalty;
+                // SAFETY: This won't overflow because rewards/penalties cannot exceed `TOKEN::total_supply` value, which is of type u128.
+                accumulated_reward = accumulated_reward
+                    .checked_add(provisional_reward)
+                    .expect("Total supply of gas token exceeded.");
+                accumulated_penalty = accumulated_penalty
+                    .checked_add(provisional_penalty)
+                    .expect("Total supply of gas token exceeded");
                 tx_receipts.push(receipt);
             }
             TxControlFlow::IgnoreTx => {
@@ -439,11 +445,15 @@ where
                         .charge_gas(&gas_used, sequencer_da_address)
                         .expect("Impossible happend: SlotGasMeter underflows when charging gas.");
 
-                    // SAFETY: This won't overflow because rewards and penalties cannot exceed `TOKEN::total_supply`, which is of type `u64`.
+                    // SAFETY: This won't overflow because rewards and penalties cannot exceed `TOKEN::total_supply`, which is of type `u128`.
                     // This is ensured as it's impossible to accumulate more funds than `TOKEN::total_supply`,
                     // since all rewards and penalties originate from user balances or the sequencer stake.
-                    accumulated_reward += provisional_reward;
-                    accumulated_penalty += provisional_penalty;
+                    accumulated_reward = accumulated_reward
+                        .checked_add(provisional_reward)
+                        .expect("Total supply of gas token exceeded.");
+                    accumulated_penalty = accumulated_penalty
+                        .checked_add(provisional_penalty)
+                        .expect("Total supply of gas token exceeded");
                     if is_preferred_sequencer {
                         // SAFETY: We've already charged this gas amount, so it can't overflow at this point.
                         // If we're penalizing the preferred sequencer, we need to account for that in the authorizing the next transaction.
@@ -531,7 +541,7 @@ struct AuthAndProcessOutput<S: Spec, I: StateProvider<S>> {
 
 fn penalize_sequencer<S: Spec, RT: Runtime<S>, I: StateProvider<S>>(
     runtime: &RT,
-    auth_cost: u64,
+    auth_cost: Amount,
     sequencer_address: &S::Address,
     tx_scratchpad: &mut TxScratchpad<S, I>,
 ) {

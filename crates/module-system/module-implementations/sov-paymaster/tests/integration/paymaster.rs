@@ -2,7 +2,7 @@ use std::num::NonZeroU64;
 
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::TxDetails;
-use sov_modules_api::TxEffect;
+use sov_modules_api::{Amount, TxEffect};
 use sov_paymaster::{
     AllowedSequencerUpdate, CallMessage as PaymasterCallMessage, Event as PaymasterEvent,
     PayeePolicy, Paymaster, PaymasterPolicyInitializer, PolicyUpdate, SafeVec,
@@ -525,7 +525,7 @@ fn test_setting_payer_with_insufficient_balance() {
             let user_balance = sov_bank::Bank::<S>::default()
                 .get_balance_of(&user_address, config_value!("GAS_TOKEN_ID"), state)
                 .unwrap();
-            assert_eq!(user_balance, Some(1));
+            assert_eq!(user_balance, Some(Amount::new(1)));
         }),
     });
 }
@@ -535,7 +535,7 @@ fn test_granular_policies() {
     let mut setup = setup(0);
     // Start with a high enough max fee to allow txs and ensure success
     setup.payer_setup().policy.default_payee_policy = PayeePolicy::Allow {
-        max_fee: Some(u64::MAX),
+        max_fee: Some(u64::MAX as u128),
         gas_limit: None,
         max_gas_price: None,
         transaction_limit: None,
@@ -685,7 +685,7 @@ fn test_granular_policies() {
                     update: PolicyUpdate::default().set_default_policy(PayeePolicy::Allow {
                         max_fee: None,
                         gas_limit: None,
-                        max_gas_price: Some([u64::MAX, u64::MAX].into()),
+                        max_gas_price: Some([Amount::MAX, Amount::MAX].into()),
                         transaction_limit: None,
                     }),
                 },
@@ -706,7 +706,7 @@ fn test_granular_policies() {
                     update: PolicyUpdate::default().set_default_policy(PayeePolicy::Allow {
                         max_fee: None,
                         gas_limit: None,
-                        max_gas_price: Some([1, 1].into()),
+                        max_gas_price: Some([Amount::new(1), Amount::new(1)].into()),
                         transaction_limit: None,
                     }),
                 },

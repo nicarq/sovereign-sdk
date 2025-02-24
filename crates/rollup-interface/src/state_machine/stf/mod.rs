@@ -78,7 +78,7 @@ pub struct ProofReceipt<Address, Da: DaSpec, Root, StorageProof> {
     /// Total gas incurred for this proof. This does not include the priority fee.
     pub gas_used: Vec<u64>,
     /// Computed gas price for this proof.
-    pub gas_price: Vec<u64>,
+    pub gas_price: Vec<u128>,
 }
 
 /// The contents of a proof receipt.

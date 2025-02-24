@@ -147,7 +147,7 @@ where
 }
 
 /// Setup a genesis config containing a sequencer, a pre-registered payer, and two additional users with the requested balance.
-pub fn setup(user_balance: u64) -> Setup {
+pub fn setup(user_balance: u128) -> Setup {
     // Generate a genesis config
     let genesis_config = HighLevelOptimisticGenesisConfig::generate()
         .add_accounts_with_default_balance(1)

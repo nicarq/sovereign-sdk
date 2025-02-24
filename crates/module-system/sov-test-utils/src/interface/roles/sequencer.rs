@@ -50,7 +50,7 @@ pub struct TestSequencer<S: Spec> {
     /// The DA address of the sequencer.
     pub da_address: <S::Da as DaSpec>::Address,
     /// The amount of tokens to bond at genesis. These tokens will be minted by the bank.
-    pub bond: u64,
+    pub bond: u128,
 }
 
 impl<S: Spec> AsUser<S> for TestSequencer<S> {
@@ -66,9 +66,9 @@ impl<S: Spec> AsUser<S> for TestSequencer<S> {
 /// The configuration necessary to generate a [`TestSequencer`].
 pub struct TestSequencerConfig<Da: DaSpec> {
     /// The additional balance of the sequencer on his bank account.
-    pub additional_balance: u64,
+    pub additional_balance: u128,
     /// The amount of tokens bonded by the sequencer.
-    pub bond: u64,
+    pub bond: u128,
     /// The DA address of the sequencer.
     pub da_address: Da::Address,
 }

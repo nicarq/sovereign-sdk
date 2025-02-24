@@ -4,7 +4,7 @@ use sov_modules_api::capabilities::{GasEnforcer, ProofProcessor};
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    BasicGasMeter, DaSpec, Gas, GasArray, GasMeter, GasSpec, InvalidProofError,
+    Amount, BasicGasMeter, DaSpec, Gas, GasArray, GasMeter, GasSpec, InvalidProofError,
     MeteredBorshDeserialize, PreExecWorkingSet, ProofOutcome, ProofReceipt, ProofReceiptContents,
     Rewards, Spec, StateCheckpoint, StateProvider, TxScratchpad, WorkingSet,
 };
@@ -27,7 +27,7 @@ pub(crate) fn process_proof<S, RT>(
     blob_hash: [u8; 32],
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     sequencer_rollup_address: &S::Address,
-    sequencer_bond: u64,
+    sequencer_bond: Amount,
     gas_price: &<S::Gas as Gas>::Price,
     raw_proof: Vec<u8>,
     state: StateCheckpoint<S>,
@@ -158,8 +158,8 @@ where
                 .reward_prover(&transaction_consumption.base_fee_value(), &mut scratchpad);
 
             let sequencer_reward = Rewards {
-                accumulated_reward: transaction_consumption.priority_fee().0,
-                accumulated_penalty: 0,
+                accumulated_reward: Amount::new(transaction_consumption.priority_fee().0),
+                accumulated_penalty: Amount::ZERO,
             };
             let mut checkpoint = scratchpad.commit();
             runtime.gas_enforcer().return_escrowed_funds_to_sequencer(
@@ -176,7 +176,7 @@ where
                         blob_hash,
                         outcome,
                         gas_used: transaction_consumption.base_fee().as_ref().to_vec(),
-                        gas_price: gas_price.as_ref().to_vec(),
+                        gas_price: gas_price.as_ref().map(|amount| amount.0).to_vec(),
                     },
                     gas_used,
                 },
@@ -273,7 +273,7 @@ where
     fn authorize_sequencer<I: StateProvider<S>>(
         &self,
         slot_gas: &S::Gas,
-        sequencer_bond: u64,
+        sequencer_bond: Amount,
         gas_price: &<S::Gas as Gas>::Price,
         tx_scratchpad: TxScratchpad<S, I>,
     ) -> PreExecWorkingSetResult<S, I> {
@@ -392,12 +392,12 @@ where
 
     fn charge_sequencer_and_reward_prover(
         &self,
-        max_auth_cost: u64,
-        reserved_gas_tokens: u64,
+        max_auth_cost: Amount,
+        reserved_gas_tokens: Amount,
         state: &mut StateCheckpoint<S>,
     ) {
         let sequencer_reward = Rewards {
-            accumulated_reward: 0,
+            accumulated_reward: Amount::ZERO,
             accumulated_penalty: max_auth_cost,
         };
         self.runtime

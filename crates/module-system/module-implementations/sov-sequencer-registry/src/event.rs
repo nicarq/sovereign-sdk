@@ -17,7 +17,7 @@ pub enum Event<S: Spec> {
         /// The address of the sequencer that was registered.
         sequencer: S::Address,
         /// The amount of the initial deposit.
-        amount: u64,
+        amount: u128,
     },
 
     /// A sequencer initiated a withdrawal.
@@ -31,7 +31,7 @@ pub enum Event<S: Spec> {
         /// The address of the sequencer that exited.
         sequencer: S::Address,
         /// The amount that was withdrawn.
-        amount_withdrawn: u64,
+        amount_withdrawn: u128,
     },
 
     /// A sequencer deposited funds to stake.
@@ -39,6 +39,6 @@ pub enum Event<S: Spec> {
         /// The address of the sequencer that was deposited to.
         sequencer: S::Address,
         /// The amount of the deposit.
-        amount: u64,
+        amount: u128,
     },
 }

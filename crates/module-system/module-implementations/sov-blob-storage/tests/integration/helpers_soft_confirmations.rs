@@ -1,7 +1,7 @@
 use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::macros::config_value;
-use sov_modules_api::{CryptoSpec, Gas, GasSpec, GetGasPrice, RawTx, Spec};
+use sov_modules_api::{Amount, CryptoSpec, Gas, GasSpec, GetGasPrice, RawTx, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
@@ -36,7 +36,7 @@ pub fn setup_soft_confirmation_kernel() -> (TestData<S>, TestRunner<SoftConfRT>)
     let regular_sequencer = TestSequencer {
         user_info: regular_sequencer,
         da_address: regular_sequencer_da_address,
-        bond: user_stake_value,
+        bond: user_stake_value.0,
     };
 
     // Run genesis registering the attester and sequencer we've generated.
@@ -74,7 +74,7 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (TestData<S>, TestR
     let user_stake_value = runner.query_visible_state(|state| {
         <S as Spec>::Gas::from(config_value!("MAX_SEQUENCER_EXEC_GAS_PER_TX"))
             .value(state.gas_price())
-            .checked_mul(10)
+            .checked_mul(Amount::new(10))
             .unwrap()
     });
 

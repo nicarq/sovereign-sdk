@@ -1,5 +1,5 @@
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{InvalidProofError, ProofOutcome, SovAttestation};
+use sov_modules_api::{Amount, InvalidProofError, ProofOutcome, SovAttestation};
 use sov_rollup_interface::common::IntoSlotNumber;
 use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
@@ -162,7 +162,7 @@ fn test_burn_on_invalid_attestation() {
         let rebond_attester = {
             TransactionTestCase {
                 input: genesis_attester.create_plain_message::<RT, AttesterIncentives<S>>(
-                    CallMessage::RegisterAttester(attester_bond),
+                    CallMessage::RegisterAttester(Amount::new(attester_bond)),
                 ),
                 assert: Box::new(move |result, state| {
                     assert!(result.events.iter().any(|event| matches!(
@@ -210,7 +210,7 @@ fn test_burn_on_invalid_attestation() {
 
 fn invalid_bond_proof_no_slash(
     attester: &TestAttester<S>,
-    initial_balance: u64,
+    initial_balance: u128,
     attestation_proof: SovAttestation<S>,
 ) -> ProofTestCase<S> {
     let attester_address = attester.user_info.address();
@@ -231,7 +231,7 @@ fn invalid_bond_proof_no_slash(
                     .bonded_attesters
                     .get(&attester_address, state)
                     .unwrap(),
-                Some(attester_bond),
+                Some(attester_bond.into()),
                 "Bonded amount should not have changed"
             );
 
@@ -246,7 +246,7 @@ fn invalid_bond_proof_no_slash(
 
 fn invalid_initial_state_slashed(
     attester: &TestAttester<S>,
-    initial_balance: u64,
+    initial_balance: u128,
     attestation_proof: SovAttestation<S>,
 ) -> ProofTestCase<S> {
     let attester_address = attester.user_info.address();
@@ -286,7 +286,7 @@ fn invalid_initial_state_slashed(
 
 fn invalid_post_state_root_is_challengeable(
     attester: &TestAttester<S>,
-    initial_balance: u64,
+    initial_balance: u128,
     attestation_proof: SovAttestation<S>,
 ) -> ProofTestCase<S> {
     let attester_address = attester.user_info.address();
@@ -311,7 +311,7 @@ fn invalid_post_state_root_is_challengeable(
                     .bad_transition_pool
                     .get(&2.to_slot_number(), state)
                     .unwrap_infallible(),
-                Some(attester_bond),
+                Some(attester_bond.into()),
                 "The transition should exist in the bad_transition_pool"
             );
 

@@ -16,7 +16,7 @@ type BatchReceipt<S> =
 /// Context that is passed to [`TransactionTestCase::assert`] to check the outcome of a test.
 pub struct TransactionAssertContext<S: Spec, RT: RuntimeEventProcessor> {
     /// The gas used to execute the transaction.
-    pub gas_value_used: u64,
+    pub gas_value_used: u128,
     /// The events raised by the transaction.
     ///
     /// The RuntimeEvent can be checked for specific module events, using the `sov_bank` module
@@ -46,7 +46,7 @@ impl<S: Spec, RT: RuntimeEventProcessor> TransactionAssertContext<S, RT> {
     pub fn from_receipt<Da: DaSpec>(
         receipt: TransactionReceipt<TxReceiptContents<S>>,
         blob_info: BlobInfo,
-        gas_value_used: u64,
+        gas_value_used: u128,
     ) -> Self {
         let events = receipt
             .events
@@ -119,7 +119,7 @@ pub struct ProofAssertContext<S: Spec> {
     >,
 
     /// The gas used to verify the proof.
-    pub gas_value_used: u64,
+    pub gas_value_used: u128,
 }
 
 /// A closure used to assert the outcome of a [`ProofTestCase`].

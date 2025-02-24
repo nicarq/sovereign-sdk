@@ -336,7 +336,7 @@ impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
         runtime_call: R::Call,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u64,
+        max_fee: u128,
         generation: u64,
         gas_limit: Option<S::Gas>,
     ) -> Self {

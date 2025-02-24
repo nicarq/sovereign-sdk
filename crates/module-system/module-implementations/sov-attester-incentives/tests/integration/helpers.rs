@@ -7,7 +7,7 @@ use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkvmHost;
 use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::{
-    ApiStateAccessor, DaSpec, ProofOutcome, ProofSerializer as _, SerializedAttestation,
+    Amount, ApiStateAccessor, DaSpec, ProofOutcome, ProofSerializer as _, SerializedAttestation,
     SerializedChallenge, Spec, StateTransitionPublicData,
 };
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
@@ -38,16 +38,20 @@ pub type SetupParams = (
 );
 
 /// Returns the minimal bond required to register an attester at the current slot.
-pub fn minimal_attester_bond(runner: &TestRunner<TestRuntime<S>, S>) -> u64 {
+pub fn minimal_attester_bond(runner: &TestRunner<TestRuntime<S>, S>) -> u128 {
     runner.query_visible_state(|state| {
-        TestAttesterIncentives::default().get_minimal_attester_bond_value(state)
+        TestAttesterIncentives::default()
+            .get_minimal_attester_bond_value(state)
+            .0
     })
 }
 
 /// Returns the minimal bond required to register a challenger at the current slot.
-pub fn minimal_challenger_bond(runner: &TestRunner<TestRuntime<S>, S>) -> u64 {
+pub fn minimal_challenger_bond(runner: &TestRunner<TestRuntime<S>, S>) -> u128 {
     runner.query_visible_state(|state| {
-        TestAttesterIncentives::default().get_minimal_challenger_bond_value(state)
+        TestAttesterIncentives::default()
+            .get_minimal_challenger_bond_value(state)
+            .0
     })
 }
 
@@ -79,7 +83,7 @@ pub(crate) fn setup_with_custom_runtime(runtime: TestRuntime<S>) -> SetupParams 
                 .bonded_attesters
                 .get(&attester_address, state)
                 .unwrap(),
-            Some(attester_bond),
+            Some(attester_bond.into()),
             "The genesis attester should be bonded"
         );
 
@@ -109,7 +113,7 @@ pub(crate) fn consume_gas_tx_for_signer(signer: &TestUser<S>) -> TransactionType
     signer.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
         to: recipient.address(),
         coins: sov_bank::Coins {
-            amount: 1000,
+            amount: Amount::new(1000),
             token_id: config_gas_token_id(),
         },
     })
@@ -197,7 +201,7 @@ pub(crate) fn make_attestation_blob(
 pub(crate) fn create_test_case(
     genesis_attester: TestAttester<S>,
     serialized_attestation: Vec<u8>,
-    initial_balance: u64,
+    initial_balance: u128,
     reward: AtomicNumber,
 ) -> ProofTestCase<S> {
     let attester_address = genesis_attester.user_info.address();
@@ -215,7 +219,7 @@ pub(crate) fn create_test_case(
                     .bonded_attesters
                     .get(&attester_address, state)
                     .unwrap(),
-                Some(genesis_attester.bond),
+                Some(genesis_attester.bond.into()),
                 "Bonded amount should not have changed"
             );
 
@@ -224,7 +228,8 @@ pub(crate) fn create_test_case(
                 initial_balance - result.gas_value_used
                     + TestAttesterIncentives::default()
                         .burn_rate()
-                        .apply(reward.get())
+                        .apply(reward.get().into())
+                        .0
             );
         }),
     }

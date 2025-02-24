@@ -8,7 +8,8 @@ use sov_state::{Kernel, User};
 
 use crate::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
 use crate::{
-    Context, Gas, InfallibleStateAccessor, Rewards, Spec, StateAccessor, StateReader, StateWriter,
+    Amount, Context, Gas, InfallibleStateAccessor, Rewards, Spec, StateAccessor, StateReader,
+    StateWriter,
 };
 
 /// Enforces gas limits and penalties for transactions.
@@ -80,7 +81,7 @@ pub trait GasEnforcer<S: Spec> {
 
     /// The sequencer refunds the prover for the authentication of the transactions.
     /// This method is unmetered, so implementers MUST ensure that its cost is small.
-    /// This is not difficult to do - in general, this  method should simply do a token transfer
+    /// This is not difficult to do - in general, this method should simply do a token transfer
     /// between known addresses.
     ///
     /// ## Warnings
@@ -88,7 +89,7 @@ pub trait GasEnforcer<S: Spec> {
     /// - This method is not metered, so be careful about using expensive operations.
     fn reward_prover_from_sequencer_balance(
         &self,
-        funds_used: u64,
+        funds_used: Amount,
         sequencer: &S::Address,
         tx_scratchpad: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<()>;
@@ -105,7 +106,7 @@ pub trait GasEnforcer<S: Spec> {
             + StateReader<User, Error = Infallible>,
     >(
         &self,
-        initial_escrow: u64,
+        initial_escrow: Amount,
         reward: Rewards,
         sequencer: &<S::Da as DaSpec>::Address,
         tx_scratchpad: &mut Accessor,

@@ -1,11 +1,14 @@
 use sov_bank::{Bank, CallMessage, Coins, TokenId};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Error, SafeVec, TxEffect};
+use sov_modules_api::{Amount, Error, SafeVec, TxEffect};
 use sov_test_utils::{AsUser, TransactionTestCase};
 
 use crate::helpers::{setup, TestBankRuntimeEvent, TestData, RT};
 
 type S = sov_test_utils::TestSpec;
+
+const MINT_AMOUNT: Amount = Amount::new(100);
+const INITIAL_BALANCE: Amount = Amount::new(100);
 
 /// Tests that a user can mint tokens.
 #[test]
@@ -19,8 +22,6 @@ fn mint_token_success() {
         },
         mut runner,
     ) = setup();
-
-    const MINT_AMOUNT: u64 = 100;
 
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<RT, Bank<S>>(CallMessage::Mint {
@@ -72,7 +73,7 @@ fn mint_token_fails_if_user_unauthorized() {
     runner.execute_transaction(TransactionTestCase {
         input: unauthorized_minter.create_plain_message::<RT, Bank<S>>(CallMessage::Mint {
             coins: Coins {
-                amount: 0,
+                amount: Amount::ZERO,
                 token_id,
             },
             mint_to_address: unauthorized_minter.address(),
@@ -113,13 +114,11 @@ fn try_create_token_and_mint_should_fail_if_not_authorized() {
         mut runner,
     ) = setup();
 
-    const INITIAL_BALANCE: u64 = 100;
-
     runner.execute(
         user.create_plain_message::<RT, Bank<S>>(CallMessage::CreateToken {
             token_name: token_name.to_string().try_into().unwrap(),
             supply_cap: None,
-            initial_balance: 100,
+            initial_balance: Amount::new(100),
             mint_to_address: user.address(),
             admins: SafeVec::new(),
         }),
@@ -168,7 +167,7 @@ fn mint_token_account_balance_overflow() {
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<RT, Bank<S>>(CallMessage::Mint {
             coins: Coins {
-                amount: u64::MAX,
+                amount: Amount::MAX,
                 token_id,
             },
             mint_to_address: minter.address(),
@@ -209,7 +208,11 @@ fn mint_token_total_supply_overflow() {
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<RT, Bank<S>>(CallMessage::Mint {
             coins: Coins {
-                amount: u64::MAX - minter_balance - 1,
+                amount: Amount::MAX
+                    .checked_sub(minter_balance.into())
+                    .unwrap()
+                    .checked_sub(Amount::new(1))
+                    .unwrap(),
                 token_id,
             },
             mint_to_address: minter.address(),
@@ -247,7 +250,7 @@ fn test_mint_token_fails_if_token_doesnt_exist() {
     runner.execute_transaction(TransactionTestCase {
         input: unauthorized_minter.create_plain_message::<RT, Bank<S>>(CallMessage::Mint {
             coins: Coins {
-                amount: 50,
+                amount: Amount::new(50),
                 token_id: invalid_token_id,
             },
             mint_to_address: unauthorized_minter.address(),
@@ -290,7 +293,7 @@ fn test_mint_token_fails_if_token_is_frozen() {
         .execute_transaction(TransactionTestCase {
             input: minter.create_plain_message::<RT, Bank<S>>(CallMessage::Mint {
                 coins: Coins {
-                    amount: 50,
+                    amount: Amount::new(50),
                     token_id,
                 },
                 mint_to_address: minter.address(),

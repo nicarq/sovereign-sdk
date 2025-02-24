@@ -14,7 +14,7 @@ use sov_modules_api::transaction::{
     AuthenticatedTransactionData, ProverRewards, RemainingFunds, SequencerReward,
 };
 use sov_modules_api::{
-    AggregatedProofPublicData, Context, DaSpec, Gas, GetGasPrice, InfallibleStateAccessor,
+    AggregatedProofPublicData, Amount, Context, DaSpec, Gas, GetGasPrice, InfallibleStateAccessor,
     InvalidProofError, ModuleInfo, Rewards, SovAttestation, SovStateTransitionPublicData, Spec,
     StateAccessor, StateReader, StateWriter, Storage, TxState,
 };
@@ -101,7 +101,7 @@ impl<'a, S: Spec> HasGasPayer<S>
     }
 }
 
-fn gas_coins(amount: u64) -> Coins {
+fn gas_coins(amount: Amount) -> Coins {
     Coins {
         amount,
         token_id: config_gas_token_id(),
@@ -148,7 +148,7 @@ where
                 self.bank.id.to_payable(),
                 rewarded_module.as_token_holder(),
                 Coins {
-                    amount: prover_rewards.0,
+                    amount: Amount::new(prover_rewards.0),
                     token_id: config_gas_token_id(),
                 },
                 state,
@@ -169,10 +169,7 @@ where
             .transfer_from(
                 self.bank.id.to_payable(),
                 recipient,
-                Coins {
-                    amount: remaining_funds.0,
-                    token_id: config_gas_token_id(),
-                },
+                gas_coins(Amount::new(remaining_funds.0)),
                 state,
             )
             // SAFETY: It is safe to unwrap here because the caller must ensure that sufficient funds are reserved.
@@ -181,7 +178,7 @@ where
 
     fn reward_prover_from_sequencer_balance(
         &self,
-        amount: u64,
+        amount: Amount,
         _sequencer: &S::Address,
         state: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<()> {
@@ -202,7 +199,7 @@ where
             + StateReader<User, Error = Infallible>,
     >(
         &self,
-        bond_amount: u64,
+        bond_amount: Amount,
         reward: Rewards,
         sequencer: &<S::Da as DaSpec>::Address,
         state: &mut Accessor,
@@ -393,7 +390,7 @@ impl<'a, S: Spec, T> SequencerRemuneration<S> for StandardProvenRollupCapabiliti
         let stake_increased = self.sequencer_registry.add_to_stake(
             self.bank.id().to_payable(),
             sequencer,
-            reward.0,
+            Amount::new(reward.0),
             state,
         );
 
@@ -404,10 +401,7 @@ impl<'a, S: Spec, T> SequencerRemuneration<S> for StandardProvenRollupCapabiliti
                 .transfer_from(
                     self.bank.id.to_payable(),
                     sequencer_rollup_address.as_token_holder(),
-                    Coins {
-                        amount: reward.0,
-                        token_id: config_gas_token_id(),
-                    },
+                    gas_coins(Amount::new(reward.0)),
                     state,
                 )
                 // SAFETY: It is safe to unwrap here because the caller must ensure that sufficient funds are reserved.

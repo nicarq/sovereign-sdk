@@ -331,7 +331,7 @@ where
             .expect("Should be set at genesis");
 
         // Find the faulty attestation pool and get the associated reward
-        let attestation_reward: u64 = match self
+        let attestation_reward = match self
             .bad_transition_pool
             .get_or_err(&rollup_height, state)
             .map_err(Into::<anyhow::Error>::into)?

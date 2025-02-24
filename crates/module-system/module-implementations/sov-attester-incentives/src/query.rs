@@ -1,6 +1,7 @@
 //! Defines the query methods for the attester incentives module
 
 use serde::{Deserialize, Serialize};
+use sov_bank::Amount;
 use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::optimistic::{BondingProofService, ProofOfBond};
 use sov_modules_api::prelude::UnwrapInfallible;
@@ -17,7 +18,7 @@ use crate::UnbondingInfo;
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct BondAmountResponse {
     /// The value of the bond
-    pub value: u64,
+    pub value: Amount,
 }
 
 impl<S> AttesterIncentives<S>
@@ -53,7 +54,7 @@ where
         })
     }
 
-    /// Gives storage key for given address
+    /// Gives the storage key for given address
     pub fn get_attester_storage_key(&self, address: S::Address) -> SlotKey {
         let prefix = self.bonded_attesters.prefix();
         let codec = self.bonded_attesters.codec();
@@ -73,7 +74,7 @@ where
     }
 
     /// Returns the value of the `minimum_attester_bond` at the current gas price.
-    pub fn get_minimal_attester_bond_value(&self, state: &mut ApiStateAccessor<S>) -> u64 {
+    pub fn get_minimal_attester_bond_value(&self, state: &mut ApiStateAccessor<S>) -> Amount {
         self.minimum_attester_bond
             .get(state)
             .unwrap_infallible()
@@ -82,7 +83,7 @@ where
     }
 
     /// Returns the value of the `minimum_challenger_bond` at the current gas price.
-    pub fn get_minimal_challenger_bond_value(&self, state: &mut ApiStateAccessor<S>) -> u64 {
+    pub fn get_minimal_challenger_bond_value(&self, state: &mut ApiStateAccessor<S>) -> Amount {
         self.minimum_challenger_bond
             .get(state)
             .unwrap_infallible()

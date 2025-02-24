@@ -73,7 +73,7 @@ impl<S: Spec> Bank<S> {
                 .ok_or(ReserveGasError::CurrentGasPriceTooHigh)?;
 
             // We need to check the gas price in case the user has provided a gas limit.
-            if tx.max_fee < gas_value {
+            if tx.max_fee < gas_value.0 {
                 return Err(ReserveGasError::CurrentGasPriceTooHigh);
             }
         }
@@ -86,7 +86,7 @@ impl<S: Spec> Bank<S> {
             payer,
             self.id.to_payable(),
             Coins {
-                amount: tx.max_fee,
+                amount: tx.max_fee.into(),
                 token_id: config_gas_token_id(),
             },
             state,

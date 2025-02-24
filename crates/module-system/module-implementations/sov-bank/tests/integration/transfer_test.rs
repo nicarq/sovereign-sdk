@@ -1,13 +1,15 @@
 use sov_bank::utils::TokenHolder;
 use sov_bank::{config_gas_token_id, Bank, CallMessage, Coins};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Error, TxEffect};
+use sov_modules_api::{Amount, Error, TxEffect};
 use sov_test_utils::runtime::genesis::TestTokenName;
 use sov_test_utils::{AsUser, TestUser, TransactionTestCase};
 
 use crate::helpers::*;
 
 type S = sov_test_utils::TestSpec;
+
+const TRANSFER_AMOUNT: Amount = Amount::new(10);
 
 /// Tests the happy path of a transfer call. Transfer a given amount of tokens from a user with a high balance to another user.
 #[test]
@@ -23,7 +25,6 @@ fn transfer_token_happy_path() {
         mut runner,
     ) = setup();
 
-    const TRANSFER_AMOUNT: u64 = 10;
     let user_high_token_balance_address = user_high_token_balance.address();
     let user_high_token_initial_balance =
         user_high_token_balance.token_balance(&token_name).unwrap();
@@ -64,7 +65,9 @@ fn transfer_token_happy_path() {
                 Bank::<S>::default()
                     .get_balance_of(&user_high_token_balance_address, token_id, state)
                     .unwrap_infallible(),
-                Some(user_high_token_initial_balance - TRANSFER_AMOUNT)
+                Some(Amount::new(
+                    user_high_token_initial_balance - TRANSFER_AMOUNT.0
+                ))
             );
         }),
     });
@@ -96,7 +99,7 @@ fn transfer_balance_too_low() {
         input: user_high_token_balance.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
             to: user_no_token_balance_address,
             coins: Coins {
-                amount: transfer_amount,
+                amount: transfer_amount.into(),
                 token_id,
             },
         }),
@@ -125,7 +128,7 @@ fn transfer_balance_too_low() {
                     Bank::<S>::default()
                         .get_balance_of(&user_high_token_balance_address, token_id, state)
                         .unwrap_infallible(),
-                    Some(user_high_token_initial_balance)
+                    Some(user_high_token_initial_balance.into())
                 );
 
                 assert_eq!(
@@ -158,7 +161,7 @@ fn transfer_non_existent_token() {
         input: user.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
             to: sov_modules_api::Address::new([1u8;28]),
             coins: Coins {
-                amount: 1,
+                amount: Amount::new(1),
                 token_id: non_existent_token.id(),
             },
         }),
@@ -199,7 +202,6 @@ fn transfer_sender_does_not_have_balance() {
 
     let sender_address = user_no_token_balance.address();
     let receiver_address = user_high_token_balance.address();
-    const TRANSFER_AMOUNT: u64 = 10;
 
     runner.execute_transaction(TransactionTestCase {
         input: user_no_token_balance.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
@@ -256,8 +258,6 @@ fn transfer_receiver_does_not_have_balance() {
     // Generate a new user with a zero balance
     let receiver_address = TestUser::<S>::generate(0).address();
 
-    const TRANSFER_AMOUNT: u64 = 10;
-
     runner.execute_transaction(TransactionTestCase {
         input: user_high_token_balance.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
             to: receiver_address,
@@ -292,7 +292,7 @@ fn transfer_receiver_does_not_have_balance() {
                 Bank::<S>::default()
                     .get_balance_of(&sender_address, token_id, state)
                     .unwrap_infallible(),
-                Some(sender_initial_balance - TRANSFER_AMOUNT)
+                Some(Amount::new(sender_initial_balance - TRANSFER_AMOUNT.0))
             );
         }),
     });
@@ -311,7 +311,6 @@ fn transfer_sender_equals_receiver() {
     ) = setup();
 
     let sender_address = user_no_token_balance.address();
-    const TRANSFER_AMOUNT: u64 = 10;
 
     runner.execute_transaction(TransactionTestCase {
         input: user_no_token_balance.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
@@ -354,13 +353,12 @@ fn transfer_send_zero_amount() {
 
     let sender_address = user_no_token_balance.address();
     let receiver_address = user_high_token_balance.address();
-    const TRANSFER_AMOUNT: u64 = 0;
 
     runner.execute_transaction(TransactionTestCase {
         input: user_no_token_balance.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
             to: receiver_address,
             coins: Coins {
-                amount: 0,
+                amount: Amount::ZERO,
                 token_id,
             },
         }),
@@ -373,7 +371,7 @@ fn transfer_send_zero_amount() {
                     from: TokenHolder::User(sender_address),
                     to: TokenHolder::User(receiver_address),
                     coins: Coins {
-                        amount: TRANSFER_AMOUNT,
+                        amount: Amount::ZERO,
                         token_id
                     }
                 })
@@ -394,7 +392,6 @@ fn test_transfer_gas_token() {
         mut runner,
     ) = setup();
 
-    const TRANSFER_AMOUNT: u64 = 10;
     let sender_address = sender.address();
     let sender_initial_balance = sender.available_gas_balance;
 
@@ -428,14 +425,16 @@ fn test_transfer_gas_token() {
                 Bank::<S>::default()
                     .get_balance_of(&receiver_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(receiver_initial_balance + TRANSFER_AMOUNT)
+                Some(Amount::new(receiver_initial_balance + TRANSFER_AMOUNT.0))
             );
 
             assert_eq!(
                 Bank::<S>::default()
                     .get_balance_of(&sender_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(sender_initial_balance - result.gas_value_used - TRANSFER_AMOUNT)
+                Some(Amount::new(
+                    sender_initial_balance - result.gas_value_used - TRANSFER_AMOUNT.0
+                ))
             );
         }),
     });

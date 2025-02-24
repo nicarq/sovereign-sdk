@@ -41,7 +41,7 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
         content: Mod::CallMessage,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u64,
+        max_fee: u128,
         gas_limit: Option<S::Gas>,
         generation: u64,
     ) -> Self {
@@ -109,7 +109,7 @@ pub trait MessageGenerator {
         &self,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u64,
+        max_fee: u128,
         estimated_gas_usage: Option<<Self::Spec as Spec>::Gas>,
     ) -> Vec<Message<Self::Spec, Self::Module>>;
 
@@ -169,7 +169,7 @@ pub trait MessageGenerator {
         &self,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u64,
+        max_fee: u128,
         estimated_gas_usage: Option<<Self::Spec as Spec>::Gas>,
     ) -> Vec<FullyBakedTx> {
         let messages_iter = self

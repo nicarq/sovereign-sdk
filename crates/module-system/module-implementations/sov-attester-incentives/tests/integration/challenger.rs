@@ -61,7 +61,7 @@ fn setup_with_wrong_attestation() -> (
 
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&genesis_challenger_address, state),
-                Some(expected_challenger_balance_2.get() - genesis_challenger_bond),
+                Some(expected_challenger_balance_2.get() - genesis_challenger_bond.0),
                 "The attester should have the correct bond amount from genesis"
             );
         }),
@@ -75,7 +75,7 @@ fn setup_with_wrong_attestation() -> (
     genesis_challenger.user_info.available_gas_balance = expected_challenger_balance_3.get();
 
     let bonded_challenger =
-        BondedTestChallenger::from_challenger(genesis_challenger, genesis_challenger_bond);
+        BondedTestChallenger::from_challenger(genesis_challenger, genesis_challenger_bond.0);
 
     let initial_attester_balance = runner
         .query_visible_state(|state| {
@@ -113,7 +113,7 @@ fn setup_with_wrong_attestation() -> (
                         .bad_transition_pool
                         .get(&SlotNumber::ONE, state)
                         .unwrap_infallible(),
-                    Some(genesis_attester_bond),
+                    Some(genesis_attester_bond.into()),
                     "The transition should exist in the pool"
                 );
 
@@ -130,7 +130,7 @@ fn setup_with_wrong_attestation() -> (
         runner,
         genesis_attester,
         bonded_challenger,
-        genesis_attester_bond,
+        genesis_attester_bond.into(),
     )
 }
 
@@ -176,7 +176,8 @@ fn test_valid_challenge() -> Result<(), Infallible> {
 
             let reward = TestAttesterIncentives::default()
                 .burn_rate()
-                .apply(expected_reward);
+                .apply(expected_reward)
+                .0;
 
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&bonded_challenger_address, state).unwrap(),
@@ -190,7 +191,7 @@ fn test_valid_challenge() -> Result<(), Infallible> {
 
 fn test_invalid_challenge_helper(
     runner: &mut TestRunner<RT, S>,
-    expected_reward: u64,
+    expected_reward: u128,
     bonded_challenger: &BondedTestChallenger<S>,
     challenge_blob: Vec<u8>,
     slashing_reason: SlashingReason,
@@ -229,7 +230,7 @@ fn test_invalid_challenge_helper(
                     .bad_transition_pool
                     .get(&SlotNumber::ONE, state)
                     .unwrap_infallible(),
-                Some(expected_reward),
+                Some(expected_reward.into()),
                 "The transition should *not* have disappeared from the pool"
             );
 
@@ -262,7 +263,7 @@ fn test_invalid_challenge_initial_state_root() {
 
     test_invalid_challenge_helper(
         &mut runner,
-        expected_reward,
+        expected_reward.0,
         &bonded_challenger,
         make_challenge_blob(challenge_proof, true, SlotNumber::new_dangerous(1)),
         SlashingReason::InvalidInitialHash,
@@ -289,7 +290,7 @@ fn test_invalid_challenge_transition() {
 
     test_invalid_challenge_helper(
         &mut runner,
-        expected_reward,
+        expected_reward.0,
         &bonded_challenger,
         make_challenge_blob(challenge_proof, true, SlotNumber::new_dangerous(1)),
         SlashingReason::TransitionInvalid,
@@ -313,7 +314,7 @@ fn test_invalid_challenge_proof() {
 
     test_invalid_challenge_helper(
         &mut runner,
-        expected_reward,
+        expected_reward.0,
         &bonded_challenger,
         make_challenge_blob(challenge_proof, false, SlotNumber::new_dangerous(1)),
         SlashingReason::InvalidZkProof,

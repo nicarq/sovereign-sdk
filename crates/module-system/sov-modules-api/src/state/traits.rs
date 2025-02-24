@@ -132,7 +132,7 @@ pub enum StateAccessorError<GU: Gas> {
     },
     /// An error occurred when trying to set a value in the state.
     #[error(
-        "An error occured while trying to set the value (key {key:?}) in the state: {inner}, namespace: {namespace:?}"
+        "An error occurred while trying to set the value (key {key}) in the state: {inner}, namespace: {namespace:?}"
     )]
     Set {
         /// The key of the value that was not found.

@@ -1,9 +1,6 @@
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
-
 use sov_bank::{config_gas_token_id, Coins};
 use sov_test_utils::runtime::{ApiGetStateData, ApiPath};
-use sov_test_utils::{AsUser, TransactionTestCase};
+use sov_test_utils::{AsUser, AtomicNumber, TransactionTestCase};
 use sov_value_setter::ValueSetter;
 
 use crate::helpers::{setup, RT, S};
@@ -91,7 +88,7 @@ async fn test_rest_api_routes_custom_api() {
         "The user balance should be the same as the user's available gas balance"
     );
 
-    let gas_used = Arc::new(AtomicU64::new(0));
+    let gas_used = AtomicNumber::new(0);
     let gas_used_clone = gas_used.clone();
 
     runner.execute_transaction(TransactionTestCase {
@@ -103,14 +100,13 @@ async fn test_rest_api_routes_custom_api() {
         ),
         assert: Box::new(move |result, _state| {
             assert!(result.tx_receipt.is_successful());
-            gas_used.fetch_add(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
+            gas_used.add(result.gas_value_used);
         }),
     });
 
     let api_user_balance: Coins = runner.query_api_unwrap_data(&path, &client).await;
 
-    let expected_balance =
-        initial_user_balance - gas_used_clone.load(std::sync::atomic::Ordering::SeqCst);
+    let expected_balance = initial_user_balance - gas_used_clone.get();
 
     assert_eq!(
         api_user_balance.amount, expected_balance,

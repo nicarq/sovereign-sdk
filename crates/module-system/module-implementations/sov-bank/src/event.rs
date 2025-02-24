@@ -1,7 +1,7 @@
 use sov_modules_api::Spec;
 
 use crate::utils::TokenHolder;
-use crate::{Coins, TokenId};
+use crate::{Amount, Coins, TokenId};
 
 /// Bank Event
 #[derive(
@@ -29,7 +29,7 @@ pub enum Event<S: Spec> {
         /// The token holder that submitted the minting transaction.
         minter: TokenHolder<S>,
         /// The supply cap of the token.
-        supply_cap: u64,
+        supply_cap: Amount,
         /// Admin list.
         admins: Vec<TokenHolder<S>>,
     },

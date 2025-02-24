@@ -11,14 +11,14 @@ use sov_test_utils::MockDaSpec;
 use crate::default_spec::DefaultSpec;
 use crate::gas::GasArray;
 use crate::{
-    Gas, GasMeter, GasPrice, GasUnit, MeteredBorshDeserialize, MeteredBorshDeserializeError,
-    MeteredHasher, MeteredSigVerificationError, MeteredSignature, Spec, StateCheckpoint,
-    WorkingSet,
+    Amount, Gas, GasMeter, GasPrice, GasUnit, MeteredBorshDeserialize,
+    MeteredBorshDeserializeError, MeteredHasher, MeteredSigVerificationError, MeteredSignature,
+    Spec, StateCheckpoint, WorkingSet,
 };
 type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
 fn create_working_set(
-    remaining_funds: u64,
+    remaining_funds: Amount,
     gas_price: &<<S as Spec>::Gas as Gas>::Price,
 ) -> WorkingSet<S, StateCheckpoint<S>> {
     let storage_manager = SimpleStorageManager::new();
@@ -31,7 +31,7 @@ fn test_metered_hasher_happy_path() {
     let gas_to_charge_for_hash_update = GasUnit::<2>::from([5, 5]);
     let gas_to_charge_for_hash_finalize = GasUnit::<2>::from([2, 2]);
 
-    let gas_price = GasPrice::<2>::from([1, 1]);
+    let gas_price = GasPrice::<2>::from([Amount::new(1); 2]);
 
     let data = [1_u8; 32];
 
@@ -40,7 +40,8 @@ fn test_metered_hasher_happy_path() {
         .checked_scalar_product(data.len() as u64)
         .unwrap()
         .value(&gas_price)
-        + gas_to_charge_for_hash_finalize.value(&gas_price);
+        .checked_add(gas_to_charge_for_hash_finalize.value(&gas_price))
+        .unwrap();
 
     let mut ws = create_working_set(remaining_funds, &gas_price);
 
@@ -65,7 +66,7 @@ fn test_metered_hasher_not_enough_gas_to_update() {
     let gas_to_charge_per_byte_for_hash_update = GasUnit::<2>::from([5, 5]);
     let gas_to_charge_for_hash_update = GasUnit::<2>::from([2, 2]);
 
-    let gas_price = GasPrice::<2>::from([1, 1]);
+    let gas_price = GasPrice::<2>::from([Amount::new(1); 2]);
 
     let data = [1_u8; 32];
 
@@ -94,7 +95,7 @@ fn test_metered_signature() {
     let gas_to_charge_for_signature = GasUnit::<2>::from([5, 5]);
     let fixed_cost = GasUnit::<2>::from([1000, 1000]);
 
-    let gas_price = GasPrice::<2>::from([1, 1]);
+    let gas_price = GasPrice::<2>::from([Amount::new(1); 2]);
 
     let data = [1_u8; 32];
 
@@ -140,7 +141,7 @@ fn test_metered_signature_not_enough_gas() {
     let gas_to_charge_for_signature = GasUnit::<2>::from([5, 5]);
     let fixed_cost = GasUnit::<2>::from([1000, 1000]);
 
-    let gas_price = GasPrice::<2>::from([1, 1]);
+    let gas_price = GasPrice::<2>::from([Amount::new(1); 2]);
 
     let data = [1_u8; 32];
 
@@ -215,7 +216,7 @@ fn test_metered_deserializer() {
     };
     let serialized_data = borsh::to_vec(&data).unwrap();
     let gas_to_charge_for_deserialization = gas_cost_to_deserialize::<S>(&serialized_data).unwrap();
-    let gas_price = GasPrice::<2>::from([1, 1]);
+    let gas_price = GasPrice::<2>::from([Amount::new(1); 2]);
 
     let remaining_funds = gas_to_charge_for_deserialization.value(&gas_price);
 
@@ -242,9 +243,12 @@ fn test_metered_deserializer_not_enough_gas() {
     };
     let serialized_data = borsh::to_vec(&data).unwrap();
     let gas_to_charge_for_deserialization = gas_cost_to_deserialize::<S>(&serialized_data).unwrap();
-    let gas_price = GasPrice::<2>::from([1, 1]);
+    let gas_price = GasPrice::<2>::from([Amount::new(1); 2]);
 
-    let remaining_funds = gas_to_charge_for_deserialization.value(&gas_price) - 1;
+    let remaining_funds = gas_to_charge_for_deserialization
+        .value(&gas_price)
+        .checked_sub(Amount::new(1))
+        .unwrap();
 
     let mut ws = create_working_set(remaining_funds, &gas_price);
 
@@ -269,7 +273,7 @@ fn test_metered_deserializer_invalid_data() {
     };
     let serialized_data = borsh::to_vec(&data).unwrap();
     let gas_to_charge_for_deserialization = gas_cost_to_deserialize::<S>(&serialized_data).unwrap();
-    let gas_price = GasPrice::<2>::from([1, 1]);
+    let gas_price = GasPrice::<2>::from([Amount::new(1); 2]);
 
     let remaining_funds = gas_to_charge_for_deserialization.value(&gas_price);
 

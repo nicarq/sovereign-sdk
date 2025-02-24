@@ -10,7 +10,7 @@ use sov_api_spec::types::AcceptTxBody;
 use sov_blob_storage::config_deferred_slots_count;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockBlock};
-use sov_modules_api::{RawTx, Runtime};
+use sov_modules_api::{Amount, RawTx, Runtime};
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_rollup_interface::common::SafeVec;
 use sov_rollup_interface::da::BlobReaderTrait;
@@ -120,7 +120,7 @@ fn generate_tx_with_nonce(user: &TestUser<TestSpec>, nonce: u64) -> RawTx {
     let msg = TestRuntimeCall::Bank(
         sov_test_utils::sov_bank::CallMessage::<TestSpec>::CreateToken {
             token_name: format!("sequencers-check-{}", nonce).try_into().unwrap(),
-            initial_balance: 1000,
+            initial_balance: Amount::new(1000),
             mint_to_address: user.address(),
             admins: SafeVec::new(),
             supply_cap: None,

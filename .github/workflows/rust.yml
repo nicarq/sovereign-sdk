@@ -584,7 +584,7 @@ jobs:
         with:
           repository: 'Sovereign-Labs/sovereign-sdk-web3-js'
           path: 'examples/demo-rollup/web3-js-sdk'
-          ref: 'b02640a780bdbfef7dbea564a9f26fe5019666fa'
+          ref: '8f36a1b3212f6618967c4fed8c9ffd8b701a93e3'
           ssh-key: |
             ${{ secrets.SOV_SDK_WEB3_JS_ACCESS_TOKEN }}
       - name: Run web3-js SDK tests against demo-rollup

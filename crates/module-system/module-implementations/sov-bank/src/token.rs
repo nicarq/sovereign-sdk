@@ -11,14 +11,13 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "arbitrary")]
 use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::prelude::*;
+use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{impl_hash32_type, Spec};
 use sov_state::{BorshCodec, EncodeLike, StateItemEncoder};
 use thiserror::Error;
 
 use crate::utils::{Payable, TokenHolder, TokenHolderRef};
-
-/// Type alias to store an amount of token.
-pub type Amount = u64;
+use crate::Amount;
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 /// A token burn rate. We need to burn some of it to avoid the system participants to
@@ -52,7 +51,10 @@ impl BurnRate {
 
     /// Applies the burn rate to the given amount.
     pub fn apply(&self, amount: Amount) -> Amount {
-        amount * (100 - self.0 as u64) / 100
+        let self_as_bips = PriorityFeeBips::from_percentage(100 - self.0 as u64);
+        Amount(self_as_bips.apply(amount.0).expect(
+            "The final calculation cannot overflow since the burn rate is never greater than 100%",
+        ))
     }
 }
 
@@ -196,7 +198,7 @@ pub struct Token<S: Spec> {
     /// Name of the token.
     pub(crate) name: String,
     /// Total supply of the coins.
-    pub(crate) total_supply: u64,
+    pub(crate) total_supply: Amount,
     /// The supply cap of the token, if any.
     pub(crate) supply_cap: Amount,
 
@@ -215,7 +217,7 @@ impl<S: Spec> Token<S> {
     }
 
     /// Get the total supply of the token.
-    pub fn total_supply(&self) -> u64 {
+    pub fn total_supply(&self) -> Amount {
         self.total_supply
     }
 

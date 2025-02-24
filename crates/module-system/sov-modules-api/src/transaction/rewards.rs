@@ -17,11 +17,11 @@ use crate::{Gas, GasArray, Spec};
 pub struct TransactionConsumption<GU: Gas> {
     /// The amount of funds locked in the transaction that remains after transaction is executed and tip is processed.
     /// This amount includes the `base_fee` and the `priority_fee` gas token consumption
-    pub(crate) remaining_funds: u64,
+    pub(crate) remaining_funds: u128,
     /// The base fee reward of the transaction expressed as a gas token amount.
     pub(crate) base_fee: GU,
     /// The priority fee reward of the transaction expressed as a gas token amount.
-    pub(crate) priority_fee: u64,
+    pub(crate) priority_fee: u128,
     /// The gas price of the transaction.
     pub(crate) gas_price: GU::Price,
 }
@@ -37,9 +37,9 @@ impl<GU: Gas> TransactionConsumption<GU> {
 
     /// Creates a new [`TransactionConsumption`] instance.
     pub fn new(
-        remaining_funds: u64,
+        remaining_funds: u128,
         base_fee: GU,
-        priority_fee: u64,
+        priority_fee: u128,
         gas_price: GU::Price,
     ) -> Self {
         Self {
@@ -67,7 +67,8 @@ impl<GU: Gas> TransactionConsumption<GU> {
             self.base_fee
                 .checked_value(&self.gas_price)
                 // SAFETY: `base_fee` comes from `BasicGasMeter`, which ensures overflow protection.
-                .expect("Base fee value overflowed"),
+                .expect("Base fee value overflowed")
+                .0,
         )
     }
 
@@ -84,11 +85,11 @@ impl<GU: Gas> TransactionConsumption<GU> {
 
 /// The prover reward.
 #[derive(Copy, Debug, Clone, PartialEq, Eq)]
-pub struct ProverRewards(pub u64);
+pub struct ProverRewards(pub u128);
 
 /// The remaining amount of gas tokens
 #[derive(Copy, Debug, Clone, PartialEq, Eq)]
-pub struct RemainingFunds(pub u64);
+pub struct RemainingFunds(pub u128);
 
 /// The type used to represent the sequencer reward. This type should be obtained from the [`TransactionConsumption`] type.
 #[derive(
@@ -105,7 +106,7 @@ pub struct RemainingFunds(pub u64);
     derive_more::Display,
 )]
 #[display("SequencerReward({})", self.0)]
-pub struct SequencerReward(pub u64);
+pub struct SequencerReward(pub u128);
 
 impl SequencerReward {
     /// Returns a zero sequencer reward. This can be used to initialize an accumulator to build a sequencer reward.
@@ -123,7 +124,7 @@ impl SequencerReward {
 pub(crate) fn transaction_consumption_helper<S: Spec>(
     base_fee: &S::Gas,
     gas_price: &<S::Gas as Gas>::Price,
-    max_fee: u64,
+    max_fee: u128,
     max_priority_fee_bips: PriorityFeeBips,
 ) -> TransactionConsumption<S::Gas> {
     let base_fee_value = base_fee
@@ -131,11 +132,11 @@ pub(crate) fn transaction_consumption_helper<S: Spec>(
         // SAFETY: `base_fee` comes from `BasicGasMeter`, which ensures overflow protection.
         .expect("Base fee value overflowed");
 
-    let max_remaining_funds = max_fee - base_fee_value;
+    let max_remaining_funds = max_fee.saturating_sub(base_fee_value.0);
 
     // We compute the `max_priority_fee_bips` by applying the `priority_fee_per_gas` to the consumed gas.
     let earned_priority_fee = max_priority_fee_bips
-        .apply(base_fee_value)
+        .apply(base_fee_value.0)
         .unwrap_or(max_remaining_funds); // If the computation overflows, it would have been larger than the max_remaining_funds anyway - so just use that.
 
     // The tip is the minimum of the remaining gas allocated to the transaction and the maximum earned tip.
@@ -145,7 +146,7 @@ pub(crate) fn transaction_consumption_helper<S: Spec>(
     // Since the tip is an amount of gas tokens consumed on top of the base fee from the gas meter, we need to take that into
     // account in the calculation.
     let remaining_funds = max_fee
-        .saturating_sub(base_fee_value)
+        .saturating_sub(base_fee_value.0)
         .saturating_sub(priority_fee);
 
     TransactionConsumption {

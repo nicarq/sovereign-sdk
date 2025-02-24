@@ -1,10 +1,12 @@
+use std::num::ParseIntError;
+
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use sov_api_spec::types;
 use sov_modules_api::prelude::anyhow;
 use sov_modules_api::prelude::anyhow::Context;
 use sov_modules_api::transaction::{PriorityFeeBips, TransactionConsumption, TxDetails};
-use sov_modules_api::{Gas, Spec, StoredEvent, TxEffect};
+use sov_modules_api::{Amount, Gas, Spec, StoredEvent, TxEffect};
 use sov_modules_stf_blueprint::{
     ApplyTxResult, RevertedTxContents, SkippedTxContents, SuccessfulTxContents, TransactionReceipt,
 };
@@ -29,12 +31,23 @@ impl<S: Spec> TryFrom<types::SimulateExecutionResponse> for SimulateExecutionCon
         let value = value.apply_tx_result;
         let received_consumption = value.transaction_consumption;
 
+        let remaining_funds = received_consumption
+            .remaining_funds
+            .as_str()
+            .parse::<u128>()?;
+
+        let gas_price = received_consumption
+            .gas_price
+            .0
+            .iter()
+            .map(|item| item.as_str().parse::<Amount>())
+            .collect::<Result<Vec<_>, _>>()?;
+
         let transaction_consumption = TransactionConsumption::<S::Gas>::new(
-            received_consumption.remaining_funds,
+            remaining_funds,
             S::Gas::try_from(received_consumption.base_fee.0).map_err(Into::into)?,
-            received_consumption.priority_fee,
-            <S::Gas as Gas>::Price::try_from(received_consumption.gas_price.0)
-                .map_err(Into::into)?,
+            received_consumption.priority_fee.as_str().parse::<u128>()?,
+            <S::Gas as Gas>::Price::try_from(gas_price).map_err(Into::into)?,
         );
 
         let received_receipt = value.receipt;
@@ -103,12 +116,29 @@ impl<S: Spec> TryInto<types::SimulateExecutionResponse> for SimulateExecutionCon
         let remaining_funds = transaction_consumption.remaining_funds().0;
         let base_fee = types::GasUnit(transaction_consumption.base_fee().as_ref().to_vec());
         let priority_fee = transaction_consumption.priority_fee().0;
-        let gas_price = types::GasPrice(transaction_consumption.gas_price().as_ref().to_vec());
+        let gas_price = types::GasPrice(
+            transaction_consumption
+                .gas_price()
+                .as_ref()
+                .iter()
+                .map(|item| {
+                    item.to_string()
+                        .try_into()
+                        .expect("Api spec rejected valid integer. This should never happen.")
+                })
+                .collect::<Vec<types::GasPriceItem>>(),
+        );
 
         let transaction_consumption = types::TransactionConsumption {
-            remaining_funds,
+            remaining_funds: types::TransactionConsumptionRemainingFunds::try_from(
+                remaining_funds.to_string(),
+            )
+            .expect("Failed to convert remaining funds to string"),
             base_fee,
-            priority_fee,
+            priority_fee: types::TransactionConsumptionPriorityFee::try_from(
+                priority_fee.to_string(),
+            )
+            .expect("Failed to convert priority fee to string"),
             gas_price,
         };
 
@@ -161,16 +191,27 @@ impl<S: Spec> TryInto<types::PartialTransaction> for crate::PartialTransaction<S
         let details = types::TxDetails {
             chain_id: self.details.chain_id,
             max_priority_fee_bips: self.details.max_priority_fee_bips.0,
-            max_fee: self.details.max_fee,
+            max_fee: types::TxDetailsMaxFee::try_from(self.details.max_fee.to_string())
+                .expect("Failed to convert max fee from string"),
             gas_limit: self
                 .details
                 .gas_limit
                 .map(|gas_limit| types::GasUnit(gas_limit.as_ref().to_vec())),
         };
         let generation = self.generation;
-        let gas_price = self
-            .gas_price
-            .map(|gas_price| types::GasPrice(gas_price.as_ref().to_vec()));
+        let gas_price = self.gas_price.map(|price| {
+            types::GasPrice(
+                price
+                    .as_ref()
+                    .iter()
+                    .map(|item| {
+                        item.to_string()
+                            .try_into()
+                            .expect("Api spec rejected valid integer. This should never happen.")
+                    })
+                    .collect::<Vec<types::GasPriceItem>>(),
+            )
+        });
 
         let sequencer = self
             .sequencer
@@ -203,7 +244,7 @@ impl<S: Spec> TryFrom<types::PartialTransaction> for crate::PartialTransaction<S
         let details = TxDetails::<S> {
             chain_id: value.details.chain_id,
             max_priority_fee_bips: PriorityFeeBips(value.details.max_priority_fee_bips),
-            max_fee: value.details.max_fee,
+            max_fee: value.details.max_fee.as_str().parse::<u128>()?,
             gas_limit: value
                 .details
                 .gas_limit
@@ -213,7 +254,15 @@ impl<S: Spec> TryFrom<types::PartialTransaction> for crate::PartialTransaction<S
         let generation = value.generation;
         let gas_price = value
             .gas_price
-            .map(|gas_price| <S::Gas as Gas>::Price::try_from(gas_price.0).map_err(Into::into))
+            .map(|gas_price| {
+                gas_price
+                    .0
+                    .iter()
+                    .map(|item| item.as_str().parse::<Amount>())
+                    .collect::<Result<Vec<_>, ParseIntError>>()
+            })
+            .transpose()?
+            .map(|g| <S::Gas as Gas>::Price::try_from(g).map_err(Into::into))
             .transpose()?;
 
         let sequencer = value

@@ -2,7 +2,7 @@ use std::cmp::max;
 
 use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::config_value;
-use sov_modules_api::{Gas, GasArray, GasSpec, Spec};
+use sov_modules_api::{Amount, Gas, GasArray, GasSpec, Spec};
 use thiserror::Error;
 
 use crate::{BlockGasInfo, ChainState};
@@ -30,10 +30,22 @@ impl NonZeroRatio {
     }
 
     /// Divides the provided value by the ratio.
-    pub fn apply_div(&self, value: u64) -> u64 {
+    pub fn apply_div(&self, value: u128) -> u128 {
         value
             .checked_div(self.0.into())
             .expect("The ratio cannot be zero")
+    }
+
+    /// Divides the provided value by the ratio.
+    pub fn apply_div_u64(&self, value: u64) -> u64 {
+        value
+            .checked_div(self.0.into())
+            .expect("The ratio cannot be zero")
+    }
+
+    /// Gets the ratio as a `u8`.
+    pub fn get(&self) -> u8 {
+        self.0
     }
 }
 
@@ -101,10 +113,11 @@ impl<S: Spec> ChainState<S> {
     pub(crate) fn compute_base_fee_per_gas_unidimensional(
         gas_limit: u64,
         gas_used: u64,
-        mut base_fee_per_gas: u64,
-    ) -> u64 {
+        mut base_fee_per_gas: Amount,
+    ) -> Amount {
         // The gas target is equal to `gas_limit // config_elasticity_multiplier(`
-        let gas_target = Self::config_elasticity_multiplier().apply_div(gas_limit);
+        let gas_target = Self::config_elasticity_multiplier().apply_div_u64(gas_limit);
+        assert!((Self::config_base_fee_change_denominator().get() as u64).checked_mul(gas_target).is_some(), "Misconfiguration: The product of gas_target * baseconfig_base_fee_change_denominator must not excueed u64::MAX");
 
         if gas_used == gas_target {
             // We reached the gas target, so we don't need to update the base fee
@@ -114,35 +127,71 @@ impl<S: Spec> ChainState<S> {
 
             // Compute the difference in absolute value between the gas target and the gas used.
             // This value is the delta between the gas target and the gas used. We need to then apply the `base_fee_per_gas` to compute its value in tokens.
-            let gas_used_delta_as_u64 = gas_target.abs_diff(gas_used);
-            let gas_used_delta = gas_used_delta_as_u64;
-            let gas_used_delta_value = gas_used_delta * base_fee_per_gas;
+            let gas_used_delta = gas_target.abs_diff(gas_used);
+            // .checked_mul(base_fee_per_gas.0)
+            //.checked_div(gas_target)
+
+            fn compute_delta_limbs(
+                gas_used_delta: u64,
+                gas_target: u64,
+                base_fee_per_gas: u128,
+                base_fee_change_denominator: u8,
+            ) -> u128 {
+                let hi = base_fee_per_gas >> 64;
+                let lo = base_fee_per_gas & u64::MAX as u128;
+
+                let base_fee_change_denominator: u128 = base_fee_change_denominator.into();
+                // Our divisor is gas target * 8, which is bounded by u64::MAX as long as gas_target * base_fee_change_denominator <= u64::MAX
+                let divisor: u128 = (gas_target as u128)
+                    .checked_mul(base_fee_change_denominator)
+                    // Safety: This can't overflow since the values are bounded by u64::MAX and u8::MAX respectively
+                    .unwrap();
+
+                let hi_mul = hi * gas_used_delta as u128;
+                let hi_res = hi_mul / divisor;
+                // If we would overflow when shifting left, return the max value.
+                if hi_res > u64::MAX as u128 {
+                    return u128::MAX;
+                }
+                let hi_rem = hi_mul % divisor;
+                let low_mul = lo * gas_used_delta as u128;
+                let low_res = low_mul / divisor;
+
+                // This is correct as long as divisor <= u64::MAX
+                (hi_res << 64)
+                    .saturating_add((hi_rem << 64) / divisor)
+                    .saturating_add(low_res)
+            }
+            let base_fee_per_gas_delta_normalized = compute_delta_limbs(
+                gas_used_delta,
+                gas_target,
+                base_fee_per_gas.0,
+                Self::config_base_fee_change_denominator().get(),
+            );
 
             // This division expresses the `base_fee_per_gas` delta as the ration (gas_used_delta_value / gas_target).
             // If the division underflows, the delta is set to zero
             //
             // Note here that this operation gives a value that can be expressed as a `GasPrice<1>` because we do
             // `base_fee_per_gas * (gas_used_delta / gas_target)`.
-            let base_fee_per_gas_delta_u64 = gas_used_delta_value
-                .checked_div(gas_target)
-                .unwrap_or_default();
 
             // We normalize the result, the same way as in the EIP-1559 specification (`<https://eips.ethereum.org/EIPS/eip-1559>`)
-            let base_fee_per_gas_delta_normalized =
-                Self::config_base_fee_change_denominator().apply_div(base_fee_per_gas_delta_u64);
 
             if gas_used > gas_target {
                 // In that case, we take the maximum with `1` to make sure the `base_fee_per_gas` is always increased
-                let base_fee_per_gas_delta_normalized = max(base_fee_per_gas_delta_normalized, 1);
+                let base_fee_per_gas_delta_normalized =
+                    Amount::from(max(base_fee_per_gas_delta_normalized, 1));
 
-                base_fee_per_gas += base_fee_per_gas_delta_normalized;
+                base_fee_per_gas = base_fee_per_gas
+                    .checked_add(base_fee_per_gas_delta_normalized)
+                    .expect("Base fee overflow");
 
                 base_fee_per_gas
             } else {
                 // Although unlikely, the `base_fee_per_gas` can reach zero. We cannot have a negative value for gas price
                 // so we saturate at zero.
                 base_fee_per_gas
-                    .checked_sub(base_fee_per_gas_delta_normalized)
+                    .checked_sub(Amount::from(base_fee_per_gas_delta_normalized))
                     .unwrap_or_default()
             }
         }

@@ -3,7 +3,7 @@ pub use errors::*;
 use sov_rollup_interface::BasicAddress;
 use sov_state::User;
 
-use crate::{GetGasPrice, StateAccessor, StateWriter, TxState};
+use crate::{Amount, GetGasPrice, StateAccessor, StateWriter, TxState};
 
 /// A trait that abstracts the generic logic for staking and un-staking across various sov-modules.
 pub trait StakeRegistration {
@@ -22,7 +22,7 @@ pub trait StakeRegistration {
         &self,
         primary_address: &Self::PrimaryAddress,
         rollup_address: &Self::RollupAddress,
-        amount: u64,
+        amount: Amount,
         state: &mut ST,
     ) -> Result<
         (),
@@ -58,7 +58,7 @@ pub trait StakeRegistration {
     fn deposit_funds<ST: TxState<Self::Spec>>(
         &self,
         staker: &Self::PrimaryAddress,
-        amount: u64,
+        amount: Amount,
         state: &mut ST,
     ) -> Result<
         (),
@@ -104,7 +104,7 @@ pub trait StakeRegistration {
         staker: &Self::PrimaryAddress,
         state: &mut ST,
     ) -> Result<
-        u64,
+        Amount,
         RegistrationError<
             Self::RollupAddress,
             Self::PrimaryAddress,
@@ -135,7 +135,7 @@ pub trait StakeRegistration {
     fn get_minimum_bond<ST: TxState<Self::Spec> + GetGasPrice<Spec = Self::Spec>>(
         &self,
         state: &mut ST,
-    ) -> Result<Option<u64>, <ST as StateWriter<User>>::Error>;
+    ) -> Result<Option<Amount>, <ST as StateWriter<User>>::Error>;
 
     /// Get the allowed staker.
     #[allow(clippy::type_complexity)]
@@ -143,14 +143,14 @@ pub trait StakeRegistration {
         &self,
         address: &Self::PrimaryAddress,
         state: &mut ST,
-    ) -> Result<Option<(Self::RollupAddress, u64)>, <ST as StateWriter<User>>::Error>;
+    ) -> Result<Option<(Self::RollupAddress, Amount)>, <ST as StateWriter<User>>::Error>;
 
     /// Set the allowed staker.
     fn set_allowed_staker<ST: TxState<Self::Spec>>(
         &self,
         primary_address: &Self::PrimaryAddress,
         rollup_address: &Self::RollupAddress,
-        amount: u64,
+        amount: Amount,
         state: &mut ST,
     ) -> Result<(), <ST as StateWriter<User>>::Error>;
 
@@ -158,7 +158,7 @@ pub trait StakeRegistration {
     fn transfer_bond_from_staker<ST: StateAccessor>(
         &self,
         address: &Self::RollupAddress,
-        amount: u64,
+        amount: Amount,
         state: &mut ST,
     ) -> anyhow::Result<()>;
 
@@ -166,7 +166,7 @@ pub trait StakeRegistration {
     fn transfer_bond_to_staker<ST: StateAccessor>(
         &self,
         address: &Self::RollupAddress,
-        amount: u64,
+        amount: Amount,
         state: &mut ST,
     ) -> anyhow::Result<()>;
 

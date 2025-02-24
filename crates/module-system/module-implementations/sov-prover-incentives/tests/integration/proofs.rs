@@ -1,4 +1,4 @@
-use sov_modules_api::{Gas, InvalidProofError, ProofOutcome, Spec};
+use sov_modules_api::{Amount, Gas, InvalidProofError, ProofOutcome, Spec};
 use sov_prover_incentives::ProverIncentives;
 use sov_rollup_interface::common::IntoSlotNumber;
 use sov_test_utils::runtime::TestRunner;
@@ -60,14 +60,15 @@ fn test_valid_proof() {
                 initial_balance - result.gas_value_used
                     + ProverIncentives::<S>::default()
                         .burn_rate()
-                        .apply(reward.get())
+                        .apply(reward.get().into())
+                        .0
             );
             assert_eq!(
                 TestProverIncentives::default()
                     .bonded_provers
                     .get(&prover.user_info.address(), state)
                     .unwrap(),
-                Some(prover.bond),
+                Some(prover.bond.into()),
                 "Bonded amount should not have changed"
             );
         }),
@@ -107,7 +108,7 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
                     .bonded_provers
                     .get(&prover_address, state)
                     .unwrap(),
-                Some(prover.bond),
+                Some(prover.bond.into()),
                 "Bonded amount should not have changed"
             );
             assert_eq!(
@@ -147,7 +148,13 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
                 .unwrap()
                 .unwrap();
             let gas_price = <<S as Spec>::Gas as Gas>::Price::try_from(
-                result.proof_receipt.unwrap().gas_price.clone(),
+                result
+                    .proof_receipt
+                    .unwrap()
+                    .gas_price
+                    .iter()
+                    .map(|raw| Amount::new(*raw))
+                    .collect::<Vec<_>>(),
             )
             .unwrap();
 
@@ -156,7 +163,12 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
                 .get(&prover_address, state)
                 .unwrap()
                 .unwrap();
-            assert_eq!(bonded_amount, prover.bond - penalty.value(&gas_price));
+            assert_eq!(
+                bonded_amount,
+                Amount::new(prover.bond)
+                    .checked_sub(penalty.value(&gas_price))
+                    .unwrap()
+            );
         }),
     });
 }

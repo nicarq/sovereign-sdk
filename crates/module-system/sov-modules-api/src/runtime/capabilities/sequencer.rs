@@ -7,7 +7,7 @@ use sov_rollup_interface::da::DaSpec;
 use sov_state::{Kernel, User};
 
 use crate::transaction::SequencerReward;
-use crate::{InfallibleStateAccessor, Spec, StateReader, StateWriter};
+use crate::{Amount, InfallibleStateAccessor, Spec, StateReader, StateWriter};
 
 /// An known sequencer for a rollup.
 #[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Eq, PartialEq)]
@@ -16,7 +16,7 @@ pub struct AllowedSequencer<S: Spec> {
     /// The rollup address of the sequencer.
     pub address: S::Address,
     /// The staked balance of the sequencer.
-    pub balance: u64,
+    pub balance: Amount,
 }
 
 /// Authorizes the sequencer to submit and process batches.

@@ -8,7 +8,7 @@ pub struct TestAttester<S: Spec> {
     /// The [`TestUser`] info of the attester.
     pub user_info: TestUser<S>,
     /// The amount of tokens bonded by the attester.
-    pub bond: u64,
+    pub bond: u128,
     /// The next rollup height at which the attester is supposed to attest.
     pub slot_to_attest: u64,
 }
@@ -16,9 +16,9 @@ pub struct TestAttester<S: Spec> {
 /// The configuration to generate an attester.
 pub struct TestAttesterConfig {
     /// The amount of tokens to bond at genesis.
-    pub bond: u64,
+    pub bond: u128,
     /// Any additional (not bonded) balance that the bank should mint for the attester.
-    pub free_balance: u64,
+    pub free_balance: u128,
 }
 
 impl<S: Spec> TestAttester<S> {
@@ -61,7 +61,7 @@ pub struct TestChallenger<S: Spec> {
 
 impl<S: Spec> TestChallenger<S> {
     /// Generates a new challenger with the given balance.
-    pub fn generate(balance: u64) -> Self {
+    pub fn generate(balance: u128) -> Self {
         Self {
             user_info: TestUser::generate(balance),
         }
@@ -84,7 +84,7 @@ pub struct BondedTestChallenger<S: Spec> {
     /// The [`TestUser`] info of the challenger.
     pub user_info: TestUser<S>,
     /// The amount of tokens bonded by the challenger.
-    pub bond: u64,
+    pub bond: u128,
 }
 
 impl<S: Spec> AsUser<S> for BondedTestChallenger<S> {
@@ -99,7 +99,7 @@ impl<S: Spec> AsUser<S> for BondedTestChallenger<S> {
 
 impl<S: Spec> BondedTestChallenger<S> {
     /// Creates a new bonded challenger from a challenger and a bond amount. The bond amount is subtracted from the challenger's free balance.
-    pub fn from_challenger(challenger: TestChallenger<S>, bond: u64) -> Self {
+    pub fn from_challenger(challenger: TestChallenger<S>, bond: u128) -> Self {
         assert!(bond <= challenger.user_info.available_gas_balance);
 
         Self {

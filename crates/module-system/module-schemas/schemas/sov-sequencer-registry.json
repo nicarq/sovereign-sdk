@@ -19,9 +19,11 @@
           "properties": {
             "amount": {
               "description": "The initial balance of the sequencer.",
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Amount"
+                }
+              ]
             },
             "da_address": {
               "description": "The Da address of the sequencer you're registering.",
@@ -52,9 +54,11 @@
           "properties": {
             "amount": {
               "description": "The amount to increase.",
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Amount"
+                }
+              ]
             },
             "da_address": {
               "description": "The DA address of the sequencer.",
@@ -83,7 +87,7 @@
           ],
           "properties": {
             "da_address": {
-              "description": "The  Da address of the sequencer you're removing.",
+              "description": "The DA address of the sequencer you're removing.",
               "allOf": [
                 {
                   "$ref": "#/definitions/MockAddress"
@@ -123,6 +127,12 @@
     }
   ],
   "definitions": {
+    "Amount": {
+      "description": "A token amount.",
+      "type": "integer",
+      "format": "uint128",
+      "minimum": 0.0
+    },
     "MockAddress": {
       "description": "Mock address; 32 bytes in hex-encoded format",
       "type": "string",

@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
-use crate::{Context, DispatchCall, Gas, Runtime, Spec, StateCheckpoint, TxScratchpad};
+use crate::{Amount, Context, DispatchCall, Gas, Runtime, Spec, StateCheckpoint, TxScratchpad};
 
 /// FullyBakedTx represents a serialized signed rollup transaction that has been encoded with
 /// authentication information and is ready to be placed on the DA layer.
@@ -65,7 +65,7 @@ pub struct SelectedBlob<S: Spec, B = IterableBatchWithId<S>> {
     /// The tokens reserved for pre-execution checks from the sender's account.
     /// In principle, the location where these tokens are reserved is up to the implementation of the blob selector -
     /// in practice, this is always in the bank's balance at `self.bank.id()`
-    pub reserved_gas_tokens: Option<u64>,
+    pub reserved_gas_tokens: Option<Amount>,
 }
 
 /// The amount of tokens reserved for pre-execution checks *for a particular transaction* from the sender's account.
@@ -73,15 +73,15 @@ pub struct SelectedBlob<S: Spec, B = IterableBatchWithId<S>> {
 pub enum SequencerBondForTx {
     /// When the balance comes from the preferred sequencer, this amount is shared across all transactions in the batch.
     /// If one transaction fails, the reserved amount will decrease causing cascading failures.
-    Preferred(u64),
+    Preferred(Amount),
     /// When the balance comes from the standard sequencer, each transaction has its own separate reserved pool,
     /// so the failure of one transaction does not affect the reserved tokens for other transactions.
-    Standard(u64),
+    Standard(Amount),
 }
 
 impl SequencerBondForTx {
     /// The amount of tokens available for pre-execution checks.
-    pub fn amount(&self) -> u64 {
+    pub fn amount(&self) -> Amount {
         match self {
             SequencerBondForTx::Preferred(amount) | SequencerBondForTx::Standard(amount) => *amount,
         }
@@ -214,9 +214,9 @@ pub enum TxControlFlow<R> {
 /// The provisional outcome for a sequencer after applying a single transaction
 pub struct ProvisionalSequencerOutcome<R> {
     /// The sequencer's reward, in rollup tokens
-    pub reward: u64,
+    pub reward: Amount,
     /// The sequencer's penalty, in rollup tokens
-    pub penalty: u64,
+    pub penalty: Amount,
     /// Whether the sequencer has run out of funds
     pub execution_status: MaybeExecuted<R>,
 }
@@ -232,27 +232,27 @@ pub enum MaybeExecuted<R> {
 impl<R> ProvisionalSequencerOutcome<R> {
     /// A convenient constructor for provisionally penalizing the sequencer and indicating
     /// that the sequencer has run out of funds.
-    pub fn out_of_funds(penalty: u64) -> Self {
+    pub fn out_of_funds(penalty: Amount) -> Self {
         Self {
-            reward: 0,
+            reward: Amount::ZERO,
             penalty,
             execution_status: MaybeExecuted::SequencerOutOfFunds,
         }
     }
 
     /// A convenient constructor for provisionally penalizing the sequencer
-    pub fn penalize(penalty: u64, receipt: R) -> Self {
+    pub fn penalize(penalty: Amount, receipt: R) -> Self {
         Self {
-            reward: 0,
+            reward: Amount::ZERO,
             penalty,
             execution_status: MaybeExecuted::Executed(receipt),
         }
     }
     /// A convenient constructor for provisionally rewarding the sequencer
-    pub fn reward(amount: u64, receipt: R) -> Self {
+    pub fn reward(amount: Amount, receipt: R) -> Self {
         Self {
             reward: amount,
-            penalty: 0,
+            penalty: Amount::ZERO,
             execution_status: MaybeExecuted::Executed(receipt),
         }
     }
@@ -388,9 +388,9 @@ pub enum RejectReason {
     /// The transaction did not result in a sufficient reward.
     InsufficientReward {
         /// The minimum reward, in rollup tokens
-        expected: u64,
+        expected: u128,
         /// The reward received, in rollup tokens
-        found: u64,
+        found: u128,
     },
 }
 
@@ -436,19 +436,23 @@ impl<S: Spec, B> BlobDataWithId<S, B> {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Rewards {
     /// Rewards accumulated by the sequencer during the batch processing
-    pub accumulated_reward: u64,
+    pub accumulated_reward: Amount,
     /// Penalties accumulated by the sequencer during the batch processing
-    pub accumulated_penalty: u64,
+    pub accumulated_penalty: Amount,
 }
 
 impl std::fmt::Display for Rewards {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Print the net reward. We do all calculations in u64 to avoid overflows and then add the correct sign.
         if self.accumulated_reward >= self.accumulated_penalty {
-            let output = self.accumulated_reward - self.accumulated_penalty;
+            let output = self
+                .accumulated_reward
+                .saturating_sub(self.accumulated_penalty);
             write!(f, "{}", output)
         } else {
-            let negative_reward = self.accumulated_penalty - self.accumulated_reward;
+            let negative_reward = self
+                .accumulated_penalty
+                .saturating_sub(self.accumulated_reward);
             write!(f, "-{}", negative_reward)
         }
     }

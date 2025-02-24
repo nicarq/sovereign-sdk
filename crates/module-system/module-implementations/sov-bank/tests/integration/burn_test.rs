@@ -2,7 +2,7 @@ use sov_bank::event::Event;
 use sov_bank::utils::TokenHolder;
 use sov_bank::{config_gas_token_id, Bank, Coins};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Error, TxEffect};
+use sov_modules_api::{Amount, Error, TxEffect};
 use sov_test_utils::runtime::genesis::TestTokenName;
 use sov_test_utils::{AsUser, TransactionTestCase};
 
@@ -31,7 +31,7 @@ fn burn_deployed_tokens_happy_path() {
         input: user_high_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
-                    amount: user_token_balance,
+                    amount: user_token_balance.into(),
                     token_id,
                 },
             },
@@ -43,7 +43,7 @@ fn burn_deployed_tokens_happy_path() {
                 TestBankRuntimeEvent::Bank(Event::TokenBurned {
                     owner: TokenHolder::User(user_address),
                     coins: Coins {
-                        amount: user_token_balance,
+                        amount: user_token_balance.into(),
                         token_id
                     }
                 }),
@@ -55,7 +55,7 @@ fn burn_deployed_tokens_happy_path() {
                 Bank::<S>::default()
                     .get_balance_of(&user_address, token_id, state)
                     .unwrap_infallible(),
-                Some(0),
+                Some(Amount::ZERO),
                 "The user's balance should be zero"
             );
         }),
@@ -74,7 +74,7 @@ fn burn_deployed_tokens_no_balance_fails() {
     ) = setup();
 
     let user_address = user_no_token_balance.address();
-    const BURN_AMOUNT: u64 = 1;
+    const BURN_AMOUNT: u128 = 1;
 
     let initial_total_supply = runner.query_visible_state(|state| {
         Bank::<S>::default()
@@ -87,7 +87,7 @@ fn burn_deployed_tokens_no_balance_fails() {
         input: user_no_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
-                    amount: BURN_AMOUNT,
+                    amount: BURN_AMOUNT.into(),
                     token_id,
                 },
             },
@@ -160,7 +160,7 @@ fn burn_more_than_deployed_tokens_fails() {
             .unwrap()
     });
 
-    let to_burn = total_token_supply + 1;
+    let to_burn = total_token_supply.checked_add(Amount::new(1)).unwrap();
 
     let user_address = user_high_token_balance.address();
 
@@ -239,7 +239,7 @@ fn burn_more_than_available_balance_fails() {
         input: user_high_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
-                    amount: to_burn,
+                    amount: to_burn.into(),
                     token_id,
                 },
             },
@@ -306,7 +306,7 @@ fn test_burning_zero_tokens_works() {
         input: user_high_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
-                    amount: 0,
+                    amount: Amount::ZERO,
                     token_id,
                 },
             },
@@ -318,7 +318,7 @@ fn test_burning_zero_tokens_works() {
                 TestBankRuntimeEvent::Bank(Event::TokenBurned {
                     owner: TokenHolder::User(user_address),
                     coins: Coins {
-                        amount: 0,
+                        amount: Amount::ZERO,
                         token_id
                     }
                 }),
@@ -330,7 +330,7 @@ fn test_burning_zero_tokens_works() {
                 Bank::<S>::default()
                     .get_balance_of(&user_address, token_id, state)
                     .unwrap_infallible(),
-                Some(user_token_balance),
+                Some(user_token_balance.into()),
                 "The user's balance shouldn't have changed"
             );
         }),
@@ -354,7 +354,7 @@ fn test_burning_zero_tokens_for_user_with_no_balance() {
         input: user_no_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
-                    amount: 0,
+                    amount: Amount::ZERO,
                     token_id,
                 },
             },
@@ -366,7 +366,7 @@ fn test_burning_zero_tokens_for_user_with_no_balance() {
                 TestBankRuntimeEvent::Bank(Event::TokenBurned {
                     owner: TokenHolder::User(user_address),
                     coins: Coins {
-                        amount: 0,
+                        amount: Amount::ZERO,
                         token_id
                     }
                 }),
@@ -378,7 +378,7 @@ fn test_burning_zero_tokens_for_user_with_no_balance() {
                 Bank::<S>::default()
                     .get_balance_of(&user_address, token_id, state)
                     .unwrap_infallible(),
-                Some(0),
+                Some(Amount::ZERO),
                 "The user's balance shouldn't have changed"
             );
         }),
@@ -395,7 +395,7 @@ fn burn_unknown_token_fails() {
         mut runner,
     ) = setup();
 
-    const AMOUNT_TO_BURN: u64 = 0;
+    const AMOUNT_TO_BURN: u128 = 0;
 
     let other_token_id = TestTokenName::new("OtherToken".to_string()).id();
 
@@ -403,7 +403,7 @@ fn burn_unknown_token_fails() {
         input: user_high_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
-                    amount: AMOUNT_TO_BURN,
+                    amount: AMOUNT_TO_BURN.into(),
                     token_id: other_token_id,
                 },
             },
@@ -473,7 +473,7 @@ fn burn_gas_token_also_works() {
                 coins: Coins {
                     // Note: we are only burning half of the gas balance because some of it is
                     // already consumed (for pre-execution checks) by the time we are reaching the burn method of the `Bank` module.
-                    amount: user_gas_balance / 2,
+                    amount: Amount::new(user_gas_balance / 2),
                     token_id: config_gas_token_id(),
                 },
             },
@@ -485,7 +485,7 @@ fn burn_gas_token_also_works() {
                 TestBankRuntimeEvent::Bank(Event::TokenBurned {
                     owner: TokenHolder::User(user_address),
                     coins: Coins {
-                        amount: user_gas_balance / 2,
+                        amount: Amount::new(user_gas_balance / 2),
                         token_id: config_gas_token_id()
                     }
                 }),
@@ -497,7 +497,7 @@ fn burn_gas_token_also_works() {
                 Bank::<S>::default()
                     .get_balance_of(&user_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(user_gas_balance / 2 - result.gas_value_used),
+                Some(Amount::new(user_gas_balance / 2 - result.gas_value_used)),
                 "The user's balance should be zero"
             );
         }),

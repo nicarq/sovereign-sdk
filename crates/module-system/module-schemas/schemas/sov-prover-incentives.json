@@ -11,9 +11,7 @@
       ],
       "properties": {
         "register": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
+          "$ref": "#/definitions/Amount"
         }
       },
       "additionalProperties": false
@@ -26,9 +24,7 @@
       ],
       "properties": {
         "deposit": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
+          "$ref": "#/definitions/Amount"
         }
       },
       "additionalProperties": false
@@ -40,5 +36,13 @@
         "exit"
       ]
     }
-  ]
+  ],
+  "definitions": {
+    "Amount": {
+      "description": "A token amount.",
+      "type": "integer",
+      "format": "uint128",
+      "minimum": 0.0
+    }
+  }
 }

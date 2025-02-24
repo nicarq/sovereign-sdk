@@ -13,9 +13,10 @@ use sov_bank::derived_holder::DerivedHolder;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    BatchWithId, BlobDataWithId, DaSpec, FullyBakedTx, GenesisState, InfallibleKernelStateAccessor,
-    IterableBatchWithId, KernelStateAccessor, KernelStateMap, KernelStateValue, Module, ModuleId,
-    ModuleInfo, NotInstantiable, PrivilegedKernelAccessor, SelectedBlob, Spec,
+    Amount, BatchWithId, BlobDataWithId, DaSpec, FullyBakedTx, GenesisState,
+    InfallibleKernelStateAccessor, IterableBatchWithId, KernelStateAccessor, KernelStateMap,
+    KernelStateValue, Module, ModuleId, ModuleInfo, NotInstantiable, PrivilegedKernelAccessor,
+    SelectedBlob, Spec,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::codec::BcsCodec;
@@ -38,7 +39,7 @@ pub enum Escrow {
     /// The gas is held in a derived holder account in the bank module.
     DerivedHolder(DerivedHolder),
     /// The given number of tokens is held directly in the sequencer module.
-    Direct(u64),
+    Direct(Amount),
     /// No gas is reserved.
     None,
 }

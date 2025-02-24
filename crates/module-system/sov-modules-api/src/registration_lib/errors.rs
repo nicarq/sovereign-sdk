@@ -1,6 +1,8 @@
 use sov_rollup_interface::BasicAddress;
 use thiserror::Error;
 
+use crate::Amount;
+
 /// Errors that can be raised by the `Registry` library.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum RegistrationError<
@@ -19,7 +21,7 @@ pub enum RegistrationError<
         /// The address of the sender's account.
         address: RollupAddress,
         /// The amount to add to the balance of the sender's account.
-        amount_to_add: u64,
+        amount_to_add: Amount,
     },
 
     #[error("Stake amount={bond_amount} below the minimum={minimum_bond_amount}")]
@@ -28,9 +30,9 @@ pub enum RegistrationError<
         /// The address of the sender's account.
         address: RollupAddress,
         /// The amount of gas tokens the sender is trying to stake.
-        bond_amount: u64,
+        bond_amount: Amount,
         /// The minimum amount of gas tokens to stake.
-        minimum_bond_amount: u64,
+        minimum_bond_amount: Amount,
     },
 
     #[error("The provided amount makes the balance of the beneficiary's account overflow.")]
@@ -39,9 +41,9 @@ pub enum RegistrationError<
         /// The address of the beneficiary's account.
         address: RollupAddress,
         /// The existing staked balance of the beneficiary's account.
-        existing_balance: u64,
+        existing_balance: Amount,
         /// The amount to add to the balance of the beneficiary's account.
-        amount_to_add: u64,
+        amount_to_add: Amount,
     },
 
     #[error(
@@ -52,7 +54,7 @@ pub enum RegistrationError<
         /// The address of the sender's account.
         address: RollupAddress,
         /// The amount of gas tokens to refund
-        amount: u64,
+        amount: Amount,
     },
 
     #[error(
@@ -75,7 +77,7 @@ pub enum RegistrationError<
         /// The address of the sender's account.
         address: RollupAddress,
         /// The amount of gas tokens to stake
-        amount: u64,
+        amount: Amount,
     },
 
     /// An error occurred when accessing the state

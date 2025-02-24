@@ -2,7 +2,7 @@ use sov_bank::{config_gas_token_id, Bank, Coins};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
-use sov_modules_api::GasUnit;
+use sov_modules_api::{Amount, GasUnit};
 use sov_test_utils::runtime::TestOptimisticRuntimeCall;
 use sov_test_utils::{
     assert_matches, AsUser, BatchTestCase, TestUser, TransactionTestCase, TransactionType,
@@ -96,7 +96,7 @@ fn test_custom_transaction_details_priority_fee_bips() {
                 Bank::<S>::default()
                     .get_balance_of(&admin.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(admin.available_gas_balance - result.gas_value_used - priority_fee_bips.apply(result.gas_value_used).unwrap()),
+                Some(Amount::new(admin.available_gas_balance - result.gas_value_used - priority_fee_bips.apply(result.gas_value_used).unwrap())),
                 "The admin's balance should be equal to the initial balance minus the gas used to send the transaction and the priority fee"
             );
 
@@ -108,12 +108,13 @@ fn test_custom_transaction_details_priority_fee_bips() {
 #[test]
 fn test_custom_transaction_details_gas_limit() {
     let (admin, mut runner) = setup();
+    let available_gas_balance: u64 = admin.available_gas_balance.try_into().unwrap();
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
             .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue{value:10, gas: None})
             .with_max_fee(admin.available_gas_balance)
-            .with_gas_limit(Some(GasUnit::from([admin.available_gas_balance; 2]))),
+            .with_gas_limit(Some(GasUnit::from([available_gas_balance; 2]))),
         assert: Box::new(move |result, _state| {
            match &result.tx_receipt {
                 sov_modules_api::TxEffect::Skipped(skipped) => {
@@ -148,7 +149,7 @@ fn test_default_transaction_details_works() {
                 Bank::<S>::default()
                     .get_balance_of(&admin.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(admin.available_gas_balance - result.gas_value_used),
+                Some(Amount::new(admin.available_gas_balance - result.gas_value_used)),
                 "The admin's balance should be equal to the initial balance minus the gas used to send the transaction"
             );
         }),
@@ -162,7 +163,7 @@ fn test_default_transaction_details() {
     let message = user.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
         to: user.address(),
         coins: Coins {
-            amount: 1000,
+            amount: Amount::new(1000),
             token_id: config_gas_token_id(),
         },
     });
@@ -178,7 +179,7 @@ fn test_default_transaction_details() {
                 TestOptimisticRuntimeCall::Bank(sov_bank::CallMessage::Transfer {
                     to: user.address(),
                     coins: Coins {
-                        amount: 1000,
+                        amount: Amount::new(1000),
                         token_id: config_gas_token_id(),
                     },
                 })
@@ -204,7 +205,7 @@ fn test_custom_transaction_format() {
         .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
             to: user.address(),
             coins: Coins {
-                amount: 1000,
+                amount: Amount::new(1000),
                 token_id: config_gas_token_id(),
             },
         })
@@ -224,7 +225,7 @@ fn test_custom_transaction_format() {
                 TestOptimisticRuntimeCall::Bank(sov_bank::CallMessage::Transfer {
                     to: user.address(),
                     coins: Coins {
-                        amount: 1000,
+                        amount: Amount::new(1000),
                         token_id: config_gas_token_id(),
                     },
                 })
@@ -252,7 +253,7 @@ fn test_custom_transaction_format_2() {
         .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
             to: user.address(),
             coins: Coins {
-                amount: 1000,
+                amount: Amount::new(1000),
                 token_id: config_gas_token_id(),
             },
         })
@@ -274,7 +275,7 @@ fn test_custom_transaction_format_2() {
                 TestOptimisticRuntimeCall::Bank(sov_bank::CallMessage::Transfer {
                     to: user.address(),
                     coins: Coins {
-                        amount: 1000,
+                        amount: Amount::new(1000),
                         token_id: config_gas_token_id(),
                     },
                 })

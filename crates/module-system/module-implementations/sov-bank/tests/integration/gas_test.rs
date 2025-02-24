@@ -1,6 +1,6 @@
 use sov_bank::{config_gas_token_id, Bank, BankGasConfig, CallMessage};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Error, Gas, GasSpec, SafeVec, Spec, TxEffect};
+use sov_modules_api::{Amount, Error, Gas, GasSpec, SafeVec, Spec, TxEffect};
 use sov_test_utils::{
     AsUser, AtomicNumber, TransactionTestAssert, TransactionTestCase, TEST_DEFAULT_USER_BALANCE,
 };
@@ -10,7 +10,7 @@ use crate::helpers::{setup_with_custom_runtime, TestData, RT, S};
 /// Additional context for the post-call assertions of the gas tests.
 /// This is used to check the outcome of the create token call.
 struct PostCreateTokenContext {
-    user_initial_balance: u64,
+    user_initial_balance: u128,
     user_address: <S as Spec>::Address,
 }
 
@@ -46,7 +46,7 @@ fn gas_test_setup(
     runner.execute_transaction(TransactionTestCase {
         input: user.create_plain_message::<RT, Bank<S>>(CallMessage::CreateToken {
             token_name: "sov-test-token".try_into().unwrap(),
-            initial_balance: 1000,
+            initial_balance: Amount::new(1000),
             supply_cap: None,
             mint_to_address: user.address(),
             admins: SafeVec::new(),
@@ -117,8 +117,7 @@ fn gas_price_constants_are_charged_correctly() {
                 );
 
                 assert_eq!(
-                gas_consumed_without_price_ref_1.get()
-                    + gas_to_charge_for_create_token.value(&bank_initial_gas_price),
+                gas_consumed_without_price_ref_1.get().checked_add(gas_to_charge_for_create_token.value(&bank_initial_gas_price).0).unwrap(),
                 result.gas_value_used,
                 "The gas used should be the sum of the gas cost of the call and the inner gas cost"
             );
@@ -182,8 +181,7 @@ fn config_constants_are_charged_correctly() {
                 );
 
                 assert_eq!(
-                gas_consumed_without_price_ref_1.get()
-                    + create_token_config_cost.value(&bank_initial_gas_price),
+                gas_consumed_without_price_ref_1.get().checked_add(create_token_config_cost.value(&bank_initial_gas_price).0).unwrap(),
                 result.gas_value_used,
                 "The gas used should be the sum of the gas cost of the call and the inner gas cost"
             );
@@ -194,10 +192,13 @@ fn config_constants_are_charged_correctly() {
 
 #[test]
 fn not_enough_gas_wont_panic() {
+    let default_user_balance_as_u64: u64 = TEST_DEFAULT_USER_BALANCE
+        .try_into()
+        .expect("This test relies on setting the gas usage to half of the sender balance, but gas is only a u64. Lower the sender balance or update the test.");
     gas_test_setup(
         Some(<S as Spec>::Gas::from([
-            TEST_DEFAULT_USER_BALANCE / 2,
-            TEST_DEFAULT_USER_BALANCE / 2,
+            default_user_balance_as_u64 / 2,
+            default_user_balance_as_u64 / 2,
         ])),
         |_| {
             Box::new(move |result, _state| {
@@ -226,31 +227,29 @@ fn not_enough_gas_wont_panic() {
 }
 
 #[test]
+#[ignore = "This test is disabled because it we can't make gas charges overflow without increasing the base gas price beyond i64::MAX - which is currently unsupported by the toml crate. We'll need a way to do this manually for the test."]
 fn very_high_gas_to_charge_should_overflow() {
-    gas_test_setup(
-        Some(<S as Spec>::Gas::from([u64::MAX - 1, u64::MAX - 1])),
-        |_| {
-            Box::new(move |result, _state| {
+    gas_test_setup(Some(<S as Spec>::Gas::from([u64::MAX, u64::MAX])), |_| {
+        Box::new(move |result, _state| {
+            assert!(
+                matches!(result.tx_receipt, TxEffect::Reverted(..)),
+                "The transaction outcome is incorrect"
+            );
+
+            if let TxEffect::Reverted(contents) = result.tx_receipt {
+                let Error::ModuleError(err) = contents.reason;
+                let mut chain = err.chain();
+                assert_eq!(chain.len(), 1, "The error chain is incorrect");
+
                 assert!(
-                    matches!(result.tx_receipt, TxEffect::Reverted(..)),
-                    "The transaction outcome is incorrect"
-                );
-
-                if let TxEffect::Reverted(contents) = result.tx_receipt {
-                    let Error::ModuleError(err) = contents.reason;
-                    let mut chain = err.chain();
-                    assert_eq!(chain.len(), 1, "The error chain is incorrect");
-
-                    assert!(
                         chain.next().unwrap().to_string().contains(
                             "Gas calculation overflow: Charge Funds: Unable to charge gas, because the calculation overflows"
                         ),
                         "The error message is incorrect"
                     );
-                } else {
-                    panic!("The transaction outcome is incorrect")
-                }
-            })
-        },
-    );
+            } else {
+                panic!("The transaction outcome is incorrect")
+            }
+        })
+    });
 }

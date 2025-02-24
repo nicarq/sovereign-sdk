@@ -30,8 +30,8 @@ pub struct TokenConfig<S: Spec> {
     pub token_name: String,
     /// Predetermined ID of the token. Allowed only for genesis tokens.
     pub token_id: TokenId,
-    /// A vector of tuples containing the initial addresses and balances (as u64)
-    pub address_and_balances: Vec<(S::Address, u64)>,
+    /// A vector of tuples containing the initial addresses and balances (as u128)
+    pub address_and_balances: Vec<(S::Address, Amount)>,
     /// The addresses that are authorized to mint the token.
     pub admins: Vec<S::Address>,
     /// The supply cap of the token, if any.
@@ -45,8 +45,8 @@ pub struct TokenConfig<S: Spec> {
 pub struct GasTokenConfig<S: Spec> {
     /// The name of the token.
     pub token_name: String,
-    /// A vector of tuples containing the initial addresses and balances (as u64)
-    pub address_and_balances: Vec<(S::Address, u64)>,
+    /// A vector of tuples containing the initial addresses and balances (as u128)
+    pub address_and_balances: Vec<(S::Address, Amount)>,
     /// The addresses that are authorized to mint the token.
     pub admins: Vec<S::Address>,
     /// The supply cap of the token, if any.
@@ -108,7 +108,7 @@ impl<S: Spec> Bank<S> {
                 .map(|minter| TokenHolderRef::<'_, S>::from(&minter))
                 .collect::<Vec<_>>();
 
-            let mut total_supply: Amount = 0;
+            let mut total_supply = Amount::ZERO;
             for (address, balance) in token_config.address_and_balances.iter() {
                 let addr = TokenHolderRef::<'_, S>::from(&address);
                 tracing::trace!(%address, %balance, %token_id, "Genesis balance of address");
@@ -165,14 +165,14 @@ mod tests {
         let config = BankConfig::<TestSpec> {
             gas_token_config: GasTokenConfig {
                 token_name: "sov-gas-token".to_owned(),
-                address_and_balances: vec![(sender_address, 100000000)],
+                address_and_balances: vec![(sender_address, Amount::new(100_000_000))],
                 admins: vec![sender_address],
                 supply_cap: None,
             },
             tokens: vec![TokenConfig {
                 token_name: "sov-demo-token".to_owned(),
                 token_id,
-                address_and_balances: vec![(sender_address, 1000)],
+                address_and_balances: vec![(sender_address, Amount::new(1000))],
                 admins: vec![sender_address],
                 supply_cap: None,
             }],
@@ -182,14 +182,14 @@ mod tests {
         {
             "gas_token_config": {
                 "token_name":"sov-gas-token",
-                "address_and_balances":[["sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",100000000]],
+                "address_and_balances":[["sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv","100000000"]],
                 "admins":["sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv"]
             },
             "tokens":[
                 {
                     "token_name":"sov-demo-token",
                     "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7",
-                    "address_and_balances":[["sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",1000]],
+                    "address_and_balances":[["sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv","1000"]],
                     "admins":["sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv"]
                 }
             ]

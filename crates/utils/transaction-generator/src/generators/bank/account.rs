@@ -3,7 +3,7 @@
 use indexmap::IndexSet;
 use sov_bank::{Coins, TokenId};
 use sov_modules_api::prelude::arbitrary;
-use sov_modules_api::{CryptoSpec, Spec};
+use sov_modules_api::{Amount, CryptoSpec, Spec};
 
 use super::BankTag;
 use crate::interface::{PickRandom, TagAction, Taggable};
@@ -79,50 +79,50 @@ impl<S: Spec> BankAccount<S> {
     }
 
     /// Increments the balance in place. Returns a copy of the new balance.
-    pub fn increment_balance(&mut self, coins: Coins) -> u64 {
+    pub fn increment_balance(&mut self, coins: Coins) -> u128 {
         let Coins { amount, token_id } = coins;
         // If we're not actually changing the balance, don't add the token.
         // This keeps our balances array from getting cluttered with zero balances
-        if amount == 0 {
+        if amount == Amount::ZERO {
             self.find(token_id)
-                .map(|coins| coins.amount)
+                .map(|coins| coins.amount.0)
                 .unwrap_or_default()
         } else {
             self.add_tag(BankTag::HasBalance);
             let balance = self.find_or_insert(token_id);
-            balance.amount += amount;
-            balance.amount
+            balance.amount = balance.amount.saturating_add(amount);
+            balance.amount.0
         }
     }
 
     /// Find the balance of the given token
-    pub fn balance_of(&self, token_id: TokenId) -> u64 {
-        self.find(token_id).map(|coins| coins.amount).unwrap_or(0)
+    pub fn balance_of(&self, token_id: TokenId) -> u128 {
+        self.find(token_id).map(|coins| coins.amount.0).unwrap_or(0)
     }
 
     /// The maximum amount of the given token that can be received without overflowing
-    pub fn receivable_balance(&self, token_id: TokenId) -> u64 {
+    pub fn receivable_balance(&self, token_id: TokenId) -> u128 {
         self.find(token_id)
-            .map(|coins| u64::MAX - coins.amount)
-            .unwrap_or(u64::MAX)
+            .map(|coins| u128::MAX - coins.amount.0)
+            .unwrap_or(u128::MAX)
     }
 
     /// Decrements the old balance in place, removing the entry if the balance is drained. Returns a copy of the new balance
-    pub fn decrement_balance(&mut self, coins: Coins) -> u64 {
+    pub fn decrement_balance(&mut self, coins: Coins) -> u128 {
         let Coins { amount, token_id } = coins;
         let existing = self.find_or_insert(token_id);
         assert!(
             existing.amount >= amount,
             "Tried to subtract more than the existing balance. This is a bug in the generator."
         );
-        existing.amount -= amount;
+        existing.amount = existing.amount.saturating_sub(amount);
         let remaining = existing.amount;
         // If there's no more balance of this coin, remove it from the balances list
-        if remaining == 0 {
+        if remaining == Amount::ZERO {
             self.remove_token(coins.token_id);
         }
 
-        remaining
+        remaining.0
     }
 
     /// Removes a token from the balances list by ID
@@ -170,7 +170,7 @@ impl<S: Spec> BankAccount<S> {
             .find(|balance| balance.1.token_id == token_id)
         else {
             self.balances.push(Coins {
-                amount: 0,
+                amount: Amount::ZERO,
                 token_id,
             });
             return self

@@ -55,7 +55,7 @@ pub struct KnownSequencer<S: Spec> {
     /// The rollup address of the sequencer.
     pub address: S::Address,
     /// The staked balance of the sequencer.
-    pub balance: u64,
+    pub balance: Amount,
     /// The balance state of the sequencer.
     pub balance_state: BalanceState,
 }
@@ -248,7 +248,7 @@ impl<S: Spec> SequencerRegistry<S> {
         &self,
         holder: &DerivedHolder,
         recipient: &S::Address,
-        tokens_needed_for_pre_exec_checks: u64,
+        tokens_needed_for_pre_exec_checks: Amount,
         state: &mut impl InfallibleStateAccessor,
     ) -> Result<(), anyhow::Error> {
         let Some(reserved_balance) = self

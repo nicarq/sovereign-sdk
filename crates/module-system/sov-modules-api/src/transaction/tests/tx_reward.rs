@@ -6,7 +6,7 @@ use crate::default_spec::DefaultSpec;
 use crate::transaction::{
     transaction_consumption_helper, PriorityFeeBips, SequencerReward, TransactionConsumption,
 };
-use crate::{GasPrice, GasUnit};
+use crate::{Amount, GasPrice, GasUnit};
 
 /// Consume all the remaining gas, so the transaction reward is the same as the base fee and there is no priority fee.
 #[test]
@@ -16,8 +16,8 @@ fn test_compute_transaction_reward_consume_all_gas() {
     let tx_reward =
         transaction_consumption_helper::<DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>>(
             &GasUnit::from([REMAINING_FUNDS / 2; 2]),
-            &GasPrice::from([1; 2]),
-            REMAINING_FUNDS,
+            &GasPrice::from([Amount::new(1); 2]),
+            REMAINING_FUNDS as u128,
             PriorityFeeBips::from_percentage(10),
         );
 
@@ -27,7 +27,7 @@ fn test_compute_transaction_reward_consume_all_gas() {
             remaining_funds: 0,
             base_fee: GasUnit::from([REMAINING_FUNDS / 2; 2]),
             priority_fee: 0,
-            gas_price: GasPrice::from([1; 2])
+            gas_price: GasPrice::from([Amount::new(1); 2])
         }
     );
 }
@@ -40,8 +40,8 @@ fn test_compute_transaction_reward_consume_not_all_gas() {
     let tx_reward =
         transaction_consumption_helper::<DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>>(
             &GasUnit::from([REMAINING_FUNDS / 4; 2]),
-            &GasPrice::from([1; 2]),
-            REMAINING_FUNDS,
+            &GasPrice::from([Amount::new(1); 2]),
+            REMAINING_FUNDS as u128,
             PriorityFeeBips::from_percentage(100),
         );
 
@@ -51,7 +51,7 @@ fn test_compute_transaction_reward_consume_not_all_gas() {
             remaining_funds: 0,
             base_fee: GasUnit::from([REMAINING_FUNDS / 4; 2]),
             priority_fee: 50,
-            gas_price: GasPrice::from([1; 2])
+            gas_price: GasPrice::from([Amount::new(1); 2])
         }
     );
 }
@@ -62,7 +62,7 @@ fn test_display_transaction_reward() {
         remaining_funds: 10,
         base_fee: GasUnit::from([100; 2]),
         priority_fee: 50,
-        gas_price: GasPrice::from([1; 2]),
+        gas_price: GasPrice::from([Amount::new(1); 2]),
     };
 
     assert_eq!(

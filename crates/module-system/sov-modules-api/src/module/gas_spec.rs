@@ -4,7 +4,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_macros::config_value_private;
 
 use super::Spec;
-use crate::{new_constant, Gas};
+use crate::gas::GAS_DIMENSIONS;
+use crate::{new_constant, Amount, Gas};
 
 /// The trait that defines the gas specification for the rollup.
 pub trait GasSpec:
@@ -230,7 +231,9 @@ impl<S: Spec> GasSpec for S {
     }
 
     fn initial_base_fee_per_gas() -> <Self::Gas as Gas>::Price {
-        <Self::Gas as Gas>::Price::from(config_value_private!("INITIAL_BASE_FEE_PER_GAS"))
+        let raw: [u128; GAS_DIMENSIONS] = config_value_private!("INITIAL_BASE_FEE_PER_GAS");
+        let actual: [Amount; GAS_DIMENSIONS] = raw.map(Amount::from);
+        <Self::Gas as Gas>::Price::from(actual)
     }
 
     fn initial_gas_limit() -> Self::Gas {

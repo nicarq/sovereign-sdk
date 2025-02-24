@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use sov_bank::config_gas_token_id;
 use sov_mock_da::MockAddress;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{BatchSequencerOutcome, PrivateKey, PublicKey};
+use sov_modules_api::{Amount, BatchSequencerOutcome, PrivateKey, PublicKey};
 use sov_modules_stf_blueprint::TxProcessingError;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::generators::bank::get_default_token_id;
@@ -81,7 +81,7 @@ fn test_tx_revert() -> Result<(), Infallible> {
             )
             .unwrap();
 
-        assert_eq!(resp, Some(985));
+        assert_eq!(resp, Some(Amount::new(985)));
 
         let resp = runtime
             .sequencer_registry
@@ -165,14 +165,16 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
 fn get_attester_stake_for_block(
     sequencer_address: &MockAddress,
     runner: &TestRunner<IntegTestRuntime<TestSpec>, TestSpec>,
-) -> u64 {
-    runner.query_state(|state| {
-        let runtime = IntegTestRuntime::<TestSpec>::default();
-        runtime
-            .sequencer_registry
-            .get_sender_balance_via_api(sequencer_address, state)
-            .expect("The sequencer should be registered")
-    })
+) -> u128 {
+    runner
+        .query_state(|state| {
+            let runtime = IntegTestRuntime::<TestSpec>::default();
+            runtime
+                .sequencer_registry
+                .get_sender_balance_via_api(sequencer_address, state)
+                .expect("The sequencer should be registered")
+        })
+        .0
 }
 
 /// This test ensures that the sequencer gets penalized for submitting a proof that has a wrong nonce.

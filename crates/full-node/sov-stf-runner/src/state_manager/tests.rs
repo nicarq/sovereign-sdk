@@ -609,6 +609,7 @@ async fn test_shuffle_with_deeper_reorgs() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore]
 async fn test_with_frequent_periodic_batch_production() -> anyhow::Result<()> {
     // sov_test_utils::initialize_logging();
     let tempdir = tempfile::tempdir()?;

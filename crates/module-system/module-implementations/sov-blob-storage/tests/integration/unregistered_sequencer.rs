@@ -2,7 +2,7 @@ use std::num::NonZero;
 
 use sov_blob_storage::{config_deferred_slots_count, config_unregistered_blobs_per_slot};
 use sov_mock_da::{MockAddress, MockBlob};
-use sov_modules_api::{CryptoSpec, SelectedBlob, Spec};
+use sov_modules_api::{Amount, CryptoSpec, SelectedBlob, Spec};
 use sov_modules_stf_blueprint::{BatchReceipt, Runtime};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
@@ -30,7 +30,7 @@ fn make_unregistered_blobs<
             let msg: sov_sequencer_registry::CallMessage<S> =
                 sov_sequencer_registry::CallMessage::Register {
                     da_address: sender.da_address,
-                    amount: 22,
+                    amount: Amount::new(22),
                 };
 
             let key = sender.as_user().private_key().clone();

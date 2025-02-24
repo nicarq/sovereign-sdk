@@ -18,14 +18,15 @@ pub mod utils;
 pub use call::*;
 pub use genesis::*;
 use sov_modules_api::macros::config_value;
+pub use sov_modules_api::Amount;
 use sov_modules_api::{
     Context, DaSpec, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
     StateMap, TxState,
 };
 use sov_state::BorshCodec;
-/// Specifies an interface to interact with tokens.
-pub use token::{Amount, BurnRate, Coins, TokenId, TokenIdBech32};
 use token::{BalanceKey, Token};
+/// Specifies an interface to interact with tokens.
+pub use token::{BurnRate, Coins, TokenId, TokenIdBech32};
 /// Methods to get a token ID.
 pub use utils::{get_token_id, IntoPayable, Payable};
 use utils::{TokenHolder, TokenHolderRef};

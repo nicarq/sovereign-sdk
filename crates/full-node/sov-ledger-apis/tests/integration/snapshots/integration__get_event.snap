@@ -1,6 +1,5 @@
 ---
 source: crates/full-node/sov-ledger-apis/tests/integration/main.rs
-assertion_line: 166
 expression: response.data
 ---
 {
@@ -14,7 +13,7 @@ expression: response.data
     "token_created": {
       "admins": [],
       "coins": {
-        "amount": 0,
+        "amount": "0",
         "token_id": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"
       },
       "mint_to_address": {
@@ -23,7 +22,7 @@ expression: response.data
       "minter": {
         "module": "module_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqn7stmj"
       },
-      "supply_cap": 18446744073709551615,
+      "supply_cap": "340282366920938463463374607431768211455",
       "token_name": "token"
     }
   }

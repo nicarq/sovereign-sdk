@@ -13,9 +13,9 @@ use sov_universal_wallet::schema::{Container, IndexLinking, Item, Link, Schema, 
 use sov_universal_wallet::ty::{Tuple, UnnamedField};
 use thiserror::Error;
 
-use crate::{DaSpec, Spec};
+use crate::{Amount, DaSpec, Spec};
 
-const GAS_DIMENSIONS: usize = config_value_private!(
+pub(crate) const GAS_DIMENSIONS: usize = config_value_private!(
     "GAS_DIMENSIONS",
     "Couldn't parse `GAS_DIMENSIONS` in TOML file; must be a constant integer (e.g. `GAS_DIMENSIONS = { const = 2 }`)"
 );
@@ -37,17 +37,20 @@ pub trait GasArray:
     + BorshSerialize
     + BorshDeserialize
     + SchemaGenerator
-    + From<[u64; GAS_DIMENSIONS]>
-    + Into<[u64; GAS_DIMENSIONS]>
-    + AsRef<[u64; GAS_DIMENSIONS]>
-    + AsMut<[u64; GAS_DIMENSIONS]>
-    + TryFrom<Vec<u64>, Error: Into<anyhow::Error> + Debug>
+    + From<[Self::Scalar; GAS_DIMENSIONS]>
+    + Into<[Self::Scalar; GAS_DIMENSIONS]>
+    + AsRef<[Self::Scalar; GAS_DIMENSIONS]>
+    + AsMut<[Self::Scalar; GAS_DIMENSIONS]>
+    + TryFrom<Vec<Self::Scalar>, Error: Into<anyhow::Error> + Debug>
 {
     /// A zeroed instance of the unit.
     const ZEROED: Self;
 
     /// The maximum value of the gas unit.
     const MAX: Self;
+
+    /// The scalar type of the gas unit. Typically u64 or u128.
+    type Scalar;
 
     /// Returns the sum of the two gas units or None if the result overflows.
     fn checked_combine(&self, rhs: &Self) -> Option<Self>;
@@ -59,7 +62,7 @@ pub trait GasArray:
     fn checked_sub(&self, rhs: &Self) -> Option<Self>;
 
     /// Returns the product of the scalar and the gas units or None if the result overflows.
-    fn checked_scalar_product(&self, scalar: u64) -> Option<Self>;
+    fn checked_scalar_product(&self, scalar: Self::Scalar) -> Option<Self>;
 
     /// Checks if the gas is less than the provided gas in each dimension of the gas array.
     fn dim_is_less_than(&self, rhs: &Self) -> bool;
@@ -71,27 +74,27 @@ pub trait GasArray:
     fn calculate_min(lhs: &Self, rhs: &Self) -> Self;
 
     /// In-place division of gas units.
-    fn scalar_division(&mut self, scalar: u64) -> &mut Self;
+    fn scalar_division(&mut self, scalar: Self::Scalar) -> &mut Self;
 
     #[cfg(feature = "test-utils")]
     /// In-place addition of gas units with a scalar.
-    fn scalar_add(&mut self, scalar: u64) -> &mut Self;
+    fn scalar_add(&mut self, scalar: Self::Scalar) -> &mut Self;
 
     #[cfg(feature = "test-utils")]
     /// In-place substraction of gas units with a scalar.
-    fn scalar_sub(&mut self, scalar: u64) -> &mut Self;
+    fn scalar_sub(&mut self, scalar: Self::Scalar) -> &mut Self;
 }
 
 /// A unit of gas
-pub trait Gas: GasArray {
+pub trait Gas: GasArray<Scalar = u64> + TryFrom<Vec<u64>> + From<[u64; GAS_DIMENSIONS]> {
     /// The price of the gas, expressed in tokens per unit.
-    type Price: GasArray;
+    type Price: GasArray<Scalar = Amount>;
 
     /// Calculates the value of the given amount of gas at the given price or returns None if the result overflows.
-    fn checked_value(&self, price: &Self::Price) -> Option<u64>;
+    fn checked_value(&self, price: &Self::Price) -> Option<Amount>;
 
     /// Calculates the value of the given amount of gas at the given price.
-    fn value(&self, price: &Self::Price) -> u64;
+    fn value(&self, price: &Self::Price) -> Amount;
 
     /// Returns a gas unit which is zero in all dimensions.
     fn zero() -> Self {
@@ -163,7 +166,7 @@ impl<const N: usize> Debug for GasUnit<N> {
 #[sov_wallet()]
 #[display("GasPrice{:?}", self.value)]
 pub struct GasPrice<const N: usize> {
-    value: [u64; N],
+    value: [Amount; N],
 }
 
 impl<const N: usize> Debug for GasPrice<N> {
@@ -172,8 +175,9 @@ impl<const N: usize> Debug for GasPrice<N> {
     }
 }
 
+// Implement basic traits for wrappers around [$u; $n] (example: GasPrice is [u128; 2])
 macro_rules! impl_gas_dimensions {
-    ($t: ty, $t_name: literal, $n: expr) => {
+    ($t: ty, $t_name: literal, $n: expr, $u: ty) => {
         impl schemars::JsonSchema for $t {
             fn schema_name() -> String {
                 $t_name.to_owned() + "(" + &format!("{}", $n) + ")"
@@ -188,141 +192,127 @@ macro_rules! impl_gas_dimensions {
                         "type": "number"
                     },
                     // This description assumes that `serializer` uses a human-readable format.
-                    "description": $t_name.to_owned() + " is an array of u64 of size " + &format!("{}", $n),
+                    "description": $t_name.to_owned() + " is an array of size " + &format!("{}", $n),
                 }))
                 .unwrap()
             }
         }
 
-        impl ::serde::Serialize for $t {
-            fn serialize<__S>(&self, serializer: __S) -> Result<__S::Ok, __S::Error>
-            where
-                __S: serde::Serializer,
-            {
-                <[u64; $n] as serde::Serialize>::serialize(&self.value, serializer)
-            }
-        }
-
-        impl<'de> serde::Deserialize<'de> for $t {
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                let array = <[u64; $n] as serde::Deserialize>::deserialize(deserializer)?;
-                Ok(Self::from(array))
-            }
-        }
-
-        impl From<[u64; $n]> for $t {
-            fn from(array: [u64; $n]) -> Self {
+        impl From<[$u; $n]> for $t {
+            fn from(array: [$u; $n]) -> Self {
                 Self::from_primitive(array)
             }
         }
 
-        impl From<$t> for [u64; $n] {
-            fn from(gas: $t) -> [u64; $n] {
+        impl From<$t> for [$u; $n] {
+            fn from(gas: $t) -> [$u; $n] {
                 gas.value
             }
         }
 
-        impl TryFrom<Vec<u64>> for $t {
+        impl TryFrom<Vec<$u>> for $t {
             type Error = anyhow::Error;
 
-            fn try_from(value: Vec<u64>) -> Result<Self, Self::Error> {
+            fn try_from(value: Vec<$u>) -> Result<Self, Self::Error> {
                 if value.len() != $n {
                     anyhow::bail!("Impossible to convert to a gas unit. The array must have {} elements, but it has {}", $n, value.len());
                 }
 
-                let mut output = [0; $n];
+                let mut output = [<$u>::from(0u64); $n];
                 output.copy_from_slice(&value);
 
                 Ok(Self::from(output))
             }
         }
 
-        impl AsRef<[u64; $n]> for $t {
-            fn as_ref(&self) -> &[u64; $n] {
+        impl AsRef<[$u; $n]> for $t {
+            fn as_ref(&self) -> &[$u; $n] {
                 &self.value
             }
         }
 
-        impl AsMut<[u64; $n]> for $t {
-            fn as_mut(&mut self) -> &mut [u64; $n] {
+        impl AsMut<[$u; $n]> for $t {
+            fn as_mut(&mut self) -> &mut [$u; $n] {
                 &mut self.value
             }
         }
+    };
+}
 
-
+// Implments the `GasArray` trait for the wrapper around [$u; $n] (example: GasUnit is [u64; 2])
+macro_rules! impl_gas_array {
+    ($t: ty, $n:expr, $u:ty) => {
         impl GasArray for $t {
-            const ZEROED: Self = Self::from_primitive([0; $n]);
+            type Scalar = $u;
+            // u64::ZERO would be better, but we have const and don't want thirdr party crate.
+            const ZEROED: Self = Self::from_primitive([<$u>::MIN; $n]);
 
-            const MAX: Self = Self::from_primitive([u64::MAX; $n]);
+            const MAX: Self = Self::from_primitive([<$u>::MAX; $n]);
 
             fn checked_sub(&self, rhs: &Self) -> Option<Self> {
-                let mut output = [0; $n];
+                let mut output = [<$u>::from(0u64); $n];
 
                 for (i, (l, r)) in self.value.iter().zip(rhs.value.as_slice()).enumerate() {
                     if let Some(res) = l.checked_sub(*r) {
                         output[i] = res;
                     } else {
-                        return None
+                        return None;
                     }
                 }
 
                 Some(Self::from(output))
             }
 
-            fn checked_scalar_product(&self, scalar: u64) -> Option<Self> {
-                let mut output = [0; $n];
+            fn checked_scalar_product(&self, scalar: $u) -> Option<Self> {
+                let mut output = [<$u>::from(0u64); $n];
 
-                for (i,v) in self.value.iter().enumerate() {
+                for (i, v) in self.value.iter().enumerate() {
                     if let Some(res) = v.checked_mul(scalar) {
                         output[i] = res;
-                    }else {
-                        return None
+                    } else {
+                        return None;
                     }
                 }
 
                 Some(Self::from(output))
-
             }
 
-            fn dim_is_less_than(&self, rhs: &Self) -> bool{
+            fn dim_is_less_than(&self, rhs: &Self) -> bool {
                 for (l, r) in self.value.iter().zip(rhs.value.as_slice()) {
-                    if l >=r {
-                        return false
+                    if l >= r {
+                        return false;
                     }
                 }
                 true
             }
 
-            fn dim_is_less_or_eq(&self, rhs: &Self) -> bool{
+            fn dim_is_less_or_eq(&self, rhs: &Self) -> bool {
                 for (l, r) in self.value.iter().zip(rhs.value.as_slice()) {
-                    if l > r{
-                        return false
+                    if l > r {
+                        return false;
                     }
                 }
                 true
             }
 
-            fn calculate_min(lhs: &Self, rhs: &Self) -> Self{
-                let mut output = [0; $n];
+            fn calculate_min(lhs: &Self, rhs: &Self) -> Self {
+                let mut output = [<$u>::from(0u64); $n];
 
-                for (i, (l,r)) in lhs.value.iter().zip(rhs.value.iter()).enumerate() {
+                for (i, (l, r)) in lhs.value.iter().zip(rhs.value.iter()).enumerate() {
                     output[i] = min(*l, *r);
                 }
                 Self::from_primitive(output)
             }
 
-            fn scalar_division(&mut self, scalar: u64) -> &mut Self {
+            fn scalar_division(&mut self, scalar: $u) -> &mut Self {
                 self.value
                     .iter_mut()
-                    .for_each(|s| *s = s.checked_div(scalar).unwrap_or(0));
+                    .for_each(|s| *s = s.checked_div(scalar).unwrap_or(<$u>::from(0u64)));
                 self
             }
 
             #[cfg(feature = "test-utils")]
-            fn scalar_add(&mut self, scalar: u64) -> &mut Self {
+            fn scalar_add(&mut self, scalar: $u) -> &mut Self {
                 self.value
                     .iter_mut()
                     .for_each(|s| *s = s.saturating_add(scalar));
@@ -330,7 +320,7 @@ macro_rules! impl_gas_dimensions {
             }
 
             #[cfg(feature = "test-utils")]
-            fn scalar_sub(&mut self, scalar: u64) -> &mut Self {
+            fn scalar_sub(&mut self, scalar: $u) -> &mut Self {
                 self.value
                     .iter_mut()
                     .for_each(|s| *s = s.saturating_sub(scalar));
@@ -338,13 +328,13 @@ macro_rules! impl_gas_dimensions {
             }
 
             fn checked_combine(&self, rhs: &Self) -> Option<Self> {
-                let mut output = [0; $n];
+                let mut output = [<$u>::from(0u64); $n];
 
                 for (i, (l, r)) in self.value.iter().zip(rhs.value.iter()).enumerate() {
                     if let Some(res) = l.checked_add(*r) {
                         output[i] = res;
                     } else {
-                        return None
+                        return None;
                     }
                 }
                 Some(Self::from_primitive(output))
@@ -372,22 +362,22 @@ macro_rules! impl_gas_unit {
                 }
             }
 
-            fn checked_value(&self, price: &Self::Price) -> Option<u64> {
-                let mut value: u64 = 0;
+            fn checked_value(&self, price: &Self::Price) -> Option<Amount> {
+                let mut value: Amount = Amount::ZERO;
                 for (g, p) in self.value.iter().zip(price.as_ref().iter().copied()) {
-                    let v = g.checked_mul(p)?;
+                    let v = Amount::new(*g as u128).checked_mul(p)?;
                     value = value.checked_add(v)?;
                 }
 
                 Some(value)
             }
 
-            fn value(&self, price: &Self::Price) -> u64 {
+            fn value(&self, price: &Self::Price) -> Amount {
                 self.value
                     .iter()
                     .zip(price.as_ref().iter().copied())
-                    .map(|(a, b)| a.saturating_mul(b))
-                    .fold(0, |a, b| a.saturating_add(b))
+                    .map(|(a, b)| Amount::new(*a as u128).saturating_mul(b))
+                    .fold(Amount::new(0), |a, b| a.saturating_add(b))
             }
         }
 
@@ -403,14 +393,62 @@ macro_rules! impl_gas_unit {
         }
 
         impl GasPrice<$n> {
-            /// Creates a new [`GasPrice`] from an array of [`u64`].
-            pub const fn from_primitive(array: [u64; $n]) -> Self {
-                Self { value: array }
+            /// Creates a new [`GasPrice`] from an array of Amount.
+            pub const fn from_primitive(array: [Amount; $n]) -> Self {
+                let mut value: [Amount; $n] = [Amount::ZERO; $n];
+
+                let mut i = 0;
+                while i < $n {
+                    value[i] = array[i];
+                    i += 1;
+                }
+
+                Self { value }
             }
         }
 
-        impl_gas_dimensions!(GasUnit<$n>, "GasUnit", $n);
-        impl_gas_dimensions!(GasPrice<$n>, "GasPrice", $n);
+        impl ::serde::Serialize for GasUnit<$n> {
+            fn serialize<__S>(&self, serializer: __S) -> Result<__S::Ok, __S::Error>
+            where
+                __S: serde::Serializer,
+            {
+                <[u64; $n] as serde::Serialize>::serialize(&self.value, serializer)
+            }
+        }
+
+        impl<'de> serde::Deserialize<'de> for GasUnit<$n> {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                let array = <[u64; $n] as serde::Deserialize>::deserialize(deserializer)?;
+                Ok(Self::from(array))
+            }
+        }
+
+        impl ::serde::Serialize for GasPrice<$n> {
+            fn serialize<__S>(&self, serializer: __S) -> Result<__S::Ok, __S::Error>
+            where
+                __S: serde::Serializer,
+            {
+                <[Amount; $n] as serde::Serialize>::serialize(&self.value, serializer)
+            }
+        }
+
+        impl<'de> serde::Deserialize<'de> for GasPrice<$n> {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                let array = <[Amount; $n] as serde::Deserialize>::deserialize(deserializer)?;
+                Ok(Self::from(array))
+            }
+        }
+
+        impl_gas_array!(GasUnit<$n>, $n, u64);
+        impl_gas_array!(GasPrice<$n>, $n, Amount);
+        impl_gas_dimensions!(GasUnit<$n>, "GasUnit", $n, u64);
+        impl_gas_dimensions!(GasPrice<$n>, "GasPrice", $n, Amount);
     };
 }
 
@@ -454,7 +492,7 @@ pub enum GasMeteringError<GU: Gas> {
 /// Contain information about the gas usage of a gas.
 pub struct GasInfo<GU: Gas> {
     /// The gas value.
-    pub gas_value: u64,
+    pub gas_value: Amount,
     /// The current gas used accumulated by the stake meter.
     pub gas_used: GU,
     /// The current gas price
@@ -556,8 +594,8 @@ impl<S: Spec> SlotGasMeter<S> {
     ) -> Self {
         let remaining_preferred_slot_gas = remaining_slot_gas
             .clone()
-            .scalar_division(PREFFERERD_DATA_FRACTION.denominator as u64)
-            .checked_scalar_product(PREFFERERD_DATA_FRACTION.numerator as u64)
+            .scalar_division(PREFFERERD_DATA_FRACTION.denominator.into())
+            .checked_scalar_product(PREFFERERD_DATA_FRACTION.numerator.into())
             // This cannot overflow because the PREFFERERD_DATA_FRACTION must be less than 1.
             .unwrap();
 
@@ -620,7 +658,7 @@ impl<S: Spec> SlotGasMeter<S> {
 pub struct BasicGasMeter<S: Spec> {
     initial_gas: S::Gas,
     remaining_gas: S::Gas,
-    remaining_funds: Option<u64>,
+    remaining_funds: Option<Amount>,
     gas_price: <S::Gas as Gas>::Price,
 }
 
@@ -646,7 +684,7 @@ impl<S: Spec> BasicGasMeter<S> {
 
     /// Creates a new `BasicGasMeter`.
     pub fn new_with_funds_and_gas(
-        remaining_funds: u64,
+        remaining_funds: Amount,
         remaining_gas: S::Gas,
         gas_price: <S::Gas as Gas>::Price,
     ) -> Self {
@@ -670,23 +708,24 @@ impl<S: Spec> BasicGasMeter<S> {
 
     fn compute_remaining_funds(
         &self,
-        remaining_funds: &u64,
+        remaining_funds: &Amount,
         amount: &S::Gas,
-    ) -> Result<u64, GasMeteringError<S::Gas>> {
+    ) -> Result<Amount, GasMeteringError<S::Gas>> {
         let amount_value = amount.checked_value(&self.gas_price).ok_or_else(|| {
             GasMeteringError::Overflow(
                 "Charge Funds: Unable to charge gas, because the calculation overflows".to_string(),
             )
         })?;
 
-        remaining_funds
-            .checked_sub(amount_value)
-            .ok_or_else(|| GasMeteringError::OutOfGas {
+        remaining_funds.checked_sub(amount_value).ok_or_else(|| {
+            tracing::warn!(%remaining_funds, amount_to_charge = %amount_value, "Out of Gas 1");
+            GasMeteringError::OutOfGas {
                 gas_to_charge: amount.clone(),
                 gas_price: self.gas_price.clone(),
                 initial_gas: self.initial_gas.clone(),
                 remaining_gas: self.remaining_gas.clone(),
-            })
+            }
+        })
     }
 
     fn compute_remaining_gas(
@@ -694,14 +733,15 @@ impl<S: Spec> BasicGasMeter<S> {
         remaining_gas: &S::Gas,
         amount: &S::Gas,
     ) -> Result<S::Gas, GasMeteringError<S::Gas>> {
-        remaining_gas
-            .checked_sub(amount)
-            .ok_or_else(|| GasMeteringError::OutOfGas {
+        remaining_gas.checked_sub(amount).ok_or_else(|| {
+            tracing::warn!(?remaining_gas, amount_to_charge = ?amount, "Out of gas during `compute_remaining_gas`");
+            GasMeteringError::OutOfGas {
                 gas_to_charge: amount.clone(),
                 gas_price: self.gas_price.clone(),
                 initial_gas: self.initial_gas.clone(),
                 remaining_gas: self.remaining_gas.clone(),
-            })
+            }
+        })
     }
 
     fn charge_gas_inner(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
@@ -990,24 +1030,35 @@ mod tests {
     #[test]
     fn checked_value_test() {
         let gas = GasUnit::<2>::from([10, 20]);
-        let gas_price = GasPrice::<2>::from([3, 5]);
+        let gas_price = GasPrice::<2>::from([Amount::new(3), Amount::new(5)]);
 
         let value = gas.checked_value(&gas_price).unwrap();
         assert_eq!(value, 130);
 
         let gas = GasUnit::<2>::from([u64::MAX, 20]);
-        let gas_price = GasPrice::<2>::from([3, 5]);
+        let gas_price = GasPrice::<2>::from([Amount::new(3), Amount::new(5)]);
+
+        let value = gas.checked_value(&gas_price);
+        assert_eq!(value.unwrap(), (u64::MAX as u128) * 3 + 100);
+
+        let gas = GasUnit::<2>::from([u64::MAX, 20]);
+        let gas_price = GasPrice::<2>::from([
+            Amount::new(u64::MAX as u128)
+                .checked_mul(Amount::new(3))
+                .unwrap(),
+            Amount::new(5),
+        ]);
 
         let value = gas.checked_value(&gas_price);
         assert!(value.is_none());
 
-        let gas = GasUnit::<2>::from([u64::MAX, 1]);
-        let gas_price = GasPrice::<2>::from([1, 1]);
+        let gas = GasUnit::<2>::from([u64::MAX, u64::MAX]);
+        let gas_price = GasPrice::<2>::from([Amount::from(u64::MAX); 2]);
         let value = gas.checked_value(&gas_price);
         assert!(value.is_none());
 
         let gas = GasUnit::<2>::from([0, 10]);
-        let gas_price = GasPrice::<2>::from([u64::MAX, 20]);
+        let gas_price = GasPrice::<2>::from([Amount::MAX, Amount::new(20)]);
 
         let value = gas.checked_value(&gas_price).unwrap();
         assert_eq!(value, 200);
@@ -1015,7 +1066,7 @@ mod tests {
 
     #[test]
     fn charge_gas_should_fail_if_not_enough_funds() {
-        let gas_price = GasPrice::<2>::from([1; 2]);
+        let gas_price = GasPrice::<2>::from([Amount::new(1); 2]);
 
         {
             let mut gas_meter =
@@ -1049,10 +1100,10 @@ mod tests {
     fn try_charge_gas() {
         {
             const REMAINING_FUNDS: u64 = 100;
-            let gas_price = GasPrice::<2>::from([1; 2]);
+            let gas_price = GasPrice::<2>::from([Amount::new(1); 2]);
 
             let mut gas_meter = BasicGasMeter::<S>::new_with_funds_and_gas(
-                REMAINING_FUNDS,
+                Amount::from(REMAINING_FUNDS),
                 GasUnit::<2>::MAX,
                 gas_price.clone(),
             );
@@ -1077,7 +1128,7 @@ mod tests {
 
         {
             let remaining_gas = GasUnit::<2>::from([100; 2]);
-            let gas_price = GasPrice::<2>::from([1; 2]);
+            let gas_price = GasPrice::<2>::from([Amount::new(1); 2]);
 
             let mut gas_meter =
                 BasicGasMeter::<S>::new_with_gas(remaining_gas.clone(), gas_price.clone());
@@ -1103,7 +1154,7 @@ mod tests {
     #[test]
     fn gas_meter_charge_gas_overflow_test() {
         let remaining_gas = GasUnit::<2>::from([u64::MAX, u64::MAX]);
-        let gas_price = GasPrice::<2>::from([u64::MAX; 2]);
+        let gas_price = GasPrice::<2>::from([Amount::MAX; 2]);
 
         let mut gas_meter =
             BasicGasMeter::<S>::new_with_gas(remaining_gas.clone(), gas_price.clone());
@@ -1119,7 +1170,7 @@ mod tests {
         );
 
         let mut gas_meter = BasicGasMeter::<S>::new_with_funds_and_gas(
-            u64::MAX,
+            Amount::new(u64::MAX as u128),
             remaining_gas.clone(),
             gas_price.clone(),
         );
@@ -1137,8 +1188,8 @@ mod tests {
     #[test]
     fn gas_meter_charge_atomic_update() {
         let remaining_gas = GasUnit::<2>::from([5, 5]);
-        let remaining_funds = 1000000;
-        let gas_price = GasPrice::<2>::from([10; 2]);
+        let remaining_funds = Amount::new(1000000);
+        let gas_price = GasPrice::<2>::from([Amount::new(10); 2]);
 
         let mut gas_meter = BasicGasMeter::<S>::new_with_funds_and_gas(
             remaining_funds,
@@ -1197,5 +1248,23 @@ mod tests {
             &slot_gas_meter.remaining_preferred_slot_gas,
             expected_preferred_gas
         );
+    }
+
+    #[test]
+    fn test_gas_price_serde_json() {
+        let gas_price = GasPrice::<2>::from([Amount::new(10); 2]);
+        let serialized = serde_json::to_string(&gas_price).unwrap();
+        assert_eq!(serialized, r#"["10","10"]"#);
+
+        let deserialized: GasPrice<2> = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized, gas_price);
+    }
+
+    #[test]
+    fn test_gas_price_serde_bincode() {
+        let gas_price = GasPrice::<2>::from([Amount::new(10); 2]);
+        let serialized = bincode::serialize(&gas_price).unwrap();
+        let deserialized: GasPrice<2> = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(deserialized, gas_price);
     }
 }

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use sov_bank::Bank;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{EncodeCall, FullyBakedTx, PrivateKey, RawTx, Runtime};
+use sov_modules_api::{Amount, EncodeCall, FullyBakedTx, PrivateKey, RawTx, Runtime};
 use sov_test_utils::generators::bank::BankMessageGenerator;
 use sov_test_utils::generators::sequencer_registry::SequencerRegistryMessageGenerator;
 use sov_test_utils::generators::value_setter::{ValueSetterMessage, ValueSetterMessages};
@@ -118,7 +118,7 @@ pub fn simulate_da_with_multiple_direct_registration_msg(
 
     let sequencer_and_stake = sequencers
         .into_iter()
-        .map(|address| (address, 100_000_000u64))
+        .map(|address| (address, Amount::new(100_000_000)))
         .collect();
     let sequencer_registry_generator =
         SequencerRegistryMessageGenerator::<S>::generate_multiple_sequencer_registration(

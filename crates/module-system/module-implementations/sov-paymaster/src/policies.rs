@@ -36,7 +36,7 @@ pub enum PayeePolicy<S: Spec> {
     /// In all other cases, the sender pays their own fees.
     Allow {
         #[allow(missing_docs)]
-        max_fee: Option<u64>,
+        max_fee: Option<u128>,
         #[allow(missing_docs)]
         gas_limit: Option<S::Gas>,
         #[allow(missing_docs)]
@@ -80,7 +80,7 @@ impl<S: Spec> PayeePolicy<S> {
     }
 
     /// Checks that the transaction's max fee is less than the policy's max fee, if applicable.
-    pub fn authorizes_max_fee(&self, tx_max_fee: u64) -> bool {
+    pub fn authorizes_max_fee(&self, tx_max_fee: u128) -> bool {
         // Use `match` instead of `if let` to ensure exhaustive pattern
         match self {
             PayeePolicy::Allow { max_fee, .. } => {
@@ -154,7 +154,7 @@ impl<S: Spec> PayeePolicy<S> {
         }
     }
 
-    fn max_fee(&self) -> Option<u64> {
+    fn max_fee(&self) -> Option<u128> {
         match self {
             PayeePolicy::Allow { max_fee, .. } => *max_fee,
             PayeePolicy::Deny => None,

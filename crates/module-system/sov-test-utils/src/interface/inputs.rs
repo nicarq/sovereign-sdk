@@ -78,7 +78,7 @@ impl<RT: Runtime<S>, S: Spec> TransactionType<RT, S> {
     }
 
     /// Set the max fee of the transaction.
-    pub fn with_max_fee(mut self, max_fee: u64) -> Self {
+    pub fn with_max_fee(mut self, max_fee: u128) -> Self {
         if let Some(details) = self.details_mut() {
             details.max_fee = max_fee;
         }
