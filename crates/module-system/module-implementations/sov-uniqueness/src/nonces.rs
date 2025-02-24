@@ -26,7 +26,7 @@ impl<S: Spec> Uniqueness<S> {
     ) -> anyhow::Result<()> {
         let nonce = self.nonces.get(credential_id, state)?.unwrap_or_default();
 
-        let nonce = nonce + 1;
+        let nonce = nonce.checked_add(1).expect("Maximum nonce value reached");
 
         self.nonces.set(credential_id, &nonce, state)?;
 
