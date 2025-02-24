@@ -49,7 +49,7 @@ mod web3_compatibility {
 
         assert_eq!(
             actual_chain_hash,
-            "1bcdf2fb0a588bc3f144f27388f9d48bcefe32562574748e14081651b0c96f6e"
+            "e83a35cc6c499308e655c9ba47a37d71e6040861ce91525db07cdc989f8ab3bb"
         );
     }
 
@@ -79,7 +79,7 @@ mod web3_compatibility {
         let actual_chain_hash = hex::encode(schema.chain_hash().unwrap());
         assert_eq!(
             actual_chain_hash,
-            "392301504439e3b58fdacb0c8ecd4494e999b84efa8544de42cc85060d56adb5"
+            "656da19def1201844828bfc94e6ebbb309386b04d3c6b8b5442195dce2707f87"
         );
     }
 

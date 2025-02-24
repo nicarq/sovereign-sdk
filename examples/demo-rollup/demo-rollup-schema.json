@@ -1409,6 +1409,15 @@
               "ByIndex": 59
             },
             "doc": ""
+          },
+          {
+            "display_name": "transaction_limit",
+            "serde_display_name": "transaction_limit",
+            "silent": false,
+            "value": {
+              "ByIndex": 13
+            },
+            "doc": ""
           }
         ]
       }

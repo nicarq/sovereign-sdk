@@ -253,7 +253,13 @@ impl<S: Spec> Paymaster<S> {
         {
             // If the paymaster pays for the gas, it also needs to get the refund
             match self.try_purchase_paymaster_gas(tx, gas_price, &payer, &payee_policy, state) {
-                Ok(()) => {
+                Ok(Some(mutated_policy)) => {
+                    self.policies
+                        .set(&(Payer(&payer), context.sender()), &mutated_policy, state)
+                        .map_err(|e| ReserveGasError::StateAccessError(e.to_string()))?;
+                    return Ok(Some(payer));
+                }
+                Ok(None) => {
                     return Ok(Some(payer));
                 }
                 Err(e) => {
@@ -283,9 +289,10 @@ impl<S: Spec> Paymaster<S> {
         payer: &S::Address,
         policy: &PayeePolicy<S>,
         state: &mut impl StateAccessor,
-    ) -> Result<(), ReserveGasError> {
-        policy.authorize_transaction(tx, gas_price)?;
-        self.bank.reserve_gas(tx, gas_price, payer, state)
+    ) -> Result<Option<PayeePolicy<S>>, ReserveGasError> {
+        let maybe_mutated_policy = policy.authorize_transaction(tx, gas_price)?;
+        self.bank.reserve_gas(tx, gas_price, payer, state)?;
+        Ok(maybe_mutated_policy)
     }
 }
 

@@ -1,4 +1,4 @@
-pub const CHAIN_HASH: [u8; 32] = [223, 93, 41, 54, 234, 33, 26, 121, 202, 10, 125, 38, 71, 195, 155, 139, 17, 238, 24, 200, 99, 128, 48, 139, 65, 195, 8, 146, 128, 147, 133, 8];
+pub const CHAIN_HASH: [u8; 32] = [134, 218, 175, 123, 213, 137, 240, 245, 85, 255, 162, 113, 171, 251, 1, 42, 193, 157, 49, 255, 197, 93, 164, 77, 190, 201, 215, 181, 81, 232, 110, 0];
 
 #[allow(dead_code)]
 pub const SCHEMA_JSON: &str = r#"{
@@ -1410,6 +1410,15 @@ pub const SCHEMA_JSON: &str = r#"{
             "silent": false,
             "value": {
               "ByIndex": 59
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "transaction_limit",
+            "serde_display_name": "transaction_limit",
+            "silent": false,
+            "value": {
+              "ByIndex": 13
             },
             "doc": ""
           }
