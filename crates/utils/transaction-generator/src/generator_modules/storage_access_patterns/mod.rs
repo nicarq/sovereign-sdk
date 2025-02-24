@@ -1,0 +1,331 @@
+#![deny(missing_docs)]
+#![doc = include_str!("../README.md")]
+use std::marker::PhantomData;
+
+use borsh::{BorshDeserialize, BorshSerialize};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use sov_modules_api::{
+    AuthenticatedTransactionData, Context, DaSpec, Error, GenesisState, Module, ModuleId,
+    ModuleInfo, ModuleRestApi, Spec, StateMap, StateValue, StateVec, TxHooks, TxState,
+};
+use strum::{EnumDiscriminants, EnumIs, VariantArray};
+
+#[cfg(test)]
+mod tests;
+
+/// Call message to specify storage access patterns.
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    JsonSchema,
+    EnumDiscriminants,
+    EnumIs,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum_discriminants(name(AccessPatternDiscriminants), derive(VariantArray, EnumIs))]
+pub enum AccessPatternMessages<S: Spec> {
+    /// Writes `size` bytes to the module state for every position between `begin` and `begin + size`
+    WriteCells {
+        /// The first index to write to
+        begin: u64,
+        /// The number of storage cells to write to
+        num_cells: u64,
+        /// The size of the data to write to storage. This is the maximum number of iterations done in
+        /// a string generation loop.
+        data_size: usize,
+    },
+    /// Like [`Self::WriteCells`] but writes a custom string.
+    WriteCustom {
+        /// The first index to write to
+        begin: u64,
+        /// The content to write to the storage. Write a string to every cell from `begin`
+        content: Vec<String>,
+    },
+    /// Reads every element of the module state between `begin` and `begin + size`
+    ReadCells {
+        /// The first index to read from
+        begin: u64,
+        /// The number of storage cells to read from
+        num_cells: u64,
+    },
+    /// Deletes every element of the module state between `begin` and `begin + size`
+    DeleteCells {
+        /// The first index to delete from
+        begin: u64,
+        /// The number of storage cells to delete
+        num_cells: u64,
+    },
+    /// Activates the pre/end-exec-hook. Adds a variable number of reads/writes for each tx.
+    SetHook {
+        /// The configuration of the pre-exec hooks. Set to None to disable
+        #[schemars(skip)]
+        pre: Option<Vec<HooksConfig>>,
+
+        /// The configuration of the post-exec hooks. Set to None to disable
+        #[schemars(skip)]
+        post: Option<Vec<HooksConfig>>,
+    },
+    /// Updates the admin for the module.
+    UpdateAdmin {
+        /// New admin of the module
+        new_admin: S::Address,
+    },
+}
+
+/// Specifies what happens inside the pre/end-exec hook.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Deserialize,
+    Serialize,
+    BorshDeserialize,
+    BorshSerialize,
+    PartialEq,
+    Eq,
+    EnumDiscriminants,
+)]
+#[strum_discriminants(derive(VariantArray))]
+pub enum HooksConfig {
+    /// Reads from the storage
+    Read {
+        /// The first index to read from
+        begin: u64,
+        /// The number of storage cells to read from
+        size: u64,
+    },
+    /// Writes to the storage
+    Write {
+        /// The first index to write to
+        begin: u64,
+        /// The number of storage cells to write to
+        size: u64,
+        /// The size of the data to write to each storage cell
+        data_size: usize,
+    },
+    /// Delete from the storage
+    Delete {
+        /// The first index to delete
+        begin: u64,
+        /// The number of storage cells to delete
+        size: u64,
+    },
+}
+
+/// A new module:
+/// - Must derive `ModuleInfo`
+/// - Must contain `[id]` field
+/// - Can contain any number of ` #[state]` or `[module]` fields
+/// - Can derive ModuleRestApi to automatically generate Rest API endpoints
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
+pub struct AccessPattern<S: Spec> {
+    /// The ID of the module.
+    #[id]
+    pub id: ModuleId,
+
+    /// Values stored inside the module state
+    #[state]
+    pub values: StateMap<u64, String>,
+
+    /// Configuration of the pre tx slot hooks
+    #[state]
+    pub pre_hooks: StateVec<HooksConfig>,
+
+    /// Configuration of the post tx hooks
+    #[state]
+    pub post_hooks: StateVec<HooksConfig>,
+
+    /// Admin of the module. Can set values, hooks.
+    #[state]
+    pub admin: StateValue<S::Address>,
+
+    #[phantom]
+    phantom: PhantomData<S>,
+}
+
+/// The genesis config of the access pattern module
+#[derive(Debug, Clone, Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
+pub struct AccessPatternGenesisConfig<S: Spec> {
+    /// Admin user at genesis
+    pub admin: S::Address,
+}
+
+impl<S: Spec> Module for AccessPattern<S> {
+    type Spec = S;
+
+    type Config = AccessPatternGenesisConfig<S>;
+
+    type CallMessage = AccessPatternMessages<S>;
+
+    type Event = ();
+
+    fn genesis(
+        &self,
+        _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
+        config: &Self::Config,
+        state: &mut impl GenesisState<S>,
+    ) -> Result<(), Error> {
+        // The initialization logic
+        self.admin.set(&config.admin, state).map_err(Into::into)?;
+
+        Ok(())
+    }
+
+    fn call(
+        &self,
+        msg: Self::CallMessage,
+        context: &Context<Self::Spec>,
+        state: &mut impl TxState<S>,
+    ) -> Result<(), Error> {
+        let admin = self
+            .admin
+            .get(state)
+            .map_err(Into::into)?
+            .expect("Admin should be set at genesis");
+
+        if context.sender() != &admin {
+            return Err(Error::ModuleError(anyhow::anyhow!(
+                "The transaction sender is not an admin of the access patterns module. Sender {}",
+                context.sender()
+            )));
+        }
+
+        Ok(self.inner_call(msg, state)?)
+    }
+}
+
+impl<S: Spec> AccessPattern<S> {
+    fn inner_call(
+        &self,
+        msg: AccessPatternMessages<S>,
+        state: &mut impl TxState<S>,
+    ) -> anyhow::Result<()> {
+        match msg {
+            AccessPatternMessages::WriteCells {
+                begin,
+                num_cells: size,
+                data_size,
+            } => {
+                for i in begin..(begin.saturating_add(size)) {
+                    self.values
+                        .set(&i, &i.to_string().repeat(data_size), state)?;
+                }
+            }
+            AccessPatternMessages::WriteCustom { begin, content } => {
+                for i in begin..(begin.saturating_add(content.len() as u64)) {
+                    self.values
+                        .set(&i, &content[i.saturating_sub(begin) as usize], state)?;
+                }
+            }
+            AccessPatternMessages::ReadCells {
+                begin,
+                num_cells: size,
+            } => {
+                for i in begin..(begin.saturating_add(size)) {
+                    self.values.get(&i, state)?;
+                }
+            }
+            AccessPatternMessages::DeleteCells {
+                begin,
+                num_cells: size,
+            } => {
+                for i in begin..(begin.saturating_add(size)) {
+                    self.values.delete(&i, state)?;
+                }
+            }
+            AccessPatternMessages::SetHook { pre, post: end } => {
+                self.pre_hooks.clear(state)?;
+                self.post_hooks.clear(state)?;
+
+                if let Some(pre_hooks) = pre {
+                    for hook in pre_hooks {
+                        self.pre_hooks.push(&hook, state)?;
+                    }
+                }
+
+                if let Some(post_hooks) = end {
+                    for hook in post_hooks {
+                        self.post_hooks.push(&hook, state)?;
+                    }
+                }
+            }
+            AccessPatternMessages::UpdateAdmin { new_admin } => {
+                // Update the admin
+                self.admin.set(&new_admin, state)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn inner_hook(&self, hook: HooksConfig, state: &mut impl TxState<S>) -> anyhow::Result<()> {
+        match hook {
+            HooksConfig::Read { begin, size } => {
+                for i in begin..(begin.saturating_add(size)) {
+                    self.values.get(&i, state)?;
+                }
+            }
+            HooksConfig::Write {
+                begin,
+                size,
+                data_size,
+            } => {
+                for i in begin..(begin.saturating_add(size)) {
+                    self.values
+                        .set(&i, &i.to_string().repeat(data_size), state)?;
+                }
+            }
+            HooksConfig::Delete { begin, size } => {
+                for i in begin..(begin.saturating_add(size)) {
+                    self.values.delete(&i, state)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl<S: Spec> TxHooks for AccessPattern<S> {
+    type Spec = S;
+
+    fn pre_dispatch_tx_hook<T: TxState<Self::Spec>>(
+        &self,
+        _tx: &sov_modules_api::AuthenticatedTransactionData<Self::Spec>,
+        state: &mut T,
+    ) -> anyhow::Result<()> {
+        let curr_len = self.pre_hooks.len(state)?;
+
+        for i in 0..curr_len {
+            if let Some(hook) = self.pre_hooks.get(i, state)? {
+                self.inner_hook(hook, state)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn post_dispatch_tx_hook<T: TxState<Self::Spec>>(
+        &self,
+        _tx: &AuthenticatedTransactionData<Self::Spec>,
+        _ctx: &Context<Self::Spec>,
+        state: &mut T,
+    ) -> anyhow::Result<()> {
+        let curr_len = self.post_hooks.len(state)?;
+
+        for i in 0..curr_len {
+            if let Some(hook) = self.post_hooks.get(i, state)? {
+                self.inner_hook(hook, state)?;
+            }
+        }
+
+        Ok(())
+    }
+}
