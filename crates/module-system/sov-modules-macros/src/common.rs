@@ -69,7 +69,7 @@ impl StructFieldExtractor {
     ) -> syn::Result<Vec<StructNamedField>> {
         let mut output_fields = Vec::default();
 
-        for original_field in data_struct.fields.iter() {
+        for original_field in &data_struct.fields {
             let field_ident = original_field
                 .ident
                 .as_ref()
@@ -117,10 +117,10 @@ impl<'a> StructDef<'a> {
     ) -> Self {
         Self {
             ident,
-            fields,
             impl_generics,
             type_generics,
             generic_param,
+            fields,
             where_clause,
         }
     }
@@ -197,7 +197,7 @@ pub(crate) fn get_derived_struct_subattr<T: syn::parse::Parse>(
         let subattrs_parsed: Punctuated<syn::MetaNameValue, syn::Token![,]> = attr
             .parse_args_with(Punctuated::<syn::MetaNameValue, syn::Token![,]>::parse_terminated)?;
 
-        for subattr in subattrs_parsed.into_iter() {
+        for subattr in subattrs_parsed {
             let syn::MetaNameValue { path, value, .. } = subattr;
 
             if path.is_ident(subattr_name) {
@@ -292,7 +292,7 @@ pub fn pascal_case_ident(ident: &Ident) -> Ident {
 /// <https://github.com/serde-rs/serde/blob/3202a6858a2802b5aba2fa5cf3ec8f203408db74/serde_derive/src/dummy.rs#L15-L22>.
 ///
 /// Copyright (c) David Tolnay and Serde contributors.
-pub fn wrap_in_new_scope(code: TokenStream) -> TokenStream {
+pub fn wrap_in_new_scope(code: &TokenStream) -> TokenStream {
     quote::quote! {
         #[doc(hidden)]
         #[allow(all, clippy::all)] // <-- just to make sure rustc doesn't complain about generated code.

@@ -117,7 +117,7 @@ impl<'a> Manifest<'a> {
                 return Err(Self::err(
                     &self.path,
                     field,
-                    format!("matching constants entry `{}` is not an object", field),
+                    format!("matching constants entry `{field}` is not an object"),
                 ))
             }
             None => root,
@@ -129,7 +129,7 @@ impl<'a> Manifest<'a> {
                 Self::err(
                     &self.path,
                     field,
-                    format!("failed to parse key attribute `{}`: {}", k, e),
+                    format!("failed to parse key attribute `{k}`: {e}"),
                 )
             })?;
 
@@ -137,7 +137,7 @@ impl<'a> Manifest<'a> {
                 Value::Array(a) => a
                     .iter()
                     .map(|v| match v {
-                        Value::Boolean(b) => Ok(*b as u64),
+                        Value::Boolean(b) => Ok(u64::from(*b)),
                         Value::Integer(n) => Ok(u64::try_from(*n).map_err(|_| {
                             Self::err(
                                 &self.path,
@@ -163,7 +163,7 @@ impl<'a> Manifest<'a> {
                         format!("the value of the field `{k}` must be a `u64`"),
                     )
                 })?],
-                Value::Boolean(b) => vec![*b as u64],
+                Value::Boolean(b) => vec![u64::from(*b)],
 
                 _ => {
                     return Err(Self::err(
@@ -212,7 +212,7 @@ impl<'a> Manifest<'a> {
             Self::err(
                 &self.path,
                 field,
-                format!("manifest does not contain a `{}` attribute", field),
+                format!("manifest does not contain a `{field}` attribute"),
             )
         })
     }

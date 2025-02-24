@@ -5,8 +5,8 @@ use syn::{DeriveInput, Generics, Ident};
 
 use crate::common::{str_to_url_segment, wrap_in_new_scope};
 
-pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
-    let input = InputStruct::from_derive_input(&tokens)?;
+pub fn derive(tokens: &DeriveInput) -> syn::Result<TokenStream> {
+    let input = InputStruct::from_derive_input(tokens)?;
 
     // First, we ought to generate the code that will nest all module routers
     // into the root runtime router.
@@ -62,7 +62,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     let ident = input.ident;
 
-    let code = wrap_in_new_scope(quote! {
+    let code = wrap_in_new_scope(&quote! {
         use ::sov_modules_api::rest::*;
         use ::sov_modules_api::rest::__private::*;
         use ::sov_modules_api::rest::__private::openapi::*;

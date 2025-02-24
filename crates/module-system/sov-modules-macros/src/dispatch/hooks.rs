@@ -37,7 +37,7 @@ impl HooksMacro {
             &fields,
             &impl_generics,
             &type_generics,
-            &where_clause,
+            where_clause,
         );
 
         let finalize_hook_impl = Self::derive_finalize_hook(
@@ -45,7 +45,7 @@ impl HooksMacro {
             &fields,
             &impl_generics,
             &type_generics,
-            &where_clause,
+            where_clause,
         );
 
         let tx_hooks_impl = Self::derive_tx_hooks(
@@ -53,7 +53,7 @@ impl HooksMacro {
             &fields,
             &impl_generics,
             &type_generics,
-            &where_clause,
+            where_clause,
         );
 
         Ok(quote::quote! {
@@ -80,19 +80,19 @@ impl HooksMacro {
         fields: &[StructNamedField],
         impl_generics: &syn::ImplGenerics,
         type_generics: &syn::TypeGenerics,
-        where_clause: &Option<&syn::WhereClause>,
+        where_clause: Option<&syn::WhereClause>,
     ) -> proc_macro2::TokenStream {
         let begin_rollup_block_hook_fn = Self::make_hooks_fn(
             fields,
             &Ident::new("begin_rollup_block_hook", Span::call_site()),
             &vec![],
             false,
-            vec![
-                &ArgWithType {
+            &[
+                ArgWithType {
                     arg: Ident::new("visible_hash", Span::call_site()),
                     ty: quote::quote! {&<<Self::Spec as ::sov_modules_api::Spec>::Storage as ::sov_modules_api::Storage>::Root},
                 },
-                &ArgWithType {
+                ArgWithType {
                     arg: Ident::new("state", Span::call_site()),
                     ty: quote::quote! {&mut ::sov_modules_api::StateCheckpoint<Self::Spec>},
                 },
@@ -103,7 +103,7 @@ impl HooksMacro {
             &Ident::new("end_rollup_block_hook", Span::call_site()),
             &vec![],
             false,
-            vec![&ArgWithType {
+            &[ArgWithType {
                 arg: Ident::new("state", Span::call_site()),
                 ty: quote::quote! {&mut sov_modules_api::StateCheckpoint<Self::Spec>},
             }],
@@ -127,19 +127,19 @@ impl HooksMacro {
         fields: &[StructNamedField],
         impl_generics: &syn::ImplGenerics,
         type_generics: &syn::TypeGenerics,
-        where_clause: &Option<&syn::WhereClause>,
+        where_clause: Option<&syn::WhereClause>,
     ) -> proc_macro2::TokenStream {
         let finalize_hook_fn = Self::make_hooks_fn(
             fields,
             &Ident::new("finalize_hook", Span::call_site()),
             &vec![],
             false,
-            vec![
-                &ArgWithType {
+            &[
+                ArgWithType {
                     arg: Ident::new("root_hash", Span::call_site()),
                     ty: quote::quote! {&<<Self::Spec as ::sov_modules_api::Spec>::Storage as ::sov_modules_api::Storage>::Root},
                 },
-                &ArgWithType {
+                ArgWithType {
                     arg: Ident::new("state", Span::call_site()),
                     ty: quote::quote! {&mut impl ::sov_modules_api::AccessoryStateReaderAndWriter},
                 },
@@ -162,7 +162,7 @@ impl HooksMacro {
         fields: &[StructNamedField],
         impl_generics: &syn::ImplGenerics,
         type_generics: &syn::TypeGenerics,
-        where_clause: &Option<&syn::WhereClause>,
+        where_clause: Option<&syn::WhereClause>,
     ) -> proc_macro2::TokenStream {
         let method_generics = &vec![quote::quote! {T: ::sov_modules_api::TxState<Self::Spec>}];
 
@@ -171,12 +171,12 @@ impl HooksMacro {
             &Ident::new("pre_dispatch_tx_hook", Span::call_site()),
             method_generics,
             true,
-            vec![
-                &ArgWithType {
+            &[
+                ArgWithType {
                     arg: Ident::new("tx", Span::call_site()),
                     ty: quote::quote! {&::sov_modules_api::AuthenticatedTransactionData<Self::Spec>},
                 },
-                &ArgWithType {
+                ArgWithType {
                     arg: Ident::new("state", Span::call_site()),
                     ty: quote::quote! {&mut T},
                 },
@@ -187,16 +187,16 @@ impl HooksMacro {
             &Ident::new("post_dispatch_tx_hook", Span::call_site()),
             method_generics,
             true,
-            vec![
-                &ArgWithType {
+            &[
+                ArgWithType {
                     arg: Ident::new("tx", Span::call_site()),
                     ty: quote::quote! {&::sov_modules_api::AuthenticatedTransactionData<Self::Spec>},
                 },
-                &ArgWithType {
+                ArgWithType {
                     arg: Ident::new("context", Span::call_site()),
                     ty: quote::quote! {&::sov_modules_api::Context<Self::Spec>},
                 },
-                &ArgWithType {
+                ArgWithType {
                     arg: Ident::new("state", Span::call_site()),
                     ty: quote::quote! {&mut T},
                 },
@@ -221,7 +221,7 @@ impl HooksMacro {
         method: &Ident,
         method_generics: &Vec<TokenStream>,
         is_faillible: bool,
-        args: Vec<&ArgWithType>,
+        args: &[ArgWithType],
     ) -> proc_macro2::TokenStream {
         let args_names = args
             .iter()
@@ -239,10 +239,10 @@ impl HooksMacro {
             }
         });
 
-        let method_generics = if !method_generics.is_empty() {
-            Some(quote::quote! { <#(#method_generics),*> })
-        } else {
+        let method_generics = if method_generics.is_empty() {
             None
+        } else {
+            Some(quote::quote! { <#(#method_generics),*> })
         };
 
         let method_output_ty = if is_faillible {

@@ -12,7 +12,7 @@ pub mod gas_estimation {
     use super::*;
 
     /// Wrap a block with benchmarking. Fills the correct cycle counter based on the target and vendor.
-    pub fn const_tracker(ident: &Ident, block: &Block, tagged_inputs: Vec<Ident>) -> Box<Block> {
+    pub fn const_tracker(ident: &Ident, block: &Block, tagged_inputs: &[Ident]) -> Block {
         let inputs_iter = tagged_inputs
             .iter()
             .map(|ident| quote! { (stringify!(#ident).to_string(), #ident.to_string()) })
@@ -49,9 +49,9 @@ pub mod zk {
     use super::*;
 
     /// Wrap a block with benchmarking. Fills the correct cycle counter based on the target and vendor.
-    pub fn guest_metrics(ident: &Ident, block: &Block, tagged_inputs: Vec<Ident>) -> Box<Block> {
-        let risc0_zk_block = metrics_inner_risc0(ident, block, &tagged_inputs);
-        let sp1_zk_block = metrics_inner_sp1(ident, block, &tagged_inputs);
+    pub fn guest_metrics(ident: &Ident, block: &Block, tagged_inputs: &[Ident]) -> Block {
+        let risc0_zk_block = metrics_inner_risc0(ident, block, tagged_inputs);
+        let sp1_zk_block = metrics_inner_sp1(ident, block, tagged_inputs);
 
         parse_quote!({
             #[cfg(all(target_os = "zkvm", target_vendor = "succinct"))]
@@ -69,7 +69,7 @@ pub mod zk {
         })
     }
 
-    fn metrics_inner_risc0(ident: &Ident, block: &Block, tagged_inputs: &[Ident]) -> Box<Block> {
+    fn metrics_inner_risc0(ident: &Ident, block: &Block, tagged_inputs: &[Ident]) -> Block {
         let inputs_iter = tagged_inputs
             .iter()
             .map(|ident| quote! { (stringify!(#ident).to_string(), #ident.to_string()) })
@@ -109,7 +109,7 @@ pub mod zk {
         }
     }
 
-    fn metrics_inner_sp1(ident: &Ident, block: &Block, tagged_inputs: &[Ident]) -> Box<Block> {
+    fn metrics_inner_sp1(ident: &Ident, block: &Block, tagged_inputs: &[Ident]) -> Block {
         let inputs_iter = tagged_inputs
             .iter()
             .map(|ident| quote! { (stringify!(#ident).to_string(), #ident.to_string()) })
@@ -150,7 +150,7 @@ pub fn wrap_function_with<F>(
     mut tag_attr: HashSet<Ident>,
 ) -> Result<TokenStream, syn::Error>
 where
-    F: Fn(&Ident, &Block, Vec<Ident>) -> Box<Block>,
+    F: Fn(&Ident, &Block, &[Ident]) -> Block,
 {
     let mut input = parse2::<ItemFn>(input.into())?;
     let ItemFn {
@@ -189,7 +189,7 @@ where
         ));
     }
 
-    input.block = f(&ident, &block, tagged_inputs);
+    input.block = Box::new(f(&ident, &block, &tagged_inputs));
 
     Ok(input.to_token_stream().into())
 }
