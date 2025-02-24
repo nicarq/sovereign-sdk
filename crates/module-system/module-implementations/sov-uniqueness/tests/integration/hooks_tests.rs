@@ -61,7 +61,7 @@ fn send_tx_works_generation() {
         assert_eq!(
             Uniqueness::<S>::default()
                 .next_generation(&admin_credential_id, state)
-                .unwrap_infallible(),
+                .unwrap(),
             0,
             "The next generation for a new account should start at 0"
         );
@@ -75,7 +75,7 @@ fn send_tx_works_generation() {
             assert_eq!(
                 Uniqueness::<S>::default()
                     .next_generation(&admin_credential_id, state)
-                    .unwrap_infallible(),
+                    .unwrap(),
                 1,
                 "The next generation should be 1 after a transaction of generation 0 is sent"
             );
@@ -89,7 +89,7 @@ fn send_tx_works_generation() {
             assert_eq!(
                 Uniqueness::<S>::default()
                     .next_generation(&admin_credential_id, state)
-                    .unwrap_infallible(),
+                    .unwrap(),
                 6,
                 "The next available generation should update when a transaction with a higher generation is sent"
             );

@@ -6,6 +6,12 @@ use crate::Uniqueness;
 
 impl<S: Spec> Uniqueness<S> {
     /// Checks the provided uniqueness number.
+    /// ## Note
+    /// This method should perform all the checks required to ensure that the execution of
+    /// [`Self::mark_tx_attempted`] will succeed.
+    ///
+    /// # Errors
+    /// May return an error if state access fails (e.g if we run out of gas) or if an overflow occurs (in the `check_generation_uniqueness` case).
     pub fn check_uniqueness(
         &self,
         credential_id: &CredentialId,
@@ -23,7 +29,10 @@ impl<S: Spec> Uniqueness<S> {
         }
     }
 
-    /// Marks a transaction as attempted, ensuring that future attempts at execution will fail
+    /// Marks a transaction as attempted, ensuring that future attempts at execution will fail.
+    ///
+    /// # Errors
+    /// May return an error if state access fails (e.g if we run out of gas) or if an overflow occurs (in the `check_generation_uniqueness` case).
     pub fn mark_tx_attempted(
         &self,
         credential_id: &CredentialId,

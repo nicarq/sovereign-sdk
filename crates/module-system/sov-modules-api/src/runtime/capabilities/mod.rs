@@ -302,22 +302,22 @@ impl RollupHeight {
         self.0 += 1;
     }
 
-    /// See [u64::checked_sub]
+    /// See [`u64::checked_sub`]
     pub fn checked_sub(self, rhs: u64) -> Option<Self> {
         self.0.checked_sub(rhs).map(Self)
     }
 
-    /// See [u64::checked_add]
+    /// See [`u64::checked_add`]
     pub fn checked_add(self, rhs: Self) -> Option<Self> {
         self.0.checked_add(rhs.0).map(Self)
     }
 
-    /// See [u64::saturating_sub]
+    /// See [`u64::saturating_sub`]
     pub fn saturating_sub(self, rhs: u64) -> Self {
         Self(self.0.saturating_sub(rhs))
     }
 
-    /// See [u64::saturating_add]
+    /// See [`u64::saturating_add`]
     pub fn saturating_add(self, rhs: u64) -> Self {
         Self(self.0.saturating_add(rhs))
     }

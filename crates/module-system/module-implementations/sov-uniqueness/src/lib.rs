@@ -11,10 +11,18 @@ use sov_modules_api::{
 };
 use sov_state::User;
 
-/// A module responsible for managing nonces on the rollup.
+/// A module responsible for managing transaction deduplication for the rollup.
+/// Deduplication is done in two ways:
+/// - Nonce deduplication: Each transaction sent by a given `sov_rollup_interface::crypto::CredentialId` has a unique nonce.
+///     It is not possible to send a transaction with the same nonce twice, and the nonce is incremented by one for each transaction.
+///
+/// - Generation deduplication: Each transaction sent by a given `sov_rollup_interface::crypto::CredentialId` has an associated generation number.
+///     Each generation is mapped to a bucket of transactions that deduplicate transactions by their hash.
+///     Each credential can store at most `MAX_STORED_TX_HASHES_PER_CREDENTIAL` in `PAST_TRANSACTION_GENERATIONS` generations.
+///     When a transaction land with a generation number that is higher than the highest known generation, the buckets older than `new_generation - PAST_TRANSACTION_GENERATIONS` are pruned.
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
 pub struct Uniqueness<S: Spec> {
-    /// The ID of the sov-nonces module.
+    /// The ID of the sov-uniqueness module.
     #[id]
     pub id: ModuleId,
 
@@ -32,6 +40,9 @@ pub struct Uniqueness<S: Spec> {
 
 impl<S: Spec> Uniqueness<S> {
     /// Retrieves the nonce for a given credential id.
+    ///     
+    /// # Errors
+    /// May return an error if state access fails (e.g if we run out of gas).
     pub fn nonce<Reader: StateReader<User>>(
         &self,
         credential_id: &CredentialId,
@@ -44,20 +55,28 @@ impl<S: Spec> Uniqueness<S> {
     /// We add one so that it can be used in the /dedup API and be consumed by clients in a similar
     /// way to nonces. Returning the actual latest generation would require the client to manage
     /// incrementing the generation themselves
+    ///
+    /// # Errors
+    /// May return an error if the next generation number overflows or if state access fails.
     pub fn next_generation<Reader: StateReader<User>>(
         &self,
         credential_id: &CredentialId,
         state: &mut Reader,
-    ) -> Result<u64, Reader::Error> {
+    ) -> Result<u64, anyhow::Error> {
         self.generations
             .get(credential_id, state)
             .map(|maybe_generations| {
-                maybe_generations
+                Ok(maybe_generations
                     .unwrap_or_default()
                     .last_key_value()
-                    .map(|(k, _)| k.to_owned().saturating_add(1))
-                    .unwrap_or_default()
-            })
+                    .map(|(k, _)| {
+                        k.to_owned()
+                            .checked_add(1)
+                            .ok_or(anyhow::anyhow!("Maximum generation value reached"))
+                    })
+                    .transpose()?
+                    .unwrap_or_default())
+            })?
     }
 }
 

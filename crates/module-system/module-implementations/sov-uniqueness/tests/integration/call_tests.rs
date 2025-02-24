@@ -1,5 +1,4 @@
 use sov_modules_api::macros::config_value;
-use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::CredentialId;
 use sov_modules_stf_blueprint::TxEffect;
 use sov_test_utils::{BatchType, SlotInput, TransactionTestCase, TxProcessingError};
@@ -46,7 +45,7 @@ fn do_max_stored_tx_hashes_per_credential_test() {
         assert_eq!(
             Uniqueness::<S>::default()
                 .next_generation(&admin_credential_id, state)
-                .unwrap_infallible(),
+                .unwrap(),
             0,
             "The next generation for a new account should start at 0"
         );
@@ -107,8 +106,9 @@ fn do_max_stored_tx_hashes_per_credential_test() {
     });
 
     // Increment the generation number. Now the transaction should be accepted because it won't cause the bucket to overflow.
+    // Note that we need to add 1 to the number of generations because we have a strict inequality comparison for buckets.
     runner.execute_transaction(TransactionTestCase {
-        input: generate_value_setter_tx(num_generations, txs_per_generation as u32, &admin),
+        input: generate_value_setter_tx(num_generations + 1, txs_per_generation as u32, &admin),
         assert: Box::new(move |ctx, _| {
             assert!(
                 ctx.tx_receipt.is_successful(),

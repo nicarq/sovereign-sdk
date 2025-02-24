@@ -93,7 +93,7 @@ fn test_tx_revert() -> Result<(), Infallible> {
         let latest_generation = runtime
             .uniqueness
             .next_generation(&admin_key.pub_key().credential_id::<TestHasher>(), state)
-            .unwrap_infallible();
+            .unwrap();
 
         // with 3 transactions, the latest generation should be 2, because generators send
         // one transaction per generation. So the next generation should be 3
