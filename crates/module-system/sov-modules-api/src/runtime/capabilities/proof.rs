@@ -15,6 +15,10 @@ use crate::{GetGasPrice, SovAttestation, SovStateTransitionPublicData, Spec, Sto
 
 /// The `ProofProcessor` capability is responsible for processing proofs inside
 /// the stf-blueprint.
+///
+/// ## Warning
+/// The implementation of this trait is coupled with the implementation of the `GasEnforcer`, trait (and all of its dependencies),
+/// since the `ProofProcessor` is responsible for charging disbursing gas fees to the prover.
 pub trait ProofProcessor<S: Spec> {
     /// The service that generates bonding proofs for attesters.
     #[cfg(feature = "native")]

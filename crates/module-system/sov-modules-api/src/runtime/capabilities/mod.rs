@@ -41,6 +41,16 @@ impl<T> Guard<T> {
 }
 
 /// Indicates that a type provides the necessary capabilities for a runtime.
+///
+/// Capabilities are important core functionality like charging for gas, authorizing transactions,
+/// and processing proofs. While overriding these capabilities is allowed and can be very useful, it is also dangerous -
+/// using a non-standard implementation can cause subtle bugs. Some capabilities are coupled with one another - for example,
+/// the sequencer registry sets asides funds that are used to reward the prover later on.
+///
+/// Take great care when overriding these capabilities. Always test your changes thoroughly, and be sure that you understand
+/// the implications of your changes.
+///
+/// If you just want a sensible default implementation, use the `StandardCapabilities` struct provided by the SDK maintainers.
 pub trait HasCapabilities<S: Spec> {
     /// The concrete implementation of the capabilities.
     type Capabilities<'a>: GasEnforcer<S>

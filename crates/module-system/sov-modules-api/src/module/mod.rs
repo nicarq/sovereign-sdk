@@ -36,7 +36,11 @@ pub trait Module {
     /// Module defined event resulting from a call method.
     type Event: Debug + BorshSerialize + BorshDeserialize + 'static + core::marker::Send;
 
-    /// Genesis is called when a rollup is deployed and can be used to set initial state values in the module.
+    /// Genesis is called once when a rollup is deployed.
+    ///
+    /// You should use this function to initialize all of your module's `StateValue`s and run any other
+    /// one-time setup. Since this function runs only once, it's perfectly acceptible to do expensive operations
+    /// here. Note that your function should still be deterministic, however.
     fn genesis(
         &self,
         _genesis_rollup_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
@@ -46,8 +50,29 @@ pub trait Module {
         Ok(())
     }
 
-    /// Call allows interaction with the module and invokes state changes.
-    /// It takes a module defined type and a context as parameters.
+    /// `call` accepts a `CallMessage` and executes it, changing the state of the module and emitting events. `Context` contains useful
+    /// information including the transaction's sender and sequencer.
+    ///
+    /// ## Gas Metering and Charging
+    /// The SDK will automatically meter and charge for consumption of storage resources (getting and setting data).
+    /// In the overwhelming majority of cases, your call message should be able to rely exclusively on this mechanism
+    /// without needing to manually charge gas. However, if your callmessage consumes a significant amount of compute or memory
+    /// that does *not* correlate with its consumption of storage resources, you may need to manually charge gas using the [`Module::charge_gas`] method.
+    ///
+    /// ## Determinism
+    /// Your call method should be fully deterministic, both in the content and the order of its state changes/events. You MUST not rely on network access
+    /// or random number generation in your call method, since these are inherently non-deterministic. You should
+    /// also take great care when iterating over `HashMap`s, since iteration order is not guaranteed.
+    ///
+    /// ## The "Native" Feature Flag
+    /// The "native" feature flag is used to gate off code that is *not* executed when generating zk proofs of your rollup.
+    ///
+    /// A common pattern you'll see in the SDK is the use of the `native` feature flag to conditionally execute code.
+    /// This is especially useful when you want to compute some data that is not an essential part
+    /// of the state transition. For example, you might maintain a secondary index of all addresses
+    /// which hold a certain token and use it to serve API queries, but not allow access to it onchain.
+    /// Your module should always generate the same state changes (excluding "AccessoryState") regardless of the feature flag.
+    /// Note that events are only emitted if the `native` feature flag is enabled, and are *not* queryable onchain.
     fn call(
         &self,
         _message: Self::CallMessage,
@@ -55,9 +80,9 @@ pub trait Module {
         _state: &mut impl TxState<Self::Spec>,
     ) -> Result<(), ModuleError>;
 
-    /// Attempts to charge the provided amount of gas from the working set.
+    /// Attempts to charge the provided amount of gas from the working set reverting the transaction if unsuccessful.
     ///
-    /// The scalar gas value will be computed from the price defined on the working set.
+    /// The amount of funds to charge will be computed using the current gas price.
     fn charge_gas(
         &self,
         state: &mut impl TxState<Self::Spec>,
@@ -92,7 +117,7 @@ where
     }
 }
 
-/// Every module has to implement this trait.
+/// Every module has to implement this trait, but it is not designed to be done by hand. Use the `ModuleInfo` macro to derive it.
 pub trait ModuleInfo {
     /// Execution context.
     type Spec: Spec;
@@ -119,7 +144,7 @@ pub trait ModuleInfo {
     }
 }
 
-/// Event Emitter trait for a blanket implementation
+/// Allows modules to emit events. Events are served via the REST API but are *not* included in zk proofs.
 pub trait EventEmitter: ModuleInfo {
     /// Execution context.
     type Spec: Spec;
@@ -185,7 +210,7 @@ pub trait EncodeCall<M: Module>: DispatchCall {
     fn to_decodable(data: M::CallMessage) -> Self::Decodable;
 }
 
-/// Methods from this trait should be called only once during the rollup deployment.
+/// Allows a module to initialize its state once during rollup deployment.
 pub trait Genesis {
     /// Execution context of the module.
     type Spec: Spec;
