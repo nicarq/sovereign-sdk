@@ -7,7 +7,8 @@ use sov_transaction_generator::Distribution;
 
 use crate::{
     plain_tx_with_default_details, setup_harness, setup_roles_and_config, GeneratorOutput,
-    ModulesToUse, MAX_VEC_LEN_VALUE_SETTER, RT, USER_BALANCE,
+    ModulesToUse, MAXIMUM_HOOKS_OPS, MAXIMUM_WRITE_BEGIN_INDEX, MAXIMUM_WRITE_DATA_LENGTH,
+    MAXIMUM_WRITE_SIZE, MAX_VEC_LEN_VALUE_SETTER, RT, USER_BALANCE,
 };
 
 /// The number of transactions to generate.
@@ -34,6 +35,10 @@ fn test_with_modules(
         Percent::one_hundred(),
         &setup.value_setter_admin,
         MAX_VEC_LEN_VALUE_SETTER,
+        MAXIMUM_WRITE_DATA_LENGTH,
+        MAXIMUM_WRITE_BEGIN_INDEX,
+        MAXIMUM_WRITE_SIZE,
+        MAXIMUM_HOOKS_OPS,
         &modules,
     );
 
@@ -42,10 +47,15 @@ fn test_with_modules(
         Default::default(),
     );
 
-    // Execute initial transaction if there is one
-    if let Some(init_tx) = generator.initial_transaction.take() {
+    let init_txs = generator
+        .initial_transactions
+        .iter()
+        .take(generator.initial_transactions.len());
+
+    // Execute initial transactions if there are some
+    for init_tx in init_txs {
         runner.execute_transaction(TransactionTestCase {
-            input: plain_tx_with_default_details::<RT>(&init_tx),
+            input: plain_tx_with_default_details::<RT>(init_tx),
             assert: Box::new(move |receipt, _state| {
                 assert!(
                     receipt.tx_receipt.is_successful(),
@@ -59,6 +69,7 @@ fn test_with_modules(
         module.select(
             generator.bank_harness.clone(),
             generator.value_setter_harness.clone(),
+            generator.access_pattern_harness.clone(),
         )
     });
 

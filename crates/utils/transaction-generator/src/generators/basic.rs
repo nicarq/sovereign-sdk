@@ -8,8 +8,14 @@ use sov_modules_api::Spec;
 use super::bank::harness_interface::BankHarness;
 use super::bank::{BankChangeLogDiscriminant, BankChangeLogEntry, BankTag};
 use super::factory::CallMessageFactory;
+use super::generator_modules::storage_access_patterns::{
+    AccessPatternChangeLogDiscriminant, AccessPatternChangeLogEntry,
+};
 use super::value_setter::{
     ValueSetterChangeLogDiscriminant, ValueSetterChangeLogEntry, ValueSetterHarness,
+};
+use crate::generators::generator_modules::storage_access_patterns::{
+    AccessPatternHarness, AccessPatternTag,
 };
 use crate::{ChangelogEntry, HarnessModule};
 
@@ -22,6 +28,9 @@ pub type BasicBankHarness<S, RT, Acct = ()> =
 /// A helper type that corresponds to value setter modules compatible with the basic harness
 pub type BasicValueSetterHarness<S, RT, Acct = ()> =
     ValueSetterHarness<S, RT, BasicTag, BasicChangeLogEntry<S>, Acct>;
+/// A helper type that corresponds to access pattern modules compatible with the basic harness
+pub type BasicAccessPatternHarness<S, RT, Acct = ()> =
+    AccessPatternHarness<S, RT, BasicTag, BasicChangeLogEntry<S>, Acct>;
 /// A helper type that contains a reference to a basic module
 pub type BasicModuleRef<S, RT, Acct = ()> =
     Arc<dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, Acct>>;
@@ -34,6 +43,8 @@ pub enum BasicTag {
     Bank(BankTag),
     /// Tags for the value setter module
     ValueSetter(()),
+    /// Tags for the access pattern module
+    AccessPattern(AccessPatternTag),
 }
 
 /// The set of change log entries supported by the [`BasicCallMessageFactory`].
@@ -44,6 +55,8 @@ pub enum BasicChangeLogEntry<S: Spec> {
     Bank(BankChangeLogEntry<S>),
     /// Changes from the value setter module
     ValueSetter(ValueSetterChangeLogEntry),
+    /// Changes from the access pattern module
+    AccessPattern(AccessPatternChangeLogEntry<S>),
 }
 
 /// Helper struct that can be used to discriminate between different [`BasicChangeLogEntry`]s.
@@ -54,6 +67,8 @@ pub enum BasicChangeLogDiscriminant<S: Spec> {
     Bank(BankChangeLogDiscriminant<S>),
     /// Discriminants from the value setter module
     ValueSetter(ValueSetterChangeLogDiscriminant),
+    /// Discriminants from the access pattern module
+    AccessPattern(AccessPatternChangeLogDiscriminant),
 }
 
 #[async_trait]
@@ -75,6 +90,10 @@ impl<S: Spec> ChangelogEntry for BasicChangeLogEntry<S> {
                 v.assert_state(Arc::new((*rollup_state_accessor).clone().into()))
                     .await
             }
+            BasicChangeLogEntry::AccessPattern(v) => {
+                v.assert_state(Arc::new((*rollup_state_accessor).clone().into()))
+                    .await
+            }
         }
     }
 
@@ -83,6 +102,9 @@ impl<S: Spec> ChangelogEntry for BasicChangeLogEntry<S> {
             BasicChangeLogEntry::Bank(b) => BasicChangeLogDiscriminant::Bank(b.as_discriminant()),
             BasicChangeLogEntry::ValueSetter(v) => {
                 BasicChangeLogDiscriminant::ValueSetter(v.as_discriminant())
+            }
+            BasicChangeLogEntry::AccessPattern(v) => {
+                BasicChangeLogDiscriminant::AccessPattern(v.as_discriminant())
             }
         }
     }

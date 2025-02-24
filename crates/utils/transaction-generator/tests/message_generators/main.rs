@@ -17,11 +17,17 @@ use sov_test_utils::{
     generate_runtime, TestAttester, TestSequencer, TestSpec as S, TestUser, TransactionType,
     TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
+use sov_transaction_generator::generator_modules::{
+    AccessPattern, AccessPatternDiscriminants, AccessPatternGenesisConfig,
+};
 use sov_transaction_generator::generators::bank::harness_interface::BankHarness;
 use sov_transaction_generator::generators::bank::BankMessageGenerator;
 use sov_transaction_generator::generators::basic::{
-    BasicBankHarness, BasicCallMessageFactory, BasicChangeLogEntry, BasicModuleRef, BasicTag,
-    BasicValueSetterHarness,
+    BasicAccessPatternHarness, BasicBankHarness, BasicCallMessageFactory, BasicChangeLogEntry,
+    BasicModuleRef, BasicTag, BasicValueSetterHarness,
+};
+use sov_transaction_generator::generators::generator_modules::storage_access_patterns::{
+    AccessPatternHarness, AccessPatternMessageGenerator,
 };
 use sov_transaction_generator::generators::value_setter::{
     ValueSetterHarness, ValueSetterMessageGenerator,
@@ -37,10 +43,14 @@ mod transactions;
 
 const USER_BALANCE: u64 = 1_000_000_000_000;
 const MAX_VEC_LEN_VALUE_SETTER: usize = 1000;
+const MAXIMUM_WRITE_DATA_LENGTH: usize = 100;
+const MAXIMUM_WRITE_BEGIN_INDEX: u64 = 1000;
+const MAXIMUM_WRITE_SIZE: u64 = 100;
+const MAXIMUM_HOOKS_OPS: u64 = 10;
 
 generate_runtime! {
     name: TestRuntime,
-    modules: [paymaster: Paymaster<S>, value_setter: ValueSetter<S>],
+    modules: [paymaster: Paymaster<S>, value_setter: ValueSetter<S>, access_pattern: AccessPattern<S>],
     operating_mode: sov_modules_api::runtime::OperatingMode::Optimistic,
     minimal_genesis_config_type: MinimalOptimisticGenesisConfig<S>,
     gas_enforcer: paymaster: Paymaster<S>,
@@ -59,14 +69,21 @@ pub const SAFE_MIN_RANDOMNESS: usize = 1_000;
 enum ModulesToUse {
     Bank,
     ValueSetter,
+    AccessPattern,
 }
 
 impl ModulesToUse {
     /// Builds dynamic module reference
-    pub fn select<R: Runtime<S> + EncodeCall<Bank<S>> + EncodeCall<ValueSetter<S>>>(
+    pub fn select<
+        R: Runtime<S>
+            + EncodeCall<Bank<S>>
+            + EncodeCall<ValueSetter<S>>
+            + EncodeCall<AccessPattern<S>>,
+    >(
         &self,
         bank_harness: BasicBankHarness<S, R>,
         value_setter_harness: BasicValueSetterHarness<S, R>,
+        access_pattern_harness: BasicAccessPatternHarness<S, R>,
     ) -> BasicModuleRef<S, R> {
         match self {
             ModulesToUse::Bank => {
@@ -77,12 +94,17 @@ impl ModulesToUse {
                 let module: BasicModuleRef<S, R> = Arc::new(value_setter_harness);
                 module
             }
+            ModulesToUse::AccessPattern => {
+                let module: BasicModuleRef<S, R> = Arc::new(access_pattern_harness);
+                module
+            }
         }
     }
 }
 
 struct NumTxsExecuted {
     num_bank_txs: u64,
+    num_access_pattern_txs: u64,
     num_value_setter_txs: u64,
 }
 
@@ -103,15 +125,18 @@ pub fn plain_tx_with_default_details<R: Runtime<S>>(
 
 pub struct TestGenerator<R: Runtime<S>> {
     generator: BasicCallMessageFactory<S, R>,
+
     bank_harness: BasicBankHarness<S, R>,
     value_setter_harness: BasicValueSetterHarness<S, R>,
+    access_pattern_harness: BasicAccessPatternHarness<S, R>,
+
     state: State<S, BasicTag>,
     randomness: Vec<u8>,
     remaining_randomness: usize,
     target_buffer_size: usize,
     salt: u128,
-    initial_transaction:
-        Option<GeneratedMessage<S, <R as DispatchCall>::Decodable, BasicChangeLogEntry<S>>>,
+    initial_transactions:
+        Vec<GeneratedMessage<S, <R as DispatchCall>::Decodable, BasicChangeLogEntry<S>>>,
 }
 
 impl<R: Runtime<S>> TestGenerator<R> {
@@ -161,10 +186,20 @@ impl<R: Runtime<S>> TestGenerator<R> {
 }
 
 // Setup generation with the given params
-fn setup_harness<R: Runtime<S> + EncodeCall<Bank<S>> + EncodeCall<ValueSetter<S>> + Clone>(
+fn setup_harness<
+    R: Runtime<S>
+        + EncodeCall<Bank<S>>
+        + EncodeCall<ValueSetter<S>>
+        + EncodeCall<AccessPattern<S>>
+        + Clone,
+>(
     address_creation_rate: Percent,
     admin: &TestUser<S>,
     max_value_setter_vec_len: usize,
+    maximum_write_data_length: usize,
+    maximum_write_begin_index: u64,
+    maximum_write_size: u64,
+    maximum_hooks_ops: u64,
     modules_distribution: &Distribution<ModulesToUse>,
 ) -> TestGenerator<R> {
     use sov_bank::CallMessageDiscriminants::*;
@@ -183,11 +218,33 @@ fn setup_harness<R: Runtime<S> + EncodeCall<Bank<S>> + EncodeCall<ValueSetter<S>
         admin.private_key.clone(),
     ));
 
+    let access_pattern_harness =
+        AccessPatternHarness::new(AccessPatternMessageGenerator::<S>::new(
+            Distribution::with_equiprobable_values(vec![
+                AccessPatternDiscriminants::WriteCells,
+                AccessPatternDiscriminants::WriteCustom,
+                AccessPatternDiscriminants::ReadCells,
+                AccessPatternDiscriminants::DeleteCells,
+                // TODO(@theochap): fix set hook log production
+                // AccessPatternDiscriminants::SetHook,
+                AccessPatternDiscriminants::UpdateAdmin,
+            ]),
+            maximum_write_data_length,
+            maximum_write_begin_index,
+            maximum_write_size,
+            maximum_hooks_ops,
+            admin.private_key.clone(),
+        ));
+
     let modules: Vec<BasicModuleRef<S, R>> = modules_distribution
         .inner()
         .iter()
         .map(|(_, module_to_use)| {
-            module_to_use.select::<R>(bank_harness.clone(), value_setter_harness.clone())
+            module_to_use.select::<R>(
+                bank_harness.clone(),
+                value_setter_harness.clone(),
+                access_pattern_harness.clone(),
+            )
         })
         .collect();
 
@@ -198,21 +255,21 @@ fn setup_harness<R: Runtime<S> + EncodeCall<Bank<S>> + EncodeCall<ValueSetter<S>
 
     let random_bytes: Vec<u8> = get_random_bytes(100_000, 0);
     let u = &mut arbitrary::Unstructured::new(&random_bytes[..]);
-    let initial_tx = factory
+    let initial_txs = factory
         .generate_setup_messages(&modules, u, &mut state)
-        .expect("Failed to generate setup messages")
-        .pop();
+        .expect("Failed to generate setup messages");
     let remaining_randomness = u.len();
     TestGenerator {
         randomness: random_bytes,
         bank_harness,
         value_setter_harness,
+        access_pattern_harness,
         remaining_randomness,
         generator: factory,
         state,
         target_buffer_size: BUFFER_SIZE,
         salt: 1,
-        initial_transaction: initial_tx,
+        initial_transactions: initial_txs,
     }
 }
 
@@ -273,6 +330,9 @@ fn setup_roles_and_config(user_balance: u64) -> Setup {
             .unwrap(),
         },
         ValueSetterConfig {
+            admin: admin.address(),
+        },
+        AccessPatternGenesisConfig {
             admin: admin.address(),
         },
     );
