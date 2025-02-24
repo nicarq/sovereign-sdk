@@ -101,6 +101,19 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
 }
 
 impl<R: TransactionCallable, S: Spec> MeteredBorshDeserialize<S> for Transaction<R, S> {
+    fn bias_borsh_deserialization() -> <S as Spec>::Gas {
+        S::tx_bias_borsh_deserialization()
+    }
+
+    fn gas_to_charge_per_byte_borsh_deserialization() -> <S as Spec>::Gas {
+        S::tx_gas_to_charge_per_byte_borsh_deserialization()
+    }
+
+    #[cfg_attr(feature = "bench", crate::cycle_tracker)]
+    #[cfg_attr(
+        all(feature = "gas-constant-estimation", feature = "native"),
+        crate::track_gas_constants_usage
+    )]
     fn deserialize(
         buf: &mut &[u8],
         meter: &mut impl GasMeter<Spec = S>,
@@ -211,7 +224,6 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
     }
 
     /// Check whether the transaction has been signed correctly.
-    #[cfg_attr(feature = "bench", crate::cycle_tracker)]
     pub fn verify(
         &self,
         chain_hash: &[u8; 32],

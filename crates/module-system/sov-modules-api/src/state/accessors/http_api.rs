@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{
-    namespaces, EventContainer, IsValueCached, Namespace, NativeStorage, ProvableStorageCache,
-    SlotKey, SlotValue, Storage,
+    namespaces, AccessSize, EventContainer, IsValueCached, Namespace, NativeStorage,
+    ProvableStorageCache, SlotKey, SlotValue, Storage,
 };
 
 use super::{StateCheckpoint, UniversalStateAccessor};
@@ -36,8 +36,10 @@ impl<S: Spec> UniversalStateAccessor for ApiStateAccessor<S> {
             Namespace::User => self.user_cache.is_value_cached(key),
             Namespace::Kernel => self.kernel_cache.is_value_cached(key),
             Namespace::Accessory => {
-                if self.accessory_writes.contains_key(key) {
-                    IsValueCached::Yes
+                if let Some(access) = self.accessory_writes.get(key) {
+                    IsValueCached::Yes(AccessSize::Write(
+                        access.as_ref().map(|v| v.size()).unwrap_or(0),
+                    ))
                 } else {
                     IsValueCached::No
                 }

@@ -1,3 +1,6 @@
+## 2025-02-24
+- #2502 fixes the gas charging pattern computation. 
+
 ## 2025-02-22
 - #2491 Burns the cost of deserializing blobs to reduce risk of spam by registered sequencers. 
 - #2492 Allows setting the supply cap of a token during initialization. This cap cannot be modified later on, even by authorized minters. 

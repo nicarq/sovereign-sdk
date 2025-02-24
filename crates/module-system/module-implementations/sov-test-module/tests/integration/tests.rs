@@ -4,7 +4,9 @@ use sov_modules_api::Error::ModuleError;
 use sov_test_module::{CallMessage, Event, SetValueError, TestModule};
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::{generate_zk_runtime, AsUser, TestSpec, TestUser, TransactionTestCase};
+use sov_test_utils::{
+    generate_zk_runtime, initialize_logging, AsUser, TestSpec, TestUser, TransactionTestCase,
+};
 
 generate_zk_runtime!(TestRuntime <= test_module: TestModule<S>);
 
@@ -34,6 +36,7 @@ fn setup() -> (TestRunner<TestRuntime<S>, S>, TestUser<S>, TestUser<S>) {
 
 #[test]
 fn test_setting_value() {
+    initialize_logging();
     let (mut runner, admin, _) = setup();
 
     runner.execute_transaction(TransactionTestCase {

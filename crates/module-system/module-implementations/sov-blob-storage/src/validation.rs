@@ -10,6 +10,8 @@ use sov_modules_api::{
 use crate::max_size_checker::BlobsWithTotalSizeLimit;
 use crate::{BlobStorage, Escrow, ValidatedBlob};
 
+const CONSERVATIVE_KEY_SIZE: u32 = 256;
+
 impl<S: Spec> BlobStorage<S> {
     pub(crate) fn get_new_gas_price(
         &self,
@@ -171,11 +173,14 @@ impl<S: Spec> BlobStorage<S> {
         sender: &<<S as Spec>::Da as DaSpec>::Address,
         current_gas_price: &<<S as Spec>::Gas as Gas>::Price,
     ) -> Option<u64> {
-        const WORST_CASE_GAS_PRICE_INCREASE: u64 = 2;
+        const WORST_CASE_GAS_PRICE_INCREASE: u32 = 2;
 
         let num_pre_exec_checks_needed = Self::num_pre_exec_checks_needed(blob);
         let estimated_bytes_to_store =
             as_u32_or_panic(ValidatedBlob::conservative_serialized_size(blob, sender));
+
+        let estimated_bytes_with_key_size: u64 =
+            (CONSERVATIVE_KEY_SIZE as u64) + (estimated_bytes_to_store as u64);
 
         // In the worst case that we handle, the gas price will double - so we need to reserve enough funds to cover the pre exec checks one more time.
         let worst_case_increase_in_pre_exec_checks_gas = <S as GasSpec>::max_tx_check_costs()
@@ -184,30 +189,53 @@ impl<S: Spec> BlobStorage<S> {
             worst_case_increase_in_pre_exec_checks_gas.checked_value(current_gas_price)?;
 
         // We'll store the blob now, so we'll pay at the current gas price
-        let fixed_cost_of_storing =
-            <S as GasSpec>::gas_to_charge_for_cold_access().checked_value(current_gas_price)?;
-        let variable_cost_of_storing = <S as GasSpec>::gas_to_charge_per_byte_for_cold_write()
-            .checked_scalar_product(estimated_bytes_to_store as u64)?
+        let fixed_cost_of_storing = <S as GasSpec>::bias_to_charge_for_access()
+            .checked_combine(&<S as GasSpec>::bias_to_charge_cold_storage_update())?
+            .checked_combine(&<S as GasSpec>::bias_to_charge_storage_update())?
+            .checked_combine(
+                // We need to multiply by 2 because we are hashing the key and the value separately
+                &<S as GasSpec>::gas_to_charge_hash_update().checked_scalar_product(2)?,
+            )?
+            .checked_value(current_gas_price)?;
+
+        let variable_cost_of_storing = <S as GasSpec>::gas_to_charge_per_byte_storage_update()
+            .checked_combine(&<S as GasSpec>::gas_to_charge_per_byte_hash_update())?
+            .checked_scalar_product(estimated_bytes_with_key_size)?
             .checked_value(current_gas_price)?;
         let tokens_needed_for_storage =
             fixed_cost_of_storing.checked_add(variable_cost_of_storing)?;
 
         // When we retrieve the bloh later, we'll pay some future gas price. We reserve enough funds for price to double - if it goes by more than that, we'll have to
         // drop the blob and the sequencer will be out some gas fees.
-        let fixed_cost_of_retrieval = <S as GasSpec>::gas_to_charge_for_cold_access()
-            .checked_scalar_product(WORST_CASE_GAS_PRICE_INCREASE)?
+        let fixed_cost_of_retrieval = <S as GasSpec>::bias_to_charge_for_access()
+            .checked_combine(&<S as GasSpec>::bias_to_charge_for_cold_read())?
+            .checked_combine(
+                // We need to multiply by 2 because we are hashing the key and the value separately
+                &<S as GasSpec>::gas_to_charge_hash_update().checked_scalar_product(2)?,
+            )?
+            .checked_scalar_product(WORST_CASE_GAS_PRICE_INCREASE.into())?
             .checked_value(current_gas_price)?;
-        let variable_cost_of_retrieval = <S as GasSpec>::gas_to_charge_per_byte_for_cold_load()
-            .checked_scalar_product(
-                WORST_CASE_GAS_PRICE_INCREASE * (estimated_bytes_to_store as u64),
+        let variable_cost_of_retrieval = <S as GasSpec>::gas_to_charge_per_byte_cold_read()
+            .checked_combine(
+                &<S as GasSpec>::gas_to_charge_per_byte_hash_update().checked_scalar_product(
+                    WORST_CASE_GAS_PRICE_INCREASE as u64 * estimated_bytes_with_key_size,
+                )?,
+            )?
+            // We also charge borsh deserialization cost because we need to deserialize the blob
+            .checked_combine(
+                &<S as GasSpec>::gas_to_charge_per_byte_borsh_deserialization()
+                    .checked_scalar_product(
+                        WORST_CASE_GAS_PRICE_INCREASE as u64 * (estimated_bytes_to_store as u64),
+                    )?,
             )?
             .checked_value(current_gas_price)?;
         let tokens_needed_for_retrieval =
             fixed_cost_of_retrieval.checked_add(variable_cost_of_retrieval)?;
 
         // When we delete the blob, we'll pay the future gas price - but it'll be hot because we delete at the same time we retrieve.
-        let delete_cost = <S as GasSpec>::gas_to_charge_for_hot_delete()
-            .checked_scalar_product(WORST_CASE_GAS_PRICE_INCREASE)?;
+        // We only have to pay for the price to update the storage.
+        let delete_cost = <S as GasSpec>::bias_to_charge_storage_update()
+            .checked_scalar_product(WORST_CASE_GAS_PRICE_INCREASE.into())?;
         let tokens_needed_for_deletion = delete_cost.checked_value(current_gas_price)?;
 
         tokens_needed_for_storage

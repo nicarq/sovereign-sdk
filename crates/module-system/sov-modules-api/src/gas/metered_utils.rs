@@ -1,4 +1,5 @@
 use std::io;
+use std::num::TryFromIntError;
 
 use digest::consts::U32;
 use digest::Digest;
@@ -15,19 +16,19 @@ pub struct MeteredHasher<'a, Meter: GasMeter, Hasher: Digest<OutputSize = U32>> 
     inner: Hasher,
     meter: &'a mut Meter,
     gas_to_charge_for_hash_update: <Meter::Spec as Spec>::Gas,
-    gas_to_charge_for_hash_finalize: <Meter::Spec as Spec>::Gas,
+    gas_to_charge_per_byte_for_hash_update: <Meter::Spec as Spec>::Gas,
 }
 
 type GasUnit<S> = <S as Spec>::Gas;
 type MeteringError<M> = GasMeteringError<GasUnit<<M as GasMeter>::Spec>>;
 
 impl<'a, Meter: GasMeter, Hasher: Digest<OutputSize = U32>> MeteredHasher<'a, Meter, Hasher> {
-    /// Create a new metered hasher from a given gas meter with default gas prices [`GasSpec::gas_to_charge_per_byte_hash_update`] and [`GasSpec::gas_to_charge_per_byte_hash_finalize`]
+    /// Create a new metered hasher from a given gas meter with default gas prices [`GasSpec::gas_to_charge_hash_update`] and [`GasSpec::gas_to_charge_per_byte_hash_update`]
     pub fn new(meter: &'a mut Meter) -> Self {
         Self::new_with_custom_price(
             meter,
+            Meter::Spec::gas_to_charge_hash_update(),
             Meter::Spec::gas_to_charge_per_byte_hash_update(),
-            Meter::Spec::gas_to_charge_per_byte_hash_finalize(),
         )
     }
 
@@ -35,21 +36,24 @@ impl<'a, Meter: GasMeter, Hasher: Digest<OutputSize = U32>> MeteredHasher<'a, Me
     pub fn new_with_custom_price(
         meter: &'a mut Meter,
         gas_to_charge_for_hash_update: <Meter::Spec as Spec>::Gas,
-        gas_to_charge_for_hash_finalize: <Meter::Spec as Spec>::Gas,
+        gas_to_charge_per_byte_for_hash_update: <Meter::Spec as Spec>::Gas,
     ) -> Self {
         Self {
             inner: Hasher::new(),
             meter,
             gas_to_charge_for_hash_update,
-            gas_to_charge_for_hash_finalize,
+            gas_to_charge_per_byte_for_hash_update,
         }
     }
 
     /// Update the [`MeteredHasher`] with the given data. Performs the same operation as [`Digest::update`] but charges gas.
     pub fn update(&mut self, data: &[u8]) -> Result<(), MeteringError<Meter>> {
+        self.meter.charge_gas(&self.gas_to_charge_for_hash_update)?;
         self.meter.charge_linear_gas(
-            &self.gas_to_charge_for_hash_update,
-            as_u32_or_panic(data.len()),
+            &self.gas_to_charge_per_byte_for_hash_update,
+            data.len()
+                .try_into()
+                .map_err(|e: TryFromIntError| MeteringError::<Meter>::Overflow(e.to_string()))?,
         )?;
         self.inner.update(data);
         Ok(())
@@ -57,10 +61,6 @@ impl<'a, Meter: GasMeter, Hasher: Digest<OutputSize = U32>> MeteredHasher<'a, Me
 
     /// Finalize the [`MeteredHasher`] and return the hash. Performs the same operation as [`Digest::finalize`] but charges gas.
     pub fn finalize(self) -> Result<[u8; 32], (Self, MeteringError<Meter>)> {
-        if let Err(e) = self.meter.charge_gas(&self.gas_to_charge_for_hash_finalize) {
-            return Err((self, e));
-        };
-
         let hash = self.inner.finalize();
         Ok(hash.into())
     }
@@ -146,6 +146,21 @@ impl<GU: Gas, Sign: Signature> MeteredSignature<GU, Sign> {
             )
             .map_err(MeteredSigVerificationError::GasError)?;
 
+        meter
+            .charge_gas(&<Meter::Spec as GasSpec>::gas_to_charge_hash_update())
+            .map_err(MeteredSigVerificationError::GasError)?;
+
+        meter
+            .charge_linear_gas(
+                &<Meter::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
+                msg.len().try_into().map_err(|e: TryFromIntError| {
+                    MeteredSigVerificationError::GasError(MeteringError::<Meter>::Overflow(
+                        e.to_string(),
+                    ))
+                })?,
+            )
+            .map_err(MeteredSigVerificationError::GasError)?;
+
         self.inner
             .verify(pub_key, msg)
             .map_err(MeteredSigVerificationError::BadSignature)
@@ -165,18 +180,39 @@ pub enum MeteredBorshDeserializeError<GU: Gas> {
 
 /// Charges gas for deserialization.
 pub trait MeteredBorshDeserialize<S: Spec>: Sized {
+    /// The gas cost bias to deserialize this data structure.
+    fn bias_borsh_deserialization() -> <S as Spec>::Gas;
+
+    /// The linear gas cost to deserialize this data structure.
+    fn gas_to_charge_per_byte_borsh_deserialization() -> <S as Spec>::Gas;
+
     /// Computes the cost to deserialize the given buffer, in Gas.
     fn charge_gas_to_deserialize(
         buf: &[u8],
         meter: &mut impl GasMeter<Spec = S>,
     ) -> Result<(), MeteredBorshDeserializeError<<S as GasSpec>::Gas>> {
-        let deserialization_cost = S::gas_to_charge_per_byte_borsh_deserialization();
-
         // This is safe to cast here. We won't have data bigger thane 4GB.
         let buf_len: u32 = as_u32_or_panic(buf.len());
 
+        // Custom gas costs to deserialize this data structure.
         meter
-            .charge_linear_gas(&deserialization_cost, buf_len)
+            .charge_gas(&Self::bias_borsh_deserialization())
+            .map_err(MeteredBorshDeserializeError::GasError)?;
+
+        meter
+            .charge_linear_gas(
+                &Self::gas_to_charge_per_byte_borsh_deserialization(),
+                buf_len,
+            )
+            .map_err(MeteredBorshDeserializeError::GasError)?;
+
+        // Common gas costs to deserialize this data structure.
+        meter
+            .charge_gas(&S::bias_borsh_deserialization())
+            .map_err(MeteredBorshDeserializeError::GasError)?;
+
+        meter
+            .charge_linear_gas(&S::gas_to_charge_per_byte_borsh_deserialization(), buf_len)
             .map_err(MeteredBorshDeserializeError::GasError)
     }
 

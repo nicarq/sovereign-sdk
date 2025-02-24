@@ -1,13 +1,14 @@
 use std::convert::Infallible;
 use std::fmt::Debug;
+use std::num::TryFromIntError;
 
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 #[cfg(feature = "native")]
 use sov_state::StorageProof;
 use sov_state::{
-    namespaces, Accessory, CompileTimeNamespace, EventContainer, IsValueCached, Kernel, Namespace,
-    ProvableCompileTimeNamespace, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder,
-    User,
+    namespaces, AccessSize, Accessory, CompileTimeNamespace, EventContainer, IsValueCached, Kernel,
+    Namespace, ProvableCompileTimeNamespace, SlotKey, SlotValue, StateCodec, StateItemCodec,
+    StateItemDecoder, User,
 };
 use thiserror::Error;
 
@@ -296,8 +297,23 @@ macro_rules! blanket_impl_metered_state_reader {
             Codec::ValueCodec: StateItemCodec<V>,
         {
             let storage_value = <Self as StateReader<$namespace>>::get(self, storage_key)?;
-            Ok(storage_value
-                .map(|storage_value| codec.value_codec().decode_unwrap(storage_value.value())))
+
+            storage_value
+                .map(|storage_value| {
+                    // We need to charge for the cost to deserialize the value
+                    self.charge_linear_gas(
+                        &<T::Spec as GasSpec>::gas_to_charge_per_byte_borsh_deserialization(),
+                        storage_value.size(),
+                    )
+                    .map_err(|e| StateAccessorError::Decode {
+                        key: storage_key.clone(),
+                        inner: e,
+                        namespace: <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
+                    })?;
+
+                    Ok(codec.value_codec().decode_unwrap(storage_value.value()))
+                })
+                .transpose()
         }
     };
 }
@@ -455,70 +471,178 @@ pub trait PrivilegedKernelAccessor: StateWriter<namespaces::Kernel> {
     fn true_slot_number(&self) -> SlotNumber;
 }
 
-pub(crate) fn get_inner<Accressor: UniversalStateAccessor + GasMeter>(
-    accessor: &mut Accressor,
+/// Amount to pay on very first access to a storage value if not cached.
+fn charge_first_storage_access<Accessor: UniversalStateAccessor + GasMeter>(
+    accessor: &mut Accessor,
+    key: &SlotKey,
+) -> Result<(), GasMeteringError<<Accessor::Spec as Spec>::Gas>> {
+    // Charge:
+    // - cold access bias to load something from the storage (aka Merkle proof cost)
+    // - fixed hashing cost
+    // - hashing cost of the key length
+    accessor.charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_for_access())?;
+    accessor.charge_gas(&<Accessor::Spec as GasSpec>::gas_to_charge_hash_update())?;
+
+    let key_size: u32 = key
+        .size()
+        .try_into()
+        .map_err(|e: TryFromIntError| GasMeteringError::Overflow(e.to_string()))?;
+
+    accessor.charge_linear_gas(
+        &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
+        key_size,
+    )?;
+
+    Ok(())
+}
+
+fn charge_read<Accessor: UniversalStateAccessor + GasMeter>(
+    accessor: &mut Accessor,
     namespace: Namespace,
     key: &SlotKey,
-) -> Result<Option<SlotValue>, GasMeteringError<<Accressor::Spec as Spec>::Gas>> {
+) -> Result<(), GasMeteringError<<Accessor::Spec as Spec>::Gas>> {
     let is_value_cached = accessor.is_value_cached(namespace, key);
 
-    let (gas_for_access, gas_cost_per_byte_for_load) = if is_value_cached == IsValueCached::Yes {
-        (
-            <Accressor::Spec as GasSpec>::gas_to_charge_for_hot_access(),
-            <Accressor::Spec as GasSpec>::gas_to_charge_per_byte_for_hot_load(),
-        )
-    } else {
-        (
-            <Accressor::Spec as GasSpec>::gas_to_charge_for_cold_access(),
-            <Accressor::Spec as GasSpec>::gas_to_charge_per_byte_for_cold_load(),
-        )
-    };
+    match is_value_cached {
+        // If the value is not cached, we need to charge for...
+        // - the first storage access cost
+        IsValueCached::No => {
+            // Start by charging for the first storage access cost
+            charge_first_storage_access(accessor, key)?;
 
-    accessor.charge_gas(&gas_for_access)?;
+            accessor.charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_for_cold_read())?;
 
-    let val_size = if let Some(size) = accessor.get_size(namespace, key) {
-        size
-    } else {
-        return Ok(None);
-    };
+            let value_size = accessor.get_size(namespace, key);
 
-    accessor.charge_linear_gas(&gas_cost_per_byte_for_load, val_size)?;
+            // Charge:
+            // - fixed gas to hash
+            // - linear hashing cost of the value length
+            // - cold read linear cost to load the value length from the storage (cloning cost).
+            // - cold read bias (clone to the cache and outside of the cache)
+            if let Some(value_size) = value_size {
+                accessor.charge_gas(&<Accessor::Spec as GasSpec>::gas_to_charge_hash_update())?;
+
+                accessor.charge_linear_gas(
+                    &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
+                    value_size,
+                )?;
+
+                accessor.charge_linear_gas(
+                    &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_cold_read(),
+                    value_size,
+                )?;
+            }
+        }
+
+        IsValueCached::Yes(acc) => {
+            // We charge a bias for hot reads
+            accessor.charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_for_hot_read())?;
+
+            // If the value has a size, we need to charge for...
+            // - hot read linear cost to load something from the cache (we're cloning the value here)
+            if acc.size() > 0 {
+                accessor.charge_linear_gas(
+                    &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hot_read(),
+                    acc.size(),
+                )?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn charge_write<Accessor: UniversalStateAccessor + GasMeter>(
+    accessor: &mut Accessor,
+    namespace: Namespace,
+    key: &SlotKey,
+    value_size: u32,
+) -> Result<(), GasMeteringError<<Accessor::Spec as Spec>::Gas>> {
+    let is_value_cached = accessor.is_value_cached(namespace, key);
+
+    // We always need to charge for the cost to encode the value
+    accessor.charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_storage_update())?;
+    accessor.charge_linear_gas(
+        &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_storage_update(),
+        value_size,
+    )?;
+
+    match is_value_cached {
+        // If the key has not been written yet, we need to charge for...
+        // - the first storage access cost
+        // - cost to hash the new value
+        // - bias to do a storage update (merkle tree update)
+        // - doing a cold write (bias + linear term, mostly for memory consumption costs)
+        IsValueCached::No | IsValueCached::Yes(AccessSize::Read(_)) => {
+            charge_first_storage_access(accessor, key)?;
+
+            accessor
+                .charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_cold_storage_update())?;
+
+            accessor.charge_gas(&<Accessor::Spec as GasSpec>::gas_to_charge_hash_update())?;
+            accessor.charge_linear_gas(
+                &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
+                value_size,
+            )?;
+        }
+
+        // If the key has been written before, we need to charge for...
+        // - difference in size between the old and new value
+        // - doing a hot write (bias + linear term, mostly for memory consumption costs)
+        IsValueCached::Yes(AccessSize::Write(size)) => {
+            let new_size: u32 = value_size;
+
+            #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
+            if new_size < size {
+                accessor.remove_gas_pattern(
+                    &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
+                    size - new_size,
+                );
+            }
+
+            if new_size >= size {
+                accessor.charge_linear_gas(
+                    &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
+                    new_size - size,
+                )?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub(crate) fn get_inner<Accessor: UniversalStateAccessor + GasMeter>(
+    accessor: &mut Accessor,
+    namespace: Namespace,
+    key: &SlotKey,
+) -> Result<Option<SlotValue>, GasMeteringError<<Accessor::Spec as Spec>::Gas>> {
+    charge_read(accessor, namespace, key)?;
+
     Ok(accessor.get_value(namespace, key))
 }
 
-pub(crate) fn set_inner<Accressor: UniversalStateAccessor + GasMeter>(
-    accessor: &mut Accressor,
+pub(crate) fn set_inner<Accessor: UniversalStateAccessor + GasMeter>(
+    accessor: &mut Accessor,
     namespace: Namespace,
     key: &SlotKey,
     value: SlotValue,
-) -> Result<(), GasMeteringError<<Accressor::Spec as Spec>::Gas>> {
-    let is_value_cached = accessor.is_value_cached(namespace, key);
-    let gas_per_byte_for_write = if is_value_cached == IsValueCached::Yes {
-        <Accressor::Spec as GasSpec>::gas_to_charge_per_byte_for_hot_write()
-    } else {
-        <Accressor::Spec as GasSpec>::gas_to_charge_per_byte_for_cold_write()
-    };
+) -> Result<(), GasMeteringError<<Accessor::Spec as Spec>::Gas>> {
+    charge_write(accessor, namespace, key, value.size())?;
 
-    accessor.charge_linear_gas(&gas_per_byte_for_write, value.size())?;
     accessor.set_value(namespace, key, value);
 
     Ok(())
 }
 
-pub(crate) fn delete_inner<Accressor: UniversalStateAccessor + GasMeter>(
-    accessor: &mut Accressor,
+pub(crate) fn delete_inner<Accessor: UniversalStateAccessor + GasMeter>(
+    accessor: &mut Accessor,
     namespace: Namespace,
     key: &SlotKey,
-) -> Result<(), GasMeteringError<<Accressor::Spec as Spec>::Gas>> {
-    let is_value_cached = accessor.is_value_cached(namespace, key);
+) -> Result<(), GasMeteringError<<Accessor::Spec as Spec>::Gas>> {
+    // Doing a delete is the same as doing a write with a size of 0
+    charge_write(accessor, namespace, key, 0)?;
 
-    let gas_for_delete = if is_value_cached == IsValueCached::Yes {
-        <Accressor::Spec as GasSpec>::gas_to_charge_for_hot_delete()
-    } else {
-        <Accressor::Spec as GasSpec>::gas_to_charge_for_cold_delete()
-    };
-
-    accessor.charge_gas(&gas_for_delete)?;
     accessor.delete_value(namespace, key);
 
     Ok(())

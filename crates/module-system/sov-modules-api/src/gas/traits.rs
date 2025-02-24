@@ -430,7 +430,7 @@ pub enum GasMeteringError<GU: Gas> {
     #[error("Unable to deserialize data due to invalid length: {0}")]
     InvalidLength(String),
     /// The gas meter has ran out of gas.
-    #[error("The gas to charge is greater than the funds available in the meter. Gas to charge {gas_to_charge}, gas price {gas_price}, initial_gas {initial_gas}")]
+    #[error("The gas to charge is greater than the funds available in the meter. Gas to charge {gas_to_charge}, gas price {gas_price}, initial_gas {initial_gas}, remaining gas {remaining_gas}")]
     OutOfGas {
         /// The amount of gas to charge.
         gas_to_charge: GU,
@@ -438,6 +438,8 @@ pub enum GasMeteringError<GU: Gas> {
         gas_price: GU::Price,
         /// The initial gas.
         initial_gas: GU,
+        /// The remaining gas.
+        remaining_gas: GU,
     },
     /// The refund operation failed for the gas meter.
     #[error("The gas to refund is greater than the gas used. Gas to refund {gas_to_refund}, gas used {gas_used}")]
@@ -498,6 +500,11 @@ pub trait GasMeter {
     ) -> Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
         Ok(())
     }
+
+    /// Tracks the removal of gas consumption pattern.
+    /// This is for use only in benchmarks.
+    #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
+    fn remove_gas_pattern(&mut self, _amount: &<Self::Spec as Spec>::Gas, _parameter: u32) {}
 }
 
 /// Get gas price
@@ -678,6 +685,7 @@ impl<S: Spec> BasicGasMeter<S> {
                 gas_to_charge: amount.clone(),
                 gas_price: self.gas_price.clone(),
                 initial_gas: self.initial_gas.clone(),
+                remaining_gas: self.remaining_gas.clone(),
             })
     }
 
@@ -692,6 +700,7 @@ impl<S: Spec> BasicGasMeter<S> {
                 gas_to_charge: amount.clone(),
                 gas_price: self.gas_price.clone(),
                 initial_gas: self.initial_gas.clone(),
+                remaining_gas: self.remaining_gas.clone(),
             })
     }
 
@@ -733,15 +742,22 @@ impl<S: Spec> GasMeter for BasicGasMeter<S> {
 
         #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
         if let Some(name) = amount.name() {
-            sov_metrics::GAS_CONSTANTS.with(|var| {
-                let mut var = var.borrow_mut();
+            if sov_metrics::GAS_CONSTANTS
+                .try_with(|var| {
+                    let mut var = var.borrow_mut();
 
-                if let Some(const_count) = var.get_mut(name) {
-                    *const_count = const_count.checked_add(1).unwrap();
-                } else {
-                    var.insert(name.clone(), 1);
-                }
-            });
+                    if let Some(const_count) = var.get_mut(name) {
+                        *const_count = const_count.checked_add(1).unwrap();
+                    } else {
+                        var.insert(name.clone(), 1);
+                    }
+                })
+                .is_err()
+            {
+                tracing::trace!(
+                    "Trying to gather gas constants without metrics collection enabled"
+                );
+            }
         }
 
         Ok(())
@@ -761,20 +777,53 @@ impl<S: Spec> GasMeter for BasicGasMeter<S> {
 
         #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
         if let Some(name) = amount.name() {
-            sov_metrics::GAS_CONSTANTS.with(|var| {
-                let param_i64 = parameter.into();
+            if parameter > 0
+                && sov_metrics::GAS_CONSTANTS
+                    .try_with(|var| {
+                        let param_i64 = parameter.into();
 
-                let mut var = var.borrow_mut();
+                        let mut var = var.borrow_mut();
 
-                if let Some(const_count) = var.get_mut(name) {
-                    *const_count = const_count.checked_add(param_i64).unwrap();
-                } else {
-                    var.insert(name.clone(), param_i64);
-                }
-            });
+                        if let Some(const_count) = var.get_mut(name) {
+                            *const_count = const_count.checked_add(param_i64).unwrap();
+                        } else {
+                            var.insert(name.clone(), param_i64);
+                        }
+                    })
+                    .is_err()
+            {
+                tracing::trace!(
+                    "Trying to gather gas constants without metrics collection enabled"
+                );
+            };
         }
 
         Ok(())
+    }
+
+    #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
+    fn remove_gas_pattern(&mut self, amount: &<Self::Spec as Spec>::Gas, parameter: u32) {
+        if let Some(name) = amount.name() {
+            if parameter > 0
+                && sov_metrics::GAS_CONSTANTS
+                    .try_with(|var| {
+                        let param_i64 = parameter.into();
+
+                        let mut var = var.borrow_mut();
+
+                        if let Some(const_count) = var.get_mut(name) {
+                            *const_count = const_count.checked_sub(param_i64).unwrap();
+                        } else {
+                            var.insert(name.clone(), -param_i64);
+                        }
+                    })
+                    .is_err()
+            {
+                tracing::trace!(
+                    "Trying to gather gas constants without metrics collection enabled"
+                );
+            };
+        }
     }
 }
 

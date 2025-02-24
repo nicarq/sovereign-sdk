@@ -12,8 +12,9 @@ use crate::{NodeLeaf, NodeLeafAndMaybeValue, ReadType};
 /// Used in cached-structs to determine whether this is the first read of a value or not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IsValueCached {
-    /// The value is cached.
-    Yes,
+    /// The value is cached plus the last access type. Note that writes superseed reads - if we write
+    /// to a value, we will always return `IsValueCached::Yes(Write)` even if the value is read afterwards.
+    Yes(AccessSize),
     /// The value is fetched from the storage and was never cached.
     No,
 }
@@ -22,15 +23,45 @@ pub enum IsValueCached {
 /// For example, a transaction might read a value, then take some action which causes it to be updated
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Access {
+    /// Read access to a storage value.
     Read {
         original: Option<NodeLeafAndMaybeValue>,
     },
-    Write {
-        modified: Option<SlotValue>,
-    },
+    /// Write access to a storage value.
+    Write { modified: Option<SlotValue> },
+}
+
+/// [`AccessSize`] represents a cache event that occurred on a particular value with the size of the value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AccessSize {
+    /// Read access to a storage value.
+    Read(u32),
+    /// Write access to a storage value.
+    Write(u32),
+}
+
+impl AccessSize {
+    /// Return the size of the value contained in the access.
+    pub fn size(&self) -> u32 {
+        match self {
+            AccessSize::Read(size) | AccessSize::Write(size) => *size,
+        }
+    }
 }
 
 impl Access {
+    /// Return the size of the value contained in the access.
+    pub fn as_access_size(&self) -> AccessSize {
+        match self {
+            Access::Read { original } => {
+                AccessSize::Read(original.as_ref().map(|node| node.leaf.size).unwrap_or(0))
+            }
+            Access::Write { modified } => {
+                AccessSize::Write(modified.as_ref().map(|v| v.size()).unwrap_or(0))
+            }
+        }
+    }
+
     fn modified(&self) -> Option<Option<&SlotValue>> {
         match self {
             Access::Read { .. } => None,
@@ -92,8 +123,11 @@ impl CacheLog {
     fn add_write(&mut self, key: SlotKey, value: Option<SlotValue>) -> IsValueCached {
         match self.log.entry(key) {
             Entry::Occupied(mut existing) => {
+                let out = IsValueCached::Yes(AccessSize::Write(
+                    value.as_ref().map(|v| v.size()).unwrap_or(0),
+                ));
                 existing.get_mut().add_write(value);
-                IsValueCached::Yes
+                out
             }
             Entry::Vacant(vacancy) => {
                 vacancy.insert(Access::Write { modified: value });
@@ -146,8 +180,8 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
 
     /// Checks if a value corresponding to a given key is cached.
     pub fn is_value_cached(&self, key: &SlotKey) -> IsValueCached {
-        if self.tx_cache.log.contains_key(key) {
-            IsValueCached::Yes
+        if let Some(access) = self.tx_cache.log.get(key) {
+            IsValueCached::Yes(access.as_access_size())
         } else {
             IsValueCached::No
         }

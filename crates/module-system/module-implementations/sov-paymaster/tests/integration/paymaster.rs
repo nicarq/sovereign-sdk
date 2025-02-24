@@ -626,7 +626,7 @@ fn test_granular_policies() {
                     max_fee: TEST_DEFAULT_MAX_FEE,
                     // This gas limit has to be high enough to cover the tx but low enough that gas_limit * gas_price
                     // is less than the payer's balance. If we adjust the gas costs of operations too much, this value may need adjustment.
-                    gas_limit: Some([10_000, 10_000].into()),
+                    gas_limit: Some([100_000, 100_000].into()),
                     chain_id: config_value!("CHAIN_ID"),
                 },
             },

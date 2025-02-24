@@ -18,7 +18,8 @@ use sov_sequencer_registry::{AllowedSequencerError, SequencerRegistry};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{config_gas_token_id, Payable, TestRunner};
 use sov_test_utils::{
-    generate_optimistic_runtime, TestSequencer, TestUser, TEST_DEFAULT_USER_BALANCE,
+    generate_optimistic_runtime, TestSequencer, TestUser, TEST_DEFAULT_MAX_FEE,
+    TEST_DEFAULT_USER_BALANCE,
 };
 use sov_value_setter::ValueSetter;
 
@@ -174,7 +175,7 @@ fn create_tx_valid(
         message,
         chain_id,
         max_priority_fee_bips,
-        200_000,
+        TEST_DEFAULT_MAX_FEE,
         nonce,
         None,
     );

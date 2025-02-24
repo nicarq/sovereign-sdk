@@ -1,7 +1,7 @@
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::execution_mode;
 use sov_state::{
-    ArrayWitness, BorshCodec, IsValueCached, Namespace, OrderedReadsAndWrites, Prefix,
+    AccessSize, ArrayWitness, BorshCodec, IsValueCached, Namespace, OrderedReadsAndWrites, Prefix,
     StateAccesses, Storage, ZkStorage,
 };
 use sov_test_utils::storage::SimpleStorageManager;
@@ -103,7 +103,7 @@ fn test_values<S: Spec>(state: &mut StateCheckpoint<S>) {
 
         state_value.set(&77, state).unwrap();
         let is_cached = state.is_value_cached(NAMESPACE, &state_value.slot_key());
-        assert_eq!(is_cached, IsValueCached::Yes);
+        assert_eq!(is_cached, IsValueCached::Yes(AccessSize::Write(8)));
 
         let maybe_size = state.get_size(NAMESPACE, &state_value.slot_key());
         assert_eq!(maybe_size, Some(8));
@@ -124,7 +124,7 @@ fn test_values<S: Spec>(state: &mut StateCheckpoint<S>) {
         assert_eq!(maybe_size, Some(8));
 
         let is_cached = state.is_value_cached(NAMESPACE, &state_value.slot_key());
-        assert_eq!(is_cached, IsValueCached::Yes);
+        assert_eq!(is_cached, IsValueCached::Yes(AccessSize::Read(8)));
 
         let maybe_get = state_value.get(state).unwrap();
         assert_eq!(maybe_get, Some(22));
@@ -147,7 +147,7 @@ fn test_values<S: Spec>(state: &mut StateCheckpoint<S>) {
         assert_eq!(maybe_get, Some(99));
 
         let is_cached = state.is_value_cached(NAMESPACE, &state_value.slot_key());
-        assert_eq!(is_cached, IsValueCached::Yes);
+        assert_eq!(is_cached, IsValueCached::Yes(AccessSize::Read(8)));
 
         let maybe_size = state.get_size(NAMESPACE, &state_value.slot_key());
         assert_eq!(maybe_size, Some(8));

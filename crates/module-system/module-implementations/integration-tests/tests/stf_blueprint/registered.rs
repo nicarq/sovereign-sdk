@@ -240,7 +240,7 @@ fn sequencer_run_out_of_gas() {
 fn slot_out_of_gas_tests() {
     env::set_var(
         "SOV_SDK_CONST_OVERRIDE_INITIAL_GAS_LIMIT",
-        "[100000000, 100000000]",
+        "[10000000000, 10000000000]",
     );
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
 
@@ -253,7 +253,7 @@ fn slot_out_of_gas_tests() {
     };
 
     // The trasnaction uses more gas than the slot gas limit.
-    let gas = GasUnit::from([100000001, 2]);
+    let gas = GasUnit::from([10000000001, 2]);
     let tx = create_tx_valid(
         10,
         priority_fee_bips,

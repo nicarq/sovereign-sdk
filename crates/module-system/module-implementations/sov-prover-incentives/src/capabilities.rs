@@ -3,8 +3,9 @@ use std::cmp::max;
 use sov_bank::{config_gas_token_id, Coins, IntoPayable};
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{
-    AggregatedProofPublicData, Gas, GetGasPrice, InvalidProofError, SerializedAggregatedProof,
-    Spec, StateReader, Storage, TxState, VersionReader, ZkVerifier, Zkvm,
+    AggregatedProofPublicData, Gas, GasSpec, GetGasPrice, InvalidProofError,
+    SerializedAggregatedProof, Spec, StateReader, Storage, TxState, VersionReader, ZkVerifier,
+    Zkvm,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::Kernel;
@@ -109,6 +110,22 @@ impl<S: Spec> ProverIncentives<S> {
             .outer_code_commitment(state)
             .map_err(Into::<anyhow::Error>::into)?
             .expect("The code commitment should be set at genesis");
+
+        state
+            .charge_gas(&<S as GasSpec>::fixed_gas_to_charge_per_proof())
+            .map_err(Into::<anyhow::Error>::into)?;
+
+        state
+            .charge_linear_gas(
+                &<S as GasSpec>::gas_to_charge_per_proof_byte(),
+                proof
+                    .raw_aggregated_proof
+                    .len()
+                    .try_into()
+                    .map_err(Into::<anyhow::Error>::into)?,
+            )
+            .map_err(Into::<anyhow::Error>::into)?;
+
         // Don't return an error for invalid proofs - those are expected and shouldn't cause reverts.
         let verification_result = <<S as Spec>::OuterZkvm as Zkvm>::Verifier::verify::<
             AggregatedProofPublicData<S::Address, S::Da, <S::Storage as Storage>::Root>,
