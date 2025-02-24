@@ -1,4 +1,6 @@
-use sov_modules_api::{CryptoSpec, SafeVec, SelectedBlob, Spec};
+use std::collections::HashMap;
+
+use sov_modules_api::{CryptoSpec, PrivateKey, SafeVec, SelectedBlob, Spec};
 use sov_paymaster::{PayeePolicy, PayerGenesisConfig, PaymasterConfig, PaymasterPolicyInitializer};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -7,7 +9,7 @@ use sov_test_utils::runtime::{
     Runtime, TestRunner, ValueSetter, ValueSetterCallMessage, ValueSetterConfig,
 };
 use sov_test_utils::{
-    AsUser, EncodeCall, MockDaSpec, TestSequencer, TestUser, TransactionTestCase,
+    AsUser, EncodeCall, MockDaSpec, TestSequencer, TestUser, TransactionTestCase, TransactionType,
 };
 
 use crate::runtime::{GenesisConfig, PaymasterRuntime};
@@ -34,11 +36,18 @@ impl Setup {
 pub enum TxOutcome {
     Skipped,
     Executed,
+    Reverted,
 }
 
 // Use a trait to circumvent the orphan rule and add `do_value_setter_tx` to TestRunner
 pub trait DoValueSetterTx<S: Spec> {
     fn do_value_setter_tx(&mut self, user: &TestUser<S>, expected_outcome: TxOutcome);
+    fn do_value_setter_tx_with_generation(
+        &mut self,
+        user: &TestUser<S>,
+        generation: u64,
+        expected_outcome: TxOutcome,
+    );
 }
 
 impl<RT: Runtime<S>, S: Spec> DoValueSetterTx<S> for TestRunner<RT, S>
@@ -65,6 +74,14 @@ where
                 ),
                 assert: Box::new(|_, _| {}),
             }),
+            TxOutcome::Reverted => self.execute_transaction(TransactionTestCase {
+                input: user.create_plain_message::<RT, ValueSetter<S>>(
+                    ValueSetterCallMessage::AssertVisibleSlotNumber {
+                        expected_visible_slot_number: 10_000_000,
+                    },
+                ),
+                assert: Box::new(|_, _| {}),
+            }),
             TxOutcome::Executed => self.execute_transaction(TransactionTestCase {
                 input: user.create_plain_message::<RT, ValueSetter<S>>(
                     ValueSetterCallMessage::SetValue {
@@ -76,6 +93,55 @@ where
                     assert!(!result.tx_receipt.is_skipped());
                 }),
             }),
+        };
+    }
+
+    fn do_value_setter_tx_with_generation(
+        &mut self,
+        user: &TestUser<S>,
+        generation: u64,
+        expected_outcome: TxOutcome,
+    ) {
+        match expected_outcome {
+            TxOutcome::Skipped => {
+                let input = user.create_plain_message::<RT, ValueSetter<S>>(
+                    ValueSetterCallMessage::SetValue {
+                        value: 99,
+                        gas: None,
+                    },
+                );
+                let input =
+                    TransactionType::PreAuthenticated(input.to_serialized_authenticated_tx(
+                        &mut HashMap::from([(user.private_key().pub_key(), generation)]),
+                    ));
+                self.execute_skipped_transaction(TransactionTestCase {
+                    input,
+                    assert: Box::new(|_, _| {}),
+                })
+            }
+            TxOutcome::Reverted => {
+                // Unused in any tests. Use do_value_setter_tx for reverted test cases.
+                // Can be implemented later if it becoms needed for a specific setup
+                unimplemented!();
+            }
+            TxOutcome::Executed => {
+                let input = user.create_plain_message::<RT, ValueSetter<S>>(
+                    ValueSetterCallMessage::SetValue {
+                        value: 99,
+                        gas: None,
+                    },
+                );
+                let input =
+                    TransactionType::PreAuthenticated(input.to_serialized_authenticated_tx(
+                        &mut HashMap::from([(user.private_key().pub_key(), generation)]),
+                    ));
+                self.execute_transaction(TransactionTestCase {
+                    input,
+                    assert: Box::new(|result, _state| {
+                        assert!(!result.tx_receipt.is_skipped());
+                    }),
+                })
+            }
         };
     }
 }
@@ -102,6 +168,7 @@ pub fn setup(user_balance: u64) -> Setup {
                         max_fee: None,
                         gas_limit: None,
                         max_gas_price: None,
+                        transaction_limit: None,
                     },
                     payees: SafeVec::new(),
                     authorized_sequencers: sov_paymaster::AuthorizedSequencers::All,

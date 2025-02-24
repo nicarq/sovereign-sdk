@@ -44,6 +44,9 @@
   # This field was added! This is must be set to the address of the sequencer on the rollup.
   rollup_address = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
   ```
+```
+## 2025-02-14
+- #2428 The Paymaster module now supports a `transction_limit` configuration in policies. When set to `Some(n)`, the paymaster will only sponsor up to _n_ transactions from a given user. This is a break change for existing Paymaster module initialisation and test code which now needs the new field specified.
 
 ## 2025-02-07
 - #2378 **Breaking**. Configuration for `MockDa` is changed. `block_producing` is now section. To keep periodic block producing, use the following configuration:

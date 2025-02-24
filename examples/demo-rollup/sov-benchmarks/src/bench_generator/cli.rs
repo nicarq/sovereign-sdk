@@ -185,6 +185,7 @@ impl BenchCLICustomArgs {
                             max_fee: None,
                             gas_limit: None,
                             max_gas_price: None,
+                            transaction_limit: None,
                         },
                         payees: SafeVec::new(),
                         authorized_sequencers: sov_paymaster::AuthorizedSequencers::All,

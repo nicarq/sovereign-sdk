@@ -1,3 +1,5 @@
+use std::num::NonZeroU64;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sov_bank::ReserveGasError;
@@ -29,6 +31,8 @@ pub enum PayeePolicy<S: Spec> {
     /// - if the policy specifies a `max_gas_price`, the current gas price must be less than or equal to that value
     /// - If the policy specifies a gas limit, the transaction must also specify a limit *and* that limit must be less than or equal to `gas_limit`.
     ///
+    /// - If the policy specifies a transaction_limit, the policy can only cover that many transactions, after which it will expire and be replaced with a Deny policy
+    ///
     /// In all other cases, the sender pays their own fees.
     Allow {
         #[allow(missing_docs)]
@@ -37,6 +41,9 @@ pub enum PayeePolicy<S: Spec> {
         gas_limit: Option<S::Gas>,
         #[allow(missing_docs)]
         max_gas_price: Option<<S::Gas as Gas>::Price>,
+        #[allow(missing_docs)]
+        #[sov_wallet(as_ty = "Option<u64>")]
+        transaction_limit: Option<NonZeroU64>,
     },
     /// The payer does not pay fees for any transaction using this policy.
     Deny,
@@ -48,7 +55,7 @@ impl<S: Spec> PayeePolicy<S> {
         &self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
-    ) -> Result<(), ReserveGasError> {
+    ) -> Result<Option<Self>, ReserveGasError> {
         if matches!(self, PayeePolicy::Deny) {
             tracing::debug!(
                 "Paymaster policy denied transaction payment due to having a Deny policy"
@@ -69,7 +76,7 @@ impl<S: Spec> PayeePolicy<S> {
             tracing::debug!(max_gas_limit = ?self.max_gas_limit(), requested_gas_limit = ?tx.gas_limit, "Paymaster policy denied transaction payment because the gas limit was too high");
             return Err(ReserveGasError::MaxGasLimitExceeded);
         }
-        Ok(())
+        Ok(self.maybe_decrement_allowance())
     }
 
     /// Checks that the transaction's max fee is less than the policy's max fee, if applicable.
@@ -118,6 +125,32 @@ impl<S: Spec> PayeePolicy<S> {
                 }
             }
             PayeePolicy::Deny => false,
+        }
+    }
+
+    // If max_transactions_paid is set, decrement it and return the new modified PayeePolicy for
+    // that user (which may be a PayeePolicy::Deny if the max_transactions_paid has been reached).
+    // If not, and the policy does not need to be modified, returns None.
+    fn maybe_decrement_allowance(&self) -> Option<Self> {
+        match self.to_owned() {
+            PayeePolicy::Allow {
+                transaction_limit: Some(txs_left),
+                max_gas_price,
+                max_fee,
+                gas_limit,
+            } => {
+                let txs_left = txs_left.get().saturating_sub(1);
+                match txs_left {
+                    0 => Some(PayeePolicy::Deny),
+                    _ => Some(PayeePolicy::Allow {
+                        max_fee,
+                        max_gas_price,
+                        gas_limit,
+                        transaction_limit: Some(NonZeroU64::new(txs_left).unwrap()),
+                    }),
+                }
+            }
+            _ => None,
         }
     }
 

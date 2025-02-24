@@ -685,7 +685,7 @@ fn build_virtual_struct(
         .iter()
         .map(|field| {
             let name = &field.ident;
-            let field_type = &field.ty;
+            let field_type = field.ty_tokens();
             let bounds_attribute = field.bound.as_ref().map(|b| {
                 let tokens = format!("{}", b.to_token_stream());
                 quote! {

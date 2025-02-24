@@ -1,3 +1,5 @@
+use std::num::NonZeroU64;
+
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::TxDetails;
 use sov_modules_api::TxEffect;
@@ -104,6 +106,7 @@ fn test_registering_new_payer() {
                         max_fee: None,
                         gas_limit: None,
                         max_gas_price: None,
+                        transaction_limit: None,
                     },
                     payees: SafeVec::new(),
                     authorized_sequencers: sov_paymaster::AuthorizedSequencers::All,
@@ -147,6 +150,7 @@ fn test_setting_payer_for_sequencer() {
                         max_fee: None,
                         gas_limit: None,
                         max_gas_price: None,
+                        transaction_limit: None,
                     },
                     payees: SafeVec::new(),
                     authorized_sequencers: sov_paymaster::AuthorizedSequencers::All,
@@ -210,6 +214,7 @@ fn test_registering_payee() {
                 max_fee: None,
                 gas_limit: None,
                 max_gas_price: None,
+                transaction_limit: None,
             },
         );
         runner.execute_transaction(TransactionTestCase {
@@ -230,6 +235,7 @@ fn test_registering_payee() {
                             max_fee: None,
                             gas_limit: None,
                             max_gas_price: None,
+                            transaction_limit: None,
                         },
                     })
                 );
@@ -482,6 +488,7 @@ fn test_setting_payer_with_insufficient_balance() {
                         max_fee: None,
                         gas_limit: None,
                         max_gas_price: None,
+                        transaction_limit: None,
                     },
                     payees: SafeVec::new(),
                     authorized_sequencers: sov_paymaster::AuthorizedSequencers::All,
@@ -531,6 +538,7 @@ fn test_granular_policies() {
         max_fee: Some(u64::MAX),
         gas_limit: None,
         max_gas_price: None,
+        transaction_limit: None,
     };
 
     let mut runner = TestRunner::new_with_genesis(
@@ -550,6 +558,7 @@ fn test_granular_policies() {
                         max_fee: Some(1),
                         gas_limit: None,
                         max_gas_price: None,
+                        transaction_limit: None,
                     }),
                 },
             ),
@@ -572,6 +581,7 @@ fn test_granular_policies() {
                         max_fee: None,
                         gas_limit: Some([u64::MAX, u64::MAX].into()),
                         max_gas_price: None,
+                        transaction_limit: None,
                     }),
                 },
             ),
@@ -637,6 +647,7 @@ fn test_granular_policies() {
                         max_fee: None,
                         gas_limit: Some([1, 1].into()),
                         max_gas_price: None,
+                        transaction_limit: None,
                     }),
                 },
             ),
@@ -675,6 +686,7 @@ fn test_granular_policies() {
                         max_fee: None,
                         gas_limit: None,
                         max_gas_price: Some([u64::MAX, u64::MAX].into()),
+                        transaction_limit: None,
                     }),
                 },
             ),
@@ -695,6 +707,7 @@ fn test_granular_policies() {
                         max_fee: None,
                         gas_limit: None,
                         max_gas_price: Some([1, 1].into()),
+                        transaction_limit: None,
                     }),
                 },
             ),
@@ -703,5 +716,45 @@ fn test_granular_policies() {
             }),
         });
         runner.do_value_setter_tx(&setup.user, TxOutcome::Skipped);
+    }
+
+    // Next, set a transaction limit and ensure users are denied after the limit is used up
+    {
+        runner.execute_transaction(TransactionTestCase {
+            input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
+                PaymasterCallMessage::UpdatePolicy {
+                    payer: setup.payer.address(),
+                    update: PolicyUpdate::default().set_default_policy(PayeePolicy::Allow {
+                        max_fee: None,
+                        gas_limit: None,
+                        max_gas_price: None,
+                        transaction_limit: Some(NonZeroU64::new(3).unwrap()),
+                    }),
+                },
+            ),
+            assert: Box::new(move |result, _state| {
+                assert!(result.tx_receipt.is_successful());
+            }),
+        });
+        // Basic test for user 1. Three transactions should be covered
+        // Transaction 1.
+        runner.do_value_setter_tx(&setup.user, TxOutcome::Executed);
+        // Set up a high generation for the next test. Transaction 2.
+        runner.do_value_setter_tx_with_generation(&setup.user, 500, TxOutcome::Executed);
+        // Check that skipped transactions do not decrement the limit
+        runner.do_value_setter_tx_with_generation(&setup.user, 1, TxOutcome::Skipped);
+        // Should still have one more tx left. Transaction 3.
+        runner.do_value_setter_tx_with_generation(&setup.user, 501, TxOutcome::Executed);
+        // The third tx should fail due to no longer being covered
+        runner.do_value_setter_tx_with_generation(&setup.user, 502, TxOutcome::Skipped);
+
+        // Other users should be unaffected by the first user having used up his coverage
+        // User 2, transactions 1 and 2
+        runner.do_value_setter_tx(&setup.user_2, TxOutcome::Executed);
+        runner.do_value_setter_tx(&setup.user_2, TxOutcome::Executed);
+        // Check that reverted transactions still decrement the limit - should be transaction 3
+        runner.do_value_setter_tx(&setup.user_2, TxOutcome::Reverted);
+        // Now the second user should no longer be covered
+        runner.do_value_setter_tx(&setup.user_2, TxOutcome::Skipped);
     }
 }
