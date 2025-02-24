@@ -7,7 +7,7 @@ use sov_cli::NodeClient;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{
-    Address, AggregatedProofPublicData, CryptoSpec, PrivateKey, SafeVec, Spec, Storage,
+    Address, AggregatedProofPublicData, CryptoSpec, PrivateKey, PublicKey, SafeVec, Spec, Storage,
 };
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::AggregateProofVerifier;
@@ -50,9 +50,12 @@ pub(crate) fn create_keys_and_addresses() -> (
     let token_id = sov_bank::get_token_id::<TestSpec>(TOKEN_NAME, &user_address);
 
     let recipient_key = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
-    let address = recipient_key
+
+    let address: Address = recipient_key
         .pub_key()
-        .to_address::<Address<sha2::Sha256>>();
+        .credential_id::<sha2::Sha256>()
+        .into();
+
     let recipient_address = <TestSpec as Spec>::Address::from(address);
 
     (key, user_address, token_id, recipient_address)
@@ -63,7 +66,7 @@ pub(crate) fn build_create_token_tx(
     nonce: u64,
     initial_balance: u64,
 ) -> Transaction<Runtime<TestSpec>, TestSpec> {
-    let user_address = key.pub_key().to_address::<Address<sha2::Sha256>>();
+    let user_address: Address = key.pub_key().credential_id::<sha2::Sha256>().into();
     let msg = RuntimeCall::<TestSpec>::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
         token_name: TOKEN_NAME.try_into().unwrap(),
         initial_balance,

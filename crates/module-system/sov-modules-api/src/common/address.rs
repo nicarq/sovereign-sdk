@@ -4,12 +4,11 @@
 use arbitrary::{Arbitrary, Unstructured};
 use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
-use sha2::digest::typenum::U32;
-use sha2::Digest;
 use sov_modules_macros::config_value_private;
 use sov_rollup_interface::common::HexString;
-use sov_rollup_interface::crypto::PublicKey;
 use sov_rollup_interface::BasicAddress;
+
+use crate::CredentialId;
 
 /// Implement type conversions between a `\[u8;$len\]` wrapper and a bech32 string representation.
 /// This implementation assumes that the wrapper implents a `fn as_bytes(&self) -> &[u8;$len]` as
@@ -283,22 +282,20 @@ macro_rules! impl_hash32_type {
     };
 }
 
-impl_bech32_conversion!(Address<H>, AddressBech32, address_prefix(), 28);
+impl_bech32_conversion!(Address, AddressBech32, address_prefix(), 28);
 
 /// Module ID representation.
 #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
 #[derive(Derivative, BorshDeserialize, BorshSerialize)]
-#[derivative(Copy, Hash, PartialEq, Eq, Ord)]
-pub struct Address<H> {
+#[derivative(Copy, Hash, PartialEq, Eq, Ord, Clone)]
+pub struct Address {
     addr: [u8; 28],
-    #[derivative(Hash = "ignore", PartialEq = "ignore", Ord = "ignore")]
-    phantom: std::marker::PhantomData<H>,
 }
 
 // Deriving this seems to trigger
 // <https://rust-lang.github.io/rust-clippy/master/index.html#/non_canonical_partial_ord_impl>
 // because of `derivative`, so let's implement it manually.
-impl<H> PartialOrd for Address<H> {
+impl PartialOrd for Address {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
@@ -306,7 +303,7 @@ impl<H> PartialOrd for Address<H> {
 
 // Serialize Address without field labels. This changes the output from `{ addr: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx}`
 // to just `sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx`
-impl<H: 'static> sov_rollup_interface::sov_universal_wallet::schema::OverrideSchema for Address<H> {
+impl sov_rollup_interface::sov_universal_wallet::schema::OverrideSchema for Address {
     type Output = AddressSchema;
 }
 
@@ -320,19 +317,7 @@ pub const fn address_prefix() -> &'static str {
 #[doc(hidden)]
 pub struct AddressSchema(#[sov_wallet(display(bech32m(prefix = "address_prefix()")))] [u8; 28]);
 
-// We manually implement clone so that we can silence this clippy warning.
-// Derivative has o facility to enable that.
-#[allow(clippy::non_canonical_clone_impl)]
-impl<H> Clone for Address<H> {
-    fn clone(&self) -> Self {
-        Self {
-            addr: self.addr,
-            phantom: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<H> schemars::JsonSchema for Address<H> {
+impl schemars::JsonSchema for Address {
     fn schema_name() -> String {
         "Address".to_string()
     }
@@ -350,25 +335,22 @@ impl<H> schemars::JsonSchema for Address<H> {
     }
 }
 
-impl<H: Digest<OutputSize = U32>, T: PublicKey> From<&T> for Address<H> {
-    fn from(value: &T) -> Self {
-        value.credential_id::<H>().0.into()
+impl From<CredentialId> for Address {
+    fn from(credential_id: CredentialId) -> Self {
+        credential_id.0.into()
     }
 }
 
-impl<H> AsRef<[u8]> for Address<H> {
+impl AsRef<[u8]> for Address {
     fn as_ref(&self) -> &[u8] {
         &self.addr
     }
 }
 
-impl<H> Address<H> {
+impl Address {
     /// Creates a new address containing the given bytes
     pub const fn new(addr: [u8; 28]) -> Self {
-        Self {
-            addr,
-            phantom: std::marker::PhantomData,
-        }
+        Self { addr }
     }
 
     /// Exposes the inner bytes of the Address
@@ -377,7 +359,7 @@ impl<H> Address<H> {
     }
 }
 
-impl<'a, H> TryFrom<&'a [u8]> for Address<H> {
+impl<'a> TryFrom<&'a [u8]> for Address {
     type Error = anyhow::Error;
 
     fn try_from(addr: &'a [u8]) -> Result<Self, Self::Error> {
@@ -386,52 +368,40 @@ impl<'a, H> TryFrom<&'a [u8]> for Address<H> {
         }
         let mut addr_bytes = [0u8; 28];
         addr_bytes.copy_from_slice(addr);
-        Ok(Self {
-            addr: addr_bytes,
-            phantom: std::marker::PhantomData,
-        })
+        Ok(Self { addr: addr_bytes })
     }
 }
 
-impl<H> From<[u8; 28]> for Address<H> {
+impl From<[u8; 28]> for Address {
     fn from(addr: [u8; 28]) -> Self {
-        Self {
-            addr,
-            phantom: std::marker::PhantomData,
-        }
+        Self { addr }
     }
 }
 
-impl<H> From<HexString<[u8; 32]>> for Address<H> {
+impl From<HexString<[u8; 32]>> for Address {
     fn from(value: HexString<[u8; 32]>) -> Self {
         Self::try_from(&value.0.as_slice()[0..28]).unwrap()
     }
 }
 
-impl<H> Address<H> {
+impl Address {
     /// Creates a new $id containing the given bytes. This function is needed in addition
     /// to the `From` trait to allow for const conversions
     pub const fn from_const_slice(addr: [u8; 28]) -> Self {
-        Self {
-            addr,
-            phantom: std::marker::PhantomData,
-        }
+        Self { addr }
     }
 }
 
 // Implement arbitrary by hand because the derive can't handle PhantomData
 #[cfg(feature = "arbitrary")]
-impl<'a, H> Arbitrary<'a> for Address<H> {
+impl<'a> Arbitrary<'a> for Address {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
         let addr = u.arbitrary()?;
-        Ok(Self {
-            addr,
-            phantom: std::marker::PhantomData,
-        })
+        Ok(Self { addr })
     }
 }
 
-impl<H: Send + Sync + 'static> BasicAddress for Address<H> {}
+impl BasicAddress for Address {}
 
 #[cfg(test)]
 mod test {
@@ -440,6 +410,7 @@ mod test {
 
     use sha2::Sha256;
     use sov_mock_zkvm::crypto::Ed25519PublicKey;
+    use sov_modules_api::PublicKey;
     use sov_rollup_interface::crypto::PublicKeyHex;
     use sov_universal_wallet::schema::Schema;
 
@@ -449,7 +420,7 @@ mod test {
     fn test_address_serialization() {
         let address = Address::from([11; 28]);
         let data: String = serde_json::to_string(&address).unwrap();
-        let deserialized_address = serde_json::from_str::<Address<Sha256>>(&data).unwrap();
+        let deserialized_address = serde_json::from_str::<Address>(&data).unwrap();
 
         assert_eq!(address, deserialized_address);
         assert_eq!(
@@ -460,8 +431,8 @@ mod test {
 
     #[test]
     fn test_address_schema() {
-        let address: Address<Sha256> = Address::from([11; 28]);
-        let schema = Schema::of_single_type::<Address<Sha256>>();
+        let address: Address = Address::from([11; 28]);
+        let schema = Schema::of_single_type::<Address>();
         assert_eq!(
             schema
                 .display(0, &borsh::to_vec(&address).unwrap())
@@ -474,18 +445,17 @@ mod test {
     /// Enforces that we reject the original (less secure) `bech32` encoding for our address type.
     /// Our addresses should use bech32m only.
     fn test_rejects_non_m_bech32_variant() {
-        assert!(Address::<Sha256>::from_str(
-            "sov11zy3rx3z4vemc3xgq42aueh0wlugjyv6y24n80zyeqz4tkp42j22"
-        )
-        .is_err());
+        assert!(
+            Address::from_str("sov11zy3rx3z4vemc3xgq42aueh0wlugjyv6y24n80zyeqz4tkp42j22").is_err()
+        );
     }
 
     #[test]
     fn test_rejects_wrong_length() {
-        assert!(Address::<Sha256>::from_str(
-            "sov10ay4dyaukwpqnteh2h32l6rfurecsmzu5sl78aj7qzc0g2vvnwesa0k6"
-        )
-        .is_err());
+        assert!(
+            Address::from_str("sov10ay4dyaukwpqnteh2h32l6rfurecsmzu5sl78aj7qzc0g2vvnwesa0k6")
+                .is_err()
+        );
     }
 
     #[test]
@@ -497,11 +467,10 @@ mod test {
 
         let pub_key = Ed25519PublicKey::try_from(&pub_key_hex).unwrap();
 
-        let sov_address = pub_key.to_address::<Address<Sha256>>();
+        let sov_address: Address = pub_key.credential_id::<Sha256>().into();
 
         let expected_addr =
-            Address::<Sha256>::from_str("sov10ay4dyaukwpqnteh2h32l6rfurecsmzu5sl78aj7qzc0g286a0l")
-                .unwrap();
+            Address::from_str("sov10ay4dyaukwpqnteh2h32l6rfurecsmzu5sl78aj7qzc0g286a0l").unwrap();
 
         assert_eq!(sov_address, expected_addr);
     }
@@ -511,14 +480,13 @@ mod test {
 mod arbitrary_tests {
     use proptest::prelude::any;
     use proptest::proptest;
-    use sha2::Sha256;
     use sov_test_utils::validate_schema;
 
     use super::*;
 
     proptest! {
         #[test]
-        fn json_schema_is_valid(item in any::<Address<Sha256>>()) {
+        fn json_schema_is_valid(item in any::<Address>()) {
             validate_schema(&item).unwrap();
         }
     }

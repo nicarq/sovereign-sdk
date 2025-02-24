@@ -2,10 +2,9 @@ use std::path::Path;
 
 use sov_cli::wallet_state::{KeyIdentifier, PrivateKeyAndAddress, WalletState};
 use sov_cli::workflows::keys::KeyWorkflow;
-use sov_modules_api::{CryptoSpec, DispatchCall, PrivateKey, Spec};
+use sov_modules_api::{CryptoSpec, DispatchCall, PrivateKey, PublicKey, Spec};
 use sov_test_utils::runtime::TestOptimisticRuntime;
 use sov_test_utils::TestSpec;
-
 type Runtime = TestOptimisticRuntime<TestSpec>;
 
 #[test]
@@ -106,7 +105,8 @@ fn test_key_import() {
         key_and_address
             .private_key
             .pub_key()
-            .to_address::<<TestSpec as Spec>::Address>()
+            .credential_id::<<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher>()
+            .into()
     );
 }
 

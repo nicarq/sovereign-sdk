@@ -8,9 +8,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub use ethereum_address::{EthereumAddress, MultiAddressEvm};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sha2::Sha256;
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::{address_prefix, Address, BasicAddress};
+use sov_modules_api::{address_prefix, Address, BasicAddress, CredentialId};
 
 /// A generic VM-compatible address enum, enabling supporting for both Sov SDK standard SHA-256 derived addresses and VM-specific addresses.
 #[derive(
@@ -31,7 +30,7 @@ use sov_modules_api::{address_prefix, Address, BasicAddress};
 #[sov_wallet(hide_tag)]
 pub enum MultiAddress<VmAddress> {
     /// A standard address derived from a SHA-256 hash of a public key.
-    Standard(Address<Sha256>),
+    Standard(Address),
     /// A VM-specific address type, allowing native support of the VM's address format.
     Vm(VmAddress),
 }
@@ -47,13 +46,9 @@ impl<VmAddress> From<sov_modules_api::AddressBech32> for MultiAddress<VmAddress>
     }
 }
 
-impl<'a, K: sov_rollup_interface::crypto::PublicKey, VmAddress> From<&'a K>
-    for MultiAddress<VmAddress>
-where
-    Address<Sha256>: From<&'a K>,
-{
-    fn from(value: &'a K) -> Self {
-        Self::Standard(Address::<Sha256>::from(value))
+impl<VmAddress> From<CredentialId> for MultiAddress<VmAddress> {
+    fn from(value: CredentialId) -> Self {
+        Self::Standard(Address::from(value))
     }
 }
 
@@ -68,7 +63,7 @@ impl<VmAddress: std::fmt::Display> std::fmt::Display for MultiAddress<VmAddress>
 
 #[derive(Serialize, Deserialize)]
 enum DeSerHelper<VmAddress> {
-    Standard(Address<Sha256>),
+    Standard(Address),
     Vm(VmAddress),
 }
 
@@ -165,8 +160,8 @@ impl<VmAddress> FromVmAddress<VmAddress> for MultiAddress<VmAddress> {
     }
 }
 
-impl<VmAddress> From<Address<Sha256>> for MultiAddress<VmAddress> {
-    fn from(value: Address<Sha256>) -> Self {
+impl<VmAddress> From<Address> for MultiAddress<VmAddress> {
+    fn from(value: Address) -> Self {
         Self::Standard(value)
     }
 }

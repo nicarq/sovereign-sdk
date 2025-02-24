@@ -1,7 +1,7 @@
 //! Key management workflows for the sov CLI wallet
 use std::path::{Path, PathBuf};
 
-use sov_modules_api::{clap, CryptoSpec, DispatchCall, PrivateKey};
+use sov_modules_api::{clap, CredentialId, CryptoSpec, DispatchCall, PrivateKey, PublicKey};
 
 use crate::wallet_state::{KeyIdentifier, PrivateKeyAndAddress, WalletState};
 
@@ -81,7 +81,12 @@ impl<S: sov_modules_api::Spec> KeyWorkflow<S> {
                 // Try to load the key as a sanity check.
                 let private_key = load_key::<S>(&path)?;
                 let public_key = private_key.pub_key();
-                let address = address_override.unwrap_or_else(|| (&public_key).into());
+
+                let credential_id: CredentialId =
+                    public_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+                let default_address: S::Address = credential_id.into();
+
+                let address = address_override.unwrap_or(default_address);
 
                 if skip_if_present {
                     let identifier = if let Some(nickname) = nickname.clone() {

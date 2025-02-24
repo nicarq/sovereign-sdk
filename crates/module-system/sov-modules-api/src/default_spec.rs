@@ -82,7 +82,7 @@ where
     <InnerZkvm::Verifier as ZkVerifier>::CryptoSpec: crate::CryptoSpecExt,
 {
     type Da = Da;
-    type Address = Address<<Self::CryptoSpec as CryptoSpec>::Hasher>;
+    type Address = Address;
     type Gas = GasUnit<2>;
 
     type Storage =
@@ -103,7 +103,7 @@ where
     <InnerZkvm::Verifier as ZkVerifier>::CryptoSpec: crate::CryptoSpecExt,
 {
     type Da = Da;
-    type Address = Address<<Self::CryptoSpec as CryptoSpec>::Hasher>;
+    type Address = Address;
     type Gas = GasUnit<2>;
 
     // This TODO is for performance enhancement, not a security concern.
@@ -128,7 +128,7 @@ where
     <InnerZkvm::Verifier as ZkVerifier>::CryptoSpec: crate::CryptoSpecExt,
 {
     type Da = Da;
-    type Address = Address<<Self::CryptoSpec as CryptoSpec>::Hasher>;
+    type Address = Address;
     type Gas = GasUnit<2>;
 
     type Storage =

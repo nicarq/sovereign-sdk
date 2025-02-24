@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use sov_rollup_interface::crypto::CredentialId;
 use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 use sov_rollup_interface::BasicAddress;
 
@@ -128,6 +129,14 @@ impl std::fmt::Display for MockAddress {
 }
 
 impl BasicAddress for MockAddress {}
+
+impl From<CredentialId> for MockAddress {
+    fn from(credential_id: CredentialId) -> Self {
+        MockAddress {
+            addr: credential_id.0 .0,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

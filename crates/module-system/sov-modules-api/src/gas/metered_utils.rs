@@ -4,11 +4,12 @@ use std::num::TryFromIntError;
 use digest::consts::U32;
 use digest::Digest;
 use serde::de::DeserializeOwned;
-use sov_rollup_interface::crypto::{SigVerificationError, Signature};
+use sov_rollup_interface::crypto::{CredentialId, SigVerificationError, Signature};
+use sov_rollup_interface::zk::CryptoSpec;
 use thiserror::Error;
 
 use crate::gas::traits::{Gas, GasMeter, GasMeteringError};
-use crate::{as_u32_or_panic, GasSpec, Spec};
+use crate::{as_u32_or_panic, GasSpec, PublicKey, Spec};
 
 /// A metered hasher that charges gas for each operation.
 /// This data structure should be used in the module system to charge gas when hashing data.
@@ -228,4 +229,14 @@ pub trait MeteredBorshDeserialize<S: Spec>: Sized {
     fn unmetered_deserialize(
         buf: &mut &[u8],
     ) -> Result<Self, MeteredBorshDeserializeError<<S as GasSpec>::Gas>>;
+}
+
+/// Calculates `CredentialId`
+pub fn metered_credential<S: Spec>(
+    pub_key: &<S::CryptoSpec as CryptoSpec>::PublicKey,
+    meter: &mut impl GasMeter<Spec = S>,
+) -> Result<CredentialId, GasMeteringError<S::Gas>> {
+    let cost = S::gas_to_charge_for_credential();
+    meter.charge_gas(&cost)?;
+    Ok(pub_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>())
 }

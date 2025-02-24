@@ -4,7 +4,7 @@ use std::hash::Hash;
 
 use indexmap::{IndexMap, IndexSet};
 use sov_bank::{config_gas_token_id, Amount, Coins, TokenId};
-use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
+use sov_modules_api::{CryptoSpec, PrivateKey, PublicKey, Spec};
 
 /// A view into `AccountState` containing some subset of its data. Identical to `AccountState` except that all fields
 /// are wrapped in an `Option` so that irrelevant fields can be ignored.
@@ -89,7 +89,11 @@ impl<S: Spec, Tag: Eq + Hash, T> State<S, Tag, T> {
     /// generation may fail.
     pub fn with_account_and_tags(account: AccountState<S, T>, tags: Vec<Tag>) -> Self {
         let mut output = Self::default();
-        let address: <S as Spec>::Address = (&account.private_key.pub_key()).into();
+        let address: <S as Spec>::Address = account
+            .private_key
+            .pub_key()
+            .credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>()
+            .into();
         for tag in tags {
             output.tags.entry(tag).or_default().insert(address.clone());
         }
@@ -115,7 +119,11 @@ impl<S: Spec, Tag: Eq + Hash, T> State<S, Tag, T> {
 
     /// Insert an outside account into state.
     pub fn insert_account(&mut self, account: AccountState<S, T>) {
-        let address: <S as Spec>::Address = (&account.private_key.pub_key()).into();
+        let address: <S as Spec>::Address = account
+            .private_key
+            .pub_key()
+            .credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>()
+            .into();
         self.accounts.insert(address, account);
     }
 }

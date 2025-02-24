@@ -63,10 +63,11 @@ mod tests {
         )
         .unwrap();
 
+        let credential_id = pub_key.credential_id::<TestHasher>();
         let config = AccountConfig::<TestSpec> {
             accounts: vec![AccountData {
-                credential_id: pub_key.credential_id::<TestHasher>(),
-                address: pub_key.into(),
+                credential_id,
+                address: credential_id.into(),
             }],
         };
 

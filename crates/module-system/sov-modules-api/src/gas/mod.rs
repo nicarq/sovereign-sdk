@@ -5,7 +5,7 @@ mod traits;
 mod tests;
 
 pub use metered_utils::{
-    MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher,
+    metered_credential, MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher,
     MeteredSigVerificationError, MeteredSignature,
 };
 pub use traits::*;

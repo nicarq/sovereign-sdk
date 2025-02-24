@@ -114,7 +114,7 @@ mod helpers {
     use sov_modules_api::rest::utils::ResponseObject;
     use sov_modules_api::transaction::Transaction;
     use sov_modules_api::{
-        Address, CryptoSpec, PrivateKey, Runtime as RuntimeTrait, SafeVec, Spec,
+        Address, CryptoSpec, PrivateKey, PublicKey, Runtime as RuntimeTrait, SafeVec, Spec,
     };
     use sov_test_utils::default_test_signed_transaction;
 
@@ -160,7 +160,7 @@ mod helpers {
         nonce: u64,
         initial_balance: u64,
     ) -> Transaction<Runtime<TestSpec>, TestSpec> {
-        let user_address = key.pub_key().to_address::<Address<sha2::Sha256>>();
+        let user_address: Address = key.pub_key().credential_id::<sha2::Sha256>().into();
 
         let msg = RuntimeCall::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
             token_name: TOKEN_NAME.try_into().unwrap(),
