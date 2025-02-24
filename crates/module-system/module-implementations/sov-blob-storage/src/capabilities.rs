@@ -4,6 +4,7 @@ use sov_bank::IntoPayable;
 use sov_modules_api::capabilities::{
     AllowedSequencer, BalanceState, BlobOrigin, BlobSelectorOutput,
 };
+use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     as_u32_or_panic, BatchWithId, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, FullyBakedTx,
@@ -424,13 +425,16 @@ impl<S: Spec> BlobStorage<S> {
                 let requested_slots_to_advance = last_selected_blob.inner.visible_slot_number_increase()
                 .expect("Decided to create a rollup block but the last item in the list of preferred blobs is not a batch. This is a bug.");
 
+                let max_slots_to_advance = config_value!("MAX_VISIBLE_HEIGHT_INCREASE_PER_SLOT");
                 let max_slots_to_advance = state
                     .true_slot_number()
                     .saturating_sub(state.visible_slot_number().get())
                     .saturating_add(1)
                     .get()
                     .try_into()
-                    .unwrap_or(u8::MAX);
+                    .unwrap_or(max_slots_to_advance)
+                    .min(max_slots_to_advance);
+
                 std::cmp::min(requested_slots_to_advance, max_slots_to_advance)
             };
 

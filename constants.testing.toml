@@ -17,6 +17,10 @@ CHAIN_ID = 4321
 DEFERRED_SLOTS_COUNT = 5
 # How many *rollup blocks* we wait before making a state root visible to the rollup.
 STATE_ROOT_DELAY_BLOCKS = 5
+# The maximum number of visible slots that the sequencer can advance the rollup in a single slot.
+# Larger values of this parameter mean that the soft-confirmations are less vulnerable to congestion on the DA layer,
+# but make it correspondingly easier for a malicious sequencer to grief other sequencers.
+MAX_VISIBLE_HEIGHT_INCREASE_PER_SLOT = 10
 # How many blobs from unregistered sequencers we will accept per slot
 # We can't slash misbehaving senders because they aren't a registered sequencer with a stake so
 # this serves as protection against spam.
@@ -94,7 +98,6 @@ BASE_FEE_MAX_CHANGE_DENOMINATOR = 8
 # The elasticity multiplier of the base fee.
 ELASTICITY_MULTIPLIER = 2
 # --- End Gas fee adjustment parameters ---
-
 
 
 CONST_TOKEN_ID = { const = { bech32 = "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnfxkwm", type = "MyTokenId" } }
