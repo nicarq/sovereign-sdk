@@ -12,6 +12,10 @@ use crate::{
 };
 
 /// Enforces gas limits and penalties for transactions.
+///
+/// ## Warning
+/// The implementation of this trait is coupled with the implementation of the `SequencerRemuneration`, trait and the behavior
+/// of the `BlobSelector` (which may reserve gas for blob serialization/deserialization).
 pub trait GasEnforcer<S: Spec> {
     /// Checks that the transaction has enough gas to be processed.
     ///
@@ -78,6 +82,10 @@ pub trait GasEnforcer<S: Spec> {
     /// This method is unmetered, so implementers MUST ensure that its cost is small.
     /// This is not difficult to do - in general, this  method should simply do a token transfer
     /// between known addresses.
+    ///
+    /// ## Warnings
+    /// - The implementation of this method is coupled with the implementation of the `SequencerRemuneration`, trait.
+    /// - This method is not metered, so be careful about using expensive operations.
     fn reward_prover_from_sequencer_balance(
         &self,
         funds_used: u64,
@@ -86,6 +94,10 @@ pub trait GasEnforcer<S: Spec> {
     ) -> anyhow::Result<()>;
 
     /// Returns the remaining funds escrowed from pre-execution checks to the sequencer.
+    ///
+    /// ## Warnings
+    /// - The implementation of this method is coupled with the implementation of the `SequencerRemuneration`, trait.
+    /// - This method is not metered, so be careful about using expensive operations.
     fn return_escrowed_funds_to_sequencer<
         Accessor: StateReader<Kernel, Error = Infallible>
             + StateWriter<Kernel, Error = Infallible>

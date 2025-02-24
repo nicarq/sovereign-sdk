@@ -30,9 +30,17 @@ pub trait SequencerAuthorization<S: Spec> {
 }
 
 /// Functionality related to the rewarding and slashing of the sequencer.
+///
+/// ## Warning
+/// The implementation of this trait is coupled with the implementation of the `GasEnforcer`, trait and the behavior
+/// of the `BlobSelector` (which may reserve gas for blob serialization/deserialization).
 pub trait SequencerRemuneration<S: Spec> {
     /// Reward the sequencer for correctly processing the forced registration.
     /// If the registration was reverted, refund the sequencer rollup address.
+    ///
+    /// ## Warnings
+    /// - The implementation of this method is coupled with the implementation of the `GasEnforcer`, trait.
+    /// - This method is not metered, so be careful about using expensive operations.
     fn reward_sequencer_or_refund<
         Accessor: StateReader<Kernel, Error = Infallible>
             + StateWriter<Kernel, Error = Infallible>
