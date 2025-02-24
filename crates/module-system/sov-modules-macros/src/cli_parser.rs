@@ -1,4 +1,5 @@
 use quote::{format_ident, quote};
+use syn::token::Colon;
 use syn::DeriveInput;
 
 use crate::common::{pascal_case_ident, StructFieldExtractor};
@@ -107,7 +108,7 @@ pub(crate) fn derive_cli_wallet(
             syn::WherePredicate::Type(syn::PredicateType {
                 lifetimes: None,
                 bounded_ty: syn::Type::Path(type_path),
-                colon_token: Default::default(),
+                colon_token: Colon::default(),
                 bounds: vec![bounds].into_iter().collect(),
             })
         };

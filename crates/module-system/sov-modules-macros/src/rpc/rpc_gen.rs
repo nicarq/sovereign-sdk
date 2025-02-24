@@ -138,8 +138,8 @@ impl RpcImplBlock {
 
 fn inner_rpc_gen(
     mut attr_contents: Vec<syn::Meta>,
-    input: syn::ItemImpl,
-    type_name: Ident,
+    input: &syn::ItemImpl,
+    type_name: &Ident,
 ) -> syn::Result<TokenStream> {
     // If the user hasn't directly provided trait bounds, override jsonrpsee's
     // defaults with an empty bound. This prevents spurious compilation errors
@@ -164,7 +164,7 @@ fn inner_rpc_gen(
     // Iterate over the methods from the `impl` block, building up lists of
     // items (trait method definitions and server method implementations) as we
     // go.
-    for item in input.items.iter() {
+    for item in &input.items {
         if let ImplItem::Fn(ref method) = item {
             let method = RpcMethod::parse(method)?;
 
@@ -189,7 +189,7 @@ fn inner_rpc_gen(
     let rpc_trait_name = format_ident!("{}Rpc", type_name);
     let rpc_server_trait_name = format_ident!("{}RpcServer", type_name);
     let rpc_trait_attrs = {
-        let doc_string = format!("Generated RPC trait for `{}`.", type_name);
+        let doc_string = format!("Generated RPC trait for `{type_name}`.");
         quote! {
             #[doc = #doc_string]
             #[::jsonrpsee::proc_macros::rpc(#(#attr_contents,)*)]
@@ -245,7 +245,7 @@ pub fn rpc_gen(attr_contents: Vec<syn::Meta>, input: syn::ItemImpl) -> syn::Resu
         }
     };
 
-    inner_rpc_gen(attr_contents, input, type_name.clone())
+    inner_rpc_gen(attr_contents, &input, &type_name)
 }
 
 mod utils {

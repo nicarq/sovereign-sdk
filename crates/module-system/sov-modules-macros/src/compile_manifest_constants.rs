@@ -84,11 +84,11 @@ pub struct ParsedConstant {
     pub make_const: bool,
 }
 
-fn parse_constant_inner(value: &toml::Value, span: &Span) -> syn::Result<AllowedTomlValue> {
+fn parse_constant_inner(value: &toml::Value, span: Span) -> syn::Result<AllowedTomlValue> {
     use toml::Value;
 
     let error = |toml_type: &str| {
-        syn::Error::new(*span, format!("failed to convert TOML value into Rust expression; its TOML value type ({}) is not supported: `{:?}`", toml_type, value))
+        syn::Error::new(span, format!("failed to convert TOML value into Rust expression; its TOML value type ({toml_type}) is not supported: `{value:?}`"))
     };
 
     match value {
@@ -119,7 +119,7 @@ fn parse_constant_inner(value: &toml::Value, span: &Span) -> syn::Result<Allowed
     }
 }
 
-fn parse_constant(value: &toml::Value, span: &Span) -> syn::Result<ParsedConstant> {
+fn parse_constant(value: &toml::Value, span: Span) -> syn::Result<ParsedConstant> {
     // Is it a `{ const = ... }` value?
     if let Ok(with_custom_override) = value.clone().try_into::<TomlConstValue>() {
         Ok(ParsedConstant {
@@ -169,10 +169,8 @@ fn allowed_toml_value_to_const_expr(
     })
 }
 
-fn allowed_toml_value_to_expr_with_override_logic(
-    value: &AllowedTomlValue,
-) -> syn::Result<TokenStream> {
-    Ok(match value {
+fn allowed_toml_value_to_expr_with_override_logic(value: &AllowedTomlValue) -> TokenStream {
+    match value {
         AllowedTomlValue::Bool(_) | AllowedTomlValue::Integer(_) => {
             quote::quote!({
                 use sov_modules_api::prelude::{serde, toml};
@@ -197,7 +195,7 @@ fn allowed_toml_value_to_expr_with_override_logic(
             let owned: Vec<_> = serde::Deserialize::deserialize(deserializer).unwrap();
             owned.try_into().unwrap()
         }),
-    })
+    }
 }
 
 /// Converts a TOML value into a Rust expression of the most appropriate type.
@@ -216,15 +214,14 @@ pub fn compile_toml_value_to_rust(
         input.constant_name.value()
     );
 
-    let parsed_constant = parse_constant(value, &input.span)?;
+    let parsed_constant = parse_constant(value, input.span)?;
     let const_expr =
         allowed_toml_value_to_const_expr(&input.constant_name, &parsed_constant.value)?;
 
     Ok(if parsed_constant.make_const {
         quote::quote!(#const_expr)
     } else {
-        let non_const_expr =
-            allowed_toml_value_to_expr_with_override_logic(&parsed_constant.value)?;
+        let non_const_expr = allowed_toml_value_to_expr_with_override_logic(&parsed_constant.value);
 
         quote::quote!({
             #[cfg(debug_assertions)]

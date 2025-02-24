@@ -179,7 +179,7 @@ macro_rules! fn_name {
 pub fn module_info(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
 
-    handle_macro_error_and_expand(fn_name!(), module_info::derive_module_info(input))
+    handle_macro_error_and_expand(fn_name!(), module_info::derive_module_info(&input))
 }
 
 #[proc_macro_derive(Genesis, attributes(genesis))]
@@ -359,13 +359,13 @@ pub fn expose_rpc(_attr: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_derive(RuntimeRestApi, attributes(rest_api))]
 pub fn runtime_metadata_rest_api(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
-    handle_macro_error_and_expand(fn_name!(), rest::runtime::derive(input).map(Into::into))
+    handle_macro_error_and_expand(fn_name!(), rest::runtime::derive(&input).map(Into::into))
 }
 
 #[proc_macro_derive(ModuleRestApi, attributes(rest_api))]
 pub fn module_metadata_rest_api(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
-    handle_macro_error_and_expand(fn_name!(), rest::module::derive(input).map(Into::into))
+    handle_macro_error_and_expand(fn_name!(), rest::module::derive(&input).map(Into::into))
 }
 
 #[cfg(feature = "native")]
@@ -378,10 +378,7 @@ pub fn cli_parser(input: TokenStream) -> TokenStream {
 fn expand_code(macro_name: &str, input: TokenStream) -> TokenStream {
     if std::env::var_os("SOVEREIGN_SDK_EXPAND_PROC_MACROS").is_some() {
         expand_macro::expand_to_file(input.clone(), macro_name).unwrap_or_else(|err| {
-            eprintln!(
-                "Failed to write to file proc-macro generated code: {:?}",
-                err
-            );
+            eprintln!("Failed to write to file proc-macro generated code: {err:?}");
             input
         })
     } else {

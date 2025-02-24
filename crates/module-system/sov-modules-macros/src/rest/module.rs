@@ -6,20 +6,20 @@ use syn::{DeriveInput, Ident};
 use crate::common::{join_doc_comments, str_to_url_segment, wrap_in_new_scope};
 use crate::module_info::parsing::{ModuleField, ModuleFieldAttribute, StructDef};
 
-pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
+pub fn derive(tokens: &DeriveInput) -> syn::Result<TokenStream> {
     // This `proc-macro` partially relies on parsing logic provided by
     // `StructDef`.
-    let module_struct_def = StructDef::parse(&tokens)?;
-    let rest_api_input = InputStruct::from_derive_input(&tokens)?;
+    let module_struct_def = StructDef::parse(tokens)?;
+    let rest_api_input = InputStruct::from_derive_input(tokens)?;
 
-    let state_fields = ParsedStateField::parse(&module_struct_def, &rest_api_input)?;
+    let state_fields = ParsedStateField::parse(&module_struct_def, &rest_api_input);
 
     let state_item_exprs = state_fields
         .iter()
         .map(|f| {
             let ident = &f.ident;
             let ty = &f.ty;
-            let state_name = format!("{}", ident);
+            let state_name = format!("{ident}");
             let description = description_code(&f.rest_api_field.doc, &f.rest_api_field.attrs)?;
 
             Ok(quote! {
@@ -112,7 +112,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
         ..
     } = module_struct_def;
 
-    let code = wrap_in_new_scope(quote! {
+    let code = wrap_in_new_scope(&quote! {
         use ::sov_modules_api::rest::utils::*;
         use ::sov_modules_api::rest::__private::*;
         use ::sov_modules_api::rest::__private::state::*;
@@ -203,8 +203,8 @@ impl ParsedStateField {
     pub fn parse<'a>(
         module_info_input: &'a StructDef,
         rest_api_input: &'a InputStruct,
-    ) -> syn::Result<Vec<Self>> {
-        Ok(module_info_input
+    ) -> Vec<Self> {
+        module_info_input
             .fields
             .iter()
             .zip(rest_api_input.fields().iter())
@@ -228,7 +228,7 @@ impl ParsedStateField {
                 // Fields explicitly marked with `skip` are ignored.
                 !f.rest_api_field.skip
             })
-            .collect())
+            .collect()
     }
 }
 
