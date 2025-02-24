@@ -44,11 +44,25 @@ async fn test_combined_generation_helper(modules: Distribution<ModulesToUse>) ->
         rollup_height: None,
     };
 
-    let (num_value_setter_txs, num_bank_txs) = outputs.iter().fold(
-        (0, 0),
-        |(num_value_setter_txs, num_bank_txs), output| match output.message {
-            TestRuntimeCall::Bank(_) => (num_value_setter_txs, num_bank_txs + 1),
-            TestRuntimeCall::ValueSetter(_) => (num_value_setter_txs + 1, num_bank_txs),
+    let (num_value_setter_txs, num_access_pattern_txs, num_bank_txs) = outputs.iter().fold(
+        (0, 0, 0),
+        |(num_value_setter_txs, num_access_pattern_txs, num_bank_txs), output| match output.message
+        {
+            TestRuntimeCall::Bank(_) => (
+                num_value_setter_txs,
+                num_access_pattern_txs,
+                num_bank_txs + 1,
+            ),
+            TestRuntimeCall::AccessPattern(_) => (
+                num_value_setter_txs,
+                num_access_pattern_txs + 1,
+                num_bank_txs,
+            ),
+            TestRuntimeCall::ValueSetter(_) => (
+                num_value_setter_txs + 1,
+                num_access_pattern_txs,
+                num_bank_txs,
+            ),
             _ => panic!("Unexpected message type"),
         },
     );
@@ -65,6 +79,7 @@ async fn test_combined_generation_helper(modules: Distribution<ModulesToUse>) ->
 
     NumTxsExecuted {
         num_bank_txs,
+        num_access_pattern_txs,
         num_value_setter_txs,
     }
 }
@@ -73,15 +88,18 @@ async fn test_combined_generation_helper(modules: Distribution<ModulesToUse>) ->
 async fn test_combined_transaction_generation() {
     let NumTxsExecuted {
         num_bank_txs,
+        num_access_pattern_txs,
         num_value_setter_txs,
     } = test_combined_generation_helper(Distribution::with_equiprobable_values(vec![
         ModulesToUse::Bank,
+        ModulesToUse::AccessPattern,
         ModulesToUse::ValueSetter,
     ]))
     .await;
 
     // We should have generated at least one bank and one value setter tx
     assert!(num_bank_txs > 0);
+    assert!(num_access_pattern_txs > 0);
     assert!(num_value_setter_txs > 0);
 }
 
@@ -89,9 +107,11 @@ async fn test_combined_transaction_generation() {
 async fn test_combined_transaction_generation_mixed() {
     let NumTxsExecuted {
         num_bank_txs,
+        num_access_pattern_txs,
         num_value_setter_txs,
     } = test_combined_generation_helper(Distribution::with_values(vec![
-        (8, ModulesToUse::Bank),
+        (6, ModulesToUse::Bank),
+        (2, ModulesToUse::AccessPattern),
         (2, ModulesToUse::ValueSetter),
     ]))
     .await;
@@ -99,8 +119,13 @@ async fn test_combined_transaction_generation_mixed() {
     // We should have generated at least one bank and one value setter tx
     assert!(num_bank_txs > 0);
     assert!(num_value_setter_txs > 0);
+    assert!(num_access_pattern_txs > 0);
     assert!(
         num_bank_txs > 2 * num_value_setter_txs,
+        "There should be at more bank transactions generated"
+    );
+    assert!(
+        num_bank_txs > 2 * num_access_pattern_txs,
         "There should be at more bank transactions generated"
     );
 }
@@ -109,6 +134,7 @@ async fn test_combined_transaction_generation_mixed() {
 async fn test_generate_txs_only_value_setter() {
     let NumTxsExecuted {
         num_bank_txs,
+        num_access_pattern_txs,
         num_value_setter_txs,
     } = test_combined_generation_helper(Distribution::with_equiprobable_values(vec![
         ModulesToUse::ValueSetter,
@@ -117,6 +143,7 @@ async fn test_generate_txs_only_value_setter() {
 
     // We should have generated zero bank transaction and 100 value setter transactions
     assert_eq!(num_bank_txs, 0);
+    assert_eq!(num_access_pattern_txs, 0);
     assert_eq!(num_value_setter_txs, TXS_TO_GENERATE);
 }
 
@@ -124,6 +151,7 @@ async fn test_generate_txs_only_value_setter() {
 async fn test_generate_txs_only_bank() {
     let NumTxsExecuted {
         num_bank_txs,
+        num_access_pattern_txs,
         num_value_setter_txs,
     } = test_combined_generation_helper(Distribution::with_equiprobable_values(vec![
         ModulesToUse::Bank,
@@ -133,4 +161,22 @@ async fn test_generate_txs_only_bank() {
     // We should have generated zero value setter transaction and 100 bank transactions
     assert_eq!(num_bank_txs, TXS_TO_GENERATE);
     assert_eq!(num_value_setter_txs, 0);
+    assert_eq!(num_access_pattern_txs, 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_generate_txs_only_access_pattern() {
+    let NumTxsExecuted {
+        num_bank_txs,
+        num_access_pattern_txs,
+        num_value_setter_txs,
+    } = test_combined_generation_helper(Distribution::with_equiprobable_values(vec![
+        ModulesToUse::AccessPattern,
+    ]))
+    .await;
+
+    // We should have generated zero value setter transaction and 100 bank transactions
+    assert_eq!(num_access_pattern_txs, TXS_TO_GENERATE);
+    assert_eq!(num_value_setter_txs, 0);
+    assert_eq!(num_bank_txs, 0);
 }

@@ -9,3 +9,5 @@ pub mod macros;
 /// Implements `Transaction` generation.
 pub mod transaction;
 pub mod value_setter;
+
+pub mod generator_modules;
