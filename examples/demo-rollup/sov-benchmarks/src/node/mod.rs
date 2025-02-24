@@ -134,7 +134,7 @@ pub fn prefill_state(roles: &Roles<S>, runner: &mut TestRunner<RT<S>, S>) -> Tok
     for blobs in slots {
         let apply_slot_output = runner.execute(blobs);
 
-        assert_batch_receipts(&apply_slot_output.batch_receipts);
+        assert_batch_receipts(&apply_slot_output.0.batch_receipts);
     }
 
     token_id

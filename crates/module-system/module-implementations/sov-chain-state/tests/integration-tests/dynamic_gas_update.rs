@@ -113,8 +113,8 @@ fn test_gas_price_increases_if_gas_used_exceeds_gas_target() {
         },
     ));
 
-    assert_eq!(result.batch_receipts.len(), 1);
-    let gas_price = result.batch_receipts[0].inner.gas_price.clone();
+    assert_eq!(result.0.batch_receipts.len(), 1);
+    let gas_price = result.0.batch_receipts[0].inner.gas_price.clone();
 
     let initial_gas_price = S::initial_base_fee_per_gas();
 
@@ -163,8 +163,8 @@ fn test_gas_price_decreases_if_gas_used_is_below_gas_target() {
         },
     ));
 
-    assert_eq!(result.batch_receipts.len(), 1);
-    let gas_price = result.batch_receipts[0].inner.gas_price.clone();
+    assert_eq!(result.0.batch_receipts.len(), 1);
+    let gas_price = result.0.batch_receipts[0].inner.gas_price.clone();
 
     let initial_gas_price = S::initial_base_fee_per_gas();
 

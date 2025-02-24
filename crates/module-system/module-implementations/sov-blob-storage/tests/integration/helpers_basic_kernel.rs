@@ -75,7 +75,7 @@ pub fn build_basic_blobs(
         ));
     }
 
-    TestRunner::<BasicRT>::batches_to_blobs(batches, nonces)
+    TestRunner::<BasicRT>::batches_to_blobs(batches, nonces).0
 }
 
 /// This helper method asserts that given slots to send and an expected order of receipts, the

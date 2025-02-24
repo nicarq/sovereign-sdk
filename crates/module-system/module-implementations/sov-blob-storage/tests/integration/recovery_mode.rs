@@ -77,7 +77,7 @@ fn test_recovery_mode_with_deferred_blobs() {
         .map(|blobs_slot_info| build_soft_confirmation_blobs(blobs_slot_info, &mut nonces, 0))
         .collect::<Vec<_>>();
 
-    let slashing_slot = TestRunner::<SoftConfRT>::batches_to_blobs(
+    let (slashing_slot, _) = TestRunner::<SoftConfRT>::batches_to_blobs(
         vec![(BatchType(vec![]), preferred_sequencer.da_address)],
         &mut nonces,
     );

@@ -1,9 +1,7 @@
 use borsh::BorshDeserialize;
 use sov_bank::derived_holder::DerivedHolder;
 use sov_bank::IntoPayable;
-use sov_modules_api::capabilities::{
-    AllowedSequencer, BalanceState, BlobOrigin, BlobSelectorOutput,
-};
+use sov_modules_api::capabilities::{AllowedSequencer, BlobOrigin, BlobSelectorOutput};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
@@ -22,6 +20,10 @@ use crate::{
     SequenceNumber, SequencerNumberTracker, ValidatedBlob,
 };
 
+/// A loose upper bound on the size of an emergency registration blob, in bytes. Blobs larger than this are statically known to be invalid
+/// so we don't bother trying to deserialize them.
+const MAX_EMERGENCY_REGISTRATION_BLOB_SIZE: usize = 1000;
+
 /// The reason that a blob was discarded
 #[derive(Debug)]
 pub(crate) enum BlobDiscardReason {
@@ -38,6 +40,8 @@ pub(crate) enum BlobDiscardReason {
     InsufficientReservedGas,
     /// The blob was not serialized correctly
     InvalidSerialization,
+    /// The blob is too large to be processed to be a valid emergency registration.
+    EmergencyRegistrationTooLarge,
 }
 
 #[derive(Debug)]
@@ -149,6 +153,7 @@ impl<S: Spec> BlobStorage<S> {
         state: &mut KernelStateAccessor<'_, S>,
     ) {
         let mut unregistered_blob_count = 0;
+        let gas_price_for_new_block = self.get_new_gas_price(visible_height_increase, state);
         for (idx, item) in blob_iter.enumerate() {
             tracing::trace!(idx, "Processing blob");
             match item {
@@ -186,9 +191,9 @@ impl<S: Spec> BlobStorage<S> {
                                     as_u32_or_panic(idx),
                                     blob,
                                     sequencer,
+                                    &gas_price_for_new_block,
                                     blobs_with_total_size_limit,
                                     account_for_deferral,
-                                    visible_height_increase,
                                     state,
                                 )
                             else {
@@ -204,9 +209,18 @@ impl<S: Spec> BlobStorage<S> {
                             blobs_with_total_size_limit.push_or_ignore(validated);
                         }
                         ValidateBlobOutcome::Accept(SequencerStatus::Unregistered) => {
+                            // If the blob is too large to be a valid emergency registration, just discard it.
+                            if blob.total_len() > MAX_EMERGENCY_REGISTRATION_BLOB_SIZE {
+                                Self::log_discarded_blob(
+                                    blob,
+                                    &BlobDiscardReason::EmergencyRegistrationTooLarge,
+                                );
+                                continue;
+                            }
+                            // Otherwise, try to deserialize and use it
                             unregistered_blob_count += 1;
-                            if let Some(tx) =
-                                self.deserialize_or_try_slash_sender::<RawTx>(blob, true, state)
+                            if let Some(tx) = self
+                                .deserialize_or_try_slash_sender::<RawTx>(blob, None, false, state)
                             {
                                 let blob = ValidatedBlob::new(
                                     BlobData::EmergencyRegistration(tx).with_id(blob.hash().into()),
@@ -242,7 +256,7 @@ impl<S: Spec> BlobStorage<S> {
             .is_sender_allowed(&blob.sender(), state)
         {
             Ok(sequencer) => ValidateBlobOutcome::Accept(SequencerStatus::Registered(sequencer)),
-            Err(AllowedSequencerError::NotRegistered) => {
+            Err(AllowedSequencerError::NotRegistered) | Err(AllowedSequencerError::NotActive) => {
                 if unregistered_blobs_processed >= config_unregistered_blobs_per_slot() {
                     ValidateBlobOutcome::Discard(BlobDiscardReason::MaxAllowedUnregisteredBlobs)
                 } else {
@@ -393,13 +407,17 @@ impl<S: Spec> BlobStorage<S> {
             .map(BlobOrigin::Batch)
             .filter_map(|blob| match blob {
                 BlobOrigin::Proof(proof_blob) => self
-                    .deserialize_or_try_slash_sender::<PreferredProofData>(proof_blob, true, state)
+                    .deserialize_or_try_slash_sender::<PreferredProofData>(
+                        proof_blob, None, true, state,
+                    )
                     .map(|proof| PreferredBlobDataWithId {
                         inner: PreferredBlobData::Proof(proof),
                         id: proof_blob.hash().into(),
                     }),
                 BlobOrigin::Batch(batch_blob) => self
-                    .deserialize_or_try_slash_sender::<PreferredBatchData>(batch_blob, true, state)
+                    .deserialize_or_try_slash_sender::<PreferredBatchData>(
+                        batch_blob, None, true, state,
+                    )
                     .map(|batch| PreferredBlobDataWithId {
                         inner: PreferredBlobData::Batch(batch),
                         id: batch_blob.hash().into(),
@@ -745,24 +763,29 @@ impl<S: Spec> BlobStorage<S> {
         state: &mut KernelStateAccessor<'_, S>,
     ) -> Option<ValidatedBlob<S, BatchWithId<S>>> {
         // Proofs must come from a registered sequencer
-        let sequencer = self
+        let Ok(sequencer) = self
             .sequencer_registry
             .is_sender_allowed(&blob.sender(), state)
-            .ok()?;
-        // This is checked elsewhere, but we check it again here to be extra sure.
-        if sequencer.balance_state != BalanceState::Active {
+        else {
             return None;
-        }
+        };
+        let gas_price_for_new_block: <<S as Spec>::Gas as Gas>::Price =
+            self.get_new_gas_price(visible_height_increase, state);
 
-        let proof = self.deserialize_or_try_slash_sender::<Vec<u8>>(blob, true, state)?;
+        let proof = self.deserialize_or_try_slash_sender::<Vec<u8>>(
+            blob,
+            Some((&sequencer, &gas_price_for_new_block)),
+            true,
+            state,
+        )?;
         self.validate_blob(
             idx,
             BlobData::Proof((proof, sequencer.address)).with_id(blob.hash().into()),
             blob.sender(),
             sequencer.balance,
             blobs_to_select,
+            &gas_price_for_new_block,
             account_for_deferral,
-            visible_height_increase,
             state,
         )
     }
@@ -772,24 +795,27 @@ impl<S: Spec> BlobStorage<S> {
         idx: u32,
         blob: &mut <S::Da as DaSpec>::BlobTransaction,
         sequencer: AllowedSequencer<S>,
+        gas_price_for_new_block: &<S::Gas as Gas>::Price,
         blobs_to_select: &BlobsWithTotalSizeLimit<S>,
         account_for_deferral: bool,
-        visible_height_increase: u64,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> Option<ValidatedBlob<S, BatchWithId<S>>> {
-        let batch = self.deserialize_or_try_slash_sender::<Vec<FullyBakedTx>>(blob, true, state)?;
-        // This is checked elsewhere, but we check it again here to be extra sure.
-        if sequencer.balance_state != BalanceState::Active {
-            return None;
-        }
+        // This is checked elsewhere, but we check it again here before doing anything that might impact the sender's balance.
+        // Defense in depth.
+        let batch = self.deserialize_or_try_slash_sender::<Vec<FullyBakedTx>>(
+            blob,
+            Some((&sequencer, gas_price_for_new_block)),
+            true,
+            state,
+        )?;
         self.validate_blob(
             idx,
             BlobData::Batch((batch, sequencer.address)).with_id(blob.hash().into()),
             blob.sender(),
             sequencer.balance,
             blobs_to_select,
+            gas_price_for_new_block,
             account_for_deferral,
-            visible_height_increase,
             state,
         )
     }
@@ -870,9 +896,26 @@ impl<S: Spec> BlobStorage<S> {
     fn deserialize_or_try_slash_sender<B: BorshDeserialize>(
         &self,
         blob: &mut <S::Da as DaSpec>::BlobTransaction,
-        registered_sender: bool,
+        charge_for_deserialization: Option<(&AllowedSequencer<S>, &<S::Gas as Gas>::Price)>,
+        slash_on_failure: bool,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> Option<B> {
+        if let Some((registered_sender, gas_price_for_new_block)) = charge_for_deserialization {
+            let funds_for_deserialization =
+                <S as GasSpec>::gas_to_charge_per_byte_borsh_deserialization()
+                    .checked_scalar_product(blob.total_len() as u64)?
+                    .checked_value(gas_price_for_new_block)?;
+            if registered_sender.balance < funds_for_deserialization {
+                return None;
+            }
+            // Burn the cost of deserialization from the sender's balance. For now, we just send it to the sequencer registry where it'll remain inaccessible.
+            self.sequencer_registry.remove_part_of_the_stake(
+                &blob.sender(),
+                self.sequencer_registry.id().to_payable(),
+                funds_for_deserialization,
+                state,
+            ).expect("Failed to remove funds for deserialization even though the sender has enough balance. This should never happen.");
+        }
         match B::try_from_slice(data_for_deserialization(blob)) {
             Ok(batch) => Some(batch),
             // if the blob is malformed, slash the sequencer
@@ -892,7 +935,7 @@ impl<S: Spec> BlobStorage<S> {
                     "Unable to deserialize blob. slashing sender if they are registered"
                 );
 
-                if registered_sender {
+                if slash_on_failure {
                     self.sequencer_registry
                         .slash_sequencer(&blob.sender(), state);
                 } else {

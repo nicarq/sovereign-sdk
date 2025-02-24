@@ -37,8 +37,8 @@ impl<S: Spec> BlobStorage<S> {
         sender: <<S as Spec>::Da as DaSpec>::Address,
         available_balance: u64,
         selected_blobs: &BlobsWithTotalSizeLimit<S>,
+        gas_price_for_new_block: &<S::Gas as Gas>::Price,
         account_for_deferral: bool,
-        visible_height_increase: u64,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> Option<ValidatedBlob<S, BatchWithId<S>>> {
         if !selected_blobs.can_accept_blob(blob.blob_size()) {
@@ -46,13 +46,14 @@ impl<S: Spec> BlobStorage<S> {
         }
 
         let mut funds_needed = 0u64;
-        let best_gas_price_estimate = self.get_new_gas_price(visible_height_increase, state);
 
         // If we might defer this blob, we need to account for storage costs and account for the fact that the gas price might be higher.
         // when it gets selected for execution.
+        // Note that we don't yet actually charge sequencer for the cost of blob storage because it would require some changes to our gas metering infrastructure, but this may be added in future.
+        // For now, we check that the sequencer has enough balance to cover the cost of this blob storage anyway, which will help minimize the user-visible surface area of the change in future.
         if account_for_deferral {
             let tokens_needed_for_deferral =
-                self.account_for_deferral_costs(&blob, &sender, &best_gas_price_estimate)?;
+                self.account_for_deferral_costs(&blob, &sender, gas_price_for_new_block)?;
             funds_needed = funds_needed.checked_add(tokens_needed_for_deferral)?;
         }
 
@@ -65,7 +66,7 @@ impl<S: Spec> BlobStorage<S> {
         let gas_needed_for_pre_exec_checks = <S as GasSpec>::max_tx_check_costs()
             .checked_scalar_product(num_pre_exec_checks_needed as u64)?;
         funds_needed = funds_needed
-            .checked_add(gas_needed_for_pre_exec_checks.checked_value(&best_gas_price_estimate)?)?;
+            .checked_add(gas_needed_for_pre_exec_checks.checked_value(gas_price_for_new_block)?)?;
         if funds_needed > available_balance {
             tracing::debug!(funds_needed, %sender, available_balance, "Failed to escrow funds for deferred blob.");
             return None;

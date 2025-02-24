@@ -16,6 +16,7 @@ use sov_modules_api::rest::utils::ResponseObject;
 use sov_rollup_interface::crypto::{CredentialId, PublicKey};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::zk::CryptoSpec;
+use sov_sequencer_registry::KnownSequencer;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct NonceResponse {
@@ -36,9 +37,9 @@ struct AdminsResponse<S: sov_modules_api::Spec> {
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
-struct AllowedSequencerResponse<S: sov_modules_api::Spec> {
+struct KnownSequencerResponse<S: sov_modules_api::Spec> {
     key: <S::Da as DaSpec>::Address,
-    value: AllowedSequencer<S>,
+    value: KnownSequencer<S>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -299,9 +300,9 @@ impl NodeClient {
     pub async fn sequencer_rollup_address<S: sov_modules_api::Spec, Da: DaSpec>(
         &self,
         da_address: &Da::Address,
-    ) -> anyhow::Result<Option<AllowedSequencer<S>>> {
+    ) -> anyhow::Result<Option<KnownSequencer<S>>> {
         let url = format!(
-            "{}/modules/sequencer-registry/state/allowed-sequencers/items/{}",
+            "{}/modules/sequencer-registry/state/known-sequencers/items/{}",
             self.base_url, &da_address,
         );
 
@@ -310,15 +311,15 @@ impl NodeClient {
             anyhow::bail!("Unsuccessful response {:?}", response);
         }
         let response = response
-            .json::<ResponseObject<AllowedSequencerResponse<S>>>()
+            .json::<ResponseObject<KnownSequencerResponse<S>>>()
             .await
-            .context("Deserialization of `AllowedSequencerResponse")?;
+            .context("Deserialization of `KnownSequencerResponse`")?;
 
-        let allowed_sequencer = response
+        let known_sequencer = response
             .data
             .expect("Data should be set, otherwise HTTP 404");
 
-        Ok(Some(allowed_sequencer.value))
+        Ok(Some(known_sequencer.value))
     }
 }
 

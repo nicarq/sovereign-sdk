@@ -1,7 +1,8 @@
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::capabilities::{AllowedSequencer, BalanceState};
 use sov_modules_api::ApiStateAccessor;
-use sov_sequencer_registry::{SequencerRegistry, SequencerRegistryError};
+use sov_sequencer_registry::{
+    BalanceState, KnownSequencer, SequencerRegistry, SequencerRegistryError,
+};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{TestRunner, ValueSetter, ValueSetterConfig};
 use sov_test_utils::{generate_optimistic_runtime, TestSequencer, TestUser};
@@ -59,9 +60,8 @@ pub fn setup_with_custom_runtime(runtime: RT) -> (TestRoles, TestRunner<TestRunt
     runner.query_visible_state(|state| {
         // Check that the sequencer account is bonded
         assert_eq!(
-            TestSequencerRegistry::default()
-                .is_sender_allowed(&genesis_sequencer_da_address, state),
-            Ok(AllowedSequencer {
+            TestSequencerRegistry::default().is_sender_known(&genesis_sequencer_da_address, state),
+            Ok(KnownSequencer {
                 address: genesis_sequencer_address,
                 balance: genesis_sequencer_bond,
                 balance_state: BalanceState::Active,

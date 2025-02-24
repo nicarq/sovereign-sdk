@@ -3,7 +3,7 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::Error::ModuleError;
-use sov_modules_api::TxEffect;
+use sov_modules_api::{Gas, GasArray, GasSpec, GetGasPrice, TxEffect};
 use sov_sequencer_registry::{CallMessage, CustomError};
 use sov_test_utils::runtime::{TestRunner, ValueSetter};
 use sov_test_utils::{
@@ -49,6 +49,12 @@ fn test_default_sequencer() {
             .with_max_priority_fee_bips(custom_priority_fee),
         assert: Box::new(move |result, state| {
             // Assert that the sequencer has been rewarded
+            let gas_price = state.gas_price();
+            let sequencer_burn = S::gas_to_charge_per_byte_borsh_deserialization()
+                .checked_scalar_product(result.blob_info.size as u64)
+                .unwrap()
+                .checked_value(gas_price)
+                .unwrap();
             assert_eq!(
                 TestRunner::<RT, S>::get_sequencer_staking_balance(
                     &test_sequencer_da_address,
@@ -56,13 +62,14 @@ fn test_default_sequencer() {
                 ),
                 Some(
                     test_sequencer_bond + custom_priority_fee.apply(result.gas_value_used).unwrap()
+                        - sequencer_burn
                 ),
                 "The sequencer should have been rewarded the execution funds "
             );
 
             assert_eq!(
                 TestSequencerRegistry::default()
-                    .is_sender_allowed(&test_sequencer_da_address, state)
+                    .is_sender_known(&test_sequencer_da_address, state)
                     .unwrap()
                     .address,
                 test_sequencer_address
@@ -96,7 +103,7 @@ fn test_new_sequencer_registration() {
             // Assert that the sequencer has correctly been registered
             assert!(
                 TestSequencerRegistry::default()
-                    .is_sender_allowed(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
+                    .is_sender_known(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
                     .is_ok(),
                 "The sequencer is not registered"
             );
@@ -246,7 +253,7 @@ fn test_exit_happy_path() {
             // Assert that the sequencer has correctly been registered
             assert!(
                 TestSequencerRegistry::default()
-                    .is_sender_allowed(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
+                    .is_sender_known(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
                     .is_ok_and(|allowed_sequencer| allowed_sequencer.balance_state.is_active()),
                 "The sequencer is not registered"
             );
@@ -267,13 +274,15 @@ fn test_exit_happy_path() {
         ),
         assert: Box::new(move |result, state| {
             // Assert that the sequencer has correctly been unregistered
+            let Ok(allowed_sequencer) = TestSequencerRegistry::default()
+                .is_sender_known(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
+            else {
+                panic!("The sequencer is not registered");
+            };
             assert!(
-                TestSequencerRegistry::default()
-                    .is_sender_allowed(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
-                    .is_ok_and(|allowed_sequencer| allowed_sequencer
-                        .balance_state
-                        .is_pending_withdrawal()),
-                "The sequencer should be registered and pending withdrawal"
+                allowed_sequencer.balance_state.is_pending_withdrawal(),
+                "The sequencer {} should be registered and pending withdrawal",
+                allowed_sequencer.address
             );
             // Assert that an exit event has been emitted
             assert!(result.events.iter().any(|event| matches!(
@@ -345,7 +354,7 @@ fn test_exit_happy_path() {
             // Assert that the sequencer has correctly been unregistered
             assert!(
                 TestSequencerRegistry::default()
-                    .is_sender_allowed(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
+                    .is_sender_known(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
                     .is_err(),
                 "The sequencer should be unregistered"
             );
@@ -385,10 +394,6 @@ fn test_deposit_resets_balance_state() {
 
     let other_sequencer_da_address = MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS);
 
-    // let other_sequencer_balance_ref = AtomicNumber::new(additional_sequencer.available_gas_balance);
-    // let other_sequencer_balance_ref_1 = other_sequencer_balance_ref.clone();
-    // let other_sequencer_balance_ref_2 = other_sequencer_balance_ref.clone();
-
     let register = TransactionTestCase {
         input: additional_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
@@ -424,7 +429,7 @@ fn test_deposit_resets_balance_state() {
             assert!(result.tx_receipt.is_successful());
             assert!(
                 TestSequencerRegistry::default()
-                    .is_sender_allowed(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
+                    .is_sender_known(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
                     .is_ok_and(
                         |allowed_sequencer| allowed_sequencer.balance_state.is_active()
                             && allowed_sequencer.balance == SEQUENCE_STAKE + 1
@@ -694,7 +699,7 @@ fn test_non_registered_sequencer_is_not_allowed() {
     runner.query_visible_state(|state| {
         assert!(
             TestSequencerRegistry::default()
-                .is_sender_allowed(&MockAddress::from(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
+                .is_sender_known(&MockAddress::from(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
                 .is_err(),
             "Non-registered sequencers should not be allowed"
         );
@@ -707,7 +712,7 @@ fn test_non_registered_sequencer_cannot_send_batches() {
 
     runner.config.sequencer_da_address = NON_DEFAULT_SEQUENCER_DA_ADDRESS.into();
 
-    let outcome = runner.execute(BatchType(vec![admin
+    let (outcome, _) = runner.execute(BatchType(vec![admin
         .create_plain_message::<RT, TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
                 da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.into(),

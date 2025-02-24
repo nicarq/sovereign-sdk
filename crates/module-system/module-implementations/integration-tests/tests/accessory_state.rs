@@ -99,14 +99,14 @@ fn test_accessory_value_setter() {
         TestAccessoryRuntime::default(),
     );
 
-    let (result_with_update, _) = runner.simulate(
+    let (result_with_update, _, _) = runner.simulate(
         user.create_plain_message::<RT, TestAccessoryModule<S>>(CallMessage::SetAccessoryValue(42)),
     );
 
     let gas_consumed_with_update =
         get_gas_used(&result_with_update.batch_receipts[0].tx_receipts[0]);
 
-    let (result_without_update, _) = runner
+    let (result_without_update, _, _) = runner
         .simulate(user.create_plain_message::<RT, TestAccessoryModule<S>>(CallMessage::Nop(42)));
 
     let gas_consumed_without_update =

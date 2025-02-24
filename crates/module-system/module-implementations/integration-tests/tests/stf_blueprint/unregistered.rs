@@ -53,7 +53,7 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
 
         let result = runner.execute::<RelevantBlobs<MockBlob>>(unregistered_blobs);
 
-        let batch_receipt = &result.batch_receipts[0];
+        let batch_receipt = &result.0.batch_receipts[0];
         let gas_price = &batch_receipt.inner.gas_price;
 
         let tx_receipt = &batch_receipt.tx_receipts[0];
@@ -179,7 +179,7 @@ fn blob_too_expensive_tests() {
     };
 
     let result = runner.execute::<RelevantBlobs<MockBlob>>(unregistered_blobs);
-    let batch_receipt = &result.batch_receipts[0];
+    let batch_receipt = &result.0.batch_receipts[0];
 
     assert!(batch_receipt.tx_receipts.is_empty());
 }
@@ -208,7 +208,7 @@ fn blob_test_max_slot_size() {
 
     let result = runner.execute::<RelevantBlobs<MockBlob>>(unregistered_blobs);
     // The blob was to big to be deserialized, so it should be rejected.
-    assert!(result.batch_receipts.is_empty());
+    assert!(result.0.batch_receipts.is_empty());
 }
 
 // Execute a blob that is too big to be returned by the blob storage.
@@ -235,7 +235,7 @@ fn blob_test_max_allowed_data_size() {
 
     let result = runner.execute::<RelevantBlobs<MockBlob>>(unregistered_blobs);
     // The blob was to big to be deserialized, so it should be rejected.
-    assert!(result.batch_receipts.is_empty());
+    assert!(result.0.batch_receipts.is_empty());
 }
 
 mod helpers {

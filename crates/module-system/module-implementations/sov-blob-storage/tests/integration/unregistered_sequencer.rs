@@ -10,6 +10,7 @@ use sov_test_utils::runtime::traits::MinimalGenesis;
 use sov_test_utils::{
     default_test_tx_details, AsUser, EncodeCall, SequencerInfo, TestSequencer, TransactionType,
 };
+use sov_value_setter::ValueSetter;
 
 use crate::helpers_basic_kernel::{build_basic_blobs, setup_basic_kernel, BasicRT};
 use crate::helpers_soft_confirmations::{
@@ -48,6 +49,29 @@ fn make_unregistered_blobs<
         .collect::<Vec<_>>()
 }
 
+fn make_unregistered_blob_with_approx_size<
+    RT: Runtime<S, BlobType = SelectedBlob<S>> + MinimalGenesis<S> + EncodeCall<ValueSetter<S>>,
+>(
+    sender: &TestSequencer<S>,
+    size: usize,
+) -> MockBlob {
+    let blob = vec![1; size];
+    let msg = sov_value_setter::CallMessage::SetManyValues(blob);
+    let key = sender.as_user().private_key().clone();
+    let details = default_test_tx_details::<S>();
+    let nonces = &mut HashMap::new();
+
+    let tx = TransactionType::<RT, S>::sign_and_serialize(
+        <RT as EncodeCall<ValueSetter<S>>>::to_decodable(msg),
+        key,
+        &RT::CHAIN_HASH,
+        details,
+        nonces,
+    );
+
+    MockBlob::new_with_hash(borsh::to_vec(&tx).unwrap(), sender.da_address)
+}
+
 /// Tries to send too many blobs from a non-registered sequencer and hit rate limits.
 #[test]
 fn blobs_from_non_registered_sequencers_are_limited_to_set_amount() {
@@ -78,9 +102,63 @@ fn blobs_from_non_registered_sequencers_are_limited_to_set_amount() {
 
     // Assert that the number of blobs received is at most the [`UNREGISTERED_BLOBS_PER_SLOT`] limit
     assert_eq!(
-        result.batch_receipts.len(),
+        result.0.batch_receipts.len(),
         config_unregistered_blobs_per_slot() as usize,
         "The number of blobs received should be equal to `UNREGISTERED_BLOBS_PER_SLOT`"
+    );
+}
+
+/// Tries to send too blobs that are too large from a non-registered sequencer.
+#[test]
+fn blobs_from_non_registered_sequencers_are_limited_in_length() {
+    let (
+        TestData {
+            regular_sequencer: non_registered_sequencer,
+            ..
+        },
+        mut runner,
+    ) = setup_basic_kernel();
+
+    // Make and submit an unregistered blob that is too large
+    let blob = make_unregistered_blob_with_approx_size::<BasicRT>(&non_registered_sequencer, 1010);
+    let unregistered_blobs = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs: vec![blob],
+    };
+
+    let result = runner.execute::<RelevantBlobs<MockBlob>>(unregistered_blobs);
+    // Assert that the number of blobs received is 0
+    assert_eq!(
+        result.0.batch_receipts.len(),
+        0,
+        "No blobs should be received, since the submitted blob is too large"
+    );
+}
+
+/// Tries to send too blobs that are too large from a non-registered sequencer.
+#[test]
+fn blobs_from_non_registered_sequencers_are_not_too_limited_in_length() {
+    let (
+        TestData {
+            regular_sequencer: non_registered_sequencer,
+            ..
+        },
+        mut runner,
+    ) = setup_basic_kernel();
+
+    // Make and submit an unregistered blob that is less than 1k and contains a correctly serialized RawTx
+    let blob = make_unregistered_blob_with_approx_size::<BasicRT>(&non_registered_sequencer, 500);
+    let unregistered_blob = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs: vec![blob],
+    };
+    let result = runner.execute::<RelevantBlobs<MockBlob>>(unregistered_blob);
+
+    // Assert that the number of blobs received is 1
+    assert_eq!(
+        result.0.batch_receipts.len(),
+        1,
+        "The number of blobs received should be 1, since the submitted blob is less than 1k and contains a correctly serialized RawTx"
     );
 }
 
@@ -123,7 +201,7 @@ fn blobs_from_non_registered_sequencers_are_limited_to_set_amount_soft_confirmat
 
     // Assert that the number of blobs received is below the [`UNREGISTERED_BLOBS_PER_SLOT`] limit
     assert_eq!(
-        result.batch_receipts.len(),
+        result.0.batch_receipts.len(),
         1 + config_unregistered_blobs_per_slot() as usize,
         "The number of blobs received should be equal to `UNREGISTERED_BLOBS_PER_SLOT` plus 1 (the preferred blob)"
     );
@@ -159,7 +237,7 @@ fn blobs_from_non_registered_sequencers_base_sequencing() {
 
     // Assert that the number of blobs received is below the [`UNREGISTERED_BLOBS_PER_SLOT`] limit
     assert_eq!(
-        result.batch_receipts.len(),
+        result.0.batch_receipts.len(),
         4 + config_unregistered_blobs_per_slot() as usize,
         "The number of blobs received should be equal to `UNREGISTERED_BLOBS_PER_SLOT` plus 4 (the registered blobs)"
     );
@@ -204,7 +282,7 @@ fn forced_registration_first_on_same_slot_as_preferred_blob() {
 
     let result = runner.execute::<RelevantBlobs<MockBlob>>(relevant_blobs);
 
-    for batch_receipt in result.batch_receipts {
+    for batch_receipt in result.0.batch_receipts {
         assert_batch_is_not_at_loss(&batch_receipt);
         received_batches += 1;
     }
@@ -219,7 +297,7 @@ fn forced_registration_first_on_same_slot_as_preferred_blob() {
             )],
         };
         let result = runner.execute::<RelevantBlobs<MockBlob>>(slot_to_send);
-        for batch_receipt in result.batch_receipts {
+        for batch_receipt in result.0.batch_receipts {
             assert_batch_is_not_at_loss(&batch_receipt);
             received_batches += 1;
         }

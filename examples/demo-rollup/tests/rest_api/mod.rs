@@ -227,7 +227,7 @@ async fn check_state_value(client: &demo_stf_json_client::Client) -> anyhow::Res
 async fn check_state_map(client: &demo_stf_json_client::Client) -> anyhow::Result<()> {
     // State Map meta info
     let meta_info = client
-        .sequencer_registry_allowed_sequencers_get_state_map_info(None)
+        .sequencer_registry_known_sequencers_get_state_map_info(None)
         .await?;
 
     let meta_info = meta_info.data.clone();

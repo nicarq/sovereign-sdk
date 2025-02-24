@@ -36,12 +36,12 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
 
     let result = runner.execute(relevant_blobs);
 
-    assert_eq!(1, result.batch_receipts.len());
+    assert_eq!(1, result.0.batch_receipts.len());
     // 2 transactions from value setter
     // 2 transactions from bank
-    assert_eq!(4, result.batch_receipts[0].tx_receipts.len());
+    assert_eq!(4, result.0.batch_receipts[0].tx_receipts.len());
 
-    let apply_blob_outcome = result.batch_receipts[0].clone();
+    let apply_blob_outcome = result.0.batch_receipts[0].clone();
 
     assert_eq!(
         BatchSequencerOutcome {
@@ -93,8 +93,8 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
 
     let apply_block_result = runner.execute(relevant_blobs);
 
-    assert_eq!(1, apply_block_result.batch_receipts.len());
-    let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
+    assert_eq!(1, apply_block_result.0.batch_receipts.len());
+    let apply_blob_outcome = apply_block_result.0.batch_receipts[0].clone();
 
     assert_eq!(
         BatchSequencerOutcome {
@@ -162,8 +162,8 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
 
     let apply_block_result = runner.execute(relevant_blobs);
 
-    assert_eq!(2, apply_block_result.batch_receipts.len());
-    for batch_receipt in apply_block_result.batch_receipts.iter() {
+    assert_eq!(2, apply_block_result.0.batch_receipts.len());
+    for batch_receipt in apply_block_result.0.batch_receipts.iter() {
         assert_eq!(
             batch_receipt.inner.outcome,
             BatchSequencerOutcome {
@@ -235,7 +235,7 @@ fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
     let apply_block_result = runner.execute(relevant_blobs);
 
     // Ensure that the batch was rejected for containing too many txs.
-    assert_eq!(0, apply_block_result.batch_receipts.len());
+    assert_eq!(0, apply_block_result.0.batch_receipts.len());
 
     runner.query_state(|state| {
         let runtime = &mut IntegTestRuntime::<TestSpec>::default();
@@ -276,8 +276,8 @@ fn test_unregistered_sequencer_registration_incorrect_call_message() {
 
     let apply_block_result = runner.execute(relevant_blobs);
 
-    assert_eq!(1, apply_block_result.batch_receipts.len());
-    let receipt = &apply_block_result.batch_receipts[0];
+    assert_eq!(1, apply_block_result.0.batch_receipts.len());
+    let receipt = &apply_block_result.0.batch_receipts[0];
     assert_eq!(
         receipt.inner.outcome,
         BatchSequencerOutcome {
@@ -357,10 +357,10 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
 
     assert_eq!(
         unregistered_blobs_per_slot,
-        apply_block_result.batch_receipts.len()
+        apply_block_result.0.batch_receipts.len()
     );
     // check the first blob, that contained a valid register tx
-    let first_registered_receipt = &apply_block_result.batch_receipts[0];
+    let first_registered_receipt = &apply_block_result.0.batch_receipts[0];
     assert_eq!(
         first_registered_receipt.inner.outcome,
         BatchSequencerOutcome {
@@ -370,7 +370,7 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
 
     // ensure the filler blobs have the right outcome
     for i in 1..unregistered_blobs_per_slot {
-        let receipt = &apply_block_result.batch_receipts[i];
+        let receipt = &apply_block_result.0.batch_receipts[i];
         assert_eq!(
             receipt.inner.outcome,
             BatchSequencerOutcome {

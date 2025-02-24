@@ -98,7 +98,7 @@ fn test_chain_state_gas_updates() {
             "The genesis hash should be set"
         );
 
-        let gas_consumed = get_gas_used(&output.batch_receipts[0].tx_receipts[0]);
+        let gas_consumed = get_gas_used(&output.0.batch_receipts[0].tx_receipts[0]);
 
         let in_progress_transition = ChainState::<S>::default()
             .latest_visible_slot(kernel)

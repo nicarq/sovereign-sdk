@@ -1,9 +1,9 @@
 ## 2025-02-22
+- #2491 Burns the cost of deserializing blobs to reduce risk of spam by registered sequencers. 
 - #2492 Allows setting the supply cap of a token during initialization. This cap cannot be modified later on, even by authorized minters. 
 
 ## 2025-02-20
 - #2483 Disable the proof processing code path in the STF blueprint. See Issue #2487.
-## 2025-02-20
 - #2457 adds a 2-phase withdrawal process to the sequencer registry. This requires splitting the `Exit` Callmessage into two calls. After this change, withdrawers must call `InitiateWithdrawal`, then wait for an unbonding period before calling `Withdraw`. This prevents transactions from breaking soft confirmations in some edge cases.
 
 ## 2025-02-21
