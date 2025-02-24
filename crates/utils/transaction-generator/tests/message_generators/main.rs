@@ -41,7 +41,7 @@ mod bank;
 mod basic;
 mod transactions;
 
-const USER_BALANCE: u64 = 1_000_000_000_000;
+const USER_BALANCE: u128 = 1_000_000_000_000;
 const MAX_VEC_LEN_VALUE_SETTER: usize = 1000;
 const MAXIMUM_WRITE_DATA_LENGTH: usize = 100;
 const MAXIMUM_WRITE_BEGIN_INDEX: u64 = 1000;
@@ -287,7 +287,7 @@ pub struct Setup {
     pub genesis_config: GenesisConfig<S>,
 }
 
-fn setup_roles_and_config(user_balance: u64) -> Setup {
+fn setup_roles_and_config(user_balance: u128) -> Setup {
     let mut genesis_config = HighLevelOptimisticGenesisConfig::generate()
         .add_accounts_with_default_balance(2)
         .add_accounts_with_balance(2, user_balance);
@@ -295,13 +295,13 @@ fn setup_roles_and_config(user_balance: u64) -> Setup {
     genesis_config
         .initial_attester
         .user_info
-        .available_gas_balance = u64::MAX / 4;
-    genesis_config.initial_attester.bond = u64::MAX / 4;
-    genesis_config.initial_sequencer.bond = u64::MAX / 4;
+        .available_gas_balance = u128::MAX / 4;
+    genesis_config.initial_attester.bond = u128::MAX / 4;
+    genesis_config.initial_sequencer.bond = u128::MAX / 4;
     genesis_config
         .initial_sequencer
         .user_info
-        .available_gas_balance = u64::MAX / 4;
+        .available_gas_balance = u128::MAX / 4;
 
     let sequencer = genesis_config.initial_sequencer.clone();
     let attester = genesis_config.initial_attester.clone();

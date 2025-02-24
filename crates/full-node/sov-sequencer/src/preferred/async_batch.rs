@@ -80,7 +80,7 @@ pub struct AsyncBatch<R, S: Spec> {
     pub setup_channel: Option<oneshot::Sender<ChangeSet>>,
     /// The minimum fee that the sequencer is currently willing to earn. Txs which net
     /// less than this fee will be rejected.
-    pub tx_profit_threshold: u64,
+    pub tx_profit_threshold: u128,
     pub sequencer_admins: Arc<Vec<S::Address>>,
 }
 
@@ -91,7 +91,7 @@ impl<R, S: Spec> AsyncBatch<R, S> {
         sequencer_address: <S as Spec>::Address,
         setup_channel: oneshot::Sender<ChangeSet>,
         result_channel: Sender<Result<(R, TxChangeSet), RejectReason>>,
-        tx_profit_threshold: u64,
+        tx_profit_threshold: u128,
         sequencer_admins: Arc<Vec<S::Address>>,
     ) -> Self {
         Self {
@@ -109,7 +109,7 @@ impl<R, S: Spec> AsyncBatch<R, S> {
 pub struct AsyncBatchResponder<R, S: Spec> {
     result_channel: Sender<Result<(R, TxChangeSet), RejectReason>>,
     admins: Arc<Vec<S::Address>>,
-    tx_profit_threshold: u64,
+    tx_profit_threshold: u128,
 }
 
 impl<R, S: Spec> AsyncBatchResponder<R, S> {
@@ -162,10 +162,10 @@ impl<T: TxReceiptContents, S: Spec> AsyncBatchResponder<TransactionReceipt<T>, S
             return (dirty_scratchpad.revert(), TxControlFlow::IgnoreTx);
         }
 
-        if penalty > reward || reward - penalty < self.tx_profit_threshold {
+        if penalty > reward || reward.saturating_sub(penalty) < self.tx_profit_threshold {
             self.send_item(Err(RejectReason::InsufficientReward {
                 expected: self.tx_profit_threshold,
-                found: reward - penalty,
+                found: reward.saturating_sub(penalty).0,
             }));
             return (dirty_scratchpad.revert(), TxControlFlow::IgnoreTx);
         }

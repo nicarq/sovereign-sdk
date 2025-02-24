@@ -66,7 +66,7 @@ impl<'b, S: Spec> BlobSelector for SoftConfirmationsKernel<'b, S> {
     #[cfg(feature = "native")]
     fn escrow_funds_for_preferred_sequencer(
         &self,
-        amount: u64,
+        amount: sov_modules_api::Amount,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> anyhow::Result<()> {
         self.blob_storage

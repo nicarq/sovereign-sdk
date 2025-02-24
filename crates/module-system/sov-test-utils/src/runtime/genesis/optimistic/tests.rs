@@ -3,7 +3,7 @@ use sov_attester_incentives::AttesterIncentivesConfig;
 use sov_bank::{Bank, BankConfig};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    CodeCommitmentFor, CryptoSpec, DaSpec, EncodeCall, Gas, GasArray, GasSpec, PrivateKey,
+    Amount, CodeCommitmentFor, CryptoSpec, DaSpec, EncodeCall, Gas, GasArray, GasSpec, PrivateKey,
     PublicKey, Spec,
 };
 use sov_modules_stf_blueprint::GenesisParams;
@@ -90,7 +90,8 @@ fn run_value_setter_txs_with_assertions(
         sequencer_rollup_addr,
         SEQUENCER_DA_ADDR.into(),
         <TestSpec as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE)
-            .value(&TestSpec::initial_base_fee_per_gas()),
+            .value(&TestSpec::initial_base_fee_per_gas())
+            .0,
         "SovereignToken".to_string(),
         TEST_DEFAULT_USER_BALANCE,
         Default::default(),
@@ -124,12 +125,12 @@ fn run_value_setter_txs_with_assertions(
 #[allow(clippy::too_many_arguments)]
 fn create_test_rt_genesis_config<S: Spec>(
     admin: S::Address,
-    additional_accounts: &[(S::Address, u64)],
+    additional_accounts: &[(S::Address, Amount)],
     seq_rollup_address: S::Address,
     seq_da_address: <S::Da as DaSpec>::Address,
-    seq_bond: u64,
+    seq_bond: u128,
     token_name: String,
-    init_balance: u64,
+    init_balance: u128,
     inner_code_commitment: CodeCommitmentFor<S::InnerZkvm>,
     outer_code_commitment: CodeCommitmentFor<S::OuterZkvm>,
 ) -> crate::runtime::GenesisConfig<S> {
@@ -166,7 +167,10 @@ fn create_test_rt_genesis_config<S: Spec>(
                 proving_penalty.scalar_division(2);
                 proving_penalty
             },
-            initial_provers: vec![(prover_placeholder.address(), prover_placeholder.balance())],
+            initial_provers: vec![(
+                prover_placeholder.address(),
+                prover_placeholder.balance().into(),
+            )],
         },
         bank: BankConfig {
             gas_token_config: sov_bank::GasTokenConfig {
@@ -175,9 +179,12 @@ fn create_test_rt_genesis_config<S: Spec>(
                 address_and_balances: {
                     let mut additional_accounts_vec = additional_accounts.to_vec();
                     additional_accounts_vec.append(&mut vec![
-                        (seq_rollup_address, init_balance),
-                        (admin.clone(), init_balance),
-                        (prover_placeholder.address(), prover_placeholder.balance()),
+                        (seq_rollup_address, init_balance.into()),
+                        (admin.clone(), init_balance.into()),
+                        (
+                            prover_placeholder.address(),
+                            prover_placeholder.balance().into(),
+                        ),
                     ]);
                     additional_accounts_vec
                 },
@@ -259,7 +266,7 @@ fn test_define_token() {
             .bank
             .gas_token_config
             .address_and_balances
-            .contains(&(*address, TEST_DEFAULT_USER_BALANCE))
+            .contains(&(*address, TEST_DEFAULT_USER_BALANCE.into()))
     }));
 
     let token_1 = genesis_config.bank.tokens.get(1).unwrap();
@@ -275,13 +282,13 @@ fn test_define_token() {
             .bank
             .gas_token_config
             .address_and_balances
-            .contains(&(*address, TEST_DEFAULT_USER_BALANCE))
+            .contains(&(*address, TEST_DEFAULT_USER_BALANCE.into()))
     }));
 }
 
 #[test]
 fn test_define_token_with_state() {
-    const BALANCE_TOKEN_0: u64 = 100_000;
+    const BALANCE_TOKEN_0: u128 = 100_000;
 
     let token_0_name = &TestTokenName::new("0".to_string());
     let token_1_name = &TestTokenName::new("MyTestToken".to_string());
@@ -418,7 +425,7 @@ fn test_define_token_with_mint() {
             .create_plain_message::<TestOptimisticRuntime<TestSpec>, sov_bank::Bank<TestSpec>>(
                 sov_bank::CallMessage::Mint {
                     coins: Coins {
-                        amount: 100,
+                        amount: Amount::new(100),
                         token_id: token_0_name.id(),
                     },
                     mint_to_address: minter_address,
@@ -447,7 +454,7 @@ fn test_define_genesis_config_additional_accounts_with_default_balance() {
     assert!(genesis_config.additional_accounts.is_empty());
 
     genesis_config = genesis_config.add_accounts_with_default_balance(5);
-    assert!(genesis_config.additional_accounts.len() == 5);
+    assert_eq!(genesis_config.additional_accounts.len(), 5);
 
     genesis_config.additional_accounts.iter().for_each(|user| {
         assert_eq!(user.balance(), TEST_DEFAULT_USER_BALANCE);
@@ -470,7 +477,7 @@ fn test_define_genesis_config_additional_accounts_test_user() {
             is_minter: false,
         }),
     ]);
-    assert!(genesis_config.additional_accounts.len() == 2);
+    assert_eq!(genesis_config.additional_accounts.len(), 2);
 
     let first_user = genesis_config.additional_accounts.first().unwrap();
     let second_user = genesis_config.additional_accounts.get(1).unwrap();

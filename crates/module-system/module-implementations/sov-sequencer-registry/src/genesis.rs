@@ -1,7 +1,7 @@
 use anyhow::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{DaSpec, GenesisState, Spec};
+use sov_modules_api::{Amount, DaSpec, GenesisState, Spec};
 
 use crate::SequencerRegistry;
 
@@ -22,7 +22,7 @@ pub struct SequencerConfig<S: Spec> {
     /// The Data Availability (DA) address of the sequencer.
     pub seq_da_address: <S::Da as DaSpec>::Address,
     /// Initial sequencer bond
-    pub seq_bond: u64,
+    pub seq_bond: u128,
     /// Determines whether this sequencer is *regular* or *preferred*.
     ///
     /// Batches from the preferred sequencer are always processed first in
@@ -48,7 +48,7 @@ impl<S: Spec> SequencerRegistry<S> {
 
         self.register_staker(
             &config.seq_da_address,
-            config.seq_bond,
+            Amount::new(config.seq_bond),
             config.seq_rollup_address.clone(),
             state,
         )?;

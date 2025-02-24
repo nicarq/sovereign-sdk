@@ -2,7 +2,7 @@ use sov_bank::utils::TokenHolder;
 use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{Gas, GasArray, GasSpec, GetGasPrice, ModuleInfo};
+use sov_modules_api::{Amount, Gas, GasArray, GasSpec, GetGasPrice, ModuleInfo};
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
@@ -17,7 +17,7 @@ const VALUE_SETTER_NEW_CONST: u32 = 10;
 const OTHER_VALUE_SETTER_CONST: u32 = 42;
 
 /// Initialize the reward mechanism tests, and executes an empty slot to know how much gas is consumed by a simple value setter transaction.
-fn reward_mechanism_test_setup() -> (TestRoles, u64, TestRunner<RT, S>) {
+fn reward_mechanism_test_setup() -> (TestRoles, u128, TestRunner<RT, S>) {
     // Genesis initialization.
     // We need to pass the large balance to make sure we have enough funds to pay for the tip and the sequencer registration
     let (test_roles, mut runner) = setup();
@@ -52,15 +52,15 @@ fn reward_mechanism_test_setup() -> (TestRoles, u64, TestRunner<RT, S>) {
 
     (
         test_roles,
-        gas_consumed_last_tx.value(&initial_gas_price),
+        gas_consumed_last_tx.value(&initial_gas_price).0,
         runner,
     )
 }
 
 fn reward_mechanism_test(
-    max_fee: u64,
+    max_fee: u128,
     max_priority_fee: PriorityFeeBips,
-    expected_reward: u64,
+    expected_reward: u128,
     roles: TestRoles,
     runner: &mut TestRunner<RT, S>,
 ) {
@@ -95,7 +95,7 @@ fn reward_mechanism_test(
                     &test_sequencer_da_address,
                     state
                 ),
-                Some(test_sequencer_bond + expected_reward - sequencer_burn),
+                Some(test_sequencer_bond + expected_reward - sequencer_burn.0),
                 "The sequencer was not rewarded the correct amount"
             );
         }),
@@ -162,7 +162,9 @@ fn test_reward_sequencer_registry() {
     let balance_after = sequencer_registry_balance(&runner).unwrap();
 
     assert_eq!(
-        balance_before + expected_reward,
+        balance_before
+            .checked_add(Amount::new(expected_reward))
+            .unwrap(),
         balance_after,
         "The sequencer registry balance should increase after rewarding the sequencer"
     );

@@ -59,7 +59,7 @@ fn setup_invariant_tests() -> (TestRunner<RT, S>, TestAttester<S>, u64) {
                         .bonded_attesters
                         .get(&genesis_attester.user_info.address(), state)
                         .unwrap(),
-                    Some(genesis_attester.bond),
+                    Some(genesis_attester.bond.into()),
                     "Bonded amount should not have changed"
                 );
 

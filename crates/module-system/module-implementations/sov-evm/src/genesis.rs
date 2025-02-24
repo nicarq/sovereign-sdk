@@ -7,7 +7,7 @@ use reth_primitives::{Bloom, Bytes, EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY};
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_bank::config_gas_token_id;
 use sov_modules_api::macros::config_value;
-use sov_modules_api::{GenesisState, Module, Spec};
+use sov_modules_api::{Amount, GenesisState, Module, Spec};
 
 use crate::evm::db_init::InitEvmDb;
 use crate::evm::primitive_types::Block;
@@ -106,7 +106,7 @@ where
 
             if acc.balance != U256::ZERO {
                 self.bank_module.override_gas_balance(
-                    acc.balance.try_into().unwrap(),
+                    Amount::new(acc.balance.try_into().unwrap()),
                     &rollup_address,
                     state,
                 )?;

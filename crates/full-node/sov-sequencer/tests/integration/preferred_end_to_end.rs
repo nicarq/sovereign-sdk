@@ -101,7 +101,7 @@ enum InvalidGeneration {
 async fn new_test_rollup(
     dir: Arc<tempfile::TempDir>,
     genesis_params: GenesisParams<<TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig>,
-    minimum_profit_per_tx: u64,
+    minimum_profit_per_tx: u128,
 ) -> TestRollup<TestBlueprint> {
     const FINALIZATION_BLOCKS: u32 = 3;
     let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;

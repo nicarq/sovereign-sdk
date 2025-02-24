@@ -1,5 +1,5 @@
 use sov_bank::{Bank, TokenId};
-use sov_modules_api::{Error, TxEffect};
+use sov_modules_api::{Amount, Error, TxEffect};
 use sov_test_utils::{AsUser, TransactionTestCase};
 
 use crate::helpers::{setup, TestBankRuntimeEvent, TestData, RT, S};
@@ -40,7 +40,7 @@ fn freeze_token_happy_path() {
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Mint {
             coins: sov_bank::Coins {
-                amount: 0,
+                amount: Amount::ZERO,
                 token_id,
             },
             mint_to_address: minter_address,

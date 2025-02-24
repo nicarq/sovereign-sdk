@@ -2,7 +2,7 @@ use sov_accounts::{AccountConfig, Accounts};
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::Bank;
 use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::{CodeCommitmentFor, Gas, GasArray, GasSpec, Genesis, Spec};
+use sov_modules_api::{Amount, CodeCommitmentFor, Gas, GasArray, GasSpec, Genesis, Spec};
 use sov_prover_incentives::ProverIncentives;
 use sov_rollup_interface::common::SlotNumber;
 use sov_sequencer_registry::SequencerRegistry;
@@ -90,17 +90,17 @@ impl<S: Spec> HighLevelZkGenesisConfig<S> {
             <S as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE).value(&S::initial_base_fee_per_gas());
 
         let prover_sequencer =
-            TestUser::generate(default_user_stake_value * 2 + TEST_DEFAULT_USER_BALANCE);
+            TestUser::generate(default_user_stake_value.0 * 2 + TEST_DEFAULT_USER_BALANCE);
         let sequencer = TestSequencer {
             user_info: prover_sequencer.clone(),
             da_address: MockAddress::from([172; 32]),
-            bond: default_user_stake_value,
+            bond: default_user_stake_value.0,
         };
         let prover = TestProver {
             // By default we generate the prover as the same user as the sequencer
             // because provers must be registered sequencers.
             user_info: prover_sequencer,
-            bond: default_user_stake_value,
+            bond: default_user_stake_value.0,
         };
         let mut additional_accounts = Vec::with_capacity(num_accounts);
 
@@ -119,7 +119,7 @@ impl<S: Spec> HighLevelZkGenesisConfig<S> {
 
     /// Generates a new high-level genesis config with given number of additional accounts with random addresses and given balance.
     ///
-    pub fn add_accounts_with_balance(mut self, num_accounts: usize, balance: u64) -> Self {
+    pub fn add_accounts_with_balance(mut self, num_accounts: usize, balance: u128) -> Self {
         for _ in 0..num_accounts {
             self.additional_accounts
                 .push(TestUser::<S>::generate(balance));
@@ -188,7 +188,7 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
                 },
                 initial_provers: vec![(
                     initial_prover.as_user().address().clone(),
-                    initial_prover.bond,
+                    initial_prover.bond.into(),
                 )],
             },
             // unused in zk mode
@@ -197,7 +197,7 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
                 minimum_challenger_bond: default_user_stake.clone(),
                 initial_attesters: vec![(
                     attester_placeholder.address().clone(),
-                    attester_placeholder.balance(),
+                    Amount::new(attester_placeholder.balance()),
                 )],
                 rollup_finality_period: SlotNumber::GENESIS,
                 maximum_attested_height: SlotNumber::GENESIS,
@@ -210,11 +210,11 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
                     address_and_balances: {
                         let mut additional_accounts_vec: Vec<_> = additional_accounts
                             .iter()
-                            .map(|user| (user.address(), user.balance()))
+                            .map(|user| (user.address(), Amount::new(user.balance())))
                             .collect();
                         additional_accounts_vec.push((
                             attester_placeholder.address(),
-                            attester_placeholder.balance(),
+                            Amount::new(attester_placeholder.balance()),
                         ));
                         let sequencer = initial_sequencer.as_user();
                         let prover = initial_prover.as_user();
@@ -223,22 +223,28 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
                             // same user, combine the bonds and balances
                             additional_accounts_vec.append(&mut vec![(
                                 sequencer.address(),
-                                initial_sequencer.bond
-                                    + initial_prover.bond
-                                    + sequencer.available_gas_balance,
+                                Amount::new(
+                                    initial_sequencer.bond
+                                        + initial_prover.bond
+                                        + sequencer.available_gas_balance,
+                                ),
                             )]);
                         } else {
                             // different users, add separate entries
                             additional_accounts_vec.append(&mut vec![
                                 (
                                     initial_sequencer.as_user().address(),
-                                    initial_sequencer.bond
-                                        + initial_sequencer.as_user().available_gas_balance,
+                                    Amount::new(
+                                        initial_sequencer.bond
+                                            + initial_sequencer.as_user().available_gas_balance,
+                                    ),
                                 ),
                                 (
                                     initial_prover.as_user().address(),
-                                    initial_prover.bond
-                                        + initial_prover.as_user().available_gas_balance,
+                                    Amount::new(
+                                        initial_prover.bond
+                                            + initial_prover.as_user().available_gas_balance,
+                                    ),
                                 ),
                             ]);
                         }
@@ -296,7 +302,8 @@ mod tests {
 
             assert_eq!(
                 bank.get_balance_of(&sequencer.user_info.address(), config_gas_token_id(), state)
-                    .unwrap(),
+                    .unwrap()
+                    .map(|amount| amount.0),
                 Some(sequencer.user_info.balance()),
             );
 
@@ -306,7 +313,8 @@ mod tests {
                 prover_incentives
                     .bonded_provers
                     .get(&prover.user_info.address(), state)
-                    .unwrap(),
+                    .unwrap()
+                    .map(|amount| amount.0),
                 Some(prover.bond),
                 "Should be bonded prover"
             );
@@ -314,7 +322,9 @@ mod tests {
             let sequencer_registry = crate::runtime::SequencerRegistry::<S>::default();
 
             assert_eq!(
-                sequencer_registry.get_sender_balance_via_api(&sequencer.da_address, state),
+                sequencer_registry
+                    .get_sender_balance_via_api(&sequencer.da_address, state)
+                    .map(|amount| amount.0),
                 Some(sequencer.bond),
                 "Should be bonded sequencer"
             );

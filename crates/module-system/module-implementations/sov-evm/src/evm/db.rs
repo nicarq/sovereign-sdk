@@ -70,13 +70,13 @@ where
                     "EVM balance is not zero - balance should be stored in the bank module instead"
                 );
 
-                account_info.balance = U256::from(bank_balance);
+                account_info.balance = U256::from(bank_balance.0);
                 Ok(Some(account_info))
             }
             // TODO: Here we generate a default account and set the balance from bank
             // and return that, however, not sure if EVM internally does any extra logic
             // when creating a new account. Create an issue to investigate.
-            None => Ok(Some(AccountInfo::from_balance(U256::from(bank_balance)))),
+            None => Ok(Some(AccountInfo::from_balance(U256::from(bank_balance.0)))),
         }
     }
 

@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::transaction::Transaction;
-use crate::{BasicGasMeter, DispatchCall, Gas, GasArray, Spec};
+use crate::{Amount, BasicGasMeter, DispatchCall, Gas, GasArray, Spec};
 
 /// A type wrapper around a u64 which represents the priority fee.
 /// Since the priority fee is expressed as a basis point, we should use this wrapper for
@@ -44,7 +44,7 @@ impl PriorityFeeBips {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
 #[error("Applying the priority fee to this quantity causes an overflow")]
 pub struct PriorityFeeApplyOverflowError;
 
@@ -61,14 +61,30 @@ impl From<PriorityFeeBips> for u64 {
 }
 
 impl PriorityFeeBips {
-    /// Applies the priority fee to a given quantity
-    /// We make sure to cast the intermediate result to u128 to avoid overflowing.
-    pub fn apply(&self, quantity: u64) -> Result<u64, PriorityFeeApplyOverflowError> {
-        // We need to cast to u128 to avoid overflowing.
-        let quantity_u128 = quantity as u128;
-        let fee_u128 = self.0 as u128;
-        let result = (quantity_u128 * fee_u128) / (10_000);
-        result.try_into().map_err(|_| PriorityFeeApplyOverflowError)
+    /// Applies the priority fee to a given quantity if possible
+    pub fn apply(&self, quantity: u128) -> Result<u128, PriorityFeeApplyOverflowError> {
+        self.priority_fee_limbs(quantity)
+    }
+
+    fn priority_fee_limbs(&self, quantity: u128) -> Result<u128, PriorityFeeApplyOverflowError> {
+        let hi = quantity >> 64;
+        let lo = quantity & u64::MAX as u128;
+        // Apply the fee to the high limb
+        let hi_mul: u128 = hi * self.0 as u128;
+        let mut hi_res = hi_mul / 10_000;
+        let hi_rem = hi_mul % 10_000;
+
+        // If the result overflows a u64,
+        if hi_res > u64::MAX as u128 {
+            return Err(PriorityFeeApplyOverflowError);
+        }
+        hi_res <<= 64;
+        let res_lo = (lo * self.0 as u128) / 10_000;
+        hi_res
+            .checked_add(res_lo)
+            .ok_or(PriorityFeeApplyOverflowError)?
+            .checked_add((hi_rem << 64) / 10000)
+            .ok_or(PriorityFeeApplyOverflowError)
     }
 }
 
@@ -94,7 +110,7 @@ pub struct TxDetails<S: Spec> {
     /// gas tip will be `10` tokens.
     pub max_priority_fee_bips: PriorityFeeBips,
     /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
-    pub max_fee: u64,
+    pub max_fee: u128,
     /// The gas limit of the transaction.
     /// This is an optional field that can be used to provide a limit of the gas usage of the transaction
     /// across the different gas dimensions. If provided, this quantity will be used along
@@ -164,7 +180,7 @@ pub struct AuthenticatedTransactionData<S: Spec> {
     /// This priority fee is computed as a percentage of the total gas consumed by the transaction
     pub max_priority_fee_bips: PriorityFeeBips,
     /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
-    pub max_fee: u64,
+    pub max_fee: u128,
     /// The estimated gas usage of the transaction
     pub gas_limit: Option<S::Gas>,
 }
@@ -181,16 +197,68 @@ impl<S: Spec> AuthenticatedTransactionData<S> {
                 // `GasArray::calculate_min` creates a new gas instance by selecting the minimum value along each dimension of the gas array.
                 let new_gas_limit = <S::Gas as GasArray>::calculate_min(gas_limit, slot_gas_limit);
                 BasicGasMeter::new_with_funds_and_gas(
-                    self.max_fee,
+                    Amount(self.max_fee),
                     new_gas_limit,
                     gas_price.clone(),
                 )
             }
             None => BasicGasMeter::new_with_funds_and_gas(
-                self.max_fee,
+                Amount(self.max_fee),
                 slot_gas_limit.clone(),
                 gas_price.clone(),
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_priority_fee_apply_basic() {
+        let fee = PriorityFeeBips::from_percentage(100);
+        let quantity = 1;
+        let result = fee.apply(quantity);
+        assert_eq!(result, Ok(1));
+    }
+
+    #[test]
+    fn test_priority_fee_apply_basic_with_limbs() {
+        let fee = PriorityFeeBips::from_percentage(43);
+        let quantity = 100;
+        let result = fee.apply(quantity);
+        assert_eq!(result, Ok(43));
+    }
+
+    #[test]
+    fn test_priority_fee_apply_would_overflow_without_limbs_basic() {
+        let fee = PriorityFeeBips::from_percentage(100);
+        let quantity = u128::MAX;
+        let result = fee.apply(quantity);
+        assert_eq!(result, Ok(u128::MAX));
+    }
+
+    #[test]
+    fn test_priority_fee_apply_would_overflow_without_limbs_small_fee() {
+        let fee = PriorityFeeBips::from_percentage(50);
+        let quantity = u128::MAX;
+        let result = fee.apply(quantity);
+        assert_eq!(result, Ok(u128::MAX / 2));
+    }
+
+    #[test]
+    fn test_priority_fee_apply_would_overflow_without_limbs_big_fee() {
+        let fee = PriorityFeeBips::from_percentage(150);
+        let quantity = u128::MAX / 2;
+        let result = fee.apply(quantity);
+        assert_eq!(result, Ok(255211775190703847597530955573826158590)); // Result calculated manually in Python
+    }
+
+    #[test]
+    fn test_priority_fee_apply_overflows() {
+        let fee = PriorityFeeBips::from_percentage(101);
+        let quantity = u128::MAX;
+        let result = fee.apply(quantity);
+        assert_eq!(result, Err(PriorityFeeApplyOverflowError));
     }
 }

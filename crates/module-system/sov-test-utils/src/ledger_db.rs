@@ -67,7 +67,7 @@ fn events() -> Vec<StoredEvent> {
     let event_value1 = TestEvent::Bank(sov_bank::event::Event::TokenCreated {
         token_name: "token".to_string(),
         coins: Coins {
-            amount: 0,
+            amount: Amount::ZERO,
             token_id,
         },
         minter: holder.clone(),

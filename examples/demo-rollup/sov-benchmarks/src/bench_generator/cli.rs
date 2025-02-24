@@ -160,13 +160,13 @@ impl BenchCLICustomArgs {
         genesis_config
             .initial_prover
             .user_info
-            .available_gas_balance = u64::MAX / 4;
-        genesis_config.initial_prover.bond = u64::MAX / 4;
-        genesis_config.initial_sequencer.bond = u64::MAX / 4;
+            .available_gas_balance = u128::MAX / 4;
+        genesis_config.initial_prover.bond = u128::MAX / 4;
+        genesis_config.initial_sequencer.bond = u128::MAX / 4;
         genesis_config
             .initial_sequencer
             .user_info
-            .available_gas_balance = u64::MAX / 4;
+            .available_gas_balance = u128::MAX / 4;
 
         let sequencer = genesis_config.initial_sequencer.clone();
         let payer = genesis_config.additional_accounts.first().unwrap().clone();

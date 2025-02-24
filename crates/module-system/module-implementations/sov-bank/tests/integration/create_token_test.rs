@@ -9,6 +9,7 @@ use sov_test_utils::{AsUser, TransactionTestCase};
 use crate::helpers::*;
 
 type S = sov_test_utils::TestSpec;
+const INITIAL_TOKEN_BALANCE: Amount = Amount::new(1000);
 
 // Check that we can create a token and that the state is correctly updated.
 #[test]
@@ -22,8 +23,6 @@ fn create_token() {
         },
         mut runner,
     ) = setup();
-
-    const INITIAL_TOKEN_BALANCE: u64 = 1000;
 
     let user_high_token_balance_address = user_high_token_balance.address();
     let user_no_token_balance_address = user_no_token_balance.address();
@@ -115,8 +114,6 @@ fn create_token_and_mint() {
         mut runner,
     ) = setup();
 
-    const INITIAL_TOKEN_BALANCE: u64 = 1000;
-
     let user_no_token_balance_address = user_no_token_balance.address();
     let minter_address = minter.as_user().address();
     let token_name = "Token1";
@@ -205,7 +202,7 @@ fn create_token_and_mint() {
                 Bank::<S>::default()
                     .get_total_supply_of(&token_id, state)
                     .unwrap(),
-                Some(2 * INITIAL_TOKEN_BALANCE)
+                Some(INITIAL_TOKEN_BALANCE.checked_mul(Amount::new(2)).unwrap())
             );
         }),
     });
@@ -223,8 +220,6 @@ fn create_token_and_mint_fails_if_exceeds_supply_cap() {
         mut runner,
     ) = setup();
 
-    const INITIAL_TOKEN_BALANCE: u64 = 1000;
-
     let user_no_token_balance_address = user_no_token_balance.address();
     let minter_address = minter.as_user().address();
     let token_name = "Token1";
@@ -236,7 +231,7 @@ fn create_token_and_mint_fails_if_exceeds_supply_cap() {
             token_name: token_name.try_into().unwrap(),
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: minter_address,
-            supply_cap: Some(INITIAL_TOKEN_BALANCE - 1),
+            supply_cap: Some(INITIAL_TOKEN_BALANCE.checked_sub(Amount::new(1)).unwrap()),
             admins: vec![minter_address]
                 .try_into()
                 .expect("Tokens can have at least one minter"),
@@ -289,7 +284,7 @@ fn create_token_and_mint_fails_if_exceeds_supply_cap() {
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Mint {
             coins: sov_bank::Coins {
-                amount: 1,
+                amount: Amount::new(1),
                 token_id,
             },
             mint_to_address: user_no_token_balance_address,
@@ -311,8 +306,6 @@ fn test_create_token_fails_with_duplicate_ids() {
         },
         mut runner,
     ) = setup();
-
-    const INITIAL_TOKEN_BALANCE: u64 = 1000;
 
     let user_high_token_balance_address = user_high_token_balance.address();
     let user_no_token_balance_address = user_no_token_balance.address();
@@ -370,7 +363,7 @@ fn overflow_max_supply_genesis_should_panic() {
     let token_name = TestTokenName::new("BankToken".to_string());
     let genesis_config = HighLevelOptimisticGenesisConfig::generate()
         .add_accounts_with_default_balance(1)
-        .add_accounts_with_token(&token_name, false, 2, u64::MAX - 2);
+        .add_accounts_with_token(&token_name, false, 2, u128::MAX - 2);
 
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
 

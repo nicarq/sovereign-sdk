@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use sov_bank::{CallMessage, Coins, TokenId};
 use sov_modules_api::sov_universal_wallet::schema::Schema;
-use sov_modules_api::{SafeVec, Spec};
+use sov_modules_api::{Amount, SafeVec, Spec};
 use sov_test_utils::TestSpec;
 
 type S = TestSpec;
@@ -12,7 +12,7 @@ fn test_create_token() {
     let schema = Schema::of_single_type::<CallMessage<S>>();
     let msg = CallMessage::CreateToken::<S> {
         token_name: "my-token".try_into().unwrap(),
-        initial_balance: 100_000_000,
+        initial_balance: Amount::new(100_000_000),
         supply_cap: None,
         mint_to_address: <S as Spec>::Address::from_str(
             "sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s85ar2a",
@@ -33,7 +33,7 @@ fn test_transfer() {
         )
         .unwrap(),
         coins: Coins {
-            amount: 10_000,
+            amount: Amount::new(10_000),
             token_id: TokenId::from_str(
                 "token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks",
             )

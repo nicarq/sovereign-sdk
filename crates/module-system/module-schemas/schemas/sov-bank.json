@@ -29,9 +29,11 @@
             },
             "initial_balance": {
               "description": "The initial balance of the new token.",
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Amount"
+                }
+              ]
             },
             "mint_to_address": {
               "description": "The address of the account that the new tokens are minted to.",
@@ -43,12 +45,14 @@
             },
             "supply_cap": {
               "description": "The supply cap of the new token, if any.",
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Amount"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "token_name": {
               "description": "The name of the new token.",
@@ -192,6 +196,12 @@
       "type": "string",
       "pattern": "^sov1[a-zA-Z0-9]+$"
     },
+    "Amount": {
+      "description": "A token amount.",
+      "type": "integer",
+      "format": "uint128",
+      "minimum": 0.0
+    },
     "Coins": {
       "description": "Structure that stores information specifying a given `amount` (type [`Amount`]) of coins stored at a `token_id` (type [`crate::TokenId`]).",
       "type": "object",
@@ -202,9 +212,11 @@
       "properties": {
         "amount": {
           "description": "The number of tokens",
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
+          "allOf": [
+            {
+              "$ref": "#/definitions/Amount"
+            }
+          ]
         },
         "token_id": {
           "description": "The ID of the token",

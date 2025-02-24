@@ -3,8 +3,8 @@ use sov_modules_api::capabilities::{
     UnregisteredAuthenticationError,
 };
 use sov_modules_api::{
-    BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, Gas, GasArray, GasMeter,
-    GasSpec, GetGasPrice, IgnoredTransactionReceipt, PreExecWorkingSet, Rewards, Spec,
+    Amount, BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, Gas, GasArray,
+    GasMeter, GasSpec, GetGasPrice, IgnoredTransactionReceipt, PreExecWorkingSet, Rewards, Spec,
     StateProvider, WorkingSet,
 };
 use tracing::{debug, warn};
@@ -203,8 +203,8 @@ where
                     gas_used,
                     outcome: BatchSequencerOutcome {
                         rewards: Rewards {
-                            accumulated_reward: 0,
-                            accumulated_penalty: 0,
+                            accumulated_reward: Amount::ZERO,
+                            accumulated_penalty: Amount::ZERO,
                         },
                     },
                 },
@@ -242,7 +242,8 @@ where
 
     let validated_output = match authentication_result {
         Ok(auth_output) => auth_output,
-        // Note that on failure no one to pays for the gas used. However, we still meter it so that it counts against the slot gas limit.
+        // Note that on failure no one pays for the gas used.
+        // However, we still meter it so that it counts against the slot gas limit.
         Err(UnregisteredAuthenticationError::FatalError(err, tx_hash)) => {
             let (scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
             let gas_info = gas_meter.gas_info();
@@ -304,7 +305,7 @@ where
 
     let mut tx_receipts = Vec::new();
     let gas_used;
-    let mut accumulated_reward = 0;
+    let mut accumulated_reward = Amount::ZERO;
 
     let (tx_result, checkpoint, pre_exec_gas_meter) = process_tx_result;
 
@@ -328,7 +329,9 @@ where
             // We reward sequencer only if the registration transaction is successful.
             if receipt.receipt.is_successful() {
                 let sequencer_reward = transaction_consumption.priority_fee();
-                accumulated_reward += sequencer_reward.0;
+                accumulated_reward = accumulated_reward
+                    .checked_add(Amount::new(sequencer_reward.0))
+                    .expect("AccumulatedReward overflow");
             }
             gas_used = get_gas_used(&receipt);
             tx_receipts.push(receipt);
@@ -347,7 +350,7 @@ where
             outcome: BatchSequencerOutcome {
                 rewards: Rewards {
                     accumulated_reward,
-                    accumulated_penalty: 0,
+                    accumulated_penalty: Amount::ZERO,
                 },
             },
         },

@@ -27,9 +27,9 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::rest::{ApiState, HasRestApi};
 use sov_modules_api::{
-    ApiStateAccessor, ApplySlotOutput, BlobReaderTrait, CryptoSpec, DaSpec, EncodeCall, Error, Gas,
-    Genesis, InfallibleStateAccessor, Module, PrivateKey, SelectedBlob, Spec, StateCheckpoint,
-    TxEffect, VersionReader, VisibleSlotNumber,
+    Amount, ApiStateAccessor, ApplySlotOutput, BlobReaderTrait, CryptoSpec, DaSpec, EncodeCall,
+    Error, Gas, Genesis, InfallibleStateAccessor, Module, PrivateKey, SelectedBlob, Spec,
+    StateCheckpoint, TxEffect, VersionReader, VisibleSlotNumber,
 };
 use sov_modules_stf_blueprint::{
     get_gas_used, StfBlueprint, TransactionReceipt, TxReceiptContents,
@@ -285,19 +285,21 @@ where
     pub fn bank_gas_balance(
         address: &S::Address,
         state: &mut impl InfallibleStateAccessor,
-    ) -> Option<u64> {
+    ) -> Option<u128> {
         sov_bank::Bank::<S>::default()
             .get_balance_of(address, config_gas_token_id(), state)
             .unwrap_infallible()
+            .map(|amount| amount.0)
     }
 
     /// A simple helper function to get the the staked balance of a sequencer.
     pub fn get_sequencer_staking_balance(
         sequencer: &<S::Da as DaSpec>::Address,
         state: &mut ApiStateAccessor<S>,
-    ) -> Option<u64> {
+    ) -> Option<u128> {
         sov_sequencer_registry::SequencerRegistry::<S>::default()
             .get_sender_balance_via_api(sequencer, state)
+            .map(|amount| amount.0)
     }
 
     /// Returns the slot receipts accumulated by the state runner
@@ -351,7 +353,7 @@ where
         ApiStateAccessor::<S>::new_with_price_and_slot_number_dangerous(
             &state_checkpoint,
             runtime.kernel_with_slot_mapping(),
-           self.true_slot_number(),
+            self.true_slot_number(),
             base_fee_per_gas,
         ).unwrap_or_else(|_| panic!("ApiStateAccessor creation failed but the requested true height {} is accessible. This is a bug. Please report it.", self.true_slot_number()))
     }
@@ -695,7 +697,7 @@ where
         let ctx = TransactionAssertContext::from_receipt::<MockDaSpec>(
             tx_receipt,
             blob_info,
-            gas_used.value(&gas_price),
+            gas_used.value(&gas_price).0,
         );
         (transaction_test.assert)(ctx, &mut self.visible_state());
         self
@@ -758,32 +760,32 @@ where
         let gas_value_used = if let Some(proof_receipt) = &proof_receipt {
             let gas_used = <S as Spec>::Gas::try_from(proof_receipt.gas_used.clone()).unwrap_or_else(
                 |_|
-                panic!(
-                    "Impossible to convert gas used {:?} to a gas unit {}. This is a bug - the batch receipt should always contain the correct number of gas dimensions. Please report this bug",
-                    proof_receipt.gas_used,
-                    std::any::type_name::<S::Gas>()
-                )
+                    panic!(
+                        "Impossible to convert gas used {:?} to a gas unit {}. This is a bug - the batch receipt should always contain the correct number of gas dimensions. Please report this bug",
+                        proof_receipt.gas_used,
+                        std::any::type_name::<S::Gas>()
+                    )
             );
             let gas_price = <<S as Spec>::Gas as sov_modules_api::Gas>::Price::try_from(
-                proof_receipt.gas_price.clone(),
+                proof_receipt.gas_price.iter().map(|raw| Amount::new(*raw)).collect::<Vec<_>>(),
             )
-            .unwrap_or_else(
-                |_|
-                panic!(
-                    "Impossible to convert gas used {:?} to a gas unit {}. This is a bug - the batch receipt should always contain the correct number of gas dimensions. Please report this bug",
-                    proof_receipt.gas_used,
-                    std::any::type_name::<<S::Gas as Gas>::Price>()
-                )
-            );
+                .unwrap_or_else(
+                    |_|
+                        panic!(
+                            "Impossible to convert gas used {:?} to a gas unit {}. This is a bug - the batch receipt should always contain the correct number of gas dimensions. Please report this bug",
+                            proof_receipt.gas_used,
+                            std::any::type_name::<<S::Gas as Gas>::Price>()
+                        )
+                );
 
             gas_used.value(&gas_price)
         } else {
-            0
+            Amount::ZERO
         };
 
         let ctx = ProofAssertContext {
             proof_receipt,
-            gas_value_used,
+            gas_value_used: gas_value_used.0,
         };
         (proof_test.assert)(ctx, &mut self.visible_state());
 

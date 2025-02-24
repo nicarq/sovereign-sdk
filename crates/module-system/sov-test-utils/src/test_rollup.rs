@@ -178,7 +178,7 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
     }
 
     /// See [`PreferredSequencerConfig::minimum_profit_per_tx`].
-    pub fn with_preferred_seq_min_profit_per_tx(mut self, minimum_profit_per_tx: u64) -> Self {
+    pub fn with_preferred_seq_min_profit_per_tx(mut self, minimum_profit_per_tx: u128) -> Self {
         self.config.sequencer_config = SequencerKindConfig::Preferred(PreferredSequencerConfig {
             minimum_profit_per_tx,
             ..Default::default()

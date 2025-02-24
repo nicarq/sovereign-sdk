@@ -866,8 +866,10 @@ components:
       description: GasPrice is an array of u64
       type: array
       items:
-        type: integer
-        format: uint64
+        type: string
+        description: A decimal string representation of a u128 value
+        pattern: ^\d+$
+        example: "340282366920938463463374607431768211455"
     GasUnit:
       description: GasUnit is an array of u64
       type: array
@@ -908,8 +910,10 @@ components:
           type: integer
           format: uint64
         max_fee:
-          type: integer
-          format: uint64
+          type: string
+          description: A decimal string representation of a u128 value
+          pattern: ^\d+$
+          example: "340282366920938463463374607431768211455"
         gas_limit:
           $ref: "#/components/schemas/GasUnit"
         chain_id:
@@ -940,13 +944,17 @@ components:
       type: object
       properties:
         remaining_funds:
-          type: integer
-          format: uint64
+          type: string
+          description: A decimal string representation of a u128 value
+          pattern: ^\d+$
+          example: "340282366920938463463374607431768211455"
         base_fee:
           $ref: "#/components/schemas/GasUnit"
         priority_fee:
-          type: integer
-          format: uint64
+          type: string
+          description: A decimal string representation of a u128 value
+          pattern: ^\d+$
+          example: "340282366920938463463374607431768211455"
         gas_price:
           $ref: "#/components/schemas/GasPrice"
       required:

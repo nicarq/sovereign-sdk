@@ -114,7 +114,7 @@ mod helpers {
     use sov_modules_api::rest::utils::ResponseObject;
     use sov_modules_api::transaction::Transaction;
     use sov_modules_api::{
-        Address, CryptoSpec, PrivateKey, PublicKey, Runtime as RuntimeTrait, SafeVec, Spec,
+        Address, Amount, CryptoSpec, PrivateKey, PublicKey, Runtime as RuntimeTrait, SafeVec, Spec,
     };
     use sov_test_utils::default_test_signed_transaction;
 
@@ -158,7 +158,7 @@ mod helpers {
     fn build_create_token_tx(
         key: &<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
         nonce: u64,
-        initial_balance: u64,
+        initial_balance: Amount,
     ) -> Transaction<Runtime<TestSpec>, TestSpec> {
         let user_address: Address = key.pub_key().credential_id::<sha2::Sha256>().into();
 
@@ -189,7 +189,7 @@ mod helpers {
                 .unwrap();
         let priv_key = keys.private_key;
         let sender = keys.address;
-        let tx = build_create_token_tx(&priv_key, 0, 100);
+        let tx = build_create_token_tx(&priv_key, 0, Amount::new(100));
         client.send_transactions(&[tx]).await;
         let token_id_resp: ResponseObject<TokenIdResponse> =
             client.get(query_token_id(&url, sender)).await;

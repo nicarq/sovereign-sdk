@@ -4,7 +4,6 @@
 
 #![deny(missing_docs)]
 
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 pub use evm::simple_smart_contract::SimpleStorageContract;
@@ -85,7 +84,7 @@ pub type TestStorageManager =
 // Blessed gas parameters
 
 /// The default max fee to set for a transaction. This should be enough to be able to execute most standard transactions for the test rollup.
-pub const TEST_DEFAULT_MAX_FEE: u64 = 100_000_000_000;
+pub const TEST_DEFAULT_MAX_FEE: u128 = 100_000_000_000;
 /// The default gas limit to set for a transaction. This is an optional parameter.
 /// This value should be high enough to be able to execute most standard transactions for the test rollup.
 pub const TEST_DEFAULT_GAS_LIMIT: [u64; 2] = [1_000_000_000, 1_000_000_000];
@@ -94,7 +93,7 @@ pub const TEST_DEFAULT_GAS_LIMIT: [u64; 2] = [1_000_000_000, 1_000_000_000];
 pub const TEST_DEFAULT_USER_STAKE: [u64; 2] = [10_000_000_000, 10_000_000_000];
 /// The default amount of tokens that should be in the user's bank account. This amount should always be higher than [`TEST_DEFAULT_MAX_FEE`] and
 /// [`TEST_DEFAULT_USER_STAKE`]. This value is set so that the user can send a dozen transactions without having to refill its bank account.
-pub const TEST_DEFAULT_USER_BALANCE: u64 = 1_000_000_000_000;
+pub const TEST_DEFAULT_USER_BALANCE: u128 = 1_000_000_000_000;
 /// The default max priority fee to set for a transaction. We are setting this value to zero to avoid having to do
 /// priority fee accounting in the tests. If a test needs to test sequencer rewards, it should set the transaction priority fee
 /// to a non-zero value.
@@ -193,32 +192,30 @@ impl sov_rollup_interface::stf::TxReceiptContents for TestTxReceiptContents {
 /// Simplified AtomicU64 for using in tests.
 #[derive(Clone)]
 pub struct AtomicNumber {
-    num: Arc<AtomicU64>,
+    num: Arc<std::sync::Mutex<u128>>,
 }
 
 impl AtomicNumber {
     /// Create a new AtomicNumber
-    pub fn new(num: u64) -> Self {
+    pub fn new(num: u128) -> Self {
         Self {
-            num: Arc::new(AtomicU64::new(num)),
+            num: Arc::new(std::sync::Mutex::new(num)),
         }
     }
 
     /// Get the current value of the AtomicNumber
-    pub fn get(&self) -> u64 {
-        self.num.load(std::sync::atomic::Ordering::SeqCst)
+    pub fn get(&self) -> u128 {
+        *self.num.lock().unwrap()
     }
 
     /// Add a value to the AtomicNumber
-    pub fn add(&self, value: u64) {
-        self.num
-            .fetch_add(value, std::sync::atomic::Ordering::SeqCst);
+    pub fn add(&self, value: u128) {
+        *self.num.lock().unwrap() += value;
     }
 
     /// Subtract a value from the AtomicNumber
-    pub fn sub(&self, value: u64) {
-        self.num
-            .fetch_sub(value, std::sync::atomic::Ordering::SeqCst);
+    pub fn sub(&self, value: u128) {
+        *self.num.lock().unwrap() -= value;
     }
 }
 

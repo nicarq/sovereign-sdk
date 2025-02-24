@@ -8,7 +8,7 @@ use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
-use sov_modules_api::{CryptoSpec, OperatingMode, RawTx, Spec};
+use sov_modules_api::{Amount, CryptoSpec, OperatingMode, RawTx, Spec};
 use sov_modules_macros::config_value;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
@@ -20,9 +20,9 @@ use crate::test_helpers::{test_genesis_source, DemoRollupSpec, CHAIN_HASH};
 type TestSpec = DemoRollupSpec;
 type TestPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 
-const MAX_TX_FEE: u64 = 100_000_000;
+const MAX_TX_FEE: u128 = 100_000_000;
 const UNREGISTERED_SENDER: MockAddress = MockAddress::new([121; 32]);
-const MINIMUM_BOND: u64 = 100_000_000;
+const MINIMUM_BOND: Amount = Amount::new(100_000_000);
 const FINALIZATION_BLOCKS: u32 = 1;
 
 // Verifies that a rollup with a preferred sequencer can handle forced registration from a different DA address.

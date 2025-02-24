@@ -80,7 +80,7 @@ pub trait BlobSelector {
     #[cfg(feature = "native")]
     fn escrow_funds_for_preferred_sequencer(
         &self,
-        amount: u64,
+        amount: crate::Amount,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
     ) -> anyhow::Result<()>;
 

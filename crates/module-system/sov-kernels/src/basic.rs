@@ -82,7 +82,7 @@ impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
     #[cfg(feature = "native")]
     fn escrow_funds_for_preferred_sequencer(
         &self,
-        _amount: u64,
+        _amount: sov_modules_api::Amount,
         _state: &mut KernelStateAccessor<'_, S>,
     ) -> anyhow::Result<()> {
         unimplemented!()

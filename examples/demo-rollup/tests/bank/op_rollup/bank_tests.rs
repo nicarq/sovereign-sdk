@@ -89,7 +89,7 @@ async fn send_test_bank_txs(
         assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
         assert_balance(
             client,
-            initial_balance - nonce * 10,
+            initial_balance - (nonce as u128) * 10,
             token_id,
             user_address,
             None,

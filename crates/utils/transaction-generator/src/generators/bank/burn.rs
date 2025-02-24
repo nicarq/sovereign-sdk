@@ -1,6 +1,6 @@
 use sov_bank::{CallMessage, Coins, TokenId};
 use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
-use sov_modules_api::Spec;
+use sov_modules_api::{Amount, Spec};
 
 use super::{
     BankAccount, BankChangeLogEntry, BankMessageGenerator, BankTag, InternalMessageGenError,
@@ -38,7 +38,7 @@ impl<S: Spec> BankMessageGenerator<S> {
             .expect("Token should exist. The generator state is corrupted.");
 
         let initial_balance = random_coin.amount;
-        let amount_to_burn = u.int_in_range(0..=initial_balance)?;
+        let amount_to_burn = Amount::new(u.int_in_range(0..=initial_balance.0)?);
         let amount_left = initial_balance.checked_sub(amount_to_burn).expect(
             "Initial balance should not underflow when burning. The generator state is corrupted.",
         );
@@ -103,9 +103,11 @@ impl<S: Spec> BankMessageGenerator<S> {
                 (
                     Coins {
                         token_id: TokenId::arbitrary(u)?,
-                        amount: 0,
+                        amount: Amount::ZERO,
                     },
-                    TokenInfo { total_supply: 0 },
+                    TokenInfo {
+                        total_supply: Amount::ZERO,
+                    },
                     acct,
                 )
             } else if let Some((_addr, acct)) = generator_state
@@ -124,7 +126,7 @@ impl<S: Spec> BankMessageGenerator<S> {
                 (
                     Coins {
                         token_id,
-                        amount: 0,
+                        amount: Amount::ZERO,
                     },
                     token_info,
                     acct,
@@ -134,25 +136,25 @@ impl<S: Spec> BankMessageGenerator<S> {
 
         let balance_to_burn = if let InvalidBurnReason::TokenBalanceExceedsSupply = reason {
             // In that case we cannot burn more than the total supply so we try to generate another message
-            if token_info.total_supply == u64::MAX {
+            if token_info.total_supply == u128::MAX {
                 return self.generate_invalid_burn(u, generator_state);
             }
 
-            u.int_in_range(token_info.total_supply + 1..=u64::MAX)?
+            u.int_in_range(token_info.total_supply.0 + 1..=u128::MAX)?
         } else if let InvalidBurnReason::InsufficientTokenBalanceForOwner = reason {
             // In that case we cannot burn more than the coin amount so we try to generate another message
-            if coin.amount == u64::MAX {
+            if coin.amount == u128::MAX {
                 return self.generate_invalid_burn(u, generator_state);
             }
 
-            u.int_in_range(coin.amount + 1..=u64::MAX)?
+            u.int_in_range(coin.amount.0 + 1..=u128::MAX)?
         } else {
-            u.int_in_range(0..=coin.amount)?
+            u.int_in_range(0..=coin.amount.0)?
         };
 
         let call_message = CallMessage::Burn {
             coins: Coins {
-                amount: balance_to_burn,
+                amount: Amount::new(balance_to_burn),
                 token_id: coin.token_id,
             },
         };

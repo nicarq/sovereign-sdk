@@ -1,9 +1,9 @@
-use sov_modules_api::{Gas, GasArray, GasPrice, GasSpec, Spec};
+use sov_modules_api::{Amount, Gas, GasArray, GasPrice, GasSpec, Spec};
 use sov_test_utils::TestSpec;
 
 use crate::{BlockGasInfo, ChainState};
 
-const INITIAL_BASE_FEE_PER_GAS: [u64; 2] = [100, 100];
+const INITIAL_BASE_FEE_PER_GAS: [Amount; 2] = [Amount::new(100), Amount::new(100)];
 
 // The scalar constant by which the gas used is increased/decreased for each dimension.
 // This constant is expressed as a fraction of the gas target. Hence, here if
@@ -11,7 +11,7 @@ const INITIAL_BASE_FEE_PER_GAS: [u64; 2] = [100, 100];
 const GAS_DELTA_FRACTION: u64 = 2;
 
 /// Helper function that initializes the gas elasticity tests for the multidimensional case. It computes the new base fee per gas
-/// given an amount of gas used, the initial gas limit and the initial base fee per gas.
+/// given the amount of gas used, the initial gas limit and the initial base fee per gas.
 fn test_helper(gas_used: &<TestSpec as Spec>::Gas) -> <<TestSpec as Spec>::Gas as Gas>::Price {
     let mut parent_gas_info = BlockGasInfo::new(
         TestSpec::initial_gas_limit(),
@@ -60,7 +60,7 @@ fn test_base_fee_increases_if_above_target() {
         .expect("The computed base fee per gas should be above the INITIAL_BASE_FEE_PER_GAS");
 
     assert!(
-        GasPrice::from([1; 2]).dim_is_less_than(&delta_base_fee_per_gas),
+        GasPrice::from([Amount::new(1); 2]).dim_is_less_than(&delta_base_fee_per_gas),
         "The base fee per gas delta should increase by more than 1, actual value {:?}",
         delta_base_fee_per_gas
     );

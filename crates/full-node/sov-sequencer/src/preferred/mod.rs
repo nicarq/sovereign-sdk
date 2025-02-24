@@ -272,7 +272,7 @@ where
         // We pass the node state root explicitly because retrieving it is
         // fallible, so it's convenient to front-load the error-checking.
         node_state_root: <S::Storage as Storage>::Root,
-        minimum_profit_per_tx: u64,
+        minimum_profit_per_tx: u128,
     ) {
         self.start_rollup_block_inner(
             visible_increase,
@@ -295,7 +295,7 @@ where
         visible_increase: VisibleSlotNumberIncrease,
         visible_slot_number_after_increase: Option<VisibleSlotNumber>,
         node_state_root: <S::Storage as Storage>::Root,
-        minimum_profit_per_tx: u64,
+        minimum_profit_per_tx: u128,
     ) {
         let InternalState::Idle {
             mut checkpoint,
@@ -933,7 +933,7 @@ pub struct PreferredSequencerConfig {
     /// The minimum fee that the preferred sequencer is willing to accept, denominated in rollup tokens. Defaults to zero.
     /// Sequencers should set this to a non-zero value if they wish to cover their DA costs.
     #[serde(default)]
-    pub minimum_profit_per_tx: u64,
+    pub minimum_profit_per_tx: u128,
     /// The size of the Tokio channel used to stream events.
     ///
     /// Don't deviate from the default unless you know what you're doing.

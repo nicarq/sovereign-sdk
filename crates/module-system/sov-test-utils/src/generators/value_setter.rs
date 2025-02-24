@@ -41,7 +41,7 @@ impl<S: Spec> MessageGenerator for ValueSetterMessages<S> {
         &self,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u64,
+        max_fee: u128,
         gas_usage: Option<<Self::Spec as Spec>::Gas>,
     ) -> Vec<Message<Self::Spec, Self::Module>> {
         let mut messages = Vec::default();

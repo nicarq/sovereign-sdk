@@ -1,6 +1,6 @@
 use sov_bank::{CallMessage, Coins};
 use sov_modules_api::prelude::arbitrary::{self, Arbitrary, Unstructured};
-use sov_modules_api::{SafeString, SafeVec, SizedSafeString, Spec};
+use sov_modules_api::{Amount, SafeString, SafeVec, SizedSafeString, Spec};
 
 use super::{
     BankAccount, BankChangeLogEntry, BankMessageGenerator, BankTag, InternalMessageGenResult,
@@ -100,7 +100,9 @@ impl<S: Spec> BankMessageGenerator<S> {
         let mint_event = Self::update_state_with_mint(
             generator_state,
             token_id,
-            TokenInfo { total_supply: 0 },
+            TokenInfo {
+                total_supply: Amount::ZERO,
+            },
             amount,
             u,
         )?;

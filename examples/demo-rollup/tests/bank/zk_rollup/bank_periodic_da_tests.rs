@@ -9,7 +9,7 @@ use sov_cli::NodeClient;
 use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::{OperatingMode, SerializedAggregatedProof, Spec};
+use sov_modules_api::{Amount, OperatingMode, SerializedAggregatedProof, Spec};
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregateProofVerifier, AggregatedProofPublicData,
@@ -132,7 +132,7 @@ async fn send_test_bank_txs(test_case: TestCase, client: &NodeClient) -> anyhow:
     tokio::time::sleep(std::time::Duration::from_millis(WAIT_TIME)).await;
 
     // 10 transfers of 10,11..20
-    let transfer_amounts: Vec<u64> = (10u64..20).collect();
+    let transfer_amounts: Vec<u128> = (10u128..20).collect();
     let txs = build_multiple_transfers(&transfer_amounts, &key, token_id, recipient_address, 3);
     let slot_batch_n = send_tx_and_wait_for_status(&txs, client).await?;
     assert_slot_finality(client, slot_batch_n, test_case.expected_head_finality()).await;
@@ -151,13 +151,13 @@ async fn send_test_bank_txs(test_case: TestCase, client: &NodeClient) -> anyhow:
         BankEvent::TokenCreated {
             token_name: TOKEN_NAME.to_owned(),
             coins: Coins {
-                amount: 1000,
+                amount: Amount::new(1000),
                 token_id,
             },
             minter: TokenHolder::User(user_address),
             mint_to_address: TokenHolder::User(user_address),
             admins: vec![],
-            supply_cap: u64::MAX,
+            supply_cap: Amount::MAX,
         },
     )
     .await?;
@@ -169,7 +169,7 @@ async fn send_test_bank_txs(test_case: TestCase, client: &NodeClient) -> anyhow:
             from: TokenHolder::User(user_address),
             to: TokenHolder::User(recipient_address),
             coins: Coins {
-                amount: 100,
+                amount: Amount::new(100),
                 token_id,
             },
         },
@@ -183,7 +183,7 @@ async fn send_test_bank_txs(test_case: TestCase, client: &NodeClient) -> anyhow:
             from: TokenHolder::User(user_address),
             to: TokenHolder::User(recipient_address),
             coins: Coins {
-                amount: 200,
+                amount: Amount::new(200),
                 token_id,
             },
         },

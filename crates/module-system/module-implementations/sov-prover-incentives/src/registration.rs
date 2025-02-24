@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sov_bank::{config_gas_token_id, Coins, IntoPayable};
+use sov_bank::{config_gas_token_id, Amount, Coins, IntoPayable};
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{Gas, GetGasPrice, ModuleInfo, Spec, StateAccessor, TxState};
 use sov_state::User;
@@ -18,7 +18,7 @@ impl<S: Spec> StakeRegistration for ProverIncentives<S> {
     fn get_minimum_bond<ST: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
         state: &mut ST,
-    ) -> Result<Option<u64>, <ST as sov_modules_api::StateWriter<User>>::Error> {
+    ) -> Result<Option<Amount>, <ST as sov_modules_api::StateWriter<User>>::Error> {
         self.minimum_bond.get(state).map(|maybe_minimum_bond| {
             maybe_minimum_bond.map(|minimum_bond| minimum_bond.value(state.gas_price()))
         })
@@ -29,7 +29,7 @@ impl<S: Spec> StakeRegistration for ProverIncentives<S> {
         address: &Self::PrimaryAddress,
         state: &mut ST,
     ) -> std::result::Result<
-        Option<(Self::RollupAddress, u64)>,
+        Option<(Self::RollupAddress, Amount)>,
         <ST as sov_modules_api::StateWriter<User>>::Error,
     > {
         self.bonded_provers
@@ -41,7 +41,7 @@ impl<S: Spec> StakeRegistration for ProverIncentives<S> {
         &self,
         primary_address: &Self::PrimaryAddress,
         _rollup_address: &Self::RollupAddress,
-        amount: u64,
+        amount: Amount,
         state: &mut ST,
     ) -> Result<(), <ST as sov_modules_api::StateWriter<User>>::Error> {
         self.bonded_provers.set(primary_address, &amount, state)?;
@@ -51,7 +51,7 @@ impl<S: Spec> StakeRegistration for ProverIncentives<S> {
     fn transfer_bond_from_staker<ST: StateAccessor>(
         &self,
         address: &Self::RollupAddress,
-        amount: u64,
+        amount: Amount,
         state: &mut ST,
     ) -> anyhow::Result<()> {
         self.bank
@@ -62,7 +62,7 @@ impl<S: Spec> StakeRegistration for ProverIncentives<S> {
     fn transfer_bond_to_staker<ST: StateAccessor>(
         &self,
         address: &Self::RollupAddress,
-        amount: u64,
+        amount: Amount,
         state: &mut ST,
     ) -> anyhow::Result<()> {
         self.bank
@@ -80,7 +80,7 @@ impl<S: Spec> StakeRegistration for ProverIncentives<S> {
     }
 }
 
-fn gas_coins(amount: u64) -> Coins {
+fn gas_coins(amount: Amount) -> Coins {
     Coins {
         amount,
         token_id: config_gas_token_id(),

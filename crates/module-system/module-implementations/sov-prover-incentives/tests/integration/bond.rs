@@ -4,7 +4,7 @@ use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::registration_lib::StakeRegistration;
-use sov_modules_api::{Gas, GasArray, GetGasPrice, Spec, TxEffect};
+use sov_modules_api::{Amount, Gas, GasArray, GetGasPrice, Spec, TxEffect};
 use sov_prover_incentives::{CallMessage, Event, ProverIncentives};
 use sov_test_utils::{AsUser, BatchTestCase, BatchType, TransactionTestCase, TransactionType};
 
@@ -24,7 +24,7 @@ fn test_genesis_bond() {
                 .bonded_provers
                 .get(&genesis_prover.user_info.address(), state)
                 .unwrap(),
-            Some(genesis_prover.bond),
+            Some(genesis_prover.bond.into()),
             "The genesis prover should be bonded"
         );
         assert_eq!(
@@ -35,7 +35,7 @@ fn test_genesis_bond() {
                     state
                 )
                 .unwrap_infallible(),
-            Some(genesis_prover.user_info.available_gas_balance),
+            Some(genesis_prover.user_info.available_gas_balance.into()),
             "The balance of the prover should be equal to the free balance"
         );
     });
@@ -52,7 +52,7 @@ fn test_topup_existing_bond() {
 
     let test = TransactionTestCase::<RT, S> {
         input: genesis_prover.create_plain_message::<RT, TestProverIncentives>(
-            CallMessage::Deposit(extra_bond_amount),
+            CallMessage::Deposit(extra_bond_amount.into()),
         ),
         assert: Box::new(move |result, state| {
             assert!(result.events.iter().any(|event| matches!(
@@ -67,13 +67,13 @@ fn test_topup_existing_bond() {
                     .bonded_provers
                     .get(&prover_address, state)
                     .unwrap(),
-                Some(starting_bond + extra_bond_amount),
+                Some((starting_bond + extra_bond_amount).into()),
             );
             assert_eq!(
                 Bank::<S>::default()
                     .get_balance_of(&prover_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(starting_free_balance - extra_bond_amount - result.gas_value_used),
+                Some((starting_free_balance - extra_bond_amount - result.gas_value_used).into()),
             );
         }),
     };
@@ -93,8 +93,9 @@ fn test_bonding_new_prover() {
     let user_address = unbonded_user.address();
 
     runner.execute_transaction(TransactionTestCase {
-        input: unbonded_user
-            .create_plain_message::<RT, TestProverIncentives>(CallMessage::Register(bond_amount)),
+        input: unbonded_user.create_plain_message::<RT, TestProverIncentives>(
+            CallMessage::Register(bond_amount.into()),
+        ),
         assert: Box::new(move |result, state| {
             assert!(result.events.iter().any(|event| matches!(
                 event,
@@ -108,13 +109,13 @@ fn test_bonding_new_prover() {
                     .bonded_provers
                     .get(&unbonded_user.address(), state)
                     .unwrap(),
-                Some(bond_amount),
+                Some(bond_amount.into()),
             );
             assert_eq!(
                 Bank::<S>::default()
                     .get_balance_of(&unbonded_user.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(starting_free_balance - bond_amount - result.gas_value_used),
+                Some((starting_free_balance - bond_amount - result.gas_value_used).into()),
             );
         }),
     });
@@ -132,8 +133,6 @@ fn test_unbonding() {
                 TestRuntimeEvent::ProverIncentives(Event::Exited { .. })
             )));
             assert_eq!(
-                genesis_prover.user_info.available_gas_balance + genesis_prover.bond
-                    - result.gas_value_used,
                 Bank::<S>::default()
                     .get_balance_of(
                         &genesis_prover.user_info.address(),
@@ -141,7 +140,11 @@ fn test_unbonding() {
                         state
                     )
                     .unwrap_infallible()
-                    .unwrap()
+                    .unwrap(),
+                Amount::new(
+                    genesis_prover.user_info.available_gas_balance + genesis_prover.bond
+                        - result.gas_value_used
+                )
             );
         }),
     });
@@ -181,7 +184,7 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
     let bank_signed = prover
         .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Burn {
             coins: sov_bank::Coins {
-                amount: 1,
+                amount: Amount::new(1),
                 token_id: config_gas_token_id(),
             },
         })
@@ -190,7 +193,7 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
 
     let register_signed = unbonded_user
         .create_plain_message::<RT, ProverIncentives<S>>(CallMessage::Register(
-            additional_prover_bond,
+            additional_prover_bond.into(),
         ))
         .to_serialized_authenticated_tx(&mut nonces);
 

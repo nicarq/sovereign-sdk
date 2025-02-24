@@ -4,7 +4,7 @@ use demo_stf::runtime::{Runtime, RuntimeCall};
 use sov_bank::{CallMessage, Coins, TokenId};
 use sov_modules_api::sov_universal_wallet::schema::{RollupRoots, Schema};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{DispatchCall, PrivateKey, Spec};
+use sov_modules_api::{Amount, DispatchCall, PrivateKey, Spec};
 use sov_modules_macros::config_value;
 use sov_test_utils::{
     TestUser, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
@@ -21,7 +21,7 @@ fn make_unsigned_tx() -> UnsignedTransaction<Runtime<S>, S> {
         )
         .unwrap(),
         coins: Coins {
-            amount: 10_000,
+            amount: Amount::new(10_000),
             token_id: TokenId::from_str(
                 "token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks",
             )
@@ -46,7 +46,7 @@ fn test_transfer_template() {
         )
         .unwrap(),
         coins: Coins {
-            amount: 4342,
+            amount: Amount::new(4342),
             token_id: TokenId::from_str(
                 "token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks",
             )

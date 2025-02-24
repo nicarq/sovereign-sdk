@@ -1,6 +1,6 @@
 use std::cmp::max;
 
-use sov_bank::{config_gas_token_id, Coins, IntoPayable};
+use sov_bank::{config_gas_token_id, Amount, Coins, IntoPayable};
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{
     AggregatedProofPublicData, Gas, GasSpec, GetGasPrice, InvalidProofError,
@@ -65,7 +65,7 @@ impl From<ProcessProofError> for InvalidProofError {
 
 enum Paycheck {
     Penalized,
-    Rewarded(u64),
+    Rewarded(Amount),
 }
 
 impl<S: Spec> ProverIncentives<S> {
@@ -194,7 +194,7 @@ impl<S: Spec> ProverIncentives<S> {
         state: &mut impl TxState<S>,
     ) -> Result<Paycheck, ProcessProofError> {
         // Let's compute the total reward
-        let mut total_reward = 0;
+        let mut total_reward = Amount::ZERO;
 
         let first_available_reward = self
             .last_claimed_reward
@@ -219,7 +219,9 @@ impl<S: Spec> ProverIncentives<S> {
                 .map_err(Into::<anyhow::Error>::into)?
             {
                 let curr_reward = transition.gas_used().value(transition.gas_price());
-                total_reward += curr_reward;
+                total_reward = total_reward
+                    .checked_add(curr_reward)
+                    .expect("Gas token Overflow");
             }
         }
 
@@ -237,7 +239,7 @@ impl<S: Spec> ProverIncentives<S> {
 
     fn penalize_prover<ST: TxState<S> + GetGasPrice<Spec = S>>(
         &self,
-        old_balance: u64,
+        old_balance: Amount,
         prover_address: &S::Address,
         state: &mut ST,
     ) -> Result<(), ProcessProofError> {
@@ -260,7 +262,7 @@ impl<S: Spec> ProverIncentives<S> {
 
     fn reward_prover(
         &self,
-        total_reward: u64,
+        total_reward: Amount,
         prover_address: &S::Address,
         state: &mut impl TxState<S>,
     ) -> Result<(), ProcessProofError> {

@@ -71,21 +71,21 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
                 TxEffect::Successful(tx_contents) => {
                     total_gas = total_gas.checked_combine(&tx_contents.gas_used).unwrap();
                     let gas_value = tx_contents.gas_used.value(gas_price);
-                    gas_value_charged_to_user += gas_value;
-                    seq_fee += priority_fee_bips.apply(gas_value).unwrap();
+                    gas_value_charged_to_user += gas_value.0;
+                    seq_fee += priority_fee_bips.apply(gas_value.0).unwrap();
                 }
                 TxEffect::Skipped(tx_contents) => {
                     total_gas = total_gas.checked_combine(&tx_contents.gas_used).unwrap();
                     let gas_value = tx_contents.gas_used.value(gas_price);
                     // Sequencer doesn't get the fee and is penalized
-                    seq_penalty += gas_value;
+                    seq_penalty += gas_value.0;
                 }
                 TxEffect::Reverted(tx_contents) => {
                     total_gas = total_gas.checked_combine(&tx_contents.gas_used).unwrap();
                     // From gas usage point of view the `Successful & Reverted` cases are the same.
                     let gas_value = tx_contents.gas_used.value(gas_price);
-                    gas_value_charged_to_user += gas_value;
-                    seq_fee += priority_fee_bips.apply(gas_value).unwrap();
+                    gas_value_charged_to_user += gas_value.0;
+                    seq_fee += priority_fee_bips.apply(gas_value.0).unwrap();
                 }
             }
         }
@@ -95,7 +95,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
             let gas_used = &ignored.gas_used;
             total_gas = total_gas.checked_combine(gas_used).unwrap();
             let gas_value = gas_used.value(gas_price);
-            seq_penalty += gas_value;
+            seq_penalty += gas_value.0;
         }
 
         let end = runner.query_state(|state| actors.balances(state));
@@ -109,7 +109,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
         // Check sequencer rewards.
         assert_eq!(
             end.sequencer_bond,
-            start.sequencer_bond + seq_fee - seq_penalty - seq_burn
+            start.sequencer_bond + seq_fee - seq_penalty - seq_burn.0
         );
 
         // Check prover rewards.
@@ -122,15 +122,15 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
         // except for the gas burned by the sequencer to submit the blob.
         assert_eq!(
             end.total_balance(),
-            start.total_balance().saturating_sub(seq_burn)
+            start.total_balance().saturating_sub(seq_burn.0)
         );
 
         assert_eq!(
             batch_receipt.inner.outcome,
             sov_modules_api::BatchSequencerOutcome {
                 rewards: Rewards {
-                    accumulated_reward: seq_fee,
-                    accumulated_penalty: seq_penalty,
+                    accumulated_reward: seq_fee.into(),
+                    accumulated_penalty: seq_penalty.into(),
                 }
             }
         );
@@ -377,14 +377,14 @@ mod helpers {
 
     #[derive(Debug, Eq, PartialEq)]
     pub(crate) struct Balances {
-        pub(crate) admin_balance: u64,
-        pub(crate) not_admin_balance: u64,
-        pub(crate) attester_module_balance: u64,
-        pub(crate) sequencer_bond: u64,
+        pub(crate) admin_balance: u128,
+        pub(crate) not_admin_balance: u128,
+        pub(crate) attester_module_balance: u128,
+        pub(crate) sequencer_bond: u128,
     }
 
     impl Balances {
-        pub(crate) fn total_balance(&self) -> u64 {
+        pub(crate) fn total_balance(&self) -> u128 {
             self.admin_balance
                 + self.not_admin_balance
                 + self.sequencer_bond

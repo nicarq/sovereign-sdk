@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sov_bank::BurnRate;
 use sov_modules_api::macros::{config_value, UniversalWallet};
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
-use sov_modules_api::{EventEmitter, Spec, StateAccessor, StateReader, TxState};
+use sov_modules_api::{Amount, EventEmitter, Spec, StateAccessor, StateReader, TxState};
 use sov_state::User;
 use thiserror::Error;
 
@@ -31,10 +31,10 @@ use crate::{Event, ProverIncentives};
 //     https://github.com/Sovereign-Labs/sovereign-sdk/issues/274
 pub enum CallMessage {
     /// Add a new prover as a bonded prover.
-    Register(u64),
+    Register(Amount),
     /// Increases the balance of the prover, transferring the funds from the prover account
     /// to the rollup.
-    Deposit(u64),
+    Deposit(Amount),
     /// Unbonds the prover.
     Exit,
 }
@@ -57,7 +57,7 @@ impl<S: Spec> ProverIncentives<S> {
     /// Try to bond the requested amount of coins from context.sender()
     pub(crate) fn register<ST: TxState<S>>(
         &self,
-        bond_amount: u64,
+        bond_amount: Amount,
         prover_address: &S::Address,
         state: &mut ST,
     ) -> Result<(), ProverRegistryError<S, ST>> {
@@ -66,7 +66,7 @@ impl<S: Spec> ProverIncentives<S> {
             state,
             Event::<S>::Registered {
                 prover: prover_address.clone(),
-                amount: bond_amount,
+                amount: bond_amount.0,
             },
         );
 
@@ -76,7 +76,7 @@ impl<S: Spec> ProverIncentives<S> {
     /// Increases the balance of the provided sender, updating the state of the bonded provers.
     pub(crate) fn deposit<ST: TxState<S>>(
         &self,
-        amount: u64,
+        amount: Amount,
         prover_address: &S::Address,
         state: &mut ST,
     ) -> Result<(), ProverRegistryError<S, ST>> {
@@ -85,7 +85,7 @@ impl<S: Spec> ProverIncentives<S> {
             state,
             Event::<S>::Deposited {
                 prover: prover_address.clone(),
-                deposit: amount,
+                deposit: amount.0,
             },
         );
 
@@ -104,7 +104,7 @@ impl<S: Spec> ProverIncentives<S> {
             state,
             Event::<S>::Exited {
                 prover: prover_address.clone(),
-                amount_withdrawn,
+                amount_withdrawn: amount_withdrawn.0,
             },
         );
 

@@ -3,7 +3,7 @@ use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::tokio::{self};
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
-use sov_modules_api::{Gas, GasArray, GasSpec, PrivateKey, Spec, SyncStatus};
+use sov_modules_api::{Amount, Gas, GasArray, GasSpec, PrivateKey, Spec, SyncStatus};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_apis::{PartialTransaction, SimulateExecutionContainer};
 use sov_test_utils::{AsUser, EncodeCall, TransactionTestCase, TEST_DEFAULT_MAX_FEE};
@@ -18,7 +18,15 @@ async fn test_get_base_fee_per_gas_latest() {
     let response = data.client().get_latest_base_fee_per_gas().await.unwrap();
     assert_eq!(
         <<S as Spec>::Gas as Gas>::Price::try_from(
-            response.data.clone().unwrap().base_fee_per_gas.0
+            response
+                .data
+                .clone()
+                .unwrap()
+                .base_fee_per_gas
+                .0
+                .iter()
+                .map(|item| item.as_str().parse::<Amount>().unwrap())
+                .collect::<Vec<_>>()
         )
         .unwrap(),
         S::initial_base_fee_per_gas()
@@ -46,7 +54,7 @@ async fn test_get_base_fee_per_gas_latest_with_updates() {
         runner.execute_transaction(TransactionTestCase {
             input: user.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Burn {
                 coins: sov_bank::Coins {
-                    amount: 1000,
+                    amount: Amount::new(1000),
                     token_id: config_gas_token_id(),
                 },
             }),
@@ -86,10 +94,24 @@ async fn test_get_base_fee_per_gas_latest_with_updates() {
         .clone()
         .unwrap();
 
-    let api_initial_gas_price =
-        <<S as Spec>::Gas as Gas>::Price::try_from(initial_response.base_fee_per_gas.0).unwrap();
-    let api_current_gas_price =
-        <<S as Spec>::Gas as Gas>::Price::try_from(response.base_fee_per_gas.0).unwrap();
+    let api_initial_gas_price = <<S as Spec>::Gas as Gas>::Price::try_from(
+        initial_response
+            .base_fee_per_gas
+            .0
+            .iter()
+            .map(|item| item.as_str().parse::<Amount>().unwrap())
+            .collect::<Vec<_>>(),
+    )
+    .unwrap();
+    let api_current_gas_price = <<S as Spec>::Gas as Gas>::Price::try_from(
+        response
+            .base_fee_per_gas
+            .0
+            .iter()
+            .map(|item| item.as_str().parse::<Amount>().unwrap())
+            .collect::<Vec<_>>(),
+    )
+    .unwrap();
 
     // The gas price should match the initial gas price
     assert_eq!(api_initial_gas_price, initial_gas_price);
@@ -121,7 +143,7 @@ async fn test_simulation() {
         encoded_call_message: <RT as EncodeCall<Bank<S>>>::encode_call(
             sov_bank::CallMessage::Burn {
                 coins: sov_bank::Coins {
-                    amount: 1000,
+                    amount: Amount::new(1000),
                     token_id: config_gas_token_id(),
                 },
             },
@@ -154,7 +176,7 @@ async fn test_simulation() {
             data.user
                 .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Burn {
                     coins: sov_bank::Coins {
-                        amount: 1000,
+                        amount: Amount::new(1000),
                         token_id: config_gas_token_id(),
                     },
                 }),

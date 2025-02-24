@@ -11,7 +11,7 @@ use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{
-    ApiStateAccessor, DaSpec, FullyBakedTx, Gas, PrivateKey, RawTx, Rewards, Spec,
+    Amount, ApiStateAccessor, DaSpec, FullyBakedTx, Gas, PrivateKey, RawTx, Rewards, Spec,
 };
 use sov_modules_stf_blueprint::{BatchReceipt, Runtime};
 use sov_sequencer_registry::{AllowedSequencerError, SequencerRegistry};
@@ -29,21 +29,22 @@ type Call = IntegTestRuntimeCall<S>;
 
 generate_optimistic_runtime!(IntegTestRuntime <= value_setter: ValueSetter<S>);
 
-fn get_balance(payable: impl Payable<S>, state: &mut ApiStateAccessor<S>) -> u64 {
+fn get_balance(payable: impl Payable<S>, state: &mut ApiStateAccessor<S>) -> u128 {
     Bank::<S>::default()
         .get_balance_of(payable, config_gas_token_id(), state)
         .unwrap_infallible()
         .unwrap()
+        .0
 }
 
 fn get_seq_bond(
     sequencer_da_address: &<<S as Spec>::Da as DaSpec>::Address,
     state: &mut ApiStateAccessor<S>,
-) -> Result<u64, AllowedSequencerError> {
+) -> Result<u128, AllowedSequencerError> {
     let sequencer_module = SequencerRegistry::<S>::default();
     sequencer_module
         .is_sender_allowed(sequencer_da_address, state)
-        .map(|s| s.balance)
+        .map(|s| s.balance.0)
 }
 
 #[allow(clippy::type_complexity)]
@@ -245,8 +246,8 @@ pub fn has_tx_events<S: Spec>(apply_blob_outcome: &BatchReceipt<S>) -> bool {
 
 fn default_rewards() -> Rewards {
     Rewards {
-        accumulated_reward: 0,
-        accumulated_penalty: 0,
+        accumulated_reward: Amount::ZERO,
+        accumulated_penalty: Amount::ZERO,
     }
 }
 

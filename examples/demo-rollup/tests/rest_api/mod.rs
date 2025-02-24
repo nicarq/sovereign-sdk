@@ -306,7 +306,8 @@ async fn check_custom_endpoints(client: &demo_stf_json_client::Client) -> anyhow
         .bank_custom_token_get_total_supply(&gas_token_id)
         .await?;
     let coins = total_gas_supply.data.clone().unwrap();
-    assert!(coins.amount.unwrap() > 100);
+    let amount = coins.amount.unwrap().parse::<u128>().unwrap();
+    assert!(amount > 100);
 
     assert_eq!(gas_token_id, coins.token_id.unwrap());
 

@@ -3,7 +3,7 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::Error::ModuleError;
-use sov_modules_api::{Gas, GasArray, GasSpec, GetGasPrice, TxEffect};
+use sov_modules_api::{Amount, Gas, GasArray, GasSpec, GetGasPrice, TxEffect};
 use sov_sequencer_registry::{CallMessage, CustomError};
 use sov_test_utils::runtime::{TestRunner, ValueSetter};
 use sov_test_utils::{
@@ -15,7 +15,7 @@ use crate::helpers::{
     ANOTHER_SEQUENCER_DA_ADDRESS, NON_DEFAULT_SEQUENCER_DA_ADDRESS, RT,
 };
 
-const SEQUENCE_STAKE: u64 = 100_000_000_000;
+const SEQUENCE_STAKE: Amount = Amount::new(100_000_000_000);
 
 type S = sov_test_utils::TestSpec;
 
@@ -62,7 +62,7 @@ fn test_default_sequencer() {
                 ),
                 Some(
                     test_sequencer_bond + custom_priority_fee.apply(result.gas_value_used).unwrap()
-                        - sequencer_burn
+                        - sequencer_burn.0
                 ),
                 "The sequencer should have been rewarded the execution funds "
             );
@@ -112,12 +112,12 @@ fn test_new_sequencer_registration() {
                 event,
                 TestRuntimeEvent::SequencerRegistry(
                     sov_sequencer_registry::Event::Registered { sequencer, amount }
-                ) if *sequencer == other_sequencer_address && *amount == SEQUENCE_STAKE
+                ) if *sequencer == other_sequencer_address && *amount == SEQUENCE_STAKE.0
             )));
             // Assert that the other sequencer balance has been updated
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&other_sequencer_address, state),
-                Some(TEST_DEFAULT_USER_BALANCE - SEQUENCE_STAKE - result.gas_value_used)
+                Some(TEST_DEFAULT_USER_BALANCE - SEQUENCE_STAKE.0 - result.gas_value_used)
             );
         }),
     });
@@ -150,11 +150,11 @@ fn test_registration_not_enough_funds() {
         mut runner,
     ) = setup();
 
-    let other_sequencer_balance = additional_sequencer.available_gas_balance;
+    let other_sequencer_balance = Amount::new(additional_sequencer.available_gas_balance);
 
     let additional_sequencer_address = additional_sequencer.address();
 
-    let amount_to_register = other_sequencer_balance + SEQUENCE_STAKE;
+    let amount_to_register = other_sequencer_balance.checked_add(SEQUENCE_STAKE).unwrap();
 
     runner.execute_transaction(TransactionTestCase {
         input: additional_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
@@ -262,7 +262,7 @@ fn test_exit_happy_path() {
             // Assert that the other sequencer balance has been updated
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&other_sequencer_address, state),
-                Some(other_sequencer_balance_ref.get() - SEQUENCE_STAKE)
+                Some(other_sequencer_balance_ref.get() - SEQUENCE_STAKE.0)
             );
         }),
     };
@@ -364,7 +364,7 @@ fn test_exit_happy_path() {
                 event,
                 TestRuntimeEvent::SequencerRegistry(
                     sov_sequencer_registry::Event::Withdrew { sequencer, amount_withdrawn }
-                ) if *sequencer == other_sequencer_address && *amount_withdrawn == expected_balance_to_withdraw
+                ) if *sequencer == other_sequencer_address && *amount_withdrawn == expected_balance_to_withdraw.0
             )));
             // Update the other sequencer's balance
             other_sequencer_balance_ref_4.sub(result.gas_value_used);
@@ -422,7 +422,7 @@ fn test_deposit_resets_balance_state() {
         input: additional_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Deposit {
                 da_address: other_sequencer_da_address,
-                amount: 1,
+                amount: Amount::new(1),
             },
         ),
         assert: Box::new(move |result, state| {
@@ -432,7 +432,8 @@ fn test_deposit_resets_balance_state() {
                     .is_sender_known(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
                     .is_ok_and(
                         |allowed_sequencer| allowed_sequencer.balance_state.is_active()
-                            && allowed_sequencer.balance == SEQUENCE_STAKE + 1
+                            && allowed_sequencer.balance
+                                == SEQUENCE_STAKE.checked_add(Amount::new(1)).unwrap()
                     ),
                 "The sequencer should be unregistered"
             );
@@ -663,14 +664,16 @@ fn test_balance_increase_fails_if_insufficient_funds() {
         mut runner,
     ) = setup();
 
-    let default_sequencer_balance = default_sequencer.user_info.available_gas_balance;
+    let default_sequencer_balance = Amount::new(default_sequencer.user_info.available_gas_balance);
     let default_sequencer_address = default_sequencer.user_info.address();
 
     runner.execute_transaction(TransactionTestCase {
         input: default_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Deposit {
                 da_address: default_sequencer.da_address,
-                amount: default_sequencer_balance + SEQUENCE_STAKE,
+                amount: default_sequencer_balance
+                    .checked_add(SEQUENCE_STAKE)
+                    .unwrap(),
             },
         ),
         assert: Box::new(move |result, _state| match &result.tx_receipt {
@@ -680,7 +683,9 @@ fn test_balance_increase_fails_if_insufficient_funds() {
                     ModuleError(
                         TestSequencerRegistryError::InsufficientFundsToTopUpAccount {
                             address: default_sequencer_address,
-                            amount_to_add: default_sequencer_balance + SEQUENCE_STAKE,
+                            amount_to_add: default_sequencer_balance
+                                .checked_add(SEQUENCE_STAKE)
+                                .unwrap(),
                         }
                         .into(),
                     ),

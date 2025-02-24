@@ -140,7 +140,7 @@ impl TestClient {
         contract_address: H160,
         set_args: Vec<u32>,
         max_priority_fee_per_gas: Option<u64>,
-        max_fee_per_gas: Option<u64>,
+        max_fee_per_gas: Option<u128>,
     ) -> Vec<PendingTransaction<'_, Http>> {
         let mut requests: Vec<_> = Vec::with_capacity(set_args.len());
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
@@ -173,7 +173,7 @@ impl TestClient {
         contract_address: H160,
         set_arg: u32,
         max_priority_fee_per_gas: Option<u64>,
-        max_fee_per_gas: Option<u64>,
+        max_fee_per_gas: Option<u128>,
     ) -> PendingTransaction<'_, Http> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
         tracing::info!(from = %self.from_addr, nonce, "SmartContract::set_value");

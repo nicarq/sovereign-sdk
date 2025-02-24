@@ -64,12 +64,12 @@ pub(crate) fn create_keys_and_addresses() -> (
 pub(crate) fn build_create_token_tx(
     key: &<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     nonce: u64,
-    initial_balance: u64,
+    initial_balance: u128,
 ) -> Transaction<Runtime<TestSpec>, TestSpec> {
     let user_address: Address = key.pub_key().credential_id::<sha2::Sha256>().into();
     let msg = RuntimeCall::<TestSpec>::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
         token_name: TOKEN_NAME.try_into().unwrap(),
-        initial_balance,
+        initial_balance: initial_balance.into(),
         mint_to_address: user_address.into(),
         admins: SafeVec::new(),
         supply_cap: None,
@@ -81,18 +81,21 @@ pub(crate) fn build_transfer_token_tx(
     key: &<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     token_id: TokenId,
     recipient: <TestSpec as Spec>::Address,
-    amount: u64,
+    amount: u128,
     nonce: u64,
 ) -> Transaction<Runtime<TestSpec>, TestSpec> {
     let msg = RuntimeCall::<TestSpec>::Bank(sov_bank::CallMessage::<TestSpec>::Transfer {
         to: recipient,
-        coins: Coins { amount, token_id },
+        coins: Coins {
+            amount: amount.into(),
+            token_id,
+        },
     });
     default_test_signed_transaction(key, &msg, nonce, &CHAIN_HASH)
 }
 
 pub(crate) fn build_multiple_transfers(
-    amounts: &[u64],
+    amounts: &[u128],
     signer_key: &<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     token_id: TokenId,
     recipient: <TestSpec as Spec>::Address,
@@ -111,7 +114,7 @@ pub(crate) fn build_multiple_transfers(
 
 pub(crate) async fn assert_balance(
     client: &NodeClient,
-    assert_amount: u64,
+    assert_amount: u128,
     token_id: TokenId,
     user_address: <TestSpec as Spec>::Address,
     rollup_height: Option<u64>,
@@ -125,7 +128,7 @@ pub(crate) async fn assert_balance(
                 rollup_height, user_address, token_id, assert_amount
             )
         })?;
-    if assert_amount != actual_amount {
+    if assert_amount != actual_amount.0 {
         anyhow::bail!(
             "Unexpected amount at rollup_height {:?}. expected={} actual={}",
             rollup_height,
@@ -196,6 +199,8 @@ pub(crate) async fn assert_bank_event<S: Spec>(
 
     let event_value =
         serde_json::Value::Object(event_response.data.as_ref().unwrap().value.clone());
+
+    println!("event_value: {:?}", event_value);
 
     // Attempt to deserialize the "body" of the bank key in the response to the Event type
     let bank_event_contents = serde_json::from_value::<BankEvent<S>>(event_value)?;

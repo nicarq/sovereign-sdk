@@ -355,7 +355,7 @@ pub enum Event<S: sov_modules_api::Spec> {
         /// The ID of the token that was transferred
         token_id: TokenId,
         /// The quantity of the token that was transferred
-        amount: u64,
+        amount: u128,
     },
 }
 ```

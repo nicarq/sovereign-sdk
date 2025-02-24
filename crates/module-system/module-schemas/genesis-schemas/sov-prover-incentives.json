@@ -19,9 +19,7 @@
             "$ref": "#/definitions/Address"
           },
           {
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
+            "$ref": "#/definitions/Amount"
           }
         ],
         "maxItems": 2,
@@ -51,8 +49,14 @@
       "type": "string",
       "pattern": "^sov1[a-zA-Z0-9]+$"
     },
+    "Amount": {
+      "description": "A token amount.",
+      "type": "integer",
+      "format": "uint128",
+      "minimum": 0.0
+    },
     "GasUnit(2)": {
-      "description": "GasUnit is an array of u64 of size 2",
+      "description": "GasUnit is an array of size 2",
       "type": "array",
       "items": {
         "type": "number"

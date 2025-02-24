@@ -3,8 +3,8 @@ use sov_bank::IntoPayable;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    as_u32_or_panic, BatchWithId, BlobDataWithId, CryptoSpec, DaSpec, Gas, GasArray, GasSpec,
-    KernelStateAccessor, ModuleInfo, PrivilegedKernelAccessor, Spec,
+    as_u32_or_panic, Amount, BatchWithId, BlobDataWithId, CryptoSpec, DaSpec, Gas, GasArray,
+    GasSpec, KernelStateAccessor, ModuleInfo, PrivilegedKernelAccessor, Spec,
 };
 
 use crate::max_size_checker::BlobsWithTotalSizeLimit;
@@ -37,7 +37,7 @@ impl<S: Spec> BlobStorage<S> {
         idx: u32,
         blob: BlobDataWithId<S, BatchWithId<S>>,
         sender: <<S as Spec>::Da as DaSpec>::Address,
-        available_balance: u64,
+        available_balance: Amount,
         selected_blobs: &BlobsWithTotalSizeLimit<S>,
         gas_price_for_new_block: &<S::Gas as Gas>::Price,
         account_for_deferral: bool,
@@ -47,7 +47,7 @@ impl<S: Spec> BlobStorage<S> {
             return None;
         }
 
-        let mut funds_needed = 0u64;
+        let mut funds_needed = Amount::ZERO;
 
         // If we might defer this blob, we need to account for storage costs and account for the fact that the gas price might be higher.
         // when it gets selected for execution.
@@ -70,7 +70,7 @@ impl<S: Spec> BlobStorage<S> {
         funds_needed = funds_needed
             .checked_add(gas_needed_for_pre_exec_checks.checked_value(gas_price_for_new_block)?)?;
         if funds_needed > available_balance {
-            tracing::debug!(funds_needed, %sender, available_balance, "Failed to escrow funds for deferred blob.");
+            tracing::debug!(%funds_needed, %sender, %available_balance, "Failed to escrow funds for deferred blob.");
             return None;
         }
 
@@ -83,7 +83,7 @@ impl<S: Spec> BlobStorage<S> {
                 funds_needed,
                 state,
             ) {
-                tracing::debug!(funds_needed, %sender, "Failed to escrow funds for deferred blob. {}", e);
+                tracing::debug!(%funds_needed, %sender, "Failed to escrow funds for deferred blob. {}", e);
                 return None;
             };
             Some(ValidatedBlob::new(
@@ -99,7 +99,7 @@ impl<S: Spec> BlobStorage<S> {
                 funds_needed,
                 state,
             ) {
-                tracing::debug!(funds_needed, %sender, "Failed to escrow funds. {}", e);
+                tracing::debug!(%funds_needed, %sender, "Failed to escrow funds. {}", e);
                 return None;
             }
             Some(ValidatedBlob::new(
@@ -117,7 +117,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         blob: BlobDataWithId<S, BatchWithId<S>>,
         sender: <<S as Spec>::Da as DaSpec>::Address,
-        available_balance: u64,
+        available_balance: Amount,
         selected_blobs: &BlobsWithTotalSizeLimit<S>,
         visible_height_increase: u64,
         state: &mut KernelStateAccessor<'_, S>,
@@ -172,7 +172,7 @@ impl<S: Spec> BlobStorage<S> {
         blob: &BlobDataWithId<S, BatchWithId<S>>,
         sender: &<<S as Spec>::Da as DaSpec>::Address,
         current_gas_price: &<<S as Spec>::Gas as Gas>::Price,
-    ) -> Option<u64> {
+    ) -> Option<Amount> {
         const WORST_CASE_GAS_PRICE_INCREASE: u32 = 2;
 
         let num_pre_exec_checks_needed = Self::num_pre_exec_checks_needed(blob);

@@ -246,7 +246,7 @@ pub struct WorkingSet<S: Spec, I: StateProvider<S> = StateCheckpoint<S>> {
     events: Vec<TypedEvent>,
     gas_meter: BasicGasMeter<S>,
     // Gas parameters of the transaction associated with the working set
-    max_fee: u64,
+    max_fee: u128,
     max_priority_fee_bips: PriorityFeeBips,
 }
 
@@ -328,7 +328,7 @@ impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
     }
 
     /// Returns the maximum fee that can be paid for this transaction expressed in gas token amount.
-    pub fn max_fee(&self) -> u64 {
+    pub fn max_fee(&self) -> u128 {
         self.max_fee
     }
 }
@@ -342,7 +342,7 @@ impl<S: Spec> WorkingSet<S, StateCheckpoint<S>> {
     /// Note: This method uses a [`MockKernel`] with a default height, this is not compatible with tests over multiple slots.
     pub fn new_with_gas_meter(
         inner: S::Storage,
-        remaining_funds: u64,
+        remaining_funds: crate::Amount,
         price: &<S::Gas as crate::Gas>::Price,
     ) -> Self {
         use crate::capabilities::mocks::MockKernel;

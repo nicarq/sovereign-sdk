@@ -144,7 +144,7 @@ $ make test-create-token
 2023-07-12T15:04:52.291073Z  INFO sov_celestia_adapter::da_service: Fetching header at height=31...
 2023-07-12T15:05:02.304393Z  INFO sov_demo_rollup: Received 1 blobs at height 31
 2023-07-12T15:05:02.305257Z  INFO sov_demo_rollup: blob #0 at height 31 with blob_hash 0x4876c2258b57104356efa4630d3d9f901ccfda5dde426ba8aef81d4a3e357c79 has been applied with #1 transactions, sequencer outcome Rewarded(0)
-2023-07-12T15:05:02.305280Z  INFO sov_demo_rollup: tx #0 hash: 0x1e1892f77cf42c0abd2ca2acdd87eabb9aa65ec7497efea4ff9f5f33575f881a result Successful
+2023-07-12T15:05:02.305280Z  INFO sov_demo_rollup: tx #0 hash: 0x7166f3d92f2e93db353ec66d02c880285390b15264e87bfa6a3b1a3eb2bec423 result Successful
 2023-07-12T15:05:02.310714Z  INFO sov_demo_rollup: Requesting data for height 32 and prev_state_root 0xae87adb5291d3e645c09ff74dfe3580a25ef0b893b67f09eb58ae70c1bf135c2
 ```
 
@@ -243,7 +243,7 @@ Here's an example of a JSON representing the above call:
   "transfer": {
     "to": "sov1zgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfqve8h6h",
     "coins": {
-      "amount": 200,
+      "amount": "200",
       "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"
     }
   }
@@ -295,13 +295,13 @@ Adding the following transaction to batch:
       "transfer": {
         "to": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66",
         "coins": {
-          "amount": 200,
+          "amount": "200",
           "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"
         }
       }
     }
   },
-  "chain_hash": "0x86daaf7bd589f0f555ffa271abfb012ac19d31ffc55da44dbec9d7b551e86e00",
+  "chain_hash": "0x632ba77362f2073fd5f1fe2390c32a561783c2e13764db8043ca967c06513d4f",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": 100000000,
@@ -330,7 +330,7 @@ This command will use your default private key.
 
 ```bash,test-ci,bashtestmd:compare-output
 $ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_126x5str6mkes6ve8j92cnz579azyqlmrk74l6a4fg4zvd076hdxspqs3pc/total-supply | jq -c -M
-{"data":{"amount":1000000,"token_id":"token_126x5str6mkes6ve8j92cnz579azyqlmrk74l6a4fg4zvd076hdxspqs3pc"},"meta":{}}
+{"data":{"amount":"1000000","token_id":"token_126x5str6mkes6ve8j92cnz579azyqlmrk74l6a4fg4zvd076hdxspqs3pc"},"meta":{}}
 ```
 
 #### 5. Wait for aggregated proof to be available

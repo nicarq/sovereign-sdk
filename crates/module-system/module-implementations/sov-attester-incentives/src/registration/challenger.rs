@@ -1,5 +1,6 @@
 use core::result::Result::Ok;
 
+use sov_bank::Amount;
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{Context, EventEmitter, Spec, TxState};
 
@@ -12,7 +13,7 @@ where
 {
     pub(crate) fn register_challenger<ST: TxState<S>>(
         &self,
-        bond_amount: u64,
+        bond_amount: Amount,
         user_address: &S::Address,
         state: &mut ST,
     ) -> Result<(), AttesterRegistryError<S, ST>> {

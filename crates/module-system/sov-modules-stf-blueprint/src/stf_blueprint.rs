@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use sov_modules_api::{DaSpec, Gas, ProofReceipt, Spec, StateCheckpoint, Storage};
+use sov_modules_api::{Amount, DaSpec, Gas, ProofReceipt, Spec, StateCheckpoint, Storage};
 use sov_rollup_interface::stf::StoredEvent;
 use sov_state::StorageProof;
 
@@ -55,7 +55,7 @@ where
         slot_gas: &S::Gas,
         sender: &<S::Da as DaSpec>::Address,
         sequencer_rollup_address: &S::Address,
-        sequencer_bond: u64,
+        sequencer_bond: Amount,
         gas_price: &<S::Gas as Gas>::Price,
         raw_proof: Vec<u8>,
         checkpoint: StateCheckpoint<S>,

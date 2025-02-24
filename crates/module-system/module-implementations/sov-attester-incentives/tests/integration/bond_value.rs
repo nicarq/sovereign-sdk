@@ -4,7 +4,7 @@ use sov_attester_incentives::{AttesterIncentives, CallMessage};
 use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{ApiStateAccessor, Gas, GasArray, GetGasPrice, Spec, TxEffect};
+use sov_modules_api::{Amount, ApiStateAccessor, Gas, GasArray, GetGasPrice, Spec, TxEffect};
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{AsUser, BatchTestCase, BatchType, TestUser, TransactionType};
 
@@ -18,14 +18,14 @@ enum TestRole {
 }
 
 impl TestRole {
-    fn minimal_bond(&self, runner: &TestRunner<RT, S>) -> u64 {
+    fn minimal_bond(&self, runner: &TestRunner<RT, S>) -> u128 {
         match self {
             TestRole::Attester => minimal_attester_bond(runner),
             TestRole::Challenger => minimal_challenger_bond(runner),
         }
     }
 
-    fn user_bond(&self, user: &TestUser<S>, state: &mut ApiStateAccessor<S>) -> Option<u64> {
+    fn user_bond(&self, user: &TestUser<S>, state: &mut ApiStateAccessor<S>) -> Option<u128> {
         match self {
             TestRole::Attester => AttesterIncentives::<S>::default()
                 .bonded_attesters
@@ -36,12 +36,13 @@ impl TestRole {
                 .get(&user.address(), state)
                 .unwrap_infallible(),
         }
+        .map(|amount| amount.0)
     }
 
-    fn create_call_message(&self, bond_amount: u64) -> CallMessage {
+    fn create_call_message(&self, bond_amount: u128) -> CallMessage {
         match self {
-            TestRole::Attester => CallMessage::RegisterAttester(bond_amount),
-            TestRole::Challenger => CallMessage::RegisterChallenger(bond_amount),
+            TestRole::Attester => CallMessage::RegisterAttester(bond_amount.into()),
+            TestRole::Challenger => CallMessage::RegisterChallenger(bond_amount.into()),
         }
     }
 }
@@ -79,7 +80,7 @@ fn test_cannot_prove_when_gas_price_is_too_high(role: TestRole) {
     let bank_signed = user
         .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Burn {
             coins: sov_bank::Coins {
-                amount: 1,
+                amount: Amount::new(1),
                 token_id: config_gas_token_id(),
             },
         })
@@ -145,8 +146,8 @@ fn test_cannot_prove_when_gas_price_is_too_high(role: TestRole) {
 
         // The user should be registered
         assert!(
-           user.
-           is_some(),
+            user.
+                is_some(),
             "The additional user should be registered"
         );
 

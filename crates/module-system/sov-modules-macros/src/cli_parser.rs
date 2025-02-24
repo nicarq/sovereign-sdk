@@ -220,7 +220,7 @@ pub(crate) fn derive_cli_wallet(
                     }
                 }
 
-                fn max_fee(&self) -> u64 {
+                fn max_fee(&self) -> u128 {
                     match self {
                         #( #tx_args_subcommand_match_arms_max_fee )*
                         _ => unreachable!(),

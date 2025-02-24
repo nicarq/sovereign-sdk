@@ -86,8 +86,8 @@ components:
         token_id:
           $ref: "#/components/schemas/TokenId"
         amount:
-          type: integer
-          format: uint64
+          type: string
+          pattern: '^[0-9]+$'
           description: Amount
   responses:
     CoinsResponse:

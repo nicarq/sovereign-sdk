@@ -117,7 +117,7 @@ this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
 $ sleep 5
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0xdd47cb6dbed7b08f38c0761a471687c37b904409f28df450668258998b56e248/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0x7166f3d92f2e93db353ec66d02c880285390b15264e87bfa6a3b1a3eb2bec423/events | jq
 {
   "data": [
     {
@@ -128,7 +128,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0xdd47cb6dbed7b08f38c0761a471687c37
         "token_created": {
           "token_name": "sov-test-token",
           "coins": {
-            "amount": 1000000,
+            "amount": "1000000",
             "token_id": "token_126x5str6mkes6ve8j92cnz579azyqlmrk74l6a4fg4zvd076hdxspqs3pc"
           },
           "mint_to_address": {
@@ -137,7 +137,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0xdd47cb6dbed7b08f38c0761a471687c37
           "minter": {
             "user": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
           },
-          "supply_cap": 18446744073709552000,
+          "supply_cap": "340282366920938463463374607431768211455",
           "admins": [
             {
               "user": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
@@ -263,7 +263,7 @@ Here's an example of a JSON representing the above call:
   "transfer": {
     "to": "sov1zgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfqve8h6h",
     "coins": {
-      "amount": 200,
+      "amount": "200",
       "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"
     }
   }
@@ -319,13 +319,13 @@ Adding the following transaction to batch:
       "transfer": {
         "to": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66",
         "coins": {
-          "amount": 200,
+          "amount": "200",
           "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"
         }
       }
     }
   },
-  "chain_hash": "0x86daaf7bd589f0f555ffa271abfb012ac19d31ffc55da44dbec9d7b551e86e00",
+  "chain_hash": "0x632ba77362f2073fd5f1fe2390c32a561783c2e13764db8043ca967c06513d4f",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": 100000000,
@@ -358,7 +358,7 @@ $ ./../../target/debug/sov-cli node submit-batch --wait-for-processing by-addres
 
 ```bash,test-ci,bashtestmd:compare-output
 $ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7/total-supply | jq -c -M
-{"data":{"amount":30000000000000,"token_id":"token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"},"meta":{}}
+{"data":{"amount":"30000000000000","token_id":"token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"},"meta":{}}
 ```
 
 #### 6. Wait for aggregated proof to be available

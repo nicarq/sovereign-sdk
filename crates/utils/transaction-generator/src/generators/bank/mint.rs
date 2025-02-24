@@ -34,7 +34,13 @@ impl<S: Spec> BankMessageGenerator<S> {
             if let InvalidMintReasons::TokenDoesNotExist = invalid_mint_reason {
                 // An arbitrary token ID will never exist
                 let (_, acct) = generator_state.get_or_generate(self.address_creation_rate, u)?;
-                (TokenId::arbitrary(u)?, TokenInfo { total_supply: 0 }, acct)
+                (
+                    TokenId::arbitrary(u)?,
+                    TokenInfo {
+                        total_supply: Amount::ZERO,
+                    },
+                    acct,
+                )
             } else if let Some((_, acct)) =
                 generator_state.get_random_existing_account_with_tag(BankTag::CanMint.into(), u)?
             {
@@ -54,18 +60,19 @@ impl<S: Spec> BankMessageGenerator<S> {
         let amount = {
             if let InvalidMintReasons::MintAmountOverflows = invalid_mint_reason {
                 // Generate an amount large enough to overflow if possible
-                let max_amount_without_overflow = Amount::MAX - token_info.total_supply;
+                let max_amount_without_overflow =
+                    u128::MAX.saturating_sub(token_info.total_supply.0);
 
                 if let Some(max_amount_without_overflow) =
                     max_amount_without_overflow.checked_add(1)
                 {
-                    u.int_in_range((max_amount_without_overflow + 1)..=Amount::MAX)?
+                    u.int_in_range((max_amount_without_overflow + 1)..=u128::MAX)?
                 } else {
                     // If we can't overflow, we try to generate another message.
                     return self.generate_invalid_mint(u, generator_state);
                 }
             } else {
-                Amount::arbitrary(u)?
+                u128::arbitrary(u)?
             }
         };
 
@@ -84,7 +91,10 @@ impl<S: Spec> BankMessageGenerator<S> {
         let key = acct.private_key.clone();
 
         let message = CallMessage::Mint {
-            coins: Coins { token_id, amount },
+            coins: Coins {
+                token_id,
+                amount: Amount::new(amount),
+            },
             mint_to_address: S::Address::arbitrary(u)?,
         };
 
@@ -123,7 +133,8 @@ impl<S: Spec> BankMessageGenerator<S> {
         let (recipient_addr, mut recipient_acct) =
             generator_state.get_or_generate(self.address_creation_rate, u)?;
 
-        let amount_to_mint = u.int_in_range(0..=Amount::MAX - token_info.total_supply)?;
+        let amount_to_mint =
+            Amount::new(u.int_in_range(0..=Amount::MAX.saturating_sub(token_info.total_supply).0)?);
         let recipient_balance = recipient_acct.increment_balance(Coins {
             token_id,
             amount: amount_to_mint,
@@ -150,7 +161,7 @@ impl<S: Spec> BankMessageGenerator<S> {
                         address: recipient_addr.clone(),
                         coins: Coins {
                             token_id,
-                            amount: recipient_balance,
+                            amount: Amount::new(recipient_balance),
                         },
                     },
                     mint_change,

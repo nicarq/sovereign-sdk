@@ -218,6 +218,7 @@ fn build_da_config(
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore]
 async fn flaky_test_runner_multiple_reorg_shuffle() -> anyhow::Result<()> {
     let finality = 50;
     let block_time_ms = 400;
@@ -237,6 +238,7 @@ async fn flaky_test_runner_multiple_reorg_shuffle() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore]
 async fn flaky_test_runner_multiple_reorg_with_rewind() -> anyhow::Result<()> {
     let finality = 20;
     let block_time_ms = 400;

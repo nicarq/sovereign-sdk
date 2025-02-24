@@ -17,7 +17,7 @@
     "seq_bond": {
       "description": "Initial sequencer bond",
       "type": "integer",
-      "format": "uint64",
+      "format": "uint128",
       "minimum": 0.0
     },
     "seq_da_address": {

@@ -6,12 +6,12 @@ use sov_test_utils::MockDaSpec;
 
 use super::traits::StateWriter;
 use crate::default_spec::DefaultSpec;
-use crate::{Gas, GasArray, GasSpec, Spec, StateReader, WorkingSet};
+use crate::{Amount, Gas, GasArray, GasSpec, Spec, StateReader, WorkingSet};
 
 type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
 fn create_working_set(
-    remaining_funds: u64,
+    remaining_funds: Amount,
     gas_price: &<<S as Spec>::Gas as Gas>::Price,
 ) -> WorkingSet<S> {
     let storage_manager = SimpleStorageManager::new();
@@ -22,7 +22,7 @@ fn create_working_set(
 #[test]
 #[ignore = "TODO(@theochap): Fix the computation"]
 fn test_charge_gas_to_set() {
-    let gas_price = <<S as Spec>::Gas as Gas>::Price::from([1; 2]);
+    let gas_price = <<S as Spec>::Gas as Gas>::Price::from([Amount::new(1); 2]);
     let value = SlotValue::from("value");
     let gas_set_cost = <S as GasSpec>::gas_to_charge_per_byte_storage_update()
         .checked_scalar_product(value.size().into())
@@ -47,7 +47,7 @@ fn test_charge_gas_to_set() {
 #[test]
 #[ignore = "TODO(@theochap): Fix the computation"]
 fn test_charge_gas_retrieve() {
-    let gas_price = <<S as Spec>::Gas as Gas>::Price::from([1; 2]);
+    let gas_price = <<S as Spec>::Gas as Gas>::Price::from([Amount::new(1); 2]);
     let gas_access_cost = <S as GasSpec>::bias_to_charge_for_cold_read();
     let remaining_funds = gas_access_cost.value(&gas_price);
 
@@ -70,7 +70,7 @@ fn test_charge_gas_retrieve() {
 #[ignore = "TODO(@theochap): Fix the computation"]
 fn test_charge_gas_set_then_retrieve() {
     let value = SlotValue::from("value");
-    let gas_price = <<S as Spec>::Gas as Gas>::Price::from([1; 2]);
+    let gas_price = <<S as Spec>::Gas as Gas>::Price::from([Amount::new(1); 2]);
 
     let gas_access_cost = <S as GasSpec>::bias_to_charge_for_cold_read();
     let gas_load_cost = <S as GasSpec>::gas_to_charge_per_byte_cold_read()
@@ -81,9 +81,12 @@ fn test_charge_gas_set_then_retrieve() {
         .checked_scalar_product(value.size().into())
         .unwrap();
 
-    let remaining_funds = gas_access_cost.value(&gas_price)
-        + gas_set_cost.value(&gas_price)
-        + gas_load_cost.value(&gas_price);
+    let remaining_funds = gas_access_cost
+        .value(&gas_price)
+        .checked_add(gas_set_cost.value(&gas_price))
+        .unwrap()
+        .checked_add(gas_load_cost.value(&gas_price))
+        .unwrap();
 
     let mut working_set = create_working_set(remaining_funds, &gas_price);
 

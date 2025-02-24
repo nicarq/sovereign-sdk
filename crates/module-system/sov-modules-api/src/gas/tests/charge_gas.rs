@@ -3,14 +3,14 @@ use sov_test_utils::MockZkvm;
 
 use crate::default_spec::DefaultSpec;
 use crate::execution_mode::Native;
-use crate::{BasicGasMeter, GasArray, GasMeter, GasPrice, GasUnit};
+use crate::{Amount, BasicGasMeter, GasArray, GasMeter, GasPrice, GasUnit};
 
 type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
 #[test]
 fn try_charge_gas() {
     const REMAINING_FUNDS: u64 = 100;
-    let gas_price = GasPrice::<2>::from([1; 2]);
+    let gas_price = GasPrice::<2>::from([Amount::new(1); 2]);
 
     let mut gas_meter = BasicGasMeter::<S>::new_with_gas(GasUnit::<2>::MAX, gas_price.clone());
     assert!(
@@ -41,7 +41,7 @@ fn test_gas_display_multidimensional() {
         "The gas unit should be displayed correctly"
     );
 
-    let gas_price = GasPrice::<2>::from([100, 50]);
+    let gas_price = GasPrice::<2>::from([Amount::new(100), Amount::new(50)]);
     assert_eq!(
         "GasPrice[100, 50]",
         gas_price.to_string(),

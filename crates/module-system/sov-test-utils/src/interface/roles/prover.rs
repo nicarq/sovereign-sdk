@@ -8,7 +8,7 @@ pub struct TestProver<S: Spec> {
     /// The [`TestUser`] info of the prover.
     pub user_info: TestUser<S>,
     /// The amount of tokens bonded by the prover.
-    pub bond: u64,
+    pub bond: u128,
 }
 
 impl<S: Spec> AsUser<S> for TestProver<S> {
@@ -34,7 +34,7 @@ impl<S: Spec> TestProver<S> {
 /// A configuration for a test prover.
 pub struct TestProverConfig {
     /// Any additional (not bonded) balance that the bank should mint for the prover.
-    pub additional_balance: u64,
+    pub additional_balance: u128,
     /// The amount of tokens to bond at genesis. These tokens will be minted by the bank.
-    pub bond: u64,
+    pub bond: u128,
 }

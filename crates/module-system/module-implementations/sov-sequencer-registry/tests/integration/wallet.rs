@@ -1,6 +1,7 @@
 use sov_mock_da::MockAddress;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::sov_universal_wallet::schema::Schema;
+use sov_modules_api::Amount;
 use sov_sequencer_registry::CallMessage;
 use sov_test_utils::TestSpec;
 
@@ -15,7 +16,7 @@ enum RuntimeCall {
 fn test_display_sequencer_registry_call() {
     let msg = RuntimeCall::SequencerRegistry(CallMessage::Deposit {
         da_address: MockAddress::new([1; 32]),
-        amount: 100,
+        amount: Amount::new(100),
     });
 
     let schema = Schema::of_single_type::<RuntimeCall>();

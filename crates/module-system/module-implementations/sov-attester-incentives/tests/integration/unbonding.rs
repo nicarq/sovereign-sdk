@@ -3,7 +3,7 @@ use sov_mock_da::MockAddress;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::registration_lib::RegistrationError;
 use sov_modules_api::Error::ModuleError;
-use sov_modules_api::{Spec, StateAccessorError};
+use sov_modules_api::{Amount, Spec, StateAccessorError};
 use sov_rollup_interface::common::SlotNumber;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
@@ -20,7 +20,7 @@ const INIT_BONDING_HEIGHT: SlotNumber = TEST_LIGHT_CLIENT_FINALIZED_HEIGHT;
 fn check_attester_bonded_and_start_unbond(
     runner: &mut TestRunner<RT, S>,
     attester: &TestAttester<S>,
-) -> u64 {
+) -> u128 {
     let attester_address = attester.user_info.address();
     let attester_bond = attester.bond;
     let attester_balance = attester.user_info.balance();
@@ -34,7 +34,7 @@ fn check_attester_bonded_and_start_unbond(
                 .bonded_attesters
                 .get(&attester_address, state)
                 .unwrap(),
-            Some(attester_bond),
+            Some(attester_bond.into()),
             "The genesis attester should be bonded"
         );
 
@@ -58,7 +58,7 @@ fn check_attester_bonded_and_start_unbond(
                     .unwrap(),
                 Some(UnbondingInfo {
                     unbonding_initiated_height: INIT_BONDING_HEIGHT,
-                    amount: attester_bond
+                    amount: attester_bond.into()
                 }),
             );
             gas_consumed_attester_ref_1.add(result.gas_value_used);
@@ -101,7 +101,7 @@ fn try_unbond_successful() {
                 event
                     == &TestRuntimeEvent::AttesterIncentives(
                         sov_attester_incentives::Event::ExitedAttester {
-                            amount_withdrawn: attester_bond,
+                            amount_withdrawn: attester_bond.into(),
                         },
                     )
             }));
@@ -265,7 +265,7 @@ fn try_bond_while_unbonding() {
                     .unwrap(),
                 Some(UnbondingInfo {
                     unbonding_initiated_height: SlotNumber::GENESIS,
-                    amount: attester_bond
+                    amount: attester_bond.into()
                 }),
                 "The attester should be part of the unbonding set"
             );
@@ -282,7 +282,7 @@ fn try_bond_while_unbonding() {
     };
     let try_bond = TransactionTestCase {
         input: attester.create_plain_message::<RT, TestAttesterIncentives>(
-            sov_attester_incentives::CallMessage::RegisterAttester(100),
+            sov_attester_incentives::CallMessage::RegisterAttester(Amount::new(100)),
         ),
         assert: Box::new(move |result, _state| {
             match &result.tx_receipt {

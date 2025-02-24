@@ -90,7 +90,7 @@ where
         address: &Self::PrimaryAddress,
         state: &mut ST,
     ) -> Result<
-        Option<(Self::RollupAddress, u64)>,
+        Option<(Self::RollupAddress, Amount)>,
         <ST as sov_modules_api::StateWriter<sov_state::User>>::Error,
     > {
         self.bonded_stakers
@@ -102,7 +102,7 @@ where
         &self,
         _primary_address: &Self::PrimaryAddress,
         rollup_address: &Self::RollupAddress,
-        amount: u64,
+        amount: Amount,
         state: &mut ST,
     ) -> Result<(), <ST as sov_modules_api::StateWriter<sov_state::User>>::Error> {
         self.bonded_stakers.set(rollup_address, &amount, state)?;
@@ -112,7 +112,7 @@ where
     fn transfer_bond_from_staker<ST: StateAccessor>(
         &self,
         address: &Self::RollupAddress,
-        amount: u64,
+        amount: Amount,
         state: &mut ST,
     ) -> anyhow::Result<()> {
         self.bank
@@ -123,7 +123,7 @@ where
     fn transfer_bond_to_staker<ST: StateAccessor>(
         &self,
         address: &Self::RollupAddress,
-        amount: u64,
+        amount: Amount,
         state: &mut ST,
     ) -> anyhow::Result<()> {
         self.bank
@@ -140,7 +140,7 @@ where
     }
 }
 
-pub(crate) fn gas_coins(amount: u64) -> Coins {
+pub(crate) fn gas_coins(amount: Amount) -> Coins {
     Coins {
         amount,
         token_id: config_gas_token_id(),

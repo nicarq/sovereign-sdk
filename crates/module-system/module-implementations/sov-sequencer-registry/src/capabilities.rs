@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 use sov_bank::{config_gas_token_id, Coins, IntoPayable, Payable};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{DaSpec, InfallibleStateAccessor, Spec, StateReader, StateWriter};
+use sov_modules_api::{Amount, DaSpec, InfallibleStateAccessor, Spec, StateReader, StateWriter};
 use sov_state::{Kernel, User};
 
 use crate::{BalanceState, KnownSequencer, SequencerRegistry};
@@ -26,7 +26,7 @@ impl<S: Spec> SequencerRegistry<S> {
         &self,
         sequencer: &<S::Da as DaSpec>::Address,
         beneficiary: impl Payable<S>,
-        amount: u64,
+        amount: Amount,
         state: &mut Accessor,
     ) -> Result<(), anyhow::Error> {
         if let Some(KnownSequencer {
@@ -87,7 +87,7 @@ impl<S: Spec> SequencerRegistry<S> {
         &self,
         sender: impl Payable<S>,
         sequencer: &<S::Da as DaSpec>::Address,
-        amount: u64,
+        amount: Amount,
         state: &mut Accessor,
     ) -> anyhow::Result<()> {
         if let Some(KnownSequencer {

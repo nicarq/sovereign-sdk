@@ -3,7 +3,7 @@ use reth_primitives::U256;
 use revm::DatabaseCommit;
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{InfallibleStateAccessor, Spec};
+use sov_modules_api::{Amount, InfallibleStateAccessor, Spec};
 
 use super::db::EvmDb;
 use super::DbAccount;
@@ -40,7 +40,8 @@ where
 
             self.bank_module
                 .override_gas_balance(
-                    account_info.balance.try_into().unwrap(),
+                    // U256 can overflow u128
+                    Amount::new(account_info.balance.try_into().unwrap()),
                     &rollup_address,
                     &mut self.state,
                 )

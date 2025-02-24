@@ -1,6 +1,7 @@
 use sov_bank::{Bank, Coins};
 use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::Amount;
 use sov_test_utils::{AsUser, TestSpec};
 
 use crate::helpers::*;
@@ -21,14 +22,14 @@ fn transfer_token_and_query_old_balances() {
 
     let sender_initial_token_balance = sender.token_balance(&token_name).unwrap();
 
-    const AMOUNT_PER_TRANSFER: u64 = 10;
+    const AMOUNT_PER_TRANSFER: u128 = 10;
 
-    for height in 1..10 {
+    for height in 1u64..10 {
         runner.execute(sender.create_plain_message::<RT, sov_bank::Bank<TestSpec>>(
             sov_bank::CallMessage::Transfer {
                 to: receiver.address(),
                 coins: Coins {
-                    amount: AMOUNT_PER_TRANSFER,
+                    amount: AMOUNT_PER_TRANSFER.into(),
                     token_id,
                 },
             },
@@ -40,7 +41,7 @@ fn transfer_token_and_query_old_balances() {
                 Bank::<TestSpec>::default()
                     .get_balance_of(&receiver.address(), token_id, state)
                     .unwrap_infallible(),
-                Some(AMOUNT_PER_TRANSFER * height)
+                Some(Amount::new(AMOUNT_PER_TRANSFER * height as u128))
             );
         });
 
@@ -53,15 +54,18 @@ fn transfer_token_and_query_old_balances() {
                     Bank::<TestSpec>::default()
                         .get_balance_of(&sender.address(), token_id, archival_state)
                         .unwrap_infallible(),
-                    Some(
-                        sender_initial_token_balance - AMOUNT_PER_TRANSFER * height_to_query.get()
-                    )
+                    Some(Amount::new(
+                        sender_initial_token_balance
+                            - AMOUNT_PER_TRANSFER * height_to_query.get() as u128
+                    ))
                 );
 
                 let expected_receiver_balance = if height_to_query == RollupHeight::GENESIS {
                     None
                 } else {
-                    Some(AMOUNT_PER_TRANSFER * height_to_query.get())
+                    Some(Amount::new(
+                        AMOUNT_PER_TRANSFER * height_to_query.get() as u128,
+                    ))
                 };
                 assert_eq!(
                     Bank::<TestSpec>::default()

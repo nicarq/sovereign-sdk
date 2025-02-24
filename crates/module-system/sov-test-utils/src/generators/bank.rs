@@ -3,7 +3,7 @@ use std::rc::Rc;
 use sha2::Digest;
 use sov_bank::{get_token_id, Bank, CallMessage, Coins, TokenId, MAX_ADMINS};
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{CryptoSpec, PrivateKey as _, PublicKey, SafeVec, Spec};
+use sov_modules_api::{Amount, CryptoSpec, PrivateKey as _, PublicKey, SafeVec, Spec};
 
 use crate::generators::{Message, MessageGenerator};
 use crate::{TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
@@ -18,7 +18,7 @@ pub struct TransferData<S: Spec> {
     /// The token ID.
     pub token_id: TokenId,
     /// The amount to transfer.
-    pub transfer_amount: u64,
+    pub transfer_amount: u128,
 }
 
 /// Defines the data required to create a token.
@@ -26,7 +26,7 @@ pub struct TokenCreateData<S: Spec> {
     /// The name of the token.
     pub token_name: String,
     /// The initial balance.
-    pub initial_balance: u64,
+    pub initial_balance: u128,
     /// The address to mint the tokens to.
     pub mint_to_address: S::Address,
     /// The private key of the minter.
@@ -34,7 +34,7 @@ pub struct TokenCreateData<S: Spec> {
     /// The admins.
     pub admins: SafeVec<S::Address, MAX_ADMINS>,
     /// The supply cap of the token, if any.
-    pub supply_cap: u64,
+    pub supply_cap: u128,
 }
 
 impl<S: Spec> TokenCreateData<S> {
@@ -52,7 +52,7 @@ pub struct BankMessageGenerator<S: Spec> {
 }
 
 const DEFAULT_TOKEN_NAME: &str = "Token1";
-const DEFAULT_INIT_BALANCE: u64 = 1000000;
+const DEFAULT_INIT_BALANCE: u128 = 1000000;
 
 /// A utility function for generating an address from a string.
 fn generate_address<S: Spec>(key: &str) -> S::Address {
@@ -108,7 +108,7 @@ where
         token_name: String,
         minter_pkey: Rc<<<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey>,
         admins: SafeVec<<S as Spec>::Address, MAX_ADMINS>,
-        initial_balance: u64,
+        initial_balance: u128,
     ) -> Self {
         Self {
             token_create_txs: vec![TokenCreateData {
@@ -120,7 +120,7 @@ where
                     .into(),
                 minter_pkey,
                 admins,
-                supply_cap: u64::MAX,
+                supply_cap: u128::MAX,
             }],
             transfer_txs: vec![],
         }
@@ -168,7 +168,7 @@ where
             admins: Vec::from([minter.clone()])
                 .try_into()
                 .expect("Tokens can have at least one minter"),
-            supply_cap: u64::MAX,
+            supply_cap: u128::MAX,
         };
         Self {
             token_create_txs: Vec::from([create_data]),
@@ -216,7 +216,7 @@ impl BankMessageGenerator<TestSpec> {
             admins: Vec::from([minter])
                 .try_into()
                 .expect("Tokens can have at least one minter"),
-            supply_cap: u64::MAX,
+            supply_cap: u128::MAX,
         };
         Self {
             token_create_txs: Vec::from([token_create_data]),
@@ -242,10 +242,10 @@ impl BankMessageGenerator<TestSpec> {
 pub(crate) fn create_token_tx<S: Spec>(input: &TokenCreateData<S>) -> CallMessage<S> {
     CallMessage::CreateToken {
         token_name: input.token_name.clone().try_into().unwrap(),
-        initial_balance: input.initial_balance,
+        initial_balance: Amount::new(input.initial_balance),
         mint_to_address: input.mint_to_address.clone(),
         admins: input.admins.clone(),
-        supply_cap: Some(input.supply_cap),
+        supply_cap: Some(Amount::new(input.supply_cap)),
     }
 }
 
@@ -253,7 +253,7 @@ pub(crate) fn transfer_token_tx<S: Spec>(transfer_data: &TransferData<S>) -> Cal
     CallMessage::Transfer {
         to: transfer_data.receiver_address.clone(),
         coins: Coins {
-            amount: transfer_data.transfer_amount,
+            amount: Amount::new(transfer_data.transfer_amount),
             token_id: transfer_data.token_id,
         },
     }
@@ -267,7 +267,7 @@ impl<S: Spec> MessageGenerator for BankMessageGenerator<S> {
         &self,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u64,
+        max_fee: u128,
         gas_usage: Option<<Self::Spec as Spec>::Gas>,
     ) -> Vec<Message<Self::Spec, Self::Module>> {
         let mut messages = Vec::<Message<S, Bank<S>>>::new();

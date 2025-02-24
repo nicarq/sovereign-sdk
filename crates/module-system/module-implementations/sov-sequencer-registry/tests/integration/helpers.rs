@@ -63,7 +63,7 @@ pub fn setup_with_custom_runtime(runtime: RT) -> (TestRoles, TestRunner<TestRunt
             TestSequencerRegistry::default().is_sender_known(&genesis_sequencer_da_address, state),
             Ok(KnownSequencer {
                 address: genesis_sequencer_address,
-                balance: genesis_sequencer_bond,
+                balance: genesis_sequencer_bond.into(),
                 balance_state: BalanceState::Active,
             }),
             "The genesis attester should be bonded"

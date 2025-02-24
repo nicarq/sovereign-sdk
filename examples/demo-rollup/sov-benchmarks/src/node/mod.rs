@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sov_mock_da::MockBlob;
-use sov_modules_api::{BatchSequencerReceipt, CryptoSpec, PublicKey, Spec};
+use sov_modules_api::{Amount, BatchSequencerReceipt, CryptoSpec, PublicKey, Spec};
 use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::{sov_bank, Bank, Coins, TestRunner, TokenId};
@@ -29,7 +29,7 @@ pub fn build_send_tx(sender: &TestUser<S>, token_id: TokenId) -> TransactionType
     sender.create_plain_message::<_, Bank<S>>(sov_bank::CallMessage::<S>::Transfer {
         to: to_address,
         coins: Coins {
-            amount: 1,
+            amount: Amount::new(1),
             token_id,
         },
     })
@@ -38,7 +38,7 @@ pub fn build_send_tx(sender: &TestUser<S>, token_id: TokenId) -> TransactionType
 /// Asserts the outcome of the benchmarks
 pub fn assert_batch_receipts<S: Spec>(batch_receipts: &[BatchReceipt<S>]) {
     for batch in batch_receipts {
-        assert_eq!(0, batch.inner.outcome.rewards.accumulated_reward);
+        assert_eq!(Amount::ZERO, batch.inner.outcome.rewards.accumulated_reward);
 
         for tx in &batch.tx_receipts {
             assert!(
@@ -60,7 +60,7 @@ fn generate_initial_slots(
     let create_token_msg = roles.bank_admin.create_plain_message::<_, Bank<S>>(
         sov_bank::CallMessage::<S>::CreateToken {
             token_name: token_name.try_into().unwrap(),
-            initial_balance: 0,
+            initial_balance: Amount::ZERO,
             mint_to_address: roles.bank_admin.address(),
             admins: vec![roles.bank_admin.address()]
                 .try_into()
@@ -69,7 +69,7 @@ fn generate_initial_slots(
         },
     );
 
-    let coins_per_sender = u64::MAX / roles.senders.len() as u64;
+    let coins_per_sender = u128::MAX / roles.senders.len() as u128;
 
     let benchmark_messages = vec![std::iter::once(create_token_msg)
         .chain(roles.senders.iter().map(|sender| {
@@ -77,7 +77,7 @@ fn generate_initial_slots(
                 .bank_admin
                 .create_plain_message::<_, Bank<S>>(sov_bank::CallMessage::<S>::Mint {
                     coins: Coins {
-                        amount: coins_per_sender,
+                        amount: coins_per_sender.into(),
                         token_id,
                     },
                     mint_to_address: sender.address(),

@@ -113,7 +113,7 @@ impl TestState {
         for account in additional_accounts {
             let account_state = AccountState {
                 balances: vec![Coins {
-                    amount: account.available_gas_balance,
+                    amount: account.available_gas_balance.into(),
                     token_id: config_gas_token_id(),
                 }],
                 can_mint: Default::default(),

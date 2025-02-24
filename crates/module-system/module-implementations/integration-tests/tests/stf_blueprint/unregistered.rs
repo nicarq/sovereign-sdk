@@ -7,7 +7,7 @@ use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{
-    ApiStateAccessor, DaSpec, Gas, GasArray, ModuleInfo, RawTx, Rewards, Spec, TxEffect,
+    Amount, ApiStateAccessor, DaSpec, Gas, GasArray, ModuleInfo, RawTx, Rewards, Spec, TxEffect,
 };
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
@@ -17,7 +17,7 @@ use super::{get_balance, get_seq_bond, setup, TxStatus};
 use crate::stf_blueprint::reset_constants;
 type S = sov_test_utils::TestSpec;
 
-const BOND_AMOUNT: u64 = 100;
+const BOND_AMOUNT: u128 = 100;
 
 fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
     let (mut runner, users, _) = setup(tx_statuses.len());
@@ -68,7 +68,7 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
                 total_gas = total_gas.checked_combine(&tx_contents.gas_used).unwrap();
                 let gas_value = tx_contents.gas_used.value(gas_price);
                 gas_value_charged_to_user = gas_value;
-                seq_fee = priority_fee_bips.apply(gas_value).unwrap();
+                seq_fee = priority_fee_bips.apply(gas_value.0).unwrap();
                 bond_amount = BOND_AMOUNT;
                 valid_tx_count += 1;
             }
@@ -76,7 +76,7 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
                 total_gas = total_gas.checked_combine(&tx_contents.gas_used).unwrap();
                 // The sequencer is not bonded so we can't penalize them for skipped transactions.
                 // In this case no one is charged for the failed transaction.
-                gas_value_charged_to_user = 0;
+                gas_value_charged_to_user = Amount::ZERO;
                 seq_fee = 0;
                 bond_amount = 0;
                 skipped_tx_count += 1;
@@ -99,12 +99,12 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
         // The user acts as a sequencer, transferring the fee from their bank balance to the bond in the sequencer registry.
         assert_eq!(
             end.potential_seq_bank_balance + end.potential_seq_bond - seq_fee,
-            start.potential_seq_bank_balance - gas_value_charged_to_user - seq_fee
+            start.potential_seq_bank_balance - gas_value_charged_to_user.0 - seq_fee
         );
 
         assert_eq!(
             end.attester_module_balance,
-            start.attester_module_balance + gas_value_charged_to_user
+            start.attester_module_balance + gas_value_charged_to_user.0
         );
 
         assert_eq!(end.total_balance(), start.total_balance());
@@ -113,8 +113,8 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
             batch_receipt.inner.outcome,
             sov_modules_api::BatchSequencerOutcome {
                 rewards: Rewards {
-                    accumulated_reward: seq_fee,
-                    accumulated_penalty: 0,
+                    accumulated_reward: seq_fee.into(),
+                    accumulated_penalty: Amount::ZERO,
                 }
             }
         );
@@ -265,13 +265,13 @@ mod helpers {
 
     #[derive(Debug, Eq, PartialEq)]
     pub(crate) struct Balances {
-        pub(crate) potential_seq_bank_balance: u64,
-        pub(crate) potential_seq_bond: u64,
-        pub(crate) attester_module_balance: u64,
+        pub(crate) potential_seq_bank_balance: u128,
+        pub(crate) potential_seq_bond: u128,
+        pub(crate) attester_module_balance: u128,
     }
 
     impl Balances {
-        pub(crate) fn total_balance(&self) -> u64 {
+        pub(crate) fn total_balance(&self) -> u128 {
             self.potential_seq_bank_balance + self.potential_seq_bond + self.attester_module_balance
         }
     }
@@ -396,12 +396,12 @@ mod helpers {
 
     fn encode_message(
         da_address: <<S as Spec>::Da as DaSpec>::Address,
-        bond_amount: u64,
+        bond_amount: u128,
     ) -> IntegTestRuntimeCall<S> {
         <IntegTestRuntime<S> as EncodeCall<SequencerRegistry<S>>>::to_decodable(
             sov_sequencer_registry::CallMessage::Register {
                 da_address,
-                amount: bond_amount,
+                amount: bond_amount.into(),
             },
         )
     }

@@ -30,6 +30,12 @@
       "type": "string",
       "pattern": "^sov1[a-zA-Z0-9]+$"
     },
+    "Amount": {
+      "description": "A token amount.",
+      "type": "integer",
+      "format": "uint128",
+      "minimum": 0.0
+    },
     "GasTokenConfig": {
       "description": "[`GasTokenConfig`] specifies a configuration for the rollup's gas token.",
       "type": "object",
@@ -40,7 +46,7 @@
       ],
       "properties": {
         "address_and_balances": {
-          "description": "A vector of tuples containing the initial addresses and balances (as u64)",
+          "description": "A vector of tuples containing the initial addresses and balances (as u128)",
           "type": "array",
           "items": {
             "type": "array",
@@ -49,9 +55,7 @@
                 "$ref": "#/definitions/Address"
               },
               {
-                "type": "integer",
-                "format": "uint64",
-                "minimum": 0.0
+                "$ref": "#/definitions/Amount"
               }
             ],
             "maxItems": 2,
@@ -67,12 +71,14 @@
         },
         "supply_cap": {
           "description": "The supply cap of the token, if any.",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0.0
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Amount"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "token_name": {
           "description": "The name of the token.",
@@ -91,7 +97,7 @@
       ],
       "properties": {
         "address_and_balances": {
-          "description": "A vector of tuples containing the initial addresses and balances (as u64)",
+          "description": "A vector of tuples containing the initial addresses and balances (as u128)",
           "type": "array",
           "items": {
             "type": "array",
@@ -100,9 +106,7 @@
                 "$ref": "#/definitions/Address"
               },
               {
-                "type": "integer",
-                "format": "uint64",
-                "minimum": 0.0
+                "$ref": "#/definitions/Amount"
               }
             ],
             "maxItems": 2,
@@ -118,12 +122,14 @@
         },
         "supply_cap": {
           "description": "The supply cap of the token, if any.",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0.0
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Amount"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "token_id": {
           "description": "Predetermined ID of the token. Allowed only for genesis tokens.",

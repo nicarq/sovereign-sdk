@@ -235,9 +235,9 @@ impl<S: Spec> Bank<S> {
         tracing::trace!(
             id = %coins.token_id,
             name = token.name,
-            burnt_amount = coins.amount,
+            burnt_amount = %coins.amount,
             %owner,
-            updated_total_supply = token.total_supply,
+            updated_total_supply = %token.total_supply,
             "Successfully burnt tokens"
         );
 
@@ -330,7 +330,7 @@ impl<S: Spec> Bank<S> {
         tracing::trace!(
             %authorizer,
             token_id = %coins.token_id,
-            amount = coins.amount,
+            amount = %coins.amount,
             minted_to = %mint_to_identity,
             "Successfully minted tokens"
         );
@@ -351,7 +351,7 @@ impl<S: Spec> Bank<S> {
     /// This should only be used in VMs where the underlying transfers are black boxed (i.e. we trust the VM).
     pub fn override_gas_balance<Accessor: StateAccessor>(
         &self,
-        balance: u64,
+        balance: Amount,
         address: impl Payable<S>,
         state: &mut Accessor,
     ) -> Result<(), <Accessor as StateReader<User>>::Error> {
@@ -450,7 +450,10 @@ impl<S: Spec> Bank<S> {
 
         let from_balance = self.decrease_balance_checked(token_id, from, amount, state)?;
 
-        let current_to_balance = self.balances.get(&(to, token_id), state)?.unwrap_or(0);
+        let current_to_balance = self
+            .balances
+            .get(&(to, token_id), state)?
+            .unwrap_or(Amount::ZERO);
         let to_balance = current_to_balance.checked_add(amount).with_context(|| {
             format!(
                 "Account balance overflow for {} when adding {} to current balance {}",
@@ -471,7 +474,10 @@ impl<S: Spec> Bank<S> {
         amount: Amount,
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<Amount> {
-        let balance = self.balances.get(&(from, token_id), state)?.unwrap_or(0);
+        let balance = self
+            .balances
+            .get(&(from, token_id), state)?
+            .unwrap_or(Amount::ZERO);
 
         let new_balance = match balance.checked_sub(amount) {
             Some(from_balance) => from_balance,
@@ -500,7 +506,7 @@ impl<S: Spec> Bank<S> {
         user_address: impl Payable<S>,
         token_id: TokenId,
         state: &mut Accessor,
-    ) -> Result<Option<u64>, <Accessor as StateReader<User>>::Error> {
+    ) -> Result<Option<Amount>, <Accessor as StateReader<User>>::Error> {
         let user_address = user_address.as_token_holder();
         self.balances.get(&(user_address, &token_id), state)
     }
@@ -520,7 +526,7 @@ impl<S: Spec> Bank<S> {
         &self,
         token_id: &TokenId,
         state: &mut Accessor,
-    ) -> Result<Option<u64>, <Accessor as StateReader<User>>::Error> {
+    ) -> Result<Option<Amount>, <Accessor as StateReader<User>>::Error> {
         Ok(self
             .tokens
             .get(token_id, state)?

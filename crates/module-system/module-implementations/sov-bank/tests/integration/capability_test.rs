@@ -1,7 +1,7 @@
 use sov_bank::{config_gas_token_id, Bank, Coins, ReserveGasError};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{Gas, GasUnit, Spec, TxEffect};
+use sov_modules_api::{Amount, Gas, GasUnit, Spec, TxEffect};
 use sov_modules_stf_blueprint::SkippedTxContents;
 use sov_test_utils::{get_gas_used, AsUser, TestUser, TransactionTestCase, TxProcessingError};
 
@@ -24,7 +24,7 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
         mut runner,
     ) = setup();
 
-    const TRANSFER_AMOUNT: u64 = 10;
+    const TRANSFER_AMOUNT: u128 = 10;
     let receiver_address = receiver.address();
     let sender_balance = sender.available_gas_balance;
     let max_fee = sender_balance;
@@ -36,7 +36,7 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
                 to: receiver_address,
                 coins: Coins {
                     token_id,
-                    amount: TRANSFER_AMOUNT,
+                    amount: TRANSFER_AMOUNT.into(),
                 },
             })
             .with_max_fee(max_fee)
@@ -48,7 +48,7 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
                 Bank::<S>::default()
                     .get_balance_of(&sender_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(sender_balance - result.gas_value_used)
+                Some(Amount::new(sender_balance - result.gas_value_used))
             );
 
             assert!( 0 < result.gas_value_used && result.gas_value_used < sender_balance, "The gas used should be posittive and less than the sender balance, which is the max fee amount");
@@ -73,7 +73,7 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
         mut runner,
     ) = setup();
 
-    const TRANSFER_AMOUNT: u64 = 10;
+    const TRANSFER_AMOUNT: u128 = 10;
     const PRIORITY_FEE: PriorityFeeBips = PriorityFeeBips::from_percentage(10);
     let receiver_address = receiver.address();
     let sender_balance = sender.available_gas_balance;
@@ -85,7 +85,7 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
                 to: receiver_address,
                 coins: Coins {
                     token_id,
-                    amount: TRANSFER_AMOUNT,
+                    amount: TRANSFER_AMOUNT.into(),
                 },
             })
             .with_max_fee(sender_balance)
@@ -123,10 +123,10 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
                 to: receiver.address(),
                 coins: Coins {
                     token_id,
-                    amount: TRANSFER_AMOUNT,
+                    amount: TRANSFER_AMOUNT.into(),
                 },
             })
-            .with_max_fee(gas_used_value_simulation)
+            .with_max_fee(gas_used_value_simulation.0)
             .with_max_priority_fee_bips(PRIORITY_FEE),
         assert: Box::new(move |result, state| {
             assert!(result.tx_receipt.is_successful());
@@ -135,11 +135,13 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
                 Bank::<S>::default()
                     .get_balance_of(&sender.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(sender.available_gas_balance - result.gas_value_used)
+                Some(Amount::new(
+                    sender.available_gas_balance - result.gas_value_used
+                ))
             );
 
             assert!(
-                0 < result.gas_value_used && result.gas_value_used == gas_used_value_simulation,
+                0 < result.gas_value_used && result.gas_value_used == gas_used_value_simulation.0,
                 "The gas used should be positive and exactly the max fee amount."
             );
         }),
@@ -161,7 +163,7 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
         mut runner,
     ) = setup();
 
-    const TRANSFER_AMOUNT: u64 = 10;
+    const TRANSFER_AMOUNT: u128 = 10;
     const PRIORITY_FEE: PriorityFeeBips = PriorityFeeBips::from_percentage(10);
     let sender_balance = sender.available_gas_balance;
 
@@ -172,7 +174,7 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
                 to: receiver.address(),
                 coins: Coins {
                     token_id,
-                    amount: TRANSFER_AMOUNT,
+                    amount: TRANSFER_AMOUNT.into(),
                 },
             })
             .with_max_fee(sender_balance)
@@ -184,11 +186,11 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
                 Bank::<S>::default()
                     .get_balance_of(&sender.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(
+                Some(Amount::new(
                     sender.available_gas_balance
                         - result.gas_value_used
                         - PRIORITY_FEE.apply(result.gas_value_used).unwrap()
-                )
+                ))
             );
 
             assert!(
@@ -216,7 +218,7 @@ fn test_reserve_gas_no_account() {
     let user_high_token_initial_balance =
         user_high_token_balance.token_balance(&token_name).unwrap();
 
-    const TRANSFER_AMOUNT: u64 = 10;
+    const TRANSFER_AMOUNT: u128 = 10;
 
     // We transfer to the user without an account.
     runner.execute(user_high_token_balance.create_plain_message::<RT, Bank<S>>(
@@ -224,7 +226,7 @@ fn test_reserve_gas_no_account() {
             to: user_no_account.address(),
             coins: Coins {
                 token_id,
-                amount: TRANSFER_AMOUNT,
+                amount: TRANSFER_AMOUNT.into(),
             },
         },
     ));
@@ -235,7 +237,7 @@ fn test_reserve_gas_no_account() {
                 to: user_high_token_balance.address(),
                 coins: Coins {
                     token_id,
-                    amount: TRANSFER_AMOUNT,
+                    amount: TRANSFER_AMOUNT.into(),
                 },
             },
         ),
@@ -270,14 +272,16 @@ fn test_reserve_gas_no_account() {
                 Bank::<S>::default()
                     .get_balance_of(&user_no_account.address(), token_id, state)
                     .unwrap_infallible(),
-                Some(TRANSFER_AMOUNT)
+                Some(TRANSFER_AMOUNT.into())
             );
 
             assert_eq!(
                 Bank::<S>::default()
                     .get_balance_of(&user_high_token_balance.address(), token_id, state)
                     .unwrap_infallible(),
-                Some(user_high_token_initial_balance - TRANSFER_AMOUNT)
+                Some(Amount::new(
+                    user_high_token_initial_balance - TRANSFER_AMOUNT
+                ))
             );
         }),
     });
@@ -296,7 +300,7 @@ fn test_reserve_gas_not_enough_balance() {
         mut runner,
     ) = setup();
 
-    const TRANSFER_AMOUNT: u64 = 10;
+    const TRANSFER_AMOUNT: u128 = 10;
 
     runner.execute_transaction(TransactionTestCase {
         input: sender
@@ -304,10 +308,10 @@ fn test_reserve_gas_not_enough_balance() {
                 to: receiver.address(),
                 coins: Coins {
                     token_id,
-                    amount: TRANSFER_AMOUNT,
+                    amount: TRANSFER_AMOUNT.into(),
                 },
             })
-            .with_max_fee(u64::MAX),
+            .with_max_fee(u128::MAX),
         assert: Box::new(move |result, _state| {
             if let TxEffect::Skipped(SkippedTxContents {
                 gas_used: _,
@@ -340,9 +344,12 @@ fn test_reserve_gas_price_too_high() {
         mut runner,
     ) = setup();
 
-    const TRANSFER_AMOUNT: u64 = 10;
+    const TRANSFER_AMOUNT: u128 = 10;
 
     let sender_balance = sender.available_gas_balance;
+    let sender_balance_u64: u64 = sender_balance
+        .try_into()
+        .expect("This test relies on setting the gas limit to half of the sender balance, but gas is only a u64. Lower the sender balance or update the test.");
 
     // We set the gas limit to the sender balance to ensure that the initial gas price is too high.
     runner.execute_transaction(TransactionTestCase {
@@ -351,11 +358,11 @@ fn test_reserve_gas_price_too_high() {
                 to: receiver.address(),
                 coins: Coins {
                     token_id,
-                    amount: TRANSFER_AMOUNT,
+                    amount: TRANSFER_AMOUNT.into(),
                 },
             })
             .with_max_fee(sender_balance)
-            .with_gas_limit(Some(GasUnit::from([sender_balance / 2; 2]))),
+            .with_gas_limit(Some(GasUnit::from([sender_balance_u64 / 2; 2]))),
         assert: Box::new(move |result, _state| {
             if let TxEffect::Skipped(SkippedTxContents {
                 gas_used: _,

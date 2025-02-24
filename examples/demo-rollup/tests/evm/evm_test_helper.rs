@@ -185,7 +185,7 @@ pub(crate) async fn gas_check(
     for _ in 0..5 {
         let values: Vec<u32> = (0..10).collect();
         let requests = client
-            .set_values(contract_address, values, Some(200u64), Some(210u64))
+            .set_values(contract_address, values, Some(200u64), Some(210u128))
             .await;
         client.send_publish_batch_request().await;
         let slot = slot_subscription.next().await.transpose()?.unwrap();

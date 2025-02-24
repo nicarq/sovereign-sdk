@@ -91,7 +91,7 @@ where
             Default::default(),
         );
 
-    genesis_config.initial_sequencer.bond *= num_senders * 10;
+    genesis_config.initial_sequencer.bond *= (num_senders as u128) * 10;
 
     let sequencer = TestPreferredSequencer::new(genesis_config.initial_sequencer.clone());
     let prover = genesis_config.initial_prover.clone();

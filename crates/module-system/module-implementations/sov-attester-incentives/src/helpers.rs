@@ -1,6 +1,6 @@
 use anyhow::ensure;
 use borsh::BorshDeserialize;
-use sov_bank::{config_gas_token_id, BurnRate, Coins, IntoPayable};
+use sov_bank::{config_gas_token_id, Amount, BurnRate, Coins, IntoPayable};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
@@ -76,7 +76,7 @@ where
         &self,
         user: &S::Address,
         state: &mut TxStateAccessor,
-    ) -> Result<u64, anyhow::Error> {
+    ) -> Result<Amount, anyhow::Error> {
         // We have to remove the attester from the unbonding set
         // to prevent him from skipping the first phase
         // unbonding if he bonds himself again.
@@ -113,7 +113,7 @@ where
     pub(crate) fn transfer_tokens_to_sender(
         &self,
         sender: &S::Address,
-        amount: u64,
+        amount: Amount,
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
         let coins = Coins {
@@ -170,7 +170,7 @@ where
             })?;
 
         let bond = bond_opt.ok_or(ProcessAttestationErrors::AttesterNotBonded)?;
-        let bond: u64 = BorshDeserialize::deserialize(&mut bond.value())
+        let bond: Amount = BorshDeserialize::deserialize(&mut bond.value())
             .map_err(|_err| ProcessAttestationErrors::InvalidBondFormat)?;
 
         let minimum_bond = self

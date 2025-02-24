@@ -1,6 +1,6 @@
 use sov_bank::{CallMessage, Coins};
 use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
-use sov_modules_api::Spec;
+use sov_modules_api::{Amount, Spec};
 
 use super::{
     BankAccount, BankChangeLogEntry, BankMessageGenerator, BankTag, InternalMessageGenError,
@@ -33,7 +33,7 @@ impl<S: Spec> BankMessageGenerator<S> {
             let (_, acct) = generator_state.get_or_generate(self.address_creation_rate, u)?;
             (
                 Coins {
-                    amount: 0,
+                    amount: Amount::ZERO,
                     token_id,
                 },
                 acct,
@@ -48,7 +48,7 @@ impl<S: Spec> BankMessageGenerator<S> {
             let (_, acct) = generator_state.get_or_generate(self.address_creation_rate, u)?;
             (
                 Coins {
-                    amount: 0,
+                    amount: Amount::ZERO,
                     token_id,
                 },
                 acct,
@@ -65,13 +65,13 @@ impl<S: Spec> BankMessageGenerator<S> {
 
         let amount = if let InvalidTransferReasons::NotEnoughFunds = error_reason {
             // If the account has [`u64::MAX`] balance then try again to generate a different message
-            if coin.amount == u64::MAX {
+            if coin.amount == Amount::MAX {
                 return self.generate_invalid_transfer(u, generator_state);
             }
 
-            u.int_in_range(coin.amount + 1..=u64::MAX)?
+            u.int_in_range(coin.amount.0 + 1..=u128::MAX)?
         } else {
-            u.int_in_range(1..=u64::MAX)?
+            u.int_in_range(1..=u128::MAX)?
         };
 
         let to_address = S::Address::arbitrary(u)?;
@@ -79,7 +79,7 @@ impl<S: Spec> BankMessageGenerator<S> {
             to: to_address,
             coins: Coins {
                 token_id: coin.token_id,
-                amount,
+                amount: Amount::new(amount),
             },
         };
 
@@ -128,7 +128,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         let token_id = from_balance.token_id;
         // A valid transfer has to come from an existing address
         // but it can go to a new one or an existing one
-        let balance_to_send = u.int_in_range(1..=from_balance.amount)?;
+        let balance_to_send = u.int_in_range(1..=from_balance.amount.0)?;
 
         // Find a recipient who can receive that much balance
         repeatedly! {
@@ -136,14 +136,14 @@ impl<S: Spec> BankMessageGenerator<S> {
             until: balance_to_send <= to_account.receivable_balance(token_id),
             on_failure: return Err(InternalMessageGenError::NoAccountsCanReceive(Coins {
                 token_id,
-                amount: balance_to_send,
+                amount: balance_to_send.into(),
             })
-        )};
+        )}
         let mut to_account = to_account;
 
         // Construct the call message
         let coins_to_send = Coins {
-            amount: balance_to_send,
+            amount: balance_to_send.into(),
             token_id,
         };
         let msg = CallMessage::Transfer {
@@ -178,14 +178,14 @@ impl<S: Spec> BankMessageGenerator<S> {
                         address: from_addr.clone(),
                         coins: Coins {
                             token_id,
-                            amount: remaining_from_balance,
+                            amount: remaining_from_balance.into(),
                         },
                     },
                     BankChangeLogEntry::BalanceChanged {
                         address: to_addr,
                         coins: Coins {
                             token_id,
-                            amount: receiver_balance,
+                            amount: receiver_balance.into(),
                         },
                     },
                 ],

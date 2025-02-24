@@ -47,7 +47,7 @@ pub enum CallMessage<S: Spec> {
     },
     /// Initiate a withdrawal of a sequencer's balance.
     InitiateWithdrawal {
-        /// The  Da address of the sequencer you're removing.
+        /// The DA address of the sequencer you're removing.
         da_address: <S::Da as DaSpec>::Address,
     },
     /// Withdraw a sequencer's balance after waiting for the withdrawal period.
@@ -83,7 +83,7 @@ impl<S: Spec> SequencerRegistry<S> {
     pub(crate) fn register_staker<ST: TxState<S>>(
         &self,
         da_address: &<S::Da as DaSpec>::Address,
-        amount: u64,
+        amount: Amount,
         address: S::Address,
         state: &mut ST,
     ) -> Result<(), SequencerRegistryError<S, ST>> {
@@ -112,7 +112,7 @@ impl<S: Spec> SequencerRegistry<S> {
             state,
             Event::<S>::Registered {
                 sequencer: address,
-                amount,
+                amount: amount.0,
             },
         );
         Ok(())
@@ -121,7 +121,7 @@ impl<S: Spec> SequencerRegistry<S> {
     pub(crate) fn deposit<ST: TxState<S>>(
         &self,
         da_address: &<S::Da as DaSpec>::Address,
-        amount: u64,
+        amount: Amount,
         context: &Context<S>,
         state: &mut ST,
     ) -> Result<(), SequencerRegistryError<S, ST>> {
@@ -156,7 +156,7 @@ impl<S: Spec> SequencerRegistry<S> {
             state,
             Event::<S>::Deposited {
                 sequencer: address.clone(),
-                amount,
+                amount: amount.0,
             },
         );
 
@@ -250,7 +250,7 @@ impl<S: Spec> SequencerRegistry<S> {
             state,
             Event::<S>::Withdrew {
                 sequencer: existing_sequencer.address.clone(),
-                amount_withdrawn: existing_sequencer.balance,
+                amount_withdrawn: existing_sequencer.balance.0,
             },
         );
 

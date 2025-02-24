@@ -60,7 +60,7 @@ where
         chain_id: u64,
         chain_hash: [u8; 32],
         max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u64,
+        max_fee: u128,
         gas_limit: Option<S::Gas>,
     ) -> Self {
         Self {
