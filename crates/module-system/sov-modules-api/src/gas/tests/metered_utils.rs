@@ -61,48 +61,15 @@ fn test_metered_hasher_happy_path() {
 }
 
 #[test]
-fn test_metered_hasher_not_enough_gas_to_finalize() {
-    let gas_to_charge_for_hash_update = GasUnit::<2>::from([5, 5]);
-    let gas_to_charge_for_hash_finalize = GasUnit::<2>::from([2, 2]);
-
-    let gas_price = GasPrice::<2>::from([1, 1]);
-
-    let data = [1_u8; 32];
-
-    let remaining_funds = gas_to_charge_for_hash_update
-        .clone()
-        .checked_scalar_product(data.len() as u64)
-        .unwrap()
-        .value(&gas_price);
-
-    let mut ws = create_working_set(remaining_funds, &gas_price);
-
-    let mut hasher = MeteredHasher::<_, Sha256>::new_with_custom_price(
-        &mut ws,
-        gas_to_charge_for_hash_update,
-        gas_to_charge_for_hash_finalize,
-    );
-
-    assert!(
-        hasher.update(&data).is_ok(),
-        "Hasher should be able to update"
-    );
-    assert!(
-        hasher.finalize().is_err(),
-        "Hasher should not be able to finalize because it should not have enough gas"
-    );
-}
-
-#[test]
 fn test_metered_hasher_not_enough_gas_to_update() {
-    let gas_to_charge_for_hash_update = GasUnit::<2>::from([5, 5]);
-    let gas_to_charge_for_hash_finalize = GasUnit::<2>::from([2, 2]);
+    let gas_to_charge_per_byte_for_hash_update = GasUnit::<2>::from([5, 5]);
+    let gas_to_charge_for_hash_update = GasUnit::<2>::from([2, 2]);
 
     let gas_price = GasPrice::<2>::from([1, 1]);
 
     let data = [1_u8; 32];
 
-    let remaining_funds = gas_to_charge_for_hash_update
+    let remaining_funds = gas_to_charge_per_byte_for_hash_update
         .clone()
         .checked_scalar_product(data.len() as u64 - 1)
         .unwrap()
@@ -113,7 +80,7 @@ fn test_metered_hasher_not_enough_gas_to_update() {
     let mut hasher = MeteredHasher::<_, Sha256>::new_with_custom_price(
         &mut ws,
         gas_to_charge_for_hash_update,
-        gas_to_charge_for_hash_finalize,
+        gas_to_charge_per_byte_for_hash_update,
     );
 
     assert!(
@@ -144,6 +111,14 @@ fn test_metered_signature() {
         .checked_combine(
             &gas_to_charge_for_signature
                 .clone()
+                .checked_scalar_product(data.len() as u64)
+                .unwrap(),
+        )
+        .unwrap()
+        .checked_combine(&S::gas_to_charge_hash_update())
+        .unwrap()
+        .checked_combine(
+            &S::gas_to_charge_per_byte_hash_update()
                 .checked_scalar_product(data.len() as u64)
                 .unwrap(),
         )
@@ -206,6 +181,14 @@ pub struct BorshTestStruct {
 }
 
 impl MeteredBorshDeserialize<S> for BorshTestStruct {
+    fn bias_borsh_deserialization() -> <S as Spec>::Gas {
+        <S as Spec>::Gas::zero()
+    }
+
+    fn gas_to_charge_per_byte_borsh_deserialization() -> <S as Spec>::Gas {
+        <S as Spec>::Gas::zero()
+    }
+
     fn deserialize(
         buf: &mut &[u8],
         meter: &mut impl GasMeter<Spec = S>,
@@ -307,7 +290,7 @@ fn test_metered_deserializer_invalid_data() {
 #[test]
 fn test_total_deserialization_cost() {
     assert!(total_deserialization_cost::<S>(GasUnit::<2>::from([1; 2]), 22).is_ok());
-    assert!(total_deserialization_cost::<S>(GasUnit::<2>::from([1; 2]), u64::MAX).is_ok());
+    assert!(total_deserialization_cost::<S>(GasUnit::<2>::from([1; 2]), u64::MAX).is_err());
     assert!(total_deserialization_cost::<S>(GasUnit::<2>::from([1, 2]), u64::MAX).is_err());
     assert!(total_deserialization_cost::<S>(GasUnit::<2>::from([2; 2]), u64::MAX).is_err());
 }
@@ -317,11 +300,19 @@ fn total_deserialization_cost<S: Spec>(
     deserialization_cost: S::Gas,
     buf_len: u64,
 ) -> Result<S::Gas, MeteredBorshDeserializeError<S::Gas>> {
-    deserialization_cost.checked_scalar_product(buf_len).ok_or(
-        MeteredBorshDeserializeError::GasError(GasMeteringError::InvalidLength(
-            "Deserialization cost overflows `u64::MAX` value".to_string(),
-        )),
-    )
+    deserialization_cost
+        .checked_scalar_product(buf_len)
+        .ok_or(MeteredBorshDeserializeError::GasError(
+            GasMeteringError::Overflow(
+                "Deserialization cost overflows `u64::MAX` value".to_string(),
+            ),
+        ))?
+        .checked_combine(&S::bias_borsh_deserialization())
+        .ok_or(MeteredBorshDeserializeError::GasError(
+            GasMeteringError::Overflow(
+                "Deserialization cost overflows `u64::MAX` value".to_string(),
+            ),
+        ))
 }
 
 fn gas_cost_to_deserialize<S: Spec>(

@@ -71,6 +71,11 @@ impl SlotKey {
     pub fn key_ref(&self) -> &Vec<u8> {
         self.key.as_ref()
     }
+
+    /// Returns the size of the key.
+    pub fn size(&self) -> usize {
+        self.key.len()
+    }
 }
 
 impl AsRef<Vec<u8>> for SlotKey {

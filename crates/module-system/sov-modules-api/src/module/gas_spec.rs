@@ -22,37 +22,38 @@ pub trait GasSpec:
 
     // --- Gas parameters to charge for state accesses ---
 
-    /// Returns the gas to charge for accessing a value in the hot cache.
-    fn gas_to_charge_for_hot_access() -> Self::Gas;
+    /// Returns the gas to charge for accessing a value from the storage.
+    fn bias_to_charge_for_access() -> Self::Gas;
 
-    /// Returns the gas to charge for accessing a value in the cold cache.
-    fn gas_to_charge_for_cold_access() -> Self::Gas;
+    /// Returns the bias to charge for a state update.
+    fn bias_to_charge_cold_storage_update() -> Self::Gas;
 
-    /// Returns the gas to charge for writing a value in the hot cache.
-    fn gas_to_charge_per_byte_for_hot_write() -> Self::Gas;
+    /// The cost of encoding and storing storage bytes to cache.
+    fn gas_to_charge_per_byte_storage_update() -> Self::Gas;
 
-    /// Returns the gas to charge for writing a value in the cold cache.
-    fn gas_to_charge_per_byte_for_cold_write() -> Self::Gas;
+    /// The cost of encoding and storing storage bytes to cache.
+    fn bias_to_charge_storage_update() -> Self::Gas;
 
-    /// Returns the gas to charge for deleting a value from the hot cache.
-    fn gas_to_charge_for_hot_delete() -> Self::Gas;
+    /// The cost of reading a storage value from the storage.
+    fn bias_to_charge_for_cold_read() -> Self::Gas;
 
-    /// Returns the gas to charge for deleting a value from the cold cache.
-    fn gas_to_charge_for_cold_delete() -> Self::Gas;
+    /// The cost of reading a storage value from the storage. Charged per byte of the value to read.
+    fn gas_to_charge_per_byte_cold_read() -> Self::Gas;
 
-    /// Gas to charge for loading one byte from the hot cache.
-    fn gas_to_charge_per_byte_for_hot_load() -> Self::Gas;
+    /// The cost of reading a storage value from the cache.
+    fn bias_to_charge_for_hot_read() -> Self::Gas;
 
-    /// Gas to charge for loading one byte from the cold cache.
-    fn gas_to_charge_per_byte_for_cold_load() -> Self::Gas;
+    /// The cost of reading a storage value into the cache.
+    fn gas_to_charge_per_byte_hot_read() -> Self::Gas;
 
     // --- End Gas parameters to charge for state accesses ---
 
     // --- Gas parameters to specify how to charge gas for hashing ---
-    /// The cost of updating a hash.
+    /// The cost per byte of updating a hash.
     fn gas_to_charge_per_byte_hash_update() -> Self::Gas;
-    /// The cost of finalizing a hash.
-    fn gas_to_charge_per_byte_hash_finalize() -> Self::Gas;
+    /// The base cost of updating a hasher.
+    fn gas_to_charge_hash_update() -> Self::Gas;
+
     // --- End Gas parameters to specify how to charge gas for hashing ---
 
     // --- Gas parameters to specify how to charge gas for signature verification ---
@@ -64,6 +65,23 @@ pub trait GasSpec:
 
     /// The cost of deserializing a message using Borsh
     fn gas_to_charge_per_byte_borsh_deserialization() -> Self::Gas;
+    /// The bias to charge for deserializing a message using Borsh
+    fn bias_borsh_deserialization() -> Self::Gas;
+
+    /// The cost of deserializing a transaction using Borsh
+    fn tx_gas_to_charge_per_byte_borsh_deserialization() -> Self::Gas;
+    /// The bias to charge for deserializing a tx using Borsh
+    fn tx_bias_borsh_deserialization() -> Self::Gas;
+
+    /// The cost of deserializing a proof using Borsh
+    fn proof_gas_to_charge_per_byte_borsh_deserialization() -> Self::Gas;
+    /// The bias to charge for deserializing a proof using Borsh
+    fn proof_bias_borsh_deserialization() -> Self::Gas;
+
+    /// The cost of deserializing a sample string using Borsh
+    fn string_gas_to_charge_per_byte_borsh_deserialization() -> Self::Gas;
+    /// The bias to charge for deserializing a sample string using Borsh
+    fn string_bias_borsh_deserialization() -> Self::Gas;
 
     // --- Gas fee adjustment parameters: See https://eips.ethereum.org/EIPS/eip-1559 for a detailed description ---
     /// The initial gas limit of the rollup.
@@ -81,29 +99,69 @@ pub trait GasSpec:
     /// The gas used for the transaction pre-execution checks.
     /// For example nonce checks, context resolution etc..
     fn process_tx_pre_exec_checks_gas() -> Self::Gas;
+
+    /// The gas used for the transaction pre-execution checks.
+    /// For example nonce checks, context resolution etc..
+    /// Charged per transaction byte.
+    fn process_tx_pre_exec_checks_gas_per_tx_byte() -> Self::Gas;
+
+    // --- Gas parameters to specify how to charge gas for zk-proof verification ---
+    /// Gas parameter for zk-proof verification. Charged per proof byte.
+    fn gas_to_charge_per_proof_byte() -> Self::Gas;
+
+    /// Gas parameter for zk-proof verification
+    fn fixed_gas_to_charge_per_proof() -> Self::Gas;
 }
 
 impl<S: Spec> GasSpec for S {
     type Gas = S::Gas;
 
+    fn gas_to_charge_per_proof_byte() -> Self::Gas {
+        new_constant!("GAS_TO_CHARGE_PER_PROOF_BYTE", Self::Gas)
+    }
+
+    fn fixed_gas_to_charge_per_proof() -> Self::Gas {
+        new_constant!("FIXED_GAS_TO_CHARGE_PER_PROOF", Self::Gas)
+    }
+
+    // -- Begin of gas costs for accessing storage
+
+    fn bias_to_charge_for_access() -> Self::Gas {
+        new_constant!("GAS_TO_CHARGE_PER_STORAGE_ACCESS", Self::Gas)
+    }
+
+    fn bias_to_charge_for_cold_read() -> Self::Gas {
+        new_constant!("GAS_TO_CHARGE_PER_COLD_READ", Self::Gas)
+    }
+
+    fn gas_to_charge_per_byte_cold_read() -> Self::Gas {
+        new_constant!("GAS_TO_CHARGE_PER_BYTE_COLD_READ", Self::Gas)
+    }
+
+    fn bias_to_charge_for_hot_read() -> Self::Gas {
+        new_constant!("GAS_TO_CHARGE_PER_HOT_READ", Self::Gas)
+    }
+
+    fn gas_to_charge_per_byte_hot_read() -> Self::Gas {
+        new_constant!("GAS_TO_CHARGE_PER_BYTE_HOT_READ", Self::Gas)
+    }
+
+    fn bias_to_charge_cold_storage_update() -> Self::Gas {
+        new_constant!("BIAS_COLD_STORAGE_UPDATE", Self::Gas)
+    }
+
+    fn bias_to_charge_storage_update() -> Self::Gas {
+        new_constant!("BIAS_STORAGE_UPDATE", Self::Gas)
+    }
+
+    fn gas_to_charge_per_byte_storage_update() -> Self::Gas {
+        new_constant!("GAS_TO_CHARGE_PER_BYTE_STORAGE_UPDATE", Self::Gas)
+    }
+
+    // -- End of gas costs for accessing storage
+
     fn gas_forced_sequencer_registration_cost() -> Self::Gas {
         new_constant!("GAS_FORCED_SEQUENCER_REGISTRATION_COST", Self::Gas)
-    }
-
-    fn gas_to_charge_for_hot_access() -> Self::Gas {
-        new_constant!("GAS_TO_CHARGE_FOR_HOT_ACCESS", Self::Gas)
-    }
-
-    fn gas_to_charge_for_cold_access() -> Self::Gas {
-        new_constant!("GAS_TO_CHARGE_FOR_COLD_ACCESS", Self::Gas)
-    }
-
-    fn gas_to_charge_per_byte_for_hot_load() -> Self::Gas {
-        new_constant!("GAS_TO_CHARGE_PER_BYTE_FOR_HOT_LOAD", Self::Gas)
-    }
-
-    fn gas_to_charge_per_byte_for_cold_load() -> Self::Gas {
-        new_constant!("GAS_TO_CHARGE_PER_BYTE_FOR_COLD_LOAD", Self::Gas)
     }
 
     fn fixed_gas_to_charge_per_signature_verification() -> Self::Gas {
@@ -113,22 +171,6 @@ impl<S: Spec> GasSpec for S {
         )
     }
 
-    fn gas_to_charge_for_hot_delete() -> Self::Gas {
-        new_constant!("GAS_TO_CHARGE_FOR_HOT_DELETE", Self::Gas)
-    }
-
-    fn gas_to_charge_for_cold_delete() -> Self::Gas {
-        new_constant!("GAS_TO_CHARGE_FOR_COLD_DELETE", Self::Gas)
-    }
-
-    fn gas_to_charge_per_byte_for_hot_write() -> Self::Gas {
-        new_constant!("GAS_TO_CHARGE_PER_BYTE_FOR_HOT_WRITE", Self::Gas)
-    }
-
-    fn gas_to_charge_per_byte_for_cold_write() -> Self::Gas {
-        new_constant!("GAS_TO_CHARGE_PER_BYTE_FOR_COLD_WRITE", Self::Gas)
-    }
-
     fn gas_to_charge_per_byte_borsh_deserialization() -> Self::Gas {
         new_constant!(
             "DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION",
@@ -136,8 +178,42 @@ impl<S: Spec> GasSpec for S {
         )
     }
 
-    fn gas_to_charge_per_byte_hash_finalize() -> Self::Gas {
-        new_constant!("GAS_TO_CHARGE_PER_BYTE_HASH_FINALIZE", Self::Gas)
+    fn bias_borsh_deserialization() -> Self::Gas {
+        new_constant!("BIAS_BORSH_DESERIALIZATION", Self::Gas)
+    }
+
+    fn tx_gas_to_charge_per_byte_borsh_deserialization() -> Self::Gas {
+        new_constant!("TX_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION", Self::Gas)
+    }
+
+    fn tx_bias_borsh_deserialization() -> Self::Gas {
+        new_constant!("TX_BIAS_BORSH_DESERIALIZATION", Self::Gas)
+    }
+
+    fn proof_gas_to_charge_per_byte_borsh_deserialization() -> Self::Gas {
+        new_constant!(
+            "PROOF_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION",
+            Self::Gas
+        )
+    }
+
+    fn proof_bias_borsh_deserialization() -> Self::Gas {
+        new_constant!("PROOF_BIAS_BORSH_DESERIALIZATION", Self::Gas)
+    }
+
+    fn string_gas_to_charge_per_byte_borsh_deserialization() -> Self::Gas {
+        new_constant!(
+            "STRING_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION",
+            Self::Gas
+        )
+    }
+
+    fn string_bias_borsh_deserialization() -> Self::Gas {
+        new_constant!("STRING_BIAS_BORSH_DESERIALIZATION", Self::Gas)
+    }
+
+    fn gas_to_charge_hash_update() -> Self::Gas {
+        new_constant!("GAS_TO_CHARGE_HASH_UPDATE", Self::Gas)
     }
 
     fn gas_to_charge_per_byte_hash_update() -> Self::Gas {
@@ -169,5 +245,9 @@ impl<S: Spec> GasSpec for S {
 
     fn process_tx_pre_exec_checks_gas() -> Self::Gas {
         new_constant!("PROCESS_TX_PRE_EXEC_GAS", Self::Gas)
+    }
+
+    fn process_tx_pre_exec_checks_gas_per_tx_byte() -> Self::Gas {
+        new_constant!("PROCESS_TX_PRE_EXEC_GAS_PER_TX_BYTE", Self::Gas)
     }
 }

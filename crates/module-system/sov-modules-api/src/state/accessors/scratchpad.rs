@@ -155,6 +155,11 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for PreExecWorkingSet<S, I> {
     ) -> anyhow::Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
         self.gas_meter.charge_linear_gas(amount, parameter)
     }
+
+    #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
+    fn remove_gas_pattern(&mut self, amount: &<Self::Spec as Spec>::Gas, parameter: u32) {
+        self.gas_meter.remove_gas_pattern(amount, parameter);
+    }
 }
 
 impl<S: Spec, I: StateProvider<S>> GetGasPrice for PreExecWorkingSet<S, I> {
@@ -396,6 +401,11 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for WorkingSet<S, I> {
         parameter: u32,
     ) -> anyhow::Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
         self.gas_meter.charge_linear_gas(amount, parameter)
+    }
+
+    #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
+    fn remove_gas_pattern(&mut self, amount: &<Self::Spec as Spec>::Gas, parameter: u32) {
+        self.gas_meter.remove_gas_pattern(amount, parameter);
     }
 }
 

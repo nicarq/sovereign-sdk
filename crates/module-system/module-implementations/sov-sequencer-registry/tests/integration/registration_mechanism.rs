@@ -15,7 +15,7 @@ use crate::helpers::{
     ANOTHER_SEQUENCER_DA_ADDRESS, NON_DEFAULT_SEQUENCER_DA_ADDRESS, RT,
 };
 
-const SEQUENCE_STAKE: u64 = 1_000_000_000;
+const SEQUENCE_STAKE: u64 = 100_000_000_000;
 
 type S = sov_test_utils::TestSpec;
 

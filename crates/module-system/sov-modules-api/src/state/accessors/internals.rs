@@ -3,8 +3,8 @@ use std::collections::HashMap;
 
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::{
-    namespaces, IsValueCached, Namespace, ProvableStorageCache, SlotKey, SlotValue, StateAccesses,
-    Storage,
+    namespaces, AccessSize, IsValueCached, Namespace, ProvableStorageCache, SlotKey, SlotValue,
+    StateAccesses, Storage,
 };
 
 use super::checkpoints::ChangeSet;
@@ -103,8 +103,10 @@ impl<S: Storage> Delta<S> {
             Namespace::User => self.user_cache.is_value_cached(key),
             Namespace::Kernel => self.kernel_cache.is_value_cached(key),
             Namespace::Accessory => {
-                if self.accessory_writes.contains_key(key) {
-                    IsValueCached::Yes
+                if let Some(access) = self.accessory_writes.get(key) {
+                    IsValueCached::Yes(AccessSize::Write(
+                        access.as_ref().map(|v| v.size()).unwrap_or(0),
+                    ))
                 } else {
                     IsValueCached::No
                 }
@@ -197,8 +199,10 @@ impl<S: Storage> AccessoryDelta<S> {
 
 impl<S: Storage> UniversalStateAccessor for AccessoryDelta<S> {
     fn is_value_cached(&self, _namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
-        if self.writes.contains_key(key) {
-            IsValueCached::Yes
+        if let Some(access) = self.writes.get(key) {
+            IsValueCached::Yes(AccessSize::Write(
+                access.as_ref().map(|v| v.size()).unwrap_or(0),
+            ))
         } else {
             IsValueCached::No
         }
@@ -293,8 +297,10 @@ where
     T: UniversalStateAccessor,
 {
     fn is_value_cached(&self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        if self.writes.contains_key(&(key.clone(), namespace)) {
-            IsValueCached::Yes
+        if let Some(access) = self.writes.get(&(key.clone(), namespace)) {
+            IsValueCached::Yes(AccessSize::Write(
+                access.as_ref().map(|v| v.size()).unwrap_or(0),
+            ))
         } else {
             <T as UniversalStateAccessor>::is_value_cached(&self.inner, namespace, key)
         }
