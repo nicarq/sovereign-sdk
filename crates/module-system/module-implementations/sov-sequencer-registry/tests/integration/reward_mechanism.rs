@@ -2,7 +2,7 @@ use sov_bank::utils::TokenHolder;
 use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{Gas, GasSpec, ModuleInfo};
+use sov_modules_api::{Gas, GasArray, GasSpec, GetGasPrice, ModuleInfo};
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
@@ -28,7 +28,7 @@ fn reward_mechanism_test_setup() -> (TestRoles, u64, TestRunner<RT, S>) {
     runner.config.sequencer_da_address = default_sequencer.da_address;
     // We first execute a normal transaction with no priority fee (ie the sequencer does not get rewarded).
     // This way we can know how much gas was consumed. Check that the sequencer balance was not updated
-    let (output, _) = runner.simulate(
+    let (output, _, _) = runner.simulate(
         admin
             .create_plain_message::<RT, sov_value_setter::ValueSetter<S>>(
                 sov_value_setter::CallMessage::SetValue {
@@ -83,13 +83,19 @@ fn reward_mechanism_test(
             )
             .with_max_fee(max_fee)
             .with_max_priority_fee_bips(max_priority_fee),
-        assert: Box::new(move |_result, state| {
+        assert: Box::new(move |result, state| {
+            let gas_price = state.gas_price();
+            let sequencer_burn = S::gas_to_charge_per_byte_borsh_deserialization()
+                .checked_scalar_product(result.blob_info.size as u64)
+                .unwrap()
+                .checked_value(gas_price)
+                .unwrap();
             assert_eq!(
                 TestRunner::<RT, S>::get_sequencer_staking_balance(
                     &test_sequencer_da_address,
                     state
                 ),
-                Some(test_sequencer_bond + expected_reward),
+                Some(test_sequencer_bond + expected_reward - sequencer_burn),
                 "The sequencer was not rewarded the correct amount"
             );
         }),

@@ -161,6 +161,7 @@ async fn test_simulation() {
         );
 
     let tx_receipt = result
+        .0
         .batch_receipts
         .last()
         .unwrap()

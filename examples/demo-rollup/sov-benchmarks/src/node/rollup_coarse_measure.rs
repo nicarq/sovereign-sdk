@@ -120,7 +120,7 @@ async fn main() -> anyhow::Result<()> {
         let apply_block_result = runner.execute(filtered_block);
         apply_block_time += now.elapsed();
 
-        for receipt in apply_block_result.batch_receipts {
+        for receipt in apply_block_result.0.batch_receipts {
             for t in &receipt.tx_receipts {
                 if t.receipt.is_successful() {
                     num_success_txns += 1;

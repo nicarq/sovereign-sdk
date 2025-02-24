@@ -8,8 +8,8 @@ use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::{
-    ApiStateAccessor, Gas, GasArray, GasSpec, GasUnit, ModuleInfo, RawTx, Rewards, Spec,
-    TransactionReceipt,
+    ApiStateAccessor, BlobReaderTrait, Gas, GasArray, GasSpec, GasUnit, ModuleInfo, RawTx, Rewards,
+    Spec, TransactionReceipt,
 };
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::da::RelevantBlobs;
@@ -40,6 +40,10 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
         &actors.not_admin_account,
         runner.config.sequencer_da_address,
     );
+    // The gas amount burned by the seuqencer to submit the blob.
+    let seq_burn_gas = <S as GasSpec>::gas_to_charge_per_byte_borsh_deserialization()
+        .checked_scalar_product(mock_blob.total_len() as u64)
+        .unwrap();
 
     let blobs = RelevantBlobs {
         proof_blobs: Default::default(),
@@ -48,7 +52,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
 
     {
         let result = runner.execute::<RelevantBlobs<MockBlob>>(blobs);
-        let batch_receipt = result.batch_receipts[0].clone();
+        let batch_receipt = result.0.batch_receipts[0].clone();
 
         let gas_price = &batch_receipt.inner.gas_price;
         let tx_receipts = &batch_receipt.tx_receipts;
@@ -58,6 +62,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
 
         let mut seq_fee = 0;
         let mut seq_penalty = 0;
+        let seq_burn = seq_burn_gas.checked_value(gas_price).unwrap();
         let mut gas_value_charged_to_user = 0;
 
         let mut total_gas = <S as GasSpec>::Gas::ZEROED;
@@ -104,7 +109,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
         // Check sequencer rewards.
         assert_eq!(
             end.sequencer_bond,
-            start.sequencer_bond + seq_fee - seq_penalty
+            start.sequencer_bond + seq_fee - seq_penalty - seq_burn
         );
 
         // Check prover rewards.
@@ -114,7 +119,11 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
         );
 
         // This has already been tested by previous assertions, but here we explicitly clarify that no money is created or lost.
-        assert_eq!(end.total_balance(), start.total_balance());
+        // except for the gas burned by the sequencer to submit the blob.
+        assert_eq!(
+            end.total_balance(),
+            start.total_balance().saturating_sub(seq_burn)
+        );
 
         assert_eq!(
             batch_receipt.inner.outcome,
@@ -211,7 +220,7 @@ fn non_existing_seq_da_tests() {
     };
 
     let result = runner.execute::<RelevantBlobs<MockBlob>>(blobs);
-    assert!(result.batch_receipts.is_empty());
+    assert!(result.0.batch_receipts.is_empty());
 }
 
 #[test]
@@ -262,7 +271,7 @@ fn slot_out_of_gas_tests() {
     };
 
     let result = runner.execute::<RelevantBlobs<MockBlob>>(blobs);
-    let tx_receipt = &result.batch_receipts[0].tx_receipts[0].receipt;
+    let tx_receipt = &result.0.batch_receipts[0].tx_receipts[0].receipt;
 
     assert!(matches!(tx_receipt, TxEffect::Reverted(_)));
 }
@@ -311,8 +320,8 @@ fn test_batch_gas_used() {
     };
 
     let result = runner.execute::<RelevantBlobs<MockBlob>>(blobs);
-    let batch_receipt_1 = result.batch_receipts[0].clone();
-    let batch_receipt_2 = result.batch_receipts[1].clone();
+    let batch_receipt_1 = result.0.batch_receipts[0].clone();
+    let batch_receipt_2 = result.0.batch_receipts[1].clone();
 
     let gas_used = get_gas_from_txs(&batch_receipt_1.tx_receipts);
     assert_eq!(batch_receipt_1.inner.gas_used, gas_used);

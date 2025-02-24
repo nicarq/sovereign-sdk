@@ -33,7 +33,7 @@ fn stf_apply_slot_bench(c: &mut Criterion) {
 
     for message in bench_messages {
         let apply_slot_output = runner.execute(message);
-        assert_batch_receipts(&apply_slot_output.batch_receipts);
+        assert_batch_receipts(&apply_slot_output.0.batch_receipts);
     }
 
     c.bench_function("rollup main stf loop", |b| {
@@ -42,7 +42,7 @@ fn stf_apply_slot_bench(c: &mut Criterion) {
                 .pop()
                 .unwrap();
             let apply_slot_output = runner.execute(bench_messages);
-            assert_batch_receipts(&apply_slot_output.batch_receipts);
+            assert_batch_receipts(&apply_slot_output.0.batch_receipts);
         });
     });
 }

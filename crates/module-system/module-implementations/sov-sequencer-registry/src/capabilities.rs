@@ -1,12 +1,11 @@
 use std::convert::Infallible;
 
 use sov_bank::{config_gas_token_id, Coins, IntoPayable, Payable};
-use sov_modules_api::capabilities::BalanceState;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{DaSpec, InfallibleStateAccessor, Spec, StateReader, StateWriter};
 use sov_state::{Kernel, User};
 
-use crate::{AllowedSequencer, SequencerRegistry};
+use crate::{BalanceState, KnownSequencer, SequencerRegistry};
 
 impl<S: Spec> SequencerRegistry<S> {
     /// Returns the preferred sequencer, or [`None`] it wasn't set.
@@ -30,12 +29,12 @@ impl<S: Spec> SequencerRegistry<S> {
         amount: u64,
         state: &mut Accessor,
     ) -> Result<(), anyhow::Error> {
-        if let Some(AllowedSequencer {
+        if let Some(KnownSequencer {
             address,
             balance,
             balance_state,
         }) = self
-            .allowed_sequencers
+            .known_sequencers
             .get(sequencer, state)
             .unwrap_infallible()
         {
@@ -60,10 +59,10 @@ impl<S: Spec> SequencerRegistry<S> {
             self.bank
                 .transfer_from(self.id.to_payable(), beneficiary, coins, state)?;
 
-            self.allowed_sequencers
+            self.known_sequencers
                 .set(
                     sequencer,
-                    &AllowedSequencer {
+                    &KnownSequencer {
                         address,
                         balance: new_balance,
                         balance_state,
@@ -91,12 +90,12 @@ impl<S: Spec> SequencerRegistry<S> {
         amount: u64,
         state: &mut Accessor,
     ) -> anyhow::Result<()> {
-        if let Some(AllowedSequencer {
+        if let Some(KnownSequencer {
             address,
             balance,
             balance_state,
         }) = self
-            .allowed_sequencers
+            .known_sequencers
             .get(sequencer, state)
             .unwrap_infallible()
         {
@@ -117,10 +116,10 @@ impl<S: Spec> SequencerRegistry<S> {
             self.bank
                 .transfer_from(sender, self.id.to_payable(), coins, state)?;
 
-            self.allowed_sequencers
+            self.known_sequencers
                 .set(
                     sequencer,
-                    &AllowedSequencer {
+                    &KnownSequencer {
                         address,
                         balance: new_balance,
                         balance_state,

@@ -73,7 +73,7 @@ fn do_max_stored_tx_hashes_per_credential_test() {
     }
     // Execute all the txs in one batch. This is much faster than executing them one by one.
     let batch = SlotInput::Batch(BatchType::from(txs));
-    let slot = runner.execute(batch);
+    let (slot, _) = runner.execute(batch);
     assert_eq!(
         slot.batch_receipts[0].tx_receipts.len(),
         max_stored_tx_hashes_per_credential as usize

@@ -180,7 +180,7 @@ where
     type Input = TestRunner<RT, S>;
 
     fn prepare_env(&mut self, input: &mut Self::Input) {
-        let (simulated, _) = input.simulate(self.tx.clone());
+        let (simulated, _, _) = input.simulate(self.tx.clone());
         let batch_receipt = simulated.batch_receipts[0].clone();
         let tx_receipt = &simulated.batch_receipts[0].tx_receipts[0].clone();
         let gas_used = get_gas_used(tx_receipt);

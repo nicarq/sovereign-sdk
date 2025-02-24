@@ -43,6 +43,60 @@ pub enum AllowedSequencerError {
     /// The sequencer is not registered.
     #[error("The sequencer is not registered.")]
     NotRegistered,
+    /// The sequencer is known but not active.
+    #[error("The sequencer is known but not active.")]
+    NotActive,
+}
+
+/// An known sequencer for a rollup.
+#[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Eq, PartialEq)]
+#[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
+pub struct KnownSequencer<S: Spec> {
+    /// The rollup address of the sequencer.
+    pub address: S::Address,
+    /// The staked balance of the sequencer.
+    pub balance: u64,
+    /// The balance state of the sequencer.
+    pub balance_state: BalanceState,
+}
+
+impl<S: Spec> TryFrom<KnownSequencer<S>> for AllowedSequencer<S> {
+    type Error = anyhow::Error;
+
+    fn try_from(value: KnownSequencer<S>) -> Result<Self, Self::Error> {
+        if value.balance_state.is_active() {
+            Ok(Self {
+                address: value.address,
+                balance: value.balance,
+            })
+        } else {
+            Err(anyhow::anyhow!("Sequencer is not active"))
+        }
+    }
+}
+
+/// The status of the sequencer's balance.
+#[derive(Debug, Clone, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Eq, PartialEq)]
+pub enum BalanceState {
+    /// The sequencer has enough balance to submit and process batches.
+    Active,
+    /// The sequencer has insufficient balance to submit and process batches.
+    PendingWithdrawal {
+        /// The slot number at which the sequencer will be able to withdraw.
+        ready_at: VisibleSlotNumber,
+    },
+}
+
+impl BalanceState {
+    /// Returns true if the sequencer is active.
+    pub fn is_active(&self) -> bool {
+        matches!(self, BalanceState::Active)
+    }
+
+    /// Returns true if the sequencer is pending withdrawal.
+    pub fn is_pending_withdrawal(&self) -> bool {
+        matches!(self, BalanceState::PendingWithdrawal { .. })
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -72,7 +126,7 @@ pub struct SequencerRegistry<S: Spec> {
     /// We need to map the DA address to the rollup address because the sequencer interacts with the rollup
     /// through the DA layer.
     #[state]
-    pub(crate) allowed_sequencers: KernelStateMap<<S::Da as DaSpec>::Address, AllowedSequencer<S>>,
+    pub(crate) known_sequencers: KernelStateMap<<S::Da as DaSpec>::Address, KnownSequencer<S>>,
 
     /// Optional preferred sequencer.
     /// If set, batches from this sequencer will be processed first in block,
@@ -180,7 +234,7 @@ impl<S: Spec> SequencerRegistry<S> {
         if let Some(da_addr) = self.preferred_sequencer.get(state)? {
             // If the preferred sequencer address is set but they're not currently authorized, act like there is no preferred sequencer
             Ok(self
-                .allowed_sequencers
+                .known_sequencers
                 .get(&da_addr, state)?
                 .map(|seq| (da_addr, seq.address)))
         } else {
@@ -267,11 +321,22 @@ impl<S: Spec> SequencerRegistry<S> {
         sender: &<S::Da as DaSpec>::Address,
         state: &mut impl StateReader<Kernel, Error = Infallible>,
     ) -> Result<AllowedSequencer<S>, AllowedSequencerError> {
-        if let Some(sequencer) = self
-            .allowed_sequencers
-            .get(sender, state)
-            .unwrap_infallible()
-        {
+        let sequencer = self.is_sender_known(sender, state)?;
+        if let Ok(sequencer) = sequencer.try_into() {
+            return Ok(sequencer);
+        }
+        Err(AllowedSequencerError::NotActive)
+    }
+
+    /// Checks whether `sender` is a registered sequencer. Note that this method does not check if the sequencer is currenltly active!
+    /// If so, returns the known sequencer in a [`KnownSequencer`] object.
+    /// Otherwise, returns a [`AllowedSequencerError`].
+    pub fn is_sender_known(
+        &self,
+        sender: &<S::Da as DaSpec>::Address,
+        state: &mut impl StateReader<Kernel, Error = Infallible>,
+    ) -> Result<KnownSequencer<S>, AllowedSequencerError> {
+        if let Some(sequencer) = self.known_sequencers.get(sender, state).unwrap_infallible() {
             return Ok(sequencer);
         }
 
@@ -284,7 +349,7 @@ impl<S: Spec> SequencerRegistry<S> {
         sender: &<S::Da as DaSpec>::Address,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> Option<Amount> {
-        self.allowed_sequencers
+        self.known_sequencers
             .get(sender, state)
             .unwrap_infallible()
             .map(|s| s.balance)
@@ -300,7 +365,7 @@ impl<S: Spec> SequencerRegistry<S> {
         sender: &<S::Da as DaSpec>::Address,
         state: &mut ApiStateAccessor<S>,
     ) -> Option<Amount> {
-        self.allowed_sequencers
+        self.known_sequencers
             .get(sender, state)
             .unwrap_infallible()
             .map(|s| s.balance)
@@ -314,7 +379,7 @@ impl<S: Spec> SequencerRegistry<S> {
         state_accessor: &mut ApiStateAccessor<S>,
     ) -> Result<Option<S::Address>, Infallible> {
         Ok(self
-            .allowed_sequencers
+            .known_sequencers
             .get(&da_address, state_accessor)
             .unwrap_infallible()
             .map(|s| s.address))
@@ -330,7 +395,7 @@ impl<S: Spec> SequencerRegistry<S> {
         da_address: &<S::Da as DaSpec>::Address,
         state: &mut Accessor,
     ) {
-        self.allowed_sequencers
+        self.known_sequencers
             .delete(da_address, state)
             .unwrap_infallible();
 
@@ -348,6 +413,6 @@ impl<S: Spec> SequencerRegistry<S> {
         da_address: &<S::Da as DaSpec>::Address,
         state: &mut ApiStateAccessor<S>,
     ) -> Result<bool, Infallible> {
-        Ok(self.allowed_sequencers.get(da_address, state)?.is_some())
+        Ok(self.known_sequencers.get(da_address, state)?.is_some())
     }
 }

@@ -1,11 +1,13 @@
 use schemars::JsonSchema;
 use sov_bank::{Amount, IntoPayable};
-use sov_modules_api::capabilities::{AllowedSequencer, BalanceState};
 use sov_modules_api::macros::{config_value, UniversalWallet};
 use sov_modules_api::registration_lib::RegistrationError;
 use sov_modules_api::{Context, DaSpec, EventEmitter, ModuleInfo, Spec, TxState};
 
-use crate::{gas_coins, CustomError, Event, SequencerRegistry, SequencerRegistryError};
+use crate::{
+    gas_coins, BalanceState, CustomError, Event, KnownSequencer, SequencerRegistry,
+    SequencerRegistryError,
+};
 
 /// This enumeration represents the available call messages for interacting with
 /// the `sov-sequencer-registry` module.
@@ -85,7 +87,7 @@ impl<S: Spec> SequencerRegistry<S> {
         address: S::Address,
         state: &mut ST,
     ) -> Result<(), SequencerRegistryError<S, ST>> {
-        if let Some(existing_sequencer) = self.allowed_sequencers.get(da_address, state)? {
+        if let Some(existing_sequencer) = self.known_sequencers.get(da_address, state)? {
             return Err(RegistrationError::AlreadyRegistered(
                 existing_sequencer.address,
             ));
@@ -98,12 +100,12 @@ impl<S: Spec> SequencerRegistry<S> {
                     amount,
                 },
             )?;
-        let new_sequencer = AllowedSequencer {
+        let new_sequencer = KnownSequencer {
             address: address.clone(),
             balance: amount,
             balance_state: BalanceState::Active,
         };
-        self.allowed_sequencers
+        self.known_sequencers
             .set(da_address, &new_sequencer, state)?;
 
         self.emit_event(
@@ -124,7 +126,7 @@ impl<S: Spec> SequencerRegistry<S> {
         state: &mut ST,
     ) -> Result<(), SequencerRegistryError<S, ST>> {
         self.validate_sender(da_address, context.sender(), state)?;
-        let Some(mut existing_sequencer) = self.allowed_sequencers.get(da_address, state)? else {
+        let Some(mut existing_sequencer) = self.known_sequencers.get(da_address, state)? else {
             return Err(RegistrationError::IsNotRegistered(da_address.clone()));
         };
         let address = existing_sequencer.address.clone();
@@ -147,7 +149,7 @@ impl<S: Spec> SequencerRegistry<S> {
                 },
             )?;
 
-        self.allowed_sequencers
+        self.known_sequencers
             .set(da_address, &existing_sequencer, state)?;
 
         self.emit_event(
@@ -178,7 +180,7 @@ impl<S: Spec> SequencerRegistry<S> {
         state: &mut ST,
     ) -> Result<(), SequencerRegistryError<S, ST>> {
         self.validate_sender(da_address, context.sender(), state)?;
-        let Some(mut existing_sequencer) = self.allowed_sequencers.get(da_address, state)? else {
+        let Some(mut existing_sequencer) = self.known_sequencers.get(da_address, state)? else {
             return Err(RegistrationError::IsNotRegistered(da_address.clone()));
         };
 
@@ -200,7 +202,7 @@ impl<S: Spec> SequencerRegistry<S> {
                 .current_visible_slot_number()
                 .advance(config_value!("DEFERRED_SLOTS_COUNT") + 1),
         };
-        self.allowed_sequencers
+        self.known_sequencers
             .set(da_address, &existing_sequencer, state)?;
 
         self.emit_event(
@@ -219,7 +221,7 @@ impl<S: Spec> SequencerRegistry<S> {
         state: &mut ST,
     ) -> Result<(), SequencerRegistryError<S, ST>> {
         self.validate_sender(da_address, context.sender(), state)?;
-        let Some(existing_sequencer) = self.allowed_sequencers.get(da_address, state)? else {
+        let Some(existing_sequencer) = self.known_sequencers.get(da_address, state)? else {
             return Err(RegistrationError::IsNotRegistered(da_address.clone()));
         };
         let BalanceState::PendingWithdrawal { ready_at } = existing_sequencer.balance_state else {
@@ -234,7 +236,7 @@ impl<S: Spec> SequencerRegistry<S> {
                 ready_at,
             }));
         }
-        self.allowed_sequencers.delete(da_address, state)?;
+        self.known_sequencers.delete(da_address, state)?;
         self.bank
             .transfer_from(
                 self.id().to_payable(),
@@ -262,7 +264,7 @@ impl<S: Spec> SequencerRegistry<S> {
         state: &mut ST,
     ) -> Result<(), SequencerRegistryError<S, ST>> {
         let belongs_to = self
-            .allowed_sequencers
+            .known_sequencers
             .get_or_err(da_address, state)?
             .map_err(|_| RegistrationError::IsNotRegistered(da_address.clone()))?
             .address;

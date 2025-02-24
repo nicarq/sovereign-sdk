@@ -637,7 +637,7 @@ fn check_blob_selection() {
     );
 
     let result = runner.execute::<RelevantBlobs<MockBlob>>(slot_to_send);
-    assert_eq!(result.batch_receipts.len(), 1);
+    assert_eq!(result.0.batch_receipts.len(), 1);
 
     let slot_to_send = build_soft_confirmation_blobs(
         &vec![(
@@ -652,5 +652,5 @@ fn check_blob_selection() {
     );
 
     let result = runner.execute::<RelevantBlobs<MockBlob>>(slot_to_send);
-    assert_eq!(result.batch_receipts.len(), 0);
+    assert_eq!(result.0.batch_receipts.len(), 0);
 }

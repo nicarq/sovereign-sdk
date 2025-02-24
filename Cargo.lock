@@ -10461,6 +10461,7 @@ dependencies = [
  "sov-bank",
  "sov-modules-api",
  "sov-rollup-interface",
+ "sov-sequencer-registry",
  "tracing",
 ]
 

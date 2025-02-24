@@ -79,7 +79,7 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
     let sender_balance = sender.available_gas_balance;
 
     // We simulate the transaction execution to get the amount of gas that should be consumed by the transaction.
-    let (simulation_result, _) = runner.simulate(
+    let (simulation_result, _, _) = runner.simulate(
         sender
             .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
                 to: receiver_address,

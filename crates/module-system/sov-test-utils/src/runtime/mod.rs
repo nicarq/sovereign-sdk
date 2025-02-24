@@ -27,9 +27,9 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::rest::{ApiState, HasRestApi};
 use sov_modules_api::{
-    ApiStateAccessor, ApplySlotOutput, CryptoSpec, DaSpec, EncodeCall, Error, Gas, Genesis,
-    InfallibleStateAccessor, Module, PrivateKey, SelectedBlob, Spec, StateCheckpoint, TxEffect,
-    VersionReader, VisibleSlotNumber,
+    ApiStateAccessor, ApplySlotOutput, BlobReaderTrait, CryptoSpec, DaSpec, EncodeCall, Error, Gas,
+    Genesis, InfallibleStateAccessor, Module, PrivateKey, SelectedBlob, Spec, StateCheckpoint,
+    TxEffect, VersionReader, VisibleSlotNumber,
 };
 use sov_modules_stf_blueprint::{
     get_gas_used, StfBlueprint, TransactionReceipt, TxReceiptContents,
@@ -74,6 +74,44 @@ use traits::MinimalGenesis;
 type DefaultSpecWithHasher<S> = DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>;
 
 type NoncesMap<S> = HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>;
+
+/// Metadata about a blob.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlobInfo {
+    /// The size of the blob.
+    pub size: usize,
+}
+
+/// Metadata about the blobs in a slot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RelevantBlobInfo {
+    /// Metadata about the proof blobs.
+    pub proof_blobs: Vec<BlobInfo>,
+    /// Metadata about the batch blobs.
+    pub batch_blobs: Vec<BlobInfo>,
+}
+
+impl RelevantBlobInfo {
+    /// Creates a new `RelevantBlobInfo` from a `RelevantBlobs` struct.
+    pub fn from_blobs(blobs: &RelevantBlobs<MockBlob>) -> Self {
+        Self {
+            proof_blobs: blobs
+                .proof_blobs
+                .iter()
+                .map(|blob| BlobInfo {
+                    size: blob.total_len(),
+                })
+                .collect(),
+            batch_blobs: blobs
+                .batch_blobs
+                .iter()
+                .map(|blob| BlobInfo {
+                    size: blob.total_len(),
+                })
+                .collect(),
+        }
+    }
+}
 
 /// Defines a slot receipt. A slot receipt is a list of [`BatchReceipt`]s and a block header.
 pub struct SlotReceipt<S: Spec> {
@@ -469,7 +507,7 @@ where
         txs: Vec<TransactionType<RT, S>>,
         sequencer: <MockDaSpec as DaSpec>::Address,
         nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-    ) -> RelevantBlobs<MockBlob> {
+    ) -> (RelevantBlobs<MockBlob>, RelevantBlobInfo) {
         Self::batches_to_blobs(vec![(BatchType(txs), sequencer)], nonces)
     }
 
@@ -479,7 +517,7 @@ where
     pub fn batches_to_blobs(
         batches: Vec<(BatchType<RT, S>, MockAddress)>,
         nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-    ) -> RelevantBlobs<MockBlob> {
+    ) -> (RelevantBlobs<MockBlob>, RelevantBlobInfo) {
         let blobs = batches
             .into_iter()
             .map(|(batch, sequencer)| {
@@ -492,10 +530,12 @@ where
             })
             .collect::<Vec<_>>();
 
-        RelevantBlobs {
+        let blobs = RelevantBlobs {
             batch_blobs: blobs,
             proof_blobs: vec![],
-        }
+        };
+        let info = RelevantBlobInfo::from_blobs(&blobs);
+        (blobs, info)
     }
 
     /// Builds [`RelevantBlobs`] from a list of [`SoftConfirmationBlobInfo`]s.
@@ -549,25 +589,30 @@ where
     pub fn simulate<T: Into<SlotInput<RT, S>>>(
         &mut self,
         input: T,
-    ) -> (TestApplySlotOutput<RT, S>, NoncesMap<S>) {
+    ) -> (TestApplySlotOutput<RT, S>, RelevantBlobInfo, NoncesMap<S>) {
         let block_header = self.next_header();
         let stf_state = self.storage_manager.create_storage();
         let slot_input: SlotInput<RT, S> = input.into();
         let sequencer = self.config.sequencer_da_address;
         let mut nonces = self.nonces.clone();
 
-        let mut blobs = match slot_input {
+        let (mut blobs, blob_info) = match slot_input {
             SlotInput::Transaction(tx) => Self::txs_to_blobs(vec![tx], sequencer, &mut nonces),
             SlotInput::Batch(batch) => Self::txs_to_blobs(batch.0, sequencer, &mut nonces),
             SlotInput::Proof(proof) => {
                 let blob = MockBlob::new_with_hash(proof.0, sequencer);
-
-                RelevantBlobs {
+                let blobs = RelevantBlobs {
                     batch_blobs: vec![],
                     proof_blobs: vec![blob],
-                }
+                };
+                let info = RelevantBlobInfo::from_blobs(&blobs);
+
+                (blobs, info)
             }
-            SlotInput::Blobs(blobs) => blobs,
+            SlotInput::Blobs(blobs) => {
+                let info = RelevantBlobInfo::from_blobs(&blobs);
+                (blobs, info)
+            }
         };
         (
             self.stf.apply_slot(
@@ -578,17 +623,21 @@ where
                 blobs.as_iters(),
                 ExecutionContext::Node, // We care more about testing the full node than the sequencer simulation
             ),
+            blob_info,
             nonces,
         )
     }
 
     /// Executes the provided input and commits the state updates.
     /// This is useful for executing setup transactions that aren't test cases.
-    pub fn execute<T: Into<SlotInput<RT, S>>>(&mut self, input: T) -> TestApplySlotOutput<RT, S> {
-        let (result, nonces) = self.simulate::<T>(input);
+    pub fn execute<T: Into<SlotInput<RT, S>>>(
+        &mut self,
+        input: T,
+    ) -> (TestApplySlotOutput<RT, S>, RelevantBlobInfo) {
+        let (result, blob_info, nonces) = self.simulate::<T>(input);
         self.commit_apply_slot_output(&result, nonces);
 
-        result
+        (result, blob_info)
     }
 
     fn commit_apply_slot_output(
@@ -636,14 +685,16 @@ where
         &mut self,
         transaction_test: TransactionTestCase<RT, S>,
     ) -> &mut Self {
-        let result = self.execute(transaction_test.input);
+        let (result, blob_metadata) = self.execute(transaction_test.input);
         let batch_receipt = result.batch_receipts[0].clone();
+        let blob_info = blob_metadata.batch_blobs[0].clone();
         let tx_receipt = batch_receipt.tx_receipts[0].clone();
         let gas_used = get_gas_used(&tx_receipt);
         let gas_price = batch_receipt.inner.gas_price.clone();
 
         let ctx = TransactionAssertContext::from_receipt::<MockDaSpec>(
             tx_receipt,
+            blob_info,
             gas_used.value(&gas_price),
         );
         (transaction_test.assert)(ctx, &mut self.visible_state());
@@ -685,7 +736,7 @@ where
     ///
     /// Under the hood this will execute a slot with the provided batch.
     pub fn execute_batch(&mut self, batch_test: BatchTestCase<RT, S>) -> &mut Self {
-        let result = self.execute(batch_test.input);
+        let (result, _) = self.execute(batch_test.input);
         let ctx = BatchAssertContext {
             sender_da_address: self.config.sequencer_da_address,
             batch_receipt: result.batch_receipts.first().cloned(),
@@ -701,7 +752,7 @@ where
     where
         RT: EncodeCall<M>,
     {
-        let result = self.execute(proof_test.input);
+        let (result, _) = self.execute(proof_test.input);
         let proof_receipt = result.proof_receipts.first().cloned();
 
         let gas_value_used = if let Some(proof_receipt) = &proof_receipt {

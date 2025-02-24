@@ -48,8 +48,8 @@ fn test_tx_revert() -> Result<(), Infallible> {
 
     let apply_block_result = runner.execute(relevant_blobs);
 
-    assert_eq!(1, apply_block_result.batch_receipts.len());
-    let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
+    assert_eq!(1, apply_block_result.0.batch_receipts.len());
+    let apply_blob_outcome = apply_block_result.0.batch_receipts[0].clone();
 
     assert_eq!(
         sov_modules_api::BatchSequencerOutcome {
@@ -59,7 +59,7 @@ fn test_tx_revert() -> Result<(), Infallible> {
         "Sequencer execution should have succeeded but failed "
     );
 
-    let txn_receipts = apply_block_result.batch_receipts[0].tx_receipts.clone();
+    let txn_receipts = apply_block_result.0.batch_receipts[0].tx_receipts.clone();
     // 3 transactions
     // create 1000 tokens
     // transfer 15 tokens
@@ -122,9 +122,9 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
 
     let apply_block_result = runner.execute(relevant_blobs);
 
-    assert_eq!(1, apply_block_result.batch_receipts.len());
+    assert_eq!(1, apply_block_result.0.batch_receipts.len());
 
-    let batch_receipt = &apply_block_result.batch_receipts[0];
+    let batch_receipt = &apply_block_result.0.batch_receipts[0];
 
     assert_outcome(&batch_receipt.inner.outcome);
 
@@ -197,8 +197,8 @@ fn test_tx_bad_nonce() {
     let apply_block_result = runner.execute(relevant_blobs);
 
     // When the nonce is not correct, the transaction receipt does not appear in the block
-    assert_eq!(1, apply_block_result.batch_receipts.len());
-    let tx_receipts = apply_block_result.batch_receipts[0].tx_receipts.clone();
+    assert_eq!(1, apply_block_result.0.batch_receipts.len());
+    let tx_receipts = apply_block_result.0.batch_receipts[0].tx_receipts.clone();
     // Bad nonce means that the transaction has to be reverted
 
     match &tx_receipts[0].receipt {
@@ -228,7 +228,7 @@ fn test_tx_bad_nonce() {
     // We're asserting that here to track if the logic changes
 
     // Since the sequencer is penalized, he is rewarded with 0 tokens.
-    let sequencer_outcome = apply_block_result.batch_receipts[0].inner.clone().outcome;
+    let sequencer_outcome = apply_block_result.0.batch_receipts[0].inner.clone().outcome;
     assert_outcome(&sequencer_outcome);
     // We can check that the sequencer staked amount went down.
 
@@ -271,9 +271,9 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
 
     let apply_block_result = runner.execute(relevant_blobs);
 
-    assert_eq!(1, apply_block_result.batch_receipts.len());
+    assert_eq!(1, apply_block_result.0.batch_receipts.len());
 
-    let batch_receipt = &apply_block_result.batch_receipts[0];
+    let batch_receipt = &apply_block_result.0.batch_receipts[0];
 
     assert_outcome(&batch_receipt.inner.outcome);
 
