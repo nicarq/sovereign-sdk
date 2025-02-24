@@ -33,7 +33,6 @@ mod evm_spec_address_tests {
     use std::str::FromStr;
 
     use borsh::{BorshDeserialize, BorshSerialize};
-    use sha2::Sha256;
     use sov_modules_api::configurable_spec::ConfigurableSpec;
     use sov_modules_api::execution_mode::Native;
     use sov_modules_api::Spec;
@@ -62,7 +61,7 @@ mod evm_spec_address_tests {
     #[test]
     fn test_serde_json_multi_address_evm_standard() {
         let address = MultiAddressEvm::Standard(
-            sov_modules_api::Address::<Sha256>::from_str(
+            sov_modules_api::Address::from_str(
                 "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",
             )
             .unwrap(),
@@ -85,7 +84,7 @@ mod evm_spec_address_tests {
     #[test]
     fn test_bincode_multi_address_evm_standard() {
         let address = MultiAddressEvm::Standard(
-            sov_modules_api::Address::<Sha256>::from_str(
+            sov_modules_api::Address::from_str(
                 "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",
             )
             .unwrap(),
@@ -131,7 +130,7 @@ mod evm_spec_address_tests {
     #[test]
     fn test_borsh_multi_address_evm_standard() {
         let standard_address = MultiAddressEvm::Standard(
-            sov_modules_api::Address::<Sha256>::from_str(
+            sov_modules_api::Address::from_str(
                 "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",
             )
             .unwrap(),
@@ -286,6 +285,7 @@ pub mod private_key {
     use rand::rngs::OsRng;
     use reth_primitives::keccak256;
     use secp256k1::{Keypair, Message};
+    #[cfg(feature = "arbitrary")]
     use sov_rollup_interface::crypto::PrivateKey;
 
     use super::{EthereumPublicKey, EthereumSignature};
@@ -338,11 +338,6 @@ pub mod private_key {
         /// Returns the private key as a hex string.
         pub fn as_hex(&self) -> String {
             hex::encode(self.key_pair.secret_bytes())
-        }
-
-        /// Returns the address associated with the public key derived from this private key.
-        pub fn to_address<A: From<<Self as PrivateKey>::PublicKey>>(&self) -> A {
-            self.pub_key().into()
         }
     }
 
@@ -433,11 +428,6 @@ pub struct EthereumPublicKey {
 }
 
 impl EthereumPublicKey {
-    /// Converts the public key to an address.
-    pub fn to_address<'a, A: From<&'a Self>>(&'a self) -> A {
-        self.into()
-    }
-
     /// Returns the bytes of the underlying public key.
     pub fn bytes(&self) -> [u8; 33] {
         self.pub_key.serialize()

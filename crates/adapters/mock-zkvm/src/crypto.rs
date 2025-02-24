@@ -18,6 +18,7 @@ use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 pub mod private_key {
     use ed25519_dalek::{Signer, SigningKey};
     use rand::rngs::OsRng;
+    #[cfg(feature = "arbitrary")]
     use sov_rollup_interface::crypto::PrivateKey;
 
     use super::{Ed25519PublicKey, Ed25519Signature};
@@ -67,12 +68,6 @@ pub mod private_key {
         /// Returns the private key as a hex string.
         pub fn as_hex(&self) -> String {
             hex::encode(self.key_pair.to_bytes())
-        }
-
-        /// Returns the address associated with the public key derived from this private key.
-        pub fn to_address<A: for<'a> From<&'a <Self as PrivateKey>::PublicKey>>(&self) -> A {
-            let key = self.pub_key();
-            (&key).into()
         }
     }
 
@@ -127,14 +122,6 @@ pub struct Ed25519PublicKey {
 }
 
 impl Ed25519PublicKey {
-    /// Returns the address associated with the public key derived from this private key.
-    pub fn to_address<'a, A>(&'a self) -> A
-    where
-        A: From<&'a Self>,
-    {
-        self.into()
-    }
-
     /// Returns a reference to the underlying bytes of the public key.
     pub fn bytes(&self) -> &[u8; 32] {
         self.pub_key.as_bytes()

@@ -47,11 +47,16 @@ fuzz_target!(
 
         let sequencer = <S as Spec>::Address::from(sequencer);
         let sequencer_da = <<S as Spec>::Da as DaSpec>::Address::from(sequencer_da);
+
         let accounts: Vec<_> = keys
             .iter()
-            .map(|k| AccountData {
-                credential_id: k.pub_key().credential_id::<TestHasher>(),
-                address: k.to_address(),
+            .map(|k| {
+                let credential_id = k.pub_key().credential_id::<TestHasher>();
+
+                AccountData {
+                    credential_id,
+                    address: credential_id.into(),
+                }
             })
             .collect();
 
@@ -69,7 +74,10 @@ fuzz_target!(
         let mut used = keys.iter().map(|k| k.as_hex()).collect::<HashSet<_>>();
         let mut state: HashMap<_, _> = keys
             .into_iter()
-            .map(|k| (k.to_address::<<S as Spec>::Address>(), k))
+            .map(|k| {
+                let credential_id = k.pub_key().credential_id::<TestHasher>();
+                (credential_id.into(), k)
+            })
             .collect();
         let addresses: Vec<_> = state.keys().copied().collect();
 

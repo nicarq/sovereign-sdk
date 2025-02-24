@@ -1,4 +1,5 @@
 ## 2025-02-24
+- #2497 Updates the PublicKey API and refines the conversion of public keys to Addresses. Introduces charging for CredentialId calculation.
 - #2502 fixes the gas charging pattern computation. 
 
 ## 2025-02-22

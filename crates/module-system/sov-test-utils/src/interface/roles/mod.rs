@@ -80,7 +80,7 @@ impl<S: Spec> TestUser<S> {
 
     /// Returns the address of the user.
     pub fn address(&self) -> <S as Spec>::Address {
-        <S as Spec>::Address::from(&self.private_key.pub_key())
+        <S as Spec>::Address::from(self.credential_id())
     }
 
     /// Returns the private key of the user.

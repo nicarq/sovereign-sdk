@@ -143,7 +143,6 @@ pub fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::R
 
 #[cfg(test)]
 mod tests {
-    use sha2::Sha256;
     use sov_mock_da::MockDaService;
     use sov_modules_api::Address;
 
@@ -187,8 +186,7 @@ mod tests {
             [sequencer.standard]
         "#;
 
-        let config =
-            toml::from_str::<RollupConfig<Address<Sha256>, MockDaService>>(config_s).unwrap();
+        let config = toml::from_str::<RollupConfig<Address, MockDaService>>(config_s).unwrap();
         insta::assert_json_snapshot!(config);
     }
 }

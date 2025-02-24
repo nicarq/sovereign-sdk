@@ -100,6 +100,8 @@ pub trait GasSpec:
     /// For example nonce checks, context resolution etc..
     fn process_tx_pre_exec_checks_gas() -> Self::Gas;
 
+    /// The cost of `CredentialId` calculation
+    fn gas_to_charge_for_credential() -> Self::Gas;
     /// The gas used for the transaction pre-execution checks.
     /// For example nonce checks, context resolution etc..
     /// Charged per transaction byte.
@@ -245,6 +247,12 @@ impl<S: Spec> GasSpec for S {
 
     fn process_tx_pre_exec_checks_gas() -> Self::Gas {
         new_constant!("PROCESS_TX_PRE_EXEC_GAS", Self::Gas)
+    }
+
+    fn gas_to_charge_for_credential() -> Self::Gas {
+        Self::Gas::from(config_value_private!(
+            "GAS_TO_CHARGE_FOR_CREDENTIAL_CALCULATION"
+        ))
     }
 
     fn process_tx_pre_exec_checks_gas_per_tx_byte() -> Self::Gas {

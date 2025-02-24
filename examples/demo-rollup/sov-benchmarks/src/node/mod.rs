@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sov_mock_da::MockBlob;
-use sov_modules_api::{BatchSequencerReceipt, CryptoSpec, Spec};
+use sov_modules_api::{BatchSequencerReceipt, CryptoSpec, PublicKey, Spec};
 use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::{sov_bank, Bank, Coins, TestRunner, TokenId};
@@ -21,7 +21,10 @@ type BenchmarkMessages = Vec<RelevantBlobs<MockBlob>>;
 /// Builds a simple transfer transaction
 pub fn build_send_tx(sender: &TestUser<S>, token_id: TokenId) -> TransactionType<RT<S>, S> {
     let priv_key = TestPrivateKey::generate();
-    let to_address: <S as Spec>::Address = (&priv_key.pub_key()).into();
+    let to_address: <S as Spec>::Address = priv_key
+        .pub_key()
+        .credential_id::<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>()
+        .into();
 
     sender.create_plain_message::<_, Bank<S>>(sov_bank::CallMessage::<S>::Transfer {
         to: to_address,

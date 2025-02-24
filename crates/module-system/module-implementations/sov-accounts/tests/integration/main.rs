@@ -70,7 +70,8 @@ fn test_config_account() {
 fn test_update_account() {
     let (
         TestData {
-            account_1: user, ..
+            non_registered_account: user,
+            ..
         },
         mut runner,
     ) = setup();
@@ -247,11 +248,11 @@ fn test_resolve_address_if_more_than_one_credential() {
 
     let pub_key_1 = TestPrivateKey::generate().pub_key();
     let credential_1 = pub_key_1.credential_id::<TestHasher>();
-    let default_address_1 = (&pub_key_1).into();
+    let default_address_1 = credential_1.into();
 
     let pub_key_2 = TestPrivateKey::generate().pub_key();
     let credential_2 = pub_key_2.credential_id::<TestHasher>();
-    let default_address_2 = (&pub_key_1).into();
+    let default_address_2 = credential_2.into();
 
     runner.execute(
         non_registered_account

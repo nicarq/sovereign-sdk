@@ -4,7 +4,7 @@ use sov_accounts::{AccountConfig, AccountData, Accounts};
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::{Bank, BankConfig, TokenConfig};
 use sov_modules_api::{
-    CodeCommitmentFor, CryptoSpec, DaSpec, Gas, GasArray, GasSpec, Genesis, Spec, ZkVerifier, Zkvm,
+    CodeCommitmentFor, DaSpec, Gas, GasArray, GasSpec, Genesis, Spec, ZkVerifier, Zkvm,
 };
 use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::common::SlotNumber;
@@ -112,7 +112,7 @@ impl<S: Spec> HighLevelOptimisticGenesisConfig<S> {
 
 impl<S: Spec> HighLevelOptimisticGenesisConfig<S>
 where
-    S::Address: From<sov_modules_api::Address<<S::CryptoSpec as CryptoSpec>::Hasher>>,
+    S::Address: From<sov_modules_api::Address>,
     <S::Da as DaSpec>::Address: From<[u8; 32]>,
     <<<S as Spec>::InnerZkvm as Zkvm>::Verifier as ZkVerifier>::CodeCommitment: Default,
     <<<S as Spec>::OuterZkvm as Zkvm>::Verifier as ZkVerifier>::CodeCommitment: Default,

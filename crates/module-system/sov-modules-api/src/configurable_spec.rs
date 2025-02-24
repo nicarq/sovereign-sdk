@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use sov_rollup_interface::crypto::CredentialId;
 use sov_rollup_interface::da::DaSpec;
 #[cfg(feature = "native")]
 use sov_rollup_interface::execution_mode::{Native, WitnessGeneration};
@@ -91,7 +92,7 @@ impl<
         Address: BasicAddress,
     > Spec for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, WitnessGeneration>
 where
-    for<'a> Address: From<&'a <CryptoSpec as CryptoSpecT>::PublicKey>,
+    Address: From<CredentialId>,
 {
     type Da = Da;
     type Address = Address;
@@ -117,7 +118,7 @@ impl<
         Address: BasicAddress,
     > Spec for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Native>
 where
-    for<'a> Address: From<&'a <CryptoSpec as CryptoSpecT>::PublicKey>,
+    Address: From<CredentialId>,
 {
     type Da = Da;
     type Address = Address;
@@ -148,7 +149,7 @@ impl<
     > Spec
     for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, crate::execution_mode::Zk>
 where
-    for<'a> Address: From<&'a <CryptoSpec as CryptoSpecT>::PublicKey>,
+    Address: From<CredentialId>,
 {
     type Da = Da;
     type Address = Address;

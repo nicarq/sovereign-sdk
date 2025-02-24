@@ -19,7 +19,6 @@ pub mod private_key {
 
     use ed25519_dalek::{Signer, SigningKey};
     use rand::rngs::OsRng;
-    use sov_rollup_interface::crypto::PrivateKey;
 
     use super::{Risc0PublicKey, Risc0Signature};
 
@@ -70,11 +69,6 @@ pub mod private_key {
         pub fn as_hex(&self) -> String {
             hex::encode(self.key_pair.to_bytes())
         }
-
-        /// Returns the address associated with the public key derived from this private key.
-        pub fn to_address<A: From<<Self as PrivateKey>::PublicKey>>(&self) -> A {
-            self.pub_key().into()
-        }
     }
 
     #[cfg(feature = "arbitrary")]
@@ -83,6 +77,7 @@ pub mod private_key {
         use proptest::strategy::Strategy;
         use rand::rngs::StdRng;
         use rand::SeedableRng;
+        use sov_rollup_interface::crypto::PrivateKey;
 
         use super::*;
 
@@ -171,11 +166,6 @@ pub struct Risc0PublicKey {
 }
 
 impl Risc0PublicKey {
-    /// Converts the public key to an address.
-    pub fn to_address<'a, A: From<&'a Self>>(&'a self) -> A {
-        self.into()
-    }
-
     /// Returns the bytes of the underlying public key.
     pub fn bytes(&self) -> &[u8; 32] {
         self.pub_key.as_bytes()

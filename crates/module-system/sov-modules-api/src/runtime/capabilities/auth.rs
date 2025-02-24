@@ -3,7 +3,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value_private;
-use sov_rollup_interface::crypto::{CredentialId, PublicKey};
+use sov_rollup_interface::crypto::CredentialId;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::TxHash;
 use sov_state::User;
@@ -13,9 +13,9 @@ use crate::transaction::{
     AuthenticatedTransactionAndRawHash, Credentials, Transaction, TransactionVerificationError,
 };
 use crate::{
-    Context, CryptoSpec, DispatchCall, FullyBakedTx, GasMeter, GasMeteringError,
-    MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher, ProvableStateReader,
-    RawTx, Spec, StateAccessor,
+    metered_credential, Context, CryptoSpec, DispatchCall, FullyBakedTx, GasMeter,
+    GasMeteringError, MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher,
+    ProvableStateReader, RawTx, Spec, StateAccessor,
 };
 
 /// The chain ID of the rollup.
@@ -248,8 +248,11 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
 
     let runtime_call = tx.runtime_call().clone();
     let pub_key = tx.pub_key().clone();
-    let default_address = (&pub_key).into();
-    let credential_id = pub_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+    let credential_id = metered_credential(&pub_key, meter)
+        .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
+
+    let default_address = credential_id.into();
+
     let credentials = Credentials::new(pub_key);
     let generation = tx.generation;
 

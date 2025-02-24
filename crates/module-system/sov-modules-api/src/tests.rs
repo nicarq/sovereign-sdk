@@ -1,5 +1,4 @@
 use borsh::BorshDeserialize;
-use sha2::Sha256;
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::crypto::{PrivateKey, Signature};
 use sov_rollup_interface::execution_mode::Native;
@@ -17,7 +16,7 @@ type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;
 #[test]
 fn test_account_bech32m_display() {
     let expected_addr: Vec<u8> = (1..=28).collect();
-    let account = crate::Address::<Sha256>::try_from(expected_addr.as_slice()).unwrap();
+    let account = crate::Address::try_from(expected_addr.as_slice()).unwrap();
     assert_eq!(
         account.to_string(),
         "sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3crhxalf"

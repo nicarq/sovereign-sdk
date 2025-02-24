@@ -77,7 +77,7 @@ impl<S: Spec> From<PartialTransaction<S>> for AuthorizationData<S> {
         let pub_key = value.sender_pub_key.clone();
         let credential_id = pub_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
         let generation = value.generation;
-        let default_address = (&pub_key).into();
+        let default_address = credential_id.into();
         let credentials = Credentials::new(pub_key);
         // The generation module stores `raw_tx_hash`es, created from the full serialized tx
         // including the signature. Since we don't have the signature, we can't recreate this hash,

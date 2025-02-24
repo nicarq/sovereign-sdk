@@ -7,7 +7,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{clap, CryptoSpec, DispatchCall, PrivateKey};
+use sov_modules_api::{clap, CredentialId, CryptoSpec, DispatchCall, PrivateKey, PublicKey};
 
 use crate::UnsignedTransactionWithoutNonce;
 
@@ -187,14 +187,20 @@ pub struct PrivateKeyAndAddress<S: sov_modules_api::Spec> {
 impl<S: sov_modules_api::Spec> PrivateKeyAndAddress<S> {
     /// Returns boolean if the private key matches default address
     pub fn is_matching_to_default(&self) -> bool {
-        let addr: S::Address = (&self.private_key.pub_key()).into();
+        let pub_key = &self.private_key.pub_key();
+        let credential_id: CredentialId =
+            pub_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+        let addr: S::Address = credential_id.into();
         addr == self.address
     }
 
     /// Randomly generates a new private key and address
     pub fn generate() -> Self {
         let private_key = <S::CryptoSpec as CryptoSpec>::PrivateKey::generate();
-        let address = (&private_key.pub_key()).into();
+        let credential_id: CredentialId = private_key
+            .pub_key()
+            .credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+        let address: S::Address = credential_id.into();
         Self {
             private_key,
             address,
@@ -203,7 +209,10 @@ impl<S: sov_modules_api::Spec> PrivateKeyAndAddress<S> {
 
     /// Generates a valid private key and address from a given private key
     pub fn from_key(private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey) -> Self {
-        let address = (&private_key.pub_key()).into();
+        let credential_id: CredentialId = private_key
+            .pub_key()
+            .credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+        let address: S::Address = credential_id.into();
         Self {
             private_key,
             address,
