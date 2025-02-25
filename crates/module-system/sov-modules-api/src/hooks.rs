@@ -86,7 +86,7 @@ pub trait BlockHooks {
     ///
     /// The *user* space state root passed to this hook is simply the pre-state root of the `N-STATE_ROOT_DELAY_BLOCKS`th rollup block.
     /// The *kernel* space state root is the pre-state root of the visible slot number associated with `N-STATE_ROOT_DELAY_BLOCKS` block.
-    /// Suppose STATE_ROOT_DELAY_BLOCKS = 0. Then the state roots passed are simply the
+    /// Suppose `STATE_ROOT_DELAY_BLOCKS` = 0. Then the state roots passed are simply the
     /// pre-state roots of the current block.
     fn begin_rollup_block_hook(
         &self,

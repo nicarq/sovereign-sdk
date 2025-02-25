@@ -135,14 +135,14 @@ pub(crate) fn transaction_consumption_helper<S: Spec>(
     let max_remaining_funds = max_fee.saturating_sub(base_fee_value);
 
     // We compute the `max_priority_fee_bips` by applying the `priority_fee_per_gas` to the consumed gas.
-    let earned_priority_fee = max_priority_fee_bips
+    let max_earned_priority_fee = max_priority_fee_bips
         .apply(base_fee_value.0)
         .map(Amount::from)
         .unwrap_or(max_remaining_funds); // If the computation overflows, it would have been larger than the max_remaining_funds anyway - so just use that.
 
     // The tip is the minimum of the remaining gas allocated to the transaction and the maximum earned tip.
     // We transfer the tip to the tip recipient address.
-    let priority_fee = min(earned_priority_fee, max_remaining_funds);
+    let priority_fee = min(max_earned_priority_fee, max_remaining_funds);
 
     // Since the tip is an amount of gas tokens consumed on top of the base fee from the gas meter, we need to take that into
     // account in the calculation.

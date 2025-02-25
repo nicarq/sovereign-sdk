@@ -3,7 +3,7 @@
 /// A bech32 address parse error.
 #[derive(Debug, thiserror::Error)]
 pub enum Bech32ParseError {
-    /// Bech32 decoding error represented via [bech32::primitives::decode::CheckedHrpstringError].
+    /// Bech32 decoding error represented via [`bech32::primitives::decode::CheckedHrpstringError`].
     #[error("Bech32 error: {0}")]
     Bech32(#[from] bech32::primitives::decode::CheckedHrpstringError),
     /// The provided "Human-Readable Part" is invalid.
@@ -28,7 +28,7 @@ impl serde::Serialize for ModuleError {
         S: serde::Serializer,
     {
         let error = match self {
-            ModuleError::ModuleError(e) => format!("{:?}", e),
+            ModuleError::ModuleError(e) => format!("{e:?}"),
         };
         error.serialize(serializer)
     }

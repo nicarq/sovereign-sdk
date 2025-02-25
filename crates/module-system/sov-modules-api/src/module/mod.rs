@@ -83,6 +83,9 @@ pub trait Module {
     /// Attempts to charge the provided amount of gas from the working set reverting the transaction if unsuccessful.
     ///
     /// The amount of funds to charge will be computed using the current gas price.
+    ///
+    /// # Errors
+    /// Returns an error if charging gas fails due to running out of gas, or due to an overflow computing the scalar value.
     fn charge_gas(
         &self,
         state: &mut impl TxState<Self::Spec>,
@@ -132,9 +135,12 @@ pub trait ModuleInfo {
     fn dependencies(&self) -> Vec<&ModuleId>;
 
     /// Returns true if the call is safe to submit on behalf of an aribtrary 3rd party as far
-    /// as this module is concerned. The provided `Any` *should* be an instance of the module's CallMessage
+    /// as this module is concerned. The provided `Any` *should* be an instance of the module's `CallMessage`
     ///
-    /// This is an advanced function of the SDK. Types which are not    
+    /// This is an advanced function of the SDK. Types which are not safe include any `CallMessage`
+    /// where the action of sequencing them is used to signify implicit permission from the
+    /// sequencer to change some settings or perform some action; sequencers should utilise their
+    /// discretion in accepting these calls (e.g. by only accepting them from whitelisted senders).
     fn is_safe_for_sequencer(
         &self,
         _call: InnerEnumVariant<'_>,
@@ -153,12 +159,10 @@ pub trait EventEmitter: ModuleInfo {
 
     /// Emits an event with an auto-generated event key composed by the module
     /// of origin's name and the `enum` variant's name of the event.
+    #[allow(unused_variables)]
     fn emit_event(&self, state: &mut impl EventContainer, event: Self::Event) {
-        #[allow(unused_variables)]
-        let _ = || (&state, &event);
-
         if cfg!(feature = "native") {
-            let event_debug = format!("{:?}", event);
+            let event_debug = format!("{event:?}");
             // `.unwrap_or_default()` would only happen if `Debug` returns an
             // empty or all-whitespace string, which seems unlikely.
             let event_variant_name = event_debug.split_whitespace().next().unwrap_or_default();
@@ -169,12 +173,17 @@ pub trait EventEmitter: ModuleInfo {
     }
 
     /// Emits an event with a custom event key.
+    #[allow(unused_variables)]
     fn emit_event_with_custom_key(
         &self,
         state: &mut impl EventContainer,
         event_key: &str,
         event: Self::Event,
-    );
+    ) {
+        if cfg!(feature = "native") {
+            state.add_event(event_key, event);
+        }
+    }
 }
 
 impl<T> EventEmitter for T
@@ -183,20 +192,6 @@ where
 {
     type Spec = <T as ModuleInfo>::Spec;
     type Event = <T as Module>::Event;
-
-    fn emit_event_with_custom_key(
-        &self,
-        state: &mut impl EventContainer,
-        event_key: &str,
-        event: Self::Event,
-    ) {
-        #[allow(unused_variables)]
-        let _ = || (&state, &event);
-
-        if cfg!(feature = "native") {
-            state.add_event(event_key, event);
-        }
-    }
 }
 
 /// A trait that specifies how a runtime should encode the data for each module

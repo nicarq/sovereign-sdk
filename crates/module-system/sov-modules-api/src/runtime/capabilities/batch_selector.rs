@@ -13,6 +13,7 @@ pub enum BlobOrigin<'a, T> {
 
 impl<'a, T: BlobReaderTrait> BlobOrigin<'a, T> {
     /// Returns the total number of bytes in the blob.
+    #[must_use]
     pub fn total_len(&self) -> u32 {
         match self {
             BlobOrigin::Batch(b) => as_u32_or_panic(b.total_len()),
@@ -48,7 +49,7 @@ impl<B> BlobSelectorOutput<B> {
     }
 }
 
-/// BlobSelector decides which blobs to process in a current slot.
+/// `BlobSelector` decides which blobs to process in a current slot.
 pub trait BlobSelector {
     /// Spec type
     type Spec: Spec;

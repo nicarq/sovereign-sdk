@@ -313,26 +313,31 @@ impl RollupHeight {
     }
 
     /// See [`u64::checked_sub`]
+    #[must_use]
     pub fn checked_sub(self, rhs: u64) -> Option<Self> {
         self.0.checked_sub(rhs).map(Self)
     }
 
     /// See [`u64::checked_add`]
+    #[must_use]
     pub fn checked_add(self, rhs: Self) -> Option<Self> {
         self.0.checked_add(rhs.0).map(Self)
     }
 
     /// See [`u64::saturating_sub`]
+    #[must_use]
     pub fn saturating_sub(self, rhs: u64) -> Self {
         Self(self.0.saturating_sub(rhs))
     }
 
     /// See [`u64::saturating_add`]
+    #[must_use]
     pub fn saturating_add(self, rhs: u64) -> Self {
         Self(self.0.saturating_add(rhs))
     }
 
     /// Convert a rollup height to a slot number
+    #[must_use]
     pub fn to_slot_number(&self) -> SlotNumber {
         SlotNumber::new_dangerous(self.0)
     }

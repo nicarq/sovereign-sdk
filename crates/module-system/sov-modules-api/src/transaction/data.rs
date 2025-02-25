@@ -39,6 +39,7 @@ impl PriorityFeeBips {
     /// Constant function to create a priority fee from a percentage.
     /// The priority fee is expressed as a basis point, ie `PriorityFeeBips(100)` is equivalent to a 1% fee -
     /// hence calling this `from_percentage(1)` will return `PriorityFeeBips(100)`.
+    #[must_use]
     pub const fn from_percentage(value: u64) -> Self {
         Self(value * 100)
     }
@@ -62,6 +63,8 @@ impl From<PriorityFeeBips> for u64 {
 
 impl PriorityFeeBips {
     /// Applies the priority fee to a given quantity if possible
+    /// # Errors
+    /// Returns an error in case of overflow.
     pub fn apply(&self, quantity: u128) -> Result<u128, PriorityFeeApplyOverflowError> {
         self.priority_fee_limbs(quantity)
     }
@@ -161,6 +164,7 @@ impl Credentials {
     }
 
     /// Returns the relevant credential.
+    #[must_use]
     pub fn get<T>(&self) -> Option<&T>
     where
         T: core::any::Any,

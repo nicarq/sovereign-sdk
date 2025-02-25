@@ -267,15 +267,15 @@ impl<'a, S: Spec> ModuleVisitor<'a, S> {
                 cycle.len(),
                 cycle
             );
-        } else {
-            self.visited_on_this_path.push(id);
         }
+
+        self.visited_on_this_path.push(id);
 
         // if the module hasn't been visited yet, visit it and its dependencies
         if self.visited.insert(id) {
             for dependency_address in module.dependencies() {
                 let dependency_module = *module_map.get(&dependency_address).ok_or_else(|| {
-                    anyhow::Error::msg(format!("Module not found: {:?}", dependency_address))
+                    anyhow::Error::msg(format!("Module not found: {dependency_address:?}"))
                 })?;
                 self.visit_module(dependency_module, module_map)?;
             }
@@ -290,7 +290,7 @@ impl<'a, S: Spec> ModuleVisitor<'a, S> {
     }
 }
 
-/// Sorts ModuleInfo objects by their dependencies
+/// Sorts `ModuleInfo` objects by their dependencies
 fn sort_modules_by_dependencies<S: Spec>(
     modules: Vec<&dyn ModuleInfo<Spec = S>>,
 ) -> anyhow::Result<Vec<&dyn ModuleInfo<Spec = S>>> {
@@ -299,7 +299,11 @@ fn sort_modules_by_dependencies<S: Spec>(
     Ok(module_visitor.sorted_modules)
 }
 
-/// Accepts Vec<> of tuples (&ModuleInfo, &TValue), and returns Vec<&TValue> sorted by mapped module dependencies
+/// Accepts `Vec<>` of tuples `(&ModuleInfo, &TValue)`, and returns `Vec<&TValue>` sorted by mapped module dependencies
+///
+/// # Errors
+/// Returns an error if any modules share `module_id`. Duplicate instances of the same module are
+/// not allowed in a runtime.
 pub fn sort_values_by_modules_dependencies<S: Spec, TValue>(
     module_value_tuples: Vec<(&dyn ModuleInfo<Spec = S>, TValue)>,
 ) -> anyhow::Result<Vec<TValue>>
@@ -322,6 +326,8 @@ where
 
     let mut sorted_values = Vec::new();
     for module in sorted_modules {
+        // Unwrap: we just inserted the module_id above. Can only panic if
+        // sort_modules_by_dependencies adds a new module_id that didn't exist in the input
         sorted_values.push(value_map.get(&module.id()).unwrap().clone());
     }
 

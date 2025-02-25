@@ -26,8 +26,9 @@ impl TypedEvent {
         }
     }
 
-    /// Try to cast from the TypedEvent to a specific type E provided
-    /// checks type_id to avoid un-necessary casting
+    /// Try to cast from the `TypedEvent` to a specific type `E` provided
+    /// Checks `type_id` to avoid unnecessary casting
+    #[must_use]
     pub fn downcast<E: core::clone::Clone + 'static>(self) -> Option<E> {
         if core::any::TypeId::of::<E>() == self.type_id {
             self.boxed_event.downcast::<E>().ok().map(|boxed| *boxed)
@@ -36,8 +37,9 @@ impl TypedEvent {
         }
     }
 
-    // Try to cast from the TypedEvent to a specific type E provided
-    /// checks type_id to avoid un-necessary casting
+    // Try to cast from the `TypedEvent` to a reference to a specific type `E` provided
+    /// Checks `type_id` to avoid unnecessary casting
+    #[must_use]
     pub fn downcast_ref<E: core::clone::Clone + 'static>(&self) -> Option<&E> {
         if core::any::TypeId::of::<E>() == self.type_id {
             self.boxed_event.downcast_ref::<E>()
@@ -47,11 +49,13 @@ impl TypedEvent {
     }
 
     /// Function to peek at the type id
+    #[must_use]
     pub fn type_id(&self) -> &core::any::TypeId {
         &self.type_id
     }
 
     /// Function to peek at the event key
+    #[must_use]
     pub fn event_key(&self) -> &[u8] {
         &self.event_key
     }

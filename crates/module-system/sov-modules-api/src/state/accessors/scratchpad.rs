@@ -125,11 +125,13 @@ pub struct PreExecWorkingSet<S: Spec, I: StateProvider<S>> {
 
 impl<S: Spec, I: StateProvider<S>> PreExecWorkingSet<S, I> {
     /// Returns the associated gas meter and the scratchpad.
+    #[must_use]
     pub fn to_scratchpad_and_gas_meter(self) -> (TxScratchpad<S, I>, BasicGasMeter<S>) {
         (self.inner, self.gas_meter)
     }
 
     /// Commits the contents of the [`PreExecWorkingSet`].
+    #[must_use]
     pub fn commit(self) -> Self {
         let inner = self.inner.commit();
         let scratchpad = inner.to_tx_scratchpad();
@@ -137,6 +139,7 @@ impl<S: Spec, I: StateProvider<S>> PreExecWorkingSet<S, I> {
     }
 
     /// Reverts all changes up to the last commit.
+    #[must_use]
     pub fn revert(self) -> (TxScratchpad<S, I>, BasicGasMeter<S>) {
         let inner = self.inner.revert();
         let scratchpad = inner.to_tx_scratchpad();
@@ -253,7 +256,7 @@ pub struct WorkingSet<S: Spec, I: StateProvider<S> = StateCheckpoint<S>> {
 }
 
 impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
-    /// Get the `GasInfo` for the WorkingSet.
+    /// Get the `GasInfo` for the `WorkingSet`.
     pub fn gas_info(&self) -> GasInfo<<S as Spec>::Gas> {
         self.gas_meter.gas_info()
     }
@@ -266,7 +269,7 @@ impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
     ) -> Self {
         Self {
             delta: RevertableWriter::new(scratchpad),
-            events: Default::default(),
+            events: Vec::default(),
             gas_meter: working_set_gas_meter,
             max_fee: tx.max_fee,
             max_priority_fee_bips: tx.max_priority_fee_bips,

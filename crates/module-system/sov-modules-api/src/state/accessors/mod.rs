@@ -36,7 +36,7 @@ pub use internals::AccessoryDelta;
 pub use kernel::{BootstrapWorkingSet, KernelStateAccessor};
 pub use scratchpad::{PreExecWorkingSet, TxChangeSet, TxScratchpad, WorkingSet};
 
-use self::seal::*;
+use self::seal::UniversalStateAccessor;
 use super::{StateReaderAndWriter, VersionReader};
 use crate::Spec;
 

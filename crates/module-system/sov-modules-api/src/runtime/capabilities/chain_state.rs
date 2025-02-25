@@ -36,7 +36,7 @@ pub trait ChainState {
     /// Called after blob selection but before tx execution, this method is invoked if the rollup will produce a block during the current slot.
     ///
     /// This method is responsible for...
-    /// 1. updating the `rollup height`` stored in the rollup state
+    /// 1. updating the `rollup height` stored in the rollup state
     /// 2. updating the `visible slot number` stored in the rollup state
     /// 3. calling `update_rollup_height` on the provided `KernelStateAccessor`.
     /// 4. calling `update_visible_slot_number` on the provided `KernelStateAccessor`.

@@ -272,7 +272,7 @@ where
     /// Deletes a key-value pair from the map.
     ///
     /// This is equivalent to [`NamespacedStateMap::remove`], but doesn't deserialize and
-    /// return the value before deletion.
+    /// return the value before deletion, or error on a missing value.
     pub fn delete<Kq, Writer>(&self, key: &Kq, state: &mut Writer) -> Result<(), Writer::Error>
     where
         Codec: StateCodec,

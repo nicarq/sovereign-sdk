@@ -91,7 +91,7 @@ pub trait GasSpec:
     fn initial_base_fee_per_gas() -> <Self::Gas as Gas>::Price;
 
     /// Maximum amount of gas the sequencer can pay for the tx execution. Typically this will be the sum
-    /// of authentication (sig check) gas and process_tx_pre_exec_checks_gas.
+    /// of authentication (sig check) gas and `process_tx_pre_exec_checks_gas()`.
     fn max_tx_check_costs() -> Self::Gas;
 
     /// Maximum amount of gas that can be charged for sequencer registration.

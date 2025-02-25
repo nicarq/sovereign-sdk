@@ -208,7 +208,7 @@ pub mod kernel_state {
         Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, User,
     };
 
-    use super::*;
+    use super::get_inner;
     use crate::state::accessors::BootstrapWorkingSet;
     use crate::{KernelStateAccessor, Spec, StateReader, StateWriter};
 

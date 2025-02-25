@@ -108,7 +108,7 @@ pub trait Runtime<S: Spec>:
     /// [schema](sov_rollup_interface::sov_universal_wallet::schema::Schema).
     const CHAIN_HASH: [u8; 32];
 
-    /// GenesisConfig type.
+    /// `GenesisConfig` type.
     type GenesisConfig: Clone + Send + Sync;
 
     /// Gets the operating mode of the runtime (Zk or Optimistic).

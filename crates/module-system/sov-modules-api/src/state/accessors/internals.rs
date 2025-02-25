@@ -12,7 +12,7 @@ use super::UniversalStateAccessor;
 
 /// A [`Delta`] is a diff over an underlying [`Storage`] instance. When queried, it first checks
 /// whether the value is in its local cache and, if so, returns it. Otherwise, it queries the
-/// underlying storage for the requested key, adds it to the Witness, and populates the value Into
+/// underlying storage for the requested key, adds it to the Witness, and populates the value into
 /// its own local cache before returning.
 ///
 /// Writes are always performed on the local cache, and are only committed to the underlying storage
@@ -243,7 +243,7 @@ impl<T: fmt::Debug> fmt::Debug for RevertableWriter<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RevertableWriter")
             .field("inner", &self.inner)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -251,7 +251,7 @@ impl<T> RevertableWriter<T> {
     pub(super) fn new(inner: T) -> Self {
         Self {
             inner,
-            writes: Default::default(),
+            writes: HashMap::default(),
         }
     }
 
@@ -270,8 +270,8 @@ impl<T> RevertableWriter<T> {
     where
         T: UniversalStateAccessor,
     {
-        for ((key, namespace), value) in self.writes.into_iter() {
-            Self::commit_entry(&mut self.inner, namespace, key, value);
+        for ((key, namespace), value) in self.writes {
+            Self::commit_entry(&mut self.inner, namespace, &key, value);
         }
 
         self.inner
@@ -281,13 +281,13 @@ impl<T> RevertableWriter<T> {
         self.inner
     }
 
-    fn commit_entry(inner: &mut T, namespace: Namespace, key: SlotKey, value: Option<SlotValue>)
+    fn commit_entry(inner: &mut T, namespace: Namespace, key: &SlotKey, value: Option<SlotValue>)
     where
         T: UniversalStateAccessor,
     {
         match value {
-            Some(value) => inner.set_value(namespace, &key, value),
-            None => inner.delete_value(namespace, &key),
+            Some(value) => inner.set_value(namespace, key, value),
+            None => inner.delete_value(namespace, key),
         };
     }
 }
@@ -315,7 +315,7 @@ where
 
     fn get_value(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue> {
         if let Some(value) = self.writes.get(&(key.clone(), namespace)) {
-            value.as_ref().cloned().map(Into::into)
+            value.clone().map(Into::into)
         } else {
             <T as UniversalStateAccessor>::get_value(&mut self.inner, namespace, key)
         }

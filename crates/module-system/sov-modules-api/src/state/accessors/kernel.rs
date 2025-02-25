@@ -4,7 +4,7 @@ use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{IsValueCached, SlotKey, SlotValue};
 
 use self::checkpoints::StateCheckpoint;
-use super::*;
+use super::{checkpoints, internals, Namespace, UniversalStateAccessor};
 use crate::capabilities::{Kernel, RollupHeight};
 use crate::state::traits::{PrivilegedKernelAccessor, VersionReader};
 use crate::{AccessoryStateWriter, GasMeter, Spec};

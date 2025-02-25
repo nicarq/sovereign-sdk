@@ -234,14 +234,14 @@ impl<S: Spec> Context<S> {
     }
 }
 
-/// Simplified type alias for Attestation
+/// Simplified type alias for `Attestation`
 pub type SovAttestation<S> = Attestation<
     <<S as Spec>::Da as DaSpec>::SlotHash,
     <<S as Spec>::Storage as Storage>::Root,
     StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
 >;
 
-/// Simplified type alias for StateTransitionPublicData
+/// Simplified type alias for `StateTransitionPublicData`
 pub type SovStateTransitionPublicData<S> = StateTransitionPublicData<
     <S as Spec>::Address,
     <S as Spec>::Da,
