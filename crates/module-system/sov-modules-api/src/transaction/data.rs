@@ -110,7 +110,7 @@ pub struct TxDetails<S: Spec> {
     /// gas tip will be `10` tokens.
     pub max_priority_fee_bips: PriorityFeeBips,
     /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
-    pub max_fee: u128,
+    pub max_fee: Amount,
     /// The gas limit of the transaction.
     /// This is an optional field that can be used to provide a limit of the gas usage of the transaction
     /// across the different gas dimensions. If provided, this quantity will be used along
@@ -180,7 +180,7 @@ pub struct AuthenticatedTransactionData<S: Spec> {
     /// This priority fee is computed as a percentage of the total gas consumed by the transaction
     pub max_priority_fee_bips: PriorityFeeBips,
     /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
-    pub max_fee: u128,
+    pub max_fee: Amount,
     /// The estimated gas usage of the transaction
     pub gas_limit: Option<S::Gas>,
 }
@@ -197,13 +197,13 @@ impl<S: Spec> AuthenticatedTransactionData<S> {
                 // `GasArray::calculate_min` creates a new gas instance by selecting the minimum value along each dimension of the gas array.
                 let new_gas_limit = <S::Gas as GasArray>::calculate_min(gas_limit, slot_gas_limit);
                 BasicGasMeter::new_with_funds_and_gas(
-                    Amount(self.max_fee),
+                    self.max_fee,
                     new_gas_limit,
                     gas_price.clone(),
                 )
             }
             None => BasicGasMeter::new_with_funds_and_gas(
-                Amount(self.max_fee),
+                self.max_fee,
                 slot_gas_limit.clone(),
                 gas_price.clone(),
             ),

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use derivative::Derivative;
 use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
-use sov_modules_api::{CryptoSpec, DispatchCall, FullyBakedTx, PrivateKey, RawTx, Spec};
+use sov_modules_api::{Amount, CryptoSpec, DispatchCall, FullyBakedTx, PrivateKey, RawTx, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 
 use crate::runtime::Runtime;
@@ -78,7 +78,7 @@ impl<RT: Runtime<S>, S: Spec> TransactionType<RT, S> {
     }
 
     /// Set the max fee of the transaction.
-    pub fn with_max_fee(mut self, max_fee: u128) -> Self {
+    pub fn with_max_fee(mut self, max_fee: Amount) -> Self {
         if let Some(details) = self.details_mut() {
             details.max_fee = max_fee;
         }
@@ -118,7 +118,7 @@ impl<RT: Runtime<S>, S: Spec> TransactionType<RT, S> {
         }
     }
 
-    /// Creates a [`TransactionType`] from a [`UnsignedTransaction`].
+    /// Creates a [`TransactionType`] from an [`UnsignedTransaction`].
     pub fn pre_signed(
         unsigned_tx: UnsignedTransaction<RT, S>,
         key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,

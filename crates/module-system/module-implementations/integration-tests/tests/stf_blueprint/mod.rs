@@ -127,7 +127,7 @@ fn create_tx_bad_sig(
         message,
         chain_id,
         max_priority_fee_bips,
-        200_000,
+        Amount::new(200_000),
         nonce,
         None,
     );
@@ -152,7 +152,7 @@ fn create_tx_bad_sender(
         message,
         chain_id,
         max_priority_fee_bips,
-        200_000,
+        Amount::new(200_000),
         nonce,
         None,
     );
@@ -200,7 +200,7 @@ fn create_tx_out_of_gas(
         message,
         chain_id,
         max_priority_fee_bips,
-        200_000,
+        Amount::new(200_000),
         nonce,
         Some(<<S as Spec>::Gas as Gas>::zero()),
     );

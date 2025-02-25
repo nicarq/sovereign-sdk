@@ -16,7 +16,7 @@ use sov_rollup_interface::TxHash;
 use thiserror::Error;
 
 use crate::{
-    DispatchCall, Gas, GasMeter, GasMeteringError, GasSpec, MeteredBorshDeserialize,
+    Amount, DispatchCall, Gas, GasMeter, GasMeteringError, GasSpec, MeteredBorshDeserialize,
     MeteredBorshDeserializeError, MeteredSigVerificationError, MeteredSignature, Spec,
 };
 
@@ -336,7 +336,7 @@ impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
         runtime_call: R::Call,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u128,
+        max_fee: Amount,
         generation: u64,
         gas_limit: Option<S::Gas>,
     ) -> Self {

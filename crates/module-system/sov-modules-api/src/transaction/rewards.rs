@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use super::data::PriorityFeeBips;
-use crate::{Gas, GasArray, Spec};
+use crate::{Amount, Gas, GasArray, Spec};
 
 /// The format of the resources consumed by the transaction. The base fee and the priority fee are expressed as gas token amounts.
 /// The [`TransactionConsumption`] data structure can only be built from the [`crate::WorkingSet`] data structure.
@@ -17,11 +17,11 @@ use crate::{Gas, GasArray, Spec};
 pub struct TransactionConsumption<GU: Gas> {
     /// The amount of funds locked in the transaction that remains after transaction is executed and tip is processed.
     /// This amount includes the `base_fee` and the `priority_fee` gas token consumption
-    pub(crate) remaining_funds: u128,
+    pub(crate) remaining_funds: Amount,
     /// The base fee reward of the transaction expressed as a gas token amount.
     pub(crate) base_fee: GU,
     /// The priority fee reward of the transaction expressed as a gas token amount.
-    pub(crate) priority_fee: u128,
+    pub(crate) priority_fee: Amount,
     /// The gas price of the transaction.
     pub(crate) gas_price: GU::Price,
 }
@@ -29,17 +29,17 @@ pub struct TransactionConsumption<GU: Gas> {
 impl<GU: Gas> TransactionConsumption<GU> {
     /// A zero consumption. Happens when the transaction is ignored (like in the case of a revert for the speculative execution mode).
     pub const ZERO: Self = Self {
-        remaining_funds: 0,
+        remaining_funds: Amount::ZERO,
         base_fee: GU::ZEROED,
-        priority_fee: 0,
+        priority_fee: Amount::ZERO,
         gas_price: GU::Price::ZEROED,
     };
 
     /// Creates a new [`TransactionConsumption`] instance.
     pub fn new(
-        remaining_funds: u128,
+        remaining_funds: Amount,
         base_fee: GU,
-        priority_fee: u128,
+        priority_fee: Amount,
         gas_price: GU::Price,
     ) -> Self {
         Self {
@@ -74,12 +74,12 @@ impl<GU: Gas> TransactionConsumption<GU> {
 
     /// The priority fee reward of the transaction expressed as a gas token amount.
     pub const fn priority_fee(&self) -> SequencerReward {
-        SequencerReward(self.priority_fee)
+        SequencerReward(self.priority_fee.0)
     }
 
     /// The remaining amount of gas tokens locked in the meter.
     pub fn remaining_funds(&self) -> RemainingFunds {
-        RemainingFunds(self.remaining_funds)
+        RemainingFunds(self.remaining_funds.0)
     }
 }
 
@@ -124,7 +124,7 @@ impl SequencerReward {
 pub(crate) fn transaction_consumption_helper<S: Spec>(
     base_fee: &S::Gas,
     gas_price: &<S::Gas as Gas>::Price,
-    max_fee: u128,
+    max_fee: Amount,
     max_priority_fee_bips: PriorityFeeBips,
 ) -> TransactionConsumption<S::Gas> {
     let base_fee_value = base_fee
@@ -132,11 +132,12 @@ pub(crate) fn transaction_consumption_helper<S: Spec>(
         // SAFETY: `base_fee` comes from `BasicGasMeter`, which ensures overflow protection.
         .expect("Base fee value overflowed");
 
-    let max_remaining_funds = max_fee.saturating_sub(base_fee_value.0);
+    let max_remaining_funds = max_fee.saturating_sub(base_fee_value);
 
     // We compute the `max_priority_fee_bips` by applying the `priority_fee_per_gas` to the consumed gas.
     let earned_priority_fee = max_priority_fee_bips
         .apply(base_fee_value.0)
+        .map(Amount::from)
         .unwrap_or(max_remaining_funds); // If the computation overflows, it would have been larger than the max_remaining_funds anyway - so just use that.
 
     // The tip is the minimum of the remaining gas allocated to the transaction and the maximum earned tip.
@@ -146,7 +147,7 @@ pub(crate) fn transaction_consumption_helper<S: Spec>(
     // Since the tip is an amount of gas tokens consumed on top of the base fee from the gas meter, we need to take that into
     // account in the calculation.
     let remaining_funds = max_fee
-        .saturating_sub(base_fee_value.0)
+        .saturating_sub(base_fee_value)
         .saturating_sub(priority_fee);
 
     TransactionConsumption {

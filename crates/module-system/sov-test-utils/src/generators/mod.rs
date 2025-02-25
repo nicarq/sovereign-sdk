@@ -11,7 +11,7 @@ use sov_blob_storage::PreferredBatchData;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
-use sov_modules_api::{CryptoSpec, EncodeCall, FullyBakedTx, Module, RawTx, Spec};
+use sov_modules_api::{Amount, CryptoSpec, EncodeCall, FullyBakedTx, Module, RawTx, Spec};
 use sov_modules_stf_blueprint::Runtime;
 
 use crate::{TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
@@ -41,7 +41,7 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
         content: Mod::CallMessage,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u128,
+        max_fee: Amount,
         gas_limit: Option<S::Gas>,
         generation: u64,
     ) -> Self {
@@ -109,7 +109,7 @@ pub trait MessageGenerator {
         &self,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u128,
+        max_fee: Amount,
         estimated_gas_usage: Option<<Self::Spec as Spec>::Gas>,
     ) -> Vec<Message<Self::Spec, Self::Module>>;
 
@@ -169,7 +169,7 @@ pub trait MessageGenerator {
         &self,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u128,
+        max_fee: Amount,
         estimated_gas_usage: Option<<Self::Spec as Spec>::Gas>,
     ) -> Vec<FullyBakedTx> {
         let messages_iter = self

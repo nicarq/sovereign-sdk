@@ -6,7 +6,8 @@ use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::transaction::TxDetails;
 use sov_modules_api::{
-    CryptoSpec, DispatchCall, Gas, GasArray, PrivateKey as _, Runtime, SelectedBlob, Spec, TxEffect,
+    Amount, CryptoSpec, DispatchCall, Gas, GasArray, PrivateKey as _, Runtime, SelectedBlob, Spec,
+    TxEffect,
 };
 use sov_modules_stf_blueprint::{get_gas_used, TxReceiptContents};
 use sov_state::{DefaultStorageSpec, ProverStorage};
@@ -100,11 +101,14 @@ impl<S: Spec> AssertOutcome<S> for MaxFeeOutcome {
 }
 
 impl MaxFeeOutcome {
-    fn set_max_fee<S: Spec>(&self, gas_used: u128, details: &mut TxDetails<S>) {
+    const DIFF: Amount = Amount::new(2000);
+    fn set_max_fee<S: Spec>(&self, gas_used: Amount, details: &mut TxDetails<S>) {
         details.max_fee = match self {
-            MaxFeeOutcome::Insufficient => gas_used - 2000,
+            MaxFeeOutcome::Insufficient => gas_used
+                .checked_sub(Self::DIFF)
+                .expect("Insufficient gas used"),
             MaxFeeOutcome::Exact => gas_used,
-            MaxFeeOutcome::Excess => gas_used + 2000,
+            MaxFeeOutcome::Excess => gas_used.checked_add(Self::DIFF).expect("Excess gas used"),
         };
     }
 }
@@ -190,7 +194,7 @@ where
 
         match &*self.outcome {
             TransactionOutcome::MaxFee(max_fee_outcome) => {
-                max_fee_outcome.set_max_fee(gas_used_value.0, tx_details);
+                max_fee_outcome.set_max_fee(gas_used_value, tx_details);
             }
             TransactionOutcome::GasLimit(gas_limit_outcome) => {
                 gas_limit_outcome.set_gas_limit(gas_used, tx_details);
@@ -247,7 +251,7 @@ where
                 context.call_generator_state,
                 // we always want these messages to be valid
                 // we want the outcome to be based on transaction level attributes
-                // i.e gas, nonces, etc
+                // i.e gas, nonces, etc.
                 MessageValidity::Valid,
             )
             .unwrap();

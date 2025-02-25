@@ -267,7 +267,7 @@ impl<S: Spec> MessageGenerator for BankMessageGenerator<S> {
         &self,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u128,
+        max_fee: Amount,
         gas_usage: Option<<Self::Spec as Spec>::Gas>,
     ) -> Vec<Message<Self::Spec, Self::Module>> {
         let mut messages = Vec::<Message<S, Bank<S>>>::new();

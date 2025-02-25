@@ -34,7 +34,7 @@ impl<S: Spec> TryFrom<types::SimulateExecutionResponse> for SimulateExecutionCon
         let remaining_funds = received_consumption
             .remaining_funds
             .as_str()
-            .parse::<u128>()?;
+            .parse::<Amount>()?;
 
         let gas_price = received_consumption
             .gas_price
@@ -46,7 +46,10 @@ impl<S: Spec> TryFrom<types::SimulateExecutionResponse> for SimulateExecutionCon
         let transaction_consumption = TransactionConsumption::<S::Gas>::new(
             remaining_funds,
             S::Gas::try_from(received_consumption.base_fee.0).map_err(Into::into)?,
-            received_consumption.priority_fee.as_str().parse::<u128>()?,
+            received_consumption
+                .priority_fee
+                .as_str()
+                .parse::<Amount>()?,
             <S::Gas as Gas>::Price::try_from(gas_price).map_err(Into::into)?,
         );
 
@@ -244,7 +247,7 @@ impl<S: Spec> TryFrom<types::PartialTransaction> for crate::PartialTransaction<S
         let details = TxDetails::<S> {
             chain_id: value.details.chain_id,
             max_priority_fee_bips: PriorityFeeBips(value.details.max_priority_fee_bips),
-            max_fee: value.details.max_fee.as_str().parse::<u128>()?,
+            max_fee: value.details.max_fee.as_str().parse::<Amount>()?,
             gas_limit: value
                 .details
                 .gas_limit

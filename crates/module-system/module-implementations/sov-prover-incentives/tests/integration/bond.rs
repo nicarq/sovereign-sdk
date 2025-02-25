@@ -188,7 +188,7 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
                 token_id: config_gas_token_id(),
             },
         })
-        .with_max_fee(prover.user_info.available_gas_balance / 2)
+        .with_max_fee(Amount::new(prover.user_info.available_gas_balance / 2))
         .to_serialized_authenticated_tx(&mut nonces);
 
     let register_signed = unbonded_user

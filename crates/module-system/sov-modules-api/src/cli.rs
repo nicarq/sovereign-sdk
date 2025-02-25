@@ -1,7 +1,7 @@
 use std::fs;
 
 use crate::capabilities::config_chain_id;
-use crate::{clap, CliWallet};
+use crate::{clap, Amount, CliWallet};
 
 /// A trait that defines the interface for a CLI wallet.
 pub trait CliFrontEnd<RT>
@@ -25,7 +25,7 @@ pub trait CliTxImportArg {
     /// The max fee to pay for the transaction execution. This is the maximum amount expressed in gas tokens that can be
     /// charged for the gas fees of the transaction. This value contains both the tip and the base fee.
     /// It is mandatory to set this value as there is no associated default value.
-    fn max_fee(&self) -> u128;
+    fn max_fee(&self) -> Amount;
 
     /// The gas limit for the transaction execution. This is an optional field that can be used to enforce a
     /// gas limit on the transaction execution - in a way that reproduces the behavior of the EIP-1559. If the gas limit is
@@ -62,7 +62,7 @@ pub struct JsonStringArg {
         help = "The max fee to pay for the transaction execution. This is the maximum amount expressed in gas tokens that can be
         charged for the gas fees of the transaction. This value contains both the tip and the base fee."
     )]
-    pub max_fee: u128,
+    pub max_fee: Amount,
 
     /// The gas limit for the transaction execution.
     #[arg(
@@ -104,7 +104,7 @@ pub struct FileNameArg {
         help = "The max fee to pay for the transaction execution. This is the maximum amount expressed in gas tokens that can be
         charged for the gas fees of the transaction. This value contains both the tip and the base fee."
     )]
-    pub max_fee: u128,
+    pub max_fee: Amount,
 
     /// The gas limit for the transaction execution.
     #[arg(
@@ -128,7 +128,7 @@ impl CliTxImportArg for JsonStringArg {
         self.max_priority_fee_bips
     }
 
-    fn max_fee(&self) -> u128 {
+    fn max_fee(&self) -> Amount {
         self.max_fee
     }
 
@@ -146,7 +146,7 @@ impl CliTxImportArg for FileNameArg {
         self.max_priority_fee_bips
     }
 
-    fn max_fee(&self) -> u128 {
+    fn max_fee(&self) -> Amount {
         self.max_fee
     }
 

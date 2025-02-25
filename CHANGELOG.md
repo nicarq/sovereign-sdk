@@ -1,7 +1,7 @@
-## 2025-02-23
+## 2025-02-25
+- #2509 **BREAKING CHANGE** `max_fee` field in transaction details changed from `u128` to `Amount`, meaning number is encoded as string in JSON.
+## 2025-02-24
 - #2498 **BREAKING CHANGE** Changes all token balances from `u64` to `u128`. This covers gas all references to balances or fund amounts throughout the SDK, including gas *prices* (though not gas units).
-## 2025-02-24
-## 2025-02-24
 - #2497 Updates the PublicKey API and refines the conversion of public keys to Addresses. Introduces charging for CredentialId calculation.
 - #2502 fixes the gas charging pattern computation. 
 

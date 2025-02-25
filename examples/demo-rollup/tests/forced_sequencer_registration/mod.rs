@@ -20,7 +20,7 @@ use crate::test_helpers::{test_genesis_source, DemoRollupSpec, CHAIN_HASH};
 type TestSpec = DemoRollupSpec;
 type TestPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 
-const MAX_TX_FEE: u128 = 100_000_000;
+const MAX_TX_FEE: Amount = Amount::new(100_000_000);
 const UNREGISTERED_SENDER: MockAddress = MockAddress::new([121; 32]);
 const MINIMUM_BOND: Amount = Amount::new(100_000_000);
 const FINALIZATION_BLOCKS: u32 = 1;

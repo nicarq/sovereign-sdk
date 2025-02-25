@@ -7,13 +7,13 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
-use sov_modules_api::{ProofSerializer, Spec};
+use sov_modules_api::{Amount, ProofSerializer, Spec};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::optimistic::{SerializedAttestation, SerializedChallenge};
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_sequencer::SequenceNumberProvider;
 
-const MAX_FEE: u128 = 10_000_000;
+const MAX_FEE: Amount = Amount::new(10_000_000);
 
 /// Adds metadata about gas & fees to the proof blob.
 pub struct SovApiProofSerializer<S: Spec> {
@@ -107,7 +107,7 @@ impl<S: Spec> ProofSerializer for SovApiProofSerializer<S> {
     }
 }
 
-fn make_details<S: Spec>(max_fee: u128) -> TxDetails<S> {
+fn make_details<S: Spec>(max_fee: Amount) -> TxDetails<S> {
     TxDetails {
         max_priority_fee_bips: PriorityFeeBips::ZERO,
         max_fee,

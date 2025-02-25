@@ -10,7 +10,7 @@ use sov_modules_api::runtime::capabilities::AuthenticationError;
 use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, Credentials, PriorityFeeBips,
 };
-use sov_modules_api::{FullyBakedTx, ProvableStateReader, RawTx, Spec};
+use sov_modules_api::{Amount, FullyBakedTx, ProvableStateReader, RawTx, Spec};
 use sov_rollup_interface::TxHash;
 use sov_state::User;
 
@@ -41,7 +41,7 @@ where
 
     let chain_id = config_value!("CHAIN_ID");
     let max_priority_fee_bips = PriorityFeeBips::ZERO;
-    let max_fee = 10_000_000;
+    let max_fee = Amount::new(10_000_000);
     let gas_limit = None;
 
     let nonce = tx.nonce();

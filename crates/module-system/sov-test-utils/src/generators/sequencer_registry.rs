@@ -92,7 +92,7 @@ impl<S: Spec> MessageGenerator for SequencerRegistryMessageGenerator<S> {
         &self,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u128,
+        max_fee: Amount,
         estimated_gas_usage: Option<<Self::Spec as Spec>::Gas>,
     ) -> Vec<crate::generators::Message<Self::Spec, Self::Module>> {
         let mut messages = Vec::<Message<S, SequencerRegistry<S>>>::new();

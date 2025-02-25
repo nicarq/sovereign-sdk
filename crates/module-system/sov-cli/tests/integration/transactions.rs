@@ -6,7 +6,9 @@ use sov_cli::workflows::transactions::{TransactionLoadWorkflow, TransactionWorkf
 use sov_cli::UnsignedTransactionWithoutNonce;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{CryptoSpec, DispatchCall, MeteredBorshDeserialize, PrivateKey, Spec};
+use sov_modules_api::{
+    Amount, CryptoSpec, DispatchCall, MeteredBorshDeserialize, PrivateKey, Spec,
+};
 use sov_test_utils::runtime::{
     Runtime as RuntimeTrait, RuntimeSubcommand as TestRuntimeSubcommand, TestOptimisticRuntime,
     TestOptimisticRuntimeCall,
@@ -374,7 +376,7 @@ fn default_file_name_arg_for_test(path: &str) -> FileNameArg {
         path: test_path.to_str().unwrap().into(),
         chain_id: 0,
         max_priority_fee_bips: 0,
-        max_fee: 0,
+        max_fee: Amount::ZERO,
         gas_limit: None,
     }
 }
@@ -385,7 +387,7 @@ fn default_json_string_arg_for_test(path: impl AsRef<Path>) -> JsonStringArg {
         json: std::fs::read_to_string(test_path).unwrap(),
         chain_id: 0,
         max_priority_fee_bips: 0,
-        max_fee: 0,
+        max_fee: Amount::ZERO,
         gas_limit: None,
     }
 }

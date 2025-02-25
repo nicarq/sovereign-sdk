@@ -200,8 +200,8 @@ fn test_registering_payee() {
         PaymasterRuntime::default(),
     );
 
-    // Check that the user transaction fails because the policy disallows it
-    // Retry the user transaction and check that is succeeds
+    // Check that the user transaction fails because the policy disallows it.
+    // Retry the user transaction and check that it succeeds
     runner.do_value_setter_tx(&setup.user, TxOutcome::Skipped);
 
     // Add a special allow policy for one payee
@@ -355,7 +355,7 @@ fn test_unregistering_sequencer() {
     // Ensure that user txs are not paid for
     runner.do_value_setter_tx(&setup.user, TxOutcome::Skipped);
 
-    // Try to reregister the sequencer again. It should fail, since the sequencer isn't allowed
+    // Try to re-register the sequencer again. It should fail, since the sequencer isn't allowed
     runner.execute_transaction(TransactionTestCase {
         input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::SetPayerForSequencer {
@@ -535,7 +535,7 @@ fn test_granular_policies() {
     let mut setup = setup(0);
     // Start with a high enough max fee to allow txs and ensure success
     setup.payer_setup().policy.default_payee_policy = PayeePolicy::Allow {
-        max_fee: Some(u64::MAX as u128),
+        max_fee: Some(Amount::from(u64::MAX)),
         gas_limit: None,
         max_gas_price: None,
         transaction_limit: None,
@@ -555,7 +555,7 @@ fn test_granular_policies() {
                 PaymasterCallMessage::UpdatePolicy {
                     payer: setup.payer.address(),
                     update: PolicyUpdate::default().set_default_policy(PayeePolicy::Allow {
-                        max_fee: Some(1),
+                        max_fee: Some(Amount::new(1)),
                         gas_limit: None,
                         max_gas_price: None,
                         transaction_limit: None,
