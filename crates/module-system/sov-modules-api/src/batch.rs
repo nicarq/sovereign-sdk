@@ -4,7 +4,7 @@ use sov_rollup_interface::da::DaSpec;
 
 use crate::{Amount, Context, DispatchCall, Gas, Runtime, Spec, StateCheckpoint, TxScratchpad};
 
-/// FullyBakedTx represents a serialized signed rollup transaction that has been encoded with
+/// `FullyBakedTx` represents a serialized signed rollup transaction that has been encoded with
 /// authentication information and is ready to be placed on the DA layer.
 #[derive(
     Debug,
@@ -24,13 +24,14 @@ pub struct FullyBakedTx {
 }
 
 impl FullyBakedTx {
-    /// Construct a FullyBakedTx containing the given data
+    /// Construct a `FullyBakedTx` containing the given data
+    #[must_use]
     pub fn new(data: Vec<u8>) -> Self {
         Self { data }
     }
 }
 
-/// RawTx represents a serialized signed rollup transaction. A RawTx needs to be encoded
+/// `RawTx` represents a serialized signed rollup transaction. A `RawTx` needs to be encoded
 /// with authentication information before being placed on the DA layer.
 #[derive(
     Debug,
@@ -50,7 +51,8 @@ pub struct RawTx {
 }
 
 impl RawTx {
-    /// Construct a RawTx containing the given data
+    /// Construct a `RawTx` containing the given data
+    #[must_use]
     pub fn new(data: Vec<u8>) -> Self {
         Self { data }
     }
@@ -149,7 +151,8 @@ impl<S: Spec> BlobData<S> {
 }
 
 /// Contains blob data obtained from the DA.
-//
+/// N.B. The `B` type must store its own ID (e.g. `BlobWithId`) - `BlobDataWithId::Batch`
+/// does not annotate the `B` with the ID again.
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BlobDataWithId<S: Spec, B = IterableBatchWithId<S>> {
@@ -232,6 +235,7 @@ pub enum MaybeExecuted<R> {
 impl<R> ProvisionalSequencerOutcome<R> {
     /// A convenient constructor for provisionally penalizing the sequencer and indicating
     /// that the sequencer has run out of funds.
+    #[must_use]
     pub fn out_of_funds(penalty: Amount) -> Self {
         Self {
             reward: Amount::ZERO,
@@ -448,12 +452,12 @@ impl std::fmt::Display for Rewards {
             let output = self
                 .accumulated_reward
                 .saturating_sub(self.accumulated_penalty);
-            write!(f, "{}", output)
+            write!(f, "{output}")
         } else {
             let negative_reward = self
                 .accumulated_penalty
                 .saturating_sub(self.accumulated_reward);
-            write!(f, "-{}", negative_reward)
+            write!(f, "-{negative_reward}")
         }
     }
 }

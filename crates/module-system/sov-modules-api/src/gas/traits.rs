@@ -20,7 +20,7 @@ pub(crate) const GAS_DIMENSIONS: usize = config_value_private!(
     "Couldn't parse `GAS_DIMENSIONS` in TOML file; must be a constant integer (e.g. `GAS_DIMENSIONS = { const = 2 }`)"
 );
 
-/// A multi-dimensional gas unit represented as an array of `u64`.`
+/// A multi-dimensional gas unit represented as an array of `u64`.
 pub trait GasArray:
     'static
     + fmt::Debug
@@ -97,11 +97,13 @@ pub trait Gas: GasArray<Scalar = u64> + TryFrom<Vec<u64>> + From<[u64; GAS_DIMEN
     fn value(&self, price: &Self::Price) -> Amount;
 
     /// Returns a gas unit which is zero in all dimensions.
+    #[must_use]
     fn zero() -> Self {
         Self::ZEROED
     }
 
     /// Returns the maximum gas unit.
+    #[must_use]
     fn max() -> Self {
         Self::MAX
     }
@@ -148,7 +150,7 @@ where
 
 impl<const N: usize> Debug for GasUnit<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
@@ -171,7 +173,7 @@ pub struct GasPrice<const N: usize> {
 
 impl<const N: usize> Debug for GasPrice<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
@@ -394,6 +396,7 @@ macro_rules! impl_gas_unit {
 
         impl GasPrice<$n> {
             /// Creates a new [`GasPrice`] from an array of Amount.
+            #[must_use]
             pub const fn from_primitive(array: [Amount; $n]) -> Self {
                 let mut value: [Amount; $n] = [Amount::ZERO; $n];
 
@@ -521,8 +524,9 @@ pub trait GasMeter {
 
     /// Charges a fix amount of gas in the gas meter.
     ///
-    /// # Error
-    /// May raises an error if the gas to charge is greater than the funds available
+    /// # Errors
+    /// Raises an error if the gas to charge is greater than the funds available, or if
+    /// calculating the price of the gas overflows
     fn charge_gas(
         &mut self,
         _amount: &<Self::Spec as Spec>::Gas,
@@ -531,6 +535,10 @@ pub trait GasMeter {
     }
 
     /// Charges an amount of gas equal to `amount *_point parameter`, the pointwise product of `amount` times `parameter`.
+    ///
+    /// # Errors
+    /// Raises an error if the gas to charge is greater than the funds available, or if
+    /// calculating the price of the gas overflows
     fn charge_linear_gas(
         &mut self,
         _amount: &<Self::Spec as Spec>::Gas,
@@ -588,6 +596,10 @@ pub struct SlotGasMeter<S: Spec> {
 
 impl<S: Spec> SlotGasMeter<S> {
     /// Creates a new `SlotGasMeter`
+    ///
+    /// # Panics
+    /// May panic with an overflow if the PREFFERERD_DATA_FRACTION is defined to be greater than one,
+    /// which is a logic error. Will not panic under normal conditions.
     pub fn new(
         remaining_slot_gas: S::Gas,
         preferred_sequencer: Option<<S::Da as DaSpec>::Address>,
@@ -617,6 +629,9 @@ impl<S: Spec> SlotGasMeter<S> {
     }
 
     /// Charge gas.
+    ///
+    /// # Errors
+    /// Raises an error if the gas to charge is greater than the funds available
     pub fn charge_gas(
         &mut self,
         gas: &S::Gas,
@@ -708,7 +723,7 @@ impl<S: Spec> BasicGasMeter<S> {
 
     fn compute_remaining_funds(
         &self,
-        remaining_funds: &Amount,
+        remaining_funds: Amount,
         amount: &S::Gas,
     ) -> Result<Amount, GasMeteringError<S::Gas>> {
         let amount_value = amount.checked_value(&self.gas_price).ok_or_else(|| {
@@ -747,7 +762,7 @@ impl<S: Spec> BasicGasMeter<S> {
     fn charge_gas_inner(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         let mut new_remaining_funds = None;
 
-        if let Some(remaining_funds) = &self.remaining_funds {
+        if let Some(remaining_funds) = self.remaining_funds {
             new_remaining_funds = Some(self.compute_remaining_funds(remaining_funds, amount)?);
         }
 
@@ -810,8 +825,7 @@ impl<S: Spec> GasMeter for BasicGasMeter<S> {
     ) -> Result<(), GasMeteringError<<S as Spec>::Gas>> {
         self.charge_gas_inner(&amount.checked_scalar_product(parameter as u64).ok_or(
             GasMeteringError::Overflow(format!(
-                "Unable to charge gas. The product of {} to {} is overflowing",
-                amount, parameter
+                "Unable to charge gas. The product of {amount} to {parameter} is overflowing"
             )),
         )?)?;
 

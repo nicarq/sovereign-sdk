@@ -52,7 +52,6 @@ where
     pub module_name: String,
 }
 
-/// TryFrom trait implementation to create a RuntimeEventResponse for Stored Event
 impl<E> TryFrom<(u64, sov_rollup_interface::stf::StoredEvent)> for RuntimeEventResponse<E>
 where
     E: EventModuleName

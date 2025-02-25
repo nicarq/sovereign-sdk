@@ -48,6 +48,9 @@ impl<'a, Meter: GasMeter, Hasher: Digest<OutputSize = U32>> MeteredHasher<'a, Me
     }
 
     /// Update the [`MeteredHasher`] with the given data. Performs the same operation as [`Digest::update`] but charges gas.
+    ///
+    /// # Errors
+    /// Returns an error if charging gas for the update operation fails.
     pub fn update(&mut self, data: &[u8]) -> Result<(), MeteringError<Meter>> {
         self.meter.charge_gas(&self.gas_to_charge_for_hash_update)?;
         self.meter.charge_linear_gas(
@@ -61,12 +64,18 @@ impl<'a, Meter: GasMeter, Hasher: Digest<OutputSize = U32>> MeteredHasher<'a, Me
     }
 
     /// Finalize the [`MeteredHasher`] and return the hash. Performs the same operation as [`Digest::finalize`] but charges gas.
+    ///
+    /// # Errors
+    /// Returns an error if charging gas for the hashing operation fails.
     pub fn finalize(self) -> Result<[u8; 32], (Self, MeteringError<Meter>)> {
         let hash = self.inner.finalize();
         Ok(hash.into())
     }
 
     /// Computes the hash of the given data. Performs the same operation as [`Digest::digest`] but charges gas.
+    ///
+    /// # Errors
+    /// Returns an error if charging gas for the hashing operation fails.
     pub fn digest(data: &[u8], meter: &'a mut Meter) -> Result<[u8; 32], MeteringError<Meter>> {
         let mut hasher = Self::new(meter);
         hasher.update(data)?;
@@ -130,6 +139,9 @@ impl<GU: Gas, Sign: Signature> MeteredSignature<GU, Sign> {
     }
 
     /// Verifies a signature with the provided gas meter. This method is a wrapper around [`Signature::verify`].
+    ///
+    /// # Errors
+    /// Returns an error if charging gas for the verification operation fails.
     pub fn verify<Meter: GasMeter<Spec: Spec<Gas = GU>>>(
         &self,
         pub_key: &Sign::PublicKey,
@@ -187,7 +199,11 @@ pub trait MeteredBorshDeserialize<S: Spec>: Sized {
     /// The linear gas cost to deserialize this data structure.
     fn gas_to_charge_per_byte_borsh_deserialization() -> <S as Spec>::Gas;
 
-    /// Computes the cost to deserialize the given buffer, in Gas.
+    /// Computes the cost to deserialize the given buffer, in `Gas`, and charges it to the provided
+    /// `GasMeter`.
+    ///
+    /// # Errors
+    /// Returns an error if charging the gas for the deserialization operation fails.
     fn charge_gas_to_deserialize(
         buf: &[u8],
         meter: &mut impl GasMeter<Spec = S>,

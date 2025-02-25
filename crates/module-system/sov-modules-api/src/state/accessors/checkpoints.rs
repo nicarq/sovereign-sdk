@@ -30,6 +30,7 @@ pub struct ChangeSet {
 
 impl ChangeSet {
     /// Create a new `ChangeSet` from a vector of changes.
+    #[must_use]
     pub fn new(changes: Vec<((SlotKey, sov_state::Namespace), Option<SlotValue>)>) -> Self {
         Self { changes }
     }
@@ -43,6 +44,7 @@ impl<S: Spec> StateCheckpoint<S> {
     /// checkpoint in a state that is inconsistent with its caches,
     /// it should only be used in situations where the witness is not needed,
     /// such as in the API accessors.
+    #[must_use]
     pub fn clone_with_empty_witness(&self) -> Self {
         Self {
             delta: self.delta.clone_with_empty_witness(),
@@ -94,7 +96,7 @@ impl<S: Spec> StateCheckpoint<S> {
     }
 
     /// Extracts ordered reads, writes, and witness from this [`StateCheckpoint`] and uses
-    /// them to compute the `StateUpdate` created by this StateCheckpoint.
+    /// them to compute the `StateUpdate` created by this `StateCheckpoint`.
     #[allow(clippy::type_complexity)]
     pub fn materialize_update(
         self,

@@ -56,7 +56,10 @@ where
         self.elems.codec()
     }
 
-    /// Any version_aware working set can read the current contents of a versioned value.
+    /// Any version-aware working set can read the current contents of a versioned value.
+    ///
+    /// # Error
+    /// This method can fail if the gas meter doesn't have enough funds to pay for the read operation.
     pub fn get_current<Reader: VersionReader + StateReader<Kernel>>(
         &self,
         state: &mut Reader,
@@ -73,6 +76,9 @@ where
     }
 
     /// Only the kernel working set can write to versioned values
+    ///
+    /// # Error
+    /// This method can fail if the gas meter doesn't have enough funds to pay for the write operation.
     pub fn set_true_current<Accessor: PrivilegedKernelAccessor>(
         &self,
         value: &V,
@@ -82,6 +88,9 @@ where
     }
 
     /// Only the kernel working set can write to versioned values
+    ///
+    /// # Error
+    /// This method can fail if the gas meter doesn't have enough funds to pay for the write operation.
     pub fn set<S: Spec>(
         &self,
         key: &SlotNumber,
@@ -91,7 +100,10 @@ where
         self.elems.set(key, value, state).unwrap_infallible();
     }
 
-    /// Any version_aware working set can read the current contents of a versioned value.
+    /// Any version-aware working set can read the current contents of a versioned value.
+    ///
+    /// # Error
+    /// This method can fail if the gas meter doesn't have enough funds to pay for the read operation.
     pub fn get<Reader: VersionReader + StateReader<Kernel>>(
         &self,
         key: &SlotNumber,

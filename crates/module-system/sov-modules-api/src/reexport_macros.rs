@@ -154,7 +154,7 @@ pub use sov_modules_macros::track_gas_constants_usage;
 /// # fn main() {}
 /// ```
 pub use sov_modules_macros::DispatchCall;
-/// Derives the <runtime_name>Event enum for a given runtime.
+/// Derives the `<runtime_name>Event` enum for a given runtime.
 ///
 /// ```rust
 /// use sov_modules_api::{Event, Module, Spec};
@@ -566,7 +566,7 @@ pub mod macros {
     ///
     /// This annotation may only be applied to fields, not items.
     ///
-    /// ## Attributes: #[sov_wallet(hidden)]`
+    /// ## Attributes: `#[sov_wallet(hidden)]`
     ///
     /// Causes the field to be hidden from the user during display. This is often used for data
     /// that can't be displayed in a human-readable format, such as merkle proofs. If the field is not
@@ -588,7 +588,7 @@ pub mod macros {
     /// let serialized = borsh::to_vec(&Unreadable { name: "foo.txt".try_into().unwrap(), opaque_contents: vec![23, 74, 119, 119, 2, 232, 22]}).unwrap();
     /// assert_eq!(Schema::of_single_type::<Unreadable>().display(0, &serialized).unwrap(), r#"{ name: "foo.txt" }"#);
     /// ```
-    /// Notice also the use of the SafeString type here - this is to ensure the string can be safely
+    /// Notice also the use of the `SafeString` type here - this is to ensure the string can be safely
     /// displayed to the user. By default, unconstrained Strings are forbidden in schemas; for blobs of
     /// data, use byte arrays/vectors directly. If a String is absolutely required, a newtype wrapper
     /// can be used.
@@ -800,10 +800,10 @@ pub mod macros {
     /// ## Attributes: `#[sov_wallet(display({encoding}))]`
     ///
     /// Specifies the encoding to use when displaying a byte sequence or integer. The encoding can be one of the following:
-    /// - hex: displays the type as a hexadecimal string with the prefix "0x"
-    /// - decimal: displays the type as a decimal number (integer only) or a list of decimal numbers in square brackets (byte sequence)
-    /// - bech32(prefix = "my_prefix_expr"): displays the type as a bech32-encoded string with the specified human-readable part. (byte sequence only)
-    /// - bech32m(prefix = "my_prefix_expr"): displays the type as a bech32-encoded string with the specified human-readable part. (byte sequence only)
+    /// - `hex`: displays the type as a hexadecimal string with the prefix "0x"
+    /// - `decimal`: displays the type as a decimal number (integer only) or a list of decimal numbers in square brackets (byte sequence)
+    /// - `bech32(prefix = "my_prefix_expr")`: displays the type as a bech32-encoded string with the specified human-readable part. (byte sequence only)
+    /// - `bech32m(prefix = "my_prefix_expr")`: displays the type as a bech32-encoded string with the specified human-readable part. (byte sequence only)
     ///
     /// This annotation may only be applied to fields, not items. The field must have type integer, `[u8;N]`, or `Vec<u8>` to use this attribute.
     ///

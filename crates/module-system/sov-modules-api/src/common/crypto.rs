@@ -74,7 +74,7 @@ impl<
 {
 }
 
-/// PublicKey used in the Module System. This extends the [`sov_rollup_interface::crypto::PublicKey`] trait by requiring
+/// Public key used in the Module System. This extends the [`sov_rollup_interface::crypto::PublicKey`] trait by requiring
 /// [`JsonSchema`] and that the public key can be serialized and deserialized using Borsh. Borsh serialization and deserialization
 /// is used to serialize and deserialize standard rollup transactions.
 #[cfg(not(feature = "native"))]

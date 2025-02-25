@@ -39,6 +39,7 @@ pub struct InnerEnumVariant<'a>(&'a dyn std::any::Any);
 
 impl<'a> InnerEnumVariant<'a> {
     /// Returns the contents of the nested enum.
+    #[must_use]
     pub fn inner(&self) -> &dyn std::any::Any {
         self.0
     }

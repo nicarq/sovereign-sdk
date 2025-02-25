@@ -23,7 +23,7 @@ impl<S: Spec> StateCheckpoint<S> {
     ) -> GenesisStateAccessor<S> {
         GenesisStateAccessor {
             checkpoint: self,
-            events: Default::default(),
+            events: Vec::default(),
         }
     }
 }
@@ -91,6 +91,7 @@ impl<'a, S: Spec> GenesisStateAccessor<'a, S> {
 
     /// Returns an immutable map of all typed events that have been previously
     /// written to this working set.
+    #[must_use]
     pub fn events(&self) -> &[TypedEvent] {
         &self.events
     }

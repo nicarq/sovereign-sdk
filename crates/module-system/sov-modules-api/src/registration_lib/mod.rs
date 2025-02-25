@@ -17,6 +17,12 @@ pub trait StakeRegistration {
     type Spec: crate::Spec;
 
     /// Tries to register a staker by staking the provided amount.
+    ///
+    /// # Errors
+    /// Returns an error:
+    ///  * If the staker is already registered
+    ///  * If the staker does not have the funds to cover the bond
+    ///  * If the state operations fail (i.e. if the state accessor is failible)
     #[allow(clippy::type_complexity)]
     fn register_staker<ST: TxState<Self::Spec>>(
         &self,
@@ -54,6 +60,12 @@ pub trait StakeRegistration {
     }
 
     /// Increases the balance of the sender, updating the state of the registry.
+    ///
+    /// # Errors
+    /// Returns an error:
+    ///  * If the staker is not registered
+    ///  * If the staker does not have the funds to cover the increase
+    ///  * If the state operations fail (i.e. if the state accessor is failible)
     #[allow(clippy::type_complexity)]
     fn deposit_funds<ST: TxState<Self::Spec>>(
         &self,
@@ -98,6 +110,14 @@ pub trait StakeRegistration {
     }
 
     /// Tries to unstake the sender.
+    ///
+    /// # Errors
+    /// Returns an error:
+    ///  * If the staker is not registered
+    ///  * If the state operations fail (i.e. if the state accessor is failible)
+    ///
+    ///  Additionally, can error if the module does not have the funds to refund the bond, which
+    ///  indicates a bug in the module.
     #[allow(clippy::type_complexity)]
     fn exit_staker<ST: TxState<Self::Spec>>(
         &self,

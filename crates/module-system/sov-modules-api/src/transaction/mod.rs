@@ -136,7 +136,7 @@ impl<R: TransactionCallable, S: Spec> MeteredBorshDeserialize<S> for Transaction
 // Unfortunately built-in Rust derives for Eq and PartialEq use a bound of `TransactionCallable:
 // Eq, PartialEq` which is incorrect (TransactionCallable will be the Runtime in most cases).
 // Thus we have to manually derive them, because the real bound is
-// `TransactionCallable::RuntimeCall` (aka `<Runtime as DispatchCall>::Decodable`) which is already
+// `TransactionCallable::RuntimeCall: Eq` (aka `<Runtime as DispatchCall>::Decodable`) which is already
 // enforced in the trait definition.
 impl<R: TransactionCallable, S: Spec> PartialEq for Transaction<R, S> {
     fn eq(&self, other: &Self) -> bool {
@@ -149,7 +149,7 @@ impl<R: TransactionCallable, S: Spec> PartialEq for Transaction<R, S> {
 }
 impl<R: TransactionCallable, S: Spec> Eq for Transaction<R, S> {}
 
-/// a [`Transaction`] with the runtime_call removed
+/// a [`Transaction`] with the `runtime_call` removed
 pub struct TransactionWithoutCall<S: Spec> {
     /// The signature of the transaction.
     pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
@@ -162,7 +162,7 @@ pub struct TransactionWithoutCall<S: Spec> {
 }
 
 impl<S: Spec> TransactionWithoutCall<S> {
-    /// Construct a [`Transaction`] by adding back the appropriate CallMessage.
+    /// Construct a [`Transaction`] by adding back the appropriate `CallMessage`.
     pub fn with_call<R: TransactionCallable>(self, runtime_call: R::Call) -> Transaction<R, S> {
         let TransactionWithoutCall {
             generation,
@@ -171,11 +171,11 @@ impl<S: Spec> TransactionWithoutCall<S> {
             pub_key,
         } = self;
         Transaction {
-            generation,
-            details,
             signature,
             pub_key,
             runtime_call,
+            generation,
+            details,
         }
     }
 }
@@ -224,6 +224,12 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
     }
 
     /// Check whether the transaction has been signed correctly.
+    ///
+    /// # Errors
+    /// Returns an error if:
+    ///  * The signature is wrong
+    ///  * Serializing or hashing the transaction fails
+    ///  * Any operation runs out of gas
     pub fn verify(
         &self,
         chain_hash: &[u8; 32],
@@ -250,8 +256,8 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
     ) -> Self {
         Self {
             signature,
-            runtime_call,
             pub_key,
+            runtime_call,
             generation,
             details,
         }
@@ -268,10 +274,10 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
         } = self;
         (
             TransactionWithoutCall {
-                generation,
-                details,
                 signature,
                 pub_key,
+                generation,
+                details,
             },
             runtime_call,
         )

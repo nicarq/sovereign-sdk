@@ -262,6 +262,7 @@ macro_rules! impl_hash32_type {
             }
 
             /// Converts the id to a bech32 string
+            #[must_use]
             pub fn to_bech32(&self) -> $bech32_version {
                 self.into()
             }
@@ -273,6 +274,7 @@ macro_rules! impl_hash32_type {
 
             /// Creates a new $id containing the given bytes. This function is needed in addition
             /// to the `From` trait to allow for const conversion
+            #[must_use]
             pub const fn from_const_slice(addr: [u8; $len]) -> Self {
                 Self(addr)
             }
@@ -386,6 +388,7 @@ impl From<HexString<[u8; 32]>> for Address {
 impl Address {
     /// Creates a new $id containing the given bytes. This function is needed in addition
     /// to the `From` trait to allow for const conversions
+    #[must_use]
     pub const fn from_const_slice(addr: [u8; 28]) -> Self {
         Self { addr }
     }

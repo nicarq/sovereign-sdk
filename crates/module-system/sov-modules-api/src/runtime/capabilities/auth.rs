@@ -82,11 +82,13 @@ pub trait TransactionAuthenticator<S: Spec> {
     fn add_standard_auth(tx: RawTx) -> Self::Input;
 
     /// Encode the input for the authenticator into a byte array.
+    #[must_use]
     fn encode_authenticator_input(input: &Self::Input) -> FullyBakedTx {
         FullyBakedTx::new(borsh::to_vec(&input).unwrap())
     }
 
     /// Encode a standard transaction for the rollup with information describing how to authenticate it.
+    #[must_use]
     fn encode_with_standard_auth(tx: RawTx) -> FullyBakedTx {
         Self::encode_authenticator_input(&Self::add_standard_auth(tx))
     }
@@ -145,7 +147,7 @@ pub enum FatalError {
     /// Signature verification failed.
     #[error("Signature verification failed: {0}")]
     SigVerificationFailed(String),
-    /// The ChainID was invalid
+    /// The chain id was invalid
     #[error("Invalid chain id: expected {expected}, got {got}")]
     InvalidChainId {
         /// The expected chain id
@@ -194,7 +196,7 @@ pub enum UnregisteredAuthenticationError {
 pub enum UniquenessData {
     /// Nonce-based uniqueness: an account's transactions must have a unique and consecutive nonces
     Nonce(u64),
-    /// Generation-based uniqueness: the last PAST_TRANSACTION_GENERATION generations are cached.
+    /// Generation-based uniqueness: the last `PAST_TRANSACTION_GENERATION` generations are cached.
     /// Transactions older than this buffer are invalid, transactions falling within it or with a
     /// higher generation are valid but must have a unique hash within their generation
     Generation(u64),
@@ -275,6 +277,10 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
 }
 
 /// Authenticate raw sov-transaction.
+///
+/// # Errors
+/// Returns an error if gas runs out at any point, if deserialization or hashing fails, or if the
+/// signature cannot be verified.
 pub fn authenticate<
     Accessor: ProvableStateReader<User, Spec = S>,
     S: Spec,
@@ -293,8 +299,7 @@ pub fn authenticate<
 
             Err(MeteredBorshDeserializeError::GasError(e)) => {
                 return Err(AuthenticationError::OutOfGas(format!(
-                    "Transaction deserialization run out of gas {}, tx hash {}",
-                    e, raw_tx_hash
+                    "Transaction deserialization run out of gas {e}, tx hash {raw_tx_hash}"
                 )))
             }
             Err(MeteredBorshDeserializeError::IOError(e)) => {
@@ -321,6 +326,9 @@ pub fn decode_sov_tx<S: Spec, D: DispatchCall<Spec = S>>(
 }
 
 /// Calculates the hash of `data` and charges gas.
+///
+/// # Errors
+/// Returns an error if the operation runs out of gas.
 pub fn calculate_hash<Accessor: ProvableStateReader<User, Spec = S>, S: Spec>(
     data: &[u8],
     accessor: &mut Accessor,

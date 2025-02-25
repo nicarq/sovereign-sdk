@@ -17,6 +17,7 @@ pub struct ModulePrefix {
 
 impl ModulePrefix {
     /// Creates a new instance of a module prefix with the provided static definitions.
+    #[must_use]
     pub fn new_storage(
         module_path: &'static str,
         module_name: &'static str,
@@ -30,6 +31,7 @@ impl ModulePrefix {
     }
 
     /// Creates a new instance without a storage name.
+    #[must_use]
     pub fn new_module(module_path: &'static str, module_name: &'static str) -> Self {
         Self {
             module_path,
@@ -39,6 +41,7 @@ impl ModulePrefix {
     }
 
     /// Returns the parent module name.
+    #[must_use]
     pub fn module_name(&self) -> &'static str {
         self.module_name
     }
@@ -69,6 +72,7 @@ impl ModulePrefix {
     }
 
     /// Returns the hash of the combined prefix.
+    #[must_use]
     pub fn hash<S: Spec>(&self) -> [u8; 32] {
         let combined_prefix = self.combine_prefix();
         let mut hasher = <S::CryptoSpec as CryptoSpec>::Hasher::new();
@@ -78,8 +82,8 @@ impl ModulePrefix {
 }
 
 impl From<ModulePrefix> for Prefix {
-    fn from(prefix: ModulePrefix) -> Self {
-        let combined_prefix = prefix.combine_prefix();
+    fn from(module_prefix: ModulePrefix) -> Self {
+        let combined_prefix = module_prefix.combine_prefix();
         Prefix::new(combined_prefix)
     }
 }

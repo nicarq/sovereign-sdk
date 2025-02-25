@@ -93,7 +93,7 @@ where
 
     /// Sets a value in the vector.
     /// If the index is out of bounds, returns an error.
-    /// To push a value to the end of the StateVec, use [`NamespacedStateVec::push`].
+    /// To push a value to the end of the `StateVec`, use [`NamespacedStateVec::push`].
     pub fn set<Vq, ReaderAndWriter>(
         &self,
         index: u64,
@@ -173,14 +173,12 @@ where
         state: &mut ReaderAndWriter,
     ) -> Result<Option<V>, <ReaderAndWriter as StateWriter<N>>::Error> {
         let len = self.len(state)?;
-        let last_i = match len.checked_sub(1) {
-            Some(i) => i,
-            None => return Ok(None),
+        let Some(last_i) = len.checked_sub(1) else {
+            return Ok(None);
         };
 
-        let elem = match self.elems().remove(&last_i, state)? {
-            Some(elem) => elem,
-            None => return Ok(None),
+        let Some(elem) = self.elems().remove(&last_i, state)? else {
+            return Ok(None);
         };
 
         let new_len = last_i;
@@ -197,15 +195,13 @@ where
     ) -> Result<Option<V>, <ReaderAndWriter as StateWriter<N>>::Error> {
         let len = self.len(state)?;
 
-        let new_len = match len.checked_sub(1) {
-            Some(i) => i,
-            None => return Ok(None),
+        let Some(new_len) = len.checked_sub(1) else {
+            return Ok(None);
         };
 
         Ok(if index < len {
-            let elem = match self.elems().remove(&(index), state)? {
-                Some(elem) => elem,
-                None => return Ok(None),
+            let Some(elem) = self.elems().remove(&(index), state)? else {
+                return Ok(None);
             };
 
             for i in index..new_len {
@@ -271,9 +267,8 @@ where
         state: &mut ReaderAndWriter,
     ) -> Result<Option<V>, <ReaderAndWriter as StateWriter<N>>::Error> {
         let len = self.len(state)?;
-        let i = match len.checked_sub(1) {
-            Some(i) => i,
-            None => return Ok(None),
+        let Some(i) = len.checked_sub(1) else {
+            return Ok(None);
         };
 
         self.elems().get(&i, state)
@@ -293,7 +288,7 @@ where
             state,
             len,
             next_i: 0,
-            _phantom: Default::default(),
+            _phantom: PhantomData,
         })
     }
 
