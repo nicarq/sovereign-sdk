@@ -323,12 +323,11 @@ impl schemars::JsonSchema for Address {
     }
 
     fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        let address_prefix = config_value_private!("ADDRESS_PREFIX");
+
         serde_json::from_value(serde_json::json!({
             "type": "string",
-            // TODO(@neysofu): this regex pattern is currently correct, but it
-            // must be updated if `Address` allows for custom prefixes, instead
-            // of hardcoding `sov`.
-            "pattern": "^sov1[a-zA-Z0-9]+$",
+            "pattern": format!("^{address_prefix}1[a-zA-Z0-9]+$"),
             "description": "Address",
         }))
         .unwrap()
