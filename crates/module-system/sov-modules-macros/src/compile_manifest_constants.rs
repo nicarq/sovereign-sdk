@@ -185,7 +185,7 @@ fn allowed_toml_value_to_expr_with_override_logic(value: &AllowedTomlValue) -> T
             // The only way to do that starting from a `String` is to leak it.
             //
             // TODO(@neysofu, improvement): cache it somewhere so it's only
-            // leaked once?
+            // leaked once? See <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2510>.
             &*env_value.leak()
         }),
         AllowedTomlValue::Array(_) => quote::quote!({
