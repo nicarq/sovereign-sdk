@@ -301,10 +301,10 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0x632ba77362f2073fd5f1fe2390c32a561783c2e13764db8043ca967c06513d4f",
+  "chain_hash": "0xcaf37d4f4046a1ff9c818086a8442e6d513b83012eb04e068ad3e28a052acee9",
   "details": {
     "max_priority_fee_bips": 0,
-    "max_fee": 100000000,
+    "max_fee": "100000000",
     "gas_limit": null,
     "chain_id": 4321
   }

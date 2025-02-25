@@ -17,7 +17,9 @@ use crate::transaction::{
 };
 #[cfg(feature = "test-utils")]
 use crate::GasArray;
-use crate::{BasicGasMeter, Gas, GasInfo, GasMeter, GasMeteringError, GetGasPrice, VersionReader};
+use crate::{
+    Amount, BasicGasMeter, Gas, GasInfo, GasMeter, GasMeteringError, GetGasPrice, VersionReader,
+};
 
 /// A state diff over the storage that contains all the changes related to transaction execution.
 ///
@@ -26,7 +28,7 @@ use crate::{BasicGasMeter, Gas, GasInfo, GasMeter, GasMeteringError, GetGasPrice
 /// pre-execution checks to post execution state updates).
 ///
 /// ## Usage note
-/// This method tracks the gas consumed outside of the transaction lifecycle without explicitely consuming a finite resource.
+/// This method tracks the gas consumed outside of the transaction lifecycle without explicitly consuming a finite resource.
 /// This should only be used in infailible methods.
 pub struct TxScratchpad<S: Spec, I: StateProvider<S>> {
     pub(super) inner: RevertableWriter<I>,
@@ -34,7 +36,7 @@ pub struct TxScratchpad<S: Spec, I: StateProvider<S>> {
 }
 
 impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for TxScratchpad<S, I> {
-    fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
+    fn is_value_cached(&self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
         <RevertableWriter<I> as UniversalStateAccessor>::is_value_cached(
             &self.inner,
             namespace,
@@ -82,7 +84,7 @@ impl<S: Spec, I: StateProvider<S>> TxScratchpad<S, I> {
     }
 
     /// Gets an iterator over the diff currently written onto this scratchpad. These changes will
-    /// be reverted or commited as a unit.
+    /// be reverted or committed as a unit.
     pub fn changes(&self) -> TxChangeSet {
         TxChangeSet(self.inner.changes())
     }
@@ -226,7 +228,7 @@ impl<S: Spec> StateCheckpoint<S> {
                 <S::Gas as crate::Gas>::max(),
                 <S::Gas as crate::Gas>::Price::ZEROED,
             ),
-            max_fee: 0,
+            max_fee: Amount::ZERO,
             max_priority_fee_bips: PriorityFeeBips::ZERO,
         }
     }
@@ -246,7 +248,7 @@ pub struct WorkingSet<S: Spec, I: StateProvider<S> = StateCheckpoint<S>> {
     events: Vec<TypedEvent>,
     gas_meter: BasicGasMeter<S>,
     // Gas parameters of the transaction associated with the working set
-    max_fee: u128,
+    max_fee: Amount,
     max_priority_fee_bips: PriorityFeeBips,
 }
 
@@ -328,7 +330,7 @@ impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
     }
 
     /// Returns the maximum fee that can be paid for this transaction expressed in gas token amount.
-    pub fn max_fee(&self) -> u128 {
+    pub fn max_fee(&self) -> Amount {
         self.max_fee
     }
 }
@@ -362,7 +364,7 @@ impl<S: Spec> WorkingSet<S, StateCheckpoint<S>> {
                 <S::Gas as crate::Gas>::max(),
                 price.clone(),
             ),
-            max_fee: 0,
+            max_fee: Amount::ZERO,
             max_priority_fee_bips: PriorityFeeBips::ZERO,
         }
     }
@@ -382,7 +384,7 @@ impl<S: Spec> WorkingSet<S, StateCheckpoint<S>> {
                 <S::Gas as crate::Gas>::max(),
                 <S::Gas as crate::Gas>::Price::ZEROED,
             ),
-            max_fee: 0,
+            max_fee: Amount::ZERO,
             max_priority_fee_bips: PriorityFeeBips::ZERO,
         }
     }

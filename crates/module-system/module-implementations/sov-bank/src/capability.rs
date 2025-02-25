@@ -86,7 +86,7 @@ impl<S: Spec> Bank<S> {
             payer,
             self.id.to_payable(),
             Coins {
-                amount: tx.max_fee.into(),
+                amount: tx.max_fee,
                 token_id: config_gas_token_id(),
             },
             state,

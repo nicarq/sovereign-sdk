@@ -56,7 +56,7 @@ fn test_custom_transaction_details_max_fee() {
     runner.execute_transaction(TransactionTestCase {
         input: admin
             .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue{value:10,gas: None})
-            .with_max_fee(0),
+            .with_max_fee(Amount::ZERO),
         assert: Box::new(move |result, _state| {
            match &result.tx_receipt {
                 sov_modules_api::TxEffect::Skipped(skipped) => {
@@ -81,7 +81,7 @@ fn test_custom_transaction_details_max_fee() {
 fn test_custom_transaction_details_priority_fee_bips() {
     let (admin, mut runner) = setup();
 
-    let max_fee = admin.available_gas_balance;
+    let max_fee = admin.available_gas_balance.into();
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
 
     runner.execute_transaction(TransactionTestCase {
@@ -113,7 +113,7 @@ fn test_custom_transaction_details_gas_limit() {
     runner.execute_transaction(TransactionTestCase {
         input: admin
             .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue{value:10, gas: None})
-            .with_max_fee(admin.available_gas_balance)
+            .with_max_fee(admin.available_gas_balance.into())
             .with_gas_limit(Some(GasUnit::from([available_gas_balance; 2]))),
         assert: Box::new(move |result, _state| {
            match &result.tx_receipt {
@@ -209,7 +209,7 @@ fn test_custom_transaction_format() {
                 token_id: config_gas_token_id(),
             },
         })
-        .with_max_fee(100)
+        .with_max_fee(Amount::new(100))
         .with_max_priority_fee_bips(PriorityFeeBips::from_percentage(10))
         .with_gas_limit(Some(GasUnit::from([5; 2])))
         .with_chain_id(5555);
@@ -258,7 +258,7 @@ fn test_custom_transaction_format_2() {
             },
         })
         .with_details(TxDetails {
-            max_fee: 100,
+            max_fee: Amount::new(100),
             max_priority_fee_bips: PriorityFeeBips::from_percentage(10),
             gas_limit: Some(GasUnit::from([5; 2])),
             chain_id: 5555,

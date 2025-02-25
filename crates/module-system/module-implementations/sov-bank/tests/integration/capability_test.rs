@@ -39,7 +39,7 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
                     amount: TRANSFER_AMOUNT.into(),
                 },
             })
-            .with_max_fee(max_fee)
+            .with_max_fee(max_fee.into())
             .with_max_priority_fee_bips(PriorityFeeBips::ZERO),
         assert: Box::new(move |result, state| {
             assert!(result.tx_receipt.is_successful());
@@ -51,7 +51,7 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
                 Some(Amount::new(sender_balance - result.gas_value_used))
             );
 
-            assert!( 0 < result.gas_value_used && result.gas_value_used < sender_balance, "The gas used should be posittive and less than the sender balance, which is the max fee amount");
+            assert!( 0 < result.gas_value_used && result.gas_value_used < sender_balance, "The gas used should be positive and less than the sender balance, which is the max fee amount");
         }),
     });
 }
@@ -88,7 +88,7 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
                     amount: TRANSFER_AMOUNT.into(),
                 },
             })
-            .with_max_fee(sender_balance)
+            .with_max_fee(sender_balance.into())
             .with_max_priority_fee_bips(PriorityFeeBips::ZERO),
     );
 
@@ -126,7 +126,7 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
                     amount: TRANSFER_AMOUNT.into(),
                 },
             })
-            .with_max_fee(gas_used_value_simulation.0)
+            .with_max_fee(gas_used_value_simulation)
             .with_max_priority_fee_bips(PRIORITY_FEE),
         assert: Box::new(move |result, state| {
             assert!(result.tx_receipt.is_successful());
@@ -177,7 +177,7 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
                     amount: TRANSFER_AMOUNT.into(),
                 },
             })
-            .with_max_fee(sender_balance)
+            .with_max_fee(sender_balance.into())
             .with_max_priority_fee_bips(PRIORITY_FEE),
         assert: Box::new(move |result, state| {
             assert!(result.tx_receipt.is_successful());
@@ -311,7 +311,7 @@ fn test_reserve_gas_not_enough_balance() {
                     amount: TRANSFER_AMOUNT.into(),
                 },
             })
-            .with_max_fee(u128::MAX),
+            .with_max_fee(Amount::MAX),
         assert: Box::new(move |result, _state| {
             if let TxEffect::Skipped(SkippedTxContents {
                 gas_used: _,
@@ -361,7 +361,7 @@ fn test_reserve_gas_price_too_high() {
                     amount: TRANSFER_AMOUNT.into(),
                 },
             })
-            .with_max_fee(sender_balance)
+            .with_max_fee(sender_balance.into())
             .with_gas_limit(Some(GasUnit::from([sender_balance_u64 / 2; 2]))),
         assert: Box::new(move |result, _state| {
             if let TxEffect::Skipped(SkippedTxContents {

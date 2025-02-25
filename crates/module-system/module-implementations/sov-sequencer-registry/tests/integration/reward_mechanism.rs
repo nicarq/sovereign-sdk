@@ -17,7 +17,7 @@ const VALUE_SETTER_NEW_CONST: u32 = 10;
 const OTHER_VALUE_SETTER_CONST: u32 = 42;
 
 /// Initialize the reward mechanism tests, and executes an empty slot to know how much gas is consumed by a simple value setter transaction.
-fn reward_mechanism_test_setup() -> (TestRoles, u128, TestRunner<RT, S>) {
+fn reward_mechanism_test_setup() -> (TestRoles, Amount, TestRunner<RT, S>) {
     // Genesis initialization.
     // We need to pass the large balance to make sure we have enough funds to pay for the tip and the sequencer registration
     let (test_roles, mut runner) = setup();
@@ -52,15 +52,15 @@ fn reward_mechanism_test_setup() -> (TestRoles, u128, TestRunner<RT, S>) {
 
     (
         test_roles,
-        gas_consumed_last_tx.value(&initial_gas_price).0,
+        gas_consumed_last_tx.value(&initial_gas_price),
         runner,
     )
 }
 
 fn reward_mechanism_test(
-    max_fee: u128,
+    max_fee: Amount,
     max_priority_fee: PriorityFeeBips,
-    expected_reward: u128,
+    expected_reward: Amount,
     roles: TestRoles,
     runner: &mut TestRunner<RT, S>,
 ) {
@@ -90,12 +90,17 @@ fn reward_mechanism_test(
                 .unwrap()
                 .checked_value(gas_price)
                 .unwrap();
+            let expected_sequencer_balance = Amount::new(test_sequencer_bond)
+                .checked_add(expected_reward)
+                .unwrap()
+                .checked_sub(sequencer_burn)
+                .unwrap();
             assert_eq!(
                 TestRunner::<RT, S>::get_sequencer_staking_balance(
                     &test_sequencer_da_address,
                     state
                 ),
-                Some(test_sequencer_bond + expected_reward - sequencer_burn.0),
+                Some(expected_sequencer_balance.0),
                 "The sequencer was not rewarded the correct amount"
             );
         }),
@@ -110,8 +115,8 @@ fn test_reward_sequencer_max_fee_high_enough() {
 
     let priority_fee = PriorityFeeBips::from_percentage(10);
 
-    let expected_reward = priority_fee.apply(gas_consumed).unwrap();
-    let max_fee = gas_consumed + expected_reward;
+    let expected_reward = priority_fee.apply(gas_consumed.0).unwrap().into();
+    let max_fee = gas_consumed.checked_add(expected_reward).unwrap();
 
     reward_mechanism_test(max_fee, priority_fee, expected_reward, roles, &mut runner);
 }
@@ -125,7 +130,7 @@ fn test_reward_sequencer_max_fee_not_high_enough() {
 
     let priority_fee = PriorityFeeBips::from_percentage(10);
 
-    let expected_reward = 0;
+    let expected_reward = Amount::ZERO;
     let max_fee = gas_consumed;
 
     reward_mechanism_test(max_fee, priority_fee, expected_reward, roles, &mut runner);
@@ -152,8 +157,8 @@ fn test_reward_sequencer_registry() {
 
     let priority_fee = PriorityFeeBips::from_percentage(10);
 
-    let expected_reward = priority_fee.apply(gas_consumed).unwrap();
-    let max_fee = gas_consumed + expected_reward;
+    let expected_reward = priority_fee.apply(gas_consumed.0).unwrap().into();
+    let max_fee = gas_consumed.checked_add(expected_reward).unwrap();
 
     let balance_before = sequencer_registry_balance(&runner).unwrap();
 
@@ -162,9 +167,7 @@ fn test_reward_sequencer_registry() {
     let balance_after = sequencer_registry_balance(&runner).unwrap();
 
     assert_eq!(
-        balance_before
-            .checked_add(Amount::new(expected_reward))
-            .unwrap(),
+        balance_before.checked_add(expected_reward).unwrap(),
         balance_after,
         "The sequencer registry balance should increase after rewarding the sequencer"
     );
@@ -191,7 +194,7 @@ fn test_penalize_sequencer() {
             .create_plain_message::<RT, sov_value_setter::ValueSetter<S>>(
                 sov_value_setter::CallMessage::SetValue{value:OTHER_VALUE_SETTER_CONST,gas: None},
             )
-            .with_max_fee(0),
+            .with_max_fee(Amount::ZERO),
         assert: Box::new(move |result, state| {
             match &result.tx_receipt {
                 sov_modules_api::TxEffect::Skipped(skipped) => {
@@ -259,7 +262,7 @@ fn test_authentication_out_of_gas_error() {
                 .create_plain_message::<RT, sov_value_setter::ValueSetter<S>>(
                     sov_value_setter::CallMessage::SetValue{value:10,gas: None},
                 )
-                .with_max_fee(0),
+                .with_max_fee(Amount::ZERO),
             malformed_transaction,
         ]
         .into(),

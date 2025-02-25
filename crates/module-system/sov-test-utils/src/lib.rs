@@ -21,7 +21,7 @@ use sov_modules_api::transaction::{
     PriorityFeeBips, Transaction, TransactionCallable, TxDetails, UnsignedTransaction,
 };
 pub use sov_modules_api::EncodeCall;
-use sov_modules_api::{BasicGasMeter, CryptoSpec, Gas, GasArray, Spec};
+use sov_modules_api::{Amount, BasicGasMeter, CryptoSpec, Gas, GasArray, Spec};
 pub use sov_modules_rollup_blueprint::logging::initialize_logging;
 pub use sov_modules_stf_blueprint::{get_gas_used, TxProcessingError};
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
@@ -84,7 +84,7 @@ pub type TestStorageManager =
 // Blessed gas parameters
 
 /// The default max fee to set for a transaction. This should be enough to be able to execute most standard transactions for the test rollup.
-pub const TEST_DEFAULT_MAX_FEE: u128 = 100_000_000_000;
+pub const TEST_DEFAULT_MAX_FEE: Amount = Amount::new(100_000_000_000);
 /// The default gas limit to set for a transaction. This is an optional parameter.
 /// This value should be high enough to be able to execute most standard transactions for the test rollup.
 pub const TEST_DEFAULT_GAS_LIMIT: [u64; 2] = [1_000_000_000, 1_000_000_000];

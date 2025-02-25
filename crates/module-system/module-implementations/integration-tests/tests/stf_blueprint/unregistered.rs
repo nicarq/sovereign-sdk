@@ -207,7 +207,7 @@ fn blob_test_max_slot_size() {
     };
 
     let result = runner.execute::<RelevantBlobs<MockBlob>>(unregistered_blobs);
-    // The blob was to big to be deserialized, so it should be rejected.
+    // The blob was too big to be deserialized, so it should be rejected.
     assert!(result.0.batch_receipts.is_empty());
 }
 
@@ -234,7 +234,7 @@ fn blob_test_max_allowed_data_size() {
     };
 
     let result = runner.execute::<RelevantBlobs<MockBlob>>(unregistered_blobs);
-    // The blob was to big to be deserialized, so it should be rejected.
+    // The blob was too big to be deserialized, so it should be rejected.
     assert!(result.0.batch_receipts.is_empty());
 }
 
@@ -286,7 +286,7 @@ mod helpers {
             message,
             chain_id,
             max_priority_fee_bips,
-            200_000,
+            Amount::new(200_000),
             nonce,
             None,
         );
@@ -314,7 +314,7 @@ mod helpers {
             encoded_message,
             chain_id,
             max_priority_fee_bips,
-            200_000,
+            Amount::new(200_000),
             nonce,
             None,
         );

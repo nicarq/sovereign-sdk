@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sov_bank::ReserveGasError;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
-use sov_modules_api::{DaSpec, Gas, GasArray, Spec};
+use sov_modules_api::{Amount, DaSpec, Gas, GasArray, Spec};
 
 use crate::call::SafeVec;
 use crate::PayeePolicyList;
@@ -36,7 +36,7 @@ pub enum PayeePolicy<S: Spec> {
     /// In all other cases, the sender pays their own fees.
     Allow {
         #[allow(missing_docs)]
-        max_fee: Option<u128>,
+        max_fee: Option<Amount>,
         #[allow(missing_docs)]
         gas_limit: Option<S::Gas>,
         #[allow(missing_docs)]
@@ -80,7 +80,7 @@ impl<S: Spec> PayeePolicy<S> {
     }
 
     /// Checks that the transaction's max fee is less than the policy's max fee, if applicable.
-    pub fn authorizes_max_fee(&self, tx_max_fee: u128) -> bool {
+    pub fn authorizes_max_fee(&self, tx_max_fee: Amount) -> bool {
         // Use `match` instead of `if let` to ensure exhaustive pattern
         match self {
             PayeePolicy::Allow { max_fee, .. } => {
@@ -154,7 +154,7 @@ impl<S: Spec> PayeePolicy<S> {
         }
     }
 
-    fn max_fee(&self) -> Option<u128> {
+    fn max_fee(&self) -> Option<Amount> {
         match self {
             PayeePolicy::Allow { max_fee, .. } => *max_fee,
             PayeePolicy::Deny => None,

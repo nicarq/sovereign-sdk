@@ -17,16 +17,16 @@ fn test_compute_transaction_reward_consume_all_gas() {
         transaction_consumption_helper::<DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>>(
             &GasUnit::from([REMAINING_FUNDS / 2; 2]),
             &GasPrice::from([Amount::new(1); 2]),
-            REMAINING_FUNDS as u128,
+            Amount::from(REMAINING_FUNDS),
             PriorityFeeBips::from_percentage(10),
         );
 
     assert_eq!(
         tx_reward,
         TransactionConsumption {
-            remaining_funds: 0,
+            remaining_funds: Amount::ZERO,
             base_fee: GasUnit::from([REMAINING_FUNDS / 2; 2]),
-            priority_fee: 0,
+            priority_fee: Amount::ZERO,
             gas_price: GasPrice::from([Amount::new(1); 2])
         }
     );
@@ -41,16 +41,16 @@ fn test_compute_transaction_reward_consume_not_all_gas() {
         transaction_consumption_helper::<DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>>(
             &GasUnit::from([REMAINING_FUNDS / 4; 2]),
             &GasPrice::from([Amount::new(1); 2]),
-            REMAINING_FUNDS as u128,
+            Amount::from(REMAINING_FUNDS),
             PriorityFeeBips::from_percentage(100),
         );
 
     assert_eq!(
         tx_reward,
         TransactionConsumption {
-            remaining_funds: 0,
+            remaining_funds: Amount::ZERO,
             base_fee: GasUnit::from([REMAINING_FUNDS / 4; 2]),
-            priority_fee: 50,
+            priority_fee: Amount::new(50),
             gas_price: GasPrice::from([Amount::new(1); 2])
         }
     );
@@ -59,9 +59,9 @@ fn test_compute_transaction_reward_consume_not_all_gas() {
 #[test]
 fn test_display_transaction_reward() {
     let tx_reward = TransactionConsumption::<GasUnit<2>> {
-        remaining_funds: 10,
+        remaining_funds: Amount::new(10),
         base_fee: GasUnit::from([100; 2]),
-        priority_fee: 50,
+        priority_fee: Amount::new(50),
         gas_price: GasPrice::from([Amount::new(1); 2]),
     };
 

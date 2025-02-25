@@ -49,7 +49,7 @@ mod web3_compatibility {
 
         assert_eq!(
             actual_chain_hash,
-            "e77f3a05b359c328a0f2b68315b8488a15e0078fb6eb49c8f63086f6d2351227"
+            "154c6320345f63f5377aab5844183436ecfc4f87ebeb82e681f4dff38d42f6ef"
         );
     }
 
@@ -79,7 +79,7 @@ mod web3_compatibility {
         let actual_chain_hash = hex::encode(schema.chain_hash().unwrap());
         assert_eq!(
             actual_chain_hash,
-            "7346133d80e887d70af594c98486d65abe616a8d3697d5915ec68c8a11c1b489"
+            "606b7f78f4acaaca52b27b378ce1f84bd4b275434811e77a5c2872a4e004c34c"
         );
     }
 
@@ -182,6 +182,7 @@ mod web3_compatibility {
     }"#;
         let schema = Schema::of_single_type::<Transaction<Runtime, TestSpec>>();
 
-        assert!(schema.json_to_borsh(0, json).is_ok(), "{ASSERT_MSG}");
+        let result = schema.json_to_borsh(0, json);
+        assert!(result.is_ok(), "{ASSERT_MSG}. Error: {:?}", result);
     }
 }

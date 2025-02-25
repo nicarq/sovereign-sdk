@@ -84,7 +84,7 @@ impl TestClient {
             .chain_id(self.chain_id)
             .nonce(0u64)
             .max_priority_fee_per_gas(10u64)
-            .max_fee_per_gas(TEST_DEFAULT_MAX_FEE)
+            .max_fee_per_gas(TEST_DEFAULT_MAX_FEE.0)
             .gas(GAS)
             .data(self.contract.byte_code());
 
@@ -104,7 +104,7 @@ impl TestClient {
             .chain_id(self.chain_id)
             .nonce(0u64)
             .max_priority_fee_per_gas(10u64)
-            .max_fee_per_gas(TEST_DEFAULT_MAX_FEE)
+            .max_fee_per_gas(TEST_DEFAULT_MAX_FEE.0)
             .gas(GAS)
             .data(self.contract.byte_code());
 
@@ -128,7 +128,7 @@ impl TestClient {
             .chain_id(self.chain_id)
             .data(self.contract.set_call_data(set_arg))
             .max_priority_fee_per_gas(10u64)
-            .max_fee_per_gas(TEST_DEFAULT_MAX_FEE);
+            .max_fee_per_gas(TEST_DEFAULT_MAX_FEE.0);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
 
@@ -153,7 +153,7 @@ impl TestClient {
                 .nonce(nonce + (i as u64))
                 .data(self.contract.set_call_data(set_arg))
                 .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10u64))
-                .max_fee_per_gas(max_fee_per_gas.unwrap_or(TEST_DEFAULT_MAX_FEE))
+                .max_fee_per_gas(max_fee_per_gas.unwrap_or(TEST_DEFAULT_MAX_FEE.0))
                 .gas(GAS);
 
             let typed_transaction = TypedTransaction::Eip1559(req);
@@ -185,7 +185,7 @@ impl TestClient {
             .nonce(nonce)
             .data(self.contract.set_call_data(set_arg))
             .max_priority_fee_per_gas(max_priority_fee_per_gas.unwrap_or(10u64))
-            .max_fee_per_gas(max_fee_per_gas.unwrap_or(TEST_DEFAULT_MAX_FEE))
+            .max_fee_per_gas(max_fee_per_gas.unwrap_or(TEST_DEFAULT_MAX_FEE.0))
             .gas(GAS);
 
         let typed_transaction = TypedTransaction::Eip1559(req);
@@ -244,7 +244,7 @@ impl TestClient {
             .nonce(nonce)
             .data(self.contract.failing_function_call_data())
             .max_priority_fee_per_gas(10u64)
-            .max_fee_per_gas(TEST_DEFAULT_MAX_FEE)
+            .max_fee_per_gas(TEST_DEFAULT_MAX_FEE.0)
             .gas(GAS);
 
         let typed_transaction = TypedTransaction::Eip1559(req);

@@ -8,7 +8,7 @@ use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
 pub use sov_modules_api::clap;
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails, UnsignedTransaction};
-use sov_modules_api::{DispatchCall, HexHash, HexString, Spec};
+use sov_modules_api::{Amount, DispatchCall, HexHash, HexString, Spec};
 use sov_node_client as node_client;
 
 /// Types and functionality storing and loading the persistent state of the wallet
@@ -60,7 +60,7 @@ where
         chain_id: u64,
         chain_hash: [u8; 32],
         max_priority_fee_bips: PriorityFeeBips,
-        max_fee: u128,
+        max_fee: Amount,
         gas_limit: Option<S::Gas>,
     ) -> Self {
         Self {
