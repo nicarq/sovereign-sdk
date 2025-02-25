@@ -182,17 +182,14 @@ impl<S: Spec> ChainState<S> {
                 let base_fee_per_gas_delta_normalized =
                     Amount::from(max(base_fee_per_gas_delta_normalized, 1));
 
-                base_fee_per_gas = base_fee_per_gas
-                    .checked_add(base_fee_per_gas_delta_normalized)
-                    .expect("Base fee overflow");
+                base_fee_per_gas =
+                    base_fee_per_gas.saturating_add(base_fee_per_gas_delta_normalized);
 
                 base_fee_per_gas
             } else {
                 // Although unlikely, the `base_fee_per_gas` can reach zero. We cannot have a negative value for gas price
                 // so we saturate at zero.
-                base_fee_per_gas
-                    .checked_sub(Amount::from(base_fee_per_gas_delta_normalized))
-                    .unwrap_or_default()
+                base_fee_per_gas.saturating_sub(Amount::from(base_fee_per_gas_delta_normalized))
             }
         }
     }
