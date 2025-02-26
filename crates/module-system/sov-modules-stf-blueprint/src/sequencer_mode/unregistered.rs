@@ -331,6 +331,7 @@ where
                 let sequencer_reward = transaction_consumption.priority_fee();
                 accumulated_reward = accumulated_reward
                     .checked_add(sequencer_reward.0)
+                    // SAFETY: The sequencer reward cannot exceed the total token supply, so this cannot overflow
                     .expect("AccumulatedReward overflow");
             }
             gas_used = get_gas_used(&receipt);

@@ -218,6 +218,8 @@ impl<S: Spec> ProverIncentives<S> {
                 .slot_at_height(slot_num, state)
                 .map_err(Into::<anyhow::Error>::into)?
             {
+                // SAFETY: this cannot overflow, because that would require more than the entire token supply to be spent on gas
+                // *before* the prover claimed their reward, but gas fees are locked until the prover claims them.
                 let curr_reward = transition.gas_used().value(transition.gas_price());
                 total_reward = total_reward
                     .checked_add(curr_reward)
