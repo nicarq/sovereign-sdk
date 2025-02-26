@@ -103,11 +103,6 @@ pub enum AccessPatternMessages<S: Spec> {
         /// The number of storage cells to read from
         num_cells: u64,
     },
-    /// Hashes the custom input buffer.
-    HashCustom {
-        /// The input buffer
-        input: Vec<u8>,
-    },
     /// Hashes the string of bytes made by the repeted filler.
     HashBytes {
         /// The filler bytes to be repeated over
@@ -115,6 +110,12 @@ pub enum AccessPatternMessages<S: Spec> {
         /// The size of the buffer
         size: usize,
     },
+    /// Hashes the custom input buffer.
+    HashCustom {
+        /// The input to hash
+        input: Vec<u8>,
+    },
+
     /// Stores a signature to verify.
     StoreSignature {
         /// The signature to store
