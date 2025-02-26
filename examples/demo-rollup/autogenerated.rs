@@ -1,4 +1,4 @@
-pub const CHAIN_HASH: [u8; 32] = [202, 243, 125, 79, 64, 70, 161, 255, 156, 129, 128, 134, 168, 68, 46, 109, 81, 59, 131, 1, 46, 176, 78, 6, 138, 211, 226, 138, 5, 42, 206, 233];
+pub const CHAIN_HASH: [u8; 32] = [148, 205, 49, 81, 142, 199, 42, 153, 76, 9, 7, 105, 85, 42, 59, 44, 3, 4, 48, 173, 111, 178, 39, 153, 87, 172, 10, 15, 87, 24, 134, 47];
 
 #[allow(dead_code)]
 pub const SCHEMA_JSON: &str = r#"{
@@ -55,7 +55,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "details",
             "silent": false,
             "value": {
-              "ByIndex": 83
+              "ByIndex": 104
             },
             "doc": ""
           }
@@ -199,6 +199,14 @@ pub const SCHEMA_JSON: &str = r#"{
             "template": null,
             "value": {
               "ByIndex": 80
+            }
+          },
+          {
+            "name": "AccessPattern",
+            "serde_name": "access_pattern",
+            "template": null,
+            "value": {
+              "ByIndex": 83
             }
           }
         ],
@@ -1773,6 +1781,693 @@ pub const SCHEMA_JSON: &str = r#"{
       }
     },
     {
+      "Tuple": {
+        "template": null,
+        "fields": [
+          {
+            "value": {
+              "ByIndex": 84
+            },
+            "silent": false,
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Enum": {
+        "type_name": "AccessPatternMessages",
+        "serde_type_name": "AccessPatternMessages",
+        "variants": [
+          {
+            "name": "WriteCells",
+            "serde_name": "write_cells",
+            "template": null,
+            "value": {
+              "ByIndex": 85
+            }
+          },
+          {
+            "name": "WriteCustom",
+            "serde_name": "write_custom",
+            "template": null,
+            "value": {
+              "ByIndex": 86
+            }
+          },
+          {
+            "name": "ReadCells",
+            "serde_name": "read_cells",
+            "template": null,
+            "value": {
+              "ByIndex": 88
+            }
+          },
+          {
+            "name": "HashBytes",
+            "serde_name": "hash_bytes",
+            "template": null,
+            "value": {
+              "ByIndex": 89
+            }
+          },
+          {
+            "name": "HashCustom",
+            "serde_name": "hash_custom",
+            "template": null,
+            "value": {
+              "ByIndex": 90
+            }
+          },
+          {
+            "name": "StoreSignature",
+            "serde_name": "store_signature",
+            "template": null,
+            "value": {
+              "ByIndex": 91
+            }
+          },
+          {
+            "name": "VerifySignature",
+            "serde_name": "verify_signature",
+            "template": null,
+            "value": null
+          },
+          {
+            "name": "VerifyCustomSignature",
+            "serde_name": "verify_custom_signature",
+            "template": null,
+            "value": {
+              "ByIndex": 92
+            }
+          },
+          {
+            "name": "StoreSerializedString",
+            "serde_name": "store_serialized_string",
+            "template": null,
+            "value": {
+              "ByIndex": 93
+            }
+          },
+          {
+            "name": "DeserializeBytesAsString",
+            "serde_name": "deserialize_bytes_as_string",
+            "template": null,
+            "value": null
+          },
+          {
+            "name": "DeserializeCustomString",
+            "serde_name": "deserialize_custom_string",
+            "template": null,
+            "value": {
+              "ByIndex": 94
+            }
+          },
+          {
+            "name": "DeleteCells",
+            "serde_name": "delete_cells",
+            "template": null,
+            "value": {
+              "ByIndex": 95
+            }
+          },
+          {
+            "name": "SetHook",
+            "serde_name": "set_hook",
+            "template": null,
+            "value": {
+              "ByIndex": 96
+            }
+          },
+          {
+            "name": "UpdateAdmin",
+            "serde_name": "update_admin",
+            "template": null,
+            "value": {
+              "ByIndex": 103
+            }
+          }
+        ],
+        "hide_tag": false
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_AccessPatternMessages_WriteCells",
+        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_WriteCells",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "begin",
+            "serde_display_name": "begin",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "num_cells",
+            "serde_display_name": "num_cells",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "data_size",
+            "serde_display_name": "data_size",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u32",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_AccessPatternMessages_WriteCustom",
+        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_WriteCustom",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "begin",
+            "serde_display_name": "begin",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "content",
+            "serde_display_name": "content",
+            "silent": false,
+            "value": {
+              "ByIndex": 87
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Vec": {
+        "value": {
+          "Immediate": "String"
+        }
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_AccessPatternMessages_ReadCells",
+        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_ReadCells",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "begin",
+            "serde_display_name": "begin",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "num_cells",
+            "serde_display_name": "num_cells",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_AccessPatternMessages_HashBytes",
+        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_HashBytes",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "filler",
+            "serde_display_name": "filler",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u8",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "size",
+            "serde_display_name": "size",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u32",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_AccessPatternMessages_HashCustom",
+        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_HashCustom",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "input",
+            "serde_display_name": "input",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "ByteVec": {
+                  "display": "Hex"
+                }
+              }
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_AccessPatternMessages_StoreSignature",
+        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_StoreSignature",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "sign",
+            "serde_display_name": "sign",
+            "silent": false,
+            "value": {
+              "ByIndex": 1
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "pub_key",
+            "serde_display_name": "pub_key",
+            "silent": false,
+            "value": {
+              "ByIndex": 2
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "message",
+            "serde_display_name": "message",
+            "silent": false,
+            "value": {
+              "Immediate": "String"
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_AccessPatternMessages_VerifyCustomSignature",
+        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_VerifyCustomSignature",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "sign",
+            "serde_display_name": "sign",
+            "silent": false,
+            "value": {
+              "ByIndex": 1
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "pub_key",
+            "serde_display_name": "pub_key",
+            "silent": false,
+            "value": {
+              "ByIndex": 2
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "message",
+            "serde_display_name": "message",
+            "silent": false,
+            "value": {
+              "Immediate": "String"
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_AccessPatternMessages_StoreSerializedString",
+        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_StoreSerializedString",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "input",
+            "serde_display_name": "input",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "ByteVec": {
+                  "display": "Hex"
+                }
+              }
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_AccessPatternMessages_DeserializeCustomString",
+        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_DeserializeCustomString",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "input",
+            "serde_display_name": "input",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "ByteVec": {
+                  "display": "Hex"
+                }
+              }
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_AccessPatternMessages_DeleteCells",
+        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_DeleteCells",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "begin",
+            "serde_display_name": "begin",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "num_cells",
+            "serde_display_name": "num_cells",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_AccessPatternMessages_SetHook",
+        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_SetHook",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "pre",
+            "serde_display_name": "pre",
+            "silent": false,
+            "value": {
+              "ByIndex": 97
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "post",
+            "serde_display_name": "post",
+            "silent": false,
+            "value": {
+              "ByIndex": 97
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Option": {
+        "value": {
+          "ByIndex": 98
+        }
+      }
+    },
+    {
+      "Vec": {
+        "value": {
+          "ByIndex": 99
+        }
+      }
+    },
+    {
+      "Enum": {
+        "type_name": "HooksConfig",
+        "serde_type_name": "HooksConfig",
+        "variants": [
+          {
+            "name": "Read",
+            "serde_name": "Read",
+            "template": null,
+            "value": {
+              "ByIndex": 100
+            }
+          },
+          {
+            "name": "Write",
+            "serde_name": "Write",
+            "template": null,
+            "value": {
+              "ByIndex": 101
+            }
+          },
+          {
+            "name": "Delete",
+            "serde_name": "Delete",
+            "template": null,
+            "value": {
+              "ByIndex": 102
+            }
+          }
+        ],
+        "hide_tag": false
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_HooksConfig_Read",
+        "serde_type_name": "__SovVirtualWallet_HooksConfig_Read",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "begin",
+            "serde_display_name": "begin",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "size",
+            "serde_display_name": "size",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_HooksConfig_Write",
+        "serde_type_name": "__SovVirtualWallet_HooksConfig_Write",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "begin",
+            "serde_display_name": "begin",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "size",
+            "serde_display_name": "size",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "data_size",
+            "serde_display_name": "data_size",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u32",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_HooksConfig_Delete",
+        "serde_type_name": "__SovVirtualWallet_HooksConfig_Delete",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "begin",
+            "serde_display_name": "begin",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "size",
+            "serde_display_name": "size",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_AccessPatternMessages_UpdateAdmin",
+        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_UpdateAdmin",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "new_admin",
+            "serde_display_name": "new_admin",
+            "silent": false,
+            "value": {
+              "ByIndex": 8
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
       "Struct": {
         "type_name": "TxDetails",
         "serde_type_name": "TxDetails",
@@ -1783,7 +2478,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "max_priority_fee_bips",
             "silent": false,
             "value": {
-              "ByIndex": 84
+              "ByIndex": 105
             },
             "doc": ""
           },
@@ -1875,7 +2570,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "serde_display_name": "details",
             "silent": false,
             "value": {
-              "ByIndex": 83
+              "ByIndex": 104
             },
             "doc": ""
           }
@@ -1885,7 +2580,7 @@ pub const SCHEMA_JSON: &str = r#"{
   ],
   "root_type_indices": [
     0,
-    85,
+    106,
     3
   ],
   "metadata_hash": [

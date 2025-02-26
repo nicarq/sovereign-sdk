@@ -43,8 +43,10 @@ pub struct GenesisPaths {
     pub evm_genesis_path: PathBuf,
     /// Chain State genesis path.
     pub chain_state_genesis_path: PathBuf,
-    /// Paymaster genesis paty
+    /// Paymaster genesis path
     pub paymaster_genesis_path: PathBuf,
+    /// Bench pattern genesis path
+    pub access_pattern: PathBuf,
 }
 
 impl GenesisPaths {
@@ -64,6 +66,7 @@ impl GenesisPaths {
             evm_genesis_path: dir.as_ref().join("evm.json"),
             chain_state_genesis_path: dir.as_ref().join("chain_state.json"),
             paymaster_genesis_path: dir.as_ref().join("paymaster.json"),
+            access_pattern: dir.as_ref().join("access_pattern.json"),
         }
     }
 }
@@ -103,6 +106,9 @@ where
         read_genesis_json(&genesis_paths.paymaster_genesis_path)?;
     let blob_storage_config = ();
 
+    let access_pattern: sov_test_modules::access_pattern::AccessPatternGenesisConfig<S> =
+        read_genesis_json(&genesis_paths.access_pattern)?;
+
     Ok(GenesisConfig::new(
         bank_config,
         sequencer_registry_config,
@@ -115,6 +121,7 @@ where
         blob_storage_config,
         paymaster_config,
         evm_config,
+        access_pattern,
     ))
 }
 

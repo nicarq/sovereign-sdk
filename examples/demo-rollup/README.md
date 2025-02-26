@@ -117,7 +117,7 @@ this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
 $ sleep 5
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0xad6559afd26e1194cbc6d5c79f5cfcb0bc971220393e5b5276be6c3572fc8107/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0xe029e6b82a1097d4c1bf353d9c24d295198a779850db39b6a3c0661defe05eb9/events | jq
 {
   "data": [
     {
@@ -302,6 +302,7 @@ Commands:
   chain-state          A subcommand for the `ChainState` module
   blob-storage         A subcommand for the `BlobStorage` module
   paymaster            A subcommand for the `Paymaster` module
+  access-pattern       A subcommand for the `AccessPattern` module
   help                 Print this message or the help of the given subcommand(s)
 
 Options:
@@ -325,7 +326,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0xcaf37d4f4046a1ff9c818086a8442e6d513b83012eb04e068ad3e28a052acee9",
+  "chain_hash": "0x94cd31518ec72a994c090769552a3b2c030430ad6fb2279957ac0a0f5718862f",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": "100000000",

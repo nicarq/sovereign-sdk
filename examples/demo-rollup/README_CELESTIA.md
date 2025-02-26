@@ -278,6 +278,7 @@ Commands:
   chain-state          A subcommand for the `ChainState` module
   blob-storage         A subcommand for the `BlobStorage` module
   paymaster            A subcommand for the `Paymaster` module
+  access-pattern       A subcommand for the `AccessPattern` module
   help                 Print this message or the help of the given subcommand(s)
 
 Options:
@@ -301,7 +302,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0xcaf37d4f4046a1ff9c818086a8442e6d513b83012eb04e068ad3e28a052acee9",
+  "chain_hash": "0x94cd31518ec72a994c090769552a3b2c030430ad6fb2279957ac0a0f5718862f",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": "100000000",

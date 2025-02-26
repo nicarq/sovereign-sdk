@@ -10,6 +10,7 @@ use sov_modules_api::{Genesis, Spec};
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_paymaster::Paymaster;
 use sov_sequencer_registry::SequencerRegistry;
+use sov_test_modules::access_pattern::AccessPattern;
 use sov_test_utils::runtime::genesis::zk::MinimalZkGenesisConfig;
 use sov_test_utils::runtime::traits::MinimalGenesis;
 use sov_value_setter::ValueSetter;
@@ -38,6 +39,7 @@ where
         evm_config: <Evm<S> as Genesis>::Config,
         paymaster_config: <Paymaster<S> as Genesis>::Config,
         value_setter_config: <ValueSetter<S> as Genesis>::Config,
+        access_pattern_config: <AccessPattern<S> as Genesis>::Config,
     ) -> Self {
         Self {
             sequencer_registry: minimal_config.sequencer_registry,
@@ -51,6 +53,7 @@ where
             evm: evm_config,
             paymaster: paymaster_config,
             value_setter: value_setter_config,
+            access_pattern: access_pattern_config,
         }
     }
 }

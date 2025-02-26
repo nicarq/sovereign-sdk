@@ -1148,6 +1148,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-sequencer-registry",
  "sov-state",
+ "sov-test-modules",
  "sov-uniqueness",
  "sov-value-setter",
  "strum",
@@ -3685,6 +3686,23 @@ dependencies = [
  "sov-modules-macros",
  "sov-rollup-interface",
  "thiserror",
+]
+
+[[package]]
+name = "sov-test-modules"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "derivative",
+ "hex",
+ "schemars",
+ "serde",
+ "sov-modules-api",
+ "sov-state",
+ "strum",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]

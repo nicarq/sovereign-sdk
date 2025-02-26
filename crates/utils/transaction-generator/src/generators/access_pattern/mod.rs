@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use http::HttpStorageAccessClient;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
+use sov_modules_api::prelude::arbitrary::{self, Arbitrary, Unstructured};
 use sov_modules_api::prelude::axum::async_trait;
-use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
+use sov_modules_api::{CryptoSpec, PrivateKey, SafeVec, SizedSafeString, Spec};
 use sov_test_modules::access_pattern::*;
 use strum::VariantArray;
 
@@ -333,12 +333,13 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
 
                     let content = hex::encode(buf);
 
-                    contents.push(content.clone());
+                    contents.push(TryFrom::<String>::try_from(content.clone()).unwrap());
                 }
 
                 AccessPatternMessages::WriteCustom {
                     begin,
-                    content: contents,
+                    content: TryFrom::<Vec<SizedSafeString<MAX_STR_LEN_BENCH>>>::try_from(contents)
+                        .unwrap(),
                 }
             }
             AccessPatternDiscriminants::ReadCells => {
@@ -357,9 +358,9 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                 pre: None,
                 post: None,
             },
-            AccessPatternDiscriminants::HashCustom => {
-                AccessPatternMessages::HashCustom { input: vec![] }
-            }
+            AccessPatternDiscriminants::HashCustom => AccessPatternMessages::HashCustom {
+                input: SafeVec::new(),
+            },
             AccessPatternDiscriminants::HashBytes => {
                 let filler = u.int_in_range(0..=(u8::MAX - 1))?;
                 let size = u.int_in_range(0..=self.maximum_write_size)? as usize;
@@ -370,17 +371,21 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                 AccessPatternMessages::DeserializeBytesAsString
             }
             AccessPatternDiscriminants::DeserializeCustomString => {
-                AccessPatternMessages::DeserializeCustomString { input: vec![] }
+                AccessPatternMessages::DeserializeCustomString {
+                    input: SafeVec::new(),
+                }
             }
             AccessPatternDiscriminants::StoreSerializedString => {
-                AccessPatternMessages::StoreSerializedString { input: vec![] }
+                AccessPatternMessages::StoreSerializedString {
+                    input: SafeVec::new(),
+                }
             }
             AccessPatternDiscriminants::VerifySignature => AccessPatternMessages::VerifySignature,
             AccessPatternDiscriminants::VerifyCustomSignature => {
                 let string_size = u.int_in_range(0..=self.maximum_write_size)? as usize;
 
                 let message = (0..string_size)
-                    .map(|_| char::arbitrary(u))
+                    .map(|_| rand_ascii_char(u))
                     .collect::<Result<String, _>>()?;
 
                 let sign = account.private_key.sign(message.as_ref());
@@ -388,14 +393,14 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                 AccessPatternMessages::VerifyCustomSignature {
                     sign,
                     pub_key: account.private_key.pub_key(),
-                    message,
+                    message: TryFrom::<String>::try_from(message).unwrap(),
                 }
             }
             AccessPatternDiscriminants::StoreSignature => {
                 let string_size = u.int_in_range(0..=self.maximum_write_size)? as usize;
 
                 let message = (0..string_size)
-                    .map(|_| char::arbitrary(u))
+                    .map(|_| rand_ascii_char(u))
                     .collect::<Result<String, _>>()?;
 
                 let sign = account.private_key.sign(message.as_ref());
@@ -403,7 +408,7 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                 AccessPatternMessages::VerifyCustomSignature {
                     sign,
                     pub_key: account.private_key.pub_key(),
-                    message,
+                    message: TryFrom::<String>::try_from(message).unwrap(),
                 }
             }
             AccessPatternDiscriminants::UpdateAdmin => {
@@ -480,7 +485,7 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
 
                     let content = hex::encode(buf);
 
-                    contents.push(content.clone());
+                    contents.push(TryFrom::<String>::try_from(content.clone()).unwrap());
                     changes.push(AccessPatternChangeLogEntry::ValueUpdated {
                         item: i,
                         content: Some(content),
@@ -490,7 +495,10 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                 Ok(GeneratedMessage {
                     message: AccessPatternMessages::WriteCustom {
                         begin,
-                        content: contents,
+                        content: TryFrom::<Vec<SizedSafeString<MAX_STR_LEN_BENCH>>>::try_from(
+                            contents,
+                        )
+                        .unwrap(),
                     },
                     sender: sender_acct.private_key,
                     outcome: MessageOutcome::Successful { changes },
@@ -605,7 +613,9 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                     .collect::<Result<Vec<_>, _>>()?;
 
                 Ok(GeneratedMessage {
-                    message: AccessPatternMessages::HashCustom { input: hash },
+                    message: AccessPatternMessages::HashCustom {
+                        input: TryFrom::<Vec<u8>>::try_from(hash).unwrap(),
+                    },
                     sender: sender_acct.private_key,
                     outcome: MessageOutcome::Successful { changes: vec![] },
                 })
@@ -624,7 +634,7 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                 let string_size = u.int_in_range(0..=self.maximum_write_size)? as usize;
 
                 let input = (0..string_size)
-                    .map(|_| char::arbitrary(u))
+                    .map(|_| rand_ascii_char(u))
                     .collect::<Result<String, _>>()?;
 
                 let serialized_string = borsh::to_vec(&MeteredBorshDeserializeString(input))
@@ -632,7 +642,7 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
 
                 Ok(GeneratedMessage {
                     message: AccessPatternMessages::DeserializeCustomString {
-                        input: serialized_string,
+                        input: TryFrom::<Vec<u8>>::try_from(serialized_string).unwrap(),
                     },
                     sender: sender_acct.private_key,
                     outcome: MessageOutcome::Successful { changes: vec![] },
@@ -642,7 +652,7 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                 let string_size = u.int_in_range(0..=self.maximum_write_size)? as usize;
 
                 let input = (0..string_size)
-                    .map(|_| char::arbitrary(u))
+                    .map(|_| rand_ascii_char(u))
                     .collect::<Result<String, _>>()?;
 
                 let serialized_string = borsh::to_vec(&MeteredBorshDeserializeString(input))
@@ -650,7 +660,7 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
 
                 Ok(GeneratedMessage {
                     message: AccessPatternMessages::StoreSerializedString {
-                        input: serialized_string,
+                        input: TryFrom::<Vec<u8>>::try_from(serialized_string).unwrap(),
                     },
                     sender: sender_acct.private_key,
                     outcome: MessageOutcome::Successful { changes: vec![] },
@@ -665,7 +675,7 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                 let string_size = u.int_in_range(0..=self.maximum_write_size)? as usize;
 
                 let message = (0..string_size)
-                    .map(|_| char::arbitrary(u))
+                    .map(|_| rand_ascii_char(u))
                     .collect::<Result<String, _>>()?;
 
                 let sign = sender_acct.private_key.sign(message.as_ref());
@@ -674,7 +684,7 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                     message: AccessPatternMessages::VerifyCustomSignature {
                         sign,
                         pub_key: sender_acct.private_key.pub_key(),
-                        message,
+                        message: TryFrom::<String>::try_from(message).unwrap(),
                     },
                     sender: sender_acct.private_key,
                     outcome: MessageOutcome::Successful { changes: vec![] },
@@ -684,7 +694,7 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                 let string_size = u.int_in_range(0..=self.maximum_write_size)? as usize;
 
                 let message = (0..string_size)
-                    .map(|_| char::arbitrary(u))
+                    .map(|_| rand_ascii_char(u))
                     .collect::<Result<String, _>>()?;
 
                 let sign = sender_acct.private_key.sign(message.as_ref());
@@ -693,7 +703,7 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                     message: AccessPatternMessages::StoreSignature {
                         sign,
                         pub_key: sender_acct.private_key.pub_key(),
-                        message,
+                        message: TryFrom::<String>::try_from(message).unwrap(),
                     },
                     sender: sender_acct.private_key,
                     outcome: MessageOutcome::Successful { changes: vec![] },
@@ -725,4 +735,9 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
             }
         }
     }
+}
+
+/// Generates a random ASCII character
+fn rand_ascii_char(u: &mut Unstructured<'_>) -> Result<char, arbitrary::Error> {
+    Ok(u.int_in_range(32..=126)? as u8 as char)
 }

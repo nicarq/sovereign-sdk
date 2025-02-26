@@ -48,6 +48,7 @@ sov-state = { path = "../../../crates/module-system/sov-state", default-features
 sov-value-setter = { path = "../../../crates/module-system/module-implementations/sov-value-setter", default-features = false }
 sov-kernels = { path = "../../../crates/module-system/sov-kernels", default-features = false }
 sov-rollup-apis = { path = "../../../crates/full-node/sov-rollup-apis", optional = true, default-features = false }
+sov-test-modules = { path = "../../../crates/module-system/module-implementations/sov-test-modules", default-features = false }
 sov-test-utils = { path = "../../../crates/module-system/sov-test-utils", optional = true, default-features = false }
 # To prevent `use of unstable library feature 'error_in_core'`
 idna = { version = "1.0.3", default-features = false, features = ["std"] }
@@ -56,29 +57,30 @@ url = { version = "2.5.4", default-features = false, features = ["std"] }
 [features]
 default = []
 native = [
-    "sov-accounts/native",
-    "sov-attester-incentives/native",
-    "sov-bank/native",
-    "sov-capabilities/native",
-    "sov-chain-state/native",
-    "sov-evm/native",
-    "sov-kernels/native",
-    "sov-modules-api/native",
-    "sov-modules-stf-blueprint/native",
-    "sov-uniqueness/native",
-    "sov-prover-incentives/native",
-    "sov-rollup-interface/native",
-    "sov-sequencer-registry/native",
-    "sov-state/native",
-    "sov-value-setter/native",
-    "sov-blob-storage/native",
-    "sov-rollup-apis",
-    "sov-paymaster/native",
-    "sov-address/native",
+	"sov-accounts/native",
+	"sov-attester-incentives/native",
+	"sov-bank/native",
+	"sov-capabilities/native",
+	"sov-chain-state/native",
+	"sov-evm/native",
+	"sov-kernels/native",
+	"sov-modules-api/native",
+	"sov-modules-stf-blueprint/native",
+	"sov-uniqueness/native",
+	"sov-prover-incentives/native",
+	"sov-rollup-interface/native",
+	"sov-sequencer-registry/native",
+	"sov-state/native",
+	"sov-value-setter/native",
+	"sov-blob-storage/native",
+	"sov-rollup-apis",
+	"sov-paymaster/native",
+	"sov-address/native",
+	"sov-test-modules/native"
 ]
 
 # We only activate test-utils if we also have native since all our test-code use native by default.
 test-utils = [
-    "native",
+	"native",
     "sov-test-utils",
 ]
