@@ -112,7 +112,7 @@ impl<S: Spec> SequencerRegistry<S> {
             state,
             Event::<S>::Registered {
                 sequencer: address,
-                amount: amount.0,
+                amount,
             },
         );
         Ok(())
@@ -250,7 +250,7 @@ impl<S: Spec> SequencerRegistry<S> {
             state,
             Event::<S>::Withdrew {
                 sequencer: existing_sequencer.address.clone(),
-                amount_withdrawn: existing_sequencer.balance.0,
+                amount_withdrawn: existing_sequencer.balance,
             },
         );
 

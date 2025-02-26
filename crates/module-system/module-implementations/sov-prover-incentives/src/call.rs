@@ -66,7 +66,7 @@ impl<S: Spec> ProverIncentives<S> {
             state,
             Event::<S>::Registered {
                 prover: prover_address.clone(),
-                amount: bond_amount.0,
+                amount: bond_amount,
             },
         );
 
@@ -85,7 +85,7 @@ impl<S: Spec> ProverIncentives<S> {
             state,
             Event::<S>::Deposited {
                 prover: prover_address.clone(),
-                deposit: amount.0,
+                deposit: amount,
             },
         );
 
@@ -104,7 +104,7 @@ impl<S: Spec> ProverIncentives<S> {
             state,
             Event::<S>::Exited {
                 prover: prover_address.clone(),
-                amount_withdrawn: amount_withdrawn.0,
+                amount_withdrawn,
             },
         );
 

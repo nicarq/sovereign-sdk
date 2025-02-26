@@ -1,4 +1,4 @@
-use sov_modules_api::Spec;
+use sov_modules_api::{Amount, Spec};
 #[derive(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
@@ -75,14 +75,14 @@ pub enum Event<S: Spec> {
         /// The address of the prover that was bonded.
         prover: S::Address,
         /// The amount deposited by the prover for bond.
-        amount: u128,
+        amount: Amount,
     },
     /// A sequencer deposited funds to stake.
     Deposited {
         /// The address of the sequencer that was deposited to.
         prover: S::Address,
         /// The amount of the deposit.
-        deposit: u128,
+        deposit: Amount,
     },
 
     /// The prover has been unbonded. The amount withdrawn is the amount of the bond that was withdrawn.
@@ -90,7 +90,7 @@ pub enum Event<S: Spec> {
         /// The address of the prover that was unbonded.
         prover: S::Address,
         /// The amount that was withdrawn from the provers bond.
-        amount_withdrawn: u128,
+        amount_withdrawn: Amount,
     },
 
     /// Event for processing a valid proof
@@ -99,6 +99,6 @@ pub enum Event<S: Spec> {
         /// be valid.
         prover: S::Address,
         /// The amount the prover was rewarded for submitting a valid proof.
-        reward: u128,
+        reward: Amount,
     },
 }
