@@ -7,7 +7,7 @@ use http::HttpStorageAccessClient;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
 use sov_modules_api::prelude::axum::async_trait;
-use sov_modules_api::{CryptoSpec, Spec};
+use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use strum::VariantArray;
 
 use crate::generator_modules::storage_access_patterns::*;
@@ -122,6 +122,8 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
 /// A complete description of any possible state change created by the [`AccessPatternMessageGenerator`].
 /// ## TODO(@theochap)
 /// For now, the transaction generator doesn't know about past generations,
+/// Also, add change log entries for values read/hashed/deserialized/signatures. This
+/// requires tracking the previous changes made to the state (either in the logs or as part of the account).
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AccessPatternChangeLogEntry<S: Spec> {
@@ -306,21 +308,16 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
             on_failure: panic!("Impossible to get a non-admin account, when there should only be one admin!")
         );
 
-        match message_type {
+        let message = match message_type {
             AccessPatternDiscriminants::WriteCells => {
                 let begin = u.int_in_range(0..=self.maximum_write_begin_index)?;
                 let num_cells = u.int_in_range(0..=self.maximum_write_size)?;
                 let data_size = u.int_in_range(0..=self.maximum_write_data_length)?;
-                let message = AccessPatternMessages::WriteCells {
+                AccessPatternMessages::WriteCells {
                     begin,
                     num_cells,
                     data_size,
-                };
-                Ok(GeneratedMessage {
-                    message,
-                    sender: account.private_key,
-                    outcome: MessageOutcome::Reverted,
-                })
+                }
             }
             AccessPatternDiscriminants::WriteCustom => {
                 let begin = u.int_in_range(0..=self.maximum_write_begin_index)?;
@@ -339,62 +336,88 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                     contents.push(content.clone());
                 }
 
-                let message = AccessPatternMessages::WriteCustom {
+                AccessPatternMessages::WriteCustom {
                     begin,
                     content: contents,
-                };
-
-                Ok(GeneratedMessage {
-                    message,
-                    sender: account.private_key,
-                    outcome: MessageOutcome::Reverted,
-                })
+                }
             }
             AccessPatternDiscriminants::ReadCells => {
                 let begin = u.int_in_range(0..=self.maximum_write_begin_index)?;
                 let num_cells = u.int_in_range(0..=self.maximum_write_size)?;
 
-                let message = AccessPatternMessages::ReadCells { begin, num_cells };
-                Ok(GeneratedMessage {
-                    message,
-                    sender: account.private_key,
-                    outcome: MessageOutcome::Reverted,
-                })
+                AccessPatternMessages::ReadCells { begin, num_cells }
             }
             AccessPatternDiscriminants::DeleteCells => {
                 let begin = u.int_in_range(0..=self.maximum_write_begin_index)?;
                 let num_cells = u.int_in_range(0..=self.maximum_write_size)?;
 
-                let message = AccessPatternMessages::DeleteCells { begin, num_cells };
-                Ok(GeneratedMessage {
-                    message,
-                    sender: account.private_key,
-                    outcome: MessageOutcome::Reverted,
-                })
+                AccessPatternMessages::DeleteCells { begin, num_cells }
             }
-            AccessPatternDiscriminants::SetHook => {
-                let message = AccessPatternMessages::SetHook {
-                    pre: None,
-                    post: None,
-                };
+            AccessPatternDiscriminants::SetHook => AccessPatternMessages::SetHook {
+                pre: None,
+                post: None,
+            },
+            AccessPatternDiscriminants::HashCustom => {
+                AccessPatternMessages::HashCustom { input: vec![] }
+            }
+            AccessPatternDiscriminants::HashBytes => {
+                let filler = u.int_in_range(0..=(u8::MAX - 1))?;
+                let size = u.int_in_range(0..=self.maximum_write_size)? as usize;
 
-                Ok(GeneratedMessage {
+                AccessPatternMessages::HashBytes { filler, size }
+            }
+            AccessPatternDiscriminants::DeserializeBytesAsString => {
+                AccessPatternMessages::DeserializeBytesAsString
+            }
+            AccessPatternDiscriminants::DeserializeCustomString => {
+                AccessPatternMessages::DeserializeCustomString { input: vec![] }
+            }
+            AccessPatternDiscriminants::StoreSerializedString => {
+                AccessPatternMessages::StoreSerializedString { input: vec![] }
+            }
+            AccessPatternDiscriminants::VerifySignature => AccessPatternMessages::VerifySignature,
+            AccessPatternDiscriminants::VerifyCustomSignature => {
+                let string_size = u.int_in_range(0..=self.maximum_write_size)? as usize;
+
+                let message = (0..string_size)
+                    .map(|_| char::arbitrary(u))
+                    .collect::<Result<String, _>>()?;
+
+                let sign = account.private_key.sign(message.as_ref());
+
+                AccessPatternMessages::VerifyCustomSignature {
+                    sign,
+                    pub_key: account.private_key.pub_key(),
                     message,
-                    sender: account.private_key,
-                    outcome: MessageOutcome::Reverted,
-                })
+                }
+            }
+            AccessPatternDiscriminants::StoreSignature => {
+                let string_size = u.int_in_range(0..=self.maximum_write_size)? as usize;
+
+                let message = (0..string_size)
+                    .map(|_| char::arbitrary(u))
+                    .collect::<Result<String, _>>()?;
+
+                let sign = account.private_key.sign(message.as_ref());
+
+                AccessPatternMessages::VerifyCustomSignature {
+                    sign,
+                    pub_key: account.private_key.pub_key(),
+                    message,
+                }
             }
             AccessPatternDiscriminants::UpdateAdmin => {
                 let (new_admin, _) = generator_state.generate_account(u)?;
 
-                Ok(GeneratedMessage {
-                    message: AccessPatternMessages::UpdateAdmin { new_admin },
-                    sender: account.private_key,
-                    outcome: MessageOutcome::Reverted,
-                })
+                AccessPatternMessages::UpdateAdmin { new_admin }
             }
-            _ => todo!("Will be implemented as part of a follow-up PR"),
-        }
+        };
+
+        Ok(GeneratedMessage {
+            message,
+            sender: account.private_key,
+            outcome: MessageOutcome::Reverted,
+        })
     }
 
     /// Generates valid call messages for the access pattern module
@@ -415,6 +438,10 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
     > {
         let message_type = self.message_distribution.select_value(u)?;
 
+        let (sender_addr, mut sender_acct) = generator_state
+            .get_random_existing_account_with_tag(AccessPatternTag::IsAdmin.into(), u)?
+            .unwrap_or_else(|| panic!("No admin for the access pattern module!"));
+
         match message_type {
             AccessPatternDiscriminants::WriteCells => {
                 let begin = u.int_in_range(0..=self.maximum_write_begin_index)?;
@@ -427,10 +454,6 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                         content: Some(i.to_string().repeat(data_size)),
                     })
                     .collect::<Vec<_>>();
-
-                let (_, sender_acct) = generator_state
-                    .get_random_existing_account_with_tag(AccessPatternTag::IsAdmin.into(), u)?
-                    .unwrap_or_else(|| panic!("No admin for the access pattern module!"));
 
                 Ok(GeneratedMessage {
                     message: AccessPatternMessages::WriteCells {
@@ -464,10 +487,6 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                     });
                 }
 
-                let (_, sender_acct) = generator_state
-                    .get_random_existing_account_with_tag(AccessPatternTag::IsAdmin.into(), u)?
-                    .unwrap_or_else(|| panic!("No admin for the access pattern module!"));
-
                 Ok(GeneratedMessage {
                     message: AccessPatternMessages::WriteCustom {
                         begin,
@@ -480,10 +499,6 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
             AccessPatternDiscriminants::ReadCells => {
                 let begin = u.int_in_range(0..=self.maximum_write_begin_index)?;
                 let num_cells = u.int_in_range(0..=self.maximum_write_size)?;
-
-                let (_, sender_acct) = generator_state
-                    .get_random_existing_account_with_tag(AccessPatternTag::IsAdmin.into(), u)?
-                    .unwrap_or_else(|| panic!("No admin for the access pattern module!"));
 
                 Ok(GeneratedMessage {
                     message: AccessPatternMessages::ReadCells { begin, num_cells },
@@ -501,10 +516,6 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                         content: None,
                     })
                     .collect::<Vec<_>>();
-
-                let (_, sender_acct) = generator_state
-                    .get_random_existing_account_with_tag(AccessPatternTag::IsAdmin.into(), u)?
-                    .unwrap_or_else(|| panic!("No admin for the access pattern module!"));
 
                 Ok(GeneratedMessage {
                     message: AccessPatternMessages::DeleteCells { begin, num_cells },
@@ -581,23 +592,120 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                     },
                 ];
 
-                let (_, sender_acct) = generator_state
-                    .get_random_existing_account_with_tag(AccessPatternTag::IsAdmin.into(), u)?
-                    .unwrap_or_else(|| panic!("No admin for the access pattern module!"));
-
                 Ok(GeneratedMessage {
                     message: AccessPatternMessages::SetHook { pre, post },
                     sender: sender_acct.private_key,
                     outcome: MessageOutcome::Successful { changes },
                 })
             }
+            AccessPatternDiscriminants::HashCustom => {
+                let num_bytes = u.int_in_range(0..=self.maximum_write_size)?;
+                let hash = (0..num_bytes)
+                    .map(|_| u8::arbitrary(u))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Ok(GeneratedMessage {
+                    message: AccessPatternMessages::HashCustom { input: hash },
+                    sender: sender_acct.private_key,
+                    outcome: MessageOutcome::Successful { changes: vec![] },
+                })
+            }
+            AccessPatternDiscriminants::HashBytes => {
+                let filler = u.int_in_range(0..=(u8::MAX - 1))?;
+                let size = u.int_in_range(0..=self.maximum_write_size)? as usize;
+
+                Ok(GeneratedMessage {
+                    message: AccessPatternMessages::HashBytes { filler, size },
+                    sender: sender_acct.private_key,
+                    outcome: MessageOutcome::Successful { changes: vec![] },
+                })
+            }
+            AccessPatternDiscriminants::DeserializeCustomString => {
+                let string_size = u.int_in_range(0..=self.maximum_write_size)? as usize;
+
+                let input = (0..string_size)
+                    .map(|_| char::arbitrary(u))
+                    .collect::<Result<String, _>>()?;
+
+                let serialized_string = borsh::to_vec(&MeteredBorshDeserializeString(input))
+                    .expect("Impossible to serialize string");
+
+                Ok(GeneratedMessage {
+                    message: AccessPatternMessages::DeserializeCustomString {
+                        input: serialized_string,
+                    },
+                    sender: sender_acct.private_key,
+                    outcome: MessageOutcome::Successful { changes: vec![] },
+                })
+            }
+            AccessPatternDiscriminants::StoreSerializedString => {
+                let string_size = u.int_in_range(0..=self.maximum_write_size)? as usize;
+
+                let input = (0..string_size)
+                    .map(|_| char::arbitrary(u))
+                    .collect::<Result<String, _>>()?;
+
+                let serialized_string = borsh::to_vec(&MeteredBorshDeserializeString(input))
+                    .expect("Impossible to serialize string");
+
+                Ok(GeneratedMessage {
+                    message: AccessPatternMessages::StoreSerializedString {
+                        input: serialized_string,
+                    },
+                    sender: sender_acct.private_key,
+                    outcome: MessageOutcome::Successful { changes: vec![] },
+                })
+            }
+            AccessPatternDiscriminants::DeserializeBytesAsString => Ok(GeneratedMessage {
+                message: AccessPatternMessages::DeserializeBytesAsString,
+                sender: sender_acct.private_key,
+                outcome: MessageOutcome::Successful { changes: vec![] },
+            }),
+            AccessPatternDiscriminants::VerifyCustomSignature => {
+                let string_size = u.int_in_range(0..=self.maximum_write_size)? as usize;
+
+                let message = (0..string_size)
+                    .map(|_| char::arbitrary(u))
+                    .collect::<Result<String, _>>()?;
+
+                let sign = sender_acct.private_key.sign(message.as_ref());
+
+                Ok(GeneratedMessage {
+                    message: AccessPatternMessages::VerifyCustomSignature {
+                        sign,
+                        pub_key: sender_acct.private_key.pub_key(),
+                        message,
+                    },
+                    sender: sender_acct.private_key,
+                    outcome: MessageOutcome::Successful { changes: vec![] },
+                })
+            }
+            AccessPatternDiscriminants::StoreSignature => {
+                let string_size = u.int_in_range(0..=self.maximum_write_size)? as usize;
+
+                let message = (0..string_size)
+                    .map(|_| char::arbitrary(u))
+                    .collect::<Result<String, _>>()?;
+
+                let sign = sender_acct.private_key.sign(message.as_ref());
+
+                Ok(GeneratedMessage {
+                    message: AccessPatternMessages::StoreSignature {
+                        sign,
+                        pub_key: sender_acct.private_key.pub_key(),
+                        message,
+                    },
+                    sender: sender_acct.private_key,
+                    outcome: MessageOutcome::Successful { changes: vec![] },
+                })
+            }
+            AccessPatternDiscriminants::VerifySignature => Ok(GeneratedMessage {
+                message: AccessPatternMessages::VerifySignature,
+                sender: sender_acct.private_key,
+                outcome: MessageOutcome::Successful { changes: vec![] },
+            }),
             AccessPatternDiscriminants::UpdateAdmin => {
                 let (new_admin, mut new_admin_account) = generator_state.generate_account(u)?;
-
-                // Remove the tag from the previous admin.
-                let (sender_addr, mut sender_acct) = generator_state
-                    .get_random_existing_account_with_tag(AccessPatternTag::IsAdmin.into(), u)?
-                    .unwrap_or_else(|| panic!("No admin for the access pattern module!"));
 
                 sender_acct.remove_tag(AccessPatternTag::IsAdmin);
                 new_admin_account.add_tag(AccessPatternTag::IsAdmin);
@@ -615,7 +723,6 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                     },
                 })
             }
-            _ => todo!("Will be implemented as part of a follow-up PR"),
         }
     }
 }
