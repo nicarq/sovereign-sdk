@@ -16,9 +16,11 @@
     },
     "seq_bond": {
       "description": "Initial sequencer bond",
-      "type": "integer",
-      "format": "uint128",
-      "minimum": 0.0
+      "allOf": [
+        {
+          "$ref": "#/definitions/Amount"
+        }
+      ]
     },
     "seq_da_address": {
       "description": "The Data Availability (DA) address of the sequencer.",
@@ -42,6 +44,12 @@
       "description": "Address",
       "type": "string",
       "pattern": "^sov1[a-zA-Z0-9]+$"
+    },
+    "Amount": {
+      "description": "A token amount.",
+      "type": "integer",
+      "format": "uint128",
+      "minimum": 0.0
     },
     "MockAddress": {
       "description": "Mock address; 32 bytes in hex-encoded format",

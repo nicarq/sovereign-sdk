@@ -146,7 +146,7 @@ fn create_test_rt_genesis_config<S: Spec>(
         sequencer_registry: SequencerConfig {
             seq_rollup_address: seq_rollup_address.clone(),
             seq_da_address,
-            seq_bond,
+            seq_bond: seq_bond.into(),
             is_preferred_sequencer: true,
         },
         attester_incentives: AttesterIncentivesConfig {

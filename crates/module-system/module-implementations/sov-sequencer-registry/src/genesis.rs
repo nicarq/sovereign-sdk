@@ -22,7 +22,7 @@ pub struct SequencerConfig<S: Spec> {
     /// The Data Availability (DA) address of the sequencer.
     pub seq_da_address: <S::Da as DaSpec>::Address,
     /// Initial sequencer bond
-    pub seq_bond: u128,
+    pub seq_bond: Amount,
     /// Determines whether this sequencer is *regular* or *preferred*.
     ///
     /// Batches from the preferred sequencer are always processed first in
@@ -42,13 +42,12 @@ impl<S: Spec> SequencerRegistry<S> {
             sequencer_da_address = %config.seq_da_address,
             sequencer_bond = %config.seq_bond,
             is_preferred_sequencer = config.is_preferred_sequencer,
-
             "Starting sequencer registry genesis..."
         );
 
         self.register_staker(
             &config.seq_da_address,
-            Amount::new(config.seq_bond),
+            config.seq_bond,
             config.seq_rollup_address.clone(),
             state,
         )?;
@@ -68,7 +67,7 @@ mod tests {
 
     use sov_mock_da::MockAddress;
     use sov_modules_api::prelude::*;
-    use sov_modules_api::AddressBech32;
+    use sov_modules_api::{AddressBech32, Amount};
     use sov_test_utils::TestSpec;
 
     use crate::SequencerConfig;
@@ -88,7 +87,7 @@ mod tests {
         let config = SequencerConfig::<TestSpec> {
             seq_rollup_address,
             seq_da_address,
-            seq_bond: 100,
+            seq_bond: Amount::new(100),
             is_preferred_sequencer: true,
         };
 
@@ -96,7 +95,7 @@ mod tests {
         {
             "seq_rollup_address":"sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66",
             "seq_da_address":"0000000000000000000000000000000000000000000000000000000000000000",
-            "seq_bond":100,
+            "seq_bond":"100",
             "is_preferred_sequencer":true
         }"#;
 

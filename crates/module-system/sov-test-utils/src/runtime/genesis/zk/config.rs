@@ -176,7 +176,7 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
             sequencer_registry: SequencerConfig {
                 seq_rollup_address: initial_sequencer.as_user().address().clone(),
                 seq_da_address: initial_sequencer.da_address.clone(),
-                seq_bond: initial_sequencer.bond,
+                seq_bond: Amount::new(initial_sequencer.bond),
                 is_preferred_sequencer: true,
             },
             prover_incentives: ProverIncentivesConfig {
