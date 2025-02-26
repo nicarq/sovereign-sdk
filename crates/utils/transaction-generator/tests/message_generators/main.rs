@@ -9,6 +9,9 @@ use sov_paymaster::{
     PayeePolicy, PayerGenesisConfig, Paymaster, PaymasterConfig, PaymasterPolicyInitializer,
     SafeVec,
 };
+use sov_test_modules::access_pattern::{
+    AccessPattern, AccessPatternDiscriminants, AccessPatternGenesisConfig,
+};
 use sov_test_utils::runtime::genesis::optimistic::{
     HighLevelOptimisticGenesisConfig, MinimalOptimisticGenesisConfig,
 };
@@ -17,17 +20,14 @@ use sov_test_utils::{
     generate_runtime, TestAttester, TestSequencer, TestSpec as S, TestUser, TransactionType,
     TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
-use sov_transaction_generator::generator_modules::{
-    AccessPattern, AccessPatternDiscriminants, AccessPatternGenesisConfig,
+use sov_transaction_generator::generators::access_pattern::{
+    AccessPatternHarness, AccessPatternMessageGenerator,
 };
 use sov_transaction_generator::generators::bank::harness_interface::BankHarness;
 use sov_transaction_generator::generators::bank::BankMessageGenerator;
 use sov_transaction_generator::generators::basic::{
     BasicAccessPatternHarness, BasicBankHarness, BasicCallMessageFactory, BasicChangeLogEntry,
     BasicModuleRef, BasicTag, BasicValueSetterHarness,
-};
-use sov_transaction_generator::generators::generator_modules::storage_access_patterns::{
-    AccessPatternHarness, AccessPatternMessageGenerator,
 };
 use sov_transaction_generator::generators::value_setter::{
     ValueSetterHarness, ValueSetterMessageGenerator,

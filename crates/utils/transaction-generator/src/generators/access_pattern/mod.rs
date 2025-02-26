@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
 use sov_modules_api::prelude::axum::async_trait;
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
+use sov_test_modules::access_pattern::*;
 use strum::VariantArray;
 
-use crate::generator_modules::storage_access_patterns::*;
 use crate::interface::{CallMessageGenerator, Distribution, GeneratedMessage, MessageValidity};
 use crate::{
     repeatedly, AccountState, ApplyToState, ChangelogEntry, MessageOutcome, Percent, TagAction,

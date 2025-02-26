@@ -8,7 +8,5 @@ pub mod state;
 
 pub mod generators;
 
-pub mod generator_modules;
-
 pub use interface::*;
 pub use state::*;

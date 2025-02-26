@@ -77,12 +77,10 @@ fn test_setting_and_getting_value() {
     ));
 
     runner.execute_transaction(TransactionTestCase {
-        input: admin.create_plain_message::<RT, AccessPattern<S>>(
-            AccessPatternMessages::ReadCells {
-                begin: BEGIN,
-                num_cells: SIZE,
-            },
-        ),
+        input: admin.create_plain_message::<RT, AccessPattern<S>>(AccessPatternMessages::ReadCells {
+            begin: BEGIN,
+            num_cells: SIZE,
+        }),
         assert: Box::new(|_result, state| {
             for i in BEGIN..SIZE {
                 assert_eq!(
@@ -102,12 +100,10 @@ fn test_hashing() {
     let (mut runner, admin, _) = setup();
 
     runner.execute_transaction(TransactionTestCase {
-        input: admin.create_plain_message::<RT, AccessPattern<S>>(
-            AccessPatternMessages::HashBytes {
-                filler: 10,
-                size: 15,
-            },
-        ),
+        input: admin.create_plain_message::<RT, AccessPattern<S>>(AccessPatternMessages::HashBytes {
+            filler: 10,
+            size: 15,
+        }),
         assert: Box::new(|_result, state| {
             assert_eq!(
                 AccessPattern::<S>::default()
@@ -362,12 +358,10 @@ fn test_set_hooks() {
     });
 
     runner.execute_transaction(TransactionTestCase {
-        input: admin.create_plain_message::<RT, AccessPattern<S>>(
-            AccessPatternMessages::ReadCells {
-                begin: 0,
-                num_cells: 20,
-            },
-        ),
+        input: admin.create_plain_message::<RT, AccessPattern<S>>(AccessPatternMessages::ReadCells {
+            begin: 0,
+            num_cells: 20,
+        }),
         assert: Box::new(|_result, state| {
             for i in 0..10 {
                 assert_eq!(

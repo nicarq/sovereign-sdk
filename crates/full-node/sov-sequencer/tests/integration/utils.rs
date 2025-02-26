@@ -1,3 +1,4 @@
+use proptest::bits::u64;
 use sov_chain_state::ChainState;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::MockDaService;
@@ -24,6 +25,7 @@ use sov_test_utils::{
     default_test_signed_transaction, EncodeCall, MessageGenerator, TestPrivateKey, TestSpec,
     TransactionType, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
+use sov_value_setter::ValueSetter;
 
 pub type MySequencer = StdSequencer<TestSpec, RT, MockDaService>;
 pub type RT = TestOptimisticRuntime<TestSpec>;
@@ -47,7 +49,7 @@ pub async fn new_sequencer() -> TestSequencerSetup<RT> {
         .unwrap()
 }
 
-pub fn build_tx(
+pub fn build_tx<RT: Runtime<TestSpec>>(
     setup: &TestSequencerSetup<RT>,
     nonce: u64,
     call_message: &<RT as DispatchCall>::Decodable,
@@ -106,7 +108,9 @@ pub fn generate_txs(admin_private_key: TestPrivateKey) -> Vec<GeneratedTx> {
 }
 
 /// Generates a paymaster tx signed with the provided key
-pub fn generate_paymaster_tx(key: TestPrivateKey) -> RawTx {
+pub fn generate_paymaster_tx<RT: Runtime<TestSpec> + EncodeCall<Paymaster<TestSpec>>>(
+    key: TestPrivateKey,
+) -> RawTx {
     let message = sov_test_utils::runtime::sov_paymaster::CallMessage::RegisterPaymaster {
         policy: PaymasterPolicyInitializer {
             default_payee_policy: PayeePolicy::Deny,
@@ -130,8 +134,12 @@ pub fn generate_paymaster_tx(key: TestPrivateKey) -> RawTx {
     )
 }
 
-pub fn valid_tx_bytes(setup: &TestSequencerSetup<RT>, nonce: u64, value_to_set: u32) -> RawTx {
-    let msg = <TestOptimisticRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
+pub fn valid_tx_bytes<RT: Runtime<TestSpec> + EncodeCall<ValueSetter<TestSpec>>>(
+    setup: &TestSequencerSetup<RT>,
+    nonce: u64,
+    value_to_set: u32,
+) -> RawTx {
+    let msg = <RT as EncodeCall<ValueSetter<TestSpec>>>::to_decodable(
         sov_value_setter::CallMessage::SetValue {
             value: value_to_set,
             gas: None,

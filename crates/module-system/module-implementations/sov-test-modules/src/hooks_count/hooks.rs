@@ -1,4 +1,4 @@
-//! Implements the `BlockHooks` trait for the `TestModule` module.
+//! Implements the `BlockHooks` trait for the `HooksCount` module.
 //!
 //! These hook simply count the number of times they are called. This is useful for testing and debugging.
 
@@ -8,9 +8,9 @@ use sov_modules_api::{AccessoryStateReaderAndWriter, FinalizeHook};
 use sov_modules_api::{BlockHooks, Spec, StateCheckpoint};
 use sov_state::Storage;
 
-use crate::TestModule;
+use super::HooksCount;
 
-impl<S: Spec> BlockHooks for TestModule<S> {
+impl<S: Spec> BlockHooks for HooksCount<S> {
     type Spec = S;
     /// Hook that runs at the beginning of the `apply_slot` function inside the `StateTransitionFunction`.
     fn begin_rollup_block_hook(
@@ -47,7 +47,7 @@ impl<S: Spec> BlockHooks for TestModule<S> {
 }
 
 #[cfg(feature = "native")]
-impl<S: Spec> FinalizeHook for TestModule<S> {
+impl<S: Spec> FinalizeHook for HooksCount<S> {
     type Spec = S;
     fn finalize_hook(
         &self,
