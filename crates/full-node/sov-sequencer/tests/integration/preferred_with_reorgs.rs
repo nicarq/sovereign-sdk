@@ -330,7 +330,11 @@ async fn test_stream_of_transactions(
 /// Self-check that test works, with long enough block time, not many transactions and without re-orgs
 #[tokio::test(flavor = "multi_thread")]
 async fn test_check_no_reorgs() -> anyhow::Result<()> {
-    test_stream_of_transactions(500, 5, 3, 10, 20, None).await
+    tokio::time::timeout(
+        TEST_TIMEOUT,
+        test_stream_of_transactions(500, 5, 3, 10, 20, None),
+    )
+    .await?
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -359,7 +363,7 @@ async fn test_small_reshuffle_no_drops() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "Unblock later when state manager is performant and stable"]
+#[ignore = "Node gets stuck on reorg: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2399"]
 async fn test_small_shuffle_rewind() -> anyhow::Result<()> {
     let finality = 20;
     let randomization_config = RandomizationConfig {

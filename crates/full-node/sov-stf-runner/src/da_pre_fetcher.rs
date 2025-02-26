@@ -20,7 +20,7 @@ pub struct FinalizedBlocksBulkFetcher<Da: DaService> {
     da_service: Arc<Da>,
     blocks: Receiver<Da::FilteredBlock>,
     start_height: u64,
-    last_finalized_height: u64,
+    pub(crate) last_finalized_height: u64,
 }
 
 impl<Da> FinalizedBlocksBulkFetcher<Da>

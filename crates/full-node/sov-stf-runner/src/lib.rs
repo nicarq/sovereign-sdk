@@ -5,6 +5,7 @@ mod config;
 mod da_pre_fetcher;
 pub mod processes;
 
+pub(crate) mod da_utils;
 mod runner;
 mod state_manager;
 

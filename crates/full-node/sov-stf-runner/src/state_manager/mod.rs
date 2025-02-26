@@ -4,6 +4,7 @@
 mod tests;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::Arc;
 
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -12,6 +13,7 @@ use sov_db::schema::{DeltaReader, SchemaBatch};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::da::{DaService, SlotData};
+use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::stf::TxReceiptContents;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
@@ -92,6 +94,8 @@ where
     st_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
     max_provable_slot_number_tracker: Box<dyn ProvableHeightTracker>,
     is_initialized: bool,
+    da_sync_state: Arc<DaSyncState>,
+    da_polling_interval: std::time::Duration,
 }
 
 impl<StateRoot, Witness, Sm, Da> StateManager<StateRoot, Witness, Sm, Da>
@@ -113,6 +117,8 @@ where
         state_update_channel: watch::Sender<StateUpdateInfo<Sm::StfState>>,
         st_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
         state_height_tracker: Box<dyn ProvableHeightTracker>,
+        da_sync_state: Arc<DaSyncState>,
+        da_polling_interval: std::time::Duration,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             storage_manager,
@@ -124,6 +130,8 @@ where
             st_info_sender,
             max_provable_slot_number_tracker: state_height_tracker,
             is_initialized: false,
+            da_sync_state,
+            da_polling_interval,
         })
     }
 
@@ -361,7 +369,6 @@ where
             .save_change_set(&block_header, stf_changes, ledger_change_set)?;
 
         self.update_api_and_ledger_storage(&block_header).await?;
-        tracing::trace!("API and Ledger storage updated");
 
         for finalized_transition in &finalized_transitions {
             self.storage_manager
@@ -693,38 +700,47 @@ where
                 "Seen everything in current chain, will wait for next block"
             );
 
-            let candidate = final_candidate.expect("Should be set");
-
+            // This candidate obviously is not fit, otherwise it would've been selected in the main loop
+            let mut candidate = final_candidate.expect("Should be set");
             debug_assert_eq!(
                 candidate.header().height(),
-                highest_seen_height,
-                "Wrong current candidate"
+                high,
+                "Wrong candidate for the future block",
             );
 
+            // So we are start going into the future, until we see some block.
+            // We will panic if we reach end of the seen heights without finding our candidate.
+            // If chain reorgs, we will start over
             loop {
-                let this_head = da_service.get_head_block_header().await?;
-                tracing::trace!(
-                    this_head = %this_head.display(),
-                    "Received a new head for candidate");
+                let next_candidate_height = candidate
+                    .header()
+                    .height()
+                    .checked_add(1)
+                    .expect("end of chain");
+                let (this_candidate, this_head) = tokio::try_join!(
+                    // Need fetch re-org aware if the chain rewinds here.
+                    crate::da_utils::fetch_block_reorg_aware(
+                        da_service,
+                        self.da_sync_state.as_ref(),
+                        next_candidate_height,
+                        self.da_polling_interval,
+                    ),
+                    da_service.get_head_block_header(),
+                )?;
                 if is_head_changed::<Da::Spec>(&head, &this_head) {
                     return Ok(ForkPointSearchResult::HeadChanged(this_head));
                 }
-                if let Some(pre_state_root) = self.get_pre_state_root_if_fit_candidate(&this_head) {
-                    let candidate = da_service.get_block_at(this_head.height()).await?;
-                    if candidate.header().hash() != this_head.hash() {
-                        tracing::trace!("Head switched during candidate block fetching");
-                        // Meaning candidate is new head, unless a chain progressed even more forward.
-                        // But we will know that in the next iteration.
-                        let new_head = da_service.get_head_block_header().await?;
-                        return Ok(ForkPointSearchResult::HeadChanged(new_head));
-                    }
-                    tracing::trace!(candidate = %candidate.header().display(), "Found a matching candidate after next height in current chain");
+                candidate = this_candidate;
+                if let Some(pre_state_root) =
+                    self.get_pre_state_root_if_fit_candidate(candidate.header())
+                {
                     return Ok(ForkPointSearchResult::Found(ForkPoint {
                         block: candidate,
                         pre_state_root,
                     }));
                 }
                 assert!(self.state_on_block.contains_key(&this_head.hash()), "bug in internal struct. Newly received head hasn't been seen and didn't fit for candidate");
+                assert!(self.state_on_block.contains_key(&candidate.header().hash()), "bug in internal struct. Newly received candidate hasn't been seen and didn't fit for candidate");
                 head = this_head;
             }
         }
@@ -888,7 +904,7 @@ where
         let (api_storage, ledger_state) = self.storage_manager.create_state_after(block_header)?;
 
         self.update_channels(api_storage, ledger_state).await?;
-        tracing::trace!(time = ?start.elapsed(), "API and Ledger storages are update");
+        tracing::trace!(time = ?start.elapsed(), "Ledger and API storages are updated");
         Ok(())
     }
 
