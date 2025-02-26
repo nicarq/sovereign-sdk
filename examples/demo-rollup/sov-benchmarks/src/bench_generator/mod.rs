@@ -1,5 +1,6 @@
 //! Utilities for benchmark transaction generation
 
+pub mod benches;
 pub mod cli;
 
 use core::ops;
@@ -12,12 +13,15 @@ use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::prelude::arbitrary::Unstructured;
 use sov_modules_api::Spec;
+use sov_risc0_adapter::Risc0;
 use sov_transaction_generator::generators::basic::{
     BasicCallMessageFactory, BasicChangeLogEntry, BasicModuleRef, BasicTag,
 };
 use sov_transaction_generator::{
     rng_utils, Distribution, GeneratedMessage, MessageValidity, State,
 };
+
+use crate::BenchSpec;
 
 type BenchmarkModule<S> = BasicModuleRef<S, Runtime<S>>;
 type BenchmarkMessageFactory<S> = BasicCallMessageFactory<S, Runtime<S>>;
@@ -30,6 +34,8 @@ pub const DEFAULT_RANDOMIZATION_BUFFER_SIZE: u64 = 10_000_000;
 pub const MAX_GEN_ATTEMPS: u64 = 10;
 
 pub type GeneratedBatch<S> = Vec<GeneratedMessage<S, RuntimeCall<S>, BasicChangeLogEntry<S>>>;
+pub type S = BenchSpec<Risc0>;
+pub type RT = Runtime<S>;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Deserialize, Serialize)]
@@ -212,6 +218,7 @@ mod tests {
     use sov_address::MultiAddress;
     use sov_modules_api::prelude::strum::IntoEnumIterator;
     use sov_modules_api::Address;
+    use sov_test_utils::runtime::access_pattern::AccessPatternGenesisConfig;
     use sov_test_utils::runtime::genesis::zk::config::{
         HighLevelZkGenesisConfig, MinimalZkGenesisConfig,
     };
@@ -258,6 +265,9 @@ mod tests {
                 ValueSetterConfig {
                     admin: MultiAddress::Standard(Address::from_const_slice([0; 28])),
                 },
+                AccessPatternGenesisConfig {
+                    admin: MultiAddress::Standard(Address::from_const_slice([0; 28])),
+                }
             ),
         };
 

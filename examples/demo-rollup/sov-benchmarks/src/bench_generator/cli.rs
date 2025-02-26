@@ -7,6 +7,7 @@ use sov_modules_api::{CryptoSpec, Spec};
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::zk::ZkvmHost;
+use sov_test_utils::runtime::access_pattern::AccessPatternGenesisConfig;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::sov_paymaster::{
     self, PayeePolicy, PayerGenesisConfig, PaymasterConfig, PaymasterPolicyInitializer, SafeVec,
@@ -34,7 +35,11 @@ pub const SMALL_BENCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
     min_batches_per_slot: 1,
     max_batches_per_slot: 1,
     randomization_buffer_size: DEFAULT_RANDOMIZATION_BUFFER_SIZE / 10,
-    max_value_setter_vec_len: 10,
+    max_value_setter_vec_len: 1_000,
+    pattern_maximum_write_data_length: 100,
+    pattern_maximum_write_begin_index: 1_000,
+    pattern_maximum_write_size: 100,
+    pattern_maximum_hooks_ops: 10,
 };
 
 /// Benchmark parameters to define a standard benchmark
@@ -45,6 +50,10 @@ pub const STANDARD_BENCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
     max_batches_per_slot: 15,
     randomization_buffer_size: DEFAULT_RANDOMIZATION_BUFFER_SIZE,
     max_value_setter_vec_len: 10_000,
+    pattern_maximum_write_data_length: 100,
+    pattern_maximum_write_begin_index: 1_000,
+    pattern_maximum_write_size: 100,
+    pattern_maximum_hooks_ops: 10,
 };
 
 /// Benchmark parameters to define a large benchmark
@@ -55,6 +64,10 @@ pub const LARGE_BENCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
     max_batches_per_slot: 20,
     randomization_buffer_size: 10 * DEFAULT_RANDOMIZATION_BUFFER_SIZE,
     max_value_setter_vec_len: 100_000,
+    pattern_maximum_write_data_length: 100,
+    pattern_maximum_write_begin_index: 1_000,
+    pattern_maximum_write_size: 100,
+    pattern_maximum_hooks_ops: 10,
 };
 
 /// This program automatically generates benchmarks using the
@@ -135,6 +148,18 @@ pub struct BenchCLICustomArgs {
 
     /// The maximum value setter vector length.
     pub max_value_setter_vec_len: usize,
+
+    /// The maximum length of the data writen to the storage.
+    pub pattern_maximum_write_data_length: usize,
+
+    /// The maximum begin index of the writes to the storage.
+    pub pattern_maximum_write_begin_index: u64,
+
+    /// The maximum size of the writes to the storage.
+    pub pattern_maximum_write_size: u64,
+
+    /// Max number of hooks ops per storage pattern
+    pub pattern_maximum_hooks_ops: u64,
 }
 
 impl BenchCLICustomArgs {
@@ -198,6 +223,9 @@ impl BenchCLICustomArgs {
                 .unwrap(),
             },
             ValueSetterConfig {
+                admin: admin.address(),
+            },
+            AccessPatternGenesisConfig {
                 admin: admin.address(),
             },
         );

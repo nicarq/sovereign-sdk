@@ -78,6 +78,8 @@ where
     #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
     pub evm: sov_evm::Evm<S>,
+    /// A module used in benchmarks to generate a wide range of transaction access patterns.
+    pub access_pattern: sov_test_modules::access_pattern::AccessPattern<S>,
 }
 
 impl<S> sov_modules_stf_blueprint::Runtime<S> for Runtime<S>

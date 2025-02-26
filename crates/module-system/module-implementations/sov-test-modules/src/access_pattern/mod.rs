@@ -7,13 +7,19 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{
     AccessoryStateMap, AccessoryStateValue, AuthenticatedTransactionData, Context, CryptoSpec,
     DaSpec, Error, GasSpec, GenesisState, MeteredBorshDeserialize, MeteredBorshDeserializeError,
-    MeteredHasher, MeteredSignature, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateMap,
-    StateValue, StateVec, TxHooks, TxState,
+    MeteredHasher, MeteredSignature, Module, ModuleId, ModuleInfo, ModuleRestApi, SafeVec,
+    SizedSafeString, Spec, StateMap, StateValue, StateVec, TxHooks, TxState,
 };
 use strum::{EnumDiscriminants, EnumIs, VariantArray};
+
+/// Max length of a vector for a bench pattern call message
+pub const MAX_VEC_LEN_BENCH: usize = 100_000;
+/// Max length of a string for a bench pattern call message
+pub const MAX_STR_LEN_BENCH: usize = 1_024;
 
 /// A newtype struct that deserializes into a string and charges gas.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
@@ -65,6 +71,7 @@ impl<S: Spec> MeteredBorshDeserialize<S> for MeteredBorshDeserializeString {
     EnumDiscriminants,
     EnumIs,
     Derivative,
+    UniversalWallet,
 )]
 #[serde(rename_all = "snake_case")]
 #[derivative(
@@ -92,7 +99,7 @@ pub enum AccessPatternMessages<S: Spec> {
         /// The first index to write to
         begin: u64,
         /// The content to write to the storage. Write a string to every cell from `begin`
-        content: Vec<String>,
+        content: SafeVec<SizedSafeString<MAX_STR_LEN_BENCH>, MAX_VEC_LEN_BENCH>,
     },
     /// Reads every element of the module state between `begin` and `begin + size`
     ReadCells {
@@ -111,7 +118,7 @@ pub enum AccessPatternMessages<S: Spec> {
     /// Hashes the custom input buffer.
     HashCustom {
         /// The input to hash
-        input: Vec<u8>,
+        input: SafeVec<u8, MAX_VEC_LEN_BENCH>,
     },
 
     /// Stores a signature to verify.
@@ -121,7 +128,7 @@ pub enum AccessPatternMessages<S: Spec> {
         /// The associated public key
         pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
         /// The associated message
-        message: String,
+        message: SizedSafeString<MAX_STR_LEN_BENCH>,
     },
     /// Verifies the signature stored.
     VerifySignature,
@@ -132,20 +139,20 @@ pub enum AccessPatternMessages<S: Spec> {
         /// The associated public key
         pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
         /// The associated message
-        message: String,
+        message: SizedSafeString<MAX_STR_LEN_BENCH>,
     },
 
     /// Stores a string serialized as bytes.
     StoreSerializedString {
         /// The serialized string to store
-        input: Vec<u8>,
+        input: SafeVec<u8, MAX_VEC_LEN_BENCH>,
     },
     /// Deserializes the stored bytes into a string
     DeserializeBytesAsString,
     /// Deserializes a custom input buffer into a string without storing it to state.
     DeserializeCustomString {
         /// The serialized string to deserialize
-        input: Vec<u8>,
+        input: SafeVec<u8, MAX_VEC_LEN_BENCH>,
     },
 
     /// Deletes every element of the module state between `begin` and `begin + size`
@@ -158,11 +165,9 @@ pub enum AccessPatternMessages<S: Spec> {
     /// Activates the pre/end-exec-hook. Adds a variable number of reads/writes for each tx.
     SetHook {
         /// The configuration of the pre-exec hooks. Set to None to disable
-        #[schemars(skip)]
         pre: Option<Vec<HooksConfig>>,
 
         /// The configuration of the post-exec hooks. Set to None to disable
-        #[schemars(skip)]
         post: Option<Vec<HooksConfig>>,
     },
     /// Updates the admin for the module.
@@ -184,6 +189,8 @@ pub enum AccessPatternMessages<S: Spec> {
     PartialEq,
     Eq,
     EnumDiscriminants,
+    UniversalWallet,
+    JsonSchema,
 )]
 #[strum_discriminants(derive(VariantArray))]
 pub enum HooksConfig {
@@ -342,8 +349,11 @@ impl<S: Spec> AccessPattern<S> {
             }
             AccessPatternMessages::WriteCustom { begin, content } => {
                 for i in begin..(begin.saturating_add(content.len() as u64)) {
-                    self.values
-                        .set(&i, &content[i.saturating_sub(begin) as usize], state)?;
+                    self.values.set(
+                        &i,
+                        &content[i.saturating_sub(begin) as usize].to_string(),
+                        state,
+                    )?;
                 }
             }
             AccessPatternMessages::ReadCells {
@@ -440,7 +450,7 @@ impl<S: Spec> AccessPattern<S> {
                 message,
             } => {
                 self.signature_stored
-                    .set(&(sign, pub_key, message), state)?;
+                    .set(&(sign, pub_key, message.to_string()), state)?;
             }
             AccessPatternMessages::VerifySignature => {
                 let Some((sign, pub_key, message)) = self.signature_stored.get(state)? else {
@@ -464,7 +474,8 @@ impl<S: Spec> AccessPattern<S> {
                     .verify(&pub_key, message.as_ref(), state)
                     .with_context(|| "access-pattern: Error when verifying signature")?;
 
-                self.last_verified_message.set(&message, state)?;
+                self.last_verified_message
+                    .set(&message.to_string(), state)?;
             }
         }
 

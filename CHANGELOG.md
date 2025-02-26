@@ -1,3 +1,6 @@
+## 2025-02-26
+- #2423 integrates the `AccessPattern` module into the demo-stf `Runtime`.
+
 ## 2025-02-25
 - #2509 **BREAKING CHANGE** `max_fee` field in transaction details changed from `u128` to `Amount`, meaning number is encoded as string in JSON.
 - #2513 **BREAKING CHANGE** `sequencer_bond` field in genesis of `sov-sequencer-registry` changed from `u128` to `Amount, meaning number is encoded as string in JSON.

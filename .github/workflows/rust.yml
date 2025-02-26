@@ -545,7 +545,6 @@ jobs:
         # Exit status 0 means no changes were made.
       - run: git diff --exit-code
 
-
   check-web3-js-sdk-integration:
     runs-on:
       - nscloud-ubuntu-22.04-amd64-8x32-with-cache
@@ -582,9 +581,9 @@ jobs:
       - name: Checkout web3-js SDK
         uses: actions/checkout@v4
         with:
-          repository: 'Sovereign-Labs/sovereign-sdk-web3-js'
-          path: 'examples/demo-rollup/web3-js-sdk'
-          ref: '7eb39d8794355cdb3bcf333c976db98fda86575b'
+          repository: "Sovereign-Labs/sovereign-sdk-web3-js"
+          path: "examples/demo-rollup/web3-js-sdk"
+          ref: "c3a29706f5a53c261aff6a12b553134912136669"
           ssh-key: |
             ${{ secrets.SOV_SDK_WEB3_JS_ACCESS_TOKEN }}
       - name: Run web3-js SDK tests against demo-rollup
