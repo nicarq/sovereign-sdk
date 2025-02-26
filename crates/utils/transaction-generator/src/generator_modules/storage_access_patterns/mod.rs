@@ -2,17 +2,58 @@
 #![doc = include_str!("../README.md")]
 use std::marker::PhantomData;
 
+use anyhow::Context as _;
 use borsh::{BorshDeserialize, BorshSerialize};
+use derivative::Derivative;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{
-    AuthenticatedTransactionData, Context, DaSpec, Error, GenesisState, Module, ModuleId,
-    ModuleInfo, ModuleRestApi, Spec, StateMap, StateValue, StateVec, TxHooks, TxState,
+    AccessoryStateMap, AccessoryStateValue, AuthenticatedTransactionData, Context, CryptoSpec,
+    DaSpec, Error, GasSpec, GenesisState, MeteredBorshDeserialize, MeteredBorshDeserializeError,
+    MeteredHasher, MeteredSignature, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateMap,
+    StateValue, StateVec, TxHooks, TxState,
 };
 use strum::{EnumDiscriminants, EnumIs, VariantArray};
 
 #[cfg(test)]
 mod tests;
+
+/// A newtype struct that deserializes into a string and charges gas.
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+pub struct MeteredBorshDeserializeString(pub String);
+
+impl<S: Spec> MeteredBorshDeserialize<S> for MeteredBorshDeserializeString {
+    fn bias_borsh_deserialization() -> <S as Spec>::Gas {
+        <S as GasSpec>::string_bias_borsh_deserialization()
+    }
+
+    fn gas_to_charge_per_byte_borsh_deserialization() -> <S as Spec>::Gas {
+        <S as GasSpec>::string_gas_to_charge_per_byte_borsh_deserialization()
+    }
+
+    fn deserialize(
+        buf: &mut &[u8],
+        meter: &mut impl sov_modules_api::GasMeter<Spec = S>,
+    ) -> Result<
+        Self,
+        sov_modules_api::MeteredBorshDeserializeError<<S as sov_modules_api::GasSpec>::Gas>,
+    > {
+        Self::charge_gas_to_deserialize(buf, meter)?;
+
+        <MeteredBorshDeserializeString as BorshDeserialize>::deserialize(buf)
+            .map_err(MeteredBorshDeserializeError::IOError)
+    }
+
+    fn unmetered_deserialize(
+        buf: &mut &[u8],
+    ) -> Result<
+        Self,
+        sov_modules_api::MeteredBorshDeserializeError<<S as sov_modules_api::GasSpec>::Gas>,
+    > {
+        <MeteredBorshDeserializeString as BorshDeserialize>::deserialize(buf)
+            .map_err(MeteredBorshDeserializeError::IOError)
+    }
+}
 
 /// Call message to specify storage access patterns.
 #[derive(
@@ -21,14 +62,21 @@ mod tests;
     serde::Serialize,
     serde::Deserialize,
     Debug,
-    PartialEq,
-    Eq,
     Clone,
     JsonSchema,
     EnumDiscriminants,
     EnumIs,
+    Derivative,
 )]
 #[serde(rename_all = "snake_case")]
+#[derivative(
+    PartialEq(
+        bound = "<S::CryptoSpec as CryptoSpec>::Signature: PartialEq, <S::CryptoSpec as CryptoSpec>::PublicKey: PartialEq"
+    ),
+    Eq(
+        bound = "<S::CryptoSpec as CryptoSpec>::Signature: Eq, <S::CryptoSpec as CryptoSpec>::PublicKey: Eq"
+    )
+)]
 #[strum_discriminants(name(AccessPatternDiscriminants), derive(VariantArray, EnumIs))]
 pub enum AccessPatternMessages<S: Spec> {
     /// Writes `size` bytes to the module state for every position between `begin` and `begin + size`
@@ -55,6 +103,52 @@ pub enum AccessPatternMessages<S: Spec> {
         /// The number of storage cells to read from
         num_cells: u64,
     },
+    /// Hashes the custom input buffer.
+    HashCustom {
+        /// The input buffer
+        input: Vec<u8>,
+    },
+    /// Hashes the string of bytes made by the repeted filler.
+    HashBytes {
+        /// The filler bytes to be repeated over
+        filler: u8,
+        /// The size of the buffer
+        size: usize,
+    },
+    /// Stores a signature to verify.
+    StoreSignature {
+        /// The signature to store
+        sign: <S::CryptoSpec as CryptoSpec>::Signature,
+        /// The associated public key
+        pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
+        /// The associated message
+        message: String,
+    },
+    /// Verifies the signature stored.
+    VerifySignature,
+    /// Verifies a custom signature, without storing it to state.
+    VerifyCustomSignature {
+        /// The signature to store
+        sign: <S::CryptoSpec as CryptoSpec>::Signature,
+        /// The associated public key
+        pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
+        /// The associated message
+        message: String,
+    },
+
+    /// Stores a string serialized as bytes.
+    StoreSerializedString {
+        /// The serialized string to store
+        input: Vec<u8>,
+    },
+    /// Deserializes the stored bytes into a string
+    DeserializeBytesAsString,
+    /// Deserializes a custom input buffer into a string without storing it to state.
+    DeserializeCustomString {
+        /// The serialized string to deserialize
+        input: Vec<u8>,
+    },
+
     /// Deletes every element of the module state between `begin` and `begin + size`
     DeleteCells {
         /// The first index to delete from
@@ -141,6 +235,35 @@ pub struct AccessPattern<S: Spec> {
     /// Configuration of the post tx hooks
     #[state]
     pub post_hooks: StateVec<HooksConfig>,
+
+    /// Last values read.
+    #[state]
+    pub read_values: AccessoryStateMap<u64, String>,
+
+    /// Last value hashed.
+    #[state]
+    pub hashed_value: AccessoryStateValue<[u8; 32]>,
+
+    /// Serialized bytes
+    #[state]
+    pub serialized_bytes: StateVec<u8>,
+
+    /// Last value deserialized.
+    #[state]
+    pub deserialized_bytes: AccessoryStateValue<String>,
+
+    /// A signature stored along the associated public key and message.
+    #[state]
+    #[allow(clippy::type_complexity)]
+    pub signature_stored: StateValue<(
+        <S::CryptoSpec as CryptoSpec>::Signature,
+        <S::CryptoSpec as CryptoSpec>::PublicKey,
+        String,
+    )>,
+
+    /// The last verified message signed.
+    #[state]
+    pub last_verified_message: AccessoryStateValue<String>,
 
     /// Admin of the module. Can set values, hooks.
     #[state]
@@ -229,7 +352,11 @@ impl<S: Spec> AccessPattern<S> {
                 num_cells: size,
             } => {
                 for i in begin..(begin.saturating_add(size)) {
-                    self.values.get(&i, state)?;
+                    let value = self.values.get(&i, state)?;
+
+                    if let Some(value) = value {
+                        self.read_values.set(&i, &value, state)?;
+                    }
                 }
             }
             AccessPatternMessages::DeleteCells {
@@ -259,6 +386,86 @@ impl<S: Spec> AccessPattern<S> {
             AccessPatternMessages::UpdateAdmin { new_admin } => {
                 // Update the admin
                 self.admin.set(&new_admin, state)?;
+            }
+            AccessPatternMessages::HashBytes { filler, size } => {
+                let buf = vec![filler; size];
+                let hash =
+                    MeteredHasher::<_, <S::CryptoSpec as CryptoSpec>::Hasher>::digest(&buf, state)?;
+                self.hashed_value.set(&hash, state)?;
+            }
+            AccessPatternMessages::HashCustom { input } => {
+                let hash = MeteredHasher::<_, <S::CryptoSpec as CryptoSpec>::Hasher>::digest(
+                    &input, state,
+                )?;
+                self.hashed_value.set(&hash, state)?;
+            }
+            AccessPatternMessages::DeserializeBytesAsString => {
+                // We just exist if we don't have bytes to deserialize
+                if self.serialized_bytes.len(state)? == 0 {
+                    tracing::warn!(module = "access-pattern", "no bytes to deserialize");
+                    return Ok(());
+                }
+
+                let serialized_bytes = self
+                    .serialized_bytes
+                    .iter(state)?
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                let deserialized_string: MeteredBorshDeserializeString =
+                    MeteredBorshDeserialize::deserialize(&mut serialized_bytes.as_ref(), state)
+                        .with_context(|| {
+                            "access-pattern: Impossible to deserialize the input bytes to string"
+                        })?;
+
+                self.deserialized_bytes.set(&deserialized_string.0, state)?;
+            }
+            AccessPatternMessages::DeserializeCustomString { input } => {
+                let deserialized_string: MeteredBorshDeserializeString =
+                    MeteredBorshDeserialize::deserialize(&mut input.as_ref(), state).with_context(
+                        || "access-pattern: Impossible to deserialize the input bytes to string",
+                    )?;
+
+                self.deserialized_bytes.set(&deserialized_string.0, state)?;
+            }
+            AccessPatternMessages::StoreSerializedString { input } => {
+                self.serialized_bytes.clear(state)?;
+
+                input
+                    .iter()
+                    .map(|byte| self.serialized_bytes.push(byte, state))
+                    .collect::<Result<Vec<_>, _>>()?;
+            }
+            AccessPatternMessages::StoreSignature {
+                sign,
+                pub_key,
+                message,
+            } => {
+                self.signature_stored
+                    .set(&(sign, pub_key, message), state)?;
+            }
+            AccessPatternMessages::VerifySignature => {
+                let Some((sign, pub_key, message)) = self.signature_stored.get(state)? else {
+                    // We just return if we have no signature stored.
+                    tracing::warn!(module = "access-pattern", "no bytes to verify");
+                    return Ok(());
+                };
+
+                MeteredSignature::new::<S>(sign)
+                    .verify(&pub_key, message.as_ref(), state)
+                    .with_context(|| "access-pattern: Error when verifying signature")?;
+
+                self.last_verified_message.set(&message, state)?;
+            }
+            AccessPatternMessages::VerifyCustomSignature {
+                sign,
+                pub_key,
+                message,
+            } => {
+                MeteredSignature::new::<S>(sign)
+                    .verify(&pub_key, message.as_ref(), state)
+                    .with_context(|| "access-pattern: Error when verifying signature")?;
+
+                self.last_verified_message.set(&message, state)?;
             }
         }
 

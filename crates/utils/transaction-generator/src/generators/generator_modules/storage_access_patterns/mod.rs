@@ -393,6 +393,7 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                     outcome: MessageOutcome::Reverted,
                 })
             }
+            _ => todo!("Will be implemented as part of a follow-up PR"),
         }
     }
 
@@ -614,6 +615,7 @@ impl<S: Spec> AccessPatternMessageGenerator<S> {
                     },
                 })
             }
+            _ => todo!("Will be implemented as part of a follow-up PR"),
         }
     }
 }
