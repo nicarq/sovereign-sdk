@@ -1,5 +1,5 @@
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -52,7 +52,7 @@ where
     Stf: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
 {
     first_unprocessed_height_at_startup: u64,
-    da_polling_interval_ms: u64,
+    da_polling_interval: std::time::Duration,
     da_service: Arc<Da>,
     da_height_at_genesis: u64,
     stf: Stf,
@@ -195,6 +195,15 @@ where
             (None, None)
         };
 
+        let sync_state = Arc::new(DaSyncState {
+            synced_da_height: AtomicU64::new(da_height_processed),
+            target_da_height: AtomicU64::new(u64::MAX),
+            sync_status_sender,
+        });
+
+        let da_polling_interval =
+            std::time::Duration::from_millis(runner_config.da_polling_interval_ms);
+
         let state_manager = StateManager::new(
             storage_manager,
             ledger_db,
@@ -202,6 +211,8 @@ where
             state_update_channel,
             st_info_sender,
             state_height_tracker,
+            sync_state.clone(),
+            da_polling_interval,
         )?;
 
         let (sync_fetcher, fetcher_background_handle) = FinalizedBlocksBulkFetcher::new(
@@ -223,18 +234,14 @@ where
 
         Ok(Self {
             first_unprocessed_height_at_startup,
-            da_polling_interval_ms: runner_config.da_polling_interval_ms,
+            da_polling_interval,
             da_service: da_service.clone(),
             da_height_at_genesis: runner_config.genesis_height,
             stf,
             state_manager,
             listen_address_rpc,
             listen_address_axum,
-            sync_state: Arc::new(DaSyncState {
-                synced_da_height: AtomicU64::new(da_height_processed),
-                target_da_height: AtomicU64::new(u64::MAX),
-                sync_status_sender,
-            }),
+            sync_state,
             st_info_receiver,
             sync_fetcher,
             shutdown_receiver,
@@ -397,10 +404,8 @@ where
         let target_da_height = self.da_service.get_head_block_header().await?.height();
         self.sync_state.update_target(target_da_height)?;
 
-        let status_updater_handle = self.spawn_sync_status_updater(
-            Duration::from_millis(self.da_polling_interval_ms),
-            self.shutdown_receiver.clone(),
-        );
+        let status_updater_handle = self
+            .spawn_sync_status_updater(self.da_polling_interval, self.shutdown_receiver.clone());
 
         loop {
             let shutdown_receiver = self.shutdown_receiver.clone();
@@ -443,13 +448,30 @@ where
         let mut transaction_count = 0;
         let mut batch_count = 0;
         let get_block_start = std::time::Instant::now();
-        let filtered_block = self.fetch_block_reorg_aware(next_da_height).await?;
+        let filtered_block = if next_da_height <= self.sync_fetcher.last_finalized_height {
+            // no reorg will happen for this height, it is safe to just pull it from the fetcher,
+            // which could have this block fetcher already
+            self.sync_fetcher.get_block_at(next_da_height).await?
+        } else {
+            // Requests height might re-org
+            crate::da_utils::fetch_block_reorg_aware(
+                self.da_service.as_ref(),
+                self.sync_state.as_ref(),
+                next_da_height,
+                self.da_polling_interval,
+            )
+            .await?
+        };
         let get_block_time = get_block_start.elapsed();
 
         let (stf_pre_state, filtered_block) = self
             .state_manager
             .prepare_storage(filtered_block, &self.da_service)
-            .await?;
+            .await
+            .map_err(|e| {
+                tracing::warn!(?e, "Error during prepare_storage");
+                e
+            })?;
 
         let filtered_block_header = filtered_block.header().clone();
         if next_da_height != filtered_block_header.height() {
@@ -601,41 +623,6 @@ where
         });
 
         Ok(next_da_height + 1)
-    }
-
-    // Fetches block, but short-circuit [`DaService::get_block_at`] future
-    // if head height goes way below the requested height.
-    async fn fetch_block_reorg_aware(&mut self, height: u64) -> anyhow::Result<Da::FilteredBlock> {
-        tracing::trace!(height, "Fetch polling for a block");
-        let mut requested_height = height;
-        let mut interval =
-            tokio::time::interval(Duration::from_millis(self.da_polling_interval_ms));
-
-        loop {
-            tokio::select! {
-                result = self.sync_fetcher.get_block_at(requested_height) => {
-                    tracing::trace!(requested_height, original_height = height, is_err = result.is_err(), "returning result from `get_block_at`");
-                    return result;
-                }
-                _ = interval.tick() => {
-                    let target_height = self
-                        .sync_state
-                        .target_da_height.load(Ordering::Relaxed);
-
-                    // Allow requesting height next after head, this is a normal operation.
-                    let highest_allowed_to_request = target_height.saturating_add(1);
-
-                    if highest_allowed_to_request < requested_height {
-                        tracing::info!(
-                            new_head_height = target_height,
-                            requested_height,
-                            "Head height decreased below currently requesting, re-requesting at new head"
-                        );
-                        requested_height = target_height;
-                    }
-                }
-            }
-        }
     }
 
     /// Allows reading current state root

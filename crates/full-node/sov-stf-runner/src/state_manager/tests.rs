@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::num::NonZero;
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use futures::StreamExt;
@@ -17,6 +19,7 @@ use sov_modules_api::provable_height_tracker::InfiniteHeight;
 use sov_rollup_interface::common::{HexHash, SlotNumber};
 use sov_rollup_interface::da::{DaSpec, RelevantBlobIters};
 use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
+use sov_rollup_interface::node::SyncStatus;
 use sov_rollup_interface::stf::{
     ApplySlotOutput, BatchReceipt, ExecutionContext, StateTransitionFunction,
 };
@@ -1070,6 +1073,14 @@ where
     // Update channel, receiver does not need to be alive
     let (state_update_sender, _state_update_recv) = watch::channel(update_info);
 
+    let (sync_status_sender, _rec) = tokio::sync::watch::channel(SyncStatus::START);
+
+    let sync_state = Arc::new(DaSyncState {
+        synced_da_height: AtomicU64::new(0),
+        target_da_height: AtomicU64::new(u64::MAX),
+        sync_status_sender,
+    });
+
     let mut state_manager = StateManager::new(
         storage_manager,
         ledger_db,
@@ -1077,6 +1088,8 @@ where
         state_update_sender,
         None,
         Box::new(InfiniteHeight),
+        sync_state,
+        std::time::Duration::from_millis(10),
     )?;
     state_manager.startup().await?;
 

@@ -11,7 +11,8 @@ use sov_db::schema::DeltaReader;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_metrics::MonitoringConfig;
 use sov_mock_da::{
-    MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee, MockHash,
+    BlockProducingConfig, MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier,
+    MockFee, MockHash,
 };
 use sov_mock_zkvm::{MockZkvm, MockZkvmHost};
 use sov_modules_api::provable_height_tracker::InfiniteHeight;
@@ -340,6 +341,17 @@ where
     }
 }
 
+fn get_da_polling_interval_ms(da_config: &MockDaConfig) -> u64 {
+    match da_config.block_producing {
+        BlockProducingConfig::Periodic { block_time_ms } =>
+        // 10 times per block, but 10 ms in the worst case
+        {
+            block_time_ms.checked_div(5).unwrap_or(10)
+        }
+        _ => 150,
+    }
+}
+
 pub fn rollup_config_with_da<Da: DaService<Config = MockDaConfig>>(
     path: &std::path::Path,
     da_config: MockDaConfig,
@@ -352,7 +364,7 @@ pub fn rollup_config_with_da<Da: DaService<Config = MockDaConfig>>(
         },
         runner: RunnerConfig {
             genesis_height: 0,
-            da_polling_interval_ms: 150,
+            da_polling_interval_ms: get_da_polling_interval_ms(&da_config),
             rpc_config: HttpServerConfig::localhost_on_free_port(),
             axum_config: HttpServerConfig::localhost_on_free_port(),
             concurrent_sync_tasks: Some(1),
