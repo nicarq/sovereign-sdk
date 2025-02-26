@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 use sov_state::{Kernel, User};
 
-use crate::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
+use crate::transaction::{AuthenticatedTransactionData, ProverReward, RemainingFunds};
 use crate::{
     Amount, Context, Gas, InfallibleStateAccessor, Rewards, Spec, StateAccessor, StateReader,
     StateWriter,
@@ -62,7 +62,7 @@ pub trait GasEnforcer<S: Spec> {
     /// If there are not enough funds reserved, the method will panic.
     fn reward_prover(
         &self,
-        prover_rewards: &ProverRewards,
+        prover_rewards: &ProverReward,
         tx_scratchpad: &mut impl InfallibleStateAccessor,
     );
 

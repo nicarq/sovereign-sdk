@@ -158,7 +158,7 @@ where
                 .reward_prover(&transaction_consumption.base_fee_value(), &mut scratchpad);
 
             let sequencer_reward = Rewards {
-                accumulated_reward: Amount::new(transaction_consumption.priority_fee().0),
+                accumulated_reward: transaction_consumption.priority_fee().0,
                 accumulated_penalty: Amount::ZERO,
             };
             let mut checkpoint = scratchpad.commit();

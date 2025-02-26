@@ -6,7 +6,7 @@ use std::io;
 use borsh::{BorshDeserialize, BorshSerialize};
 pub use data::{AuthenticatedTransactionData, Credentials, PriorityFeeBips, TxDetails};
 pub(crate) use rewards::transaction_consumption_helper;
-pub use rewards::{ProverRewards, RemainingFunds, SequencerReward, TransactionConsumption};
+pub use rewards::{ProverReward, RemainingFunds, SequencerReward, TransactionConsumption};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
