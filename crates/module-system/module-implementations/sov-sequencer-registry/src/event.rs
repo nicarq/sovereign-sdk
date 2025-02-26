@@ -1,4 +1,4 @@
-use sov_modules_api::Spec;
+use sov_modules_api::{Amount, Spec};
 
 /// Sample Event
 #[derive(
@@ -17,7 +17,7 @@ pub enum Event<S: Spec> {
         /// The address of the sequencer that was registered.
         sequencer: S::Address,
         /// The amount of the initial deposit.
-        amount: u128,
+        amount: Amount,
     },
 
     /// A sequencer initiated a withdrawal.
@@ -31,7 +31,7 @@ pub enum Event<S: Spec> {
         /// The address of the sequencer that exited.
         sequencer: S::Address,
         /// The amount that was withdrawn.
-        amount_withdrawn: u128,
+        amount_withdrawn: Amount,
     },
 
     /// A sequencer deposited funds to stake.
