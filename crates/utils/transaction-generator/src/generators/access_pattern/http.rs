@@ -2,8 +2,8 @@ use serde::Deserialize;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::Spec;
 use sov_node_client::NodeClient;
+use sov_test_modules::access_pattern::HooksConfig;
 
-use crate::generator_modules::HooksConfig;
 use crate::generators::basic::BasicClientConfig;
 
 /// An http client for querying the state needed by the value setter generator

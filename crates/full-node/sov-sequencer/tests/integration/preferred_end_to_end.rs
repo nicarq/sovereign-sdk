@@ -20,13 +20,14 @@ use sov_rest_utils::ResponseObject;
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
 use sov_stf_runner::processes::RollupProverConfig;
-use sov_test_module::{TestModule as ValueSetter, TestModuleConfig as ValueSetterConfig};
+use sov_test_modules::hooks_count::HooksCount;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::{
-    default_test_signed_transaction, generate_optimistic_runtime_with_kernel, initialize_logging,
-    RtAgnosticBlueprint, TestSpec,
+    default_test_signed_transaction, generate_optimistic_runtime_with_kernel, RtAgnosticBlueprint,
+    TestSpec,
 };
+use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use test_strategy::Arbitrary;
 use tokio::time::sleep;
 use tokio_stream::StreamExt;
@@ -38,6 +39,7 @@ generate_optimistic_runtime_with_kernel!(
     TestRuntime <=
     kernel_type: sov_kernels::soft_confirmations::SoftConfirmationsKernel<'a, S>,
     value_setter: ValueSetter<S>,
+    hooks_count: HooksCount<S>,
     paymaster: Paymaster<S>,
     slot_hook_checker: ModuleWithVersionedStateAccessInSlotHook<S>
 );
@@ -172,6 +174,7 @@ async fn txs_below_min_fee_are_rejected() {
             ValueSetterConfig {
                 admin: admin.address(),
             },
+            (),
             PaymasterConfig::default(),
             (),
         );
@@ -234,6 +237,7 @@ async fn replay_uses_correct_visible_slot_number() {
             ValueSetterConfig {
                 admin: admin.address(),
             },
+            (),
             PaymasterConfig::default(),
             (),
         );
@@ -335,7 +339,6 @@ async fn replay_uses_correct_visible_slot_number() {
 /// - Check that the state root assertion suceeded on the node as well.
 #[tokio::test(flavor = "multi_thread")]
 async fn visible_hashes_match_across_node_and_sequencer() {
-    sov_test_utils::initialize_logging();
     const FINALIZATION_BLOCKS: u32 = 0;
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
@@ -347,6 +350,7 @@ async fn visible_hashes_match_across_node_and_sequencer() {
             ValueSetterConfig {
                 admin: admin.address(),
             },
+            (),
             PaymasterConfig::default(),
             (),
         );
@@ -397,7 +401,7 @@ async fn visible_hashes_match_across_node_and_sequencer() {
     }
     async fn get_state_root(test_rollup: &TestRollup<TestBlueprint>) -> StateRootResponse {
         let state_root_url = format!(
-            "{}/modules/value-setter/state/latest-state-root/",
+            "{}/modules/hooks-count/state/latest-state-root/",
             test_rollup.api_client.baseurl()
         );
         let response = test_rollup
@@ -491,6 +495,7 @@ async fn test_hooks_state_is_visible() {
             ValueSetterConfig {
                 admin: admin.address(),
             },
+            (),
             PaymasterConfig::default(),
             (),
         );
@@ -546,7 +551,7 @@ async fn test_hooks_state_is_visible() {
         let hook_name = hook_name.to_string();
         client
             .query_rest_endpoint::<ResponseObject<ValueResponse>>(&format!(
-                "/modules/value-setter/state/{}-hook-count",
+                "/modules/hooks-count/state/{}-hook-count",
                 hook_name
             ))
             .await
@@ -635,6 +640,7 @@ async fn not_sequencer_safe_txs_are_restricted() {
             ValueSetterConfig {
                 admin: admin.address(),
             },
+            (),
             PaymasterConfig::default(),
             (),
         );
@@ -656,7 +662,7 @@ async fn not_sequencer_safe_txs_are_restricted() {
     // logic not prone to race conditions.
     sleep(Duration::from_millis(500)).await;
 
-    let tx = generate_paymaster_tx(admin.private_key.clone());
+    let tx = generate_paymaster_tx::<TestRuntime<TestSpec>>(admin.private_key.clone());
     {
         if let Err(e) = test_rollup
             .client
@@ -679,8 +685,6 @@ async fn not_sequencer_safe_txs_are_restricted() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn restart_and_query_value() {
-    initialize_logging();
-
     let actions = vec![TestingAction::Restart, TestingAction::QuerySetValue];
 
     preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
@@ -796,6 +800,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
             ValueSetterConfig {
                 admin: admin.address(),
             },
+            (),
             PaymasterConfig::default(),
             (),
         );
@@ -1024,7 +1029,7 @@ async fn query_set_value(
 
 fn tx_set_value(key: &Ed25519PrivateKey, nonce: u64, value_to_set: u64) -> RawTx {
     let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
-        sov_test_module::CallMessage::SetValue {
+        sov_value_setter::CallMessage::SetValue {
             value: value_to_set as u32,
             gas: None,
         },
@@ -1038,8 +1043,8 @@ fn tx_assert_visible_slot_number(
     nonce: u64,
     assert_visible_slot_number: u64,
 ) -> RawTx {
-    let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
-        sov_test_module::CallMessage::AssertVisibleSlotNumber {
+    let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::HooksCount(
+        sov_test_modules::hooks_count::CallMessage::AssertVisibleSlotNumber {
             expected_visible_slot_number: assert_visible_slot_number,
         },
     );
@@ -1052,8 +1057,8 @@ fn tx_assert_state_root(
     nonce: u64,
     expected_state_root: Vec<u8>,
 ) -> RawTx {
-    let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
-        sov_test_module::CallMessage::AssertStateRoot {
+    let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::HooksCount(
+        sov_test_modules::hooks_count::CallMessage::AssertStateRoot {
             expected_state_root,
         },
     );

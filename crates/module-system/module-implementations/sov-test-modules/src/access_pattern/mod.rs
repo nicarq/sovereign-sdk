@@ -1,5 +1,5 @@
 #![deny(missing_docs)]
-#![doc = include_str!("../README.md")]
+#![doc = include_str!("./README.md")]
 use std::marker::PhantomData;
 
 use anyhow::Context as _;
@@ -14,9 +14,6 @@ use sov_modules_api::{
     StateValue, StateVec, TxHooks, TxState,
 };
 use strum::{EnumDiscriminants, EnumIs, VariantArray};
-
-#[cfg(test)]
-mod tests;
 
 /// A newtype struct that deserializes into a string and charges gas.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
@@ -44,6 +41,7 @@ impl<S: Spec> MeteredBorshDeserialize<S> for MeteredBorshDeserializeString {
             .map_err(MeteredBorshDeserializeError::IOError)
     }
 
+    #[cfg(feature = "native")]
     fn unmetered_deserialize(
         buf: &mut &[u8],
     ) -> Result<

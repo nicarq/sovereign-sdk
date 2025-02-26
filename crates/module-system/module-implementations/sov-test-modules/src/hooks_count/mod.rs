@@ -1,16 +1,15 @@
 #![deny(missing_docs)]
-#![doc = include_str!("../README.md")]
+#![doc = include_str!("./README.md")]
 mod call;
 mod genesis;
 
 mod event;
 pub use call::*;
 pub use event::Event;
-pub use genesis::*;
 mod hooks;
 use sov_modules_api::{
     AccessoryStateValue, Context, DaSpec, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo,
-    ModuleRestApi, Spec, StateValue, StateVec, TxState,
+    ModuleRestApi, Spec, StateValue, TxState,
 };
 use sov_state::Storage;
 
@@ -20,18 +19,10 @@ use sov_state::Storage;
 /// - Can contain any number of ` #[state]` or `[module]` fields
 /// - Can derive ModuleRestApi to automatically generate Rest API endpoints
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
-pub struct TestModule<S: Spec> {
+pub struct HooksCount<S: Spec> {
     /// The ID of the module.
     #[id]
     pub id: ModuleId,
-
-    /// Some value kept in the state.
-    #[state]
-    pub value: StateValue<u32>,
-
-    /// Some more values kept in state.
-    #[state]
-    pub many_values: StateVec<u8>,
 
     /// The number of times the `begin_slot` hook has been called.
     #[state]
@@ -45,10 +36,6 @@ pub struct TestModule<S: Spec> {
     #[state]
     pub finalize_hook_count: AccessoryStateValue<u32>,
 
-    /// Holds the address of the admin user who is allowed to update the value.
-    #[state]
-    pub admin: StateValue<S::Address>,
-
     /// The latest state root stored by the begin slot hook
     #[state]
     pub latest_state_root: StateValue<<<S as Spec>::Storage as Storage>::Root>,
@@ -61,23 +48,23 @@ pub struct ValueSeterGasConfig<GU: Gas> {
     pub set_value: GU,
 }
 
-impl<S: Spec> Module for TestModule<S> {
+impl<S: Spec> Module for HooksCount<S> {
     type Spec = S;
 
-    type Config = TestModuleConfig<S>;
+    type Config = ();
 
-    type CallMessage = call::CallMessage<S>;
+    type CallMessage = call::CallMessage;
 
     type Event = Event;
 
     fn genesis(
         &self,
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
-        config: &Self::Config,
+        _config: &Self::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {
         // The initialization logic
-        Ok(self.init_module(config, state)?)
+        Ok(self.init_module(state)?)
     }
 
     fn call(
@@ -87,11 +74,6 @@ impl<S: Spec> Module for TestModule<S> {
         state: &mut impl TxState<S>,
     ) -> Result<(), Error> {
         match msg {
-            call::CallMessage::SetValue {
-                value: new_value,
-                gas,
-            } => Ok(self.set_value(new_value, gas, context, state)?),
-            CallMessage::SetManyValues(many) => Ok(self.set_values(many, context, state)?),
             CallMessage::AssertVisibleSlotNumber {
                 expected_visible_slot_number,
             } => {

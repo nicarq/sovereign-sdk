@@ -10,4 +10,4 @@ pub mod macros;
 pub mod transaction;
 pub mod value_setter;
 
-pub mod generator_modules;
+pub mod access_pattern;

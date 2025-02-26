@@ -5,17 +5,15 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::prelude::axum::async_trait;
 use sov_modules_api::Spec;
 
+use super::access_pattern::{
+    AccessPatternChangeLogDiscriminant, AccessPatternChangeLogEntry, AccessPatternHarness,
+    AccessPatternTag,
+};
 use super::bank::harness_interface::BankHarness;
 use super::bank::{BankChangeLogDiscriminant, BankChangeLogEntry, BankTag};
 use super::factory::CallMessageFactory;
-use super::generator_modules::storage_access_patterns::{
-    AccessPatternChangeLogDiscriminant, AccessPatternChangeLogEntry,
-};
 use super::value_setter::{
     ValueSetterChangeLogDiscriminant, ValueSetterChangeLogEntry, ValueSetterHarness,
-};
-use crate::generators::generator_modules::storage_access_patterns::{
-    AccessPatternHarness, AccessPatternTag,
 };
 use crate::{ChangelogEntry, HarnessModule};
 

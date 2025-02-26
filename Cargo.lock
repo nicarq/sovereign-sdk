@@ -10672,7 +10672,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "sov-stf-runner",
- "sov-test-module",
+ "sov-test-modules",
  "sov-test-utils",
  "sov-transaction-generator",
  "sov-value-setter",
@@ -10844,18 +10844,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-test-module"
+name = "sov-test-modules"
 version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "derivative",
  "hex",
  "schemars",
  "serde",
+ "sha2 0.10.8",
  "sov-address",
  "sov-modules-api",
  "sov-state",
- "sov-test-module",
+ "sov-test-modules",
  "sov-test-utils",
  "strum",
  "tempfile",
@@ -10951,6 +10953,7 @@ dependencies = [
  "sov-sequencer",
  "sov-sequencer-registry",
  "sov-state",
+ "sov-test-modules",
  "sov-test-utils",
  "sov-value-setter",
  "strum",

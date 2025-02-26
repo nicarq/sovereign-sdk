@@ -176,7 +176,9 @@ async fn not_sequencer_safe_txs_are_restricted() {
         .await
         .unwrap();
 
-    let tx = generate_paymaster_tx(sequencer.admin_private_key.clone());
+    let tx = generate_paymaster_tx::<TestOptimisticRuntime<TestSpec>>(
+        sequencer.admin_private_key.clone(),
+    );
     {
         let client = sequencer.client();
 
@@ -220,7 +222,9 @@ async fn sequencer_safe_txs_from_admins_are_accepted() {
         .await
         .unwrap();
 
-    let tx = generate_paymaster_tx(sequencer.admin_private_key.clone());
+    let tx = generate_paymaster_tx::<TestOptimisticRuntime<TestSpec>>(
+        sequencer.admin_private_key.clone(),
+    );
     {
         let client = sequencer.client();
 
