@@ -62,34 +62,35 @@ impl<GU: Gas> TransactionConsumption<GU> {
 
     /// The base fee reward of the transaction expressed as a gas token amount.
     /// This amounts to compute the scalar product of [`Self::base_fee`] by the current gas price.
-    pub fn base_fee_value(&self) -> ProverRewards {
-        ProverRewards(
+    pub fn base_fee_value(&self) -> ProverReward {
+        ProverReward(
             self.base_fee
                 .checked_value(&self.gas_price)
                 // SAFETY: `base_fee` comes from `BasicGasMeter`, which ensures overflow protection.
-                .expect("Base fee value overflowed")
-                .0,
+                .expect("Base fee value overflowed"),
         )
     }
 
     /// The priority fee reward of the transaction expressed as a gas token amount.
     pub const fn priority_fee(&self) -> SequencerReward {
-        SequencerReward(self.priority_fee.0)
+        SequencerReward(self.priority_fee)
     }
 
     /// The remaining amount of gas tokens locked in the meter.
     pub fn remaining_funds(&self) -> RemainingFunds {
-        RemainingFunds(self.remaining_funds.0)
+        RemainingFunds(self.remaining_funds)
     }
 }
 
 /// The prover reward.
-#[derive(Copy, Debug, Clone, PartialEq, Eq)]
-pub struct ProverRewards(pub u128);
+#[derive(Copy, Debug, Clone, PartialEq, Eq, derive_more::Display)]
+#[display("{:?}", self)]
+pub struct ProverReward(pub Amount);
 
 /// The remaining amount of gas tokens
-#[derive(Copy, Debug, Clone, PartialEq, Eq)]
-pub struct RemainingFunds(pub u128);
+#[derive(Copy, Debug, Clone, PartialEq, Eq, derive_more::Display)]
+#[display("{:?}", self)]
+pub struct RemainingFunds(pub Amount);
 
 /// The type used to represent the sequencer reward. This type should be obtained from the [`TransactionConsumption`] type.
 #[derive(
@@ -106,11 +107,11 @@ pub struct RemainingFunds(pub u128);
     derive_more::Display,
 )]
 #[display("SequencerReward({})", self.0)]
-pub struct SequencerReward(pub u128);
+pub struct SequencerReward(pub Amount);
 
 impl SequencerReward {
     /// Returns a zero sequencer reward. This can be used to initialize an accumulator to build a sequencer reward.
-    pub const ZERO: Self = Self(0);
+    pub const ZERO: Self = Self(Amount::ZERO);
 
     /// Adds another reward to this reward. Consumes the other reward.
     /// If the result overflows, we saturate.

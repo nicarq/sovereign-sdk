@@ -330,7 +330,7 @@ where
             if receipt.receipt.is_successful() {
                 let sequencer_reward = transaction_consumption.priority_fee();
                 accumulated_reward = accumulated_reward
-                    .checked_add(Amount::new(sequencer_reward.0))
+                    .checked_add(sequencer_reward.0)
                     .expect("AccumulatedReward overflow");
             }
             gas_used = get_gas_used(&receipt);

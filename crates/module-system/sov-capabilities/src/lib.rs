@@ -11,7 +11,7 @@ use sov_modules_api::capabilities::{
     TransactionAuthorizer,
 };
 use sov_modules_api::transaction::{
-    AuthenticatedTransactionData, ProverRewards, RemainingFunds, SequencerReward,
+    AuthenticatedTransactionData, ProverReward, RemainingFunds, SequencerReward,
 };
 use sov_modules_api::{
     AggregatedProofPublicData, Amount, Context, DaSpec, Gas, GetGasPrice, InfallibleStateAccessor,
@@ -138,7 +138,7 @@ where
 
     fn reward_prover(
         &self,
-        prover_rewards: &ProverRewards,
+        prover_rewards: &ProverReward,
         state: &mut impl InfallibleStateAccessor,
     ) {
         let rewarded_module = self.get_prover_token_holder(state);
@@ -148,7 +148,7 @@ where
                 self.bank.id.to_payable(),
                 rewarded_module.as_token_holder(),
                 Coins {
-                    amount: Amount::new(prover_rewards.0),
+                    amount: prover_rewards.0,
                     token_id: config_gas_token_id(),
                 },
                 state,
@@ -169,7 +169,7 @@ where
             .transfer_from(
                 self.bank.id.to_payable(),
                 recipient,
-                gas_coins(Amount::new(remaining_funds.0)),
+                gas_coins(remaining_funds.0),
                 state,
             )
             // SAFETY: It is safe to unwrap here because the caller must ensure that sufficient funds are reserved.
@@ -390,7 +390,7 @@ impl<'a, S: Spec, T> SequencerRemuneration<S> for StandardProvenRollupCapabiliti
         let stake_increased = self.sequencer_registry.add_to_stake(
             self.bank.id().to_payable(),
             sequencer,
-            Amount::new(reward.0),
+            reward.0,
             state,
         );
 
@@ -401,7 +401,7 @@ impl<'a, S: Spec, T> SequencerRemuneration<S> for StandardProvenRollupCapabiliti
                 .transfer_from(
                     self.bank.id.to_payable(),
                     sequencer_rollup_address.as_token_holder(),
-                    gas_coins(Amount::new(reward.0)),
+                    gas_coins(reward.0),
                     state,
                 )
                 // SAFETY: It is safe to unwrap here because the caller must ensure that sufficient funds are reserved.

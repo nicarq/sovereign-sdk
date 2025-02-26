@@ -4,7 +4,8 @@ use sov_test_utils::MockDaSpec;
 
 use crate::default_spec::DefaultSpec;
 use crate::transaction::{
-    transaction_consumption_helper, PriorityFeeBips, SequencerReward, TransactionConsumption,
+    transaction_consumption_helper, PriorityFeeBips, ProverReward, RemainingFunds, SequencerReward,
+    TransactionConsumption,
 };
 use crate::{Amount, GasPrice, GasUnit};
 
@@ -73,5 +74,24 @@ fn test_display_transaction_reward() {
 
 #[test]
 fn test_display_sequencer_reward() {
-    assert_eq!(SequencerReward(100).to_string(), "SequencerReward(100)");
+    assert_eq!(
+        SequencerReward(Amount::new(100)).to_string(),
+        "SequencerReward(100)"
+    );
+}
+
+#[test]
+fn test_display_prover_reward() {
+    assert_eq!(
+        ProverReward(Amount::new(100)).to_string(),
+        "ProverReward(100)"
+    );
+}
+
+#[test]
+fn test_display_remaining_funds() {
+    assert_eq!(
+        RemainingFunds(Amount::new(100)).to_string(),
+        "RemainingFunds(100)"
+    );
 }

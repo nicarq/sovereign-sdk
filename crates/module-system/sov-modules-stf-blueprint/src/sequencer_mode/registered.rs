@@ -25,7 +25,7 @@ use crate::{
 
 /// Executes the entire transaction lifecycle.
 ///
-/// The caller is responsible to penalize the sequencer if this method returns an error. If the tx can be attempted,
+/// The caller is responsible for penalizing the sequencer if this method returns an error. If the tx can be attempted,
 /// this method must return Ok(()) and handle any sequencer rewards internally.
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
 #[cfg_attr(feature = "native", tracing::instrument(skip_all, name = "StfBlueprint::process_tx", fields(context = ?execution_context)))]
@@ -115,7 +115,7 @@ fn track_transaction_metrics<S: Spec>(
 
 /// Actual processing of transaction.
 ///
-/// The caller is responsible to penalize the sequencer if this method returns an error. If the tx can be attempted,
+/// The caller is responsible for penalizing the sequencer if this method returns an error. If the tx can be attempted,
 /// this method must return Ok(()) and handle any sequencer rewards internally.
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
 fn process_tx_and_reward_prover_inner<S, R, I, C>(
@@ -322,7 +322,7 @@ where
     batch_with_id.pre_flight(&checkpoint);
 
     // We require non-preferred sequencer to bond for their entire batch up front.
-    // Howver, the *preferred* sequencer streams transactions, so it can't know the total number of transactions in advance.
+    // However, the *preferred* sequencer streams transactions, so it can't know the total number of transactions in advance.
     // Because of that, we allow the preferred sequencer to bond enough for only a single transaction and we do accounting in real time.
     let is_preferred_sequencer = runtime
         .sequencer_authorization()
@@ -413,7 +413,7 @@ where
                 transaction_consumption,
                 receipt,
             } => ProvisionalSequencerOutcome::reward(
-                Amount::new(transaction_consumption.priority_fee().0),
+                transaction_consumption.priority_fee().0,
                 receipt,
             ),
         };
@@ -427,7 +427,7 @@ where
                 // SAFETY: It is safe to unwrap here because the total gas used is guaranteed to be less than the slot gas limit.
                 slot_gas_meter
                     .charge_gas(&gas_used, sequencer_da_address)
-                    .expect("Impossible happend: SlotGasMeter underflows when charging gas.");
+                    .expect("Impossible happened: SlotGasMeter underflows when charging gas.");
 
                 // SAFETY: This won't overflow because rewards/penalties cannot exceed `TOKEN::total_supply` value, which is of type u128.
                 accumulated_reward = accumulated_reward
@@ -443,7 +443,7 @@ where
                     // SAFETY: It is safe to unwrap here because the total gas used is guaranteed to be less than the slot gas limit.
                     slot_gas_meter
                         .charge_gas(&gas_used, sequencer_da_address)
-                        .expect("Impossible happend: SlotGasMeter underflows when charging gas.");
+                        .expect("Impossible happened: SlotGasMeter underflows when charging gas.");
 
                     // SAFETY: This won't overflow because rewards and penalties cannot exceed `TOKEN::total_supply`, which is of type `u128`.
                     // This is ensured as it's impossible to accumulate more funds than `TOKEN::total_supply`,
@@ -533,7 +533,7 @@ enum AuthAndProcessOutcome<S: Spec> {
 }
 
 struct AuthAndProcessOutput<S: Spec, I: StateProvider<S>> {
-    /// the *total* gas used in the course of authn and processing
+    /// the *total* gas used in the course of authentication and processing
     gas_used: <S as Spec>::Gas,
     scratchpad: TxScratchpad<S, I>,
     outcome: AuthAndProcessOutcome<S>,
@@ -641,7 +641,7 @@ where
             let gas_used_for_authentication = pre_exec_gas_meter.gas_info().gas_used;
             let funds_used_for_authentication = pre_exec_gas_meter.gas_info().gas_value;
 
-            match pre_exec_error {
+            return match pre_exec_error {
                 AuthenticationError::FatalError(err, tx_hash) => {
                     penalize_sequencer(
                         runtime,
@@ -650,14 +650,14 @@ where
                         &mut scratchpad,
                     );
 
-                    return AuthAndProcessOutput {
+                    AuthAndProcessOutput {
                         scratchpad,
                         gas_used: gas_used_for_authentication,
                         outcome: AuthAndProcessOutcome::Skipped {
                             error: TxProcessingError::AuthenticationFailed(err.to_string()),
                             tx_hash,
                         },
-                    };
+                    }
                 }
                 AuthenticationError::OutOfGas(e) => {
                     penalize_sequencer(
@@ -667,15 +667,15 @@ where
                         &mut scratchpad,
                     );
 
-                    return AuthAndProcessOutput {
+                    AuthAndProcessOutput {
                         scratchpad,
                         gas_used: gas_used_for_authentication,
                         outcome: AuthAndProcessOutcome::IllegalSequencer {
                             reason: format!("The sequencer did not have sufficient funds to cover tx authentication: {}", e),
                         },
-                    };
+                    }
                 }
-            }
+            };
         }
     };
 
