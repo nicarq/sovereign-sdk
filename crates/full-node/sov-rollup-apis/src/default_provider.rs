@@ -6,7 +6,7 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::prelude::*;
 use sov_modules_api::rest::StateUpdateReceiver;
-use sov_modules_api::transaction::AuthenticatedTransactionData;
+use sov_modules_api::transaction::{AuthenticatedTransactionData, TxDetails};
 use sov_modules_api::{DaSpec, Gas, GasArray, Spec, StateCheckpoint, WorkingSet};
 use sov_modules_stf_blueprint::{apply_tx, ApplyTxResult, Runtime};
 use sov_rollup_interface::common::HexString;
@@ -52,15 +52,15 @@ where
         );
 
         let gas_price = match transaction
-                .gas_price {
+            .gas_price {
+            Some(gas_price) => gas_price,
+            None => {
+                match RT::default().chain_state().base_fee_per_gas(&mut state) {
                     Some(gas_price) => gas_price,
-                    None => {
-                        match RT::default().chain_state().base_fee_per_gas(&mut state) {
-                            Some(gas_price) => gas_price,
-                            None => return Err(anyhow::anyhow!("Impossible to get the base fee per gas for the current slot. The slot requested may be too far in the future and the base fee per gas is not yet known."))
-                        }
-                    }
-            };
+                    None => return Err(anyhow::anyhow!("Impossible to get the base fee per gas for the current slot. The slot requested may be too far in the future and the base fee per gas is not yet known."))
+                }
+            }
+        };
 
         let sequencer_da_address = transaction.sequencer.unwrap_or(default_sequencer);
         let sequencer_rollup_address = transaction
@@ -68,12 +68,12 @@ where
             .unwrap_or(default_sequencer_rollup_address);
         let runtime = RT::default();
 
-        let tx_data = AuthenticatedTransactionData {
+        let tx_data = AuthenticatedTransactionData(TxDetails {
             chain_id: transaction.details.chain_id,
             max_priority_fee_bips: transaction.details.max_priority_fee_bips,
             max_fee: transaction.details.max_fee,
             gas_limit: transaction.details.gas_limit,
-        };
+        });
 
         let mut scratchpad = state.to_tx_scratchpad();
 

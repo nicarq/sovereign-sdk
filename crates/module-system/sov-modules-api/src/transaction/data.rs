@@ -129,12 +129,7 @@ pub struct TxDetails<S: Spec> {
 
 impl<S: Spec> From<TxDetails<S>> for AuthenticatedTransactionData<S> {
     fn from(details: TxDetails<S>) -> Self {
-        Self {
-            chain_id: details.chain_id,
-            max_priority_fee_bips: details.max_priority_fee_bips,
-            max_fee: details.max_fee,
-            gas_limit: details.gas_limit,
-        }
+        Self(details)
     }
 }
 
@@ -178,17 +173,7 @@ impl Credentials {
 
 /// Transaction data that has been authenticated.
 /// This is the output of the `TransactionAuthenticator`.
-pub struct AuthenticatedTransactionData<S: Spec> {
-    /// The chain ID.
-    pub chain_id: u64,
-    /// The maximum priority fee that can be paid for this transaction expressed in bips.
-    /// This priority fee is computed as a percentage of the total gas consumed by the transaction
-    pub max_priority_fee_bips: PriorityFeeBips,
-    /// The maximum fee that can be paid for this transaction expressed as a the gas token amount
-    pub max_fee: Amount,
-    /// The estimated gas usage of the transaction
-    pub gas_limit: Option<S::Gas>,
-}
+pub struct AuthenticatedTransactionData<S: Spec>(pub TxDetails<S>);
 
 impl<S: Spec> AuthenticatedTransactionData<S> {
     /// Creates a new [`BasicGasMeter`] from the transaction data.
@@ -197,18 +182,18 @@ impl<S: Spec> AuthenticatedTransactionData<S> {
         gas_price: &<S::Gas as Gas>::Price,
         slot_gas_limit: &S::Gas,
     ) -> BasicGasMeter<S> {
-        match &self.gas_limit {
+        match &self.0.gas_limit {
             Some(gas_limit) => {
                 // `GasArray::calculate_min` creates a new gas instance by selecting the minimum value along each dimension of the gas array.
                 let new_gas_limit = <S::Gas as GasArray>::calculate_min(gas_limit, slot_gas_limit);
                 BasicGasMeter::new_with_funds_and_gas(
-                    self.max_fee,
+                    self.0.max_fee,
                     new_gas_limit,
                     gas_price.clone(),
                 )
             }
             None => BasicGasMeter::new_with_funds_and_gas(
-                self.max_fee,
+                self.0.max_fee,
                 slot_gas_limit.clone(),
                 gas_price.clone(),
             ),

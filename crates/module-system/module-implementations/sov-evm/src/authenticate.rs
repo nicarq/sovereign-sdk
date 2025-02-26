@@ -9,6 +9,7 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::runtime::capabilities::AuthenticationError;
 use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, Credentials, PriorityFeeBips,
+    TxDetails,
 };
 use sov_modules_api::{Amount, FullyBakedTx, ProvableStateReader, RawTx, Spec};
 use sov_rollup_interface::TxHash;
@@ -49,12 +50,12 @@ where
     let credentials = Credentials::new(signer);
     let credential_id = signer.into_word().0.into();
 
-    let authenticated_tx = AuthenticatedTransactionData::<S> {
+    let authenticated_tx = AuthenticatedTransactionData::<S>(TxDetails {
         chain_id,
         max_priority_fee_bips,
         max_fee,
         gas_limit,
-    };
+    });
 
     let tx_and_raw_hash = AuthenticatedTransactionAndRawHash {
         raw_tx_hash: hash,

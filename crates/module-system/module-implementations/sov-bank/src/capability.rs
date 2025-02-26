@@ -56,24 +56,24 @@ impl<S: Spec> Bank<S> {
         };
 
         // the signer must be able to afford the transaction
-        if balance < tx.max_fee {
+        if balance < tx.0.max_fee {
             return Err(ReserveGasError::InsufficientBalanceToReserveGas);
         }
 
-        if tx.max_fee == 0 {
+        if tx.0.max_fee == 0 {
             tracing::warn!(
                 %payer,
                 "Trying to reserve gas for tx with zero max fee"
             );
         }
 
-        if let Some(gas_limit) = &tx.gas_limit {
+        if let Some(gas_limit) = &tx.0.gas_limit {
             let gas_value = gas_limit
                 .checked_value(gas_price)
                 .ok_or(ReserveGasError::CurrentGasPriceTooHigh)?;
 
             // We need to check the gas price in case the user has provided a gas limit.
-            if tx.max_fee < gas_value.0 {
+            if tx.0.max_fee < gas_value.0 {
                 return Err(ReserveGasError::CurrentGasPriceTooHigh);
             }
         }
@@ -86,7 +86,7 @@ impl<S: Spec> Bank<S> {
             payer,
             self.id.to_payable(),
             Coins {
-                amount: tx.max_fee,
+                amount: tx.0.max_fee,
                 token_id: config_gas_token_id(),
             },
             state,

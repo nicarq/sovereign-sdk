@@ -64,16 +64,16 @@ impl<S: Spec> PayeePolicy<S> {
             // the user anywhere since it simply makes gas payment fall back to the user balance
             return Err(ReserveGasError::InsufficientBalanceToReserveGas);
         }
-        if !self.authorizes_max_fee(tx.max_fee) {
-            tracing::debug!(allowed_max_fee = ?self.max_fee(), requested_max_fee = %tx.max_fee, "Paymaster policy denied transaction payment due to max fee");
+        if !self.authorizes_max_fee(tx.0.max_fee) {
+            tracing::debug!(allowed_max_fee = ?self.max_fee(), requested_max_fee = %tx.0.max_fee, "Paymaster policy denied transaction payment due to max fee");
             return Err(ReserveGasError::InsufficientBalanceToReserveGas);
         }
         if !self.authorizes_gas_price(gas_price) {
             tracing::debug!(max_allowed_gas_price = ?self.max_gas_price(), current_gas_price = %gas_price, "Paymaster policy denied transaction payment because the gas price was too high");
             return Err(ReserveGasError::CurrentGasPriceTooHigh);
         }
-        if !self.authorizes_gas_limit(&tx.gas_limit) {
-            tracing::debug!(max_gas_limit = ?self.max_gas_limit(), requested_gas_limit = ?tx.gas_limit, "Paymaster policy denied transaction payment because the gas limit was too high");
+        if !self.authorizes_gas_limit(&tx.0.gas_limit) {
+            tracing::debug!(max_gas_limit = ?self.max_gas_limit(), requested_gas_limit = ?tx.0.gas_limit, "Paymaster policy denied transaction payment because the gas limit was too high");
             return Err(ReserveGasError::MaxGasLimitExceeded);
         }
         Ok(self.maybe_decrement_allowance())

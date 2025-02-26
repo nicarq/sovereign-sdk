@@ -271,8 +271,8 @@ impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
             delta: RevertableWriter::new(scratchpad),
             events: Vec::default(),
             gas_meter: working_set_gas_meter,
-            max_fee: tx.max_fee,
-            max_priority_fee_bips: tx.max_priority_fee_bips,
+            max_fee: tx.0.max_fee,
+            max_priority_fee_bips: tx.0.max_priority_fee_bips,
         }
     }
 
