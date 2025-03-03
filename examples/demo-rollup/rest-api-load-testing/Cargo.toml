@@ -1,11 +1,11 @@
 [package]
 name = "sov-demo-rollup-rest-api-load-testing"
 version = { workspace = true }
-edition = { workspace = true }
-resolver = "2"
 authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
 license = { workspace = true }
-homepage = "sovereign.xyz"
+repository = { workspace = true }
 publish = false
 
 [lints]

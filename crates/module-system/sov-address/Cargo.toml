@@ -8,7 +8,6 @@ license = { workspace = true }
 repository = { workspace = true }
 
 version = { workspace = true }
-resolver = "2"
 publish = false
 
 [lints]
@@ -29,7 +28,6 @@ serde_json = { workspace = true}
 schemars = { workspace = true }
 rand = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
-thiserror = { workspace = true }
 
 # EVM dependencies
 alloy-primitives = { workspace = true, default-features = false, features = [

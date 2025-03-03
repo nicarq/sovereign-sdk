@@ -1458,7 +1458,6 @@ dependencies = [
  "alloy-primitives",
  "anyhow",
  "borsh",
- "idna",
  "serde",
  "sov-accounts",
  "sov-address",
@@ -1480,7 +1479,6 @@ dependencies = [
  "sov-uniqueness",
  "sov-value-setter",
  "strum",
- "url",
 ]
 
 [[package]]
@@ -5023,7 +5021,6 @@ dependencies = [
  "sha2 0.10.8",
  "sov-modules-api",
  "sov-rollup-interface",
- "thiserror",
 ]
 
 [[package]]
