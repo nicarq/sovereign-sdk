@@ -2433,7 +2433,6 @@ dependencies = [
  "alloy-primitives",
  "anyhow",
  "borsh",
- "idna",
  "serde",
  "sov-accounts",
  "sov-address",
@@ -2457,7 +2456,6 @@ dependencies = [
  "sov-uniqueness",
  "sov-value-setter",
  "strum",
- "url",
 ]
 
 [[package]]
@@ -9697,7 +9695,6 @@ dependencies = [
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-test-utils",
- "thiserror 1.0.64",
 ]
 
 [[package]]
@@ -10243,7 +10240,6 @@ dependencies = [
  "derive_more 1.0.0",
  "futures",
  "hex",
- "idna",
  "insta",
  "proptest",
  "proptest-derive 0.5.0",
@@ -10263,7 +10259,6 @@ dependencies = [
  "tokio",
  "toml",
  "tracing",
- "url",
 ]
 
 [[package]]

@@ -10,7 +10,6 @@ repository = { workspace = true }
 version = { workspace = true }
 readme = "README.md"
 
-resolver = "2"
 
 [lints]
 workspace = true

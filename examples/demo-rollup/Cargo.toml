@@ -1,12 +1,12 @@
 [package]
 name = "sov-demo-rollup"
 version = "0.3.0"
-edition = "2021"
-authors = ["Sovereign Labs <info@sovereign.xyz>"]
-license = "MIT OR Apache-2.0"
-homepage = "https://www.sovereign.xyz"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
 publish = false
-resolver = "2"
 default-run = "sov-demo-rollup"
 
 [lints]

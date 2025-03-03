@@ -7,7 +7,6 @@ authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
 publish = false
-resolver = "2"
 
 
 [lints]
