@@ -1,5 +1,7 @@
 ## 2025-03-03
+- #2522 includes git hash as a resource attribute in metrics so we know exactly what version of the rollup is running.
 - #2533 Changes demo-stf dependency usage from path to workspace.
+
 ## 2025-02-26
 - #2423 integrates the `AccessPattern` module into the demo-stf `Runtime`.
 
