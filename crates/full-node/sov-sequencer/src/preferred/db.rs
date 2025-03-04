@@ -24,7 +24,7 @@ use sov_modules_api::capabilities::BlobSelector;
 use sov_modules_api::{
     KernelStateAccessor, Runtime, Spec, StateCheckpoint, StateUpdateInfo, VisibleSlotNumber,
 };
-use tracing::{error, trace};
+use tracing::{error, trace, Instrument};
 
 use crate::common::{SeqDbTx, SeqDbTxId, WithCachedTxHashes};
 
@@ -239,8 +239,11 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all, level = "trace")]
     pub async fn in_progress_batch_opt(&self) -> anyhow::Result<Option<SavedBatch>> {
-        let Some(info) = self.db.get::<tables::SingletonInProgressBatchInfo>(&())? else {
+        let in_progress_info_result = tracing::trace_span!("in_progress_info")
+            .in_scope(|| self.db.get::<tables::SingletonInProgressBatchInfo>(&()));
+        let Some(info) = in_progress_info_result? else {
             return Ok(None);
         };
 
@@ -256,12 +259,20 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
         let mut txs = vec![];
         let mut tx_hashes = vec![];
 
-        for item_res in self.db.iter::<tables::InProgressBatchTxs>()? {
-            let item = item_res?;
+        tracing::trace_span!("db_iter_txs_and_hashes").in_scope(|| {
+            for item_res in self.db.iter::<tables::InProgressBatchTxs>()? {
+                let item = item_res?;
 
-            txs.push(item.value.tx);
-            tx_hashes.push(item.value.hash);
-        }
+                txs.push(item.value.tx);
+                tx_hashes.push(item.value.hash);
+            }
+            Ok::<(), anyhow::Error>(())
+        })?;
+
+        trace!(
+            txs_len = txs.len(),
+            "Retrieved txs in current in-progress batch"
+        );
 
         Ok(Some(SavedBatch {
             batch: WithCachedTxHashes {
@@ -277,6 +288,7 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
     }
 
     /// Terminates the current in-progress batch and returns its [`SequenceNumber`].
+    #[tracing::instrument(skip_all, level = "trace")]
     pub async fn terminate_batch(&mut self) -> anyhow::Result<SavedBatch> {
         let batch = self
             .in_progress_batch_opt()
@@ -291,9 +303,12 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
 
             // Collect all tx IDs...
             let mut db_tx_ids = vec![];
-            for item_res in self.db.iter::<tables::InProgressBatchTxs>()? {
-                db_tx_ids.push(item_res?.key);
-            }
+            tracing::trace_span!("db_iter_tx_ids").in_scope(|| {
+                for item_res in self.db.iter::<tables::InProgressBatchTxs>()? {
+                    db_tx_ids.push(item_res?.key);
+                }
+                Ok::<(), anyhow::Error>(())
+            })?;
 
             assert!(
                 // Checks for issues related to lexicographic VS little-endian
@@ -305,14 +320,20 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
             );
 
             // ...and delete them.
-            for id in &db_tx_ids {
-                s.delete::<tables::InProgressBatchTxs>(id)?;
-            }
+            tracing::trace_span!("db_iter_delete_progress_txs").in_scope(|| {
+                for id in &db_tx_ids {
+                    s.delete::<tables::InProgressBatchTxs>(id)?;
+                }
+                Ok::<(), anyhow::Error>(())
+            })?;
 
             s.put::<tables::NotFinalizedPreferredBlobs>(&sequence_number, &blob)?;
             s.delete::<tables::SingletonInProgressBatchInfo>(&())?;
 
-            self.db.write_schemas_async(&s).await?;
+            self.db
+                .write_schemas_async(&s)
+                .instrument(tracing::trace_span!("db_write_terminate_batch"))
+                .await?;
         }
 
         self.sequence_number_of_in_progress_batch = None;

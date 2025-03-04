@@ -501,7 +501,7 @@ where
             slot_number,
             ..
         }: StateUpdateInfo<S::Storage>,
-    ) {
+    ) -> anyhow::Result<()> {
         let checkpoint = StateCheckpoint::new(storage, &Rt::default().kernel());
 
         tracing::debug!(
@@ -525,8 +525,7 @@ where
                         .await
                         .blob_sender
                         .publish_batch_and_wait(batch)
-                        .await
-                        .ok();
+                        .await?;
                 }
                 Ok(None) => {}
                 Err(e) => {
@@ -534,6 +533,8 @@ where
                 }
             }
         }
+
+        Ok(())
     }
 
     async fn accept_tx(

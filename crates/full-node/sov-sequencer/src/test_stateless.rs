@@ -203,14 +203,18 @@ where
         Ok((seq, handles))
     }
 
-    async fn update_state(&self, update_info: StateUpdateInfo<<Self::Spec as Spec>::Storage>) {
+    async fn update_state(
+        &self,
+        update_info: StateUpdateInfo<<Self::Spec as Spec>::Storage>,
+    ) -> anyhow::Result<()> {
         let mut inner = self.inner.lock().await;
         inner.storage = update_info.storage;
 
         self.blob_sender
             .publish_batch_and_wait(self.take_batch().await)
-            .await
-            .ok();
+            .await?;
+
+        Ok(())
     }
 
     async fn accept_tx(
