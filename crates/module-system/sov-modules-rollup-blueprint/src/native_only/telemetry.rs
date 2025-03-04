@@ -10,7 +10,7 @@ use opentelemetry_sdk::logs::{Logger, LoggerProvider};
 use opentelemetry_sdk::trace::{RandomIdGenerator, Sampler, Tracer, TracerProvider};
 use opentelemetry_sdk::{runtime, Resource};
 use opentelemetry_semantic_conventions::attribute::{
-    DEPLOYMENT_ENVIRONMENT_NAME, SERVICE_NAME, SERVICE_VERSION,
+    DEPLOYMENT_ENVIRONMENT_NAME, SERVICE_NAME, SERVICE_VERSION, VCS_REPOSITORY_REF_REVISION,
 };
 use opentelemetry_semantic_conventions::SCHEMA_URL;
 use tracing::Subscriber;
@@ -71,12 +71,14 @@ fn resource() -> Resource {
     } else {
         "release"
     };
+    let commit_hash = option_env!("GIT_COMMIT_HASH").unwrap_or("unknown");
     Resource::from_schema_url(
         [
             KeyValue::new(SERVICE_NAME, env!("CARGO_PKG_NAME")),
             KeyValue::new(SERVICE_VERSION, env!("CARGO_PKG_VERSION")),
             KeyValue::new(DEPLOYMENT_ENVIRONMENT_NAME, env_name),
             KeyValue::new("build.mode", build_mode),
+            KeyValue::new(VCS_REPOSITORY_REF_REVISION, commit_hash),
         ],
         SCHEMA_URL,
     )

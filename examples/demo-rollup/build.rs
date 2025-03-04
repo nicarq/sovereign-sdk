@@ -22,6 +22,15 @@ type S = sov_modules_api::configurable_spec::ConfigurableSpec<
     Native,
 >;
 
+fn try_set_commit_hash_env() {
+    if let Ok(output) = Command::new("git").args(["rev-parse", "HEAD"]).output() {
+        if output.status.success() {
+            let hash = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("cargo:rustc-env=GIT_COMMIT_HASH={}", hash);
+        }
+    }
+}
+
 fn main() -> io::Result<()> {
     println!("cargo::rerun-if-env-changed=SKIP_GUEST_BUILD");
     println!("cargo::rerun-if-env-changed=SOV_PROVER_MODE");
@@ -78,5 +87,8 @@ fn main() -> io::Result<()> {
     let schema_str = serde_json::to_string_pretty(&schema).unwrap();
     runtime_call.write_all(schema_str.as_bytes()).unwrap();
     runtime_call.write_all(b"\n")?;
+
+    try_set_commit_hash_env();
+
     Ok(())
 }
