@@ -80,7 +80,10 @@ pub trait Sequencer: Sized + Send + Sync + 'static {
     ) -> anyhow::Result<TxStatus<<<Self::Spec as Spec>::Da as DaSpec>::TransactionId>>;
 
     /// Updates the sequencer's view of the state of the rollup.
-    async fn update_state(&self, update_info: StateUpdateInfo<<Self::Spec as Spec>::Storage>);
+    async fn update_state(
+        &self,
+        update_info: StateUpdateInfo<<Self::Spec as Spec>::Storage>,
+    ) -> anyhow::Result<()>;
 
     /// Adds a **not-encoded** transaction to the mempool. The [`Sequencer`]
     /// implementation itself is responsible for "encoding" the transaction.
@@ -195,10 +198,7 @@ pub async fn loop_call_update_state<Seq: Sequencer>(
         state_update_receiver,
         shutdown_receiver,
         "loop_call_update_state",
-        |info| async {
-            seq.update_state(info).await;
-            Ok(())
-        },
+        |info| async { seq.update_state(info).await },
     )
     .await;
 }

@@ -605,6 +605,7 @@ async fn test_hooks_state_is_visible() {
         .await
         .unwrap();
 
+    tokio::time::sleep(Duration::from_millis(200)).await;
     let begin_slot_count = query_hook_counter("begin-rollup-block").await;
     assert_eq!(begin_slot_count, 1);
     let end_slot_count = query_hook_counter("end-rollup-block").await;
