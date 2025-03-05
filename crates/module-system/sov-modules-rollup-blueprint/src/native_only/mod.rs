@@ -163,6 +163,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
     async fn sequencer_additional_apis<Seq>(
         &self,
         _sequencer: Arc<Seq>,
+        _rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
     ) -> anyhow::Result<axum::Router<()>>
     where
         Seq: Sequencer<Spec = Self::Spec, Rt = Self::Runtime, Da = Self::DaService>,
@@ -197,8 +198,10 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
 
                 Ok(SequencerCreationReceipt {
                     api_state: sequencer.api_state(),
-                    axum_router: SequencerApis::rest_api_server(sequencer.clone())
-                        .merge(self.sequencer_additional_apis(sequencer).await?),
+                    axum_router: SequencerApis::rest_api_server(sequencer.clone()).merge(
+                        self.sequencer_additional_apis(sequencer, rollup_config)
+                            .await?,
+                    ),
                     background_handles,
                     sequence_number_provider: None,
                 })
@@ -219,8 +222,10 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
 
                 Ok(SequencerCreationReceipt {
                     api_state: sequencer.api_state(),
-                    axum_router: SequencerApis::rest_api_server(sequencer.clone())
-                        .merge(self.sequencer_additional_apis(sequencer.clone()).await?),
+                    axum_router: SequencerApis::rest_api_server(sequencer.clone()).merge(
+                        self.sequencer_additional_apis(sequencer.clone(), rollup_config)
+                            .await?,
+                    ),
                     background_handles,
                     sequence_number_provider: Some(sequencer),
                 })
