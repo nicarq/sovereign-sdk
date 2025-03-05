@@ -72,6 +72,7 @@ pub fn safe_telegraf_string(string: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
     use std::str::FromStr;
 
     use super::*;
@@ -147,6 +148,59 @@ mod tests {
 
         assert_eq!(3, received_number_of_metrics);
         assert!(received_number_of_metrics <= total_expected_number_of_metrics);
+
+        Ok(())
+    }
+
+    #[derive(Debug)]
+    struct MyCustomMetric {
+        value: u64,
+        tag: u8,
+    }
+
+    impl Metric for MyCustomMetric {
+        fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+            write!(
+                buffer,
+                "my_custom_metric my_tag={} my_value={}",
+                self.tag, self.value,
+            )
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_custom_metric_is_published() -> anyhow::Result<()> {
+        let socket = tokio::net::UdpSocket::bind("127.0.0.1:0").await?;
+        let monitoring_config = MonitoringConfig {
+            telegraf_address: socket.local_addr()?,
+            // Setting low, so each metric is published immediately
+            max_datagram_size: Some(1),
+            max_pending_metrics: None,
+        };
+
+        let (metrics_back_sender, mut metrics_back_receiver) = tokio::sync::mpsc::channel(100);
+        spawn_metrics_udp_receiver(socket, metrics_back_sender.clone());
+
+        let (sender, receiver) = tokio::sync::mpsc::channel(10);
+        let _task_handle = tokio::spawn(async move {
+            metrics_publisher_task(receiver, &monitoring_config).await;
+        });
+
+        let tracker = MetricsTracker { sender };
+
+        let my_metric = MyCustomMetric { value: 120, tag: 3 };
+
+        tracker.track_custom::<MyCustomMetric>(my_metric);
+
+        let sent_metric = receive_with_timeout(&mut metrics_back_receiver)
+            .await
+            .unwrap();
+
+        assert!(
+            sent_metric.starts_with("my_custom_metric my_tag=3 my_value=120 "),
+            "Metrics {} does not contain expected prefix",
+            sent_metric
+        );
 
         Ok(())
     }
