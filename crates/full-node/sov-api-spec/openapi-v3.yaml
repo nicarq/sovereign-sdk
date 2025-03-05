@@ -841,20 +841,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TxHash"
-        blob_hash:
-          $ref: "#/components/schemas/Hash"
-        da_transaction_id:
-          oneOf:
-            - type: string
-            # FIXME(@neysofu): da_transaction_id should always JSON-serialize to
-            # a string IMO.
-            - type: array
-              items:
-                type: integer
       required:
         - tx_hashes
-        - blob_hash
-        - da_transaction_id
     BaseFeePerGas:
       type: object
       properties:

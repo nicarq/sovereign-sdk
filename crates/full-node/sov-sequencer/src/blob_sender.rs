@@ -77,7 +77,7 @@ where
     pub async fn publish_batch_and_wait(
         &self,
         batch: WithCachedTxHashes<Batch>,
-    ) -> anyhow::Result<SubmitBatchReceipt<Da::Spec>> {
+    ) -> anyhow::Result<SubmitBatchReceipt> {
         self.publish_batch(batch)
             .await?
             .await
@@ -87,7 +87,7 @@ where
     pub async fn publish_batch(
         &self,
         batch: WithCachedTxHashes<Batch>,
-    ) -> anyhow::Result<JoinHandle<anyhow::Result<SubmitBatchReceipt<Da::Spec>>>> {
+    ) -> anyhow::Result<JoinHandle<anyhow::Result<SubmitBatchReceipt>>> {
         let db_batch = WithCachedTxHashes {
             tx_hashes: batch.tx_hashes.clone(),
             inner: borsh::to_vec(&batch.inner)?,
@@ -160,7 +160,7 @@ where
 async fn react_to_batch_receipt<Da: DaService>(
     receipt_fut: WithCachedTxHashes<BlobReceiptFut<Da>>,
     txsm: &TxStatusManager<Da::Spec>,
-) -> anyhow::Result<SubmitBatchReceipt<Da::Spec>> {
+) -> anyhow::Result<SubmitBatchReceipt> {
     let receipt = receipt_fut
         .inner
         .await
@@ -185,7 +185,6 @@ async fn react_to_batch_receipt<Da: DaService>(
 
     Ok(SubmitBatchReceipt {
         tx_hashes: receipt_fut.tx_hashes,
-        submit_blob_receipt: receipt,
     })
 }
 

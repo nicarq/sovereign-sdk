@@ -163,7 +163,7 @@ pub trait DaService: Clone + Send + Sync + 'static {
     /// Should always returns the block at that height on the best fork.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error>;
 
-    /// Similar to [`Self::get_block_at`], but only returns the block header and not the whole block.
+    /// Similar to [`DaService::get_block_at`], but only returns the block header and not the whole block.
     /// All constraints and limitations of [`Self::get_block_at`] apply
     async fn get_block_header_at(
         &self,
@@ -190,6 +190,18 @@ pub trait DaService: Clone + Send + Sync + 'static {
     async fn get_last_finalized_block_header(
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error>;
+
+    /// Fetch the height of the last finalized block.
+    ///
+    /// ## Why not just use [`DaService::get_last_finalized_block_header`]?
+    ///
+    /// Some [`DaService`] implementations may have a way of querying for the
+    /// latest finalized block number that's faster than fetching the whole
+    /// header. This method allows for such [`DaService`]-specific
+    /// optimizations.
+    async fn get_last_finalized_block_number(&self) -> Result<u64, Self::Error> {
+        Ok(self.get_last_finalized_block_header().await?.height())
+    }
 
     /// Subscribe to finalized headers as they are finalized.
     /// Expect only to receive headers which were finalized after subscription

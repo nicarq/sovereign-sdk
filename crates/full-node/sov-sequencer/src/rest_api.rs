@@ -186,7 +186,7 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
     async fn axum_submit_batch(
         sequencer: State<Self>,
         batch: Json<SubmitBatch>,
-    ) -> ApiResult<SubmitBatchReceipt<<Seq::Da as DaService>::Spec>> {
+    ) -> ApiResult<SubmitBatchReceipt> {
         let batch = batch
             .0
             .transactions

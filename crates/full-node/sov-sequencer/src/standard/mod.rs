@@ -657,7 +657,7 @@ where
     async fn submit_batch(
         &self,
         txs: Vec<FullyBakedTx>,
-    ) -> anyhow::Result<Option<SubmitBatchReceipt<Da::Spec>>> {
+    ) -> anyhow::Result<Option<SubmitBatchReceipt>> {
         for tx in txs.iter() {
             self.accept_tx(tx.clone()).await.ok(); // FIXME(@neysofu): handle error.
         }

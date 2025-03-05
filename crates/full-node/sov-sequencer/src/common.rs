@@ -103,7 +103,7 @@ pub trait Sequencer: Sized + Send + Sync + 'static {
     async fn submit_batch(
         &self,
         txs: Vec<FullyBakedTx>,
-    ) -> anyhow::Result<Option<SubmitBatchReceipt<<Self::Da as DaService>::Spec>>>;
+    ) -> anyhow::Result<Option<SubmitBatchReceipt>>;
 }
 
 /// A transaction that has been accepted by the batch builder.
