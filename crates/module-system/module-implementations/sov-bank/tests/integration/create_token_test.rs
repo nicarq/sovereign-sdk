@@ -363,7 +363,12 @@ fn overflow_max_supply_genesis_should_panic() {
     let token_name = TestTokenName::new("BankToken".to_string());
     let genesis_config = HighLevelOptimisticGenesisConfig::generate()
         .add_accounts_with_default_balance(1)
-        .add_accounts_with_token(&token_name, false, 2, u128::MAX - 2);
+        .add_accounts_with_token(
+            &token_name,
+            false,
+            2,
+            Amount::MAX.checked_sub(Amount::new(2)).unwrap(),
+        );
 
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
 

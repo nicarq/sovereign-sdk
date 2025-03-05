@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use sov_modules_api::prelude::*;
+use sov_modules_api::Amount;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
@@ -78,7 +79,14 @@ fn test_outcomes(outcomes: Vec<Arc<TransactionOutcome>>, txs_count: usize) {
 
     let accounts = generated_txs
         .iter()
-        .map(|tx| TestUser::<S>::new(tx.msg.sender.clone(), TEST_DEFAULT_USER_BALANCE * 10))
+        .map(|tx| {
+            TestUser::<S>::new(
+                tx.msg.sender.clone(),
+                TEST_DEFAULT_USER_BALANCE
+                    .checked_mul(Amount::new(10))
+                    .unwrap(),
+            )
+        })
         .collect::<Vec<_>>();
 
     let low_genesis_config = HighLevelOptimisticGenesisConfig::generate()

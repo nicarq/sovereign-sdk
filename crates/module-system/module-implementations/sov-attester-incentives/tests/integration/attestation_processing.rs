@@ -6,7 +6,7 @@ use sov_state::StorageRoot;
 use sov_test_utils::runtime::sov_attester_incentives::{AttesterIncentives, CallMessage, Event};
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    assert_matches, AsUser, AtomicNumber, ProofInput, ProofTestCase, TestAttester,
+    assert_matches, AsUser, AtomicAmount, ProofInput, ProofTestCase, TestAttester,
     TransactionTestCase,
 };
 
@@ -25,7 +25,7 @@ fn test_process_valid_attestation() {
     let mut rewards = Vec::with_capacity(nb_tests);
 
     for _ in 0..nb_tests {
-        let reward = AtomicNumber::new(0);
+        let reward = AtomicAmount::new(Amount::ZERO);
         let reward_clone = reward.clone();
         runner.execute_transaction(TransactionTestCase {
             input: consume_gas_tx_for_signer(&other_user),
@@ -67,7 +67,7 @@ fn test_process_valid_attestation() {
 fn test_burn_on_invalid_attestation() {
     let (mut runner, genesis_attester, _, other_user) = setup();
 
-    let reward_1 = AtomicNumber::new(0);
+    let reward_1 = AtomicAmount::new(Amount::ZERO);
     {
         let reward_clone = reward_1.clone();
         runner.execute_transaction(TransactionTestCase {
@@ -78,7 +78,7 @@ fn test_burn_on_invalid_attestation() {
         });
     }
 
-    let reward_2 = AtomicNumber::new(0);
+    let reward_2 = AtomicAmount::new(Amount::ZERO);
     {
         let reward_clone = reward_2.clone();
         runner.execute_transaction(TransactionTestCase {
@@ -162,7 +162,7 @@ fn test_burn_on_invalid_attestation() {
         let rebond_attester = {
             TransactionTestCase {
                 input: genesis_attester.create_plain_message::<RT, AttesterIncentives<S>>(
-                    CallMessage::RegisterAttester(Amount::new(attester_bond)),
+                    CallMessage::RegisterAttester(attester_bond),
                 ),
                 assert: Box::new(move |result, state| {
                     assert!(result.events.iter().any(|event| matches!(
@@ -210,7 +210,7 @@ fn test_burn_on_invalid_attestation() {
 
 fn invalid_bond_proof_no_slash(
     attester: &TestAttester<S>,
-    initial_balance: u128,
+    initial_balance: Amount,
     attestation_proof: SovAttestation<S>,
 ) -> ProofTestCase<S> {
     let attester_address = attester.user_info.address();
@@ -231,14 +231,14 @@ fn invalid_bond_proof_no_slash(
                     .bonded_attesters
                     .get(&attester_address, state)
                     .unwrap(),
-                Some(attester_bond.into()),
+                Some(attester_bond),
                 "Bonded amount should not have changed"
             );
 
             // Attester is not rewarded
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&attester_address, state).unwrap(),
-                initial_balance - result.gas_value_used
+                initial_balance.checked_sub(result.gas_value_used).unwrap()
             );
         }),
     }
@@ -246,7 +246,7 @@ fn invalid_bond_proof_no_slash(
 
 fn invalid_initial_state_slashed(
     attester: &TestAttester<S>,
-    initial_balance: u128,
+    initial_balance: Amount,
     attestation_proof: SovAttestation<S>,
 ) -> ProofTestCase<S> {
     let attester_address = attester.user_info.address();
@@ -278,7 +278,7 @@ fn invalid_initial_state_slashed(
             // Attester is not rewarded
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&attester_address, state).unwrap(),
-                initial_balance - result.gas_value_used
+                initial_balance.checked_sub(result.gas_value_used).unwrap()
             );
         }),
     }
@@ -286,7 +286,7 @@ fn invalid_initial_state_slashed(
 
 fn invalid_post_state_root_is_challengeable(
     attester: &TestAttester<S>,
-    initial_balance: u128,
+    initial_balance: Amount,
     attestation_proof: SovAttestation<S>,
 ) -> ProofTestCase<S> {
     let attester_address = attester.user_info.address();
@@ -311,14 +311,14 @@ fn invalid_post_state_root_is_challengeable(
                     .bad_transition_pool
                     .get(&2.to_slot_number(), state)
                     .unwrap_infallible(),
-                Some(attester_bond.into()),
+                Some(attester_bond),
                 "The transition should exist in the bad_transition_pool"
             );
 
             // Attester is not rewarded
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&attester_address, state).unwrap(),
-                initial_balance - result.gas_value_used
+                initial_balance.checked_sub(result.gas_value_used).unwrap()
             );
         }),
     }

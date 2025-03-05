@@ -12,11 +12,11 @@ fn test_deposit_successful() {
     let attester_address = attester.user_info.address();
     let starting_free_balance = attester.user_info.balance();
     let starting_bond = attester.bond;
-    let extra_bond = 0;
+    let extra_bond = Amount::ZERO;
 
     runner.execute_transaction(TransactionTestCase {
         input: attester.create_plain_message::<RT, TestAttesterIncentives>(
-            sov_attester_incentives::CallMessage::DepositAttester(extra_bond.into()),
+            sov_attester_incentives::CallMessage::DepositAttester(extra_bond),
         ),
         assert: Box::new(move |result, state| {
             assert_eq!(
@@ -24,15 +24,19 @@ fn test_deposit_successful() {
                     .bonded_attesters
                     .get(&attester_address, state)
                     .unwrap(),
-                Some(Amount::new(starting_bond + extra_bond)),
+                Some(starting_bond.checked_add(extra_bond).unwrap()),
             );
             assert_eq!(
                 Bank::<S>::default()
                     .get_balance_of(&attester_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(Amount::new(
-                    starting_free_balance - extra_bond - result.gas_value_used
-                )),
+                Some(
+                    starting_free_balance
+                        .checked_sub(extra_bond)
+                        .unwrap()
+                        .checked_sub(result.gas_value_used)
+                        .unwrap()
+                ),
             );
         }),
     });

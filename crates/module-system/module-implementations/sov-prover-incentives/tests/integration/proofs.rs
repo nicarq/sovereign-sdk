@@ -3,7 +3,7 @@ use sov_prover_incentives::ProverIncentives;
 use sov_rollup_interface::common::IntoSlotNumber;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    assert_matches, AtomicNumber, ProofInput, ProofTestCase, TransactionTestCase,
+    assert_matches, AtomicAmount, ProofInput, ProofTestCase, TransactionTestCase,
 };
 
 use crate::helpers::{
@@ -21,7 +21,7 @@ fn test_valid_proof() {
         .query_visible_state(|state| TestRunner::<RT, S>::bank_gas_balance(&prover_address, state))
         .unwrap();
 
-    let reward = AtomicNumber::new(0);
+    let reward = AtomicAmount::new(Amount::ZERO);
 
     for _ in 0..2 {
         let reward_clone = reward.clone();
@@ -33,7 +33,7 @@ fn test_valid_proof() {
         });
     }
 
-    // We need one extra transaction so the prover see the rewards from the previous transaction.
+    // We need one extra transaction so the prover sees the rewards from the previous transaction.
     runner.execute(consume_gas_tx_for_signer(&other_user));
 
     let aggregated_proof = runner
@@ -57,18 +57,22 @@ fn test_valid_proof() {
 
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&prover_address, state).unwrap(),
-                initial_balance - result.gas_value_used
-                    + ProverIncentives::<S>::default()
-                        .burn_rate()
-                        .apply(reward.get().into())
-                        .0
+                initial_balance
+                    .checked_sub(result.gas_value_used)
+                    .unwrap()
+                    .checked_add(
+                        ProverIncentives::<S>::default()
+                            .burn_rate()
+                            .apply(reward.get())
+                    )
+                    .unwrap()
             );
             assert_eq!(
                 TestProverIncentives::default()
                     .bonded_provers
                     .get(&prover.user_info.address(), state)
                     .unwrap(),
-                Some(prover.bond.into()),
+                Some(prover.bond),
                 "Bonded amount should not have changed"
             );
         }),
@@ -108,7 +112,7 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
                     .bonded_provers
                     .get(&prover_address, state)
                     .unwrap(),
-                Some(prover.bond.into()),
+                Some(prover.bond),
                 "Bonded amount should not have changed"
             );
             assert_eq!(
@@ -165,9 +169,7 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
                 .unwrap();
             assert_eq!(
                 bonded_amount,
-                Amount::new(prover.bond)
-                    .checked_sub(penalty.value(&gas_price))
-                    .unwrap()
+                prover.bond.checked_sub(penalty.value(&gas_price)).unwrap()
             );
         }),
     });

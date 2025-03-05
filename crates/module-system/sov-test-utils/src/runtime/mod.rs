@@ -286,21 +286,19 @@ where
     pub fn bank_gas_balance(
         address: &S::Address,
         state: &mut impl InfallibleStateAccessor,
-    ) -> Option<u128> {
+    ) -> Option<Amount> {
         sov_bank::Bank::<S>::default()
             .get_balance_of(address, config_gas_token_id(), state)
             .unwrap_infallible()
-            .map(|amount| amount.0)
     }
 
     /// A simple helper function to get the the staked balance of a sequencer.
     pub fn get_sequencer_staking_balance(
         sequencer: &<S::Da as DaSpec>::Address,
         state: &mut ApiStateAccessor<S>,
-    ) -> Option<u128> {
+    ) -> Option<Amount> {
         sov_sequencer_registry::SequencerRegistry::<S>::default()
             .get_sender_balance_via_api(sequencer, state)
-            .map(|amount| amount.0)
     }
 
     /// Returns the slot receipts accumulated by the state runner
@@ -587,7 +585,7 @@ where
     }
 
     /// Simulates execution of the provided input without committing to the updated state.
-    /// This is useful to retreive non-deterministic outcomes associated with execution such as
+    /// This is useful to retrieve non-deterministic outcomes associated with execution such as
     /// dynamic gas prices.
     pub fn simulate<T: Into<SlotInput<RT, S>>>(
         &mut self,
@@ -698,7 +696,7 @@ where
         let ctx = TransactionAssertContext::from_receipt::<MockDaSpec>(
             tx_receipt,
             blob_info,
-            gas_used.value(&gas_price).0,
+            gas_used.value(&gas_price),
         );
         (transaction_test.assert)(ctx, &mut self.visible_state());
         self
@@ -786,7 +784,7 @@ where
 
         let ctx = ProofAssertContext {
             proof_receipt,
-            gas_value_used: gas_value_used.0,
+            gas_value_used,
         };
         (proof_test.assert)(ctx, &mut self.visible_state());
 

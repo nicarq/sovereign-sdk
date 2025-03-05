@@ -17,7 +17,7 @@ use super::{get_balance, get_seq_bond, setup, TxStatus};
 use crate::stf_blueprint::reset_constants;
 type S = sov_test_utils::TestSpec;
 
-const BOND_AMOUNT: u128 = 100;
+const BOND_AMOUNT: Amount = Amount::new(100);
 
 fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
     let (mut runner, users, _) = setup(tx_statuses.len());
@@ -68,7 +68,7 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
                 total_gas = total_gas.checked_combine(&tx_contents.gas_used).unwrap();
                 let gas_value = tx_contents.gas_used.value(gas_price);
                 gas_value_charged_to_user = gas_value;
-                seq_fee = priority_fee_bips.apply(gas_value.0).unwrap();
+                seq_fee = priority_fee_bips.apply(gas_value).unwrap();
                 bond_amount = BOND_AMOUNT;
                 valid_tx_count += 1;
             }
@@ -77,16 +77,16 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
                 // The sequencer is not bonded so we can't penalize them for skipped transactions.
                 // In this case no one is charged for the failed transaction.
                 gas_value_charged_to_user = Amount::ZERO;
-                seq_fee = 0;
-                bond_amount = 0;
+                seq_fee = Amount::ZERO;
+                bond_amount = Amount::ZERO;
                 skipped_tx_count += 1;
             }
             TxEffect::Reverted(tx_contents) => {
                 total_gas = total_gas.checked_combine(&tx_contents.gas_used).unwrap();
                 let gas_value = tx_contents.gas_used.value(gas_price);
                 gas_value_charged_to_user = gas_value;
-                seq_fee = 0;
-                bond_amount = 0;
+                seq_fee = Amount::ZERO;
+                bond_amount = Amount::ZERO;
                 valid_tx_count += 1;
             }
         }
@@ -94,17 +94,32 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
         let end = runner.query_visible_state(|state| potential_seq.balances(state));
 
         // Sequencer fees are transferred to the bond in the sequencer registry.
-        assert_eq!(end.potential_seq_bond, seq_fee + bond_amount);
+        assert_eq!(
+            end.potential_seq_bond,
+            seq_fee.checked_add(bond_amount).unwrap()
+        );
         // The `seq_fee`` is redundant here, but I am leaving it as documentation to explain what is happening.
         // The user acts as a sequencer, transferring the fee from their bank balance to the bond in the sequencer registry.
         assert_eq!(
-            end.potential_seq_bank_balance + end.potential_seq_bond - seq_fee,
-            start.potential_seq_bank_balance - gas_value_charged_to_user.0 - seq_fee
+            end.potential_seq_bank_balance
+                .checked_add(end.potential_seq_bond)
+                .unwrap()
+                .checked_sub(seq_fee)
+                .unwrap(),
+            start
+                .potential_seq_bank_balance
+                .checked_sub(gas_value_charged_to_user)
+                .unwrap()
+                .checked_sub(seq_fee)
+                .unwrap()
         );
 
         assert_eq!(
             end.attester_module_balance,
-            start.attester_module_balance + gas_value_charged_to_user.0
+            start
+                .attester_module_balance
+                .checked_add(gas_value_charged_to_user)
+                .unwrap()
         );
 
         assert_eq!(end.total_balance(), start.total_balance());
@@ -113,7 +128,7 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
             batch_receipt.inner.outcome,
             sov_modules_api::BatchSequencerOutcome {
                 rewards: Rewards {
-                    accumulated_reward: seq_fee.into(),
+                    accumulated_reward: seq_fee,
                     accumulated_penalty: Amount::ZERO,
                 }
             }
@@ -258,21 +273,25 @@ mod helpers {
             Balances {
                 potential_seq_bank_balance: get_balance(&self.user.address(), state),
                 attester_module_balance: get_balance(attester_module.id().to_payable(), state),
-                potential_seq_bond: get_seq_bond(&self.da_address, state).unwrap_or(0),
+                potential_seq_bond: get_seq_bond(&self.da_address, state).unwrap_or(Amount::ZERO),
             }
         }
     }
 
     #[derive(Debug, Eq, PartialEq)]
     pub(crate) struct Balances {
-        pub(crate) potential_seq_bank_balance: u128,
-        pub(crate) potential_seq_bond: u128,
-        pub(crate) attester_module_balance: u128,
+        pub(crate) potential_seq_bank_balance: Amount,
+        pub(crate) potential_seq_bond: Amount,
+        pub(crate) attester_module_balance: Amount,
     }
 
     impl Balances {
-        pub(crate) fn total_balance(&self) -> u128 {
-            self.potential_seq_bank_balance + self.potential_seq_bond + self.attester_module_balance
+        pub(crate) fn total_balance(&self) -> Amount {
+            self.potential_seq_bank_balance
+                .checked_add(self.potential_seq_bond)
+                .unwrap()
+                .checked_add(self.attester_module_balance)
+                .unwrap()
         }
     }
 
@@ -291,7 +310,7 @@ mod helpers {
             None,
         );
 
-        let signer = TestUser::<S>::generate(0);
+        let signer = TestUser::<S>::generate(Amount::ZERO);
         Transaction::<IntegTestRuntime<S>, S>::new_signed_tx(
             signer.private_key(),
             &IntegTestRuntime::<S>::CHAIN_HASH,
@@ -308,7 +327,13 @@ mod helpers {
         chain_id: u64,
     ) -> Transaction<IntegTestRuntime<S>, S> {
         // Here, we attempt to bond more funds than are available for a given user, causing the transaction to be reverted.
-        let encoded_message = encode_message(da_address, signer.available_gas_balance + 1);
+        let encoded_message = encode_message(
+            da_address,
+            signer
+                .available_gas_balance
+                .checked_add(Amount::new(1))
+                .unwrap(),
+        );
 
         let utx = UnsignedTransaction::new(
             encoded_message,
@@ -396,12 +421,12 @@ mod helpers {
 
     fn encode_message(
         da_address: <<S as Spec>::Da as DaSpec>::Address,
-        bond_amount: u128,
+        bond_amount: Amount,
     ) -> IntegTestRuntimeCall<S> {
         <IntegTestRuntime<S> as EncodeCall<SequencerRegistry<S>>>::to_decodable(
             sov_sequencer_registry::CallMessage::Register {
                 da_address,
-                amount: bond_amount.into(),
+                amount: bond_amount,
             },
         )
     }

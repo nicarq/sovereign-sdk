@@ -3,7 +3,7 @@
 use clap::{Args, Parser, Subcommand};
 use demo_stf::genesis_config::EvmConfig;
 use demo_stf::runtime::{GenesisConfig, Runtime};
-use sov_modules_api::{CryptoSpec, Spec};
+use sov_modules_api::{Amount, CryptoSpec, Spec};
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::zk::ZkvmHost;
@@ -149,7 +149,7 @@ pub struct BenchCLICustomArgs {
     /// The maximum value setter vector length.
     pub max_value_setter_vec_len: usize,
 
-    /// The maximum length of the data writen to the storage.
+    /// The maximum length of the data written to the storage.
     pub pattern_maximum_write_data_length: usize,
 
     /// The maximum begin index of the writes to the storage.
@@ -182,16 +182,17 @@ impl BenchCLICustomArgs {
                 Default::default(),
             );
 
+        let quarter_max = Amount::MAX.checked_div(Amount::new(4)).unwrap();
         genesis_config
             .initial_prover
             .user_info
-            .available_gas_balance = u128::MAX / 4;
-        genesis_config.initial_prover.bond = u128::MAX / 4;
-        genesis_config.initial_sequencer.bond = u128::MAX / 4;
+            .available_gas_balance = quarter_max;
+        genesis_config.initial_prover.bond = quarter_max;
+        genesis_config.initial_sequencer.bond = quarter_max;
         genesis_config
             .initial_sequencer
             .user_info
-            .available_gas_balance = u128::MAX / 4;
+            .available_gas_balance = quarter_max;
 
         let sequencer = genesis_config.initial_sequencer.clone();
         let payer = genesis_config.additional_accounts.first().unwrap().clone();

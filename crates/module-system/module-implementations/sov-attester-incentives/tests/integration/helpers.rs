@@ -16,7 +16,7 @@ use sov_state::{Storage, StorageProof};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{AttesterIncentives, TestRunner};
 use sov_test_utils::{
-    assert_matches, generate_optimistic_runtime, AsUser, AtomicNumber, ProofInput, ProofTestCase,
+    assert_matches, generate_optimistic_runtime, AsUser, AtomicAmount, ProofInput, ProofTestCase,
     TestAttester, TestChallenger, TestUser, TransactionType,
 };
 use tokio::runtime::{self, Handle};
@@ -83,7 +83,7 @@ pub(crate) fn setup_with_custom_runtime(runtime: TestRuntime<S>) -> SetupParams 
                 .bonded_attesters
                 .get(&attester_address, state)
                 .unwrap(),
-            Some(attester_bond.into()),
+            Some(attester_bond),
             "The genesis attester should be bonded"
         );
 
@@ -109,7 +109,7 @@ pub(crate) fn setup() -> SetupParams {
 }
 
 pub(crate) fn consume_gas_tx_for_signer(signer: &TestUser<S>) -> TransactionType<RT, S> {
-    let recipient = TestUser::<S>::generate(0);
+    let recipient = TestUser::<S>::generate(Amount::ZERO);
     signer.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
         to: recipient.address(),
         coins: sov_bank::Coins {
@@ -201,8 +201,8 @@ pub(crate) fn make_attestation_blob(
 pub(crate) fn create_test_case(
     genesis_attester: TestAttester<S>,
     serialized_attestation: Vec<u8>,
-    initial_balance: u128,
-    reward: AtomicNumber,
+    initial_balance: Amount,
+    reward: AtomicAmount,
 ) -> ProofTestCase<S> {
     let attester_address = genesis_attester.user_info.address();
 
@@ -219,17 +219,21 @@ pub(crate) fn create_test_case(
                     .bonded_attesters
                     .get(&attester_address, state)
                     .unwrap(),
-                Some(genesis_attester.bond.into()),
+                Some(genesis_attester.bond),
                 "Bonded amount should not have changed"
             );
 
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&attester_address, state).unwrap(),
-                initial_balance - result.gas_value_used
-                    + TestAttesterIncentives::default()
-                        .burn_rate()
-                        .apply(reward.get().into())
-                        .0
+                initial_balance
+                    .checked_sub(result.gas_value_used)
+                    .unwrap()
+                    .checked_add(
+                        TestAttesterIncentives::default()
+                            .burn_rate()
+                            .apply(reward.get())
+                    )
+                    .unwrap()
             );
         }),
     }

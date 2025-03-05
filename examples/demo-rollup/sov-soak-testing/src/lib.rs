@@ -5,7 +5,7 @@ use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::arbitrary::{self};
 use sov_modules_api::transaction::TxDetails;
-use sov_modules_api::{DispatchCall, EncodeCall, Runtime};
+use sov_modules_api::{Amount, DispatchCall, EncodeCall, Runtime};
 use sov_paymaster::{
     PayeePolicy, PayerGenesisConfig, Paymaster, PaymasterConfig, PaymasterPolicyInitializer,
     SafeVec,
@@ -160,7 +160,11 @@ fn setup_roles_and_config() -> Setup {
 
     let sequencer = genesis_config.initial_sequencer.clone();
     let prover = genesis_config.initial_prover.clone();
-    let paymaster = TestUser::generate(TEST_DEFAULT_USER_BALANCE * 10);
+    let paymaster = TestUser::generate(
+        TEST_DEFAULT_USER_BALANCE
+            .checked_mul(Amount::new(10))
+            .unwrap(),
+    );
     genesis_config.additional_accounts.push(paymaster.clone());
 
     let users: Vec<TestUser<S>> = vec![TestUser::generate_with_default_balance(); 20];

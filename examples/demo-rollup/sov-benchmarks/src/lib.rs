@@ -9,7 +9,7 @@ use sov_address::MultiAddressEvm;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::{CryptoSpecExt, Spec, ZkVerifier, Zkvm};
+use sov_modules_api::{Amount, CryptoSpecExt, Spec, ZkVerifier, Zkvm};
 use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::zk::ZkvmHost;
 use sov_sp1_adapter::SP1;
@@ -92,7 +92,11 @@ where
             Default::default(),
         );
 
-    genesis_config.initial_sequencer.bond *= (num_senders as u128) * 10;
+    genesis_config.initial_sequencer.bond = genesis_config
+        .initial_sequencer
+        .bond
+        .checked_mul(Amount::new(num_senders as u128 * 10))
+        .unwrap();
 
     let sequencer = TestPreferredSequencer::new(genesis_config.initial_sequencer.clone());
     let prover = genesis_config.initial_prover.clone();

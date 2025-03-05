@@ -7,7 +7,7 @@ use sov_modules_api::{Amount, Spec, StateAccessorError};
 use sov_rollup_interface::common::SlotNumber;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    AsUser, AtomicNumber, TestAttester, TransactionTestCase, TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
+    AsUser, AtomicAmount, TestAttester, TransactionTestCase, TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
     TEST_ROLLUP_FINALITY_PERIOD,
 };
 
@@ -20,12 +20,12 @@ const INIT_BONDING_HEIGHT: SlotNumber = TEST_LIGHT_CLIENT_FINALIZED_HEIGHT;
 fn check_attester_bonded_and_start_unbond(
     runner: &mut TestRunner<RT, S>,
     attester: &TestAttester<S>,
-) -> u128 {
+) -> Amount {
     let attester_address = attester.user_info.address();
     let attester_bond = attester.bond;
     let attester_balance = attester.user_info.balance();
 
-    let gas_consumed_attester_ref_1 = AtomicNumber::new(0);
+    let gas_consumed_attester_ref_1 = AtomicAmount::new(Amount::ZERO);
     let gas_consumed_attester_ref_2 = gas_consumed_attester_ref_1.clone();
 
     runner.query_visible_state(|state| {
@@ -34,7 +34,7 @@ fn check_attester_bonded_and_start_unbond(
                 .bonded_attesters
                 .get(&attester_address, state)
                 .unwrap(),
-            Some(attester_bond.into()),
+            Some(attester_bond),
             "The genesis attester should be bonded"
         );
 
@@ -58,7 +58,7 @@ fn check_attester_bonded_and_start_unbond(
                     .unwrap(),
                 Some(UnbondingInfo {
                     unbonding_initiated_height: INIT_BONDING_HEIGHT,
-                    amount: attester_bond.into()
+                    amount: attester_bond
                 }),
             );
             gas_consumed_attester_ref_1.add(result.gas_value_used);
@@ -101,7 +101,7 @@ fn try_unbond_successful() {
                 event
                     == &TestRuntimeEvent::AttesterIncentives(
                         sov_attester_incentives::Event::ExitedAttester {
-                            amount_withdrawn: attester_bond.into(),
+                            amount_withdrawn: attester_bond,
                         },
                     )
             }));
@@ -128,9 +128,13 @@ fn try_unbond_successful() {
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&attester_address, state),
                 Some(
-                    attester_balance + attester_bond
-                        - result.gas_value_used
-                        - gas_consumed_start_unbonding
+                    attester_balance
+                        .checked_add(attester_bond)
+                        .unwrap()
+                        .checked_sub(result.gas_value_used)
+                        .unwrap()
+                        .checked_sub(gas_consumed_start_unbonding)
+                        .unwrap()
                 )
             );
         }),
@@ -265,7 +269,7 @@ fn try_bond_while_unbonding() {
                     .unwrap(),
                 Some(UnbondingInfo {
                     unbonding_initiated_height: SlotNumber::GENESIS,
-                    amount: attester_bond.into()
+                    amount: attester_bond
                 }),
                 "The attester should be part of the unbonding set"
             );

@@ -84,7 +84,11 @@ fn test_cannot_prove_when_gas_price_is_too_high(role: TestRole) {
                 token_id: config_gas_token_id(),
             },
         })
-        .with_max_fee(Amount::new(user.available_gas_balance / 2))
+        .with_max_fee(
+            user.available_gas_balance
+                .checked_div(Amount::new(2))
+                .unwrap(),
+        )
         .to_serialized_authenticated_tx(&mut nonces);
 
     let register_signed = user

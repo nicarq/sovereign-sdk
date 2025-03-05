@@ -137,7 +137,7 @@ pub(crate) fn transaction_consumption_helper<S: Spec>(
 
     // We compute the `max_priority_fee_bips` by applying the `priority_fee_per_gas` to the consumed gas.
     let max_earned_priority_fee = max_priority_fee_bips
-        .apply(base_fee_value.0)
+        .apply(base_fee_value)
         .map(Amount::from)
         .unwrap_or(max_remaining_funds); // If the computation overflows, it would have been larger than the max_remaining_funds anyway - so just use that.
 

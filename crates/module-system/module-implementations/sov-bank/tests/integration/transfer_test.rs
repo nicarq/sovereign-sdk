@@ -65,9 +65,11 @@ fn transfer_token_happy_path() {
                 Bank::<S>::default()
                     .get_balance_of(&user_high_token_balance_address, token_id, state)
                     .unwrap_infallible(),
-                Some(Amount::new(
-                    user_high_token_initial_balance - TRANSFER_AMOUNT.0
-                ))
+                Some(
+                    user_high_token_initial_balance
+                        .checked_sub(TRANSFER_AMOUNT)
+                        .unwrap()
+                )
             );
         }),
     });
@@ -93,13 +95,15 @@ fn transfer_balance_too_low() {
 
     let user_no_token_balance_address = user_no_token_balance.address();
 
-    let transfer_amount = user_high_token_initial_balance + 1;
+    let transfer_amount = user_high_token_initial_balance
+        .checked_add(Amount::new(1))
+        .unwrap();
 
     runner.execute_transaction(TransactionTestCase {
         input: user_high_token_balance.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
             to: user_no_token_balance_address,
             coins: Coins {
-                amount: transfer_amount.into(),
+                amount: transfer_amount,
                 token_id,
             },
         }),
@@ -128,7 +132,7 @@ fn transfer_balance_too_low() {
                     Bank::<S>::default()
                         .get_balance_of(&user_high_token_balance_address, token_id, state)
                         .unwrap_infallible(),
-                    Some(user_high_token_initial_balance.into())
+                    Some(user_high_token_initial_balance)
                 );
 
                 assert_eq!(
@@ -159,7 +163,7 @@ fn transfer_non_existent_token() {
 
     runner.execute_transaction(TransactionTestCase {
         input: user.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
-            to: sov_modules_api::Address::new([1u8;28]),
+            to: sov_modules_api::Address::new([1u8; 28]),
             coins: Coins {
                 amount: Amount::new(1),
                 token_id: non_existent_token.id(),
@@ -256,7 +260,7 @@ fn transfer_receiver_does_not_have_balance() {
     let sender_initial_balance = user_high_token_balance.token_balance(&token_name).unwrap();
 
     // Generate a new user with a zero balance
-    let receiver_address = TestUser::<S>::generate(0).address();
+    let receiver_address = TestUser::<S>::generate(Amount::ZERO).address();
 
     runner.execute_transaction(TransactionTestCase {
         input: user_high_token_balance.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
@@ -292,7 +296,7 @@ fn transfer_receiver_does_not_have_balance() {
                 Bank::<S>::default()
                     .get_balance_of(&sender_address, token_id, state)
                     .unwrap_infallible(),
-                Some(Amount::new(sender_initial_balance - TRANSFER_AMOUNT.0))
+                Some(sender_initial_balance.checked_sub(TRANSFER_AMOUNT).unwrap())
             );
         }),
     });
@@ -425,16 +429,24 @@ fn test_transfer_gas_token() {
                 Bank::<S>::default()
                     .get_balance_of(&receiver_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(Amount::new(receiver_initial_balance + TRANSFER_AMOUNT.0))
+                Some(
+                    receiver_initial_balance
+                        .checked_add(TRANSFER_AMOUNT)
+                        .unwrap()
+                )
             );
 
             assert_eq!(
                 Bank::<S>::default()
                     .get_balance_of(&sender_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(Amount::new(
-                    sender_initial_balance - result.gas_value_used - TRANSFER_AMOUNT.0
-                ))
+                Some(
+                    sender_initial_balance
+                        .checked_sub(result.gas_value_used)
+                        .unwrap()
+                        .checked_sub(TRANSFER_AMOUNT)
+                        .unwrap()
+                )
             );
         }),
     });

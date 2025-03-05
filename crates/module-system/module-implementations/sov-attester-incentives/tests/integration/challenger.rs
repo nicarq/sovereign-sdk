@@ -10,7 +10,7 @@ use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    assert_matches, AsUser, AtomicNumber, BondedTestChallenger, ProofInput, ProofTestCase,
+    assert_matches, AsUser, AtomicAmount, BondedTestChallenger, ProofInput, ProofTestCase,
     TestAttester, TransactionTestCase, TEST_ROLLUP_FINALITY_PERIOD,
 };
 
@@ -38,7 +38,7 @@ fn setup_with_wrong_attestation() -> (
         TestAttesterIncentives::default().get_minimal_challenger_bond_value(state)
     });
 
-    let expected_challenger_balance = AtomicNumber::new(genesis_challenger.user_info.balance());
+    let expected_challenger_balance = AtomicAmount::new(genesis_challenger.user_info.balance());
     let expected_challenger_balance_2 = expected_challenger_balance.clone();
     let expected_challenger_balance_3 = expected_challenger_balance.clone();
 
@@ -61,7 +61,12 @@ fn setup_with_wrong_attestation() -> (
 
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&genesis_challenger_address, state),
-                Some(expected_challenger_balance_2.get() - genesis_challenger_bond.0),
+                Some(
+                    expected_challenger_balance_2
+                        .get()
+                        .checked_sub(genesis_challenger_bond)
+                        .unwrap()
+                ),
                 "The attester should have the correct bond amount from genesis"
             );
         }),
@@ -75,7 +80,7 @@ fn setup_with_wrong_attestation() -> (
     genesis_challenger.user_info.available_gas_balance = expected_challenger_balance_3.get();
 
     let bonded_challenger =
-        BondedTestChallenger::from_challenger(genesis_challenger, genesis_challenger_bond.0);
+        BondedTestChallenger::from_challenger(genesis_challenger, genesis_challenger_bond);
 
     let initial_attester_balance = runner
         .query_visible_state(|state| {
@@ -113,13 +118,17 @@ fn setup_with_wrong_attestation() -> (
                         .bad_transition_pool
                         .get(&SlotNumber::ONE, state)
                         .unwrap_infallible(),
-                    Some(genesis_attester_bond.into()),
+                    Some(genesis_attester_bond),
                     "The transition should exist in the pool"
                 );
 
                 assert_eq!(
                     TestRunner::<RT, S>::bank_gas_balance(&genesis_attester_address, state),
-                    Some(initial_attester_balance - result.gas_value_used),
+                    Some(
+                        initial_attester_balance
+                            .checked_sub(result.gas_value_used)
+                            .unwrap()
+                    ),
                     "The attester should have the correct bond amount from genesis"
                 );
             }),
@@ -130,7 +139,7 @@ fn setup_with_wrong_attestation() -> (
         runner,
         genesis_attester,
         bonded_challenger,
-        genesis_attester_bond.into(),
+        genesis_attester_bond,
     )
 }
 
@@ -176,12 +185,15 @@ fn test_valid_challenge() -> Result<(), Infallible> {
 
             let reward = TestAttesterIncentives::default()
                 .burn_rate()
-                .apply(expected_reward)
-                .0;
+                .apply(expected_reward);
 
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&bonded_challenger_address, state).unwrap(),
-                initial_challenger_balance - result.gas_value_used + reward,
+                initial_challenger_balance
+                    .checked_sub(result.gas_value_used)
+                    .unwrap()
+                    .checked_add(reward)
+                    .unwrap(),
             );
         }),
     });
@@ -238,7 +250,9 @@ fn test_invalid_challenge_helper(
 
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&bonded_challenger_address, state).unwrap(),
-                initial_challenger_balance - result.gas_value_used
+                initial_challenger_balance
+                    .checked_sub(result.gas_value_used)
+                    .unwrap(),
             );
         }),
     });

@@ -29,11 +29,11 @@ fn setup_dynamic_gas_update_tests() -> (TestData<S>, TestRunner<TestChainStateRu
 
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts(vec![TestUser::<S>::generate(
-            u128::MAX / 2,
+            Amount::MAX.saturating_div(Amount::new(2)),
         )
         .add_token_info(UserTokenInfo {
             token_name: token_name.clone(),
-            balance: 0,
+            balance: Amount::ZERO,
             is_minter: true,
         })]);
 

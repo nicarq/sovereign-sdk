@@ -22,14 +22,14 @@ fn transfer_token_and_query_old_balances() {
 
     let sender_initial_token_balance = sender.token_balance(&token_name).unwrap();
 
-    const AMOUNT_PER_TRANSFER: u128 = 10;
+    const AMOUNT_PER_TRANSFER: Amount = Amount::new(10);
 
     for height in 1u64..10 {
-        runner.execute(sender.create_plain_message::<RT, sov_bank::Bank<TestSpec>>(
+        runner.execute(sender.create_plain_message::<RT, Bank<TestSpec>>(
             sov_bank::CallMessage::Transfer {
                 to: receiver.address(),
                 coins: Coins {
-                    amount: AMOUNT_PER_TRANSFER.into(),
+                    amount: AMOUNT_PER_TRANSFER,
                     token_id,
                 },
             },
@@ -41,7 +41,7 @@ fn transfer_token_and_query_old_balances() {
                 Bank::<TestSpec>::default()
                     .get_balance_of(&receiver.address(), token_id, state)
                     .unwrap_infallible(),
-                Some(Amount::new(AMOUNT_PER_TRANSFER * height as u128))
+                Some(AMOUNT_PER_TRANSFER.checked_mul(height.into()).unwrap())
             );
         });
 
@@ -54,18 +54,25 @@ fn transfer_token_and_query_old_balances() {
                     Bank::<TestSpec>::default()
                         .get_balance_of(&sender.address(), token_id, archival_state)
                         .unwrap_infallible(),
-                    Some(Amount::new(
+                    Some(
                         sender_initial_token_balance
-                            - AMOUNT_PER_TRANSFER * height_to_query.get() as u128
-                    ))
+                            .checked_sub(
+                                AMOUNT_PER_TRANSFER
+                                    .checked_mul(height_to_query.get().into())
+                                    .unwrap()
+                            )
+                            .unwrap()
+                    )
                 );
 
                 let expected_receiver_balance = if height_to_query == RollupHeight::GENESIS {
                     None
                 } else {
-                    Some(Amount::new(
-                        AMOUNT_PER_TRANSFER * height_to_query.get() as u128,
-                    ))
+                    Some(
+                        AMOUNT_PER_TRANSFER
+                            .checked_mul(height_to_query.get().into())
+                            .unwrap(),
+                    )
                 };
                 assert_eq!(
                     Bank::<TestSpec>::default()

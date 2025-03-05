@@ -6,7 +6,7 @@ use borsh::BorshDeserialize;
 use sov_api_spec::types;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Address, Amount, BlobReaderTrait, DispatchCall, FullyBakedTx};
+use sov_modules_api::{Address, BlobReaderTrait, DispatchCall, FullyBakedTx};
 use sov_rollup_interface::node::da::DaService;
 use sov_sequencer::standard::StdSequencerConfig;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -104,7 +104,7 @@ async fn test_accept_tx() {
 #[tokio::test(flavor = "multi_thread")]
 // Test how the batch builder handles invalid transactions inside the mempool by
 // inserting two valid transactions, then draining the sender's balance so that
-// the second one has insufficent gas. This is a regression test for the bug
+// the second one has insufficient gas. This is a regression test for the bug
 // where an out-of-gas error during batch creation prevented the entire
 // batch from being submitted.
 async fn test_batch_building_with_out_of_gas_error() {
@@ -114,7 +114,7 @@ async fn test_batch_building_with_out_of_gas_error() {
     let drain_wallet_msg = sov_test_utils::runtime::BankCallMessage::<TestSpec>::Transfer {
         to: Address::from_str("sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv").unwrap(),
         coins: Coins {
-            amount: Amount::new(TEST_DEFAULT_USER_BALANCE)
+            amount: TEST_DEFAULT_USER_BALANCE
                 .checked_sub(TEST_DEFAULT_MAX_FEE)
                 .unwrap(),
             // Leave enough tokens to pay gas for the first tx

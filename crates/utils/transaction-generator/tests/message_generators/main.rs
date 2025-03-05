@@ -4,7 +4,7 @@ use sov_bank::Bank;
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::arbitrary::{self};
 use sov_modules_api::transaction::TxDetails;
-use sov_modules_api::{DispatchCall, EncodeCall, Runtime};
+use sov_modules_api::{Amount, DispatchCall, EncodeCall, Runtime};
 use sov_paymaster::{
     PayeePolicy, PayerGenesisConfig, Paymaster, PaymasterConfig, PaymasterPolicyInitializer,
     SafeVec,
@@ -41,7 +41,7 @@ mod bank;
 mod basic;
 mod transactions;
 
-const USER_BALANCE: u128 = 1_000_000_000_000;
+const USER_BALANCE: Amount = Amount::new(1_000_000_000_000);
 const MAX_VEC_LEN_VALUE_SETTER: usize = 1000;
 const MAXIMUM_WRITE_DATA_LENGTH: usize = 100;
 const MAXIMUM_WRITE_BEGIN_INDEX: u64 = 1000;
@@ -295,21 +295,22 @@ pub struct Setup {
     pub genesis_config: GenesisConfig<S>,
 }
 
-fn setup_roles_and_config(user_balance: u128) -> Setup {
+fn setup_roles_and_config(user_balance: Amount) -> Setup {
     let mut genesis_config = HighLevelOptimisticGenesisConfig::generate()
         .add_accounts_with_default_balance(2)
         .add_accounts_with_balance(2, user_balance);
 
+    let quarter_max = Amount::MAX.checked_div(Amount::new(4)).unwrap();
     genesis_config
         .initial_attester
         .user_info
-        .available_gas_balance = u128::MAX / 4;
-    genesis_config.initial_attester.bond = u128::MAX / 4;
-    genesis_config.initial_sequencer.bond = u128::MAX / 4;
+        .available_gas_balance = quarter_max;
+    genesis_config.initial_attester.bond = quarter_max;
+    genesis_config.initial_sequencer.bond = quarter_max;
     genesis_config
         .initial_sequencer
         .user_info
-        .available_gas_balance = u128::MAX / 4;
+        .available_gas_balance = quarter_max;
 
     let sequencer = genesis_config.initial_sequencer.clone();
     let attester = genesis_config.initial_attester.clone();

@@ -104,7 +104,7 @@ fn test_display_unsigned_tx() {
 #[test]
 fn test_display_signed_tx() {
     let unsigned_tx = make_unsigned_tx();
-    let signer = TestUser::<S>::generate(0);
+    let signer = TestUser::<S>::generate(Amount::ZERO);
     let signed_tx = Transaction::new_signed_tx(signer.private_key(), &CHAIN_HASH, unsigned_tx);
     let signed_data = borsh::to_vec(&signed_tx).unwrap();
     let schema = Schema::of_rollup_types_with_metadata::<

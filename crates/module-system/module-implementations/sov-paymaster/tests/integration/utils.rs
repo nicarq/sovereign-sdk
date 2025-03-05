@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use sov_modules_api::{CryptoSpec, PrivateKey, SafeVec, SelectedBlob, Spec};
+use sov_modules_api::{Amount, CryptoSpec, PrivateKey, SafeVec, SelectedBlob, Spec};
 use sov_paymaster::{PayeePolicy, PayerGenesisConfig, PaymasterConfig, PaymasterPolicyInitializer};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -147,7 +147,7 @@ where
 }
 
 /// Setup a genesis config containing a sequencer, a pre-registered payer, and two additional users with the requested balance.
-pub fn setup(user_balance: u128) -> Setup {
+pub fn setup(user_balance: Amount) -> Setup {
     // Generate a genesis config
     let genesis_config = HighLevelOptimisticGenesisConfig::generate()
         .add_accounts_with_default_balance(1)

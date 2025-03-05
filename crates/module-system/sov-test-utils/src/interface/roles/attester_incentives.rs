@@ -1,4 +1,4 @@
-use sov_modules_api::Spec;
+use sov_modules_api::{Amount, Spec};
 
 use super::{AsUser, TestUser};
 
@@ -8,7 +8,7 @@ pub struct TestAttester<S: Spec> {
     /// The [`TestUser`] info of the attester.
     pub user_info: TestUser<S>,
     /// The amount of tokens bonded by the attester.
-    pub bond: u128,
+    pub bond: Amount,
     /// The next rollup height at which the attester is supposed to attest.
     pub slot_to_attest: u64,
 }
@@ -16,9 +16,9 @@ pub struct TestAttester<S: Spec> {
 /// The configuration to generate an attester.
 pub struct TestAttesterConfig {
     /// The amount of tokens to bond at genesis.
-    pub bond: u128,
+    pub bond: Amount,
     /// Any additional (not bonded) balance that the bank should mint for the attester.
-    pub free_balance: u128,
+    pub free_balance: Amount,
 }
 
 impl<S: Spec> TestAttester<S> {
@@ -29,7 +29,7 @@ impl<S: Spec> TestAttester<S> {
 
     /// Slashes the attester, making it unbonded.
     pub fn slash(&mut self) {
-        self.bond = 0;
+        self.bond = Amount::ZERO;
     }
 
     /// Generates a new attester with the given configuration.
@@ -61,7 +61,7 @@ pub struct TestChallenger<S: Spec> {
 
 impl<S: Spec> TestChallenger<S> {
     /// Generates a new challenger with the given balance.
-    pub fn generate(balance: u128) -> Self {
+    pub fn generate(balance: Amount) -> Self {
         Self {
             user_info: TestUser::generate(balance),
         }
@@ -84,7 +84,7 @@ pub struct BondedTestChallenger<S: Spec> {
     /// The [`TestUser`] info of the challenger.
     pub user_info: TestUser<S>,
     /// The amount of tokens bonded by the challenger.
-    pub bond: u128,
+    pub bond: Amount,
 }
 
 impl<S: Spec> AsUser<S> for BondedTestChallenger<S> {
@@ -99,13 +99,17 @@ impl<S: Spec> AsUser<S> for BondedTestChallenger<S> {
 
 impl<S: Spec> BondedTestChallenger<S> {
     /// Creates a new bonded challenger from a challenger and a bond amount. The bond amount is subtracted from the challenger's free balance.
-    pub fn from_challenger(challenger: TestChallenger<S>, bond: u128) -> Self {
+    pub fn from_challenger(challenger: TestChallenger<S>, bond: Amount) -> Self {
         assert!(bond <= challenger.user_info.available_gas_balance);
 
         Self {
             user_info: TestUser {
                 private_key: challenger.user_info.private_key().clone(),
-                available_gas_balance: challenger.user_info.available_gas_balance - bond,
+                available_gas_balance: challenger
+                    .user_info
+                    .available_gas_balance
+                    .checked_sub(bond)
+                    .unwrap(),
                 token_balances: Vec::new(),
                 custom_credential_id: None,
             },

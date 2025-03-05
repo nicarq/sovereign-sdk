@@ -66,7 +66,7 @@ fn test_register_sequencer() {
     let new_sequencer = TestSequencer::<S> {
         user_info: additional_user,
         da_address: new_sequencer_address,
-        bond: user_stake_value.0,
+        bond: user_stake_value,
     };
 
     // We first bond the sequencer
@@ -74,7 +74,7 @@ fn test_register_sequencer() {
         new_sequencer.create_plain_message::<RT, SequencerRegistry<S>>(
             sov_sequencer_registry::CallMessage::Register {
                 da_address: new_sequencer.da_address,
-                amount: new_sequencer.bond.into(),
+                amount: new_sequencer.bond,
             },
         ),
     );
