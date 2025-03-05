@@ -64,7 +64,7 @@ pub struct RollupBuilderConfig<S: Spec, StoragePath = Arc<tempfile::TempDir>> {
     pub aggregated_proof_block_jump: usize,
     pub max_infos_in_db: u64,
     pub max_channel_size: u64,
-    pub telegraf_address: SocketAddr,
+    pub telegraf_address: sov_stf_runner::TelegrafSocketConfig,
     pub rollup_prover_config: Option<RollupProverConfig<S::InnerZkvm>>,
     /// This is wrapped in an [`Arc`] to enable re-use of the same directory
     /// when dropping a [`TestRollup`] and creating a new one. The pattern

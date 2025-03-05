@@ -1,11 +1,11 @@
 use std::collections::{HashMap, HashSet};
-use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::ensure;
 use demo_stf::runtime::GenesisConfig;
 use futures::{Stream, StreamExt};
+use sov_metrics::TelegrafSocketConfig;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::capabilities::config_chain_id;
@@ -29,7 +29,7 @@ use crate::{mock_da_risc0_host_args, DEFAULT_FINALIZATION_BLOCKS};
 /// We give the maximum possible gas balance to the prover and sequencer to ensure that they can pay for the transactions.
 pub async fn setup_rollup(
     genesis_config: GenesisConfig<S>,
-    telegraf_address: SocketAddr,
+    telegraf_address: TelegrafSocketConfig,
 ) -> anyhow::Result<BenchRollup> {
     let sequencer_da_address = genesis_config.sequencer_registry.seq_da_address;
     let prover_address = genesis_config

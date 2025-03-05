@@ -15,6 +15,11 @@
 - #2509 **BREAKING CHANGE** `max_fee` field in transaction details changed from `u128` to `Amount`, meaning number is encoded as string in JSON.
 - #2513 **BREAKING CHANGE** `sequencer_bond` field in genesis of `sov-sequencer-registry` changed from `u128` to `Amount, meaning number is encoded as string in JSON.
 - #2515 **BREAKING CHANGE** Events in `sov-seqeuencer-registry` and `sov-prover-incentives` now use Amount, meaning number is encoded as string in JSON.
+- #2458 Configuration parameter for telegraf daemon now allows specifying explicitly if it is a UDP or TCP socket. Previously it was using only UDP. By default, it assumes UDP. 
+  ```toml
+  [monitoring]
+  telegraf_address = "udp://127.0.0.1:8094"
+  ```
 ## 2025-02-24
 - #2498 **BREAKING CHANGE** Changes all token balances from `u64` to `u128`. This covers gas all references to balances or fund amounts throughout the SDK, including gas *prices* (though not gas units).
 - #2497 Updates the PublicKey API and refines the conversion of public keys to Addresses. Introduces charging for CredentialId calculation.

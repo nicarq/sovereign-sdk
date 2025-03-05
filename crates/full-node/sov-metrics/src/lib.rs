@@ -11,7 +11,7 @@ mod influxdb;
 pub use influxdb::{
     init_metrics_tracker, timestamp, track_metrics, BatchMetrics, BatchOutcome, HttpMetrics,
     Metric, MetricsTracker, MonitoringConfig, RunnerMetrics, SlotProcessingMetrics,
-    SovRollupMetrics, TransactionEffect, TransactionProcessingMetrics,
+    SovRollupMetrics, TelegrafSocketConfig, TransactionEffect, TransactionProcessingMetrics,
     UserSpaceSlotProcessingMetrics, ZkCircuit, ZkProvingTime, ZkVmExecutionChunk, METRICS_METADATA,
 };
 #[cfg(all(feature = "native", feature = "gas-constant-estimation"))]

@@ -1,4 +1,4 @@
-use sov_metrics::{init_metrics_tracker, MonitoringConfig};
+use sov_metrics::{init_metrics_tracker, MonitoringConfig, TelegrafSocketConfig};
 use sov_modules_api::{Gas, GasMeter};
 use sov_modules_macros::track_gas_constants_usage;
 use tokio::net::UdpSocket;
@@ -37,7 +37,7 @@ async fn test_metrics_macro() {
         .insert("test_metadata".to_string(), "test_value".to_string());
 
     init_metrics_tracker(&MonitoringConfig {
-        telegraf_address: channel.local_addr().unwrap(),
+        telegraf_address: TelegrafSocketConfig::udp(channel.local_addr().unwrap()),
         max_datagram_size: Some(1),
         max_pending_metrics: None,
     });
@@ -121,7 +121,7 @@ async fn test_metrics_macro_without_input() {
         .expect("Impossible to bind to port");
 
     init_metrics_tracker(&MonitoringConfig {
-        telegraf_address: channel.local_addr().unwrap(),
+        telegraf_address: TelegrafSocketConfig::udp(channel.local_addr().unwrap()),
         max_datagram_size: Some(1),
         max_pending_metrics: None,
     });

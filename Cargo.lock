@@ -10214,6 +10214,7 @@ dependencies = [
  "derivative",
  "derive_more 1.0.0",
  "http 1.1.0",
+ "insta",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "schemars",
@@ -10223,6 +10224,7 @@ dependencies = [
  "sp1-lib",
  "strum",
  "tokio",
+ "toml",
  "tracing",
 ]
 
