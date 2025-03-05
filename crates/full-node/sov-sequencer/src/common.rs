@@ -71,7 +71,7 @@ pub trait Sequencer: Sized + Send + Sync + 'static {
     fn api_state(&self) -> ApiState<Self::Spec>;
 
     /// Checks whether the batch builder is ready to accept transactions.
-    fn is_ready(&self) -> Result<(), SequencerNotReadyDetails>;
+    async fn is_ready(&self) -> Result<(), SequencerNotReadyDetails>;
 
     /// Queries a transaction's status.
     async fn tx_status(

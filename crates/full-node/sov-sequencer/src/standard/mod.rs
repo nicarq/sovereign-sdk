@@ -480,7 +480,7 @@ where
         Ok((seq, handles))
     }
 
-    fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
+    async fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
         // The non-preferred batch builder is always ready to accept
         // transactions.
         Ok(())
