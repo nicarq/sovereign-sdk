@@ -160,10 +160,13 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
     }
 
     /// Injects additional HTTP APIs for the sequencer.
-    async fn sequencer_additional_apis<Seq: Sequencer>(
+    async fn sequencer_additional_apis<Seq>(
         &self,
         _sequencer: Arc<Seq>,
-    ) -> anyhow::Result<axum::Router<()>> {
+    ) -> anyhow::Result<axum::Router<()>>
+    where
+        Seq: Sequencer<Spec = Self::Spec, Rt = Self::Runtime, Da = Self::DaService>,
+    {
         Ok(axum::Router::new())
     }
 
