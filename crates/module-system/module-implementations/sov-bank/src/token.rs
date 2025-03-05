@@ -52,9 +52,9 @@ impl BurnRate {
     /// Applies the burn rate to the given amount.
     pub fn apply(&self, amount: Amount) -> Amount {
         let self_as_bips = PriorityFeeBips::from_percentage(100 - self.0 as u64);
-        Amount(self_as_bips.apply(amount.0).expect(
+        self_as_bips.apply(amount).expect(
             "The final calculation cannot overflow since the burn rate is never greater than 100%",
-        ))
+        )
     }
 }
 

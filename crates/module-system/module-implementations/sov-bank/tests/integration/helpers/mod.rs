@@ -1,4 +1,5 @@
 use sov_bank::TokenId;
+use sov_modules_api::Amount;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::genesis::TestTokenName;
 use sov_test_utils::runtime::TestRunner;
@@ -40,7 +41,7 @@ pub fn setup_with_custom_runtime(
 
     let genesis_config = HighLevelOptimisticGenesisConfig::generate()
         .add_accounts_with_default_balance(1)
-        .add_accounts_with_token(&token_name, true, 1, 100_000);
+        .add_accounts_with_token(&token_name, true, 1, Amount::new(100_000));
 
     let user_no_token_balance = genesis_config.additional_accounts[0].clone();
 

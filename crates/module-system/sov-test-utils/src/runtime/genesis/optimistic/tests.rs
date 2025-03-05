@@ -90,8 +90,7 @@ fn run_value_setter_txs_with_assertions(
         sequencer_rollup_addr,
         SEQUENCER_DA_ADDR.into(),
         <TestSpec as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE)
-            .value(&TestSpec::initial_base_fee_per_gas())
-            .0,
+            .value(&TestSpec::initial_base_fee_per_gas()),
         "SovereignToken".to_string(),
         TEST_DEFAULT_USER_BALANCE,
         Default::default(),
@@ -128,9 +127,9 @@ fn create_test_rt_genesis_config<S: Spec>(
     additional_accounts: &[(S::Address, Amount)],
     seq_rollup_address: S::Address,
     seq_da_address: <S::Da as DaSpec>::Address,
-    seq_bond: u128,
+    seq_bond: Amount,
     token_name: String,
-    init_balance: u128,
+    init_balance: Amount,
     inner_code_commitment: CodeCommitmentFor<S::InnerZkvm>,
     outer_code_commitment: CodeCommitmentFor<S::OuterZkvm>,
 ) -> crate::runtime::GenesisConfig<S> {
@@ -146,7 +145,7 @@ fn create_test_rt_genesis_config<S: Spec>(
         sequencer_registry: SequencerConfig {
             seq_rollup_address: seq_rollup_address.clone(),
             seq_da_address,
-            seq_bond: seq_bond.into(),
+            seq_bond,
             is_preferred_sequencer: true,
         },
         attester_incentives: AttesterIncentivesConfig {
@@ -167,10 +166,7 @@ fn create_test_rt_genesis_config<S: Spec>(
                 proving_penalty.scalar_division(2);
                 proving_penalty
             },
-            initial_provers: vec![(
-                prover_placeholder.address(),
-                prover_placeholder.balance().into(),
-            )],
+            initial_provers: vec![(prover_placeholder.address(), prover_placeholder.balance())],
         },
         bank: BankConfig {
             gas_token_config: sov_bank::GasTokenConfig {
@@ -179,12 +175,9 @@ fn create_test_rt_genesis_config<S: Spec>(
                 address_and_balances: {
                     let mut additional_accounts_vec = additional_accounts.to_vec();
                     additional_accounts_vec.append(&mut vec![
-                        (seq_rollup_address, init_balance.into()),
-                        (admin.clone(), init_balance.into()),
-                        (
-                            prover_placeholder.address(),
-                            prover_placeholder.balance().into(),
-                        ),
+                        (seq_rollup_address, init_balance),
+                        (admin.clone(), init_balance),
+                        (prover_placeholder.address(), prover_placeholder.balance()),
                     ]);
                     additional_accounts_vec
                 },
@@ -237,8 +230,8 @@ fn test_define_token() {
 
     let genesis_config = HighLevelOptimisticGenesisConfig::<TestSpec>::generate()
         .add_accounts_with_default_balance(1)
-        .add_accounts_with_token(token_0_name, true, 2, 100_000)
-        .add_accounts_with_token(token_1_name, false, 1, 10);
+        .add_accounts_with_token(token_0_name, true, 2, Amount::new(100_000))
+        .add_accounts_with_token(token_1_name, false, 1, Amount::new(10));
 
     let admin = genesis_config.additional_accounts[0].clone();
 
@@ -266,7 +259,7 @@ fn test_define_token() {
             .bank
             .gas_token_config
             .address_and_balances
-            .contains(&(*address, TEST_DEFAULT_USER_BALANCE.into()))
+            .contains(&(*address, TEST_DEFAULT_USER_BALANCE))
     }));
 
     let token_1 = genesis_config.bank.tokens.get(1).unwrap();
@@ -282,13 +275,13 @@ fn test_define_token() {
             .bank
             .gas_token_config
             .address_and_balances
-            .contains(&(*address, TEST_DEFAULT_USER_BALANCE.into()))
+            .contains(&(*address, TEST_DEFAULT_USER_BALANCE))
     }));
 }
 
 #[test]
 fn test_define_token_with_state() {
-    const BALANCE_TOKEN_0: u128 = 100_000;
+    const BALANCE_TOKEN_0: Amount = Amount::new(100_000);
 
     let token_0_name = &TestTokenName::new("0".to_string());
     let token_1_name = &TestTokenName::new("MyTestToken".to_string());
@@ -296,7 +289,7 @@ fn test_define_token_with_state() {
     let genesis_config = HighLevelOptimisticGenesisConfig::generate()
         .add_accounts_with_default_balance(1)
         .add_accounts_with_token(token_0_name, false, 2, BALANCE_TOKEN_0)
-        .add_accounts_with_token(token_1_name, true, 0, 0);
+        .add_accounts_with_token(token_1_name, true, 0, Amount::ZERO);
 
     let admin = genesis_config.additional_accounts[0].clone();
 
@@ -392,7 +385,7 @@ fn test_define_token_with_mint() {
 
     let genesis_config = HighLevelOptimisticGenesisConfig::generate()
         .add_accounts_with_default_balance(1)
-        .add_accounts_with_token(token_0_name, true, 0, 0);
+        .add_accounts_with_token(token_0_name, true, 0, Amount::ZERO);
 
     let token_0_name = genesis_config.token_names().pop().unwrap();
     let mut token_0_holders = genesis_config.get_accounts_for_token(&token_0_name);
@@ -469,11 +462,13 @@ fn test_define_genesis_config_additional_accounts_test_user() {
     // By default we don't have any additional accounts
     assert!(genesis_config.additional_accounts.is_empty());
 
+    let balance_1 = Amount::new(100);
+    let balance_2 = Amount::new(1);
     genesis_config = genesis_config.add_accounts(vec![
-        TestUser::<TestSpec>::generate(100),
-        TestUser::<TestSpec>::generate(1).add_token_info(UserTokenInfo {
+        TestUser::<TestSpec>::generate(balance_1),
+        TestUser::<TestSpec>::generate(balance_2).add_token_info(UserTokenInfo {
             token_name: TestTokenName::new("Token".to_string()),
-            balance: 5,
+            balance: Amount::new(5),
             is_minter: false,
         }),
     ]);
@@ -482,10 +477,10 @@ fn test_define_genesis_config_additional_accounts_test_user() {
     let first_user = genesis_config.additional_accounts.first().unwrap();
     let second_user = genesis_config.additional_accounts.get(1).unwrap();
 
-    assert_eq!(first_user.balance(), 100);
+    assert_eq!(first_user.balance(), balance_1);
     assert_eq!(first_user.token_balances.len(), 0);
 
-    assert_eq!(second_user.balance(), 1);
+    assert_eq!(second_user.balance(), balance_2);
     assert_eq!(second_user.token_balances.len(), 1);
     assert_eq!(
         second_user.token_balances.first().unwrap().token_name,

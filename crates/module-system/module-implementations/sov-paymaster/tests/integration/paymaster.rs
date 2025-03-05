@@ -17,8 +17,8 @@ use crate::runtime::{PaymasterRuntime, PaymasterRuntimeEvent};
 use crate::utils::{setup, DoValueSetterTx, TxOutcome, RT, S};
 
 // This module implements the following tests for the paymaster
-// -[x] Register paymaster using callmessage
-// -[x] Set payer for sequencer using callmessage
+// -[x] Register paymaster using call message
+// -[x] Set payer for sequencer using call message
 // -[x] Register payee for user
 // -[x] Update payee policy for a user
 // -[x] Remove payee policy for a user
@@ -42,7 +42,7 @@ use crate::utils::{setup, DoValueSetterTx, TxOutcome, RT, S};
 // if the paymaster is willing to cover that user.
 #[test]
 fn test_basic() {
-    let setup = setup(0);
+    let setup = setup(Amount::ZERO);
     let mut runner = TestRunner::new_with_genesis(
         setup.genesis_config.into_genesis_params(),
         PaymasterRuntime::default(),
@@ -55,7 +55,7 @@ fn test_basic() {
 // Test that a policy can be updated and its outcome changes accordingly for the user
 #[test]
 fn test_basic_policy_update() {
-    let setup = setup(0);
+    let setup = setup(Amount::ZERO);
     let mut runner = TestRunner::new_with_genesis(
         setup.genesis_config.into_genesis_params(),
         PaymasterRuntime::default(),
@@ -84,7 +84,7 @@ fn test_basic_policy_update() {
 // Register a payer using a call message and check that it works
 #[test]
 fn test_registering_new_payer() {
-    let mut setup = setup(0);
+    let mut setup = setup(Amount::ZERO);
     // Don't configure a payer at genesis.
     setup.genesis_config.paymaster.payers.truncate(0);
 
@@ -130,7 +130,7 @@ fn test_registering_new_payer() {
     runner.do_value_setter_tx(&setup.user, TxOutcome::Executed);
 }
 
-// Set the payer for a sequencer using a callmessage
+// Set the payer for a sequencer using a call message
 #[test]
 fn test_setting_payer_for_sequencer() {
     let setup = setup(TEST_DEFAULT_USER_BALANCE);
@@ -170,7 +170,7 @@ fn test_setting_payer_for_sequencer() {
         }),
     });
 
-    // Use a callmessage to set the paymaster for our sequencer back to the original value and check that
+    // Use a call message to set the paymaster for our sequencer back to the original value and check that
     // the payer address is as expected.
     runner.execute_transaction(TransactionTestCase {
         input: setup.user.create_plain_message::<RT, Paymaster<S>>(
@@ -192,7 +192,7 @@ fn test_setting_payer_for_sequencer() {
 // Test registering an exception to allow a specific payee to transact when most cannot.
 #[test]
 fn test_registering_payee() {
-    let mut setup = setup(0);
+    let mut setup = setup(Amount::ZERO);
     setup.payer_setup().policy.default_payee_policy = PayeePolicy::Deny;
 
     let mut runner = TestRunner::new_with_genesis(
@@ -253,7 +253,7 @@ fn test_registering_payee() {
 // Test registering a specific policy to block a particular payee when others can transact
 #[test]
 fn test_blocking_and_unblocking_payee() {
-    let setup = setup(0);
+    let setup = setup(Amount::ZERO);
     let mut runner = TestRunner::new_with_genesis(
         setup.genesis_config.into_genesis_params(),
         PaymasterRuntime::default(),
@@ -320,7 +320,7 @@ fn test_blocking_and_unblocking_payee() {
 // Test unregistering the sequencer from its paymaster
 #[test]
 fn test_unregistering_sequencer() {
-    let setup = setup(0);
+    let setup = setup(Amount::ZERO);
 
     let mut runner = TestRunner::new_with_genesis(
         setup.genesis_config.into_genesis_params(),
@@ -402,7 +402,7 @@ fn test_unregistering_sequencer() {
 // Test the logic for authorizing updates to the payer policy
 #[test]
 fn test_updates_using_alternate_address() {
-    let mut setup = setup(0);
+    let mut setup = setup(Amount::ZERO);
     let user_address = setup.user.address();
     setup
         .payer_setup()
@@ -472,7 +472,7 @@ fn test_updates_using_alternate_address() {
 fn test_setting_payer_with_insufficient_balance() {
     // Assumption: 1 token is not enough balance to execute a transaction. If this assumption is wrong,
     // the test will fail spuriously.
-    let setup = setup(1);
+    let setup = setup(Amount::new(1));
     let mut runner = TestRunner::new_with_genesis(
         setup.genesis_config.into_genesis_params(),
         PaymasterRuntime::default(),
@@ -532,7 +532,7 @@ fn test_setting_payer_with_insufficient_balance() {
 
 #[test]
 fn test_granular_policies() {
-    let mut setup = setup(0);
+    let mut setup = setup(Amount::ZERO);
     // Start with a high enough max fee to allow txs and ensure success
     setup.payer_setup().policy.default_payee_policy = PayeePolicy::Allow {
         max_fee: Some(Amount::from(u64::MAX)),

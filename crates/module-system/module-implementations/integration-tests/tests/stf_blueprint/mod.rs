@@ -29,22 +29,21 @@ type Call = IntegTestRuntimeCall<S>;
 
 generate_optimistic_runtime!(IntegTestRuntime <= value_setter: ValueSetter<S>);
 
-fn get_balance(payable: impl Payable<S>, state: &mut ApiStateAccessor<S>) -> u128 {
+fn get_balance(payable: impl Payable<S>, state: &mut ApiStateAccessor<S>) -> Amount {
     Bank::<S>::default()
         .get_balance_of(payable, config_gas_token_id(), state)
         .unwrap_infallible()
         .unwrap()
-        .0
 }
 
 fn get_seq_bond(
     sequencer_da_address: &<<S as Spec>::Da as DaSpec>::Address,
     state: &mut ApiStateAccessor<S>,
-) -> Result<u128, AllowedSequencerError> {
+) -> Result<Amount, AllowedSequencerError> {
     let sequencer_module = SequencerRegistry::<S>::default();
     sequencer_module
         .is_sender_allowed(sequencer_da_address, state)
-        .map(|s| s.balance.0)
+        .map(|s| s.balance)
 }
 
 #[allow(clippy::type_complexity)]
@@ -157,7 +156,7 @@ fn create_tx_bad_sender(
         None,
     );
 
-    let signer = TestUser::<S>::generate(0);
+    let signer = TestUser::<S>::generate(Amount::ZERO);
     Transaction::<RT, S>::new_signed_tx(
         signer.private_key(),
         &IntegTestRuntime::<S>::CHAIN_HASH,

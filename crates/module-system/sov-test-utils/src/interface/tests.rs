@@ -1,7 +1,7 @@
 use borsh::BorshDeserialize;
 use sov_modules_api::{
-    ApiStateAccessor, BatchSequencerReceipt, DaSpec, ProofReceipt, Runtime, RuntimeEventProcessor,
-    Spec, TransactionReceipt, TxEffect,
+    Amount, ApiStateAccessor, BatchSequencerReceipt, DaSpec, ProofReceipt, Runtime,
+    RuntimeEventProcessor, Spec, TransactionReceipt, TxEffect,
 };
 pub use sov_modules_stf_blueprint::TxReceiptContents;
 use sov_state::{Storage, StorageProof};
@@ -15,8 +15,8 @@ type BatchReceipt<S> =
 
 /// Context that is passed to [`TransactionTestCase::assert`] to check the outcome of a test.
 pub struct TransactionAssertContext<S: Spec, RT: RuntimeEventProcessor> {
-    /// The gas used to execute the transaction.
-    pub gas_value_used: u128,
+    /// The gas used to execute the transaction, expressed in gas tokens.
+    pub gas_value_used: Amount,
     /// The events raised by the transaction.
     ///
     /// The RuntimeEvent can be checked for specific module events, using the `sov_bank` module
@@ -46,7 +46,7 @@ impl<S: Spec, RT: RuntimeEventProcessor> TransactionAssertContext<S, RT> {
     pub fn from_receipt<Da: DaSpec>(
         receipt: TransactionReceipt<TxReceiptContents<S>>,
         blob_info: BlobInfo,
-        gas_value_used: u128,
+        gas_value_used: Amount,
     ) -> Self {
         let events = receipt
             .events
@@ -119,7 +119,7 @@ pub struct ProofAssertContext<S: Spec> {
     >,
 
     /// The gas used to verify the proof.
-    pub gas_value_used: u128,
+    pub gas_value_used: Amount,
 }
 
 /// A closure used to assert the outcome of a [`ProofTestCase`].

@@ -81,7 +81,7 @@ fn test_custom_transaction_details_max_fee() {
 fn test_custom_transaction_details_priority_fee_bips() {
     let (admin, mut runner) = setup();
 
-    let max_fee = admin.available_gas_balance.into();
+    let max_fee = admin.available_gas_balance;
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
 
     runner.execute_transaction(TransactionTestCase {
@@ -96,7 +96,10 @@ fn test_custom_transaction_details_priority_fee_bips() {
                 Bank::<S>::default()
                     .get_balance_of(&admin.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(Amount::new(admin.available_gas_balance - result.gas_value_used - priority_fee_bips.apply(result.gas_value_used).unwrap())),
+                Some(
+                    admin.available_gas_balance
+                        .checked_sub(result.gas_value_used).unwrap()
+                        .checked_sub(priority_fee_bips.apply(result.gas_value_used).unwrap()).unwrap()),
                 "The admin's balance should be equal to the initial balance minus the gas used to send the transaction and the priority fee"
             );
 
@@ -108,12 +111,14 @@ fn test_custom_transaction_details_priority_fee_bips() {
 #[test]
 fn test_custom_transaction_details_gas_limit() {
     let (admin, mut runner) = setup();
-    let available_gas_balance: u64 = admin.available_gas_balance.try_into().unwrap();
+    let available_gas_balance: u64 = admin.available_gas_balance.0.try_into().unwrap();
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
-            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue{value:10, gas: None})
-            .with_max_fee(admin.available_gas_balance.into())
+            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue{value: 10, gas: None})
+            .with_max_fee(admin.available_gas_balance)
+            // We set gas limit to have the maximum value for minimum possible price, which is 1.
+            // This way any gas price above 1 will give `gas price too high` error.
             .with_gas_limit(Some(GasUnit::from([available_gas_balance; 2]))),
         assert: Box::new(move |result, _state| {
            match &result.tx_receipt {
@@ -149,7 +154,7 @@ fn test_default_transaction_details_works() {
                 Bank::<S>::default()
                     .get_balance_of(&admin.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(Amount::new(admin.available_gas_balance - result.gas_value_used)),
+                Some(admin.available_gas_balance.checked_sub(result.gas_value_used).unwrap()),
                 "The admin's balance should be equal to the initial balance minus the gas used to send the transaction"
             );
         }),

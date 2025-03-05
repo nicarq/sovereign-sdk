@@ -20,7 +20,7 @@ use crate::{
     TEST_LIGHT_CLIENT_FINALIZED_HEIGHT, TEST_MAX_ATTESTED_HEIGHT, TEST_ROLLUP_FINALITY_PERIOD,
 };
 
-/// A genesis config for a minimal optimsitic runtime
+/// A genesis config for a minimal optimistic runtime
 pub struct MinimalOptimisticGenesisConfig<S: Spec> {
     /// The sequencer registry config.
     pub sequencer_registry: <SequencerRegistry<S> as Genesis>::Config,
@@ -125,16 +125,20 @@ where
     /// Generates a new high-level genesis config with random addresses, constant amounts (1_000_000_000 tokens)
     /// and no additional accounts.
     pub fn generate() -> Self {
-        // The stake value is 10x'd to ensure that sequencers can still send batches when gas price fluctuates
+        // The stake value is 10x'd to ensure that sequencers can still send batches when the gas price fluctuates
         let user_stake_value = <S as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE)
             .value(&S::initial_base_fee_per_gas())
             .saturating_mul(Amount::new(10));
 
-        let prover_sequencer = TestUser::generate(user_stake_value.0 + TEST_DEFAULT_USER_BALANCE);
+        let prover_sequencer = TestUser::generate(
+            user_stake_value
+                .checked_add(TEST_DEFAULT_USER_BALANCE)
+                .unwrap(),
+        );
 
         let attester = TestAttester {
             user_info: prover_sequencer.clone(),
-            bond: user_stake_value.0,
+            bond: user_stake_value,
             slot_to_attest: 1,
         };
 
@@ -145,7 +149,7 @@ where
         let sequencer = TestSequencer {
             user_info: prover_sequencer,
             da_address: Self::sequencer_da_addr(),
-            bond: user_stake_value.0,
+            bond: user_stake_value,
         };
 
         let inner_code_commitment = Default::default();
@@ -173,7 +177,7 @@ where
     /// and `num_accounts` additional accounts.
     ///
     /// This is a convenience function for [`Self::add_accounts`]
-    pub fn add_accounts_with_balance(mut self, num_accounts: usize, balance: u128) -> Self {
+    pub fn add_accounts_with_balance(mut self, num_accounts: usize, balance: Amount) -> Self {
         for _ in 0..num_accounts {
             self.additional_accounts
                 .push(TestUser::<S>::generate(balance));
@@ -192,7 +196,7 @@ where
         token_name: &TestTokenName,
         with_minter: bool,
         num_accounts: usize,
-        account_initial_balance: u128,
+        account_initial_balance: Amount,
     ) -> Self {
         let mut additional_accounts = Vec::with_capacity(num_accounts);
 
@@ -276,7 +280,7 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
 
                 token_config
                     .address_and_balances
-                    .push((user_address.clone(), Amount::new(token_info.balance)));
+                    .push((user_address.clone(), token_info.balance));
             });
         });
 
@@ -298,7 +302,7 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
             sequencer_registry: SequencerConfig {
                 seq_rollup_address: initial_sequencer.as_user().address().clone(),
                 seq_da_address: initial_sequencer.da_address.clone(),
-                seq_bond: Amount::new(initial_sequencer.bond),
+                seq_bond: initial_sequencer.bond,
                 is_preferred_sequencer: true,
             },
             attester_incentives: AttesterIncentivesConfig {
@@ -306,7 +310,7 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
                 minimum_challenger_bond: S::Gas::from(TEST_DEFAULT_USER_STAKE),
                 initial_attesters: vec![(
                     initial_attester.as_user().address().clone(),
-                    Amount::new(initial_attester.bond),
+                    initial_attester.bond,
                 )],
                 rollup_finality_period: SlotNumber::new(TEST_ROLLUP_FINALITY_PERIOD),
                 maximum_attested_height: TEST_MAX_ATTESTED_HEIGHT,
@@ -322,7 +326,7 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
                 },
                 initial_provers: vec![(
                     prover_placeholder.address().clone(),
-                    Amount::new(prover_placeholder.balance()),
+                    prover_placeholder.balance(),
                 )],
             },
             bank: BankConfig {
@@ -332,13 +336,11 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
                     address_and_balances: {
                         let mut additional_accounts_vec: Vec<_> = additional_accounts
                             .iter()
-                            .map(|user| (user.address(), Amount::new(user.balance())))
+                            .map(|user| (user.address(), user.balance()))
                             .collect();
 
-                        additional_accounts_vec.push((
-                            prover_placeholder.address(),
-                            prover_placeholder.balance().into(),
-                        ));
+                        additional_accounts_vec
+                            .push((prover_placeholder.address(), prover_placeholder.balance()));
 
                         let sequencer = initial_sequencer.as_user();
                         let attester = initial_attester.as_user();
@@ -348,32 +350,37 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
 
                             additional_accounts_vec.append(&mut vec![(
                                 sequencer.address(),
-                                Amount::new(
-                                    initial_sequencer.bond
-                                        + initial_attester.bond
-                                        + sequencer.available_gas_balance,
-                                ),
+                                initial_sequencer
+                                    .bond
+                                    .checked_add(initial_attester.bond)
+                                    .unwrap()
+                                    .checked_add(sequencer.available_gas_balance)
+                                    .unwrap(),
                             )]);
                         } else {
                             // We need to add the bond to the initial balance because genesis deduces the bond from the bank balance.
                             additional_accounts_vec.append(&mut vec![
                                 (
                                     initial_sequencer.as_user().address(),
-                                    Amount::new(
-                                        initial_sequencer.bond
-                                            + initial_sequencer.as_user().available_gas_balance,
-                                    ),
+                                    initial_sequencer
+                                        .bond
+                                        .checked_add(
+                                            initial_sequencer.as_user().available_gas_balance,
+                                        )
+                                        .unwrap(),
                                 ),
                                 (
                                     initial_attester.as_user().address(),
-                                    Amount::new(
-                                        initial_attester.bond
-                                            + initial_attester.as_user().available_gas_balance,
-                                    ),
+                                    initial_attester
+                                        .bond
+                                        .checked_add(
+                                            initial_attester.as_user().available_gas_balance,
+                                        )
+                                        .unwrap(),
                                 ),
                                 (
                                     initial_challenger.as_user().address(),
-                                    initial_challenger.as_user().available_gas_balance.into(),
+                                    initial_challenger.as_user().available_gas_balance,
                                 ),
                             ]);
                         }

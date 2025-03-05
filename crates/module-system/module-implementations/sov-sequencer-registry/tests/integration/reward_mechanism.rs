@@ -90,7 +90,7 @@ fn reward_mechanism_test(
                 .unwrap()
                 .checked_value(gas_price)
                 .unwrap();
-            let expected_sequencer_balance = Amount::new(test_sequencer_bond)
+            let expected_sequencer_balance = test_sequencer_bond
                 .checked_add(expected_reward)
                 .unwrap()
                 .checked_sub(sequencer_burn)
@@ -100,7 +100,7 @@ fn reward_mechanism_test(
                     &test_sequencer_da_address,
                     state
                 ),
-                Some(expected_sequencer_balance.0),
+                Some(expected_sequencer_balance),
                 "The sequencer was not rewarded the correct amount"
             );
         }),
@@ -115,7 +115,7 @@ fn test_reward_sequencer_max_fee_high_enough() {
 
     let priority_fee = PriorityFeeBips::from_percentage(10);
 
-    let expected_reward = priority_fee.apply(gas_consumed.0).unwrap().into();
+    let expected_reward = priority_fee.apply(gas_consumed).unwrap();
     let max_fee = gas_consumed.checked_add(expected_reward).unwrap();
 
     reward_mechanism_test(max_fee, priority_fee, expected_reward, roles, &mut runner);
@@ -157,7 +157,7 @@ fn test_reward_sequencer_registry() {
 
     let priority_fee = PriorityFeeBips::from_percentage(10);
 
-    let expected_reward = priority_fee.apply(gas_consumed.0).unwrap().into();
+    let expected_reward = priority_fee.apply(gas_consumed).unwrap();
     let max_fee = gas_consumed.checked_add(expected_reward).unwrap();
 
     let balance_before = sequencer_registry_balance(&runner).unwrap();

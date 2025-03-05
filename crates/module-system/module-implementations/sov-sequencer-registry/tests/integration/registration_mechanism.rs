@@ -7,7 +7,7 @@ use sov_modules_api::{Amount, Gas, GasArray, GasSpec, GetGasPrice, TxEffect};
 use sov_sequencer_registry::{CallMessage, CustomError};
 use sov_test_utils::runtime::{TestRunner, ValueSetter};
 use sov_test_utils::{
-    AsUser, AtomicNumber, BatchTestCase, BatchType, TransactionTestCase, TEST_DEFAULT_USER_BALANCE,
+    AsUser, AtomicAmount, BatchTestCase, BatchType, TransactionTestCase, TEST_DEFAULT_USER_BALANCE,
 };
 
 use crate::helpers::{
@@ -61,8 +61,11 @@ fn test_default_sequencer() {
                     state
                 ),
                 Some(
-                    test_sequencer_bond + custom_priority_fee.apply(result.gas_value_used).unwrap()
-                        - sequencer_burn.0
+                    test_sequencer_bond
+                        .checked_add(custom_priority_fee.apply(result.gas_value_used).unwrap())
+                        .unwrap()
+                        .checked_sub(sequencer_burn)
+                        .unwrap()
                 ),
                 "The sequencer should have been rewarded the execution funds "
             );
@@ -117,7 +120,13 @@ fn test_new_sequencer_registration() {
             // Assert that the other sequencer balance has been updated
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&other_sequencer_address, state),
-                Some(TEST_DEFAULT_USER_BALANCE - SEQUENCE_STAKE.0 - result.gas_value_used)
+                Some(
+                    TEST_DEFAULT_USER_BALANCE
+                        .checked_sub(SEQUENCE_STAKE)
+                        .unwrap()
+                        .checked_sub(result.gas_value_used)
+                        .unwrap()
+                )
             );
         }),
     });
@@ -150,7 +159,7 @@ fn test_registration_not_enough_funds() {
         mut runner,
     ) = setup();
 
-    let other_sequencer_balance = Amount::new(additional_sequencer.available_gas_balance);
+    let other_sequencer_balance = additional_sequencer.available_gas_balance;
 
     let additional_sequencer_address = additional_sequencer.address();
 
@@ -226,7 +235,7 @@ fn test_registration_second_time() {
     });
 }
 
-/// Tests that an other sequencer can register and exit.
+/// Tests that another sequencer can register and exit.
 #[test]
 fn test_exit_happy_path() {
     let (roles, mut runner) = setup();
@@ -236,7 +245,7 @@ fn test_exit_happy_path() {
     let other_sequencer_address = additional_sequencer.address();
     let other_sequencer_da_address = MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS);
 
-    let other_sequencer_balance_ref = AtomicNumber::new(additional_sequencer.available_gas_balance);
+    let other_sequencer_balance_ref = AtomicAmount::new(additional_sequencer.available_gas_balance);
     let other_sequencer_balance_ref_1 = other_sequencer_balance_ref.clone();
     let other_sequencer_balance_ref_2 = other_sequencer_balance_ref.clone();
     let other_sequencer_balance_ref_3 = other_sequencer_balance_ref.clone();
@@ -262,7 +271,12 @@ fn test_exit_happy_path() {
             // Assert that the other sequencer balance has been updated
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&other_sequencer_address, state),
-                Some(other_sequencer_balance_ref.get() - SEQUENCE_STAKE.0)
+                Some(
+                    other_sequencer_balance_ref
+                        .get()
+                        .checked_sub(SEQUENCE_STAKE)
+                        .unwrap()
+                )
             );
         }),
     };
@@ -385,7 +399,7 @@ fn test_exit_happy_path() {
         .execute_transaction(withdraw);
 }
 
-/// Tests that an other sequencer can register and exit.
+/// Tests that another sequencer can register and exit.
 #[test]
 fn test_deposit_resets_balance_state() {
     let (roles, mut runner) = setup();
@@ -446,7 +460,7 @@ fn test_deposit_resets_balance_state() {
         .execute_transaction(deposit);
 }
 
-/// Tests that an other sequencer cannot exit in their own batch.
+/// Tests that another sequencer cannot exit in their own batch.
 #[test]
 fn cannot_exit_with_own_batch() {
     let (
@@ -577,7 +591,7 @@ fn test_exit_different_sender_fails() {
     });
 }
 
-/// By default the genesis sequencer is also the preferred sequencer. This checks whether the preferred sequencer is returned correctly.
+/// By default, the genesis sequencer is also the preferred sequencer. This checks whether the preferred sequencer is returned correctly.
 #[test]
 fn test_get_preferred_sequencer() {
     let (
@@ -664,7 +678,7 @@ fn test_balance_increase_fails_if_insufficient_funds() {
         mut runner,
     ) = setup();
 
-    let default_sequencer_balance = Amount::new(default_sequencer.user_info.available_gas_balance);
+    let default_sequencer_balance = default_sequencer.user_info.available_gas_balance;
     let default_sequencer_address = default_sequencer.user_info.address();
 
     runner.execute_transaction(TransactionTestCase {

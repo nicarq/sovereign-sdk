@@ -209,7 +209,7 @@ fn mint_token_total_supply_overflow() {
         input: minter.create_plain_message::<RT, Bank<S>>(CallMessage::Mint {
             coins: Coins {
                 amount: Amount::MAX
-                    .checked_sub(minter_balance.into())
+                    .checked_sub(minter_balance)
                     .unwrap()
                     .checked_sub(Amount::new(1))
                     .unwrap(),

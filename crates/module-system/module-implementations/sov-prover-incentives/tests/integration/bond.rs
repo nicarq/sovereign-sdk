@@ -24,7 +24,7 @@ fn test_genesis_bond() {
                 .bonded_provers
                 .get(&genesis_prover.user_info.address(), state)
                 .unwrap(),
-            Some(genesis_prover.bond.into()),
+            Some(genesis_prover.bond),
             "The genesis prover should be bonded"
         );
         assert_eq!(
@@ -35,7 +35,7 @@ fn test_genesis_bond() {
                     state
                 )
                 .unwrap_infallible(),
-            Some(genesis_prover.user_info.available_gas_balance.into()),
+            Some(genesis_prover.user_info.available_gas_balance),
             "The balance of the prover should be equal to the free balance"
         );
     });
@@ -47,12 +47,12 @@ fn test_topup_existing_bond() {
 
     let starting_free_balance = genesis_prover.user_info.balance();
     let starting_bond = genesis_prover.bond;
-    let extra_bond_amount = 50;
+    let extra_bond_amount = Amount::new(50);
     let prover_address = genesis_prover.user_info.address();
 
     let test = TransactionTestCase::<RT, S> {
         input: genesis_prover.create_plain_message::<RT, TestProverIncentives>(
-            CallMessage::Deposit(extra_bond_amount.into()),
+            CallMessage::Deposit(extra_bond_amount),
         ),
         assert: Box::new(move |result, state| {
             assert!(result.events.iter().any(|event| matches!(
@@ -67,13 +67,19 @@ fn test_topup_existing_bond() {
                     .bonded_provers
                     .get(&prover_address, state)
                     .unwrap(),
-                Some((starting_bond + extra_bond_amount).into()),
+                Some(starting_bond.checked_add(extra_bond_amount).unwrap()),
             );
             assert_eq!(
                 Bank::<S>::default()
                     .get_balance_of(&prover_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some((starting_free_balance - extra_bond_amount - result.gas_value_used).into()),
+                Some(
+                    starting_free_balance
+                        .checked_sub(extra_bond_amount)
+                        .unwrap()
+                        .checked_sub(result.gas_value_used)
+                        .unwrap()
+                ),
             );
         }),
     };
@@ -89,13 +95,12 @@ fn test_bonding_new_prover() {
     let (mut runner, _, unbonded_user) = setup();
 
     let starting_free_balance = unbonded_user.balance();
-    let bond_amount = 100000001;
+    let bond_amount = Amount::new(100000001);
     let user_address = unbonded_user.address();
 
     runner.execute_transaction(TransactionTestCase {
-        input: unbonded_user.create_plain_message::<RT, TestProverIncentives>(
-            CallMessage::Register(bond_amount.into()),
-        ),
+        input: unbonded_user
+            .create_plain_message::<RT, TestProverIncentives>(CallMessage::Register(bond_amount)),
         assert: Box::new(move |result, state| {
             assert!(result.events.iter().any(|event| matches!(
                 event,
@@ -109,13 +114,19 @@ fn test_bonding_new_prover() {
                     .bonded_provers
                     .get(&unbonded_user.address(), state)
                     .unwrap(),
-                Some(bond_amount.into()),
+                Some(bond_amount),
             );
             assert_eq!(
                 Bank::<S>::default()
                     .get_balance_of(&unbonded_user.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some((starting_free_balance - bond_amount - result.gas_value_used).into()),
+                Some(
+                    starting_free_balance
+                        .checked_sub(bond_amount)
+                        .unwrap()
+                        .checked_sub(result.gas_value_used)
+                        .unwrap()
+                ),
             );
         }),
     });
@@ -141,10 +152,13 @@ fn test_unbonding() {
                     )
                     .unwrap_infallible()
                     .unwrap(),
-                Amount::new(
-                    genesis_prover.user_info.available_gas_balance + genesis_prover.bond
-                        - result.gas_value_used
-                )
+                genesis_prover
+                    .user_info
+                    .available_gas_balance
+                    .checked_add(genesis_prover.bond)
+                    .unwrap()
+                    .checked_sub(result.gas_value_used)
+                    .unwrap()
             );
         }),
     });
@@ -188,7 +202,13 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
                 token_id: config_gas_token_id(),
             },
         })
-        .with_max_fee(Amount::new(prover.user_info.available_gas_balance / 2))
+        .with_max_fee(
+            prover
+                .user_info
+                .available_gas_balance
+                .checked_div(Amount::new(2))
+                .unwrap(),
+        )
         .to_serialized_authenticated_tx(&mut nonces);
 
     let register_signed = unbonded_user
@@ -249,11 +269,7 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
         let prover = ProverIncentives::<S>::default().get_allowed_staker(&unbonded_user.address(), state).unwrap_infallible();
 
         // The prover should be registered
-        assert!(
-           prover.
-           is_some(),
-            "The additional prover should be registered"
-        );
+        assert!(prover.is_some(), "The additional prover should be registered");
 
         // But he should not be allowed to send transactions because he doesn't have enough stake.
         assert!(

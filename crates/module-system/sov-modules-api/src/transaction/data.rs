@@ -63,11 +63,11 @@ impl From<PriorityFeeBips> for u64 {
 
 impl PriorityFeeBips {
     const BASIS_POINTS: u128 = 10_000;
-    /// Applies the priority fee to a given quantity if possible
+    /// Applies the priority fee to a given amount if possible
     /// # Errors
     /// Returns an error in case of overflow.
-    pub fn apply(&self, quantity: u128) -> Result<u128, PriorityFeeApplyOverflowError> {
-        self.priority_fee_limbs(quantity)
+    pub fn apply(&self, quantity: Amount) -> Result<Amount, PriorityFeeApplyOverflowError> {
+        self.priority_fee_limbs(quantity.0).map(Amount::new)
     }
 
     fn priority_fee_limbs(&self, quantity: u128) -> Result<u128, PriorityFeeApplyOverflowError> {
@@ -207,47 +207,51 @@ mod tests {
     #[test]
     fn test_priority_fee_apply_basic() {
         let fee = PriorityFeeBips::from_percentage(100);
-        let quantity = 1;
+        let quantity = Amount::new(1);
         let result = fee.apply(quantity);
-        assert_eq!(result, Ok(1));
+        assert_eq!(result, Ok(quantity));
     }
 
     #[test]
     fn test_priority_fee_apply_basic_with_limbs() {
         let fee = PriorityFeeBips::from_percentage(43);
-        let quantity = 100;
+        let quantity = Amount::new(100);
         let result = fee.apply(quantity);
-        assert_eq!(result, Ok(43));
+        assert_eq!(result, Ok(Amount::new(43)));
     }
 
     #[test]
     fn test_priority_fee_apply_would_overflow_without_limbs_basic() {
         let fee = PriorityFeeBips::from_percentage(100);
-        let quantity = u128::MAX;
+        let quantity = Amount::MAX;
         let result = fee.apply(quantity);
-        assert_eq!(result, Ok(u128::MAX));
+        assert_eq!(result, Ok(Amount::MAX));
     }
 
     #[test]
     fn test_priority_fee_apply_would_overflow_without_limbs_small_fee() {
         let fee = PriorityFeeBips::from_percentage(50);
-        let quantity = u128::MAX;
+        let quantity = Amount::MAX;
         let result = fee.apply(quantity);
-        assert_eq!(result, Ok(u128::MAX / 2));
+        assert_eq!(result, Ok(Amount::MAX.checked_div(Amount::new(2)).unwrap()));
     }
 
     #[test]
     fn test_priority_fee_apply_would_overflow_without_limbs_big_fee() {
         let fee = PriorityFeeBips::from_percentage(150);
-        let quantity = u128::MAX / 2;
+        let quantity = Amount::MAX.checked_div(Amount::new(2)).unwrap();
         let result = fee.apply(quantity);
-        assert_eq!(result, Ok(255211775190703847597530955573826158590)); // Result calculated manually in Python
+        assert_eq!(
+            result,
+            // Result calculated manually in Python
+            Ok(Amount::new(255211775190703847597530955573826158590))
+        );
     }
 
     #[test]
     fn test_priority_fee_apply_overflows() {
         let fee = PriorityFeeBips::from_percentage(101);
-        let quantity = u128::MAX;
+        let quantity = Amount::MAX;
         let result = fee.apply(quantity);
         assert_eq!(result, Err(PriorityFeeApplyOverflowError));
     }
@@ -255,21 +259,25 @@ mod tests {
     #[test]
     fn test_priority_fee_precision_loss() {
         let fee = PriorityFeeBips::from_percentage(33); // 33%
-        let input = (1u128 << 64) - 1; // All bits set in lower limb
+        let input = Amount::new((1u128 << 64) - 1); // All bits set in lower limb
 
         // Calculate expected result using full precision
-        let expected = (input * 3300) / 10000;
+        let expected = input
+            .checked_mul(Amount::new(3300))
+            .unwrap()
+            .checked_div(Amount::new(10000))
+            .unwrap();
         let result = fee.apply(input).unwrap();
 
         // Check if the difference between expected and actual is minimal
         let difference = if expected > result {
-            expected - result
+            expected.checked_sub(result).unwrap()
         } else {
-            result - expected
+            result.checked_sub(expected).unwrap()
         };
 
         assert!(
-            difference <= 1,
+            difference <= Amount::new(1),
             "Precision loss too high: expected {}, got {}, diff {}",
             expected,
             result,
@@ -281,9 +289,9 @@ mod tests {
     fn test_priority_fee_remainder_propagation() {
         let fee = PriorityFeeBips::from_percentage(10);
         // Complex number spanning both limbs
-        let input = (1u128 << 65) + (1u128 << 64) + 1;
+        let input = Amount::new((1u128 << 65) + (1u128 << 64) + 1);
 
-        let expected = (input * 1000) / 10000;
+        let expected = (input.0 * 1000) / 10000;
         let result = fee.apply(input).unwrap();
 
         assert_eq!(
@@ -299,35 +307,35 @@ mod tests {
             // Test case 1: Value that requires proper handling of high bits
             (
                 PriorityFeeBips::from_percentage(100),
-                1u128 << 127,
+                Amount::new(1u128 << 127),
                 Ok(1u128 << 127),
                 "Failed high bit case",
             ),
             // Test case 2: Value that tests precision loss in remainder handling
             (
                 PriorityFeeBips::from_percentage(33),
-                (1u128 << 64) + 1, // Value spanning both limbs
+                Amount::new((1u128 << 64) + 1), // Value spanning both limbs
                 Ok((((1u128 << 64) + 1) * 33) / 100),
                 "Failed cross-limb precision case",
             ),
             // Test case 3: Maximum value test
             (
                 PriorityFeeBips::from_percentage(100),
-                u128::MAX,
+                Amount::MAX,
                 Ok(u128::MAX),
                 "Failed maximum value case",
             ),
             // Test case 4: Test remainder handling
             (
                 PriorityFeeBips::from_percentage(1), // 1%
-                10000,                               // Should give exact result
+                Amount::new(10000),                  // Should give exact result
                 Ok(100),                             // Expected 1% of 10000
                 "Failed simple percentage case",
             ),
             // Test case 5: Test overflow detection
             (
                 PriorityFeeBips::from_percentage(200), // 200%
-                u128::MAX,
+                Amount::MAX,
                 Err(PriorityFeeApplyOverflowError),
                 "Failed overflow detection case",
             ),

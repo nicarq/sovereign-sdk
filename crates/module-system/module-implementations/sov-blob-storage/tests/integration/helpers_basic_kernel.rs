@@ -33,7 +33,7 @@ pub fn setup_basic_kernel() -> (TestData<S>, TestRunner<BasicRT>) {
     let regular_sequencer = TestSequencer {
         user_info: regular_sequencer,
         da_address: regular_sequencer_da_address,
-        bond: user_stake_value.0,
+        bond: user_stake_value,
     };
 
     // Run genesis registering the attester and sequencer we've generated.

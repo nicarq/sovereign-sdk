@@ -39,7 +39,7 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
                     amount: TRANSFER_AMOUNT.into(),
                 },
             })
-            .with_max_fee(max_fee.into())
+            .with_max_fee(max_fee)
             .with_max_priority_fee_bips(PriorityFeeBips::ZERO),
         assert: Box::new(move |result, state| {
             assert!(result.tx_receipt.is_successful());
@@ -48,10 +48,10 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
                 Bank::<S>::default()
                     .get_balance_of(&sender_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(Amount::new(sender_balance - result.gas_value_used))
+                Some(sender_balance.checked_sub(result.gas_value_used).unwrap())
             );
 
-            assert!( 0 < result.gas_value_used && result.gas_value_used < sender_balance, "The gas used should be positive and less than the sender balance, which is the max fee amount");
+            assert!( Amount::ZERO < result.gas_value_used && result.gas_value_used < sender_balance, "The gas used should be positive and less than the sender balance, which is the max fee amount");
         }),
     });
 }
@@ -88,7 +88,7 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
                     amount: TRANSFER_AMOUNT.into(),
                 },
             })
-            .with_max_fee(sender_balance.into())
+            .with_max_fee(sender_balance)
             .with_max_priority_fee_bips(PriorityFeeBips::ZERO),
     );
 
@@ -135,13 +135,17 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
                 Bank::<S>::default()
                     .get_balance_of(&sender.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(Amount::new(
-                    sender.available_gas_balance - result.gas_value_used
-                ))
+                Some(
+                    sender
+                        .available_gas_balance
+                        .checked_sub(result.gas_value_used)
+                        .unwrap()
+                )
             );
 
             assert!(
-                0 < result.gas_value_used && result.gas_value_used == gas_used_value_simulation.0,
+                Amount::ZERO < result.gas_value_used
+                    && result.gas_value_used == gas_used_value_simulation,
                 "The gas used should be positive and exactly the max fee amount."
             );
         }),
@@ -177,7 +181,7 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
                     amount: TRANSFER_AMOUNT.into(),
                 },
             })
-            .with_max_fee(sender_balance.into())
+            .with_max_fee(sender_balance)
             .with_max_priority_fee_bips(PRIORITY_FEE),
         assert: Box::new(move |result, state| {
             assert!(result.tx_receipt.is_successful());
@@ -186,15 +190,15 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
                 Bank::<S>::default()
                     .get_balance_of(&sender.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(Amount::new(
+                Some(
                     sender.available_gas_balance
-                        - result.gas_value_used
-                        - PRIORITY_FEE.apply(result.gas_value_used).unwrap()
-                ))
+                        .checked_sub(result.gas_value_used).unwrap()
+                        .checked_sub(PRIORITY_FEE.apply(result.gas_value_used).unwrap()).unwrap()
+                )
             );
 
             assert!(
-                0 < result.gas_value_used && result.gas_value_used < sender_balance,
+                Amount::ZERO < result.gas_value_used && result.gas_value_used < sender_balance,
                 "The gas used should be positive and lower than the sender balance, which is the max fee amount"
             );
         }),
@@ -214,11 +218,11 @@ fn test_reserve_gas_no_account() {
         mut runner,
     ) = setup();
 
-    let user_no_account = TestUser::<S>::generate(0);
+    let user_no_account = TestUser::<S>::generate(Amount::ZERO);
     let user_high_token_initial_balance =
         user_high_token_balance.token_balance(&token_name).unwrap();
 
-    const TRANSFER_AMOUNT: u128 = 10;
+    const TRANSFER_AMOUNT: Amount = Amount::new(10);
 
     // We transfer to the user without an account.
     runner.execute(user_high_token_balance.create_plain_message::<RT, Bank<S>>(
@@ -226,7 +230,7 @@ fn test_reserve_gas_no_account() {
             to: user_no_account.address(),
             coins: Coins {
                 token_id,
-                amount: TRANSFER_AMOUNT.into(),
+                amount: TRANSFER_AMOUNT,
             },
         },
     ));
@@ -237,7 +241,7 @@ fn test_reserve_gas_no_account() {
                 to: user_high_token_balance.address(),
                 coins: Coins {
                     token_id,
-                    amount: TRANSFER_AMOUNT.into(),
+                    amount: TRANSFER_AMOUNT,
                 },
             },
         ),
@@ -272,16 +276,18 @@ fn test_reserve_gas_no_account() {
                 Bank::<S>::default()
                     .get_balance_of(&user_no_account.address(), token_id, state)
                     .unwrap_infallible(),
-                Some(TRANSFER_AMOUNT.into())
+                Some(TRANSFER_AMOUNT)
             );
 
             assert_eq!(
                 Bank::<S>::default()
                     .get_balance_of(&user_high_token_balance.address(), token_id, state)
                     .unwrap_infallible(),
-                Some(Amount::new(
-                    user_high_token_initial_balance - TRANSFER_AMOUNT
-                ))
+                Some(
+                    user_high_token_initial_balance
+                        .checked_sub(TRANSFER_AMOUNT)
+                        .unwrap()
+                )
             );
         }),
     });
@@ -347,7 +353,7 @@ fn test_reserve_gas_price_too_high() {
     const TRANSFER_AMOUNT: u128 = 10;
 
     let sender_balance = sender.available_gas_balance;
-    let sender_balance_u64: u64 = sender_balance
+    let sender_balance_u64: u64 = sender_balance.0
         .try_into()
         .expect("This test relies on setting the gas limit to half of the sender balance, but gas is only a u64. Lower the sender balance or update the test.");
 
@@ -361,7 +367,7 @@ fn test_reserve_gas_price_too_high() {
                     amount: TRANSFER_AMOUNT.into(),
                 },
             })
-            .with_max_fee(sender_balance.into())
+            .with_max_fee(sender_balance)
             .with_gas_limit(Some(GasUnit::from([sender_balance_u64 / 2; 2]))),
         assert: Box::new(move |result, _state| {
             if let TxEffect::Skipped(SkippedTxContents {

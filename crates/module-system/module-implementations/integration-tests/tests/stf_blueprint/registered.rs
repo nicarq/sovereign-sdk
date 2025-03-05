@@ -8,8 +8,8 @@ use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::{
-    ApiStateAccessor, BlobReaderTrait, Gas, GasArray, GasSpec, GasUnit, ModuleInfo, RawTx, Rewards,
-    Spec, TransactionReceipt,
+    Amount, ApiStateAccessor, BlobReaderTrait, Gas, GasArray, GasSpec, GasUnit, ModuleInfo, RawTx,
+    Rewards, Spec, TransactionReceipt,
 };
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::da::RelevantBlobs;
@@ -40,7 +40,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
         &actors.not_admin_account,
         runner.config.sequencer_da_address,
     );
-    // The gas amount burned by the seuqencer to submit the blob.
+    // The gas amount burned by the sequencer to submit the blob.
     let seq_burn_gas = <S as GasSpec>::gas_to_charge_per_byte_borsh_deserialization()
         .checked_scalar_product(mock_blob.total_len() as u64)
         .unwrap();
@@ -60,10 +60,10 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
 
         assert_eq!(tx_receipts.len() + ignored_tx_receipts.len(), txs_len);
 
-        let mut seq_fee = 0;
-        let mut seq_penalty = 0;
+        let mut seq_fee = Amount::ZERO;
+        let mut seq_penalty = Amount::ZERO;
         let seq_burn = seq_burn_gas.checked_value(gas_price).unwrap();
-        let mut gas_value_charged_to_user = 0;
+        let mut gas_value_charged_to_user = Amount::ZERO;
 
         let mut total_gas = <S as GasSpec>::Gas::ZEROED;
         for tx_receipt in tx_receipts {
@@ -71,21 +71,27 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
                 TxEffect::Successful(tx_contents) => {
                     total_gas = total_gas.checked_combine(&tx_contents.gas_used).unwrap();
                     let gas_value = tx_contents.gas_used.value(gas_price);
-                    gas_value_charged_to_user += gas_value.0;
-                    seq_fee += priority_fee_bips.apply(gas_value.0).unwrap();
+                    gas_value_charged_to_user =
+                        gas_value_charged_to_user.checked_add(gas_value).unwrap();
+                    seq_fee = seq_fee
+                        .checked_add(priority_fee_bips.apply(gas_value).unwrap())
+                        .unwrap();
                 }
                 TxEffect::Skipped(tx_contents) => {
                     total_gas = total_gas.checked_combine(&tx_contents.gas_used).unwrap();
                     let gas_value = tx_contents.gas_used.value(gas_price);
                     // Sequencer doesn't get the fee and is penalized
-                    seq_penalty += gas_value.0;
+                    seq_penalty = seq_penalty.checked_add(gas_value).unwrap();
                 }
                 TxEffect::Reverted(tx_contents) => {
                     total_gas = total_gas.checked_combine(&tx_contents.gas_used).unwrap();
                     // From gas usage point of view the `Successful & Reverted` cases are the same.
                     let gas_value = tx_contents.gas_used.value(gas_price);
-                    gas_value_charged_to_user += gas_value.0;
-                    seq_fee += priority_fee_bips.apply(gas_value.0).unwrap();
+                    gas_value_charged_to_user =
+                        gas_value_charged_to_user.checked_add(gas_value).unwrap();
+                    seq_fee = seq_fee
+                        .checked_add(priority_fee_bips.apply(gas_value).unwrap())
+                        .unwrap();
                 }
             }
         }
@@ -95,42 +101,63 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
             let gas_used = &ignored.gas_used;
             total_gas = total_gas.checked_combine(gas_used).unwrap();
             let gas_value = gas_used.value(gas_price);
-            seq_penalty += gas_value.0;
+            seq_penalty = seq_penalty.checked_add(gas_value).unwrap();
         }
 
         let end = runner.query_state(|state| actors.balances(state));
 
         // Check user balances.
         assert_eq!(
-            end.admin_balance + end.not_admin_balance,
-            start.admin_balance + start.not_admin_balance - seq_fee - gas_value_charged_to_user
+            end.admin_balance
+                .checked_add(end.not_admin_balance)
+                .unwrap(),
+            start
+                .admin_balance
+                .checked_add(start.not_admin_balance)
+                .unwrap()
+                .checked_sub(seq_fee)
+                .unwrap()
+                .checked_sub(gas_value_charged_to_user)
+                .unwrap()
         );
 
         // Check sequencer rewards.
         assert_eq!(
             end.sequencer_bond,
-            start.sequencer_bond + seq_fee - seq_penalty - seq_burn.0
+            start
+                .sequencer_bond
+                .checked_add(seq_fee)
+                .unwrap()
+                .checked_sub(seq_penalty)
+                .unwrap()
+                .checked_sub(seq_burn)
+                .unwrap()
         );
 
         // Check prover rewards.
         assert_eq!(
             end.attester_module_balance,
-            start.attester_module_balance + gas_value_charged_to_user + seq_penalty
+            start
+                .attester_module_balance
+                .checked_add(gas_value_charged_to_user)
+                .unwrap()
+                .checked_add(seq_penalty)
+                .unwrap()
         );
 
         // This has already been tested by previous assertions, but here we explicitly clarify that no money is created or lost.
         // except for the gas burned by the sequencer to submit the blob.
         assert_eq!(
             end.total_balance(),
-            start.total_balance().saturating_sub(seq_burn.0)
+            start.total_balance().saturating_sub(seq_burn)
         );
 
         assert_eq!(
             batch_receipt.inner.outcome,
             sov_modules_api::BatchSequencerOutcome {
                 rewards: Rewards {
-                    accumulated_reward: seq_fee.into(),
-                    accumulated_penalty: seq_penalty.into(),
+                    accumulated_reward: seq_fee,
+                    accumulated_penalty: seq_penalty,
                 }
             }
         );
@@ -139,7 +166,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
     }
 }
 
-// Execute batch of valid transactions and ensure that the relevant balances ware updated correctly
+// Execute a batch of valid transactions and ensure that the relevant balances ware updated correctly
 #[test]
 fn execute_many_successful_tx_test() {
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
@@ -252,7 +279,7 @@ fn slot_out_of_gas_tests() {
         sequencer_account,
     };
 
-    // The trasnaction uses more gas than the slot gas limit.
+    // The transaction uses more gas than the slot gas limit.
     let gas = GasUnit::from([10000000001, 2]);
     let tx = create_tx_valid(
         10,
@@ -346,7 +373,7 @@ fn test_batch_gas_used() {
 mod helpers {
     use sov_modules_api::macros::config_value;
     use sov_modules_api::transaction::PriorityFeeBips;
-    use sov_modules_api::{DaSpec, FullyBakedTx, Spec};
+    use sov_modules_api::{Amount, DaSpec, FullyBakedTx, Spec};
     use sov_test_utils::{EncodeCall, TestSequencer, TestUser};
     use sov_value_setter::{CallMessage, ValueSetter};
 
@@ -377,18 +404,21 @@ mod helpers {
 
     #[derive(Debug, Eq, PartialEq)]
     pub(crate) struct Balances {
-        pub(crate) admin_balance: u128,
-        pub(crate) not_admin_balance: u128,
-        pub(crate) attester_module_balance: u128,
-        pub(crate) sequencer_bond: u128,
+        pub(crate) admin_balance: Amount,
+        pub(crate) not_admin_balance: Amount,
+        pub(crate) attester_module_balance: Amount,
+        pub(crate) sequencer_bond: Amount,
     }
 
     impl Balances {
-        pub(crate) fn total_balance(&self) -> u128 {
+        pub(crate) fn total_balance(&self) -> Amount {
             self.admin_balance
-                + self.not_admin_balance
-                + self.sequencer_bond
-                + self.attester_module_balance
+                .checked_add(self.not_admin_balance)
+                .unwrap()
+                .checked_add(self.sequencer_bond)
+                .unwrap()
+                .checked_add(self.attester_module_balance)
+                .unwrap()
         }
     }
 

@@ -1,6 +1,7 @@
 use sov_bank::{config_gas_token_id, Coins};
+use sov_modules_api::Amount;
 use sov_test_utils::runtime::{ApiGetStateData, ApiPath};
-use sov_test_utils::{AsUser, AtomicNumber, TransactionTestCase};
+use sov_test_utils::{AsUser, AtomicAmount, TransactionTestCase};
 use sov_value_setter::ValueSetter;
 
 use crate::helpers::{setup, RT, S};
@@ -88,7 +89,7 @@ async fn test_rest_api_routes_custom_api() {
         "The user balance should be the same as the user's available gas balance"
     );
 
-    let gas_used = AtomicNumber::new(0);
+    let gas_used = AtomicAmount::new(Amount::ZERO);
     let gas_used_clone = gas_used.clone();
 
     runner.execute_transaction(TransactionTestCase {
@@ -106,7 +107,9 @@ async fn test_rest_api_routes_custom_api() {
 
     let api_user_balance: Coins = runner.query_api_unwrap_data(&path, &client).await;
 
-    let expected_balance = initial_user_balance - gas_used_clone.get();
+    let expected_balance = initial_user_balance
+        .checked_sub(gas_used_clone.get())
+        .unwrap();
 
     assert_eq!(
         api_user_balance.amount, expected_balance,

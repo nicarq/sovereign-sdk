@@ -31,7 +31,7 @@ fn burn_deployed_tokens_happy_path() {
         input: user_high_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
-                    amount: user_token_balance.into(),
+                    amount: user_token_balance,
                     token_id,
                 },
             },
@@ -43,7 +43,7 @@ fn burn_deployed_tokens_happy_path() {
                 TestBankRuntimeEvent::Bank(Event::TokenBurned {
                     owner: TokenHolder::User(user_address),
                     coins: Coins {
-                        amount: user_token_balance.into(),
+                        amount: user_token_balance,
                         token_id
                     }
                 }),
@@ -233,13 +233,13 @@ fn burn_more_than_available_balance_fails() {
 
     let user_address = user_high_token_balance.address();
 
-    let to_burn = user_token_balance + 1;
+    let to_burn = user_token_balance.checked_add(Amount::new(1)).unwrap();
 
     runner.execute_transaction(TransactionTestCase {
         input: user_high_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
-                    amount: to_burn.into(),
+                    amount: to_burn,
                     token_id,
                 },
             },
@@ -330,7 +330,7 @@ fn test_burning_zero_tokens_works() {
                 Bank::<S>::default()
                     .get_balance_of(&user_address, token_id, state)
                     .unwrap_infallible(),
-                Some(user_token_balance.into()),
+                Some(user_token_balance),
                 "The user's balance shouldn't have changed"
             );
         }),
@@ -440,7 +440,7 @@ fn burn_unknown_token_fails() {
                         "The second message is incorrect"
                     );
 
-                    // Note, no token ID in root cause the message.
+                    // Note, no token ID in the root cause the message.
                     let expected_error_part =
                         "Value not found for prefix: \"sov_bank/Bank/tokens/\" and storage key:";
                     assert!(message_3.starts_with(expected_error_part));
@@ -473,7 +473,7 @@ fn burn_gas_token_also_works() {
                 coins: Coins {
                     // Note: we are only burning half of the gas balance because some of it is
                     // already consumed (for pre-execution checks) by the time we are reaching the burn method of the `Bank` module.
-                    amount: Amount::new(user_gas_balance / 2),
+                    amount: in_half(user_gas_balance),
                     token_id: config_gas_token_id(),
                 },
             },
@@ -485,7 +485,7 @@ fn burn_gas_token_also_works() {
                 TestBankRuntimeEvent::Bank(Event::TokenBurned {
                     owner: TokenHolder::User(user_address),
                     coins: Coins {
-                        amount: Amount::new(user_gas_balance / 2),
+                        amount: in_half(user_gas_balance),
                         token_id: config_gas_token_id()
                     }
                 }),
@@ -497,9 +497,17 @@ fn burn_gas_token_also_works() {
                 Bank::<S>::default()
                     .get_balance_of(&user_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
-                Some(Amount::new(user_gas_balance / 2 - result.gas_value_used)),
+                Some(
+                    in_half(user_gas_balance)
+                        .checked_sub(result.gas_value_used)
+                        .unwrap()
+                ),
                 "The user's balance should be zero"
             );
         }),
     });
+}
+
+fn in_half(amount: Amount) -> Amount {
+    amount.checked_div(Amount::new(2)).unwrap()
 }

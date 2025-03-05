@@ -12,7 +12,7 @@ use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{DispatchCall, RawTx, Runtime};
+use sov_modules_api::{Amount, DispatchCall, RawTx, Runtime};
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_node_client::NodeClient;
 use sov_paymaster::{Paymaster, PaymasterConfig};
@@ -631,7 +631,11 @@ async fn batch_production_and_accept_tx() {
 async fn not_sequencer_safe_txs_are_restricted() {
     let mut genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
-    genesis_config.initial_sequencer.bond *= 100;
+    genesis_config.initial_sequencer.bond = genesis_config
+        .initial_sequencer
+        .bond
+        .checked_mul(Amount::new(100))
+        .unwrap();
 
     let admin = genesis_config.additional_accounts[0].clone();
 
@@ -791,7 +795,11 @@ async fn flaky_batch_production_with_immediate_finalization() {
 async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: Vec<TestingAction>) {
     let mut genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
-    genesis_config.initial_sequencer.bond *= 100;
+    genesis_config.initial_sequencer.bond = genesis_config
+        .initial_sequencer
+        .bond
+        .checked_mul(Amount::new(100))
+        .unwrap();
 
     let admin = genesis_config.additional_accounts[0].clone();
 

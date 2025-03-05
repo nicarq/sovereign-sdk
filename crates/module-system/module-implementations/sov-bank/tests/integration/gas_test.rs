@@ -2,7 +2,7 @@ use sov_bank::{config_gas_token_id, Bank, BankGasConfig, CallMessage};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Amount, Error, Gas, GasSpec, SafeVec, Spec, TxEffect};
 use sov_test_utils::{
-    AsUser, AtomicNumber, TransactionTestAssert, TransactionTestCase, TEST_DEFAULT_USER_BALANCE,
+    AsUser, AtomicAmount, TransactionTestAssert, TransactionTestCase, TEST_DEFAULT_USER_BALANCE,
 };
 
 use crate::helpers::{setup_with_custom_runtime, TestData, RT, S};
@@ -10,7 +10,7 @@ use crate::helpers::{setup_with_custom_runtime, TestData, RT, S};
 /// Additional context for the post-call assertions of the gas tests.
 /// This is used to check the outcome of the create token call.
 struct PostCreateTokenContext {
-    user_initial_balance: u128,
+    user_initial_balance: Amount,
     user_address: <S as Spec>::Address,
 }
 
@@ -65,7 +65,7 @@ fn gas_test_setup(
 /// Then we try with a different runtime config and check that the gas consumed only increases by the amount specified in the second config.
 #[test]
 fn gas_price_constants_are_charged_correctly() {
-    let gas_consumed_without_price_ref = AtomicNumber::new(0);
+    let gas_consumed_without_price_ref = AtomicAmount::new(Amount::ZERO);
     let gas_consumed_without_price_ref_1 = gas_consumed_without_price_ref.clone();
 
     gas_test_setup(
@@ -84,7 +84,9 @@ fn gas_price_constants_are_charged_correctly() {
 
                 assert_eq!(
                     user_final_balance,
-                    user_initial_balance - result.gas_value_used,
+                    user_initial_balance
+                        .checked_sub(result.gas_value_used)
+                        .unwrap(),
                     "the balance should decrease only by the gas used"
                 );
 
@@ -112,12 +114,14 @@ fn gas_price_constants_are_charged_correctly() {
 
                 assert_eq!(
                     user_final_balance,
-                    user_initial_balance - result.gas_value_used,
+                    user_initial_balance
+                        .checked_sub(result.gas_value_used)
+                        .unwrap(),
                     "the balance should decrease only by the gas used"
                 );
 
                 assert_eq!(
-                gas_consumed_without_price_ref_1.get().checked_add(gas_to_charge_for_create_token.value(&bank_initial_gas_price).0).unwrap(),
+                gas_consumed_without_price_ref_1.get().checked_add(gas_to_charge_for_create_token.value(&bank_initial_gas_price)).unwrap(),
                 result.gas_value_used,
                 "The gas used should be the sum of the gas cost of the call and the inner gas cost"
             );
@@ -128,7 +132,7 @@ fn gas_price_constants_are_charged_correctly() {
 
 #[test]
 fn config_constants_are_charged_correctly() {
-    let gas_consumed_without_price_ref = AtomicNumber::new(0);
+    let gas_consumed_without_price_ref = AtomicAmount::new(Amount::ZERO);
     let gas_consumed_without_price_ref_1 = gas_consumed_without_price_ref.clone();
 
     // compute the expected gas cost, based on the json constants
@@ -151,7 +155,9 @@ fn config_constants_are_charged_correctly() {
 
                 assert_eq!(
                     user_final_balance,
-                    user_initial_balance - result.gas_value_used,
+                    user_initial_balance
+                        .checked_sub(result.gas_value_used)
+                        .unwrap(),
                     "the balance should be unchanged with zeroed price"
                 );
 
@@ -176,12 +182,14 @@ fn config_constants_are_charged_correctly() {
 
                 assert_eq!(
                     user_final_balance,
-                    user_initial_balance - result.gas_value_used,
+                    user_initial_balance
+                        .checked_sub(result.gas_value_used)
+                        .unwrap(),
                     "the balance should be unchanged with zeroed price"
                 );
 
                 assert_eq!(
-                gas_consumed_without_price_ref_1.get().checked_add(create_token_config_cost.value(&bank_initial_gas_price).0).unwrap(),
+                gas_consumed_without_price_ref_1.get().checked_add(create_token_config_cost.value(&bank_initial_gas_price)).unwrap(),
                 result.gas_value_used,
                 "The gas used should be the sum of the gas cost of the call and the inner gas cost"
             );
@@ -192,7 +200,7 @@ fn config_constants_are_charged_correctly() {
 
 #[test]
 fn not_enough_gas_wont_panic() {
-    let default_user_balance_as_u64: u64 = TEST_DEFAULT_USER_BALANCE
+    let default_user_balance_as_u64: u64 = TEST_DEFAULT_USER_BALANCE.0
         .try_into()
         .expect("This test relies on setting the gas usage to half of the sender balance, but gas is only a u64. Lower the sender balance or update the test.");
     gas_test_setup(

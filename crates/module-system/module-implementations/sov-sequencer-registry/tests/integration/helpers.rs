@@ -34,7 +34,7 @@ pub struct TestRoles {
 /// Simple helper that creates a test sequencer, initializes it with genesis data and verifies that the initialization was successful.
 /// Returns a `TestSequencer` and two `TestUsers` that are used to test the sequencer registry, the first one is also the admin of the [`ValueSetter`] module.
 ///
-/// Same as [`setup`] but allows to pass a custom runtime.
+/// Same as [`setup`] but allows passing a custom runtime.
 pub fn setup_with_custom_runtime(runtime: RT) -> (TestRoles, TestRunner<TestRuntime<S>, S>) {
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(2);
@@ -63,7 +63,7 @@ pub fn setup_with_custom_runtime(runtime: RT) -> (TestRoles, TestRunner<TestRunt
             TestSequencerRegistry::default().is_sender_known(&genesis_sequencer_da_address, state),
             Ok(KnownSequencer {
                 address: genesis_sequencer_address,
-                balance: genesis_sequencer_bond.into(),
+                balance: genesis_sequencer_bond,
                 balance_state: BalanceState::Active,
             }),
             "The genesis attester should be bonded"

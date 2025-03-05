@@ -103,7 +103,7 @@ pub(crate) fn build_proof(
 }
 
 pub(crate) fn consume_gas_tx_for_signer(signer: &TestUser<S>) -> TransactionType<RT, S> {
-    let recipient = TestUser::<S>::generate(0);
+    let recipient = TestUser::<S>::generate(Amount::ZERO);
     signer.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
         to: recipient.address(),
         coins: sov_bank::Coins {
