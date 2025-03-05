@@ -12,7 +12,7 @@ use anyhow::{bail, Context};
 use cli::BenchRunnerCLI;
 use demo_stf::runtime::{Runtime, RuntimeCall};
 use helpers::{setup_rollup, BatchReceiver, BatchSender};
-use sov_metrics::{timestamp, MonitoringConfig, METRICS_METADATA};
+use sov_metrics::{timestamp, MonitoringConfig, TelegrafSocketConfig, METRICS_METADATA};
 use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
 use sov_test_utils::RtAgnosticBlueprint;
 use sov_transaction_generator::generators::basic::{BasicChangeLogEntry, BasicClientConfig};
@@ -38,7 +38,8 @@ pub mod metrics;
 
 pub const DEFAULT_BENCH_FILES: &str = "./src/bench_files";
 pub const DEFAULT_METRICS_OUTPUT: &str = "./src/metrics";
-pub const DEFAULT_TELEGRAF_ADDRESS: SocketAddr = MonitoringConfig::standard().telegraf_address;
+pub const DEFAULT_TELEGRAF_ADDRESS: TelegrafSocketConfig =
+    MonitoringConfig::standard().telegraf_address;
 pub const DEFAULT_INFLUX_DB_ADDRESS: SocketAddr =
     SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 8086));
 pub const DEFAULT_NUM_THREADS: u8 = 10;
@@ -65,7 +66,7 @@ async fn runner(
     bench_name: String,
     bench_file: File,
     maybe_logs: Option<u8>,
-    telegraf_address: SocketAddr,
+    telegraf_address: TelegrafSocketConfig,
 ) -> anyhow::Result<()> {
     // Starts by setting up the rollup for the benchmarks.
     let mut reader = BufReader::new(bench_file);

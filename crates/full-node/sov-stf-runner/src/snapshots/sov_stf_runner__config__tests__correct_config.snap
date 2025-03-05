@@ -53,7 +53,7 @@ expression: config
     }
   },
   "monitoring": {
-    "telegraf_address": "192.168.4.5:8543",
+    "telegraf_address": "udp://192.168.4.5:8543",
     "max_datagram_size": 1024,
     "max_pending_metrics": 2560
   }

@@ -295,8 +295,12 @@
           "minimum": 0.0
         },
         "telegraf_address": {
-          "description": "UDP socket where Telegraf service is active, something like 127.0.0.1:8094. Localhost is preferred for latency and reliability reasons.",
-          "type": "string"
+          "description": "A UDP or TCP socket where Telegraf has `inputs.socket_listener`, something like `udp://127.0.0.1:8094`. Localhost is preferred for latency and reliability reasons.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TelegrafSocketConfig"
+            }
+          ]
         }
       }
     },
@@ -646,6 +650,36 @@
           "type": "string"
         }
       }
+    },
+    "TelegrafSocketConfig": {
+      "description": "Config of receiving `inputs.socket_listener` <https://www.influxdata.com/blog/telegraf-socket-listener-input-plugin/>",
+      "type": "object",
+      "required": [
+        "addr",
+        "transport"
+      ],
+      "properties": {
+        "addr": {
+          "description": "Socket",
+          "type": "string"
+        },
+        "transport": {
+          "description": "Transport",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Transport"
+            }
+          ]
+        }
+      }
+    },
+    "Transport": {
+      "description": "Variant of transport supported by metrics sender.",
+      "type": "string",
+      "enum": [
+        "tcp",
+        "udp"
+      ]
     }
   }
 }

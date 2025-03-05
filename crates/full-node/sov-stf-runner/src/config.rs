@@ -8,7 +8,7 @@ use sov_rollup_interface::node::da::DaService;
 use sov_sequencer::{SequencerConfig, SequencerKindConfig};
 
 pub const DEFAULT_CONCURRENT_SYNC_TASKS: u8 = 5;
-pub use sov_metrics::MonitoringConfig;
+pub use sov_metrics::{MonitoringConfig, TelegrafSocketConfig};
 
 /// Configuration for StateTransitionRunner.
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
@@ -171,7 +171,7 @@ mod tests {
             public_address = "https://rollup.sovereign.xyz"
             cors = "disabled"
             [monitoring]
-            telegraf_address = "192.168.4.5:8543"
+            telegraf_address = "udp://192.168.4.5:8543"
             max_datagram_size = 1024
             max_pending_metrics = 2560
             [proof_manager]

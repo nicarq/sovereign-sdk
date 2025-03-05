@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use clap::{command, Parser, Subcommand};
-use sov_metrics::SovRollupMetrics;
+use sov_metrics::{SovRollupMetrics, TelegrafSocketConfig};
 
 use super::{
     DEFAULT_BENCH_FILES, DEFAULT_INFLUX_DB_ADDRESS, DEFAULT_METRICS_OUTPUT, DEFAULT_NUM_THREADS,
@@ -85,7 +85,7 @@ pub enum MetricsCLI {
     Metrics {
         /// Address of the telegraf service. Make sure that the service is up and running before running this executable.
         #[arg(short, long, default_value_t = DEFAULT_TELEGRAF_ADDRESS)]
-        telegraf: SocketAddr,
+        telegraf: TelegrafSocketConfig,
         /// Address of the influxdb service. Make sure that the service is up and running before running this executable.
         #[arg(short, long, default_value_t = DEFAULT_INFLUX_DB_ADDRESS)]
         influx: SocketAddr,

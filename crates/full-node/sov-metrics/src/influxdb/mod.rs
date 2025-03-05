@@ -8,7 +8,7 @@ mod gas_constant_estimation;
 mod publisher;
 mod tracker;
 
-pub use config::MonitoringConfig;
+pub use config::{MonitoringConfig, TelegrafSocketConfig};
 #[cfg(feature = "gas-constant-estimation")]
 pub use gas_constant_estimation::{GasConstantTracker, GAS_CONSTANTS};
 pub use tracker::{
@@ -76,6 +76,7 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
+    use crate::influxdb::config::TelegrafSocketConfig;
     use crate::influxdb::publisher::{
         metrics_publisher_task, receive_with_timeout, spawn_metrics_udp_receiver,
     };
@@ -86,7 +87,7 @@ mod tests {
     async fn test_runner_metrics_published() -> anyhow::Result<()> {
         let socket = tokio::net::UdpSocket::bind("127.0.0.1:0").await?;
         let monitoring_config = MonitoringConfig {
-            telegraf_address: socket.local_addr()?,
+            telegraf_address: TelegrafSocketConfig::udp(socket.local_addr()?),
             // Setting low, so each metric is published immediately
             max_datagram_size: Some(1),
             max_pending_metrics: None,
@@ -172,7 +173,7 @@ mod tests {
     async fn test_custom_metric_is_published() -> anyhow::Result<()> {
         let socket = tokio::net::UdpSocket::bind("127.0.0.1:0").await?;
         let monitoring_config = MonitoringConfig {
-            telegraf_address: socket.local_addr()?,
+            telegraf_address: TelegrafSocketConfig::udp(socket.local_addr()?),
             // Setting low, so each metric is published immediately
             max_datagram_size: Some(1),
             max_pending_metrics: None,

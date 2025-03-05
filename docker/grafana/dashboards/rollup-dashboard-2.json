@@ -2795,7 +2795,6 @@
         "type": "query"
       },
       {
-        "allValue": "",
         "current": {
           "text": [
             "All"
@@ -2803,6 +2802,10 @@
           "value": [
             "$__all"
           ]
+        },
+        "datasource": {
+          "type": "influxdb",
+          "uid": "${DS}"
         },
         "definition": "import \"influxdata/influxdb/v1\"\nv1.tagValues(\n    bucket: v.bucket,\n    tag: \"host\",\n    predicate: (r) => true,\n    start: -1d\n)",
         "description": "",

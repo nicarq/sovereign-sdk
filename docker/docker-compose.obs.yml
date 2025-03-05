@@ -72,6 +72,7 @@ services:
       - /etc:/host/etc:ro
     ports:
       - "127.0.0.1:${TELEGRAF_PORT:-8094}:8094/udp"
+      - "127.0.0.1:${TELEGRAF_PORT:-8094}:8094/tcp"
     environment:
       - HOST_PROC=/host/proc
       - HOST_SYS=/host/sys
