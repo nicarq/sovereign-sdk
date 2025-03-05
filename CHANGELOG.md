@@ -2,6 +2,7 @@
 - #2535 Reverts the changes from #2483 and enables the proof namespaces.
 ## 2025-03-03
 - #2588 makes the type signature of `FullNodeBlueprint::sequencer_additional_apis` stricter by adding some trait bounds.
+- #2541 removes `blob_hash` and `da_transaction_id` fields from the response body of `POST /sequencer/batches`.
 - #2522 includes git hash as a resource attribute in metrics so we know exactly what version of the rollup is running.
 - #2533 Changes demo-stf dependency usage from path to workspace.
 - #2537 Adjusts amounts in the testing framework to use `Amount` instead of u128

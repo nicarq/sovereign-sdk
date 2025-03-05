@@ -27,13 +27,10 @@ pub use crate::tx_status::TxStatus;
 
 /// The response type to REST API calls that successfully publish a batch.
 #[derive(Debug, Clone, Serialize)]
-pub struct SubmitBatchReceipt<Da: DaSpec> {
+pub struct SubmitBatchReceipt {
     /// All the hashes of the transactions that were successfully included in
     /// the batch.
     pub tx_hashes: Vec<TxHash>,
-    /// Blob metadata to track its status.
-    #[serde(flatten)]
-    pub submit_blob_receipt: SubmitBlobReceipt<Da::TransactionId>,
 }
 
 pub(crate) type BlobReceiptFut<Da> = oneshot::Receiver<
