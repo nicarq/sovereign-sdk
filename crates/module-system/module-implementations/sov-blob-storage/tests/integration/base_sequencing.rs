@@ -59,10 +59,10 @@ fn check_blob_selection() {
     {
         let slot_to_send = build_basic_blobs(
             &vec![
-                (preferred_sequencer.clone(), 220),
-                (preferred_sequencer.clone(), 500),
-                (preferred_sequencer.clone(), 300),
-                (preferred_sequencer.clone(), 220),
+                (preferred_sequencer.clone(), 20),
+                (preferred_sequencer.clone(), 50),
+                (preferred_sequencer.clone(), 10),
+                (preferred_sequencer.clone(), 30),
             ],
             &mut nonces,
         );
@@ -75,8 +75,8 @@ fn check_blob_selection() {
         // First slot bigger than MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE
         let slot_to_send = build_basic_blobs(
             &vec![
-                (preferred_sequencer.clone(), 1001),
-                (preferred_sequencer.clone(), 500),
+                (preferred_sequencer.clone(), 101),
+                (preferred_sequencer.clone(), 50),
             ],
             &mut nonces,
         );
@@ -89,8 +89,8 @@ fn check_blob_selection() {
     {
         let slot_to_send = build_basic_blobs(
             &vec![
-                (preferred_sequencer.clone(), 1000),
-                (preferred_sequencer.clone(), 500),
+                (preferred_sequencer.clone(), 100),
+                (preferred_sequencer.clone(), 50),
             ],
             &mut nonces,
         );

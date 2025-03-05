@@ -1,6 +1,7 @@
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec, RelevantBlobIters};
 
-use crate::{as_u32_or_panic, KernelStateAccessor, Spec};
+use crate::{as_u32_or_panic, KernelStateAccessor, SelectedBlob, Spec};
 
 /// The namespace in which a blob appeared.
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -12,6 +13,14 @@ pub enum BlobOrigin<'a, T> {
 }
 
 impl<'a, T: BlobReaderTrait> BlobOrigin<'a, T> {
+    /// Inner blob data.
+    pub fn get(&self) -> &T {
+        match self {
+            BlobOrigin::Batch(b) => b,
+            BlobOrigin::Proof(p) => p,
+        }
+    }
+
     /// Returns the total number of bytes in the blob.
     #[must_use]
     pub fn total_len(&self) -> u32 {
@@ -76,6 +85,13 @@ pub trait BlobSelector {
         >,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
     ) -> anyhow::Result<BlobSelectorOutput<Self::BlobType>>;
+
+    /// Extracts all delayed non-preferred blobs that belong to the given slots.
+    fn get_non_preferred_blobs(
+        &self,
+        slot_range: impl Iterator<Item = SlotNumber>,
+        state: &mut KernelStateAccessor<'_, Self::Spec>,
+    ) -> Vec<SelectedBlob<Self::Spec>>;
 
     /// Add funds to the escrow for the preferred sequencer.
     #[cfg(feature = "native")]

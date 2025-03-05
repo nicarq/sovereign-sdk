@@ -70,6 +70,17 @@ pub struct SelectedBlob<S: Spec, B = IterableBatchWithId<S>> {
     pub reserved_gas_tokens: Option<Amount>,
 }
 
+impl<S: Spec, B> SelectedBlob<S, B> {
+    /// See [`BlobDataWithId::map_batch`].
+    pub fn map_batch<B1>(self, f: impl FnOnce(B) -> B1) -> SelectedBlob<S, B1> {
+        SelectedBlob {
+            blob_data: self.blob_data.map_batch(f),
+            sender: self.sender,
+            reserved_gas_tokens: self.reserved_gas_tokens,
+        }
+    }
+}
+
 /// The amount of tokens reserved for pre-execution checks *for a particular transaction* from the sender's account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SequencerBondForTx {

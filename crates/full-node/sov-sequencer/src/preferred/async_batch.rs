@@ -17,25 +17,55 @@ use crate::common::sender_is_allowed;
 
 /// A batch that might be received async from some producer
 #[derive(Debug)]
-pub enum MaybeAsync<S: Spec> {
-    /// The batch is received async from a channel
-    Async((Receiver<FullyBakedTx>, <S as Spec>::Address)),
-    /// The batch is already known
-    // This is unused because we decided to split execution of kernel blobs into a separate PR.
-    // Kernel blobs will be sync.
-    #[allow(dead_code)]
-    Sync(IterableBatchWithId<S>),
+pub enum MaybeAsyncBatch<S: Spec, R> {
+    /// The batch is streamed from a channel.
+    Async {
+        txs_receiver: Receiver<FullyBakedTx>,
+        responder: AsyncBatchResponder<R, S>,
+        setup_sender: Option<oneshot::Sender<ChangeSet>>,
+        address: S::Address,
+    },
+    /// Batch contents are fully known ahead of time.
+    Sync { batch: IterableBatchWithId<S> },
+}
+
+impl<R, S: Spec> MaybeAsyncBatch<S, R> {
+    /// Create a new batch with a receiver for transactions.
+    pub fn new_async(
+        txs_receiver: Receiver<FullyBakedTx>,
+        setup_sender: oneshot::Sender<ChangeSet>,
+        result_channel: Sender<Result<(R, TxChangeSet), RejectReason>>,
+        tx_profit_threshold: u128,
+        sequencer_admins: Arc<Vec<S::Address>>,
+        address: S::Address,
+    ) -> Self {
+        Self::Async {
+            txs_receiver,
+            address,
+            setup_sender: Some(setup_sender),
+            responder: AsyncBatchResponder {
+                result_channel,
+                admins: sequencer_admins,
+                tx_profit_threshold,
+            },
+        }
+    }
+
+    /// Create a MaybeAsyncBatch from a batch whose contents are already known.
+    pub fn new_sync(batch: IterableBatchWithId<S>) -> Self {
+        Self::Sync { batch }
+    }
 }
 
 /// The control flow injector for an async batch.
 #[derive(Debug)]
-pub enum MaybeAsyncControlFlow<R, S: Spec> {
+pub enum MaybeAsyncBatchControlFlow<R, S: Spec> {
     Async(AsyncBatchResponder<R, S>),
     Sync,
 }
 
 impl<T: TxReceiptContents, S: Spec> InjectedControlFlow<TransactionReceipt<T>, S>
-    for MaybeAsyncControlFlow<TransactionReceipt<T>, S>
+    for MaybeAsyncBatchControlFlow<TransactionReceipt<T>, S>
 {
     fn post_tx(
         &self,
@@ -68,45 +98,11 @@ impl<T: TxReceiptContents, S: Spec> InjectedControlFlow<TransactionReceipt<T>, S
     }
 }
 
-/// Contains raw transactions received from an async source in real time
-#[derive(Debug)]
-pub struct AsyncBatch<R, S: Spec> {
-    /// The batch contents, which may be sync or async
-    pub contents: MaybeAsync<S>,
-    /// The channel to send responses on
-    pub result_channel: Sender<Result<(R, TxChangeSet), RejectReason>>,
-    /// A channel for sending the state changes from "setup" (everything before execution of the first sequencer tx)
-    /// and "teardown" (everything after execution of the last sequencer tx)
-    pub setup_channel: Option<oneshot::Sender<ChangeSet>>,
-    /// The minimum fee that the sequencer is currently willing to earn. Txs which net
-    /// less than this fee will be rejected.
-    pub tx_profit_threshold: u128,
-    pub sequencer_admins: Arc<Vec<S::Address>>,
-}
-
-impl<R, S: Spec> AsyncBatch<R, S> {
-    /// Create a new batch with a receiver for transactions
-    pub fn new_async(
-        tx_receiver: Receiver<FullyBakedTx>,
-        sequencer_address: <S as Spec>::Address,
-        setup_channel: oneshot::Sender<ChangeSet>,
-        result_channel: Sender<Result<(R, TxChangeSet), RejectReason>>,
-        tx_profit_threshold: u128,
-        sequencer_admins: Arc<Vec<S::Address>>,
-    ) -> Self {
-        Self {
-            contents: MaybeAsync::Async((tx_receiver, sequencer_address)),
-            result_channel,
-            setup_channel: Some(setup_channel),
-            tx_profit_threshold,
-            sequencer_admins,
-        }
-    }
-}
-
 /// The channel responsible for notifying an async tx submitter of the txs result
-#[derive(Debug)]
+#[derive(Debug, derivative::Derivative)]
+#[derivative(Clone)]
 pub struct AsyncBatchResponder<R, S: Spec> {
+    #[derivative(Clone(bound = ""))]
     result_channel: Sender<Result<(R, TxChangeSet), RejectReason>>,
     admins: Arc<Vec<S::Address>>,
     tx_profit_threshold: u128,
@@ -179,63 +175,61 @@ impl<T: TxReceiptContents, S: Spec> AsyncBatchResponder<TransactionReceipt<T>, S
 }
 
 impl<T: TxReceiptContents, S: Spec> IncrementalBatch<TransactionReceipt<T>, S>
-    for AsyncBatch<TransactionReceipt<T>, S>
+    for MaybeAsyncBatch<S, TransactionReceipt<T>>
 {
-    type ControlFlow = MaybeAsyncControlFlow<TransactionReceipt<T>, S>;
+    type ControlFlow = MaybeAsyncBatchControlFlow<TransactionReceipt<T>, S>;
 
     fn known_remaining_txs(&self) -> Option<usize> {
-        use MaybeAsync::*;
-        match &self.contents {
-            Async(_) => None,
-            Sync(batch) => Some(batch.batch.len()),
+        match self {
+            MaybeAsyncBatch::Async { .. } => None,
+            MaybeAsyncBatch::Sync { batch } => Some(batch.batch.len()),
         }
     }
 
     fn id(&self) -> Option<[u8; 32]> {
-        use MaybeAsync::*;
-        match &self.contents {
-            Async(_) => None,
-            Sync(batch) => Some(batch.id),
+        match self {
+            MaybeAsyncBatch::Async { .. } => None,
+            MaybeAsyncBatch::Sync { batch } => Some(batch.id),
         }
     }
 
     fn pre_flight(&mut self, state_checkpoint: &StateCheckpoint<S>) {
-        let changes = state_checkpoint.changes();
-        // If the receiver is no longer available, we don't care about sending the changes.
-        let _  = self.setup_channel.take().expect("The pre-flight hook of a single batch was invoked multiple times! This is a bug - please report it.").send(changes);
+        match self {
+            MaybeAsyncBatch::Async { setup_sender, .. } => {
+                let changes = state_checkpoint.changes();
+                // If the receiver is no longer available, we don't care about sending the changes.
+                let _  = setup_sender.take().expect("The pre-flight hook of a single batch was invoked multiple times! This is a bug - please report it.").send(changes);
+            }
+            MaybeAsyncBatch::Sync { .. } => {}
+        }
     }
 
     fn sequencer_address(&self) -> S::Address {
-        use MaybeAsync::*;
-        match &self.contents {
-            Async((_, sequencer_address)) => sequencer_address.clone(),
-            Sync(batch) => batch.sequencer_address.clone(),
+        match self {
+            MaybeAsyncBatch::Async { address, .. } => address.clone(),
+            MaybeAsyncBatch::Sync { batch } => batch.sequencer_address.clone(),
         }
     }
 }
 
-impl<R, S: Spec> Iterator for AsyncBatch<R, S> {
-    type Item = (FullyBakedTx, MaybeAsyncControlFlow<R, S>);
+impl<R, S: Spec> Iterator for MaybeAsyncBatch<S, R> {
+    type Item = (FullyBakedTx, MaybeAsyncBatchControlFlow<R, S>);
 
-    fn next(&mut self) -> Option<(FullyBakedTx, MaybeAsyncControlFlow<R, S>)> {
-        use MaybeAsync::*;
+    fn next(&mut self) -> Option<(FullyBakedTx, MaybeAsyncBatchControlFlow<R, S>)> {
         // Get a handle to the current runtime, then block on receiving an update
         // from the channel. This is coupled to the implementation of the sequencer,
         // which requires that the apply_slot function be spawned on a blocking thread
-        match &mut self.contents {
-            Async((receiver, _)) => Handle::current().block_on(receiver.recv()).map(|item| {
-                (
-                    item,
-                    MaybeAsyncControlFlow::Async(AsyncBatchResponder {
-                        result_channel: self.result_channel.clone(),
-                        tx_profit_threshold: self.tx_profit_threshold,
-                        admins: self.sequencer_admins.clone(),
-                    }),
-                )
-            }),
-            Sync(iter) => iter
+        match self {
+            MaybeAsyncBatch::Async {
+                txs_receiver,
+                responder,
+                ..
+            } => Handle::current()
+                .block_on(txs_receiver.recv())
+                .map(|item| (item, MaybeAsyncBatchControlFlow::Async(responder.clone()))),
+            MaybeAsyncBatch::Sync { batch } => batch
                 .next()
-                .map(|(item, _)| (item, MaybeAsyncControlFlow::Sync)),
+                .map(|(item, _)| (item, MaybeAsyncBatchControlFlow::Sync)),
         }
     }
 }

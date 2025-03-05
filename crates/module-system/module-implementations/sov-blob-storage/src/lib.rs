@@ -33,6 +33,18 @@ pub fn config_unregistered_blobs_per_slot() -> u64 {
     config_value!("UNREGISTERED_BLOBS_PER_SLOT")
 }
 
+/// The type of sequencer that published a blob.
+#[derive(
+    Debug, PartialEq, Eq, Copy, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize,
+)]
+pub enum SequencerType {
+    /// The preferred sequencer with non-deferred execution privileges.
+    Preferred,
+    /// Any other sequencer, either registered with a standard registration or
+    /// via emergency registration.
+    NonPreferred,
+}
+
 /// An escrow account for storing the reserved gas for a blob.
 #[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Debug, PartialEq)]
 pub enum Escrow {
@@ -49,7 +61,8 @@ pub enum Escrow {
 #[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Debug, PartialEq)]
 #[serde(bound = "S: Spec, B: Serialize + DeserializeOwned")]
 pub struct ValidatedBlob<S: Spec, B = IterableBatchWithId<S>> {
-    blob: BlobDataWithId<S, B>,
+    /// Inner blob data.
+    pub blob: BlobDataWithId<S, B>,
     sender: <<S as Spec>::Da as DaSpec>::Address,
     balance_store: Escrow,
 }

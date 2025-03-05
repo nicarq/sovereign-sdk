@@ -7,8 +7,8 @@ use sov_modules_api::{
     GasSpec, KernelStateAccessor, ModuleInfo, PrivilegedKernelAccessor, Spec,
 };
 
-use crate::max_size_checker::BlobsWithTotalSizeLimit;
-use crate::{BlobStorage, Escrow, ValidatedBlob};
+use crate::max_size_checker::BlobsAccumulatorWithSizeLimit;
+use crate::{BlobStorage, Escrow, SequencerType, ValidatedBlob};
 
 const CONSERVATIVE_KEY_SIZE: u32 = 256;
 
@@ -38,15 +38,10 @@ impl<S: Spec> BlobStorage<S> {
         blob: BlobDataWithId<S, BatchWithId<S>>,
         sender: <<S as Spec>::Da as DaSpec>::Address,
         available_balance: Amount,
-        selected_blobs: &BlobsWithTotalSizeLimit<S>,
         gas_price_for_new_block: &<S::Gas as Gas>::Price,
         account_for_deferral: bool,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> Option<ValidatedBlob<S, BatchWithId<S>>> {
-        if !selected_blobs.can_accept_blob(blob.blob_size()) {
-            return None;
-        }
-
         let mut funds_needed = Amount::ZERO;
 
         // If we might defer this blob, we need to account for storage costs and account for the fact that the gas price might be higher.
@@ -118,11 +113,11 @@ impl<S: Spec> BlobStorage<S> {
         blob: BlobDataWithId<S, BatchWithId<S>>,
         sender: <<S as Spec>::Da as DaSpec>::Address,
         available_balance: Amount,
-        selected_blobs: &BlobsWithTotalSizeLimit<S>,
+        selected_blobs: &BlobsAccumulatorWithSizeLimit<S>,
         visible_height_increase: u64,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> Option<ValidatedBlob<S, BatchWithId<S>>> {
-        if !selected_blobs.can_accept_blob(blob.blob_size()) {
+        if !selected_blobs.can_accept_blob(SequencerType::Preferred, blob.blob_size()) {
             return None;
         }
         let best_gas_price_estimate = self.get_new_gas_price(visible_height_increase, state);

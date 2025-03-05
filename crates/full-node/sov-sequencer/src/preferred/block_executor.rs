@@ -22,7 +22,7 @@ use super::{
     VisibleSlotNumberIncrease,
 };
 use crate::common::generic_accept_tx_error;
-use crate::preferred::async_batch::AsyncBatch;
+use crate::preferred::async_batch::MaybeAsyncBatch;
 use crate::SequencerConfig;
 
 #[derive(thiserror::Error, Debug)]
@@ -322,7 +322,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             let sequencer_rollup_address = self.config.rollup_address.clone();
             let admin_addresses = Arc::new(self.config.admin_addresses.clone());
             let shutdown_notifier = self.shutdown_notifier.clone();
-            let additional_blobs = vec![]; // TODO.
             let mut checkpoint = checkpoint.clone_with_empty_witness();
             let old_rollup_height = checkpoint.rollup_height_to_access();
 
@@ -333,21 +332,19 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                 )
                 .entered();
 
-                let mut selected_blobs = vec![SelectedBlob {
-                    blob_data: BlobDataWithId::Batch(AsyncBatch::new_async(
-                        tx_receiver,
-                        sequencer_rollup_address,
-                        setup_sender,
-                        result_sender,
-                        minimum_profit_per_tx,
-                        admin_addresses,
-                    )),
-                    reserved_gas_tokens: None, // We overwrite this value below.
-                    sender: sequencer_address,
-                }];
-                selected_blobs.extend(additional_blobs);
                 let mut blob_selector_output = BlobSelectorOutput {
-                    selected_blobs,
+                    selected_blobs: vec![SelectedBlob {
+                        blob_data: BlobDataWithId::Batch(MaybeAsyncBatch::new_async(
+                            tx_receiver,
+                            setup_sender,
+                            result_sender,
+                            minimum_profit_per_tx,
+                            admin_addresses,
+                            sequencer_rollup_address,
+                        )),
+                        reserved_gas_tokens: None, // We overwrite this value below.
+                        sender: sequencer_address.clone(),
+                    }],
                     visible_slot_number_increase: visible_increase.get().into(),
                 };
                 let stf = StfBlueprint::<S, Rt>::new();
@@ -360,6 +357,24 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                     next_visible_slot_number,
                     &user_state_root,
                 );
+
+                let non_preferred_selected_blobs = kernel
+                    .get_non_preferred_blobs(
+                        computed_visible_slot_number.as_true().next().range_inclusive(next_visible_slot_number.as_true()),
+                        &mut accessor,
+                    )
+                    .into_iter()
+                    .map(|b| b.map_batch(MaybeAsyncBatch::<S, _>::new_sync))
+                    .collect::<Vec<_>>();
+
+                tracing::debug!(
+                    num_non_preferred_blobs = %non_preferred_selected_blobs.len(),
+                    %computed_visible_slot_number,
+                    %next_visible_slot_number,
+                    "Extracted non-preferred blobs",
+                );
+                blob_selector_output.selected_blobs.extend(non_preferred_selected_blobs);
+
                 let next_root = kernel
                     .visible_hash_for(old_rollup_height.saturating_add(1), &mut accessor)
                     .unwrap();
@@ -370,7 +385,10 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                     .unwrap_or(S::initial_base_fee_per_gas());
                 let needed_gas_escrow = S::max_tx_check_costs().checked_value(&next_gas_price).expect("Gas price overflow! This is a bug, please report it.");
                 kernel.escrow_funds_for_preferred_sequencer(needed_gas_escrow, &mut accessor).expect("Failed to escrow funds for the preferred sequencer. The sequencer is too low on funds, which could cause soft confirmations to be invalidated. Increase your bond and restart the sequencer.");
-                blob_selector_output.selected_blobs[0].reserved_gas_tokens = Some(needed_gas_escrow);
+
+                for blob in blob_selector_output.selected_blobs.iter_mut() {
+                    blob.reserved_gas_tokens = Some(needed_gas_escrow);
+                }
 
                 tracing::trace!(
                     %next_visible_slot_number,

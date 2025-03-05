@@ -9,15 +9,16 @@ use sov_modules_api::{
     FullyBakedTx, Gas, GasArray, GasSpec, KernelStateAccessor, ModuleInfo,
     PrivilegedKernelAccessor, RawTx, SelectedBlob, Spec,
 };
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_sequencer_registry::AllowedSequencerError;
 use tracing::{debug, error, info, warn};
 
-use crate::max_size_checker::BlobsWithTotalSizeLimit;
+use crate::max_size_checker::BlobsAccumulatorWithSizeLimit;
 use crate::{
     config_deferred_slots_count, config_unregistered_blobs_per_slot, BlobStorage, BlobType, Escrow,
     PreferredBatchData, PreferredBlobData, PreferredBlobDataWithId, PreferredProofData,
-    SequenceNumber, SequencerNumberTracker, ValidatedBlob,
+    SequenceNumber, SequencerNumberTracker, SequencerType, ValidatedBlob,
 };
 
 /// A loose upper bound on the size of an emergency registration blob, in bytes. Blobs larger than this are statically known to be invalid
@@ -123,7 +124,7 @@ impl<S: Spec> BlobStorage<S> {
         visible_height_increase: u64,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> Vec<ValidatedBlob<S, BatchWithId<S>>> {
-        let mut blobs_with_total_size_limit = BlobsWithTotalSizeLimit::<S>::new();
+        let mut blobs_with_total_size_limit = BlobsAccumulatorWithSizeLimit::<S>::new();
 
         let current_blobs = current_blobs
             .batch_blobs
@@ -147,7 +148,7 @@ impl<S: Spec> BlobStorage<S> {
     fn select_blobs_da_ordering_helper<'a>(
         &self,
         blob_iter: impl Iterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
-        blobs_with_total_size_limit: &mut BlobsWithTotalSizeLimit<S>,
+        blobs_with_total_size_limit: &mut BlobsAccumulatorWithSizeLimit<S>,
         account_for_deferral: bool,
         visible_height_increase: u64,
         state: &mut KernelStateAccessor<'_, S>,
@@ -156,18 +157,20 @@ impl<S: Spec> BlobStorage<S> {
         let gas_price_for_new_block = self.get_new_gas_price(visible_height_increase, state);
         for (idx, item) in blob_iter.enumerate() {
             tracing::trace!(idx, "Processing blob");
+
+            let sequencer_type = SequencerType::NonPreferred;
+            if !blobs_with_total_size_limit.can_accept_blob(sequencer_type, item.get().total_len())
+            {
+                Self::log_discarded_blob(item.get(), &BlobDiscardReason::OutOfCapacity);
+                continue;
+            }
+
             match item {
                 BlobOrigin::Proof(blob) => {
                     tracing::trace!(idx, "Processing as proof");
-                    // Optimization: Don't even check the sender if we're out of capacity
-                    if !blobs_with_total_size_limit.can_accept_blob(blob.total_len()) {
-                        Self::log_discarded_blob(blob, &BlobDiscardReason::OutOfCapacity);
-                        continue;
-                    }
                     let Some(proof) = self.try_validate_proof_and_reserve_funds(
                         as_u32_or_panic(idx),
                         blob,
-                        blobs_with_total_size_limit,
                         account_for_deferral,
                         visible_height_increase,
                         state,
@@ -175,15 +178,10 @@ impl<S: Spec> BlobStorage<S> {
                         Self::log_discarded_blob(blob, &BlobDiscardReason::SenderInsufficientStake);
                         continue;
                     };
-                    blobs_with_total_size_limit.push_or_ignore(proof);
+                    blobs_with_total_size_limit.push_or_ignore(SequencerType::NonPreferred, proof);
                 }
                 BlobOrigin::Batch(blob) => {
-                    tracing::trace!("processing as batch");
-                    // Optimization: Don't even check the sender if we're out of capacity
-                    if !blobs_with_total_size_limit.can_accept_blob(blob.total_len()) {
-                        Self::log_discarded_blob(blob, &BlobDiscardReason::OutOfCapacity);
-                        continue;
-                    }
+                    tracing::trace!("Processing as batch");
                     match self.pre_validate_blob_and_sender(blob, unregistered_blob_count, state) {
                         ValidateBlobOutcome::Accept(SequencerStatus::Registered(sequencer)) => {
                             let Some(validated) = self
@@ -192,7 +190,6 @@ impl<S: Spec> BlobStorage<S> {
                                     blob,
                                     sequencer,
                                     &gas_price_for_new_block,
-                                    blobs_with_total_size_limit,
                                     account_for_deferral,
                                     state,
                                 )
@@ -206,7 +203,8 @@ impl<S: Spec> BlobStorage<S> {
                             // TODO: If the preferred sequencer advanced the visible slot number too much, blobs will get dropped here.
                             // This could be used for censorship, but the attack is not economically feasible (analysis available upon request).
                             // We should consider trying to detect and slash for this.
-                            blobs_with_total_size_limit.push_or_ignore(validated);
+                            blobs_with_total_size_limit
+                                .push_or_ignore(SequencerType::NonPreferred, validated);
                         }
                         ValidateBlobOutcome::Accept(SequencerStatus::Unregistered) => {
                             // If the blob is too large to be a valid emergency registration, just discard it.
@@ -227,7 +225,8 @@ impl<S: Spec> BlobStorage<S> {
                                     blob.sender(),
                                     Escrow::None,
                                 );
-                                blobs_with_total_size_limit.push_or_ignore(blob);
+                                blobs_with_total_size_limit
+                                    .push_or_ignore(SequencerType::NonPreferred, blob);
                                 continue;
                             }
                             Self::log_discarded_blob(
@@ -299,7 +298,7 @@ impl<S: Spec> BlobStorage<S> {
             .saturating_sub(state.visible_slot_number().get())
             .get();
 
-        let mut blobs_with_total_size_limit = BlobsWithTotalSizeLimit::<S>::new();
+        let mut blobs_with_total_size_limit = BlobsAccumulatorWithSizeLimit::<S>::new();
 
         // First, decide how many slots worth of stored blobs we need. It could be 0, 1, or 2.
         let (slots_needed_from_storage, current_orderred_blobs) = match delta {
@@ -326,7 +325,7 @@ impl<S: Spec> BlobStorage<S> {
 
         if let Some(blobs) = current_orderred_blobs {
             for batch in blobs.selected_blobs.into_iter() {
-                blobs_with_total_size_limit.push_or_ignore(batch);
+                blobs_with_total_size_limit.push_or_ignore(SequencerType::NonPreferred, batch);
             }
         }
 
@@ -345,7 +344,7 @@ impl<S: Spec> BlobStorage<S> {
         }
     }
 
-    fn separate_preffered_blobs<'a>(
+    fn separate_preferred_blobs<'a>(
         &self,
         blobs: &'a mut [<S::Da as DaSpec>::BlobTransaction],
         preferred_sender: &<S::Da as DaSpec>::Address,
@@ -397,9 +396,9 @@ impl<S: Spec> BlobStorage<S> {
         // 1. Extract all the new preferred blobs from the input
 
         let separated_proofs =
-            self.separate_preffered_blobs(current_blobs.proof_blobs, preferred_sender);
+            self.separate_preferred_blobs(current_blobs.proof_blobs, preferred_sender);
         let separated_batches =
-            self.separate_preffered_blobs(current_blobs.batch_blobs, preferred_sender);
+            self.separate_preferred_blobs(current_blobs.batch_blobs, preferred_sender);
         let well_formed_preferred_blobs = separated_proofs
             .preferred_blobs
             .into_iter()
@@ -439,7 +438,7 @@ impl<S: Spec> BlobStorage<S> {
         );
 
         // 3. Select the virtual height increase
-        let mut blobs_to_select = BlobsWithTotalSizeLimit::<S>::new();
+        let mut blobs_to_select = BlobsAccumulatorWithSizeLimit::<S>::new();
         let visible_height_increase = if let Some(last_selected_blob) =
             selected_preferred_blobs.last()
         {
@@ -530,7 +529,7 @@ impl<S: Spec> BlobStorage<S> {
                 state,
             );
         } else {
-            let mut new_blob_deferral_limiter = BlobsWithTotalSizeLimit::<S>::new();
+            let mut new_blob_deferral_limiter = BlobsAccumulatorWithSizeLimit::<S>::new();
             self.select_blobs_da_ordering_helper(
                 all_non_preferred_blobs,
                 &mut new_blob_deferral_limiter,
@@ -657,7 +656,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         slots_needed_from_storage: u64,
         gas_price_for_new_block: &<S::Gas as Gas>::Price,
-        blobs_with_total_size_limit: &mut BlobsWithTotalSizeLimit<S>,
+        blobs_with_total_size_limit: &mut BlobsAccumulatorWithSizeLimit<S>,
         state: &mut KernelStateAccessor<'_, S>,
     ) {
         for slot in 1..=slots_needed_from_storage {
@@ -686,7 +685,7 @@ impl<S: Spec> BlobStorage<S> {
                     Escrow::None => {}
 
                 }
-                blobs_with_total_size_limit.push_or_ignore(batch);
+                blobs_with_total_size_limit.push_or_ignore(SequencerType::NonPreferred, batch);
             }
         }
     }
@@ -727,7 +726,7 @@ impl<S: Spec> BlobStorage<S> {
     fn add_preferred_blobs_to_selection(
         &self,
         selected_preferred_blobs: Vec<PreferredBlobDataWithId>,
-        blobs_to_select: &mut BlobsWithTotalSizeLimit<S>,
+        blobs_to_select: &mut BlobsAccumulatorWithSizeLimit<S>,
         preferred_sender: &<S::Da as DaSpec>::Address,
         preferred_sequencer: &S::Address,
         available_balance: Amount,
@@ -756,7 +755,7 @@ impl<S: Spec> BlobStorage<S> {
                 tracing::error!(blob_id = hex::encode(blob_id), "Preferred sequencer did not have enough balance to submit this blob. Dropping preferred blob. Some soft confirmations may be invalidated");
                 continue;
             };
-            let accepted = blobs_to_select.push_preffered_or_ignore(validated_blob);
+            let accepted = blobs_to_select.push_or_ignore(SequencerType::Preferred, validated_blob);
             if !accepted {
                 tracing::error!(blob_id = hex::encode(blob_id), "Preferred blob size limit exceeded. Dropping preferred blob. Some soft confirmations may be invalidated");
             }
@@ -767,7 +766,6 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         idx: u32,
         blob: &mut <S::Da as DaSpec>::BlobTransaction,
-        blobs_to_select: &BlobsWithTotalSizeLimit<S>,
         account_for_deferral: bool,
         visible_height_increase: u64,
         state: &mut KernelStateAccessor<'_, S>,
@@ -793,7 +791,6 @@ impl<S: Spec> BlobStorage<S> {
             BlobData::Proof((proof, sequencer.address)).with_id(blob.hash().into()),
             blob.sender(),
             sequencer.balance,
-            blobs_to_select,
             &gas_price_for_new_block,
             account_for_deferral,
             state,
@@ -806,7 +803,6 @@ impl<S: Spec> BlobStorage<S> {
         blob: &mut <S::Da as DaSpec>::BlobTransaction,
         sequencer: AllowedSequencer<S>,
         gas_price_for_new_block: &<S::Gas as Gas>::Price,
-        blobs_to_select: &BlobsWithTotalSizeLimit<S>,
         account_for_deferral: bool,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> Option<ValidatedBlob<S, BatchWithId<S>>> {
@@ -823,7 +819,6 @@ impl<S: Spec> BlobStorage<S> {
             BlobData::Batch((batch, sequencer.address)).with_id(blob.hash().into()),
             blob.sender(),
             sequencer.balance,
-            blobs_to_select,
             gas_price_for_new_block,
             account_for_deferral,
             state,
@@ -1026,6 +1021,7 @@ impl<S: Spec> BlobStorage<S> {
             state,
         )
     }
+
     /// Select the blobs to execute this slot using "based sequencing". In this mode,
     /// blobs are processed in the order that they appear on the DA layer.
     pub fn select_blobs_as_based_sequencer(
@@ -1042,6 +1038,31 @@ impl<S: Spec> BlobStorage<S> {
                 .collect(),
             visible_slot_number_increase: output.visible_slot_number_increase,
         }
+    }
+
+    /// Extracts all delayed non-preferred blobs that belong to the given slots.
+    pub fn get_non_preferred_blobs(
+        &self,
+        slot_range: impl Iterator<Item = SlotNumber>,
+        state: &mut KernelStateAccessor<'_, S>,
+    ) -> Vec<ValidatedBlob<S, BatchWithId<S>>> {
+        let mut blobs_with_total_size_limit = BlobsAccumulatorWithSizeLimit::<S>::new();
+
+        // Load all the necessary batches from storage.
+        for slot_to_check in slot_range {
+            let batches_from_next_slot = self.take_blobs_for_slot(slot_to_check, state);
+            tracing::trace!(
+                "Found {} additional blobs in slot {} ",
+                batches_from_next_slot.len(),
+                slot_to_check
+            );
+            for batch in batches_from_next_slot {
+                // Only push the blobs that are within the total size limit.
+                blobs_with_total_size_limit.push_or_ignore(SequencerType::NonPreferred, batch);
+            }
+        }
+
+        blobs_with_total_size_limit.inner()
     }
 }
 

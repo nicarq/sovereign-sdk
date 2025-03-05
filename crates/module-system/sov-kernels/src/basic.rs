@@ -2,7 +2,7 @@
 
 use std::convert::Infallible;
 
-use sov_blob_storage::BlobStorage;
+use sov_blob_storage::{BlobStorage, ValidatedBlob};
 use sov_chain_state::ChainState;
 use sov_modules_api::capabilities::{BlobSelectorOutput, BlockGasInfo, RollupHeight};
 use sov_modules_api::prelude::UnwrapInfallible;
@@ -77,6 +77,18 @@ impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
         Ok(self
             .blob_storage
             .select_blobs_as_based_sequencer(current_blobs, state))
+    }
+
+    fn get_non_preferred_blobs(
+        &self,
+        slot_range: impl Iterator<Item = SlotNumber>,
+        state: &mut KernelStateAccessor<'_, Self::Spec>,
+    ) -> Vec<SelectedBlob<Self::Spec>> {
+        self.blob_storage
+            .get_non_preferred_blobs(slot_range, state)
+            .into_iter()
+            .map(ValidatedBlob::into_selected_blob)
+            .collect()
     }
 
     #[cfg(feature = "native")]
