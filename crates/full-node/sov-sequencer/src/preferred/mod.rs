@@ -417,6 +417,7 @@ where
             self.config.clone(),
             self.shutdown_notifier.clone(),
         );
+
         let node_state_root = tracing::trace_span!("root_hash")
             .in_scope(|| info.storage.get_root_hash(info.slot_number))?;
         let last_batch = batches_to_process.last();

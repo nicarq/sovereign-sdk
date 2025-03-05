@@ -8,7 +8,7 @@ use sov_mock_da::storable::service::StorableMockDaService;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
-use sov_test_utils::test_rollup::RollupBuilder;
+use sov_test_utils::test_rollup::{RollupBuilder, RollupProverConfig};
 use sov_test_utils::TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING;
 
 use crate::bank::helpers::*;
@@ -17,9 +17,10 @@ use crate::test_helpers::*;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_bank_tx_tests() -> anyhow::Result<()> {
+    // std::env::set_var("RUST_LOG", "info");
+    // sov_test_utils::initialize_logging();
     let test_case = TestCase {
-        // TODO: The proof namespace is disabled, see: #2487
-        wait_for_aggregated_proof: false,
+        wait_for_aggregated_proof: true,
         finalization_blocks: 0,
     };
 
@@ -29,10 +30,6 @@ async fn flaky_bank_tx_tests() -> anyhow::Result<()> {
         test_case.finalization_blocks,
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
-    .set_config(|c| {
-        // TODO: The proof namespace is disabled, see: #2487
-        c.rollup_prover_config = None;
-    })
     .start()
     .await?;
 
@@ -96,13 +93,12 @@ async fn send_test_bank_txs(
         )
         .await?;
 
-        // TODO: The proof namespace is disabled, see: #2487
-        // let mut max_attested_height = get_max_attested_height(client).await?;
-        // while max_attested_height < slot_number {
-        // // In some cases, the attestation may not be ready just yet. Let's try again in a bit.
-        //     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        //     max_attested_height = get_max_attested_height(client).await?;
-        // }
+        let mut max_attested_height = get_max_attested_height(client).await?;
+        while max_attested_height < slot_number {
+            // In some cases, the attestation may not be ready just yet. Let's try again in a bit.
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            max_attested_height = get_max_attested_height(client).await?;
+        }
 
         da_service.produce_n_blocks_now(1).await.unwrap();
     }

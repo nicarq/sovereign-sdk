@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_imports, unused_variables, unused_mut)]
 use anyhow::Context;
 use futures::StreamExt;
 use sov_api_spec::types::AggregatedProof as ApiAggregatedProof;
@@ -39,8 +38,7 @@ async fn flaky_bank_tx_tests_periodic_da_non_instant_finality() -> anyhow::Resul
 
 async fn inner(finalization_blocks: u32) -> anyhow::Result<()> {
     let test_case = TestCase {
-        // TODO: The proof namespace is disabled, see: #2487
-        wait_for_aggregated_proof: false,
+        wait_for_aggregated_proof: true,
         finalization_blocks,
     };
 
@@ -51,8 +49,7 @@ async fn inner(finalization_blocks: u32) -> anyhow::Result<()> {
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|c| {
-        // TODO: The proof namespace is disabled, see: #2487
-        c.rollup_prover_config = None; //Some(RollupProverConfig::Skip);
+        c.rollup_prover_config = Some(RollupProverConfig::Skip);
     })
     .start()
     .await?;

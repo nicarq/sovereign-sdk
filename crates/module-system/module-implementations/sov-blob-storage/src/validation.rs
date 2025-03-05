@@ -136,6 +136,7 @@ impl<S: Spec> BlobStorage<S> {
 
         self.escrow_funds_for_preferred_sequencer(funds_needed, state)
             .ok()?;
+
         Some(ValidatedBlob::new(
             blob,
             sender,
