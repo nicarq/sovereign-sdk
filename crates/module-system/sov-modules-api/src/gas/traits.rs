@@ -572,7 +572,7 @@ pub struct Fraction {
 }
 
 impl Fraction {
-    const fn preffered_data_fraction() -> Self {
+    const fn preferred_data_fraction() -> Self {
         // SAFETY: Denominator is bigger than numerator.
         Self {
             numerator: 9,
@@ -583,7 +583,7 @@ impl Fraction {
 
 /// The maximum portion of the resource allocated to the preferred sequencer.
 /// This can refer to either slot space or slot gas limit.
-pub const PREFFERERD_DATA_FRACTION: Fraction = Fraction::preffered_data_fraction();
+pub const PREFERRED_DATA_FRACTION: Fraction = Fraction::preferred_data_fraction();
 
 /// A gas meter that tracks the gas used for a slot.
 pub struct SlotGasMeter<S: Spec> {
@@ -606,9 +606,9 @@ impl<S: Spec> SlotGasMeter<S> {
     ) -> Self {
         let remaining_preferred_slot_gas = remaining_slot_gas
             .clone()
-            .scalar_division(PREFFERERD_DATA_FRACTION.denominator.into())
-            .checked_scalar_product(PREFFERERD_DATA_FRACTION.numerator.into())
-            // This cannot overflow because the PREFFERERD_DATA_FRACTION must be less than 1.
+            .scalar_division(PREFERRED_DATA_FRACTION.denominator.into())
+            .checked_scalar_product(PREFERRED_DATA_FRACTION.numerator.into())
+            // This cannot overflow because the PREFERRED_DATA_FRACTION must be less than 1.
             .unwrap();
 
         Self {

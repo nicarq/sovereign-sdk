@@ -63,6 +63,18 @@ impl<'b, S: Spec> BlobSelector for SoftConfirmationsKernel<'b, S> {
             .get_blobs_for_this_slot(current_blobs, state)
     }
 
+    fn get_non_preferred_blobs(
+        &self,
+        slot_range: impl Iterator<Item = SlotNumber>,
+        state: &mut KernelStateAccessor<'_, Self::Spec>,
+    ) -> Vec<SelectedBlob<Self::Spec>> {
+        self.blob_storage
+            .get_non_preferred_blobs(slot_range, state)
+            .into_iter()
+            .map(|blob| blob.into_selected_blob())
+            .collect()
+    }
+
     #[cfg(feature = "native")]
     fn escrow_funds_for_preferred_sequencer(
         &self,
