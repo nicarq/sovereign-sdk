@@ -60,7 +60,7 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
         request: Request,
         next: Next,
     ) -> Result<Response, Response> {
-        match sequencer.0.is_ready() {
+        match sequencer.0.is_ready().await {
             Ok(()) => Ok(next.run(request).await),
             Err(details) => Err(error_not_fully_synced(details).into_response()),
         }
@@ -138,7 +138,7 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
     }
 
     async fn axum_get_ready(sequencer: State<Self>) -> ApiResult<()> {
-        match sequencer.0 .0.is_ready() {
+        match sequencer.0 .0.is_ready().await {
             Ok(()) => Ok(().into()),
             Err(details) => Err(error_not_fully_synced(details).into_response()),
         }

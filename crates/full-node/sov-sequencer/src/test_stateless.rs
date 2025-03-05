@@ -123,7 +123,7 @@ where
         )
     }
 
-    fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
+    async fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
         Ok(())
     }
 

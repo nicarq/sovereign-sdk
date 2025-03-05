@@ -6,6 +6,7 @@ mod db;
 
 use std::num::NonZero;
 use std::path::Path;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -94,7 +95,7 @@ where
             InternalState::Placeholder => panic!("The sequencer contains an invalid internal state. This is a bug, please report it."),
         };
 
-        let Some(visible_increase) = next_visible_slot_number_increase(
+        let Ok(visible_increase) = next_visible_slot_number_increase(
             checkpoint,
             &self.latest_info,
             leave_space_for_next_batch,
@@ -143,7 +144,7 @@ where
         // TODO(@neysofu): this check is currently necessary but likely can be folded into
         // `try_to_create_and_start_batch_if_none_in_progress`... somehow. As of
         // right now, it's a hair too bug-prone.
-        if next_visible_slot_number_increase(checkpoint, &self.latest_info, true).is_none() {
+        if next_visible_slot_number_increase(checkpoint, &self.latest_info, true).is_err() {
             return Ok(None);
         }
 
@@ -222,6 +223,7 @@ where
     da_sync_state: Arc<DaSyncState>,
     runtime: Rt,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
+    has_been_ready: AtomicBool,
     shutdown_notifier: Sender<()>,
 }
 
@@ -331,6 +333,7 @@ where
             runtime: Default::default(),
             shutdown_notifier,
             config: config.clone(),
+            has_been_ready: AtomicBool::new(false),
         });
 
         seq.update_state(latest_state_update.clone())
@@ -361,7 +364,30 @@ where
         Ok((seq, handles))
     }
 
-    fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
+    async fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
+        // On startup, we need to wait for enough finalized data to be available. In this case,
+        // we have to do a more expensive check where we check if we have a finalized slot number
+        // available. Since this requires locking, we skip this check on the
+        // fast path after genesis.
+        if !self
+            .has_been_ready
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            let inner = self.lock_inner().await;
+            match &inner.block_executor.state() {
+                InternalState::Idle { checkpoint, .. } => {
+                    next_visible_slot_number_increase(checkpoint, &inner.latest_info, false)?;
+                }
+                InternalState::Placeholder => {
+                    panic!("Sequencer is in placeholder state during readiness check. This is a bug, please report it.");
+                }
+                // If the sequencer has started a batch already, then it's ready.
+                InternalState::InProgressBatch { .. } => {}
+            };
+
+            self.has_been_ready
+                .store(true, std::sync::atomic::Ordering::Release);
+        }
         let status = self.da_sync_state.status();
 
         match status {
@@ -374,7 +400,7 @@ where
                 if distance <= sov_blob_storage::config_deferred_slots_count() {
                     Ok(())
                 } else {
-                    Err(SequencerNotReadyDetails {
+                    Err(SequencerNotReadyDetails::Syncing {
                         target_da_height,
                         synced_da_height,
                     })
@@ -478,6 +504,8 @@ where
 
         if self.config.automatic_batch_production {
             if let Some(batch) = inner.produce_batch_if_possible().await? {
+                self.has_been_ready
+                    .store(true, std::sync::atomic::Ordering::Release);
                 // TODO(@ross-weir) #2534 Shouldn't need to hold the lock for this
                 inner.blob_sender.publish_batch_and_wait(batch).await?;
             }
@@ -752,7 +780,7 @@ fn next_visible_slot_number_increase<S: Spec>(
     checkpoint: &StateCheckpoint<S>,
     info: &StateUpdateInfo<S::Storage>,
     leave_space_for_next_batch: bool,
-) -> Option<NonZero<u8>> {
+) -> Result<NonZero<u8>, SequencerNotReadyDetails> {
     trace!(?checkpoint, ?info, %leave_space_for_next_batch, "Calculating next visible slot number");
 
     let mut delta = info
@@ -763,9 +791,18 @@ fn next_visible_slot_number_increase<S: Spec>(
         delta = delta.and_then(|x| x.checked_sub(1));
     }
 
-    match delta {
-        Some(delta) => NonZero::new(delta.get().try_into().unwrap_or(u8::MAX)),
-        None => None,
+    match delta.and_then(|delta| NonZero::new(delta.get().try_into().unwrap_or(u8::MAX))) {
+        Some(delta) => Ok(delta),
+        _ => Err(SequencerNotReadyDetails::WaitingOnDa {
+            finalized_da_height: info.latest_finalized_slot_number.get(),
+            needed_finalized_height: info
+                .latest_finalized_slot_number
+                .get()
+                .checked_add(1)
+                .expect(
+                "Slot number overflow! This should be unreachable in the next few billion years",
+            ),
+        }),
     }
 }
 

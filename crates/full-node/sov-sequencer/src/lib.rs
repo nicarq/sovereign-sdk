@@ -42,11 +42,21 @@ pub(crate) type BlobReceiptFut<Da> = oneshot::Receiver<
 
 /// See [`crate::common::Sequencer::is_ready`].
 #[derive(Debug, serde::Serialize)]
-pub struct SequencerNotReadyDetails {
-    #[allow(missing_docs)]
-    pub target_da_height: u64,
-    #[allow(missing_docs)]
-    pub synced_da_height: u64,
+pub enum SequencerNotReadyDetails {
+    /// The node is catching up to the chain tip
+    Syncing {
+        #[allow(missing_docs)]
+        target_da_height: u64,
+        #[allow(missing_docs)]
+        synced_da_height: u64,
+    },
+    /// The sequencer is waiting for the DA to finalize more blocks
+    WaitingOnDa {
+        #[allow(missing_docs)]
+        finalized_da_height: u64,
+        #[allow(missing_docs)]
+        needed_finalized_height: u64,
+    },
 }
 
 /// See [`crate::common::Sequencer::subscribe_events`].
