@@ -1,13 +1,13 @@
 [package]
 name = "sov-metrics"
 authors = { workspace = true }
-description = "Prometheus metrics for Sovereign rollups"
+description = "Metrics tracking and publishing for Sovereign rollups"
 edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
-
 version = { workspace = true }
+readme = "./README.md"
 
 [lints]
 workspace = true
@@ -32,24 +32,31 @@ risc0-zkvm-platform = { workspace = true, features = ["export-syscalls"], option
 sp1-lib = { version = "3.0", default-features = false, optional = true }
 
 [dev-dependencies]
+sov-metrics = { path = ".", features = ["native"] }
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 
 [features]
 default = []
 gas-constant-estimation = []
-risc0 = ["dep:risc0-zkvm", "dep:risc0-zkvm-platform", "dep:bincode"]
+risc0 = [
+    "dep:risc0-zkvm",
+    "dep:risc0-zkvm-platform",
+    "dep:bincode",
+    "sov-metrics/risc0"
+]
 sp1 = ["dep:sp1-lib", "dep:bincode"]
 native = [
-	"dep:tokio",
-	"dep:schemars",
-	"dep:tracing",
-	"dep:strum",
-	"dep:bincode",
-	"dep:http",
-	"dep:derivative",
-	"dep:schemars",
-	"dep:derive_more",
-	"dep:derivative",
-	"sov-rollup-interface/native"
+    "dep:tokio",
+    "dep:schemars",
+    "dep:tracing",
+    "dep:strum",
+    "dep:bincode",
+    "dep:http",
+    "dep:derivative",
+    "dep:schemars",
+    "dep:derive_more",
+    "dep:derivative",
+    "sov-rollup-interface/native",
+    "sov-metrics/native"
 ]

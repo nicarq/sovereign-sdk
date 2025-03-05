@@ -10218,6 +10218,7 @@ dependencies = [
  "risc0-zkvm-platform",
  "schemars",
  "serde",
+ "sov-metrics",
  "sov-rollup-interface",
  "sp1-lib",
  "strum",

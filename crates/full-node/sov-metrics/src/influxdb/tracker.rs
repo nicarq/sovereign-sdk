@@ -15,6 +15,7 @@ use crate::{MetricsTracker, MonitoringConfig};
 pub(crate) static METRICS_TRACKER: OnceLock<MetricsTracker> = OnceLock::new();
 
 /// Global metadata that is added as measurement key/value pairs of the metrics.
+// TODO: Investigate if we actually need this.
 pub static METRICS_METADATA: LazyLock<RwLock<HashMap<String, String>>> =
     std::sync::LazyLock::new(|| RwLock::new(HashMap::new()));
 
@@ -168,6 +169,12 @@ impl MetricsTracker {
     pub fn track_zk_proving_time(&self, point: ZkProvingTime) {
         let timestamp = timestamp();
         self.submit(SovRollupMetric::ZkProving(timestamp, point));
+    }
+
+    /// Track custom metric. Timestamp is added at this moment.
+    pub fn track_custom<M: Metric + 'static>(&self, measurement: M) {
+        let timestamp = timestamp();
+        self.submit(SovRollupMetric::Custom(timestamp, Box::new(measurement)));
     }
 }
 
@@ -597,27 +604,8 @@ pub(crate) enum SovRollupMetric {
     #[cfg(feature = "gas-constant-estimation")]
     /// Metrics to track gas constant usage.
     GasConstantUsage(Timestamp, GasConstantMetric),
-}
-
-impl SovRollupMetrics {
-    /// Returns the name of the measurement for this metric.
-    pub fn measurement_name(&self) -> &'static str {
-        match self {
-            SovRollupMetrics::RunnerDa => "sov_rollup_runner_da",
-            SovRollupMetrics::RunnerCount => "sov_rollup_runner_counts",
-            SovRollupMetrics::RunnerTimes => "sov_rollup_runner_times_us",
-            SovRollupMetrics::SlotProcessing | SovRollupMetrics::UserSpaceSlotProcessing => {
-                "sov_rollup_slot_execution_time_us"
-            }
-            SovRollupMetrics::BatchProcessing => "sov_rollup_batch_processing",
-            SovRollupMetrics::TransactionProcessing => "sov_rollup_transaction_execution_us",
-            SovRollupMetrics::Http => "sov_rollup_http_handlers",
-            SovRollupMetrics::ZkVm => "sov_rollup_zkvm",
-            SovRollupMetrics::ZkProving => "sov_rollup_zkvm_proving",
-            #[cfg(feature = "gas-constant-estimation")]
-            SovRollupMetrics::GasConstantUsage => "sov_rollup_gas_constant",
-        }
-    }
+    /// Any custom metric can be developed externally
+    Custom(Timestamp, Box<dyn Metric>),
 }
 
 impl Metric for SovRollupMetric {
@@ -665,6 +653,10 @@ impl Metric for SovRollupMetric {
             }
             #[cfg(feature = "gas-constant-estimation")]
             SovRollupMetric::GasConstantUsage(t, m) => {
+                m.serialize_for_telegraf(buffer)?;
+                t
+            }
+            SovRollupMetric::Custom(t, m) => {
                 m.serialize_for_telegraf(buffer)?;
                 t
             }
