@@ -19,7 +19,12 @@ use crate::{KernelStateAccessor, PrivilegedKernelAccessor, Spec, StateReader, Ve
 #[derive(
     Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, serde::Serialize, serde::Deserialize,
 )]
-pub struct VersionedStateValue<V, Codec = BorshCodec> {
+pub struct VersionedStateValue<V, Codec = BorshCodec>
+where
+    Codec: StateCodec,
+    Codec::ValueCodec: StateItemCodec<V>,
+    Codec::KeyCodec: StateItemCodec<SlotNumber>,
+{
     _phantom: std::marker::PhantomData<V>,
     elems: NamespacedStateMap<Kernel, SlotNumber, V, Codec>,
 }
@@ -27,6 +32,8 @@ pub struct VersionedStateValue<V, Codec = BorshCodec> {
 impl<V, Codec> VersionedStateValue<V, Codec>
 where
     Codec: StateCodec,
+    Codec::ValueCodec: StateItemCodec<V>,
+    Codec::KeyCodec: StateItemCodec<SlotNumber>,
 {
     /// The namespace where the versioned state value is stored.
     pub const NAMESPACE: Namespace = Namespace::Kernel;

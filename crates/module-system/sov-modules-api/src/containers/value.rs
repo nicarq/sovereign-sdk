@@ -18,7 +18,12 @@ use crate::{StateReader, StateReaderAndWriter, StateWriter};
     serde::Serialize,
     serde::Deserialize,
 )]
-pub struct NamespacedStateValue<N, V, Codec = BorshCodec> {
+pub struct NamespacedStateValue<N, V, Codec = BorshCodec>
+where
+    N: CompileTimeNamespace,
+    Codec: StateCodec,
+    Codec::ValueCodec: StateItemCodec<V>,
+{
     _phantom: PhantomData<(V, N)>,
     pub(crate) codec: Codec,
     pub(crate) prefix: Prefix,

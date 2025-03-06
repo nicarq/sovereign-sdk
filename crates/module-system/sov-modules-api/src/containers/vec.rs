@@ -21,7 +21,13 @@ use crate::{InfallibleStateReaderAndWriter, StateReader, StateReaderAndWriter, S
     serde::Serialize,
     serde::Deserialize,
 )]
-pub struct NamespacedStateVec<N, V, Codec = BorshCodec> {
+pub struct NamespacedStateVec<N, V, Codec = BorshCodec>
+where
+    N: CompileTimeNamespace,
+    Codec: StateCodec,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
+{
     _phantom: PhantomData<(N, V)>,
     pub(crate) prefix: Prefix,
     pub(crate) len_value: NamespacedStateValue<N, u64, Codec>,

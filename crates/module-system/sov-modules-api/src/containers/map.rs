@@ -35,7 +35,14 @@ use crate::{StateReaderAndWriter, StateWriter};
     serde::Serialize,
     serde::Deserialize,
 )]
-pub struct NamespacedStateMap<N, K, V, Codec = BorshCodec> {
+pub struct NamespacedStateMap<N, K, V, Codec = BorshCodec>
+where
+    N: CompileTimeNamespace,
+    Codec: StateCodec,
+    Codec::KeyCodec: StateItemCodec<K>,
+    Codec::ValueCodec: StateItemCodec<V>,
+    K: FromStr + std::fmt::Display,
+{
     _phantom: PhantomData<(N, K, V)>,
     pub(crate) codec: Codec,
     pub(crate) prefix: Prefix,
@@ -79,8 +86,15 @@ pub type AccessoryStateMap<K, V, Codec = BorshCodec> = NamespacedStateMap<Access
 /// - a  [`Codec`](`sov_state::StateItemCodec`).
 pub type KernelStateMap<K, V, Codec = BorshCodec> = NamespacedStateMap<Kernel, K, V, Codec>;
 
-impl<N: CompileTimeNamespace, K, V, Codec> NamespacedStateMap<N, K, V, Codec> {
-    /// Creates a new [`StateMap`] with the given prefix and [`sov_modules_core::StateItemCodec`].
+impl<N, K, V, Codec> NamespacedStateMap<N, K, V, Codec>
+where
+    N: CompileTimeNamespace,
+    Codec: StateCodec,
+    Codec::KeyCodec: StateItemCodec<K>,
+    Codec::ValueCodec: StateItemCodec<V>,
+    K: FromStr + std::fmt::Display,
+{
+    //e Creates a new [`StateMap`] with the given prefix and [`sov_modules_core::StateItemCodec`].
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
         Self {
             _phantom: PhantomData,
