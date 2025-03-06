@@ -104,13 +104,6 @@ enum AddTxToBatchError {
     PermissionDenied(&'static str),
 }
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-struct TxInfo<BlobHash> {
-    id: TxHash,
-    #[serde(flatten)]
-    status: TxStatus<BlobHash>,
-}
-
 impl<S, Rt, Da> StdSequencer<S, Rt, Da>
 where
     S: Spec,

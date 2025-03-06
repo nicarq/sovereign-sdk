@@ -1,3 +1,5 @@
+use sov_rollup_interface::stf::TxReceiptContents;
+
 /// A trait that enables event processing for storage
 pub trait RuntimeEventProcessor {
     /// Type specifying the wrapped enum for all events in the runtime
@@ -22,6 +24,23 @@ pub trait EventModuleName {
     fn module_name(&self) -> &'static str;
 }
 
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+)]
+#[serde(tag = "type", rename = "moduleRef")]
+/// A reference to a module
+pub struct ModuleRef {
+    /// The name of the module
+    pub name: String,
+}
+
 /// The response type for a module specific event
 #[derive(
     Debug,
@@ -32,24 +51,16 @@ pub trait EventModuleName {
     serde::Serialize,
     serde::Deserialize,
 )]
-#[serde(bound = "")]
-pub struct RuntimeEventResponse<E>
-where
-    E: EventModuleName
-        + Clone
-        + borsh::BorshDeserialize
-        + borsh::BorshSerialize
-        + serde::Serialize
-        + serde::de::DeserializeOwned,
-{
+#[serde(tag = "type", rename = "event")]
+pub struct RuntimeEventResponse<E> {
     /// A global identifier for the event. Event numbers are handed out in sequential order.
-    pub event_number: u64,
+    pub number: u64,
     /// Event key that was emitted along with this event
-    pub event_key: String,
+    pub key: String,
     /// A value representing the module event
-    pub event_value: E,
+    pub value: E,
     /// Module name
-    pub module_name: String,
+    pub module: ModuleRef,
 }
 
 impl<E> TryFrom<(u64, sov_rollup_interface::stf::StoredEvent)> for RuntimeEventResponse<E>
@@ -76,10 +87,32 @@ where
         let module_name = runtime_event.module_name().to_string();
 
         Ok(Self {
-            event_number,
-            event_key: key_str,
-            event_value: runtime_event,
-            module_name,
+            number: event_number,
+            key: key_str,
+            value: runtime_event,
+            module: ModuleRef { name: module_name },
         })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "result", rename_all = "snake_case")]
+/// A TxEffect as serialized for the API
+#[allow(missing_docs)]
+pub enum ApiTxEffect<T: TxReceiptContents> {
+    Skipped { data: T::Skipped },
+    Reverted { data: T::Reverted },
+    Successful { data: T::Successful },
+}
+
+impl<T: TxReceiptContents> From<sov_rollup_interface::stf::TxEffect<T>> for ApiTxEffect<T> {
+    fn from(value: sov_rollup_interface::stf::TxEffect<T>) -> Self {
+        match value {
+            sov_rollup_interface::stf::TxEffect::Skipped(data) => ApiTxEffect::Skipped { data },
+            sov_rollup_interface::stf::TxEffect::Reverted(data) => ApiTxEffect::Reverted { data },
+            sov_rollup_interface::stf::TxEffect::Successful(data) => {
+                ApiTxEffect::Successful { data }
+            }
+        }
     }
 }

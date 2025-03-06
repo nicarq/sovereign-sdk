@@ -15,6 +15,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use sov_db::schema::types::{BatchNumber, EventNumber, TxNumber};
+pub use sov_modules_api::ApiTxEffect as TxEffect;
 use sov_modules_api::{EventModuleName, RuntimeEventResponse};
 use sov_rest_utils::errors::{
     self, database_error_response_500, internal_server_error_response_500, not_found_404,
@@ -206,7 +207,7 @@ where
         Extension(slot_number): Extension<SlotNumber>,
     ) -> ApiResult<Slot<B, TxReceipt, E>> {
         match ledger
-            .get_slot_by_number::<B, TxReceipt, Event<E>>(
+            .get_slot_by_number::<B, TxReceipt, RuntimeEventResponse<E>>(
                 slot_number,
                 include_children_opt.map(|q| q.0).unwrap_or_default().into(),
             )
@@ -222,10 +223,10 @@ where
         State(ledger): State<T>,
         Extension(slot_number): Extension<SlotNumber>,
         event_key_prefix_opt: Option<Query<EventFilter>>,
-    ) -> ApiResult<Vec<Event<E>>> {
+    ) -> ApiResult<Vec<RuntimeEventResponse<E>>> {
         let filter = event_key_prefix_opt.map(|q| q.0.prefix.into());
         let events = ledger
-            .get_filtered_slot_events::<B, TxReceipt, Event<E>>(
+            .get_filtered_slot_events::<B, TxReceipt, RuntimeEventResponse<E>>(
                 &SlotIdentifier::Number(slot_number),
                 filter,
             )
@@ -241,7 +242,7 @@ where
         Extension(BatchNumber(batch_number)): Extension<BatchNumber>,
     ) -> ApiResult<Batch<B, TxReceipt, E>> {
         match ledger
-            .get_batch_by_number::<B, TxReceipt, Event<E>>(
+            .get_batch_by_number::<B, TxReceipt, RuntimeEventResponse<E>>(
                 batch_number,
                 include_children_opt.map(|q| q.0).unwrap_or_default().into(),
             )
@@ -259,7 +260,7 @@ where
         Extension(TxNumber(tx_number)): Extension<TxNumber>,
     ) -> ApiResult<Transaction<TxReceipt, E>> {
         match ledger
-            .get_tx_by_number::<TxReceipt, Event<E>>(
+            .get_tx_by_number::<TxReceipt, RuntimeEventResponse<E>>(
                 tx_number,
                 include_children_opt.map(|q| q.0).unwrap_or_default().into(),
             )
@@ -275,7 +276,7 @@ where
         State(ledger): State<T>,
         Extension(TxNumber(tx_number)): Extension<TxNumber>,
         event_key_prefix_opt: Option<Query<EventFilter>>,
-    ) -> ApiResult<Vec<Event<E>>> {
+    ) -> ApiResult<Vec<RuntimeEventResponse<E>>> {
         match ledger
             .get_events_by_txn_number::<RuntimeEventResponse<E>>(tx_number)
             .await
@@ -284,18 +285,10 @@ where
                 .into_iter()
                 .filter(|event| {
                     if let Some(prefix) = &event_key_prefix_opt {
-                        event.event_key.starts_with(&prefix.prefix)
+                        event.key.starts_with(&prefix.prefix)
                     } else {
                         true
                     }
-                })
-                .map(|e| Event {
-                    number: e.event_number,
-                    key: e.event_key,
-                    value: e.event_value,
-                    module: ModuleRef {
-                        name: e.module_name,
-                    },
                 })
                 .collect::<Vec<_>>()
                 .into()),
@@ -306,20 +299,12 @@ where
     async fn get_event(
         State(ledger): State<T>,
         Extension(EventNumber(event_number)): Extension<EventNumber>,
-    ) -> ApiResult<Event<E>> {
+    ) -> ApiResult<RuntimeEventResponse<E>> {
         match ledger
             .get_event_by_number::<RuntimeEventResponse<E>>(event_number)
             .await
         {
-            Ok(Some(event_response)) => Ok(Event {
-                number: event_number,
-                key: event_response.event_key,
-                value: event_response.event_value,
-                module: ModuleRef {
-                    name: event_response.module_name,
-                },
-            }
-            .into()),
+            Ok(Some(event_response)) => Ok(event_response.into()),
             Ok(None) => Err(errors::not_found_404("Event", event_number)),
             Err(err) => Err(errors::database_error_response_500(err)),
         }
@@ -549,18 +534,6 @@ where
                             anyhow::bail!("Error fetching events for slot {}", slot_num);
                         };
 
-                        let events = events
-                            .into_iter()
-                            .map(|e: RuntimeEventResponse<E>| Event::<E> {
-                                number: e.event_number,
-                                key: e.event_key,
-                                value: e.event_value,
-                                module: ModuleRef {
-                                    name: e.module_name,
-                                },
-                            })
-                            .collect::<Vec<_>>();
-
                         Ok(SlotEvents {
                             rollup_height: slot_num.get(),
                             events,
@@ -604,7 +577,9 @@ where
                     let ledger = ledger.clone();
                     async move {
                         let Ok(Some(slot)) = ledger
-                            .get_slot_by_number::<B, TxReceipt, Event<E>>(slot_num, query_mode)
+                            .get_slot_by_number::<B, TxReceipt, RuntimeEventResponse<E>>(
+                                slot_num, query_mode,
+                            )
                             .await
                         else {
                             anyhow::bail!("Slot with number {} does not exist", slot_num);
@@ -660,7 +635,7 @@ where
                             let mut slots = Vec::with_capacity(capacity);
                             for slot_number in old_last.range_inclusive(incoming_slot_num) {
                                 let slot_result = match ledger
-                                    .get_slot_by_number::<B, TxReceipt, Event<E>>(
+                                    .get_slot_by_number::<B, TxReceipt, RuntimeEventResponse<E>>(
                                         slot_number,
                                         query_mode,
                                     )
@@ -699,10 +674,10 @@ struct EventFilter {
     prefix: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct SlotEvents<E> {
     rollup_height: u64,
-    events: Vec<Event<E>>,
+    events: Vec<RuntimeEventResponse<E>>,
 }
 
 #[serde_with::serde_as]
@@ -724,7 +699,7 @@ impl NumberOrHash {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(
     tag = "type",
     rename = "slot",
@@ -740,7 +715,7 @@ struct Slot<B, TxReceipt: TxReceiptContents, E> {
 }
 
 impl<B, TxReceipt: TxReceiptContents, E> Slot<B, TxReceipt, E> {
-    fn new(slot: SlotResponse<B, TxReceipt, Event<E>>) -> Self {
+    fn new(slot: SlotResponse<B, TxReceipt, RuntimeEventResponse<E>>) -> Self {
         let mut batches = vec![];
 
         for batch_response in slot.batches.unwrap_or_default().into_iter() {
@@ -760,7 +735,7 @@ impl<B, TxReceipt: TxReceiptContents, E> Slot<B, TxReceipt, E> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(
     tag = "type",
     rename = "batch",
@@ -776,7 +751,7 @@ struct Batch<B, TxReceipt: TxReceiptContents, E> {
 }
 
 impl<B, TxReceipt: TxReceiptContents, E> Batch<B, TxReceipt, E> {
-    fn new(batch: BatchResponse<B, TxReceipt, Event<E>>, number: u64) -> Self {
+    fn new(batch: BatchResponse<B, TxReceipt, RuntimeEventResponse<E>>, number: u64) -> Self {
         let mut txs = vec![];
 
         for tx_response in batch.txs.unwrap_or_default().into_iter() {
@@ -797,7 +772,7 @@ impl<B, TxReceipt: TxReceiptContents, E> Batch<B, TxReceipt, E> {
 }
 
 #[serde_as]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(
     tag = "type",
     rename = "tx",
@@ -810,12 +785,12 @@ struct Transaction<TxReceipt: TxReceiptContents, E> {
     #[serde_as(as = "serde_with::base64::Base64")]
     pub body: Vec<u8>,
     pub receipt: TxEffect<TxReceipt>,
-    pub events: Vec<Event<E>>,
+    pub events: Vec<RuntimeEventResponse<E>>,
     pub batch_number: u64,
 }
 
 impl<TxReceipt: TxReceiptContents, E> Transaction<TxReceipt, E> {
-    fn new(tx: TxResponse<TxReceipt, Event<E>>, number: u64) -> Self {
+    fn new(tx: TxResponse<TxReceipt, RuntimeEventResponse<E>>, number: u64) -> Self {
         Self {
             number,
             hash: HexHash::new(tx.hash),
@@ -826,65 +801,6 @@ impl<TxReceipt: TxReceiptContents, E> Transaction<TxReceipt, E> {
             batch_number: tx.batch_number,
         }
     }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename = "event")]
-struct Event<E> {
-    pub number: u64,
-    pub key: String,
-    pub value: E,
-    pub module: ModuleRef,
-}
-
-/// TryFrom trait implementation to create an Event from a StoredEvent
-impl<E> TryFrom<(u64, sov_rollup_interface::stf::StoredEvent)> for Event<E>
-where
-    E: EventModuleName
-        + Clone
-        + borsh::BorshDeserialize
-        + borsh::BorshSerialize
-        + serde::Serialize
-        + serde::de::DeserializeOwned,
-{
-    type Error = anyhow::Error;
-
-    fn try_from(args: (u64, sov_rollup_interface::stf::StoredEvent)) -> Result<Self, Self::Error> {
-        let resp: RuntimeEventResponse<E> = args.try_into()?;
-
-        Ok(Self {
-            number: resp.event_number,
-            key: resp.event_key,
-            value: resp.event_value,
-            module: ModuleRef {
-                name: resp.module_name,
-            },
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "result", rename_all = "snake_case")]
-pub enum TxEffect<T: TxReceiptContents> {
-    Skipped { data: T::Skipped },
-    Reverted { data: T::Reverted },
-    Successful { data: T::Successful },
-}
-
-impl<T: TxReceiptContents> From<sov_rollup_interface::stf::TxEffect<T>> for TxEffect<T> {
-    fn from(value: sov_rollup_interface::stf::TxEffect<T>) -> Self {
-        match value {
-            sov_rollup_interface::stf::TxEffect::Skipped(data) => TxEffect::Skipped { data },
-            sov_rollup_interface::stf::TxEffect::Reverted(data) => TxEffect::Reverted { data },
-            sov_rollup_interface::stf::TxEffect::Successful(data) => TxEffect::Successful { data },
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename = "moduleRef")]
-struct ModuleRef {
-    pub name: String,
 }
 
 // This type supplies the JSON API representation of [`AggregatedProofResponse`].

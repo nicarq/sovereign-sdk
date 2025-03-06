@@ -212,6 +212,50 @@ async fn txs_below_min_fee_are_rejected() {
     );
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn events_are_returned_in_tx_response() {
+    let genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    let admin = genesis_config.additional_accounts[0].clone();
+
+    let rt_genesis_config =
+        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
+            genesis_config.into(),
+            ValueSetterConfig {
+                admin: admin.address(),
+            },
+            (),
+            PaymasterConfig::default(),
+            (),
+        );
+    let genesis_params = GenesisParams {
+        runtime: rt_genesis_config.clone(),
+    };
+
+    let dir = Arc::new(tempfile::tempdir().unwrap());
+
+    let test_rollup = new_test_rollup(dir.clone(), genesis_params, 0).await;
+
+    // Produce a few blocks to DA blocks to make sure there's a finalized slot after genesis.
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(5)
+        .await
+        .unwrap();
+    sleep(Duration::from_millis(200)).await;
+
+    let client = test_rollup.api_client.clone();
+    let tx = tx_set_value(&admin.private_key, 0, 7);
+    let response = client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx),
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(response.data.events.len(), 1);
+}
+
 /// Ensure that we use the correct visible slot number when replaying transactions after a call to `update_state` in the sequencer.
 /// The key thing that this test does is to execute the same transaction 3 times - once in the sequencer via `accept_tx`, once via `update_state`
 /// and once in the node. Everything else is implementation details.

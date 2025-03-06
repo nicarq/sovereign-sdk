@@ -19,11 +19,11 @@ use sov_modules_api::capabilities::BlobSelector;
 use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
-    ChangeSet, FullyBakedTx, RejectReason, Runtime, RuntimeEventProcessor, RuntimeEventResponse,
-    Spec, StateCheckpoint, StateUpdateInfo, SyncStatus, TxChangeSet, VersionReader,
-    VisibleSlotNumber,
+    ApiTxEffect, ChangeSet, FullyBakedTx, RejectReason, Runtime, RuntimeEventProcessor,
+    RuntimeEventResponse, Spec, StateCheckpoint, StateUpdateInfo, SyncStatus, TxChangeSet,
+    VersionReader, VisibleSlotNumber,
 };
-use sov_modules_stf_blueprint::{TransactionReceipt, TxEffect};
+use sov_modules_stf_blueprint::{TransactionReceipt, TxReceiptContents};
 use sov_rest_utils::errors::database_error_500;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::DaSyncState;
@@ -549,12 +549,13 @@ where
 
         let events_len = receipt.events.len() as u64;
         inner.next_event_number += events_len;
+        let tx_hash = receipt.tx_hash;
         let conf = confirmation(receipt, inner.next_event_number).unwrap();
 
         for event in &conf.events {
             self.events_sender
                 .send(SequencerEvent {
-                    tx_hash: conf.tx_hash,
+                    tx_hash,
                     event: event.clone(),
                 })
                 .ok();
@@ -566,7 +567,7 @@ where
 
         Ok(AcceptedTx {
             tx: baked_tx,
-            tx_hash: conf.tx_hash,
+            tx_hash,
             confirmation: conf,
         })
     }
@@ -682,10 +683,8 @@ where
     S: Spec,
     Rt: Runtime<S>,
 {
-    tx_hash: TxHash,
-    tx: Option<TxBody>,
     events: Vec<RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>,
-    receipt: TxEffect<S>,
+    receipt: ApiTxEffect<TxReceiptContents<S>>,
 }
 
 fn confirmation<S, Rt>(
@@ -697,8 +696,6 @@ where
     Rt: Runtime<S>,
 {
     Ok(Confirmation {
-        tx_hash: receipt.tx_hash,
-        tx: receipt.body_to_save.map(TxBody),
         events: receipt
             .events
             .into_iter()
@@ -709,7 +706,7 @@ where
                 ))
             })
             .collect::<anyhow::Result<Vec<_>>>()?,
-        receipt: receipt.receipt,
+        receipt: receipt.receipt.into(),
     })
 }
 
