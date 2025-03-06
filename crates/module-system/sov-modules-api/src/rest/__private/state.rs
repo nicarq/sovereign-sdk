@@ -307,6 +307,9 @@ impl<N, M, T, Codec> StateItemRestApiExists
 where
     M: Module,
     Self: StateItemRestApi,
+    N: CompileTimeNamespace,
+    Codec: StateCodec,
+    Codec::ValueCodec: StateItemCodec<T>,
 {
 }
 
@@ -315,6 +318,10 @@ impl<N, M, T, Codec> StateItemRestApiExists
 where
     M: Module,
     Self: StateItemRestApi,
+    N: CompileTimeNamespace,
+    Codec: StateCodec,
+    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
 {
 }
 
@@ -323,6 +330,11 @@ impl<N, M, K, V, Codec> StateItemRestApiExists
 where
     M: Module,
     Self: StateItemRestApi,
+    N: CompileTimeNamespace,
+    Codec: StateCodec,
+    Codec::KeyCodec: StateItemCodec<K>,
+    Codec::ValueCodec: StateItemCodec<V>,
+    K: FromStr + std::fmt::Display,
 {
 }
 
@@ -330,6 +342,9 @@ impl<M, V, Codec> StateItemRestApiExists for StateItemRestApiImpl<M, VersionedSt
 where
     M: Module,
     Self: StateItemRestApi,
+    Codec: StateCodec,
+    Codec::ValueCodec: StateItemCodec<V>,
+    Codec::KeyCodec: StateItemCodec<SlotNumber>,
 {
 }
 
@@ -341,6 +356,9 @@ pub trait GetStateItemInfo {
 impl<N, V, Codec> GetStateItemInfo for NamespacedStateValue<N, V, Codec>
 where
     N: CompileTimeNamespace,
+    Codec: StateCodec,
+    Codec::ValueCodec: StateItemCodec<V>,
+    Codec::KeyCodec: StateItemCodec<SlotNumber>,
 {
     const STATE_ITEM_KIND: StateItemKind = StateItemKind::StateValue;
     const NAMESPACE: sov_state::Namespace = N::NAMESPACE;
@@ -349,6 +367,10 @@ where
 impl<N, V, Codec> GetStateItemInfo for NamespacedStateVec<N, V, Codec>
 where
     N: CompileTimeNamespace,
+    N: CompileTimeNamespace,
+    Codec: StateCodec,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
 {
     const STATE_ITEM_KIND: StateItemKind = StateItemKind::StateVec;
     const NAMESPACE: sov_state::Namespace = N::NAMESPACE;
@@ -357,12 +379,21 @@ where
 impl<N, K, V, Codec> GetStateItemInfo for NamespacedStateMap<N, K, V, Codec>
 where
     N: CompileTimeNamespace,
+    Codec: StateCodec,
+    Codec::KeyCodec: StateItemCodec<K>,
+    Codec::ValueCodec: StateItemCodec<V>,
+    K: FromStr + std::fmt::Display,
 {
     const STATE_ITEM_KIND: StateItemKind = StateItemKind::StateMap;
     const NAMESPACE: sov_state::Namespace = N::NAMESPACE;
 }
 
-impl<V, Codec> GetStateItemInfo for VersionedStateValue<V, Codec> {
+impl<V, Codec> GetStateItemInfo for VersionedStateValue<V, Codec>
+where
+    Codec: StateCodec,
+    Codec::ValueCodec: StateItemCodec<V>,
+    Codec::KeyCodec: StateItemCodec<SlotNumber>,
+{
     const STATE_ITEM_KIND: StateItemKind = StateItemKind::StateValue;
     const NAMESPACE: sov_state::Namespace = Namespace::Kernel;
 }

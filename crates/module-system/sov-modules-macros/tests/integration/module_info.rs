@@ -19,7 +19,7 @@ mod test_module {
 
         // Comment
         #[state]
-        pub test_state1: StateMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u32>,
+        pub test_state1: StateMap<S::Address, u32>,
 
         /// Doc comment
         #[state]

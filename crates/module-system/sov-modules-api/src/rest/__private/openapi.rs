@@ -1,10 +1,13 @@
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::marker::PhantomData;
+use std::str::FromStr;
 
 use heck::ToSnakeCase;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::json;
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::{CompileTimeNamespace, StateCodec, StateItemCodec};
 pub use utoipa::openapi::OpenApi;
 use utoipa::openapi::PathItem;
@@ -233,8 +236,8 @@ where
     N: CompileTimeNamespace,
     T: Serialize + Clone + Send + Sync + 'static,
     Codec: StateCodec,
-    Codec::KeyCodec: StateItemCodec<usize>,
-    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<usize>,
+    Codec::KeyCodec: StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<u64>,
 {
     fn state_item_open_api(&self, module_name: &str) -> OpenApi {
         let paths = state_vec_paths(module_name, &self.state_item_info.name);
@@ -246,7 +249,7 @@ impl<N, K, V, Codec> StateItemOpenApiSpec
     for StateItemOpenApiSpecImpl<NamespacedStateMap<N, K, V, Codec>>
 where
     N: CompileTimeNamespace,
-    K: Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
+    K: Serialize + DeserializeOwned + FromStr + Display + Clone + Send + Sync + 'static,
     V: Serialize + Clone + Send + Sync + 'static,
     Codec: StateCodec,
     Codec::KeyCodec: StateItemCodec<K>,
@@ -262,7 +265,7 @@ impl<V, Codec> StateItemOpenApiSpec for StateItemOpenApiSpecImpl<VersionedStateV
 where
     V: Serialize + Clone + Send + Sync + 'static,
     Codec: StateCodec,
-    Codec::KeyCodec: StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<SlotNumber>,
     Codec::ValueCodec: StateItemCodec<V>,
 {
     fn state_item_open_api(&self, module_name: &str) -> OpenApi {

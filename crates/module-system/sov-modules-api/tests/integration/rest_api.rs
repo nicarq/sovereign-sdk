@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::fmt::Display;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use reqwest::Client;
@@ -17,6 +19,20 @@ use utoipa::openapi::PathItemType;
 pub struct Foo {
     i: u64,
     j: u64,
+}
+
+impl FromStr for Foo {
+    type Err = std::convert::Infallible;
+
+    fn from_str(_s: &str) -> Result<Self, Self::Err> {
+        Ok(Self { i: 0, j: 0 })
+    }
+}
+
+impl Display for Foo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.i)
+    }
 }
 
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
