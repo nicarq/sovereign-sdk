@@ -15,8 +15,8 @@ borsh = { version = "1", features = ["derive"] }
 
 schemars = { version = "0.8.21", features = ["derive"] }
 serde = { version = "1.0.208", default-features = false, features = [
-  "alloc",
-  "derive",
+    "alloc",
+    "derive",
 ] }
 backon = "0.4.4"
 anyhow = { version = "1.0.95" }
@@ -32,36 +32,38 @@ sov-modules-rollup-blueprint = { path = "../../../crates/module-system/sov-modul
 sov-transaction-generator = { path = "../../../crates/utils/transaction-generator" }
 sov-modules-api = { path = "../../../crates/module-system/sov-modules-api" }
 sov-test-utils = { path = "../../../crates/module-system/sov-test-utils", features = [
-  "arbitrary",
+    "arbitrary",
 ] }
 sov-mock-da = { path = "../../../crates/adapters/mock-da", features = [
-  "arbitrary",
-  "native",
+    "arbitrary",
+    "native",
 ] }
 sov-mock-zkvm = { path = "../../../crates/adapters/mock-zkvm", features = [
-  "native",
+    "native",
 ] }
 sov-rollup-interface = { path = "../../../crates/rollup-interface", features = [
-  "arbitrary",
+    "arbitrary",
 ] }
 sov-node-client = { path = "../../../crates/utils/sov-node-client" }
 sov-sequencer = { path = "../../../crates/full-node/sov-sequencer", default-features = false }
 sov-kernels = { path = "../../../crates/module-system/sov-kernels", features = [
-  "native",
+    "native",
 ] }
 sov-state = { path = "../../../crates/module-system/sov-state", features = [
-  "arbitrary",
+    "arbitrary",
 ] }
 # modules
 sov-value-setter = { path = "../../../crates/module-system/module-implementations/sov-value-setter" }
 sov-bank = { path = "../../../crates/module-system/module-implementations/sov-bank/", features = [
-  "native",
-  "arbitrary",
+    "native",
+    "arbitrary",
 ] }
 sov-paymaster = { path = "../../../crates/module-system/module-implementations/sov-paymaster", features = [
-  "native",
+    "native",
 ] }
-
+sov-celestia-adapter = { workspace = true, features = ["native", "arbitrary"] }
+sov-address = { workspace = true }
+demo-stf = { path = "../stf", features = ["native"] }
 
 [[bin]]
 name = "main"

@@ -1,5 +1,6 @@
 ## 2025-03-04
 - #2535 Reverts the changes from #2483 and enables the proof namespaces.
+- #2536 Allows to run `sov-soak-testing` against demo-rollup on Celestia DA
 ## 2025-03-03
 - #2588 makes the type signature of `FullNodeBlueprint::sequencer_additional_apis` stricter by adding some trait bounds.
 - #2541 removes `blob_hash` and `da_transaction_id` fields from the response body of `POST /sequencer/batches`.

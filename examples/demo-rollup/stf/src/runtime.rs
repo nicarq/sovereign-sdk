@@ -49,7 +49,7 @@ mod __generated {
 }
 
 /// The `demo-stf runtime`.
-#[derive(Default, Genesis, Hooks, DispatchCall, Event, MessageCodec, RuntimeRestApi)]
+#[derive(Default, Clone, Genesis, Hooks, DispatchCall, Event, MessageCodec, RuntimeRestApi)]
 #[cfg_attr(feature = "native", derive(CliWallet), expose_rpc)]
 pub struct Runtime<S: Spec>
 where
