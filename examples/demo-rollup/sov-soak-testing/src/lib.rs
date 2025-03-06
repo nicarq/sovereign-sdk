@@ -1,22 +1,27 @@
 use std::path::PathBuf;
 
+use sov_address::MultiAddressEvm;
 use sov_bank::Bank;
+use sov_celestia_adapter::verifier::CelestiaSpec;
 use sov_mock_da::BlockProducingConfig;
+use sov_mock_zkvm::{MockZkvm, MockZkvmCryptoSpec};
 use sov_modules_api::capabilities::config_chain_id;
+use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::prelude::arbitrary::{self};
 use sov_modules_api::transaction::TxDetails;
-use sov_modules_api::{Amount, DispatchCall, EncodeCall, Runtime};
+use sov_modules_api::{Amount, DispatchCall, EncodeCall, Runtime, Spec};
 use sov_paymaster::{
     PayeePolicy, PayerGenesisConfig, Paymaster, PaymasterConfig, PaymasterPolicyInitializer,
     SafeVec,
 };
+use sov_rollup_interface::execution_mode::Native;
 use sov_sequencer::preferred::PreferredSequencerConfig;
 use sov_sequencer::SequencerKindConfig;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::genesis::zk::MinimalZkGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::{
-    generate_runtime, RtAgnosticBlueprint, TestProver, TestSequencer, TestSpec as S, TestUser,
+    generate_runtime, RtAgnosticBlueprint, TestProver, TestSequencer, TestSpec, TestUser,
     TransactionType, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
     TEST_DEFAULT_USER_BALANCE,
 };
@@ -44,16 +49,19 @@ generate_runtime! {
     kernel_type: sov_kernels::soft_confirmations::SoftConfirmationsKernel<'a, S>
 }
 
-pub type RT = TestRuntime<S>;
+pub type TestRT = TestRuntime<TestSpec>;
+pub type CelestiaRollupSpec =
+    ConfigurableSpec<CelestiaSpec, MockZkvm, MockZkvm, MockZkvmCryptoSpec, MultiAddressEvm, Native>;
+pub type DemoCelestiaRT = demo_stf::runtime::Runtime<CelestiaRollupSpec>;
 
-pub type RollupBlueprint = RtAgnosticBlueprint<S, RT>;
+pub type RollupBlueprint = RtAgnosticBlueprint<TestSpec, TestRT>;
 pub type TestRollupBuilder = RollupBuilder<RollupBlueprint, PathBuf>;
 
 pub const BUFFER_SIZE: usize = 100_000;
 // The minimum randomness needed to guarantee successful transaction generation
 pub const SAFE_MIN_RANDOMNESS: usize = 1_000;
 
-pub fn plain_tx_with_default_details<R: Runtime<S>>(
+pub fn plain_tx_with_default_details<R: Runtime<S>, S: Spec>(
     gen_output: &GeneratedMessage<S, <R as DispatchCall>::Decodable, BasicChangeLogEntry<S>>,
 ) -> TransactionType<R, S> {
     TransactionType::Plain {
@@ -68,7 +76,7 @@ pub fn plain_tx_with_default_details<R: Runtime<S>>(
     }
 }
 
-pub struct TestGenerator<R: Runtime<S>> {
+pub struct TestGenerator<R: Runtime<S>, S: Spec> {
     generator: BasicCallMessageFactory<S, R>,
     state: State<S, BasicTag>,
     randomness: Vec<u8>,
@@ -77,7 +85,7 @@ pub struct TestGenerator<R: Runtime<S>> {
     salt: u128,
 }
 
-impl<R: Runtime<S>> TestGenerator<R> {
+impl<R: Runtime<S>, S: Spec> TestGenerator<R, S> {
     pub fn generate(
         &mut self,
         modules_distribution: &Distribution<BasicModuleRef<S, R>>,
@@ -124,9 +132,9 @@ impl<R: Runtime<S>> TestGenerator<R> {
 }
 
 // Setup generation with the given params
-pub fn setup_harness<R: Runtime<S> + EncodeCall<Bank<S>> + Clone>(
+pub fn setup_harness<R: Runtime<S> + EncodeCall<Bank<S>> + Clone, S: Spec>(
     rng_salt: u128,
-) -> TestGenerator<R> {
+) -> TestGenerator<R, S> {
     let factory = BasicCallMessageFactory::<S, R>::new();
     let state: State<S, BasicTag> = State::new();
 
@@ -146,16 +154,16 @@ pub fn setup_harness<R: Runtime<S> + EncodeCall<Bank<S>> + Clone>(
 pub struct Setup {
     /// A user who is pre-registered as a payer for [`Setup::sequencer`].
     #[allow(dead_code)]
-    pub paymaster: TestUser<S>,
+    pub paymaster: TestUser<TestSpec>,
     /// The pre-registered sequencer
-    pub sequencer: TestSequencer<S>,
+    pub sequencer: TestSequencer<TestSpec>,
     /// The pre-registered prover
-    pub prover: TestProver<S>,
+    pub prover: TestProver<TestSpec>,
     #[allow(missing_docs)]
-    pub genesis_config: GenesisConfig<S>,
+    pub genesis_config: GenesisConfig<TestSpec>,
 }
 
-fn setup_roles_and_config() -> Setup {
+pub fn setup_roles_and_config() -> Setup {
     let mut genesis_config = HighLevelZkGenesisConfig::generate();
 
     let sequencer = genesis_config.initial_sequencer.clone();
@@ -167,7 +175,7 @@ fn setup_roles_and_config() -> Setup {
     );
     genesis_config.additional_accounts.push(paymaster.clone());
 
-    let users: Vec<TestUser<S>> = vec![TestUser::generate_with_default_balance(); 20];
+    let users: Vec<TestUser<TestSpec>> = vec![TestUser::generate_with_default_balance(); 20];
 
     genesis_config.additional_accounts.extend(users);
     let genesis_config = GenesisConfig::from_minimal_config(
@@ -204,8 +212,8 @@ fn setup_roles_and_config() -> Setup {
 pub async fn setup_rollup(
     storage_path: PathBuf,
     axum_port: u16,
-) -> (TestRollup<RollupBlueprint, PathBuf>, Setup) {
-    let setup = setup_roles_and_config();
+    setup: Setup,
+) -> TestRollup<RollupBlueprint, PathBuf> {
     let rollup_builder = TestRollupBuilder::new_with_storage_path(
         GenesisSource::CustomParams(setup.genesis_config.clone().into_genesis_params()),
         DEFAULT_BLOCK_PRODUCING_CONFIG,
@@ -227,10 +235,8 @@ pub async fn setup_rollup(
     .set_da_config(|da_config| {
         da_config.sender_address = setup.sequencer.da_address;
     });
-    let rollup = rollup_builder
+    rollup_builder
         .start()
         .await
-        .expect("Impossible to start rollup");
-
-    (rollup, setup)
+        .expect("Impossible to start rollup")
 }

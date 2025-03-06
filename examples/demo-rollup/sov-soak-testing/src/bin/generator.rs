@@ -5,12 +5,16 @@ use std::time::Duration;
 use clap::Parser;
 use rand::Rng;
 use sov_api_spec::Client;
+use sov_bank::Bank;
 use sov_bank::CallMessageDiscriminants::Transfer;
 use sov_modules_api::prelude::arbitrary::Unstructured;
 use sov_modules_api::prelude::tracing;
-use sov_modules_api::{CryptoSpec, Runtime as _, Spec};
-use sov_soak_testing::{plain_tx_with_default_details, setup_harness, TestGenerator, RT};
-use sov_test_utils::{TestSpec as S, TransactionType};
+use sov_modules_api::{CryptoSpec, EncodeCall, Runtime, Spec};
+use sov_soak_testing::{
+    plain_tx_with_default_details, setup_harness, CelestiaRollupSpec, DemoCelestiaRT,
+    TestGenerator, TestRT,
+};
+use sov_test_utils::{TestSpec, TransactionType};
 use sov_transaction_generator::generators::bank::harness_interface::BankHarness;
 use sov_transaction_generator::generators::bank::BankMessageGenerator;
 use sov_transaction_generator::generators::basic::BasicModuleRef;
@@ -21,6 +25,14 @@ use tokio::sync::watch::Receiver;
 use tokio::task::JoinSet;
 // mod setup;
 
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum SelectedRuntime {
+    /// Generated test runtime, running by the sov-soak-testing
+    Test,
+    /// demo-stf with Celestia DA
+    DemoCelestia,
+}
+
 #[derive(Parser)]
 struct Args {
     #[arg(short, long, default_value = "http://localhost:12346")]
@@ -30,6 +42,9 @@ struct Args {
     #[arg(short, long, default_value = "5")]
     /// The number of workers to spawn - this controls the number of concurrent transactions. Defaults to 5.
     num_workers: u32,
+
+    #[arg(short, long, default_value = "Runtime::Test")]
+    runtime: SelectedRuntime,
 
     #[arg(short, long, default_value = "0")]
     /// The salt to use for RNG. Use this value if you're restarting the generator and want to ensure that the generated
@@ -42,15 +57,31 @@ async fn worker_task(
     rx: Receiver<bool>,
     worker_id: u128,
     num_workers: u32,
+    runtime: SelectedRuntime,
 ) -> anyhow::Result<()> {
-    if let Err(e) = worker_task_inner(client, rx, worker_id, num_workers).await {
+    let result = match runtime {
+        SelectedRuntime::Test => {
+            worker_task_inner::<TestRT, TestSpec>(client, rx, worker_id, num_workers).await
+        }
+        SelectedRuntime::DemoCelestia => {
+            worker_task_inner::<DemoCelestiaRT, CelestiaRollupSpec>(
+                client,
+                rx,
+                worker_id,
+                num_workers,
+            )
+            .await
+        }
+    };
+
+    if let Err(e) = result {
         tracing::error!("Worker task {worker_id} failed: {}", e);
         std::process::exit(1);
     }
     Ok(())
 }
 
-async fn worker_task_inner(
+async fn worker_task_inner<R: Runtime<S> + EncodeCall<Bank<S>> + Clone, S: Spec>(
     client: sov_api_spec::Client,
     rx: Receiver<bool>,
     worker_id: u128,
@@ -65,9 +96,9 @@ async fn worker_task_inner(
         Distribution::with_equiprobable_values(vec![Transfer]),
         Percent::one_hundred(),
     ));
-    let modules: Vec<BasicModuleRef<S, RT>> = vec![Arc::new(bank_harness.clone())];
+    let modules: Vec<BasicModuleRef<S, R>> = vec![Arc::new(bank_harness.clone())];
     let modules = Distribution::with_equiprobable_values(modules);
-    let mut generator: TestGenerator<RT> = setup_harness(worker_id);
+    let mut generator: TestGenerator<R, S> = setup_harness(worker_id);
 
     let worker_start = std::time::Instant::now();
     let mut total_txns = 0;
@@ -88,7 +119,7 @@ async fn worker_task_inner(
             let validity = Distribution::with_equiprobable_values(vec![MessageValidity::Valid]);
             let validity = validity.select_value(u).unwrap();
             let msg = generator.generate(&modules, *validity);
-            let tx = plain_tx_with_default_details::<RT>(&msg);
+            let tx = plain_tx_with_default_details::<R, S>(&msg);
             let signed_tx = {
                 let TransactionType::Plain {
                     message,
@@ -99,7 +130,7 @@ async fn worker_task_inner(
                     panic!("The method `plain_tx_with_default_details` should return a plain transaction!");
                 };
 
-                TransactionType::<RT, S>::sign(message, key, &RT::CHAIN_HASH, details, &mut nonces)
+                TransactionType::<R, S>::sign(message, key, &R::CHAIN_HASH, details, &mut nonces)
             };
             txns.push(signed_tx);
         }
@@ -131,6 +162,7 @@ async fn main() -> Result<(), anyhow::Error> {
             rx.clone(),
             (i + args.salt) as u128,
             args.num_workers,
+            args.runtime,
         ));
     }
 

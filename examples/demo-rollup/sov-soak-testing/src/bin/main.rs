@@ -18,7 +18,8 @@ struct Args {
 async fn main() -> Result<(), anyhow::Error> {
     let _guard = sov_modules_rollup_blueprint::logging::initialize_logging();
     let args = Args::parse();
-    let (rollup, _) = setup_rollup(args.storage_path.into(), args.axum_port).await;
+    let setup = sov_soak_testing::setup_roles_and_config();
+    let rollup = setup_rollup(args.storage_path.into(), args.axum_port, setup).await;
 
     let mut terminate = tokio::signal::unix::signal(SignalKind::terminate())
         .expect("Failed to set up SIGTERM handler");
