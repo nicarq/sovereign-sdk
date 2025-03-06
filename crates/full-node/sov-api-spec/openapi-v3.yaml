@@ -282,7 +282,7 @@ paths:
                 type: object
                 properties:
                   data:
-                    $ref: "#/components/schemas/TxInfo"
+                    $ref: "#/components/schemas/TxInfoWithConfirmation"
                   meta:
                     type: object
                 required:
@@ -822,6 +822,22 @@ components:
           $ref: "#/components/schemas/TxHash"
         status:
           $ref: "#/components/schemas/TxStatus"
+      required:
+        - id
+        - status
+    TxInfoWithConfirmation:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/TxHash"
+        status:
+          $ref: "#/components/schemas/TxStatus"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/LedgerEvent"
+        receipt:
+          $ref: "#/components/schemas/TxReceipt"
       required:
         - id
         - status

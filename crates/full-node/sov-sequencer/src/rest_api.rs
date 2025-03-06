@@ -164,7 +164,9 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
     async fn axum_accept_tx(
         sequencer: State<Self>,
         tx: Json<AcceptTx>,
-    ) -> ApiResult<TxInfo<DaBlobHash<<Seq::Da as DaService>::Spec>>> {
+    ) -> ApiResult<
+        TxInfoWithConfirmation<DaBlobHash<<Seq::Da as DaService>::Spec>, Seq::Confirmation>,
+    > {
         let raw_tx = RawTx::new(tx.0.body.blob);
         let baked_tx =
             <Seq::Rt as TransactionAuthenticator<Seq::Spec>>::encode_with_standard_auth(raw_tx);
@@ -176,8 +178,9 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
             .await
             .map_err(IntoResponse::into_response)?;
 
-        Ok(TxInfo {
+        Ok(TxInfoWithConfirmation {
             id: tx_with_hash.tx_hash,
+            confirmation: tx_with_hash.confirmation,
             status: TxStatus::Submitted,
         }
         .into())
@@ -265,6 +268,15 @@ pub struct SubmitBatch {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct TxInfo<DaTransactionId> {
     id: TxHash,
+    #[serde(flatten)]
+    status: TxStatus<DaTransactionId>,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct TxInfoWithConfirmation<DaTransactionId, Confirmation> {
+    id: TxHash,
+    #[serde(flatten)]
+    confirmation: Confirmation,
     #[serde(flatten)]
     status: TxStatus<DaTransactionId>,
 }
