@@ -37,8 +37,7 @@ async fn evm_tx_test(
     let test_rollup = evm_test_helper::start_node(rollup_prover_config, finalization_blocks).await;
 
     let (test_client, _) = evm_test_helper::create_test_client(
-        test_rollup.rpc_addr,
-        test_rollup.rest_addr,
+        test_rollup.http_addr,
         chain_id,
         // This will produce an evm key exist in rollup accounts-genesis.
         "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",

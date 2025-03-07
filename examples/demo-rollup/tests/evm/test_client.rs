@@ -40,21 +40,20 @@ impl TestClient {
         key: Wallet<SigningKey>,
         from_addr: Address,
         contract: SimpleStorageContract,
-        rpc_addr: std::net::SocketAddr,
-        rest_addr: std::net::SocketAddr,
+        http_addr: std::net::SocketAddr,
     ) -> Self {
         let provider =
-            Provider::try_from(&format!("http://127.0.0.1:{}", rpc_addr.port())).unwrap();
+            Provider::try_from(&format!("http://127.0.0.1:{}/rpc", http_addr.port())).unwrap();
         let client = SignerMiddleware::new_with_provider_chain(provider, key)
             .await
             .unwrap();
 
         let rpc = WsClientBuilder::default()
-            .build(&format!("ws://127.0.0.1:{}", rpc_addr.port()))
+            .build(&format!("ws://127.0.0.1:{}/rpc", http_addr.port()))
             .await
             .unwrap();
 
-        let node_client = NodeClient::new_at_localhost(rest_addr.port())
+        let node_client = NodeClient::new_at_localhost(http_addr.port())
             .await
             .unwrap();
 

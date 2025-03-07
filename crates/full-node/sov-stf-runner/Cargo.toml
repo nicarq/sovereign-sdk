@@ -26,7 +26,7 @@ schemars = { workspace = true }
 serde = { workspace = true }
 strum = { version = "0.26", features = ["derive"] }
 toml = { workspace = true }
-tower = { workspace = true }
+tower = { workspace = true, features = ["util"] }
 sov-sequencer = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 tokio = { workspace = true, features = ["net", "sync", "rt-multi-thread", "time"] }
@@ -40,6 +40,7 @@ sov-rollup-interface = { workspace = true }
 sov-metrics = { workspace = true }
 tower-http = { workspace = true, features = ["normalize-path"] }
 tower-layer = "0.3.3"
+futures-util = "0.3.31"
 
 
 [dev-dependencies]
@@ -49,6 +50,7 @@ tempfile = { workspace = true }
 sha2 = { workspace = true }
 proptest = { workspace = true }
 derive_more = { workspace = true }
+jsonrpsee = { workspace = true, features = ["client", "ws-client"] }
 
 sov-sequencer-registry = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true, features = ["native"] }

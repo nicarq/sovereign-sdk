@@ -10810,6 +10810,7 @@ dependencies = [
  "derivative",
  "derive_more 1.0.0",
  "futures",
+ "futures-util",
  "hex",
  "insta",
  "jsonrpsee",

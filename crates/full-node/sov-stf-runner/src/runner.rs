@@ -4,9 +4,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
-use axum::body::HttpBody;
-use axum::extract::Request;
-use axum::ServiceExt;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{DeltaReader, SchemaBatch};
@@ -27,8 +24,6 @@ use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_rollup_interface::zk::{StateTransitionWitness, Zkvm};
 use sov_rollup_interface::{ProvableHeightTracker, StateUpdateInfo};
 use tokio::sync::watch;
-use tower_http::normalize_path::NormalizePathLayer;
-use tower_layer::Layer;
 use tracing::{debug, info, trace};
 
 use crate::da_pre_fetcher::FinalizedBlocksBulkFetcher;
@@ -52,13 +47,12 @@ where
     Stf: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
 {
     first_unprocessed_height_at_startup: u64,
-    da_polling_interval: std::time::Duration,
+    da_polling_interval: Duration,
     da_service: Arc<Da>,
     da_height_at_genesis: u64,
     stf: Stf,
     state_manager: StateManager<Stf::StateRoot, Stf::Witness, Sm, Da>,
-    listen_address_rpc: SocketAddr,
-    listen_address_axum: SocketAddr,
+    listen_address_http: SocketAddr,
     st_info_receiver: Option<Receiver<Stf::StateRoot, Stf::Witness, Da::Spec>>,
     sync_state: Arc<DaSyncState>,
     sync_fetcher: FinalizedBlocksBulkFetcher<Da>,
@@ -160,12 +154,9 @@ where
     ) -> anyhow::Result<Self> {
         error_if_tokio_runtime_is_not_multi_threaded()?;
 
-        let rpc_config = &runner_config.rpc_config;
-        let axum_config = &runner_config.axum_config;
+        let axum_config = &runner_config.http_config;
 
-        let listen_address_rpc =
-            SocketAddr::new(rpc_config.bind_host.parse()?, rpc_config.bind_port);
-        let listen_address_axum =
+        let listen_address_http =
             SocketAddr::new(axum_config.bind_host.parse()?, axum_config.bind_port);
 
         let next_item_numbers = ledger_db.get_next_items_numbers()?;
@@ -201,8 +192,7 @@ where
             sync_status_sender,
         });
 
-        let da_polling_interval =
-            std::time::Duration::from_millis(runner_config.da_polling_interval_ms);
+        let da_polling_interval = Duration::from_millis(runner_config.da_polling_interval_ms);
 
         let state_manager = StateManager::new(
             storage_manager,
@@ -239,8 +229,7 @@ where
             da_height_at_genesis: runner_config.genesis_height,
             stf,
             state_manager,
-            listen_address_rpc,
-            listen_address_axum,
+            listen_address_http,
             sync_state,
             st_info_receiver,
             sync_fetcher,
@@ -265,58 +254,21 @@ where
         self.sync_state.clone()
     }
 
-    /// Starts an RPC server with provided RPC methods and returns [`SocketAddr`] it is bind to.
-    ///  # Arguments:
-    ///   * methods: [`RpcModule`] with all RPC methods.
-    pub async fn start_rpc_server(&mut self, methods: RpcModule<()>) -> anyhow::Result<SocketAddr> {
-        let server = jsonrpsee::server::ServerBuilder::default()
-            .build([self.listen_address_rpc].as_ref())
-            .await?;
-        let rpc_address = server.local_addr()?;
-
-        let mut shutdown_receiver = self.secondary_shutdown_sender.subscribe();
-
-        self.background_handles.push(tokio::spawn(async move {
-            info!(%rpc_address, "Starting RPC server");
-            let server_handle = server.start(methods);
-
-            shutdown_receiver.changed().await.ok();
-            info!("Shutting down RPC server...");
-            server_handle.stop().map_err(|e| anyhow::anyhow!(e))?;
-            // Wait till the RPC server actually stopped,
-            // So when this task is completed,
-            // it is safe to assume that the RPC server is running no more.
-            server_handle.stopped().await;
-            debug!("RPC server stopped");
-
-            Ok(())
-        }));
-
-        Ok(rpc_address)
-    }
-
-    /// Starts an Axum server with the provided router.
-    pub async fn start_axum_server(
+    /// Starts an HTTP server with the provided router.
+    pub async fn start_http_server(
         &mut self,
         router: axum::Router<()>,
+        methods: RpcModule<()>,
     ) -> anyhow::Result<SocketAddr> {
-        let listener = tokio::net::TcpListener::bind(self.listen_address_axum).await?;
-        let rest_address = listener.local_addr()?;
+        let (http_task_handle, rest_address) = crate::http::start_http_server(
+            &self.listen_address_http,
+            router,
+            methods,
+            self.secondary_shutdown_sender.subscribe(),
+        )
+        .await?;
 
-        let mut shutdown_receiver = self.secondary_shutdown_sender.subscribe();
-
-        self.background_handles.push(tokio::spawn(async move {
-            info!(%rest_address, "Starting REST API server");
-            let router = router.layer(axum::middleware::from_fn(measure_time));
-            let router = NormalizePathLayer::trim_trailing_slash().layer(router);
-
-            axum::serve(listener, ServiceExt::<Request>::into_make_service(router))
-                .with_graceful_shutdown(async move {
-                    shutdown_receiver.changed().await.ok();
-                })
-                .await
-                .map_err(|e| anyhow::anyhow!(e))
-        }));
+        self.background_handles.push(http_task_handle);
 
         Ok(rest_address)
     }
@@ -694,38 +646,7 @@ fn error_if_tokio_runtime_is_not_multi_threaded() -> anyhow::Result<()> {
     use tokio::runtime::{Handle, RuntimeFlavor};
 
     match Handle::current().runtime_flavor() {
-        RuntimeFlavor::CurrentThread => Err(anyhow::anyhow!("A multi-threaded Tokio runtime is required to run the rollup node. Check your Tokio configuration. If you're testing node functionality, make sure your test uses `#[tokio::test(flavor = \"multi_thread\")]` or an equivalent configuration. Aborting.")),
-        _ => Ok(())
-    }
-}
-
-async fn measure_time(
-    req: axum::extract::Request,
-    next: axum::middleware::Next,
-) -> impl axum::response::IntoResponse {
-    let method = req.method().clone();
-    let uri = req.uri().clone();
-
-    let start = std::time::Instant::now();
-
-    let response = next.run(req).await;
-    let duration = start.elapsed();
-
-    let body = response.body();
-    let status = response.status();
-    let size_hint = body.size_hint();
-    let exact_or_lower = size_hint.exact().unwrap_or_else(|| size_hint.lower());
-
-    sov_metrics::track_metrics(|tracker| {
-        let point = sov_metrics::HttpMetrics {
-            request_method: method,
-            request_uri: uri,
-            response_status: status,
-            response_body_size: exact_or_lower,
-            handler_processing_time: duration,
-        };
-        tracker.track_http_request(point);
-    });
-
-    response
+            RuntimeFlavor::CurrentThread => Err(anyhow::anyhow!("A multi-threaded Tokio runtime is required to run the rollup node. Check your Tokio configuration. If you're testing node functionality, make sure your test uses `#[tokio::test(flavor = \"multi_thread\")]` or an equivalent configuration. Aborting.")),
+            _ => Ok(())
+        }
 }

@@ -17,10 +17,8 @@ pub struct RunnerConfig {
     pub genesis_height: u64,
     /// Polling interval for the DA service to check the sync status (in milliseconds).
     pub da_polling_interval_ms: u64,
-    /// RPC configuration.
-    pub rpc_config: HttpServerConfig,
-    /// Axum server configuration.
-    pub axum_config: HttpServerConfig,
+    /// HTTP Server configuration: On this socket REST API and RPC endpoints are going to listen.
+    pub http_config: HttpServerConfig,
     /// How many concurrent tasks to get block from DA service
     pub concurrent_sync_tasks: Option<u8>,
 }
@@ -162,10 +160,7 @@ mod tests {
             genesis_height = 31337
             da_polling_interval_ms = 10000
             concurrent_sync_tasks = 18
-            [runner.rpc_config]
-            bind_host = "127.0.0.1"
-            bind_port = 12345
-            [runner.axum_config]
+            [runner.http_config]
             bind_host = "127.0.0.1"
             bind_port = 12346
             public_address = "https://rollup.sovereign.xyz"
