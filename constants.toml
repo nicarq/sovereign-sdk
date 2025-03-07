@@ -50,7 +50,7 @@ GAS_TOKEN_ID = { bech32 = "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2
 ADDRESS_PREFIX = { const = "sov" }
 # --- Gas parameters to charge for state accesses ---
 # The cost of credential id calculation.
-GAS_TO_CHARGE_FOR_CREDENTIAL_CALCULATION = [416, 416]
+GAS_TO_CHARGE_FOR_CREDENTIAL_CALCULATION = [0, 0]
 # The cost of a storage access operation.
 GAS_TO_CHARGE_PER_STORAGE_ACCESS = [1, 1]
 GAS_TO_CHARGE_PER_COLD_READ = [1, 1]

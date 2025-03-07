@@ -10,6 +10,7 @@ use ed25519_dalek::{
     Signature as DalekSignature, VerifyingKey as DalekPublicKey, PUBLIC_KEY_LENGTH,
 };
 use schemars::JsonSchema;
+use sov_rollup_interface::common::HexString;
 use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
 use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 
@@ -132,13 +133,9 @@ impl sov_rollup_interface::crypto::PublicKey for Ed25519PublicKey {
     fn credential_id<Hasher: Digest<OutputSize = U32>>(
         &self,
     ) -> sov_rollup_interface::crypto::CredentialId {
-        let hash = {
-            let mut hasher = Hasher::new();
-            hasher.update(self.pub_key);
-            hasher.finalize().into()
-        };
-
-        sov_rollup_interface::crypto::CredentialId(hash)
+        // The pub key is already 32 bytes, so we don't hash it.
+        let data = HexString(*self.bytes());
+        sov_rollup_interface::crypto::CredentialId(data)
     }
 }
 

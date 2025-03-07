@@ -176,13 +176,13 @@ mod tests {
             max_pending_metrics = 2560
             [proof_manager]
             aggregated_proof_block_jump = 22
-            prover_address = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
+            prover_address = "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
             max_number_of_transitions_in_db = 1025
             max_number_of_transitions_in_memory = 768
             [sequencer]
             max_allowed_blocks_behind = 5
             da_address = "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"
-            rollup_address = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
+            rollup_address = "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
             [sequencer.standard]
         "#;
 

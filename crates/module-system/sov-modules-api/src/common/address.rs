@@ -472,7 +472,7 @@ mod test {
         let sov_address: Address = pub_key.credential_id::<Sha256>().into();
 
         let expected_addr =
-            Address::from_str("sov10ay4dyaukwpqnteh2h32l6rfurecsmzu5sl78aj7qzc0g286a0l").unwrap();
+            Address::from_str("sov1qghz9yvcm9tm7rq22p88677wexdp6ckve3uxrmfy2fnk5grt3d2").unwrap();
 
         assert_eq!(sov_address, expected_addr);
     }
