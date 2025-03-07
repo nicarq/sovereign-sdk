@@ -1,6 +1,3 @@
-// TODO: Rust 1.80 upgrade https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1059
-#![allow(clippy::blocks_in_conditions)]
-
 use std::num::NonZero;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -116,12 +113,12 @@ impl CelestiaService {
 
         let blob = JsonBlob::new(namespace, blob.to_vec(), APP_VERSION)?;
         info!(
-            commitment = hex::encode(blob.commitment.0),
+            commitment = hex::encode(blob.commitment.hash()),
             ?fee,
             bytes,
             "Submitting a blob"
         );
-        let blob_hash = HexHash::new(blob.commitment.0);
+        let blob_hash = HexHash::new(*blob.commitment.hash());
 
         let mut tx_config = celestia_rpc::TxConfig::default();
         tx_config

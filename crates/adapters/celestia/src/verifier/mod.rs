@@ -356,7 +356,10 @@ impl CelestiaVerifier {
                 )
                 .map_err(|_| ValidationError::InvalidEtxProof("failed to recreate commitment"))?;
 
-                assert_eq!(&pfb.share_commitments[blob_idx][..], &expected_commitment.0);
+                assert_eq!(
+                    &pfb.share_commitments[blob_idx][..],
+                    expected_commitment.hash()
+                );
             }
         }
 

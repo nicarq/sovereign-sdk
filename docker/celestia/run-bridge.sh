@@ -31,7 +31,7 @@ wait_for_provision() {
     sleep 0.5
   done
 
-  sleep 0.5 # let the validator finish setup
+  sleep 5 # let the validator finish setup
   echo "Validator is ready"
 }
 
@@ -74,11 +74,13 @@ main() {
   # Update the JWT token
   write_jwt_token
   # Start the bridge node
+  ping -c 3 validator
   echo "Configuration finished. Running a bridge node..."
   celestia bridge start \
     --core.ip validator \
     --keyring.keyname "$NODE_NAME" \
     --p2p.network "$P2P_NETWORK" \
+    --archival \
     --gateway.addr "0.0.0.0"
 }
 
