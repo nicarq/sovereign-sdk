@@ -615,8 +615,9 @@ async fn visible_hashes_match_across_node_and_sequencer() {
 ///
 /// It works by producing several batches in the sequencer (causing the hooks to be run) without every publishing those batches
 /// to DA (ensuring that the state changes are not visible to the node), then querying the state via the REST API.
+/// TODO(@neysofu): unflaky it.
 #[tokio::test(flavor = "multi_thread")]
-async fn test_hooks_state_is_visible() {
+async fn flaky_test_hooks_state_is_visible() {
     const FINALIZATION_BLOCKS: u32 = 3;
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
