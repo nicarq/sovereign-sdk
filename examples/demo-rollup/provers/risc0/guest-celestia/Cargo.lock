@@ -922,8 +922,9 @@ dependencies = [
 
 [[package]]
 name = "celestia-proto"
-version = "0.6.0"
-source = "git+https://github.com/eigerco/lumina.git?rev=7fb26b824c97b4d15b61891a251a6d677087b9fc#7fb26b824c97b4d15b61891a251a6d677087b9fc"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4429b21a37997c08390d6f8fc325d29b8e72f3dca39f7acfe48d639e2f82a553"
 dependencies = [
  "bytes",
  "prost 0.13.3",
@@ -937,8 +938,9 @@ dependencies = [
 
 [[package]]
 name = "celestia-types"
-version = "0.9.0"
-source = "git+https://github.com/eigerco/lumina.git?rev=7fb26b824c97b4d15b61891a251a6d677087b9fc#7fb26b824c97b4d15b61891a251a6d677087b9fc"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18e0fa0f7432d59891db755b883f4a70d5f0fa42b63a6b9c0a440563d59dfa39"
 dependencies = [
  "base64 0.22.1",
  "bech32",
@@ -955,6 +957,7 @@ dependencies = [
  "prost 0.13.3",
  "ruint",
  "serde",
+ "serde_repr",
  "sha2 0.10.8",
  "tendermint",
  "tendermint-proto",
@@ -3563,9 +3566,9 @@ dependencies = [
 
 [[package]]
 name = "serde_repr"
-version = "0.1.18"
+version = "0.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b2e6b945e9d3df726b65d6ee24060aff8e3533d431f677a9695db04eff9dfdb"
+checksum = "175ee3e80ae9982737ca543e96133087cbd9a485eecc3bc4de9c1a37b47ea59c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4386,9 +4389,9 @@ dependencies = [
 
 [[package]]
 name = "tendermint"
-version = "0.40.0"
+version = "0.40.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37d513ce7f9e41c67ab2dd3d554ef65f36fbcc61745af1e1f93eafdeefa1ce37"
+checksum = "d9703e34d940c2a293804752555107f8dbe2b84ec4c6dd5203831235868105d2"
 dependencies = [
  "bytes",
  "digest 0.10.7",
@@ -4416,9 +4419,9 @@ dependencies = [
 
 [[package]]
 name = "tendermint-proto"
-version = "0.40.0"
+version = "0.40.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c81ba1b023ec00763c3bc4f4376c67c0047f185cccf95c416c7a2f16272c4cbb"
+checksum = "9ae9e1705aa0fa5ecb2c6aa7fb78c2313c4a31158ea5f02048bf318f849352eb"
 dependencies = [
  "bytes",
  "flex-error",

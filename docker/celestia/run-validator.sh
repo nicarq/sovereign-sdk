@@ -155,23 +155,6 @@ setup_private_validator() {
   sed -i'.bak' 's/^timeout_precommit\s*=.*/timeout_precommit = "20ms"/g' "$CONFIG_DIR/config/config.toml"
   # timeout_precommit_delta = "500ms"
   sed -i'.bak' 's/^timeout_precommit_delta\s*=.*/timeout_precomm_delta = "10ms"/g' "$CONFIG_DIR/config/config.toml"
-
-  # Register the validator EVM address in background
-  {
-    # wait for the genesis
-    wait_for_block 1
-
-    # private key: da6ed55cb2894ac2c9c10209c09de8e8b9d109b910338d5bf3d747a7e1fc9eb9
-    celestia-appd tx qgb register \
-      "$(celestia-appd keys show "$NODE_NAME" --bech val -a)" \
-      0x966e6f22781EF6a6A82BBB4DB3df8E225DfD9488 \
-      --from "$NODE_NAME" \
-      --fees 30000utia \
-      -b block \
-      -y
-
-    echo "Registered validator's EVM address"
-  } &
 }
 
 main() {

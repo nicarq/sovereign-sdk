@@ -114,9 +114,10 @@ impl NamespaceRelevantData {
             )
             .expect("blob must be valid");
 
+            let blob_hash = commitment.hash();
             let sender = self
                 .relevant_pfbs
-                .get(&commitment.0[..])
+                .get(&blob_hash[..])
                 .expect("blob must be relevant")
                 .0
                 .signer
@@ -124,7 +125,7 @@ impl NamespaceRelevantData {
 
             let blob: Blob = blob_ref.into();
 
-            let hash = HexHash::new(commitment.0);
+            let hash = HexHash::new(*blob_hash);
             info!(commitment = %hash, "Extracting blob");
             let blob_tx = BlobWithSender {
                 blob: CountedBufReader::new(blob.into_iter()),
