@@ -121,7 +121,7 @@ this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
 $ sleep 5
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0xe029e6b82a1097d4c1bf353d9c24d295198a779850db39b6a3c0661defe05eb9/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0x36f9838e52fa191ce5db7764630b8f73fc9ba0b1c27d06623243a43e892ddb5b/events | jq
 {
   "data": [
     {
@@ -133,21 +133,21 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0xe029e6b82a1097d4c1bf353d9c24d2951
           "token_name": "sov-test-token",
           "coins": {
             "amount": "1000000",
-            "token_id": "token_126x5str6mkes6ve8j92cnz579azyqlmrk74l6a4fg4zvd076hdxspqs3pc"
+            "token_id": "token_13yq4ayvytv802qh200pfmphxxd7kges5ha5kuauywnaf2e49dx6qaaus8r"
           },
           "mint_to_address": {
-            "user": "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzsxf35ku"
+            "user": "sov10d6chuh8vu86ltmt7qq4ec8lt25qyvr0cl3lg4mzs5llcfnx69m"
           },
           "minter": {
-            "user": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
+            "user": "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
           },
           "supply_cap": "340282366920938463463374607431768211455",
           "admins": [
             {
-              "user": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
+              "user": "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
             },
             {
-              "user": "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzsxf35ku"
+              "user": "sov10d6chuh8vu86ltmt7qq4ec8lt25qyvr0cl3lg4mzs5llcfnx69m"
             }
           ]
         }
@@ -163,7 +163,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0xe029e6b82a1097d4c1bf353d9c24d2951
 ```
 
 We can see the TokenCreated event which contains the id of the token
-created - `token_126x5str6mkes6ve8j92cnz579azyqlmrk74l6a4fg4zvd076hdxspqs3pc`
+created - `token_13yq4ayvytv802qh200pfmphxxd7kges5ha5kuauywnaf2e49dx6qaaus8r`
 
 ### How to Submit Transactions
 
@@ -322,7 +322,7 @@ Adding the following transaction to batch:
   "tx": {
     "bank": {
       "transfer": {
-        "to": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66",
+        "to": "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf",
         "coins": {
           "amount": "200",
           "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"
@@ -356,7 +356,7 @@ this
 batch, you can import them now. Finally, let's submit your transaction to the rollup.
 
 ```bash,test-ci
-$ ./../../target/debug/sov-cli node submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66
+$ ./../../target/debug/sov-cli node submit-batch --wait-for-processing by-address sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf
 ```
 
 #### 5. Verify the Token Supply

@@ -59,12 +59,12 @@ telegraf_address = "udp://127.0.0.1:8094"
 
 [proof_manager]
 aggregated_proof_block_jump = 1
-prover_address = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
+prover_address = "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
 max_number_of_transitions_in_db = 100
 max_number_of_transitions_in_memory = 20
 
 [sequencer]
 max_allowed_blocks_behind = 5
 da_address = "0000000000000000000000000000000000000000000000000000000000000000"
-rollup_address = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
+rollup_address = "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
 [sequencer.preferred]

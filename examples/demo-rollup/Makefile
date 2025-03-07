@@ -183,7 +183,7 @@ register-second-sequencer:
 
 remove-insecure-keys: check-sov-cli
 remove-insecure-keys:
-	$(SOV_CLI_REL_PATH) keys remove by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66
+	$(SOV_CLI_REL_PATH) keys remove by-address sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf
 
 
 fix-readme-toc:

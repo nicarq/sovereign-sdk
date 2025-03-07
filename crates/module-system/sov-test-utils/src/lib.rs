@@ -120,11 +120,11 @@ pub const TEST_GAS_TOKEN_NAME: &str = "TestGasToken";
 
 /// Default [`sov_stf_runner::ProofManagerConfig::prover_address`] value in tests.
 pub const TEST_DEFAULT_PROVER_ADDRESS: &str =
-    "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66";
+    "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf";
 
 /// Default [`sov_sequencer::SequencerConfig::rollup_address`] value in tests.
 pub const TEST_DEFAULT_SEQUENCER_ADDRESS: &str =
-    "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66";
+    "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf";
 
 /// Default wait time value for different [`sov_mock_da::BlockProducingConfig`] value in tests.
 pub const TEST_DEFAULT_MOCK_DA_BLOCK_TIME_MS: u64 = 100;

@@ -171,13 +171,9 @@ impl sov_rollup_interface::crypto::PublicKey for SP1PublicKey {
     fn credential_id<Hasher: Digest<OutputSize = U32>>(
         &self,
     ) -> sov_rollup_interface::crypto::CredentialId {
-        let hash = {
-            let mut hasher = Hasher::new();
-            hasher.update(self.pub_key);
-            hasher.finalize().into()
-        };
-
-        sov_rollup_interface::crypto::CredentialId(hash)
+        // The pub key is already 32 bytes, so we don't hash it.
+        let data = sov_rollup_interface::common::HexString(*self.bytes());
+        sov_rollup_interface::crypto::CredentialId(data)
     }
 }
 

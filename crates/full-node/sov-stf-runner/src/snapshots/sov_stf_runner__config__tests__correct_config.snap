@@ -36,7 +36,7 @@ expression: config
   },
   "proof_manager": {
     "aggregated_proof_block_jump": 22,
-    "prover_address": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66",
+    "prover_address": "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf",
     "max_number_of_transitions_in_db": 1025,
     "max_number_of_transitions_in_memory": 768
   },
@@ -45,7 +45,7 @@ expression: config
     "max_allowed_blocks_behind": 5,
     "dropped_tx_ttl_secs": 60,
     "da_address": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
-    "rollup_address": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66",
+    "rollup_address": "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf",
     "admin_addresses": [],
     "standard": {
       "mempool_max_txs_count": null,

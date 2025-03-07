@@ -75,7 +75,7 @@ mod tests {
     #[test]
     fn test_config_serialization() {
         let seq_rollup_address: <TestSpec as Spec>::Address =
-            AddressBech32::from_str("sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66")
+            AddressBech32::from_str("sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf")
                 .unwrap()
                 .into();
 
@@ -93,7 +93,7 @@ mod tests {
 
         let data = r#"
         {
-            "seq_rollup_address":"sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66",
+            "seq_rollup_address":"sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf",
             "seq_da_address":"0000000000000000000000000000000000000000000000000000000000000000",
             "seq_bond":"100",
             "is_preferred_sequencer":true
