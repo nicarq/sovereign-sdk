@@ -35,7 +35,7 @@ use crate::common::{SeqDbTx, SeqDbTxId, WithCachedTxHashes};
 ///     This is necessary because, during batch builder initialization, state is
 ///     restored starting from the last finalized slot.
 #[derive(Debug)]
-pub struct PreferredBbDb<S: Spec, R: Runtime<S>> {
+pub struct PreferredSequencerDb<S: Spec, R: Runtime<S>> {
     phantom: PhantomData<S>,
     runtime: R,
     db: Arc<rockbound::DB>,
@@ -53,7 +53,7 @@ pub struct PreferredBbDb<S: Spec, R: Runtime<S>> {
     pub sequence_number_of_in_progress_batch: Option<SequenceNumber>,
 }
 
-impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
+impl<S: Spec, R: Runtime<S>> PreferredSequencerDb<S, R> {
     const DB_NAME: &'static str = "preferred_sequencer";
     const TABLES: &'static [&'static str] = &[
         tables::SingletonInProgressBatchInfo::table_name(),
@@ -61,7 +61,7 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
         tables::InProgressBatchTxs::table_name(),
     ];
 
-    /// Opens a new [`PreferredBbDb`] at the given path.
+    /// Opens a new [`PreferredSequencerDb`] at the given path.
     pub async fn new(
         path: &Path,
         latest_state_info: &StateUpdateInfo<S::Storage>,
@@ -97,13 +97,13 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
     /// latest information coming from the node.
     ///
     /// # Why?
-    /// Under normal operations, the [`PreferredBbDb`] contains more information
+    /// Under normal operations, the [`PreferredSequencerDb`] contains more information
     /// about the very latest preferred blobs than the node itself. This is
     /// because the preferred sequencer stores information about batches (as
     /// well as proof blobs) before submitting them to the DA.
     ///
     /// When e.g. deploying a new preferred sequencer, however, or re-syncing
-    /// the node & sequencer from scratch, the [`PreferredBbDb`] must be fed
+    /// the node & sequencer from scratch, the [`PreferredSequencerDb`] must be fed
     /// information about the sequence numbers from the node. This method does
     /// exactly that.
     pub async fn recalculate_next_sequence_number(
@@ -152,7 +152,7 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
                 error!(
                     latest_finalized_sequence_number,
                     %error,
-                    "Failed to prune `PreferredBbDb`; check your database integrity"
+                    "Failed to prune `PreferredSequencerDb`; check your database integrity"
                 );
             }
         }
@@ -165,7 +165,7 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
     pub async fn all_subsequent_blobs(
         &self,
         latest_state_info: &StateUpdateInfo<S::Storage>,
-    ) -> anyhow::Result<Vec<PreferredBbDbBlob>> {
+    ) -> anyhow::Result<Vec<PreferredSequencerDbBlob>> {
         let mut checkpoint =
             StateCheckpoint::new(latest_state_info.storage.clone(), &self.runtime.kernel());
         let mut state =
@@ -209,7 +209,7 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
             assert!(blobs
                 .iter()
                 .filter_map(|b| match b {
-                    PreferredBbDbBlob::Batch(_) => Some(b.sequence_number()),
+                    PreferredSequencerDbBlob::Batch(_) => Some(b.sequence_number()),
                     _ => None,
                 })
                 .all(|n| n < seq_num_of_in_progress_batch),
@@ -295,7 +295,7 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
             .await?
             .expect("No in-progress batch; this is a bug, please report it");
         let sequence_number = batch.batch.inner.sequence_number;
-        let blob = PreferredBbDbBlob::Batch(batch.clone());
+        let blob = PreferredSequencerDbBlob::Batch(batch.clone());
 
         // DB operations.
         {
@@ -386,7 +386,7 @@ impl<S: Spec, R: Runtime<S>> PreferredBbDb<S, R> {
         self.db
             .put_async::<tables::NotFinalizedPreferredBlobs>(
                 &sequence_number,
-                &PreferredBbDbBlob::Proof(PreferredProofData {
+                &PreferredSequencerDbBlob::Proof(PreferredProofData {
                     data,
                     sequence_number,
                 }),
@@ -457,12 +457,12 @@ pub(crate) struct SavedBatch {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-pub enum PreferredBbDbBlob {
+pub enum PreferredSequencerDbBlob {
     Batch(SavedBatch),
     Proof(PreferredProofData),
 }
 
-impl PreferredBbDbBlob {
+impl PreferredSequencerDbBlob {
     pub fn sequence_number(&self) -> SequenceNumber {
         match self {
             Self::Batch(SavedBatch {
@@ -517,7 +517,7 @@ mod tables {
     use super::*;
 
     define_table_with_seek_key_codec!(
-        (NotFinalizedPreferredBlobs) SequenceNumber => PreferredBbDbBlob
+        (NotFinalizedPreferredBlobs) SequenceNumber => PreferredSequencerDbBlob
     );
 
     define_table_with_default_codec!(
