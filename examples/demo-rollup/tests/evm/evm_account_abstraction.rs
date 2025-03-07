@@ -24,8 +24,7 @@ async fn test_evm_account_abstraction() {
     let test_rollup = evm_test_helper::start_node(rollup_prover_config, finalization_blocks).await;
 
     let (test_client, from_addr) = evm_test_helper::create_test_client(
-        test_rollup.rpc_addr,
-        test_rollup.rest_addr,
+        test_rollup.http_addr,
         chain_id,
         // This will produce an evm key that doesn't exist in rollup accounts-genesis so we have to register the credentials in the rollup.
         "0x90cb5be9e2c125d84af44f19a4e6e36af359bd47b41577aedbe8aa24313bbd40",

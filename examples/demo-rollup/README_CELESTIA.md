@@ -106,27 +106,29 @@ $ make start
 
 Now run the demo-rollup full node, as shown below. You will see it consuming blocks from the Celestia node running inside Docker:
 
-```sh,test-ci,bashtestmd:long-running,bashtestmd:wait-until=rpc_address
+```sh,test-ci,bashtestmd:long-running,bashtestmd:wait-until=rest_address
 # Make sure you're still in the examples/demo-rollup directory and `make build` has been executed before
 $ ./../../target/debug/sov-demo-rollup --da-layer celestia --rollup-config-path demo_rollup_config.toml --genesis-config-dir ../test-data/genesis/demo/celestia
-2024-03-05T14:42:21.332792Z  INFO sov_demo_rollup: Running demo rollup with prover config prover_config=Skip
-2024-03-05T14:42:21.332955Z DEBUG sov_demo_rollup: Starting Celestia rollup config_path="demo_rollup_config.toml"
-2024-03-05T14:42:21.333147Z DEBUG sov_stf_runner::config: Parsing config file size_in_bytes=1238 contents="[da]\n# The JWT used to authenticate with the celestia light client. Instructions for generating this token can be found in the README\ncelestia_rpc_auth_token = \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJwdWJsaWMiLCJyZWFkIiwid3JpdGUiLCJhZG1pbiJdfQ.xFFGFMlIAkJ5_9dJR1GIwujpfr1tuISDvNr6cDR8wnY\"\n# The address of the *trusted* Celestia light client to interact with\ncelestia_rpc_address = \"http://127.0.0.1:26658\"\n# The largest response the rollup will accept from the Celestia node. Defaults to 100 MB\nmax_celestia_response_body_size = 104_857_600\n# The maximum time to wait for a response to an RPC query against Celestia node. Defaults to 60 seconds.\ncelestia_rpc_timeout_seconds = 60\n\n[storage]\n# The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.\npath = \"demo_data\"\n\n# We define the rollup's genesis to occur at block number `genesis_height`. The rollup will ignore\n# any blocks before this height, and any blobs at this height will not be processed\n[runner]\ngenesis_height = 3\nda_polling_interval_ms = 10000\n\n[runner.rpc_config]\n# the host and port to bind the rpc server for\nbind_host = \"127.0.0.1\"\nbind_port = 12345\n\n[proof_manager]\naggregated_proof_block_jump = 1\n"
-2024-03-05T14:42:28.772046Z  INFO rockbound: Opened RocksDB rocksdb_name="state-db"
-2024-03-05T14:42:28.838260Z  INFO rockbound: Opened RocksDB rocksdb_name="native-db"
-2024-03-05T14:42:29.087513Z  INFO rockbound: Opened RocksDB rocksdb_name="ledger-db"
-2024-03-05T14:42:29.089568Z  INFO sov_stf_runner::runner: No history detected. Initializing chain on the block header... header=sov_celestia_adapter::celestia::CelestiaHeader prev_hash=0x88f40f107bd45687b37c57ce7d4a6a303e1635417a4c6afe84401ffdf97b3bf3 hash=0x248042f683e50f55a34847323ae367f88f692dfc60629ce78d2c8c70a86466f5 height=3
-2024-03-05T14:42:29.090544Z DEBUG sov_bank::genesis: Bank genesis token config: TokenConfig { token_name: sov-demo-token, address_and_balances: [(sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf, 100000000)], authorized_minters: [sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf]}
-2024-03-05T14:42:29.119153Z  INFO sov_stf_runner::runner: Chain initialization is done genesis_root="34b162718eaf1878f6dc0306a9cc9d17fb0c0337343f6e21c0babb44480adb5d2674feeb85ae0e109d4f8e2714a55fd287d7e447997fbc42a43d1c634a74bce3"
-2024-03-05T14:42:29.119211Z DEBUG sov_stf_runner::runner: Initializing StfRunner last_slot_processed_before_shutdown=0 runner_config.genesis_height=3 first_unprocessed_height_at_startup=4
-2024-03-05T14:42:29.119759Z  INFO sov_stf_runner::runner: Starting RPC server rpc_address=127.0.0.1:12345
-2024-03-05T14:42:29.122392Z DEBUG sov_stf_runner::runner: Requesting DA block for next_da_height=4
-2024-03-05T14:42:39.608515Z  INFO sov_stf_runner::runner: Extracted relevant blobs blobs_count=0 next_da_height=4 blobs=[]
-2024-03-05T14:42:39.610889Z  INFO sov_stf_runner::runner: Sync in progress synced_da_height=3 target_da_height=4
-2024-03-05T14:42:39.611847Z DEBUG sov_chain_state: Setting next visible rollup height rollup_height=2
-2024-03-05T14:42:39.611923Z  INFO sov_modules_stf_blueprint: Selected batch(es) for execution in current slot batches_count=0 visible_slot=1 true_slot=1
-2024-03-05T14:42:39.614143Z  INFO sov_stf_runner::runner: Sync in progress synced_da_height=3 target_da_height=4
-2024-03-05T14:42:39.618315Z  INFO sov_stf_runner::prover_service::manager: Saving aggregated proof height=4
+2025-03-07T13:13:20.453543Z  INFO sov_modules_rollup_blueprint::native_only::logging: Open Telemetry exporter is not enabled
+2025-03-07T13:13:20.466160Z  INFO prometheus_exporter: exporting metrics to http://127.0.0.1:9845/metrics
+2025-03-07T13:13:20.466922Z  INFO sov_demo_rollup: Running demo rollup with prover config prover_config_disc=None
+2025-03-07T13:13:20.467830Z DEBUG sov_demo_rollup: Starting rollup on mock DA config_path="mock_rollup_config.toml"
+2025-03-07T13:13:20.469909Z  INFO sov_stf_runner::config: Parsing rollup configuration file path="mock_rollup_config.toml" size_in_bytes=2714 line_count=66
+2025-03-07T13:13:20.496851Z  INFO init_blueprint: sov_modules_rollup_blueprint::native_only: Instantiating a new rollup operating_mode=Zk
+2025-03-07T13:13:20.516068Z DEBUG init_blueprint: sov_mock_da::storable::entity: Setting up database
+2025-03-07T13:13:20.526945Z DEBUG init_blueprint:periodic_batch_producer: sov_mock_da::storable::service: Spawning a task for periodic producing interval=1s
+2025-03-07T13:13:20.549754Z  INFO init_blueprint: rockbound: Opened RocksDB rocksdb_name="state-db"
+2025-03-07T13:13:20.554513Z  INFO init_blueprint: rockbound: Opened RocksDB rocksdb_name="accessory-db"
+2025-03-07T13:13:20.571777Z  INFO init_blueprint: rockbound: Opened RocksDB rocksdb_name="ledger-db"
+2025-03-07T13:13:20.573145Z  INFO init_blueprint: sov_modules_rollup_blueprint::native_only: Recovering the state root prev_root=None is_genesis=true
+2025-03-07T13:13:20.577961Z  INFO init_blueprint: sov_modules_rollup_blueprint::native_only: Rollup state is empty, performing genesis initialization. Requesting genesis DA block rollup_genesis_height=0
+2025-03-07T13:13:20.609144Z  INFO sov_stf_runner::da_pre_fetcher: BlockFetcher synced all finalized headers
+2025-03-07T13:13:20.609159Z DEBUG sov_stf_runner::da_pre_fetcher: BlockFetcher task has completed
+2025-03-07T13:13:20.618686Z  INFO init_blueprint: rockbound: Opened RocksDB rocksdb_name="preferred_sequencer"
+2025-03-07T13:13:20.624952Z  INFO init_blueprint: rockbound: Opened RocksDB rocksdb_name="blob_sender"
+2025-03-07T13:13:20.705944Z  INFO sov_stf_runner::http: Starting HTTP server rest_address=127.0.0.1:12346
+2025-03-07T13:13:20.706028Z DEBUG sov_stf_runner::runner: Interval for polling sync DA height interval_ms=50
+2025-03-07T13:13:20.706235Z DEBUG process_next_slot{next_da_height=1}: sov_stf_runner::runner: Requesting DA block
 ```
 
 Leave it running while you proceed with the rest of the demo.

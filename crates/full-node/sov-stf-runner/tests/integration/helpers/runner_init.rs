@@ -365,8 +365,7 @@ pub fn rollup_config_with_da<Da: DaService<Config = MockDaConfig>>(
         runner: RunnerConfig {
             genesis_height: 0,
             da_polling_interval_ms: get_da_polling_interval_ms(&da_config),
-            rpc_config: HttpServerConfig::localhost_on_free_port(),
-            axum_config: HttpServerConfig::localhost_on_free_port(),
+            http_config: HttpServerConfig::localhost_on_free_port(),
             concurrent_sync_tasks: Some(1),
         },
         da: da_config,

@@ -45,7 +45,6 @@ pub(crate) async fn start_node(
 
 /// Creates a test client to communicate with the rollup node.
 pub(crate) async fn create_test_client(
-    rpc_port: SocketAddr,
     rest_port: SocketAddr,
     chain_id: u64,
     private_key: &str,
@@ -58,8 +57,7 @@ pub(crate) async fn create_test_client(
     let contract = SimpleStorageContract::default();
     let from_addr = key.address();
 
-    let test_client =
-        TestClient::new(chain_id, key, from_addr, contract, rpc_port, rest_port).await;
+    let test_client = TestClient::new(chain_id, key, from_addr, contract, rest_port).await;
 
     let eth_chain_id = test_client.eth_chain_id().await;
     assert_eq!(chain_id, eth_chain_id);

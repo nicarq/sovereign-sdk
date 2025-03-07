@@ -87,7 +87,7 @@ where
             .config(Config::from("/openapi-v3.json")),
     );
 
-    if let CorsConfiguration::Enabled = config.runner.axum_config.cors {
+    if let CorsConfiguration::Enabled = config.runner.http_config.cors {
         endpoints.axum_router = endpoints.axum_router.layer(cors_layer());
     }
 
@@ -197,10 +197,10 @@ fn merge_specs(
 }
 
 fn server_url_from_runner_config(runner_config: &RunnerConfig) -> openapiv3::Server {
-    let server_url = match &runner_config.axum_config.public_address {
+    let server_url = match &runner_config.http_config.public_address {
         None => format!(
             "http://{}:{}",
-            runner_config.axum_config.bind_host, runner_config.axum_config.bind_port
+            runner_config.http_config.bind_host, runner_config.http_config.bind_port
         ),
         Some(public_url) => public_url
             .strip_suffix('/')
@@ -336,8 +336,7 @@ mod tests {
         RunnerConfig {
             genesis_height: 0,
             da_polling_interval_ms: 0,
-            rpc_config: sov_stf_runner::HttpServerConfig::localhost_on_free_port(),
-            axum_config: sov_stf_runner::HttpServerConfig {
+            http_config: sov_stf_runner::HttpServerConfig {
                 bind_host: bind_host.to_string(),
                 bind_port,
                 public_address: public_address.map(|s| s.to_string()),

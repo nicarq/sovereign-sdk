@@ -33,11 +33,7 @@ genesis_height = 0
 # da.block_time is 1s, so status updater will try to poll it 20 times during it.
 da_polling_interval_ms = 50
 
-[runner.rpc_config]
-# the host and port to bind the rpc server for
-bind_host = "127.0.0.1"
-bind_port = 12345
-[runner.axum_config]
+[runner.http_config]
 bind_host = "127.0.0.1"
 bind_port = 12346
 # In case of the arollup is running behind a proxy

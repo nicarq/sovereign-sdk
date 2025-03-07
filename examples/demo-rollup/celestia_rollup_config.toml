@@ -20,11 +20,7 @@ genesis_height = 3
 # So status is updated more frequently.
 da_polling_interval_ms = 200
 
-[runner.rpc_config]
-# the host and port to bind the rpc server for
-bind_host = "127.0.0.1"
-bind_port = 12345
-[runner.axum_config]
+[runner.http_config]
 bind_host = "127.0.0.1"
 bind_port = 12346
 # In case the rollup is running behind a proxy

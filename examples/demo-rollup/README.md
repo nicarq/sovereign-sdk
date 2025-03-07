@@ -94,7 +94,7 @@ $ make clean
 $ export SOV_PROVER_MODE=execute
 ```
 
-```sh,test-ci,bashtestmd:long-running,bashtestmd:wait-until=rpc_address
+```sh,test-ci,bashtestmd:long-running,bashtestmd:wait-until=rest_address
 $ cargo run
 ```
 

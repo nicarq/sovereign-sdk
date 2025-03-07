@@ -489,20 +489,11 @@
       "description": "Configuration for StateTransitionRunner.",
       "type": "object",
       "required": [
-        "axum_config",
         "da_polling_interval_ms",
         "genesis_height",
-        "rpc_config"
+        "http_config"
       ],
       "properties": {
-        "axum_config": {
-          "description": "Axum server configuration.",
-          "allOf": [
-            {
-              "$ref": "#/definitions/HttpServerConfig"
-            }
-          ]
-        },
         "concurrent_sync_tasks": {
           "description": "How many concurrent tasks to get block from DA service",
           "type": [
@@ -524,8 +515,8 @@
           "format": "uint64",
           "minimum": 0.0
         },
-        "rpc_config": {
-          "description": "RPC configuration.",
+        "http_config": {
+          "description": "HTTP Server configuration: On this socket REST API and RPC endpoints are going to listen.",
           "allOf": [
             {
               "$ref": "#/definitions/HttpServerConfig"

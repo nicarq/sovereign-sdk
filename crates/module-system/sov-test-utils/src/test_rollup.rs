@@ -276,13 +276,12 @@ where
             }
         };
 
-        let (rpc_addr_tx, rpc_addr_rx) = tokio::sync::oneshot::channel();
         let (rest_addr_tx, rest_addr_rx) = tokio::sync::oneshot::channel();
         let shutdown_sender = rollup.shutdown_sender.clone();
 
         let da_service = rollup.runner.da_service();
 
-        let (secondary_test_sequencer_client, secondary_sequncer_state_sender) =
+        let (secondary_test_sequencer_client, secondary_sequencer_state_sender) =
             match self.with_secondary_sequencer {
                 Some(addr) => {
                     // We "keep" it because it is going to be deleted when the parent is deleted.
@@ -303,10 +302,7 @@ where
             };
 
         let rollup_task = tokio::spawn(async move {
-            match rollup
-                .run_and_report_addr(Some(rpc_addr_tx), Some(rest_addr_tx))
-                .await
-            {
+            match rollup.run_and_report_addr(Some(rest_addr_tx)).await {
                 Ok(()) => {
                     tracing::info!("Completed running a rollup");
                     Ok(())
@@ -319,7 +315,6 @@ where
         });
 
         let rest_addr = rest_addr_rx.await?;
-        let rpc_addr = rpc_addr_rx.await?;
 
         let rest_port = rest_addr.port();
         let client = match NodeClient::new_at_localhost(rest_port).await {
@@ -336,15 +331,14 @@ where
         Ok(TestRollup {
             rollup_task,
             api_client: sov_api_spec::client::Client::new(&client.base_url),
-            rpc_addr,
-            rest_addr,
+            http_addr: rest_addr,
             rollup_config,
             client,
             da_service,
             storage: self.config.storage.clone(),
             shutdown_sender,
             secondary_test_sequencer_client,
-            _secondary_sequencer_state_sender: secondary_sequncer_state_sender,
+            _secondary_sequencer_state_sender: secondary_sequencer_state_sender,
         })
     }
 
@@ -356,8 +350,7 @@ where
             runner: RunnerConfig {
                 genesis_height: 0,
                 da_polling_interval_ms: 30,
-                rpc_config: HttpServerConfig::localhost_on_free_port(),
-                axum_config: HttpServerConfig::localhost_on_port(self.config.axum_port),
+                http_config: HttpServerConfig::localhost_on_port(self.config.axum_port),
                 concurrent_sync_tasks: Some(1),
             },
             da: self.da_config.clone(),
@@ -496,10 +489,8 @@ pub struct TestRollup<R: FullNodeBlueprint<Native>, StoragePath = Arc<tempfile::
     pub client: NodeClient,
     /// Auto-generated API client for the rollup.
     pub api_client: sov_api_spec::client::Client,
-    /// Address of the JSON-RPC node server.
-    pub rpc_addr: SocketAddr,
-    /// Address of the REST API server.
-    pub rest_addr: SocketAddr,
+    /// Address of the HTTP server.
+    pub http_addr: SocketAddr,
     /// The rollup config used to run the rollup.
     pub rollup_config: RollupConfig<<R::Spec as Spec>::Address, R::DaService>,
     /// A copy of the [`DaService`](sov_rollup_interface::node::da::DaService)
