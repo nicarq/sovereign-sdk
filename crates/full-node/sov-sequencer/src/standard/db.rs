@@ -8,15 +8,15 @@ use sov_rollup_interface::TxHash;
 use crate::common::SeqDbTx;
 
 #[derive(Clone, Debug)]
-pub struct StandardBbDb {
+pub struct StandardSequencerDb {
     db: Arc<rockbound::DB>,
 }
 
-impl StandardBbDb {
+impl StandardSequencerDb {
     const TABLES: &'static [&'static str] = &[MempoolTxs::table_name()];
     const DB_NAME: &'static str = "standard_sequencer";
 
-    /// Initializes a new [`StandardBbDb`] at the given path.
+    /// Initializes a new [`StandardSequencerDb`] at the given path.
     pub async fn new(path: &Path) -> anyhow::Result<Self> {
         let db = Arc::new(rockbound::DB::open(
             path.join(Self::DB_NAME),

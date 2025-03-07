@@ -10,7 +10,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use db::PreferredBbDb;
+use db::PreferredSequencerDb;
 use schemars::JsonSchema;
 use serde_with::serde_as;
 use sov_blob_storage::PreferredBatchData;
@@ -40,7 +40,7 @@ use crate::common::{
     WithCachedTxHashes,
 };
 use crate::preferred::block_executor::{RollupBlockExecutor, RollupBlockExecutorError};
-use crate::preferred::db::PreferredBbDbBlob;
+use crate::preferred::db::PreferredSequencerDbBlob;
 use crate::{
     SequenceNumberProvider, SequencerConfig, SequencerEvent, SequencerNotReadyDetails,
     SubmitBatchReceipt, TxStatus, TxStatusManager,
@@ -55,7 +55,7 @@ where
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
-    db: PreferredBbDb<S, Rt>,
+    db: PreferredSequencerDb<S, Rt>,
     latest_info: StateUpdateInfo<S::Storage>,
     checkpoint_sender: watch::Sender<StateCheckpoint<S>>,
     next_event_number: u64,
@@ -304,7 +304,7 @@ where
             broadcast::channel(config.sequencer_kind_config.events_channel_size);
 
         let inner = Inner {
-            db: PreferredBbDb::new(storage_path, &latest_state_update).await?,
+            db: PreferredSequencerDb::new(storage_path, &latest_state_update).await?,
             latest_info: latest_state_update.clone(),
             checkpoint_sender,
             next_event_number: latest_state_update.next_event_number,
@@ -712,7 +712,7 @@ where
 
 #[tracing::instrument(skip_all, level = "trace")]
 async fn batches_to_process<S, Rt>(
-    db: &PreferredBbDb<S, Rt>,
+    db: &PreferredSequencerDb<S, Rt>,
     info: &StateUpdateInfo<S::Storage>,
 ) -> anyhow::Result<Vec<PreferredBatchToRestore>>
 where
@@ -739,7 +739,7 @@ where
     let mut batches: Vec<_> = blobs_to_apply
         .into_iter()
         .filter_map(|blob| match blob {
-            PreferredBbDbBlob::Batch(batch) => Some(PreferredBatchToRestore {
+            PreferredSequencerDbBlob::Batch(batch) => Some(PreferredBatchToRestore {
                 is_in_progress: false,
                 batch: WithCachedTxHashes {
                     inner: batch.batch.inner,

@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use axum::http::StatusCode;
-use db::StandardBbDb;
+use db::StandardSequencerDb;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::LedgerDb;
@@ -435,7 +435,7 @@ where
                     .sequencer_kind_config
                     .mempool_max_txs_count
                     .unwrap_or(default_mempool_max_txs_count()),
-                StandardBbDb::new(storage_path).await?,
+                StandardSequencerDb::new(storage_path).await?,
             )?,
         };
 

@@ -9,7 +9,7 @@ use sov_rollup_interface::common::HexString;
 use sov_rollup_interface::TxHash;
 use tracing::{debug, warn};
 
-use super::db::StandardBbDb;
+use super::db::StandardSequencerDb;
 use crate::common::{SeqDbTx, SeqDbTxId};
 use crate::{TxStatus, TxStatusManager};
 
@@ -19,7 +19,7 @@ use crate::{TxStatus, TxStatusManager};
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct Mempool<Da: DaSpec> {
-    db: StandardBbDb,
+    db: StandardSequencerDb,
     max_txs_count: NonZero<usize>,
     txsm: TxStatusManager<Da>,
     // Transaction data
@@ -35,7 +35,7 @@ impl<Da: DaSpec> Mempool<Da> {
     pub fn new(
         txsm: TxStatusManager<Da>,
         max_txs_count: NonZero<usize>,
-        db: StandardBbDb,
+        db: StandardSequencerDb,
     ) -> anyhow::Result<Self> {
         let txs = db.read_all()?;
 
