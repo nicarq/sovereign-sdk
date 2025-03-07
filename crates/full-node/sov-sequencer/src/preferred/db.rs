@@ -166,12 +166,12 @@ impl<S: Spec, R: Runtime<S>> PreferredSequencerDb<S, R> {
         &self,
         latest_state_info: &StateUpdateInfo<S::Storage>,
     ) -> anyhow::Result<Vec<PreferredSequencerDbBlob>> {
+        let mut runtime = R::default();
         let mut checkpoint =
-            StateCheckpoint::new(latest_state_info.storage.clone(), &self.runtime.kernel());
-        let mut state =
-            KernelStateAccessor::from_checkpoint(&self.runtime.kernel(), &mut checkpoint);
+            StateCheckpoint::new(latest_state_info.storage.clone(), &runtime.kernel());
+        let mut state = KernelStateAccessor::from_checkpoint(&runtime.kernel(), &mut checkpoint);
         let next_sequence_number_according_to_node =
-            self.runtime.kernel().next_sequence_number(&mut state);
+            runtime.kernel().next_sequence_number(&mut state);
 
         trace!(
             next_sequence_number_according_to_node,

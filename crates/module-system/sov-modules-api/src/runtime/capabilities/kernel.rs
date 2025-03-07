@@ -70,7 +70,7 @@ pub trait Kernel<S: Spec> {
 
     /// Record the gas usage for a given rollup height.
     fn record_gas_usage(
-        &self,
+        &mut self,
         state: &mut StateCheckpoint<S>,
         final_gas_info: BlockGasInfo<S::Gas>,
         rollup_height: RollupHeight,

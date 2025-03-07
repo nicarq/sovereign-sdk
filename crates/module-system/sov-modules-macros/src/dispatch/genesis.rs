@@ -53,7 +53,7 @@ impl GenesisMacro {
                 type Spec = #generic_param;
                 type Config = GenesisConfig #type_generics;
 
-                fn genesis(&self,
+                fn genesis(&mut self,
                     genesis_rollup_header: &<<Self::Spec as ::sov_modules_api::Spec>::Da as ::sov_modules_api::DaSpec>::BlockHeader,
                     config: &Self::Config,
                     state: &mut impl ::sov_modules_api::GenesisState<<Self as ::sov_modules_api::Genesis>::Spec>) -> core::result::Result<(), sov_modules_api::Error> {
@@ -78,7 +78,7 @@ impl GenesisMacro {
             let ident = &field.ident;
 
             quote::quote! {
-                #i => ::sov_modules_api::Genesis::genesis(&self.#ident, genesis_rollup_header, &config.#ident, state),
+                #i => ::sov_modules_api::Genesis::genesis(&mut self.#ident, genesis_rollup_header, &config.#ident, state),
             }
         });
 

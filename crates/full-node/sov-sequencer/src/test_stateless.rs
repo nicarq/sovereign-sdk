@@ -79,7 +79,7 @@ where
     }
 
     fn get_tx_hash(&self, tx: &FullyBakedTx, storage: S::Storage) -> TxHash {
-        let runtime = R::default();
+        let mut runtime = R::default();
 
         let checkpoint = StateCheckpoint::new(storage, &runtime.kernel());
         let mut tx_scratchpad = checkpoint.to_working_set_unmetered();
@@ -152,7 +152,7 @@ where
         ledger_db: LedgerDb,
         shutdown_receiver: watch::Receiver<()>,
     ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
-        let runtime = R::default();
+        let mut runtime = R::default();
         let storage = state_update_receiver.borrow().storage.clone();
         let inner = Mutex::new(Inner {
             storage: storage.clone(),

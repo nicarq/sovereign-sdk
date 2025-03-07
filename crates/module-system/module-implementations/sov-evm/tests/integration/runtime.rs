@@ -19,7 +19,6 @@ generate_bare_runtime! {
     modules: [evm: Evm<S>],
     operating_mode:OperatingMode::Zk,
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S>,
-    gas_enforcer: bank: sov_test_utils::runtime::Bank<S>,
     runtime_trait_impl_bounds: [S::Address: FromVmAddress<EthereumAddress>],
     kernel_type: sov_kernels::basic::BasicKernel<'a, S>
 }

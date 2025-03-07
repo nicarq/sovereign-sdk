@@ -93,7 +93,7 @@ impl<S: Spec> ValueSetter<S> {
     }
 
     pub(crate) fn set_values(
-        &self,
+        &mut self,
         new_value: Vec<u8>,
         context: &Context<S>,
         state: &mut impl TxState<S>,

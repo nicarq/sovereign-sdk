@@ -27,7 +27,7 @@ pub trait ChainState {
     /// # Danger
     /// This method mutates the slot number in the `KernelStateAccessor` in addition to the stored rollup state.
     fn synchronize_chain(
-        &self,
+        &mut self,
         slot_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
         pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         state_with_stale_heights: &mut KernelStateAccessor<'_, Self::Spec>,
@@ -44,7 +44,7 @@ pub trait ChainState {
     /// # Danger
     /// This method mutates the cached slot number in the `KernelStateAccessor` in addition to the stored rollup state.
     fn increment_rollup_height(
-        &self,
+        &mut self,
         state_with_partially_stale_heights: &mut KernelStateAccessor<'_, Self::Spec>,
         visible_slot_number: VisibleSlotNumber,
         user_state_root: &[u8; 32],
@@ -52,7 +52,7 @@ pub trait ChainState {
 
     /// Called at the end of a slot after all tx execution has completed.
     fn finalize_chain_state(
-        &self,
+        &mut self,
         gas_used: &<Self::Spec as Spec>::Gas,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
     );

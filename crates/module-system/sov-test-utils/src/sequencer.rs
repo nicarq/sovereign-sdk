@@ -100,7 +100,7 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
             runtime: genesis_config,
         };
 
-        let stf = TestStfBlueprint::with_runtime(runtime.clone());
+        let stf = TestStfBlueprint::with_runtime(runtime);
 
         let genesis_block = MockBlock::default();
         let (stf_state, _ledger_state) =

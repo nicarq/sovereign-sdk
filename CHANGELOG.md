@@ -1,9 +1,10 @@
+## 2025-03-07
+- #2555 **BREAKING CHANGE** The method of calculating the credential ID for public keys that are 32 bytes in size has been updated. This is a breaking change, as all addresses used in tests must be updated. See the changes in the `.json` files in PR #2555.
 ## 2025-03-06
+- #2545 **BREAKING CHANGE** requires any module methods that modify state to take `&mut self`, including `call` and `genesis`
 - #2549 **BREAKING CHANGE** RPC handlers now listen on the same port as REST API, under path `/rpc`. Update of the configuraiton is needed:
   1. Section `[runner.rpc_config]` is removed.
   2. Section `[runner.axum_config]` is renamed to `[runner.http_config]`.
-## 2025-03-07
-- #2555 **BREAKING CHANGE** The method of calculating the credential ID for public keys that are 32 bytes in size has been updated. This is a breaking change, as all addresses used in tests must be updated. See the changes in the `.json` files in PR #2555.
 ## 2025-03-04
 - #2535 Reverts the changes from #2483 and enables the proof namespaces.
 - #2536 Allows to run `sov-soak-testing` against demo-rollup on Celestia DA

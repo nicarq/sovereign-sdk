@@ -38,7 +38,7 @@ impl<S: Spec> StakeRegistration for ProverIncentives<S> {
     }
 
     fn set_allowed_staker<ST: StateAccessor>(
-        &self,
+        &mut self,
         primary_address: &Self::PrimaryAddress,
         _rollup_address: &Self::RollupAddress,
         amount: Amount,
@@ -49,29 +49,37 @@ impl<S: Spec> StakeRegistration for ProverIncentives<S> {
     }
 
     fn transfer_bond_from_staker<ST: StateAccessor>(
-        &self,
+        &mut self,
         address: &Self::RollupAddress,
         amount: Amount,
         state: &mut ST,
     ) -> anyhow::Result<()> {
-        self.bank
-            .transfer_from(address, self.id().to_payable(), gas_coins(amount), state)?;
+        self.bank.transfer_from(
+            address,
+            self.id().clone().to_payable(),
+            gas_coins(amount),
+            state,
+        )?;
         Ok(())
     }
 
     fn transfer_bond_to_staker<ST: StateAccessor>(
-        &self,
+        &mut self,
         address: &Self::RollupAddress,
         amount: Amount,
         state: &mut ST,
     ) -> anyhow::Result<()> {
-        self.bank
-            .transfer_from(self.id().to_payable(), address, gas_coins(amount), state)?;
+        self.bank.transfer_from(
+            self.id().clone().to_payable(),
+            address,
+            gas_coins(amount),
+            state,
+        )?;
         Ok(())
     }
 
     fn delete_allowed_staker<ST: StateAccessor>(
-        &self,
+        &mut self,
         address: &Self::PrimaryAddress,
         state: &mut ST,
     ) -> Result<(), <ST as sov_modules_api::StateWriter<User>>::Error> {

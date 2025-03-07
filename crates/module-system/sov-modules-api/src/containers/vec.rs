@@ -93,6 +93,10 @@ where
         &self.elems
     }
 
+    fn elems_mut(&mut self) -> &mut NamespacedStateMap<N, u64, V, Codec> {
+        &mut self.elems
+    }
+
     fn len_value(&self) -> &NamespacedStateValue<N, u64, Codec> {
         &self.len_value
     }
@@ -101,7 +105,7 @@ where
     /// If the index is out of bounds, returns an error.
     /// To push a value to the end of the `StateVec`, use [`NamespacedStateVec::push`].
     pub fn set<Vq, ReaderAndWriter>(
-        &self,
+        &mut self,
         index: u64,
         value: &Vq,
         state: &mut ReaderAndWriter,
@@ -114,7 +118,7 @@ where
         let len = self.len(state)?;
 
         Ok(if index < len {
-            self.elems().set(&index, value, state)?;
+            self.elems_mut().set(&index, value, state)?;
             Ok(())
         } else {
             Err(StateVecError::IndexOutOfBounds(index))
@@ -156,7 +160,7 @@ where
 
     /// Pushes a value to the end of the vector.
     pub fn push<Vq, ReaderAndWriter>(
-        &self,
+        &mut self,
         value: &Vq,
         state: &mut ReaderAndWriter,
     ) -> Result<(), <ReaderAndWriter as StateWriter<N>>::Error>
@@ -167,7 +171,7 @@ where
     {
         let len = self.len(state)?;
 
-        self.elems().set(&len, value, state)?;
+        self.elems_mut().set(&len, value, state)?;
         self.set_len(len + 1, state)?;
 
         Ok(())
@@ -175,7 +179,7 @@ where
 
     /// Pops a value from the end of the vector and returns it.
     pub fn pop<ReaderAndWriter: StateReaderAndWriter<N>>(
-        &self,
+        &mut self,
         state: &mut ReaderAndWriter,
     ) -> Result<Option<V>, <ReaderAndWriter as StateWriter<N>>::Error> {
         let len = self.len(state)?;
@@ -195,7 +199,7 @@ where
 
     /// Removes the value at the specified index and returns it
     pub fn remove<ReaderAndWriter: StateReaderAndWriter<N>>(
-        &self,
+        &mut self,
         index: u64,
         state: &mut ReaderAndWriter,
     ) -> Result<Option<V>, <ReaderAndWriter as StateWriter<N>>::Error> {
@@ -213,7 +217,7 @@ where
             for i in index..new_len {
                 let next_elem = self.elems().remove(&(i + 1), state)?;
                 if let Some(next_elem) = next_elem {
-                    self.elems().set(&i, &next_elem, state)?;
+                    self.elems_mut().set(&i, &next_elem, state)?;
                 }
             }
 
@@ -227,13 +231,13 @@ where
 
     /// Removes all values from this vector.
     pub fn clear<ReaderAndWriter: StateReaderAndWriter<N>>(
-        &self,
+        &mut self,
         state: &mut ReaderAndWriter,
     ) -> Result<(), <ReaderAndWriter as StateWriter<N>>::Error> {
         let len = self.len_value().remove(state)?.unwrap_or_default();
 
         for i in 0..len {
-            self.elems().delete(&i, state)?;
+            self.elems_mut().delete(&i, state)?;
         }
 
         Ok(())
@@ -244,7 +248,7 @@ where
     /// If the length of the provided values is less than the length of the
     /// vector, the remaining values will be removed from storage.
     pub fn set_all<Vq, ReaderAndWriter>(
-        &self,
+        &mut self,
         values: Vec<Vq>,
         state: &mut ReaderAndWriter,
     ) -> Result<(), <ReaderAndWriter as StateWriter<N>>::Error>
@@ -256,11 +260,11 @@ where
         let new_len = values.len() as u64;
 
         for i in new_len..old_len {
-            self.elems().delete(&i, state)?;
+            self.elems_mut().delete(&i, state)?;
         }
 
         for (i, value) in values.into_iter().enumerate() {
-            self.elems().set(&(i as u64), &value, state)?;
+            self.elems_mut().set(&(i as u64), &value, state)?;
         }
 
         self.set_len(new_len, state)
@@ -422,7 +426,7 @@ mod test {
             StateCheckpoint::new(storage, &MockKernel::<TestSpec>::default());
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
-        let state_vec = StateVec::<u32>::with_codec(prefix, BorshCodec);
+        let mut state_vec = StateVec::<u32>::with_codec(prefix, BorshCodec);
 
         state_vec.push(&0, &mut state).unwrap();
         state_vec.push(&1, &mut state).unwrap();
@@ -444,7 +448,7 @@ mod test {
             StateCheckpoint::new(storage, &MockKernel::<TestSpec>::default());
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
-        let state_vec = StateVec::<u32>::with_codec(prefix, BorshCodec);
+        let mut state_vec = StateVec::<u32>::with_codec(prefix, BorshCodec);
 
         state_vec.push(&0, &mut state).unwrap();
         state_vec.push(&1, &mut state).unwrap();
@@ -467,10 +471,10 @@ mod test {
             StateCheckpoint::new(storage, &MockKernel::<TestSpec>::default());
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
-        let state_vec = StateVec::<u32>::with_codec(prefix, BorshCodec);
+        let mut state_vec = StateVec::<u32>::with_codec(prefix, BorshCodec);
 
         for test_case_action in test_cases() {
-            check_test_case_action(&state_vec, test_case_action, &mut state);
+            check_test_case_action(&mut state_vec, test_case_action, &mut state);
         }
     }
     enum TestCaseAction<T> {
@@ -524,7 +528,7 @@ mod test {
     }
 
     fn check_test_case_action<N, T, W>(
-        state_vec: &NamespacedStateVec<N, T>,
+        state_vec: &mut NamespacedStateVec<N, T>,
         action: TestCaseAction<T>,
         state: &mut W,
     ) where

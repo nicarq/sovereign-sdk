@@ -36,7 +36,6 @@ fn setup() -> (TestRunner<TestRuntime<S>, S>, TestUser<S>, TestUser<S>) {
 
 #[test]
 fn test_setting_value() {
-    initialize_logging();
     let (mut runner, admin, _) = setup();
 
     runner.execute_transaction(TransactionTestCase {

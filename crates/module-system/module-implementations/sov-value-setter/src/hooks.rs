@@ -14,7 +14,7 @@ impl<S: Spec> BlockHooks for ValueSetter<S> {
     type Spec = S;
     /// Hook that runs at the beginning of the `apply_slot` function inside the `StateTransitionFunction`.
     fn begin_rollup_block_hook(
-        &self,
+        &mut self,
         _visible_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         state: &mut StateCheckpoint<Self::Spec>,
     ) {
@@ -30,7 +30,7 @@ impl<S: Spec> BlockHooks for ValueSetter<S> {
     }
 
     /// Hook that runs at the end of the `apply_slot` function inside the `StateTransitionFunction`.
-    fn end_rollup_block_hook(&self, state: &mut StateCheckpoint<Self::Spec>) {
+    fn end_rollup_block_hook(&mut self, state: &mut StateCheckpoint<Self::Spec>) {
         let next_value = self
             .end_rollup_block_hook_count
             .get(state)
@@ -47,7 +47,7 @@ impl<S: Spec> BlockHooks for ValueSetter<S> {
 impl<S: Spec> FinalizeHook for ValueSetter<S> {
     type Spec = S;
     fn finalize_hook(
-        &self,
+        &mut self,
         _root_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         state: &mut impl AccessoryStateReaderAndWriter,
     ) {

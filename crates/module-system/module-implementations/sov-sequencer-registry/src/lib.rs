@@ -186,7 +186,7 @@ impl<S: Spec> Module for SequencerRegistry<S> {
     type Event = Event<S>;
 
     fn genesis(
-        &self,
+        &mut self,
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
@@ -195,7 +195,7 @@ impl<S: Spec> Module for SequencerRegistry<S> {
     }
 
     fn call(
-        &self,
+        &mut self,
         message: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
@@ -245,7 +245,7 @@ impl<S: Spec> SequencerRegistry<S> {
     /// Retrieves the escrowed funds and transfers the amount needed for pre-execution checks to the bank module.
     /// The remaining amount is transferred back to the selected recipient.
     pub fn retrieve_funds_from_escrow(
-        &self,
+        &mut self,
         holder: &DerivedHolder,
         recipient: &S::Address,
         tokens_needed_for_pre_exec_checks: Amount,
@@ -280,7 +280,7 @@ impl<S: Spec> SequencerRegistry<S> {
         self.bank
             .transfer_from(
                 holder.to_payable(),
-                self.bank.id().to_payable(),
+                self.bank.id().clone().to_payable(),
                 gas_coins(tokens_needed_for_pre_exec_checks),
                 state,
             )
@@ -290,7 +290,7 @@ impl<S: Spec> SequencerRegistry<S> {
 
     /// Refunds the holder for the unneeded reserved gas.
     pub fn refund_all_reserved_gas(
-        &self,
+        &mut self,
         holder: &DerivedHolder,
         recipient: &S::Address,
         state: &mut impl InfallibleStateAccessor,
@@ -391,7 +391,7 @@ impl<S: Spec> SequencerRegistry<S> {
             + StateReader<User, Error = Infallible>
             + StateWriter<User, Error = Infallible>,
     >(
-        &self,
+        &mut self,
         da_address: &<S::Da as DaSpec>::Address,
         state: &mut Accessor,
     ) {

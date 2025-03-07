@@ -49,19 +49,7 @@ fn setup_dynamic_gas_update_tests() -> (TestData<S>, TestRunner<TestChainStateRu
     let mut gas_limit = <S as Spec>::Gas::from(config_value!("INITIAL_GAS_LIMIT"));
     let gas_target = gas_limit.scalar_division(2);
 
-    let zero_gas = <S as Spec>::Gas::zero();
-
-    let mut runtime = TestChainStateRuntime::<S>::default();
-
-    runtime
-        .bank
-        .override_gas_config(sov_bank::BankGasConfig::<<S as Spec>::Gas> {
-            mint: gas_target.clone(),
-            burn: zero_gas.clone(),
-            create_token: zero_gas.clone(),
-            transfer: zero_gas.clone(),
-            freeze: zero_gas.clone(),
-        });
+    let runtime = TestChainStateRuntime::<S>::default();
 
     let runner = TestRunner::new_with_genesis(genesis.into_genesis_params(), runtime);
 
@@ -79,21 +67,16 @@ fn setup_dynamic_gas_update_tests() -> (TestData<S>, TestRunner<TestChainStateRu
 fn test_gas_price_increases_if_gas_used_exceeds_gas_target() {
     let (
         TestData {
-            gas_target,
-            token_name,
-            user,
+            gas_target, user, ..
         },
         mut runner,
     ) = setup_dynamic_gas_update_tests();
 
     runner.execute_transaction(TransactionTestCase {
         input: user
-            .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Mint {
-                coins: Coins {
-                    amount: Amount::new(1),
-                    token_id: token_name.id(),
-                },
-                mint_to_address: user.address(),
+            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue {
+                value: 1,
+                gas: Some(gas_target.clone()),
             })
             .with_max_fee(Amount::from(u64::MAX / 2)),
         assert: Box::new(move |result, _| {

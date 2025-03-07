@@ -34,7 +34,7 @@ pub struct ChainStateConfig<S: Spec> {
 
 impl<S: Spec> ChainState<S> {
     pub(crate) fn init_module(
-        &self,
+        &mut self,
         genesis_slot_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &<Self as Module>::Config,
         state: &mut impl GenesisState<S>,

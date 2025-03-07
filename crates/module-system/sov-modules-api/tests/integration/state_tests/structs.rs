@@ -19,7 +19,7 @@ pub trait StateThing {
     fn value(&self, state: &mut impl InfallibleStateAccessor) -> Self::Value;
 
     /// Changes itself in the underlying infallible state accessor
-    fn change(&self, state: &mut impl InfallibleStateAccessor);
+    fn change(&mut self, state: &mut impl InfallibleStateAccessor);
 }
 
 pub enum Condition {
@@ -45,7 +45,7 @@ impl StateThing for StateValueSet {
             .expect("Value wasn't set")
     }
 
-    fn change(&self, state: &mut impl InfallibleStateAccessor) {
+    fn change(&mut self, state: &mut impl InfallibleStateAccessor) {
         let mut value = self.value(state);
         value += 1;
         self.0.set(&value, state).unwrap_infallible();
@@ -58,7 +58,7 @@ impl StateThing for StateVecSet {
     type Value = Vec<u32>;
 
     fn create(state: &mut impl InfallibleStateAccessor) -> Self {
-        let state_vec = StateVec::with_codec(Prefix::new(vec![0]), BorshCodec);
+        let mut state_vec = StateVec::with_codec(Prefix::new(vec![0]), BorshCodec);
         state_vec
             .set_all(vec![10, 20, 30, 40, 50, 60], state)
             .unwrap_infallible();
@@ -69,7 +69,7 @@ impl StateThing for StateVecSet {
         self.0.collect_infallible(state)
     }
 
-    fn change(&self, state: &mut impl InfallibleStateAccessor) {
+    fn change(&mut self, state: &mut impl InfallibleStateAccessor) {
         let mut value = self.value(state);
         for v in value.iter_mut() {
             *v += 1;
@@ -84,7 +84,7 @@ impl StateThing for StateVecPush {
     type Value = Vec<u32>;
 
     fn create(state: &mut impl InfallibleStateAccessor) -> Self {
-        let state_vec = StateVec::with_codec(Prefix::new(vec![0]), BorshCodec);
+        let mut state_vec = StateVec::with_codec(Prefix::new(vec![0]), BorshCodec);
         state_vec.set_all(vec![10], state).unwrap_infallible();
         StateVecPush(state_vec)
     }
@@ -93,7 +93,7 @@ impl StateThing for StateVecPush {
         self.0.collect_infallible(state)
     }
 
-    fn change(&self, state: &mut impl InfallibleStateAccessor) {
+    fn change(&mut self, state: &mut impl InfallibleStateAccessor) {
         let value = self
             .0
             .get(0, state)
@@ -109,7 +109,7 @@ impl StateThing for StateVecRemove {
     type Value = Vec<u32>;
 
     fn create(state: &mut impl InfallibleStateAccessor) -> Self {
-        let state_vec = StateVec::with_codec(Prefix::new(vec![0]), BorshCodec);
+        let mut state_vec = StateVec::with_codec(Prefix::new(vec![0]), BorshCodec);
         state_vec
             .set_all(vec![3u32; 100], state)
             .unwrap_infallible();
@@ -120,7 +120,7 @@ impl StateThing for StateVecRemove {
         self.0.collect_infallible(state)
     }
 
-    fn change(&self, state: &mut impl InfallibleStateAccessor) {
+    fn change(&mut self, state: &mut impl InfallibleStateAccessor) {
         self.0.pop(state).unwrap_infallible();
     }
 }
@@ -143,7 +143,7 @@ impl Condition {
 
     fn process_thing<S: Spec, St: StateThing>(
         &self,
-        thing: &St,
+        thing: &mut St,
         mut working_set: WorkingSet<S>,
     ) -> WorkingSet<S> {
         let value_before = thing.value(&mut working_set.to_unmetered());
@@ -186,11 +186,11 @@ pub fn test_state_thing<S: Spec<Storage = ProverStorage<StorageSpec>>, St: State
     let simple_storage_manager = SimpleStorageManager::new();
     let storage: ProverStorage<StorageSpec> = simple_storage_manager.create_storage();
     let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S>::default());
-    let thing = St::create(&mut state);
+    let mut thing = St::create(&mut state);
     let mut working_set = state.to_working_set_unmetered();
 
     for condition in conditions {
-        working_set = condition.process_thing(&thing, working_set);
+        working_set = condition.process_thing(&mut thing, working_set);
     }
 }
 

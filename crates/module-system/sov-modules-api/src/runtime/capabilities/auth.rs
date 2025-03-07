@@ -98,7 +98,7 @@ pub trait TransactionAuthenticator<S: Spec> {
 pub trait TransactionAuthorizer<S: Spec> {
     /// Resolves the [`Context`] for a transaction.
     fn resolve_context(
-        &self,
+        &mut self,
         auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         sequencer_rollup_address: S::Address,
@@ -107,7 +107,7 @@ pub trait TransactionAuthorizer<S: Spec> {
 
     /// Resolves the context for an unregistered transaction.
     fn resolve_unregistered_context(
-        &self,
+        &mut self,
         auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         state: &mut impl StateAccessor,
@@ -123,7 +123,7 @@ pub trait TransactionAuthorizer<S: Spec> {
 
     /// Marks a transaction as having been executed, preventing it from executing again.
     fn mark_tx_attempted(
-        &self,
+        &mut self,
         auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         state: &mut impl StateAccessor,

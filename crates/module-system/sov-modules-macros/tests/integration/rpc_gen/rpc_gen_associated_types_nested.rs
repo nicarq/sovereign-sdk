@@ -71,7 +71,7 @@ pub mod my_module {
         type Event = ();
 
         fn genesis(
-            &self,
+            &mut self,
             _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
 
             config: &Self::Config,
@@ -82,7 +82,7 @@ pub mod my_module {
         }
 
         fn call(
-            &self,
+            &mut self,
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             state: &mut impl TxState<S>,

@@ -183,6 +183,7 @@ where
     #[tracing::instrument(skip_all, name = "StfBlueprint::materialize_slot")]
     pub fn materialize_slot(
         &self,
+        runtime: &mut RT,
         create_rollup_block: bool,
         checkpoint: StateCheckpoint<S>,
     ) -> MaterializedUpdate<S::Storage> {
@@ -195,13 +196,12 @@ where
         // Special case: at genesis, we save the genesis root to the accessory state here. This ensure's it's available even before
         // the next slot causes `synchronize_chain` to be called.
         if rollup_height == RollupHeight::GENESIS
-            && self
-                .runtime
+            && runtime
                 .chain_state()
                 .genesis_root(&mut accessory_delta)
                 .is_none()
         {
-            self.runtime
+            runtime
                 .chain_state()
                 .save_genesis_root(&mut accessory_delta, &next_root_hash);
         }
@@ -216,17 +216,15 @@ where
             let next_visible_hash = if rollup_height.saturating_sub(state_root_delay_blocks)
                 == RollupHeight::GENESIS
             {
-                self.runtime
+                runtime
                     .chain_state()
                     .genesis_root(&mut accessory_delta).expect("genesis root must be set on first iteration of `materialize_slot`. This is a bug - please report it")
             } else {
-                self.runtime.chain_state().visible_hash_with_accessory_state(rollup_height.saturating_add(1), &mut accessory_delta)
+                runtime.chain_state().visible_hash_with_accessory_state(rollup_height.saturating_add(1), &mut accessory_delta)
                     .expect("next visible hash must be known in advance, but was unable to get it for rollup height {}. This is a bug - please report it")
             };
 
-            // Invoke the finalize hook and save the accessory state changes.
-            self.runtime
-                .finalize_hook(&next_visible_hash, &mut accessory_delta);
+            runtime.finalize_hook(&next_visible_hash, &mut accessory_delta);
         }
         state_update.add_accessory_items(accessory_delta.freeze());
         let change_set = storage.materialize_changes(&state_update);
@@ -298,15 +296,16 @@ where
         pre_state: Self::PreState,
         params: Self::GenesisParams,
     ) -> (Self::StateRoot, Self::ChangeSet) {
+        let mut runtime = RT::default();
         // Sanity checks.
         assert!(<S as GasSpec>::process_tx_pre_exec_checks_gas()
             .dim_is_less_than(&<S as GasSpec>::max_tx_check_costs()), "Gas misconfiguration: PROCESS_TX_PRE_EXEC_GAS must be less than MAX_SEQUENCER_EXEC_GAS_PER_TX");
-        let mut state_checkpoint = StateCheckpoint::new(pre_state, &self.runtime.kernel());
+        let mut state_checkpoint = StateCheckpoint::new(pre_state, &runtime.kernel());
 
         let mut genesis_accessor =
             state_checkpoint.to_genesis_state_accessor::<RT>(&params.runtime);
 
-        if let Err(e) = self.runtime.genesis(
+        if let Err(e) = runtime.genesis(
             genesis_rollup_header,
             &params.runtime,
             &mut genesis_accessor,
@@ -316,7 +315,8 @@ where
         }
 
         #[cfg(feature = "native")]
-        let (genesis_hash, _, change_set, _) = self.materialize_slot(true, state_checkpoint);
+        let (genesis_hash, _, change_set, _) =
+            self.materialize_slot(&mut runtime, true, state_checkpoint);
         #[cfg(not(feature = "native"))]
         let (genesis_hash, _, change_set) = self.materialize_slot(true, state_checkpoint);
 
@@ -376,6 +376,7 @@ where
         relevant_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         execution_context: ExecutionContext,
     ) -> ApplySlotOutput<S::InnerZkvm, S::OuterZkvm, S::Da, Self> {
+        let mut runtime = RT::default();
         // Sanity check that gas limits are set correctly. This is already checked at genesis, but we check again in case
         // Someone modifies the code after genesis.
         assert!(<S as GasSpec>::process_tx_pre_exec_checks_gas()
@@ -383,11 +384,11 @@ where
 
         start_timer!(start_slot);
 
-        let mut state = StateCheckpoint::with_witness(pre_state, witness, &self.runtime.kernel());
+        let mut state = StateCheckpoint::with_witness(pre_state, witness, &runtime.kernel());
         // First, we bootstrap the kernel from the previous state. The
         // `true_slot_number`, will *always* be stale because it's leftover from the
         // previous slot.
-        let mut kernel_with_stale_heights = self.runtime.kernel().accessor(&mut state);
+        let mut kernel_with_stale_heights = runtime.kernel().accessor(&mut state);
 
         // `visible_slot_number`, and `rollup_height` may or may not be stale. If we don't produce a rollup block,
         // during this slot, then the visible slot number and rollup height will not progress, so the old values are still accurate.
@@ -402,7 +403,7 @@ where
         // Be careful to respect the call order: the `ChainState` hooks MUST
         // be called before the `BlobStorage`'s, which MUST be called before
         // the `Runtime`'s slot hooks.
-        self.runtime.chain_state().synchronize_chain(
+        runtime.chain_state().synchronize_chain(
             slot_header,
             pre_state_root,
             &mut kernel_with_stale_heights,
@@ -416,8 +417,11 @@ where
         );
 
         tracing::trace!("Selecting blobs");
-        let blob_selector_output = self
-            .select_and_validate_blobs(relevant_blobs, &mut kernel_with_partially_stale_heights);
+        let blob_selector_output = self.select_and_validate_blobs(
+            &mut runtime,
+            relevant_blobs,
+            &mut kernel_with_partially_stale_heights,
+        );
         tracing::trace!("Done selecting blobs");
 
         // The blob selector *must* not mutate the visible slot number or rollup height internally. instead, it must return an output
@@ -439,7 +443,7 @@ where
                 .advance(blob_selector_output.visible_slot_number_increase);
 
             // "Increment rollup height" updates the rollup state to reflect the new rollup block and visible slot numbers and modifies the accessor's cached heights.
-            self.runtime.chain_state().increment_rollup_height(
+            runtime.chain_state().increment_rollup_height(
                 &mut kernel_with_partially_stale_heights,
                 visible_slot_number,
                 &pre_state_root.namespace_root(sov_state::ProvableNamespace::User),
@@ -470,8 +474,7 @@ where
         let new_rollup_height = kernel.rollup_height_to_access();
 
         // Compute the state root to show to transactions during execution.
-        let visible_hash = self
-            .runtime
+        let visible_hash = runtime
             .chain_state()
             .visible_hash_for(new_rollup_height, &mut kernel)
             .expect("The current visible hash should be possible to compute at this point because the chain-state should have synchronized. This is a bug. Please report it.");
@@ -482,15 +485,16 @@ where
 
         let (total_gas, proof_receipts, batch_receipts, mut state) = self
             .apply_batches_in_user_space(
+                &mut runtime,
                 blob_selector_output,
                 state,
                 execution_context,
                 visible_hash,
             );
 
-        let mut kernel_state_accessor = self.runtime.kernel().accessor(&mut state);
+        let mut kernel_state_accessor = runtime.kernel().accessor(&mut state);
 
-        self.runtime
+        runtime
             .chain_state()
             .finalize_chain_state(&total_gas, &mut kernel_state_accessor);
 
@@ -508,7 +512,7 @@ where
 
                 // Note the call to materialize slot mixed in with metrics operations here.
                 let (state_root, witness, change_set, _) =
-                    self.materialize_slot(create_rollup_block, state);
+                    self.materialize_slot(&mut runtime, create_rollup_block, state);
 
                 let slot_finalization_time = slot_finalization_start.elapsed();
                 sov_metrics::track_metrics(|tracker| {
@@ -543,10 +547,11 @@ where
     #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
     fn select_and_validate_blobs(
         &self,
+        runtime: &mut RT,
         relevant_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         kernel: &mut KernelStateAccessor<S>,
     ) -> BlobSelectorOutput<SelectedBlob<S>> {
-        self.runtime
+        runtime
             .blob_selector()
             .get_blobs_for_this_slot(relevant_blobs, kernel)
             .expect("blob selection must succeed, probably serialization failed")
@@ -587,6 +592,7 @@ where
     #[tracing::instrument(skip_all, fields(context=?execution_context), level = "debug")]
     pub fn apply_batches_in_user_space<B: IncrementalBatch<TransactionReceipt<S>, S>>(
         &self,
+        runtime: &mut RT,
         blob_selector_output: BlobSelectorOutput<SelectedBlob<S, B>>,
         mut state: StateCheckpoint<S>,
         execution_context: ExecutionContext,
@@ -608,11 +614,10 @@ where
 
         // Note: The gas price should be computed after all the capabilities involving the [`KernelStateAccessor`] to have the
         // most recent version of the visible rollup height.
-        let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut state).expect("The base fee per gas for the current slot should be known at this point! This is a bug. Please report it");
-        let block_gas_limit = self.runtime.chain_state().block_gas_limit(&mut state).expect("The slot gas limit for the current slot should be known at this point! This is a bug. Please report it");
+        let gas_price = runtime.chain_state().base_fee_per_gas(&mut state).expect("The base fee per gas for the current slot should be known at this point! This is a bug. Please report it");
+        let block_gas_limit = runtime.chain_state().block_gas_limit(&mut state).expect("The slot gas limit for the current slot should be known at this point! This is a bug. Please report it");
 
-        let preferred_sequencer = self
-            .runtime
+        let preferred_sequencer = runtime
             .sequencer_remuneration()
             .preferred_sequencer(&mut state);
 
@@ -633,7 +638,7 @@ where
         // predict the user space state when executing priority blobs.
         start_timer!(begin_slot_start);
         if creates_rollup_block {
-            BlockHooks::begin_rollup_block_hook(&self.runtime, &visible_hash, &mut state);
+            BlockHooks::begin_rollup_block_hook(runtime, &visible_hash, &mut state);
         }
         save_elapsed!(begin_block_hook_time SINCE begin_slot_start);
 
@@ -658,7 +663,7 @@ where
                     let sequencer_bond = reserved_gas_tokens
                         .expect("Batches from registered sequencers must have reserved gas tokens");
                     let (batch_receipt, next_checkpoint) = registered::apply_batch::<S, RT, B>(
-                        &self.runtime,
+                        runtime,
                         state,
                         &mut slot_gas_meter,
                         batch,
@@ -692,7 +697,7 @@ where
                     let slot_gas = slot_gas_meter.remaining_slot_gas(&sender);
                     assert!(reserved_gas_tokens.is_none(), "Emergency registration transactions come from unknown sequenceerrs, so gas cannot be reserved. This is a bug.");
                     let (batch_receipt, next_checkpoint) = unregistered::apply_batch::<S, RT>(
-                        &self.runtime,
+                        runtime,
                         state,
                         slot_gas,
                         BatchFromUnregisteredSequencer { tx, id },
@@ -720,6 +725,7 @@ where
                     let sequencer_bond = reserved_gas_tokens
                         .expect("Proofs always come from registered sequencers and must have reserved gas tokens");
                     let (receipt, next_checkpoint, gas_used) = self.process_proof(
+                        runtime,
                         id,
                         slot_gas,
                         &sender,
@@ -747,11 +753,11 @@ where
         // Note that we run the end-slot hooks even in non-native mode, which is why this can't
         // be a single "native" block
         if creates_rollup_block {
-            BlockHooks::end_rollup_block_hook(&self.runtime, &mut state);
+            BlockHooks::end_rollup_block_hook(runtime, &mut state);
             let mut block_gas_info = BlockGasInfo::new(block_gas_limit, gas_price);
             block_gas_info.update_gas_used(slot_gas_meter.total_gas_used());
             let rollup_height = state.rollup_height_to_access();
-            self.runtime
+            runtime
                 .kernel()
                 .record_gas_usage(&mut state, block_gas_info, rollup_height);
         }

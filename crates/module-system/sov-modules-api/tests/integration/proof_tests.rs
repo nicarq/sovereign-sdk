@@ -22,7 +22,7 @@ fn make_user_map_proof(
     let mut storage_manager = SimpleStorageManager::new();
     let storage = storage_manager.create_storage();
     let mut state = StateCheckpoint::<S>::new(storage.clone(), &kernel);
-    let map = StateMap::with_codec(Prefix::new(vec![0]), BorshCodec);
+    let mut map = StateMap::with_codec(Prefix::new(vec![0]), BorshCodec);
     map.set(&key, &value, &mut state).unwrap_infallible();
 
     let (cache_log, _, witness) = state.freeze();

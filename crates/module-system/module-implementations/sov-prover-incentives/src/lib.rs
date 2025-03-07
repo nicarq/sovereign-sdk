@@ -71,7 +71,7 @@ impl<S: Spec> sov_modules_api::Module for ProverIncentives<S> {
     type Event = Event<S>;
 
     fn genesis(
-        &self,
+        &mut self,
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
@@ -81,7 +81,7 @@ impl<S: Spec> sov_modules_api::Module for ProverIncentives<S> {
     }
 
     fn call(
-        &self,
+        &mut self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,

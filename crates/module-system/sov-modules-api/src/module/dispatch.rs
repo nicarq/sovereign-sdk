@@ -72,7 +72,7 @@ pub trait DispatchCall: Send + Sync {
 
     /// Dispatches a call message to the appropriate module.
     fn dispatch_call<I: StateProvider<Self::Spec>>(
-        &self,
+        &mut self,
         message: Self::Decodable,
         state: &mut WorkingSet<Self::Spec, I>,
         context: &Context<Self::Spec>,

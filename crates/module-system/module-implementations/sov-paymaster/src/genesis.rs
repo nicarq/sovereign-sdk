@@ -41,7 +41,7 @@ pub struct PayerGenesisConfig<S: Spec> {
 
 impl<S: Spec> Paymaster<S> {
     pub(crate) fn init_module(
-        &self,
+        &mut self,
         config: &<Self as Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {

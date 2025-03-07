@@ -13,7 +13,7 @@ impl<S: Spec> BlockHooks for Evm<S> {
     type Spec = S;
     /// Logic executed at the beginning of the slot. Here we set the root hash of the previous head.
     fn begin_rollup_block_hook(
-        &self,
+        &mut self,
         pre_state_user_root: &<S::Storage as Storage>::Root,
         state: &mut StateCheckpoint<S>,
     ) {
@@ -64,7 +64,7 @@ impl<S: Spec> BlockHooks for Evm<S> {
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_rollup_block_hook of the next slot.
-    fn end_rollup_block_hook(&self, state: &mut StateCheckpoint<S>) {
+    fn end_rollup_block_hook(&mut self, state: &mut StateCheckpoint<S>) {
         let cfg = self.cfg.get(state).unwrap_infallible().unwrap_or_default();
 
         let block_env = self
@@ -197,7 +197,7 @@ impl<S: Spec> FinalizeHook for Evm<S> {
     /// This function's purpose is to add the block to the (non-authenticated) blocks structure,
     /// enabling block-related RPC queries.
     fn finalize_hook(
-        &self,
+        &mut self,
         root_hash: &<S::Storage as Storage>::Root,
         state: &mut impl AccessoryStateReaderAndWriter,
     ) {

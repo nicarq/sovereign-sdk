@@ -38,27 +38,27 @@ type AttesterRegistryError<S: Spec, ST: StateAccessor> = RegistrationError<
 >;
 
 struct Staker<'a, S: Spec> {
-    bonded_stakers: &'a StateMap<S::Address, Amount>,
-    minimum_bond: &'a StateValue<S::Gas>,
-    bank: &'a sov_bank::Bank<S>,
+    bonded_stakers: &'a mut StateMap<S::Address, Amount>,
+    minimum_bond: &'a mut StateValue<S::Gas>,
+    bank: &'a mut sov_bank::Bank<S>,
     id: &'a ModuleId,
 }
 
 impl<'a, S: Spec> Staker<'a, S> {
-    fn new_challenger(attester_incentives: &'a AttesterIncentives<S>) -> Self {
+    fn new_challenger(attester_incentives: &'a mut AttesterIncentives<S>) -> Self {
         Self {
-            bonded_stakers: &attester_incentives.bonded_challengers,
-            minimum_bond: &attester_incentives.minimum_challenger_bond,
-            bank: &attester_incentives.bank,
+            bonded_stakers: &mut attester_incentives.bonded_challengers,
+            minimum_bond: &mut attester_incentives.minimum_challenger_bond,
+            bank: &mut attester_incentives.bank,
             id: &attester_incentives.id,
         }
     }
 
-    fn new_attester(attester_incentives: &'a AttesterIncentives<S>) -> Self {
+    fn new_attester(attester_incentives: &'a mut AttesterIncentives<S>) -> Self {
         Self {
-            bonded_stakers: &attester_incentives.bonded_attesters,
-            minimum_bond: &attester_incentives.minimum_attester_bond,
-            bank: &attester_incentives.bank,
+            bonded_stakers: &mut attester_incentives.bonded_attesters,
+            minimum_bond: &mut attester_incentives.minimum_attester_bond,
+            bank: &mut attester_incentives.bank,
             id: &attester_incentives.id,
         }
     }
@@ -99,7 +99,7 @@ where
     }
 
     fn set_allowed_staker<ST: StateAccessor>(
-        &self,
+        &mut self,
         _primary_address: &Self::PrimaryAddress,
         rollup_address: &Self::RollupAddress,
         amount: Amount,
@@ -110,7 +110,7 @@ where
     }
 
     fn transfer_bond_from_staker<ST: StateAccessor>(
-        &self,
+        &mut self,
         address: &Self::RollupAddress,
         amount: Amount,
         state: &mut ST,
@@ -121,7 +121,7 @@ where
     }
 
     fn transfer_bond_to_staker<ST: StateAccessor>(
-        &self,
+        &mut self,
         address: &Self::RollupAddress,
         amount: Amount,
         state: &mut ST,
@@ -132,7 +132,7 @@ where
     }
 
     fn delete_allowed_staker<ST: StateAccessor>(
-        &self,
+        &mut self,
         address: &Self::PrimaryAddress,
         state: &mut ST,
     ) -> Result<(), <ST as sov_modules_api::StateWriter<sov_state::User>>::Error> {

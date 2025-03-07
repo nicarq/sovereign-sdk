@@ -36,7 +36,7 @@ impl<S: Spec> Bank<S> {
     /// This method loosely follows the-EIP 1559 gas price calculation.
     #[allow(clippy::result_large_err)]
     pub fn reserve_gas(
-        &self,
+        &mut self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         payer: &S::Address,
@@ -82,9 +82,10 @@ impl<S: Spec> Bank<S> {
         // We actually **need** to do that transfer because the payer account balance may change during the execution of the transaction.
         // Only do this after all checks have passed because the paymaster does not revert on error, so
         // any state changes may persist!
+        let id = self.id;
         if let Err(err) = self.transfer_from(
             payer,
-            self.id.to_payable(),
+            id.to_payable(),
             Coins {
                 amount: tx.0.max_fee,
                 token_id: config_gas_token_id(),

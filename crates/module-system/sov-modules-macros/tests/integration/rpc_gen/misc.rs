@@ -48,7 +48,7 @@ where
     type Event = ();
 
     fn genesis(
-        &self,
+        &mut self,
         _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
 
         _config: &Self::Config,
@@ -58,7 +58,7 @@ where
     }
 
     fn call(
-        &self,
+        &mut self,
         _msg: Self::CallMessage,
         _context: &sov_modules_api::Context<Self::Spec>,
         _state: &mut impl sov_modules_api::TxState<S>,

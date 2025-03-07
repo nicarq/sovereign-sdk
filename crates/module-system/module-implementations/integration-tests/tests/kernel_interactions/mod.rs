@@ -42,7 +42,7 @@ impl<S: Spec> Module for TestVisibleHashModule<S> {
     type Event = ();
 
     fn genesis(
-        &self,
+        &mut self,
         _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
 
         _config: &Self::Config,
@@ -52,7 +52,7 @@ impl<S: Spec> Module for TestVisibleHashModule<S> {
     }
 
     fn call(
-        &self,
+        &mut self,
         _msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
         _state: &mut impl TxState<S>,
@@ -65,7 +65,7 @@ impl<S: Spec> BlockHooks for TestVisibleHashModule<S> {
     type Spec = S;
 
     fn begin_rollup_block_hook(
-        &self,
+        &mut self,
         visible_hash: &<<S as Spec>::Storage as Storage>::Root,
         state: &mut StateCheckpoint<Self::Spec>,
     ) {
@@ -79,7 +79,7 @@ impl<S: Spec> FinalizeHook for TestVisibleHashModule<S> {
     type Spec = S;
 
     fn finalize_hook(
-        &self,
+        &mut self,
         visible_hash: &<S::Storage as Storage>::Root,
         state: &mut impl AccessoryStateReaderAndWriter,
     ) {

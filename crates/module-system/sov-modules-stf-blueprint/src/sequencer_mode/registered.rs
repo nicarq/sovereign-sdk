@@ -31,7 +31,7 @@ use crate::{
 #[cfg_attr(feature = "native", tracing::instrument(skip_all, name = "StfBlueprint::process_tx", fields(context = ?execution_context)))]
 #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 pub fn process_tx_and_reward_prover<S, R, I, C>(
-    runtime: &R,
+    runtime: &mut R,
     pre_exec_working_set: PreExecWorkingSet<S, I>,
     slot_gas: &S::Gas,
     validated_output: AuthTxOutput<S, R>,
@@ -119,7 +119,7 @@ fn track_transaction_metrics<S: Spec>(
 /// this method must return Ok(()) and handle any sequencer rewards internally.
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
 fn process_tx_and_reward_prover_inner<S, R, I, C>(
-    runtime: &R,
+    runtime: &mut R,
     mut pre_exec_working_set: PreExecWorkingSet<S, I>,
     slot_gas: &S::Gas,
     validated_output: AuthTxOutput<S, R>,
@@ -292,7 +292,7 @@ impl<S: Spec> IncrementalBatchReceipt<S> {
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 pub(crate) fn apply_batch<S, RT, B>(
-    runtime: &RT,
+    runtime: &mut RT,
     mut checkpoint: StateCheckpoint<S>,
     slot_gas_meter: &mut SlotGasMeter<S>,
     mut batch_with_id: B,
@@ -541,7 +541,7 @@ struct AuthAndProcessOutput<S: Spec, I: StateProvider<S>> {
 }
 
 fn penalize_sequencer<S: Spec, RT: Runtime<S>, I: StateProvider<S>>(
-    runtime: &RT,
+    runtime: &mut RT,
     auth_cost: Amount,
     sequencer_address: &S::Address,
     tx_scratchpad: &mut TxScratchpad<S, I>,
@@ -557,7 +557,7 @@ fn penalize_sequencer<S: Spec, RT: Runtime<S>, I: StateProvider<S>>(
 #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 #[allow(clippy::too_many_arguments)]
 fn auth_and_process_tx_and_incentivize_sequencer<S, RT, I, C>(
-    runtime: &RT,
+    runtime: &mut RT,
     scratchpad: TxScratchpad<S, I>,
     slot_gas: &S::Gas,
     raw_tx: &FullyBakedTx,

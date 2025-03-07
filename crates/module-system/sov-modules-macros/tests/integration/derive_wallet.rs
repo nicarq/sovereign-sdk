@@ -44,7 +44,7 @@ pub mod first_test_module {
         type Event = ();
 
         fn genesis(
-            &self,
+            &mut self,
             _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
 
             _config: &Self::Config,
@@ -54,7 +54,7 @@ pub mod first_test_module {
         }
 
         fn call(
-            &self,
+            &mut self,
             _msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             _state: &mut impl TxState<S>,
@@ -102,7 +102,7 @@ pub mod second_test_module {
         type Event = ();
 
         fn genesis(
-            &self,
+            &mut self,
             _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
 
             _config: &Self::Config,
@@ -112,7 +112,7 @@ pub mod second_test_module {
         }
 
         fn call(
-            &self,
+            &mut self,
             _msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             _state: &mut impl TxState<S>,

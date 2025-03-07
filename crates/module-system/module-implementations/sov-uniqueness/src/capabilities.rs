@@ -34,7 +34,7 @@ impl<S: Spec> Uniqueness<S> {
     /// # Errors
     /// May return an error if state access fails (e.g if we run out of gas) or if an overflow occurs (in the `check_generation_uniqueness` case).
     pub fn mark_tx_attempted(
-        &self,
+        &mut self,
         credential_id: &CredentialId,
         transaction_generation: UniquenessData,
         transaction_hash: TxHash,

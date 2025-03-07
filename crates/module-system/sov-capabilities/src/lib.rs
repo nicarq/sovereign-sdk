@@ -26,19 +26,19 @@ use sov_sequencer_registry::SequencerRegistry;
 use sov_state::{Kernel, User};
 
 /// Implements the basic capabilities required for a zk-rollup runtime.
-pub struct StandardProvenRollupCapabilities<'a, S: Spec, GasPayer = sov_bank::Bank<S>> {
-    pub bank: &'a sov_bank::Bank<S>,
-    pub gas_payer: &'a GasPayer,
-    pub sequencer_registry: &'a SequencerRegistry<S>,
-    pub accounts: &'a sov_accounts::Accounts<S>,
-    pub uniqueness: &'a sov_uniqueness::Uniqueness<S>,
-    pub prover_incentives: &'a sov_prover_incentives::ProverIncentives<S>,
-    pub attester_incentives: &'a sov_attester_incentives::AttesterIncentives<S>,
+pub struct StandardProvenRollupCapabilities<'a, S: Spec, GasPayer = ()> {
+    pub bank: &'a mut sov_bank::Bank<S>,
+    pub gas_payer: GasPayer,
+    pub sequencer_registry: &'a mut SequencerRegistry<S>,
+    pub accounts: &'a mut sov_accounts::Accounts<S>,
+    pub uniqueness: &'a mut sov_uniqueness::Uniqueness<S>,
+    pub prover_incentives: &'a mut sov_prover_incentives::ProverIncentives<S>,
+    pub attester_incentives: &'a mut sov_attester_incentives::AttesterIncentives<S>,
 }
 
 impl<'a, S: Spec, T> StandardProvenRollupCapabilities<'a, S, T> {
     fn get_prover_token_holder(
-        &self,
+        &'a self,
         state: &mut impl InfallibleStateAccessor,
     ) -> TokenHolderRef<'a, S> {
         let reward_prover_incentives = self.prover_incentives.should_reward_fees(state);
@@ -61,7 +61,7 @@ impl<'a, S: Spec, T> StandardProvenRollupCapabilities<'a, S, T> {
 
 trait HasGasPayer<S: Spec> {
     fn try_reserve_gas_from_payer(
-        &self,
+        &mut self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &mut Context<S>,
@@ -72,24 +72,24 @@ trait HasGasPayer<S: Spec> {
 impl<'a, S: Spec> HasGasPayer<S> for StandardProvenRollupCapabilities<'a, S> {
     /// Reserves enough gas for the transaction to be processed, if possible.
     fn try_reserve_gas_from_payer(
-        &self,
+        &mut self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &mut Context<S>,
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
-        self.gas_payer
+        self.bank
             .reserve_gas(tx, gas_price, context.sender(), state)
             .map_err(Into::into)
     }
 }
 
 impl<'a, S: Spec> HasGasPayer<S>
-    for StandardProvenRollupCapabilities<'a, S, sov_paymaster::Paymaster<S>>
+    for StandardProvenRollupCapabilities<'a, S, &'a mut sov_paymaster::Paymaster<S>>
 {
     /// Reserves enough gas for the transaction to be processed, if possible.
     fn try_reserve_gas_from_payer(
-        &self,
+        &mut self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &mut Context<S>,
@@ -114,7 +114,7 @@ where
 {
     /// Reserves enough gas for the transaction to be processed, if possible.
     fn try_reserve_gas(
-        &self,
+        &mut self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &mut Context<S>,
@@ -125,7 +125,7 @@ where
     }
 
     fn try_reserve_gas_for_proof(
-        &self,
+        &mut self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         sender: &S::Address,
@@ -137,7 +137,7 @@ where
     }
 
     fn reward_prover(
-        &self,
+        &mut self,
         prover_rewards: &ProverReward,
         state: &mut impl InfallibleStateAccessor,
     ) {
@@ -145,8 +145,8 @@ where
 
         self.bank
             .transfer_from(
-                self.bank.id.to_payable(),
-                rewarded_module.as_token_holder(),
+                self.bank.id.clone().to_payable(),
+                rewarded_module.to_owned().as_token_holder(),
                 Coins {
                     amount: prover_rewards.0,
                     token_id: config_gas_token_id(),
@@ -158,7 +158,7 @@ where
     }
 
     fn refund_remaining_gas(
-        &self,
+        &mut self,
         recipient: &S::Address,
         remaining_funds: &RemainingFunds,
         state: &mut impl InfallibleStateAccessor,
@@ -167,7 +167,7 @@ where
         // This is also the maximum fee minus everything that was spent for the tip and base fee (ie the total reward).
         self.bank
             .transfer_from(
-                self.bank.id.to_payable(),
+                self.bank.id.clone().to_payable(),
                 recipient,
                 gas_coins(remaining_funds.0),
                 state,
@@ -177,7 +177,7 @@ where
     }
 
     fn reward_prover_from_sequencer_balance(
-        &self,
+        &mut self,
         amount: Amount,
         _sequencer: &S::Address,
         state: &mut impl InfallibleStateAccessor,
@@ -185,8 +185,8 @@ where
         let rewarded_prover_module = self.get_prover_token_holder(state);
         // Transfer the penalty from the sequencer bank to the sequencer
         self.bank.transfer_from(
-            self.bank.id().to_payable(),
-            rewarded_prover_module,
+            self.bank.id.clone().to_payable(),
+            rewarded_prover_module.to_owned(),
             gas_coins(amount),
             state,
         )
@@ -198,7 +198,7 @@ where
             + StateWriter<User, Error = Infallible>
             + StateReader<User, Error = Infallible>,
     >(
-        &self,
+        &mut self,
         bond_amount: Amount,
         reward: Rewards,
         sequencer: &<S::Da as DaSpec>::Address,
@@ -244,7 +244,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
 
     /// Marks a transaction as having been executed, preventing it from executing again.
     fn mark_tx_attempted(
-        &self,
+        &mut self,
         auth_data: &AuthorizationData<S>,
         _sequencer: &<S::Da as DaSpec>::Address,
         state: &mut impl StateAccessor,
@@ -259,7 +259,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
 
     /// Resolves the context for a transaction.
     fn resolve_context(
-        &self,
+        &mut self,
         auth_data: &AuthorizationData<S>,
         sequencer: &<S::Da as DaSpec>::Address,
         sequencer_rollup_address: S::Address,
@@ -280,7 +280,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
     }
 
     fn resolve_unregistered_context(
-        &self,
+        &mut self,
         auth_data: &AuthorizationData<S>,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         state: &mut impl StateAccessor,
@@ -311,7 +311,6 @@ impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, 
         state_update_info: sov_modules_api::prelude::tokio::sync::watch::Receiver<
             StateUpdateInfo<<S as Spec>::Storage>,
         >,
-        kernel: K,
     ) -> Self::BondingProofService<K> {
         use sov_attester_incentives::BondingProofServiceImpl;
 
@@ -319,13 +318,12 @@ impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, 
             attester_address,
             self.attester_incentives.clone(),
             state_update_info,
-            kernel,
         )
     }
 
     #[allow(clippy::type_complexity)]
     fn process_aggregated_proof<ST: TxState<S> + GetGasPrice<Spec = S>>(
-        &self,
+        &mut self,
         proof: SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut ST,
@@ -344,7 +342,7 @@ impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, 
     }
 
     fn process_attestation<ST: TxState<S> + GetGasPrice<Spec = S>>(
-        &self,
+        &mut self,
         proof: sov_rollup_interface::optimistic::SerializedAttestation,
         prover_address: &<S as Spec>::Address,
         state: &mut ST,
@@ -357,7 +355,7 @@ impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, 
     }
 
     fn process_challenge<ST: TxState<S> + GetGasPrice<Spec = S>>(
-        &self,
+        &mut self,
         proof: sov_rollup_interface::optimistic::SerializedChallenge,
         rollup_height: SlotNumber,
         prover_address: &<S as Spec>::Address,
@@ -381,7 +379,7 @@ impl<'a, S: Spec, T> SequencerRemuneration<S> for StandardProvenRollupCapabiliti
             + StateWriter<User, Error = Infallible>
             + StateReader<User, Error = Infallible>,
     >(
-        &self,
+        &mut self,
         sequencer: &<S::Da as DaSpec>::Address,
         sequencer_rollup_address: &S::Address,
         reward: SequencerReward,
@@ -399,7 +397,7 @@ impl<'a, S: Spec, T> SequencerRemuneration<S> for StandardProvenRollupCapabiliti
         if stake_increased.is_err() {
             self.bank
                 .transfer_from(
-                    self.bank.id.to_payable(),
+                    self.bank.id.clone().to_payable(),
                     sequencer_rollup_address.as_token_holder(),
                     gas_coins(reward.0),
                     state,

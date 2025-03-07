@@ -317,7 +317,7 @@ impl<S: Spec> Paymaster<S> {
     /// Registers a new paymaster with the given policy. If the paymaster is willing to pay for txs from the
     /// current sequencer, then the paymaster is set as the payer for this sequencer.
     pub(crate) fn register_paymaster(
-        &self,
+        &mut self,
         policy: PaymasterPolicyInitializer<S>,
         context: &Context<S>,
         state: &mut impl TxState<S>,
@@ -333,7 +333,7 @@ impl<S: Spec> Paymaster<S> {
     /// Registers a new paymaster with the given policy. Sets the provided sequencer addresses
     /// to use that paymaster, if the paymaster policy permits it.
     pub(crate) fn do_registration<'a>(
-        &self,
+        &mut self,
         new_payer: &S::Address,
         sequencer_addresses_to_register: impl Iterator<Item = &'a <S::Da as DaSpec>::Address>,
         policy: PaymasterPolicyInitializer<S>,
@@ -389,7 +389,7 @@ impl<S: Spec> Paymaster<S> {
     /// Sets the payer address for the sequencer who sends sequences this call message to the given address
     /// if that payer's policy allows it.
     pub(crate) fn set_payer_for_sequencer(
-        &self,
+        &mut self,
         payer: S::Address,
         context: &Context<S>,
         state: &mut impl TxState<S>,
@@ -425,7 +425,7 @@ impl<S: Spec> Paymaster<S> {
 
     /// Update the policy of the payer
     pub(crate) fn update_policy_if_authorized(
-        &self,
+        &mut self,
         policy_update: PolicyUpdate<S>,
         context: &Context<S>,
         payer: &S::Address,
@@ -474,7 +474,7 @@ impl<S: Spec> Paymaster<S> {
     }
 
     fn add_payee_policies<const N: usize>(
-        &self,
+        &mut self,
         payer: &S::Address,
         to_add: SafeVec<(S::Address, PayeePolicy<S>), N>,
         state: &mut impl TxState<S>,
@@ -548,7 +548,7 @@ impl<S: Spec> Paymaster<S> {
     }
 
     fn update_allowed_sequencers(
-        &self,
+        &mut self,
         payer: &S::Address,
         update: Option<SequencerSetUpdate<S::Da>>,
         policy: &mut PaymasterPolicy<S>,

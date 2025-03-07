@@ -37,7 +37,7 @@ where
     S::Address: FromVmAddress<EthereumAddress>,
 {
     pub(crate) fn execute_call(
-        &self,
+        &mut self,
         message: CallMessage,
         context: &Context<S>,
         state: &mut impl TxState<S>,

@@ -197,7 +197,7 @@ fn test_resolve_sender_address_with_default_address_non_registered() {
     ) = setup();
 
     runner.query_visible_state(|state| {
-        let accounts = Accounts::<S>::default();
+        let mut accounts = Accounts::<S>::default();
         assert_eq!(
             accounts
                 .resolve_sender_address(
@@ -223,7 +223,7 @@ fn test_resolve_sender_address_registered() {
     ) = setup();
 
     runner.query_visible_state(|state| {
-        let accounts = Accounts::<S>::default();
+        let mut accounts = Accounts::<S>::default();
 
         // Ensure correct (registered) address is used even if another fallback is provided
         assert_eq!(
@@ -265,7 +265,7 @@ fn test_resolve_address_if_more_than_one_credential() {
     );
 
     runner.query_visible_state(|state| {
-        let accounts = Accounts::<S>::default();
+        let mut accounts = Accounts::<S>::default();
 
         assert_eq!(
             accounts
@@ -296,7 +296,7 @@ fn test_resolve_with_different_default_address() {
         .credential_id::<TestHasher>();
 
     runner.query_visible_state(|state| {
-        let accounts = Accounts::<S>::default();
+        let mut accounts = Accounts::<S>::default();
 
         assert_eq!(
             accounts

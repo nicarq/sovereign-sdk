@@ -164,7 +164,7 @@ impl<S: Spec> Module for ModuleWithVersionedStateAccessInSlotHook<S> {
     type Event = ();
 
     fn call(
-        &self,
+        &mut self,
         _msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
         _state: &mut impl TxState<S>,
@@ -177,7 +177,7 @@ impl<S: Spec> BlockHooks for ModuleWithVersionedStateAccessInSlotHook<S> {
     type Spec = S;
 
     fn begin_rollup_block_hook(
-        &self,
+        &mut self,
         _visible_hash: &<S::Storage as Storage>::Root,
         state: &mut StateCheckpoint<Self::Spec>,
     ) {
@@ -186,7 +186,7 @@ impl<S: Spec> BlockHooks for ModuleWithVersionedStateAccessInSlotHook<S> {
             .unwrap_infallible();
     }
 
-    fn end_rollup_block_hook(&self, state: &mut StateCheckpoint<Self::Spec>) {
+    fn end_rollup_block_hook(&mut self, state: &mut StateCheckpoint<Self::Spec>) {
         ChainState::<S>::default()
             .get_time(state)
             .unwrap_infallible();

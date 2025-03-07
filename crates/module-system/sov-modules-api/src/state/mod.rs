@@ -28,6 +28,8 @@ pub use traits::{
 #[cfg(feature = "native")]
 /// Utilities to allow tracking the maximum provable height of the rollup.
 pub mod provable_height_tracker {
+    use std::marker::PhantomData;
+
     use sov_rollup_interface::common::SlotNumber;
 
     use super::*;
@@ -38,23 +40,24 @@ pub mod provable_height_tracker {
     /// Tracks the maximum height provable in the rollup by using the kernel of the rollup.
     pub struct MaximumProvableHeight<S: Spec, K: HasKernel<S>> {
         state_update_receiver: StateUpdateReceiver<S::Storage>,
-        kernel: K,
+        _kernel: PhantomData<K>,
     }
 
     impl<S: Spec, K: HasKernel<S>> MaximumProvableHeight<S, K> {
         /// Creates a new [`MaximumProvableHeight`].
-        pub fn new(state_update_receiver: StateUpdateReceiver<S::Storage>, kernel: K) -> Self {
+        pub fn new(state_update_receiver: StateUpdateReceiver<S::Storage>, _kernel: K) -> Self {
             Self {
                 state_update_receiver,
-                kernel,
+                _kernel: PhantomData,
             }
         }
     }
 
-    impl<S: Spec, K: HasKernel<S>> ProvableHeightTracker for MaximumProvableHeight<S, K> {
+    impl<S: Spec, K: HasKernel<S> + Default> ProvableHeightTracker for MaximumProvableHeight<S, K> {
         fn max_provable_slot_number(&self) -> SlotNumber {
             let storage = self.state_update_receiver.borrow().storage.clone();
-            let checkpoint = StateCheckpoint::new(storage, &self.kernel.kernel());
+            let mut kernel = K::default();
+            let checkpoint = StateCheckpoint::new(storage, &kernel.kernel());
             // Substract 1 because the state root at slot height `i` is only available at slot height `i + 1`.
             checkpoint
                 .current_visible_slot_number()

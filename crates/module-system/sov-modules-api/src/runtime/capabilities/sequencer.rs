@@ -47,7 +47,7 @@ pub trait SequencerRemuneration<S: Spec> {
             + StateWriter<User, Error = Infallible>
             + StateReader<User, Error = Infallible>,
     >(
-        &self,
+        &mut self,
         sequencer: &<S::Da as DaSpec>::Address,
         sequencer_rollup_address: &S::Address,
         reward: SequencerReward,

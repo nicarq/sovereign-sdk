@@ -104,7 +104,7 @@ fn test_state_map_user_namespace() -> Result<(), Infallible> {
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new();
     let storage = storage_manager.create_storage();
 
-    let state_value = StateMap::with_codec(Prefix::new(vec![0]), BorshCodec);
+    let mut state_value = StateMap::with_codec(Prefix::new(vec![0]), BorshCodec);
     let mut kernel = MockKernel::<S>::default();
 
     // Native execution
@@ -149,7 +149,7 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new();
     let storage = storage_manager.create_storage();
 
-    let state_value = VersionedStateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
+    let mut state_value = VersionedStateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     let mut kernel = MockKernel::<S>::default();
 

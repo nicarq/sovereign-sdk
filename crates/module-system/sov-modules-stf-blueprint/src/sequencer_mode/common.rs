@@ -24,7 +24,7 @@ pub type TransactionReceipt<S> =
 #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker(raw_tx_hash))]
 #[allow(clippy::too_many_arguments)]
 pub fn apply_tx<S, RT, I>(
-    runtime: &RT,
+    runtime: &mut RT,
     ctx: &Context<S>,
     tx: &AuthenticatedTransactionData<S>,
     raw_tx_hash: TxHash,
@@ -94,7 +94,7 @@ fn attempt_tx<S: Spec, RT: Runtime<S>, I: StateProvider<S>>(
     tx: &AuthenticatedTransactionData<S>,
     message: <RT as DispatchCall>::Decodable,
     ctx: &Context<S>,
-    runtime: &RT,
+    runtime: &mut RT,
     state: &mut WorkingSet<S, I>,
 ) -> Result<(), Error> {
     runtime.pre_dispatch_tx_hook(tx, state)?;

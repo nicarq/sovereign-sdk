@@ -22,7 +22,7 @@ const LOG_PREFIX: &str = "Returning early from the proof processing workflow";
 // If any of the steps fail, the proof processing workflow is aborted and returns a `ProofReceipt` with a `ProofOutcome::Invalid`` outcome.
 #[allow(clippy::type_complexity)]
 pub(crate) fn process_proof<S, RT>(
-    runtime: &RT,
+    runtime: &mut RT,
     slot_gas: &S::Gas,
     blob_hash: [u8; 32],
     sequencer_da_address: &<S::Da as DaSpec>::Address,
@@ -36,7 +36,7 @@ where
     S: Spec,
     RT: Runtime<S>,
 {
-    let workflow = ProofProcessingWorkflow::new(runtime, blob_hash, sequencer_da_address);
+    let mut workflow = ProofProcessingWorkflow::new(runtime, blob_hash, sequencer_da_address);
 
     // Check if the sequencer is bonded, and create `pre_exec_working_set`.
     let mut pre_exec_working_set = match workflow.authorize_sequencer(
@@ -246,7 +246,7 @@ enum WorkflowResult<Arg, S: Spec, I: StateProvider<S>> {
 }
 
 struct ProofProcessingWorkflow<'a, S: Spec, RT: Runtime<S>> {
-    runtime: &'a RT,
+    runtime: &'a mut RT,
     blob_hash: [u8; 32],
     sequencer_da_address: &'a <S::Da as DaSpec>::Address,
     _phantom: PhantomData<S>,
@@ -258,7 +258,7 @@ where
     RT: Runtime<S>,
 {
     fn new(
-        runtime: &'a RT,
+        runtime: &'a mut RT,
         blob_hash: [u8; 32],
         sequencer_da_address: &'a <S::Da as DaSpec>::Address,
     ) -> Self {
@@ -348,7 +348,7 @@ where
     }
 
     fn try_reserve_gas<I: StateProvider<S>>(
-        &self,
+        &mut self,
         slot_gas: &S::Gas,
         sequencer_rollup_address: &S::Address,
         gas_price: &<S::Gas as Gas>::Price,
@@ -356,16 +356,17 @@ where
         mut pre_exec_working_set: PreExecWorkingSet<S, I>,
     ) -> WorkflowResult<WorkingSet<S, I>, S, I> {
         pre_exec_working_set = pre_exec_working_set.commit();
-        if let Err(err) = self.runtime.gas_enforcer().try_reserve_gas_for_proof(
+        if let Err(e) = self.runtime.gas_enforcer().try_reserve_gas_for_proof(
             &auth_tx,
             gas_price,
             sequencer_rollup_address,
             &mut pre_exec_working_set,
         ) {
             let (scratchpad, gas_meter) = pre_exec_working_set.revert();
-            return self.make_early_return(
+            return Self::make_early_return(
+                self.blob_hash,
                 scratchpad,
-                err.to_string(),
+                e.to_string(),
                 gas_meter.gas_info().gas_used,
             );
         }
@@ -384,14 +385,19 @@ where
         if let Err(err) = working_set.charge_gas(&gas_info.gas_used) {
             let (scratchpad, _transaction_consumption) = working_set.revert();
 
-            return self.make_early_return(scratchpad, err.to_string(), gas_info.gas_used);
+            return Self::make_early_return(
+                self.blob_hash,
+                scratchpad,
+                err.to_string(),
+                gas_info.gas_used,
+            );
         }
 
         WorkflowResult::Proceed(working_set)
     }
 
     fn charge_sequencer_and_reward_prover(
-        &self,
+        &mut self,
         max_auth_cost: Amount,
         reserved_gas_tokens: Amount,
         state: &mut StateCheckpoint<S>,
@@ -411,7 +417,7 @@ where
     }
 
     fn make_early_return<I: StateProvider<S>>(
-        &self,
+        blob_hash: [u8; 32],
         tx_scratchpad: TxScratchpad<S, I>,
         reason: String,
         gas_used: S::Gas,
@@ -419,7 +425,7 @@ where
         WorkflowResult::EarlyReturn(
             ProcessProofOutput {
                 proof_receipt: invalid_proof_receipt::<S>(
-                    self.blob_hash,
+                    blob_hash,
                     InvalidProofError::PreconditionNotMet(reason),
                 ),
                 gas_used,

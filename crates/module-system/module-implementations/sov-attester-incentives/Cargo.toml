@@ -24,6 +24,7 @@ sov-mock-zkvm = { workspace = true }
 sov-test-utils = { workspace = true }
 sov-modules-api = { workspace = true, features = ["test-utils"] }
 sov-modules-rollup-blueprint = { workspace = true, features = ["native"] }
+sov-value-setter = { workspace = true, features = ["native"] }
 
 [dependencies]
 anyhow = { workspace = true }
@@ -56,4 +57,5 @@ native = [
 	"sov-state/native",
 	"tokio",
 	"sov-modules-rollup-blueprint/native",
+	"sov-value-setter/native"
 ]

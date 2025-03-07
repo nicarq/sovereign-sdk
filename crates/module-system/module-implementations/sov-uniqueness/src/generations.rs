@@ -103,7 +103,7 @@ impl<S: Spec> Uniqueness<S> {
     }
 
     pub(crate) fn mark_generational_tx_attempted(
-        &self,
+        &mut self,
         credential_id: &CredentialId,
         transaction_generation: u64,
         transaction_hash: TxHash,

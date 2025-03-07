@@ -136,16 +136,16 @@ impl<S: Spec> HasCapabilities<S> for Runtime<S>
 where
     S::Address: FromVmAddress<EthereumAddress>,
 {
-    type Capabilities<'a> = StandardCapabilities<'a, S, sov_paymaster::Paymaster<S>>;
-    fn capabilities(&self) -> Guard<Self::Capabilities<'_>> {
+    type Capabilities<'a> = StandardCapabilities<'a, S, &'a mut sov_paymaster::Paymaster<S>>;
+    fn capabilities(&mut self) -> Guard<Self::Capabilities<'_>> {
         Guard::new(StandardCapabilities {
-            bank: &self.bank,
-            gas_payer: &self.paymaster,
-            sequencer_registry: &self.sequencer_registry,
-            accounts: &self.accounts,
-            uniqueness: &self.uniqueness,
-            prover_incentives: &self.prover_incentives,
-            attester_incentives: &self.attester_incentives,
+            bank: &mut self.bank,
+            gas_payer: &mut self.paymaster,
+            sequencer_registry: &mut self.sequencer_registry,
+            accounts: &mut self.accounts,
+            uniqueness: &mut self.uniqueness,
+            prover_incentives: &mut self.prover_incentives,
+            attester_incentives: &mut self.attester_incentives,
         })
     }
 }
@@ -157,10 +157,10 @@ where
     type BlobType = SelectedBlob<S>;
     type Kernel<'a> = SoftConfirmationsKernel<'a, S>;
 
-    fn inner(&self) -> Guard<Self::Kernel<'_>> {
+    fn inner(&mut self) -> Guard<Self::Kernel<'_>> {
         Guard::new(SoftConfirmationsKernel {
-            chain_state: &self.chain_state,
-            blob_storage: &self.blob_storage,
+            chain_state: &mut self.chain_state,
+            blob_storage: &mut self.blob_storage,
         })
     }
 

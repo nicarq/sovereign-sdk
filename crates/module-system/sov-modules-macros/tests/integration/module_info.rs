@@ -44,7 +44,7 @@ mod test_module {
         type Event = ();
 
         fn call(
-            &self,
+            &mut self,
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
             _state: &mut impl TxState<S>,
@@ -127,7 +127,7 @@ mod second_test_module {
         type Event = ();
 
         fn call(
-            &self,
+            &mut self,
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
             _state: &mut impl TxState<S>,

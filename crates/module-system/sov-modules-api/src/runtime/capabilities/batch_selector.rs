@@ -79,7 +79,7 @@ pub trait BlobSelector {
     /// - Ensure that the preferred sequencer can't censor blobs by consuming all available rollup-block space.
     #[allow(clippy::type_complexity)]
     fn get_blobs_for_this_slot(
-        &self,
+        &mut self,
         current_blobs: RelevantBlobIters<
             &mut [<<Self::Spec as Spec>::Da as DaSpec>::BlobTransaction],
         >,
@@ -88,7 +88,7 @@ pub trait BlobSelector {
 
     /// Extracts all delayed non-preferred blobs that belong to the given slots.
     fn get_non_preferred_blobs(
-        &self,
+        &mut self,
         slot_range: impl Iterator<Item = SlotNumber>,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
     ) -> Vec<SelectedBlob<Self::Spec>>;
@@ -96,7 +96,7 @@ pub trait BlobSelector {
     /// Add funds to the escrow for the preferred sequencer.
     #[cfg(feature = "native")]
     fn escrow_funds_for_preferred_sequencer(
-        &self,
+        &mut self,
         amount: crate::Amount,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
     ) -> anyhow::Result<()>;

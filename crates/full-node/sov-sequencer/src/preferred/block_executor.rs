@@ -348,8 +348,8 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                     visible_slot_number_increase: visible_increase.get().into(),
                 };
                 let stf = StfBlueprint::<S, Rt>::new();
-                let rt = Rt::default();
-                let kernel = rt.kernel();
+                let mut rt = Rt::default();
+                let mut kernel = rt.kernel();
                 let mut accessor: KernelStateAccessor<'_, S> =
                     KernelStateAccessor::from_checkpoint(&kernel, &mut checkpoint);
                 kernel.increment_rollup_height(
@@ -395,6 +395,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                     "Applying batches in user space"
                 );
                 let (_, _, _, checkpoint) = stf.apply_batches_in_user_space(
+                    &mut Default::default(),
                     blob_selector_output,
                     checkpoint,
                     ExecutionContext::Sequencer,
@@ -402,7 +403,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                 );
                 let mut changes = checkpoint.changes();
                 let (state_root, _witness, _change_set, state_update) =
-                    stf.materialize_slot(true, checkpoint);
+                    stf.materialize_slot(&mut Default::default(), true, checkpoint);
                 changes.changes.extend(
                     state_update
                         .get_accessory_items()

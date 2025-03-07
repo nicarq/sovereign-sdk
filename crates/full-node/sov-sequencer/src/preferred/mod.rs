@@ -4,6 +4,7 @@ mod async_batch;
 mod block_executor;
 mod db;
 
+use std::marker::PhantomData;
 use std::num::NonZero;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
@@ -191,7 +192,7 @@ enum InternalState<S: Spec> {
 }
 
 impl<S: Spec> InternalState<S> {
-    fn node(info: &StateUpdateInfo<S::Storage>, runtime: &impl Runtime<S>) -> Self {
+    fn node(info: &StateUpdateInfo<S::Storage>, runtime: &mut impl Runtime<S>) -> Self {
         let checkpoint = StateCheckpoint::new(info.storage.clone(), &runtime.kernel());
 
         InternalState::Idle {
@@ -221,7 +222,7 @@ where
     events_sender: broadcast::Sender<SequencerEvent<Rt>>,
     api_state: ApiState<S>,
     da_sync_state: Arc<DaSyncState>,
-    runtime: Rt,
+    _runtime: PhantomData<Rt>,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     has_been_ready: AtomicBool,
     shutdown_notifier: Sender<()>,
@@ -274,7 +275,7 @@ where
             "Instantiating the preferred batch builder"
         );
 
-        let runtime: Rt = Default::default();
+        let mut runtime: Rt = Default::default();
         let tx_status_manager = TxStatusManager::default();
 
         assert!(
@@ -330,7 +331,7 @@ where
             events_sender,
             da_sync_state,
             api_state,
-            runtime: Default::default(),
+            _runtime: PhantomData,
             shutdown_notifier,
             config: config.clone(),
             has_been_ready: AtomicBool::new(false),
@@ -439,7 +440,7 @@ where
         }
 
         let mut executor = RollupBlockExecutor::<_, Rt>::new(
-            InternalState::node(&info, &self.runtime),
+            InternalState::node(&info, &mut Rt::default()),
             self.config.clone(),
             self.shutdown_notifier.clone(),
         );

@@ -23,6 +23,7 @@ sov-test-modules = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }
 sov-state = { workspace = true, features = ["native"] }
+sov-bank = { workspace = true, features = ["native"] }
 
 [dependencies]
 derivative = { workspace = true }
@@ -43,5 +44,6 @@ native = [
 	"sov-modules-api/native",
 	"sov-test-modules/native",
 	"sov-state/native",
-	"sov-address/native"
+	"sov-address/native",
+	"sov-bank/native"
 ]

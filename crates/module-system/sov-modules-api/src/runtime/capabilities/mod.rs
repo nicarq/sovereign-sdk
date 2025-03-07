@@ -74,46 +74,46 @@ pub trait HasCapabilities<S: Spec> {
     /// implementation but then used `HasCapabilities::capabilities().try_reserve_gas` instead of
     /// `HasCapabilities::gas_enforcer().try_reserve_gas` I would use the default implementation instead of
     /// the override.
-    fn capabilities(&self) -> Guard<Self::Capabilities<'_>>;
+    fn capabilities(&mut self) -> Guard<Self::Capabilities<'_>>;
 
     /// Returns the [`GasEnforcer`] implementation on [`HasCapabilities::Capabilities`].
     ///
     /// This method can be overriden to provide a custom implementation.
-    fn gas_enforcer(&self) -> impl GasEnforcer<S> {
+    fn gas_enforcer(&mut self) -> impl GasEnforcer<S> {
         self.capabilities().inner
     }
 
     /// Returns the [`SequencerAuthorization`] implementation on [`HasCapabilities::Capabilities`].
     ///
     /// This method can be overriden to provide a custom implementation.
-    fn sequencer_authorization(&self) -> impl SequencerAuthorization<S> {
+    fn sequencer_authorization(&mut self) -> impl SequencerAuthorization<S> {
         self.capabilities().inner
     }
 
     /// Returns the [`TransactionAuthorizer`] implementation on [`HasCapabilities::Capabilities`].
     ///
     /// This method can be overriden to provide a custom implementation.
-    fn transaction_authorizer(&self) -> impl TransactionAuthorizer<S> {
+    fn transaction_authorizer(&mut self) -> impl TransactionAuthorizer<S> {
         self.capabilities().inner
     }
 
     /// Returns the [`ProofProcessor`] implementation on [`HasCapabilities::Capabilities`].
     ///
     /// This method can be overriden to provide a custom implementation.
-    fn proof_processor(&self) -> impl ProofProcessor<S> {
+    fn proof_processor(&mut self) -> impl ProofProcessor<S> {
         self.capabilities().inner
     }
 
     /// Returns the [`SequencerRemuneration`] implementation on [`HasCapabilities::Capabilities`].
     ///
     /// This method can be overriden to provide a custom implementation.
-    fn sequencer_remuneration(&self) -> impl SequencerRemuneration<S> {
+    fn sequencer_remuneration(&mut self) -> impl SequencerRemuneration<S> {
         self.capabilities().inner
     }
 }
 
 /// Indicates that a type provides the necessary kernel capabilities for a runtime.
-pub trait HasKernel<S: Spec>: Send + Sync + 'static {
+pub trait HasKernel<S: Spec>: Default + Send + Sync + 'static {
     /// The type of blobs that the kernel can process.
     type BlobType;
 
@@ -137,20 +137,20 @@ pub trait HasKernel<S: Spec>: Send + Sync + 'static {
     /// implementation but then used `HasCapabilities::capabilities().try_reserve_gas` instead of
     /// `HasCapabilities::gas_enforcer().try_reserve_gas` I would use the default implementation instead of
     /// the override.
-    fn inner(&self) -> Guard<Self::Kernel<'_>>;
+    fn inner(&mut self) -> Guard<Self::Kernel<'_>>;
 
     /// Returns the [`Kernel`] implementation on [`HasKernel::Kernel`].
-    fn kernel(&self) -> Self::Kernel<'_> {
+    fn kernel(&mut self) -> Self::Kernel<'_> {
         self.inner().inner
     }
 
     /// Returns the [`ChainState`] implementation on [`HasKernel::Kernel`].
-    fn chain_state(&self) -> impl ChainState<Spec = S> {
+    fn chain_state(&mut self) -> impl ChainState<Spec = S> {
         self.inner().inner
     }
 
     /// Returns the [`BlobSelector`] implementation on [`HasKernel::Kernel`].
-    fn blob_selector(&self) -> impl BlobSelector<Spec = S, BlobType = Self::BlobType> {
+    fn blob_selector(&mut self) -> impl BlobSelector<Spec = S, BlobType = Self::BlobType> {
         self.inner().inner
     }
 
@@ -261,7 +261,7 @@ pub mod mocks {
         }
 
         fn record_gas_usage(
-            &self,
+            &mut self,
             _state: &mut crate::StateCheckpoint<S>,
             _final_gas_info: super::BlockGasInfo<<S as Spec>::Gas>,
             _rollup_height: RollupHeight,

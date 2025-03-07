@@ -20,7 +20,7 @@ pub use genesis::*;
 use sov_modules_api::macros::config_value;
 pub use sov_modules_api::Amount;
 use sov_modules_api::{
-    Context, DaSpec, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
     StateMap, TxState,
 };
 use sov_state::BorshCodec;
@@ -43,25 +43,6 @@ pub fn config_gas_token_id() -> TokenId {
 
 pub(crate) type C = BorshCodec;
 
-/// Gas configuration for the bank module
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
-pub struct BankGasConfig<GU: Gas> {
-    /// Gas price multiplier for the create token operation
-    pub create_token: GU,
-
-    /// Gas price multiplier for the transfer operation
-    pub transfer: GU,
-
-    /// Gas price multiplier for the burn operation
-    pub burn: GU,
-
-    /// Gas price multiplier for the mint operation
-    pub mint: GU,
-
-    /// Gas price multiplier for the freeze operation
-    pub freeze: GU,
-}
-
 /// The sov-bank module manages user balances. It provides functionality for:
 /// - Token creation.
 /// - Token transfers.
@@ -71,10 +52,6 @@ pub struct Bank<S: Spec> {
     /// The id of the sov-bank module.
     #[id]
     pub id: ModuleId,
-
-    /// The gas configuration of the sov-bank module.
-    #[gas]
-    pub(crate) gas: BankGasConfig<S::Gas>,
 
     /// A mapping of [`TokenId`]s to tokens in the sov-bank.
     #[state]
@@ -95,7 +72,7 @@ impl<S: Spec> Module for Bank<S> {
     type Event = Event<S>;
 
     fn genesis(
-        &self,
+        &mut self,
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
@@ -104,7 +81,7 @@ impl<S: Spec> Module for Bank<S> {
     }
 
     fn call(
-        &self,
+        &mut self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
@@ -117,8 +94,6 @@ impl<S: Spec> Module for Bank<S> {
                 supply_cap,
                 admins,
             } => {
-                self.charge_gas(state, &self.gas.create_token)?;
-
                 let admins = admins
                     .iter()
                     .map(|minter| TokenHolderRef::from(&minter))
@@ -137,28 +112,17 @@ impl<S: Spec> Module for Bank<S> {
             }
 
             call::CallMessage::Transfer { to, coins } => {
-                self.charge_gas(state, &self.gas.transfer)?;
                 Ok(self.transfer(&to, coins, context, state)?)
             }
-
-            call::CallMessage::Burn { coins } => {
-                self.charge_gas(state, &self.gas.burn)?;
-                Ok(self.burn_from_eoa(coins, context, state)?)
-            }
-
+            call::CallMessage::Burn { coins } => Ok(self.burn_from_eoa(coins, context, state)?),
             call::CallMessage::Mint {
                 coins,
                 mint_to_address,
             } => {
-                self.charge_gas(state, &self.gas.mint)?;
                 self.mint_from_eoa(coins, &mint_to_address, context, state)?;
                 Ok(())
             }
-
-            call::CallMessage::Freeze { token_id } => {
-                self.charge_gas(state, &self.gas.freeze)?;
-                Ok(self.freeze(token_id, context, state)?)
-            }
+            call::CallMessage::Freeze { token_id } => Ok(self.freeze(token_id, context, state)?),
         }
     }
 }

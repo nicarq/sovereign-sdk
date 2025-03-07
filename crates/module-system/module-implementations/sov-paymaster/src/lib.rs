@@ -148,7 +148,7 @@ impl<S: Spec> Module for Paymaster<S> {
     type Event = Event<S>;
 
     fn genesis(
-        &self,
+        &mut self,
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
@@ -158,7 +158,7 @@ impl<S: Spec> Module for Paymaster<S> {
     }
 
     fn call(
-        &self,
+        &mut self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
@@ -211,7 +211,7 @@ impl<S: Spec> Paymaster<S> {
 
     /// Try to reserve gas for the transaction using the payer's balance if possible and falling back to the sender's balance if not.
     pub fn try_reserve_gas(
-        &self,
+        &mut self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &mut Context<S>,
@@ -234,7 +234,7 @@ impl<S: Spec> Paymaster<S> {
     /// Reserves the entire available gas amount from the paymaster if the paymaster's policy permits it
     /// and it has sufficient balance. Otherwise, reserves no gas and returns None.
     fn gas_from_paymaster(
-        &self,
+        &mut self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &Context<S>,
@@ -283,7 +283,7 @@ impl<S: Spec> Paymaster<S> {
 
     /// Purchases the gas for the transaction using the payer's balance if possible.
     fn try_purchase_paymaster_gas(
-        &self,
+        &mut self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         payer: &S::Address,

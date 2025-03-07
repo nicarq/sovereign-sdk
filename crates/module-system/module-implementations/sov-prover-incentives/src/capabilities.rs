@@ -72,7 +72,7 @@ impl<S: Spec> ProverIncentives<S> {
     /// Try to process a zk proof, if the prover is bonded.
     #[allow(clippy::type_complexity)]
     pub fn process_proof<ST: TxState<S> + GetGasPrice<Spec = S>>(
-        &self,
+        &mut self,
         proof: &SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut ST,
@@ -178,7 +178,7 @@ impl<S: Spec> ProverIncentives<S> {
     }
 
     fn slash_prover(
-        &self,
+        &mut self,
         prover_address: &S::Address,
         state: &mut impl TxState<S>,
     ) -> Result<(), anyhow::Error> {
@@ -240,7 +240,7 @@ impl<S: Spec> ProverIncentives<S> {
     }
 
     fn penalize_prover<ST: TxState<S> + GetGasPrice<Spec = S>>(
-        &self,
+        &mut self,
         old_balance: Amount,
         prover_address: &S::Address,
         state: &mut ST,
@@ -263,7 +263,7 @@ impl<S: Spec> ProverIncentives<S> {
     }
 
     fn reward_prover(
-        &self,
+        &mut self,
         total_reward: Amount,
         prover_address: &S::Address,
         state: &mut impl TxState<S>,

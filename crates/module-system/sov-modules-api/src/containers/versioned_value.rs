@@ -87,7 +87,7 @@ where
     /// # Error
     /// This method can fail if the gas meter doesn't have enough funds to pay for the write operation.
     pub fn set_true_current<Accessor: PrivilegedKernelAccessor>(
-        &self,
+        &mut self,
         value: &V,
         state: &mut Accessor,
     ) -> Result<(), Accessor::Error> {
@@ -99,7 +99,7 @@ where
     /// # Error
     /// This method can fail if the gas meter doesn't have enough funds to pay for the write operation.
     pub fn set<S: Spec>(
-        &self,
+        &mut self,
         key: &SlotNumber,
         value: &V,
         state: &mut KernelStateAccessor<'_, S>,
@@ -149,7 +149,7 @@ mod tests {
         let mut state = StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new(b"test".to_vec());
-        let value = VersionedStateValue::<RollupHeight>::with_codec(prefix.clone(), BorshCodec);
+        let mut value = VersionedStateValue::<RollupHeight>::with_codec(prefix.clone(), BorshCodec);
 
         // Initialize a value in the kernel state during slot 4
         let mut kernel_state = kernel.accessor(&mut state);
@@ -183,7 +183,7 @@ mod tests {
         let mut state = StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new(b"test".to_vec());
-        let value = VersionedStateValue::<RollupHeight>::with_codec(prefix.clone(), BorshCodec);
+        let mut value = VersionedStateValue::<RollupHeight>::with_codec(prefix.clone(), BorshCodec);
 
         // Initialize a versioned value in the kernel state to be available starting at slot 2
 

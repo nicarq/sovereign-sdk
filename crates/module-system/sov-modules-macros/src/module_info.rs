@@ -536,9 +536,9 @@ pub mod parsing {
         let mut attr = None;
         for a in &field.attrs {
             match a.path().segments[0].ident.to_string().as_str() {
-                "state" | "module" | "id" | "gas" | "kernel_module" | "phantom" => {
+                "state" | "module" | "id" | "kernel_module" | "phantom" => {
                     if attr.is_some() {
-                        return Err(syn::Error::new_spanned(ident, "Only one attribute out of `#[kernel_module]`, `#[module]`, `#[state]`, `#[id]`, `#[gas]`, and `#[phantom]` is allowed per field."));
+                        return Err(syn::Error::new_spanned(ident, "Only one attribute out of `#[kernel_module]`, `#[module]`, `#[state]`, `#[id]`,  and `#[phantom]` is allowed per field."));
                     }
 
                     attr = Some(a);
@@ -552,7 +552,7 @@ pub mod parsing {
         } else {
             Err(syn::Error::new_spanned(
                 ident,
-                format!("The field `{ident}` is missing an attribute: add `#[kernel_module]`, `#[module]`, `#[state]`, `#[id]`, #[gas], or #[phantom]."),
+                format!("The field `{ident}` is missing an attribute: add `#[kernel_module]`, `#[module]`, `#[state]`, `#[id]`, or #[phantom]."),
             ))
         }
     }
