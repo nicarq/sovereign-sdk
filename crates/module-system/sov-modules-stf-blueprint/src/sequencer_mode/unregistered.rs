@@ -20,7 +20,7 @@ use crate::{
 #[allow(clippy::result_large_err)]
 #[allow(clippy::too_many_arguments)]
 pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
-    runtime: &R,
+    runtime: &mut R,
     mut pre_exec_working_set: PreExecWorkingSet<S, StateCheckpoint<S>>,
     slot_gas: &S::Gas,
     validated_output: AuthTxOutput<S, R>,
@@ -161,7 +161,7 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvi
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 pub(crate) fn apply_batch<S, RT>(
-    runtime: &RT,
+    runtime: &mut RT,
     checkpoint: StateCheckpoint<S>,
     slot_gas: &S::Gas,
     batch: BatchFromUnregisteredSequencer,

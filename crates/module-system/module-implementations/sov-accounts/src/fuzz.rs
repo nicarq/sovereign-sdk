@@ -59,7 +59,7 @@ where
             Ok(config) => config,
             Err(e) => return Err(e),
         };
-        let accounts = Accounts::default();
+        let mut accounts = Accounts::default();
         let mut genesis_state = state.to_genesis_state_accessor::<Accounts<S>>(&config);
 
         if accounts

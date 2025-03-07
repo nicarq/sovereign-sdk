@@ -296,7 +296,7 @@ impl<S: Spec> Module for AccessPattern<S> {
     type Event = ();
 
     fn genesis(
-        &self,
+        &mut self,
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
@@ -308,7 +308,7 @@ impl<S: Spec> Module for AccessPattern<S> {
     }
 
     fn call(
-        &self,
+        &mut self,
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
@@ -332,7 +332,7 @@ impl<S: Spec> Module for AccessPattern<S> {
 
 impl<S: Spec> AccessPattern<S> {
     fn inner_call(
-        &self,
+        &mut self,
         msg: AccessPatternMessages<S>,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
@@ -482,7 +482,7 @@ impl<S: Spec> AccessPattern<S> {
         Ok(())
     }
 
-    fn inner_hook(&self, hook: HooksConfig, state: &mut impl TxState<S>) -> anyhow::Result<()> {
+    fn inner_hook(&mut self, hook: HooksConfig, state: &mut impl TxState<S>) -> anyhow::Result<()> {
         match hook {
             HooksConfig::Read { begin, size } => {
                 for i in begin..(begin.saturating_add(size)) {
@@ -514,7 +514,7 @@ impl<S: Spec> TxHooks for AccessPattern<S> {
     type Spec = S;
 
     fn pre_dispatch_tx_hook<T: TxState<Self::Spec>>(
-        &self,
+        &mut self,
         _tx: &sov_modules_api::AuthenticatedTransactionData<Self::Spec>,
         state: &mut T,
     ) -> anyhow::Result<()> {
@@ -530,7 +530,7 @@ impl<S: Spec> TxHooks for AccessPattern<S> {
     }
 
     fn post_dispatch_tx_hook<T: TxState<Self::Spec>>(
-        &self,
+        &mut self,
         _tx: &AuthenticatedTransactionData<Self::Spec>,
         _ctx: &Context<Self::Spec>,
         state: &mut T,

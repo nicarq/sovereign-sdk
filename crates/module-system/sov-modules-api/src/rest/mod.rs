@@ -128,7 +128,7 @@ impl<M: ModuleInfo> HasRestApi<M::Spec> for &M {
 /// #    type Event = ();
 /// #
 /// #    fn call(
-/// #        &self,
+/// #        &mut self,
 /// #        _msg: Self::CallMessage,
 /// #        _context: &Context<Self::Spec>,
 /// #        _state: &mut impl sov_modules_api::state::TxState<S>,

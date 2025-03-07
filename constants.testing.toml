@@ -57,6 +57,7 @@ GAS_TO_CHARGE_PER_BYTE_HOT_READ = [1, 1]
 BIAS_COLD_STORAGE_UPDATE = [1, 1]
 GAS_TO_CHARGE_PER_BYTE_STORAGE_UPDATE = [1, 1]
 BIAS_STORAGE_UPDATE = [1, 1]
+EXAMPLE_CUSTOM_GAS_PRICE = [5, 5]
 
 # --- End Gas parameters to charge for state accesses ---
 # --- Gas parameters to specify how to charge gas for hashing ---

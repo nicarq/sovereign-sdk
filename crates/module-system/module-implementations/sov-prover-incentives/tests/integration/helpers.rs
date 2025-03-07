@@ -20,13 +20,14 @@ use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
     generate_zk_runtime, AsUser, TestProver, TestSpec, TestUser, TransactionType,
 };
+use sov_value_setter::ValueSetterConfig;
 
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type TestProverIncentives = ProverIncentives<S>;
 pub(crate) type RT = TestRuntime<S>;
 pub(crate) const MOCK_CODE_COMMITMENT: MockCodeCommitment = MockCodeCommitment([0u8; 32]);
 
-generate_zk_runtime!(TestRuntime <= );
+generate_zk_runtime!(TestRuntime <= value_setter: sov_value_setter::ValueSetter<S>);
 
 /// Returns the minimal bond required to register a prover at the current slot.
 pub fn minimal_bond(runner: &TestRunner<TestRuntime<S>, S>) -> u128 {
@@ -50,7 +51,12 @@ pub(crate) fn setup_with_custom_runtime(
         .unwrap()
         .clone();
     let prover = minimal_genesis_config.initial_prover.clone();
-    let genesis_config = GenesisConfig::from_minimal_config(minimal_genesis_config.into());
+    let genesis_config = GenesisConfig::from_minimal_config(
+        minimal_genesis_config.into(),
+        ValueSetterConfig {
+            admin: prover.user_info.address(),
+        },
+    );
     let runner = TestRunner::new_with_genesis(genesis_config.into_genesis_params(), runtime);
 
     (runner, prover, unbonded_user)

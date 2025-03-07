@@ -1,15 +1,17 @@
-use sov_bank::{config_gas_token_id, Bank, BankGasConfig, CallMessage};
+use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Amount, Error, Gas, GasSpec, SafeVec, Spec, TxEffect};
+use sov_modules_api::{Amount, Error, Gas, GasSpec, Spec, TxEffect};
+use sov_test_modules::gas::{CallMessage, GasTester};
 use sov_test_utils::{
     AsUser, AtomicAmount, TransactionTestAssert, TransactionTestCase, TEST_DEFAULT_USER_BALANCE,
 };
-
-use crate::helpers::{setup_with_custom_runtime, TestData, RT, S};
+mod helpers;
+use helpers::{setup, RT, S};
+use sov_bank::{config_gas_token_id, Bank};
 
 /// Additional context for the post-call assertions of the gas tests.
 /// This is used to check the outcome of the create token call.
-struct PostCreateTokenContext {
+struct PostSetValueContext {
     user_initial_balance: Amount,
     user_address: <S as Spec>::Address,
 }
@@ -18,41 +20,16 @@ struct PostCreateTokenContext {
 /// after the call.
 /// The gas config can be set to `None` to use the default gas config.
 fn gas_test_setup(
-    gas_to_charge_for_create_token: Option<<S as Spec>::Gas>,
-    create_token_assert: impl FnOnce(PostCreateTokenContext) -> TransactionTestAssert<RT, S> + 'static,
+    set_value_assert: impl FnOnce(PostSetValueContext) -> TransactionTestAssert<RT, S> + 'static,
 ) {
-    let (
-        TestData {
-            user_high_token_balance: user,
-            ..
-        },
-        mut runner,
-    ) = setup_with_custom_runtime(|runtime| {
-        if let Some(gas_to_charge_for_create_token) = gas_to_charge_for_create_token {
-            let config = BankGasConfig {
-                create_token: gas_to_charge_for_create_token,
-                transfer: <S as Spec>::Gas::zero(),
-                burn: <S as Spec>::Gas::zero(),
-                mint: <S as Spec>::Gas::zero(),
-                freeze: <S as Spec>::Gas::zero(),
-            };
-
-            runtime.bank.override_gas_config(config);
-        }
-    });
+    let (user, mut runner) = setup();
 
     let user_balance = user.available_gas_balance;
 
     runner.execute_transaction(TransactionTestCase {
-        input: user.create_plain_message::<RT, Bank<S>>(CallMessage::CreateToken {
-            token_name: "sov-test-token".try_into().unwrap(),
-            initial_balance: Amount::new(1000),
-            supply_cap: None,
-            mint_to_address: user.address(),
-            admins: SafeVec::new(),
-        }),
+        input: user.create_plain_message::<RT, GasTester<S>>(CallMessage::SetValue { value: 1 }),
         assert: Box::new(move |result, state| {
-            create_token_assert(PostCreateTokenContext {
+            set_value_assert(PostSetValueContext {
                 user_initial_balance: user_balance,
                 user_address: user.address(),
             })(result, state);
@@ -67,10 +44,10 @@ fn gas_test_setup(
 fn gas_price_constants_are_charged_correctly() {
     let gas_consumed_without_price_ref = AtomicAmount::new(Amount::ZERO);
     let gas_consumed_without_price_ref_1 = gas_consumed_without_price_ref.clone();
+    std::env::set_var("SOV_SDK_CONST_OVERRIDE_EXAMPLE_CUSTOM_GAS_PRICE", "[0, 0]");
 
     gas_test_setup(
-        Some(<S as Spec>::Gas::from([0; 2])),
-        move |PostCreateTokenContext {
+        move |PostSetValueContext {
                   user_address,
                   user_initial_balance,
               }| {
@@ -95,12 +72,15 @@ fn gas_price_constants_are_charged_correctly() {
         },
     );
 
-    let gas_to_charge_for_create_token = <S as Spec>::Gas::from([100; 2]);
+    let gas_charge_for_set_value = <S as Spec>::Gas::from([100; 2]);
+    std::env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_EXAMPLE_CUSTOM_GAS_PRICE",
+        "[100, 100]",
+    );
     let bank_initial_gas_price = S::initial_base_fee_per_gas();
 
     gas_test_setup(
-        Some(gas_to_charge_for_create_token.clone()),
-        move |PostCreateTokenContext {
+        move |PostSetValueContext {
                   user_initial_balance,
                   user_address,
               }| {
@@ -121,7 +101,7 @@ fn gas_price_constants_are_charged_correctly() {
                 );
 
                 assert_eq!(
-                gas_consumed_without_price_ref_1.get().checked_add(gas_to_charge_for_create_token.value(&bank_initial_gas_price)).unwrap(),
+                gas_consumed_without_price_ref_1.get().checked_add(gas_charge_for_set_value.value(&bank_initial_gas_price)).unwrap(),
                 result.gas_value_used,
                 "The gas used should be the sum of the gas cost of the call and the inner gas cost"
             );
@@ -135,13 +115,12 @@ fn config_constants_are_charged_correctly() {
     let gas_consumed_without_price_ref = AtomicAmount::new(Amount::ZERO);
     let gas_consumed_without_price_ref_1 = gas_consumed_without_price_ref.clone();
 
-    // compute the expected gas cost, based on the json constants
-    let create_token_config_cost = Bank::<S>::default().gas_config().create_token.clone();
+    let create_token_config_cost =
+        <S as Spec>::Gas::from(config_value!("EXAMPLE_CUSTOM_GAS_PRICE"));
     let bank_initial_gas_price = S::initial_base_fee_per_gas();
 
     gas_test_setup(
-        Some(<S as Spec>::Gas::from([0; 2])),
-        move |PostCreateTokenContext {
+        move |PostSetValueContext {
                   user_initial_balance,
                   user_address,
               }| {
@@ -166,9 +145,9 @@ fn config_constants_are_charged_correctly() {
         },
     );
 
+    std::env::set_var("SOV_SDK_CONST_OVERRIDE_EXAMPLE_CUSTOM_GAS_PRICE", "[0, 0]");
     gas_test_setup(
-        None,
-        move |PostCreateTokenContext {
+        move |PostSetValueContext {
                   user_initial_balance,
                   user_address,
               }| {
@@ -189,10 +168,10 @@ fn config_constants_are_charged_correctly() {
                 );
 
                 assert_eq!(
-                gas_consumed_without_price_ref_1.get().checked_add(create_token_config_cost.value(&bank_initial_gas_price)).unwrap(),
-                result.gas_value_used,
-                "The gas used should be the sum of the gas cost of the call and the inner gas cost"
-            );
+                    gas_consumed_without_price_ref_1.get().checked_sub(create_token_config_cost.value(&bank_initial_gas_price)).unwrap(),
+                    result.gas_value_used,
+                    "The gas used should be the same as the gas consumed from the first call, minus the custom charge for the operation that we've removed"
+                );
             })
         },
     );
@@ -203,41 +182,47 @@ fn not_enough_gas_wont_panic() {
     let default_user_balance_as_u64: u64 = TEST_DEFAULT_USER_BALANCE.0
         .try_into()
         .expect("This test relies on setting the gas usage to half of the sender balance, but gas is only a u64. Lower the sender balance or update the test.");
-    gas_test_setup(
-        Some(<S as Spec>::Gas::from([
+    std::env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_EXAMPLE_CUSTOM_GAS_PRICE",
+        format!(
+            "[{}, {}]",
             default_user_balance_as_u64 / 2,
-            default_user_balance_as_u64 / 2,
-        ])),
-        |_| {
-            Box::new(move |result, _state| {
-                assert!(
-                    matches!(result.tx_receipt, TxEffect::Reverted(..)),
-                    "The transaction outcome is incorrect"
-                );
-
-                if let TxEffect::Reverted(contents) = result.tx_receipt {
-                    let Error::ModuleError(err) = contents.reason;
-                    let mut chain = err.chain();
-                    assert_eq!(chain.len(), 1, "The error chain is incorrect");
-
-                    assert!(
-                        chain.next().unwrap().to_string().contains(
-                            "The gas to charge is greater than the funds available in the meter."
-                        ),
-                        "The error message is incorrect"
-                    );
-                } else {
-                    panic!("The transaction outcome is incorrect")
-                }
-            })
-        },
+            default_user_balance_as_u64 / 2
+        ),
     );
+    gas_test_setup(|_| {
+        Box::new(move |result, _state| {
+            assert!(
+                matches!(result.tx_receipt, TxEffect::Reverted(..)),
+                "The transaction outcome is incorrect"
+            );
+
+            if let TxEffect::Reverted(contents) = result.tx_receipt {
+                let Error::ModuleError(err) = contents.reason;
+                let mut chain = err.chain();
+                assert_eq!(chain.len(), 1, "The error chain is incorrect");
+
+                assert!(
+                    chain.next().unwrap().to_string().contains(
+                        "The gas to charge is greater than the funds available in the meter."
+                    ),
+                    "The error message is incorrect"
+                );
+            } else {
+                panic!("The transaction outcome is incorrect")
+            }
+        })
+    });
 }
 
 #[test]
 #[ignore = "This test is disabled because it we can't make gas charges overflow without increasing the base gas price beyond i64::MAX - which is currently unsupported by the toml crate. We'll need a way to do this manually for the test."]
 fn very_high_gas_to_charge_should_overflow() {
-    gas_test_setup(Some(<S as Spec>::Gas::from([u64::MAX, u64::MAX])), |_| {
+    std::env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_EXAMPLE_CUSTOM_GAS_PRICE",
+        format!("[{}, {}]", u64::MAX, u64::MAX),
+    );
+    gas_test_setup(|_| {
         Box::new(move |result, _state| {
             assert!(
                 matches!(result.tx_receipt, TxEffect::Reverted(..)),

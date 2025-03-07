@@ -92,7 +92,7 @@ where
 
     /// A helper function that is used to slash an attester, and put the associated attestation in the slashed pool
     pub(crate) fn slash_and_invalidate_attestation<TxStateAccessor: TxState<S>>(
-        &self,
+        &mut self,
         attester: &S::Address,
         height: SlotNumber,
         state: &mut TxStateAccessor,
@@ -111,7 +111,7 @@ where
     }
 
     pub(crate) fn transfer_tokens_to_sender(
-        &self,
+        &mut self,
         sender: &S::Address,
         amount: Amount,
         state: &mut impl StateAccessor,

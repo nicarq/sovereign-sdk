@@ -26,7 +26,7 @@ pub struct AttesterIncentivesConfig<S: Spec> {
 
 impl<S: Spec> AttesterIncentives<S> {
     pub(crate) fn init_module(
-        &self,
+        &mut self,
         config: &<Self as Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {

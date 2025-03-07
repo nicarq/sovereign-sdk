@@ -27,7 +27,7 @@ impl<S: Spec> Module for IncorrectHooksOverride<S> {
     type Event = ();
 
     fn genesis(
-        &self,
+        &mut self,
         _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
 
         _config: &Self::Config,
@@ -37,7 +37,7 @@ impl<S: Spec> Module for IncorrectHooksOverride<S> {
     }
 
     fn call(
-        &self,
+        &mut self,
         _msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
         _state: &mut impl TxState<S>,
@@ -62,7 +62,7 @@ impl BlockHooks for IncorrectHooksOverride<S> {
     type Spec = S;
 
     fn begin_rollup_block_hook(
-        &self,
+        &mut self,
         visible_hash: &<<S as Spec>::Storage as Storage>::Root,
         state: &mut StateCheckpoint<Self::Spec>,
     ) {

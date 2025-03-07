@@ -45,7 +45,7 @@ impl<S: Spec> Module for TestAccessoryModule<S> {
     type Event = ();
 
     fn genesis(
-        &self,
+        &mut self,
         _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
         _config: &Self::Config,
         _state: &mut impl GenesisState<S>,
@@ -54,7 +54,7 @@ impl<S: Spec> Module for TestAccessoryModule<S> {
     }
 
     fn call(
-        &self,
+        &mut self,
         msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,

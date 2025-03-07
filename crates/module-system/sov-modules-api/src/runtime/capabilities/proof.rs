@@ -30,13 +30,12 @@ pub trait ProofProcessor<S: Spec> {
         &self,
         attester_address: <S as Spec>::Address,
         storage: StateUpdateReceiver<<S as Spec>::Storage>,
-        kernel: K,
     ) -> Self::BondingProofService<K>;
 
     /// Called by the stf once the zk-proof is received.
     #[allow(clippy::type_complexity)]
     fn process_aggregated_proof<ST: TxState<S> + GetGasPrice<Spec = S>>(
-        &self,
+        &mut self,
         proof: SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut ST,
@@ -50,7 +49,7 @@ pub trait ProofProcessor<S: Spec> {
 
     /// Called by the stf once the attestation is received.
     fn process_attestation<ST: TxState<S> + GetGasPrice<Spec = S>>(
-        &self,
+        &mut self,
         proof: SerializedAttestation,
         prover_address: &S::Address,
         state: &mut ST,
@@ -58,7 +57,7 @@ pub trait ProofProcessor<S: Spec> {
 
     /// Called by the stf once the challenge is received.
     fn process_challenge<ST: TxState<S> + GetGasPrice<Spec = S>>(
-        &self,
+        &mut self,
         proof: SerializedChallenge,
         rollup_height: SlotNumber,
         prover_address: &S::Address,

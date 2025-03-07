@@ -29,7 +29,7 @@ pub trait GasEnforcer<S: Spec> {
     /// may change during the transaction execution.
     #[allow(clippy::result_large_err)]
     fn try_reserve_gas(
-        &self,
+        &mut self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         ctx: &mut Context<S>,
@@ -47,7 +47,7 @@ pub trait GasEnforcer<S: Spec> {
     /// may change during the transaction execution.
     #[allow(clippy::result_large_err)]
     fn try_reserve_gas_for_proof(
-        &self,
+        &mut self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         sender: &S::Address,
@@ -61,7 +61,7 @@ pub trait GasEnforcer<S: Spec> {
     /// The caller of this method must ensure that sufficient funds are reserved.  
     /// If there are not enough funds reserved, the method will panic.
     fn reward_prover(
-        &self,
+        &mut self,
         prover_rewards: &ProverReward,
         tx_scratchpad: &mut impl InfallibleStateAccessor,
     );
@@ -73,7 +73,7 @@ pub trait GasEnforcer<S: Spec> {
     /// The caller of this method must ensure that sufficient funds are reserved.  
     /// If there are not enough funds reserved, the method will panic.
     fn refund_remaining_gas(
-        &self,
+        &mut self,
         sender: &S::Address,
         remaining_funds: &RemainingFunds,
         tx_scratchpad: &mut impl InfallibleStateAccessor,
@@ -88,7 +88,7 @@ pub trait GasEnforcer<S: Spec> {
     /// - The implementation of this method is coupled with the implementation of the `SequencerRemuneration`, trait.
     /// - This method is not metered, so be careful about using expensive operations.
     fn reward_prover_from_sequencer_balance(
-        &self,
+        &mut self,
         funds_used: Amount,
         sequencer: &S::Address,
         tx_scratchpad: &mut impl InfallibleStateAccessor,
@@ -105,7 +105,7 @@ pub trait GasEnforcer<S: Spec> {
             + StateWriter<User, Error = Infallible>
             + StateReader<User, Error = Infallible>,
     >(
-        &self,
+        &mut self,
         initial_escrow: Amount,
         reward: Rewards,
         sequencer: &<S::Da as DaSpec>::Address,

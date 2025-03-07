@@ -23,7 +23,7 @@ impl<S: Spec> SequencerRegistry<S> {
             + StateReader<Kernel, Error = Infallible>
             + StateReader<User, Error = Infallible>,
     >(
-        &self,
+        &mut self,
         sequencer: &<S::Da as DaSpec>::Address,
         beneficiary: impl Payable<S>,
         amount: Amount,
@@ -57,7 +57,7 @@ impl<S: Spec> SequencerRegistry<S> {
             };
 
             self.bank
-                .transfer_from(self.id.to_payable(), beneficiary, coins, state)?;
+                .transfer_from(self.id.clone().to_payable(), beneficiary, coins, state)?;
 
             self.known_sequencers
                 .set(
@@ -84,7 +84,7 @@ impl<S: Spec> SequencerRegistry<S> {
             + StateReader<Kernel, Error = Infallible>
             + StateReader<User, Error = Infallible>,
     >(
-        &self,
+        &mut self,
         sender: impl Payable<S>,
         sequencer: &<S::Da as DaSpec>::Address,
         amount: Amount,

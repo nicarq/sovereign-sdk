@@ -27,7 +27,7 @@ pub struct AccountConfig<S: Spec> {
 
 impl<S: Spec> Accounts<S> {
     pub(crate) fn init_module(
-        &self,
+        &mut self,
         config: &<Self as sov_modules_api::Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {

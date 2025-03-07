@@ -12,6 +12,7 @@ use thiserror::Error;
 #[cfg(feature = "arbitrary")]
 use unwrap_infallible::UnwrapInfallible;
 
+use super::Borrowed;
 use crate::state::StateReader;
 #[cfg(feature = "native")]
 use crate::ProvenStateAccessor;
@@ -143,7 +144,7 @@ where
     /// The key may be any borrowed form of the
     /// map’s key type.
     pub fn set<Kq, Vq, Writer>(
-        &self,
+        &mut self,
         key: &Kq,
         value: &Vq,
         state: &mut Writer,
@@ -160,7 +161,7 @@ where
 
     /// Calls [`StateMap::set`] iff the key is not already present in the map.
     pub fn set_if_absent<Kq, Vq, Writer>(
-        &self,
+        &mut self,
         key: &Kq,
         value: &Vq,
         state: &mut Writer,
@@ -224,6 +225,22 @@ where
         state.get_decoded(&self.slot_key(key), self.codec())
     }
 
+    /// Returns a borrowed value from the map, preventing mutable access to the map until this reference is dropped.
+    pub fn borrow<Kq, Reader>(
+        &self,
+        key: &Kq,
+        state: &mut Reader,
+    ) -> Result<Option<Borrowed<V, Self>>, Reader::Error>
+    where
+        Codec::KeyCodec: EncodeLike<Kq, K>,
+        Kq: ?Sized,
+        Reader: StateReader<N>,
+    {
+        Ok(state
+            .get_decoded(&self.slot_key(key), self.codec())?
+            .map(|v| Borrowed::new(v, self)))
+    }
+
     /// Returns the value corresponding to the key or [`StateMapError`] if key is absent from
     /// the map.
     pub fn get_or_err<Kq, Reader>(
@@ -265,7 +282,7 @@ where
     ///
     /// Use [`NamespacedStateMap::remove`] if you want an [`Option`] instead of a [`Result`].
     pub fn remove_or_err<Kq, ReaderAndWriter>(
-        &self,
+        &mut self,
         key: &Kq,
         state: &mut ReaderAndWriter,
     ) -> Result<ValueOrError<V, N>, <ReaderAndWriter as StateWriter<N>>::Error>
@@ -287,7 +304,7 @@ where
     ///
     /// This is equivalent to [`NamespacedStateMap::remove`], but doesn't deserialize and
     /// return the value before deletion, or error on a missing value.
-    pub fn delete<Kq, Writer>(&self, key: &Kq, state: &mut Writer) -> Result<(), Writer::Error>
+    pub fn delete<Kq, Writer>(&mut self, key: &Kq, state: &mut Writer) -> Result<(), Writer::Error>
     where
         Codec: StateCodec,
         Codec::KeyCodec: EncodeLike<Kq, K>,
@@ -387,7 +404,7 @@ where
         let codec = Codec::default();
         let map = Self::with_codec(prefix, codec);
 
-        (0..len).try_fold(map, |map, _| {
+        (0..len).try_fold(map, |mut map, _| {
             let key = K::arbitrary(u)?;
             let value = V::arbitrary(u)?;
 

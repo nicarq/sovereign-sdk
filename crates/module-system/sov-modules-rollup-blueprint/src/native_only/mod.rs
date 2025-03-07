@@ -402,11 +402,10 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     let prover_address = rollup_config.proof_manager.prover_address.clone();
                     let bonding_proof_service = Self::Runtime::default()
                         .proof_processor()
-                        .create_bonding_proof_service(
-                            prover_address,
-                            state_update_receiver.clone(),
-                            Self::Runtime::default(),
-                        );
+                        .create_bonding_proof_service::<Self::Runtime>(
+                        prover_address,
+                        state_update_receiver.clone(),
+                    );
 
                     process_manager
                         .start_op_workflow_in_background(bonding_proof_service)

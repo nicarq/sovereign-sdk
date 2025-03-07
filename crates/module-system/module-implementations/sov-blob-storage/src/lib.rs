@@ -194,7 +194,7 @@ pub struct BlobStorage<S: Spec> {
 impl<S: Spec> BlobStorage<S> {
     /// Store blobs for given block number, overwrite if already exists
     pub(crate) fn store_batches(
-        &self,
+        &mut self,
         batches: &[ValidatedBlob<S, BatchWithId<S>>],
         state: &mut KernelStateAccessor<'_, S>,
     ) {
@@ -207,7 +207,7 @@ impl<S: Spec> BlobStorage<S> {
     /// Take all blobs for given block number, return empty vector if not exists
     /// Returned blobs are removed from the storage
     pub(crate) fn take_blobs_for_slot(
-        &self,
+        &mut self,
         slot_number: SlotNumber,
         state: &mut impl InfallibleKernelStateAccessor,
     ) -> Vec<ValidatedBlob<S, BatchWithId<S>>> {
@@ -259,7 +259,7 @@ impl<S: Spec> Module for BlobStorage<S> {
     type Event = ();
 
     fn genesis(
-        &self,
+        &mut self,
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         _config: &Self::Config,
         _state: &mut impl GenesisState<S>,
@@ -268,7 +268,7 @@ impl<S: Spec> Module for BlobStorage<S> {
     }
 
     fn call(
-        &self,
+        &mut self,
         _message: Self::CallMessage,
         _context: &sov_modules_api::Context<Self::Spec>,
         _state: &mut impl sov_modules_api::TxState<Self::Spec>,

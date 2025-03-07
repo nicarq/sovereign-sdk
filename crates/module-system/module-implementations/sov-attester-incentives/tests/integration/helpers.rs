@@ -19,6 +19,7 @@ use sov_test_utils::{
     assert_matches, generate_optimistic_runtime, AsUser, AtomicAmount, ProofInput, ProofTestCase,
     TestAttester, TestChallenger, TestUser, TransactionType,
 };
+use sov_value_setter::ValueSetterConfig;
 use tokio::runtime::{self, Handle};
 use tokio::task;
 
@@ -28,7 +29,7 @@ pub(crate) type TestAttesterIncentives = AttesterIncentives<S>;
 
 pub(crate) type RT = TestRuntime<S>;
 
-generate_optimistic_runtime!(TestRuntime <= );
+generate_optimistic_runtime!(TestRuntime <= value_setter: sov_value_setter::ValueSetter<S>);
 
 pub type SetupParams = (
     TestRunner<RT, S>,
@@ -72,7 +73,12 @@ pub(crate) fn setup_with_custom_runtime(runtime: TestRuntime<S>) -> SetupParams 
     let additional_account = genesis_config.additional_accounts.first().unwrap().clone();
 
     // Run genesis registering the attester and sequencer we've generated.
-    let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
+    let genesis = GenesisConfig::from_minimal_config(
+        genesis_config.into(),
+        ValueSetterConfig {
+            admin: additional_account.address(),
+        },
+    );
 
     let runner = TestRunner::new_with_genesis(genesis.into_genesis_params(), runtime);
 

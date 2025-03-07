@@ -1,14 +1,11 @@
-/// Base for generating runtimes.
-/// Excludes the TransactionAuthenticator trait to allow custom runtimes like EVM to provide their own
-/// implementation.
+/// Generates a bare runtime without implementing the `HasCapabilities` trait.
 #[macro_export]
-macro_rules! generate_bare_runtime {
+macro_rules! generate_bare_runtime_without_capabilities {
     (
         name: $id:ident,
         modules: [$($module_name:ident : $module_ty:path),* $(,)?],
         operating_mode: $operating_mode:path,
         minimal_genesis_config_type: $minimal_genesis_config_ty:path,
-        gas_enforcer: $payer_name:ident : $gas_enforcer_ty:ty,
         runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds:tt)*],
         kernel_type: $kernel_type:ty
         // optional final comma
@@ -28,7 +25,7 @@ macro_rules! generate_bare_runtime {
         )]
         pub struct $id<S: ::sov_modules_api::Spec>  where
         $($runtime_trait_impl_bounds)*
-    {
+        {
             /// The sequencer registry module.
             pub sequencer_registry: $crate::runtime::SequencerRegistry<S>,
             /// The bank module.
@@ -128,27 +125,6 @@ macro_rules! generate_bare_runtime {
 
         }
 
-        impl<S> ::sov_modules_api::capabilities::HasCapabilities<S> for $id<S> where
-            S: ::sov_modules_api::Spec,
-            $($runtime_trait_impl_bounds)*
-        {
-            type Capabilities<'a> = $crate::runtime::StandardProvenRollupCapabilities<'a, S , $gas_enforcer_ty>;
-
-            fn capabilities(&self) -> ::sov_modules_api::capabilities::Guard<Self::Capabilities<'_>> {
-                ::sov_modules_api::capabilities::Guard::new(
-                    $crate::runtime::StandardProvenRollupCapabilities {
-                        bank: &self.bank,
-                        gas_payer: &self . $payer_name,
-                        sequencer_registry: &self.sequencer_registry,
-                        accounts: &self.accounts,
-                        uniqueness: &self.uniqueness,
-                        prover_incentives: &self.prover_incentives,
-                        attester_incentives: &self.attester_incentives,
-                    }
-                )
-            }
-
-        }
 
         impl<S> sov_modules_api::capabilities::HasKernel<S> for $id<S> where
             S: ::sov_modules_api::Spec,
@@ -157,10 +133,10 @@ macro_rules! generate_bare_runtime {
             type BlobType = sov_modules_api::SelectedBlob<S>;
             type Kernel<'a> = $kernel_type;
 
-            fn inner(&self) -> sov_modules_api::capabilities::Guard<Self::Kernel<'_>> {
+            fn inner(&mut self) -> sov_modules_api::capabilities::Guard<Self::Kernel<'_>> {
                 sov_modules_api::capabilities::Guard::new(Self::Kernel {
-                    chain_state: &self.chain_state,
-                    blob_storage: &self.blob_storage,
+                    chain_state: &mut self.chain_state,
+                    blob_storage: &mut self.blob_storage,
                 })
             }
 
@@ -168,7 +144,97 @@ macro_rules! generate_bare_runtime {
                 ::std::sync::Arc::new(self.chain_state.clone())
             }
         }
+    }
+}
+
+/// Base for generating runtimes.
+/// Excludes the TransactionAuthenticator trait to allow custom runtimes like EVM to provide their own
+/// implementation.
+#[macro_export]
+macro_rules! generate_bare_runtime {
+    (
+        name: $id:ident,
+        modules: [$($module_name:ident : $module_ty:path),* $(,)?],
+        operating_mode: $operating_mode:path,
+        minimal_genesis_config_type: $minimal_genesis_config_ty:path,
+        gas_enforcer: $payer_name:ident : $gas_enforcer_ty:ty,
+        runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds:tt)*],
+        kernel_type: $kernel_type:ty
+        // optional final comma
+        $(,)?
+    ) => {
+        $crate::generate_bare_runtime_without_capabilities! {
+            name: $id,
+            modules: [$($module_name : $module_ty),*],
+            operating_mode: $operating_mode,
+            minimal_genesis_config_type: $minimal_genesis_config_ty,
+            runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds)*],
+            kernel_type: $kernel_type,
+        }
+
+        impl<S> ::sov_modules_api::capabilities::HasCapabilities<S> for $id<S> where
+        S: ::sov_modules_api::Spec,
+        $($runtime_trait_impl_bounds)*
+        {
+            type Capabilities<'a> = $crate::runtime::StandardProvenRollupCapabilities<'a, S, &'a mut $gas_enforcer_ty>;
+
+            fn capabilities(&mut self) -> ::sov_modules_api::capabilities::Guard<Self::Capabilities<'_>> {
+                ::sov_modules_api::capabilities::Guard::new(
+                    $crate::runtime::StandardProvenRollupCapabilities {
+                        bank: &mut self.bank,
+                        gas_payer: &mut self. $payer_name,
+                        sequencer_registry: &mut self.sequencer_registry,
+                        accounts: &mut self.accounts,
+                        uniqueness: &mut self.uniqueness,
+                        prover_incentives: &mut self.prover_incentives,
+                        attester_incentives: &mut self.attester_incentives,
+                    }
+                )
+            }
+
+        }
     };
+    (
+        name: $id:ident,
+        modules: [$($module_name:ident : $module_ty:path),* $(,)?],
+        operating_mode: $operating_mode:path,
+        minimal_genesis_config_type: $minimal_genesis_config_ty:path,
+        runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds:tt)*],
+        kernel_type: $kernel_type:ty
+        // optional final comma
+        $(,)?
+    ) => {
+        $crate::generate_bare_runtime_without_capabilities! {
+            name: $id,
+            modules: [$($module_name : $module_ty),*],
+            operating_mode: $operating_mode,
+            minimal_genesis_config_type: $minimal_genesis_config_ty,
+            runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds)*],
+            kernel_type: $kernel_type,
+        }
+
+        impl<S> ::sov_modules_api::capabilities::HasCapabilities<S> for $id<S> where
+        S: ::sov_modules_api::Spec,
+        $($runtime_trait_impl_bounds)*
+        {
+            type Capabilities<'a> = $crate::runtime::StandardProvenRollupCapabilities<'a, S>;
+
+            fn capabilities(&mut self) -> ::sov_modules_api::capabilities::Guard<Self::Capabilities<'_>> {
+                ::sov_modules_api::capabilities::Guard::new(
+                    $crate::runtime::StandardProvenRollupCapabilities {
+                        bank: &mut self.bank,
+                        gas_payer: (),
+                        sequencer_registry: &mut self.sequencer_registry,
+                        accounts: &mut self.accounts,
+                        uniqueness: &mut self.uniqueness,
+                        prover_incentives: &mut self.prover_incentives,
+                        attester_incentives: &mut self.attester_incentives,
+                    }
+                )
+            }
+
+        }
+    }
 }
 
 /// Base macro used for generating runtimes.
@@ -299,7 +365,6 @@ macro_rules! generate_optimistic_runtime_with_kernel {
             modules: [$($module_name : $module_ty),*],
             operating_mode: sov_modules_api::runtime::OperatingMode::Optimistic,
             minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S>,
-            gas_enforcer: bank: $crate::runtime::Bank<S>,
             runtime_trait_impl_bounds: [],
             kernel_type: $kernel_ty,
         }
@@ -328,7 +393,6 @@ macro_rules! generate_zk_runtime_with_kernel {
             modules: [$($module_name : $module_ty),*],
             operating_mode: sov_modules_api::runtime::OperatingMode::Zk,
             minimal_genesis_config_type: $crate::runtime::genesis::zk::MinimalZkGenesisConfig<S>,
-            gas_enforcer: bank: $crate::runtime::Bank<S>,
             runtime_trait_impl_bounds: [],
             kernel_type: $kernel_ty
         }

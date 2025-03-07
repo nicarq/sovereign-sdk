@@ -56,7 +56,7 @@ impl<S: Spec> ProverIncentives<S> {
 
     /// Try to bond the requested amount of coins from context.sender()
     pub(crate) fn register<ST: TxState<S>>(
-        &self,
+        &mut self,
         bond_amount: Amount,
         prover_address: &S::Address,
         state: &mut ST,
@@ -75,7 +75,7 @@ impl<S: Spec> ProverIncentives<S> {
 
     /// Increases the balance of the provided sender, updating the state of the bonded provers.
     pub(crate) fn deposit<ST: TxState<S>>(
-        &self,
+        &mut self,
         amount: Amount,
         prover_address: &S::Address,
         state: &mut ST,
@@ -94,7 +94,7 @@ impl<S: Spec> ProverIncentives<S> {
 
     /// Try to unbond the requested amount of coins with context.sender() as the beneficiary.
     pub(crate) fn exit<ST: TxState<S>>(
-        &self,
+        &mut self,
         prover_address: &S::Address,
         state: &mut ST,
     ) -> Result<(), ProverRegistryError<S, ST>> {

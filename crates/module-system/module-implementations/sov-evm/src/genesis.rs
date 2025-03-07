@@ -88,7 +88,7 @@ where
     S::Address: FromVmAddress<EthereumAddress>,
 {
     pub(crate) fn init_module(
-        &self,
+        &mut self,
         config: &<Self as Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {

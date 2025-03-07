@@ -90,7 +90,7 @@ impl<S: Spec> Module for Uniqueness<S> {
     type Event = ();
 
     fn genesis(
-        &self,
+        &mut self,
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         _config: &Self::Config,
         _state: &mut impl GenesisState<S>,
@@ -99,7 +99,7 @@ impl<S: Spec> Module for Uniqueness<S> {
     }
 
     fn call(
-        &self,
+        &mut self,
         _msg: Self::CallMessage,
         _context: &Context<S>,
         _state: &mut impl TxState<S>,

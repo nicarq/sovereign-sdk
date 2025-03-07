@@ -235,7 +235,7 @@ impl HooksMacro {
             let ident = &field.ident;
 
             quote::quote! {
-                (&self.#ident, #i)
+                (&mut self.#ident, #i)
             }
         });
 
@@ -256,9 +256,9 @@ impl HooksMacro {
             let args_loop = args_names.clone();
 
             let module_call = if is_faillible {
-                quote::quote! {(&self.#ident).#method(#(#args_loop),*)?}
+                quote::quote! {(&mut self.#ident).#method(#(#args_loop),*)?}
             } else {
-                quote::quote! {(&self.#ident).#method(#(#args_loop),*)}
+                quote::quote! {(&mut self.#ident).#method(#(#args_loop),*)}
             };
 
             quote::quote! {
@@ -273,7 +273,7 @@ impl HooksMacro {
         };
 
         quote::quote! {
-            fn #method #method_generics (&self, #(#args_with_types),*) -> #method_output_ty {
+            fn #method #method_generics (&mut self, #(#args_with_types),*) -> #method_output_ty {
                 let modules: ::std::vec::Vec<(&dyn ::sov_modules_api::ModuleInfo<Spec = Self::Spec>, usize)> = ::std::vec![#(#idents),*];
 
                 let sorted_modules = ::sov_modules_api::sort_values_by_modules_dependencies(modules).expect("Sorting of modules failed");

@@ -319,18 +319,18 @@ where
     /// Returns the state of the rollup at the visible height.
     fn visible_state(&self) -> ApiStateAccessor<S> {
         let stf_state = self.storage_manager.create_storage();
-        let runtime = self.runtime();
+        let mut runtime = RT::default();
         let kernel = runtime.kernel();
 
         let mut state_checkpoint = StateCheckpoint::<S>::new(stf_state.clone(), &kernel);
 
-        let base_fee_per_gas = runtime
+        let base_fee_per_gas = RT::default()
             .chain_state()
             .base_fee_per_gas(&mut state_checkpoint).expect("Impossible to get the base fee per gas for the current slot. This is a bug. Please report it");
 
         ApiStateAccessor::<S>::new_with_price_and_heights(
             &state_checkpoint,
-            runtime.kernel_with_slot_mapping(),
+            RT::default().kernel_with_slot_mapping(),
             state_checkpoint.rollup_height_to_access(),
             state_checkpoint.current_visible_slot_number(),
             base_fee_per_gas,
@@ -340,18 +340,18 @@ where
     /// Returns the state of the rollup at the most recent version of the rollup.
     fn state_at_true_height(&self) -> ApiStateAccessor<S> {
         let stf_state = self.storage_manager.create_storage();
-        let runtime = self.runtime();
+        let mut runtime = RT::default();
         let kernel = runtime.kernel();
 
         let mut state_checkpoint = StateCheckpoint::<S>::new(stf_state.clone(), &kernel);
 
-        let base_fee_per_gas = runtime
+        let base_fee_per_gas = RT::default()
             .chain_state()
             .base_fee_per_gas(&mut state_checkpoint).expect("Impossible to get the base fee per gas for the current slot. This is a bug. Please report it");
 
         ApiStateAccessor::<S>::new_with_price_and_slot_number_dangerous(
             &state_checkpoint,
-            runtime.kernel_with_slot_mapping(),
+            RT::default().kernel_with_slot_mapping(),
             self.true_slot_number(),
             base_fee_per_gas,
         ).unwrap_or_else(|_| panic!("ApiStateAccessor creation failed but the requested true height {} is accessible. This is a bug. Please report it.", self.true_slot_number()))
@@ -404,7 +404,7 @@ where
     pub fn __apply_to_state(&mut self, query: impl FnOnce(&mut StateCheckpoint<S>)) {
         let stf_state = self.storage_manager.create_storage();
 
-        let runtime = self.runtime();
+        let mut runtime = RT::default();
 
         let mut state = StateCheckpoint::<S>::new(stf_state.clone(), &runtime.kernel());
 
@@ -435,17 +435,17 @@ where
     fn synchronize_storage_channel(&mut self) {
         let storage = self.storage_manager.create_storage();
         self.checkpoint_sender
-            .send(StateCheckpoint::new(storage, &self.runtime().kernel()))
+            .send(StateCheckpoint::new(storage, &RT::default().kernel()))
             .expect("Failed to send storage, the storage channel is closed. This is a bug. Please report it.");
     }
 
     /// Builds a new test runner and runs genesis.
     pub fn new_with_genesis(
         genesis_config: GenesisParams<<RT as Genesis>::Config>,
-        runtime: RT,
+        _runtime: RT,
     ) -> Self {
         // Use the runtime to create an STF blueprint
-        let stf = StfBlueprint::<S, RT>::with_runtime(runtime);
+        let stf = StfBlueprint::<S, RT>::new();
 
         // ----- Setup and run genesis ---------
         let mut storage_manager = SimpleStorageManager::new();
@@ -458,7 +458,7 @@ where
 
         let (sender, receiver) = watch::channel(StateCheckpoint::new(
             stf_state.clone(),
-            &stf.runtime().kernel(),
+            &RT::default().kernel(),
         ));
 
         let (state_root, change_set) =

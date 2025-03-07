@@ -94,7 +94,7 @@ impl<S: Spec> BlobStorage<S> {
     /// Select the blobs to execute this slot using "based sequencing". In this mode,
     /// blobs are processed in the order that they appear on the DA layer.
     fn select_blobs_as_based_sequencer_inner(
-        &self,
+        &mut self,
         current_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> BlobSelectorOutput<ValidatedBlob<S, BatchWithId<S>>> {
@@ -118,7 +118,7 @@ impl<S: Spec> BlobStorage<S> {
 
     #[allow(clippy::type_complexity)]
     fn select_blobs_da_ordering(
-        &self,
+        &mut self,
         current_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         account_for_deferral: bool,
         visible_height_increase: u64,
@@ -146,7 +146,7 @@ impl<S: Spec> BlobStorage<S> {
     // mutatates the `blobs_with_total_size_limit` argument rather than returning a new value - this makes it easy to share
     // beween the preferred and non-preferred paths.
     fn select_blobs_da_ordering_helper<'a>(
-        &self,
+        &mut self,
         blob_iter: impl Iterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
         blobs_with_total_size_limit: &mut BlobsAccumulatorWithSizeLimit<S>,
         account_for_deferral: bool,
@@ -287,7 +287,7 @@ impl<S: Spec> BlobStorage<S> {
     /// the rollup processes two visible slots at a time until it catches up to the current slot, after
     /// which it performs standard based sequencing.
     fn select_blobs_in_recovery_mode(
-        &self,
+        &mut self,
         current_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> BlobSelectorOutput<ValidatedBlob<S, BatchWithId<S>>> {
@@ -381,7 +381,7 @@ impl<S: Spec> BlobStorage<S> {
     /// - Any batches which appeared on chain before or during the current *visible* slot number
     #[tracing::instrument(skip_all)]
     fn select_blobs_for_preferred_sequencer<'k>(
-        &self,
+        &mut self,
         current_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         state: &mut KernelStateAccessor<'k, S>,
         preferred_sender: &<S::Da as DaSpec>::Address,
@@ -557,7 +557,7 @@ impl<S: Spec> BlobStorage<S> {
     /// would be trivial. However, recall that proofs also have sequence numbers, but we can't create a block unless we have a *batch*.
     /// So, we need to look for the shortest run of consecutive sequence numbers that starts with `next_sequence_number` and ends with a batch.
     fn pick_preferred_blobs_to_process(
-        &self,
+        &mut self,
         well_formed_preferred_blobs: Vec<PreferredBlobDataWithId>,
         sequence_tracker: &mut SequencerNumberTracker,
         preferred_sender: &<S::Da as DaSpec>::Address,
@@ -584,7 +584,7 @@ impl<S: Spec> BlobStorage<S> {
     ///
     /// Note that the next run of blobs may not contain a batch! If it doesn't, a rollup block will not be created.
     fn find_next_run_of_blobs<'a>(
-        &'a self,
+        &self,
         mut well_formed_preferred_blobs: Vec<PreferredBlobDataWithId>,
         sequence_tracker: &SequencerNumberTracker,
         preferred_sender: &'a <S::Da as DaSpec>::Address,
@@ -653,7 +653,7 @@ impl<S: Spec> BlobStorage<S> {
     }
 
     fn retrieve_stored_blobs_and_add_to_selection(
-        &self,
+        &mut self,
         slots_needed_from_storage: u64,
         gas_price_for_new_block: &<S::Gas as Gas>::Price,
         blobs_with_total_size_limit: &mut BlobsAccumulatorWithSizeLimit<S>,
@@ -691,7 +691,7 @@ impl<S: Spec> BlobStorage<S> {
     }
 
     fn move_funds_from_escrow_to_bank(
-        &self,
+        &mut self,
         batch: &ValidatedBlob<S, BatchWithId<S>>,
         escrow: &DerivedHolder,
         gas_price_for_new_block: &<S::Gas as Gas>::Price,
@@ -724,7 +724,7 @@ impl<S: Spec> BlobStorage<S> {
     }
 
     fn add_preferred_blobs_to_selection(
-        &self,
+        &mut self,
         selected_preferred_blobs: Vec<PreferredBlobDataWithId>,
         blobs_to_select: &mut BlobsAccumulatorWithSizeLimit<S>,
         preferred_sender: &<S::Da as DaSpec>::Address,
@@ -763,7 +763,7 @@ impl<S: Spec> BlobStorage<S> {
     }
 
     fn try_validate_proof_and_reserve_funds(
-        &self,
+        &mut self,
         idx: u32,
         blob: &mut <S::Da as DaSpec>::BlobTransaction,
         account_for_deferral: bool,
@@ -798,7 +798,7 @@ impl<S: Spec> BlobStorage<S> {
     }
 
     fn try_validate_batch_and_reserve_funds_if_needed(
-        &self,
+        &mut self,
         idx: u32,
         blob: &mut <S::Da as DaSpec>::BlobTransaction,
         sequencer: AllowedSequencer<S>,
@@ -828,7 +828,7 @@ impl<S: Spec> BlobStorage<S> {
     /// Takes the next run of blobs and extracts the list  of blobs that should be processed this slot, if any. Saves
     /// any new preferred blobs that aren't going to be used immediately into storage.
     fn get_blobs_to_process_from_run(
-        &self,
+        &mut self,
         next_run_of_blobs: Vec<BlobArrival>,
         new_blobs_not_processed: impl Iterator<Item = PreferredBlobDataWithId>,
         next_sequence_number: u64,
@@ -899,7 +899,7 @@ impl<S: Spec> BlobStorage<S> {
     /// The sequencer might not exist if we're processing a blob submitted by an unregistered
     /// sequencer - in the case of direct sequencer registration via DA.
     fn deserialize_or_try_slash_sender<B: BorshDeserialize>(
-        &self,
+        &mut self,
         blob: &mut <S::Da as DaSpec>::BlobTransaction,
         charge_for_deserialization: Option<(&AllowedSequencer<S>, &<S::Gas as Gas>::Price)>,
         slash_on_failure: bool,
@@ -916,7 +916,7 @@ impl<S: Spec> BlobStorage<S> {
             // Burn the cost of deserialization from the sender's balance. For now, we just send it to the sequencer registry where it'll remain inaccessible.
             self.sequencer_registry.remove_part_of_the_stake(
                 &blob.sender(),
-                self.sequencer_registry.id().to_payable(),
+                self.sequencer_registry.id().clone().to_payable(),
                 funds_for_deserialization,
                 state,
             ).expect("Failed to remove funds for deserialization even though the sender has enough balance. This should never happen.");
@@ -960,7 +960,7 @@ impl<S: Spec> BlobStorage<S> {
     /// 2. Any non-priority blobs which were sent `DEFERRED_SLOTS_COUNT` slots ago ("expiring deferred blobs")
     /// 3. Some additional deferred blobs needed to fill the total requested by the sequencer, if applicable. ("bonus blobs")
     pub fn get_blobs_for_this_slot(
-        &self,
+        &mut self,
         current_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> anyhow::Result<BlobSelectorOutput<SelectedBlob<S>>> {
@@ -1005,7 +1005,7 @@ impl<S: Spec> BlobStorage<S> {
 
     /// Escrow funds for the preferred sequencer.
     pub fn escrow_funds_for_preferred_sequencer(
-        &self,
+        &mut self,
         amount: Amount,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> anyhow::Result<()> {
@@ -1025,7 +1025,7 @@ impl<S: Spec> BlobStorage<S> {
     /// Select the blobs to execute this slot using "based sequencing". In this mode,
     /// blobs are processed in the order that they appear on the DA layer.
     pub fn select_blobs_as_based_sequencer(
-        &self,
+        &mut self,
         current_blobs: RelevantBlobIters<&mut [<<S as Spec>::Da as DaSpec>::BlobTransaction]>,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> BlobSelectorOutput<SelectedBlob<S>> {
@@ -1042,7 +1042,7 @@ impl<S: Spec> BlobStorage<S> {
 
     /// Extracts all delayed non-preferred blobs that belong to the given slots.
     pub fn get_non_preferred_blobs(
-        &self,
+        &mut self,
         slot_range: impl Iterator<Item = SlotNumber>,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> Vec<ValidatedBlob<S, BatchWithId<S>>> {

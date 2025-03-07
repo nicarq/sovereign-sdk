@@ -85,7 +85,7 @@ impl<S: Spec> Bank<S> {
     /// Checks if a token already exists at that address. If so return an error.
     #[allow(clippy::too_many_arguments)]
     pub fn create_token(
-        &self,
+        &mut self,
         token_name: String,
         initial_balance: Amount,
         mint_to_address: impl Payable<S>,
@@ -162,7 +162,7 @@ impl<S: Spec> Bank<S> {
 
     /// Transfers the set of `coins` to the address specified by `to`.
     pub fn transfer(
-        &self,
+        &mut self,
         to: impl Payable<S>,
         coins: Coins,
         context: &Context<S>,
@@ -206,7 +206,7 @@ impl<S: Spec> Bank<S> {
     /// If the requested burn amount exceeds the token's total supply.
     /// No tokens will be burned in this case.
     pub fn burn(
-        &self,
+        &mut self,
         coins: Coins,
         owner: impl Payable<S>,
         state: &mut impl TxState<S>,
@@ -254,7 +254,7 @@ impl<S: Spec> Bank<S> {
 
     /// Burns coins from an externally owned address ("EOA")
     pub(crate) fn burn_from_eoa(
-        &self,
+        &mut self,
         coins: Coins,
         context: &Context<S>,
         state: &mut impl TxState<S>,
@@ -276,7 +276,7 @@ impl<S: Spec> Bank<S> {
     ///
     /// On success, it updates the `self.tokens` set to store the new balance.
     pub fn mint_from_eoa(
-        &self,
+        &mut self,
         coins: Coins,
         mint_to_identity: impl Payable<S>,
         context: &Context<S>,
@@ -295,7 +295,7 @@ impl<S: Spec> Bank<S> {
     ///
     /// On success, it updates the `self.tokens` set to store the new minted address.
     pub fn mint(
-        &self,
+        &mut self,
         coins: Coins,
         mint_to_identity: impl Payable<S>,
         authorizer: impl Payable<S>,
@@ -350,7 +350,7 @@ impl<S: Spec> Bank<S> {
     /// Insecure function to override the balance of an address for the gas token.
     /// This should only be used in VMs where the underlying transfers are black boxed (i.e. we trust the VM).
     pub fn override_gas_balance<Accessor: StateAccessor>(
-        &self,
+        &mut self,
         balance: Amount,
         address: impl Payable<S>,
         state: &mut Accessor,
@@ -368,7 +368,7 @@ impl<S: Spec> Bank<S> {
     /// Returns an error if the token ID doesn't exist,
     /// otherwise calls the [`Token::freeze`] function, and update the token set upon success.
     pub(crate) fn freeze(
-        &self,
+        &mut self,
         token_id: TokenId,
         context: &Context<S>,
         state: &mut impl TxState<S>,
@@ -412,7 +412,7 @@ impl<S: Spec> Bank<S> {
     ///
     /// Returns an error if the token ID doesn't exist.
     pub fn transfer_from(
-        &self,
+        &mut self,
         from: impl Payable<S>,
         to: impl Payable<S>,
         coins: Coins,
@@ -431,7 +431,7 @@ impl<S: Spec> Bank<S> {
     /// First checks that there is enough token of that type stored in `from`. If so, update
     /// the balances of the `from` and `to` accounts.
     fn do_transfer(
-        &self,
+        &mut self,
         from: TokenHolderRef<'_, S>,
         to: TokenHolderRef<'_, S>,
         token_id: &TokenId,
@@ -468,7 +468,7 @@ impl<S: Spec> Bank<S> {
     // Check that amount can be deducted from address
     // Returns new balance after subtraction.
     fn decrease_balance_checked(
-        &self,
+        &mut self,
         token_id: &TokenId,
         from: TokenHolderRef<'_, S>,
         amount: Amount,

@@ -25,7 +25,7 @@ pub trait StakeRegistration {
     ///  * If the state operations fail (i.e. if the state accessor is failible)
     #[allow(clippy::type_complexity)]
     fn register_staker<ST: TxState<Self::Spec>>(
-        &self,
+        &mut self,
         primary_address: &Self::PrimaryAddress,
         rollup_address: &Self::RollupAddress,
         amount: Amount,
@@ -68,7 +68,7 @@ pub trait StakeRegistration {
     ///  * If the state operations fail (i.e. if the state accessor is failible)
     #[allow(clippy::type_complexity)]
     fn deposit_funds<ST: TxState<Self::Spec>>(
-        &self,
+        &mut self,
         staker: &Self::PrimaryAddress,
         amount: Amount,
         state: &mut ST,
@@ -120,7 +120,7 @@ pub trait StakeRegistration {
     ///  indicates a bug in the module.
     #[allow(clippy::type_complexity)]
     fn exit_staker<ST: TxState<Self::Spec>>(
-        &self,
+        &mut self,
         staker: &Self::PrimaryAddress,
         state: &mut ST,
     ) -> Result<
@@ -167,7 +167,7 @@ pub trait StakeRegistration {
 
     /// Set the allowed staker.
     fn set_allowed_staker<ST: TxState<Self::Spec>>(
-        &self,
+        &mut self,
         primary_address: &Self::PrimaryAddress,
         rollup_address: &Self::RollupAddress,
         amount: Amount,
@@ -176,7 +176,7 @@ pub trait StakeRegistration {
 
     /// Transfer bond from a staker to the rollup.
     fn transfer_bond_from_staker<ST: StateAccessor>(
-        &self,
+        &mut self,
         address: &Self::RollupAddress,
         amount: Amount,
         state: &mut ST,
@@ -184,7 +184,7 @@ pub trait StakeRegistration {
 
     /// Transfer bond from the rollup to a staker.
     fn transfer_bond_to_staker<ST: StateAccessor>(
-        &self,
+        &mut self,
         address: &Self::RollupAddress,
         amount: Amount,
         state: &mut ST,
@@ -192,7 +192,7 @@ pub trait StakeRegistration {
 
     /// Delete the allowed staker.
     fn delete_allowed_staker<ST: StateAccessor>(
-        &self,
+        &mut self,
         address: &Self::PrimaryAddress,
         state: &mut ST,
     ) -> Result<(), <ST as StateWriter<User>>::Error>;

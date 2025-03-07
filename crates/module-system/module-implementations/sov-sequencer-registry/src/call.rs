@@ -69,7 +69,7 @@ impl<S: Spec> SequencerRegistry<S> {
     /// - If the sender's account does not have enough funds to register itself as a sequencer.
     /// - If the sequencer is already registered.
     pub(crate) fn register<ST: TxState<S>>(
-        &self,
+        &mut self,
         da_address: &<S::Da as DaSpec>::Address,
         amount: Amount,
         context: &Context<S>,
@@ -81,7 +81,7 @@ impl<S: Spec> SequencerRegistry<S> {
     }
 
     pub(crate) fn register_staker<ST: TxState<S>>(
-        &self,
+        &mut self,
         da_address: &<S::Da as DaSpec>::Address,
         amount: Amount,
         address: S::Address,
@@ -93,7 +93,12 @@ impl<S: Spec> SequencerRegistry<S> {
             ));
         }
         self.bank
-            .transfer_from(&address, self.id().to_payable(), gas_coins(amount), state)
+            .transfer_from(
+                &address,
+                self.id().clone().to_payable(),
+                gas_coins(amount),
+                state,
+            )
             .map_err(
                 |_| SequencerRegistryError::<S, ST>::InsufficientFundsToRegister {
                     address: address.clone(),
@@ -119,7 +124,7 @@ impl<S: Spec> SequencerRegistry<S> {
     }
 
     pub(crate) fn deposit<ST: TxState<S>>(
-        &self,
+        &mut self,
         da_address: &<S::Da as DaSpec>::Address,
         amount: Amount,
         context: &Context<S>,
@@ -141,7 +146,12 @@ impl<S: Spec> SequencerRegistry<S> {
         existing_sequencer.balance_state = BalanceState::Active;
 
         self.bank
-            .transfer_from(&address, self.id().to_payable(), gas_coins(amount), state)
+            .transfer_from(
+                &address,
+                self.id().clone().to_payable(),
+                gas_coins(amount),
+                state,
+            )
             .map_err(
                 |_| SequencerRegistryError::<S, ST>::InsufficientFundsToTopUpAccount {
                     address: address.clone(),
@@ -174,7 +184,7 @@ impl<S: Spec> SequencerRegistry<S> {
     /// - If the supplied `da_address` does not match the transaction sender.
     /// - If the module balance is not high enough to refund the sequencer's staked amount (this is a bug).
     pub(crate) fn initiate_withdrawal<ST: TxState<S>>(
-        &self,
+        &mut self,
         da_address: &<S::Da as DaSpec>::Address,
         context: &Context<S>,
         state: &mut ST,
@@ -215,7 +225,7 @@ impl<S: Spec> SequencerRegistry<S> {
     }
 
     pub(crate) fn withdraw<ST: TxState<S>>(
-        &self,
+        &mut self,
         da_address: &<S::Da as DaSpec>::Address,
         context: &Context<S>,
         state: &mut ST,
@@ -239,7 +249,7 @@ impl<S: Spec> SequencerRegistry<S> {
         self.known_sequencers.delete(da_address, state)?;
         self.bank
             .transfer_from(
-                self.id().to_payable(),
+                self.id().clone().to_payable(),
                 &existing_sequencer.address,
                 gas_coins(existing_sequencer.balance),
                 state,

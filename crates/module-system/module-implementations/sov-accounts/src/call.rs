@@ -30,7 +30,7 @@ pub enum CallMessage {
 
 impl<S: Spec> Accounts<S> {
     pub(crate) fn insert_credential_id(
-        &self,
+        &mut self,
         new_credential_id: CredentialId,
         context: &Context<S>,
         state: &mut impl TxState<S>,

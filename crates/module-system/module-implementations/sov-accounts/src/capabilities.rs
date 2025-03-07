@@ -8,7 +8,7 @@ impl<S: Spec> Accounts<S> {
     /// If the sender is not registered, but a fallback address if provided, immediately registers
     /// the credential to the fallback and then returns it.
     pub fn resolve_sender_address<ST: StateAccessor>(
-        &self,
+        &mut self,
         default_address: &S::Address,
         credential_id: &CredentialId,
         state: &mut ST,

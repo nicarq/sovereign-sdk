@@ -12,7 +12,6 @@ generate_bare_runtime! {
     modules: [visible_hash_module: TestVisibleHashModule<S>],
     operating_mode: sov_modules_api::OperatingMode::Optimistic,
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S>,
-    gas_enforcer: bank: sov_test_utils::runtime::Bank<S>,
     runtime_trait_impl_bounds: [],
     kernel_type: sov_kernels::soft_confirmations::SoftConfirmationsKernel<'a, S>
 }

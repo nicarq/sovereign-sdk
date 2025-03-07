@@ -66,7 +66,7 @@ where
         let sequencer_rollup_address = transaction
             .sequencer_rollup_address
             .unwrap_or(default_sequencer_rollup_address);
-        let runtime = RT::default();
+        let mut runtime = RT::default();
 
         let tx_data = AuthenticatedTransactionData(TxDetails {
             chain_id: transaction.details.chain_id,
@@ -93,7 +93,7 @@ where
             WorkingSet::create_working_set(scratchpad, &tx_data, working_set_gas_meter);
 
         let (result, _) = apply_tx(
-            &runtime,
+            &mut runtime,
             &ctx,
             &tx_data,
             // We don't have a way to get the raw transaction hash because it depends on the signature.

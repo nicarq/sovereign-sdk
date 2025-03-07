@@ -20,7 +20,7 @@ impl<S: Spec> Uniqueness<S> {
     }
 
     pub(crate) fn mark_nonce_tx_attempted(
-        &self,
+        &mut self,
         credential_id: &CredentialId,
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {

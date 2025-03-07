@@ -454,7 +454,7 @@ impl<S: Spec> ChainState<S> {
 
     /// Record the gas usage for a given rollup height.
     pub fn record_gas_usage(
-        &self,
+        &mut self,
         state: &mut StateCheckpoint<S>,
         final_gas_info: BlockGasInfo<S::Gas>,
         rollup_height: RollupHeight,
@@ -536,7 +536,7 @@ impl<S: Spec> Module for ChainState<S> {
 
     /// Genesis is called when a rollup is deployed and can be used to set initial state values in the module.
     fn genesis(
-        &self,
+        &mut self,
         genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<Self::Spec>,
@@ -546,7 +546,7 @@ impl<S: Spec> Module for ChainState<S> {
     }
 
     fn call(
-        &self,
+        &mut self,
         _message: Self::CallMessage,
         _context: &sov_modules_api::Context<Self::Spec>,
         _state: &mut impl sov_modules_api::TxState<Self::Spec>,

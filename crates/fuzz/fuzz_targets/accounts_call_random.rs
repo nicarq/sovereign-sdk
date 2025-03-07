@@ -19,7 +19,7 @@ fuzz_target!(|input: (&[u8], Vec<(Context<S>, CallMessage)>)| {
     let u = &mut Unstructured::new(seed);
     let maybe_accounts = Accounts::arbitrary_workset(u, &mut state).unwrap();
 
-    let accounts: Accounts<S> = maybe_accounts;
+    let mut accounts: Accounts<S> = maybe_accounts;
     let mut working_set: WorkingSet<S> = state.to_working_set_unmetered();
 
     for (ctx, msg) in msgs {

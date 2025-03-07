@@ -89,7 +89,7 @@ impl<S: Spec> Bank<S> {
     /// For each token in the `config`, calls the [`Token::create`] function to create
     /// the token. Upon success, updates the token set if the token ID doesn't already exist.
     pub(crate) fn init_module(
-        &self,
+        &mut self,
         config: &<Self as Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {

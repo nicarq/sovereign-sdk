@@ -62,7 +62,7 @@ fuzz_target!(
 
         let config = AccountConfig { accounts };
 
-        let accounts: Accounts<S> = Accounts::default();
+        let mut accounts: Accounts<S> = Accounts::default();
         let mut genesis_state = state.to_genesis_state_accessor::<Accounts<S>>(&config);
         accounts
             .genesis(&Default::default(), &config, &mut genesis_state)

@@ -16,7 +16,7 @@ pub trait TxHooks {
     /// Runs just before a transaction is dispatched to an appropriate module.
     /// If this hook returns an error, the transaction is reverted.
     fn pre_dispatch_tx_hook<T: TxState<Self::Spec>>(
-        &self,
+        &mut self,
         _tx: &AuthenticatedTransactionData<Self::Spec>,
         _state: &mut T,
     ) -> anyhow::Result<()> {
@@ -26,7 +26,7 @@ pub trait TxHooks {
     /// Runs after the tx is dispatched to an appropriate module.
     /// If this hook returns an error, the transaction is reverted.
     fn post_dispatch_tx_hook<T: TxState<Self::Spec>>(
-        &self,
+        &mut self,
         _tx: &AuthenticatedTransactionData<Self::Spec>,
         _ctx: &Context<Self::Spec>,
         _state: &mut T,
@@ -37,11 +37,11 @@ pub trait TxHooks {
 
 /// Autoref blanket implementation of the [`TxHooks`] trait.
 /// Any module can override the default behavior by implementing the [`TxHooks`] trait.
-impl<T: Module> TxHooks for &T {
+impl<T: Module> TxHooks for &mut T {
     type Spec = T::Spec;
 
     fn pre_dispatch_tx_hook<S: TxState<Self::Spec>>(
-        &self,
+        &mut self,
         _tx: &AuthenticatedTransactionData<Self::Spec>,
         _state: &mut S,
     ) -> anyhow::Result<()> {
@@ -49,7 +49,7 @@ impl<T: Module> TxHooks for &T {
     }
 
     fn post_dispatch_tx_hook<S: TxState<Self::Spec>>(
-        &self,
+        &mut self,
         _tx: &AuthenticatedTransactionData<Self::Spec>,
         _ctx: &Context<Self::Spec>,
         _state: &mut S,
@@ -89,29 +89,29 @@ pub trait BlockHooks {
     /// Suppose `STATE_ROOT_DELAY_BLOCKS` = 0. Then the state roots passed are simply the
     /// pre-state roots of the current block.
     fn begin_rollup_block_hook(
-        &self,
+        &mut self,
         _visible_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         _state: &mut StateCheckpoint<Self::Spec>,
     ) {
     }
 
     /// Hook that runs at the end of block execution. See trait description for details and important performance considerations.
-    fn end_rollup_block_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {}
+    fn end_rollup_block_hook(&mut self, _state: &mut StateCheckpoint<Self::Spec>) {}
 }
 
 /// Autoref blanket implementation of the [`BlockHooks`] trait.
 /// Any module can override the default behavior by implementing the [`BlockHooks`] trait.
-impl<T: Module> BlockHooks for &T {
+impl<T: Module> BlockHooks for &mut T {
     type Spec = T::Spec;
 
     fn begin_rollup_block_hook(
-        &self,
+        &mut self,
         _visible_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         _state: &mut StateCheckpoint<Self::Spec>,
     ) {
     }
 
-    fn end_rollup_block_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {}
+    fn end_rollup_block_hook(&mut self, _state: &mut StateCheckpoint<Self::Spec>) {}
 }
 
 /// A hook that runs after all state changes from a block have been computed.
@@ -139,7 +139,7 @@ pub trait FinalizeHook {
     /// - (Safe): Iterate over a number of items that is limited per-block. For example, iterate over all accounts that were modified last block.
     /// - (Dangerous): Iterate over an arbitrary number of items - for example, iterate over all accounts on the rollup.
     fn finalize_hook(
-        &self,
+        &mut self,
         _root_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         _state: &mut impl AccessoryStateReaderAndWriter,
     ) {
@@ -149,11 +149,11 @@ pub trait FinalizeHook {
 /// Autoref blanket implementation of the [`FinalizeHook`] trait.
 /// Any module can override the default behavior by implementing the [`FinalizeHook`] trait.
 #[cfg(feature = "native")]
-impl<T: Module> FinalizeHook for &T {
+impl<T: Module> FinalizeHook for &mut T {
     type Spec = T::Spec;
 
     fn finalize_hook(
-        &self,
+        &mut self,
         _root_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         _state: &mut impl AccessoryStateReaderAndWriter,
     ) {

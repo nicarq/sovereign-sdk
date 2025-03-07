@@ -32,7 +32,7 @@ impl<S: Spec> ProverIncentives<S> {
     /// Sets the minimum amount necessary to bond, the commitment to the verifier circuit
     /// the bonding token ID and builds the set of initial provers.
     pub(crate) fn init_module(
-        &self,
+        &mut self,
         config: &<Self as Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {

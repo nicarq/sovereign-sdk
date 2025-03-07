@@ -19,8 +19,8 @@ use sov_state::{Kernel, Storage, User};
 
 /// The simplest imaginable kernel. It does not do any batching or reordering of blobs.
 pub struct BasicKernel<'a, S: Spec> {
-    pub chain_state: &'a ChainState<S>,
-    pub blob_storage: &'a BlobStorage<S>,
+    pub chain_state: &'a mut ChainState<S>,
+    pub blob_storage: &'a mut BlobStorage<S>,
 }
 
 impl<'a, S: Spec> BasicKernel<'a, S> {
@@ -52,7 +52,7 @@ impl<'a, S: Spec> KernelTrait<S> for BasicKernel<'a, S> {
     }
 
     fn record_gas_usage(
-        &self,
+        &mut self,
         state: &mut sov_modules_api::StateCheckpoint<S>,
         gas_info: BlockGasInfo<S::Gas>,
         rollup_height: RollupHeight,
@@ -70,7 +70,7 @@ impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
     const ACCEPTS_PREFERRED_BATCHES: bool = false;
 
     fn get_blobs_for_this_slot(
-        &self,
+        &mut self,
         current_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         state: &mut KernelStateAccessor<'_, S>,
     ) -> anyhow::Result<BlobSelectorOutput<SelectedBlob<S>>> {
@@ -80,7 +80,7 @@ impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
     }
 
     fn get_non_preferred_blobs(
-        &self,
+        &mut self,
         slot_range: impl Iterator<Item = SlotNumber>,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
     ) -> Vec<SelectedBlob<Self::Spec>> {
@@ -93,7 +93,7 @@ impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
 
     #[cfg(feature = "native")]
     fn escrow_funds_for_preferred_sequencer(
-        &self,
+        &mut self,
         _amount: sov_modules_api::Amount,
         _state: &mut KernelStateAccessor<'_, S>,
     ) -> anyhow::Result<()> {
@@ -105,7 +105,7 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, 
     type Spec = S;
 
     fn synchronize_chain(
-        &self,
+        &mut self,
         slot_header: &<S::Da as DaSpec>::BlockHeader,
         pre_state_root: &<S::Storage as Storage>::Root,
         state: &mut sov_modules_api::KernelStateAccessor<S>,
@@ -115,7 +115,7 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, 
     }
 
     fn finalize_chain_state(
-        &self,
+        &mut self,
         gas_used: &S::Gas,
         state: &mut sov_modules_api::KernelStateAccessor<S>,
     ) {
@@ -153,7 +153,7 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, 
     }
 
     fn increment_rollup_height(
-        &self,
+        &mut self,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
         visible_slot_number: VisibleSlotNumber,
         user_state_root: &[u8; 32],

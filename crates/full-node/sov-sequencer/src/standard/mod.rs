@@ -121,6 +121,7 @@ where
         Result<Option<(FullyBakedTx, TransactionReceipt<S>)>, AddTxToBatchError>,
     ) {
         let tx = seqdb_tx.tx.clone();
+        let mut runtime = Rt::default();
 
         // To fill a batch as big as possible, we only check if valid
         // tx can fit in the batch.
@@ -168,7 +169,7 @@ where
 
         let pre_exec_working_set = tx_scratchpad.to_pre_exec_working_set(gas_meter);
         let (res, tx_scratchpad, _gas_meter) = process_tx_and_reward_prover(
-            &self.runtime,
+            &mut runtime,
             pre_exec_working_set,
             // Currently the sequencer doesn't take into account the slot gas limit.
             &<S::Gas>::MAX,
@@ -215,7 +216,8 @@ where
         // This closure helps us make sure that we always put the
         // `StateCheckpoint` back into `self` at the end of the function.
         let (new_checkpoint, response) = (|mut checkpoint| {
-            let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut checkpoint).expect("Impossible to get the gas price for the current slot. This is a bug. Please report it");
+            let mut runtime: Rt = Default::default();
+            let gas_price = runtime.chain_state().base_fee_per_gas(&mut checkpoint).expect("Impossible to get the gas price for the current slot. This is a bug. Please report it");
 
             let mut ctx = BatchConstructionContext {
                 reward: SequencerReward::ZERO,
@@ -397,7 +399,7 @@ where
 
         shutdown_receiver: watch::Receiver<()>,
     ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
-        let runtime = Rt::default();
+        let mut runtime = Rt::default();
         let kernel_with_slot_mapping = runtime.kernel_with_slot_mapping();
 
         let latest_state_update = state_update_receiver.borrow().clone();
@@ -559,7 +561,8 @@ where
         // This closure helps us make sure that we always put the
         // state checkpoint back into `self` at the end of the function.
         let (new_checkpoint, response) = (|mut checkpoint: StateCheckpoint<S>| {
-            let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut checkpoint).expect("Impossible to get the gas price for the current slot. This is a bug. Please report it");
+            let mut runtime: Rt = Default::default();
+            let gas_price = runtime.chain_state().base_fee_per_gas(&mut checkpoint).expect("Impossible to get the gas price for the current slot. This is a bug. Please report it");
 
             let (tx_scratchpad, output_res) = tx_auth(
                 &self.runtime,

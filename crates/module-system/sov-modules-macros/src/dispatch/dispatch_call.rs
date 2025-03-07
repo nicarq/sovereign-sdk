@@ -33,7 +33,7 @@ impl<'a> StructDef<'a> {
 
             quote::quote!(
                 #enum_ident::#variant_ident(message) => {
-                    ::sov_modules_api::Module::call(&self.#field_ident, message, context, state)
+                    ::sov_modules_api::Module::call(&mut self.#field_ident, message, context, state)
                 },
             )
         });
@@ -79,7 +79,7 @@ impl<'a> StructDef<'a> {
 
 
                 fn dispatch_call<I: ::sov_modules_api::StateProvider<Self::Spec>>(
-                    &self,
+                    &mut self,
                     decodable: Self::Decodable,
                     state: &mut ::sov_modules_api::WorkingSet<Self::Spec, I>,
                     context: &::sov_modules_api::Context<Self::Spec>,

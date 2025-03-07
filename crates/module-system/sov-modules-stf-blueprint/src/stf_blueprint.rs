@@ -11,6 +11,7 @@ use crate::Runtime;
 /// that is specifically designed to work with the module-system.
 pub struct StfBlueprint<S: Spec, RT: Runtime<S>> {
     /// The runtime includes all the modules that the rollup supports.
+    #[cfg_attr(not(feature = "test-utils"), allow(dead_code))]
     pub(crate) runtime: RT,
     phantom_context: PhantomData<S>,
 }
@@ -51,6 +52,7 @@ where
     #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
     pub(crate) fn process_proof(
         &self,
+        runtime: &mut RT,
         blob_hash: [u8; 32],
         slot_gas: &S::Gas,
         sender: &<S::Da as DaSpec>::Address,
@@ -70,7 +72,7 @@ where
         S::Gas,
     ) {
         let (res, state) = process_proof(
-            &self.runtime,
+            runtime,
             slot_gas,
             blob_hash,
             sender,

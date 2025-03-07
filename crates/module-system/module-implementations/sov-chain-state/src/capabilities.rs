@@ -196,7 +196,7 @@ impl<S: Spec> ChainState<S> {
     /// ## IMPORTANT
     /// This method assumes that it is called *after* "synchronize_chain" is called.
     pub fn increment_rollup_height(
-        &self,
+        &mut self,
         state: &mut KernelStateAccessor<'_, S>,
         visible_slot_number: VisibleSlotNumber,
         user_state_root: &[u8; 32],
@@ -231,7 +231,7 @@ impl<S: Spec> ChainState<S> {
     /// ## IMPORTANT
     /// This method assumes that it is called *before* "increment_rollup_height" is called.
     pub fn synchronize_chain(
-        &self,
+        &mut self,
         slot_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         pre_state_root: &<S::Storage as Storage>::Root,
         state: &mut KernelStateAccessor<S>,
@@ -299,7 +299,7 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Updates the gas used by the transition in progress at the end of each slot
-    pub fn finalize_chain_state(&self, gas_used: &S::Gas, state: &mut KernelStateAccessor<S>) {
+    pub fn finalize_chain_state(&mut self, gas_used: &S::Gas, state: &mut KernelStateAccessor<S>) {
         // We retrieve the last slot in progress, update its gas information and store it back to the state
         let mut in_progress_slot = self
             .kernel_true_latest_slot(state)

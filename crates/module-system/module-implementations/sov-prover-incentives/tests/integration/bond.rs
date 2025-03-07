@@ -7,6 +7,7 @@ use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{Amount, Gas, GasArray, GetGasPrice, Spec, TxEffect};
 use sov_prover_incentives::{CallMessage, Event, ProverIncentives};
 use sov_test_utils::{AsUser, BatchTestCase, BatchType, TransactionTestCase, TransactionType};
+use sov_value_setter::ValueSetter;
 
 use crate::helpers::{
     minimal_bond, setup, setup_with_custom_runtime, TestProverIncentives, TestRuntimeEvent, RT,
@@ -173,19 +174,7 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
     let mut gas_limit = <S as Spec>::Gas::from(config_value!("INITIAL_GAS_LIMIT"));
     let gas_target = gas_limit.scalar_division(2).clone();
 
-    let zero_gas = <S as Spec>::Gas::zero();
-
-    let mut runtime = RT::default();
-
-    runtime
-        .bank
-        .override_gas_config(sov_bank::BankGasConfig::<<S as Spec>::Gas> {
-            burn: gas_target.clone(),
-            mint: zero_gas.clone(),
-            create_token: zero_gas.clone(),
-            transfer: zero_gas.clone(),
-            freeze: zero_gas.clone(),
-        });
+    let runtime = RT::default();
 
     let (mut runner, prover, unbonded_user) = setup_with_custom_runtime(runtime);
 
@@ -196,11 +185,9 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
     let initial_gas_price = runner.query_visible_state(|state| state.gas_price().clone());
 
     let bank_signed = prover
-        .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Burn {
-            coins: sov_bank::Coins {
-                amount: Amount::new(1),
-                token_id: config_gas_token_id(),
-            },
+        .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue {
+            value: 1,
+            gas: Some(gas_target.clone()),
         })
         .with_max_fee(
             prover

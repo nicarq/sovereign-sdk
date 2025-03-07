@@ -12,7 +12,7 @@ where
     S: Spec,
 {
     pub(crate) fn register_attester<ST: TxState<S>>(
-        &self,
+        &mut self,
         bond_amount: Amount,
         user_address: &S::Address,
         state: &mut ST,
@@ -23,7 +23,7 @@ where
             )));
         }
 
-        let attester = Staker::new_attester(self);
+        let mut attester = Staker::new_attester(self);
         attester.register_staker(user_address, user_address, bond_amount, state)?;
         let event = Event::<S>::RegisteredAttester {
             amount: bond_amount,
@@ -34,7 +34,7 @@ where
     }
 
     pub(crate) fn deposit_attester<ST: TxState<S>>(
-        &self,
+        &mut self,
         amount: Amount,
         attester_address: &S::Address,
         state: &mut ST,
@@ -49,7 +49,7 @@ where
             )));
         }
 
-        let attester = Staker::new_attester(self);
+        let mut attester = Staker::new_attester(self);
         attester.deposit_funds(attester_address, amount, state)?;
 
         Ok(())
@@ -60,7 +60,7 @@ where
     /// in the set of unbonding attesters if the attester
     /// is already present in the unbonding set
     pub(crate) fn begin_exit_attester<ST: TxState<S>>(
-        &self,
+        &mut self,
         context: &Context<S>,
         state: &mut ST,
     ) -> Result<(), AttesterRegistryError<S, ST>> {
@@ -89,7 +89,7 @@ where
     }
 
     pub(crate) fn exit_attester<ST: TxState<S>>(
-        &self,
+        &mut self,
         context: &Context<S>,
         state: &mut ST,
     ) -> Result<(), AttesterRegistryError<S, ST>> {

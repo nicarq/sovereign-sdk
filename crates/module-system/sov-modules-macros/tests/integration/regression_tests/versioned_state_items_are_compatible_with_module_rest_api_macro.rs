@@ -25,7 +25,7 @@ impl<S: Spec> Module for TestModule<S> {
     type Event = ();
 
     fn call(
-        &self,
+        &mut self,
         _message: Self::CallMessage,
         _context: &sov_modules_api::Context<Self::Spec>,
         _state: &mut impl sov_modules_api::TxState<Self::Spec>,

@@ -33,7 +33,7 @@ impl<S: Spec> BlobStorage<S> {
     /// The crucial check that must be correct is ensuring that the sequencer has enough balance to pay for the gas needed to run pre-execution checks *at the time the blob is selected* for execution.
     /// That check can be done with no guesswork.
     pub(crate) fn validate_blob(
-        &self,
+        &mut self,
         idx: u32,
         blob: BlobDataWithId<S, BatchWithId<S>>,
         sender: <<S as Spec>::Da as DaSpec>::Address,
@@ -109,7 +109,7 @@ impl<S: Spec> BlobStorage<S> {
     /// Note that for preferred blobs, we only reserve funds for a single transaction. This is because
     /// the preferred sequencer doesn't know in advance how many transactions it will submit in a batch.
     pub(crate) fn validate_preferred_blob(
-        &self,
+        &mut self,
         blob: BlobDataWithId<S, BatchWithId<S>>,
         sender: <<S as Spec>::Da as DaSpec>::Address,
         available_balance: Amount,

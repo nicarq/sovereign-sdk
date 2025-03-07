@@ -42,7 +42,7 @@ pub trait Module {
     /// one-time setup. Since this function runs only once, it's perfectly acceptible to do expensive operations
     /// here. Note that your function should still be deterministic, however.
     fn genesis(
-        &self,
+        &mut self,
         _genesis_rollup_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
         _config: &Self::Config,
         _state: &mut impl GenesisState<Self::Spec>,
@@ -74,7 +74,7 @@ pub trait Module {
     /// Your module should always generate the same state changes (excluding "AccessoryState") regardless of the feature flag.
     /// Note that events are only emitted if the `native` feature flag is enabled, and are *not* queryable onchain.
     fn call(
-        &self,
+        &mut self,
         _message: Self::CallMessage,
         _context: &Context<Self::Spec>,
         _state: &mut impl TxState<Self::Spec>,
@@ -215,7 +215,7 @@ pub trait Genesis {
 
     /// Initializes the state of the rollup.
     fn genesis(
-        &self,
+        &mut self,
         genesis_rollup_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<Self::Spec>,
@@ -231,7 +231,7 @@ where
     type Config = <Self as Module>::Config;
 
     fn genesis(
-        &self,
+        &mut self,
         genesis_rollup_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<Self::Spec>,

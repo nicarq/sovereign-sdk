@@ -1,5 +1,7 @@
 //! Defines the query methods for the attester incentives module
 
+use std::marker::PhantomData;
+
 use serde::{Deserialize, Serialize};
 use sov_bank::Amount;
 use sov_modules_api::capabilities::HasKernel;
@@ -111,7 +113,7 @@ where
     attester_address: S::Address,
     attester_incentives: AttesterIncentives<S>,
     state_update_info: StateUpdateReceiver<<S as Spec>::Storage>,
-    has_kernel: K,
+    has_kernel: PhantomData<K>,
 }
 
 impl<S, K> BondingProofServiceImpl<S, K>
@@ -124,13 +126,12 @@ where
         attester_address: S::Address,
         attester_incentives: AttesterIncentives<S>,
         storage: StateUpdateReceiver<<S as Spec>::Storage>,
-        has_kernel: K,
     ) -> Self {
         Self {
             attester_address,
             attester_incentives,
             state_update_info: storage,
-            has_kernel,
+            has_kernel: PhantomData,
         }
     }
 }
@@ -138,7 +139,7 @@ where
 impl<S, K> BondingProofService for BondingProofServiceImpl<S, K>
 where
     S: Spec,
-    K: HasKernel<S> + Send + Sync + 'static,
+    K: HasKernel<S> + Default + Send + Sync + 'static,
 {
     type StateProof = StorageProof<<S::Storage as Storage>::Proof>;
 
@@ -149,11 +150,12 @@ where
         let info = self.state_update_info.borrow();
 
         let storage = info.storage.clone();
-        let checkpoint = StateCheckpoint::new(storage, &self.has_kernel.kernel());
+        let mut kernel = K::default();
+        let checkpoint = StateCheckpoint::new(storage, &kernel.kernel());
 
         let mut state = ApiStateAccessor::<S>::new_with_true_slot_number_dangerous(
             &checkpoint,
-            self.has_kernel.kernel_with_slot_mapping(),
+            kernel.kernel_with_slot_mapping(),
             slot_number,
         )
         .ok()?;

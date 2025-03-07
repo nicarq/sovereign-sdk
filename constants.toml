@@ -61,6 +61,10 @@ BIAS_COLD_STORAGE_UPDATE = [1, 1]
 GAS_TO_CHARGE_PER_BYTE_STORAGE_UPDATE = [1, 1]
 BIAS_STORAGE_UPDATE = [1, 1]
 
+# An example of setting a custom gas price for particular operation.
+# This is consumed in by the `call` implementation `sov-test-modules/gas/lib.rs`.
+EXAMPLE_CUSTOM_GAS_PRICE = [1, 1]
+
 # --- End Gas parameters to charge for state accesses ---
 # --- Gas parameters to specify how to charge gas for hashing ---
 # The base cost of updating a hash.

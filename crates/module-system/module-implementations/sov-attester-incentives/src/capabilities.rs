@@ -130,7 +130,7 @@ where
     /// or when the module is unable to verify the bonding proof.
     #[allow(clippy::type_complexity)]
     pub fn process_attestation<State: TxState<S> + GetGasPrice<Spec = S>>(
-        &self,
+        &mut self,
         sender: &S::Address,
         serialized_attestation: SerializedAttestation,
         state: &mut State,
@@ -294,7 +294,7 @@ where
 
     #[allow(clippy::type_complexity)]
     pub fn process_challenge<State: TxState<S> + GetGasPrice<Spec = S>>(
-        &self,
+        &mut self,
         sender: &S::Address,
         serialized_challenge: &SerializedChallenge,
         rollup_height: SlotNumber,

@@ -101,7 +101,7 @@ pub use sov_modules_macros::track_gas_constants_usage;
 /// #
 /// #
 /// # fn dispatch_call<I: sov_modules_api::StateProvider<S>>(
-/// #     &self,
+/// #     &mut self,
 /// #     message: Self::Decodable,
 /// #     state: &mut sov_modules_api::WorkingSet<Self::Spec, I>,
 /// #     context: &sov_modules_api::Context<Self::Spec>,
@@ -292,7 +292,7 @@ pub use sov_modules_macros::ModuleInfo;
 /// #    type Event = ();
 /// #
 /// #    fn call(
-/// #        &self,
+/// #        &mut self,
 /// #        _msg: Self::CallMessage,
 /// #        _context: &Context<Self::Spec>,
 /// #        _state: &mut impl sov_modules_api::state::TxState<S>,
@@ -331,7 +331,7 @@ pub use sov_modules_macros::ModuleInfo;
 /// #    type Event = ();
 /// #
 /// #    fn call(
-/// #        &self,
+/// #        &mut self,
 /// #        _msg: Self::CallMessage,
 /// #        _context: &Context<Self::Spec>,
 /// #        _state: &mut impl sov_modules_api::state::TxState<S>,
@@ -374,7 +374,7 @@ pub use sov_modules_macros::ModuleInfo;
 /// #    type Event = ();
 /// #
 /// #    fn call(
-/// #        &self,
+/// #        &mut self,
 /// #        _msg: Self::CallMessage,
 /// #        _context: &Context<Self::Spec>,
 /// #        _state: &mut impl sov_modules_api::state::TxState<S>,
