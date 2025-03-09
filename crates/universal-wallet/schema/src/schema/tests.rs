@@ -5,6 +5,7 @@ use std::ops::Range;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, DisplayFromStr};
 use sov_universal_wallet::schema::safe_string::SafeString;
 use sov_universal_wallet::schema::{
     IndexLinking, Item, Link, Primitive, RollupRoots, Schema, SchemaGenerator,
@@ -786,6 +787,84 @@ fn test_tuple_struct_schema_recursive_generic() {
     let my_call = TestCallStructRec::<u64>::Withdraw(Box::new(43));
 
     encode_decode_tests!(TestCallStructRec<u64>, my_call, "Withdraw(43)");
+}
+
+#[serde_as]
+#[derive(Debug, PartialEq, Serialize, Clone)]
+#[cfg_attr(test, derive(UniversalWallet, BorshSerialize))]
+pub struct StructWithPrimitives {
+    pub u8: u8,
+    #[serde_as(as = "DisplayFromStr")]
+    pub u8_str: u8,
+    pub u16: u16,
+    #[serde_as(as = "DisplayFromStr")]
+    pub u16_str: u16,
+    pub u32: u32,
+    #[serde_as(as = "DisplayFromStr")]
+    pub u32_str: u32,
+    pub u64: u64,
+    #[serde_as(as = "DisplayFromStr")]
+    pub u64_str: u64,
+    // No native u128 because it doesn't fit in JSON numbers
+    #[serde_as(as = "DisplayFromStr")]
+    pub u128: u128,
+    pub i8: i8,
+    #[serde_as(as = "DisplayFromStr")]
+    pub i8_str: i8,
+    pub i16: i16,
+    #[serde_as(as = "DisplayFromStr")]
+    pub i16_str: i16,
+    pub i32: i32,
+    #[serde_as(as = "DisplayFromStr")]
+    pub i32_str: i32,
+    pub i64: i64,
+    #[serde_as(as = "DisplayFromStr")]
+    pub i64_str: i64,
+    #[serde_as(as = "DisplayFromStr")]
+    pub i128: i128,
+    pub bool: bool,
+    #[serde_as(as = "DisplayFromStr")]
+    pub bool_str: bool,
+    pub f32: f32,
+    #[serde_as(as = "DisplayFromStr")]
+    pub f32_str: f32,
+    pub f64: f64,
+    #[serde_as(as = "DisplayFromStr")]
+    pub f64_str: f64,
+    pub string: SafeString,
+}
+
+#[test]
+fn test_struct_with_primitives() {
+    let my_struct = StructWithPrimitives {
+        u8: 92,
+        u8_str: 82,
+        u16: 392,
+        u16_str: 492,
+        u32: 15_472_432,
+        u32_str: 25_472_432,
+        u64: 340_542_814_143,
+        u64_str: 240_542_814_143,
+        u128: 180_446_744_073_709_551_615,
+        i8: -92,
+        i8_str: -82,
+        i16: -392,
+        i16_str: -492,
+        i32: -15_472_432,
+        i32_str: -25_472_432,
+        i64: -340_542_814_143,
+        i64_str: -240_542_814_143,
+        i128: -180_446_744_073_709_551_615,
+        bool: true,
+        bool_str: false,
+        f32: 45.59,
+        f32_str: 35.59,
+        f64: 9716235.31632546,
+        f64_str: 8716235.31632546,
+        string: "Hello".to_string().try_into().unwrap(),
+    };
+
+    encode_decode_tests!(StructWithPrimitives, my_struct, "{ u8: 92, u8_str: 82, u16: 392, u16_str: 492, u32: 15472432, u32_str: 25472432, u64: 340542814143, u64_str: 240542814143, u128: 180446744073709551615, i8: -92, i8_str: -82, i16: -392, i16_str: -492, i32: -15472432, i32_str: -25472432, i64: -340542814143, i64_str: -240542814143, i128: -180446744073709551615, bool: true, bool_str: false, f32: 45.59, f32_str: 35.59, f64: 9716235.31632546, f64_str: 8716235.31632546, string: \"Hello\" }");
 }
 
 #[derive(Debug, PartialEq, Serialize, Eq, Clone)]

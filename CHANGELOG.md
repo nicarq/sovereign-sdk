@@ -1,4 +1,5 @@
-## 2025-03-09
+# 2025-03-09
+- #2570 The `sov_universal_wallet::Schema::json_to_borsh` parsing functionality can now accept stringified numbers and booleans in the input JSON. For most types this is a convenience, but notably this allows 128-bit numbers to be passed around as strings in JSON and parsed correctly in wallets.
 - #2567 removes the `flaky_` prefix from a handful of tests. No breaking changes.
 
 ## 2025-03-07

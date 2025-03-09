@@ -27,6 +27,7 @@ sov-universal-wallet-macros = { workspace = true }
 sov-universal-wallet = { path = ".", features = ["serde", "macros"] }
 sov-rollup-interface = { workspace = true }
 serde_arrays = { workspace = true }
+serde_with = { workspace = true }
 serde = { workspace = true }
 
 [features]
