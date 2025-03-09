@@ -46,6 +46,12 @@ total-clean:
 test:  ## Runs test suite using next test
 	@cargo nextest run --no-fail-fast --status-level skip --all-features
 
+test-all: ## Runs test suite using nextest, across the whole workspace
+	cargo switcheroo save _backup
+	cargo switcheroo disable
+	$(MAKE) test
+	cargo switcheroo set _backup
+
 test-default-features:  ## Runs test suite using default features
 	@cargo nextest run --no-fail-fast --status-level skip
 
@@ -90,6 +96,12 @@ lint:  ## cargo fmt, check and clippy.
 	zepter
 	zepter
 	$(MAKE) clippy
+
+lint-all: ## cargo fmt, check and clippy, across the whole workspace
+	cargo switcheroo save _backup
+	cargo switcheroo disable
+	$(MAKE) lint
+	cargo switcheroo set _backup
 
 clippy:  ## runs cargo clippy. skips clippy on guest code since it's not supported by risc0
 	SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features -- -A clippy::too_many_arguments
