@@ -88,26 +88,26 @@ impl Context {
 }
 
 macro_rules! serialize_primitive {
-    ($self:ident, $val:expr, $as_fn:ident, $expected_type:literal, $downcast_to:ty) => {
+    ($self:ident, $val:expr, $as_fn:ident, $expected_type:ty) => {
         serialize_primitive!($self, $val, $as_fn, $expected_type, |v| {
-            <$downcast_to>::try_from(v).ok()
+            <$expected_type>::try_from(v).ok()
         })
     };
-    ($self:ident, $val:expr, $as_fn:ident, $expected_type:literal, $map_expr:expr) => {{
+    ($self:ident, $val:expr, $as_fn:ident, $expected_type:ty, $map_expr:expr) => {{
         let value = $val
             .$as_fn()
-            .map($map_expr)
-            .flatten()
+            .and_then($map_expr)
+            .or_else(|| {
+                $val.as_str()
+                    .and_then(|str_val| <$expected_type as FromStr>::from_str(str_val).ok())
+            })
             .ok_or(EncodeError::InvalidType {
-                schema_type: $expected_type.to_string(),
+                schema_type: stringify!($expected_type).to_string(),
                 value: $val.to_string(),
             })?;
         borsh::to_writer(&mut $self.out, &value)?;
         Ok(()) as Self::ReturnType
     }};
-    ($self:ident, $val:expr, $as_fn:ident, $expected_type:literal) => {
-        serialize_primitive!($self, $val, $as_fn, $expected_type, |v| Some(v))
-    };
 }
 
 impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor<'fmt, W> {
@@ -259,7 +259,7 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
     ) -> Self::ReturnType {
         match p {
             Primitive::Float32 => {
-                serialize_primitive!(self, context.value, as_f64, "f32", |f| {
+                serialize_primitive!(self, context.value, as_f64, f32, |f| {
                     let f = f as f32;
                     if f.is_finite() {
                         Some(f)
@@ -268,22 +268,22 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
                     }
                 })
             }
-            Primitive::Float64 => serialize_primitive!(self, context.value, as_f64, "f64"),
-            Primitive::Boolean => serialize_primitive!(self, context.value, as_bool, "bool"),
+            Primitive::Float64 => serialize_primitive!(self, context.value, as_f64, f64),
+            Primitive::Boolean => serialize_primitive!(self, context.value, as_bool, bool),
             Primitive::Integer(int, _) => match int {
-                IntegerType::i8 => serialize_primitive!(self, context.value, as_i64, "i8", i8),
-                IntegerType::i16 => serialize_primitive!(self, context.value, as_i64, "i16", i16),
-                IntegerType::i32 => serialize_primitive!(self, context.value, as_i64, "i32", i32),
-                IntegerType::i64 => serialize_primitive!(self, context.value, as_i64, "i64"),
+                IntegerType::i8 => serialize_primitive!(self, context.value, as_i64, i8),
+                IntegerType::i16 => serialize_primitive!(self, context.value, as_i64, i16),
+                IntegerType::i32 => serialize_primitive!(self, context.value, as_i64, i32),
+                IntegerType::i64 => serialize_primitive!(self, context.value, as_i64, i64),
                 IntegerType::i128 => {
-                    serialize_primitive!(self, context.value, as_i64, "i128", i128)
+                    serialize_primitive!(self, context.value, as_i64, i128)
                 }
-                IntegerType::u8 => serialize_primitive!(self, context.value, as_u64, "u8", u8),
-                IntegerType::u16 => serialize_primitive!(self, context.value, as_u64, "u16", u16),
-                IntegerType::u32 => serialize_primitive!(self, context.value, as_u64, "u32", u32),
-                IntegerType::u64 => serialize_primitive!(self, context.value, as_u64, "u64", u64),
+                IntegerType::u8 => serialize_primitive!(self, context.value, as_u64, u8),
+                IntegerType::u16 => serialize_primitive!(self, context.value, as_u64, u16),
+                IntegerType::u32 => serialize_primitive!(self, context.value, as_u64, u32),
+                IntegerType::u64 => serialize_primitive!(self, context.value, as_u64, u64),
                 IntegerType::u128 => {
-                    serialize_primitive!(self, context.value, as_u64, "u128", u128)
+                    serialize_primitive!(self, context.value, as_u64, u128)
                 }
             },
             Primitive::ByteArray { len, display } => {
@@ -301,7 +301,7 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
                     Value::Array(arr) => {
                         verify_len(arr.len())?;
                         for byte in arr {
-                            serialize_primitive!(self, byte.clone(), as_u64, "byte", u8)?;
+                            serialize_primitive!(self, byte.clone(), as_u64, u8)?;
                         }
                     }
                     Value::String(str) => {
@@ -344,7 +344,7 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
                 borsh::to_writer(&mut self.out, &vec)?;
                 Ok(())
             }
-            Primitive::String => serialize_primitive!(self, context.value, as_str, "string"),
+            Primitive::String => serialize_primitive!(self, context.value, as_str, String),
             Primitive::Skip { .. } => {
                 // TODO: is this always correct?
                 Ok(())
