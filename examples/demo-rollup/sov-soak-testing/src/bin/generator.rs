@@ -23,7 +23,6 @@ use sov_transaction_generator::{Distribution, MessageValidity, Percent};
 use tokio::signal::unix::SignalKind;
 use tokio::sync::watch::Receiver;
 use tokio::task::JoinSet;
-// mod setup;
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
 enum SelectedRuntime {
