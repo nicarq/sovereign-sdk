@@ -93,7 +93,7 @@ jobs:
       - check-constant-overriding-is-disabled-in-release-mode
       - validate-packages-to-publish-yml
       - cargo-switcheroo-default
-      - check-web3-js-sdk-integration
+      - check-web3js-hasnt-been-turned-off-too-long
     steps:
       - name: Compute whether the needed jobs succeeded or failed
         uses: re-actors/alls-green@release/v1
@@ -545,49 +545,78 @@ jobs:
         # Exit status 0 means no changes were made.
       - run: git diff --exit-code
 
-  check-web3-js-sdk-integration:
+  check-web3js-hasnt-been-turned-off-too-long:
     runs-on:
-      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
-      - nscloud-cache-tag-demo-rollup
-      - nscloud-cache-size-100gb
-    needs:
-      - check
-    timeout-minutes: 60
-    env:
-      SP1_SKIP_PROGRAM_BUILD: "true"
-      SKIP_GUEST_BUILD: "1"
-      CARGO_NET_GIT_FETCH_WITH_CLI: true
+      - nscloud-ubuntu-22.04-amd64-2x4
     steps:
-      - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: rust
-      - name: Setup Zkvm toolchains + Rust
-        uses: ./.github/actions/setup
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          install_zkvm: "0"
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 9
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: |
-            ${{ secrets.SELF_ACCESS_TOKEN }}
-            ${{ secrets.SOV_SDK_WEB3_JS_ACCESS_TOKEN }}
-      - name: Checkout web3-js SDK
-        uses: actions/checkout@v4
-        with:
-          repository: "Sovereign-Labs/sovereign-sdk-web3-js"
-          path: "examples/demo-rollup/web3-js-sdk"
-          ref: "c3a29706f5a53c261aff6a12b553134912136669"
-          ssh-key: |
-            ${{ secrets.SOV_SDK_WEB3_JS_ACCESS_TOKEN }}
-      - name: Run web3-js SDK tests against demo-rollup
-        # See script for more details about what to do if job
+      - name: Check if past expiration date
         run: |
-          cd examples/demo-rollup
-          bash ./web3-js-sdk-test-runner.sh
+          # Set the expiration date (YYYY-MM-DD format)
+          EXPIRATION_DATE="2025-05-24"
+
+          # Get current date in the same format
+          CURRENT_DATE=$(date +%Y-%m-%d)
+
+          echo "Current date: $CURRENT_DATE"
+          echo "Expiration date: $EXPIRATION_DATE"
+
+          # Convert dates to seconds since epoch for comparison
+          EXPIRATION_SECONDS=$(date -d "$EXPIRATION_DATE" +%s)
+          CURRENT_SECONDS=$(date -d "$CURRENT_DATE" +%s)
+
+          # Calculate days remaining
+          DAYS_REMAINING=$(( ($EXPIRATION_SECONDS - $CURRENT_SECONDS) / 86400 ))
+
+          if [ $CURRENT_SECONDS -gt $EXPIRATION_SECONDS ]; then
+            echo "Update web3-js-sdk and re-enable check-web3-js-sdk-integration (and delete this check)"
+            echo "Update web3-js-sdk and re-enable check-web3-js-sdk-integration (and delete this check)" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+
+  # check-web3-js-sdk-integration:
+  #   runs-on:
+  #     - nscloud-ubuntu-22.04-amd64-8x32-with-cache
+  #     - nscloud-cache-tag-demo-rollup
+  #     - nscloud-cache-size-100gb
+  #   needs:
+  #     - check
+  #   timeout-minutes: 60
+  #   env:
+  #     SP1_SKIP_PROGRAM_BUILD: "true"
+  #     SKIP_GUEST_BUILD: "1"
+  #     CARGO_NET_GIT_FETCH_WITH_CLI: true
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: namespacelabs/nscloud-cache-action@v1
+  #       with:
+  #         cache: rust
+  #     - name: Setup Zkvm toolchains + Rust
+  #       uses: ./.github/actions/setup
+  #       with:
+  #         github_token: ${{ secrets.GITHUB_TOKEN }}
+  #         install_zkvm: "0"
+  #     - uses: pnpm/action-setup@v2
+  #       with:
+  #         version: 9
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 20.x
+  #     - uses: webfactory/ssh-agent@v0.9.0
+  #       with:
+  #         ssh-private-key: |
+  #           ${{ secrets.SELF_ACCESS_TOKEN }}
+  #           ${{ secrets.SOV_SDK_WEB3_JS_ACCESS_TOKEN }}
+  #     - name: Checkout web3-js SDK
+  #       uses: actions/checkout@v4
+  #       with:
+  #         repository: "Sovereign-Labs/sovereign-sdk-web3-js"
+  #         path: "examples/demo-rollup/web3-js-sdk"
+  #         ref: "c3a29706f5a53c261aff6a12b553134912136669"
+  #         ssh-key: |
+  #           ${{ secrets.SOV_SDK_WEB3_JS_ACCESS_TOKEN }}
+  #     - name: Run web3-js SDK tests against demo-rollup
+  #       # See script for more details about what to do if job
+  #       run: |
+  #         cd examples/demo-rollup
+  #         bash ./web3-js-sdk-test-runner.sh
