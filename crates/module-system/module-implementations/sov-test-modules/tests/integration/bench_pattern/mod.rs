@@ -1,11 +1,14 @@
+use borsh::BorshSerialize;
 use sha2::Digest;
 use sov_modules_api::Error::ModuleError;
-use sov_modules_api::PrivateKey;
+use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
+use sov_test_modules::access_pattern::{
+    AccessPattern, AccessPatternGenesisConfig, AccessPatternMessages, HooksConfig,
+    MeteredBorshDeserializeString,
+};
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_zk_runtime, AsUser, TestSpec, TestUser, TransactionTestCase};
-
-use crate::generator_modules::storage_access_patterns::*;
 
 generate_zk_runtime!(TestRuntime <= test_module: AccessPattern<S>);
 
@@ -77,10 +80,12 @@ fn test_setting_and_getting_value() {
     ));
 
     runner.execute_transaction(TransactionTestCase {
-        input: admin.create_plain_message::<RT, AccessPattern<S>>(AccessPatternMessages::ReadCells {
-            begin: BEGIN,
-            num_cells: SIZE,
-        }),
+        input: admin.create_plain_message::<RT, AccessPattern<S>>(
+            AccessPatternMessages::ReadCells {
+                begin: BEGIN,
+                num_cells: SIZE,
+            },
+        ),
         assert: Box::new(|_result, state| {
             for i in BEGIN..SIZE {
                 assert_eq!(
@@ -100,10 +105,12 @@ fn test_hashing() {
     let (mut runner, admin, _) = setup();
 
     runner.execute_transaction(TransactionTestCase {
-        input: admin.create_plain_message::<RT, AccessPattern<S>>(AccessPatternMessages::HashBytes {
-            filler: 10,
-            size: 15,
-        }),
+        input: admin.create_plain_message::<RT, AccessPattern<S>>(
+            AccessPatternMessages::HashBytes {
+                filler: 10,
+                size: 15,
+            },
+        ),
         assert: Box::new(|_result, state| {
             assert_eq!(
                 AccessPattern::<S>::default()
@@ -118,7 +125,7 @@ fn test_hashing() {
     runner.execute_transaction(TransactionTestCase {
         input: admin.create_plain_message::<RT, AccessPattern<S>>(
             AccessPatternMessages::HashCustom {
-                input: vec![1, 2, 3, 4, 5, 6],
+                input: vec![1, 2, 3, 4, 5, 6].try_into().unwrap(),
             },
         ),
         assert: Box::new(|_result, state| {
@@ -146,7 +153,9 @@ fn test_deserialize() {
 
     runner.execute_transaction(TransactionTestCase {
         input: admin.create_plain_message::<RT, AccessPattern<S>>(
-            AccessPatternMessages::DeserializeCustomString { input: buf },
+            AccessPatternMessages::DeserializeCustomString {
+                input: buf.try_into().unwrap(),
+            },
         ),
         assert: Box::new(|result, state| {
             assert!(result.tx_receipt.is_successful());
@@ -171,7 +180,9 @@ fn test_deserialize_with_storage_access() {
     input.serialize(&mut buf).unwrap();
 
     runner.execute(admin.create_plain_message::<RT, AccessPattern<S>>(
-        AccessPatternMessages::StoreSerializedString { input: buf },
+        AccessPatternMessages::StoreSerializedString {
+            input: buf.try_into().unwrap(),
+        },
     ));
 
     runner.execute_transaction(TransactionTestCase {
@@ -205,7 +216,7 @@ fn test_signature_check_with_storage_access() {
         AccessPatternMessages::StoreSignature {
             sign,
             pub_key,
-            message,
+            message: message.try_into().unwrap(),
         },
     ));
 
@@ -240,7 +251,7 @@ fn test_signature_check() {
             AccessPatternMessages::VerifyCustomSignature {
                 sign,
                 pub_key,
-                message,
+                message: message.try_into().unwrap(),
             },
         ),
         assert: Box::new(|result, state| {
@@ -262,13 +273,17 @@ fn test_setting_custom_value() {
     let (mut runner, admin, _) = setup();
 
     const BEGIN: u64 = 1;
-    let content = vec!["aaa".to_string(), "bac".to_string(), "cdef".to_string()];
+    let content = vec![
+        "aaa".to_string().try_into().unwrap(),
+        "bac".to_string().try_into().unwrap(),
+        "cdef".to_string().try_into().unwrap(),
+    ];
 
     runner.execute_transaction(TransactionTestCase {
         input: admin.create_plain_message::<RT, AccessPattern<S>>(
             AccessPatternMessages::WriteCustom {
                 begin: BEGIN,
-                content,
+                content: content.try_into().unwrap(),
             },
         ),
         assert: Box::new(|_result, state| {
@@ -358,10 +373,12 @@ fn test_set_hooks() {
     });
 
     runner.execute_transaction(TransactionTestCase {
-        input: admin.create_plain_message::<RT, AccessPattern<S>>(AccessPatternMessages::ReadCells {
-            begin: 0,
-            num_cells: 20,
-        }),
+        input: admin.create_plain_message::<RT, AccessPattern<S>>(
+            AccessPatternMessages::ReadCells {
+                begin: 0,
+                num_cells: 20,
+            },
+        ),
         assert: Box::new(|_result, state| {
             for i in 0..10 {
                 assert_eq!(
