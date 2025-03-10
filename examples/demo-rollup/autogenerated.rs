@@ -1,4 +1,4 @@
-pub const CHAIN_HASH: [u8; 32] = [34, 112, 6, 215, 180, 118, 127, 47, 170, 255, 7, 202, 251, 89, 14, 107, 16, 26, 17, 85, 162, 186, 60, 10, 115, 95, 158, 49, 210, 200, 42, 254];
+pub const CHAIN_HASH: [u8; 32] = [195, 27, 82, 2, 70, 140, 112, 190, 254, 215, 184, 144, 47, 30, 36, 150, 174, 12, 119, 72, 131, 46, 226, 35, 212, 82, 253, 107, 188, 48, 165, 219];
 
 #[allow(dead_code)]
 pub const SCHEMA_JSON: &str = r#"{
@@ -6,13 +6,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "Transaction",
-        "serde_type_name": "Transaction",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "signature",
-            "serde_display_name": "signature",
             "silent": false,
             "value": {
               "ByIndex": 1
@@ -21,7 +19,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "pub_key",
-            "serde_display_name": "pub_key",
             "silent": false,
             "value": {
               "ByIndex": 2
@@ -30,7 +27,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "runtime_call",
-            "serde_display_name": "runtime_call",
             "silent": false,
             "value": {
               "ByIndex": 3
@@ -39,7 +35,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "generation",
-            "serde_display_name": "generation",
             "silent": false,
             "value": {
               "Immediate": {
@@ -53,7 +48,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "details",
-            "serde_display_name": "details",
             "silent": false,
             "value": {
               "ByIndex": 104
@@ -66,13 +60,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "Ed25519Signature",
-        "serde_type_name": "Ed25519Signature",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "msg_sig",
-            "serde_display_name": "msg_sig",
             "silent": false,
             "value": {
               "Immediate": {
@@ -90,13 +82,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "Ed25519PublicKey",
-        "serde_type_name": "Ed25519PublicKey",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "pub_key",
-            "serde_display_name": "pub_key",
             "silent": false,
             "value": {
               "Immediate": {
@@ -114,11 +104,9 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Enum": {
         "type_name": "RuntimeCall",
-        "serde_type_name": "RuntimeCall",
         "variants": [
           {
             "name": "Bank",
-            "serde_name": "bank",
             "template": null,
             "value": {
               "ByIndex": 4
@@ -126,7 +114,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "SequencerRegistry",
-            "serde_name": "sequencer_registry",
             "template": null,
             "value": {
               "ByIndex": 21
@@ -134,7 +121,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "ValueSetter",
-            "serde_name": "value_setter",
             "template": null,
             "value": {
               "ByIndex": 28
@@ -142,7 +128,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "AttesterIncentives",
-            "serde_name": "attester_incentives",
             "template": null,
             "value": {
               "ByIndex": 36
@@ -150,7 +135,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "ProverIncentives",
-            "serde_name": "prover_incentives",
             "template": null,
             "value": {
               "ByIndex": 41
@@ -158,7 +142,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Accounts",
-            "serde_name": "accounts",
             "template": null,
             "value": {
               "ByIndex": 45
@@ -166,7 +149,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Uniqueness",
-            "serde_name": "uniqueness",
             "template": null,
             "value": {
               "ByIndex": 50
@@ -174,7 +156,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "ChainState",
-            "serde_name": "chain_state",
             "template": null,
             "value": {
               "ByIndex": 52
@@ -182,7 +163,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "BlobStorage",
-            "serde_name": "blob_storage",
             "template": null,
             "value": {
               "ByIndex": 53
@@ -190,7 +170,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Paymaster",
-            "serde_name": "paymaster",
             "template": null,
             "value": {
               "ByIndex": 54
@@ -198,7 +177,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Evm",
-            "serde_name": "evm",
             "template": null,
             "value": {
               "ByIndex": 80
@@ -206,7 +184,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "AccessPattern",
-            "serde_name": "access_pattern",
             "template": null,
             "value": {
               "ByIndex": 83
@@ -234,11 +211,9 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Enum": {
         "type_name": "CallMessage",
-        "serde_type_name": "CallMessage",
         "variants": [
           {
             "name": "CreateToken",
-            "serde_name": "create_token",
             "template": null,
             "value": {
               "ByIndex": 6
@@ -246,7 +221,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Transfer",
-            "serde_name": "transfer",
             "template": "Transfer to address {} {}.",
             "value": {
               "ByIndex": 15
@@ -254,7 +228,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Burn",
-            "serde_name": "burn",
             "template": null,
             "value": {
               "ByIndex": 18
@@ -262,7 +235,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Mint",
-            "serde_name": "mint",
             "template": null,
             "value": {
               "ByIndex": 19
@@ -270,7 +242,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Freeze",
-            "serde_name": "freeze",
             "template": null,
             "value": {
               "ByIndex": 20
@@ -283,13 +254,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_CreateToken",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_CreateToken",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "token_name",
-            "serde_display_name": "token_name",
             "silent": false,
             "value": {
               "Immediate": "String"
@@ -298,7 +267,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "initial_balance",
-            "serde_display_name": "initial_balance",
             "silent": false,
             "value": {
               "ByIndex": 7
@@ -307,7 +275,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "mint_to_address",
-            "serde_display_name": "mint_to_address",
             "silent": false,
             "value": {
               "ByIndex": 8
@@ -316,7 +283,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "admins",
-            "serde_display_name": "admins",
             "silent": false,
             "value": {
               "ByIndex": 13
@@ -325,7 +291,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "supply_cap",
-            "serde_display_name": "supply_cap",
             "silent": false,
             "value": {
               "ByIndex": 14
@@ -358,11 +323,9 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Enum": {
         "type_name": "MultiAddress",
-        "serde_type_name": "MultiAddress",
         "variants": [
           {
             "name": "Standard",
-            "serde_name": "Standard",
             "template": null,
             "value": {
               "ByIndex": 9
@@ -370,7 +333,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Vm",
-            "serde_name": "Vm",
             "template": null,
             "value": {
               "ByIndex": 11
@@ -471,13 +433,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_Transfer",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_Transfer",
         "template": "Transfer to address {} {}.",
         "peekable": false,
         "fields": [
           {
             "display_name": "to",
-            "serde_display_name": "to",
             "silent": false,
             "value": {
               "ByIndex": 8
@@ -486,7 +446,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "coins",
-            "serde_display_name": "coins",
             "silent": false,
             "value": {
               "ByIndex": 16
@@ -499,13 +458,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "Coins",
-        "serde_type_name": "Coins",
         "template": "{} coins of token ID {}",
         "peekable": false,
         "fields": [
           {
             "display_name": "amount",
-            "serde_display_name": "amount",
             "silent": false,
             "value": {
               "ByIndex": 7
@@ -514,7 +471,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "token_id",
-            "serde_display_name": "token_id",
             "silent": false,
             "value": {
               "ByIndex": 17
@@ -551,13 +507,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_Burn",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_Burn",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "coins",
-            "serde_display_name": "coins",
             "silent": false,
             "value": {
               "ByIndex": 16
@@ -570,13 +524,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_Mint",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_Mint",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "coins",
-            "serde_display_name": "coins",
             "silent": false,
             "value": {
               "ByIndex": 16
@@ -585,7 +537,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "mint_to_address",
-            "serde_display_name": "mint_to_address",
             "silent": false,
             "value": {
               "ByIndex": 8
@@ -598,13 +549,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_Freeze",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_Freeze",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "token_id",
-            "serde_display_name": "token_id",
             "silent": false,
             "value": {
               "ByIndex": 17
@@ -632,11 +581,9 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Enum": {
         "type_name": "CallMessage",
-        "serde_type_name": "CallMessage",
         "variants": [
           {
             "name": "Register",
-            "serde_name": "register",
             "template": null,
             "value": {
               "ByIndex": 23
@@ -644,7 +591,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Deposit",
-            "serde_name": "deposit",
             "template": null,
             "value": {
               "ByIndex": 25
@@ -652,7 +598,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "InitiateWithdrawal",
-            "serde_name": "initiate_withdrawal",
             "template": null,
             "value": {
               "ByIndex": 26
@@ -660,7 +605,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Withdraw",
-            "serde_name": "withdraw",
             "template": null,
             "value": {
               "ByIndex": 27
@@ -673,13 +617,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_Register",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_Register",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "da_address",
-            "serde_display_name": "da_address",
             "silent": false,
             "value": {
               "ByIndex": 24
@@ -688,7 +630,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "amount",
-            "serde_display_name": "amount",
             "silent": false,
             "value": {
               "ByIndex": 7
@@ -721,13 +662,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_Deposit",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_Deposit",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "da_address",
-            "serde_display_name": "da_address",
             "silent": false,
             "value": {
               "ByIndex": 24
@@ -736,7 +675,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "amount",
-            "serde_display_name": "amount",
             "silent": false,
             "value": {
               "ByIndex": 7
@@ -749,13 +687,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_InitiateWithdrawal",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_InitiateWithdrawal",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "da_address",
-            "serde_display_name": "da_address",
             "silent": false,
             "value": {
               "ByIndex": 24
@@ -768,13 +704,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_Withdraw",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_Withdraw",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "da_address",
-            "serde_display_name": "da_address",
             "silent": false,
             "value": {
               "ByIndex": 24
@@ -802,11 +736,9 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Enum": {
         "type_name": "CallMessage",
-        "serde_type_name": "CallMessage",
         "variants": [
           {
             "name": "SetValue",
-            "serde_name": "set_value",
             "template": null,
             "value": {
               "ByIndex": 30
@@ -814,7 +746,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "SetManyValues",
-            "serde_name": "set_many_values",
             "template": null,
             "value": {
               "ByIndex": 34
@@ -822,7 +753,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "AssertVisibleSlotNumber",
-            "serde_name": "assert_visible_slot_number",
             "template": null,
             "value": {
               "ByIndex": 35
@@ -835,13 +765,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_SetValue",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_SetValue",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "value",
-            "serde_display_name": "value",
             "silent": false,
             "value": {
               "Immediate": {
@@ -855,7 +783,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "gas",
-            "serde_display_name": "gas",
             "silent": false,
             "value": {
               "ByIndex": 31
@@ -922,13 +849,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_AssertVisibleSlotNumber",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_AssertVisibleSlotNumber",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "expected_visible_slot_number",
-            "serde_display_name": "expected_visible_slot_number",
             "silent": false,
             "value": {
               "Immediate": {
@@ -961,11 +886,9 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Enum": {
         "type_name": "CallMessage",
-        "serde_type_name": "CallMessage",
         "variants": [
           {
             "name": "RegisterAttester",
-            "serde_name": "register_attester",
             "template": null,
             "value": {
               "ByIndex": 38
@@ -973,19 +896,16 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "BeginExitAttester",
-            "serde_name": "begin_exit_attester",
             "template": null,
             "value": null
           },
           {
             "name": "ExitAttester",
-            "serde_name": "exit_attester",
             "template": null,
             "value": null
           },
           {
             "name": "RegisterChallenger",
-            "serde_name": "register_challenger",
             "template": null,
             "value": {
               "ByIndex": 39
@@ -993,13 +913,11 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "ExitChallenger",
-            "serde_name": "exit_challenger",
             "template": null,
             "value": null
           },
           {
             "name": "DepositAttester",
-            "serde_name": "deposit_attester",
             "template": null,
             "value": {
               "ByIndex": 40
@@ -1072,11 +990,9 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Enum": {
         "type_name": "CallMessage",
-        "serde_type_name": "CallMessage",
         "variants": [
           {
             "name": "Register",
-            "serde_name": "register",
             "template": null,
             "value": {
               "ByIndex": 43
@@ -1084,7 +1000,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Deposit",
-            "serde_name": "deposit",
             "template": null,
             "value": {
               "ByIndex": 44
@@ -1092,7 +1007,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Exit",
-            "serde_name": "exit",
             "template": null,
             "value": null
           }
@@ -1148,11 +1062,9 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Enum": {
         "type_name": "CallMessage",
-        "serde_type_name": "CallMessage",
         "variants": [
           {
             "name": "InsertCredentialId",
-            "serde_name": "insert_credential_id",
             "template": null,
             "value": {
               "ByIndex": 47
@@ -1230,7 +1142,6 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Enum": {
         "type_name": "NotInstantiable",
-        "serde_type_name": "NotInstantiable",
         "variants": [],
         "hide_tag": false
       }
@@ -1283,11 +1194,9 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Enum": {
         "type_name": "CallMessage",
-        "serde_type_name": "CallMessage",
         "variants": [
           {
             "name": "RegisterPaymaster",
-            "serde_name": "register_paymaster",
             "template": null,
             "value": {
               "ByIndex": 56
@@ -1295,7 +1204,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "SetPayerForSequencer",
-            "serde_name": "set_payer_for_sequencer",
             "template": null,
             "value": {
               "ByIndex": 69
@@ -1303,7 +1211,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "UpdatePolicy",
-            "serde_name": "update_policy",
             "template": null,
             "value": {
               "ByIndex": 70
@@ -1316,13 +1223,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_RegisterPaymaster",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_RegisterPaymaster",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "policy",
-            "serde_display_name": "policy",
             "silent": false,
             "value": {
               "ByIndex": 57
@@ -1335,13 +1240,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "PaymasterPolicyInitializer",
-        "serde_type_name": "PaymasterPolicyInitializer",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "default_payee_policy",
-            "serde_display_name": "default_payee_policy",
             "silent": false,
             "value": {
               "ByIndex": 58
@@ -1350,7 +1253,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "payees",
-            "serde_display_name": "payees",
             "silent": false,
             "value": {
               "ByIndex": 64
@@ -1359,7 +1261,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "authorized_updaters",
-            "serde_display_name": "authorized_updaters",
             "silent": false,
             "value": {
               "ByIndex": 13
@@ -1368,7 +1269,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "authorized_sequencers",
-            "serde_display_name": "authorized_sequencers",
             "silent": false,
             "value": {
               "ByIndex": 66
@@ -1381,11 +1281,9 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Enum": {
         "type_name": "PayeePolicy",
-        "serde_type_name": "PayeePolicy",
         "variants": [
           {
             "name": "Allow",
-            "serde_name": "allow",
             "template": null,
             "value": {
               "ByIndex": 59
@@ -1393,7 +1291,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Deny",
-            "serde_name": "deny",
             "template": null,
             "value": null
           }
@@ -1404,13 +1301,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_PayeePolicy_Allow",
-        "serde_type_name": "__SovVirtualWallet_PayeePolicy_Allow",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "max_fee",
-            "serde_display_name": "max_fee",
             "silent": false,
             "value": {
               "ByIndex": 14
@@ -1419,7 +1314,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "gas_limit",
-            "serde_display_name": "gas_limit",
             "silent": false,
             "value": {
               "ByIndex": 31
@@ -1428,7 +1322,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "max_gas_price",
-            "serde_display_name": "max_gas_price",
             "silent": false,
             "value": {
               "ByIndex": 60
@@ -1437,7 +1330,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "transaction_limit",
-            "serde_display_name": "transaction_limit",
             "silent": false,
             "value": {
               "ByIndex": 63
@@ -1457,13 +1349,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "GasPrice",
-        "serde_type_name": "GasPrice",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "value",
-            "serde_display_name": "value",
             "silent": false,
             "value": {
               "ByIndex": 62
@@ -1525,17 +1415,14 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Enum": {
         "type_name": "AuthorizedSequencers",
-        "serde_type_name": "AuthorizedSequencers",
         "variants": [
           {
             "name": "All",
-            "serde_name": "all",
             "template": null,
             "value": null
           },
           {
             "name": "Some",
-            "serde_name": "some",
             "template": null,
             "value": {
               "ByIndex": 67
@@ -1570,13 +1457,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_SetPayerForSequencer",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_SetPayerForSequencer",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "payer",
-            "serde_display_name": "payer",
             "silent": false,
             "value": {
               "ByIndex": 8
@@ -1589,13 +1474,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_UpdatePolicy",
-        "serde_type_name": "__SovVirtualWallet_CallMessage_UpdatePolicy",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "payer",
-            "serde_display_name": "payer",
             "silent": false,
             "value": {
               "ByIndex": 8
@@ -1604,7 +1487,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "update",
-            "serde_display_name": "update",
             "silent": false,
             "value": {
               "ByIndex": 71
@@ -1617,13 +1499,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "PolicyUpdate",
-        "serde_type_name": "PolicyUpdate",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "sequencer_update",
-            "serde_display_name": "sequencer_update",
             "silent": false,
             "value": {
               "ByIndex": 72
@@ -1632,7 +1512,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "updaters_to_add",
-            "serde_display_name": "updaters_to_add",
             "silent": false,
             "value": {
               "ByIndex": 77
@@ -1641,7 +1520,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "updaters_to_remove",
-            "serde_display_name": "updaters_to_remove",
             "silent": false,
             "value": {
               "ByIndex": 77
@@ -1650,7 +1528,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "payee_policies_to_set",
-            "serde_display_name": "payee_policies_to_set",
             "silent": false,
             "value": {
               "ByIndex": 78
@@ -1659,7 +1536,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "payee_policies_to_delete",
-            "serde_display_name": "payee_policies_to_delete",
             "silent": false,
             "value": {
               "ByIndex": 77
@@ -1668,7 +1544,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "default_policy",
-            "serde_display_name": "default_policy",
             "silent": false,
             "value": {
               "ByIndex": 79
@@ -1688,17 +1563,14 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Enum": {
         "type_name": "SequencerSetUpdate",
-        "serde_type_name": "SequencerSetUpdate",
         "variants": [
           {
             "name": "AllowAll",
-            "serde_name": "allow_all",
             "template": null,
             "value": null
           },
           {
             "name": "Update",
-            "serde_name": "update",
             "template": null,
             "value": {
               "ByIndex": 74
@@ -1726,13 +1598,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "AllowedSequencerUpdate",
-        "serde_type_name": "AllowedSequencerUpdate",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "to_add",
-            "serde_display_name": "to_add",
             "silent": false,
             "value": {
               "ByIndex": 76
@@ -1741,7 +1611,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "to_remove",
-            "serde_display_name": "to_remove",
             "silent": false,
             "value": {
               "ByIndex": 76
@@ -1797,13 +1666,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "CallMessage",
-        "serde_type_name": "CallMessage",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "rlp",
-            "serde_display_name": "rlp",
             "silent": false,
             "value": {
               "ByIndex": 82
@@ -1816,13 +1683,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "RlpEvmTransaction",
-        "serde_type_name": "RlpEvmTransaction",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "rlp",
-            "serde_display_name": "rlp",
             "silent": false,
             "value": {
               "Immediate": {
@@ -1854,11 +1719,9 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Enum": {
         "type_name": "AccessPatternMessages",
-        "serde_type_name": "AccessPatternMessages",
         "variants": [
           {
             "name": "WriteCells",
-            "serde_name": "write_cells",
             "template": null,
             "value": {
               "ByIndex": 85
@@ -1866,7 +1729,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "WriteCustom",
-            "serde_name": "write_custom",
             "template": null,
             "value": {
               "ByIndex": 86
@@ -1874,7 +1736,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "ReadCells",
-            "serde_name": "read_cells",
             "template": null,
             "value": {
               "ByIndex": 88
@@ -1882,7 +1743,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "HashBytes",
-            "serde_name": "hash_bytes",
             "template": null,
             "value": {
               "ByIndex": 89
@@ -1890,7 +1750,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "HashCustom",
-            "serde_name": "hash_custom",
             "template": null,
             "value": {
               "ByIndex": 90
@@ -1898,7 +1757,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "StoreSignature",
-            "serde_name": "store_signature",
             "template": null,
             "value": {
               "ByIndex": 91
@@ -1906,13 +1764,11 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "VerifySignature",
-            "serde_name": "verify_signature",
             "template": null,
             "value": null
           },
           {
             "name": "VerifyCustomSignature",
-            "serde_name": "verify_custom_signature",
             "template": null,
             "value": {
               "ByIndex": 92
@@ -1920,7 +1776,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "StoreSerializedString",
-            "serde_name": "store_serialized_string",
             "template": null,
             "value": {
               "ByIndex": 93
@@ -1928,13 +1783,11 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "DeserializeBytesAsString",
-            "serde_name": "deserialize_bytes_as_string",
             "template": null,
             "value": null
           },
           {
             "name": "DeserializeCustomString",
-            "serde_name": "deserialize_custom_string",
             "template": null,
             "value": {
               "ByIndex": 94
@@ -1942,7 +1795,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "DeleteCells",
-            "serde_name": "delete_cells",
             "template": null,
             "value": {
               "ByIndex": 95
@@ -1950,7 +1802,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "SetHook",
-            "serde_name": "set_hook",
             "template": null,
             "value": {
               "ByIndex": 96
@@ -1958,7 +1809,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "UpdateAdmin",
-            "serde_name": "update_admin",
             "template": null,
             "value": {
               "ByIndex": 103
@@ -1971,13 +1821,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_AccessPatternMessages_WriteCells",
-        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_WriteCells",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "begin",
-            "serde_display_name": "begin",
             "silent": false,
             "value": {
               "Immediate": {
@@ -1991,7 +1839,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "num_cells",
-            "serde_display_name": "num_cells",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2005,7 +1852,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "data_size",
-            "serde_display_name": "data_size",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2023,13 +1869,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_AccessPatternMessages_WriteCustom",
-        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_WriteCustom",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "begin",
-            "serde_display_name": "begin",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2043,7 +1887,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "content",
-            "serde_display_name": "content",
             "silent": false,
             "value": {
               "ByIndex": 87
@@ -2063,13 +1906,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_AccessPatternMessages_ReadCells",
-        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_ReadCells",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "begin",
-            "serde_display_name": "begin",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2083,7 +1924,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "num_cells",
-            "serde_display_name": "num_cells",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2101,13 +1941,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_AccessPatternMessages_HashBytes",
-        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_HashBytes",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "filler",
-            "serde_display_name": "filler",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2121,7 +1959,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "size",
-            "serde_display_name": "size",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2139,13 +1976,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_AccessPatternMessages_HashCustom",
-        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_HashCustom",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "input",
-            "serde_display_name": "input",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2162,13 +1997,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_AccessPatternMessages_StoreSignature",
-        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_StoreSignature",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "sign",
-            "serde_display_name": "sign",
             "silent": false,
             "value": {
               "ByIndex": 1
@@ -2177,7 +2010,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "pub_key",
-            "serde_display_name": "pub_key",
             "silent": false,
             "value": {
               "ByIndex": 2
@@ -2186,7 +2018,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "message",
-            "serde_display_name": "message",
             "silent": false,
             "value": {
               "Immediate": "String"
@@ -2199,13 +2030,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_AccessPatternMessages_VerifyCustomSignature",
-        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_VerifyCustomSignature",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "sign",
-            "serde_display_name": "sign",
             "silent": false,
             "value": {
               "ByIndex": 1
@@ -2214,7 +2043,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "pub_key",
-            "serde_display_name": "pub_key",
             "silent": false,
             "value": {
               "ByIndex": 2
@@ -2223,7 +2051,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "message",
-            "serde_display_name": "message",
             "silent": false,
             "value": {
               "Immediate": "String"
@@ -2236,13 +2063,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_AccessPatternMessages_StoreSerializedString",
-        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_StoreSerializedString",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "input",
-            "serde_display_name": "input",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2259,13 +2084,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_AccessPatternMessages_DeserializeCustomString",
-        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_DeserializeCustomString",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "input",
-            "serde_display_name": "input",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2282,13 +2105,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_AccessPatternMessages_DeleteCells",
-        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_DeleteCells",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "begin",
-            "serde_display_name": "begin",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2302,7 +2123,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "num_cells",
-            "serde_display_name": "num_cells",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2320,13 +2140,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_AccessPatternMessages_SetHook",
-        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_SetHook",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "pre",
-            "serde_display_name": "pre",
             "silent": false,
             "value": {
               "ByIndex": 97
@@ -2335,7 +2153,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "post",
-            "serde_display_name": "post",
             "silent": false,
             "value": {
               "ByIndex": 97
@@ -2362,11 +2179,9 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Enum": {
         "type_name": "HooksConfig",
-        "serde_type_name": "HooksConfig",
         "variants": [
           {
             "name": "Read",
-            "serde_name": "Read",
             "template": null,
             "value": {
               "ByIndex": 100
@@ -2374,7 +2189,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Write",
-            "serde_name": "Write",
             "template": null,
             "value": {
               "ByIndex": 101
@@ -2382,7 +2196,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Delete",
-            "serde_name": "Delete",
             "template": null,
             "value": {
               "ByIndex": 102
@@ -2395,13 +2208,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_HooksConfig_Read",
-        "serde_type_name": "__SovVirtualWallet_HooksConfig_Read",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "begin",
-            "serde_display_name": "begin",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2415,7 +2226,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "size",
-            "serde_display_name": "size",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2433,13 +2243,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_HooksConfig_Write",
-        "serde_type_name": "__SovVirtualWallet_HooksConfig_Write",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "begin",
-            "serde_display_name": "begin",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2453,7 +2261,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "size",
-            "serde_display_name": "size",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2467,7 +2274,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "data_size",
-            "serde_display_name": "data_size",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2485,13 +2291,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_HooksConfig_Delete",
-        "serde_type_name": "__SovVirtualWallet_HooksConfig_Delete",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "begin",
-            "serde_display_name": "begin",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2505,7 +2309,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "size",
-            "serde_display_name": "size",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2523,13 +2326,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "__SovVirtualWallet_AccessPatternMessages_UpdateAdmin",
-        "serde_type_name": "__SovVirtualWallet_AccessPatternMessages_UpdateAdmin",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "new_admin",
-            "serde_display_name": "new_admin",
             "silent": false,
             "value": {
               "ByIndex": 8
@@ -2542,13 +2343,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "TxDetails",
-        "serde_type_name": "TxDetails",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "max_priority_fee_bips",
-            "serde_display_name": "max_priority_fee_bips",
             "silent": false,
             "value": {
               "ByIndex": 105
@@ -2557,7 +2356,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "max_fee",
-            "serde_display_name": "max_fee",
             "silent": false,
             "value": {
               "ByIndex": 7
@@ -2566,7 +2364,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "gas_limit",
-            "serde_display_name": "gas_limit",
             "silent": false,
             "value": {
               "ByIndex": 31
@@ -2575,7 +2372,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "chain_id",
-            "serde_display_name": "chain_id",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2613,13 +2409,11 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Struct": {
         "type_name": "UnsignedTransaction",
-        "serde_type_name": "UnsignedTransaction",
         "template": null,
         "peekable": false,
         "fields": [
           {
             "display_name": "runtime_call",
-            "serde_display_name": "runtime_call",
             "silent": false,
             "value": {
               "ByIndex": 3
@@ -2628,7 +2422,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "generation",
-            "serde_display_name": "generation",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2642,7 +2435,6 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "display_name": "details",
-            "serde_display_name": "details",
             "silent": false,
             "value": {
               "ByIndex": 104
@@ -2660,38 +2452,38 @@ pub const SCHEMA_JSON: &str = r#"{
     10
   ],
   "metadata_hash": [
-    21,
-    7,
-    44,
+    95,
+    208,
+    192,
+    109,
+    140,
+    26,
+    168,
+    67,
+    82,
+    29,
+    142,
     203,
-    153,
-    31,
-    34,
-    155,
-    6,
-    118,
-    39,
-    88,
-    71,
-    7,
-    240,
-    179,
-    72,
-    81,
-    20,
-    198,
-    185,
-    86,
-    83,
-    46,
-    207,
-    121,
-    65,
-    47,
-    133,
-    249,
+    76,
+    196,
+    15,
+    134,
     22,
-    38
+    50,
+    137,
+    147,
+    67,
+    212,
+    90,
+    96,
+    250,
+    244,
+    137,
+    223,
+    177,
+    169,
+    191,
+    26
   ],
   "templates": [
     {},
@@ -2734,5 +2526,944 @@ pub const SCHEMA_JSON: &str = r#"{
       }
     },
     {}
+  ],
+  "serde_metadata": [
+    {
+      "name": "Transaction",
+      "fields_or_variants": [
+        {
+          "name": "signature"
+        },
+        {
+          "name": "pub_key"
+        },
+        {
+          "name": "runtime_call"
+        },
+        {
+          "name": "generation"
+        },
+        {
+          "name": "details"
+        }
+      ]
+    },
+    {
+      "name": "Ed25519Signature",
+      "fields_or_variants": [
+        {
+          "name": "msg_sig"
+        }
+      ]
+    },
+    {
+      "name": "Ed25519PublicKey",
+      "fields_or_variants": [
+        {
+          "name": "pub_key"
+        }
+      ]
+    },
+    {
+      "name": "RuntimeCall",
+      "fields_or_variants": [
+        {
+          "name": "bank"
+        },
+        {
+          "name": "sequencer_registry"
+        },
+        {
+          "name": "value_setter"
+        },
+        {
+          "name": "attester_incentives"
+        },
+        {
+          "name": "prover_incentives"
+        },
+        {
+          "name": "accounts"
+        },
+        {
+          "name": "uniqueness"
+        },
+        {
+          "name": "chain_state"
+        },
+        {
+          "name": "blob_storage"
+        },
+        {
+          "name": "paymaster"
+        },
+        {
+          "name": "evm"
+        },
+        {
+          "name": "access_pattern"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "CallMessage",
+      "fields_or_variants": [
+        {
+          "name": "create_token"
+        },
+        {
+          "name": "transfer"
+        },
+        {
+          "name": "burn"
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "freeze"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_CreateToken",
+      "fields_or_variants": [
+        {
+          "name": "token_name"
+        },
+        {
+          "name": "initial_balance"
+        },
+        {
+          "name": "mint_to_address"
+        },
+        {
+          "name": "admins"
+        },
+        {
+          "name": "supply_cap"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "MultiAddress",
+      "fields_or_variants": [
+        {
+          "name": "Standard"
+        },
+        {
+          "name": "Vm"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_Transfer",
+      "fields_or_variants": [
+        {
+          "name": "to"
+        },
+        {
+          "name": "coins"
+        }
+      ]
+    },
+    {
+      "name": "Coins",
+      "fields_or_variants": [
+        {
+          "name": "amount"
+        },
+        {
+          "name": "token_id"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_Burn",
+      "fields_or_variants": [
+        {
+          "name": "coins"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_Mint",
+      "fields_or_variants": [
+        {
+          "name": "coins"
+        },
+        {
+          "name": "mint_to_address"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_Freeze",
+      "fields_or_variants": [
+        {
+          "name": "token_id"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "CallMessage",
+      "fields_or_variants": [
+        {
+          "name": "register"
+        },
+        {
+          "name": "deposit"
+        },
+        {
+          "name": "initiate_withdrawal"
+        },
+        {
+          "name": "withdraw"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_Register",
+      "fields_or_variants": [
+        {
+          "name": "da_address"
+        },
+        {
+          "name": "amount"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_Deposit",
+      "fields_or_variants": [
+        {
+          "name": "da_address"
+        },
+        {
+          "name": "amount"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_InitiateWithdrawal",
+      "fields_or_variants": [
+        {
+          "name": "da_address"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_Withdraw",
+      "fields_or_variants": [
+        {
+          "name": "da_address"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "CallMessage",
+      "fields_or_variants": [
+        {
+          "name": "set_value"
+        },
+        {
+          "name": "set_many_values"
+        },
+        {
+          "name": "assert_visible_slot_number"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_SetValue",
+      "fields_or_variants": [
+        {
+          "name": "value"
+        },
+        {
+          "name": "gas"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_AssertVisibleSlotNumber",
+      "fields_or_variants": [
+        {
+          "name": "expected_visible_slot_number"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "CallMessage",
+      "fields_or_variants": [
+        {
+          "name": "register_attester"
+        },
+        {
+          "name": "begin_exit_attester"
+        },
+        {
+          "name": "exit_attester"
+        },
+        {
+          "name": "register_challenger"
+        },
+        {
+          "name": "exit_challenger"
+        },
+        {
+          "name": "deposit_attester"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "CallMessage",
+      "fields_or_variants": [
+        {
+          "name": "register"
+        },
+        {
+          "name": "deposit"
+        },
+        {
+          "name": "exit"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "CallMessage",
+      "fields_or_variants": [
+        {
+          "name": "insert_credential_id"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "NotInstantiable",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "CallMessage",
+      "fields_or_variants": [
+        {
+          "name": "register_paymaster"
+        },
+        {
+          "name": "set_payer_for_sequencer"
+        },
+        {
+          "name": "update_policy"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_RegisterPaymaster",
+      "fields_or_variants": [
+        {
+          "name": "policy"
+        }
+      ]
+    },
+    {
+      "name": "PaymasterPolicyInitializer",
+      "fields_or_variants": [
+        {
+          "name": "default_payee_policy"
+        },
+        {
+          "name": "payees"
+        },
+        {
+          "name": "authorized_updaters"
+        },
+        {
+          "name": "authorized_sequencers"
+        }
+      ]
+    },
+    {
+      "name": "PayeePolicy",
+      "fields_or_variants": [
+        {
+          "name": "allow"
+        },
+        {
+          "name": "deny"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_PayeePolicy_Allow",
+      "fields_or_variants": [
+        {
+          "name": "max_fee"
+        },
+        {
+          "name": "gas_limit"
+        },
+        {
+          "name": "max_gas_price"
+        },
+        {
+          "name": "transaction_limit"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "GasPrice",
+      "fields_or_variants": [
+        {
+          "name": "value"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "AuthorizedSequencers",
+      "fields_or_variants": [
+        {
+          "name": "all"
+        },
+        {
+          "name": "some"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_SetPayerForSequencer",
+      "fields_or_variants": [
+        {
+          "name": "payer"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_UpdatePolicy",
+      "fields_or_variants": [
+        {
+          "name": "payer"
+        },
+        {
+          "name": "update"
+        }
+      ]
+    },
+    {
+      "name": "PolicyUpdate",
+      "fields_or_variants": [
+        {
+          "name": "sequencer_update"
+        },
+        {
+          "name": "updaters_to_add"
+        },
+        {
+          "name": "updaters_to_remove"
+        },
+        {
+          "name": "payee_policies_to_set"
+        },
+        {
+          "name": "payee_policies_to_delete"
+        },
+        {
+          "name": "default_policy"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "SequencerSetUpdate",
+      "fields_or_variants": [
+        {
+          "name": "allow_all"
+        },
+        {
+          "name": "update"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "AllowedSequencerUpdate",
+      "fields_or_variants": [
+        {
+          "name": "to_add"
+        },
+        {
+          "name": "to_remove"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "CallMessage",
+      "fields_or_variants": [
+        {
+          "name": "rlp"
+        }
+      ]
+    },
+    {
+      "name": "RlpEvmTransaction",
+      "fields_or_variants": [
+        {
+          "name": "rlp"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "AccessPatternMessages",
+      "fields_or_variants": [
+        {
+          "name": "write_cells"
+        },
+        {
+          "name": "write_custom"
+        },
+        {
+          "name": "read_cells"
+        },
+        {
+          "name": "hash_bytes"
+        },
+        {
+          "name": "hash_custom"
+        },
+        {
+          "name": "store_signature"
+        },
+        {
+          "name": "verify_signature"
+        },
+        {
+          "name": "verify_custom_signature"
+        },
+        {
+          "name": "store_serialized_string"
+        },
+        {
+          "name": "deserialize_bytes_as_string"
+        },
+        {
+          "name": "deserialize_custom_string"
+        },
+        {
+          "name": "delete_cells"
+        },
+        {
+          "name": "set_hook"
+        },
+        {
+          "name": "update_admin"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_AccessPatternMessages_WriteCells",
+      "fields_or_variants": [
+        {
+          "name": "begin"
+        },
+        {
+          "name": "num_cells"
+        },
+        {
+          "name": "data_size"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_AccessPatternMessages_WriteCustom",
+      "fields_or_variants": [
+        {
+          "name": "begin"
+        },
+        {
+          "name": "content"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "__SovVirtualWallet_AccessPatternMessages_ReadCells",
+      "fields_or_variants": [
+        {
+          "name": "begin"
+        },
+        {
+          "name": "num_cells"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_AccessPatternMessages_HashBytes",
+      "fields_or_variants": [
+        {
+          "name": "filler"
+        },
+        {
+          "name": "size"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_AccessPatternMessages_HashCustom",
+      "fields_or_variants": [
+        {
+          "name": "input"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_AccessPatternMessages_StoreSignature",
+      "fields_or_variants": [
+        {
+          "name": "sign"
+        },
+        {
+          "name": "pub_key"
+        },
+        {
+          "name": "message"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_AccessPatternMessages_VerifyCustomSignature",
+      "fields_or_variants": [
+        {
+          "name": "sign"
+        },
+        {
+          "name": "pub_key"
+        },
+        {
+          "name": "message"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_AccessPatternMessages_StoreSerializedString",
+      "fields_or_variants": [
+        {
+          "name": "input"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_AccessPatternMessages_DeserializeCustomString",
+      "fields_or_variants": [
+        {
+          "name": "input"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_AccessPatternMessages_DeleteCells",
+      "fields_or_variants": [
+        {
+          "name": "begin"
+        },
+        {
+          "name": "num_cells"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_AccessPatternMessages_SetHook",
+      "fields_or_variants": [
+        {
+          "name": "pre"
+        },
+        {
+          "name": "post"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "HooksConfig",
+      "fields_or_variants": [
+        {
+          "name": "Read"
+        },
+        {
+          "name": "Write"
+        },
+        {
+          "name": "Delete"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_HooksConfig_Read",
+      "fields_or_variants": [
+        {
+          "name": "begin"
+        },
+        {
+          "name": "size"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_HooksConfig_Write",
+      "fields_or_variants": [
+        {
+          "name": "begin"
+        },
+        {
+          "name": "size"
+        },
+        {
+          "name": "data_size"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_HooksConfig_Delete",
+      "fields_or_variants": [
+        {
+          "name": "begin"
+        },
+        {
+          "name": "size"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_AccessPatternMessages_UpdateAdmin",
+      "fields_or_variants": [
+        {
+          "name": "new_admin"
+        }
+      ]
+    },
+    {
+      "name": "TxDetails",
+      "fields_or_variants": [
+        {
+          "name": "max_priority_fee_bips"
+        },
+        {
+          "name": "max_fee"
+        },
+        {
+          "name": "gas_limit"
+        },
+        {
+          "name": "chain_id"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "UnsignedTransaction",
+      "fields_or_variants": [
+        {
+          "name": "runtime_call"
+        },
+        {
+          "name": "generation"
+        },
+        {
+          "name": "details"
+        }
+      ]
+    }
   ]
 }"#;

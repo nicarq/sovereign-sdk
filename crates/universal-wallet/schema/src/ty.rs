@@ -189,7 +189,6 @@ impl<L: LinkingScheme> Ty<L> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct EnumVariant<L: LinkingScheme> {
     pub name: String,
-    pub serde_name: String,
     pub template: Option<String>,
     pub value: Option<L::TypeLink>,
 }
@@ -198,7 +197,6 @@ pub struct EnumVariant<L: LinkingScheme> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Enum<L: LinkingScheme> {
     pub type_name: String,
-    pub serde_type_name: String,
     pub variants: Vec<EnumVariant<L>>,
     /// Whether this enum is "hide_tag"ged, meaning that the variant tags shouldn't be displayed.
     pub hide_tag: bool,
@@ -208,7 +206,6 @@ pub struct Enum<L: LinkingScheme> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Struct<L: LinkingScheme> {
     pub type_name: String,
-    pub serde_type_name: String,
     pub template: Option<String>,
     pub peekable: bool,
     pub fields: Vec<NamedField<L>>,
@@ -226,7 +223,6 @@ pub struct Tuple<L: LinkingScheme> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct NamedField<L: LinkingScheme> {
     pub display_name: String,
-    pub serde_display_name: String,
     pub silent: bool,
     pub value: L::TypeLink,
     pub doc: String,
@@ -332,4 +328,17 @@ impl<const N: usize> ByteDisplayable for [u8; N] {
     fn with_display(display: ByteDisplay) -> Link {
         Link::Immediate(Primitive::ByteArray { len: N, display })
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ContainerSerdeMetadata {
+    pub name: String,
+    pub fields_or_variants: Vec<FieldOrVariantSerdeMetadata>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct FieldOrVariantSerdeMetadata {
+    pub name: String,
 }

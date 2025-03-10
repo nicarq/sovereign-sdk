@@ -588,7 +588,7 @@ macro_rules! display_int {
     }};
 }
 
-impl<'a, 'fmt, W: Write, L: LinkingScheme> TypeVisitor<L> for DisplayVisitor<'a, 'fmt, W> {
+impl<'a, 'fmt, W: Write, L: LinkingScheme, M> TypeVisitor<L, M> for DisplayVisitor<'a, 'fmt, W> {
     type Arg = Context;
     type ReturnType = Result<(), FormatError>;
     fn visit_enum(
