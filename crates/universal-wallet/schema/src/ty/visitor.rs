@@ -1,69 +1,78 @@
 use thiserror::Error;
 
-use super::{Enum, LinkingScheme, Struct, Tuple, Ty};
+use super::{ContainerSerdeMetadata, Enum, LinkingScheme, Struct, Tuple, Ty};
 use crate::schema::{IndexLinking, Primitive, Schema};
 
-pub trait TypeVisitor<L: LinkingScheme> {
+pub trait TypeVisitor<L: LinkingScheme, M> {
     type Arg;
     type ReturnType;
     fn visit_enum(
         &mut self,
         e: &Enum<L>,
-        schema: &impl TypeResolver<LinkingScheme = L>,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = M>,
         context: Self::Arg,
     ) -> Self::ReturnType;
     fn visit_struct(
         &mut self,
         s: &Struct<L>,
-        schema: &impl TypeResolver<LinkingScheme = L>,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = M>,
         context: Self::Arg,
     ) -> Self::ReturnType;
     fn visit_tuple(
         &mut self,
         t: &Tuple<L>,
-        schema: &impl TypeResolver<LinkingScheme = L>,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = M>,
         context: Self::Arg,
     ) -> Self::ReturnType;
     fn visit_option(
         &mut self,
         value: &L::TypeLink,
-        schema: &impl TypeResolver<LinkingScheme = L>,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = M>,
         context: Self::Arg,
     ) -> Self::ReturnType;
     fn visit_primitive(
         &mut self,
         p: Primitive,
-        schema: &impl TypeResolver<LinkingScheme = L>,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = M>,
         context: Self::Arg,
     ) -> Self::ReturnType;
     fn visit_vec(
         &mut self,
         value: &L::TypeLink,
-        schema: &impl TypeResolver<LinkingScheme = L>,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = M>,
         context: Self::Arg,
     ) -> Self::ReturnType;
     fn visit_array(
         &mut self,
         len: &usize,
         value: &L::TypeLink,
-        schema: &impl TypeResolver<LinkingScheme = L>,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = M>,
         context: Self::Arg,
     ) -> Self::ReturnType;
     fn visit_map(
         &mut self,
         key: &L::TypeLink,
         value: &L::TypeLink,
-        schema: &impl TypeResolver<LinkingScheme = L>,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = M>,
         context: Self::Arg,
     ) -> Self::ReturnType;
 }
 
 pub trait TypeResolver {
     type LinkingScheme: LinkingScheme;
+    type Metadata;
+
     fn resolve_or_err(
         &self,
         maybe_resolved: &<Self::LinkingScheme as LinkingScheme>::TypeLink,
     ) -> Result<Ty<Self::LinkingScheme>, ResolutionError>;
+
+    fn maybe_resolve_metadata(
+        &self,
+        _maybe_resolved: &<Self::LinkingScheme as LinkingScheme>::TypeLink,
+    ) -> Result<Option<Self::Metadata>, ResolutionError> {
+        Ok(None)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
@@ -76,6 +85,7 @@ pub enum ResolutionError {
 
 impl TypeResolver for Schema {
     type LinkingScheme = IndexLinking;
+    type Metadata = ContainerSerdeMetadata;
 
     fn resolve_or_err(
         &self,
@@ -97,12 +107,33 @@ impl TypeResolver for Schema {
             }
         }
     }
+
+    fn maybe_resolve_metadata(
+        &self,
+        maybe_resolved: &<Self::LinkingScheme as LinkingScheme>::TypeLink,
+    ) -> Result<Option<Self::Metadata>, ResolutionError> {
+        match maybe_resolved {
+            crate::schema::Link::ByIndex(idx) => {
+                Some(self.serde_metadata().get(*idx).cloned().ok_or(
+                    ResolutionError::IndexOutOfBounds {
+                        index: *idx,
+                        max: self.types().len(),
+                    },
+                ))
+                .transpose()
+            }
+            crate::schema::Link::Immediate(_) => Ok(None),
+            crate::schema::Link::Placeholder | crate::schema::Link::IndexedPlaceholder(_) => {
+                Err(ResolutionError::ErrContainsPlaceholder)
+            }
+        }
+    }
 }
 
 impl<L: LinkingScheme> Ty<L> {
-    pub fn visit<V: TypeVisitor<L>>(
+    pub fn visit<V: TypeVisitor<L, M>, M>(
         &self,
-        schema: &impl TypeResolver<LinkingScheme = L>,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = M>,
         visitor: &mut V,
         arg: V::Arg,
     ) -> V::ReturnType {

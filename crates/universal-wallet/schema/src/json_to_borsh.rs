@@ -3,10 +3,10 @@ use std::str::FromStr;
 use serde_json::{Number, Value};
 use thiserror::Error;
 
-use crate::schema::Primitive;
+use crate::schema::{IndexLinking, Link, Primitive};
 use crate::ty::byte_display::ByteParseError;
 use crate::ty::visitor::{ResolutionError, TypeResolver, TypeVisitor};
-use crate::ty::{Enum, IntegerType, LinkingScheme, Struct, Tuple, Ty};
+use crate::ty::{ContainerSerdeMetadata, Enum, IntegerType, LinkingScheme, Struct, Tuple, Ty};
 
 pub type Result<T, E = EncodeError> = core::result::Result<T, E>;
 
@@ -31,6 +31,8 @@ pub enum EncodeError {
     UnresolvedType(#[from] ResolutionError),
     #[error("Expected type or field {name}, but it was not present")]
     MissingType { name: String },
+    #[error("Type {container_name} did not have serde metadata present in the schema. The schema is either malformed or does not support JSON parsing.")]
+    MissingMetadata { container_name: String },
     #[error("Expected an array of size {expected}, but only found {actual} elements in the JSON")]
     WrongArrayLength { expected: usize, actual: usize },
     #[error("Only array sizes that fit into u32 are supported; input contained size {0}")]
@@ -71,19 +73,27 @@ impl<'fmt, W> EncodeVisitor<'fmt, W> {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct Context {
+pub struct Context<L: LinkingScheme> {
     value: serde_json::Value,
+    /// `None` for `Primitive` types, `Some()` for `Container`s
+    current_link: L::TypeLink,
 }
 
-impl Context {
-    pub fn new(input: &str) -> Result<Self, EncodeError> {
+impl Context<IndexLinking> {
+    pub fn new(input: &str, idx: usize) -> Result<Self, EncodeError> {
         Ok(Self {
             value: serde_json::from_str(input).map_err(|e| EncodeError::Json(e.to_string()))?,
+            current_link: Link::ByIndex(idx),
         })
     }
+}
 
-    pub fn from_val(value: Value) -> Self {
-        Self { value }
+impl<L: LinkingScheme> Context<L> {
+    pub fn from_val(value: Value, link: &L::TypeLink) -> Self {
+        Self {
+            value,
+            current_link: link.to_owned(),
+        }
     }
 }
 
@@ -110,14 +120,16 @@ macro_rules! serialize_primitive {
     }};
 }
 
-impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor<'fmt, W> {
-    type Arg = Context;
+impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L, ContainerSerdeMetadata>
+    for EncodeVisitor<'fmt, W>
+{
+    type Arg = Context<L>;
     type ReturnType = Result<(), EncodeError>;
     fn visit_enum(
         &mut self,
         e: &Enum<L>,
-        schema: &impl TypeResolver<LinkingScheme = L>,
-        mut context: Context,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = ContainerSerdeMetadata>,
+        mut context: Context<L>,
     ) -> Self::ReturnType {
         let (discriminant, inner_value) = match context.value {
             Value::String(s) => (s, None),
@@ -136,11 +148,19 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
             }
         };
 
-        let (index, variant) = e
+        // fetch variant metadata from context
+        let serde_metadata = schema
+            .maybe_resolve_metadata(&context.current_link)?
+            .ok_or(EncodeError::MissingMetadata {
+                container_name: e.type_name.clone(),
+            })?;
+
+        let ((index, variant), _) = e
             .variants
             .iter()
             .enumerate()
-            .find(|(_, v)| v.serde_name == discriminant)
+            .zip(serde_metadata.fields_or_variants)
+            .find(|(_, s)| s.name == discriminant)
             .ok_or(EncodeError::InvalidDiscriminant {
                 type_name: e.type_name.clone(),
                 discriminant: discriminant.to_owned(),
@@ -155,6 +175,7 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
                 });
             };
             context.value = inner_value;
+            context.current_link = maybe_resolved.clone();
             inner_type.visit(schema, self, context)?;
         } else if let Some(extra_value) = inner_value {
             return Err(EncodeError::UnusedInput {
@@ -166,8 +187,8 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
     fn visit_struct(
         &mut self,
         s: &Struct<L>,
-        schema: &impl TypeResolver<LinkingScheme = L>,
-        mut context: Context,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = ContainerSerdeMetadata>,
+        mut context: Context<L>,
     ) -> Self::ReturnType {
         let mut json_fields = match context.value {
             Value::Object(o) => o,
@@ -179,16 +200,24 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
             }
         };
 
-        for field in &s.fields {
+        // fetch field metadata from context
+        let serde_metadata = schema
+            .maybe_resolve_metadata(&context.current_link)?
+            .ok_or(EncodeError::MissingMetadata {
+                container_name: s.type_name.clone(),
+            })?;
+
+        for (field, field_serde) in s.fields.iter().zip(serde_metadata.fields_or_variants) {
             // TODO: ensure skip is handled correctly
             let json_value =
                 json_fields
-                    .remove(&field.serde_display_name)
+                    .remove(&field_serde.name)
                     .ok_or(EncodeError::MissingType {
                         name: format!("{}.{}", s.type_name, field.display_name),
                     })?;
             let inner_type = schema.resolve_or_err(&field.value)?;
             context.value = json_value;
+            context.current_link = field.value.clone();
             // TODO: adjust `Context` so it can return references to views over the full JSON,
             // without needing to clone. This is slightly annoying to ensure lifetimes are
             // correctly managed. Easiest solution is likely using JSON paths using value.pointer()
@@ -205,12 +234,14 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
     fn visit_tuple(
         &mut self,
         t: &Tuple<L>,
-        schema: &impl TypeResolver<LinkingScheme = L>,
-        context: Context,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = ContainerSerdeMetadata>,
+        mut context: Context<L>,
     ) -> Self::ReturnType {
         if t.fields.len() == 1 {
             // Trivial tuples aren't wrapped in JSON; forward the value directly to the inner field
-            let inner_type = schema.resolve_or_err(&t.fields.first().unwrap().value)?;
+            let value = t.fields.first().unwrap().value.clone();
+            let inner_type = schema.resolve_or_err(&value)?;
+            context.current_link = value;
             inner_type.visit(schema, self, context)
         } else {
             // iterate array, visit each type
@@ -226,7 +257,8 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
             }
             for (field, val) in t.fields.iter().zip(arr) {
                 let inner_type = schema.resolve_or_err(&field.value)?;
-                inner_type.visit(schema, self, Context::from_val(val.clone()))?;
+                context.current_link = field.value.clone();
+                inner_type.visit(schema, self, Context::from_val(val.clone(), &field.value))?;
             }
             Ok(())
         }
@@ -235,8 +267,8 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
     fn visit_option(
         &mut self,
         value: &L::TypeLink,
-        schema: &impl TypeResolver<LinkingScheme = L>,
-        context: Context,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = ContainerSerdeMetadata>,
+        mut context: Context<L>,
     ) -> Self::ReturnType {
         match context.value {
             Value::Null => {
@@ -244,6 +276,7 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
             }
             _ => {
                 borsh::to_writer(&mut self.out, &1u8)?;
+                context.current_link = value.clone();
                 schema.resolve_or_err(value)?.visit(schema, self, context)?;
             }
         }
@@ -254,8 +287,8 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
     fn visit_primitive(
         &mut self,
         p: crate::schema::Primitive,
-        _schema: &impl TypeResolver<LinkingScheme = L>,
-        context: Context,
+        _schema: &impl TypeResolver<LinkingScheme = L, Metadata = ContainerSerdeMetadata>,
+        context: Context<L>,
     ) -> Self::ReturnType {
         match p {
             Primitive::Float32 => {
@@ -356,8 +389,8 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
         &mut self,
         len: &usize,
         value: &L::TypeLink,
-        schema: &impl TypeResolver<LinkingScheme = L>,
-        context: Context,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = ContainerSerdeMetadata>,
+        context: Context<L>,
     ) -> Self::ReturnType {
         let arr = context.value.as_array().ok_or(EncodeError::InvalidType {
             schema_type: "array".to_string(),
@@ -371,7 +404,7 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
         }
         let inner_type = schema.resolve_or_err(value)?;
         for val in arr.iter() {
-            inner_type.visit(schema, self, Context::from_val(val.clone()))?;
+            inner_type.visit(schema, self, Context::from_val(val.clone(), value))?;
         }
         Ok(())
     }
@@ -379,8 +412,8 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
     fn visit_vec(
         &mut self,
         value: &L::TypeLink,
-        schema: &impl TypeResolver<LinkingScheme = L>,
-        context: Context,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = ContainerSerdeMetadata>,
+        context: Context<L>,
     ) -> Self::ReturnType {
         let vec = context.value.as_array().ok_or(EncodeError::InvalidType {
             schema_type: "vector".to_string(),
@@ -390,7 +423,7 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
         borsh::to_writer(&mut self.out, &len)?;
         let inner_type = schema.resolve_or_err(value)?;
         for val in vec.iter() {
-            inner_type.visit(schema, self, Context::from_val(val.clone()))?;
+            inner_type.visit(schema, self, Context::from_val(val.clone(), value))?;
         }
         Ok(())
     }
@@ -399,8 +432,8 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
         &mut self,
         key: &L::TypeLink,
         value: &L::TypeLink,
-        schema: &impl TypeResolver<LinkingScheme = L>,
-        context: Context,
+        schema: &impl TypeResolver<LinkingScheme = L, Metadata = ContainerSerdeMetadata>,
+        context: Context<L>,
     ) -> Self::ReturnType {
         let map = context.value.as_object().ok_or(EncodeError::InvalidType {
             schema_type: "map".to_string(),
@@ -422,8 +455,8 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
             } else {
                 Value::String(val.0.clone())
             };
-            key_type.visit(schema, self, Context::from_val(key_value))?;
-            value_type.visit(schema, self, Context::from_val(val.1.clone()))?;
+            key_type.visit(schema, self, Context::from_val(key_value, key))?;
+            value_type.visit(schema, self, Context::from_val(val.1.clone(), value))?;
         }
         Ok(())
     }

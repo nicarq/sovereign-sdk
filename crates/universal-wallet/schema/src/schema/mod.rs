@@ -1,7 +1,7 @@
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::fmt::Debug;
-mod container;
+pub mod container;
 mod primitive;
 pub mod safe_string;
 pub mod transaction_templates;
@@ -24,7 +24,7 @@ use crate::display::{Context as DisplayContext, DisplayVisitor, FormatError};
 #[cfg(feature = "serde")]
 use crate::json_to_borsh::{Context as EncodeContext, EncodeError, EncodeVisitor};
 use crate::ty::byte_display::ByteParseError;
-use crate::ty::{LinkingScheme, Ty};
+use crate::ty::{ContainerSerdeMetadata, LinkingScheme, Ty};
 
 #[derive(Debug, Error)]
 pub enum SchemaError {
@@ -156,6 +156,16 @@ pub struct Schema {
     /// Should be skipped in binary serialisation for hardware wallet apps.
     templates: Vec<TransactionTemplateSet>,
 
+    /// A set of metadata items for each field in the `types` vec, used for serde-compatible
+    /// deserialisation (i.e. `json_to_borsh()`).
+    /// It is separated from the main vec of `Ty` structs to allow non-serde implementations of the
+    /// schema, meaning ones only concerned with `borsh`-serialized interpretation (i.e.
+    /// `display()` functionality), such as hardware wallets, to avoid deserializing this. Not only
+    /// does this save resources but it also allows the format to be modified to implement
+    /// additional serde compatibility features without causing breaking changes for non-serde
+    /// implementations.
+    serde_metadata: Vec<ContainerSerdeMetadata>,
+
     /// Cached (lazily-constructed) merkelization of the entire schema.
     #[cfg_attr(feature = "serde", serde(skip))]
     merkle_tree: MerkleTreeCache,
@@ -203,9 +213,8 @@ impl Schema {
         RuntimeCall::make_root_of(&mut schema);
         Address::make_root_of(&mut schema);
 
-        let templates_hash = hasher.hash_leaf(&borsh::to_vec(&schema.templates)?);
         let metadata_hash = hasher.hash_leaf(&borsh::to_vec(&chain_metadata)?);
-        schema.metadata_hash = hasher.hash_nodes(&templates_hash, &metadata_hash);
+        schema.metadata_hash = schema.construct_metadata_hash(Some(metadata_hash))?;
         Ok(schema)
     }
 
@@ -278,7 +287,7 @@ impl Schema {
         self.types
             .get(type_index)
             .ok_or(SchemaError::InvalidIndex(type_index))?
-            .visit(self, &mut visitor, EncodeContext::new(input)?)?;
+            .visit(self, &mut visitor, EncodeContext::new(input, type_index)?)?;
 
         Ok(output)
     }
@@ -325,7 +334,11 @@ impl Schema {
             // and use our json_to_borsh functionality to get the bytes for the input.
             let mut buf = Vec::new();
             let mut visitor = EncodeVisitor::new(&mut buf)?;
-            ty.visit(self, &mut visitor, EncodeContext::from_val(json_value))?;
+            ty.visit(
+                self,
+                &mut visitor,
+                EncodeContext::from_val(json_value, input.type_link()),
+            )?;
 
             // Finally, splice the obtained bytes at the specified offset into the template.
             output.splice(input.offset()..input.offset(), buf);
@@ -353,18 +366,28 @@ impl Schema {
             .collect())
     }
 
-    fn add_type_if_absent(&mut self, ty: Ty<IndexLinking>, item_id: ItemId) -> Link {
-        if let Some(location) = self.known_types.get(&item_id) {
-            return Link::ByIndex(*location);
-        }
-        let location = self.types.len();
-        self.known_types.insert(item_id, location);
-        self.types.push(ty);
-        Link::ByIndex(location)
+    fn construct_metadata_hash(
+        &self,
+        extra_metadata_hash: Option<[u8; 32]>,
+    ) -> Result<[u8; 32], SchemaError> {
+        let hasher = TmSha2Hasher::new();
+        let mut metadata_combined_preimage = [0u8; 32 * 3];
+        metadata_combined_preimage[0..32]
+            .copy_from_slice(&hasher.hash_leaf(&borsh::to_vec(&self.templates)?));
+        metadata_combined_preimage[32..64]
+            .copy_from_slice(&hasher.hash_leaf(&borsh::to_vec(&self.serde_metadata)?));
+        metadata_combined_preimage[64..96]
+            .copy_from_slice(&extra_metadata_hash.unwrap_or_default());
+        let metadata_hash = hasher.hash_leaf(&metadata_combined_preimage);
+        Ok(metadata_hash)
     }
 
     pub fn types(&self) -> &[Ty<IndexLinking>] {
         &self.types
+    }
+
+    pub fn serde_metadata(&self) -> &[ContainerSerdeMetadata] {
+        &self.serde_metadata
     }
 
     pub fn root_types(&self) -> &[usize] {
@@ -404,9 +427,11 @@ impl Schema {
                     MaybePartialLink::Complete(Link::ByIndex(location))
                 } else {
                     let num_children = c.num_children();
+                    let serde_metadata = c.serde();
                     let location = self.types.len();
                     self.known_types.insert(item_id.clone(), location);
                     self.types.push(c.into());
+                    self.serde_metadata.push(serde_metadata);
                     if num_children != 0 {
                         self.under_construction.insert(item_id, num_children);
                         MaybePartialLink::Partial(Link::ByIndex(location))
@@ -465,7 +490,13 @@ pub trait SchemaGenerator: Sized + 'static {
         let item = Self::scaffold();
         let item_id = ItemId::of::<Self>();
         match item {
-            Item::Atom(primitive) => schema.add_type_if_absent(primitive.into(), item_id),
+            Item::Atom(_primitive) => {
+                // When recursively building the schema, primitives get filled in directly as
+                // Link::Immediate and do not get `write_schema` called for them. Thus this can
+                // only happen from a user call.
+                // Forbidding this makes managing metadata significantly easier.
+                panic!("Creating a schema for primitive root types is not supported. If this is necessary, wrap the primitive in a newtype struct. If you did not specify a primitive root type, this may be a bug in schema generation.");
+            }
             Item::Container(container) => {
                 let link = schema.get_partial_link_to(Item::Container(container), item_id.clone());
                 if let MaybePartialLink::Complete(link) = link {

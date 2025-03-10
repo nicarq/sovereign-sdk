@@ -10,13 +10,13 @@ mod primitive_type_impls {
     use std::rc::Rc;
     use std::sync::{Arc, Mutex, RwLock};
 
-    use crate::schema::container::Container;
+    use crate::schema::container::{Container, StructWithSerde};
     use crate::schema::{
         IndexLinking, Item, Link, OverrideSchema, Primitive, Schema, SchemaGenerator,
     };
     use crate::ty::{
-        macro_for_ints, ByteDisplay, IntegerDisplay, IntegerType, NamedField, Struct, Tuple,
-        UnnamedField,
+        macro_for_ints, ByteDisplay, ContainerSerdeMetadata, FieldOrVariantSerdeMetadata,
+        IntegerDisplay, IntegerType, NamedField, Struct, Tuple, UnnamedField,
     };
 
     macro_rules! impl_for_int {
@@ -218,27 +218,37 @@ mod primitive_type_impls {
 
     impl<T: SchemaGenerator> SchemaGenerator for Range<T> {
         fn scaffold() -> Item<IndexLinking> {
-            Item::Container(Container::Struct(Struct {
-                type_name: "Range".to_string(),
-                serde_type_name: "Range".to_string(),
-                template: Some("{}..{}".to_string()),
-                peekable: false,
-                fields: vec![
-                    NamedField {
-                        value: Link::Placeholder,
-                        doc: "".to_string(),
-                        silent: false,
-                        display_name: "start".to_string(),
-                        serde_display_name: "start".to_string(),
-                    },
-                    NamedField {
-                        value: Link::Placeholder,
-                        doc: "".to_string(),
-                        silent: false,
-                        display_name: "end".to_string(),
-                        serde_display_name: "end".to_string(),
-                    },
-                ],
+            Item::Container(Container::Struct(StructWithSerde {
+                ty: Struct {
+                    type_name: "Range".to_string(),
+                    template: Some("{}..{}".to_string()),
+                    peekable: false,
+                    fields: vec![
+                        NamedField {
+                            value: Link::Placeholder,
+                            doc: "".to_string(),
+                            silent: false,
+                            display_name: "start".to_string(),
+                        },
+                        NamedField {
+                            value: Link::Placeholder,
+                            doc: "".to_string(),
+                            silent: false,
+                            display_name: "end".to_string(),
+                        },
+                    ],
+                },
+                serde: ContainerSerdeMetadata {
+                    name: "Range".to_string(),
+                    fields_or_variants: vec![
+                        FieldOrVariantSerdeMetadata {
+                            name: "start".to_string(),
+                        },
+                        FieldOrVariantSerdeMetadata {
+                            name: "end".to_string(),
+                        },
+                    ],
+                },
             }))
         }
 

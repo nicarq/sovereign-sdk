@@ -385,14 +385,19 @@ fn derive_wallet_field(
                     &prefix,
                 )?,
                 Style::Unit => {
-                    let serde_type_name = serde_rename.rename_typename(ident)?;
+                    let serde_name = serde_rename.rename_typename(ident)?;
                     quote! {
-                        #prefix::sov_universal_wallet::schema::Item::<#prefix::sov_universal_wallet::schema::IndexLinking>::Container(#prefix::sov_universal_wallet::schema::Container::Struct( #prefix::sov_universal_wallet::ty::Struct {
-                            type_name: stringify!(#ident).to_string(),
-                            serde_type_name: #serde_type_name.to_string(),
-                            template: #template_tokens,
-                            peekable: false,
-                            fields: vec![],
+                        #prefix::sov_universal_wallet::schema::Item::<#prefix::sov_universal_wallet::schema::IndexLinking>::Container(#prefix::sov_universal_wallet::schema::Container::Struct( #prefix::sov_universal_wallet::schema::container::StructWithSerde {
+                            ty: #prefix::sov_universal_wallet::ty::Struct {
+                                type_name: stringify!(#ident).to_string(),
+                                template: #template_tokens,
+                                peekable: false,
+                                fields: vec![],
+                            },
+                            serde: #prefix::sov_universal_wallet::ty::ContainerSerdeMetadata {
+                                name: #serde_name.to_string(),
+                                fields_or_variants: vec![],
+                            }
                         }))
                     }
                 }
@@ -405,7 +410,7 @@ fn derive_wallet_field(
             });
             let mut enum_child_templates: Vec<TokenStream> = Default::default();
             let inherit_variant_templates = *input.template_inherit;
-            let variants = e.iter()
+            let (variants, metadatas) = e.iter()
             .map(|variant| {
                 let variant_ident = &variant.ident;
                 let virtual_type_generics = virtual_field_generics(generics.clone(), &variant.fields.fields);
@@ -435,15 +440,23 @@ fn derive_wallet_field(
                     Style::Unit => quote! { None },
                 };
                 let serde_variant_name = serde_rename.rename_variant(variant_ident)?;
-                Ok::<TokenStream, syn::Error>(quote! {
-                    #prefix::sov_universal_wallet::ty::EnumVariant {
-                        name: stringify!(#variant_ident).to_string(),
-                        serde_name: #serde_variant_name.to_string(),
-                        template: #variant_showas_tokens,
-                        value: #value
-                }})
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+                Ok::<(TokenStream, TokenStream), syn::Error>(
+                    (
+                        quote! {
+                            #prefix::sov_universal_wallet::ty::EnumVariant {
+                                name: stringify!(#variant_ident).to_string(),
+                                template: #variant_showas_tokens,
+                                value: #value
+                            }
+                        },
+                        quote! {
+                            #prefix::sov_universal_wallet::ty::FieldOrVariantSerdeMetadata {
+                                name: #serde_variant_name.to_string(),
+                            }
+                        }
+                    )
+                )})
+                .collect::<Result<(Vec<_>, Vec<_>), _>>()?;
             add_self_bound_to_where_clause(where_under_construction);
 
             child_templates = quote! {
@@ -453,17 +466,24 @@ fn derive_wallet_field(
                 )
             };
 
-            let serde_type_name = serde_rename.rename_typename(ident)?;
+            let serde_name = serde_rename.rename_typename(ident)?;
             quote! {
                 #prefix::sov_universal_wallet::schema::Item::<#prefix::sov_universal_wallet::schema::IndexLinking>::Container(#prefix::sov_universal_wallet::schema::Container::Enum(
-                    #prefix::sov_universal_wallet::ty::Enum {
-                        type_name: stringify!(#ident).to_string(),
-                        serde_type_name: #serde_type_name.to_string(),
-                        hide_tag: #hide_tag,
-                        variants: vec![
-                            #(#variants),*
-                        ],
-                    }
+                        #prefix::sov_universal_wallet::schema::container::EnumWithSerde {
+                            ty: #prefix::sov_universal_wallet::ty::Enum {
+                                type_name: stringify!(#ident).to_string(),
+                                hide_tag: #hide_tag,
+                                variants: vec![
+                                    #(#variants),*
+                                ],
+                            },
+                            serde: #prefix::sov_universal_wallet::ty::ContainerSerdeMetadata {
+                                name: #serde_name.to_string(),
+                                fields_or_variants: vec![
+                                    #(#metadatas),*
+                                ],
+                            }
+                        }
                 ))
             }
         }
@@ -516,8 +536,7 @@ pub fn build_struct_type_scaffold(
     extend_where_clause_with_field_bounds(fields, where_clause, prefix);
 
     let mut peekable = false;
-
-    let fields = fields
+    let (fields, field_serdes) = fields
         .iter()
         .filter(|field| !field.skip)
         .map(|field| {
@@ -538,26 +557,37 @@ pub fn build_struct_type_scaffold(
             let doc = String::new(); // TODO
             let silent = field.hidden;
             let serde_name = serde_rename.rename_field(name)?;
-            SynResult::<_>::Ok(quote! {
-                #prefix::sov_universal_wallet::ty::NamedField {
-                    display_name: stringify!(#name).to_string(),
-                    serde_display_name: #serde_name.to_string(),
-                    value: #prefix::sov_universal_wallet::schema::Link::Placeholder,
-                    silent: #silent,
-                    doc: #doc.to_string(),
-                }
-            })
+            SynResult::<_>::Ok((
+                quote! {
+                    #prefix::sov_universal_wallet::ty::NamedField {
+                        display_name: stringify!(#name).to_string(),
+                        value: #prefix::sov_universal_wallet::schema::Link::Placeholder,
+                        silent: #silent,
+                        doc: #doc.to_string(),
+                    }
+                },
+                quote! {
+                    #prefix::sov_universal_wallet::ty::FieldOrVariantSerdeMetadata {
+                        name: #serde_name.to_string()
+                    }
+                },
+            ))
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<(Vec<_>, Vec<_>), _>>()?;
 
-    let serde_type_name = serde_rename.rename_typename(&type_name)?;
+    let serde_name = serde_rename.rename_typename(&type_name)?;
     Ok(quote! {
-        #prefix::sov_universal_wallet::schema::Item::<#prefix::sov_universal_wallet::schema::IndexLinking>::Container(#prefix::sov_universal_wallet::schema::Container::Struct( #prefix::sov_universal_wallet::ty::Struct {
-            type_name: stringify!(#type_name).to_string(),
-            serde_type_name: #serde_type_name.to_string(),
-            template: #template_string,
-            peekable: #peekable,
-            fields: vec![#(#fields),*],
+        #prefix::sov_universal_wallet::schema::Item::<#prefix::sov_universal_wallet::schema::IndexLinking>::Container(#prefix::sov_universal_wallet::schema::Container::Struct( #prefix::sov_universal_wallet::schema::container::StructWithSerde {
+            ty: #prefix::sov_universal_wallet::ty::Struct {
+                type_name: stringify!(#type_name).to_string(),
+                template: #template_string,
+                peekable: #peekable,
+                fields: vec![#(#fields),*],
+            },
+            serde: #prefix::sov_universal_wallet::ty::ContainerSerdeMetadata {
+                name: #serde_name.to_string(),
+                fields_or_variants: vec![#(#field_serdes),*],
+            }
         }))
     })
 }
