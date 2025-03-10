@@ -17,7 +17,7 @@ fn test_state_value_user_namespace() -> Result<(), Infallible> {
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new();
     let storage = storage_manager.create_storage();
 
-    let state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
+    let mut state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     let mut kernel = MockKernel::<S>::default();
 
@@ -61,7 +61,7 @@ fn test_state_value_kernel_namespace() -> Result<(), Infallible> {
 
     let mut kernel = MockKernel::<S>::default();
 
-    let state_value = KernelStateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
+    let mut state_value = KernelStateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     // Native execution
     let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);

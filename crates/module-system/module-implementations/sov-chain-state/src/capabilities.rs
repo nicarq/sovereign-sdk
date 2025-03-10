@@ -174,7 +174,7 @@ impl<S: Spec> ChainState<S> {
     /// Saves the genesis state root to the chain state module.
     #[cfg(feature = "native")]
     pub fn save_genesis_root(
-        &self,
+        &mut self,
         state: &mut impl AccessoryStateReaderAndWriter,
         genesis_root: &<S::Storage as Storage>::Root,
     ) {

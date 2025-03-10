@@ -5,6 +5,7 @@ use sov_state::namespaces::{Accessory, CompileTimeNamespace, Kernel, User};
 use sov_state::{EncodeLike, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec};
 use thiserror::Error;
 
+use super::{Borrowed, BorrowedMut};
 use crate::{StateReader, StateReaderAndWriter, StateWriter};
 
 /// Container for a single value.
@@ -87,7 +88,7 @@ where
     }
 
     /// Sets the value.
-    pub fn set<Vq, Writer>(&self, value: &V, state: &mut Writer) -> Result<(), Writer::Error>
+    pub fn set<Vq, Writer>(&mut self, value: &V, state: &mut Writer) -> Result<(), Writer::Error>
     where
         Vq: ?Sized,
         Codec::ValueCodec: EncodeLike<Vq, V>,
@@ -104,6 +105,33 @@ where
         state.get_decoded(&self.slot_key(), self.codec())
     }
 
+    /// Returns a borrowed value from the map, preventing mutable access to the map until this reference is dropped.
+    pub fn borrow<Reader>(
+        &self,
+        state: &mut Reader,
+    ) -> Result<Borrowed<Option<V>, Self>, Reader::Error>
+    where
+        Reader: StateReader<N>,
+    {
+        Ok(Borrowed::new(
+            state.get_decoded(&self.slot_key(), self.codec())?,
+            self,
+        ))
+    }
+
+    /// Returns a mutably borrowed value from the map, preventing access to the map until this reference is dropped.
+    pub fn borrow_mut<Reader>(
+        &mut self,
+        state: &mut Reader,
+    ) -> Result<BorrowedMut<Option<V>, Self>, Reader::Error>
+    where
+        Reader: StateReader<N>,
+    {
+        let key = self.slot_key();
+        let val = state.get_decoded(&key, self.codec())?;
+        Ok(BorrowedMut::new(key, val, self))
+    }
+
     /// Gets the value from state or Error if the value is absent.
     pub fn get_or_err<Reader: StateReader<N>>(
         &self,
@@ -116,7 +144,7 @@ where
 
     /// Removes the value from state, returning the value (or None if the key is absent).
     pub fn remove<ReaderAndWriter: StateReaderAndWriter<N>>(
-        &self,
+        &mut self,
         state: &mut ReaderAndWriter,
     ) -> Result<Option<V>, <ReaderAndWriter as StateWriter<N>>::Error> {
         state.remove_decoded(&self.slot_key(), self.codec())
@@ -124,7 +152,7 @@ where
 
     /// Removes a value from state, returning the value (or Error if the key is absent).
     pub fn remove_or_err<ReaderAndWriter: StateReaderAndWriter<N>>(
-        &self,
+        &mut self,
         state: &mut ReaderAndWriter,
     ) -> Result<ValueOrError<V, N>, <ReaderAndWriter as StateWriter<N>>::Error> {
         Ok(self
@@ -133,7 +161,10 @@ where
     }
 
     /// Deletes a value from state.
-    pub fn delete<Writer: StateWriter<N>>(&self, state: &mut Writer) -> Result<(), Writer::Error> {
+    pub fn delete<Writer: StateWriter<N>>(
+        &mut self,
+        state: &mut Writer,
+    ) -> Result<(), Writer::Error> {
         state.delete(&self.slot_key())
     }
 }

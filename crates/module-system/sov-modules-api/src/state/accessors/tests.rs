@@ -91,7 +91,8 @@ fn test_witness_generation() {
 fn test_values<S: Spec>(state: &mut StateCheckpoint<S>) {
     // Test overriding empty value.
     {
-        let state_value = StateValue::<u64>::with_codec(Prefix::new(vec![VAL_ID_1]), BorshCodec);
+        let mut state_value =
+            StateValue::<u64>::with_codec(Prefix::new(vec![VAL_ID_1]), BorshCodec);
         let is_cached = state.is_value_cached(NAMESPACE, &state_value.slot_key());
         assert_eq!(is_cached, IsValueCached::No);
 
@@ -114,7 +115,7 @@ fn test_values<S: Spec>(state: &mut StateCheckpoint<S>) {
 
     // Test overriding pre-set value.
     {
-        let state_value =
+        let mut state_value =
             StateValue::<u64>::with_codec(Prefix::new(vec![PRE_SET_VAL_ID_1]), BorshCodec);
 
         let is_cached = state.is_value_cached(NAMESPACE, &state_value.slot_key());

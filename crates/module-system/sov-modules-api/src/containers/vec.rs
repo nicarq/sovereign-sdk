@@ -82,7 +82,7 @@ where
     }
 
     fn set_len<Writer: StateWriter<N>>(
-        &self,
+        &mut self,
         length: u64,
         state: &mut Writer,
     ) -> Result<(), Writer::Error> {
@@ -99,6 +99,10 @@ where
 
     fn len_value(&self) -> &NamespacedStateValue<N, u64, Codec> {
         &self.len_value
+    }
+
+    fn len_value_mut(&mut self) -> &mut NamespacedStateValue<N, u64, Codec> {
+        &mut self.len_value
     }
 
     /// Sets a value in the vector.
@@ -234,7 +238,7 @@ where
         &mut self,
         state: &mut ReaderAndWriter,
     ) -> Result<(), <ReaderAndWriter as StateWriter<N>>::Error> {
-        let len = self.len_value().remove(state)?.unwrap_or_default();
+        let len = self.len_value_mut().remove(state)?.unwrap_or_default();
 
         for i in 0..len {
             self.elems_mut().delete(&i, state)?;

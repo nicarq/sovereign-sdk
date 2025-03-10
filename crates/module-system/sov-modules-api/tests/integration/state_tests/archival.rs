@@ -11,7 +11,7 @@ use unwrap_infallible::UnwrapInfallible;
 use crate::state_tests::*;
 
 fn increase_value_and_commit(
-    state_value: &StateValue<u32>,
+    state_value: &mut StateValue<u32>,
     storage: ProverStorage<StorageSpec>,
     kernel: &mut MockKernel<S>,
     storage_manager: &mut SimpleStorageManager<StorageSpec>,
@@ -34,7 +34,7 @@ fn increase_value_and_commit(
 fn archival_state_updates_correctly() -> Result<(), Infallible> {
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new();
     let mut kernel = MockKernel::default();
-    let state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
+    let mut state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     for current_height in 0..100 {
         let storage = storage_manager.create_storage();
@@ -52,7 +52,7 @@ fn archival_state_updates_correctly() -> Result<(), Infallible> {
         }
 
         let storage =
-            increase_value_and_commit(&state_value, storage, &mut kernel, &mut storage_manager);
+            increase_value_and_commit(&mut state_value, storage, &mut kernel, &mut storage_manager);
         let state_checkpoint = StateCheckpoint::new(storage, &kernel);
         let api_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel.clone()));
 

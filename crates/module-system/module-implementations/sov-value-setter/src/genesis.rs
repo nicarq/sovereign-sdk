@@ -15,7 +15,7 @@ pub struct ValueSetterConfig<S: Spec> {
 impl<S: Spec> ValueSetter<S> {
     /// Initializes module with the `admin` role.
     pub(crate) fn init_module(
-        &self,
+        &mut self,
         admin_config: &<Self as sov_modules_api::Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {

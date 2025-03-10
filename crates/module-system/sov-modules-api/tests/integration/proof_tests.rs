@@ -52,7 +52,7 @@ fn make_user_value_proof(
     let mut storage_manager = SimpleStorageManager::new();
     let storage = storage_manager.create_storage();
     let mut state = StateCheckpoint::<S>::new(storage.clone(), &MockKernel::<S>::default());
-    let state_val = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
+    let mut state_val = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
     state_val.set(&value, &mut state).unwrap_infallible();
 
     let (cache_log, _, witness) = state.freeze();
@@ -157,7 +157,7 @@ mod value {
 fn test_archival_proof_gen() {
     let mut kernel = MockKernel::<S>::default();
     let mut storage_manager = SimpleStorageManager::new();
-    let state_val = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
+    let mut state_val = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     const NUM_ITER: u64 = 10;
 

@@ -21,7 +21,7 @@ use crate::{Gas, GasMeter, GasMeteringError, GasSpec, Spec};
 /// A type that can both read and write the normal "user-space" state of the rollup.
 ///
 /// ```
-/// fn delete_state_string<Accessor: sov_modules_api::StateAccessor>(value: sov_modules_api::StateValue<String>, state: &mut Accessor)
+/// fn delete_state_string<Accessor: sov_modules_api::StateAccessor>(mut value: sov_modules_api::StateValue<String>, state: &mut Accessor)
 ///  -> Result<(), <Accessor as sov_modules_api::StateWriter<sov_state::User>>::Error> {
 ///     if let Some(original) = value.get(state)? {
 ///         println!("original: {}", original);
@@ -50,7 +50,7 @@ pub trait StateAccessor: StateReaderAndWriter<User> {
 /// ```
 /// use sov_modules_api::prelude::UnwrapInfallible;
 ///
-/// fn delete_state_string<InfallibleAccessor: sov_modules_api::InfallibleStateAccessor>(value: sov_modules_api::StateValue<String>, state: &mut InfallibleAccessor)
+/// fn delete_state_string<InfallibleAccessor: sov_modules_api::InfallibleStateAccessor>(mut value: sov_modules_api::StateValue<String>, state: &mut InfallibleAccessor)
 ///  -> () {
 ///     if let Some(original) = value.get(state).unwrap_infallible() {
 ///         println!("original: {}", original);
@@ -177,7 +177,7 @@ pub enum StateAccessorError<GU: Gas> {
 /// use sov_state::namespaces::User;
 ///
 /// fn delete_state_string<InfallibleAccessor: sov_modules_api::InfallibleStateReaderAndWriter<User>>
-/// (value: sov_modules_api::StateValue<String>, state: &mut InfallibleAccessor) -> () {
+/// (mut value: sov_modules_api::StateValue<String>, state: &mut InfallibleAccessor) -> () {
 ///     if let Some(original) = value.get(state).unwrap_infallible() {
 ///         println!("original: {}", original);
 ///     }
