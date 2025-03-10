@@ -36,7 +36,7 @@ pub enum CallMessage {
 impl<S: Spec> ExampleModule<S> {
     /// Sets `value` field to the `new_value`
     pub(crate) fn set_value(
-        &self,
+        &mut self,
         new_value: u32,
         _context: &Context<S>,
         state: &mut impl TxState<S>,

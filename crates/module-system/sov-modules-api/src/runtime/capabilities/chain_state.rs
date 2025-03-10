@@ -105,7 +105,7 @@ pub trait ChainState {
     #[cfg(feature = "native")]
     /// Saves the genesis state root to the chain state module.
     fn save_genesis_root(
-        &self,
+        &mut self,
         state: &mut impl AccessoryStateReaderAndWriter,
         genesis_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
     );

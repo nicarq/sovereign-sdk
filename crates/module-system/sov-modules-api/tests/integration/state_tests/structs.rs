@@ -33,7 +33,7 @@ impl StateThing for StateValueSet {
     type Value = u32;
 
     fn create(state: &mut impl InfallibleStateAccessor) -> Self {
-        let state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
+        let mut state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
         state_value.set(&10, state).unwrap_infallible();
         StateValueSet(state_value)
     }
@@ -218,7 +218,7 @@ fn test_state_vec_remove() {
 fn test_witness_round_trip() -> Result<(), Infallible> {
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new();
 
-    let state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
+    let mut state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     // Native execution
     let witness: ArrayWitness = {
@@ -267,4 +267,136 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
     };
 
     Ok(())
+}
+
+/// Test that the borrow API returns the expected value and allows other non-mutating operations
+/// for a `StateValue`
+#[test]
+fn test_borrow_and_get_state_value() {
+    let storage_manager = SimpleStorageManager::<StorageSpec>::new();
+    let storage = storage_manager.create_storage();
+    let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S>::default());
+    let mut state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
+
+    let val = state_value.borrow(&mut state).unwrap_infallible();
+    assert!(val.is_none());
+    state_value.set(&11, &mut state).unwrap_infallible();
+
+    // Borrow the value twice and check that they're equal
+    let val1 = state_value.borrow(&mut state).unwrap_infallible().unwrap();
+    let val2 = state_value.borrow(&mut state).unwrap_infallible().unwrap();
+    assert_eq!(*val1, 11);
+    assert_eq!(*val1, *val2);
+
+    // Check that you can use the `get api` while borrowed
+    let val3 = state_value.get(&mut state).unwrap_infallible().unwrap();
+    assert_eq!(val3, *val1);
+}
+
+/// Test that the borrow API returns the expected value and allows other non-mutating operations
+/// for a `StateValue`
+#[test]
+fn test_borrow_and_save_state_value() {
+    let storage_manager = SimpleStorageManager::<StorageSpec>::new();
+    let storage = storage_manager.create_storage();
+    let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S>::default());
+    let mut state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
+
+    let val = state_value.borrow_mut(&mut state).unwrap_infallible();
+    assert!(val.is_none());
+    state_value.set(&11, &mut state).unwrap_infallible();
+
+    // Borrow the value and mutate it
+    let mut val1 = state_value
+        .borrow_mut(&mut state)
+        .unwrap_infallible()
+        .unwrap();
+    assert_eq!(*val1, 11);
+    *val1 += 1;
+    val1.save(&mut state).unwrap_infallible();
+
+    // check that the value was mutated
+    let val2 = state_value.get(&mut state).unwrap_infallible().unwrap();
+    assert_eq!(val2, 12);
+
+    // Borrow the value and mutate it
+    let val = state_value
+        .borrow_mut(&mut state)
+        .unwrap_infallible()
+        .unwrap();
+    assert_eq!(*val, 12);
+    val.delete(&mut state).unwrap_infallible();
+
+    // check that the value was mutated
+    let val2 = state_value.get(&mut state).unwrap_infallible();
+    assert!(val2.is_none());
+}
+
+/// Test that the borrow API returns the expected value and allows other non-mutating operations
+/// for a `StateMap`
+#[test]
+fn test_borrow_and_get_state_map() {
+    let storage_manager = SimpleStorageManager::<StorageSpec>::new();
+    let storage = storage_manager.create_storage();
+    let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S>::default());
+    let mut state_map = StateMap::with_codec(Prefix::new(vec![0]), BorshCodec);
+
+    let val = state_map.borrow(&0, &mut state).unwrap_infallible();
+    assert!(val.is_none());
+    state_map.set(&0, &11, &mut state).unwrap_infallible();
+
+    // Borrow the value twice and check that they're equal
+    let val1 = state_map
+        .borrow(&0, &mut state)
+        .unwrap_infallible()
+        .unwrap();
+    let val2 = state_map
+        .borrow(&0, &mut state)
+        .unwrap_infallible()
+        .unwrap();
+    assert_eq!(*val1, 11);
+    assert_eq!(*val1, *val2);
+
+    // Check that you can use the `get api` while borrowed
+    let val3 = state_map.get(&0, &mut state).unwrap_infallible().unwrap();
+    assert_eq!(val3, *val1);
+}
+
+/// Test that the borrow API returns the expected value and allows other non-mutating operations
+/// for a `StateValue`
+#[test]
+fn test_borrow_and_save_state_map() {
+    let storage_manager = SimpleStorageManager::<StorageSpec>::new();
+    let storage = storage_manager.create_storage();
+    let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S>::default());
+    let mut state_map = StateMap::with_codec(Prefix::new(vec![0]), BorshCodec);
+
+    let val = state_map.borrow(&0, &mut state).unwrap_infallible();
+    assert!(val.is_none());
+    state_map.set(&0, &11, &mut state).unwrap_infallible();
+
+    // Borrow the value and mutate it
+    let mut val1 = state_map
+        .borrow_mut(&0, &mut state)
+        .unwrap_infallible()
+        .unwrap();
+    assert_eq!(*val1, 11);
+    *val1 += 1;
+    val1.save(&mut state).unwrap_infallible();
+
+    // check that the value was mutated
+    let val2 = state_map.get(&0, &mut state).unwrap_infallible().unwrap();
+    assert_eq!(val2, 12);
+
+    // Borrow the value and mutate it
+    let val = state_map
+        .borrow_mut(&0, &mut state)
+        .unwrap_infallible()
+        .unwrap();
+    assert_eq!(*val, 12);
+    val.delete(&mut state).unwrap_infallible();
+
+    // check that the value was mutated
+    let val2 = state_map.get(&0, &mut state).unwrap_infallible();
+    assert!(val2.is_none());
 }

@@ -4,17 +4,24 @@ pub(crate) mod map;
 pub(crate) mod value;
 pub(crate) mod vec;
 
+use std::fmt::Display;
+use std::str::FromStr;
+
+use map::NamespacedStateMap;
 pub use map::{AccessoryStateMap, KernelStateMap, StateMap, StateMapError};
+use sov_state::{CompileTimeNamespace, SlotKey, StateCodec, StateItemCodec};
+use value::NamespacedStateValue;
 pub use value::{AccessoryStateValue, KernelStateValue, StateValue, StateValueError};
 pub use vec::{AccessoryStateVec, KernelStateVec, StateVec};
 pub use versioned_value::VersionedStateValue;
+
+use crate::StateWriter;
 
 /// A borrowed state value which points to state variable that it came from
 // We use this struct to extend the borrow checker to state variables as if `self.state_value` was a reference.
 // rather than a clone of a value from the external `impl TxState` struct. This borrow is purely imaginary.
 // For now, all of the data is still actually cloned. In a future iteration, we might stored an `Arc` to the original value.
 // in state which would allow us to avoid cloning/deserializing on each "borrow".
-
 #[derive(Debug)]
 pub struct Borrowed<'a, T, U> {
     value: T,
@@ -33,6 +40,126 @@ impl<'a, T, U> Borrowed<'a, T, U> {
     /// Builds a borrowed state value
     pub(crate) fn new(value: T, _reference: &'a U) -> Self {
         Self { value, _reference }
+    }
+}
+
+impl<'a, T, U> Borrowed<'a, Option<T>, U> {
+    /// Unwraps the `Option`, panicking if the value is `None`.
+    pub fn unwrap(self) -> Borrowed<'a, T, U> {
+        Borrowed::new(self.value.unwrap(), self._reference)
+    }
+
+    /// Unwraps the `Option`, panicking with the provided message if the value is `None`.
+    pub fn expect(self, msg: &str) -> Borrowed<'a, T, U> {
+        Borrowed::new(self.value.expect(msg), self._reference)
+    }
+
+    /// Unwraps the `Option`, returning the provided default value if the value is `None`.
+    pub fn unwrap_or(self, default: T) -> Borrowed<'a, T, U> {
+        Borrowed::new(self.value.unwrap_or(default), self._reference)
+    }
+}
+
+/// A mutable borrowed state value which points to state variable that it came from
+#[derive(Debug)]
+pub struct BorrowedMut<'a, T, U> {
+    key: SlotKey,
+    value: T,
+    reference: &'a mut U,
+}
+
+impl<'a, T, U> std::ops::Deref for BorrowedMut<'a, T, U> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl<'a, T, U> std::ops::DerefMut for BorrowedMut<'a, T, U> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value
+    }
+}
+
+impl<'a, T, U> BorrowedMut<'a, T, U> {
+    /// Builds a borrowed state value
+    pub(crate) fn new(key: SlotKey, value: T, reference: &'a mut U) -> Self {
+        Self {
+            key,
+            value,
+            reference,
+        }
+    }
+}
+
+impl<'a, T, U> BorrowedMut<'a, Option<T>, U> {
+    /// Unwraps the `Option`, panicking if the value is `None`.
+    pub fn unwrap(self) -> BorrowedMut<'a, T, U> {
+        BorrowedMut::new(self.key, self.value.unwrap(), self.reference)
+    }
+
+    /// Unwraps the `Option`, panicking with the provided message if the value is `None`.
+    pub fn expect(self, msg: &str) -> BorrowedMut<'a, T, U> {
+        BorrowedMut::new(self.key, self.value.expect(msg), self.reference)
+    }
+
+    /// Unwraps the `Option`, returning the provided default value if the value is `None`.
+    pub fn unwrap_or(self, default: T) -> BorrowedMut<'a, T, U> {
+        BorrowedMut::new(self.key, self.value.unwrap_or(default), self.reference)
+    }
+}
+
+impl<'a, N, V, Codec> BorrowedMut<'a, V, NamespacedStateValue<N, V, Codec>>
+where
+    Codec: StateCodec,
+    Codec::ValueCodec: StateItemCodec<V>,
+    N: CompileTimeNamespace,
+{
+    /// Saves a mutably borrowed value back to the map.
+    pub fn save<Writer: StateWriter<N>>(
+        self,
+        state: &mut Writer,
+    ) -> Result<(), <Writer as StateWriter<N>>::Error> {
+        let value = self.reference.slot_value(&self.value);
+        state.set(&self.key, value)
+    }
+
+    /// Deletes the mutably borrowed value from the map.
+    pub fn delete<Writer: StateWriter<N>>(
+        self,
+        state: &mut Writer,
+    ) -> Result<(), <Writer as StateWriter<N>>::Error> {
+        state.delete(&self.key)
+    }
+}
+
+impl<'a, N, K, V, Codec> BorrowedMut<'a, V, NamespacedStateMap<N, K, V, Codec>>
+where
+    K: FromStr + Display,
+    Codec: StateCodec,
+    Codec::ValueCodec: StateItemCodec<V>,
+    Codec::KeyCodec: StateItemCodec<K>,
+    N: CompileTimeNamespace,
+{
+    /// Saves a mutably borrowed value back to the map.
+    pub fn save<Writer: StateWriter<N>>(
+        self,
+        state: &mut Writer,
+    ) -> Result<(), <Writer as StateWriter<N>>::Error> {
+        let value = self.reference.slot_value(&self.value);
+        let key = self.key.clone();
+        state.set(&key, value)
+    }
+
+    // TODO: Add a `drop`-like` method which discards the borrow without saving
+
+    /// Deletes the mutably borrowed value from the map.
+    pub fn delete<Writer: StateWriter<N>>(
+        self,
+        state: &mut Writer,
+    ) -> Result<(), <Writer as StateWriter<N>>::Error> {
+        state.delete(&self.key)
     }
 }
 

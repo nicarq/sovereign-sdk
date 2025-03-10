@@ -57,7 +57,7 @@ impl<V> StateItemDecoder<V> for CustomCodec {
 #[test]
 fn custom_builder_works() {
     let storage: ZkStorage<DefaultStorageSpec<TestHasher>> = ZkStorage::new();
-    let module: TestModule<ZkTestSpec> = TestModule::default();
+    let mut module: TestModule<ZkTestSpec> = TestModule::default();
 
     let mut state: StateCheckpoint<ZkTestSpec> =
         StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec>::default());

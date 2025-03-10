@@ -164,7 +164,7 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, 
 
     #[cfg(feature = "native")]
     fn save_genesis_root(
-        &self,
+        &mut self,
         state: &mut impl AccessoryStateReaderAndWriter,
         genesis_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
     ) {

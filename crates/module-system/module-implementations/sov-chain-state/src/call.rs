@@ -9,7 +9,7 @@ where
 {
     /// Increment the current slot number
     /// This function also modifies the kernel working set to update the true height.
-    pub(crate) fn increment_true_slot_number(&self, state: &mut KernelStateAccessor<S>) {
+    pub(crate) fn increment_true_slot_number(&mut self, state: &mut KernelStateAccessor<S>) {
         let current_height = self
             .true_slot_number
             .get(state)

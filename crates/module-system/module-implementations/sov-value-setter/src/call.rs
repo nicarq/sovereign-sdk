@@ -65,7 +65,7 @@ pub enum SetValueError<S: Spec> {
 impl<S: Spec> ValueSetter<S> {
     /// Sets `value` field to the `new_value`, only admin is authorized to call this method.
     pub(crate) fn set_value(
-        &self,
+        &mut self,
         new_value: u32,
         gas: Option<S::Gas>,
         context: &Context<S>,

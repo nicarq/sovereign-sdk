@@ -290,7 +290,7 @@ impl<S: Spec> ChainState<S> {
 
     /// Returns transition height in the current slot
     pub fn set_next_visible_slot_number(
-        &self,
+        &mut self,
         next_visible_slot_number: VisibleSlotNumber,
         state: &mut KernelStateAccessor<S>,
     ) {

@@ -12,7 +12,7 @@ use thiserror::Error;
 #[cfg(feature = "arbitrary")]
 use unwrap_infallible::UnwrapInfallible;
 
-use super::Borrowed;
+use super::{Borrowed, BorrowedMut};
 use crate::state::StateReader;
 #[cfg(feature = "native")]
 use crate::ProvenStateAccessor;
@@ -131,7 +131,7 @@ where
         SlotKey::new(self.prefix(), key, self.codec().key_codec())
     }
 
-    fn slot_value<Vq>(&self, value: &Vq) -> SlotValue
+    pub(super) fn slot_value<Vq>(&self, value: &Vq) -> SlotValue
     where
         Vq: ?Sized,
         Codec::ValueCodec: EncodeLike<Vq, V>,
@@ -230,15 +230,30 @@ where
         &self,
         key: &Kq,
         state: &mut Reader,
-    ) -> Result<Option<Borrowed<V, Self>>, Reader::Error>
+    ) -> Result<Borrowed<Option<V>, Self>, Reader::Error>
     where
         Codec::KeyCodec: EncodeLike<Kq, K>,
         Kq: ?Sized,
         Reader: StateReader<N>,
     {
-        Ok(state
-            .get_decoded(&self.slot_key(key), self.codec())?
-            .map(|v| Borrowed::new(v, self)))
+        let val = state.get_decoded(&self.slot_key(key), self.codec())?;
+        Ok(Borrowed::new(val, self))
+    }
+
+    /// Returns a mutably borrowed value from the map, preventing access to the map until this reference is dropped.
+    pub fn borrow_mut<Kq, Reader>(
+        &mut self,
+        key: &Kq,
+        state: &mut Reader,
+    ) -> Result<BorrowedMut<Option<V>, Self>, Reader::Error>
+    where
+        Codec::KeyCodec: EncodeLike<Kq, K>,
+        Kq: ?Sized,
+        Reader: StateReader<N>,
+    {
+        let key = self.slot_key(key);
+        let val = state.get_decoded(&key, self.codec())?;
+        Ok(BorrowedMut::new(key, val, self))
     }
 
     /// Returns the value corresponding to the key or [`StateMapError`] if key is absent from

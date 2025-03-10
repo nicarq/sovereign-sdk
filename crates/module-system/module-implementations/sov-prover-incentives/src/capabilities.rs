@@ -158,7 +158,7 @@ impl<S: Spec> ProverIncentives<S> {
             )));
         }
 
-        match self.calculate_reward(
+        match self.calculate_reward_and_remove(
             public_outputs.initial_slot_number,
             public_outputs.final_slot_number,
             state,
@@ -187,8 +187,8 @@ impl<S: Spec> ProverIncentives<S> {
 
     /// Computes the total reward from the aggregated state transition and rewards the prover with the unclaimed
     /// transition rewards. If all the rewards were already claimed, the prover is fined by a constant amount.
-    fn calculate_reward(
-        &self,
+    fn calculate_reward_and_remove(
+        &mut self,
         init_slot_num: SlotNumber,
         final_slot_num: SlotNumber,
         state: &mut impl TxState<S>,
