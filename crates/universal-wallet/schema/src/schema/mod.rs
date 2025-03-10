@@ -115,6 +115,7 @@ pub enum RollupRoots {
     Transaction = 0,
     UnsignedTransaction = 1,
     RuntimeCall = 2,
+    Address = 3,
 }
 
 /// A schema, representing set of types (i.e. rust code) as a data structure.
@@ -191,6 +192,7 @@ impl Schema {
         Transaction: SchemaGenerator,
         UnsignedTransaction: SchemaGenerator,
         RuntimeCall: SchemaGenerator,
+        Address: SchemaGenerator,
     >(
         chain_metadata: &Metadata,
     ) -> Result<Self, SchemaError> {
@@ -199,6 +201,7 @@ impl Schema {
         Transaction::make_root_of(&mut schema);
         UnsignedTransaction::make_root_of(&mut schema);
         RuntimeCall::make_root_of(&mut schema);
+        Address::make_root_of(&mut schema);
 
         let templates_hash = hasher.hash_leaf(&borsh::to_vec(&schema.templates)?);
         let metadata_hash = hasher.hash_leaf(&borsh::to_vec(&chain_metadata)?);

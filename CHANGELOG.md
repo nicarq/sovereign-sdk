@@ -1,4 +1,5 @@
 # 2025-03-10
+- #2521 **BREAKING CHANGE** for rollup buildscripts: added the `Address` type to the standard rollup universal schema. This allows wallets to present serialized addresses to the user in the rollup's preferred format. Build scripts will need to be adjusted to pass the 4th root type when creating the rollup's schema.
 - #2582 Internal CI has been adjusted to ensure any wallet schema changes will be treated as breaking changes, starting in the near future. This is because schema changes a) reflect changes to the Transaction and RuntimeCall structs, potentially requiring adjustments to all users of a rollup; and b) changes to the schema hash invalidate all transactions signed using the old hash, requiring any transaction submitters to update to the new hash before continuing to use the rollup.
 - #2584 modifies the return type of `sequencer_additional_apis` to return a `NodeEndpoints`. This makes it possible to serve all JSON-RPC requests on the same endpoint, and removes the need for `RpcModule`-to-`axum::Router` conversions.
 
