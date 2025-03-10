@@ -94,15 +94,46 @@ pub extern crate bech32;
 /// assert_eq!(Schema::of_single_type::<File>().display(0, &serialized).unwrap(), r#"{ contents: 0x010203 }"#);
 /// ```
 ///
+/// ## Attributes: `#[sov_wallet(fixed_point({decimals}))]`
+///
+/// Specifies fixed-point formatting for an integer field. The decimals specification can be one of
+/// the following:
+///  - an integer literal: directly specifies the number of decimal places to use
+///  - `from_field({n})`: where `n` is an integer denoting a sibling field in the same structure
+///    (by index). That field must be an unsigned integer type, and at runtime its value must be at
+///    most 255. That field's value will be used as the number of decimal points when formatting the
+///    fixed-point number.
+///
+/// ```rust
+/// use sov_rollup_interface::sov_universal_wallet::{schema::Schema, UniversalWallet};
+/// #[derive(UniversalWallet, borsh::BorshSerialize)]
+/// pub struct Coins {
+///     #[sov_wallet(fixed_point(from_field(1)))]
+///     amount: u128,
+///     #[sov_wallet(hidden)]
+///     decimals: u8
+/// }
+/// let serialized = borsh::to_vec(&Coins { amount: 475200, decimals: 3 }).unwrap();
+/// assert_eq!(Schema::of_single_type::<Coins>().display(0, &serialized).unwrap(), r#"{ amount: 475.2 }"#);
+/// ```
+///
+/// **Security note**: uniquely, this formats the display using user-submitted input. If the
+/// accuracy of the displayed string is important for security, it is crucial that the submitted
+/// value for the amount of decimals be treated as the source of truth, as that will be what the
+/// user will have been presented with.
+/// For example, when using the schema to sign on-chain messages referencing cryptocurrency
+/// amounts, any message where the decimals field does not match the currency's canonical decimal
+/// count **must** be considered invalid and rejected.
+///
 /// ## Attributes: `#[sov_wallet(display({encoding}))]`
 ///
-/// Specifies the encoding to use when displaying a byte sequence or integer. The encoding can be one of the following:
+/// Specifies the encoding to use when displaying a byte sequence. The encoding can be one of the following:
 /// - hex: displays the type as a hexadecimal string with the prefix "0x"
-/// - decimal: displays the type as a decimal number (integer only) or a list of decimal numbers in square brackets (byte sequence)
-/// - bech32(prefix = "my_prefix_expr"): displays the type as a bech32-encoded string with the specified human-readable part. (byte sequence only)
-/// - bech32m(prefix = "my_prefix_expr"): displays the type as a bech32-encoded string with the specified human-readable part. (byte sequence only)
+/// - decimal: displays the type as a list of decimal numbers in square brackets
+/// - bech32(prefix = "my_prefix_expr"): displays the type as a bech32-encoded string with the specified human-readable part.
+/// - bech32m(prefix = "my_prefix_expr"): displays the type as a bech32-encoded string with the specified human-readable part.
 ///
-/// This annotation may only be applied to fields, not items. The field must have type integer, `[u8;N]`, or `Vec<u8>` to use this attribute.
+/// This annotation may only be applied to fields, not items. The field must have type `[u8;N]` or `Vec<u8>` to use this attribute.
 ///
 /// ```rust
 /// use sov_rollup_interface::sov_universal_wallet::{schema::Schema, UniversalWallet};

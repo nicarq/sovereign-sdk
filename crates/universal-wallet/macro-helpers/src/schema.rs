@@ -17,11 +17,12 @@ type SynResult<T> = Result<T, syn::Error>;
 use darling::FromMeta;
 
 use super::serde_rename::{parse_serde_rename_attrs, SerdeRename};
+use crate::fixed_point_ints::FixedPointDisplay;
 use crate::template_attribute::{InputOrValue, TransactionTemplates};
 
 #[derive(Debug, FromMeta, Default, Clone)]
 #[darling(rename_all = "snake_case")]
-pub enum DisplayType {
+pub enum ByteDisplayType {
     #[default]
     Hex,
     Decimal,
@@ -36,22 +37,22 @@ pub enum DisplayType {
     Base58,
 }
 
-impl DisplayType {
+impl ByteDisplayType {
     pub fn resolve(&self, crate_prefix: &Option<syn::TypePath>) -> TokenStream {
         match self {
-            DisplayType::Hex => {
+            ByteDisplayType::Hex => {
                 quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Hex }
             }
-            DisplayType::Decimal => {
+            ByteDisplayType::Decimal => {
                 quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Decimal }
             }
-            DisplayType::Bech32 { prefix } => {
+            ByteDisplayType::Bech32 { prefix } => {
                 quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Bech32 { prefix: #crate_prefix::sov_universal_wallet::bech32::Hrp::parse(#prefix).expect("Invalid bech32 prefix") } }
             }
-            DisplayType::Bech32m { prefix } => {
+            ByteDisplayType::Bech32m { prefix } => {
                 quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Bech32m { prefix: #crate_prefix::sov_universal_wallet::bech32::Hrp::parse(#prefix).expect("Invalid bech32 prefix") } }
             }
-            DisplayType::Base58 => {
+            ByteDisplayType::Base58 => {
                 quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Base58 }
             }
         }
@@ -59,20 +60,20 @@ impl DisplayType {
 
     pub fn len(&self, input: &SpannedValue<String>) -> Result<usize, darling::Error> {
         match self {
-            DisplayType::Hex => Ok(if input.starts_with("0x") {
+            ByteDisplayType::Hex => Ok(if input.starts_with("0x") {
                 (input.len() - 2) / 2
             } else {
                 input.len() / 2
             }),
-            DisplayType::Decimal => Ok(input.split(',').count()),
-            DisplayType::Bech32 { .. } | DisplayType::Bech32m { .. } => {
+            ByteDisplayType::Decimal => Ok(input.split(',').count()),
+            ByteDisplayType::Bech32 { .. } | ByteDisplayType::Bech32m { .. } => {
                 let (_, bytes) = bech32::decode(input).map_err(|e| {
                     darling::Error::custom(format!("Invalid bech32(m) literal value: {e}"))
                         .with_span(&input.span())
                 })?;
                 Ok(bytes.len())
             }
-            DisplayType::Base58 => Ok(bs58::decode(input.deref())
+            ByteDisplayType::Base58 => Ok(bs58::decode(input.deref())
                 .into_vec()
                 .map_err(|e| {
                     darling::Error::custom(format!("Invalid base58 literal value: {e}"))
@@ -180,7 +181,7 @@ fn struct_child_templates(
                     )
                 },
                 InputOrValue::BytesValue(bytes) => {
-                    let display_type = field.display.clone().unwrap_or(DisplayType::Hex);
+                    let display_type = field.display.clone().unwrap_or(ByteDisplayType::Hex);
                     let byte_display = display_type.resolve(prefix);
                     let const_len = display_type.len(bytes)?;
                     let bytes_str = bytes.deref();
@@ -390,6 +391,7 @@ fn derive_wallet_field(
                             type_name: stringify!(#ident).to_string(),
                             serde_type_name: #serde_type_name.to_string(),
                             template: #template_tokens,
+                            peekable: false,
                             fields: vec![],
                         }))
                     }
@@ -513,10 +515,22 @@ pub fn build_struct_type_scaffold(
 ) -> Result<TokenStream, syn::Error> {
     extend_where_clause_with_field_bounds(fields, where_clause, prefix);
 
+    let mut peekable = false;
+
     let fields = fields
         .iter()
         .filter(|field| !field.skip)
         .map(|field| {
+            if let Some(FixedPointDisplay::FromField { field_index, .. }) = field.fixed_point {
+                peekable = true;
+                if *field_index >= fields.len() {
+                    return Err(syn::Error::new(
+                        field_index.span(),
+                        "The field index referenced is out of bounds for this struct",
+                    ));
+                }
+            }
+
             let name = field
                 .ident
                 .as_ref()
@@ -542,6 +556,7 @@ pub fn build_struct_type_scaffold(
             type_name: stringify!(#type_name).to_string(),
             serde_type_name: #serde_type_name.to_string(),
             template: #template_string,
+            peekable: #peekable,
             fields: vec![#(#fields),*],
         }))
     })
@@ -571,10 +586,22 @@ pub fn build_tuple_type_scaffold(
         .filter(|field| !field.skip)
         .collect::<Vec<_>>();
 
+    let mut peekable = false;
+
     let fields = fields
         .iter()
         .filter(|field| !field.skip)
         .map(|field| {
+            if let Some(FixedPointDisplay::FromField { field_index, .. }) = field.fixed_point {
+                peekable = true;
+                if *field_index >= fields.len() {
+                    return Err(syn::Error::new(
+                        field_index.span(),
+                        "The field index referenced is out of bounds for this struct",
+                    ));
+                }
+            }
+
             let doc = String::new(); // TODO
             let silent = field.hidden;
             SynResult::<_>::Ok(quote! {
@@ -590,6 +617,7 @@ pub fn build_tuple_type_scaffold(
     Ok(quote! {
         #prefix::sov_universal_wallet::schema::Item::<#prefix::sov_universal_wallet::schema::IndexLinking>::Container(#prefix::sov_universal_wallet::schema::Container::Tuple( #prefix::sov_universal_wallet::ty::Tuple {
             template: #template_string,
+            peekable: #peekable,
             fields: vec![#(#fields),*],
         }))
     })
@@ -840,7 +868,9 @@ pub struct InputField {
     #[darling(default)]
     pub skip: bool,
     #[darling(default)]
-    pub display: Option<DisplayType>,
+    pub display: Option<ByteDisplayType>,
+    #[darling(default)]
+    pub fixed_point: Option<FixedPointDisplay>,
     #[darling(default)]
     pub bound: Option<Bounds>,
     #[darling(default)]
@@ -872,8 +902,14 @@ impl InputField {
             let display_tokens = display.resolve(crate_prefix);
             quote! {
                 {
-                    // #crate_prefix::sov_universal_wallet::ty::ByteDisplayable;
                     <#ty as #crate_prefix::sov_universal_wallet::ty::ByteDisplayable>::with_display(#display_tokens)
+                }
+            }
+        } else if let Some(display) = &self.fixed_point {
+            let display_tokens = display.resolve(crate_prefix);
+            quote! {
+                {
+                    <#ty as #crate_prefix::sov_universal_wallet::ty::IntegerDisplayable>::with_display(#display_tokens)
                 }
             }
         } else {

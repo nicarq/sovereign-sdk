@@ -10,6 +10,22 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::schema::{IndexLinking, Link, OverrideSchema, Primitive};
 
+macro_rules! macro_for_ints {
+    ($macro:ident) => {
+        $macro!(u8);
+        $macro!(u16);
+        $macro!(u32);
+        $macro!(u64);
+        $macro!(u128);
+        $macro!(i8);
+        $macro!(i16);
+        $macro!(i32);
+        $macro!(i64);
+        $macro!(i128);
+    };
+}
+pub(crate) use macro_for_ints;
+
 pub trait LinkingScheme: Clone + Debug {
     /// The type used to link to other types in the schema representation. Usually, this is an enum
     /// which represents primitives with an immediate value and complex types with some kind of pointer.
@@ -151,6 +167,19 @@ impl<L: LinkingScheme> Ty<L> {
             | Ty::Skip { .. } => true,
         }
     }
+
+    pub fn parent_byte_references(&self) -> Vec<(usize, usize)> {
+        match self {
+            Ty::Integer(
+                _,
+                IntegerDisplay::FixedPoint(FixedPointDisplay::FromSiblingField {
+                    field_index,
+                    byte_offset,
+                }),
+            ) => vec![(*field_index, *byte_offset)],
+            _ => Vec::new(),
+        }
+    }
 }
 
 /// An enum variant can contain...
@@ -181,6 +210,7 @@ pub struct Struct<L: LinkingScheme> {
     pub type_name: String,
     pub serde_type_name: String,
     pub template: Option<String>,
+    pub peekable: bool,
     pub fields: Vec<NamedField<L>>,
 }
 
@@ -188,6 +218,7 @@ pub struct Struct<L: LinkingScheme> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Tuple<L: LinkingScheme> {
     pub template: Option<String>,
+    pub peekable: bool,
     pub fields: Vec<UnnamedField<L>>,
 }
 
@@ -225,13 +256,60 @@ pub enum IntegerType {
     u128,
 }
 
+impl IntegerType {
+    pub fn size(&self) -> usize {
+        match self {
+            IntegerType::i8 => core::mem::size_of::<i8>(),
+            IntegerType::i16 => core::mem::size_of::<i16>(),
+            IntegerType::i32 => core::mem::size_of::<i32>(),
+            IntegerType::i64 => core::mem::size_of::<i64>(),
+            IntegerType::i128 => core::mem::size_of::<i128>(),
+            IntegerType::u8 => core::mem::size_of::<u8>(),
+            IntegerType::u16 => core::mem::size_of::<u16>(),
+            IntegerType::u32 => core::mem::size_of::<u32>(),
+            IntegerType::u64 => core::mem::size_of::<u64>(),
+            IntegerType::u128 => core::mem::size_of::<u128>(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum FixedPointDisplay {
+    Decimals(u8),
+    FromSiblingField {
+        field_index: usize,
+        byte_offset: usize,
+    },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum IntegerDisplay {
     Hex,
     #[default]
     Decimal,
+    FixedPoint(FixedPointDisplay),
 }
+
+pub trait IntegerDisplayable {
+    fn integer_type() -> IntegerType;
+
+    fn with_display(display: IntegerDisplay) -> Link {
+        Link::Immediate(Primitive::Integer(Self::integer_type(), display))
+    }
+}
+
+macro_rules! integer_displayable {
+    ($t:ident) => {
+        impl IntegerDisplayable for $t {
+            fn integer_type() -> IntegerType {
+                IntegerType::$t
+            }
+        }
+    };
+}
+macro_for_ints!(integer_displayable);
 
 pub trait ByteDisplayable {
     fn with_display(display: ByteDisplay) -> Link {
