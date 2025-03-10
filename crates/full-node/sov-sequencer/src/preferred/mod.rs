@@ -11,7 +11,8 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use db::PreferredSequencerDb;
+use db::rocksdb::RocksDbBackend;
+use db::{PreferredSequencerDb, PreferredSequencerReadBlob};
 use schemars::JsonSchema;
 use serde_with::serde_as;
 use sov_blob_storage::PreferredBatchData;
@@ -37,11 +38,9 @@ use tracing::{debug, error, trace, Instrument};
 
 use crate::blob_sender::BlobSender;
 use crate::common::{
-    loop_call_update_state, loop_send_tx_notifications, AcceptedTx, SeqDbTx, Sequencer,
-    WithCachedTxHashes,
+    loop_call_update_state, loop_send_tx_notifications, AcceptedTx, Sequencer, WithCachedTxHashes,
 };
 use crate::preferred::block_executor::{RollupBlockExecutor, RollupBlockExecutorError};
-use crate::preferred::db::PreferredSequencerDbBlob;
 use crate::{
     SequenceNumberProvider, SequencerConfig, SequencerEvent, SequencerNotReadyDetails,
     SubmitBatchReceipt, TxStatus, TxStatusManager,
@@ -157,11 +156,11 @@ where
             return Ok(None);
         }
 
-        let batch = self.db.terminate_batch().await?.batch;
+        let batch = self.db.terminate_batch().await?;
         self.block_executor.end_rollup_block_if_in_progress().await;
 
         self.update_api_state().await;
-        Ok(Some(batch))
+        Ok(Some(batch.into()))
     }
 }
 
@@ -305,7 +304,10 @@ where
             broadcast::channel(config.sequencer_kind_config.events_channel_size);
 
         let inner = Inner {
-            db: PreferredSequencerDb::new(storage_path, &latest_state_update).await?,
+            db: PreferredSequencerDb::<S, Rt>::new(Box::new(
+                RocksDbBackend::new(storage_path).await?,
+            ))
+            .await?,
             latest_info: latest_state_update.clone(),
             checkpoint_sender,
             next_event_number: latest_state_update.next_event_number,
@@ -417,9 +419,9 @@ where
     #[tracing::instrument(skip_all, level = "debug")]
     async fn update_state(&self, info: StateUpdateInfo<S::Storage>) -> anyhow::Result<()> {
         let batches_to_process = {
-            let inner = self.lock_inner().await;
+            let mut inner = self.lock_inner().await;
 
-            batches_to_process(&inner.db, &info).await?
+            batches_to_process(&mut inner.db, &info).await?
         };
 
         if tracing::enabled!(tracing::Level::TRACE) {
@@ -462,7 +464,7 @@ where
 
         // We stop accepting new txns in accept_tx for a short time while we catch up
         let mut inner = self.lock_inner().await;
-        let current_in_progress_batch = inner.db.in_progress_batch_opt().await?;
+        let current_in_progress_batch = inner.db.in_progress_batch_opt().await?.cloned();
 
         // Currently it's not possible for `accept_tx` to end a batch, this will likely
         // change in the future when it can close batches due to gas, stake, batch sizes, etc.
@@ -473,7 +475,7 @@ where
             (Some(true), Some(batch)) => {
                 let prev_txs_len =
                     latest_batch_txs_len.expect("In progress check was Some but txs len was None");
-                let new_txs = batch.batch.inner.data[prev_txs_len..].to_vec();
+                let new_txs = batch.txs[prev_txs_len..].to_vec();
 
                 trace!(new_txs = new_txs.len(), "Applying any new transactions have been added to in-progress batch while updating node state");
 
@@ -489,7 +491,7 @@ where
                     is_in_progress: true,
                     visible_slot_number_after_increase: in_progress_batch
                         .visible_slot_number_after_increase,
-                    batch: in_progress_batch.batch,
+                    batch: in_progress_batch.into(),
                 };
                 let node_root = inner.node_root_hash()?;
                 executor.replay_batch(&batch, &node_root).await?;
@@ -544,7 +546,7 @@ where
             .map_err(RollupBlockExecutorError::into_http_error)?;
         inner
             .db
-            .insert_tx(&SeqDbTx::new(receipt.tx_hash, baked_tx.clone()))
+            .insert_tx(baked_tx.clone(), receipt.tx_hash)
             .await
             .map_err(database_error_500)?;
 
@@ -713,14 +715,14 @@ where
 
 #[tracing::instrument(skip_all, level = "trace")]
 async fn batches_to_process<S, Rt>(
-    db: &PreferredSequencerDb<S, Rt>,
+    db: &mut PreferredSequencerDb<S, Rt>,
     info: &StateUpdateInfo<S::Storage>,
 ) -> anyhow::Result<Vec<PreferredBatchToRestore>>
 where
     S: Spec,
     Rt: Runtime<S>,
 {
-    let blobs_to_apply = match db.all_subsequent_blobs(info).await {
+    let blobs_to_apply = match db.subsequent_completed_blobs(info).await {
         Ok(b) => b,
         Err(err) => {
             error!(%err, "Database error while re-applying state changes. This is a critical error. Database integrity is intact, but the sequencer may momentarily provide outdated state and break soft-confirmations.");
@@ -740,13 +742,10 @@ where
     let mut batches: Vec<_> = blobs_to_apply
         .into_iter()
         .filter_map(|blob| match blob {
-            PreferredSequencerDbBlob::Batch(batch) => Some(PreferredBatchToRestore {
+            PreferredSequencerReadBlob::Batch(batch) => Some(PreferredBatchToRestore {
                 is_in_progress: false,
-                batch: WithCachedTxHashes {
-                    inner: batch.batch.inner,
-                    tx_hashes: batch.batch.tx_hashes,
-                },
                 visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
+                batch: batch.into(),
             }),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2063): Process proofs.
             // Note: once we start processing proofs in addition to batches,
@@ -763,11 +762,11 @@ where
         })
         .collect();
 
-    if let Some(batch) = db.in_progress_batch_opt().await? {
+    if let Some(batch) = db.in_progress_batch_opt().await?.cloned() {
         batches.push(PreferredBatchToRestore {
             is_in_progress: true,
             visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
-            batch: batch.batch,
+            batch: batch.into(),
         });
     }
 
