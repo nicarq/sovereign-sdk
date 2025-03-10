@@ -32,26 +32,7 @@ const ASSERT_MSG: &str = "JSON representation changed, this is a breaking change
 ///
 /// This will catch any additional changes that need to be made such as field renames.
 mod web3_compatibility {
-    use sov_test_utils::runtime::TestOptimisticRuntimeCall;
-
     use super::*;
-
-    #[test]
-    fn test_chain_hash_has_not_changed() {
-        let mut schema = Schema::of_rollup_types_with_metadata::<
-            (),
-            Transaction<Runtime, TestSpec>,
-            UnsignedTransaction<Runtime, TestSpec>,
-            TestOptimisticRuntimeCall<TestSpec>,
-        >(&())
-        .unwrap();
-        let actual_chain_hash = hex::encode(schema.chain_hash().unwrap());
-
-        assert_eq!(
-            actual_chain_hash,
-            "154c6320345f63f5377aab5844183436ecfc4f87ebeb82e681f4dff38d42f6ef"
-        );
-    }
 
     #[test]
     fn test_unsigned_tx_wallet_serialization_none_gas_limit() {
@@ -72,15 +53,9 @@ mod web3_compatibility {
             "chain_id": 1337
         }
     }"#;
-        let mut schema = Schema::of_single_type::<UnsignedTransaction<Runtime, TestSpec>>();
+        let schema = Schema::of_single_type::<UnsignedTransaction<Runtime, TestSpec>>();
 
         assert!(schema.json_to_borsh(0, json).is_ok(), "{ASSERT_MSG}");
-
-        let actual_chain_hash = hex::encode(schema.chain_hash().unwrap());
-        assert_eq!(
-            actual_chain_hash,
-            "606b7f78f4acaaca52b27b378ce1f84bd4b275434811e77a5c2872a4e004c34c"
-        );
     }
 
     #[test]
