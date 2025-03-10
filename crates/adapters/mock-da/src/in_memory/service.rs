@@ -44,6 +44,9 @@ pub struct MockDaService {
     aggregated_proof_sender: broadcast::Sender<()>,
 }
 
+/// Allows consuming the [`futures::Stream`] of BlockHeaders.
+type HeaderStream = BoxStream<'static, Result<MockBlockHeader, anyhow::Error>>;
+
 impl MockDaService {
     /// Creates a new [`MockDaService`] with instant finality.
     pub fn new(sequencer_da_address: MockAddress) -> Self {
@@ -243,6 +246,21 @@ impl MockDaService {
     pub fn subscribe_proof_posted(&self) -> broadcast::Receiver<()> {
         self.aggregated_proof_sender.subscribe()
     }
+
+    /// Subscribe to finalized headers as they are finalized.
+    /// Expect only to receive headers which were finalized after subscription
+    /// Optimized version of `get_last_finalized_block_header`.
+    pub async fn subscribe_finalized_header(&self) -> Result<HeaderStream, anyhow::Error> {
+        let receiver = self.finalized_header_sender.subscribe();
+        let stream = futures::stream::unfold(receiver, |mut receiver| async move {
+            match receiver.recv().await {
+                Ok(header) => Some((Ok(header), receiver)),
+                Err(_) => None,
+            }
+        });
+
+        Ok(stream.boxed())
+    }
 }
 
 fn block_hash(height: u64, blob_hashes: &[MockHash], prev_hash: [u8; 32]) -> MockHash {
@@ -263,7 +281,6 @@ impl DaService for MockDaService {
     type Config = MockDaConfig;
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
-    type HeaderStream = BoxStream<'static, Result<MockBlockHeader, Self::Error>>;
     type Error = anyhow::Error;
     type Fee = MockFee;
 
@@ -310,18 +327,6 @@ impl DaService for MockDaService {
         let blocks = self.blocks.read().await;
         let index = blocks_len - self.blocks_to_finality as usize - 1;
         Ok(blocks[index].header().clone())
-    }
-
-    async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
-        let receiver = self.finalized_header_sender.subscribe();
-        let stream = futures::stream::unfold(receiver, |mut receiver| async move {
-            match receiver.recv().await {
-                Ok(header) => Some((Ok(header), receiver)),
-                Err(_) => None,
-            }
-        });
-
-        Ok(stream.boxed())
     }
 
     async fn get_head_block_header(

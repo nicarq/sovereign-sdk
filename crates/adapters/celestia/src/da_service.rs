@@ -253,6 +253,10 @@ impl Fee for CelestiaFee {
         self.gas_limit
     }
 }
+
+/// Allows consuming the [`futures::Stream`] of BlockHeaders.
+type HeaderStream = BoxStream<'static, Result<CelestiaHeader, anyhow::Error>>;
+
 impl CelestiaService {
     async fn get_block_header_at_inner(
         &self,
@@ -367,6 +371,18 @@ impl CelestiaService {
                 None => vec![],
             })
     }
+
+    /// Subscribe to finalized headers as they are finalized.
+    /// Expect only to receive headers which were finalized after subscription
+    /// Optimized version of `get_last_finalized_block_header`.
+    pub async fn subscribe_finalized_header(&self) -> Result<HeaderStream, anyhow::Error> {
+        Ok(self
+            .read_client
+            .header_subscribe()
+            .await?
+            .map(|res| res.map(CelestiaHeader::from).map_err(|e| e.into()))
+            .boxed())
+    }
 }
 
 #[async_trait]
@@ -375,7 +391,6 @@ impl DaService for CelestiaService {
     type Config = CelestiaConfig;
     type Verifier = CelestiaVerifier;
     type FilteredBlock = FilteredCelestiaBlock;
-    type HeaderStream = BoxStream<'static, Result<CelestiaHeader, Self::Error>>;
     type Error = BoxError;
     type Fee = CelestiaFee;
 
@@ -414,15 +429,6 @@ impl DaService for CelestiaService {
         // and network is always guaranteed to be secure,
         // it can work even if the node is still catching up.
         self.get_head_block_header().await
-    }
-
-    async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
-        Ok(self
-            .read_client
-            .header_subscribe()
-            .await?
-            .map(|res| res.map(CelestiaHeader::from).map_err(|e| e.into()))
-            .boxed())
     }
 
     #[instrument(skip(self))]

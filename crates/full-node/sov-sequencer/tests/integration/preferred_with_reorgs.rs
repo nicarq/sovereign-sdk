@@ -15,7 +15,6 @@ use sov_paymaster::{
     PayeePolicy, PayerGenesisConfig, Paymaster, PaymasterConfig, PaymasterPolicyInitializer,
 };
 use sov_rollup_interface::common::{HexHash, SafeVec};
-use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
 use sov_rollup_interface::zk::CryptoSpec;
 use sov_rollup_interface::TxHash;

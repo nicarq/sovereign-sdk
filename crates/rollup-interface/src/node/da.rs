@@ -141,10 +141,6 @@ pub trait DaService: Clone + Send + Sync + 'static {
     /// A DA layer block, possibly excluding some irrelevant information.
     type FilteredBlock: SlotData<BlockHeader = <Self::Spec as DaSpec>::BlockHeader>;
 
-    /// Allows consuming the [`futures::Stream`] of BlockHeaders.
-    type HeaderStream: futures::Stream<Item = Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error>>
-        + Send;
-
     /// The error type for fallible methods.
     type Error: Debug + Send + Sync + Display;
 
@@ -202,11 +198,6 @@ pub trait DaService: Clone + Send + Sync + 'static {
     async fn get_last_finalized_block_number(&self) -> Result<u64, Self::Error> {
         Ok(self.get_last_finalized_block_header().await?.height())
     }
-
-    /// Subscribe to finalized headers as they are finalized.
-    /// Expect only to receive headers which were finalized after subscription
-    /// Optimized version of `get_last_finalized_block_header`.
-    async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error>;
 
     /// Fetch the head block of the most popular fork.
     ///

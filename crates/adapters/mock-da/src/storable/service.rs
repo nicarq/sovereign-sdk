@@ -94,6 +94,9 @@ impl BlockProducingConfig {
     }
 }
 
+/// Allows consuming the [`futures::Stream`] of BlockHeaders.
+type HeaderStream = BoxStream<'static, Result<MockBlockHeader, anyhow::Error>>;
+
 /// DaService that works on top of [`StorableMockDaLayer`].
 #[derive(Clone)]
 pub struct StorableMockDaService {
@@ -292,6 +295,25 @@ impl StorableMockDaService {
         let mut da_layer = self.da_layer.write().await;
         da_layer.rewind_to_height(height).await
     }
+
+    /// Subscribe to finalized headers as they are finalized.
+    /// Expect only to receive headers which were finalized after subscription
+    /// Optimized version of `get_last_finalized_block_header`.
+    pub async fn subscribe_finalized_header(&self) -> Result<HeaderStream, anyhow::Error> {
+        let receiver = {
+            let da_layer = self.da_layer.read().await;
+            da_layer.finalized_header_sender.subscribe()
+        };
+
+        let stream = futures::stream::unfold(receiver, |mut receiver| async move {
+            match receiver.recv().await {
+                Ok(header) => Some((Ok(header), receiver)),
+                Err(_) => None,
+            }
+        });
+
+        Ok(stream.boxed())
+    }
 }
 
 #[async_trait]
@@ -300,7 +322,6 @@ impl DaService for StorableMockDaService {
     type Config = MockDaConfig;
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
-    type HeaderStream = BoxStream<'static, Result<MockBlockHeader, Self::Error>>;
     type Error = anyhow::Error;
     type Fee = MockFee;
 
@@ -361,22 +382,6 @@ impl DaService for StorableMockDaService {
             .await
             .get_last_finalized_block_header()
             .await
-    }
-
-    async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
-        let receiver = {
-            let da_layer = self.da_layer.read().await;
-            da_layer.finalized_header_sender.subscribe()
-        };
-
-        let stream = futures::stream::unfold(receiver, |mut receiver| async move {
-            match receiver.recv().await {
-                Ok(header) => Some((Ok(header), receiver)),
-                Err(_) => None,
-            }
-        });
-
-        Ok(stream.boxed())
     }
 
     async fn get_head_block_header(
