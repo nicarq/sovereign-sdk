@@ -11,7 +11,7 @@ use sov_mock_zkvm::{MockCodeCommitment, MockZkvm, MockZkvmHost};
 use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native};
 use sov_modules_api::rest::StateUpdateReceiver;
-use sov_modules_api::{CryptoSpec, RuntimeEndpoints, Spec, SyncStatus, ZkVerifier};
+use sov_modules_api::{CryptoSpec, NodeEndpoints, Spec, SyncStatus, ZkVerifier};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
 use sov_modules_rollup_blueprint::{
@@ -79,7 +79,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         sequencer: &SequencerCreationReceipt<Self::Spec>,
         da_service: &Self::DaService,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
-    ) -> anyhow::Result<RuntimeEndpoints> {
+    ) -> anyhow::Result<NodeEndpoints> {
         let mut endpoints = sov_modules_rollup_blueprint::register_endpoints::<Self, _>(
             state_update_receiver.clone(),
             sync_status_receiver,

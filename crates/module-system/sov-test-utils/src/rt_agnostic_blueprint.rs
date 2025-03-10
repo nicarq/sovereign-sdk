@@ -11,7 +11,7 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::prelude::axum::async_trait;
 use sov_modules_api::rest::{HasRestApi, StateUpdateReceiver};
 use sov_modules_api::{
-    CryptoSpec, RuntimeEndpoints, SelectedBlob, Spec, SyncStatus, ZkVerifier, Zkvm,
+    CryptoSpec, NodeEndpoints, SelectedBlob, Spec, SyncStatus, ZkVerifier, Zkvm,
 };
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
@@ -90,7 +90,7 @@ where
         sequencer: &SequencerCreationReceipt<Self::Spec>,
         _da_service: &Self::DaService,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
-    ) -> anyhow::Result<RuntimeEndpoints> {
+    ) -> anyhow::Result<NodeEndpoints> {
         Ok(
             sov_modules_rollup_blueprint::register_endpoints::<Self, Native>(
                 state_update_receiver,

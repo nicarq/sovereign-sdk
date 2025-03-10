@@ -97,7 +97,7 @@ where
     #[cfg(feature = "native")]
     fn endpoints(
         api_state: sov_modules_api::rest::ApiState<S>,
-    ) -> ::sov_modules_api::RuntimeEndpoints {
+    ) -> ::sov_modules_api::NodeEndpoints {
         use ::sov_modules_api::rest::HasRestApi;
         use ::sov_rollup_apis::dedup::{DeDupEndpoint, NonceDeDupEndpoint};
         use ::sov_rollup_apis::schema::{SchemaEndpoint, StandardSchemaEndpoint};
@@ -115,7 +115,7 @@ where
         .expect("Failed to initialize StandardSchemaEndpoint");
         let axum_router = axum_router.merge(schema_endpoint.axum_router());
 
-        ::sov_modules_api::RuntimeEndpoints {
+        ::sov_modules_api::NodeEndpoints {
             axum_router,
             jsonrpsee_module: get_rpc_methods::<S>(api_state),
             background_handles: Vec::new(),

@@ -104,11 +104,11 @@ macro_rules! generate_bare_runtime_without_capabilities {
 
             type GenesisInput = ();
 
-            fn endpoints(api_state: sov_modules_api::rest::ApiState<S>) -> ::sov_modules_api::RuntimeEndpoints {
+            fn endpoints(api_state: sov_modules_api::rest::ApiState<S>) -> ::sov_modules_api::NodeEndpoints {
                 use ::sov_modules_api::prelude::jsonrpsee;
                 use ::sov_modules_api::rest::HasRestApi;
 
-                ::sov_modules_api::RuntimeEndpoints {
+                ::sov_modules_api::NodeEndpoints {
                     axum_router: Self::default().rest_api(api_state),
                     jsonrpsee_module: jsonrpsee::RpcModule::new(()), // TODO
                     background_handles: vec![]

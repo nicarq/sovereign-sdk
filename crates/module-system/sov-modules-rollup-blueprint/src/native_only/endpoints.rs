@@ -6,7 +6,7 @@ use sov_modules_api::prelude::utoipa_swagger_ui::Config;
 use sov_modules_api::rest::utils::{cors_layer, errors};
 use sov_modules_api::rest::{HasRestApi, StateUpdateReceiver};
 use sov_modules_api::{
-    BatchSequencerReceipt, RuntimeEndpoints, RuntimeEventProcessor, Spec, SyncStatus,
+    BatchSequencerReceipt, NodeEndpoints, RuntimeEventProcessor, Spec, SyncStatus,
 };
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, TxReceiptContents};
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
@@ -23,7 +23,7 @@ pub async fn register_endpoints<B, M>(
     ledger_db: &LedgerDb,
     sequencer: &SequencerCreationReceipt<B::Spec>,
     config: &RollupConfig<<B::Spec as Spec>::Address, B::DaService>,
-) -> anyhow::Result<RuntimeEndpoints>
+) -> anyhow::Result<NodeEndpoints>
 where
     B: FullNodeBlueprint<M> + 'static,
     M: ExecutionMode + 'static,
@@ -32,7 +32,13 @@ where
     let mut endpoints = B::Runtime::endpoints(sequencer.api_state.clone());
 
     // Sequencer endpoints.
-    endpoints.axum_router = endpoints.axum_router.merge(sequencer.axum_router.clone());
+    endpoints.axum_router = endpoints
+        .axum_router
+        .merge(sequencer.endpoints.axum_router.clone());
+    endpoints
+        .jsonrpsee_module
+        .merge(sequencer.endpoints.jsonrpsee_module.clone())
+        .map_err(|e| anyhow::anyhow!("Failed to merge sequencer JSON-RPC module: {e}"))?;
 
     // Ledger endpoint.
     {
