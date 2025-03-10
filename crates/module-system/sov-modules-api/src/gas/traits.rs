@@ -135,6 +135,7 @@ where
     fn scaffold() -> Item<IndexLinking> {
         Item::Container(Container::Tuple(Tuple {
             template: None,
+            peekable: false,
             fields: vec![UnnamedField {
                 value: Link::Placeholder,
                 silent: false,

@@ -15,7 +15,8 @@ mod primitive_type_impls {
         IndexLinking, Item, Link, OverrideSchema, Primitive, Schema, SchemaGenerator,
     };
     use crate::ty::{
-        ByteDisplay, IntegerDisplay, IntegerType, NamedField, Struct, Tuple, UnnamedField,
+        macro_for_ints, ByteDisplay, IntegerDisplay, IntegerType, NamedField, Struct, Tuple,
+        UnnamedField,
     };
 
     macro_rules! impl_for_int {
@@ -30,16 +31,7 @@ mod primitive_type_impls {
             }
         };
     }
-    impl_for_int!(u8);
-    impl_for_int!(u16);
-    impl_for_int!(u32);
-    impl_for_int!(u64);
-    impl_for_int!(u128);
-    impl_for_int!(i8);
-    impl_for_int!(i16);
-    impl_for_int!(i32);
-    impl_for_int!(i64);
-    impl_for_int!(i128);
+    macro_for_ints!(impl_for_int);
 
     impl OverrideSchema for usize {
         type Output = u32;
@@ -168,6 +160,7 @@ mod primitive_type_impls {
                 fn scaffold() -> Item<IndexLinking> {
                     Item::Container(Container::Tuple(Tuple {
                         template: None,
+                        peekable: false,
                         fields: vec![
                             $(UnnamedField {
                                 value: type_to_placeholder!($tts),
@@ -184,7 +177,8 @@ mod primitive_type_impls {
             }
         };
     }
-    // TODO: generate this with a proc macro?
+    // This is purely a convenience - any higher amount of tuples can simply be handled by the
+    // derive macro.
     impl_tuple_type!(T1, T2);
     impl_tuple_type!(T1, T2, T3);
     impl_tuple_type!(T1, T2, T3, T4);
@@ -228,6 +222,7 @@ mod primitive_type_impls {
                 type_name: "Range".to_string(),
                 serde_type_name: "Range".to_string(),
                 template: Some("{}..{}".to_string()),
+                peekable: false,
                 fields: vec![
                     NamedField {
                         value: Link::Placeholder,

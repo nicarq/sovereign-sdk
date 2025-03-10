@@ -936,6 +936,86 @@ pub struct NestedGeneric<T> {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
+pub struct StructWithIntegerDisplays {
+    #[cfg_attr(test, sov_wallet(fixed_point(2)))]
+    direct_fp: u64,
+    #[cfg_attr(test, sov_wallet(fixed_point(from_field(0))))]
+    from_field_before: i64,
+    #[cfg_attr(test, sov_wallet(fixed_point(from_field(4, offset = 4))))]
+    from_field_after: u64,
+    #[cfg_attr(test, sov_wallet(fixed_point(from_field(3))))]
+    from_field_self: u64,
+    #[cfg_attr(test, sov_wallet(hidden))]
+    array_field: [u8; 5],
+}
+
+#[test]
+fn test_struct_with_integer_fixedpoints() {
+    let my_struct = StructWithIntegerDisplays {
+        direct_fp: 4,
+        from_field_before: -21,
+        from_field_after: 4000,
+        from_field_self: 3,
+        array_field: [3, 3, 3, 3, 2],
+    };
+
+    encode_decode_tests!(StructWithIntegerDisplays, my_struct,
+        "{ direct_fp: 0.04, from_field_before: -0.0021, from_field_after: 40, from_field_self: 0.003 }"
+    );
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
+pub struct TupleWithIntegerDisplaysAndNesting(
+    #[cfg_attr(test, sov_wallet(fixed_point(from_field(5, offset = 1))))] u16,
+    #[cfg_attr(test, sov_wallet(fixed_point(from_field(0))))] i8,
+    StructWithIntegerDisplays,
+    #[cfg_attr(test, sov_wallet(fixed_point(from_field(4))))] u128,
+    #[cfg_attr(test, sov_wallet(fixed_point(from_field(4))))] u8,
+    #[cfg_attr(test, sov_wallet(hidden))] [u8; 2],
+);
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
+pub struct StructWithIntegerDisplaysAndNesting {
+    #[cfg_attr(test, sov_wallet(fixed_point(from_field(0))))]
+    from_field_self: u64,
+    nested_tuple: TupleWithIntegerDisplaysAndNesting,
+    #[cfg_attr(test, sov_wallet(fixed_point(from_field(3))))]
+    from_field_after: u128,
+    #[cfg_attr(test, sov_wallet(fixed_point(from_field(0))))]
+    from_field_before: u64,
+}
+
+#[test]
+fn test_struct_with_integer_fixedpoints_and_nesting() {
+    let my_struct = StructWithIntegerDisplaysAndNesting {
+        from_field_self: 2,
+        nested_tuple: TupleWithIntegerDisplaysAndNesting(
+            2,
+            -21,
+            StructWithIntegerDisplays {
+                direct_fp: 4,
+                from_field_before: -21,
+                from_field_after: 4000,
+                from_field_self: 3,
+                array_field: [3, 3, 3, 3, 4],
+            },
+            475000,
+            4,
+            [19, 2],
+        ),
+        from_field_after: 40_000_000_000_000_000, // 40
+        from_field_before: 15,
+    };
+
+    encode_decode_tests!(StructWithIntegerDisplaysAndNesting, my_struct,
+        "{ from_field_self: 0.02, nested_tuple: (0.02, -0.21, { direct_fp: 0.04, from_field_before: -0.0021, from_field_after: 0.4, from_field_self: 0.003 }, 47.5, 0.0004), from_field_after: 40, from_field_before: 0.15 }"
+    );
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
 pub struct StructWithBase58 {
     #[cfg_attr(test, sov_wallet(display(base58)))]
     address: [u8; 32],
