@@ -1335,9 +1335,14 @@ fn test_simple_struct_schema() {
 
 #[test]
 fn test_multiobject_schema() {
-    let mut schema =
-        Schema::of_rollup_types_with_metadata::<u64, Role, MinimalStruct, Registration>(&4321u64)
-            .unwrap();
+    let mut schema = Schema::of_rollup_types_with_metadata::<
+        u64,
+        Role,
+        MinimalStruct,
+        Registration,
+        SimpleEnum,
+    >(&4321u64)
+    .unwrap();
 
     let my_role = Role::Attester;
     let my_minimal_struct = MinimalStruct { tokens: 1000 };

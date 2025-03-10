@@ -4,7 +4,7 @@ use demo_stf::runtime::{Runtime, RuntimeCall};
 use sov_bank::{CallMessage, Coins, TokenId};
 use sov_modules_api::sov_universal_wallet::schema::{RollupRoots, Schema};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{Amount, DispatchCall, PrivateKey, Spec};
+use sov_modules_api::{Address, Amount, DispatchCall, PrivateKey, Spec};
 use sov_modules_macros::config_value;
 use sov_test_utils::{
     TestUser, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
@@ -65,6 +65,7 @@ fn test_transfer_template() {
         Transaction<Runtime<S>, S>,
         UnsignedTransaction<Runtime<S>, S>,
         RuntimeCall<S>,
+        Address,
     >(&4321)
     .unwrap();
     let template_transaction = schema
@@ -86,6 +87,7 @@ fn test_display_unsigned_tx() {
         Transaction<Runtime<S>, S>,
         UnsignedTransaction<Runtime<S>, S>,
         RuntimeCall<S>,
+        Address,
     >(&4321)
     .unwrap();
     assert_eq!(
@@ -112,6 +114,7 @@ fn test_display_signed_tx() {
         Transaction<Runtime<S>, S>,
         UnsignedTransaction<Runtime<S>, S>,
         RuntimeCall<S>,
+        Address,
     >(&4321)
     .unwrap();
 

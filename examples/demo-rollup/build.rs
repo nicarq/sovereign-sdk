@@ -11,6 +11,7 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::schemars::schema_for;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
+use sov_modules_api::Address;
 use sov_universal_wallet::schema::Schema;
 
 type S = sov_modules_api::configurable_spec::ConfigurableSpec<
@@ -36,6 +37,8 @@ fn main() -> io::Result<()> {
     println!("cargo::rerun-if-env-changed=SOV_PROVER_MODE");
     println!("cargo::rustc-check-cfg=cfg(skip_guest_build)");
 
+    println!("cargo:rerun-if-changed=NULL");
+
     let is_risczero_installed = Command::new("cargo")
         .args(["risczero", "help"])
         .status()
@@ -58,6 +61,7 @@ fn main() -> io::Result<()> {
         Transaction<Runtime<S>, S>,
         UnsignedTransaction<Runtime<S>, S>,
         RuntimeCall<S>,
+        Address,
     >(&config_value!("CHAIN_ID"))
     .unwrap();
 
