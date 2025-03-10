@@ -54,7 +54,7 @@ pub trait Runtime<S: Spec>:
     type GenesisInput: std::fmt::Debug + Clone + Send + Sync;
 
     /// Default RPC methods and Axum router.
-    fn endpoints(storage: crate::rest::ApiState<S>) -> RuntimeEndpoints;
+    fn endpoints(storage: crate::rest::ApiState<S>) -> NodeEndpoints;
 
     /// Reads genesis configs.
     fn genesis_config(input: &Self::GenesisInput) -> anyhow::Result<Self::GenesisConfig>;
@@ -117,17 +117,19 @@ pub trait Runtime<S: Spec>:
 
 /// The return type of [`Runtime::endpoints`].
 #[cfg(feature = "native")]
-pub struct RuntimeEndpoints {
+pub struct NodeEndpoints {
     /// The [`axum::Router`] for the runtime's HTTP server.
     pub axum_router: axum::Router<()>,
     /// A [`jsonrpsee::RpcModule`] for the runtime's JSON-RPC server.
     pub jsonrpsee_module: jsonrpsee::RpcModule<()>,
     /// A list of optional background tasks that have been spawned for the endpoints' purposes.
+    ///
+    /// These will be joined upon node shutdown.
     pub background_handles: Vec<tokio::task::JoinHandle<anyhow::Result<()>>>,
 }
 
 #[cfg(feature = "native")]
-impl Default for RuntimeEndpoints {
+impl Default for NodeEndpoints {
     fn default() -> Self {
         Self {
             axum_router: Default::default(),

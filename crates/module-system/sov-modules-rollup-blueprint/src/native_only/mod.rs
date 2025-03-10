@@ -14,11 +14,10 @@ use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::{DeltaReader, SchemaBatch};
 use sov_modules_api::capabilities::{HasCapabilities, ProofProcessor};
 use sov_modules_api::execution_mode::ExecutionMode;
-use sov_modules_api::prelude::axum;
 use sov_modules_api::provable_height_tracker::MaximumProvableHeight;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
-    OperatingMode, ProofSerializer, RuntimeEndpoints, Spec, StateUpdateInfo, SyncStatus, ZkVerifier,
+    NodeEndpoints, OperatingMode, ProofSerializer, Spec, StateUpdateInfo, SyncStatus, ZkVerifier,
 };
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::common::SlotNumber;
@@ -74,7 +73,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         &self,
     ) -> <<Self::ProverService as ProverService>::Verifier as ZkVerifier>::CodeCommitment;
 
-    /// Creates RPC methods for the rollup.
+    /// Creates RPC methods and REST APIs for the rollup.
     async fn create_endpoints(
         &self,
         state_update_receiver: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
@@ -83,7 +82,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         sequencer: &SequencerCreationReceipt<Self::Spec>,
         da_service: &Self::DaService,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
-    ) -> anyhow::Result<RuntimeEndpoints>;
+    ) -> anyhow::Result<NodeEndpoints>;
 
     /// Creates GenesisConfig from genesis files.
     #[allow(clippy::type_complexity)]
@@ -164,11 +163,11 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         &self,
         _sequencer: Arc<Seq>,
         _rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
-    ) -> anyhow::Result<axum::Router<()>>
+    ) -> anyhow::Result<NodeEndpoints>
     where
         Seq: Sequencer<Spec = Self::Spec, Rt = Self::Runtime, Da = Self::DaService>,
     {
-        Ok(axum::Router::new())
+        Ok(NodeEndpoints::default())
     }
 
     /// Creates a new sequencer and provides a [`SequencerCreationReceipt`] with
@@ -196,12 +195,16 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     )
                     .await?;
 
+                let mut endpoints = self
+                    .sequencer_additional_apis(sequencer.clone(), rollup_config)
+                    .await?;
+                endpoints.axum_router = endpoints
+                    .axum_router
+                    .merge(SequencerApis::rest_api_server(sequencer.clone()));
+
                 Ok(SequencerCreationReceipt {
                     api_state: sequencer.api_state(),
-                    axum_router: SequencerApis::rest_api_server(sequencer.clone()).merge(
-                        self.sequencer_additional_apis(sequencer, rollup_config)
-                            .await?,
-                    ),
+                    endpoints,
                     background_handles,
                     sequence_number_provider: None,
                 })
@@ -220,12 +223,16 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     )
                     .await?;
 
+                let mut endpoints = self
+                    .sequencer_additional_apis(sequencer.clone(), rollup_config)
+                    .await?;
+                endpoints.axum_router = endpoints
+                    .axum_router
+                    .merge(SequencerApis::rest_api_server(sequencer.clone()));
+
                 Ok(SequencerCreationReceipt {
                     api_state: sequencer.api_state(),
-                    axum_router: SequencerApis::rest_api_server(sequencer.clone()).merge(
-                        self.sequencer_additional_apis(sequencer.clone(), rollup_config)
-                            .await?,
-                    ),
+                    endpoints,
                     background_handles,
                     sequence_number_provider: Some(sequencer),
                 })
@@ -461,7 +468,7 @@ pub struct Rollup<S: FullNodeBlueprint<M>, M: ExecutionMode> {
     >,
 
     /// Server endpoints for the rollup.
-    pub endpoints: RuntimeEndpoints,
+    pub endpoints: NodeEndpoints,
 
     /// A way to gracefully shut down background tasks.
     pub shutdown_sender: tokio::sync::watch::Sender<()>,
@@ -543,7 +550,7 @@ pub struct SequencerCreationReceipt<S: Spec> {
     /// See [`crate::proof_serializer::SovApiProofSerializer::new`].
     pub sequence_number_provider: Option<Arc<dyn SequenceNumberProvider>>,
     #[allow(missing_docs)]
-    pub axum_router: axum::Router<()>,
+    pub endpoints: NodeEndpoints,
     #[allow(missing_docs)]
     pub background_handles: Vec<JoinHandle<()>>,
 }
