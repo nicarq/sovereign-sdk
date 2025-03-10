@@ -162,7 +162,6 @@ impl DaService for DaProvider {
     type Verifier = Verifier;
 
     type FilteredBlock = AvailBlock;
-    type HeaderStream = BoxStream<'static, anyhow::Result<AvailHeader>>;
     type Error = anyhow::Error;
 
     // Make an RPC call to the node to get the block at the given height, if one exists.
@@ -221,15 +220,6 @@ impl DaService for DaProvider {
         Ok(header)
     }
 
-    async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
-        Ok(self
-            .node_client
-            .blocks()
-            .subscribe_finalized()
-            .await?
-            .map(|block_res| block_res.map(AvailHeader::from).map_err(Into::into))
-            .boxed())
-    }
 
     async fn get_head_block_header(
         &self,

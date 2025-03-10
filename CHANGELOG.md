@@ -2,6 +2,7 @@
 - #2584 modifies the return type of `sequencer_additional_apis` to return a `NodeEndpoints`. This makes it possible to serve all JSON-RPC requests on the same endpoint, and removes the need for `RpcModule`-to-`axum::Router` conversions.
 
 # 2025-03-09
+- #2583 **BREAKING CHANGE** Removes the `DaService::subscribe_finalized_header` method from the `DaService` trait. This method was only used in tests and not in the SDK.
 - #2570 The `sov_universal_wallet::Schema::json_to_borsh` parsing functionality can now accept stringified numbers and booleans in the input JSON. For most types this is a convenience, but notably this allows 128-bit numbers to be passed around as strings in JSON and parsed correctly in wallets.
 - #2567 removes the `flaky_` prefix from a handful of tests. No breaking changes.
 
