@@ -1,4 +1,5 @@
 # 2025-03-10
+- #2582 Internal CI has been adjusted to ensure any wallet schema changes will be treated as breaking changes, starting in the near future. This is because schema changes a) reflect changes to the Transaction and RuntimeCall structs, potentially requiring adjustments to all users of a rollup; and b) changes to the schema hash invalidate all transactions signed using the old hash, requiring any transaction submitters to update to the new hash before continuing to use the rollup.
 - #2584 modifies the return type of `sequencer_additional_apis` to return a `NodeEndpoints`. This makes it possible to serve all JSON-RPC requests on the same endpoint, and removes the need for `RpcModule`-to-`axum::Router` conversions.
 
 # 2025-03-09

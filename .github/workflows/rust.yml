@@ -567,9 +567,11 @@ jobs:
           # Calculate days remaining
           DAYS_REMAINING=$(( ($EXPIRATION_SECONDS - $CURRENT_SECONDS) / 86400 ))
 
+          MSG="Update web3-js-sdk and re-enable check-web3-js-sdk-integration, AND re-enable the chain hash test in examples/demo-rollup/tests/wallet/mod.rs (and delete this check)"
+
           if [ $CURRENT_SECONDS -gt $EXPIRATION_SECONDS ]; then
-            echo "Update web3-js-sdk and re-enable check-web3-js-sdk-integration (and delete this check)"
-            echo "Update web3-js-sdk and re-enable check-web3-js-sdk-integration (and delete this check)" >> $GITHUB_STEP_SUMMARY
+            echo $MSG
+            echo $MSG >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 

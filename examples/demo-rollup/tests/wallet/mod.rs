@@ -130,3 +130,10 @@ fn test_display_signed_tx() {
         format!("{{ signature: {{ msg_sig: 0x{} }}, pub_key: {{ pub_key: 0x{} }}, runtime_call: Bank.Mint {{ coins: 10000 coins of token ID token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks, mint_to_address: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv }}, generation: 0, details: {{ max_priority_fee_bips: 0, max_fee: 100000000000, gas_limit: [1000000000, 1000000000], chain_id: 4321 }} }}", signature_display, pubkey_display)
     );
 }
+
+#[ignore = "Ignored for rapid schema iteration, re-enable when CI timebomb goes off"]
+#[test]
+fn detect_schema_has_breaking_change() {
+    let current_hash = [0u8; 32];
+    assert_eq!(CHAIN_HASH, current_hash, "The chain hash changed. Update the \"current_hash\" value in this test but be aware: this is a breaking change for any production rollups.");
+}
