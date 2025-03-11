@@ -1,3 +1,6 @@
+# 2025-03-11
+- #2600 removes database persistence for the `StandardSequencer`. Please use the `PreferredSequencer` instead if you need persistence, or reach out to the team if you have a need for it.
+
 # 2025-03-10
 - #2578 Modified the wallet schema internal structure in preparation for improved `serde` support. This has no user-facing impact but will cause rollup chain hashes and generated schemas to change.
 - #2521 **BREAKING CHANGE** for rollup buildscripts: added the `Address` type to the standard rollup universal schema. This allows wallets to present serialized addresses to the user in the rollup's preferred format. Build scripts will need to be adjusted to pass the 4th root type when creating the rollup's schema.
