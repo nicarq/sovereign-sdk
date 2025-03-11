@@ -1,4 +1,5 @@
 use sha2::Digest;
+use sov_bank::DEFAULT_TOKEN_DECIMALS;
 use sov_modules_api::{CryptoSpec, Spec};
 
 use crate::runtime::TokenId;
@@ -26,11 +27,13 @@ impl TestTokenName {
 
     /// Returns the ID of the token.
     pub fn id(&self) -> TokenId {
-        TokenId::try_from(
+        let mut bytes: [u8; 32] =
             <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher::digest(self.to_string())
-                .as_slice(),
-        )
-        .unwrap()
+                .as_slice()
+                .try_into()
+                .unwrap();
+        bytes[31] = DEFAULT_TOKEN_DECIMALS;
+        TokenId::from(bytes)
     }
 }
 

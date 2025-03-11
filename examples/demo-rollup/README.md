@@ -121,7 +121,7 @@ this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
 $ sleep 5
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0xb24504cc4b54407ce3a3bd398db0c5e7e3cc78372db1eefee0f3df965bf2e335/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0xa4fc58b167e7c104825bc029ba7279e3f659eb9e0cadb826b7ef117346f1f966/events | jq
 {
   "data": [
     {
@@ -133,7 +133,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0xb24504cc4b54407ce3a3bd398db0c5e7e
           "token_name": "sov-test-token",
           "coins": {
             "amount": "1000000",
-            "token_id": "token_13yq4ayvytv802qh200pfmphxxd7kges5ha5kuauywnaf2e49dx6qaaus8r"
+            "token_id": "token_17732u2vyp35dl6lkgjrdqs4mtuzt7rmy02hq9nqct8wq3g74rqyqz0rt2x"
           },
           "mint_to_address": {
             "user": "sov10d6chuh8vu86ltmt7qq4ec8lt25qyvr0cl3lg4mzs5llcfnx69m"
@@ -163,7 +163,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0xb24504cc4b54407ce3a3bd398db0c5e7e
 ```
 
 We can see the TokenCreated event which contains the id of the token
-created - `token_13yq4ayvytv802qh200pfmphxxd7kges5ha5kuauywnaf2e49dx6qaaus8r`
+created - `token_17732u2vyp35dl6lkgjrdqs4mtuzt7rmy02hq9nqct8wq3g74rqyqz0rt2x`
 
 ### How to Submit Transactions
 
@@ -330,7 +330,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0xc31b5202468c70befed7b8902f1e2496ae0c7748832ee223d452fd6bbc30a5db",
+  "chain_hash": "0xd1dd9f0f56237bb7091b22f95dc45f9057243c708ab3847f247358ea0350a3ba",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": "100000000",

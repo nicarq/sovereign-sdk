@@ -179,7 +179,7 @@ fn transfer_non_existent_token() {
                 assert!(chain.next().is_none());
 
                 assert!(message_1.starts_with(
-                    "Failed to transfer token_id=token_1ry733wdf5jt2hkgyljcgy54k3julqqtvrf9j2wfty0l7tnrrdz6sl8f07d"
+                    "Failed to transfer token_id=token_1ry733wdf5jt2hkgyljcgy54k3julqqtvrf9j2wfty0l7tnrrdqyqq4a0a3"
                 ));
                 assert!(message_2.starts_with(
                     "Insufficient balance from="

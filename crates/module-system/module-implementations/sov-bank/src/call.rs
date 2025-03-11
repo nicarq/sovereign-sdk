@@ -38,6 +38,8 @@ pub enum CallMessage<S: Spec> {
     CreateToken {
         /// The name of the new token.
         token_name: SafeString,
+        /// The number of decimal places this token's amounts will have.
+        token_decimals: Option<u8>,
         /// The initial balance of the new token.
         initial_balance: Amount,
         /// The address of the account that the new tokens are minted to.
@@ -87,6 +89,7 @@ impl<S: Spec> Bank<S> {
     pub fn create_token(
         &mut self,
         token_name: String,
+        token_decimals: Option<u8>,
         initial_balance: Amount,
         mint_to_address: impl Payable<S>,
         admins: Vec<impl Payable<S>>,
@@ -95,6 +98,15 @@ impl<S: Spec> Bank<S> {
         state: &mut impl TxState<S>,
     ) -> Result<TokenId> {
         tracing::trace!(%minter, "Create token request");
+
+        if let Some(decimals) = token_decimals {
+            anyhow::ensure!(
+                decimals <= Amount::MAX_DECIMALS,
+                "Too many decimal places: {}, maximum allowed for a token: {}",
+                decimals,
+                Amount::MAX_DECIMALS
+            );
+        };
 
         if initial_balance > supply_cap.unwrap_or(Amount::MAX) {
             bail!(
@@ -110,7 +122,7 @@ impl<S: Spec> Bank<S> {
             .map(|minter| minter.as_token_holder())
             .collect::<Vec<_>>();
 
-        let token_id = get_token_id_metered::<S>(&token_name, &minter, state)?;
+        let token_id = get_token_id_metered::<S>(&token_name, token_decimals, &minter, state)?;
         tracing::trace!(%token_name, originator = %minter, %token_id, "Calculated token id");
         let admins = unique_holders(&admins);
         let token = Token::<S> {

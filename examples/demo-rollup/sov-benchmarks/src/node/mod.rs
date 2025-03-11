@@ -55,11 +55,12 @@ fn generate_initial_slots(
     nonces: &mut HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>,
 ) -> (TokenId, BenchmarkMessages) {
     let token_name = "sov-bench-token";
-    let token_id = sov_bank::get_token_id::<S>(token_name, &roles.bank_admin.address());
+    let token_id = sov_bank::get_token_id::<S>(token_name, None, &roles.bank_admin.address());
 
     let create_token_msg = roles.bank_admin.create_plain_message::<_, Bank<S>>(
         sov_bank::CallMessage::<S>::CreateToken {
             token_name: token_name.try_into().unwrap(),
+            token_decimals: None,
             initial_balance: Amount::ZERO,
             mint_to_address: roles.bank_admin.address(),
             admins: vec![roles.bank_admin.address()]

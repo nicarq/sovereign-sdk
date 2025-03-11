@@ -263,6 +263,7 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
                 } else {
                     let initial_token_config = TokenConfig {
                         token_name: token_name.to_string(),
+                        token_decimals: None,
                         token_id: token_name.id(),
                         address_and_balances: Vec::new(),
                         admins: Vec::new(),
@@ -332,6 +333,7 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
             bank: BankConfig {
                 gas_token_config: sov_bank::GasTokenConfig {
                     token_name: gas_token_name,
+                    token_decimals: None,
                     supply_cap: None,
                     address_and_balances: {
                         let mut additional_accounts_vec: Vec<_> = additional_accounts

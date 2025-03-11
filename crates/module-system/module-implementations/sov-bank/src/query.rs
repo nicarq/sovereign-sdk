@@ -93,7 +93,7 @@ impl<S: Spec> Bank<S> {
     async fn route_find_token_id(
         params: Query<types::FindTokenIdQueryParams<S::Address>>,
     ) -> ApiResult<types::TokenIdResponse> {
-        let token_id = get_token_id::<S>(&params.token_name, &params.sender);
+        let token_id = get_token_id::<S>(&params.token_name, params.token_decimals, &params.sender);
         Ok(types::TokenIdResponse { token_id }.into())
     }
 
@@ -150,6 +150,7 @@ pub mod types {
     pub struct FindTokenIdQueryParams<Addr> {
         pub token_name: String,
         pub sender: Addr,
+        pub token_decimals: Option<u8>,
     }
 
     #[derive(Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize, Clone)]

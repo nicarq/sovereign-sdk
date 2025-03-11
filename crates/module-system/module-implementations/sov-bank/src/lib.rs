@@ -36,6 +36,10 @@ use utils::{TokenHolder, TokenHolderRef};
 pub mod event;
 use crate::event::Event;
 
+/// The default decimals value that will be used for newly created tokens unless specified
+/// otherwise in the callmessage.
+pub const DEFAULT_TOKEN_DECIMALS: u8 = 8;
+
 /// The [`TokenId`] of the rollup's gas token.
 pub fn config_gas_token_id() -> TokenId {
     config_value!("GAS_TOKEN_ID")
@@ -89,6 +93,7 @@ impl<S: Spec> Module for Bank<S> {
         match msg {
             call::CallMessage::CreateToken {
                 token_name,
+                token_decimals,
                 initial_balance,
                 mint_to_address,
                 supply_cap,
@@ -101,6 +106,7 @@ impl<S: Spec> Module for Bank<S> {
 
                 self.create_token(
                     token_name.into(),
+                    token_decimals,
                     initial_balance,
                     &mint_to_address,
                     admins,

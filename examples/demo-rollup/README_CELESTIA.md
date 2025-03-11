@@ -305,7 +305,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0xc31b5202468c70befed7b8902f1e2496ae0c7748832ee223d452fd6bbc30a5db",
+  "chain_hash": "0xd1dd9f0f56237bb7091b22f95dc45f9057243c708ab3847f247358ea0350a3ba",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": "100000000",
@@ -333,8 +333,8 @@ This command will use your default private key.
 #### 4. Verify the Token Supply
 
 ```bash,test-ci,bashtestmd:compare-output
-$ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_13yq4ayvytv802qh200pfmphxxd7kges5ha5kuauywnaf2e49dx6qaaus8r/total-supply | jq -c -M
-{"data":{"amount":"1000000","token_id":"token_13yq4ayvytv802qh200pfmphxxd7kges5ha5kuauywnaf2e49dx6qaaus8r"},"meta":{}}
+$ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_17732u2vyp35dl6lkgjrdqs4mtuzt7rmy02hq9nqct8wq3g74rqyqz0rt2x/total-supply | jq -c -M
+{"data":{"amount":"1000000","token_id":"token_17732u2vyp35dl6lkgjrdqs4mtuzt7rmy02hq9nqct8wq3g74rqyqz0rt2x"},"meta":{}}
 ```
 
 #### 5. Wait for aggregated proof to be available

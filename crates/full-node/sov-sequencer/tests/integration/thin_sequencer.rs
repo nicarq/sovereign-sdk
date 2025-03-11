@@ -120,6 +120,7 @@ fn generate_tx_with_nonce(user: &TestUser<TestSpec>, nonce: u64) -> RawTx {
     let msg = TestRuntimeCall::Bank(
         sov_test_utils::sov_bank::CallMessage::<TestSpec>::CreateToken {
             token_name: format!("sequencers-check-{}", nonce).try_into().unwrap(),
+            token_decimals: None,
             initial_balance: Amount::new(1000),
             mint_to_address: user.address(),
             admins: SafeVec::new(),

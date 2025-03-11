@@ -35,6 +35,8 @@ pub enum NodeWorkflows<S: sov_modules_api::Spec> {
     FindTokenId {
         /// The name of the token to query for
         token_name: String,
+        /// The token's decimals
+        token_decimals: Option<u8>,
         /// The deployer of the token.
         /// In the case of genesis token, it can be looked up in genesis config JSON.
         /// Check the server logs if it does not match.
@@ -116,10 +118,11 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
             }
             NodeWorkflows::FindTokenId {
                 token_name,
+                token_decimals,
                 deployer_address,
             } => {
                 let token_id = api_client
-                    .get_token_id::<S>(token_name, deployer_address)
+                    .get_token_id::<S>(token_name, *token_decimals, deployer_address)
                     .await?;
                 tracing::info!(%token_name, %token_id, "Id of token is received");
             }

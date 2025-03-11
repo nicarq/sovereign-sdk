@@ -10,8 +10,8 @@ use syn::{Expr, ExprAssign, ExprPath, Ident, Meta, Token};
 
 /// A specification for the decimal points to use for display of an integer.
 ///  * `Direct(d)`: uses `d` decimal places
-///  * FromField(index)`: takes a byte from the `index`th field in the parent struct at the given
-///  offset as a `u8` and uses that as the amount of decimal places. Performs NO type-checking.
+///  * FromField(index)`: parses the field at location `index` in the parent struct as a single
+///  `u8` byte and uses that as the amount of decimal places. Performs NO type-checking.
 #[derive(Debug, Clone)]
 pub enum FixedPointDisplay {
     Direct(u8),

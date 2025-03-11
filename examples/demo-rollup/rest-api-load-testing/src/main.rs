@@ -164,6 +164,7 @@ mod helpers {
 
         let msg = RuntimeCall::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
             token_name: TOKEN_NAME.try_into().unwrap(),
+            token_decimals: None,
             initial_balance,
             mint_to_address: user_address.into(),
             admins: SafeVec::new(),

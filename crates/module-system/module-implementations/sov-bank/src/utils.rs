@@ -7,30 +7,42 @@ use sov_modules_api::{CryptoSpec, MeteredHasher, ModuleId, Spec, TxState};
 use sov_state::codec::{BcsCodec, BorshCodec, EncodeLike};
 
 use crate::derived_holder::DerivedHolder;
-use crate::TokenId;
+use crate::{TokenId, DEFAULT_TOKEN_DECIMALS};
 
 /// Derives token ID from `token_name` and `originator`
-pub fn get_token_id<S: Spec>(token_name: &str, originator: impl Payable<S>) -> TokenId {
+pub fn get_token_id<S: Spec>(
+    token_name: &str,
+    token_decimals: Option<u8>,
+    originator: impl Payable<S>,
+) -> TokenId {
+    let token_decimals = token_decimals.unwrap_or(DEFAULT_TOKEN_DECIMALS);
     let mut hasher = <S::CryptoSpec as CryptoSpec>::Hasher::new();
     hasher.update(originator.as_token_holder().as_bytes());
     hasher.update(token_name.as_bytes());
+    hasher.update(token_decimals.to_le_bytes());
 
-    let hash: [u8; 32] = hasher.finalize().into();
+    let mut hash: [u8; 32] = hasher.finalize().into();
+    hash[31] = token_decimals;
     TokenId::from(hash)
 }
 
-/// Derives token ID from `token_name` and `originator` while tracking gas usage associated with
-/// hashing operations.
+/// Derives token ID from `token_name`, `token_decimals` and `originator` while tracking gas usage
+/// associated with hashing operations.
+/// The decimals are also encoded in the last byte of the hash.
 pub fn get_token_id_metered<S: Spec>(
     token_name: &str,
+    token_decimals: Option<u8>,
     originator: &impl Payable<S>,
     state: &mut impl TxState<S>,
 ) -> anyhow::Result<TokenId> {
+    let token_decimals = token_decimals.unwrap_or(DEFAULT_TOKEN_DECIMALS);
     let mut hasher = MeteredHasher::<_, <S::CryptoSpec as CryptoSpec>::Hasher>::new(state);
     hasher.update(originator.as_token_holder().as_bytes())?;
     hasher.update(token_name.as_bytes())?;
+    hasher.update(&token_decimals.to_le_bytes())?;
 
-    let hash: [u8; 32] = hasher.finalize().map_err(|(_, e)| e)?;
+    let mut hash: [u8; 32] = hasher.finalize().map_err(|(_, e)| e)?;
+    hash[31] = token_decimals;
     Ok(TokenId::from(hash))
 }
 

@@ -123,12 +123,19 @@ impl NodeClient {
     pub async fn get_token_id<S: sov_modules_api::Spec>(
         &self,
         token_name: &str,
+        token_decimals: Option<u8>,
         deployer: &S::Address,
     ) -> anyhow::Result<TokenId> {
-        let token_url = format!(
-            "{}/modules/bank/tokens?token_name={}&sender={}",
-            self.base_url, token_name, deployer
-        );
+        let token_url = match token_decimals {
+            Some(decimals) => format!(
+                "{}/modules/bank/tokens?token_name={}&token_decimals={}&sender={}",
+                self.base_url, token_name, decimals, deployer
+            ),
+            None => format!(
+                "{}/modules/bank/tokens?token_name={}&sender={}",
+                self.base_url, token_name, deployer
+            ),
+        };
         tracing::debug!(url = token_url, "Querying token_id");
 
         let response = self.http_client.get(token_url).send().await?;

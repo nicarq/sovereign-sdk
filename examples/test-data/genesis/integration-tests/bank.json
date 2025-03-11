@@ -1,6 +1,7 @@
 {
   "gas_token_config": {
     "token_name": "sov-integration-test-token",
+    "token_decimals": 6,
     "address_and_balances": [
       [
         "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf",
