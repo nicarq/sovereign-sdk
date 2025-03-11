@@ -2,6 +2,10 @@
 - #2600 removes database persistence for the `StandardSequencer`. Please use the `PreferredSequencer` instead if you need persistence, or reach out to the team if you have a need for it.
 
 # 2025-03-10
+- #2574 **BREAKING CHANGE**: Adds decimal point support to tokens in sov-bank.
+    * The `CreateToken` callmessage now has a new `Option<u8>` parameter. If `None` is passed, the token will default to 8 decimal places.
+    * All `TokenId`s will change, as they now encode the decimal places of the token. Any tests or scripts referencing existing `TokenId`s will need to be updated.
+    * The chain hash and schema will change.
 - #2578 Modified the wallet schema internal structure in preparation for improved `serde` support. This has no user-facing impact but will cause rollup chain hashes and generated schemas to change.
 - #2521 **BREAKING CHANGE** for rollup buildscripts: added the `Address` type to the standard rollup universal schema. This allows wallets to present serialized addresses to the user in the rollup's preferred format. Build scripts will need to be adjusted to pass the 4th root type when creating the rollup's schema.
 - #2582 Internal CI has been adjusted to ensure any wallet schema changes will be treated as breaking changes, starting in the near future. This is because schema changes a) reflect changes to the Transaction and RuntimeCall structs, potentially requiring adjustments to all users of a rollup; and b) changes to the schema hash invalidate all transactions signed using the old hash, requiring any transaction submitters to update to the new hash before continuing to use the rollup.
@@ -17,6 +21,7 @@
 - #2546 Adds a `#[sov_wallet(fixed_point(...))]` attribute to the UniversalWallet macro, enabling fixed point formatting for integers. Refer to the macro docs for more details. This is a non-breaking change.
 
 ## 2025-03-06
+- #2546 Adds a `#[sov_wallet(fixed_point(...))]` attribute to the UniversalWallet macro, enabling fixed point formatting for integers. Refer to the macro docs for more details. This is a non-breaking change.
 - #2545 **BREAKING CHANGE** requires any module methods that modify state to take `&mut self`, including `call` and `genesis`
 - #2549 **BREAKING CHANGE** RPC handlers now listen on the same port as REST API, under path `/rpc`. Update of the configuraiton is needed:
   1. Section `[runner.rpc_config]` is removed.

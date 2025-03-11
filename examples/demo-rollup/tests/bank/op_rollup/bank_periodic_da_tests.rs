@@ -16,7 +16,7 @@ use sov_modules_api::OperatingMode;
 use sov_test_utils::test_rollup::RollupBuilder;
 
 use crate::bank::helpers::*;
-use crate::bank::TOKEN_NAME;
+use crate::bank::{TOKEN_DECIMALS, TOKEN_NAME};
 use crate::test_helpers::{test_genesis_source, DemoRollupSpec};
 
 const BLOCK_TIME_MS: u64 = 100;
@@ -65,7 +65,7 @@ async fn send_test_bank_txs(
 
     let (key, user_address, token_id, _recipient_address) = create_keys_and_addresses();
     let token_id_response = client
-        .get_token_id::<DemoRollupSpec>(TOKEN_NAME, &user_address)
+        .get_token_id::<DemoRollupSpec>(TOKEN_NAME, Some(TOKEN_DECIMALS), &user_address)
         .await?;
     assert_eq!(token_id, token_id_response);
 

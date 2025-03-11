@@ -25,6 +25,8 @@ pub struct TransferData<S: Spec> {
 pub struct TokenCreateData<S: Spec> {
     /// The name of the token.
     pub token_name: String,
+    /// The decimals for the token's amount.
+    pub token_decimals: Option<u8>,
     /// The initial balance.
     pub initial_balance: u128,
     /// The address to mint the tokens to.
@@ -39,7 +41,7 @@ pub struct TokenCreateData<S: Spec> {
 
 impl<S: Spec> TokenCreateData<S> {
     fn get_token_id(&self) -> TokenId {
-        get_token_id::<S>(&self.token_name, &self.mint_to_address)
+        get_token_id::<S>(&self.token_name, self.token_decimals, &self.mint_to_address)
     }
 }
 
@@ -62,7 +64,7 @@ fn generate_address<S: Spec>(key: &str) -> S::Address {
 
 /// Gets the default token ID for the given address.
 pub fn get_default_token_id<S: Spec>(address: &<S as Spec>::Address) -> TokenId {
-    get_token_id::<S>(DEFAULT_TOKEN_NAME, address)
+    get_token_id::<S>(DEFAULT_TOKEN_NAME, None, address)
 }
 
 impl<S: Spec> BankMessageGenerator<S>
@@ -80,6 +82,7 @@ where
 
         Self::generate_create_token(
             DEFAULT_TOKEN_NAME.to_owned(),
+            None,
             private_key.into(),
             vec![minter]
                 .try_into()
@@ -106,6 +109,7 @@ where
     /// Generates a [`CallMessage::CreateToken`] transaction.
     pub fn generate_create_token(
         token_name: String,
+        decimals: Option<u8>,
         minter_pkey: Rc<<<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey>,
         admins: SafeVec<<S as Spec>::Address, MAX_ADMINS>,
         initial_balance: u128,
@@ -113,6 +117,7 @@ where
         Self {
             token_create_txs: vec![TokenCreateData {
                 token_name,
+                token_decimals: decimals,
                 initial_balance,
                 mint_to_address: minter_pkey
                     .pub_key()
@@ -162,6 +167,7 @@ where
         let token_name = DEFAULT_TOKEN_NAME.to_owned();
         let create_data = TokenCreateData {
             token_name: token_name.clone(),
+            token_decimals: None,
             initial_balance: 1000,
             mint_to_address: minter.clone(),
             minter_pkey: Rc::new(minter_key.clone()),
@@ -176,7 +182,7 @@ where
                 sender_pkey: Rc::new(minter_key),
                 transfer_amount: 15,
                 receiver_address: generate_address::<S>("just_receiver"),
-                token_id: get_token_id::<S>(&token_name, &minter),
+                token_id: get_token_id::<S>(&token_name, None, &minter),
             }]),
         }
     }
@@ -189,6 +195,7 @@ where
             .into();
         Self::generate_create_token(
             DEFAULT_TOKEN_NAME.to_owned(),
+            None,
             Rc::new(minter_key),
             vec![minter]
                 .try_into()
@@ -210,6 +217,7 @@ impl BankMessageGenerator<TestSpec> {
         let token_name = DEFAULT_TOKEN_NAME.to_owned();
         let token_create_data = TokenCreateData {
             token_name: token_name.clone(),
+            token_decimals: None,
             initial_balance: 1000,
             mint_to_address: minter,
             minter_pkey: Rc::new(minter_key.clone()),
@@ -225,14 +233,14 @@ impl BankMessageGenerator<TestSpec> {
                     sender_pkey: Rc::new(minter_key.clone()),
                     transfer_amount: 15,
                     receiver_address: generate_address::<TestSpec>("just_receiver"),
-                    token_id: get_token_id::<TestSpec>(&token_name, &minter),
+                    token_id: get_token_id::<TestSpec>(&token_name, None, &minter),
                 },
                 TransferData {
                     sender_pkey: Rc::new(minter_key.clone()),
                     // invalid transfer because transfer_amount > minted supply
                     transfer_amount: 5000,
                     receiver_address: generate_address::<TestSpec>("just_receiver"),
-                    token_id: get_token_id::<TestSpec>(&token_name, &minter),
+                    token_id: get_token_id::<TestSpec>(&token_name, None, &minter),
                 },
             ]),
         }
@@ -242,6 +250,7 @@ impl BankMessageGenerator<TestSpec> {
 pub(crate) fn create_token_tx<S: Spec>(input: &TokenCreateData<S>) -> CallMessage<S> {
     CallMessage::CreateToken {
         token_name: input.token_name.clone().try_into().unwrap(),
+        token_decimals: input.token_decimals,
         initial_balance: Amount::new(input.initial_balance),
         mint_to_address: input.mint_to_address.clone(),
         admins: input.admins.clone(),

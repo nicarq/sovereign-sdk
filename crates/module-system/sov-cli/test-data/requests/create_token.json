@@ -1,6 +1,7 @@
 {
     "create_token": {
         "token_name": "sov-test-token",
+        "token_decimals": 6,
         "initial_balance": "10000",
         "mint_to_address": "sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s85ar2a",
         "admins": [

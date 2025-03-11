@@ -32,6 +32,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         Ok(GeneratedMessage::new(
             CallMessage::CreateToken {
                 token_name: TOKEN_NAME.try_into().unwrap(),
+                token_decimals: None,
                 initial_balance: Arbitrary::arbitrary(u)?,
                 mint_to_address: Arbitrary::arbitrary(u)?,
                 admins: Arbitrary::arbitrary(u)?,
@@ -51,7 +52,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<BankTag>>,
     ) -> arbitrary::Result<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
         // Pick a creator address, and a token name. Compute the token ID
-        let (creator_key, token_name, token_id) = {
+        let (creator_key, token_name, token_decimals, token_id) = {
             let (creator_address, mut creator_acct) =
                 generator_state.get_or_generate(creation_rate, u)?;
             let creator_key = creator_acct.private_key.clone();
@@ -66,9 +67,16 @@ impl<S: Spec> BankMessageGenerator<S> {
                 } else {
                     arbitrary_safe_string(u, MIN_TOKEN_NAME_LEN)?
                 };
-            let new_token_id = sov_bank::get_token_id::<S>(token_name.as_str(), &creator_address);
+            let token_decimals =
+                if !generator_state.has_tag(&creator_address, BankTag::HasCreatedToken.into()) {
+                    None
+                } else {
+                    Some(u.int_in_range(0..=39)?)
+                };
+            let new_token_id =
+                sov_bank::get_token_id::<S>(token_name.as_str(), token_decimals, &creator_address);
             generator_state.update_account(&creator_address, creator_acct);
-            (creator_key, token_name, new_token_id)
+            (creator_key, token_name, token_decimals, new_token_id)
         };
 
         // Generate a list of minters, updating the state as necessary
@@ -110,6 +118,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         Ok(GeneratedMessage::new(
             CallMessage::CreateToken {
                 token_name,
+                token_decimals,
                 initial_balance: amount,
                 mint_to_address: recipient_address.clone(),
                 admins: minters,

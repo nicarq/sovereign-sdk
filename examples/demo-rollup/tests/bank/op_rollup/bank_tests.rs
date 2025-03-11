@@ -12,7 +12,7 @@ use sov_test_utils::test_rollup::{RollupBuilder, RollupProverConfig};
 use sov_test_utils::TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING;
 
 use crate::bank::helpers::*;
-use crate::bank::TOKEN_NAME;
+use crate::bank::{TOKEN_DECIMALS, TOKEN_NAME};
 use crate::test_helpers::*;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -58,7 +58,7 @@ async fn send_test_bank_txs(
 ) -> anyhow::Result<()> {
     let (key, user_address, token_id, recipient_address) = create_keys_and_addresses();
     let token_id_response = client
-        .get_token_id::<DemoRollupSpec>(TOKEN_NAME, &user_address)
+        .get_token_id::<DemoRollupSpec>(TOKEN_NAME, Some(TOKEN_DECIMALS), &user_address)
         .await?;
 
     const NUM_TRANSFERS: u64 = 5;

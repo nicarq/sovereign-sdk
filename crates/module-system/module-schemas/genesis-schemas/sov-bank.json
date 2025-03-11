@@ -80,6 +80,15 @@
             }
           ]
         },
+        "token_decimals": {
+          "description": "The decimal places of the token.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint8",
+          "minimum": 0.0
+        },
         "token_name": {
           "description": "The name of the token.",
           "type": "string"
@@ -130,6 +139,15 @@
               "type": "null"
             }
           ]
+        },
+        "token_decimals": {
+          "description": "The decimal places of the token.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint8",
+          "minimum": 0.0
         },
         "token_id": {
           "description": "Predetermined ID of the token. Allowed only for genesis tokens.",

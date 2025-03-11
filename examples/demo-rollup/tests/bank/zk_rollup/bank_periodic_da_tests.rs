@@ -19,7 +19,7 @@ use sov_test_utils::test_rollup::RollupBuilder;
 use sov_test_utils::TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING;
 
 use crate::bank::helpers::*;
-use crate::bank::TOKEN_NAME;
+use crate::bank::{TOKEN_DECIMALS, TOKEN_NAME};
 use crate::test_helpers::{test_genesis_source, DemoRollupSpec};
 
 type TestSpec = DemoRollupSpec;
@@ -87,7 +87,7 @@ async fn send_test_bank_txs(test_case: TestCase, client: &NodeClient) -> anyhow:
         .context("Failed to subscribe to aggregated proof")?;
 
     let token_id_response = client
-        .get_token_id::<TestSpec>(TOKEN_NAME, &user_address)
+        .get_token_id::<TestSpec>(TOKEN_NAME, Some(TOKEN_DECIMALS), &user_address)
         .await?;
 
     assert_eq!(token_id, token_id_response);

@@ -132,6 +132,7 @@ where
 pub struct Coins {
     /// The number of tokens
     #[sov_wallet(template("transfer" = input("amount")))]
+    #[sov_wallet(fixed_point(from_field(1, offset = 31)))]
     pub amount: Amount,
     /// The ID of the token
     #[sov_wallet(template("transfer" = input("token_id")))]

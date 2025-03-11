@@ -14,7 +14,7 @@ use sov_rollup_interface::zk::aggregated_proof::AggregateProofVerifier;
 use sov_test_utils::default_test_signed_transaction;
 use sov_test_utils::test_rollup::read_private_key;
 
-use super::TOKEN_NAME;
+use super::{TOKEN_DECIMALS, TOKEN_NAME};
 use crate::test_helpers::{DemoRollupSpec, CHAIN_HASH};
 
 type TestSpec = DemoRollupSpec;
@@ -47,7 +47,8 @@ pub(crate) fn create_keys_and_addresses() -> (
     let key = key_and_address.private_key;
     let user_address: <TestSpec as Spec>::Address = key_and_address.address;
 
-    let token_id = sov_bank::get_token_id::<TestSpec>(TOKEN_NAME, &user_address);
+    let token_id =
+        sov_bank::get_token_id::<TestSpec>(TOKEN_NAME, Some(TOKEN_DECIMALS), &user_address);
 
     let recipient_key = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
 
@@ -69,6 +70,7 @@ pub(crate) fn build_create_token_tx(
     let user_address: Address = key.pub_key().credential_id::<sha2::Sha256>().into();
     let msg = RuntimeCall::<TestSpec>::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
         token_name: TOKEN_NAME.try_into().unwrap(),
+        token_decimals: Some(TOKEN_DECIMALS),
         initial_balance: initial_balance.into(),
         mint_to_address: user_address.into(),
         admins: SafeVec::new(),

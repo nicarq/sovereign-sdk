@@ -2,6 +2,11 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
+use sov_universal_wallet::ty::IntegerDisplayable;
+
+/// Maximum number of decimal places for a fixed-point number stored as a u128 integer
+/// In other words, `log_10(u128::MAX)`
+pub const MAX_U128_DECIMAL_PLACES: u8 = 39;
 
 #[derive(
     Clone,
@@ -35,9 +40,17 @@ impl Amount {
     pub const MIN: Amount = Amount(u128::MIN);
     #[allow(missing_docs)]
     pub const ZERO: Amount = Amount(0);
+    /// Maximum number of decimals allowed for fixed-point representation of `Amount`s.
+    pub const MAX_DECIMALS: u8 = MAX_U128_DECIMAL_PLACES;
     #[allow(missing_docs)]
     pub const fn new(amount: u128) -> Self {
         Self(amount)
+    }
+}
+
+impl IntegerDisplayable for Amount {
+    fn integer_type() -> sov_universal_wallet::ty::IntegerType {
+        sov_universal_wallet::ty::IntegerType::u128
     }
 }
 

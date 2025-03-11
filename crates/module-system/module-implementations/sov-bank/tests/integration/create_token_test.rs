@@ -28,11 +28,12 @@ fn create_token() {
     let user_no_token_balance_address = user_no_token_balance.address();
     let minter_address = minter.as_user().address();
     let token_name = "Token1";
-    let token_id = get_token_id::<S>(token_name, &minter_address);
+    let token_id = get_token_id::<S>(token_name, None, &minter_address);
 
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::CreateToken {
             token_name: token_name.try_into().unwrap(),
+            token_decimals: None,
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: user_high_token_balance_address,
             supply_cap: Some(INITIAL_TOKEN_BALANCE),
@@ -117,11 +118,12 @@ fn create_token_and_mint() {
     let user_no_token_balance_address = user_no_token_balance.address();
     let minter_address = minter.as_user().address();
     let token_name = "Token1";
-    let token_id = get_token_id::<S>(token_name, &minter_address);
+    let token_id = get_token_id::<S>(token_name, None, &minter_address);
 
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::CreateToken {
             token_name: token_name.try_into().unwrap(),
+            token_decimals: None,
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: minter_address,
             supply_cap: None,
@@ -223,12 +225,13 @@ fn create_token_and_mint_fails_if_exceeds_supply_cap() {
     let user_no_token_balance_address = user_no_token_balance.address();
     let minter_address = minter.as_user().address();
     let token_name = "Token1";
-    let token_id = get_token_id::<S>(token_name, &minter_address);
+    let token_id = get_token_id::<S>(token_name, None, &minter_address);
 
     // Try to create a token and mint more than the supply cap. SHuld fail
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::CreateToken {
             token_name: token_name.try_into().unwrap(),
+            token_decimals: None,
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: minter_address,
             supply_cap: Some(INITIAL_TOKEN_BALANCE.checked_sub(Amount::new(1)).unwrap()),
@@ -245,6 +248,7 @@ fn create_token_and_mint_fails_if_exceeds_supply_cap() {
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::CreateToken {
             token_name: token_name.try_into().unwrap(),
+            token_decimals: None,
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: minter_address,
             supply_cap: Some(INITIAL_TOKEN_BALANCE),
@@ -311,12 +315,13 @@ fn test_create_token_fails_with_duplicate_ids() {
     let user_no_token_balance_address = user_no_token_balance.address();
     let minter_address = minter.as_user().address();
     let token_name = "Token1";
-    let token_id = get_token_id::<S>(token_name, &minter_address);
+    let token_id = get_token_id::<S>(token_name, None, &minter_address);
 
     runner
         .execute_transaction(TransactionTestCase {
             input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::CreateToken {
                 token_name: token_name.try_into().unwrap(),
+                token_decimals: None,
                 initial_balance: INITIAL_TOKEN_BALANCE,
                 mint_to_address: user_high_token_balance_address,
                 supply_cap: None,
@@ -331,6 +336,7 @@ fn test_create_token_fails_with_duplicate_ids() {
         .execute_transaction(TransactionTestCase {
             input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::CreateToken {
                 token_name: token_name.try_into().unwrap(),
+                token_decimals: None,
                 initial_balance: INITIAL_TOKEN_BALANCE,
                 mint_to_address: user_high_token_balance_address,
                 supply_cap: None,

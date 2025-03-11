@@ -28,6 +28,8 @@ pub struct BankConfig<S: Spec> {
 pub struct TokenConfig<S: Spec> {
     /// The name of the token.
     pub token_name: String,
+    /// The decimal places of the token.
+    pub token_decimals: Option<u8>,
     /// Predetermined ID of the token. Allowed only for genesis tokens.
     pub token_id: TokenId,
     /// A vector of tuples containing the initial addresses and balances (as u128)
@@ -45,6 +47,8 @@ pub struct TokenConfig<S: Spec> {
 pub struct GasTokenConfig<S: Spec> {
     /// The name of the token.
     pub token_name: String,
+    /// The decimal places of the token.
+    pub token_decimals: Option<u8>,
     /// A vector of tuples containing the initial addresses and balances (as u128)
     pub address_and_balances: Vec<(S::Address, Amount)>,
     /// The addresses that are authorized to mint the token.
@@ -57,6 +61,7 @@ impl<S: Spec> From<GasTokenConfig<S>> for TokenConfig<S> {
     fn from(gas_token_config: GasTokenConfig<S>) -> Self {
         TokenConfig {
             token_name: gas_token_config.token_name,
+            token_decimals: gas_token_config.token_decimals,
             token_id: crate::config_gas_token_id(),
             address_and_balances: gas_token_config.address_and_balances,
             admins: gas_token_config.admins,
@@ -165,12 +170,14 @@ mod tests {
         let config = BankConfig::<TestSpec> {
             gas_token_config: GasTokenConfig {
                 token_name: "sov-gas-token".to_owned(),
+                token_decimals: None,
                 address_and_balances: vec![(sender_address, Amount::new(100_000_000))],
                 admins: vec![sender_address],
                 supply_cap: None,
             },
             tokens: vec![TokenConfig {
                 token_name: "sov-demo-token".to_owned(),
+                token_decimals: Some(6),
                 token_id,
                 address_and_balances: vec![(sender_address, Amount::new(1000))],
                 admins: vec![sender_address],
@@ -188,6 +195,7 @@ mod tests {
             "tokens":[
                 {
                     "token_name":"sov-demo-token",
+                    "token_decimals": 6,
                     "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7",
                     "address_and_balances":[["sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv","1000"]],
                     "admins":["sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv"]
@@ -207,10 +215,10 @@ mod tests {
                 .unwrap()
                 .into();
 
-        let gas_token_id = get_token_id::<TestSpec>("sov-gas-token", &originator);
+        let gas_token_id = get_token_id::<TestSpec>("sov-gas-token", Some(6), &originator);
         assert_eq!(
             gas_token_id,
-            TokenId::from_str("token_17224ly0utp0le7fqdmufrgjpaup7quqk9tznt4vawd8n545ujx5sfatgxs")
+            TokenId::from_str("token_1kvvxstujsan95u2jfcar0t5jzy6u5xy56am0xz4jkazpn28egurqy5gmnl")
                 .unwrap()
         );
     }
