@@ -321,6 +321,14 @@
           "type": "integer",
           "format": "uint128",
           "minimum": 0.0
+        },
+        "postgres_connection_string": {
+          "description": "Optional. When present, Postgres will be used as a database instead of RocksDB.",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },

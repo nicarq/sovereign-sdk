@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::net::SocketAddr;
 use std::num::NonZero;
 use std::path::{Path, PathBuf};
@@ -32,8 +33,12 @@ use sov_stf_runner::{
     HttpServerConfig, MonitoringConfig, ProofManagerConfig, RollupConfig, RunnerConfig,
     StorageConfig,
 };
+use testcontainers::core::{Mount, WaitFor};
+use testcontainers::runners::AsyncRunner;
+use testcontainers::{ContainerAsync, Image, ImageExt};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
+use tracing::debug;
 
 use crate::{TEST_DEFAULT_PROVER_ADDRESS, TEST_DEFAULT_SEQUENCER_ADDRESS};
 
@@ -90,6 +95,7 @@ pub struct RollupBuilder<R: FullNodeBlueprint<Native>, StoragePath = Arc<tempfil
     genesis: GenesisSource<R::Spec, R::Runtime>,
     da_config: MockDaConfig,
     config: RollupBuilderConfig<R::Spec, StoragePath>,
+    postgres_container_opt: Option<Arc<ContainerAsync<PostgresImage>>>,
     with_secondary_sequencer: Option<MockAddress>,
 }
 
@@ -107,6 +113,36 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
             finalization_blocks,
             Arc::new(tempfile::tempdir().unwrap()),
         )
+    }
+
+    /// Uses the preferred sequencer with Postgres as a database.
+    pub async fn with_postgres_sequencer(mut self) -> anyhow::Result<Self> {
+        let postgres_data_dir = self.config.storage.as_path().join("postgres_data");
+        debug!(?postgres_data_dir, "Using Postgres data directory");
+        std::fs::create_dir_all(&postgres_data_dir)?;
+
+        let postgres = PostgresImage
+            .with_mount(Mount::bind_mount(
+                postgres_data_dir.to_string_lossy(),
+                "/var/lib/postgresql/data",
+            ))
+            .start()
+            .await
+            .with_context(|| "Failed to start Postgres container. This is most likely because (1) the Docker daemon is not running or (2) Docker Desktop doesn't have file sharing permissions to the repository directory")?;
+
+        match &mut self.config.sequencer_config {
+            SequencerKindConfig::Preferred(ref mut config) => {
+                config.postgres_connection_string = Some(format!(
+                    "postgres://postgres:postgres@{}:{}",
+                    postgres.get_host().await?,
+                    postgres.get_host_port_ipv4(5432).await?
+                ));
+                self.postgres_container_opt = Some(Arc::new(postgres));
+            }
+            _ => panic!("Can't use Postgres with a non-preferred sequencer"),
+        }
+
+        Ok(self)
     }
 }
 
@@ -157,6 +193,7 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
         Self {
             genesis,
             da_config,
+            postgres_container_opt: None,
             config: RollupBuilderConfig {
                 max_channel_size: 60,
                 max_infos_in_db: 80 + finalization_blocks as u64,
@@ -238,10 +275,11 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
     }
 }
 
-impl<R, StoragePath: AsPath> RollupBuilder<R, StoragePath>
+impl<R, StoragePath> RollupBuilder<R, StoragePath>
 where
     R: FullNodeBlueprint<Native, DaService = StorableMockDaService> + Default + 'static,
     R::Spec: Spec<Da = MockDaSpec>,
+    StoragePath: AsPath,
 {
     /// Creates a new [`TestRollup`] and starts running it in a background Tokio
     /// task. See [`TestRollup`] for usage information.
@@ -261,7 +299,7 @@ where
                     .create_new_rollup(
                         genesis_paths,
                         rollup_config.clone(),
-                        self.config.rollup_prover_config,
+                        self.config.rollup_prover_config.clone(),
                     )
                     .await?
             }
@@ -270,7 +308,7 @@ where
                     .create_new_rollup_with_genesis_params(
                         genesis_params.clone(),
                         rollup_config.clone(),
-                        self.config.rollup_prover_config,
+                        self.config.rollup_prover_config.clone(),
                     )
                     .await?
             }
@@ -329,13 +367,13 @@ where
         };
 
         Ok(TestRollup {
+            builder: self,
             rollup_task,
             api_client: sov_api_spec::client::Client::new(&client.base_url),
             http_addr: rest_addr,
             rollup_config,
             client,
             da_service,
-            storage: self.config.storage.clone(),
             shutdown_sender,
             secondary_test_sequencer_client,
             _secondary_sequencer_state_sender: secondary_sequencer_state_sender,
@@ -446,6 +484,69 @@ where
     }
 }
 
+/// Represents a **running** rollup node while providing access to its
+/// [`DaService`](sov_rollup_interface::node::da::DaService) and wallet client
+/// to help run end-to-end tests against its APIs.
+pub struct TestRollup<R: FullNodeBlueprint<Native>, StoragePath = Arc<tempfile::TempDir>> {
+    /// A wallet client that can be used to interact with the node and submit
+    /// txs to the sequencer.
+    pub client: NodeClient,
+    /// Auto-generated API client for the rollup.
+    pub api_client: sov_api_spec::client::Client,
+    /// Address of the HTTP server.
+    pub http_addr: SocketAddr,
+    /// The rollup config used to run the rollup.
+    pub rollup_config: RollupConfig<<R::Spec as Spec>::Address, R::DaService>,
+    /// A copy of the [`DaService`](sov_rollup_interface::node::da::DaService)
+    /// that the node uses.
+    ///
+    /// You can use it to query DA layer information or directly submit blobs,
+    /// bypassing the sequencer.
+    pub da_service: Arc<StorableMockDaService>,
+    /// Allows programmatically initialize shutdown of the test-rollup.
+    /// Used for checking graceful shutdown and restart.
+    pub shutdown_sender: watch::Sender<()>,
+    /// Used for cleanup/shutdown logic.
+    pub rollup_task: JoinHandle<anyhow::Result<()>>,
+    /// In case the rollup was started with a secondary sequencer, this is the
+    /// client that can be used to submit transactions.
+    pub secondary_test_sequencer_client: Option<sov_api_spec::client::Client>,
+    builder: RollupBuilder<R, StoragePath>,
+    // Keep it open, so the secondary sequencer runs without errors
+    #[allow(dead_code)]
+    _secondary_sequencer_state_sender:
+        Option<watch::Sender<StateUpdateInfo<<R::Spec as Spec>::Storage>>>,
+}
+
+impl<R, StoragePath> TestRollup<R, StoragePath>
+where
+    R: FullNodeBlueprint<Native, DaService = StorableMockDaService> + Default + 'static,
+    R::Spec: Spec<Da = MockDaSpec>,
+    StoragePath: AsPath,
+{
+    /// Shuts down the rollup and waits for all background tasks to finish.
+    pub async fn shutdown(self) -> anyhow::Result<()> {
+        self.shutdown_sender
+            .send(())
+            .expect("Shutdown sender already closed");
+        self.rollup_task.await.expect("Can't join rollup task")?;
+
+        Ok(())
+    }
+
+    /// Restarts the rollup.
+    pub async fn restart(self) -> anyhow::Result<Self> {
+        self.shutdown_sender
+            .send(())
+            .expect("Shutdown sender already closed");
+        self.rollup_task.await.expect("Can't join rollup task")?;
+
+        let TestRollup { builder, .. } = self;
+
+        builder.start().await
+    }
+}
+
 /// Reads and parses a private key from the test data directory.
 pub fn read_private_key<S: Spec>(suffix: &str) -> PrivateKeyAndAddress<S> {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -480,50 +581,33 @@ pub fn get_appropriate_rollup_prover_config<S: Spec>(
     }
 }
 
-/// Represents a **running** rollup node while providing access to its
-/// [`DaService`](sov_rollup_interface::node::da::DaService) and wallet client
-/// to help run end-to-end tests against its APIs.
-pub struct TestRollup<R: FullNodeBlueprint<Native>, StoragePath = Arc<tempfile::TempDir>> {
-    /// A wallet client that can be used to interact with the node and submit
-    /// txs to the sequencer.
-    pub client: NodeClient,
-    /// Auto-generated API client for the rollup.
-    pub api_client: sov_api_spec::client::Client,
-    /// Address of the HTTP server.
-    pub http_addr: SocketAddr,
-    /// The rollup config used to run the rollup.
-    pub rollup_config: RollupConfig<<R::Spec as Spec>::Address, R::DaService>,
-    /// A copy of the [`DaService`](sov_rollup_interface::node::da::DaService)
-    /// that the node uses.
-    ///
-    /// You can use it to query DA layer information or directly submit blobs,
-    /// bypassing the sequencer.
-    pub da_service: Arc<StorableMockDaService>,
-    /// We just hold this together with [`TestRollup`] instance, so the directory
-    /// is not deleted before we're done.
-    pub storage: StoragePath,
-    /// Allows programmatically initialize shutdown of the test-rollup.
-    /// Used for checking graceful shutdown and restart.
-    pub shutdown_sender: watch::Sender<()>,
-    /// Used for cleanup/shutdown logic.
-    pub rollup_task: JoinHandle<anyhow::Result<()>>,
-    /// In case the rollup was started with a secondary sequencer, this is the
-    /// client that can be used to submit transactions.
-    pub secondary_test_sequencer_client: Option<sov_api_spec::client::Client>,
-    // Keep it open, so the secondary sequencer runs without errors
-    #[allow(dead_code)]
-    _secondary_sequencer_state_sender:
-        Option<watch::Sender<StateUpdateInfo<<R::Spec as Spec>::Storage>>>,
-}
+#[derive(Debug, Clone, Default)]
+struct PostgresImage;
 
-impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> TestRollup<R, StoragePath> {
-    /// Shuts down the rollup and waits for all background tasks to finish.
-    pub async fn shutdown(self) -> anyhow::Result<()> {
-        self.shutdown_sender
-            .send(())
-            .expect("Shutdown sender already closed");
-        self.rollup_task.await.expect("Can't join rollup task")?;
+impl Image for PostgresImage {
+    fn name(&self) -> &str {
+        "postgres"
+    }
 
-        Ok(())
+    fn tag(&self) -> &str {
+        "17-alpine"
+    }
+
+    fn ready_conditions(&self) -> Vec<WaitFor> {
+        // See <https://github.com/testcontainers/testcontainers-rs-modules-community/issues/158>.
+        vec![
+            WaitFor::message_on_stderr("database system is ready to accept connections"),
+            WaitFor::message_on_stdout("database system is ready to accept connections"),
+        ]
+    }
+
+    fn env_vars(
+        &self,
+    ) -> impl IntoIterator<Item = (impl Into<Cow<'_, str>>, impl Into<Cow<'_, str>>)> {
+        [
+            ("POSTGRES_DB", "postgres"),
+            ("POSTGRES_USER", "postgres"),
+            ("POSTGRES_PASSWORD", "postgres"),
+        ]
     }
 }
