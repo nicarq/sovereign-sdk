@@ -11,8 +11,9 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use db::postgres::PostgresBackend;
 use db::rocksdb::RocksDbBackend;
-use db::{PreferredSequencerDb, PreferredSequencerReadBlob};
+use db::{PreferredSequencerDb, PreferredSequencerDbBackend, PreferredSequencerReadBlob};
 use schemars::JsonSchema;
 use serde_with::serde_as;
 use sov_blob_storage::PreferredBatchData;
@@ -303,11 +304,17 @@ where
         let (events_sender, _) =
             broadcast::channel(config.sequencer_kind_config.events_channel_size);
 
+        let db_backend: Box<dyn PreferredSequencerDbBackend> =
+            if let Some(postgres_connection_string) =
+                &config.sequencer_kind_config.postgres_connection_string
+            {
+                Box::new(PostgresBackend::connect(postgres_connection_string).await?)
+            } else {
+                Box::new(RocksDbBackend::new(storage_path).await?)
+            };
+
         let inner = Inner {
-            db: PreferredSequencerDb::<S, Rt>::new(Box::new(
-                RocksDbBackend::new(storage_path).await?,
-            ))
-            .await?,
+            db: PreferredSequencerDb::<S, Rt>::new(db_backend).await?,
             latest_info: latest_state_update.clone(),
             checkpoint_sender,
             next_event_number: latest_state_update.next_event_number,
@@ -627,6 +634,10 @@ pub struct PreferredSequencerConfig {
     /// Don't deviate from the default unless you know what you're doing.
     #[serde(default = "default_events_channel_size")]
     pub events_channel_size: usize,
+    /// Optional. When present, Postgres will be used as a database instead of
+    /// RocksDB.
+    #[serde(default)]
+    pub postgres_connection_string: Option<String>,
 }
 
 impl Default for PreferredSequencerConfig {
@@ -634,6 +645,7 @@ impl Default for PreferredSequencerConfig {
         Self {
             minimum_profit_per_tx: 0,
             events_channel_size: default_events_channel_size(),
+            postgres_connection_string: None,
         }
     }
 }

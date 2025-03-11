@@ -9,6 +9,7 @@
 //! invariants and we'd rather have an application crash due to broken
 //! invariants than to have bugs that result in subtle state inconsistencies.
 
+pub mod postgres;
 pub mod rocksdb;
 
 use std::collections::VecDeque;
