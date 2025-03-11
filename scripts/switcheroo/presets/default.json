@@ -11,6 +11,7 @@
 	"crates/full-node/sov-metrics",
 	"crates/full-node/sov-api-spec",
 	"crates/utils/sov-rest-utils",
+	"crates/utils/nearly-linear",
 	"crates/module-system/sov-cli",
 	"crates/module-system/sov-modules-stf-blueprint",
 	"crates/module-system/sov-modules-rollup-blueprint",
