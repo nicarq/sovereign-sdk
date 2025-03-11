@@ -10,6 +10,9 @@ inputs:
     description: "Install the ZKVM toolchain(s)"
     required: false
     default: "1"
+  nearly_linear_access_key:
+    description: "Access key for the Nearly Linear crate"
+    required: false
 runs:
   using: "composite"
   steps:
@@ -68,6 +71,11 @@ runs:
       with:
         tool: bashtestmd@0.5
     # CI always operates on the entire workspace
+    - uses: webfactory/ssh-agent@v0.5.2
+      if: inputs.nearly_linear_access_key != ''
+      with:
+        ssh-private-key: ${{ inputs.nearly_linear_access_key }}
     - run: cargo switcheroo disable
       shell: bash
-
+      env: 
+        CARGO_NET_GIT_FETCH_WITH_CLI: true

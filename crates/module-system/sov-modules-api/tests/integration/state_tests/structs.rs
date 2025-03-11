@@ -300,7 +300,7 @@ fn test_borrow_and_save_state_value() {
     let storage_manager = SimpleStorageManager::<StorageSpec>::new();
     let storage = storage_manager.create_storage();
     let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S>::default());
-    let mut state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
+    let mut state_value = StateValue::<i32>::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     let val = state_value.borrow_mut(&mut state).unwrap_infallible();
     assert!(val.is_none());

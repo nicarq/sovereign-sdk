@@ -2730,6 +2730,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "nearly-linear"
+version = "0.1.0"
+source = "git+ssh://git@github.com/Sovereign-Labs/nearly-linear.git?rev=84def4e15b9d1f9a5ddf39ba16706f593deb3a8d#84def4e15b9d1f9a5ddf39ba16706f593deb3a8d"
+
+[[package]]
 name = "nmt-rs"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4832,6 +4837,7 @@ dependencies = [
  "derive_more 1.0.0",
  "digest 0.10.7",
  "hex",
+ "nearly-linear",
  "schemars",
  "serde",
  "serde_json",

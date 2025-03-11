@@ -110,6 +110,11 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: |
+            ${{ secrets.SDK_LINTS_ACCESS_TOKEN }}
+            ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -117,7 +122,10 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          nearly_linear_access_key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - name: Run lint
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
         run: |
           if ! make lint ; then
             echo "Linting or formatting errors detected, please run 'make lint-fix' to fix it";
@@ -143,6 +151,9 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -165,6 +176,9 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -176,6 +190,7 @@ jobs:
           BLOCKS: 10
           TXNS_PER_BLOCK: 10000
           NUM_PUB_KEYS: 100
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
         run: sh scripts/ci_rollup_count_check.sh ##
 
   # Check that every combination of features is working properly.
@@ -200,6 +215,9 @@ jobs:
       CARGO_HACK_PARTITION_M: 3
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -209,6 +227,8 @@ jobs:
           install_zkvm: "0"
       # intentionally no target specifier; see https://github.com/jonhoo/rust-ci-conf/pull/4
       - name: cargo hack
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
         run: make check-features
 
   # Check that every combination of features is working properly, but without
@@ -234,6 +254,9 @@ jobs:
       CARGO_HACK_PARTITION_M: 3
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -242,6 +265,8 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           install_zkvm: "0"
       - name: cargo hack
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
         run: make check-features-default-targets
 
   nextest:
@@ -257,6 +282,9 @@ jobs:
       RUST_BACKTRACE: 1
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -264,6 +292,8 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - run: make test-default-features
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
 
   nextest_all_features:
     name: nextest_all_features
@@ -278,6 +308,9 @@ jobs:
       RUST_BACKTRACE: 1
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -285,6 +318,8 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - run: make test
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
 
   doctests:
     name: doctests
@@ -298,6 +333,9 @@ jobs:
       SP1_SKIP_PROGRAM_BUILD: "true"
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -309,6 +347,8 @@ jobs:
       # separately.
       # TODO: https://github.com/nextest-rs/nextest/issues/16
       - run: make doctest
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
 
   coverage:
     name: coverage
@@ -323,6 +363,9 @@ jobs:
       RUST_BACKTRACE: 1
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -334,6 +377,8 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
       - name: cargo llvm-cov
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
         run: make coverage
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
@@ -346,8 +391,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - uses: taiki-e/install-action@cargo-deny
       - run: make cargo-deny-check-licenses
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
 
   cargo-doc-artifact:
     runs-on:
@@ -363,6 +413,9 @@ jobs:
       AWS_REGION: "us-east-1"
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -373,6 +426,8 @@ jobs:
       # The docs' artifact tends to become quite large with all the
       # dependencies, so we don't include them.
       - run: make docs-generate
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
       - name: Add index.html
         # We're inside a Cargo workspace, so there's no index.html by default.
         # We must redirect to one of the workspace member crates' documentation.
@@ -430,6 +485,9 @@ jobs:
     runs-on: nscloud-ubuntu-22.04-amd64-2x4
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - uses: actions/setup-node@v3
       - run: npm install -g doctoc
       - name: Update table of contents for mock-da
@@ -458,6 +516,9 @@ jobs:
       RUST_LOG: "debug,sov_sequencer=trace,sov-celestia-adapter=trace,hyper=info,risc0_zkvm=warn,jmt=info,jsonrpsee-server=info,jsonrpsee-client=info,reqwest=info,sqlx=warn,tiny_http=warn,tower_http=info,tungstenite=info,risc0_circuit_rv32im=info,risc0_zkp::verify=info,h2=info,tower=info"
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - name: Login to Docker Hub
         if: github.event.pull_request.head.repo.full_name == github.repository
         uses: docker/login-action@v3
@@ -475,6 +536,8 @@ jobs:
         run: bashtestmd --input examples/demo-rollup/README_CELESTIA.md --output demo-rollup-readme.sh --tag test-ci
       - run: cat demo-rollup-readme.sh
       - run: chmod +x demo-rollup-readme.sh && ./demo-rollup-readme.sh
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
 
   check-demo-rollup-bash-commands-mock-da:
     runs-on:
@@ -490,6 +553,9 @@ jobs:
       RUST_LOG: "debug,sov_sequencer=trace,hyper=info,risc0_zkvm=warn,jmt=info,jsonrpsee-server=info,jsonrpsee-client=info,reqwest=info,sqlx=warn,tiny_http=warn,tower_http=info,tungstenite=info,risc0_circuit_rv32im=info,risc0_zkp::verify=info,h2=info,tower=info"
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -501,6 +567,8 @@ jobs:
         run: bashtestmd --input examples/demo-rollup/README.md --output demo-rollup-readme.sh --tag test-ci
       - run: cat demo-rollup-readme.sh
       - run: chmod +x demo-rollup-readme.sh && ./demo-rollup-readme.sh
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
 
   check-constant-overriding-is-disabled-in-release-mode:
     runs-on:
@@ -510,6 +578,9 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -518,11 +589,16 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - run: make check-constant-overriding-is-disabled-in-release-mode
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
 
   validate-packages-to-publish-yml:
     runs-on: nscloud-ubuntu-22.04-amd64-2x4
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - run: ./scripts/validate_packages_to_publish_yml.sh
         shell: bash
         working-directory: .
@@ -534,6 +610,9 @@ jobs:
       - nscloud-cache-size-20gb
     steps:
       - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.5.2
+        with:
+          ssh-private-key: ${{ secrets.NEARLY_LINEAR_ACCESS_KEY }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -542,6 +621,8 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - run: cargo switcheroo set default
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: true
         # Exit status 0 means no changes were made.
       - run: git diff --exit-code
 

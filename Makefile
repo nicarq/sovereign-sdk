@@ -70,6 +70,7 @@ install-dev-tools: install-risc0-toolchain install-sp1-toolchain
 	cargo install cargo-insta
 	cargo install cargo-nextest --locked
 	cargo install zepter
+	cargo +stable install cargo-dylint dylint-link
 	rustup target add wasm32-unknown-unknown
 
 install-risc0-toolchain:  ## install risc0 toolchain
@@ -95,6 +96,11 @@ lint:  ## cargo fmt, check and clippy.
 	zepter
 	zepter
 	zepter
+	if which cargo-dylint > /dev/null; then \
+		cargo dylint --all; \
+	else \
+		echo "cargo-dylint not found, skipping dylint check"; \
+	fi
 	$(MAKE) clippy
 
 lint-all: ## cargo fmt, check and clippy, across the whole workspace
