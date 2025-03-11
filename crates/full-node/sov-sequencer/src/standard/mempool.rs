@@ -7,19 +7,14 @@ use std::sync::Arc;
 use sov_modules_api::{DaSpec, FullyBakedTx};
 use sov_rollup_interface::common::HexString;
 use sov_rollup_interface::TxHash;
-use tracing::{debug, warn};
+use tracing::debug;
 
-use super::db::StandardSequencerDb;
 use crate::common::{SeqDbTx, SeqDbTxId};
 use crate::{TxStatus, TxStatusManager};
 
-// mempool picks transactions in this order:
-// - next_priority
-// - gas per byte
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct Mempool<Da: DaSpec> {
-    db: StandardSequencerDb,
     max_txs_count: NonZero<usize>,
     txsm: TxStatusManager<Da>,
     // Transaction data
@@ -32,28 +27,14 @@ pub struct Mempool<Da: DaSpec> {
 impl<Da: DaSpec> Mempool<Da> {
     /// Creates a new [`Mempool`] with the given capacity and initializes it
     /// with the given transactions.
-    pub fn new(
-        txsm: TxStatusManager<Da>,
-        max_txs_count: NonZero<usize>,
-        db: StandardSequencerDb,
-    ) -> anyhow::Result<Self> {
-        let txs = db.read_all()?;
-
-        let mut mempool = Self {
-            db,
+    pub fn new(txsm: TxStatusManager<Da>, max_txs_count: NonZero<usize>) -> anyhow::Result<Self> {
+        Ok(Self {
             max_txs_count,
             txsm,
             txs_ordered_by_incremental_id: BTreeMap::new(),
             txs_ordered_by_most_fair_fit: BTreeMap::new(),
             txs_by_hash: HashMap::new(),
-        };
-
-        // Initialize the mempool by restoring state.
-        for tx in txs.into_iter() {
-            mempool.add(Arc::new(tx));
-        }
-
-        Ok(mempool)
+        })
     }
 
     pub fn len(&self) -> usize {
@@ -85,12 +66,6 @@ impl<Da: DaSpec> Mempool<Da> {
         let Some(tx) = self.txs_by_hash.remove(hash) else {
             return;
         };
-
-        if let Err(error) = self.db.remove(*hash) {
-            // I suspect there's nothing more that we can do here other than
-            // complaining.
-            warn!(%error, "Failed to remove transaction from the mempool database");
-        }
 
         let cursor = MempoolCursor::from_db_tx(&tx);
 
@@ -142,10 +117,6 @@ impl<Da: DaSpec> Mempool<Da> {
         self.make_space_for_tx();
 
         let cursor = MempoolCursor::from_db_tx(&tx);
-
-        if let Err(error) = self.db.insert(&tx) {
-            warn!(%error, "Failed to insert transaction into the mempool database");
-        }
 
         self.txs_ordered_by_incremental_id
             .insert(tx.uuid_v7, tx.clone());
