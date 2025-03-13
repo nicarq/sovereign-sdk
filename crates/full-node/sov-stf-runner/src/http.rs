@@ -30,6 +30,7 @@ pub(crate) async fn start_http_server(
         let router = router.nest("/rpc", rpc_router);
         let router = NormalizePathLayer::trim_trailing_slash().layer(router);
 
+        // TODO: Is there a way to have max_connections and other params for axum::serve?
         let result = axum::serve(
             listener,
             ServiceExt::<axum::extract::Request>::into_make_service(router),
@@ -37,6 +38,7 @@ pub(crate) async fn start_http_server(
         .with_graceful_shutdown(async move {
             shutdown_receiver.changed().await.ok();
         })
+        .tcp_nodelay(true)
         .await
         .map_err(|e| anyhow::anyhow!(e));
 
@@ -59,6 +61,9 @@ pub fn rpc_module_to_router(
 ) -> (axum::Router, jsonrpsee::server::ServerHandle) {
     let (stop_handle, server_handle) = jsonrpsee::server::stop_channel();
     let rpc_service = jsonrpsee::server::Server::builder()
+        // TODO: Into condfig
+        .max_connections(10_000)
+        .max_subscriptions_per_connection(100)
         .to_service_builder()
         .build(methods.clone(), stop_handle);
 
