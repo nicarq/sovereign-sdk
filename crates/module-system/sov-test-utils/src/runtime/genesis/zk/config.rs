@@ -91,7 +91,8 @@ impl<S: Spec> HighLevelZkGenesisConfig<S> {
 
         let prover_sequencer = TestUser::generate(
             default_user_stake_value
-                .saturating_mul(Amount::new(2).saturating_add(TEST_DEFAULT_USER_BALANCE)),
+                .saturating_mul(Amount::new(2))
+                .saturating_add(TEST_DEFAULT_USER_BALANCE),
         );
         let sequencer = TestSequencer {
             user_info: prover_sequencer.clone(),
