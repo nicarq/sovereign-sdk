@@ -73,7 +73,7 @@ where
     pub chain_state: sov_chain_state::ChainState<S>,
     /// The Blob storage module.
     pub blob_storage: sov_blob_storage::BlobStorage<S>,
-    /// The Paymaster  module.
+    /// The Paymaster module.
     pub paymaster: sov_paymaster::Paymaster<S>,
     #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.

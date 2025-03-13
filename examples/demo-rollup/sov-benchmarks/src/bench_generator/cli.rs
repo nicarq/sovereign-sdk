@@ -7,7 +7,7 @@ use sov_modules_api::{Amount, CryptoSpec, Spec};
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_test_utils::runtime::access_pattern::AccessPatternGenesisConfig;
+use sov_test_modules::access_pattern::AccessPatternGenesisConfig;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::sov_paymaster::{
     self, PayeePolicy, PayerGenesisConfig, PaymasterConfig, PaymasterPolicyInitializer, SafeVec,

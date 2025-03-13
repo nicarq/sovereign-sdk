@@ -41,8 +41,8 @@ sov-cli = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-modules-api = { workspace = true, features = ["native", "test-utils"] }
 sov-modules-stf-blueprint = { workspace = true, features = [
-	"native",
-	"test-utils",
+    "native",
+    "test-utils",
 ] }
 sov-stf-runner = { workspace = true }
 sov-value-setter = { workspace = true, features = ["native"] }
@@ -60,7 +60,6 @@ sov-capabilities = { workspace = true, features = ["native"] }
 sov-sequencer = { workspace = true, features = ["test-utils"] }
 sov-sequencer-registry = { workspace = true, features = ["native"] }
 sov-chain-state = { workspace = true, features = ["native", "test-utils"] }
-sov-test-modules = { workspace = true, features = ["native"] }
 sov-blob-storage = { workspace = true, features = ["native"] }
 sov-db = { workspace = true }
 sov-state = { workspace = true, features = ["native"] }
@@ -78,19 +77,19 @@ sov-test-utils = { path = ".", features = ["arbitrary"] }
 
 [features]
 arbitrary = [
-	"ethereum-types/arbitrary",
-	"sov-db/arbitrary",
-	"sov-mock-zkvm/arbitrary",
-	"sov-modules-api/arbitrary",
-	"sov-rollup-interface/arbitrary",
-	"sov-sequencer-registry/arbitrary",
-	"sov-state/arbitrary",
-	"rockbound/arbitrary",
-	"sov-address/arbitrary",
-	"sov-accounts/arbitrary",
-	"sov-uniqueness/arbitrary",
-	"sov-mock-da/arbitrary",
-	"sov-bank/arbitrary",
-	"sov-test-utils/arbitrary",
-	"sov-paymaster/arbitrary",
+    "ethereum-types/arbitrary",
+    "sov-db/arbitrary",
+    "sov-mock-zkvm/arbitrary",
+    "sov-modules-api/arbitrary",
+    "sov-rollup-interface/arbitrary",
+    "sov-sequencer-registry/arbitrary",
+    "sov-state/arbitrary",
+    "rockbound/arbitrary",
+    "sov-address/arbitrary",
+    "sov-accounts/arbitrary",
+    "sov-uniqueness/arbitrary",
+    "sov-mock-da/arbitrary",
+    "sov-bank/arbitrary",
+    "sov-test-utils/arbitrary",
+    "sov-paymaster/arbitrary",
 ]
