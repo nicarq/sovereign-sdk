@@ -25,6 +25,7 @@ sov-metrics = { workspace = true, default-features = false }
 sov-mock-da = { workspace = true, features = ["arbitrary", "native"] }
 sov-celestia-adapter = { workspace = true, features = ["arbitrary", "bench", "native"] }
 
+sov-test-modules = { workspace = true, features = ["native"] }
 demo-stf = { workspace = true, features = ["test-utils"] }
 reqwest = { workspace = true, features = ["rustls-tls", "stream"], default-features = false }
 

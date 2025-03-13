@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
-use sov_test_utils::runtime::access_pattern::AccessPatternDiscriminants;
+use sov_test_modules::access_pattern::AccessPatternDiscriminants;
 use sov_test_utils::runtime::sov_bank::CallMessageDiscriminants as BankDiscriminants;
 use sov_test_utils::runtime::sov_value_setter::CallMessageDiscriminants as ValueSetterDiscriminants;
 use sov_transaction_generator::generators::access_pattern::{

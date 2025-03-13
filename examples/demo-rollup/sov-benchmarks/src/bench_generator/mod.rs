@@ -31,7 +31,7 @@ type BenchmarkState<S> = State<S, BasicTag>;
 pub const DEFAULT_RANDOMIZATION_BUFFER_SIZE: u64 = 10_000_000;
 
 /// Maximum amount of attempts to execute arbitrary outcomes.
-pub const MAX_GEN_ATTEMPS: u64 = 10;
+pub const MAX_GEN_ATTEMPTS: u64 = 10;
 
 pub type GeneratedBatch<S> = Vec<GeneratedMessage<S, RuntimeCall<S>, BasicChangeLogEntry<S>>>;
 pub type S = BenchSpec<Risc0>;
@@ -128,7 +128,7 @@ where
         curr_buffer_size: &mut u64,
         curr_seed: &mut u128,
     ) -> Vec<GeneratedBatch<S>> {
-        for _ in 0..MAX_GEN_ATTEMPS {
+        for _ in 0..MAX_GEN_ATTEMPTS {
             // TODO(@theochap): we are regenerating random bytes for every slot. This is under optimal and we
             // may think of a way to optimize this and reuse randomness from the previous slot.
             let random_bytes =
@@ -145,12 +145,13 @@ where
             *curr_buffer_size *= 10;
         }
 
-        panic!("Exceeded the maximum number of generation attemps for single call messages")
+        panic!("Exceeded the maximum number of generation attempts for single call messages")
     }
 
     /// Generate benchmark messages and dump them to a buffer. Start with a [`BenchmarkData::Initialization`]. Then write [`BenchmarkData::Execution`] messages.
     // ## TODO(@theochap):
-    // We should think of storing the hashes of the benchmarks generated, along with useful information for reproductibility to an human-readable file for integrity.
+    // We should think of storing the hashes of the benchmarks generated,
+    // along with useful information for reproducibility to an human-readable file for integrity.
     pub fn generate_and_write_benchmark_messages<W: Write>(
         &self,
         writer: &mut BufWriter<W>,
@@ -218,7 +219,7 @@ mod tests {
     use sov_address::MultiAddress;
     use sov_modules_api::prelude::strum::IntoEnumIterator;
     use sov_modules_api::Address;
-    use sov_test_utils::runtime::access_pattern::AccessPatternGenesisConfig;
+    use sov_test_modules::access_pattern::AccessPatternGenesisConfig;
     use sov_test_utils::runtime::genesis::zk::config::{
         HighLevelZkGenesisConfig, MinimalZkGenesisConfig,
     };
@@ -293,7 +294,7 @@ mod tests {
 
         let mut len = 0;
 
-        // There is only 5 slots to read from but there is also the initialization
+        // There are only 5 slots to read from, but there is also the initialization
         while let Ok(next_slot) = bincode::deserialize_from::<_, BenchmarkData<S>>(&mut reader) {
             match next_slot {
                 BenchmarkData::Execution {

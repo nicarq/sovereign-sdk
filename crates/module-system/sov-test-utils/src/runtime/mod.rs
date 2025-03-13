@@ -42,7 +42,6 @@ use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
-pub use sov_test_modules::*;
 pub use sov_uniqueness::Uniqueness;
 pub use sov_value_setter::{
     CallMessage as ValueSetterCallMessage, Event as ValueSetterEvent, ValueSetter,

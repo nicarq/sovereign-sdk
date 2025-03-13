@@ -1,3 +1,5 @@
+# 2025-03-13
+- #2607 Removes `sov-test-modules`, which was accidentally exposed via `sov-test-utils`.
 # 2025-03-11
 - #2600 removes database persistence for the `StandardSequencer`. Please use the `PreferredSequencer` instead if you need persistence, or reach out to the team if you have a need for it.
 
