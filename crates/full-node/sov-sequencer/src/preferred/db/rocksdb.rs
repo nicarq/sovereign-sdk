@@ -188,6 +188,9 @@ impl RocksDbBackend {
 
                 for item_res in iter {
                     let item = item_res?;
+                    if item.key.0 != sequence_number {
+                        break;
+                    }
                     let (tx_hash, tx) = item.value;
                     txs.push(tx);
                     tx_hashes.push(tx_hash);
