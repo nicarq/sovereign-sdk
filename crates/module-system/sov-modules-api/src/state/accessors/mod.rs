@@ -15,6 +15,7 @@ mod tests;
 #[cfg(any(feature = "test-utils", feature = "evm"))]
 mod unmetered_state_wrapper;
 
+pub use temp_cache::TempCache;
 #[cfg(any(feature = "test-utils", feature = "evm"))]
 pub use unmetered_state_wrapper::UnmeteredStateWrapper;
 
@@ -27,6 +28,7 @@ pub use http_api::{ApiStateAccessor, ApiStateAccessorError};
 mod scratchpad;
 
 mod kernel;
+mod temp_cache;
 
 #[cfg(feature = "native")]
 pub use checkpoints::native::AccessoryStateCheckpoint;
@@ -35,8 +37,10 @@ pub use genesis::GenesisStateAccessor;
 pub use internals::AccessoryDelta;
 pub use kernel::{BootstrapWorkingSet, KernelStateAccessor};
 pub use scratchpad::{PreExecWorkingSet, TxChangeSet, TxScratchpad, WorkingSet};
+pub use temp_cache::BorshSerializedSize;
 
 use self::seal::UniversalStateAccessor;
+use super::traits::PerBlockCache;
 use super::{StateReaderAndWriter, VersionReader};
 use crate::Spec;
 
@@ -69,6 +73,7 @@ pub trait StateProvider<S: Spec>:
     + StateReaderAndWriter<sov_state::User>
     + StateReaderAndWriter<sov_state::Kernel>
     + VersionReader
+    + PerBlockCache
 {
     /// Transforms this [`StateProvider`] into a [`TxScratchpad`].
     fn to_tx_scratchpad(self) -> TxScratchpad<S, Self>;

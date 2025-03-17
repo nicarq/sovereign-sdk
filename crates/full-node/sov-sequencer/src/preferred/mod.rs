@@ -75,7 +75,7 @@ where
     #[tracing::instrument(skip_all, level = "trace")]
     async fn update_api_state(&self) {
         self.checkpoint_sender.send(
-            self.block_executor.state().checkpoint_ref().clone_with_empty_witness()
+            self.block_executor.state().checkpoint_ref().clone_with_empty_witness_dropping_temp_cache()
         ).expect("sending the checkpoint should never fail because one receiver is always present; this is a bug, please report it");
     }
 

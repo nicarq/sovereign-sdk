@@ -322,7 +322,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             let sequencer_rollup_address = self.config.rollup_address.clone();
             let admin_addresses = Arc::new(self.config.admin_addresses.clone());
             let shutdown_notifier = self.shutdown_notifier.clone();
-            let mut checkpoint = checkpoint.clone_with_empty_witness();
+            let mut checkpoint = checkpoint.clone_with_empty_witness_dropping_temp_cache();
             let old_rollup_height = checkpoint.rollup_height_to_access();
 
             move || {

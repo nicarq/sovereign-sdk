@@ -2,9 +2,11 @@ use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{EventContainer, IsValueCached, SlotKey, SlotValue};
 
 use super::checkpoints::StateCheckpoint;
+use super::temp_cache::{BorshSerializedSize, CacheLookup, TempCache};
 use super::UniversalStateAccessor;
 use crate::capabilities::RollupHeight;
 use crate::state::events::TypedEvent;
+use crate::state::traits::PerBlockCache;
 use crate::{GasMeter, Genesis, PrivilegedKernelAccessor, Spec, VersionReader};
 
 /// A special state accessor which can only be used at genesis.
@@ -12,6 +14,7 @@ use crate::{GasMeter, Genesis, PrivilegedKernelAccessor, Spec, VersionReader};
 pub struct GenesisStateAccessor<'a, S: Spec> {
     checkpoint: &'a mut StateCheckpoint<S>,
     pub(super) events: Vec<TypedEvent>,
+    pub(super) cache: TempCache,
 }
 
 impl<S: Spec> StateCheckpoint<S> {
@@ -24,6 +27,7 @@ impl<S: Spec> StateCheckpoint<S> {
         GenesisStateAccessor {
             checkpoint: self,
             events: Vec::default(),
+            cache: TempCache::new(),
         }
     }
 }
@@ -105,3 +109,24 @@ impl<'a, S: Spec> EventContainer for GenesisStateAccessor<'a, S> {
 
 use crate::GenesisState;
 impl<'a, S: Spec> GenesisState<S> for GenesisStateAccessor<'a, S> {}
+
+impl<'a, S: Spec> PerBlockCache for GenesisStateAccessor<'a, S> {
+    fn put_cached<T: 'static + Send + Sync + BorshSerializedSize>(&mut self, value: T) {
+        self.cache.set(value);
+    }
+    fn get_cached<T: 'static + Send + Sync>(&self) -> Option<&T> {
+        if let CacheLookup::Hit(value) = self.cache.get::<T>() {
+            value
+        } else {
+            None
+        }
+    }
+    fn delete_cached<T: 'static + Send + Sync>(&mut self) {
+        self.cache.delete::<T>();
+    }
+
+    fn update_cache_with(&mut self, other: TempCache) {
+        self.cache.update_with(other);
+        self.cache.prune(); // Since there's no other cache under the Genesis state, we can prune `None` entries
+    }
+}

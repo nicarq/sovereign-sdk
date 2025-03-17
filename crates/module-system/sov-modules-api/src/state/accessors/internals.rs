@@ -8,7 +8,9 @@ use sov_state::{
 };
 
 use super::checkpoints::ChangeSet;
+use super::temp_cache::{CacheLookup, TempCache};
 use super::UniversalStateAccessor;
+use crate::state::traits::PerBlockCache;
 
 /// A [`Delta`] is a diff over an underlying [`Storage`] instance. When queried, it first checks
 /// whether the value is in its local cache and, if so, returns it. Otherwise, it queries the
@@ -30,6 +32,7 @@ pub(super) struct Delta<S: Storage> {
 }
 
 impl<S: Storage> Delta<S> {
+    #[cfg(feature = "native")]
     pub(super) fn clone_with_empty_witness(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -237,6 +240,7 @@ impl<S: Storage> UniversalStateAccessor for AccessoryDelta<S> {
 pub(super) struct RevertableWriter<T> {
     pub(super) inner: T,
     writes: HashMap<(SlotKey, Namespace), Option<SlotValue>>,
+    pub(crate) cache_writes: TempCache,
 }
 
 impl<T: fmt::Debug> fmt::Debug for RevertableWriter<T> {
@@ -252,6 +256,7 @@ impl<T> RevertableWriter<T> {
         Self {
             inner,
             writes: HashMap::default(),
+            cache_writes: TempCache::new(),
         }
     }
 
@@ -268,11 +273,13 @@ impl<T> RevertableWriter<T> {
     /// Commit all items from [`RevertableWriter`] returning the inner storage.
     pub(super) fn commit(mut self) -> T
     where
-        T: UniversalStateAccessor,
+        T: UniversalStateAccessor + PerBlockCache,
     {
         for ((key, namespace), value) in self.writes {
             Self::commit_entry(&mut self.inner, namespace, &key, value);
         }
+
+        self.inner.update_cache_with(self.cache_writes);
 
         self.inner
     }
@@ -327,5 +334,18 @@ where
 
     fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) {
         self.writes.insert((key.clone(), namespace), None);
+    }
+}
+
+impl<C> RevertableWriter<C>
+where
+    C: PerBlockCache,
+{
+    pub(crate) fn get_cached<T: 'static + Send + Sync>(&self) -> Option<&T> {
+        if let CacheLookup::Hit(value) = self.cache_writes.get::<T>() {
+            value
+        } else {
+            self.inner.get_cached::<T>()
+        }
     }
 }

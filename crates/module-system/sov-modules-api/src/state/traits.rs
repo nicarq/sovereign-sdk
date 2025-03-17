@@ -13,6 +13,7 @@ use sov_state::{
 use thiserror::Error;
 
 use super::accessors::seal::UniversalStateAccessor;
+use super::accessors::{BorshSerializedSize, TempCache};
 use crate::capabilities::RollupHeight;
 #[cfg(any(feature = "test-utils", feature = "evm"))]
 use crate::UnmeteredStateWrapper;
@@ -91,6 +92,7 @@ pub trait TxState<S: Spec>:
     + StateWriter<Accessory, Error = Infallible>
     + VersionReader
     + EventContainer
+    + PerBlockCache
     + GasMeter<Spec = S>
 {
 }
@@ -103,8 +105,27 @@ impl<S: Spec, T> TxState<S> for T where
         + StateWriter<Accessory, Error = Infallible>
         + VersionReader
         + EventContainer
+        + PerBlockCache
         + GasMeter<Spec = S>
 {
+}
+
+/// A cache that persists items *without serializing them*. Items persist for at most the duration of the block.
+///
+/// Note that values may be evicted from the cache at any time based on memory pressure, even if the end of the block has not yet been reached.
+pub trait PerBlockCache {
+    /// Gets a value from the cache. This API returns &T because mutating the type would invalidate the revert
+    /// guarantees provided by the SDK. Be extremely careful when using interior mutability for objects stored in the cache -
+    /// any changes made to the object may not revert on transaction failure, causing possible cache corruption.
+    fn get_cached<T: 'static + Send + Sync>(&self) -> Option<&T>;
+    /// Puts a value in the cache. Note that values are required to provide an esimate of their size via the
+    /// [`BorshSerializedSize`] trait.
+    fn put_cached<T: 'static + Send + Sync + BorshSerializedSize>(&mut self, value: T);
+    /// Deletes a value from the cache.
+    fn delete_cached<T: 'static + Send + Sync>(&mut self);
+
+    /// Adds all writes from another cache to this one.
+    fn update_cache_with(&mut self, other: TempCache);
 }
 
 /// The state accessor used during genesis. It provides unrestricted
