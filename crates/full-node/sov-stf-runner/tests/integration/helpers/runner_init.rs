@@ -377,7 +377,6 @@ pub fn rollup_config_with_da<Da: DaService<Config = MockDaConfig>>(
         },
         sequencer: SequencerConfig {
             automatic_batch_production: true,
-            max_allowed_blocks_behind: 5,
             // Set ttl to zero to disable for testing. This prevents nondeterminism.
             dropped_tx_ttl_secs: 0,
             admin_addresses: vec![],

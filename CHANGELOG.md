@@ -1,3 +1,6 @@
+# 2025-03-17
+- #2615 Removes `max_allowed_blocks_behind` field from sequencer config, it was unused, simply remove this value from your configuration.
+
 # 2025-03-13
 - #2607 Removes `sov-test-modules`, which was accidentally exposed via `sov-test-utils`.
 # 2025-03-11

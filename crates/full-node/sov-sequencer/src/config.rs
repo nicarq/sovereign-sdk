@@ -33,9 +33,6 @@ pub struct SequencerConfig<Da: DaSpec, Address, Sc = SequencerKindConfig> {
     /// batch production endpoint has to be called explicitly.
     #[serde(default = "default_automatic_batch_production")]
     pub automatic_batch_production: bool,
-    /// The sequencer won't process incoming requests unless the node is within
-    /// this many blocks behind the DA chain head.
-    pub max_allowed_blocks_behind: u64,
     /// For how many seconds the sequencer keeps track of dropped transactions
     /// after being done with them.
     ///
@@ -70,7 +67,6 @@ impl<Da: DaSpec, Addr: Clone, BbConfig> SequencerConfig<Da, Addr, BbConfig> {
             dropped_tx_ttl_secs: self.dropped_tx_ttl_secs,
             da_address: self.da_address.clone(),
             rollup_address: self.rollup_address.clone(),
-            max_allowed_blocks_behind: self.max_allowed_blocks_behind,
             admin_addresses: self.admin_addresses.clone(),
             sequencer_kind_config: seq_config,
         }
