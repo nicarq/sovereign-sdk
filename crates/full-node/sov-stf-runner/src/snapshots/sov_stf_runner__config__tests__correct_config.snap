@@ -36,7 +36,6 @@ expression: config
   },
   "sequencer": {
     "automatic_batch_production": true,
-    "max_allowed_blocks_behind": 5,
     "dropped_tx_ttl_secs": 60,
     "da_address": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
     "rollup_address": "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf",
