@@ -188,6 +188,8 @@ pub enum SlotInput<RT: Runtime<S>, S: Spec> {
     Transaction(TransactionType<RT, S>),
     /// Execute a batch as input to a slot.
     Batch(BatchType<RT, S>),
+    /// Execute a batch as input to a slot.
+    Batches(Vec<BatchType<RT, S>>),
     /// Execute a proof as input to a slot.
     Proof(ProofInput),
     /// Execute pre-encoded blobs as input to a slot.

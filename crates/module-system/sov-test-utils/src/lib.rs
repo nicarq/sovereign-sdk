@@ -90,10 +90,10 @@ pub const TEST_DEFAULT_MAX_FEE: Amount = Amount::new(100_000_000_000);
 pub const TEST_DEFAULT_GAS_LIMIT: [u64; 2] = [1_000_000_000, 1_000_000_000];
 /// The default amount of tokens that should be staked by a user (prover, sequencer, etc.). This value is roughly equal to the
 /// max fee for a transaction because sequencers need to pre-emptively pay for all transactions' pre-execution checks using their stake.
-pub const TEST_DEFAULT_USER_STAKE: [u64; 2] = [10_000_000_000, 10_000_000_000];
+pub const TEST_DEFAULT_USER_STAKE: [u64; 2] = [100_000_000_000, 100_000_000_000];
 /// The default amount of tokens that should be in the user's bank account. This amount should always be higher than [`TEST_DEFAULT_MAX_FEE`] and
 /// [`TEST_DEFAULT_USER_STAKE`]. This value is set so that the user can send a dozen transactions without having to refill its bank account.
-pub const TEST_DEFAULT_USER_BALANCE: Amount = Amount::new(1_000_000_000_000);
+pub const TEST_DEFAULT_USER_BALANCE: Amount = Amount::new(1_000_000_000_000_000);
 /// The default max priority fee to set for a transaction. We are setting this value to zero to avoid having to do
 /// priority fee accounting in the tests. If a test needs to test sequencer rewards, it should set the transaction priority fee
 /// to a non-zero value.

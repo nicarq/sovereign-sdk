@@ -7,10 +7,12 @@ use sov_state::{EventContainer, IsValueCached, Namespace, SlotKey, SlotValue};
 
 use super::checkpoints::StateCheckpoint;
 use super::internals::RevertableWriter;
-use super::{ChangeSet, StateProvider, UniversalStateAccessor};
+use super::temp_cache::TempCache;
+use super::{BorshSerializedSize, ChangeSet, StateProvider, UniversalStateAccessor};
 use crate::capabilities::RollupHeight;
 use crate::module::Spec;
 use crate::state::events::TypedEvent;
+use crate::state::traits::PerBlockCache;
 use crate::transaction::{
     transaction_consumption_helper, AuthenticatedTransactionData, PriorityFeeBips,
     TransactionConsumption,
@@ -114,6 +116,24 @@ impl<S: Spec, I: StateProvider<S>> VersionReader for TxScratchpad<S, I> {
 
     fn max_allowed_slot_number_to_access(&self) -> SlotNumber {
         self.inner.inner.max_allowed_slot_number_to_access()
+    }
+}
+
+impl<S: Spec, I: StateProvider<S>> PerBlockCache for TxScratchpad<S, I> {
+    fn get_cached<T: 'static + Send + Sync>(&self) -> Option<&T> {
+        self.inner.get_cached::<T>()
+    }
+
+    fn put_cached<T: 'static + Send + Sync + BorshSerializedSize>(&mut self, value: T) {
+        self.inner.cache_writes.set(value);
+    }
+
+    fn delete_cached<T: 'static + Send + Sync>(&mut self) {
+        self.inner.cache_writes.delete::<T>();
+    }
+
+    fn update_cache_with(&mut self, other: TempCache) {
+        self.inner.cache_writes.update_with(other);
     }
 }
 
@@ -459,6 +479,24 @@ impl<S: Spec, I: StateProvider<S>> VersionReader for WorkingSet<S, I> {
 
     fn max_allowed_slot_number_to_access(&self) -> SlotNumber {
         self.delta.inner.max_allowed_slot_number_to_access()
+    }
+}
+
+impl<S: Spec, I: StateProvider<S>> PerBlockCache for WorkingSet<S, I> {
+    fn get_cached<T: 'static + Send + Sync>(&self) -> Option<&T> {
+        self.delta.get_cached::<T>()
+    }
+
+    fn put_cached<T: 'static + Send + Sync + BorshSerializedSize>(&mut self, value: T) {
+        self.delta.cache_writes.set(value);
+    }
+
+    fn delete_cached<T: 'static + Send + Sync>(&mut self) {
+        self.delta.cache_writes.delete::<T>();
+    }
+
+    fn update_cache_with(&mut self, other: TempCache) {
+        self.delta.cache_writes.update_with(other);
     }
 }
 

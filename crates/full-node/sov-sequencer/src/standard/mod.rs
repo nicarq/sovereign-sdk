@@ -504,7 +504,7 @@ where
         {
             let mut inner = self.inner.lock().await;
             self.checkpoint_sender
-                .send(checkpoint.clone_with_empty_witness())
+                .send(checkpoint.clone_with_empty_witness_dropping_temp_cache())
                 .ok();
             inner.checkpoint = Some(checkpoint);
         }

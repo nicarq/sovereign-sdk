@@ -8,8 +8,9 @@ mod tests;
 #[cfg(any(feature = "test-utils", feature = "evm"))]
 pub use accessors::UnmeteredStateWrapper;
 pub use accessors::{
-    AccessoryDelta, BootstrapWorkingSet, ChangeSet, GenesisStateAccessor, KernelStateAccessor,
-    PreExecWorkingSet, StateCheckpoint, StateProvider, TxChangeSet, TxScratchpad, WorkingSet,
+    AccessoryDelta, BootstrapWorkingSet, BorshSerializedSize, ChangeSet, GenesisStateAccessor,
+    KernelStateAccessor, PreExecWorkingSet, StateCheckpoint, StateProvider, TxChangeSet,
+    TxScratchpad, WorkingSet,
 };
 #[cfg(feature = "native")]
 pub use accessors::{AccessoryStateCheckpoint, ApiStateAccessor, ApiStateAccessorError};
@@ -21,8 +22,9 @@ pub use traits::ProvenStateAccessor;
 pub use traits::{
     AccessoryStateReader, AccessoryStateReaderAndWriter, AccessoryStateWriter, GenesisState,
     InfallibleKernelStateAccessor, InfallibleStateAccessor, InfallibleStateReaderAndWriter,
-    PrivilegedKernelAccessor, ProvableStateReader, ProvableStateWriter, StateAccessor,
-    StateAccessorError, StateReader, StateReaderAndWriter, StateWriter, TxState, VersionReader,
+    PerBlockCache, PrivilegedKernelAccessor, ProvableStateReader, ProvableStateWriter,
+    StateAccessor, StateAccessorError, StateReader, StateReaderAndWriter, StateWriter, TxState,
+    VersionReader,
 };
 
 #[cfg(feature = "native")]

@@ -7,9 +7,11 @@ use sov_state::{
     ProvableStorageCache, SlotKey, SlotValue, Storage,
 };
 
-use super::{StateCheckpoint, UniversalStateAccessor};
+use super::temp_cache::{CacheLookup, TempCache};
+use super::{BorshSerializedSize, StateCheckpoint, UniversalStateAccessor};
 use crate::capabilities::{KernelWithSlotMapping, RollupHeight};
 use crate::gas::GasArray;
+use crate::state::traits::PerBlockCache;
 use crate::{Gas, GasMeter, GetGasPrice, Spec, TypedEvent, VersionReader};
 
 fn get_slot_number(visible_slot_number: Option<VisibleSlotNumber>) -> Option<SlotNumber> {
@@ -139,6 +141,7 @@ pub struct ApiStateAccessor<S: Spec> {
     kernel_cache: ProvableStorageCache<namespaces::Kernel>,
     user_cache: ProvableStorageCache<namespaces::User>,
     accessory_writes: HashMap<SlotKey, Option<SlotValue>>,
+    temp_cache: TempCache,
     #[debug(skip)]
     kernel: Arc<dyn KernelWithSlotMapping<S>>,
     // The state requested by the user - either a `RollupHeight` or a `SlotNumber`
@@ -157,6 +160,28 @@ pub struct ApiStateAccessor<S: Spec> {
     // Then a safe true slot number to use for user/accessory queries with rollup height 4 is 7, 8, 9, or 10 since all of these numbers
     // will cause any state *before* 4 to be visible. (Assume that the state checkpoint the accessor is based on contains all the state *of* 4 in memory)
     safe_true_slot_number_to_use: Option<SlotNumber>,
+}
+
+impl<S: Spec> PerBlockCache for ApiStateAccessor<S> {
+    fn get_cached<T: 'static + Send + Sync>(&self) -> Option<&T> {
+        if let CacheLookup::Hit(v) = self.temp_cache.get::<T>() {
+            v
+        } else {
+            None
+        }
+    }
+
+    fn put_cached<T: 'static + Send + Sync + BorshSerializedSize>(&mut self, value: T) {
+        self.temp_cache.set(value);
+    }
+
+    fn delete_cached<T: 'static + Send + Sync>(&mut self) {
+        self.temp_cache.delete::<T>();
+    }
+
+    fn update_cache_with(&mut self, other: TempCache) {
+        self.temp_cache.update_with(other);
+    }
 }
 
 #[cfg(feature = "native")]
@@ -324,6 +349,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
             witness: Default::default(),
             gas_price,
             events: Vec::new(),
+            temp_cache: TempCache::new(),
             kernel_cache: delta.kernel_cache.clone(),
             user_cache: delta.user_cache.clone(),
             accessory_writes: delta.accessory_writes.clone(),
@@ -363,6 +389,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
             kernel_cache: Default::default(),
             user_cache: Default::default(),
             accessory_writes: HashMap::new(),
+            temp_cache: TempCache::new(),
             kernel: kernel.clone(),
             state_to_access,
             safe_true_slot_number_to_use: None,

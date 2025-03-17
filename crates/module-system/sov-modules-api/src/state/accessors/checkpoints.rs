@@ -3,10 +3,11 @@ use sov_state::{IsValueCached, Namespace, SlotKey, SlotValue, StateAccesses, Sto
 use tracing::trace;
 
 use super::internals::{AccessoryDelta, Delta};
-use super::{BootstrapWorkingSet, UniversalStateAccessor};
+use super::temp_cache::{CacheLookup, TempCache};
+use super::{BootstrapWorkingSet, BorshSerializedSize, UniversalStateAccessor};
 use crate::capabilities::{Kernel, RollupHeight};
+use crate::state::traits::PerBlockCache;
 use crate::{GasMeter, Spec, VersionReader};
-
 /// This structure is responsible for storing the `read-write` set.
 ///
 /// A [`StateCheckpoint`] can be obtained from a [`crate::WorkingSet`] in two ways:
@@ -19,6 +20,7 @@ pub struct StateCheckpoint<S: Spec> {
     /// The rollup height visible to user-space modules
     pub(super) visible_slot_num: VisibleSlotNumber,
     pub(super) rollup_height: RollupHeight,
+    pub(super) cache: TempCache,
 }
 
 #[derive(Debug)]
@@ -37,19 +39,21 @@ impl ChangeSet {
 }
 
 impl<S: Spec> StateCheckpoint<S> {
-    /// Deep copy the state checkpoint (including its caches), ignoring
-    /// the witness.
+    /// Deep copy the state checkpoint (including its state caches), ignoring
+    /// the witness and the temp cache.
     ///
     /// Since this method leaves the witness of the new
     /// checkpoint in a state that is inconsistent with its caches,
     /// it should only be used in situations where the witness is not needed,
     /// such as in the API accessors.
     #[must_use]
-    pub fn clone_with_empty_witness(&self) -> Self {
+    #[cfg(feature = "native")]
+    pub fn clone_with_empty_witness_dropping_temp_cache(&self) -> Self {
         Self {
             delta: self.delta.clone_with_empty_witness(),
             visible_slot_num: self.visible_slot_num,
             rollup_height: self.rollup_height,
+            cache: TempCache::new(),
         }
     }
 
@@ -76,6 +80,7 @@ impl<S: Spec> StateCheckpoint<S> {
             delta,
             visible_slot_num,
             rollup_height,
+            cache: TempCache::new(),
         }
     }
 
@@ -241,4 +246,27 @@ pub mod native {
 
 impl<S: Spec> GasMeter for StateCheckpoint<S> {
     type Spec = S;
+}
+
+impl<S: Spec> PerBlockCache for StateCheckpoint<S> {
+    fn get_cached<T: 'static + Send + Sync>(&self) -> Option<&T> {
+        if let CacheLookup::Hit(value) = self.cache.get::<T>() {
+            value
+        } else {
+            None
+        }
+    }
+
+    fn put_cached<T: 'static + Send + Sync + BorshSerializedSize>(&mut self, value: T) {
+        self.cache.set(value);
+    }
+
+    fn delete_cached<T: 'static + Send + Sync>(&mut self) {
+        self.cache.delete::<T>();
+    }
+
+    fn update_cache_with(&mut self, other: TempCache) {
+        self.cache.update_with(other);
+        self.cache.prune();
+    }
 }

@@ -599,6 +599,13 @@ where
         let (mut blobs, blob_info) = match slot_input {
             SlotInput::Transaction(tx) => Self::txs_to_blobs(vec![tx], sequencer, &mut nonces),
             SlotInput::Batch(batch) => Self::txs_to_blobs(batch.0, sequencer, &mut nonces),
+            SlotInput::Batches(batches) => {
+                let batches = batches
+                    .into_iter()
+                    .map(|batch| (batch, sequencer))
+                    .collect();
+                Self::batches_to_blobs(batches, &mut nonces)
+            }
             SlotInput::Proof(proof) => {
                 let blob = MockBlob::new_with_hash(proof.0, sequencer);
                 let blobs = RelevantBlobs {
