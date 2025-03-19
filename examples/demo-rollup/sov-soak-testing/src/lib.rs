@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use sov_address::MultiAddressEvm;
 use sov_bank::Bank;
 use sov_celestia_adapter::verifier::CelestiaSpec;
-use sov_mock_da::BlockProducingConfig;
+use sov_mock_da::{BlockProducingConfig, MockDaSpec};
 use sov_mock_zkvm::{MockZkvm, MockZkvmCryptoSpec};
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::configurable_spec::ConfigurableSpec;
@@ -50,12 +50,18 @@ generate_runtime! {
 }
 
 pub type TestRT = TestRuntime<TestSpec>;
+pub type RollupBlueprint = RtAgnosticBlueprint<TestSpec, TestRT>;
+pub type TestRollupBuilder = RollupBuilder<RollupBlueprint, PathBuf>;
+
+// Celestia
 pub type CelestiaRollupSpec =
     ConfigurableSpec<CelestiaSpec, MockZkvm, MockZkvm, MockZkvmCryptoSpec, MultiAddressEvm, Native>;
 pub type DemoCelestiaRT = demo_stf::runtime::Runtime<CelestiaRollupSpec>;
 
-pub type RollupBlueprint = RtAgnosticBlueprint<TestSpec, TestRT>;
-pub type TestRollupBuilder = RollupBuilder<RollupBlueprint, PathBuf>;
+// Mock
+pub type MockDemoRollupSpec =
+    ConfigurableSpec<MockDaSpec, MockZkvm, MockZkvm, MockZkvmCryptoSpec, MultiAddressEvm, Native>;
+pub type DemoMockRT = demo_stf::runtime::Runtime<MockDemoRollupSpec>;
 
 pub const BUFFER_SIZE: usize = 100_000;
 // The minimum randomness needed to guarantee successful transaction generation

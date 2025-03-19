@@ -305,6 +305,9 @@ pub struct SlotProcessingMetrics {
 
     /// [`sov_rollup_interface::stf::ExecutionContext`]
     pub execution_context: sov_rollup_interface::stf::ExecutionContext,
+
+    /// Gas used during slot processing, expressed in gas units
+    pub gas_used: Vec<u64>,
 }
 
 /// Metrics related to processing of a single slot.
@@ -324,6 +327,9 @@ pub struct UserSpaceSlotProcessingMetrics {
 
     /// [`sov_rollup_interface::stf::ExecutionContext`]
     pub execution_context: sov_rollup_interface::stf::ExecutionContext,
+
+    /// Gas used during slot processing, expressed in gas units
+    pub gas_used: Vec<u64>,
 }
 
 impl Metric for RunnerDaMetrics {
@@ -405,7 +411,15 @@ impl Metric for SlotProcessingMetrics {
             self.slot_finalization_time.as_micros(),
             self.visible_slot_number,
             self.da_height,
-        )
+        )?;
+        if self.gas_used.len() >= 2 {
+            write!(
+                buffer,
+                ",gas_used_compute={},gas_used_mem={}",
+                self.gas_used[0], self.gas_used[1],
+            )?;
+        }
+        Ok(())
     }
 }
 
@@ -423,7 +437,15 @@ impl Metric for UserSpaceSlotProcessingMetrics {
             self.blobs_processing_time.as_micros(),
             self.end_block_hook_time.as_micros(),
             self.visible_slot_number,
-        )
+        )?;
+        if self.gas_used.len() >= 2 {
+            write!(
+                buffer,
+                ",gas_used_compute={},gas_used_mem={}",
+                self.gas_used[0], self.gas_used[1],
+            )?;
+        }
+        Ok(())
     }
 }
 
