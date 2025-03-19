@@ -80,6 +80,7 @@ where
         visible_slot_number,
         sequencer_da_address,
         discriminant,
+        &result.2,
     );
 
     result
@@ -93,12 +94,15 @@ fn track_transaction_metrics<S: Spec>(
     visible_slot_number: sov_rollup_interface::common::VisibleSlotNumber,
     sequencer_address: &<S::Da as DaSpec>::Address,
     message_discriminant: String,
+    basic_gas_meter: &BasicGasMeter<S>,
 ) {
     sov_metrics::track_metrics(|metrics_tracker| {
         let tx_effect = match result {
             Ok(tx_result) => sov_metrics::TransactionEffect::from(&tx_result.receipt.receipt),
             Err(_) => sov_metrics::TransactionEffect::Skipped,
         };
+
+        let gas_used = basic_gas_meter.gas_info().gas_used;
 
         let transaction_metrics = sov_metrics::TransactionProcessingMetrics {
             execution_time,
@@ -107,6 +111,7 @@ fn track_transaction_metrics<S: Spec>(
             visible_slot_number,
             sequencer_address: sequencer_address.to_string(),
             call_message: message_discriminant,
+            gas_used: gas_used.as_ref().to_vec(),
         };
 
         metrics_tracker.track_transaction_processing(transaction_metrics);
