@@ -285,6 +285,8 @@ pub struct TransactionProcessingMetrics {
     pub sequencer_address: String,
     /// Call message
     pub call_message: String,
+    /// Gas used by given transaction expressed in gas units
+    pub gas_used: Vec<u64>,
 }
 
 /// Metrics related to processing of a single slot.
@@ -393,7 +395,16 @@ impl Metric for TransactionProcessingMetrics {
                //fields
                self.execution_time.as_micros(),
                self.visible_slot_number,
-        )
+        )?;
+        if self.gas_used.len() >= 2 {
+            write!(
+                buffer,
+                ",gas_used_compute={},gas_used_mem={}",
+                self.gas_used[0], self.gas_used[1],
+            )?;
+        }
+
+        Ok(())
     }
 }
 
