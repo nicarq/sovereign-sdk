@@ -90,8 +90,8 @@ pub enum TxProcessingError {
     /// Rejected by a pre-flight check.
     #[error("The transaction was rejected by a pre-flight check.")]
     RejectedByPreFlight,
-    /// Failed to mark trasnaction.
-    #[error("Failed to mark trasnaction, reason: {0}.")]
+    /// Failed to mark transaction.
+    #[error("Failed to mark transaction, reason: {0}.")]
     MarkTxAttemptedFailed(String),
     /// The transaction ran out of gas
     #[error("The transaction ran out of gas, reason: {0}.")]
@@ -522,6 +522,7 @@ where
                         da_height: slot_header.height(),
                         execution_context,
                         visible_slot_number,
+                        gas_used: total_gas.as_ref().to_vec(),
                     });
                 });
                 (state_root, witness, change_set)
@@ -568,7 +569,7 @@ where
     /// Batches can inject control flow, which will be respected by the runner.
     ///
     /// ## DOS and Censorship Resistance
-    /// TResponsibility for censorship resistance
+    /// Responsibility for censorship resistance
     /// and DOS protection is *shared* between the blob selector and this method. The blob selector is responsible
     /// for ensuring that the costs of deserializing and (if applicable) storing *blobs* is paid for by someone,
     /// and for ensuring some level of fairness in selection of blobs to pass to the rollup. Specifically, the blob selector
@@ -764,6 +765,7 @@ where
         save_elapsed!(end_block_hook_time SINCE end_slot_hooks_start);
         #[cfg(feature = "native")]
         {
+            let total_gas = slot_gas_meter.total_gas_used().as_ref().to_vec();
             sov_metrics::track_metrics(|tracker| {
                 tracker.track_user_space_slot_processing(
                     sov_metrics::UserSpaceSlotProcessingMetrics {
@@ -772,6 +774,7 @@ where
                         visible_slot_number: state.current_visible_slot_number(),
                         execution_context,
                         end_block_hook_time,
+                        gas_used: total_gas,
                     },
                 );
             });

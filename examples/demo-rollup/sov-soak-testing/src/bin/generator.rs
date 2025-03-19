@@ -11,8 +11,8 @@ use sov_modules_api::prelude::arbitrary::Unstructured;
 use sov_modules_api::prelude::tracing;
 use sov_modules_api::{CryptoSpec, EncodeCall, Runtime, Spec};
 use sov_soak_testing::{
-    plain_tx_with_default_details, setup_harness, CelestiaRollupSpec, DemoCelestiaRT,
-    TestGenerator, TestRT,
+    plain_tx_with_default_details, setup_harness, CelestiaRollupSpec, DemoCelestiaRT, DemoMockRT,
+    MockDemoRollupSpec, TestGenerator, TestRT,
 };
 use sov_test_utils::{TestSpec, TransactionType};
 use sov_transaction_generator::generators::bank::harness_interface::BankHarness;
@@ -30,6 +30,8 @@ enum SelectedRuntime {
     Test,
     /// demo-stf with Celestia DA
     DemoCelestia,
+    /// demo-stf with Mock DA
+    DemoMock,
 }
 
 #[derive(Parser)]
@@ -70,6 +72,10 @@ async fn worker_task(
                 num_workers,
             )
             .await
+        }
+        SelectedRuntime::DemoMock => {
+            worker_task_inner::<DemoMockRT, MockDemoRollupSpec>(client, rx, worker_id, num_workers)
+                .await
         }
     };
 
