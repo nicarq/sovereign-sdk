@@ -562,6 +562,7 @@ where
         let tx_hash = receipt.tx_hash;
         let conf = confirmation(receipt, inner.next_event_number).unwrap();
 
+        let mut events = Vec::new();
         for event in &conf.events {
             self.events_sender
                 .send(SequencerEvent {
@@ -569,9 +570,11 @@ where
                     event: event.clone(),
                 })
                 .ok();
+            if tracing::enabled!(tracing::Level::TRACE) {
+                events.push(event.clone());
+            }
         }
-
-        trace!(events_len, "Transaction was accepted by the sequencer");
+        tracing::trace!(tx_hash = %tx_hash, events = ?events, "Transaction was accepted by the sequencer");
 
         inner.update_api_state().await; // TODO: we only want to do this when updated state from node?
 
