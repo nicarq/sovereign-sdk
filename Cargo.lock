@@ -10776,6 +10776,7 @@ dependencies = [
  "demo-stf",
  "derivative",
  "rand",
+ "reqwest 0.12.9",
  "schemars",
  "serde",
  "sov-address",

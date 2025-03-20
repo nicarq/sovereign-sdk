@@ -142,7 +142,7 @@ async fn worker_task_inner<R: Runtime<S> + EncodeCall<Bank<S>> + Clone, S: Spec>
 
         let start = std::time::Instant::now();
         tokio::time::timeout(
-            Duration::from_secs(txns.len().try_into().unwrap()),
+            Duration::from_secs((txns.len() as u64) * 100),
             client.send_txs_to_sequencer(&txns),
         )
         .await??;
@@ -159,7 +159,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let _guard = sov_modules_rollup_blueprint::logging::initialize_logging();
     let mut worker_set = JoinSet::new();
     let (tx, rx) = tokio::sync::watch::channel(false);
-    let client = Client::new(&args.api_url);
+    let reqwest_client = reqwest::ClientBuilder::new()
+        .timeout(Duration::from_secs(600))
+        .connect_timeout(Duration::from_secs(60))
+        .read_timeout(Duration::from_secs(120))
+        .build()?;
+    let client = Client::new_with_client(&args.api_url, reqwest_client);
 
     for i in 0..args.num_workers {
         worker_set.spawn(worker_task(
