@@ -11,7 +11,7 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::{StfBlueprint, TransactionReceipt};
 use sov_rest_utils::{json_obj, ErrorObject};
-use sov_state::{Namespace, StateRoot, StateUpdate, Storage};
+use sov_state::{Namespace, StateRoot, Storage};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::oneshot;
@@ -278,10 +278,8 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         node_state_root: &<S::Storage as Storage>::Root,
         minimum_profit_per_tx: u128,
     ) {
-        let InternalState::Idle {
-            mut checkpoint,
-            prev_state_root_opt,
-        } = replace(&mut self.state, InternalState::Placeholder)
+        let InternalState::Idle { mut checkpoint } =
+            replace(&mut self.state, InternalState::Placeholder)
         else {
             panic!(
                 "Unexpected sequencer state ({:?}), can't begin a new rollup block. This is a bug, please report it.",
@@ -310,9 +308,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             );
         }
 
-        let prev_state_root = prev_state_root_opt.as_ref().unwrap_or(node_state_root);
-        let user_state_root = prev_state_root.namespace_root(sov_state::ProvableNamespace::User);
-
+        let user_state_root = node_state_root.namespace_root(sov_state::ProvableNamespace::User);
         let (setup_sender, setup_receiver) = oneshot::channel();
         let (tx_sender, tx_receiver) = mpsc::channel(Self::MAX_BUFFERED_TXS);
         let (result_sender, result_receiver) = mpsc::channel(Self::MAX_BUFFERED_TXS);
@@ -402,15 +398,16 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                     next_root,
                 );
                 let mut changes = checkpoint.changes();
-                let (state_root, _witness, _change_set, state_update) =
-                    stf.materialize_slot(&mut Default::default(), true, checkpoint);
+                let accessory_delta = stf.materialize_accessory_state(&mut Default::default(), checkpoint);
+
                 changes.changes.extend(
-                    state_update
-                        .get_accessory_items()
+                    accessory_delta
+                        .freeze()
+                        .into_iter()
                         .map(|(k, v)| ((k.clone(), Namespace::Accessory), v.clone())),
                 );
                 drop(shutdown_notifier);
-                (state_root, changes)
+                changes
             }
         });
 
@@ -468,16 +465,13 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                 }
             };
 
-        let (state_root, changes) = task_state.shutdown().await.expect(
+        let changes = task_state.shutdown().await.expect(
             "Transaction acceptor task failed unexpectedly! This is a bug, please report it.",
         );
 
         checkpoint.apply_changes(changes);
 
-        self.state = InternalState::Idle {
-            checkpoint,
-            prev_state_root_opt: Some(state_root),
-        };
+        self.state = InternalState::Idle { checkpoint };
 
         trace!("Successfully ended rollup block");
     }

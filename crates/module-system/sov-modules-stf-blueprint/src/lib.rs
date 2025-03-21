@@ -5,10 +5,10 @@ mod stf_blueprint;
 use sequencer_mode::{registered, unregistered};
 use serde::{Deserialize, Serialize};
 use sov_metrics::{save_elapsed, start_timer};
-#[cfg(feature = "native")]
-use sov_modules_api::capabilities::RollupHeight;
 #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
 use sov_modules_api::track_gas_constants_usage;
+#[cfg(feature = "native")]
+use sov_modules_api::{capabilities::RollupHeight, AccessoryDelta};
 use sov_modules_api::{
     BatchSequencerReceipt, GasArray, GasSpec, IncrementalBatch, KernelStateAccessor, SelectedBlob,
     VersionReader,
@@ -174,6 +174,30 @@ where
     S: Spec,
     RT: Runtime<S>,
 {
+    /// Produces the final [`AccessoryDelta`] for the slot without fully computing
+    /// the new state root and changeset.
+    ///
+    /// This is used by the sequencer that only requires the accessory delta thus avoiding
+    /// relatively expensive computation on the "hot" mutex locking path inside the sequencer.
+    #[cfg(feature = "native")]
+    #[tracing::instrument(skip_all, name = "StfBlueprint::materialize_accessory_state")]
+    pub fn materialize_accessory_state(
+        &self,
+        runtime: &mut RT,
+        checkpoint: StateCheckpoint<S>,
+    ) -> AccessoryDelta<S::Storage> {
+        let rollup_height = checkpoint.rollup_height_to_access();
+        let (_, mut accessory_delta, _) = checkpoint.freeze();
+        let next_visible_hash =
+            Self::next_visible_root(runtime, &mut accessory_delta, rollup_height);
+
+        tracing::trace_span!("runtime_finalize_hook").in_scope(|| {
+            runtime.finalize_hook(&next_visible_hash, &mut accessory_delta);
+        });
+
+        accessory_delta
+    }
+
     /// Compute the new state root and change set after running a batch.
     ///  
     /// This method is quite complicated because it invokes the `finalize_hook` using the visible hash that will become available
@@ -187,8 +211,6 @@ where
         create_rollup_block: bool,
         checkpoint: StateCheckpoint<S>,
     ) -> MaterializedUpdate<S::Storage> {
-        let state_root_delay_blocks = Self::check_state_root_delay();
-
         let rollup_height = checkpoint.rollup_height_to_access();
         let (next_root_hash, mut state_update, mut accessory_delta, witness, storage) =
             checkpoint.materialize_update();
@@ -206,23 +228,10 @@ where
                 .save_genesis_root(&mut accessory_delta, &next_root_hash);
         }
 
-        // Run the finalize hook if necesary
+        // Run the finalize hook if necessary
         if create_rollup_block {
-            // Compute the next visible hash.
-            //
-            // We have a special case at genesis, where we need to explicitly fetch the genesis root from the accessory state because
-            // the `synchronize_chain` method (which populates state root information in the accessory state) is not called until after
-            // the genesis invocation of `materialize_slot`.
-            let next_visible_hash = if rollup_height.saturating_sub(state_root_delay_blocks)
-                == RollupHeight::GENESIS
-            {
-                runtime
-                    .chain_state()
-                    .genesis_root(&mut accessory_delta).expect("genesis root must be set on first iteration of `materialize_slot`. This is a bug - please report it")
-            } else {
-                runtime.chain_state().visible_hash_with_accessory_state(rollup_height.saturating_add(1), &mut accessory_delta)
-                    .expect("next visible hash must be known in advance, but was unable to get it for rollup height {}. This is a bug - please report it")
-            };
+            let next_visible_hash =
+                Self::next_visible_root(runtime, &mut accessory_delta, rollup_height);
 
             runtime.finalize_hook(&next_visible_hash, &mut accessory_delta);
         }
@@ -263,6 +272,27 @@ where
         }
 
         state_root_delay_blocks
+    }
+
+    /// Compute the next visible hash.
+    ///
+    /// We have a special case at genesis, where we need to explicitly fetch the genesis root from the accessory state because
+    /// the `synchronize_chain` method (which populates state root information in the accessory state) is not called until after
+    /// the genesis invocation of `materialize_slot`.
+    #[cfg(feature = "native")]
+    fn next_visible_root(
+        runtime: &mut RT,
+        accessory_delta: &mut AccessoryDelta<S::Storage>,
+        rollup_height: RollupHeight,
+    ) -> <S::Storage as Storage>::Root {
+        if rollup_height.saturating_sub(Self::check_state_root_delay()) == RollupHeight::GENESIS {
+            runtime
+                .chain_state()
+                .genesis_root(accessory_delta).expect("genesis root must be set on first iteration of `materialize_slot`. This is a bug - please report it")
+        } else {
+            runtime.chain_state().visible_hash_with_accessory_state(rollup_height.saturating_add(1), accessory_delta)
+                .expect("next visible hash must be known in advance, but was unable to get it for rollup height {}. This is a bug - please report it")
+        }
     }
 }
 
