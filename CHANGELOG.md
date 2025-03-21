@@ -4,6 +4,7 @@
 # 2025-03-13
 - #2607 Removes `sov-test-modules`, which was accidentally exposed via `sov-test-utils`.
 # 2025-03-11
+- #2602 Wallet schema: correctly handle explicit enum discriminants when the `#[borsh(use-discriminant=true)]` attribute is specified. (Previously this would result in incorrect serialization in the wallet.) This is not a breaking change but will alter the chain hash due to schema modifications to support this.
 - #2600 removes database persistence for the `StandardSequencer`. Please use the `PreferredSequencer` instead if you need persistence, or reach out to the team if you have a need for it.
 
 # 2025-03-10

@@ -155,17 +155,16 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L, ContainerSerdeMet
                 container_name: e.type_name.clone(),
             })?;
 
-        let ((index, variant), _) = e
+        let (variant, _) = e
             .variants
             .iter()
-            .enumerate()
             .zip(serde_metadata.fields_or_variants)
             .find(|(_, s)| s.name == discriminant)
             .ok_or(EncodeError::InvalidDiscriminant {
                 type_name: e.type_name.clone(),
                 discriminant: discriminant.to_owned(),
             })?;
-        borsh::to_writer(&mut self.out, &(index as u8))?;
+        borsh::to_writer(&mut self.out, &variant.discriminant)?;
 
         if let Some(maybe_resolved) = &variant.value {
             let inner_type = schema.resolve_or_err(maybe_resolved)?;

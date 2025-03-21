@@ -8,16 +8,17 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::token::{Comma, Where};
 use syn::{
-    DeriveInput, GenericParam, Generics, Ident, LitStr, Type, TypeArray, TypeGroup, TypeParen,
-    TypePtr, TypeReference, TypeSlice, WhereClause, WherePredicate,
+    DeriveInput, Expr, GenericParam, Generics, Ident, LitStr, Type, TypeArray, TypeGroup,
+    TypeParen, TypePtr, TypeReference, TypeSlice, WhereClause, WherePredicate,
 };
 
 type SynResult<T> = Result<T, syn::Error>;
 
 use darling::FromMeta;
 
-use super::serde_rename::{parse_serde_rename_attrs, SerdeRename};
+use super::foreign_attributes::{parse_foreign_attrs, Serde};
 use crate::fixed_point_ints::FixedPointDisplay;
+use crate::foreign_attributes::ForeignAttrs;
 use crate::template_attribute::{InputOrValue, TransactionTemplates};
 
 #[derive(Debug, FromMeta, Default, Clone)]
@@ -341,10 +342,8 @@ fn derive_wallet_field(
     } = &input;
     let input = Input::from_derive_input(&input)?;
     let input_name_str = ident.to_string();
-    let template_string = input.show_as;
     let hide_tag = input.hide_tag.unwrap_or_default();
-    let template_tokens = quote_str_option_literally(&template_string);
-    let serde_rename = input.attrs;
+    let template_tokens = quote_str_option_literally(&input.show_as);
     let child_templates_arg =
         Ident::from_string("schema").expect("Creating hardcoded identifier shouldn't fail");
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
@@ -373,7 +372,7 @@ fn derive_wallet_field(
                 Style::Struct => build_struct_type_scaffold(
                     &s.fields,
                     input.ident.clone(),
-                    serde_rename,
+                    input.attrs.serde,
                     template_tokens,
                     &mut where_clause,
                     &prefix,
@@ -385,7 +384,7 @@ fn derive_wallet_field(
                     &prefix,
                 )?,
                 Style::Unit => {
-                    let serde_name = serde_rename.rename_typename(ident)?;
+                    let serde_name = input.attrs.serde.rename_typename(ident)?;
                     quote! {
                         #prefix::sov_universal_wallet::schema::Item::<#prefix::sov_universal_wallet::schema::IndexLinking>::Container(#prefix::sov_universal_wallet::schema::Container::Struct( #prefix::sov_universal_wallet::schema::container::StructWithSerde {
                             ty: #prefix::sov_universal_wallet::ty::Struct {
@@ -409,9 +408,21 @@ fn derive_wallet_field(
                 predicates: Default::default(),
             });
             let mut enum_child_templates: Vec<TokenStream> = Default::default();
+            let mut current_discriminant: u8 = 0;
+            let mut next_discriminant: u8 = 0;
             let inherit_variant_templates = *input.template_inherit;
             let (variants, metadatas) = e.iter()
             .map(|variant| {
+                if next_discriminant < current_discriminant {
+                    // That means we wrapped past 255 last loop. This variant has discriminant 256.
+                    return Err(syn::Error::new_spanned(variant.ident.clone(), "Enums cannot have discriminants above 255. If explicit discriminants are used, ensure this does not result in a variant above this limit. If not, your enum must not have above 255 variants."));
+                }
+                current_discriminant = variant.discriminant(next_discriminant, input.attrs.borsh.use_discriminant)?;
+                // We wrap here so we can detect and throw an error on the next variant. (We cannot
+                // defer incrementing until the start of the next loop because the first variant
+                // must be 0, so it can't be incremented at the start.)
+                next_discriminant = current_discriminant.wrapping_add(1);
+
                 let variant_ident = &variant.ident;
                 let virtual_type_generics = virtual_field_generics(generics.clone(), &variant.fields.fields);
                 let virtual_type_ident = virtual_typename(ident, variant_ident);
@@ -439,13 +450,15 @@ fn derive_wallet_field(
                     },
                     Style::Unit => quote! { None },
                 };
-                let serde_variant_name = serde_rename.rename_variant(variant_ident)?;
+                let serde_variant_name = input.attrs.serde.rename_variant(variant_ident)?;
+
                 Ok::<(TokenStream, TokenStream), syn::Error>(
                     (
                         quote! {
                             #prefix::sov_universal_wallet::ty::EnumVariant {
                                 name: stringify!(#variant_ident).to_string(),
                                 template: #variant_showas_tokens,
+                                discriminant: #current_discriminant,
                                 value: #value
                             }
                         },
@@ -466,7 +479,7 @@ fn derive_wallet_field(
                 )
             };
 
-            let serde_name = serde_rename.rename_typename(ident)?;
+            let serde_name = input.attrs.serde.rename_typename(ident)?;
             quote! {
                 #prefix::sov_universal_wallet::schema::Item::<#prefix::sov_universal_wallet::schema::IndexLinking>::Container(#prefix::sov_universal_wallet::schema::Container::Enum(
                         #prefix::sov_universal_wallet::schema::container::EnumWithSerde {
@@ -528,7 +541,7 @@ fn derive_wallet_field(
 pub fn build_struct_type_scaffold(
     fields: &[InputField],
     type_name: Ident,
-    serde_rename: SerdeRename,
+    serde_rename: Serde,
     template_string: TokenStream,
     where_clause: &mut Option<WhereClause>,
     prefix: &Option<syn::TypePath>,
@@ -875,12 +888,16 @@ fn quote_str_option_literally(opt: &Option<String>) -> TokenStream {
 }
 
 #[derive(Debug, FromDeriveInput)]
-#[darling(attributes(sov_wallet), supports(any), forward_attrs(doc, serde))]
+#[darling(
+    attributes(sov_wallet),
+    supports(any),
+    forward_attrs(doc, serde, borsh)
+)]
 pub struct Input {
     pub ident: Ident,
     pub data: ast::Data<InputVariant, InputField>,
-    #[darling(with = "parse_serde_rename_attrs")]
-    pub attrs: SerdeRename,
+    #[darling(with = "parse_foreign_attrs")]
+    pub attrs: ForeignAttrs,
     #[darling(default)]
     pub show_as: Option<String>,
     #[darling(default)]
@@ -955,6 +972,7 @@ impl InputField {
 pub struct InputVariant {
     pub ident: Ident,
     pub fields: ast::Fields<InputField>,
+    pub discriminant: Option<Expr>,
     #[darling(default)]
     pub show_as: Option<String>,
     #[darling(default)]
@@ -969,5 +987,18 @@ impl InputVariant {
             Some(ty) => ty.to_token_stream(),
             None => virtual_typename.to_token_stream(),
         }
+    }
+
+    pub fn discriminant(
+        &self,
+        current_counter: u8,
+        use_discriminant: bool,
+    ) -> Result<u8, darling::Error> {
+        if let Some(explicit_discriminant) = &self.discriminant {
+            if use_discriminant {
+                return <u8 as FromMeta>::from_expr(explicit_discriminant);
+            }
+        }
+        Ok(current_counter)
     }
 }
