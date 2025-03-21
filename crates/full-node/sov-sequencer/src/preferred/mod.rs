@@ -50,26 +50,23 @@ use crate::{
 type VisibleSlotNumberIncrease = NonZero<u8>;
 
 /// A inner batch builder struct containing state that requires synchronized access.
-struct Inner<S, Rt, Da>
+struct Inner<S, Rt>
 where
     S: Spec,
     Rt: Runtime<S>,
-    Da: DaService<Spec = S::Da>,
 {
     db: PreferredSequencerDb<S, Rt>,
     latest_info: StateUpdateInfo<S::Storage>,
     checkpoint_sender: watch::Sender<StateCheckpoint<S>>,
     next_event_number: u64,
-    blob_sender: BlobSender<Da, PreferredBatchData>,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     block_executor: RollupBlockExecutor<S, Rt>,
 }
 
-impl<S, Rt, Da> Inner<S, Rt, Da>
+impl<S, Rt> Inner<S, Rt>
 where
     S: Spec,
     Rt: Runtime<S>,
-    Da: DaService<Spec = S::Da>,
 {
     /// Syncs [`ApiState`]s with the latest [`StateCheckpoint`].
     #[tracing::instrument(skip_all, level = "trace")]
@@ -173,14 +170,7 @@ enum InternalState<S: Spec> {
     Placeholder,
     /// The [`Sequencer`] is currently idle and is not processing
     /// transactions for the next rollup block yet.
-    Idle {
-        checkpoint: StateCheckpoint<S>,
-        /// When set to [`None`], the next rollup block is built on top of node
-        /// state instead of sequencer state.
-        ///
-        /// See [`PreferredSequencer::latest_info`].
-        prev_state_root_opt: Option<<S::Storage as Storage>::Root>,
-    },
+    Idle { checkpoint: StateCheckpoint<S> },
     /// The [`Sequencer`] is currently accepting transactions from the
     /// preferred batch of a rollup block. Note that every rollup block
     /// (under normal operations, not e.g. in recovery mode) has exactly one
@@ -195,10 +185,7 @@ impl<S: Spec> InternalState<S> {
     fn node(info: &StateUpdateInfo<S::Storage>, runtime: &mut impl Runtime<S>) -> Self {
         let checkpoint = StateCheckpoint::new(info.storage.clone(), &runtime.kernel());
 
-        InternalState::Idle {
-            checkpoint,
-            prev_state_root_opt: None,
-        }
+        InternalState::Idle { checkpoint }
     }
 
     pub fn checkpoint_ref(&self) -> &StateCheckpoint<S> {
@@ -217,7 +204,7 @@ where
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
-    inner: Mutex<Inner<S, Rt, Da>>,
+    inner: Mutex<Inner<S, Rt>>,
     tx_status_manager: TxStatusManager<S::Da>,
     events_sender: broadcast::Sender<SequencerEvent<Rt>>,
     api_state: ApiState<S>,
@@ -226,6 +213,7 @@ where
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     has_been_ready: AtomicBool,
     shutdown_notifier: Sender<()>,
+    blob_sender: BlobSender<Da, PreferredBatchData>,
 }
 
 impl<S, Rt, Da> PreferredSequencer<S, Rt, Da>
@@ -235,7 +223,7 @@ where
     Da: DaService<Spec = S::Da>,
 {
     #[tracing::instrument(skip_all, level = "debug")]
-    async fn lock_inner(&self) -> MutexGuard<Inner<S, Rt, Da>> {
+    async fn lock_inner(&self) -> MutexGuard<Inner<S, Rt>> {
         self.inner.lock().await
     }
 }
@@ -324,19 +312,11 @@ where
                 config.clone(),
                 shutdown_notifier.clone(),
             ),
-            blob_sender: BlobSender::new(
-                da,
-                storage_path,
-                tx_status_manager.clone(),
-                true,
-                shutdown_receiver.clone(),
-            )
-            .await?,
         };
 
         let seq = Arc::new(PreferredSequencer {
             inner: inner.into(),
-            tx_status_manager,
+            tx_status_manager: tx_status_manager.clone(),
             events_sender,
             da_sync_state,
             api_state,
@@ -344,6 +324,14 @@ where
             shutdown_notifier,
             config: config.clone(),
             has_been_ready: AtomicBool::new(false),
+            blob_sender: BlobSender::new(
+                da,
+                storage_path,
+                tx_status_manager,
+                true,
+                shutdown_receiver.clone(),
+            )
+            .await?,
         });
 
         seq.update_state(latest_state_update.clone())
@@ -469,56 +457,64 @@ where
         .instrument(tracing::debug_span!("process_batches"))
         .await?;
 
-        // We stop accepting new txns in accept_tx for a short time while we catch up
-        let mut inner = self.lock_inner().await;
-        let current_in_progress_batch = inner.db.in_progress_batch_opt().await?.cloned();
+        let submit_batch_opt = {
+            // We stop accepting new txns in accept_tx for a short time while we catch up
+            let mut inner = self.lock_inner().await;
+            let current_in_progress_batch = inner.db.in_progress_batch_opt().await?.cloned();
 
-        // Currently it's not possible for `accept_tx` to end a batch, this will likely
-        // change in the future when it can close batches due to gas, stake, batch sizes, etc.
-        // When that happens we'll also need to handle the case where `accept_tx` closes the batch.
-        match (last_replayed_batch_in_progress, current_in_progress_batch) {
-            // We have an in-progress batch, see if there's any new additions
-            // since we've replayed the batches on the nodes state
-            (Some(true), Some(batch)) => {
-                let prev_txs_len =
-                    latest_batch_txs_len.expect("In progress check was Some but txs len was None");
-                let new_txs = batch.txs[prev_txs_len..].to_vec();
+            // Currently it's not possible for `accept_tx` to end a batch, this will likely
+            // change in the future when it can close batches due to gas, stake, batch sizes, etc.
+            // When that happens we'll also need to handle the case where `accept_tx` closes the batch.
+            match (last_replayed_batch_in_progress, current_in_progress_batch) {
+                // We have an in-progress batch, see if there's any new additions
+                // since we've replayed the batches on the nodes state
+                (Some(true), Some(batch)) => {
+                    let prev_txs_len = latest_batch_txs_len
+                        .expect("In progress check was Some but txs len was None");
+                    let new_txs = batch.txs[prev_txs_len..].to_vec();
 
-                trace!(new_txs = new_txs.len(), "Applying any new transactions have been added to in-progress batch while updating node state");
+                    trace!(new_txs = new_txs.len(), "Applying any new transactions have been added to in-progress batch while updating node state");
 
-                for tx in new_txs {
-                    let _ = executor.apply_tx_to_in_progress_batch(&tx).await;
+                    for tx in new_txs {
+                        let _ = executor.apply_tx_to_in_progress_batch(&tx).await;
+                    }
                 }
+                // There wasn't an in-progress batch previously but there is one now
+                // It was started by accept_tx, lets add it to our state
+                (_, Some(in_progress_batch)) => {
+                    trace!("Replaying batch that was initialized while updating node state");
+                    let batch = PreferredBatchToRestore {
+                        is_in_progress: true,
+                        visible_slot_number_after_increase: in_progress_batch
+                            .visible_slot_number_after_increase,
+                        batch: in_progress_batch.into(),
+                    };
+                    let node_root = inner.node_root_hash()?;
+                    executor.replay_batch(&batch, &node_root).await?;
+                }
+                _ => trace!("No new transaction or batch state while updating node state"),
             }
-            // There wasn't an in-progress batch previously but there is one now
-            // It was started by accept_tx, lets add it to our state
-            (_, Some(in_progress_batch)) => {
-                trace!("Replaying batch that was initialized while updating node state");
-                let batch = PreferredBatchToRestore {
-                    is_in_progress: true,
-                    visible_slot_number_after_increase: in_progress_batch
-                        .visible_slot_number_after_increase,
-                    batch: in_progress_batch.into(),
-                };
-                let node_root = inner.node_root_hash()?;
-                executor.replay_batch(&batch, &node_root).await?;
-            }
-            _ => trace!("No new transaction or batch state while updating node state"),
-        }
 
-        trace!("Node state update complete, swapping new state into sequencer");
-        inner.latest_info = info;
-        inner.block_executor.replace_state(executor.consume()).await;
-        inner.update_api_state().await;
-        trace!("Node state update completed successfully");
+            trace!("Node state update complete, swapping new state into sequencer");
+            inner.latest_info = info;
+            inner.block_executor.replace_state(executor.consume()).await;
+            inner.update_api_state().await;
+            trace!("Node state update completed successfully");
 
-        if self.config.automatic_batch_production {
-            if let Some(batch) = inner.produce_batch_if_possible().await? {
-                self.has_been_ready
-                    .store(true, std::sync::atomic::Ordering::Release);
-                // TODO(@ross-weir) #2534 Shouldn't need to hold the lock for this
-                inner.blob_sender.publish_batch_and_wait(batch).await?;
+            if self.config.automatic_batch_production {
+                inner.produce_batch_if_possible().await?
+            } else {
+                None
             }
+        };
+
+        if let Some(batch) = submit_batch_opt {
+            self.has_been_ready
+                .store(true, std::sync::atomic::Ordering::Release);
+            self.blob_sender
+                .publish_batch_and_wait(batch)
+                .instrument(tracing::trace_span!("publish_batch_and_wait"))
+                .await?;
         }
 
         Ok(())
@@ -605,11 +601,13 @@ where
             self.accept_tx(tx.clone()).await.ok(); // FIXME(@neysofu): handle error.
         }
 
-        let mut inner = self.inner.lock().await;
+        let submit_batch_opt = {
+            let mut inner = self.inner.lock().await;
+            inner.produce_batch_if_possible().await?
+        };
 
-        if let Some(batch) = inner.produce_batch_if_possible().await? {
-            inner
-                .blob_sender
+        if let Some(batch) = submit_batch_opt {
+            self.blob_sender
                 .publish_batch_and_wait(batch)
                 .await
                 .map(Some)
@@ -676,13 +674,13 @@ where
 
 #[derive(Debug)]
 struct BackgroundTaskState<S: Spec> {
-    handle: JoinHandle<(<<S as Spec>::Storage as Storage>::Root, ChangeSet)>,
+    handle: JoinHandle<ChangeSet>,
     tx_sender: mpsc::Sender<FullyBakedTx>,
     result_receiver: mpsc::Receiver<Result<(TransactionReceipt<S>, TxChangeSet), RejectReason>>,
 }
 
 impl<S: Spec> BackgroundTaskState<S> {
-    fn shutdown(self) -> JoinHandle<(<<S as Spec>::Storage as Storage>::Root, ChangeSet)> {
+    fn shutdown(self) -> JoinHandle<ChangeSet> {
         // Must be dropped before the result receiver, or a deadlock happens.
         drop(self.tx_sender);
         self.handle
