@@ -1,4 +1,4 @@
 mod fixed_point_ints;
+mod foreign_attributes;
 pub mod schema;
-mod serde_rename;
 mod template_attribute;

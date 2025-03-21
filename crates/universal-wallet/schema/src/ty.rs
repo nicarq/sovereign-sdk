@@ -189,6 +189,7 @@ impl<L: LinkingScheme> Ty<L> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct EnumVariant<L: LinkingScheme> {
     pub name: String,
+    pub discriminant: u8,
     pub template: Option<String>,
     pub value: Option<L::TypeLink>,
 }

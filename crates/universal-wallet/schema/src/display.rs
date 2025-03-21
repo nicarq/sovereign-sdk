@@ -615,13 +615,15 @@ impl<'a, 'fmt, W: Write, L: LinkingScheme, M> TypeVisitor<L, M> for DisplayVisit
         self.output.write_str(open)?;
 
         let discriminant = self.input.advance(1)?[0];
-        let variant =
-            e.variants
-                .get(discriminant as usize)
-                .ok_or(FormatError::InvalidDiscriminant {
-                    type_name: e.type_name.clone(),
-                    discriminant,
-                })?;
+        let mut variants_by_discriminant =
+            e.variants.iter().filter(|v| v.discriminant == discriminant);
+        let variant = variants_by_discriminant
+            .next()
+            .ok_or(FormatError::InvalidDiscriminant {
+                type_name: e.type_name.clone(),
+                discriminant,
+            })?;
+        assert!(variants_by_discriminant.next().is_none(), "Found two enum variants with the same discriminant - the schema is malformed, cannot proceed!");
         if variant.template.is_none() && !e.hide_tag {
             write!(self.output, "{}", variant.name)?;
         }

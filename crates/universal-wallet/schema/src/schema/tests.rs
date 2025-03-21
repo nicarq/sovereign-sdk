@@ -100,6 +100,80 @@ fn test_inner_item_derive() {
     encode_decode_tests!(A, my_a, "{ my_field: 32 }");
 }
 
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
+#[borsh(use_discriminant = true)]
+pub enum SimpleEnumWithDiscriminants {
+    First = 1,
+    Second = 6,
+    Third,
+    Fourth = 100,
+    Fifth = 3,
+    Sixth,
+    Seventh,
+    Eighth = 0,
+}
+
+#[test]
+fn test_simple_enum_with_discriminants() {
+    let my_enum = SimpleEnumWithDiscriminants::First;
+    encode_decode_tests!(SimpleEnumWithDiscriminants, my_enum, "First");
+    let my_enum = SimpleEnumWithDiscriminants::Second;
+    encode_decode_tests!(SimpleEnumWithDiscriminants, my_enum, "Second");
+    let my_enum = SimpleEnumWithDiscriminants::Third;
+    encode_decode_tests!(SimpleEnumWithDiscriminants, my_enum, "Third");
+    let my_enum = SimpleEnumWithDiscriminants::Fourth;
+    encode_decode_tests!(SimpleEnumWithDiscriminants, my_enum, "Fourth");
+    let my_enum = SimpleEnumWithDiscriminants::Fifth;
+    encode_decode_tests!(SimpleEnumWithDiscriminants, my_enum, "Fifth");
+    let my_enum = SimpleEnumWithDiscriminants::Sixth;
+    encode_decode_tests!(SimpleEnumWithDiscriminants, my_enum, "Sixth");
+    let my_enum = SimpleEnumWithDiscriminants::Seventh;
+    encode_decode_tests!(SimpleEnumWithDiscriminants, my_enum, "Seventh");
+    let my_enum = SimpleEnumWithDiscriminants::Eighth;
+    encode_decode_tests!(SimpleEnumWithDiscriminants, my_enum, "Eighth");
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
+#[borsh(use_discriminant = false)]
+pub enum EnumWithDiscriminantsDisabledInBorsh {
+    First = 1,
+    Second = 6,
+    Third,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
+pub enum EnumWithDiscriminantsDisabledInBorshSurrogateWithoutDiscriminants {
+    First,
+    Second,
+    Third,
+}
+
+#[test]
+fn test_enum_with_discriminants_disabled_in_borsh() {
+    let my_enum = EnumWithDiscriminantsDisabledInBorsh::First;
+    encode_decode_tests!(EnumWithDiscriminantsDisabledInBorsh, my_enum, "First");
+    let my_enum = EnumWithDiscriminantsDisabledInBorsh::Second;
+    encode_decode_tests!(EnumWithDiscriminantsDisabledInBorsh, my_enum, "Second");
+    let my_enum = EnumWithDiscriminantsDisabledInBorsh::Third;
+    encode_decode_tests!(EnumWithDiscriminantsDisabledInBorsh, my_enum, "Third");
+
+    // Custom test to make sure we serialize enums correctly without a discriminant
+    let schema_surrogate = Schema::of_single_type::<
+        EnumWithDiscriminantsDisabledInBorshSurrogateWithoutDiscriminants,
+    >();
+    let borsh_from_discriminants = borsh::to_vec(&my_enum).unwrap();
+    let json_from_discriminants = serde_json::to_string(&my_enum).unwrap();
+    assert_eq!(
+        schema_surrogate
+            .json_to_borsh(0, &json_from_discriminants)
+            .unwrap(),
+        borsh_from_discriminants
+    );
+}
+
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize)]
 /// A type which doesn't derive `UniversalWallet` and doesn't have a schema gen implementation
 pub struct NoSchemaU64Wrapper(pub u64);

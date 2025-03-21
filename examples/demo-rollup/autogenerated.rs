@@ -1,4 +1,4 @@
-pub const CHAIN_HASH: [u8; 32] = [209, 221, 159, 15, 86, 35, 123, 183, 9, 27, 34, 249, 93, 196, 95, 144, 87, 36, 60, 112, 138, 179, 132, 127, 36, 115, 88, 234, 3, 80, 163, 186];
+pub const CHAIN_HASH: [u8; 32] = [116, 8, 175, 126, 133, 240, 36, 183, 16, 208, 108, 70, 217, 32, 246, 184, 107, 236, 219, 81, 195, 207, 223, 117, 199, 58, 165, 118, 75, 208, 138, 9];
 
 #[allow(dead_code)]
 pub const SCHEMA_JSON: &str = r#"{
@@ -107,6 +107,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "variants": [
           {
             "name": "Bank",
+            "discriminant": 0,
             "template": null,
             "value": {
               "ByIndex": 4
@@ -114,6 +115,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "SequencerRegistry",
+            "discriminant": 1,
             "template": null,
             "value": {
               "ByIndex": 22
@@ -121,6 +123,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "ValueSetter",
+            "discriminant": 2,
             "template": null,
             "value": {
               "ByIndex": 29
@@ -128,6 +131,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "AttesterIncentives",
+            "discriminant": 3,
             "template": null,
             "value": {
               "ByIndex": 37
@@ -135,6 +139,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "ProverIncentives",
+            "discriminant": 4,
             "template": null,
             "value": {
               "ByIndex": 42
@@ -142,6 +147,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Accounts",
+            "discriminant": 5,
             "template": null,
             "value": {
               "ByIndex": 46
@@ -149,6 +155,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Uniqueness",
+            "discriminant": 6,
             "template": null,
             "value": {
               "ByIndex": 51
@@ -156,6 +163,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "ChainState",
+            "discriminant": 7,
             "template": null,
             "value": {
               "ByIndex": 53
@@ -163,6 +171,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "BlobStorage",
+            "discriminant": 8,
             "template": null,
             "value": {
               "ByIndex": 54
@@ -170,6 +179,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Paymaster",
+            "discriminant": 9,
             "template": null,
             "value": {
               "ByIndex": 55
@@ -177,6 +187,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Evm",
+            "discriminant": 10,
             "template": null,
             "value": {
               "ByIndex": 81
@@ -184,6 +195,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "AccessPattern",
+            "discriminant": 11,
             "template": null,
             "value": {
               "ByIndex": 84
@@ -214,6 +226,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "variants": [
           {
             "name": "CreateToken",
+            "discriminant": 0,
             "template": null,
             "value": {
               "ByIndex": 6
@@ -221,6 +234,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Transfer",
+            "discriminant": 1,
             "template": "Transfer to address {} {}.",
             "value": {
               "ByIndex": 16
@@ -228,6 +242,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Burn",
+            "discriminant": 2,
             "template": null,
             "value": {
               "ByIndex": 19
@@ -235,6 +250,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Mint",
+            "discriminant": 3,
             "template": null,
             "value": {
               "ByIndex": 20
@@ -242,6 +258,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Freeze",
+            "discriminant": 4,
             "template": null,
             "value": {
               "ByIndex": 21
@@ -346,6 +363,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "variants": [
           {
             "name": "Standard",
+            "discriminant": 0,
             "template": null,
             "value": {
               "ByIndex": 10
@@ -353,6 +371,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Vm",
+            "discriminant": 1,
             "template": null,
             "value": {
               "ByIndex": 12
@@ -616,6 +635,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "variants": [
           {
             "name": "Register",
+            "discriminant": 0,
             "template": null,
             "value": {
               "ByIndex": 24
@@ -623,6 +643,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Deposit",
+            "discriminant": 1,
             "template": null,
             "value": {
               "ByIndex": 26
@@ -630,6 +651,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "InitiateWithdrawal",
+            "discriminant": 2,
             "template": null,
             "value": {
               "ByIndex": 27
@@ -637,6 +659,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Withdraw",
+            "discriminant": 3,
             "template": null,
             "value": {
               "ByIndex": 28
@@ -771,6 +794,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "variants": [
           {
             "name": "SetValue",
+            "discriminant": 0,
             "template": null,
             "value": {
               "ByIndex": 31
@@ -778,6 +802,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "SetManyValues",
+            "discriminant": 1,
             "template": null,
             "value": {
               "ByIndex": 35
@@ -785,6 +810,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "AssertVisibleSlotNumber",
+            "discriminant": 2,
             "template": null,
             "value": {
               "ByIndex": 36
@@ -921,6 +947,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "variants": [
           {
             "name": "RegisterAttester",
+            "discriminant": 0,
             "template": null,
             "value": {
               "ByIndex": 39
@@ -928,16 +955,19 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "BeginExitAttester",
+            "discriminant": 1,
             "template": null,
             "value": null
           },
           {
             "name": "ExitAttester",
+            "discriminant": 2,
             "template": null,
             "value": null
           },
           {
             "name": "RegisterChallenger",
+            "discriminant": 3,
             "template": null,
             "value": {
               "ByIndex": 40
@@ -945,11 +975,13 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "ExitChallenger",
+            "discriminant": 4,
             "template": null,
             "value": null
           },
           {
             "name": "DepositAttester",
+            "discriminant": 5,
             "template": null,
             "value": {
               "ByIndex": 41
@@ -1025,6 +1057,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "variants": [
           {
             "name": "Register",
+            "discriminant": 0,
             "template": null,
             "value": {
               "ByIndex": 44
@@ -1032,6 +1065,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Deposit",
+            "discriminant": 1,
             "template": null,
             "value": {
               "ByIndex": 45
@@ -1039,6 +1073,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Exit",
+            "discriminant": 2,
             "template": null,
             "value": null
           }
@@ -1097,6 +1132,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "variants": [
           {
             "name": "InsertCredentialId",
+            "discriminant": 0,
             "template": null,
             "value": {
               "ByIndex": 48
@@ -1229,6 +1265,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "variants": [
           {
             "name": "RegisterPaymaster",
+            "discriminant": 0,
             "template": null,
             "value": {
               "ByIndex": 57
@@ -1236,6 +1273,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "SetPayerForSequencer",
+            "discriminant": 1,
             "template": null,
             "value": {
               "ByIndex": 70
@@ -1243,6 +1281,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "UpdatePolicy",
+            "discriminant": 2,
             "template": null,
             "value": {
               "ByIndex": 71
@@ -1316,6 +1355,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "variants": [
           {
             "name": "Allow",
+            "discriminant": 0,
             "template": null,
             "value": {
               "ByIndex": 60
@@ -1323,6 +1363,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Deny",
+            "discriminant": 1,
             "template": null,
             "value": null
           }
@@ -1450,11 +1491,13 @@ pub const SCHEMA_JSON: &str = r#"{
         "variants": [
           {
             "name": "All",
+            "discriminant": 0,
             "template": null,
             "value": null
           },
           {
             "name": "Some",
+            "discriminant": 1,
             "template": null,
             "value": {
               "ByIndex": 68
@@ -1598,11 +1641,13 @@ pub const SCHEMA_JSON: &str = r#"{
         "variants": [
           {
             "name": "AllowAll",
+            "discriminant": 0,
             "template": null,
             "value": null
           },
           {
             "name": "Update",
+            "discriminant": 1,
             "template": null,
             "value": {
               "ByIndex": 75
@@ -1754,6 +1799,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "variants": [
           {
             "name": "WriteCells",
+            "discriminant": 0,
             "template": null,
             "value": {
               "ByIndex": 86
@@ -1761,6 +1807,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "WriteCustom",
+            "discriminant": 1,
             "template": null,
             "value": {
               "ByIndex": 87
@@ -1768,6 +1815,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "ReadCells",
+            "discriminant": 2,
             "template": null,
             "value": {
               "ByIndex": 89
@@ -1775,6 +1823,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "HashBytes",
+            "discriminant": 3,
             "template": null,
             "value": {
               "ByIndex": 90
@@ -1782,6 +1831,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "HashCustom",
+            "discriminant": 4,
             "template": null,
             "value": {
               "ByIndex": 91
@@ -1789,6 +1839,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "StoreSignature",
+            "discriminant": 5,
             "template": null,
             "value": {
               "ByIndex": 92
@@ -1796,11 +1847,13 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "VerifySignature",
+            "discriminant": 6,
             "template": null,
             "value": null
           },
           {
             "name": "VerifyCustomSignature",
+            "discriminant": 7,
             "template": null,
             "value": {
               "ByIndex": 93
@@ -1808,6 +1861,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "StoreSerializedString",
+            "discriminant": 8,
             "template": null,
             "value": {
               "ByIndex": 94
@@ -1815,11 +1869,13 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "DeserializeBytesAsString",
+            "discriminant": 9,
             "template": null,
             "value": null
           },
           {
             "name": "DeserializeCustomString",
+            "discriminant": 10,
             "template": null,
             "value": {
               "ByIndex": 95
@@ -1827,6 +1883,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "DeleteCells",
+            "discriminant": 11,
             "template": null,
             "value": {
               "ByIndex": 96
@@ -1834,6 +1891,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "SetHook",
+            "discriminant": 12,
             "template": null,
             "value": {
               "ByIndex": 97
@@ -1841,6 +1899,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "UpdateAdmin",
+            "discriminant": 13,
             "template": null,
             "value": {
               "ByIndex": 104
@@ -2214,6 +2273,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "variants": [
           {
             "name": "Read",
+            "discriminant": 0,
             "template": null,
             "value": {
               "ByIndex": 101
@@ -2221,6 +2281,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Write",
+            "discriminant": 1,
             "template": null,
             "value": {
               "ByIndex": 102
@@ -2228,6 +2289,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "name": "Delete",
+            "discriminant": 2,
             "template": null,
             "value": {
               "ByIndex": 103
