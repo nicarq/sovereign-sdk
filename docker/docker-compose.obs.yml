@@ -34,7 +34,7 @@ services:
   tempo:
     image: grafana/tempo:2.6.1
     container_name: tempo
-    command: ["-config.file=/etc/tempo.yaml"]
+    command: [ "-config.file=/etc/tempo.yaml" ]
     volumes:
       - ./grafana-tempo/tempo.yaml:/etc/tempo.yaml:ro
       - ./grafana-tempo/data:/tmp/tempo
@@ -70,6 +70,8 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /etc:/host/etc:ro
+# Uncomment this for
+#      - ${ROLLUP_DATA_DIR:-../examples/demo-rollup/demo_data}:/mnt/rollup:ro
     ports:
       - "127.0.0.1:${TELEGRAF_PORT:-8094}:8094/udp"
       - "127.0.0.1:${TELEGRAF_PORT:-8094}:8094/tcp"
