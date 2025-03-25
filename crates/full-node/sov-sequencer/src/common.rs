@@ -1,5 +1,6 @@
 //! Defines the [`Sequencer`] trait and related types.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::future::Future;
 use std::path::Path;
@@ -8,6 +9,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use axum::http::StatusCode;
 use borsh::{BorshDeserialize, BorshSerialize};
+use sov_blob_sender::{BlobInternalId, BlobSenderHooks};
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::AuthenticationOutput;
 use sov_modules_api::rest::utils::ErrorObject;
@@ -22,10 +24,9 @@ use sov_rest_utils::json_obj;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::{ItemOrHash, LedgerStateProvider, QueryMode};
 use sov_rollup_interface::node::{future_or_shutdown, DaSyncState, FutureOrShutdownOutput};
-use tokio::sync::{broadcast, watch, Mutex};
+use tokio::sync::{broadcast, watch, Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tracing::{info, trace};
-use uuid::Uuid;
 
 use crate::{
     SequencerConfig, SequencerEvent, SequencerNotReadyDetails, SubmitBatchReceipt, TxHash,
@@ -133,7 +134,73 @@ impl<C> AcceptedTx<C> {
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct WithCachedTxHashes<I> {
     pub inner: I,
-    pub tx_hashes: Vec<TxHash>,
+    pub tx_hashes: Arc<[TxHash]>,
+}
+
+/// Sends [`TxStatusManager`] notifications upon blob status changes.
+pub struct TxStatusBlobSenderHooks<Da: DaSpec> {
+    txsm: TxStatusManager<Da>,
+    tx_hashes_by_blob_id: RwLock<HashMap<BlobInternalId, Arc<[TxHash]>>>,
+}
+
+impl<Da: DaSpec> TxStatusBlobSenderHooks<Da> {
+    pub fn new(txsm: TxStatusManager<Da>) -> Self {
+        Self {
+            txsm,
+            tx_hashes_by_blob_id: Default::default(),
+        }
+    }
+
+    pub async fn add_txs(&self, blob_id: BlobInternalId, tx_hashes: Arc<[TxHash]>) {
+        self.tx_hashes_by_blob_id
+            .write()
+            .await
+            .insert(blob_id, tx_hashes);
+    }
+
+    async fn notify_all(&self, blob_id: BlobInternalId, status: TxStatus<Da::TransactionId>) {
+        let tx_hashes = self
+            .tx_hashes_by_blob_id
+            .read()
+            .await
+            .get(&blob_id)
+            .cloned()
+            .unwrap_or_default();
+
+        for tx_hash in &*tx_hashes {
+            trace!(
+                %tx_hash,
+                ?status,
+                %blob_id,
+                "Notifying about transaction status as a result of blob submission",
+            );
+            self.txsm.notify(*tx_hash, status.clone());
+        }
+    }
+}
+
+#[async_trait]
+impl<Da: DaSpec> BlobSenderHooks for TxStatusBlobSenderHooks<Da> {
+    type Da = Da;
+
+    async fn on_published_blob(
+        &self,
+        blob_id: BlobInternalId,
+        _blob_hash: [u8; 32],
+        da_tx_id: Da::TransactionId,
+    ) {
+        self.notify_all(blob_id, TxStatus::Published { da_tx_id })
+            .await;
+    }
+
+    async fn on_finalized_blob(
+        &self,
+        blob_id: BlobInternalId,
+        _blob_hash: [u8; 32],
+        _da_tx_id: <Self::Da as DaSpec>::TransactionId,
+    ) {
+        self.tx_hashes_by_blob_id.write().await.remove(&blob_id);
+    }
 }
 
 /// Empty transaction confirmation data.
@@ -203,6 +270,7 @@ pub async fn loop_call_update_state<Seq: Sequencer>(
     .await;
 }
 
+#[tracing::instrument(skip_all, level = "trace")]
 pub async fn loop_send_tx_notifications<S: Spec, Rt: RuntimeEventProcessor>(
     state_update_receiver: StateUpdateReceiver<S::Storage>,
     shutdown_receiver: watch::Receiver<()>,
@@ -220,6 +288,8 @@ pub async fn loop_send_tx_notifications<S: Spec, Rt: RuntimeEventProcessor>(
         async move {
             let storage_slot_number = info.slot_number;
             let range = latest_processed_slot_number.lock().await.range_inclusive(storage_slot_number);
+
+            trace!(%storage_slot_number, "Querying slot data from node to notify about transaction status");
 
             for slot_number in range {
                 let slot = ledger_db
@@ -239,7 +309,9 @@ pub async fn loop_send_tx_notifications<S: Spec, Rt: RuntimeEventProcessor>(
                             continue;
                         };
 
-                        txsm.notify(TxHash::new(tx.hash), TxStatus::Processed);
+                        let tx_hash = TxHash::new(tx.hash);
+                        trace!(%tx_hash, "Notifying about transaction status as a result of node processing a slot");
+                        txsm.notify(tx_hash, TxStatus::Processed);
                     }
                 }
             }
@@ -331,41 +403,4 @@ pub fn sender_is_allowed<RT: Runtime<S>, S: Spec>(
     let destination_module = <RT as DispatchCall>::module_info(runtime, call.discriminant());
     destination_module.is_safe_for_sequencer(call.contents(), sequencer_address)
         || admins.contains(sender)
-}
-
-/// ID of a [`SeqDbTx`].
-pub(crate) type SeqDbTxId = u128;
-
-/// Wrapper around encoded transactions that is ideal for database storage.
-///
-/// Transaction hashes are cached together with the transaction itself, and each
-/// transaction is assigned a monotonically increasing
-/// [UUIDv7](https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_7_(timestamp_and_random)),
-/// which is then converted to a [`u128`].
-///
-/// Note, this is **not** part of the [`Sequencer`] interface and it's just a
-/// utility that [`Sequencer`] implementations MAY use.
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-pub(crate) struct SeqDbTx {
-    /// The encoded transaction bytes.
-    pub tx: FullyBakedTx,
-    /// The hash of the transaction, as calculated by
-    /// the batch builder.
-    pub hash: TxHash,
-    /// A monotonically increasing UUIDv7 counter used to order transactions by
-    /// insertion time. Gaps are allowed.
-    pub uuid_v7: u128,
-}
-
-impl SeqDbTx {
-    /// Creates a new [`SeqDbTx`] from the given transaction bytes.
-    pub fn new(hash: TxHash, tx: FullyBakedTx) -> Self {
-        // UUIDv7 are monotonically increasing. See here:
-        // <https://github.com/uuid-rs/uuid/releases/tag/1.9.0>.
-        let uuid_v7 = Uuid::now_v7().as_u128();
-
-        trace!(uuid_v7, "Generating a new `SeqDbTx`");
-
-        Self { tx, hash, uuid_v7 }
-    }
 }

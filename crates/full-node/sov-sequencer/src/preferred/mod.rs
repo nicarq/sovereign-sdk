@@ -4,6 +4,7 @@ mod async_batch;
 mod block_executor;
 mod db;
 
+use std::boxed::Box;
 use std::marker::PhantomData;
 use std::num::NonZero;
 use std::path::Path;
@@ -16,6 +17,7 @@ use db::rocksdb::RocksDbBackend;
 use db::{PreferredSequencerDb, PreferredSequencerDbBackend, PreferredSequencerReadBlob};
 use schemars::JsonSchema;
 use serde_with::serde_as;
+use sov_blob_sender::{BlobInternalId, BlobSender};
 use sov_blob_storage::PreferredBatchData;
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::BlobSelector;
@@ -37,9 +39,9 @@ use tokio::sync::{broadcast, watch, Mutex, MutexGuard};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, trace, Instrument};
 
-use crate::blob_sender::BlobSender;
 use crate::common::{
-    loop_call_update_state, loop_send_tx_notifications, AcceptedTx, Sequencer, WithCachedTxHashes,
+    loop_call_update_state, loop_send_tx_notifications, AcceptedTx, Sequencer,
+    TxStatusBlobSenderHooks, WithCachedTxHashes,
 };
 use crate::preferred::block_executor::{RollupBlockExecutor, RollupBlockExecutorError};
 use crate::{
@@ -49,24 +51,27 @@ use crate::{
 
 type VisibleSlotNumberIncrease = NonZero<u8>;
 
-/// A inner batch builder struct containing state that requires synchronized access.
-struct Inner<S, Rt>
+/// A inner sequencer struct containing state that requires synchronized access.
+struct Inner<S, Rt, Da>
 where
     S: Spec,
     Rt: Runtime<S>,
+    Da: DaService<Spec = S::Da>,
 {
     db: PreferredSequencerDb<S, Rt>,
     latest_info: StateUpdateInfo<S::Storage>,
     checkpoint_sender: watch::Sender<StateCheckpoint<S>>,
     next_event_number: u64,
+    blob_sender: BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>>,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     block_executor: RollupBlockExecutor<S, Rt>,
 }
 
-impl<S, Rt> Inner<S, Rt>
+impl<S, Rt, Da> Inner<S, Rt, Da>
 where
     S: Spec,
     Rt: Runtime<S>,
+    Da: DaService<Spec = S::Da>,
 {
     /// Syncs [`ApiState`]s with the latest [`StateCheckpoint`].
     #[tracing::instrument(skip_all, level = "trace")]
@@ -131,9 +136,7 @@ where
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
-    async fn produce_batch_if_possible(
-        &mut self,
-    ) -> anyhow::Result<Option<WithCachedTxHashes<PreferredBatchData>>> {
+    async fn produce_batch_if_possible(&mut self) -> anyhow::Result<Option<SubmitBatchReceipt>> {
         let checkpoint = self.block_executor.state().checkpoint_ref();
 
         // Check if we have enough slots to create a new batch immediately after
@@ -158,7 +161,25 @@ where
         self.block_executor.end_rollup_block_if_in_progress().await;
 
         self.update_api_state().await;
-        Ok(Some(batch.into()))
+
+        let serialized_batch = borsh::to_vec::<PreferredBatchData>(&PreferredBatchData {
+            sequence_number: batch.sequence_number,
+            visible_slots_to_advance: batch.visible_slots_to_advance,
+            data: batch.txs,
+        })?
+        .into();
+
+        let tx_hashes: Arc<[TxHash]> = batch.tx_hashes.into();
+
+        self.blob_sender
+            .hooks()
+            .add_txs(batch.blob_id, tx_hashes.clone())
+            .await;
+        self.blob_sender
+            .publish_batch_blob(serialized_batch, batch.blob_id)
+            .await?;
+
+        Ok(Some(SubmitBatchReceipt { tx_hashes }))
     }
 }
 
@@ -204,7 +225,7 @@ where
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
-    inner: Mutex<Inner<S, Rt>>,
+    inner: Mutex<Inner<S, Rt, Da>>,
     tx_status_manager: TxStatusManager<S::Da>,
     events_sender: broadcast::Sender<SequencerEvent<Rt>>,
     api_state: ApiState<S>,
@@ -213,7 +234,6 @@ where
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     has_been_ready: AtomicBool,
     shutdown_notifier: Sender<()>,
-    blob_sender: BlobSender<Da, PreferredBatchData>,
 }
 
 impl<S, Rt, Da> PreferredSequencer<S, Rt, Da>
@@ -223,7 +243,7 @@ where
     Da: DaService<Spec = S::Da>,
 {
     #[tracing::instrument(skip_all, level = "debug")]
-    async fn lock_inner(&self) -> MutexGuard<Inner<S, Rt>> {
+    async fn lock_inner(&self) -> MutexGuard<Inner<S, Rt, Da>> {
         self.inner.lock().await
     }
 }
@@ -301,6 +321,17 @@ where
                 Box::new(RocksDbBackend::new(storage_path).await?)
             };
 
+        let (blob_sender, blob_sender_handle) = BlobSender::new(
+            da,
+            ledger_db.clone(),
+            storage_path,
+            true,
+            TxStatusBlobSenderHooks::new(tx_status_manager.clone()),
+            shutdown_receiver.clone(),
+        )
+        .await?;
+        handles.push(blob_sender_handle);
+
         let inner = Inner {
             db: PreferredSequencerDb::<S, Rt>::new(db_backend).await?,
             latest_info: latest_state_update.clone(),
@@ -312,6 +343,7 @@ where
                 config.clone(),
                 shutdown_notifier.clone(),
             ),
+            blob_sender,
         };
 
         let seq = Arc::new(PreferredSequencer {
@@ -324,14 +356,6 @@ where
             shutdown_notifier,
             config: config.clone(),
             has_been_ready: AtomicBool::new(false),
-            blob_sender: BlobSender::new(
-                da,
-                storage_path,
-                tx_status_manager,
-                true,
-                shutdown_receiver.clone(),
-            )
-            .await?,
         });
 
         seq.update_state(latest_state_update.clone())
@@ -457,64 +481,52 @@ where
         .instrument(tracing::debug_span!("process_batches"))
         .await?;
 
-        let submit_batch_opt = {
-            // We stop accepting new txns in accept_tx for a short time while we catch up
-            let mut inner = self.lock_inner().await;
-            let current_in_progress_batch = inner.db.in_progress_batch_opt().await?.cloned();
+        // We stop accepting new txns in accept_tx for a short time while we catch up
+        let mut inner = self.lock_inner().await;
+        let current_in_progress_batch = inner.db.in_progress_batch_opt().await?.cloned();
 
-            // Currently it's not possible for `accept_tx` to end a batch, this will likely
-            // change in the future when it can close batches due to gas, stake, batch sizes, etc.
-            // When that happens we'll also need to handle the case where `accept_tx` closes the batch.
-            match (last_replayed_batch_in_progress, current_in_progress_batch) {
-                // We have an in-progress batch, see if there's any new additions
-                // since we've replayed the batches on the nodes state
-                (Some(true), Some(batch)) => {
-                    let prev_txs_len = latest_batch_txs_len
-                        .expect("In progress check was Some but txs len was None");
-                    let new_txs = batch.txs[prev_txs_len..].to_vec();
+        // Currently it's not possible for `accept_tx` to end a batch, this will likely
+        // change in the future when it can close batches due to gas, stake, batch sizes, etc.
+        // When that happens we'll also need to handle the case where `accept_tx` closes the batch.
+        match (last_replayed_batch_in_progress, current_in_progress_batch) {
+            // We have an in-progress batch, see if there's any new additions
+            // since we've replayed the batches on the nodes state
+            (Some(true), Some(batch)) => {
+                let prev_txs_len =
+                    latest_batch_txs_len.expect("In progress check was Some but txs len was None");
+                let new_txs = batch.txs[prev_txs_len..].to_vec();
 
-                    trace!(new_txs = new_txs.len(), "Applying any new transactions have been added to in-progress batch while updating node state");
+                trace!(new_txs = new_txs.len(), "Applying any new transactions have been added to in-progress batch while updating node state");
 
-                    for tx in new_txs {
-                        let _ = executor.apply_tx_to_in_progress_batch(&tx).await;
-                    }
+                for tx in new_txs {
+                    let _ = executor.apply_tx_to_in_progress_batch(&tx).await;
                 }
-                // There wasn't an in-progress batch previously but there is one now
-                // It was started by accept_tx, lets add it to our state
-                (_, Some(in_progress_batch)) => {
-                    trace!("Replaying batch that was initialized while updating node state");
-                    let batch = PreferredBatchToRestore {
-                        is_in_progress: true,
-                        visible_slot_number_after_increase: in_progress_batch
-                            .visible_slot_number_after_increase,
-                        batch: in_progress_batch.into(),
-                    };
-                    let node_root = inner.node_root_hash()?;
-                    executor.replay_batch(&batch, &node_root).await?;
-                }
-                _ => trace!("No new transaction or batch state while updating node state"),
             }
-
-            trace!("Node state update complete, swapping new state into sequencer");
-            inner.latest_info = info;
-            inner.block_executor.replace_state(executor.consume()).await;
-            inner.update_api_state().await;
-            trace!("Node state update completed successfully");
-
-            if self.config.automatic_batch_production {
-                inner.produce_batch_if_possible().await?
-            } else {
-                None
+            // There wasn't an in-progress batch previously but there is one now
+            // It was started by accept_tx, lets add it to our state
+            (_, Some(in_progress_batch)) => {
+                trace!("Replaying batch that was initialized while updating node state");
+                let batch = PreferredBatchToRestore {
+                    is_in_progress: true,
+                    visible_slot_number_after_increase: in_progress_batch
+                        .visible_slot_number_after_increase,
+                    blob_id: in_progress_batch.blob_id,
+                    batch: in_progress_batch.into(),
+                };
+                let node_root = inner.node_root_hash()?;
+                executor.replay_batch(&batch, &node_root).await?;
             }
-        };
+            _ => trace!("No new transaction or batch state while updating node state"),
+        }
 
-        if let Some(batch) = submit_batch_opt {
-            self.has_been_ready
-                .store(true, std::sync::atomic::Ordering::Release);
-            self.blob_sender
-                .publish_batch_and_wait(batch)
-                .instrument(tracing::trace_span!("publish_batch_and_wait"))
-                .await?;
+        trace!("Node state update complete, swapping new state into sequencer");
+        inner.latest_info = info;
+        inner.block_executor.replace_state(executor.consume()).await;
+        inner.update_api_state().await;
+        trace!("Node state update completed successfully");
+
+        if self.config.automatic_batch_production {
+            inner.produce_batch_if_possible().await?;
         }
 
         Ok(())
@@ -601,19 +613,7 @@ where
             self.accept_tx(tx.clone()).await.ok(); // FIXME(@neysofu): handle error.
         }
 
-        let submit_batch_opt = {
-            let mut inner = self.inner.lock().await;
-            inner.produce_batch_if_possible().await?
-        };
-
-        if let Some(batch) = submit_batch_opt {
-            self.blob_sender
-                .publish_batch_and_wait(batch)
-                .await
-                .map(Some)
-        } else {
-            Ok(None)
-        }
+        self.inner.lock().await.produce_batch_if_possible().await
     }
 }
 
@@ -621,6 +621,8 @@ struct PreferredBatchToRestore {
     is_in_progress: bool,
     visible_slot_number_after_increase: VisibleSlotNumber,
     batch: WithCachedTxHashes<PreferredBatchData>,
+    #[allow(dead_code)] // TODO(@neysofu): use it to re-submit blobs upon sequencer restart.
+    blob_id: BlobInternalId,
 }
 
 /// Configuration for [`PreferredSequencer`].
@@ -758,6 +760,7 @@ where
             PreferredSequencerReadBlob::Batch(batch) => Some(PreferredBatchToRestore {
                 is_in_progress: false,
                 visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
+                blob_id: batch.blob_id,
                 batch: batch.into(),
             }),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2063): Process proofs.
@@ -779,6 +782,7 @@ where
         batches.push(PreferredBatchToRestore {
             is_in_progress: true,
             visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
+            blob_id: batch.blob_id,
             batch: batch.into(),
         });
     }

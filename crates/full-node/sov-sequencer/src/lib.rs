@@ -1,7 +1,6 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-mod blob_sender;
 pub(crate) mod common;
 mod config;
 mod rest_api;
@@ -12,15 +11,15 @@ pub mod standard;
 #[cfg(feature = "test-utils")]
 pub mod test_stateless;
 
+use std::sync::Arc;
+
 use axum::async_trait;
 pub use common::Sequencer;
 pub use config::{SequencerConfig, SequencerKindConfig};
 pub use rest_api::SequencerApis;
 use serde::Serialize;
-use sov_modules_api::{DaSpec, RuntimeEventProcessor, RuntimeEventResponse};
-use sov_rollup_interface::node::da::{DaService, SubmitBlobReceipt};
+use sov_modules_api::{RuntimeEventProcessor, RuntimeEventResponse};
 use sov_rollup_interface::TxHash;
-use tokio::sync::oneshot;
 pub use tx_status::TxStatusManager;
 
 pub use crate::tx_status::TxStatus;
@@ -30,15 +29,8 @@ pub use crate::tx_status::TxStatus;
 pub struct SubmitBatchReceipt {
     /// All the hashes of the transactions that were successfully included in
     /// the batch.
-    pub tx_hashes: Vec<TxHash>,
+    pub tx_hashes: Arc<[TxHash]>,
 }
-
-pub(crate) type BlobReceiptFut<Da> = oneshot::Receiver<
-    Result<
-        SubmitBlobReceipt<<<Da as DaService>::Spec as DaSpec>::TransactionId>,
-        <Da as DaService>::Error,
-    >,
->;
 
 /// See [`crate::common::Sequencer::is_ready`].
 #[derive(Debug, serde::Serialize)]

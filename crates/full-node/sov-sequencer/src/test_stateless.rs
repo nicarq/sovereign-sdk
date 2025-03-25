@@ -6,6 +6,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use sov_blob_sender::{new_blob_id, BlobSender};
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::AuthenticationError;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
@@ -18,10 +19,9 @@ use sov_rollup_interface::{StateUpdateInfo, TxHash};
 use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
 
-use crate::blob_sender::BlobSender;
 use crate::common::{
     loop_call_update_state, loop_send_tx_notifications, AcceptedTx, EmptyConfirmation, Sequencer,
-    WithCachedTxHashes,
+    TxStatusBlobSenderHooks, WithCachedTxHashes,
 };
 use crate::{
     SequencerConfig, SequencerNotReadyDetails, SubmitBatchReceipt, TxStatus, TxStatusManager,
@@ -40,7 +40,7 @@ struct Inner<S: Spec> {
 #[derive(Clone)]
 pub struct TestStatelessSequencer<R, S: Spec, Da: DaService> {
     inner: Arc<Mutex<Inner<S>>>,
-    blob_sender: Arc<BlobSender<Da, Vec<FullyBakedTx>>>,
+    blob_sender: Arc<Mutex<BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>>>>,
     tx_status_manager: TxStatusManager<S::Da>,
     _r: PhantomData<R>,
     state_sender: watch::Sender<StateCheckpoint<S>>,
@@ -74,7 +74,7 @@ where
             .collect();
         WithCachedTxHashes {
             inner: mempool_txs,
-            tx_hashes,
+            tx_hashes: tx_hashes.into(),
         }
     }
 
@@ -163,16 +163,18 @@ where
 
         let seq = Arc::new(Self {
             inner: inner.into(),
-            blob_sender: Arc::new(
+            blob_sender: Arc::new(Mutex::new(
                 BlobSender::new(
                     da,
+                    ledger_db.clone(),
                     storage_path,
-                    tx_status_manager.clone(),
                     true,
+                    TxStatusBlobSenderHooks::new(tx_status_manager.clone()),
                     shutdown_receiver.clone(),
                 )
-                .await?,
-            ),
+                .await?
+                .0,
+            )),
             tx_status_manager,
             _r: Default::default(),
             state_sender,
@@ -210,8 +212,12 @@ where
         let mut inner = self.inner.lock().await;
         inner.storage = update_info.storage;
 
+        let serialized_batch =
+            borsh::to_vec::<Vec<FullyBakedTx>>(&self.take_batch().await.inner)?.into();
         self.blob_sender
-            .publish_batch_and_wait(self.take_batch().await)
+            .lock()
+            .await
+            .publish_batch_blob(serialized_batch, new_blob_id())
             .await?;
 
         Ok(())
@@ -228,13 +234,22 @@ where
         &self,
         txs: Vec<FullyBakedTx>,
     ) -> anyhow::Result<Option<SubmitBatchReceipt>> {
-        for tx in txs {
-            self.accept_tx(tx).await.ok();
+        for tx in txs.iter() {
+            self.accept_tx(tx.clone()).await.ok();
         }
 
+        let WithCachedTxHashes {
+            inner: txs,
+            tx_hashes,
+        } = self.take_batch().await;
+        let serialized_batch = borsh::to_vec::<Vec<FullyBakedTx>>(&txs)?.into();
+
         self.blob_sender
-            .publish_batch_and_wait(self.take_batch().await)
+            .lock()
             .await
-            .map(Some)
+            .publish_batch_blob(serialized_batch, new_blob_id())
+            .await?;
+
+        Ok(Some(SubmitBatchReceipt { tx_hashes }))
     }
 }

@@ -6,7 +6,7 @@ use std::time::Duration;
 use backon::{BackoffBuilder, Retryable};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 use tracing::error;
 
@@ -108,7 +108,7 @@ impl<E> From<E> for MaybeRetryable<E> {
 }
 
 /// Output of submit blob operation.
-#[derive(Debug, Clone, Serialize, derive_more::Display)]
+#[derive(Debug, Clone, Serialize, Deserialize, derive_more::Display)]
 #[display(
     "SubmitBlobReceipt {{ blob_hash: {}, da_transaction_id: {:?} }}",
     blob_hash,

@@ -2,6 +2,7 @@
 
 mod mempool;
 
+use std::boxed::Box;
 use std::marker::PhantomData;
 use std::num::NonZero;
 use std::path::Path;
@@ -11,6 +12,7 @@ use async_trait::async_trait;
 use axum::http::StatusCode;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sov_blob_sender::{new_blob_id, BlobSender};
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::{AuthenticationError, ChainState};
 use sov_modules_api::rest::utils::ErrorObject;
@@ -30,13 +32,12 @@ use sov_rollup_interface::node::DaSyncState;
 use thiserror::Error;
 use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
-use tracing::{error, trace, warn};
+use tracing::{debug, error, trace, warn};
 
-use self::mempool::{Mempool, MempoolCursor};
-use crate::blob_sender::BlobSender;
+use self::mempool::{Mempool, MempoolCursor, MempoolTx};
 use crate::common::{
     loop_call_update_state, loop_send_tx_notifications, pre_exec_err_to_accept_tx_err,
-    sender_is_allowed, tx_auth, AcceptedTx, EmptyConfirmation, SeqDbTx, Sequencer,
+    sender_is_allowed, tx_auth, AcceptedTx, EmptyConfirmation, Sequencer, TxStatusBlobSenderHooks,
     WithCachedTxHashes,
 };
 use crate::{
@@ -51,7 +52,7 @@ where
     Da: DaService<Spec = S::Da>,
 {
     assembled_batch: Option<WithCachedTxHashes<Vec<FullyBakedTx>>>,
-    blob_sender: BlobSender<Da, Vec<FullyBakedTx>>,
+    blob_sender: BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>>,
     checkpoint: Option<StateCheckpoint<S>>,
     mempool: Mempool<Da::Spec>,
     phantom: PhantomData<Rt>, // TODO(@neysofu): remove this if possible.
@@ -112,13 +113,13 @@ where
     #[allow(clippy::type_complexity)]
     fn try_add_tx_to_batch(
         &self,
-        seqdb_tx: &SeqDbTx,
+        mempool_tx: &MempoolTx,
         mut ctx: BatchConstructionContext<S>,
     ) -> (
         BatchConstructionContext<S>,
         Result<Option<(FullyBakedTx, TransactionReceipt<S>)>, AddTxToBatchError>,
     ) {
-        let tx = seqdb_tx.tx.clone();
+        let tx = mempool_tx.tx.clone();
         let mut runtime = Rt::default();
 
         // To fill a batch as big as possible, we only check if valid
@@ -134,7 +135,7 @@ where
             &self.runtime,
             tx_scratchpad,
             ctx.gas_price.clone(),
-            &seqdb_tx.tx,
+            &mempool_tx.tx,
         );
 
         let (auth_output, gas_meter) = match output_res {
@@ -315,7 +316,7 @@ where
                 "Batch of transactions has been built"
             );
 
-            let (txs, tx_hashes) = txs
+            let (txs, tx_hashes): (Vec<_>, Vec<_>) = txs
                 .into_iter()
                 .map(|tx| (tx.fully_baked_tx, tx.hash))
                 .unzip();
@@ -324,7 +325,7 @@ where
                 ctx.state_checkpoint,
                 Ok(Some(WithCachedTxHashes {
                     inner: txs,
-                    tx_hashes,
+                    tx_hashes: tx_hashes.into(),
                 })),
             )
         })(state_checkpoint);
@@ -335,7 +336,7 @@ where
             Ok(Some(batch)) => {
                 inner.assembled_batch = Some(batch.clone());
 
-                for tx_hash in &batch.tx_hashes {
+                for tx_hash in &*batch.tx_hashes {
                     // We're not dropping transactions because we're evicting them,
                     // but rather because we don't need them anymore after
                     // submitting them. Thus, sending a "drop" notification to users
@@ -368,6 +369,28 @@ where
     fn default_max_batch_size_bytes(&self) -> NonZero<usize> {
         // 1 MiB
         NonZero::new(1024 * 1024).unwrap()
+    }
+
+    async fn publish_batch(
+        &self,
+        batch: &WithCachedTxHashes<Vec<FullyBakedTx>>,
+    ) -> anyhow::Result<()> {
+        let serialized_batch = borsh::to_vec::<Vec<FullyBakedTx>>(&batch.inner)?.into();
+        let blob_id = new_blob_id();
+
+        let mut inner = self.inner.lock().await;
+
+        inner
+            .blob_sender
+            .hooks()
+            .add_txs(blob_id, batch.tx_hashes.clone())
+            .await;
+        inner
+            .blob_sender
+            .publish_batch_blob(serialized_batch, blob_id)
+            .await?;
+
+        Ok(())
     }
 }
 
@@ -415,14 +438,19 @@ where
         let txsm = TxStatusManager::default();
         let checkpoint =
             StateCheckpoint::new(latest_state_update.storage.clone(), &runtime.kernel());
-        let blob_sender = BlobSender::new(
+
+        let (blob_sender, blob_sender_handle) = BlobSender::new(
             da,
+            ledger_db.clone(),
             storage_path,
-            txsm.clone(),
             false,
+            TxStatusBlobSenderHooks::new(txsm.clone()),
             shutdown_receiver.clone(),
         )
         .await?;
+
+        let mut handles: Vec<JoinHandle<()>> = vec![];
+        handles.push(blob_sender_handle);
 
         let inner = Inner {
             blob_sender,
@@ -447,7 +475,6 @@ where
             config: config.clone(),
         });
 
-        let mut handles = vec![];
         handles.push(tokio::spawn({
             loop_call_update_state(
                 seq.clone(),
@@ -512,12 +539,7 @@ where
         if self.config.automatic_batch_production {
             match self.produce_batch().await {
                 Ok(Some(batch)) => {
-                    self.inner
-                        .lock()
-                        .await
-                        .blob_sender
-                        .publish_batch_and_wait(batch)
-                        .await?;
+                    self.publish_batch(&batch).await?;
                 }
                 Ok(None) => {}
                 Err(e) => {
@@ -652,19 +674,23 @@ where
         txs: Vec<FullyBakedTx>,
     ) -> anyhow::Result<Option<SubmitBatchReceipt>> {
         for tx in txs.iter() {
-            self.accept_tx(tx.clone()).await.ok(); // FIXME(@neysofu): handle error.
+            // FIXME(@neysofu): handle error.
+            if let Err(err) = self.accept_tx(tx.clone()).await {
+                debug!(
+                    ?err,
+                    "Failed to accept transaction while manually submitting batch"
+                );
+            }
         }
 
         let batch = self.produce_batch().await?;
 
         if let Some(batch) = batch {
-            self.inner
-                .lock()
-                .await
-                .blob_sender
-                .publish_batch_and_wait(batch)
-                .await
-                .map(Some)
+            self.publish_batch(&batch).await?;
+
+            Ok(Some(SubmitBatchReceipt {
+                tx_hashes: batch.tx_hashes,
+            }))
         } else {
             Ok(None)
         }
