@@ -240,13 +240,15 @@ impl<Da: DaService> TaskState<Da> {
                 break;
             };
 
-            let BlobSubmissionRequest {
+            let Some(BlobSubmissionRequest {
                 blob,
                 blob_id,
                 latest_known_processing_state,
-            } = channel_msg.expect(
-                "Channel was closed unexpectedly, this is most likely a bug and should be reported",
-            );
+            }) = channel_msg
+            else {
+                // Channel was closed, the node is shutting down.
+                break;
+            };
 
             let shutdown_receiver = self.shutdown_receiver.clone();
             handles.push(tokio::task::spawn({
