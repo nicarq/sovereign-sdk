@@ -27,7 +27,7 @@ pub enum SchemaStringError {
 /// If an actual `String` is absolutely necessary, then a newtype wrapper can be used, on which
 /// `SchemaGenerator` is derived manually.
 #[derive(
-    Debug, Default, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, BorshSerialize, BorshDeserialize,
+    Default, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, BorshSerialize, BorshDeserialize,
 )]
 #[cfg_attr(
     feature = "serde",
@@ -144,6 +144,12 @@ impl<const MAX_LEN: usize> AsRef<[u8]> for SizedSafeString<MAX_LEN> {
 impl<const MAX_LEN: usize> AsRef<str> for SizedSafeString<MAX_LEN> {
     fn as_ref(&self) -> &str {
         self.0.as_ref()
+    }
+}
+
+impl<const MAX_LEN: usize> std::fmt::Debug for SizedSafeString<MAX_LEN> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
