@@ -11086,6 +11086,7 @@ dependencies = [
  "serde_arrays",
  "serde_json",
  "serde_with",
+ "sha2 0.10.8",
  "sov-rollup-interface",
  "sov-universal-wallet",
  "sov-universal-wallet-macros",

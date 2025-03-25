@@ -53,7 +53,7 @@ mod web3_compatibility {
             "chain_id": 1337
         }
     }"#;
-        let schema = Schema::of_single_type::<UnsignedTransaction<Runtime, TestSpec>>();
+        let schema = Schema::of_single_type::<UnsignedTransaction<Runtime, TestSpec>>().unwrap();
 
         assert!(schema.json_to_borsh(0, json).is_ok(), "{ASSERT_MSG}");
     }
@@ -77,7 +77,7 @@ mod web3_compatibility {
             "chain_id": 1337
         }
     }"#;
-        let schema = Schema::of_single_type::<UnsignedTransaction<Runtime, TestSpec>>();
+        let schema = Schema::of_single_type::<UnsignedTransaction<Runtime, TestSpec>>().unwrap();
 
         assert!(schema.json_to_borsh(0, json).is_ok(), "{ASSERT_MSG}");
     }
@@ -116,7 +116,7 @@ mod web3_compatibility {
             "chain_id": 1337
         }
     }"#;
-        let schema = Schema::of_single_type::<Transaction<Runtime, TestSpec>>();
+        let schema = Schema::of_single_type::<Transaction<Runtime, TestSpec>>().unwrap();
 
         assert!(schema.json_to_borsh(0, json).is_ok(), "{ASSERT_MSG}");
     }
@@ -155,7 +155,7 @@ mod web3_compatibility {
             "chain_id": 1337
         }
     }"#;
-        let schema = Schema::of_single_type::<Transaction<Runtime, TestSpec>>();
+        let schema = Schema::of_single_type::<Transaction<Runtime, TestSpec>>().unwrap();
 
         let result = schema.json_to_borsh(0, json);
         assert!(result.is_ok(), "{ASSERT_MSG}. Error: {:?}", result);

@@ -158,7 +158,7 @@ mod tests {
         let raw_address_str = "celestia1hvp2nfz3r6nqt8mlrzqf9ctwle942tkr0wql75";
         let address = CelestiaAddress::from_str(raw_address_str).unwrap();
 
-        let schema = Schema::of_single_type::<CelestiaAddress>();
+        let schema = Schema::of_single_type::<CelestiaAddress>().unwrap();
 
         let borsh_bytes = borsh::to_vec(&address).unwrap();
         let deserialized: CelestiaAddress = borsh::from_slice(&borsh_bytes).unwrap();

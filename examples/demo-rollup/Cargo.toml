@@ -98,6 +98,7 @@ criterion = "0.5.1"
 
 [build-dependencies]
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+borsh = { workspace = true }
 sov-universal-wallet = { workspace = true, features = ["serde"] }
 sov-modules-api = { workspace = true }
 sov-mock-zkvm = { workspace = true, features = ["native"] }

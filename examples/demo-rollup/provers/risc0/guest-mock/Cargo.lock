@@ -3559,6 +3559,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "sha2",
  "sov-universal-wallet-macros",
  "thiserror",
 ]

@@ -57,7 +57,7 @@ fn test_display_value_setter_call() {
 
     let msg = RuntimeCall::ValueSetter(CallMessage::SetValue(5));
 
-    let schema = Schema::of_single_type::<RuntimeCall>();
+    let schema = Schema::of_single_type::<RuntimeCall>().unwrap();
     assert_eq!(
         schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(),
         r#"ValueSetter.SetValue(5)"#

@@ -1,6 +1,8 @@
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::fmt::Debug;
+
+use sha2::{Digest, Sha256};
 pub mod container;
 mod primitive;
 pub mod safe_string;
@@ -8,7 +10,7 @@ pub mod transaction_templates;
 use borsh::{BorshDeserialize, BorshSerialize};
 pub use container::Container;
 use nmt_rs::simple_merkle::db::MemDb;
-use nmt_rs::simple_merkle::tree::{MerkleHash, MerkleTree};
+use nmt_rs::simple_merkle::tree::MerkleTree;
 use nmt_rs::TmSha2Hasher;
 pub use primitive::Primitive;
 #[cfg(feature = "serde")]
@@ -91,9 +93,9 @@ impl MaybePartialLink {
 
 /// This newtype is mainly necessary to allow the schema to derive Debug ergonomically
 #[derive(Default)]
-pub struct MerkleTreeCache(Option<MerkleTree<MemDb<[u8; 32]>, TmSha2Hasher>>);
+pub struct ConstructedMerkleTree(Option<MerkleTree<MemDb<[u8; 32]>, TmSha2Hasher>>);
 
-impl Debug for MerkleTreeCache {
+impl Debug for ConstructedMerkleTree {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Ok(())
     }
@@ -118,6 +120,15 @@ pub enum RollupRoots {
     Address = 3,
 }
 
+/// The standard metadata format for every chain. Includes a numeric chain_id and a human-readable
+/// chain name.
+#[derive(Debug, Default, Clone, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ChainData {
+    pub chain_id: u64,
+    pub chain_name: String,
+}
+
 /// A schema, representing set of types (i.e. rust code) as a data structure.
 /// The schema allows any included type's borsh serialization to be displayed as a human readable string,
 /// and the type's JSON serialisation to be re-serialised to borsh without depending on the
@@ -128,7 +139,7 @@ pub enum RollupRoots {
 /// A schema can be instantiated for any type that implements either `SchemaGenerator` or
 /// `OverrideSchema`. In turn, `SchemaGenerator` is intended to be automatically derived using the
 /// `UniversalWallet` macro.
-#[derive(Default, Debug)]
+#[derive(Default, Debug, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Schema {
     /// The types described by this schema. This is an array of type descriptions, where complex
@@ -141,19 +152,31 @@ pub struct Schema {
     /// order, skipping primitives) to the actual indices they ended up at in the type array above.
     root_type_indices: Vec<usize>,
 
-    /// The chain metadata hash. Hashed with the root of the schema's merkle tree to
-    /// calculate the final chain ID.
-    /// The metadata can be any arbitrary type, as long as it can be serialized into a bytevec for
-    /// hashing.
-    metadata_hash: [u8; 32],
+    /// Global metadata for the chain.
+    chain_data: ChainData,
 
-    /// Cached chain ID value, calculated by hashing the schema's merkle root with the chain nonce
+    /// Extra metadata hash.
+    /// The extra metadata is used in contexts where serde features are enabled; thus, we do not
+    /// serialize it in serde formats, as it should be recomputed before using the data committed
+    /// using it. (Otherwise a frontend could supply malicious metadata and a mismatching hash to
+    /// make the hash pass chain ID checks.) We do serialize it in borsh as the extra metadata is
+    /// unused, so the committment is the only relevant information and a mismatch is not possible.
     #[cfg_attr(feature = "serde", serde(skip))]
+    extra_metadata_hash: [u8; 32],
+
+    /// The chain hash: the top-level hash committing to the entire schema, including all types and
+    /// all metadata.
+    /// This should be recalculated independently whenever the schema is used, thus is not included
+    /// in serializations. This field caches the results of the calculation for subsequent uses
+    /// after the schema has been deserialized and constructed.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    #[borsh(skip)]
     chain_hash: Option<[u8; 32]>,
 
     /// A list of templatable objects that can be constructed from standard input, per root type (in
     /// order corresponding to root_type_indices). Mapped by template name.
     /// Should be skipped in binary serialisation for hardware wallet apps.
+    #[borsh(skip)]
     templates: Vec<TransactionTemplateSet>,
 
     /// A set of metadata items for each field in the `types` vec, used for serde-compatible
@@ -164,32 +187,37 @@ pub struct Schema {
     /// does this save resources but it also allows the format to be modified to implement
     /// additional serde compatibility features without causing breaking changes for non-serde
     /// implementations.
+    #[borsh(skip)]
     serde_metadata: Vec<ContainerSerdeMetadata>,
 
     /// Cached (lazily-constructed) merkelization of the entire schema.
     #[cfg_attr(feature = "serde", serde(skip))]
-    merkle_tree: MerkleTreeCache,
+    #[borsh(skip)]
+    merkle_tree: ConstructedMerkleTree,
 
     /// A map from the type ID of an item to its index in the types array. Note that primitives and "virtual" structs/tuples
     /// (i.e. the contents of an enum variant) are not included in this map.
     /// Only used during schema construction.
     #[cfg_attr(feature = "serde", serde(skip))]
+    #[borsh(skip)]
     known_types: HashMap<ItemId, usize>,
 
     /// Keeps track of all the types which are partially constructed. By the end of schema generation, this
     /// must be empty.
     #[cfg_attr(feature = "serde", serde(skip))]
+    #[borsh(skip)]
     under_construction: HashMap<ItemId, usize>,
 }
 
 impl Schema {
     /// Instantiate a schema for a single type.
     /// This root type will be at index 0
-    pub fn of_single_type<T: SchemaGenerator>() -> Self {
+    pub fn of_single_type<T: SchemaGenerator>() -> Result<Self, SchemaError> {
         // TODO: this could easily be implemented with a macro for N types for any N >= 1, if ever needed
         let mut schema = Self::default();
         T::make_root_of(&mut schema);
-        schema
+        schema.finalize()?;
+        Ok(schema)
     }
 
     /// Instantiate a schema for a standard set of rollup types: its complete transaction, its
@@ -197,55 +225,37 @@ impl Schema {
     /// The types will be accessible using the indices stored in root_type_indices (in the above
     /// order); they can also be queried using the `RollupRoots` enum through the `_rollup`-tagged
     /// functions on the schema
-    pub fn of_rollup_types_with_metadata<
-        Metadata: BorshSerialize,
+    pub fn of_rollup_types_with_chain_data<
         Transaction: SchemaGenerator,
         UnsignedTransaction: SchemaGenerator,
         RuntimeCall: SchemaGenerator,
         Address: SchemaGenerator,
     >(
-        chain_metadata: &Metadata,
+        chain_data: ChainData,
     ) -> Result<Self, SchemaError> {
-        let hasher = TmSha2Hasher::new();
-        let mut schema = Self::default();
+        let mut schema = Schema {
+            chain_data,
+            ..Self::default()
+        };
         Transaction::make_root_of(&mut schema);
         UnsignedTransaction::make_root_of(&mut schema);
         RuntimeCall::make_root_of(&mut schema);
         Address::make_root_of(&mut schema);
 
-        let metadata_hash = hasher.hash_leaf(&borsh::to_vec(&chain_metadata)?);
-        schema.metadata_hash = schema.construct_metadata_hash(Some(metadata_hash))?;
+        schema.finalize()?;
         Ok(schema)
     }
 
-    /// Returns the chain ID calculated using the merkle root of all the schema types, combined
-    /// with a chain-specific nonce value.
-    /// This allows the chain ID to be used for verification of the schema (and thus verification
-    /// that a transaction claiming to correspond to a given schema will have the effect it claims).
-    pub fn chain_hash(&mut self) -> Result<[u8; 32], SchemaError> {
-        match self.chain_hash {
-            Some(id) => Ok(id),
-            None => {
-                let merkle_root = match &mut self.merkle_tree.0 {
-                    Some(tree) => tree.root(),
-                    None => {
-                        let mut tree = MerkleTree::new();
-                        for ty in &self.types {
-                            tree.push_raw_leaf(&borsh::to_vec(ty)?)
-                        }
-                        let root = tree.root();
-                        self.merkle_tree = MerkleTreeCache(Some(tree));
-                        root
-                    }
-                };
-                let hasher = TmSha2Hasher::new();
-                Ok(hasher.hash_nodes(&merkle_root, &hasher.hash_leaf(&self.metadata_hash)))
-            }
-        }
+    #[cfg(not(feature = "serde"))]
+    pub fn metadata_hash(&self) -> [u8; 32] {
+        self.extra_metadata_hash
     }
-
-    pub fn metadata_hash(&self) -> &[u8; 32] {
-        &self.metadata_hash
+    #[cfg(feature = "serde")]
+    pub fn metadata_hash(&mut self) -> Result<[u8; 32], SchemaError> {
+        if self.extra_metadata_hash == [0; 32] {
+            self.save_metadata_hash()?;
+        }
+        Ok(self.extra_metadata_hash)
     }
 
     #[cfg(feature = "serde")]
@@ -292,6 +302,7 @@ impl Schema {
         Ok(output)
     }
 
+    /// Use a stub JSON to create a full type using the named template.
     #[cfg(feature = "serde")]
     pub fn fill_template_from_json(
         &self,
@@ -355,6 +366,7 @@ impl Schema {
     }
 
     /// Lists all templates available for the given root type.
+    #[cfg(feature = "serde")]
     pub fn templates(&self, index: usize) -> Result<Vec<String>, SchemaError> {
         Ok(self
             .templates
@@ -366,20 +378,73 @@ impl Schema {
             .collect())
     }
 
-    fn construct_metadata_hash(
-        &self,
-        extra_metadata_hash: Option<[u8; 32]>,
-    ) -> Result<[u8; 32], SchemaError> {
-        let hasher = TmSha2Hasher::new();
-        let mut metadata_combined_preimage = [0u8; 32 * 3];
-        metadata_combined_preimage[0..32]
-            .copy_from_slice(&hasher.hash_leaf(&borsh::to_vec(&self.templates)?));
-        metadata_combined_preimage[32..64]
-            .copy_from_slice(&hasher.hash_leaf(&borsh::to_vec(&self.serde_metadata)?));
-        metadata_combined_preimage[64..96]
-            .copy_from_slice(&extra_metadata_hash.unwrap_or_default());
-        let metadata_hash = hasher.hash_leaf(&metadata_combined_preimage);
-        Ok(metadata_hash)
+    /// Returns the chain ID calculated using the merkle root of all the schema types, combined
+    /// with any chain-specific metadata.
+    /// This allows the chain ID to be used for verification of the schema (and thus verification
+    /// that a transaction claiming to correspond to a given schema will have the effect it claims).
+    pub fn chain_hash(&mut self) -> Result<[u8; 32], SchemaError> {
+        match self.chain_hash {
+            Some(hash) => Ok(hash),
+            None => {
+                // First, merkleize the schema
+                let merkle_root = match &mut self.merkle_tree.0 {
+                    Some(tree) => tree.root(),
+                    None => {
+                        let mut tree = MerkleTree::new();
+                        for ty in &self.types {
+                            tree.push_raw_leaf(&borsh::to_vec(ty)?)
+                        }
+                        let root = tree.root();
+                        self.merkle_tree = ConstructedMerkleTree(Some(tree));
+                        root
+                    }
+                };
+                // Then, hash the auxilliary internal data - root indices and chain data
+                let mut hasher = Sha256::new();
+                hasher.update(&borsh::to_vec(&self.root_type_indices)?);
+                hasher.update(&borsh::to_vec(&self.chain_data)?);
+                let internal_data_hash: [u8; 32] = hasher.finalize().into();
+
+                // If we're in a serde context, recalculate the metadata hash also, as we cannot
+                // trust the serialization.
+                #[cfg(feature = "serde")]
+                {
+                    self.save_metadata_hash()?;
+                }
+
+                // Finally, combine the three hashes in order to get the final chain hash
+                let mut hasher = Sha256::new();
+                hasher.update(merkle_root);
+                hasher.update(internal_data_hash);
+                hasher.update(self.extra_metadata_hash);
+
+                let chain_hash = hasher.finalize().into();
+                self.chain_hash = Some(chain_hash);
+                Ok(chain_hash)
+            }
+        }
+    }
+
+    /// Returns the chain ID calculated using the merkle root of all the schema types, combined
+    /// with any chain-specific metadata.
+    /// Only returns the cached value if it has already been calculated. This does not require a
+    /// mutable reference to the schema.
+    pub fn cached_chain_hash(&self) -> Option<[u8; 32]> {
+        self.chain_hash
+    }
+
+    fn save_metadata_hash(&mut self) -> Result<(), SchemaError> {
+        let mut hasher = Sha256::new();
+        hasher.update(&borsh::to_vec(&self.templates)?);
+        hasher.update(&borsh::to_vec(&self.serde_metadata)?);
+        self.extra_metadata_hash = hasher.finalize().into();
+        Ok(())
+    }
+
+    fn finalize(&mut self) -> Result<(), SchemaError> {
+        self.save_metadata_hash()?;
+        self.chain_hash()?;
+        Ok(())
     }
 
     pub fn types(&self) -> &[Ty<IndexLinking>] {

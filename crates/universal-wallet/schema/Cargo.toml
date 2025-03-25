@@ -10,6 +10,7 @@ bech32 = { workspace = true }
 bs58 = { workspace = true }
 hex = { workspace = true }
 thiserror = { workspace = true }
+sha2 = { workspace = true }
 
 borsh = { workspace = true, features = [] }
 nmt-rs = { workspace = true }
