@@ -1,3 +1,9 @@
+# 2025-03-25
+- #2603 **BREAKING CHANGE**: Universal schema now supports borsh serialization. The following changes are breaking:
+  * A new constant, `CHAIN_NAME`, was added. This gets saved in the schema and will be displayed to the user signing transactions, alongside the numeric `CHAIN_ID`.
+  * The `Schema::of_rollup_types_with_chain_data()` constructor has been updated. The "metadata" generic has been removed and the argument type has been updated, as chains are expected to provide precisely a chain ID and a chain name, standardising this aspect.
+  * Any tests utilizing the `Schema::of_single_type<T>(T)` constructor: this now returns a `Result<>` and will need to be unwrapped in the test.
+Additionally, the chain has will change.
 # 2025-03-17
 - #2615 Removes `max_allowed_blocks_behind` field from sequencer config, it was unused, simply remove this value from your configuration.
 

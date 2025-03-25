@@ -19,7 +19,7 @@ fn test_display_sequencer_registry_call() {
         amount: Amount::new(100),
     });
 
-    let schema = Schema::of_single_type::<RuntimeCall>();
+    let schema = Schema::of_single_type::<RuntimeCall>().unwrap();
     assert_eq!(
         schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(),
         "SequencerRegistry.Deposit { da_address: 0x0101010101010101010101010101010101010101010101010101010101010101, amount: 100 }"

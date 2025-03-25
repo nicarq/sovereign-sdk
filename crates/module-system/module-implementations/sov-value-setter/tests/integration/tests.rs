@@ -98,7 +98,7 @@ fn test_display_value_setter_call() {
         gas: None,
     });
 
-    let schema = Schema::of_single_type::<RuntimeCall>();
+    let schema = Schema::of_single_type::<RuntimeCall>().unwrap();
     assert_eq!(
         schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(),
         r#"ValueSetter.SetValue { value: 92, gas: None }"#

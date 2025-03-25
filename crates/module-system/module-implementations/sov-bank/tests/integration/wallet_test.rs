@@ -9,7 +9,7 @@ type S = TestSpec;
 
 #[test]
 fn test_create_token() {
-    let schema = Schema::of_single_type::<CallMessage<S>>();
+    let schema = Schema::of_single_type::<CallMessage<S>>().unwrap();
     let msg = CallMessage::CreateToken::<S> {
         token_name: "my-token".try_into().unwrap(),
         token_decimals: Some(6),
@@ -27,7 +27,7 @@ fn test_create_token() {
 
 #[test]
 fn test_transfer() {
-    let schema = Schema::of_single_type::<CallMessage<S>>();
+    let schema = Schema::of_single_type::<CallMessage<S>>().unwrap();
     let msg: CallMessage<S> = CallMessage::Transfer {
         to: <S as Spec>::Address::from_str(
             "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",

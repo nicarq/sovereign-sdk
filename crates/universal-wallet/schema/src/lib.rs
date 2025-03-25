@@ -43,7 +43,7 @@ pub extern crate bech32;
 ///    opaque_contents: Vec<u8>,
 /// }
 /// let serialized = borsh::to_vec(&Unreadable { name: "foo.txt".try_into().unwrap(), opaque_contents: vec![23, 74, 119, 119, 2, 232, 22]}).unwrap();
-/// assert_eq!(Schema::of_single_type::<Unreadable>().display(0, &serialized).unwrap(), r#"{ name: "foo.txt" }"#);
+/// assert_eq!(Schema::of_single_type::<Unreadable>().unwrap().display(0, &serialized).unwrap(), r#"{ name: "foo.txt" }"#);
 /// ```
 /// Notice also the use of the SafeString type here - this is to ensure the string can be safely
 /// displayed to the user. By default, unconstrained Strings are forbidden in schemas; for blobs of
@@ -72,7 +72,7 @@ pub extern crate bech32;
 ///    tag: i8,
 /// }
 /// let serialized = borsh::to_vec(&Tagged { data: Foreign(300_000), tag: -5 }).unwrap();
-/// assert_eq!(Schema::of_single_type::<Tagged>().display(0, &serialized).unwrap(), r#"{ data: 300000, tag: -5 }"#);
+/// assert_eq!(Schema::of_single_type::<Tagged>().unwrap().display(0, &serialized).unwrap(), r#"{ data: 300000, tag: -5 }"#);
 /// ```
 ///
 /// ## Attributes: `#[sov_wallet(skip)]`
@@ -91,7 +91,7 @@ pub extern crate bech32;
 ///     contents: Vec<u8>,
 /// }
 /// let serialized = borsh::to_vec(&File { contents: vec![1, 2, 3], checksum: None }).unwrap();
-/// assert_eq!(Schema::of_single_type::<File>().display(0, &serialized).unwrap(), r#"{ contents: 0x010203 }"#);
+/// assert_eq!(Schema::of_single_type::<File>().unwrap().display(0, &serialized).unwrap(), r#"{ contents: 0x010203 }"#);
 /// ```
 ///
 /// ## Attributes: `#[sov_wallet(fixed_point({decimals}))]`
@@ -114,7 +114,7 @@ pub extern crate bech32;
 ///     decimals: u8
 /// }
 /// let serialized = borsh::to_vec(&Coins { amount: 475200, decimals: 3 }).unwrap();
-/// assert_eq!(Schema::of_single_type::<Coins>().display(0, &serialized).unwrap(), r#"{ amount: 475.2 }"#);
+/// assert_eq!(Schema::of_single_type::<Coins>().unwrap().display(0, &serialized).unwrap(), r#"{ amount: 475.2 }"#);
 /// ```
 ///
 /// **Security note**: uniquely, this formats the display using user-submitted input. If the
@@ -148,6 +148,6 @@ pub extern crate bech32;
 ///   [u8;32],
 /// );
 /// let serialized = borsh::to_vec(&CelestiaAddress([1; 32])).unwrap();
-/// assert_eq!(Schema::of_single_type::<CelestiaAddress>().display(0, &serialized).unwrap(), "celestia1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsagv2r7");
+/// assert_eq!(Schema::of_single_type::<CelestiaAddress>().unwrap().display(0, &serialized).unwrap(), "celestia1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsagv2r7");
 /// ```
 pub use sov_universal_wallet_macros::UniversalWallet;

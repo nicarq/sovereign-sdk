@@ -586,7 +586,7 @@ pub mod macros {
     ///    opaque_contents: Vec<u8>,
     /// }
     /// let serialized = borsh::to_vec(&Unreadable { name: "foo.txt".try_into().unwrap(), opaque_contents: vec![23, 74, 119, 119, 2, 232, 22]}).unwrap();
-    /// assert_eq!(Schema::of_single_type::<Unreadable>().display(0, &serialized).unwrap(), r#"{ name: "foo.txt" }"#);
+    /// assert_eq!(Schema::of_single_type::<Unreadable>().unwrap().display(0, &serialized).unwrap(), r#"{ name: "foo.txt" }"#);
     /// ```
     /// Notice also the use of the `SafeString` type here - this is to ensure the string can be safely
     /// displayed to the user. By default, unconstrained Strings are forbidden in schemas; for blobs of
@@ -615,7 +615,7 @@ pub mod macros {
     ///    tag: i8,
     /// }
     /// let serialized = borsh::to_vec(&Tagged { data: Foreign(300_000), tag: -5 }).unwrap();
-    /// assert_eq!(Schema::of_single_type::<Tagged>().display(0, &serialized).unwrap(), r#"{ data: 300000, tag: -5 }"#);
+    /// assert_eq!(Schema::of_single_type::<Tagged>().unwrap().display(0, &serialized).unwrap(), r#"{ data: 300000, tag: -5 }"#);
     /// ```
     ///
     /// ## Attributes: `#[sov_wallet(fixed_point({decimals}))]`
@@ -638,7 +638,7 @@ pub mod macros {
     ///     decimals: u8
     /// }
     /// let serialized = borsh::to_vec(&Coins { amount: 475200, decimals: 3 }).unwrap();
-    /// assert_eq!(Schema::of_single_type::<Coins>().display(0, &serialized).unwrap(), r#"{ amount: 475.2 }"#);
+    /// assert_eq!(Schema::of_single_type::<Coins>().unwrap().display(0, &serialized).unwrap(), r#"{ amount: 475.2 }"#);
     /// ```
     ///
     /// **Security note**: uniquely, this formats the display using user-submitted input. If the
@@ -718,7 +718,7 @@ pub mod macros {
     ///     pub token_id: SafeString,
     /// }
     ///
-    /// let schema = Schema::of_single_type::<CallMessage>();
+    /// let schema = Schema::of_single_type::<CallMessage>().unwrap();
     /// let encoded_call = schema.fill_template_from_json(0, "transfer", r#"{ "to":
     /// "sov1234_whatever_address", "amount": 2000 }"#).unwrap();
     ///
@@ -773,7 +773,7 @@ pub mod macros {
     ///    extra_data: u8,
     /// }
     ///
-    /// let schema = Schema::of_single_type::<CallMessage>();
+    /// let schema = Schema::of_single_type::<CallMessage>().unwrap();
     /// let encoded_call = schema.fill_template_from_json(
     ///     0,
     ///     "call",
@@ -808,7 +808,7 @@ pub mod macros {
     ///     contents: Vec<u8>,
     /// }
     /// let serialized = borsh::to_vec(&File { contents: vec![1, 2, 3], checksum: None }).unwrap();
-    /// assert_eq!(Schema::of_single_type::<File>().display(0, &serialized).unwrap(), r#"{ contents: 0x010203 }"#);
+    /// assert_eq!(Schema::of_single_type::<File>().unwrap().display(0, &serialized).unwrap(), r#"{ contents: 0x010203 }"#);
     /// ```
     ///
     /// /// ## Attributes: `#[sov_wallet(hide_tag)]`
@@ -825,7 +825,7 @@ pub mod macros {
     ///     Value(u64)
     /// }
     /// let serialized = borsh::to_vec(&Example::Value(1)).unwrap();
-    /// assert_eq!(Schema::of_single_type::<Example>().display(0, &serialized).unwrap(), "1");
+    /// assert_eq!(Schema::of_single_type::<Example>().unwrap().display(0, &serialized).unwrap(), "1");
     /// ```
     ///
     /// ## Attributes: `#[sov_wallet(display({encoding}))]`
@@ -852,7 +852,7 @@ pub mod macros {
     ///   [u8;32],
     /// );
     /// let serialized = borsh::to_vec(&CelestiaAddress([1; 32])).unwrap();
-    /// assert_eq!(Schema::of_single_type::<CelestiaAddress>().display(0, &serialized).unwrap(), "celestia1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsagv2r7");
+    /// assert_eq!(Schema::of_single_type::<CelestiaAddress>().unwrap().display(0, &serialized).unwrap(), "celestia1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsagv2r7");
     /// ```
     pub use sov_modules_macros::UniversalWallet;
 }

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use sov_universal_wallet::schema::safe_string::SafeString;
 use sov_universal_wallet::schema::{
-    IndexLinking, Item, Link, Primitive, RollupRoots, Schema, SchemaGenerator,
+    ChainData, IndexLinking, Item, Link, Primitive, RollupRoots, Schema, SchemaGenerator,
 };
 use sov_universal_wallet::UniversalWallet;
 
@@ -32,10 +32,10 @@ macro_rules! encode_decode_tests_simple {
 
 macro_rules! encode_decode_tests {
     ($schema_type:ty, $item:ident, $expected_display:literal) => {
-        let mut schema = Schema::of_single_type::<$schema_type>();
+        let schema = Schema::of_single_type::<$schema_type>().unwrap();
         // println!("{:?}", &schema);
         encode_decode_tests_simple!(schema, $item, $expected_display);
-        let chain_hash = schema.chain_hash().unwrap();
+        let chain_hash = schema.cached_chain_hash().unwrap();
         let schema_json = serde_json::to_string_pretty(&schema).unwrap();
         // println!("{schema_json}");
         let mut recovered_schema = Schema::from_json(&schema_json).unwrap();
@@ -163,7 +163,8 @@ fn test_enum_with_discriminants_disabled_in_borsh() {
     // Custom test to make sure we serialize enums correctly without a discriminant
     let schema_surrogate = Schema::of_single_type::<
         EnumWithDiscriminantsDisabledInBorshSurrogateWithoutDiscriminants,
-    >();
+    >()
+    .unwrap();
     let borsh_from_discriminants = borsh::to_vec(&my_enum).unwrap();
     let json_from_discriminants = serde_json::to_string(&my_enum).unwrap();
     assert_eq!(
@@ -462,7 +463,7 @@ fn test_simple_struct_schema_with_template() {
         "{ tokens: 1000, msg: \"abc\" }"
     );
 
-    let schema = Schema::of_single_type::<SimpleStructWithTemplate>();
+    let schema = Schema::of_single_type::<SimpleStructWithTemplate>().unwrap();
     assert_eq!(schema.templates(0).unwrap(), vec!["transfer", "transfer_2"]);
 
     let transfer_example_encoding = borsh::to_vec(&SimpleStructWithTemplate {
@@ -488,7 +489,7 @@ fn test_simple_struct_schema_with_template() {
 
 #[test]
 fn test_nested_struct_with_template_override() {
-    let schema = Schema::of_single_type::<NestedStructWithTemplateOverride>();
+    let schema = Schema::of_single_type::<NestedStructWithTemplateOverride>().unwrap();
     assert!(schema.templates(0).unwrap().is_empty());
 }
 
@@ -507,7 +508,7 @@ fn test_nested_struct_with_surrogate_templates() {
         "{ inner: { tokens: 1000, msg: \"abc\" } }"
     );
 
-    let schema = Schema::of_single_type::<NestedStructWithSurrogateTemplateOverride>();
+    let schema = Schema::of_single_type::<NestedStructWithSurrogateTemplateOverride>().unwrap();
     assert_eq!(schema.templates(0).unwrap(), vec!["mint_a"]);
 
     let mint_example_encoding = borsh::to_vec(&NestedStructWithSurrogateTemplateOverride {
@@ -537,7 +538,7 @@ fn test_simple_struct_schema_with_template_and_display() {
         "{ tokens: 1000, hex_address: 0x0808080808080808080808080808080808080808080808080808080808080808, bech32_address: celestia1pyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyys5ykmar }"
     );
 
-    let schema = Schema::of_single_type::<SimpleStructWithTemplateAndDisplays>();
+    let schema = Schema::of_single_type::<SimpleStructWithTemplateAndDisplays>().unwrap();
 
     let transfer_example_encoding = borsh::to_vec(&SimpleStructWithTemplateAndDisplays {
         tokens: 124,
@@ -575,7 +576,7 @@ fn test_simple_enum_schema_with_template() {
         "One { tokens: 1000, msg: \"abc\" }"
     );
 
-    let schema = Schema::of_single_type::<SimpleEnumWithTemplate>();
+    let schema = Schema::of_single_type::<SimpleEnumWithTemplate>().unwrap();
     assert_eq!(
         schema.templates(0).unwrap(),
         vec!["mint", "mint_2", "transfer_2"]
@@ -638,7 +639,7 @@ fn test_nested_struct_schema_with_template() {
         "{ inner: { tokens: 1000, msg: \"abc\" }, msg: 19 }"
     );
 
-    let schema = Schema::of_single_type::<NestedStructWithTemplate>();
+    let schema = Schema::of_single_type::<NestedStructWithTemplate>().unwrap();
     assert_eq!(schema.templates(0).unwrap(), vec!["transfer", "transfer_2"]);
 
     let transfer_example_encoding = borsh::to_vec(&NestedStructWithTemplate {
@@ -670,7 +671,7 @@ fn test_nested_struct_schema_with_template() {
 
 #[test]
 fn test_simple_enum_schema_with_template_overrides() {
-    let schema = Schema::of_single_type::<SimpleEnumWithTemplateOverrides>();
+    let schema = Schema::of_single_type::<SimpleEnumWithTemplateOverrides>().unwrap();
     assert_eq!(schema.templates(0).unwrap(), vec!["mint_a"]);
 }
 
@@ -689,7 +690,7 @@ fn test_nested_struct_schema_with_non_nested_template() {
     };
     encode_decode_tests!(NestedStructWithNonNestedTemplates, my_registration, "{ inner: { tokens: 1000, msg: \"abc\" }, inner2: { tokens: 1000, msg: \"abc\" }, msg: 40203 }");
 
-    let schema = Schema::of_single_type::<NestedStructWithNonNestedTemplates>();
+    let schema = Schema::of_single_type::<NestedStructWithNonNestedTemplates>().unwrap();
     assert_eq!(schema.templates(0).unwrap(), vec!["mint"]);
 }
 
@@ -1409,14 +1410,14 @@ fn test_simple_struct_schema() {
 
 #[test]
 fn test_multiobject_schema() {
-    let mut schema = Schema::of_rollup_types_with_metadata::<
-        u64,
-        Role,
-        MinimalStruct,
-        Registration,
-        SimpleEnum,
-    >(&4321u64)
-    .unwrap();
+    let schema =
+        Schema::of_rollup_types_with_chain_data::<Role, MinimalStruct, Registration, SimpleEnum>(
+            ChainData {
+                chain_id: 4321,
+                chain_name: "Testchain".to_string(),
+            },
+        )
+        .unwrap();
 
     let my_role = Role::Attester;
     let my_minimal_struct = MinimalStruct { tokens: 1000 };
@@ -1427,7 +1428,7 @@ fn test_multiobject_schema() {
         schemaless: NoSchemaU64Wrapper(123),
     };
 
-    let orig_hash = schema.chain_hash().unwrap();
+    let orig_hash = schema.cached_chain_hash().unwrap();
     let schema_json = serde_json::to_string_pretty(&schema).unwrap();
     let mut schema = Schema::from_json(&schema_json).unwrap();
     let hash = schema.chain_hash().unwrap();

@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use demo_stf::runtime::{Runtime, RuntimeCall};
 use sov_bank::{CallMessage, Coins, TokenId};
-use sov_modules_api::sov_universal_wallet::schema::{RollupRoots, Schema};
+use sov_modules_api::sov_universal_wallet::schema::{ChainData, RollupRoots, Schema};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{Address, Amount, DispatchCall, PrivateKey, Spec};
 use sov_modules_macros::config_value;
@@ -60,13 +60,15 @@ fn test_transfer_template() {
         "amount": 4342,
         "token_id": [23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 6]
     }"#;
-    let schema = Schema::of_rollup_types_with_metadata::<
-        u64,
+    let schema = Schema::of_rollup_types_with_chain_data::<
         Transaction<Runtime<S>, S>,
         UnsignedTransaction<Runtime<S>, S>,
         RuntimeCall<S>,
         Address,
-    >(&4321)
+    >(ChainData {
+        chain_id: 4321,
+        chain_name: "TestChain".to_string(),
+    })
     .unwrap();
     let template_transaction = schema
         .fill_template_from_json(
@@ -82,13 +84,15 @@ fn test_transfer_template() {
 fn test_display_unsigned_tx() {
     let unsigned_tx = make_unsigned_tx();
     let unsigned_data = borsh::to_vec(&unsigned_tx).unwrap();
-    let schema = Schema::of_rollup_types_with_metadata::<
-        u64,
+    let schema = Schema::of_rollup_types_with_chain_data::<
         Transaction<Runtime<S>, S>,
         UnsignedTransaction<Runtime<S>, S>,
         RuntimeCall<S>,
         Address,
-    >(&4321)
+    >(ChainData {
+        chain_id: 4321,
+        chain_name: "TestChain".to_string(),
+    })
     .unwrap();
     assert_eq!(
         schema
@@ -109,13 +113,15 @@ fn test_display_signed_tx() {
     let signer = TestUser::<S>::generate(Amount::ZERO);
     let signed_tx = Transaction::new_signed_tx(signer.private_key(), &CHAIN_HASH, unsigned_tx);
     let signed_data = borsh::to_vec(&signed_tx).unwrap();
-    let schema = Schema::of_rollup_types_with_metadata::<
-        u64,
+    let schema = Schema::of_rollup_types_with_chain_data::<
         Transaction<Runtime<S>, S>,
         UnsignedTransaction<Runtime<S>, S>,
         RuntimeCall<S>,
         Address,
-    >(&4321)
+    >(ChainData {
+        chain_id: 4321,
+        chain_name: "TestChain".to_string(),
+    })
     .unwrap();
 
     let signature_display = hex::encode(borsh::to_vec(&signed_tx.signature()).unwrap());

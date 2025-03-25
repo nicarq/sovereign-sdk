@@ -161,7 +161,7 @@ mod tests {
     fn universal_wallet_roundtrip() {
         let addr = MockAddress::new([3u8; 32]);
         let serialized = borsh::to_vec(&addr).unwrap();
-        let schema = Schema::of_single_type::<MockAddress>();
+        let schema = Schema::of_single_type::<MockAddress>().unwrap();
 
         assert_eq!(schema.display(0, &serialized).unwrap(), addr.to_string());
     }

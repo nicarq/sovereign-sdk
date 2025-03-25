@@ -434,7 +434,7 @@ mod test {
     #[test]
     fn test_address_schema() {
         let address: Address = Address::from([11; 28]);
-        let schema = Schema::of_single_type::<Address>();
+        let schema = Schema::of_single_type::<Address>().unwrap();
         assert_eq!(
             schema
                 .display(0, &borsh::to_vec(&address).unwrap())
