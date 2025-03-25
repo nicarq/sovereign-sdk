@@ -9865,6 +9865,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-blob-sender"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bincode",
+ "borsh",
+ "bytes",
+ "derive_more 1.0.0",
+ "futures",
+ "rockbound",
+ "serde",
+ "serde_json",
+ "sov-db",
+ "sov-modules-api",
+ "sov-rollup-interface",
+ "tokio",
+ "tracing",
+ "uuid 1.10.0",
+]
+
+[[package]]
 name = "sov-blob-storage"
 version = "0.3.0"
 dependencies = [
@@ -10711,6 +10733,7 @@ dependencies = [
  "serde_with",
  "serde_yaml",
  "sov-api-spec",
+ "sov-blob-sender",
  "sov-blob-storage",
  "sov-chain-state",
  "sov-db",

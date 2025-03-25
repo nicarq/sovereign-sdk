@@ -3,6 +3,7 @@
 	"crates/rollup-interface",
 	"crates/adapters/mock-da",
 	"crates/adapters/mock-zkvm",
+	"crates/full-node/sov-blob-sender",
 	"crates/full-node/sov-db",
 	"crates/full-node/sov-sequencer",
 	"crates/full-node/sov-ledger-apis",

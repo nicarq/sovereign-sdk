@@ -17,8 +17,10 @@ use std::marker::PhantomData;
 use std::num::NonZero;
 
 use axum::async_trait;
+use borsh::{BorshDeserialize, BorshSerialize};
 use futures::stream::BoxStream;
 use futures::StreamExt;
+use sov_blob_sender::{new_blob_id, BlobInternalId};
 use sov_blob_storage::{PreferredBatchData, SequenceNumber};
 use sov_modules_api::capabilities::BlobSelector;
 use sov_modules_api::{
@@ -33,6 +35,7 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
     async fn begin_rollup_block(
         &mut self,
         sequence_number: SequenceNumber,
+        blob_id: BlobInternalId,
         visible_slot_number_after_increase: VisibleSlotNumber,
         visibile_slots_to_advance: NonZero<u8>,
     ) -> anyhow::Result<()>;
@@ -62,6 +65,7 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
     async fn add_proof_blob(
         &mut self,
         sequence_number: SequenceNumber,
+        blob_id: BlobInternalId,
         data: Vec<u8>,
     ) -> anyhow::Result<()>;
 
@@ -79,6 +83,7 @@ pub struct PreferredSequencerReadBatch {
     pub sequence_number: SequenceNumber,
     pub visible_slot_number_after_increase: VisibleSlotNumber,
     pub visible_slots_to_advance: NonZero<u8>,
+    pub blob_id: BlobInternalId,
     pub txs: Vec<FullyBakedTx>,
     pub tx_hashes: Vec<TxHash>,
 }
@@ -86,7 +91,7 @@ pub struct PreferredSequencerReadBatch {
 impl From<PreferredSequencerReadBatch> for WithCachedTxHashes<PreferredBatchData> {
     fn from(batch: PreferredSequencerReadBatch) -> Self {
         WithCachedTxHashes {
-            tx_hashes: batch.tx_hashes,
+            tx_hashes: batch.tx_hashes.into(),
             inner: PreferredBatchData {
                 sequence_number: batch.sequence_number,
                 visible_slots_to_advance: batch.visible_slots_to_advance,
@@ -101,6 +106,8 @@ impl From<PreferredSequencerReadBatch> for WithCachedTxHashes<PreferredBatchData
 pub enum PreferredSequencerReadBlob {
     Batch(PreferredSequencerReadBatch),
     Proof {
+        #[allow(dead_code)] // TODO(@neysofu): use it to re-submit blobs upon sequencer restart.
+        blob_id: BlobInternalId,
         sequence_number: SequenceNumber,
         #[allow(dead_code)]
         data: Vec<u8>,
@@ -109,9 +116,9 @@ pub enum PreferredSequencerReadBlob {
 
 impl PreferredSequencerReadBlob {
     pub fn sequence_number(&self) -> SequenceNumber {
-        match self {
-            Self::Batch(batch) => batch.sequence_number,
-            Self::Proof {
+        match &self {
+            PreferredSequencerReadBlob::Batch(batch) => batch.sequence_number,
+            PreferredSequencerReadBlob::Proof {
                 sequence_number, ..
             } => *sequence_number,
         }
@@ -207,10 +214,12 @@ where
             "There's already an in-progress batch; this is a bug, please report it"
         );
 
+        let blob_id = new_blob_id();
         let sequence_number = self.sequence_number_of_next_blob;
         self.backend
             .begin_rollup_block(
                 sequence_number,
+                blob_id,
                 visible_slot_number_after_increase,
                 visible_slots_to_advance,
             )
@@ -220,6 +229,7 @@ where
             sequence_number,
             visible_slot_number_after_increase,
             visible_slots_to_advance,
+            blob_id,
             txs: vec![],
             tx_hashes: vec![],
         });
@@ -261,14 +271,16 @@ where
     }
 
     pub async fn insert_proof_blob(&mut self, data: Vec<u8>) -> anyhow::Result<SequenceNumber> {
+        let blob_id = new_blob_id();
         let sequence_number = self.sequence_number_of_next_blob;
 
         self.backend
-            .add_proof_blob(sequence_number, data.clone())
+            .add_proof_blob(sequence_number, blob_id, data.clone())
             .await?;
 
         self.completed_blobs
             .push_back(PreferredSequencerReadBlob::Proof {
+                blob_id,
                 sequence_number,
                 data,
             });
@@ -311,4 +323,17 @@ where
 
         Ok(())
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub enum StoredBlob {
+    Batch {
+        blob_id: BlobInternalId,
+        visible_slot_number_after_increase: VisibleSlotNumber,
+        visible_slots_to_advance: NonZero<u8>,
+    },
+    Proof {
+        blob_id: BlobInternalId,
+        data: Vec<u8>,
+    },
 }

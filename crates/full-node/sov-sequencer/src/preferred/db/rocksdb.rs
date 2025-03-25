@@ -3,14 +3,17 @@ use std::path::Path;
 use std::sync::Arc;
 
 use axum::async_trait;
-use borsh::{BorshDeserialize, BorshSerialize};
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use rockbound::{gen_rocksdb_options, SchemaBatch};
+use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
 use sov_modules_api::{FullyBakedTx, TxHash, VisibleSlotNumber};
 
-use super::{PreferredSequencerDbBackend, PreferredSequencerReadBatch, PreferredSequencerReadBlob};
+use super::{
+    PreferredSequencerDbBackend, PreferredSequencerReadBatch, PreferredSequencerReadBlob,
+    StoredBlob,
+};
 
 #[derive(Debug)]
 pub struct RocksDbBackend {
@@ -56,6 +59,7 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
     async fn begin_rollup_block(
         &mut self,
         sequence_number: SequenceNumber,
+        blob_id: BlobInternalId,
         visible_slot_number_after_increase: VisibleSlotNumber,
         visible_slots_to_advance: NonZero<u8>,
     ) -> anyhow::Result<()> {
@@ -67,6 +71,7 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
                     StoredBlob::Batch {
                         visible_slot_number_after_increase,
                         visible_slots_to_advance,
+                        blob_id,
                     },
                 ),
             )
@@ -103,6 +108,7 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
         s.put::<tables::CompletedBlobs>(
             &in_progress_batch.sequence_number,
             &StoredBlob::Batch {
+                blob_id: in_progress_batch.blob_id,
                 visible_slots_to_advance: in_progress_batch.visible_slots_to_advance,
                 visible_slot_number_after_increase: in_progress_batch
                     .visible_slot_number_after_increase,
@@ -139,10 +145,14 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
     async fn add_proof_blob(
         &mut self,
         sequence_number: SequenceNumber,
+        blob_id: BlobInternalId,
         data: Vec<u8>,
     ) -> anyhow::Result<()> {
         self.db
-            .put_async::<tables::CompletedBlobs>(&sequence_number, &StoredBlob::Proof { data })
+            .put_async::<tables::CompletedBlobs>(
+                &sequence_number,
+                &StoredBlob::Proof { data, blob_id },
+            )
             .await?;
         Ok(())
     }
@@ -177,6 +187,7 @@ impl RocksDbBackend {
             StoredBlob::Batch {
                 visible_slot_number_after_increase,
                 visible_slots_to_advance,
+                blob_id,
             } => {
                 let mut txs = vec![];
                 let mut tx_hashes = vec![];
@@ -202,25 +213,16 @@ impl RocksDbBackend {
                     visible_slots_to_advance,
                     txs,
                     tx_hashes,
+                    blob_id,
                 })
             }
-            StoredBlob::Proof { data } => PreferredSequencerReadBlob::Proof {
+            StoredBlob::Proof { data, blob_id } => PreferredSequencerReadBlob::Proof {
                 sequence_number,
                 data,
+                blob_id,
             },
         })
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-pub enum StoredBlob {
-    Batch {
-        visible_slot_number_after_increase: VisibleSlotNumber,
-        visible_slots_to_advance: NonZero<u8>,
-    },
-    Proof {
-        data: Vec<u8>,
-    },
 }
 
 mod tables {
@@ -230,6 +232,7 @@ mod tables {
     };
 
     use super::*;
+    use crate::preferred::db::StoredBlob;
 
     define_table_with_seek_key_codec!(
         (CompletedBlobs) SequenceNumber => StoredBlob

@@ -1,15 +1,18 @@
 use std::num::NonZero;
 
 use axum::async_trait;
-use borsh::{BorshDeserialize, BorshSerialize};
 use futures::stream::BoxStream;
 use futures::StreamExt;
+use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
-use sov_modules_api::{FullyBakedTx, TxHash, VisibleSlotNumber};
+use sov_modules_api::{FullyBakedTx, TxHash};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use sqlx::Postgres;
 
-use super::{PreferredSequencerDbBackend, PreferredSequencerReadBatch, PreferredSequencerReadBlob};
+use super::{
+    PreferredSequencerDbBackend, PreferredSequencerReadBatch, PreferredSequencerReadBlob,
+    StoredBlob,
+};
 
 pub struct PostgresBackend {
     pool: PgPool,
@@ -35,6 +38,7 @@ impl PostgresBackend {
             StoredBlob::Batch {
                 visible_slot_number_after_increase,
                 visible_slots_to_advance,
+                blob_id,
             } => {
                 let tx_rows: Vec<(Vec<u8>, Vec<u8>)> = sqlx::query_as::<Postgres, _>(
                     "SELECT hash, data FROM txs WHERE sequence_number = $1 ORDER BY batch_index",
@@ -61,11 +65,13 @@ impl PostgresBackend {
                         visible_slots_to_advance,
                         txs,
                         tx_hashes,
+                        blob_id,
                     },
                 ))
             }
-            StoredBlob::Proof { data } => Ok(PreferredSequencerReadBlob::Proof {
+            StoredBlob::Proof { data, blob_id } => Ok(PreferredSequencerReadBlob::Proof {
                 sequence_number,
+                blob_id,
                 data,
             }),
         }
@@ -77,6 +83,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
     async fn begin_rollup_block(
         &mut self,
         sequence_number: SequenceNumber,
+        blob_id: BlobInternalId,
         visible_slot_number_after_increase: sov_modules_api::VisibleSlotNumber,
         visible_slots_to_advance: NonZero<u8>,
     ) -> anyhow::Result<()> {
@@ -86,6 +93,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         .bind(i64::try_from(sequence_number)?)
         .bind::<&[u8]>(
             borsh::to_vec(&StoredBlob::Batch {
+                blob_id,
                 visible_slot_number_after_increase,
                 visible_slots_to_advance,
             })?
@@ -131,6 +139,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
             .bind(i64::try_from(cached.sequence_number)?)
             .bind::<&[u8]>(
                 borsh::to_vec(&StoredBlob::Batch {
+                    blob_id: cached.blob_id,
                     visible_slots_to_advance: cached.visible_slots_to_advance,
                     visible_slot_number_after_increase: cached.visible_slot_number_after_increase,
                 })?
@@ -162,11 +171,12 @@ impl PreferredSequencerDbBackend for PostgresBackend {
     async fn add_proof_blob(
         &mut self,
         sequence_number: SequenceNumber,
+        blob_id: BlobInternalId,
         data: Vec<u8>,
     ) -> anyhow::Result<()> {
         sqlx::query::<Postgres>("INSERT INTO blobs (sequence_number, borsh_value) VALUES ($1, $2)")
             .bind(i64::try_from(sequence_number)?)
-            .bind::<&[u8]>(borsh::to_vec(&StoredBlob::Proof { data })?.as_ref())
+            .bind::<&[u8]>(borsh::to_vec(&StoredBlob::Proof { data, blob_id })?.as_ref())
             .execute(&self.pool)
             .await?;
 
@@ -216,15 +226,4 @@ impl PreferredSequencerDbBackend for PostgresBackend {
             ),
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-pub enum StoredBlob {
-    Batch {
-        visible_slot_number_after_increase: VisibleSlotNumber,
-        visible_slots_to_advance: NonZero<u8>,
-    },
-    Proof {
-        data: Vec<u8>,
-    },
 }

@@ -6,6 +6,7 @@
 - sov-mock-zkvm
 - sov-rest-utils
 - sov-db
+- sov-blob-sender
 - sov-state
 - sov-modules-macros # Requires --no-verify because it writes outside of OUT_DIR.
 - sov-modules-api

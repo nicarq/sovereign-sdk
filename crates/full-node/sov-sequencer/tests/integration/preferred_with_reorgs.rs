@@ -156,7 +156,7 @@ impl TestState {
             let Some(next_slot) = self.slots_subscription.try_next().await? else {
                 continue;
             };
-            tracing::info!(slot_number = next_slot.number, "Recevied slot");
+            tracing::info!(slot_number = next_slot.number, "Received slot");
             if next_slot.number > wait_to {
                 break;
             }
