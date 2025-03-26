@@ -52,7 +52,6 @@ type MaterializedUpdate<S> = (
     <S as Storage>::Root,
     <S as Storage>::Witness,
     <S as Storage>::ChangeSet,
-    <S as Storage>::StateUpdate,
 );
 
 /// The contents of the receipt for a skipped transaction
@@ -236,8 +235,8 @@ where
             runtime.finalize_hook(&next_visible_hash, &mut accessory_delta);
         }
         state_update.add_accessory_items(accessory_delta.freeze());
-        let change_set = storage.materialize_changes(&state_update);
-        (next_root_hash, witness, change_set, state_update)
+        let change_set = storage.materialize_changes(state_update);
+        (next_root_hash, witness, change_set)
     }
 
     #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
@@ -257,7 +256,7 @@ where
 
         let (next_root_hash, state_update, _, witness, storage) = checkpoint.materialize_update();
 
-        let change_set = storage.materialize_changes(&state_update);
+        let change_set = storage.materialize_changes(state_update);
         assert!(witness.is_empty(), "Non-native execution must completely consume the witness! The prover may be malicious, or this may be a bug.");
 
         (next_root_hash, witness, change_set)
@@ -345,7 +344,7 @@ where
         }
 
         #[cfg(feature = "native")]
-        let (genesis_hash, _, change_set, _) =
+        let (genesis_hash, _, change_set) =
             self.materialize_slot(&mut runtime, true, state_checkpoint);
         #[cfg(not(feature = "native"))]
         let (genesis_hash, _, change_set) = self.materialize_slot(true, state_checkpoint);
@@ -541,7 +540,7 @@ where
                 let visible_slot_number = state.current_visible_slot_number();
 
                 // Note the call to materialize slot mixed in with metrics operations here.
-                let (state_root, witness, change_set, _) =
+                let (state_root, witness, change_set) =
                     self.materialize_slot(&mut runtime, create_rollup_block, state);
 
                 let slot_finalization_time = slot_finalization_start.elapsed();

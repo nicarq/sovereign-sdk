@@ -382,7 +382,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         ))
     }
 
-    fn materialize_changes(&self, state_update: &Self::StateUpdate) -> Self::ChangeSet {
+    fn materialize_changes(self, state_update: Self::StateUpdate) -> Self::ChangeSet {
         let preimages_batch = StateDb::materialize_preimages(
             state_update
                 .kernel

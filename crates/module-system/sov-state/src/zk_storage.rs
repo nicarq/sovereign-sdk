@@ -152,7 +152,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         Ok((StorageRoot::<S>::new(user_root, kernel_root), ()))
     }
 
-    fn materialize_changes(&self, _node_batch: &Self::StateUpdate) {}
+    fn materialize_changes(self, _node_batch: Self::StateUpdate) {}
 
     fn open_proof(
         state_root: Self::Root,

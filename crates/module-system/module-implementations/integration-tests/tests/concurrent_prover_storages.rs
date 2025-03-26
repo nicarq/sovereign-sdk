@@ -91,11 +91,12 @@ fn concurrent_prover_storages() {
     // Storage at version 1
     let storage_1 = storage_manager.create_storage();
     let (root_1, change_set_1) = materialize_writes(
-        &storage_1,
+        storage_1,
         vec![(the_user_key.clone(), Some(user_value_1.clone()))],
         vec![(the_kernel_key.clone(), Some(kernel_value_1.clone()))],
         vec![(the_accessory_key.clone(), Some(accessory_value_1.clone()))],
     );
+    let storage_1 = storage_manager.create_storage();
     let assert_storage_1 = || {
         assert_values(
             &storage_1,
@@ -124,11 +125,12 @@ fn concurrent_prover_storages() {
     // Storage at version 2
     let storage_2 = storage_manager.create_storage();
     let (root_2, change_set_2) = materialize_writes(
-        &storage_2,
+        storage_2,
         vec![(the_user_key.clone(), Some(user_value_2.clone()))],
         vec![(the_kernel_key.clone(), Some(kernel_value_2.clone()))],
         vec![(the_accessory_key.clone(), Some(accessory_value_2.clone()))],
     );
+    let storage_2 = storage_manager.create_storage();
     let assert_storage_2 = || {
         assert_values(
             &storage_2,
@@ -159,11 +161,12 @@ fn concurrent_prover_storages() {
     // Storage at version 3
     let storage_3 = storage_manager.create_storage();
     let (root_3, change_set_3) = materialize_writes(
-        &storage_3,
+        storage_3,
         vec![(the_user_key.clone(), None)],
         vec![(the_kernel_key.clone(), None)],
         vec![(the_accessory_key.clone(), None)],
     );
+    let storage_3 = storage_manager.create_storage();
     let assert_storage_3 = || {
         assert_values(
             &storage_3,
@@ -196,11 +199,12 @@ fn concurrent_prover_storages() {
     // Storage at version 4
     let storage_4 = storage_manager.create_storage();
     let (root_4, change_set_4) = materialize_writes(
-        &storage_4,
+        storage_4,
         vec![(the_user_key.clone(), Some(user_value_4.clone()))],
         vec![(the_kernel_key.clone(), Some(kernel_value_4.clone()))],
         vec![(the_accessory_key.clone(), Some(accessory_value_4.clone()))],
     );
+    let storage_4 = storage_manager.create_storage();
     let assert_storage_4 = || {
         assert_values(
             &storage_4,
@@ -255,7 +259,7 @@ fn concurrent_prover_storages() {
 }
 
 fn materialize_writes(
-    storage: &ProverStorage<TestStorageSpec>,
+    storage: ProverStorage<TestStorageSpec>,
     user_writes: Vec<(SlotKey, Option<SlotValue>)>,
     kernel_writes: Vec<(SlotKey, Option<SlotValue>)>,
     accessory_writes: Vec<(SlotKey, Option<SlotValue>)>,
@@ -277,7 +281,7 @@ fn materialize_writes(
 
     state_update.add_accessory_items(accessory_writes);
 
-    (root, storage.materialize_changes(&state_update))
+    (root, storage.materialize_changes(state_update))
 }
 
 #[derive(Debug, Clone, Copy)]

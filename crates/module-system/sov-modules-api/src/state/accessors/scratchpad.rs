@@ -529,10 +529,8 @@ mod tests {
         let storage_key = SlotKey::new::<HexString, _, _>(&prefix, [4, 5, 6].as_ref(), &codec);
         let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
 
-        let mut working_set = WorkingSet::<TestSpec>::new_with_kernel(
-            storage.clone(),
-            &MockKernel::<TestSpec>::default(),
-        );
+        let mut working_set =
+            WorkingSet::<TestSpec>::new_with_kernel(storage, &MockKernel::<TestSpec>::default());
         StateWriter::<User>::set(&mut working_set, &storage_key, storage_value.clone()).expect("The set operation should succeed because there should be enough funds in the metered working set");
         let value = StateReader::<User>::get(&mut working_set, &storage_key).expect("The get operation should succeed because there should be enough funds in the metered working set");
 
@@ -578,7 +576,7 @@ mod tests {
         let storage = storage_manager.create_storage();
         let kernel: MockKernel<TestSpec> = MockKernel::new(4, 1);
 
-        let checkpoint = StateCheckpoint::<TestSpec>::new(storage.clone(), &kernel);
+        let checkpoint = StateCheckpoint::<TestSpec>::new(storage, &kernel);
         let mut scratchpad = checkpoint.to_tx_scratchpad();
 
         // Save some values in the scratchpad.

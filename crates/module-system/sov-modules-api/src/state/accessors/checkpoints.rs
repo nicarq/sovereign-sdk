@@ -70,7 +70,7 @@ impl<S: Spec> StateCheckpoint<S> {
         witness: <S::Storage as Storage>::Witness,
         kernel: &K,
     ) -> Self {
-        let mut delta = Delta::with_witness(inner.clone(), witness, None);
+        let mut delta = Delta::with_witness(inner, witness, None);
         let mut bootstrap_state = BootstrapWorkingSet { inner: &mut delta };
 
         let visible_slot_num = kernel.next_visible_slot_number(&mut bootstrap_state);

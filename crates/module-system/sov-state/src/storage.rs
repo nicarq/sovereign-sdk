@@ -412,11 +412,11 @@ pub trait Storage: Clone {
     ) -> anyhow::Result<(Self::Root, Self::StateUpdate)>;
 
     /// Materializes changes from given [`Self::StateUpdate`] into [`Self::ChangeSet`].
-    fn materialize_changes(&self, state_update: &Self::StateUpdate) -> Self::ChangeSet;
+    fn materialize_changes(self, state_update: Self::StateUpdate) -> Self::ChangeSet;
 
     /// A version of [`Storage::validate_and_materialize`] that allows for "accessory" non-JMT updates.
     fn validate_and_materialize_with_accessory_update(
-        &self,
+        self,
         state_accesses: StateAccesses,
         witness: &Self::Witness,
         accessory_updates: Vec<(SlotKey, Option<SlotValue>)>,
@@ -425,7 +425,7 @@ pub trait Storage: Clone {
         for write in accessory_updates {
             node_batch.add_accessory_item(write.0, write.1);
         }
-        let change_set = self.materialize_changes(&node_batch);
+        let change_set = self.materialize_changes(node_batch);
 
         Ok((root_hash, change_set))
     }
@@ -435,7 +435,7 @@ pub trait Storage: Clone {
     /// This function is equivalent to calling:
     /// `self.compute_state_update` & `self.materialize_changes`
     fn validate_and_materialize(
-        &self,
+        self,
         state_accesses: StateAccesses,
         witness: &Self::Witness,
     ) -> anyhow::Result<(Self::Root, Self::ChangeSet)> {
