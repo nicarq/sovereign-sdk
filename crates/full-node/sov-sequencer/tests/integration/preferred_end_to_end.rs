@@ -133,8 +133,13 @@ async fn new_test_rollup(
     match builder_res {
         Ok(builder) => Some(builder.start().await.unwrap()),
         Err(e) => {
-            println!("Error starting rollup builder: {:?}", e);
-            None
+            if std::env::var("SOV_TEST_SKIP_DOCKER") == Ok("1".to_string()) {
+                None
+            } else {
+                eprintln!("Error starting rollup builder: {:?}", e);
+                eprintln!("To skip docker based tests run with the env var SOV_TEST_SKIP_DOCKER=1");
+                panic!("Unable to proceed without docker");
+            }
         }
     }
 }
