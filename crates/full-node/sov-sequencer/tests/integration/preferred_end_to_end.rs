@@ -458,9 +458,9 @@ async fn returns_syncing_at_startup() {
         panic!("Sequencer should not be ready to accept txs at startup until finalized blocks are available");
     };
     assert!(
-        error.to_string().contains(
-            "The node is not fully synced with the DA head and can't accept transactions"
-        ),
+        error
+            .to_string()
+            .contains("The sequencer is waiting for the DA to finalize more blocks"),
         "Error message does not contain expected part: {}",
         error,
     );

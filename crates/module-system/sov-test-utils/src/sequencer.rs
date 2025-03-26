@@ -152,6 +152,7 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
             rollup_address: sequencer_rollup_address,
             admin_addresses,
             automatic_batch_production: true,
+            max_allowed_node_distance_behind: 10,
             dropped_tx_ttl_secs: 0,
             sequencer_kind_config: sequencer_config,
         };

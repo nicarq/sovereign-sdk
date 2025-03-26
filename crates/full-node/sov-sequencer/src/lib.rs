@@ -34,20 +34,24 @@ pub struct SubmitBatchReceipt {
 
 /// See [`crate::common::Sequencer::is_ready`].
 #[derive(Debug, serde::Serialize)]
+#[allow(missing_docs)]
 pub enum SequencerNotReadyDetails {
     /// The node is catching up to the chain tip
     Syncing {
-        #[allow(missing_docs)]
         target_da_height: u64,
-        #[allow(missing_docs)]
         synced_da_height: u64,
     },
     /// The sequencer is waiting for the DA to finalize more blocks
     WaitingOnDa {
-        #[allow(missing_docs)]
         finalized_da_height: u64,
-        #[allow(missing_docs)]
         needed_finalized_height: u64,
+    },
+    /// The sequencer is waiting for the node to catch up to them
+    WaitingOnNode {
+        current_node_height: u64,
+        current_sequencer_height: u64,
+        current_delta: u64,
+        max_allowed_delta: u64,
     },
 }
 

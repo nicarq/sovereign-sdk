@@ -403,6 +403,7 @@ where
             },
             sequencer: SequencerConfig {
                 automatic_batch_production: self.config.automatic_batch_production,
+                max_allowed_node_distance_behind: 10,
                 // Set ttl to zero to disable for testing. This prevents nondeterminism.
                 dropped_tx_ttl_secs: 0,
                 da_address: self.da_config.sender_address,

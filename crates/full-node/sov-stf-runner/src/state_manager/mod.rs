@@ -245,7 +245,6 @@ where
     }
 
     /// Performs all necessary operations on data that has been processed by the rollup.
-    /// Returns vector of finalized state transitions, so the caller can do anything on top of that.
     /// All necessary data for these finalized transitions have been saved on disk.
     /// Now: First ever call to this method should be with either finalized block or with the block next to finalized.
     /// Otherwise follow up calls to prepare storage can panic if a chain reorgs.
