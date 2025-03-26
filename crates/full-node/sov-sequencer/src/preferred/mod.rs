@@ -8,7 +8,7 @@ use std::boxed::Box;
 use std::marker::PhantomData;
 use std::num::NonZero;
 use std::path::Path;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -218,6 +218,45 @@ impl<S: Spec> InternalState<S> {
     }
 }
 
+struct NodeDeltaWatcher {
+    sequencer_height: AtomicU64,
+    node_height: AtomicU64,
+    max_delta: u64,
+}
+
+impl NodeDeltaWatcher {
+    fn new(max_delta: u64) -> Self {
+        Self {
+            // The height fields are initialized by the
+            // `update_state()` call when first initializing the sequencer
+            sequencer_height: 0.into(),
+            node_height: 0.into(),
+            max_delta,
+        }
+    }
+
+    fn check_delta(&self) -> Result<(), SequencerNotReadyDetails> {
+        let node_height = self.node_height.load(Ordering::Acquire);
+        let sequencer_height = self.sequencer_height.load(Ordering::Acquire);
+
+        let delta = match sequencer_height.checked_sub(node_height) {
+            Some(diff) => diff,
+            None => return Ok(()),
+        };
+
+        if delta >= self.max_delta {
+            Err(SequencerNotReadyDetails::WaitingOnNode {
+                current_node_height: node_height,
+                current_sequencer_height: sequencer_height,
+                current_delta: delta,
+                max_allowed_delta: self.max_delta,
+            })
+        } else {
+            Ok(())
+        }
+    }
+}
+
 /// A [`Sequencer`] with instant transaction confirmation.
 pub struct PreferredSequencer<S, Rt, Da>
 where
@@ -233,6 +272,7 @@ where
     _runtime: PhantomData<Rt>,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     has_been_ready: AtomicBool,
+    node_delta_watcher: NodeDeltaWatcher,
     shutdown_notifier: Sender<()>,
 }
 
@@ -356,6 +396,7 @@ where
             shutdown_notifier,
             config: config.clone(),
             has_been_ready: AtomicBool::new(false),
+            node_delta_watcher: NodeDeltaWatcher::new(config.max_allowed_node_distance_behind),
         });
 
         seq.update_state(latest_state_update.clone())
@@ -391,10 +432,7 @@ where
         // we have to do a more expensive check where we check if we have a finalized slot number
         // available. Since this requires locking, we skip this check on the
         // fast path after genesis.
-        if !self
-            .has_been_ready
-            .load(std::sync::atomic::Ordering::Acquire)
-        {
+        if !self.has_been_ready.load(Ordering::Acquire) {
             let inner = self.lock_inner().await;
             match &inner.block_executor.state() {
                 InternalState::Idle { checkpoint, .. } => {
@@ -407,9 +445,11 @@ where
                 InternalState::InProgressBatch { .. } => {}
             };
 
-            self.has_been_ready
-                .store(true, std::sync::atomic::Ordering::Release);
+            self.has_been_ready.store(true, Ordering::Release);
         }
+
+        self.node_delta_watcher.check_delta()?;
+
         let status = self.da_sync_state.status();
 
         match status {
@@ -437,6 +477,9 @@ where
 
     #[tracing::instrument(skip_all, level = "debug")]
     async fn update_state(&self, info: StateUpdateInfo<S::Storage>) -> anyhow::Result<()> {
+        self.node_delta_watcher
+            .node_height
+            .store(info.slot_number.get(), Ordering::Release);
         let batches_to_process = {
             let mut inner = self.lock_inner().await;
 
@@ -484,6 +527,7 @@ where
         // We stop accepting new txns in accept_tx for a short time while we catch up
         let mut inner = self.lock_inner().await;
         let current_in_progress_batch = inner.db.in_progress_batch_opt().await?.cloned();
+        let node_slot_num = info.slot_number.get();
 
         // Currently it's not possible for `accept_tx` to end a batch, this will likely
         // change in the future when it can close batches due to gas, stake, batch sizes, etc.
@@ -529,6 +573,12 @@ where
             inner.produce_batch_if_possible().await?;
         }
 
+        // Currently the sequencers height increases alongside the node inside this function.
+        // In the future the sequencer might be able to produce rollup blocks
+        // independently in which case this height updating logic will need to be updated.
+        self.node_delta_watcher
+            .sequencer_height
+            .store(node_slot_num, Ordering::Release);
         Ok(())
     }
 
@@ -825,4 +875,52 @@ fn next_visible_slot_number_increase<S: Spec>(
 /// want to get an associated item from that trait implementation.
 fn accepts_preferred_batches<B: BlobSelector>(_blob_selector: B) -> bool {
     B::ACCEPTS_PREFERRED_BATCHES
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_check_node_delta() {
+        let mut tracker = NodeDeltaWatcher {
+            sequencer_height: 10.into(),
+            node_height: 5.into(),
+            max_delta: 5,
+        };
+        // delta equal to max delta
+        assert!(tracker.check_delta().is_err());
+        tracker.node_height = 4.into();
+        // delta greater than max delta
+        assert!(tracker.check_delta().is_err());
+        // no delta
+        tracker.node_height = 10.into();
+        assert!(tracker.check_delta().is_ok());
+        // node ahead
+        tracker.node_height = 11.into();
+        assert!(tracker.check_delta().is_ok());
+    }
+
+    #[test]
+    fn test_check_node_delta_returned_fields() {
+        let tracker = NodeDeltaWatcher {
+            sequencer_height: 10.into(),
+            node_height: 2.into(),
+            max_delta: 5,
+        };
+        if let Err(SequencerNotReadyDetails::WaitingOnNode {
+            current_node_height,
+            current_sequencer_height,
+            current_delta,
+            max_allowed_delta,
+        }) = tracker.check_delta()
+        {
+            assert_eq!(current_node_height, 2);
+            assert_eq!(current_sequencer_height, 10);
+            assert_eq!(current_delta, 8);
+            assert_eq!(max_allowed_delta, 5);
+        } else {
+            panic!("expected WaitingOnNode error");
+        }
+    }
 }

@@ -9,6 +9,10 @@ Additionally, the chain has will change.
 
 # 2025-03-13
 - #2607 Removes `sov-test-modules`, which was accidentally exposed via `sov-test-utils`.
+# 2025-03-17
+- #2612 adds checks inside the sequencer to prevent the node falling too many blocks behind. The threshold is configured by a field inside the rollup config file.
+    - The field is `[sequencer.max_allowed_node_distance_behind]`, a sensible default for this field is `5`.
+
 # 2025-03-11
 - #2602 Wallet schema: correctly handle explicit enum discriminants when the `#[borsh(use-discriminant=true)]` attribute is specified. (Previously this would result in incorrect serialization in the wallet.) This is not a breaking change but will alter the chain hash due to schema modifications to support this.
 - #2600 removes database persistence for the `StandardSequencer`. Please use the `PreferredSequencer` instead if you need persistence, or reach out to the team if you have a need for it.

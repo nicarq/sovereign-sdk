@@ -566,6 +566,7 @@
       ],
       "required": [
         "da_address",
+        "max_allowed_node_distance_behind",
         "rollup_address"
       ],
       "properties": {
@@ -592,6 +593,12 @@
         "dropped_tx_ttl_secs": {
           "description": "For how many seconds the sequencer keeps track of dropped transactions after being done with them.\n\nLarger values result in higher memory usage, but better tx status tracking for users.",
           "default": 60,
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "max_allowed_node_distance_behind": {
+          "description": "The sequencer won't process incoming requests unless the node is within this many blocks or ahead of the sequencer.",
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0

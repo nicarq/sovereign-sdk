@@ -239,11 +239,19 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
 }
 
 fn error_not_fully_synced(details: SequencerNotReadyDetails) -> ErrorObject {
+    let summary = match details {
+        SequencerNotReadyDetails::Syncing { .. } => "The node is not fully synced with the DA head",
+        SequencerNotReadyDetails::WaitingOnDa { .. } => {
+            "The sequencer is waiting for the DA to finalize more blocks"
+        }
+        SequencerNotReadyDetails::WaitingOnNode { .. } => {
+            "The sequencer is waiting for the node to process more blocks"
+        }
+    };
     ErrorObject {
         status: StatusCode::SERVICE_UNAVAILABLE,
-        title: "The node is not fully synced with the DA head and can't accept transactions at this time; try again later"
-            .to_string(),
-        details: to_json_object(details)
+        title: format!("{summary}; No new transactions can be accepted, try again later"),
+        details: to_json_object(details),
     }
 }
 

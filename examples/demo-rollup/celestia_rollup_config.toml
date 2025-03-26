@@ -47,6 +47,7 @@ max_number_of_transitions_in_db = 100
 max_number_of_transitions_in_memory = 30
 
 [sequencer]
+max_allowed_node_distance_behind = 5
 # DA address of this sequencer. Should match address of connected bridge/full node.
 # Taken from ../../docker/credentials/bridge-0.addr
 da_address = "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s"
