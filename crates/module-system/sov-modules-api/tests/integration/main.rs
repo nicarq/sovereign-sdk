@@ -13,3 +13,13 @@ fn trybuild() {
         "tests/integration/state_tests/trybuild/state_cannot_borrow_while_borrowed_mut.rs",
     );
 }
+
+#[test]
+fn fail_unless_nextest() {
+    // See:
+    // - https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/2216
+    // - https://nexte.st/docs/configuration/env-vars/#environment-variables-nextest-sets
+    if std::env::var("NEXTEST").is_err() {
+        panic!("Only cargo nextest is supported for running Sovereign-SDK tests. Use `make test` or `cargo nextest run`");
+    }
+}
