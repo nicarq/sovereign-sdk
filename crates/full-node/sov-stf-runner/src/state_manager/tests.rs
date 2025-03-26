@@ -343,7 +343,7 @@ async fn test_save_last_finalized_larger_than_seen_latest_seen_transition() -> a
 
     let (change_set, transition_witness) = produce_synthetic_state_transition_witness(
         state_manager.get_state_root().to_owned(),
-        &prover_storage,
+        prover_storage,
         &da_service,
         filtered_block.clone(),
     )
@@ -464,7 +464,7 @@ async fn test_progressing_with_shuffle(
 
         let (change_set, transition_witness) = produce_synthetic_state_transition_witness(
             state_manager.get_state_root().to_owned(),
-            &prover_storage,
+            prover_storage,
             &da_service,
             returned_block.clone(),
         )
@@ -683,7 +683,7 @@ async fn test_with_frequent_periodic_batch_production() -> anyhow::Result<()> {
 
         let (change_set, transition_witness) = produce_synthetic_state_transition_witness(
             state_manager.get_state_root().to_owned(),
-            &prover_storage,
+            prover_storage,
             &da_service,
             returned_block.clone(),
         )
@@ -782,7 +782,7 @@ async fn test_chain_progress_between_prepare_storage_and_save_changes(
         // Then saving
         let (change_set, transition_witness) = produce_synthetic_state_transition_witness(
             state_manager.get_state_root().to_owned(),
-            &prover_storage,
+            prover_storage,
             &da_service,
             returned_block.clone(),
         )
@@ -1046,7 +1046,7 @@ async fn setup_storage_manager(
     let ledger_db = LedgerDb::with_reader(ledger_state)?;
 
     let (state_root, change_set) =
-        produce_synthetic_changes::<MockDaSpec>(&genesis_storage, &genesis_header);
+        produce_synthetic_changes::<MockDaSpec>(genesis_storage, &genesis_header);
 
     let data_to_commit: SlotCommit<_, TestBatchReceiptContents, TestTxReceiptContents> =
         SlotCommit::new(genesis_block);
@@ -1098,7 +1098,7 @@ where
 
 // Writes to user space concatenation of block height bytes and block hash
 fn produce_synthetic_changes<Da: DaSpec>(
-    prover_storage: &ProverStorage<S>,
+    prover_storage: ProverStorage<S>,
     block_header: &Da::BlockHeader,
 ) -> (StateRoot, NativeChangeSet) {
     let mut data = block_header.height().to_le_bytes().to_vec();
@@ -1111,14 +1111,14 @@ fn produce_synthetic_changes<Da: DaSpec>(
     let (state_root, state_update) = prover_storage
         .compute_state_update(accesses, &ArrayWitness::default())
         .unwrap();
-    let change_set = prover_storage.materialize_changes(&state_update);
+    let change_set = prover_storage.materialize_changes(state_update);
 
     (state_root.root_hash().0.to_vec().into(), change_set)
 }
 
 async fn produce_synthetic_state_transition_witness<Da: DaService>(
     initial_state_root: StateRoot,
-    prover_storage: &ProverStorage<S>,
+    prover_storage: ProverStorage<S>,
     da_service: &Da,
     filtered_block: Da::FilteredBlock,
 ) -> (
@@ -1159,7 +1159,7 @@ async fn process_continuous_transition(
 
     let (change_set, transition_witness) = produce_synthetic_state_transition_witness(
         state_manager.get_state_root().to_owned(),
-        &prover_storage,
+        prover_storage,
         da_service,
         filtered_block.clone(),
     )

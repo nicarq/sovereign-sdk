@@ -384,7 +384,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         Self {
             events: Vec::new(),
             gas_price: <S::Gas as Gas>::Price::ZEROED,
-            storage: storage.clone(),
+            storage,
             witness: Default::default(),
             kernel_cache: Default::default(),
             user_cache: Default::default(),
