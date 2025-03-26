@@ -21,3 +21,13 @@ curl -sS -X POST -H "Content-Type: application/json" --data '{"transactions": []
 ```
 
 After some time, processed transaction should appear in logs of running rollup
+
+### Testing
+
+This crate uses `postgres` containers during integration testing, this requires a working and available docker setup.
+
+These tests can be skipped by setting the `SOV_TEST_SKIP_DOCKER` env var to `1` like so:
+
+```bash
+SOV_TEST_SKIP_DOCKER=1 cargo nextest run
+```
