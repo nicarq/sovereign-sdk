@@ -181,13 +181,13 @@ fn test_default_signature_roundtrip() {
 }
 
 // This is a bit of a special test because it only fails when:
-//  1. the chain ID is overridden with `SOV_SDK_CONST_OVERRIDE_CHAIN_ID`; and
+//  1. the chain ID is overridden with `SOV_TEST_CONST_OVERRIDE_CHAIN_ID`; and
 //  2. the test is run in non-release mode.
 //
 // By setting the env. variable and controlling the test profile, this test
 // can be used to ensure that constant overriding is disabled in release mode.
 //
-// Grep for `SOV_SDK_CONST_OVERRIDE_CHAIN_ID` to find the relevant code.
+// Grep for `SOV_TEST_CONST_OVERRIDE_CHAIN_ID` to find the relevant code.
 #[test]
 fn assert_chain_id_was_not_overridden() {
     assert_eq!(config_chain_id(), 4321);

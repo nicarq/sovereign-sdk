@@ -157,9 +157,9 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - run: cargo bench --no-run
         env:
-          BLOCKS: 1
-          TXNS_PER_BLOCK: 10
-          NUM_PUB_KEYS: 100
+          SOV_BENCH_BLOCKS: 1
+          SOV_BENCH_TXNS_PER_BLOCK: 10
+          SOV_BENCH_NUM_PUB_KEYS: 100
 
   rollup_tps_validation:
     name: rollup_tps_validation
@@ -179,9 +179,9 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: rollup bench check
         env:
-          BLOCKS: 10
-          TXNS_PER_BLOCK: 10000
-          NUM_PUB_KEYS: 100
+          SOV_BENCH_BLOCKS: 10
+          SOV_BENCH_TXNS_PER_BLOCK: 10000
+          SOV_BENCH_NUM_PUB_KEYS: 100
         run: sh scripts/ci_rollup_count_check.sh ##
 
   # Check that every combination of features is working properly.

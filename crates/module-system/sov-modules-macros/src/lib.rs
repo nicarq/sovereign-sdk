@@ -376,7 +376,7 @@ pub fn cli_parser(input: TokenStream) -> TokenStream {
 }
 
 fn expand_code(macro_name: &str, input: TokenStream) -> TokenStream {
-    if std::env::var_os("SOVEREIGN_SDK_EXPAND_PROC_MACROS").is_some() {
+    if std::env::var_os("SOV_EXPAND_PROC_MACROS").is_some() {
         expand_macro::expand_to_file(input.clone(), macro_name).unwrap_or_else(|err| {
             eprintln!("Failed to write to file proc-macro generated code: {err:?}");
             input

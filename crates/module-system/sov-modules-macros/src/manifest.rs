@@ -43,7 +43,7 @@ impl<'a> Manifest<'a> {
     /// be read from that directory instead.
     ///
     /// If the `test` Cargo feature is enabled or the environment variable
-    /// `CONSTANTS_MANIFEST_TEST_MODE` is set, the proc-macro will look for a
+    /// `SOV_TEST_MODE_CONST_MANIFEST` is set, the proc-macro will look for a
     /// file named `constants.testing.toml` instead.
     ///
     /// # Arguments

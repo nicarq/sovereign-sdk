@@ -142,7 +142,7 @@ mod tests {
     #[test]
     fn custom_gas_token_id() {
         env::set_var(
-            "SOV_SDK_CONST_OVERRIDE_GAS_TOKEN_ID",
+            "SOV_TEST_CONST_OVERRIDE_GAS_TOKEN_ID",
             "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnfxkwm",
         );
         assert_eq!(

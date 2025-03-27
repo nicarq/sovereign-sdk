@@ -7,14 +7,14 @@ use sov_benchmarks::node::{assert_batch_receipts, generate_transfers, prefill_st
 use sov_benchmarks::setup_with_runner;
 
 fn stf_apply_slot_bench(c: &mut Criterion) {
-    let bench_after_blocks: u64 = env::var("BLOCKS")
+    let bench_after_blocks: u64 = env::var("SOV_BENCH_BLOCKS")
         .unwrap_or("100".to_string())
         .parse()
-        .expect("BLOCKS var should be a positive number");
-    let senders_count = env::var("TXNS_PER_BLOCK")
+        .expect("SOV_BENCH_BLOCKS var should be a positive number");
+    let senders_count = env::var("SOV_BENCH_TXNS_PER_BLOCK")
         .unwrap_or("1000".to_string())
         .parse()
-        .expect("TXS_PER_BLOCK var should be a positive number");
+        .expect("SOV_BENCH_TXS_PER_BLOCK var should be a positive number");
 
     tracing::info!(
         "Going to bench after {} blocks, with {} unique senders.",

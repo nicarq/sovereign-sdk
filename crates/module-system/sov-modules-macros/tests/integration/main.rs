@@ -24,9 +24,9 @@ fn trybuild() {
 
     // NOTE: We'd like to use `trybuild` only for tests that fail to compile,
     // but in this case we rely on `trybuild` to compile `sov-modules-macros`
-    // with `CONSTANTS_MANIFEST_TEST_MODE` set to `1`, so as to use
+    // with `SOV_TEST_MODE_CONST_MANIFEST` set to `1`, so as to use
     // `constants.testing.toml`.
-    std::env::set_var("CONSTANTS_MANIFEST_TEST_MODE", "1");
+    std::env::set_var("SOV_TEST_MODE_CONST_MANIFEST", "1");
     t.pass("tests/integration/trybuild/constants/valid_constants.rs");
 
     t.compile_fail("tests/integration/trybuild/constants/bech32_constant_invalid_checksum.rs");

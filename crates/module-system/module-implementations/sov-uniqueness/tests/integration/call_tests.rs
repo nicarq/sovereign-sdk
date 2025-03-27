@@ -15,7 +15,7 @@ fn test_max_stored_tx_hashes_per_credential_lite() {
     // makes it possible to exceed `MAX_SEQUENCER_EXEC_GAS_PER_TX` before hitting `MAX_STORED_TX_HASHES_PER_CREDENTIAL`,
     // which would put your account in an unrecoverable state.
     std::env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_MAX_STORED_TX_HASHES_PER_CREDENTIAL",
+        "SOV_TEST_CONST_OVERRIDE_MAX_STORED_TX_HASHES_PER_CREDENTIAL",
         "11",
     );
     do_max_stored_tx_hashes_per_credential_test()

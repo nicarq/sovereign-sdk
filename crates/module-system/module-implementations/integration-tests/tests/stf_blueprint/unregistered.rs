@@ -176,7 +176,7 @@ fn blob_too_expensive_tests() {
     reset_constants();
     // Set the max amount of gas to be spent on a single blob to a very small value
     env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_MAX_UNREGISTERED_SEQUENCER_EXEC_GAS_PER_TX",
+        "SOV_TEST_CONST_OVERRIDE_MAX_UNREGISTERED_SEQUENCER_EXEC_GAS_PER_TX",
         "[1,1]",
     );
 
@@ -204,7 +204,7 @@ fn blob_too_expensive_tests() {
 fn blob_test_max_slot_size() {
     reset_constants();
     env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE",
+        "SOV_TEST_CONST_OVERRIDE_MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE",
         "1",
     );
 
@@ -231,7 +231,7 @@ fn blob_test_max_slot_size() {
 fn blob_test_max_allowed_data_size() {
     reset_constants();
     env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE",
+        "SOV_TEST_CONST_OVERRIDE_MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE",
         "1",
     );
 

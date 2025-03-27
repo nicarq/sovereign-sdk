@@ -44,7 +44,7 @@ fn gas_test_setup(
 fn gas_price_constants_are_charged_correctly() {
     let gas_consumed_without_price_ref = AtomicAmount::new(Amount::ZERO);
     let gas_consumed_without_price_ref_1 = gas_consumed_without_price_ref.clone();
-    std::env::set_var("SOV_SDK_CONST_OVERRIDE_EXAMPLE_CUSTOM_GAS_PRICE", "[0, 0]");
+    std::env::set_var("SOV_TEST_CONST_OVERRIDE_EXAMPLE_CUSTOM_GAS_PRICE", "[0, 0]");
 
     gas_test_setup(
         move |PostSetValueContext {
@@ -74,7 +74,7 @@ fn gas_price_constants_are_charged_correctly() {
 
     let gas_charge_for_set_value = <S as Spec>::Gas::from([100; 2]);
     std::env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_EXAMPLE_CUSTOM_GAS_PRICE",
+        "SOV_TEST_CONST_OVERRIDE_EXAMPLE_CUSTOM_GAS_PRICE",
         "[100, 100]",
     );
     let bank_initial_gas_price = S::initial_base_fee_per_gas();
@@ -145,7 +145,7 @@ fn config_constants_are_charged_correctly() {
         },
     );
 
-    std::env::set_var("SOV_SDK_CONST_OVERRIDE_EXAMPLE_CUSTOM_GAS_PRICE", "[0, 0]");
+    std::env::set_var("SOV_TEST_CONST_OVERRIDE_EXAMPLE_CUSTOM_GAS_PRICE", "[0, 0]");
     gas_test_setup(
         move |PostSetValueContext {
                   user_initial_balance,
@@ -183,7 +183,7 @@ fn not_enough_gas_wont_panic() {
         .try_into()
         .expect("This test relies on setting the gas usage to half of the sender balance, but gas is only a u64. Lower the sender balance or update the test.");
     std::env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_EXAMPLE_CUSTOM_GAS_PRICE",
+        "SOV_TEST_CONST_OVERRIDE_EXAMPLE_CUSTOM_GAS_PRICE",
         format!(
             "[{}, {}]",
             default_user_balance_as_u64 / 2,
@@ -219,7 +219,7 @@ fn not_enough_gas_wont_panic() {
 #[ignore = "This test is disabled because it we can't make gas charges overflow without increasing the base gas price beyond i64::MAX - which is currently unsupported by the toml crate. We'll need a way to do this manually for the test."]
 fn very_high_gas_to_charge_should_overflow() {
     std::env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_EXAMPLE_CUSTOM_GAS_PRICE",
+        "SOV_TEST_CONST_OVERRIDE_EXAMPLE_CUSTOM_GAS_PRICE",
         format!("[{}, {}]", u64::MAX, u64::MAX),
     );
     gas_test_setup(|_| {
