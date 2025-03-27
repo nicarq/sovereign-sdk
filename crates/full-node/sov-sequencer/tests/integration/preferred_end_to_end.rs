@@ -33,7 +33,10 @@ use tokio::time::sleep;
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
 
-use crate::utils::{generate_paymaster_tx, generate_txs, ModuleWithVersionedStateAccessInSlotHook};
+use crate::utils::{
+    generate_paymaster_tx, generate_txs, pause_update_state,
+    ModuleWithVersionedStateAccessInSlotHook,
+};
 
 generate_optimistic_runtime_with_kernel!(
     TestRuntime <=
@@ -96,6 +99,9 @@ enum TestingAction {
     NewDaSlot,
     /// Terminates the in-progress batch and publishes it to the DA layer.
     PublishBatch,
+    /// Sets the pause state of update state execution to provided value.
+    /// Allows disabling update_state from running inside the sequencer.
+    PauseUpdateStateExecution(bool),
 }
 
 /// An invalid nonce.
@@ -953,6 +959,34 @@ async fn flaky_batch_production_with_immediate_finalization() {
     preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sequencer_state_and_node_state_matches() {
+    let actions = vec![
+        TestingAction::PauseUpdateStateExecution(true),
+        TestingAction::AcceptTxs { count: 50 },
+        // Query the state the sequencer has produced
+        // Sequencer state updates are currently paused so we dont
+        // update with state from the node.
+        TestingAction::QuerySetValue,
+        TestingAction::PauseUpdateStateExecution(false),
+        // Produce a block to trigger an update_state operation
+        // which will replace the state with that from the node.
+        // It should produce the same result as our previous query
+        TestingAction::NewDaSlot,
+        // Give time for `update_state` to run
+        // This should produce a batch containing previous transactions
+        TestingAction::Sleep { duration_ms: 500 },
+        // Trigger another block so we get updated state
+        TestingAction::NewDaSlot,
+        // give time for update state to run
+        TestingAction::Sleep { duration_ms: 500 },
+        // Should be unchanged
+        TestingAction::QuerySetValue,
+    ];
+
+    preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
+}
+
 async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: Vec<TestingAction>) {
     let mut genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
@@ -1069,6 +1103,7 @@ async fn run_action_against_test_rollup(
     );
 
     match action {
+        TestingAction::PauseUpdateStateExecution(v) => pause_update_state::set(v),
         TestingAction::Sleep { duration_ms } => {
             sleep(Duration::from_millis(duration_ms)).await;
         }
@@ -1144,7 +1179,9 @@ async fn run_action_against_test_rollup(
                 .await
                 .ok();
         }
-        TestingAction::NewDaSlot { .. } => {}
+        TestingAction::NewDaSlot { .. } => {
+            test_rollup.da_service.produce_block_now().await.unwrap();
+        }
         TestingAction::QuerySetValueHistorical => {
             for (slot_number, value) in test_state.value_by_slot_number.iter() {
                 info!(

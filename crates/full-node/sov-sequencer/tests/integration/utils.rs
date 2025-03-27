@@ -192,3 +192,12 @@ impl<S: Spec> BlockHooks for ModuleWithVersionedStateAccessInSlotHook<S> {
             .unwrap_infallible();
     }
 }
+
+pub mod pause_update_state {
+    const ENV_VAR: &str = "__SOV_TESTS_PAUSE_SEQUENCER_UPDATE_STATE__";
+
+    pub fn set(value: bool) {
+        let v = if value { "1" } else { "0" };
+        std::env::set_var(ENV_VAR, v);
+    }
+}
