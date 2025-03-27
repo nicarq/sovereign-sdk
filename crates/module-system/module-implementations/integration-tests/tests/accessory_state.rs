@@ -1,3 +1,4 @@
+use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     AccessoryStateValue, Context, DaSpec, GenesisState, Module, ModuleError, ModuleId, ModuleInfo,
@@ -19,6 +20,7 @@ type S = sov_test_utils::TestSpec;
     serde::Serialize,
     serde::Deserialize,
     schemars::JsonSchema,
+    UniversalWallet,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum CallMessage {

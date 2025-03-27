@@ -1,9 +1,11 @@
 /// A module for testing gas charges
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use sov_modules_api::macros::UniversalWallet;
+// use sov_modules_api::sov_universal_wallet::schema::SchemaGenerator;
 use sov_modules_api::{
     BorshSerializedSize, Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
-    ModuleRestApi, Spec, TxState,
+    ModuleRestApi, SafeString, Spec, TxState,
 };
 
 /// A message to test and set a value
@@ -19,6 +21,7 @@ use sov_modules_api::{
     Serialize,
     Deserialize,
     schemars::JsonSchema,
+    UniversalWallet,
 )]
 pub enum CallMessage {
     /// Tests and sets a u8 value
@@ -26,9 +29,9 @@ pub enum CallMessage {
     /// Tests and sets a u16 value
     TestAndSetU16(TestAndSet<u16>),
     /// Tests and sets a string value
-    TestAndSetString(TestAndSet<String>),
+    TestAndSetString(TestAndSet<SafeString>),
     /// Sets a value, but then reverts the tx resulting an a no-op
-    SetAndRevertString(Option<String>),
+    SetAndRevertString(Option<SafeString>),
 }
 
 /// A message to set a value
@@ -44,6 +47,7 @@ pub enum CallMessage {
     Serialize,
     Deserialize,
     schemars::JsonSchema,
+    UniversalWallet,
 )]
 pub struct TestAndSet<T> {
     pub new_value: Option<T>,

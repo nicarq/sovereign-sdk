@@ -3,6 +3,8 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
+use sov_rollup_interface::common::SizedSafeString;
+
 /// The maximum number of entries we expect in the temporary cache.
 ///
 /// This is used to warn if the cache is getting too large.
@@ -203,6 +205,12 @@ impl BorshSerializedSize for String {
 }
 
 impl BorshSerializedSize for &str {
+    fn serialized_size(&self) -> usize {
+        self.len() + 4
+    }
+}
+
+impl<const N: usize> BorshSerializedSize for SizedSafeString<N> {
     fn serialized_size(&self) -> usize {
         self.len() + 4
     }

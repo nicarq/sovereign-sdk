@@ -96,6 +96,8 @@ macro_rules! generate_bare_runtime_without_capabilities {
 
         impl<S> $crate::runtime::Runtime<S> for $id<S> where
             S: ::sov_modules_api::Spec,
+            ::sov_modules_api::transaction::Transaction::<Self, S>: $crate::sov_universal_wallet::schema::SchemaGenerator,
+            <Self as ::sov_modules_api::DispatchCall>::Decodable: $crate::sov_universal_wallet::schema::SchemaGenerator,
             $($runtime_trait_impl_bounds)*
         {
             const CHAIN_HASH: [u8; 32] = [11; 32];
@@ -105,13 +107,40 @@ macro_rules! generate_bare_runtime_without_capabilities {
             type GenesisInput = ();
 
             fn endpoints(api_state: sov_modules_api::rest::ApiState<S>) -> ::sov_modules_api::NodeEndpoints {
-                use ::sov_modules_api::prelude::jsonrpsee;
+                use $crate::sov_rollup_apis::dedup::{DeDupEndpoint, NonceDeDupEndpoint};
+                use $crate::sov_rollup_apis::schema::{SchemaEndpoint, StandardSchemaEndpoint};
+                use $crate::sov_universal_wallet::schema::{ChainData, Schema};
+                use ::sov_modules_api::macros::config_value;
+                use ::sov_modules_api::transaction::{Transaction, UnsignedTransaction};
                 use ::sov_modules_api::rest::HasRestApi;
 
+                let axum_router = Self::default().rest_api(api_state.clone());
+                // Provide an endpoint to return dedup information associated with addresses.
+                // Since our runtime is using the uniqueness module we can use the provided `NonceDeDupEndpoint` implementation.
+                let dedup_endpoint = NonceDeDupEndpoint::new(api_state.clone());
+                let axum_router = axum_router.merge(dedup_endpoint.axum_router());
+
+                let schema = Schema::of_rollup_types_with_chain_data::<
+                Transaction<Self, S>,
+                UnsignedTransaction<Self, S>,
+                <Self as ::sov_modules_api::DispatchCall>::Decodable,
+                S::Address,
+                >(ChainData {
+                    chain_id: config_value!("CHAIN_ID"),
+                    chain_name: config_value!("CHAIN_NAME").to_string(),
+                })
+                .unwrap();
+
+                let schema_endpoint = StandardSchemaEndpoint::new(
+                    &schema
+                )
+                .expect("Failed to initialize StandardSchemaEndpoint");
+                let axum_router = axum_router.merge(schema_endpoint.axum_router());
+
                 ::sov_modules_api::NodeEndpoints {
-                    axum_router: Self::default().rest_api(api_state),
-                    jsonrpsee_module: jsonrpsee::RpcModule::new(()), // TODO
-                    background_handles: vec![]
+                    axum_router,
+                    jsonrpsee_module: ::sov_modules_api::prelude::jsonrpsee::RpcModule::new(()),
+                    background_handles: Vec::new(),
                 }
             }
 
@@ -267,6 +296,9 @@ macro_rules! impl_standard_runtime_authenticator {
         impl<S> ::sov_modules_api::capabilities::TransactionAuthenticator<S> for $runtime
         where
             S: ::sov_modules_api::Spec,
+            ::sov_modules_api::transaction::Transaction::<Self, S>: $crate::sov_universal_wallet::schema::SchemaGenerator,
+            ::sov_modules_api::transaction::UnsignedTransaction::<Self, S>: $crate::sov_universal_wallet::schema::SchemaGenerator,
+            <Self as ::sov_modules_api::DispatchCall>::Decodable: $crate::sov_universal_wallet::schema::SchemaGenerator,
         {
             type Decodable = <$runtime as ::sov_modules_api::DispatchCall>::Decodable;
             type Input = AuthenticatorInput;

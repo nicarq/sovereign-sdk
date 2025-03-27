@@ -51,7 +51,7 @@ fn test_setting_and_getting_values() {
         })),
         admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
             TestAndSet {
-                new_value: Some("hello".to_string()), // Insert a new string. No string should be cached
+                new_value: Some("hello".try_into().unwrap()), // Insert a new string. No string should be cached
                 expected_value: None,
             },
         )),
@@ -59,32 +59,32 @@ fn test_setting_and_getting_values() {
     let second_batch_ops = vec![
         admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
             TestAndSet {
-                expected_value: Some("hello".to_string()), // Update the string. The old value should be cached from the previous batch
-                new_value: Some("goodbye".to_string()),
+                expected_value: Some("hello".try_into().unwrap()), // Update the string. The old value should be cached from the previous batch
+                new_value: Some("goodbye".try_into().unwrap()),
             },
         )),
         admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
             TestAndSet {
-                expected_value: Some("goodbye".to_string()), // Delete the string. The old value should be cached from the previous tx
+                expected_value: Some("goodbye".try_into().unwrap()), // Delete the string. The old value should be cached from the previous tx
                 new_value: None,
             },
         )),
         admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
             TestAndSet {
                 expected_value: None, // Insert a new string. No string should be cached
-                new_value: Some("hello again".to_string()),
+                new_value: Some("hello again".try_into().unwrap()),
             },
         )),
         admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
             TestAndSet {
-                expected_value: Some("hello again".to_string()),
-                new_value: Some("hello again".to_string()), // Update the string to itself. Nothing weird should happen
+                expected_value: Some("hello again".try_into().unwrap()),
+                new_value: Some("hello again".try_into().unwrap()), // Update the string to itself. Nothing weird should happen
             },
         )),
         admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
             TestAndSet {
-                expected_value: Some("hello again".to_string()), // Ensure that the string still has the original value. Update it again
-                new_value: Some("goodbye again".to_string()),
+                expected_value: Some("hello again".try_into().unwrap()), // Ensure that the string still has the original value. Update it again
+                new_value: Some("goodbye again".try_into().unwrap()),
             },
         )),
         admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetU16(TestAndSet {
@@ -169,18 +169,18 @@ fn test_reverted_txs_dont_modify_cache() {
     let output = runner.execute(SlotInput::Batch(
         vec![
             admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::SetAndRevertString(
-                Some("hello".to_string()),
+                Some("hello".try_into().unwrap()),
             )), // Set a value, but then revert the tx
             admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
                 TestAndSet {
                     expected_value: None, // Assert that the value is not cached, then insert an entry
-                    new_value: Some("hello".to_string()),
+                    new_value: Some("hello".try_into().unwrap()),
                 },
             )),
             admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::SetAndRevertString(None)), // Delete the value, but then revert the tx
             admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
                 TestAndSet {
-                    expected_value: Some("hello".to_string()), // Assert that the value is still cached
+                    expected_value: Some("hello".try_into().unwrap()), // Assert that the value is still cached
                     new_value: None,
                 },
             )),

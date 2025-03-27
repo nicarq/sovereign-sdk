@@ -57,6 +57,12 @@ pub struct Transaction<R: TransactionCallable, S: Spec> {
     /// The public key of the sender of the transaction.
     pub pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
     /// The runtime call of the transaction.     
+    #[cfg_attr(
+        feature = "native",
+        sov_wallet(
+            bound = "R::Call: sov_rollup_interface::sov_universal_wallet::schema::SchemaGenerator"
+        )
+    )]
     pub runtime_call: R::Call,
     /// The generation of the transaction (for uniqueness).
     pub generation: u64,

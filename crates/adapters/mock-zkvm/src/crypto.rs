@@ -70,6 +70,11 @@ pub mod private_key {
         pub fn as_hex(&self) -> String {
             hex::encode(self.key_pair.to_bytes())
         }
+
+        /// Returns the private key as a byte array.
+        pub fn as_bytes(&self) -> [u8; 32] {
+            self.key_pair.to_bytes()
+        }
     }
 
     #[cfg(feature = "arbitrary")]
