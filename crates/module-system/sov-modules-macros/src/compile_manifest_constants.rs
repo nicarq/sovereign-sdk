@@ -206,7 +206,7 @@ pub fn compile_toml_value_to_rust(
     value: &toml::Value,
     input: &ConfigValueInput,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    const CONST_VALUE_OVERRIDE_ENV_VAR_PREFIX: &str = "SOV_SDK_CONST_OVERRIDE_";
+    const CONST_VALUE_OVERRIDE_ENV_VAR_PREFIX: &str = "SOV_TEST_CONST_OVERRIDE_";
 
     let env_var_name = format!(
         "{}{}",

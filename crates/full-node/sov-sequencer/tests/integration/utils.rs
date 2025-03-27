@@ -194,7 +194,7 @@ impl<S: Spec> BlockHooks for ModuleWithVersionedStateAccessInSlotHook<S> {
 }
 
 pub mod pause_update_state {
-    const ENV_VAR: &str = "__SOV_TESTS_PAUSE_SEQUENCER_UPDATE_STATE__";
+    const ENV_VAR: &str = "SOV_TEST_PAUSE_SEQUENCER_UPDATE_STATE";
 
     pub fn set(value: bool) {
         let v = if value { "1" } else { "0" };

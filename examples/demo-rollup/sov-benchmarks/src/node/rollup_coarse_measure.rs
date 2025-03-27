@@ -66,17 +66,17 @@ impl BenchParams {
         let mut transactions_per_block = 1000;
         let mut timer_output = true;
 
-        if let Ok(val) = env::var("TXNS_PER_BLOCK") {
+        if let Ok(val) = env::var("SOV_BENCH_TXNS_PER_BLOCK") {
             transactions_per_block = val
                 .parse()
-                .expect("TXNS_PER_BLOCK var should be a +ve number");
+                .expect("SOV_BENCH_TXNS_PER_BLOCK var should be a +ve number");
         }
-        if let Ok(val) = env::var("BLOCKS") {
+        if let Ok(val) = env::var("SOV_BENCH_BLOCKS") {
             blocks = val
                 .parse::<u64>()
-                .expect("BLOCKS var should be a positive integer");
+                .expect("SOV_BENCH_BLOCKS var should be a positive integer");
         }
-        if let Ok(val) = env::var("TIMER_OUTPUT") {
+        if let Ok(val) = env::var("SOV_BENCH_TIMER_OUTPUT") {
             match val.as_str() {
                 "true" | "1" | "yes" => {
                     timer_output = true;
@@ -84,7 +84,7 @@ impl BenchParams {
                 "false" | "0" | "no" => (),
                 val => {
                     panic!(
-                        "Unknown value '{}' for TIMER_OUTPUT. expected true/false/0/1/yes/no",
+                        "Unknown value '{}' for SOV_BENCH_TIMER_OUTPUT. expected true/false/0/1/yes/no",
                         val
                     );
                 }

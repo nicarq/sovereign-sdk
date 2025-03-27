@@ -267,7 +267,7 @@ pub async fn loop_call_update_state<Seq: Sequencer>(
         "loop_call_update_state",
         |info| async {
             if cfg!(debug_assertions) {
-                let skip_flag = std::env::var("__SOV_TESTS_PAUSE_SEQUENCER_UPDATE_STATE__");
+                let skip_flag = std::env::var("SOV_TEST_PAUSE_SEQUENCER_UPDATE_STATE");
                 if skip_flag == Ok("1".to_string()) {
                     tracing::warn!("skipping state update due to env var flag");
                     Ok(())

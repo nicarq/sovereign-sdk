@@ -1,6 +1,6 @@
 #!/bin/bash
-export BLOCKS=10
-export TXNS_PER_BLOCK=10000
+export SOV_BENCH_BLOCKS=10
+export SOV_BENCH_TXNS_PER_BLOCKS=10000
 export TPS=1000
 (cd examples/demo-rollup/sov-benchmarks/src/node && make basic 2>&1) | tee output.log
 

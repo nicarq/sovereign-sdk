@@ -23,18 +23,18 @@ const DEFAULT_BLOCKS: u64 = 10;
 const DEFAULT_TXNS_PER_BLOCK: u64 = 100;
 
 pub async fn get_blocks_from_da(mode: BlobBuildingCtx) -> anyhow::Result<Vec<MockBlock>> {
-    let txns_per_block = match env::var("TXNS_PER_BLOCK") {
+    let txns_per_block = match env::var("SOV_BENCH_TXNS_PER_BLOCK") {
         Ok(txns_per_block) => txns_per_block.parse::<u64>()?,
         Err(_) => {
-            println!("TXNS_PER_BLOCK not set, using default");
+            println!("SOV_BENCH_TXNS_PER_BLOCK not set, using default");
             DEFAULT_TXNS_PER_BLOCK
         }
     };
 
-    let block_cnt = match env::var("BLOCKS") {
+    let block_cnt = match env::var("SOV_BENCH_BLOCKS") {
         Ok(block_cnt_str) => block_cnt_str.parse::<u64>()?,
         Err(_) => {
-            println!("BLOCKS not set, using default");
+            println!("SOV_BENCH_BLOCKS not set, using default");
             DEFAULT_BLOCKS
         }
     };

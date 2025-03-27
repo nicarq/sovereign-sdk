@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::{env, fs};
 
 fn main() -> anyhow::Result<()> {
-    println!("cargo::rerun-if-env-changed=SOVEREIGN_SDK_EXPAND_PROC_MACROS");
+    println!("cargo::rerun-if-env-changed=SOV_EXPAND_PROC_MACROS");
 
     let constants_json_path = find_constants_manifest()?;
     if let Some(path) = constants_json_path {
@@ -17,7 +17,7 @@ pub fn find_constants_manifest() -> anyhow::Result<Option<PathBuf>> {
     // The flag check is a workaround to <https://github.com/dtlnay/trybuild/issues/231>.
     // Despite trybuild being a crate to build tests, it won't set the `test` flag. It isn't
     // setting the `trybuild` flag properly either.
-    let filename = if cfg!(test) || env::var_os("CONSTANTS_MANIFEST_TEST_MODE").is_some() {
+    let filename = if cfg!(test) || env::var_os("SOV_TEST_MODE_CONST_MANIFEST").is_some() {
         // `constants.test.toml` would be better, but Taplo doesn't like it:
         // <https://github.com/tamasfe/taplo/issues/578>.
         "constants.testing.toml"

@@ -54,7 +54,7 @@ fn array_of_u8() -> [u8; 32] {
 
 fn main() {
     env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_TOKEN_ID",
+        "SOV_TEST_CONST_OVERRIDE_TOKEN_ID",
         "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6",
     );
     assert_eq!(
@@ -62,26 +62,26 @@ fn main() {
         "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"
     );
 
-    env::set_var("SOV_SDK_CONST_OVERRIDE_I64_MIN", "2");
+    env::set_var("SOV_TEST_CONST_OVERRIDE_I64_MIN", "2");
     assert_eq!(i64_min(), 2);
 
-    env::set_var("SOV_SDK_CONST_OVERRIDE_NON_CONST_BOOL", "false");
+    env::set_var("SOV_TEST_CONST_OVERRIDE_NON_CONST_BOOL", "false");
     assert_eq!(non_const_bool(), false);
 
-    env::set_var("SOV_SDK_CONST_OVERRIDE_NON_CONST_STRING", "spam");
+    env::set_var("SOV_TEST_CONST_OVERRIDE_NON_CONST_STRING", "spam");
     assert_eq!(non_const_string(), "spam");
 
     env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_MATRIX_2x3",
+        "SOV_TEST_CONST_OVERRIDE_MATRIX_2x3",
         "[[0, 0, 0], [1, 1, 1]]",
     );
     assert_eq!(matrix_2x3(), [[0, 0, 0], [1, 1, 1]]);
 
-    env::set_var("SOV_SDK_CONST_OVERRIDE_EMPTY_ARRAY", "[]");
+    env::set_var("SOV_TEST_CONST_OVERRIDE_EMPTY_ARRAY", "[]");
     assert_eq!(empty_array(), [0u8; 0]);
 
     env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_ARRAY_OF_BECH32",
+        "SOV_TEST_CONST_OVERRIDE_ARRAY_OF_BECH32",
         r#"["token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6", "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnfxkwm"]"#,
     );
     assert_eq!(
@@ -94,7 +94,7 @@ fn main() {
     );
 
     env::set_var(
-        "SOV_SDK_CONST_OVERRIDE_ARRAY_OF_U8",
+        "SOV_TEST_CONST_OVERRIDE_ARRAY_OF_U8",
         "[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]",
     );
     assert_eq!(array_of_u8(), [1; 32]);

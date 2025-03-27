@@ -115,7 +115,7 @@ pub fn derive(
     macro_name: TokenStream,
 ) -> Result<TokenStream, syn::Error> {
     let res = derive_wallet_field(input, prefix, macro_name)?;
-    if std::env::var("SOVEREIGN_SDK_EXPAND_PROC_MACROS").is_ok() {
+    if std::env::var("SOV_EXPAND_PROC_MACROS").is_ok() {
         println!("------ Generated Wallet Output -------\n\n{}\n\n------ End Generated Wallet Output -------",&res);
     }
     Ok(res)

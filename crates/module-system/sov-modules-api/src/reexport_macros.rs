@@ -424,7 +424,7 @@ pub mod macros {
     /// ## Overriding constants
     ///
     /// When testing your code, it's often useful to override constants. You can do that by setting the
-    /// `SOV_SDK_CONST_OVERRIDE_{CONSTANT_NAME}` env. variable inside your test.
+    /// `SOV_TEST_CONST_OVERRIDE_{CONSTANT_NAME}` env. variable inside your test.
     ///
     /// ## `const` expressions
     ///

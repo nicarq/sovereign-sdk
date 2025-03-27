@@ -1,4 +1,9 @@
 # 2025-03-27
+- #2649 renames several environment variables:
+  1. `SOV_SDK_CONST_OVERRIDE_...` becomes `SOV_TEST_CONST_OVERRIDE_...`.
+  2. `CONSTANTS_MANIFEST_TEST_MODE` becomes `SOV_TEST_MODE_CONST_MANIFEST`.
+  3. `SOVEREIGN_SDK_EXPAND_PROC_MACROS` becomes `SOV_EXPAND_PROC_MACROS`.
+  4. All benchmark-related env. vars. e.g. `BLOCKS`, `TXNS_PER_BLOCK`, `TIMER_OUTPUT` are now prefixed with `SOV_BENCH_`.
 - #2648 fixes a bug that caused event keys to also contain the value part of the event for certain unit structs.
 
 # 2025-03-25
