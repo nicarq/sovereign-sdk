@@ -308,7 +308,7 @@ pub trait LedgerStateProvider {
     where
         B: DeserializeOwned + Clone + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         if let Some(head_number) = self.get_head_slot_number().await? {
             self.get_slot_by_number(head_number, query_mode).await
@@ -326,7 +326,7 @@ pub trait LedgerStateProvider {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get a list of batches by id. The IDs need not be ordered.
     async fn get_batches<B, T, E>(
@@ -337,7 +337,7 @@ pub trait LedgerStateProvider {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get a list of transactions by id. The IDs need not be ordered.
     async fn get_transactions<T, E>(
@@ -347,7 +347,7 @@ pub trait LedgerStateProvider {
     ) -> Result<Vec<Option<TxResponse<T, E>>>, Self::Error>
     where
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get events by id. The IDs need not be ordered.
     async fn get_events<E>(
@@ -355,7 +355,7 @@ pub trait LedgerStateProvider {
         event_ids: &[EventIdentifier],
     ) -> Result<Vec<Option<E>>, Self::Error>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get all events from a slot with an optional prefix filter. If a filter
     /// is not provided, all events from that slot are returned.
@@ -367,7 +367,10 @@ pub trait LedgerStateProvider {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync + DeserializeOwned;
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error>
+            + Send
+            + Sync
+            + DeserializeOwned;
 
     /// Get a single slot by hash.
     async fn get_slot_by_hash<B, T, E>(
@@ -378,7 +381,7 @@ pub trait LedgerStateProvider {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_slots(&[SlotIdentifier::Hash(*hash)], query_mode)
             .await
@@ -394,7 +397,7 @@ pub trait LedgerStateProvider {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_batches(&[BatchIdentifier::Hash(*hash)], query_mode)
             .await
@@ -409,7 +412,7 @@ pub trait LedgerStateProvider {
     ) -> Result<Option<TxResponse<T, E>>, Self::Error>
     where
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_transactions(&[TxIdentifier::Hash(*hash)], query_mode)
             .await
@@ -430,7 +433,7 @@ pub trait LedgerStateProvider {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_slots(&[SlotIdentifier::Number(number)], query_mode)
             .await
@@ -446,7 +449,7 @@ pub trait LedgerStateProvider {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_batches(&[BatchIdentifier::Number(number)], query_mode)
             .await
@@ -456,7 +459,7 @@ pub trait LedgerStateProvider {
     /// Get a single event by number.
     async fn get_event_by_number<E>(&self, number: u64) -> Result<Option<E>, Self::Error>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_events::<E>(&[EventIdentifier::Number(number)])
             .await
@@ -469,12 +472,12 @@ pub trait LedgerStateProvider {
     /// Get events by transaction hash.
     async fn get_events_by_txn_hash<E>(&self, txn_hash: &[u8; 32]) -> Result<Vec<E>, Self::Error>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get events by transaction number.
     async fn get_events_by_txn_number<E>(&self, txn_num: u64) -> Result<Vec<E>, Self::Error>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get a single tx by number.
     async fn get_tx_by_number<T, E>(
@@ -484,7 +487,7 @@ pub trait LedgerStateProvider {
     ) -> Result<Option<TxResponse<T, E>>, Self::Error>
     where
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_transactions(&[TxIdentifier::Number(number)], query_mode)
             .await
@@ -503,7 +506,7 @@ pub trait LedgerStateProvider {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get a range of batches. This query is the most efficient way to
     /// fetch large numbers of batches, since it allows for easy batching of
@@ -517,7 +520,7 @@ pub trait LedgerStateProvider {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get a range of batches. This query is the most efficient way to
     /// fetch large numbers of transactions, since it allows for easy batching of
@@ -530,7 +533,7 @@ pub trait LedgerStateProvider {
     ) -> Result<Vec<Option<TxResponse<T, E>>>, Self::Error>
     where
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Resolve a [`SlotIdentifier`] into a rollup height.
     async fn resolve_slot_identifier(

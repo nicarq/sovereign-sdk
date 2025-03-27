@@ -63,7 +63,7 @@ pub struct RuntimeEventResponse<E> {
     pub module: ModuleRef,
 }
 
-impl<E> TryFrom<(u64, sov_rollup_interface::stf::StoredEvent)> for RuntimeEventResponse<E>
+impl<E> TryFrom<(u64, &sov_rollup_interface::stf::StoredEvent)> for RuntimeEventResponse<E>
 where
     E: EventModuleName
         + Clone
@@ -75,7 +75,7 @@ where
     type Error = anyhow::Error;
 
     fn try_from(
-        (event_number, stored_event): (u64, sov_rollup_interface::stf::StoredEvent),
+        (event_number, stored_event): (u64, &sov_rollup_interface::stf::StoredEvent),
     ) -> Result<Self, Self::Error> {
         let runtime_event: E =
             borsh::de::BorshDeserialize::try_from_slice(stored_event.value().inner().as_slice())

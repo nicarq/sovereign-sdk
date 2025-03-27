@@ -24,8 +24,8 @@ use sov_test_modules::hooks_count::HooksCount;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::{
-    default_test_signed_transaction, generate_optimistic_runtime_with_kernel, initialize_logging,
-    RtAgnosticBlueprint, TestSpec,
+    default_test_signed_transaction, generate_optimistic_runtime_with_kernel, RtAgnosticBlueprint,
+    TestSpec,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use test_strategy::Arbitrary;
@@ -856,7 +856,6 @@ async fn not_sequencer_safe_txs_are_restricted() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn restart_and_query_value() {
-    initialize_logging();
     let actions = vec![TestingAction::Restart, TestingAction::QuerySetValue];
 
     preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;

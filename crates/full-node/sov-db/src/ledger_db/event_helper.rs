@@ -19,7 +19,7 @@ impl LedgerRpcReader {
         next: Option<&str>,
     ) -> anyhow::Result<PaginatedEventResponse<E>>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         let scan_key_start = match next {
             Some(start_key) => {
@@ -85,7 +85,7 @@ impl LedgerRpcReader {
         next: Option<&str>,
     ) -> anyhow::Result<PaginatedEventResponse<E>>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         let (txn_range, next_key) = match next {
             None => {
@@ -200,7 +200,7 @@ pub async fn get_events_by_key_helper<E>(
     next: Option<&str>,
 ) -> anyhow::Result<PaginatedEventResponse<E>>
 where
-    E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+    E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
 {
     ledger_db
         .get_rpc_reader()
@@ -232,7 +232,7 @@ pub async fn get_events_by_key_slot_range_helper<E>(
     next: Option<&str>,
 ) -> anyhow::Result<PaginatedEventResponse<E>>
 where
-    E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+    E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
 {
     ledger_db
         .get_rpc_reader()
