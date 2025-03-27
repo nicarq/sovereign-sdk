@@ -162,13 +162,8 @@ pub trait EventEmitter: ModuleInfo {
     #[allow(unused_variables)]
     fn emit_event(&self, state: &mut impl EventContainer, event: Self::Event) {
         if cfg!(feature = "native") {
-            let event_debug = format!("{event:?}");
-            // `.unwrap_or_default()` would only happen if `Debug` returns an
-            // empty or all-whitespace string, which seems unlikely.
-            let event_variant_name = event_debug.split_whitespace().next().unwrap_or_default();
-            let event_key = format!("{}/{}", self.prefix().module_name(), event_variant_name);
-
-            state.add_event(&event_key, event);
+            let key = event_key(self.prefix().module_name(), &event);
+            state.add_event(&key, event);
         }
     }
 
@@ -184,6 +179,17 @@ pub trait EventEmitter: ModuleInfo {
             state.add_event(event_key, event);
         }
     }
+}
+
+fn event_key<T: Debug>(module_prefix: &str, event: &T) -> String {
+    let event_debug = format!("{event:?}");
+    // Hacky logic to get the first identifier in the Debug representation.
+    let event_identifier = event_debug
+        .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .next()
+        .unwrap_or_default();
+
+    format!("{}/{}", module_prefix, event_identifier)
 }
 
 impl<T> EventEmitter for T
@@ -237,5 +243,81 @@ where
         state: &mut impl GenesisState<Self::Spec>,
     ) -> Result<(), ModuleError> {
         <Self as Module>::genesis(self, genesis_rollup_header, config, state)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn event_keys_struct() {
+        #[derive(Debug)]
+        struct Struct1;
+        assert_eq!(event_key("module", &Struct1), "module/Struct1".to_string());
+
+        #[derive(Debug)]
+        struct Struct2 {}
+        assert_eq!(
+            event_key("module", &Struct2 {}),
+            "module/Struct2".to_string()
+        );
+
+        #[derive(Debug)]
+        struct Struct3 {
+            #[allow(dead_code)]
+            foo: u32,
+        }
+        assert_eq!(
+            event_key("module", &Struct3 { foo: 1 }),
+            "module/Struct3".to_string()
+        );
+
+        #[derive(Debug)]
+        struct Struct4();
+        assert_eq!(
+            event_key("module", &Struct4()),
+            "module/Struct4".to_string()
+        );
+
+        #[derive(Debug)]
+        struct Struct5(#[allow(dead_code)] u32);
+        assert_eq!(
+            event_key("module", &Struct5(1)),
+            "module/Struct5".to_string()
+        );
+    }
+
+    #[test]
+    fn event_keys_enum() {
+        #[derive(Debug)]
+        enum Enum1 {
+            Variant1,
+        }
+        assert_eq!(
+            event_key("module", &Enum1::Variant1),
+            "module/Variant1".to_string()
+        );
+
+        #[derive(Debug)]
+        enum Enum2 {
+            Variant1(#[allow(dead_code)] u32),
+        }
+        assert_eq!(
+            event_key("module", &Enum2::Variant1(1)),
+            "module/Variant1".to_string()
+        );
+
+        #[derive(Debug)]
+        enum Enum3 {
+            Variant1 {
+                #[allow(dead_code)]
+                a: u32,
+            },
+        }
+        assert_eq!(
+            event_key("module", &Enum3::Variant1 { a: 1 }),
+            "module/Variant1".to_string()
+        );
     }
 }
