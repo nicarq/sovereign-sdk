@@ -4942,9 +4942,9 @@ dependencies = [
 
 [[package]]
 name = "k256"
-version = "0.13.3"
+version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "956ff9b67e26e1a6a866cb758f12c6f8746208489e3e4a4b5580802f2f0a587b"
+checksum = "f6e3919bbaa2945715f0bb6d3934a173d1e9a59ac23767fbaaef277265a7411b"
 dependencies = [
  "cfg-if",
  "ecdsa",
@@ -10991,6 +10991,7 @@ dependencies = [
  "sov-modules-stf-blueprint",
  "sov-paymaster",
  "sov-prover-incentives",
+ "sov-rollup-apis",
  "sov-rollup-interface",
  "sov-sequencer",
  "sov-sequencer-registry",
@@ -10998,6 +10999,7 @@ dependencies = [
  "sov-stf-runner",
  "sov-test-utils",
  "sov-uniqueness",
+ "sov-universal-wallet",
  "sov-value-setter",
  "strum",
  "tempfile",

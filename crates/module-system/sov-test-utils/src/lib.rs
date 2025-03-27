@@ -28,7 +28,7 @@ use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::execution_mode::{Native, Zk};
 pub use sov_state::ProverStorage;
-pub use {sov_bank, sov_paymaster};
+pub use {sov_bank, sov_paymaster, sov_rollup_apis, sov_universal_wallet};
 
 mod evm;
 mod rt_agnostic_blueprint;

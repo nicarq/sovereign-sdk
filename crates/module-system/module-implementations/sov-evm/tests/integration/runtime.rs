@@ -5,7 +5,8 @@ use sov_evm::Evm;
 use sov_modules_api::capabilities::{BatchFromUnregisteredSequencer, TransactionAuthenticator};
 use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::runtime::Runtime;
-use sov_modules_api::transaction::TransactionWithoutCall;
+use sov_modules_api::sov_universal_wallet::schema::SchemaGenerator;
+use sov_modules_api::transaction::{Transaction, TransactionWithoutCall};
 use sov_modules_api::{DispatchCall, FullyBakedTx, ProvableStateReader, RawTx, Spec};
 use sov_rollup_interface::execution_mode::Native;
 use sov_state::User;
@@ -32,6 +33,7 @@ pub enum Auth<T = sov_modules_api::RawTx, U = sov_modules_api::RawTx> {
 impl<S: Spec> TransactionAuthenticator<S> for TestRuntime<S>
 where
     S::Address: FromVmAddress<EthereumAddress>,
+    Transaction<Self, S>: SchemaGenerator,
 {
     type Decodable = <Self as DispatchCall>::Decodable;
 
@@ -118,6 +120,7 @@ where
 impl<S: Spec> sov_evm::EthereumAuthenticator<S> for TestRuntime<S>
 where
     S::Address: FromVmAddress<EthereumAddress>,
+    Transaction<Self, S>: SchemaGenerator,
 {
     fn add_ethereum_auth(tx: RawTx) -> <Self as TransactionAuthenticator<S>>::Input {
         Auth::Evm(tx)

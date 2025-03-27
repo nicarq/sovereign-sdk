@@ -1,7 +1,7 @@
 /// A module for testing gas charges
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::macros::config_value;
+use sov_modules_api::macros::{config_value, UniversalWallet};
 use sov_modules_api::{
     Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
     StateValue, TxState,
@@ -20,6 +20,7 @@ use sov_modules_api::{
     Serialize,
     Deserialize,
     schemars::JsonSchema,
+    UniversalWallet,
 )]
 pub enum CallMessage {
     /// Sets a value
