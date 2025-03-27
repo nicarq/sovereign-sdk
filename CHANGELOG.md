@@ -1,3 +1,6 @@
+# 2025-03-27
+- #2648 fixes a bug that caused event keys to also contain the value part of the event for certain unit structs.
+
 # 2025-03-25
 - #2603 **BREAKING CHANGE**: Universal schema now supports borsh serialization. The following changes are breaking:
   * A new constant, `CHAIN_NAME`, was added. This gets saved in the schema and will be displayed to the user signing transactions, alongside the numeric `CHAIN_ID`.
