@@ -62,10 +62,10 @@ where
 }
 
 struct DiscardEvents;
-impl TryFrom<(u64, StoredEvent)> for DiscardEvents {
+impl TryFrom<(u64, &StoredEvent)> for DiscardEvents {
     type Error = anyhow::Error;
 
-    fn try_from(_value: (u64, StoredEvent)) -> Result<Self, Self::Error> {
+    fn try_from(_value: (u64, &StoredEvent)) -> Result<Self, Self::Error> {
         Ok(Self)
     }
 }

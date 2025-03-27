@@ -6,15 +6,15 @@ use axum::http::StatusCode;
 use sov_modules_api::capabilities::{BlobSelector, BlobSelectorOutput, ChainState, FatalError};
 use sov_modules_api::{
     BlobDataWithId, ExecutionContext, FullyBakedTx, Gas, GasSpec, KernelStateAccessor,
-    NestedEnumUtils, RejectReason, Runtime, SelectedBlob, Spec, StateCheckpoint, VersionReader,
-    VisibleSlotNumber,
+    NestedEnumUtils, RejectReason, Runtime, RuntimeEventProcessor, RuntimeEventResponse,
+    SelectedBlob, Spec, StateCheckpoint, VersionReader, VisibleSlotNumber,
 };
 use sov_modules_stf_blueprint::{StfBlueprint, TransactionReceipt};
 use sov_rest_utils::{json_obj, ErrorObject};
 use sov_state::{Namespace, StateRoot, Storage};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::{self, Sender};
-use tokio::sync::oneshot;
+use tokio::sync::{broadcast, oneshot};
 use tracing::trace;
 
 use super::{
@@ -23,7 +23,12 @@ use super::{
 };
 use crate::common::generic_accept_tx_error;
 use crate::preferred::async_batch::MaybeAsyncBatch;
-use crate::SequencerConfig;
+use crate::{SequencerConfig, SequencerEvent};
+
+type TxReceiptWithEvents<S, Rt> = (
+    TransactionReceipt<S>,
+    Vec<RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>,
+);
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum RollupBlockExecutorError<S: Spec> {
@@ -69,6 +74,8 @@ where
     S: Spec,
     Rt: Runtime<S>,
 {
+    next_event_number: u64,
+    events_sender: Option<broadcast::Sender<SequencerEvent<Rt>>>,
     state: InternalState<S>,
     runtime: Rt,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
@@ -85,10 +92,14 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
     pub fn new(
         state: InternalState<S>,
+        next_event_number: u64,
+        events_sender: Option<broadcast::Sender<SequencerEvent<Rt>>>,
         config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
         shutdown_notifier: Sender<()>,
     ) -> RollupBlockExecutor<S, Rt> {
         RollupBlockExecutor {
+            next_event_number,
+            events_sender,
             state,
             config,
             shutdown_notifier,
@@ -100,18 +111,33 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         &self.state
     }
 
-    pub fn consume(self) -> InternalState<S> {
-        self.state
-    }
-
     #[tracing::instrument(skip_all, level = "trace")]
-    pub async fn replace_state(&mut self, state: InternalState<S>) {
+    pub async fn replace_state(&mut self, other: Self) {
+        assert!(
+            !matches!(other.state, InternalState::Placeholder),
+            "Can't replace with placeholder state; this is a bug, please report it (self.state is {:?})",
+            self.state
+        );
+
+        // The event numbers will mismatch during the very first state update,
+        // which uses a placeholder state. That's expected, and we shouldn't
+        // panic.
+        if !matches!(self.state, InternalState::Placeholder) {
+            #[allow(clippy::collapsible_if)]
+            if self.next_event_number != other.next_event_number {
+                // TODO(@neysofu): turn this into a panic.
+                tracing::error!(
+                    "Event numbers don't match after `update_state`; this is a bug and will become a panic in the future");
+            }
+        }
+
         let current_state = replace(&mut self.state, InternalState::Placeholder);
         if let InternalState::InProgressBatch { task_state, .. } = current_state {
             task_state.shutdown().abort();
         }
 
-        self.state = state;
+        self.state = other.state;
+        self.next_event_number = other.next_event_number;
     }
 
     /// Calls to this method must happen "between"
@@ -121,7 +147,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     pub async fn apply_tx_to_in_progress_batch(
         &mut self,
         baked_tx: &FullyBakedTx,
-    ) -> Result<TransactionReceipt<S>, RollupBlockExecutorError<S>> {
+    ) -> Result<TxReceiptWithEvents<S, Rt>, RollupBlockExecutorError<S>> {
         let InternalState::InProgressBatch {
             mut checkpoint,
             mut task_state,
@@ -139,7 +165,10 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             task_state,
         };
 
-        result
+        result.map(|r| {
+            let events = self.process_tx_receipt(&r);
+            (r, events)
+        })
     }
 
     async fn apply_tx_to_in_progress_batch_inner(
@@ -390,7 +419,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                     %next_visible_slot_number,
                     "Applying batches in user space"
                 );
-                let (_, _, _, checkpoint) = stf.apply_batches_in_user_space(
+                let (_, _, batch_receipts, checkpoint) = stf.apply_batches_in_user_space(
                     &mut Default::default(),
                     blob_selector_output,
                     checkpoint,
@@ -407,7 +436,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                         .map(|(k, v)| ((k.clone(), Namespace::Accessory), v.clone())),
                 );
                 drop(shutdown_notifier);
-                changes
+                (batch_receipts, changes)
             }
         });
 
@@ -447,6 +476,38 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         );
     }
 
+    fn process_tx_receipt(
+        &mut self,
+        tx_receipt: &TransactionReceipt<S>,
+    ) -> Vec<RuntimeEventResponse<Rt::RuntimeEvent>> {
+        let events = tx_receipt
+            .events
+            .iter()
+            .zip(self.next_event_number..)
+            .map(|(event, number)| {
+                <RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>::try_from((
+                    number, event,
+                ))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()
+            .expect("Supposedly infallible conversion failed; this is a bug, please report it");
+
+        self.next_event_number += events.len() as u64;
+
+        if let Some(sender) = &self.events_sender {
+            for event in events.iter().cloned() {
+                sender
+                    .send(SequencerEvent {
+                        tx_hash: tx_receipt.tx_hash,
+                        event,
+                    })
+                    .ok();
+            }
+        }
+
+        events
+    }
+
     async fn end_rollup_block_if_in_progress_inner(&mut self) {
         trace!("Ending rollup block");
 
@@ -465,9 +526,21 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                 }
             };
 
-        let changes = task_state.shutdown().await.expect(
+        let (batch_receipts, changes) = task_state.shutdown().await.expect(
             "Transaction acceptor task failed unexpectedly! This is a bug, please report it.",
         );
+
+        for batch_receipt in batch_receipts {
+            // We already increment the event number for our own transactions
+            // inside `apply_tx_to_in_progress_batch`.
+            if batch_receipt.inner.da_address == self.config.da_address {
+                continue;
+            }
+
+            for tx_receipt in batch_receipt.tx_receipts {
+                self.process_tx_receipt(&tx_receipt);
+            }
+        }
 
         checkpoint.apply_changes(changes);
 

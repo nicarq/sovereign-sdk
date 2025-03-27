@@ -59,7 +59,7 @@ impl LedgerRpcReader {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         anyhow::ensure!(
             slot_ids.len() <= MAX_SLOTS_PER_REQUEST as usize,
@@ -97,7 +97,7 @@ impl LedgerRpcReader {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         // TODO: https://github.com/Sovereign-Labs/sovereign-sdk/issues/191 Sort the input
         //      and use an iterator instead of querying for each slot individually
@@ -132,7 +132,7 @@ impl LedgerRpcReader {
     ) -> anyhow::Result<Vec<Option<TxResponse<T, E>>>>
     where
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         // TODO: https://github.com/Sovereign-Labs/sovereign-sdk/issues/191 Sort the input
         //      and use an iterator instead of querying for each slot individually
@@ -170,7 +170,7 @@ impl LedgerRpcReader {
         event_ids: &[EventIdentifier],
     ) -> anyhow::Result<Vec<Option<E>>>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         // TODO: Sort the input and use an iterator instead of querying for each slot individually
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/191
@@ -183,7 +183,7 @@ impl LedgerRpcReader {
                         .db
                         .get_async::<EventByNumber>(&EventNumber(num))
                         .await?
-                        .map(|serialized_event| (num, serialized_event).try_into()),
+                        .map(|serialized_event| (num, &serialized_event).try_into()),
                     None => None,
                 }
                 .transpose()?,
@@ -214,7 +214,7 @@ impl LedgerRpcReader {
 
     async fn get_events_by_txn_hash<E>(&self, tx_hash: &[u8; 32]) -> anyhow::Result<Vec<E>>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         let tx_range = (*tx_hash, TxNumber(0))..(*tx_hash, TxNumber(u64::MAX));
         let tx_numbers = self
@@ -250,7 +250,7 @@ impl LedgerRpcReader {
 
     async fn get_events_by_txn_number<E>(&self, txn_num: u64) -> anyhow::Result<Vec<E>>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         let stored_txn = self
             .db
@@ -434,7 +434,7 @@ impl LedgerRpcReader {
         mode: QueryMode,
     ) -> anyhow::Result<TxResponse<T, E>>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         Ok(match mode {
             QueryMode::Compact => tx.try_into()?,
@@ -443,7 +443,7 @@ impl LedgerRpcReader {
                 let events = self.get_event_range(&tx.events).await?;
                 let events = (tx.events.start.0..=tx.events.end.0)
                     .zip(events.into_iter())
-                    .map(|event: (u64, StoredEvent)| event.try_into())
+                    .map(|(event_num, event)| (event_num, &event).try_into())
                     .collect::<Result<Vec<E>, _>>()?;
                 let mut tx_response: TxResponse<T, E> = tx.try_into()?;
                 tx_response.events = Some(events);
@@ -458,7 +458,7 @@ impl LedgerRpcReader {
         mode: QueryMode,
     ) -> anyhow::Result<BatchResponse<B, T, E>>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         Ok(match mode {
             QueryMode::Compact => batch.try_into()?,
@@ -497,7 +497,7 @@ impl LedgerRpcReader {
         mode: QueryMode,
     ) -> anyhow::Result<SlotResponse<B, T, E>>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         let state_root = slot.state_root.as_ref().to_vec();
         let finality_status = if self.get_latest_finalized_slot_number().await? >= number {
@@ -576,7 +576,7 @@ impl LedgerStateProvider for LedgerDb {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_rpc_reader().get_slots(slot_ids, query_mode).await
     }
@@ -589,7 +589,7 @@ impl LedgerStateProvider for LedgerDb {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         anyhow::ensure!(
             batch_ids.len() <= MAX_BATCHES_PER_REQUEST as usize,
@@ -609,7 +609,7 @@ impl LedgerStateProvider for LedgerDb {
     ) -> Result<Vec<Option<TxResponse<T, E>>>, Self::Error>
     where
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         anyhow::ensure!(
             tx_ids.len() <= MAX_TRANSACTIONS_PER_REQUEST as usize,
@@ -627,7 +627,7 @@ impl LedgerStateProvider for LedgerDb {
         event_ids: &[EventIdentifier],
     ) -> Result<Vec<Option<E>>, Self::Error>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         anyhow::ensure!(
             event_ids.len() <= MAX_EVENTS_PER_REQUEST as usize,
@@ -646,7 +646,10 @@ impl LedgerStateProvider for LedgerDb {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync + DeserializeOwned,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error>
+            + Send
+            + Sync
+            + DeserializeOwned,
     {
         let slot_not_found_err = || anyhow::anyhow!("Slot `{:?}` not found", slot_id);
 
@@ -693,7 +696,7 @@ impl LedgerStateProvider for LedgerDb {
                 }
             }
 
-            events.push((event_num, event).try_into()?);
+            events.push((event_num, &event).try_into()?);
         }
 
         Ok(events)
@@ -708,7 +711,7 @@ impl LedgerStateProvider for LedgerDb {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_slots(&[SlotIdentifier::Hash(*hash)], query_mode)
             .await
@@ -723,7 +726,7 @@ impl LedgerStateProvider for LedgerDb {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_batches(&[BatchIdentifier::Hash(*hash)], query_mode)
             .await
@@ -737,7 +740,7 @@ impl LedgerStateProvider for LedgerDb {
     ) -> anyhow::Result<Option<TxResponse<T, E>>>
     where
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_transactions(&[TxIdentifier::Hash(*hash)], query_mode)
             .await
@@ -757,7 +760,7 @@ impl LedgerStateProvider for LedgerDb {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_slots(&[SlotIdentifier::Number(number)], query_mode)
             .await
@@ -772,7 +775,7 @@ impl LedgerStateProvider for LedgerDb {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_batches(&[BatchIdentifier::Number(number)], query_mode)
             .await
@@ -781,7 +784,7 @@ impl LedgerStateProvider for LedgerDb {
 
     async fn get_event_by_number<E>(&self, number: u64) -> anyhow::Result<Option<E>>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_events::<E>(&[EventIdentifier::Number(number)])
             .await
@@ -794,14 +797,14 @@ impl LedgerStateProvider for LedgerDb {
 
     async fn get_events_by_txn_hash<E>(&self, txn_hash: &[u8; 32]) -> anyhow::Result<Vec<E>>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_rpc_reader().get_events_by_txn_hash(txn_hash).await
     }
 
     async fn get_events_by_txn_number<E>(&self, txn_num: u64) -> anyhow::Result<Vec<E>>
     where
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_rpc_reader()
             .get_events_by_txn_number(txn_num)
@@ -817,7 +820,7 @@ impl LedgerStateProvider for LedgerDb {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
@@ -840,7 +843,7 @@ impl LedgerStateProvider for LedgerDb {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
@@ -860,7 +863,7 @@ impl LedgerStateProvider for LedgerDb {
     ) -> Result<Vec<Option<TxResponse<T, E>>>, Self::Error>
     where
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(

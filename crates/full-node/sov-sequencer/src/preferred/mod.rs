@@ -28,7 +28,7 @@ use sov_modules_api::{
     RuntimeEventResponse, Spec, StateCheckpoint, StateUpdateInfo, SyncStatus, TxChangeSet,
     VersionReader, VisibleSlotNumber,
 };
-use sov_modules_stf_blueprint::{TransactionReceipt, TxReceiptContents};
+use sov_modules_stf_blueprint::{BatchReceipt, TransactionReceipt, TxReceiptContents};
 use sov_rest_utils::errors::database_error_500;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::DaSyncState;
@@ -61,7 +61,6 @@ where
     db: PreferredSequencerDb<S, Rt>,
     latest_info: StateUpdateInfo<S::Storage>,
     checkpoint_sender: watch::Sender<StateCheckpoint<S>>,
-    next_event_number: u64,
     blob_sender: BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>>,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     block_executor: RollupBlockExecutor<S, Rt>,
@@ -376,10 +375,12 @@ where
             db: PreferredSequencerDb::<S, Rt>::new(db_backend).await?,
             latest_info: latest_state_update.clone(),
             checkpoint_sender,
-            next_event_number: latest_state_update.next_event_number,
             config: config.clone(),
             block_executor: RollupBlockExecutor::new(
+                // Will be replaced by the first state update.
                 InternalState::Placeholder,
+                latest_state_update.next_event_number,
+                Some(events_sender.clone()),
                 config.clone(),
                 shutdown_notifier.clone(),
             ),
@@ -505,6 +506,8 @@ where
 
         let mut executor = RollupBlockExecutor::<_, Rt>::new(
             InternalState::node(&info, &mut Rt::default()),
+            info.next_event_number,
+            None, // We don't re-send events when replaying batches in the background.
             self.config.clone(),
             self.shutdown_notifier.clone(),
         );
@@ -565,7 +568,7 @@ where
 
         trace!("Node state update complete, swapping new state into sequencer");
         inner.latest_info = info;
-        inner.block_executor.replace_state(executor.consume()).await;
+        inner.block_executor.replace_state(executor).await;
         inner.update_api_state().await;
         trace!("Node state update completed successfully");
 
@@ -604,42 +607,30 @@ where
             panic!("No batch in progress, and no batch can be started. This is either because of (1) a bug, or (2) misuse of the `POST /sequencer/batches` endpoint. Please use automatic batch production exclusively, and report this bug if necessary. {:?} {:?}", inner.block_executor.state(), inner.latest_info);
         }
 
-        let receipt = inner
+        let (receipt, events) = inner
             .block_executor
             .apply_tx_to_in_progress_batch(&baked_tx)
             .await
             .map_err(RollupBlockExecutorError::into_http_error)?;
+        let tx_hash = receipt.tx_hash;
+
         inner
             .db
             .insert_tx(baked_tx.clone(), receipt.tx_hash)
             .await
             .map_err(database_error_500)?;
 
-        let events_len = receipt.events.len() as u64;
-        inner.next_event_number += events_len;
-        let tx_hash = receipt.tx_hash;
-        let conf = confirmation(receipt, inner.next_event_number).unwrap();
-
-        let mut events = Vec::new();
-        for event in &conf.events {
-            self.events_sender
-                .send(SequencerEvent {
-                    tx_hash,
-                    event: event.clone(),
-                })
-                .ok();
-            if tracing::enabled!(tracing::Level::TRACE) {
-                events.push(event.clone());
-            }
-        }
-        tracing::trace!(tx_hash = %tx_hash, events = ?events, "Transaction was accepted by the sequencer");
+        tracing::trace!(%tx_hash, ?events, "Transaction was accepted by the sequencer");
 
         inner.update_api_state().await; // TODO: we only want to do this when updated state from node?
 
         Ok(AcceptedTx {
             tx: baked_tx,
             tx_hash,
-            confirmation: conf,
+            confirmation: Confirmation {
+                events,
+                receipt: receipt.receipt.into(),
+            },
         })
     }
 
@@ -726,13 +717,13 @@ where
 
 #[derive(Debug)]
 struct BackgroundTaskState<S: Spec> {
-    handle: JoinHandle<ChangeSet>,
+    handle: JoinHandle<(Vec<BatchReceipt<S>>, ChangeSet)>,
     tx_sender: mpsc::Sender<FullyBakedTx>,
     result_receiver: mpsc::Receiver<Result<(TransactionReceipt<S>, TxChangeSet), RejectReason>>,
 }
 
 impl<S: Spec> BackgroundTaskState<S> {
-    fn shutdown(self) -> JoinHandle<ChangeSet> {
+    fn shutdown(self) -> JoinHandle<(Vec<BatchReceipt<S>>, ChangeSet)> {
         // Must be dropped before the result receiver, or a deadlock happens.
         drop(self.tx_sender);
         self.handle
@@ -753,29 +744,6 @@ where
 {
     events: Vec<RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>,
     receipt: ApiTxEffect<TxReceiptContents<S>>,
-}
-
-fn confirmation<S, Rt>(
-    receipt: TransactionReceipt<S>,
-    next_event_number: u64,
-) -> anyhow::Result<Confirmation<S, Rt>>
-where
-    S: Spec,
-    Rt: Runtime<S>,
-{
-    Ok(Confirmation {
-        events: receipt
-            .events
-            .into_iter()
-            .zip(next_event_number..)
-            .map(|(event, number)| {
-                <RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>::try_from((
-                    number, event,
-                ))
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?,
-        receipt: receipt.receipt.into(),
-    })
 }
 
 #[tracing::instrument(skip_all, level = "trace")]

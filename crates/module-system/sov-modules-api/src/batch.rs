@@ -7,7 +7,6 @@ use crate::{Amount, Context, DispatchCall, Gas, Runtime, Spec, StateCheckpoint, 
 /// `FullyBakedTx` represents a serialized signed rollup transaction that has been encoded with
 /// authentication information and is ready to be placed on the DA layer.
 #[derive(
-    Debug,
     PartialEq,
     Eq,
     Clone,
@@ -23,6 +22,14 @@ pub struct FullyBakedTx {
     pub data: Vec<u8>,
 }
 
+impl std::fmt::Debug for FullyBakedTx {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FullyBakedTx")
+            .field("data", &hex::encode(&self.data))
+            .finish()
+    }
+}
+
 impl FullyBakedTx {
     /// Construct a `FullyBakedTx` containing the given data
     #[must_use]
@@ -34,7 +41,6 @@ impl FullyBakedTx {
 /// `RawTx` represents a serialized signed rollup transaction. A `RawTx` needs to be encoded
 /// with authentication information before being placed on the DA layer.
 #[derive(
-    Debug,
     PartialEq,
     Eq,
     Clone,
@@ -48,6 +54,14 @@ pub struct RawTx {
     /// Serialized transaction.
     #[as_ref(forward)]
     pub data: Vec<u8>,
+}
+
+impl std::fmt::Debug for RawTx {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RawTx")
+            .field("data", &hex::encode(&self.data))
+            .finish()
+    }
 }
 
 impl RawTx {

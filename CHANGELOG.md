@@ -12,6 +12,8 @@
   * The `Schema::of_rollup_types_with_chain_data()` constructor has been updated. The "metadata" generic has been removed and the argument type has been updated, as chains are expected to provide precisely a chain ID and a chain name, standardising this aspect.
   * Any tests utilizing the `Schema::of_single_type<T>(T)` constructor: this now returns a `Result<>` and will need to be unwrapped in the test.
 Additionally, the chain has will change.
+# 2025-03-26
+- #2642 changes the behavior of `/sequencer/events/ws` so that events produced inside non-preferred batches are also visible.
 # 2025-03-17
 - #2615 Removes `max_allowed_blocks_behind` field from sequencer config, it was unused, simply remove this value from your configuration.
 
