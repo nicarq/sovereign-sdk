@@ -114,6 +114,13 @@ where
                 )),
             )
             .nest(
+                "/slots/finalized",
+                Self::router_slot(ledger.clone()).route_layer(middleware::from_fn_with_state(
+                    ledger.clone(),
+                    Self::resolve_finalized_slot,
+                )),
+            )
+            .nest(
                 "/slots/:slotId",
                 Self::router_slot(ledger.clone()).route_layer(middleware::from_fn_with_state(
                     ledger.clone(),
@@ -327,6 +334,20 @@ where
             .ok_or_else(|| not_found_404("Slot", "latest"))?;
 
         request.extensions_mut().insert(latest_slot);
+        Ok(next.run(request).await)
+    }
+
+    async fn resolve_finalized_slot(
+        State(ledger): State<T>,
+        mut request: Request,
+        next: Next,
+    ) -> Result<Response, Response> {
+        let finalized_slot = ledger
+            .get_latest_finalized_slot_number()
+            .await
+            .map_err(database_error_response_500)?;
+
+        request.extensions_mut().insert(finalized_slot);
         Ok(next.run(request).await)
     }
 
