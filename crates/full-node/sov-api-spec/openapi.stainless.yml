@@ -11,6 +11,7 @@ resources:
       slots:
         methods:
           latest: get /ledger/slots/latest
+          finalized: get /ledger/slots/finalized
           retrieve: get /ledger/slots/{slotId}
         subresources:
           events:

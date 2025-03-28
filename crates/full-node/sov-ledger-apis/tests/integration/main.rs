@@ -38,6 +38,33 @@ async fn get_latest_slot() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn get_finalized_slot() {
+    let slot = ledger_response_body(|client| async move {
+        client.get_finalized_slot(None).await.unwrap().into_inner()
+    })
+    .await;
+
+    // Check for regressions in the response format.
+    insta::with_settings!({sort_maps => true}, {
+        insta::assert_json_snapshot!(&slot);
+    });
+
+    // By number.
+    let rollup_height = slot["data"]["number"].as_u64().unwrap();
+    assert_json_eq!(
+        slot,
+        ledger_response_body(move |client| async move {
+            client
+                .get_slot_by_id(&IntOrHash::Integer(rollup_height), None)
+                .await
+                .unwrap()
+                .into_inner()
+        })
+        .await
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn get_batch() {
     let batch = ledger_response_body(|client| async move {
         client
