@@ -12,14 +12,27 @@ struct Args {
 
     #[arg(short, long, default_value = "soak_data/")]
     storage_path: String,
+
+    /// DB connection URL for the sequencer.
+    /// Allows the sequencer to connect to a remote postgres database.
+    /// If not provided the sequencer will use rocksdb.
+    #[arg(short, long)]
+    db_connection_url: Option<String>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let _guard = sov_modules_rollup_blueprint::logging::initialize_logging();
     let args = Args::parse();
+    std::fs::create_dir_all(&args.storage_path)?;
     let setup = sov_soak_testing::setup_roles_and_config();
-    let rollup = setup_rollup(args.storage_path.into(), args.axum_port, setup).await;
+    let rollup = setup_rollup(
+        args.storage_path.into(),
+        args.axum_port,
+        setup,
+        args.db_connection_url,
+    )
+    .await;
 
     let mut terminate = tokio::signal::unix::signal(SignalKind::terminate())
         .expect("Failed to set up SIGTERM handler");
