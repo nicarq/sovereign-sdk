@@ -755,7 +755,7 @@ impl<S: Spec> BasicGasMeter<S> {
         })?;
 
         remaining_funds.checked_sub(amount_value).ok_or_else(|| {
-            tracing::warn!(%remaining_funds, amount_to_charge = %amount_value, "Out of Gas 1");
+            tracing::warn!(%remaining_funds, amount_to_charge = %amount_value, "Out of gas during `compute_remaining_funds`");
             GasMeteringError::OutOfGas {
                 gas_to_charge: amount.clone(),
                 gas_price: self.gas_price.clone(),
