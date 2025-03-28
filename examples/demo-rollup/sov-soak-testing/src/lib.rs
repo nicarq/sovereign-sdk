@@ -219,6 +219,7 @@ pub async fn setup_rollup(
     storage_path: PathBuf,
     axum_port: u16,
     setup: Setup,
+    db_connection_url: Option<String>,
 ) -> TestRollup<RollupBlueprint, PathBuf> {
     let rollup_builder = TestRollupBuilder::new_with_storage_path(
         GenesisSource::CustomParams(setup.genesis_config.clone().into_genesis_params()),
@@ -232,6 +233,7 @@ pub async fn setup_rollup(
         config.rollup_prover_config = None;
         config.sequencer_config = SequencerKindConfig::Preferred(PreferredSequencerConfig {
             minimum_profit_per_tx: 0,
+            postgres_connection_string: db_connection_url,
             ..Default::default()
         });
         config.prover_address = setup.prover.user_info.address().to_string();
