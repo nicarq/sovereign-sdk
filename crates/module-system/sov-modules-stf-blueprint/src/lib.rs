@@ -725,7 +725,7 @@ where
                 }
                 BlobDataWithId::EmergencyRegistration { tx, id } => {
                     let slot_gas = slot_gas_meter.remaining_slot_gas(&sender);
-                    assert!(reserved_gas_tokens.is_none(), "Emergency registration transactions come from unknown sequenceerrs, so gas cannot be reserved. This is a bug.");
+                    assert!(reserved_gas_tokens.is_none(), "Emergency registration transactions come from unknown sequencers, so gas cannot be reserved. This is a bug.");
                     let (batch_receipt, next_checkpoint) = unregistered::apply_batch::<S, RT>(
                         runtime,
                         state,

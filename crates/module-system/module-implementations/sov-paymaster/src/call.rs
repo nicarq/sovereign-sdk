@@ -210,7 +210,7 @@ pub enum SequencerSetUpdate<Da: DaSpec> {
     Update(AllowedSequencerUpdate<Da>),
 }
 
-/// A list of updates to the `allowed_sequenceers` list for a particular payer.
+/// A list of updates to the `allowed_sequencers` list for a particular payer.
 #[derive(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,

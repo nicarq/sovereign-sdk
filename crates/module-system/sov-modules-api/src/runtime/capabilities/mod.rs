@@ -273,7 +273,6 @@ pub mod mocks {
 /// A rollup "block number". Rollup heights increase in order (1, 2, 3, ...),
 /// regardless of what happens on the underlying DA layer.
 #[derive(
-    Debug,
     Clone,
     Copy,
     PartialEq,
@@ -289,6 +288,12 @@ pub mod mocks {
     borsh::BorshSerialize,
 )]
 pub struct RollupHeight(u64);
+
+impl std::fmt::Debug for RollupHeight {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.get())
+    }
+}
 
 impl RollupHeight {
     /// The genesis rollup height.

@@ -10,7 +10,6 @@ use crate as sov_rollup_interface;
 ///
 /// Slots across reorgs can have the same [`SlotNumber`].
 #[derive(
-    Debug,
     Clone,
     Copy,
     Default,
@@ -34,6 +33,12 @@ use crate as sov_rollup_interface;
     derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
 )]
 pub struct SlotNumber(u64);
+
+impl std::fmt::Debug for SlotNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.get())
+    }
+}
 
 impl SlotNumber {
     /// The very first [`SlotNumber`] of the rollup.
@@ -174,7 +179,6 @@ impl_into_slot_number!(usize);
 /// A [`VisibleSlotNumber`] can safely be type cast into a [`SlotNumber`] to
 /// obtain a valid [`SlotNumber`], but the reverse is not true.
 #[derive(
-    Debug,
     Clone,
     Copy,
     Default,
@@ -197,6 +201,12 @@ impl_into_slot_number!(usize);
     derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
 )]
 pub struct VisibleSlotNumber(SlotNumber);
+
+impl std::fmt::Debug for VisibleSlotNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.get())
+    }
+}
 
 impl Deref for VisibleSlotNumber {
     type Target = SlotNumber;
