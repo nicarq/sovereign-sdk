@@ -1,3 +1,5 @@
+.PHONY: up down wait-compose-ready restart logs postgres
+
 PROJECT_ROOT := $(shell git rev-parse --show-toplevel)
 DOCKER_COMPOSE_DIR := $(PROJECT_ROOT)/docker
 DOCKER_COMPOSE_CFG := $(DOCKER_COMPOSE_DIR)/docker-compose.yml
@@ -25,3 +27,12 @@ restart: down up
 
 logs:
 	@$(docker_compose) logs -f
+
+postgres:
+	@echo "Cleaning up PostgreSQL containers and volumes..."
+	-docker rm $$(docker ps -a | grep postgres | awk '{print $$1}')
+	-docker rm $$(docker ps -a | grep pgadmin | awk '{print $$1}')
+	-docker volume rm docker_postgres-data
+	-docker volume rm docker_pgadmin-data
+	@echo "Starting fresh PostgreSQL environment..."
+	docker compose -f $(DOCKER_COMPOSE_DIR)/docker-compose.postgres.yml up
