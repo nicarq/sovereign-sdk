@@ -255,6 +255,13 @@ where
             self.runtime.kernel().next_sequence_number(&mut state)
         };
 
+        // Now is as good a time as any to prune old blobs that are no longer needed.
+        if let Some(last_finalized_sequence_number) =
+            next_sequence_number_as_of_latest_finalized_rollup_height.checked_sub(1)
+        {
+            self.prune(last_finalized_sequence_number).await?;
+        }
+
         let mut blobs = vec![];
 
         // We could also do a binary search, but this only runs during sequencer
@@ -305,11 +312,7 @@ where
         Ok(batch)
     }
 
-    // TODO(@neysofu): use this method to prune database contents once the blob
-    // sender can handle re-orgs, and thus is sure it won't need old data
-    // anymore.
-    #[allow(dead_code)]
-    pub async fn prune(&mut self, prune_up_to_including: SequenceNumber) -> anyhow::Result<()> {
+    async fn prune(&mut self, prune_up_to_including: SequenceNumber) -> anyhow::Result<()> {
         self.backend.prune(prune_up_to_including).await?;
 
         // We could also do binary search, but this seems fast enough.
