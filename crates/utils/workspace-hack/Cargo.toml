@@ -9,9 +9,14 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
-sov-mock-da = { workspace = true, features = ["arbitrary", "native"] }
 sov-mock-zkvm = { workspace = true, features = ["arbitrary", "native"] }
+sov-mock-da = { workspace = true, features = ["arbitrary", "native"] }
 sov-evm = { workspace = true, features = ["arbitrary", "native"] }
+sov-accounts = { workspace = true, features = ["arbitrary", "native"] }
+sov-sequencer-registry = { workspace = true, features = [
+	"arbitrary",
+	"native",
+] }
 
 [lints]
 workspace = true

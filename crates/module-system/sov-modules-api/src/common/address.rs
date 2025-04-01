@@ -349,8 +349,11 @@ impl AsRef<[u8]> for Address {
 }
 
 impl Address {
+    /// The length of an address in bytes
+    pub const LENGTH: usize = 28;
+
     /// Creates a new address containing the given bytes
-    pub const fn new(addr: [u8; 28]) -> Self {
+    pub const fn new(addr: [u8; Self::LENGTH]) -> Self {
         Self { addr }
     }
 

@@ -121,6 +121,9 @@ BASE_FEE_MAX_CHANGE_DENOMINATOR = 8
 ELASTICITY_MULTIPLIER = 2
 # --- End Gas fee adjustment parameters ---
 
+# --- Hyperlane constants ---
+HYPERLANE_BRIDGE_DOMAIN = 5555
+# --- End Hyperlane constants ---
 
 CONST_TOKEN_ID = { const = { bech32 = "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnfxkwm", type = "MyTokenId" } }
 CONST_TOKEN_ID_INVALID_CHECKSUM = { const = { bech32 = "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqabcdef", type = "MyTokenId" } }

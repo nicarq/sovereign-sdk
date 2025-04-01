@@ -5039,9 +5039,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.170"
+version = "0.2.171"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "875b3680cb2f8f71bdcf9a30f38d48282f5d3c95cbf9b3fa57269bb5d5c06828"
+checksum = "c19937216e9d3aa9956d9bb8dfc0b0c8beb6058fc4f7a4dc4d850edf86a237d6"
 
 [[package]]
 name = "libfuzzer-sys"
@@ -5144,9 +5144,9 @@ checksum = "78b3ae25bc7c8c38cec158d1f2757ee79e9b3740fbc7ccf0e59e4b08d793fa89"
 
 [[package]]
 name = "linux-raw-sys"
-version = "0.9.2"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6db9c683daf087dc577b7506e9695b3d556a9f3849903fa28186283afd6809e9"
+checksum = "fe7db12097d22ec582439daf8618b8fdd1a7bef6270e9af3b1ebcd30893cf413"
 
 [[package]]
 name = "litemap"
@@ -8858,14 +8858,14 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "1.0.0"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17f8dcd64f141950290e45c99f7710ede1b600297c91818bb30b3667c0f45dc0"
+checksum = "f7178faa4b75a30e269c71e61c353ce2748cf3d76f0c44c393f4e60abf49b825"
 dependencies = [
  "bitflags 2.6.0",
  "errno",
  "libc",
- "linux-raw-sys 0.9.2",
+ "linux-raw-sys 0.9.3",
  "windows-sys 0.59.0",
 ]
 
@@ -10230,6 +10230,32 @@ dependencies = [
  "thiserror 1.0.64",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "sov-hyperlane-integration"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "arbitrary",
+ "borsh",
+ "hex",
+ "proptest",
+ "proptest-derive 0.5.0",
+ "schemars",
+ "serde",
+ "sha3",
+ "sov-address",
+ "sov-bank",
+ "sov-hyperlane-integration",
+ "sov-modules-api",
+ "sov-state",
+ "sov-test-utils",
+ "sov-value-setter",
+ "strum",
+ "tempfile",
+ "thiserror 1.0.64",
+ "workspace-hack",
 ]
 
 [[package]]
@@ -13746,9 +13772,11 @@ dependencies = [
 name = "workspace-hack"
 version = "0.3.0"
 dependencies = [
+ "sov-accounts",
  "sov-evm",
  "sov-mock-da",
  "sov-mock-zkvm",
+ "sov-sequencer-registry",
 ]
 
 [[package]]
@@ -13798,7 +13826,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d65cbf2f12c15564212d48f4e3dfb87923d25d611f2aed18f4cb23f0413d89e"
 dependencies = [
  "libc",
- "rustix 1.0.0",
+ "rustix 1.0.2",
 ]
 
 [[package]]

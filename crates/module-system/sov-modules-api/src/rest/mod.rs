@@ -39,7 +39,7 @@ use utoipa::openapi::OpenApi;
 use crate::capabilities::{KernelWithSlotMapping, RollupHeight};
 use crate::hooks::TxHooks;
 use crate::state::VersionReader;
-use crate::{ApiStateAccessor, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint};
+use crate::{ApiStateAccessor, ModuleId, ModuleInfo, Spec, StateCheckpoint};
 
 /// This Rust module is **NOT** part of the public API of the crate, and can
 /// change at any time.
@@ -152,7 +152,7 @@ pub trait HasCustomRestApi: Sized + Clone {
     }
 }
 
-/// In case [`HasCustomRestApi`] is implemented for a [`Module`], an
+/// In case [`HasCustomRestApi`] is implemented for a [`Module`](crate::Module), an
 /// empty [`axum::Router`] will be returned instead.
 ///
 /// This "blanket" implementation uses the [Autoref-based stable specialization](https://github.com/dtolnay/case-studies/tree/master/autoref-specialization)

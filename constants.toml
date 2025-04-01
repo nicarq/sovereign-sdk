@@ -126,3 +126,7 @@ BASE_FEE_MAX_CHANGE_DENOMINATOR = 8
 # The elasticity multiplier of the base fee.
 ELASTICITY_MULTIPLIER = 2
 # --- End Gas fee adjustment parameters ---
+
+# --- Hyperlane constants ---
+HYPERLANE_BRIDGE_DOMAIN = 5555
+# --- End Hyperlane constants ---

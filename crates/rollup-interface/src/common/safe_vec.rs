@@ -202,6 +202,12 @@ impl<T, I: SliceIndex<[T]>, const MAX_SIZE: usize> IndexMut<I> for SafeVec<T, MA
     }
 }
 
+impl<T, const MAX_SIZE: usize> AsRef<[T]> for SafeVec<T, MAX_SIZE> {
+    fn as_ref(&self) -> &[T] {
+        self.contents.as_ref()
+    }
+}
+
 /// Collects an iterator into a SafeVec, panicking if the required capacity exceeds MAX_SIZE
 /// This method is commonly called via [`Iterator::collect()`].
 ///

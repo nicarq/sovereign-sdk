@@ -132,8 +132,8 @@ pub fn derive(tokens: &DeriveInput) -> syn::Result<TokenStream> {
         use std::option::Option;
 
         #[automatically_derived]
-        impl #impl_generics HasRestApi<<Self as Module>::Spec> for #module_ty #type_generics #where_clause {
-            fn rest_api(&self, api_state: ApiState<<Self as Module>::Spec>) -> axum::Router<()> {
+        impl #impl_generics HasRestApi<<Self as ModuleInfo>::Spec> for #module_ty #type_generics #where_clause {
+            fn rest_api(&self, api_state: ApiState<<Self as ModuleInfo>::Spec>) -> axum::Router<()> {
                 let mut state_item_routers: Vec<axum::Router<()>> = vec![];
                 let base_impl = ModuleRestApiBaseImpl::<Self> {
                     module: Arc::new(Self::default()),

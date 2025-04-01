@@ -70,6 +70,19 @@ impl<'a, T, U> Borrowed<'a, Option<T>, U> {
     pub fn unwrap_or(self, default: T) -> Borrowed<'a, T, U> {
         Borrowed::new(self.value.unwrap_or(default), self._reference)
     }
+
+    /// Unwraps the `Option`, returning an error if the value is `None`.
+    pub fn ok_or_else<E>(self, default: impl FnOnce() -> E) -> Result<Borrowed<'a, T, U>, E> {
+        Ok(Borrowed::new(
+            self.value.ok_or_else(default)?,
+            self._reference,
+        ))
+    }
+
+    /// Unwraps the `Option`, returning an error if the value is `None`.
+    pub fn ok_or<E>(self, err: E) -> Result<Borrowed<'a, T, U>, E> {
+        Ok(Borrowed::new(self.value.ok_or(err)?, self._reference))
+    }
 }
 
 /// A mutable borrowed state value which points to state variable that it came from
@@ -142,6 +155,24 @@ impl<'a, T, U> BorrowedMut<'a, Option<T>, U> {
             self.value.done().unwrap_or(default),
             self.reference,
         )
+    }
+
+    /// Unwraps the `Option`, returning an error if the value is `None`.
+    pub fn ok_or_else<E>(self, default: impl FnOnce() -> E) -> Result<BorrowedMut<'a, T, U>, E> {
+        Ok(BorrowedMut::new(
+            self.key,
+            self.value.done().ok_or_else(default)?,
+            self.reference,
+        ))
+    }
+
+    /// Unwraps the `Option`, returning an error if the value is `None`.
+    pub fn ok_or<E>(self, err: E) -> Result<BorrowedMut<'a, T, U>, E> {
+        Ok(BorrowedMut::new(
+            self.key,
+            self.value.done().ok_or(err)?,
+            self.reference,
+        ))
     }
 }
 

@@ -10,8 +10,8 @@ use self::types::ModuleObject;
 use super::*;
 
 /// Trait "alias" for simpler trait bounds.
-pub trait ModuleSendSync: Module + Send + Sync + 'static {}
-impl<M> ModuleSendSync for M where M: Module + Send + Sync + 'static {}
+pub trait ModuleSendSync: ModuleInfo + Send + Sync + 'static {}
+impl<M> ModuleSendSync for M where M: ModuleInfo + Send + Sync + 'static {}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct StateItemInfo {
@@ -94,17 +94,17 @@ where
 /// The resulting [`axum::Router`] should then be merged with module-specific
 /// routes, e.g. for each state item.
 #[derive(Clone)]
-pub struct ModuleRestApiBaseImpl<M: Module> {
+pub struct ModuleRestApiBaseImpl<M: ModuleInfo> {
     pub module: Arc<M>,
     pub description: Option<String>,
     pub state_items: HashMap<String, StateItemInfo>,
 }
 
-impl<M> HasRestApi<<M as Module>::Spec> for ModuleRestApiBaseImpl<M>
+impl<M> HasRestApi<<M as ModuleInfo>::Spec> for ModuleRestApiBaseImpl<M>
 where
     M: ModuleSendSync + ModuleInfo + Clone,
 {
-    fn rest_api(&self, _state: ApiState<<M as Module>::Spec>) -> axum::Router<()> {
+    fn rest_api(&self, _state: ApiState<<M as ModuleInfo>::Spec>) -> axum::Router<()> {
         axum::Router::new()
             .route("/", get(Self::root_route))
             .with_state(self.clone())

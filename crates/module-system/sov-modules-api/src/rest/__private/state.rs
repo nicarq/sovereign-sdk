@@ -31,7 +31,7 @@ use crate::map::NamespacedStateMap;
 use crate::rest::{json_obj, StatusCode};
 use crate::value::NamespacedStateValue;
 use crate::vec::NamespacedStateVec;
-use crate::{ApiStateAccessor, Module, StateReader, VersionedStateValue};
+use crate::{ApiStateAccessor, ModuleInfo, StateReader, VersionedStateValue};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -43,7 +43,7 @@ pub enum StateItemKind {
 
 #[derive(derivative::Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct StateItemRestApiImpl<M: Module, T> {
+pub struct StateItemRestApiImpl<M: ModuleInfo, T> {
     pub api_state: ApiState<M::Spec>,
     pub state_item_info: StateItemInfo,
     pub phantom: PhantomData<T>,
@@ -305,7 +305,7 @@ where
 impl<N, M, T, Codec> StateItemRestApiExists
     for StateItemRestApiImpl<M, NamespacedStateValue<N, T, Codec>>
 where
-    M: Module,
+    M: ModuleInfo,
     Self: StateItemRestApi,
     N: CompileTimeNamespace,
     Codec: StateCodec,
@@ -316,7 +316,7 @@ where
 impl<N, M, T, Codec> StateItemRestApiExists
     for StateItemRestApiImpl<M, NamespacedStateVec<N, T, Codec>>
 where
-    M: Module,
+    M: ModuleInfo,
     Self: StateItemRestApi,
     N: CompileTimeNamespace,
     Codec: StateCodec,
@@ -328,7 +328,7 @@ where
 impl<N, M, K, V, Codec> StateItemRestApiExists
     for StateItemRestApiImpl<M, NamespacedStateMap<N, K, V, Codec>>
 where
-    M: Module,
+    M: ModuleInfo,
     Self: StateItemRestApi,
     N: CompileTimeNamespace,
     Codec: StateCodec,
@@ -340,7 +340,7 @@ where
 
 impl<M, V, Codec> StateItemRestApiExists for StateItemRestApiImpl<M, VersionedStateValue<V, Codec>>
 where
-    M: Module,
+    M: ModuleInfo,
     Self: StateItemRestApi,
     Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V>,
