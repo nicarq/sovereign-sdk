@@ -213,9 +213,22 @@ where
             self.in_progress_batch.is_none(),
             "There's already an in-progress batch; this is a bug, please report it"
         );
+        debug_assert!(
+            matches!(self.backend.read_in_progress_batch().await, Ok(None)),
+            "Cached in-progress batch state (None) didn't match backend db state (Some)"
+        );
 
         let blob_id = new_blob_id();
         let sequence_number = self.sequence_number_of_next_blob;
+
+        tracing::debug!(
+            sequence_number,
+            blob_id,
+            %visible_slot_number_after_increase,
+            visible_slots_to_advance,
+            "Storing new rollup block"
+        );
+
         self.backend
             .begin_rollup_block(
                 sequence_number,
@@ -302,6 +315,10 @@ where
         };
 
         self.backend.end_rollup_block(in_progress_batch).await?;
+        debug_assert!(
+            matches!(self.backend.read_in_progress_batch().await, Ok(None)),
+            "Backend didn't remove in-progress batch from database when ending rollup block"
+        );
         let batch = self
             .in_progress_batch
             .take()
