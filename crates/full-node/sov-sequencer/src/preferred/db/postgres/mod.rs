@@ -147,6 +147,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
             )
             .execute(&mut *tx)
             .await?;
+        tx.commit().await?;
 
         Ok(())
     }
