@@ -14,9 +14,9 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     Amount, BatchWithId, BlobDataWithId, DaSpec, FullyBakedTx, GenesisState,
-    InfallibleKernelStateAccessor, IterableBatchWithId, KernelStateAccessor, KernelStateMap,
-    KernelStateValue, Module, ModuleId, ModuleInfo, NotInstantiable, PrivilegedKernelAccessor,
-    SelectedBlob, Spec,
+    InfallibleKernelStateAccessor, InjectedControlFlow, IterableBatchWithId, KernelStateAccessor,
+    KernelStateMap, KernelStateValue, Module, ModuleId, ModuleInfo, NoOpControlFlow,
+    NotInstantiable, PrivilegedKernelAccessor, SelectedBlob, Spec,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::codec::BcsCodec;
@@ -60,7 +60,7 @@ pub enum Escrow {
 /// lucky "unregistered" sequencers who are being allowed to register this slot.
 #[derive(Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Debug, PartialEq)]
 #[serde(bound = "S: Spec, B: Serialize + DeserializeOwned")]
-pub struct ValidatedBlob<S: Spec, B = IterableBatchWithId<S>> {
+pub struct ValidatedBlob<S: Spec, B = IterableBatchWithId<S, NoOpControlFlow>> {
     /// Inner blob data.
     pub blob: BlobDataWithId<S, B>,
     sender: <<S as Spec>::Da as DaSpec>::Address,
@@ -86,7 +86,10 @@ impl<S: Spec> ValidatedBlob<S, BatchWithId<S>> {
     ///
     /// # Panics
     /// Panics if the gas calculation overflows. This is assumed to have been checked already.
-    pub fn into_selected_blob(self) -> SelectedBlob<S> {
+    pub fn into_selected_blob<CF: InjectedControlFlow<S>>(
+        self,
+        cf: CF,
+    ) -> SelectedBlob<S, IterableBatchWithId<S, CF>> {
         let gas_tokens = match self.balance_store {
             Escrow::DerivedHolder(_) => panic!("A blob reached the end of selection with its funds still in a deferred escrow. This is a bug!"),
             Escrow::Direct(amount) => Some(amount),
@@ -96,7 +99,7 @@ impl<S: Spec> ValidatedBlob<S, BatchWithId<S>> {
             },
         };
         SelectedBlob {
-            blob_data: self.blob.map_batch(|b| IterableBatchWithId::new(b)),
+            blob_data: self.blob.map_batch(|b| IterableBatchWithId::new(b, cf)),
             sender: self.sender,
             reserved_gas_tokens: gas_tokens,
         }

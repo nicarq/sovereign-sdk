@@ -114,13 +114,8 @@ pub trait HasCapabilities<S: Spec> {
 
 /// Indicates that a type provides the necessary kernel capabilities for a runtime.
 pub trait HasKernel<S: Spec>: Default + Send + Sync + 'static {
-    /// The type of blobs that the kernel can process.
-    type BlobType;
-
     /// The concrete implementation of the kernel.
-    type Kernel<'a>: Kernel<S>
-        + ChainState<Spec = S>
-        + BlobSelector<Spec = S, BlobType = Self::BlobType>
+    type Kernel<'a>: Kernel<S> + ChainState<Spec = S> + BlobSelector<Spec = S>
     where
         Self: 'a;
 
@@ -150,7 +145,7 @@ pub trait HasKernel<S: Spec>: Default + Send + Sync + 'static {
     }
 
     /// Returns the [`BlobSelector`] implementation on [`HasKernel::Kernel`].
-    fn blob_selector(&mut self) -> impl BlobSelector<Spec = S, BlobType = Self::BlobType> {
+    fn blob_selector(&mut self) -> impl BlobSelector<Spec = S> {
         self.inner().inner
     }
 

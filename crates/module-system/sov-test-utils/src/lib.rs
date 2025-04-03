@@ -20,10 +20,10 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{
     PriorityFeeBips, Transaction, TransactionCallable, TxDetails, UnsignedTransaction,
 };
-pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{Amount, BasicGasMeter, CryptoSpec, Gas, GasArray, Spec};
+pub use sov_modules_api::{EncodeCall, TxProcessingError, TxReceiptContents};
 pub use sov_modules_rollup_blueprint::logging::initialize_logging;
-pub use sov_modules_stf_blueprint::{get_gas_used, TxProcessingError};
+pub use sov_modules_stf_blueprint::get_gas_used;
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::execution_mode::{Native, Zk};

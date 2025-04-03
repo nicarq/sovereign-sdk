@@ -1,3 +1,5 @@
+# 2025-04-2
+- #2683 **BREAKING CHANGE** Removes `BlobType` from `HasKernel` trait.
 # 2025-03-27
 - #2649 renames several environment variables:
   1. `SOV_SDK_CONST_OVERRIDE_...` becomes `SOV_TEST_CONST_OVERRIDE_...`.

@@ -3,8 +3,7 @@ use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::tokio::{self};
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
-use sov_modules_api::{Amount, Gas, GasArray, GasSpec, PrivateKey, Spec, SyncStatus};
-use sov_modules_stf_blueprint::TxEffect;
+use sov_modules_api::{Amount, Gas, GasArray, GasSpec, PrivateKey, Spec, SyncStatus, TxEffect};
 use sov_rollup_apis::{PartialTransaction, SimulateExecutionContainer};
 use sov_test_utils::{AsUser, EncodeCall, TransactionTestCase, TEST_DEFAULT_MAX_FEE};
 

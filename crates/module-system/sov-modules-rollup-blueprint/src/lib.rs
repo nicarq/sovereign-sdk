@@ -10,7 +10,7 @@ pub mod pluggable_traits;
 use pluggable_traits::PluggableSpec;
 use sov_modules_api::capabilities::{HasCapabilities, TransactionAuthenticator};
 use sov_modules_api::execution_mode::ExecutionMode;
-use sov_modules_api::{SelectedBlob, Spec};
+use sov_modules_api::Spec;
 use sov_modules_stf_blueprint::Runtime;
 
 /// A trait defining the logical STF of the rollup.
@@ -19,7 +19,7 @@ pub trait RollupBlueprint<M: ExecutionMode>: Sized + Send + Sync + 'static {
     type Spec: PluggableSpec + Spec;
 
     /// The runtime for the rollup.
-    type Runtime: Runtime<Self::Spec, BlobType = SelectedBlob<Self::Spec>>
+    type Runtime: Runtime<Self::Spec>
         + HasCapabilities<Self::Spec>
         + TransactionAuthenticator<Self::Spec>
         + Send

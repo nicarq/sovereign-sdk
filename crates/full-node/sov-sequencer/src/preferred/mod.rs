@@ -25,10 +25,10 @@ use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
     ApiTxEffect, ChangeSet, FullyBakedTx, RejectReason, Runtime, RuntimeEventProcessor,
-    RuntimeEventResponse, Spec, StateCheckpoint, StateUpdateInfo, SyncStatus, TxChangeSet,
-    VersionReader, VisibleSlotNumber,
+    RuntimeEventResponse, Spec, StateCheckpoint, StateUpdateInfo, SyncStatus, TransactionReceipt,
+    TxChangeSet, VersionReader, VisibleSlotNumber, *,
 };
-use sov_modules_stf_blueprint::{BatchReceipt, TransactionReceipt, TxReceiptContents};
+use sov_modules_stf_blueprint::BatchReceipt;
 use sov_rest_utils::errors::database_error_500;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::DaSyncState;

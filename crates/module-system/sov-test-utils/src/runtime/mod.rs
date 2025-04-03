@@ -28,12 +28,10 @@ use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::rest::{ApiState, HasRestApi};
 use sov_modules_api::{
     Amount, ApiStateAccessor, ApplySlotOutput, BlobReaderTrait, CryptoSpec, DaSpec, EncodeCall,
-    Error, Gas, Genesis, InfallibleStateAccessor, Module, PrivateKey, SelectedBlob, Spec,
-    StateCheckpoint, TxEffect, VersionReader, VisibleSlotNumber,
+    Error, Gas, Genesis, InfallibleStateAccessor, Module, PrivateKey, Spec, StateCheckpoint,
+    TransactionReceipt, TxEffect, VersionReader, VisibleSlotNumber, *,
 };
-use sov_modules_stf_blueprint::{
-    get_gas_used, StfBlueprint, TransactionReceipt, TxReceiptContents,
-};
+use sov_modules_stf_blueprint::{get_gas_used, StfBlueprint};
 pub use sov_modules_stf_blueprint::{GenesisParams, Runtime};
 pub use sov_paymaster::Paymaster;
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
@@ -247,7 +245,7 @@ impl ApiPath {
 
 impl<RT, S> TestRunner<RT, S>
 where
-    RT: Runtime<S, BlobType = SelectedBlob<S>> + MinimalGenesis<S>,
+    RT: Runtime<S> + MinimalGenesis<S>,
     S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>, Da = MockDaSpec>,
 {
     /// Returns the runtime of the test runner.
@@ -590,6 +588,17 @@ where
         &mut self,
         input: T,
     ) -> (TestApplySlotOutput<RT, S>, RelevantBlobInfo, NoncesMap<S>) {
+        self.simulate_with_control_flow(input, ExecutionContext::Node, NoOpControlFlow)
+    }
+
+    ///  Simulates execution of the provided input without committing to the updated state,
+    ///  using custom `InjectedControlFlow`.
+    fn simulate_with_control_flow<T: Into<SlotInput<RT, S>>, CF: InjectedControlFlow<S> + Clone>(
+        &mut self,
+        input: T,
+        execution_context: ExecutionContext,
+        cf: CF,
+    ) -> (TestApplySlotOutput<RT, S>, RelevantBlobInfo, NoncesMap<S>) {
         let block_header = self.next_header();
         let stf_state = self.storage_manager.create_storage();
         let slot_input: SlotInput<RT, S> = input.into();
@@ -622,13 +631,14 @@ where
             }
         };
         (
-            self.stf.apply_slot(
+            self.stf.apply_slot_with_control_flow(
                 self.state_root(),
                 stf_state.clone(),
                 Default::default(),
                 &block_header,
                 blobs.as_iters(),
-                ExecutionContext::Node, // We care more about testing the full node than the sequencer simulation
+                execution_context,
+                cf,
             ),
             blob_info,
             nonces,
@@ -644,6 +654,20 @@ where
         let (result, blob_info, nonces) = self.simulate::<T>(input);
         self.commit_apply_slot_output(&result, nonces);
 
+        (result, blob_info)
+    }
+
+    /// Executes the provided input as sequencer.
+    pub fn execute_as_sequencer<T: Into<SlotInput<RT, S>>>(
+        &mut self,
+        input: T,
+    ) -> (TestApplySlotOutput<RT, S>, RelevantBlobInfo) {
+        let (result, blob_info, nonces) = self.simulate_with_control_flow::<T, _>(
+            input,
+            ExecutionContext::Sequencer,
+            SeqControlFlow,
+        );
+        self.commit_apply_slot_output(&result, nonces);
         (result, blob_info)
     }
 
@@ -800,7 +824,7 @@ where
 
 impl<RT, S> TestRunner<RT, S>
 where
-    RT: Runtime<S, BlobType = SelectedBlob<S>> + MinimalGenesis<S> + HasRestApi<S>,
+    RT: Runtime<S> + MinimalGenesis<S> + HasRestApi<S>,
     S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>, Da = MockDaSpec>,
 {
     /// Sets up a REST-api server for frameworks whose runtime that implements [`HasRestApi`].
@@ -916,10 +940,7 @@ where
 }
 
 /// Assert that a transaction reverted for the expected reason.
-pub fn assert_tx_reverted_with_reason<S: Spec>(
-    result: TxEffect<TxReceiptContents<S>>,
-    reason: anyhow::Error,
-) {
+pub fn assert_tx_reverted_with_reason<S: Spec>(result: TxEffect<S>, reason: anyhow::Error) {
     if let TxEffect::Reverted(contents) = result {
         assert_eq!(
             &contents.reason,
@@ -932,5 +953,43 @@ pub fn assert_tx_reverted_with_reason<S: Spec>(
             "The transaction should have reverted because {}, instead the outcome was {:?}",
             reason, result
         );
+    }
+}
+
+// This replicate logic from `AsyncBatchResponder`.
+// And all modifications mede there shold be replicated.
+#[derive(Clone)]
+struct SeqControlFlow;
+
+impl<S: Spec> InjectedControlFlow<S> for SeqControlFlow {
+    fn pre_flight<RT: Runtime<S>>(
+        &self,
+        _runtime: &RT,
+        _context: &Context<S>,
+        _call: &<RT as DispatchCall>::Decodable,
+    ) -> TxControlFlow<()> {
+        TxControlFlow::ContinueProcessing(())
+    }
+
+    fn post_tx(
+        &self,
+        provisional_outcome: ProvisionalSequencerOutcome<S>,
+        dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S>>,
+    ) -> (StateCheckpoint<S>, TxControlFlow<TransactionReceipt<S>>) {
+        let ProvisionalSequencerOutcome {
+            execution_status, ..
+        } = provisional_outcome;
+        let MaybeExecuted::Executed(receipt) = execution_status else {
+            return (dirty_scratchpad.revert(), TxControlFlow::IgnoreTx);
+        };
+
+        if !receipt.receipt.is_successful() {
+            return (dirty_scratchpad.revert(), TxControlFlow::IgnoreTx);
+        }
+
+        (
+            dirty_scratchpad.commit(),
+            TxControlFlow::ContinueProcessing(receipt),
+        )
     }
 }

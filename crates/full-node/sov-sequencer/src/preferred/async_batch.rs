@@ -4,9 +4,8 @@ use sov_modules_api::state::TxScratchpad;
 use sov_modules_api::{
     ChangeSet, Context, DispatchCall, FullyBakedTx, IncrementalBatch, InjectedControlFlow,
     IterableBatchWithId, MaybeExecuted, NoOpControlFlow, ProvisionalSequencerOutcome, Runtime,
-    TxChangeSet, TxControlFlow,
+    TransactionReceipt, TxChangeSet, TxControlFlow,
 };
-use sov_rollup_interface::stf::{TransactionReceipt, TxReceiptContents};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -17,24 +16,26 @@ use crate::common::sender_is_allowed;
 
 /// A batch that might be received async from some producer
 #[derive(Debug)]
-pub enum MaybeAsyncBatch<S: Spec, R> {
+pub enum MaybeAsyncBatch<S: Spec> {
     /// The batch is streamed from a channel.
     Async {
         txs_receiver: Receiver<FullyBakedTx>,
-        responder: AsyncBatchResponder<R, S>,
+        responder: AsyncBatchResponder<S>,
         setup_sender: Option<oneshot::Sender<ChangeSet>>,
         address: S::Address,
     },
     /// Batch contents are fully known ahead of time.
-    Sync { batch: IterableBatchWithId<S> },
+    Sync {
+        batch: IterableBatchWithId<S, NoOpControlFlow>,
+    },
 }
 
-impl<R, S: Spec> MaybeAsyncBatch<S, R> {
+impl<S: Spec> MaybeAsyncBatch<S> {
     /// Create a new batch with a receiver for transactions.
     pub fn new_async(
         txs_receiver: Receiver<FullyBakedTx>,
         setup_sender: oneshot::Sender<ChangeSet>,
-        result_channel: Sender<Result<(R, TxChangeSet), RejectReason>>,
+        result_channel: Sender<Result<(TransactionReceipt<S>, TxChangeSet), RejectReason>>,
         tx_profit_threshold: u128,
         sequencer_admins: Arc<Vec<S::Address>>,
         address: S::Address,
@@ -52,29 +53,31 @@ impl<R, S: Spec> MaybeAsyncBatch<S, R> {
     }
 
     /// Create a MaybeAsyncBatch from a batch whose contents are already known.
-    pub fn new_sync(batch: IterableBatchWithId<S>) -> Self {
+    pub fn new_sync(batch: IterableBatchWithId<S, NoOpControlFlow>) -> Self {
         Self::Sync { batch }
     }
 }
 
 /// The control flow injector for an async batch.
 #[derive(Debug)]
-pub enum MaybeAsyncBatchControlFlow<R, S: Spec> {
-    Async(AsyncBatchResponder<R, S>),
+pub enum MaybeAsyncBatchControlFlow<S: Spec> {
+    Async(AsyncBatchResponder<S>),
     Sync,
 }
 
-impl<T: TxReceiptContents, S: Spec> InjectedControlFlow<TransactionReceipt<T>, S>
-    for MaybeAsyncBatchControlFlow<TransactionReceipt<T>, S>
-{
+impl<S: Spec> InjectedControlFlow<S> for MaybeAsyncBatchControlFlow<S> {
     fn post_tx(
         &self,
-        provisional_outcome: ProvisionalSequencerOutcome<TransactionReceipt<T>>,
+        provisional_outcome: ProvisionalSequencerOutcome<S>,
         dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S>>,
-    ) -> (StateCheckpoint<S>, TxControlFlow<TransactionReceipt<T>>) {
+    ) -> (StateCheckpoint<S>, TxControlFlow<TransactionReceipt<S>>) {
         match self {
             Self::Async(responder) => responder.post_tx(provisional_outcome, dirty_scratchpad),
-            Self::Sync => NoOpControlFlow.post_tx(provisional_outcome, dirty_scratchpad),
+            Self::Sync => <NoOpControlFlow as sov_modules_api::InjectedControlFlow<S>>::post_tx(
+                &NoOpControlFlow,
+                provisional_outcome,
+                dirty_scratchpad,
+            ),
         }
     }
 
@@ -86,14 +89,12 @@ impl<T: TxReceiptContents, S: Spec> InjectedControlFlow<TransactionReceipt<T>, S
     ) -> TxControlFlow<()> {
         match self {
             Self::Async(responder) => responder.pre_flight(runtime, context, call),
-            Self::Sync => {
-                <NoOpControlFlow as InjectedControlFlow<TransactionReceipt<T>, S>>::pre_flight(
-                    &NoOpControlFlow,
-                    runtime,
-                    context,
-                    call,
-                )
-            }
+            Self::Sync => <NoOpControlFlow as InjectedControlFlow<S>>::pre_flight(
+                &NoOpControlFlow,
+                runtime,
+                context,
+                call,
+            ),
         }
     }
 }
@@ -101,15 +102,15 @@ impl<T: TxReceiptContents, S: Spec> InjectedControlFlow<TransactionReceipt<T>, S
 /// The channel responsible for notifying an async tx submitter of the txs result
 #[derive(Debug, derivative::Derivative)]
 #[derivative(Clone)]
-pub struct AsyncBatchResponder<R, S: Spec> {
+pub struct AsyncBatchResponder<S: Spec> {
     #[derivative(Clone(bound = ""))]
-    result_channel: Sender<Result<(R, TxChangeSet), RejectReason>>,
+    result_channel: Sender<Result<(TransactionReceipt<S>, TxChangeSet), RejectReason>>,
     admins: Arc<Vec<S::Address>>,
     tx_profit_threshold: u128,
 }
 
-impl<R, S: Spec> AsyncBatchResponder<R, S> {
-    fn send_item(&self, item: Result<(R, TxChangeSet), RejectReason>) {
+impl<S: Spec> AsyncBatchResponder<S> {
+    fn send_item(&self, item: Result<(TransactionReceipt<S>, TxChangeSet), RejectReason>) {
         // Try a simple non-blocking send first, then fall back to blocking the runtime if that fails
         if let Err(TrySendError::Full(item)) = self.result_channel.try_send(item) {
             let _ = Handle::current().block_on(async move { self.result_channel.send(item).await });
@@ -117,7 +118,7 @@ impl<R, S: Spec> AsyncBatchResponder<R, S> {
     }
 }
 
-impl<T: TxReceiptContents, S: Spec> AsyncBatchResponder<TransactionReceipt<T>, S> {
+impl<S: Spec> AsyncBatchResponder<S> {
     fn pre_flight<RT: Runtime<S>>(
         &self,
         runtime: &RT,
@@ -140,9 +141,9 @@ impl<T: TxReceiptContents, S: Spec> AsyncBatchResponder<TransactionReceipt<T>, S
 
     fn post_tx(
         &self,
-        provisional_outcome: ProvisionalSequencerOutcome<TransactionReceipt<T>>,
+        provisional_outcome: ProvisionalSequencerOutcome<S>,
         dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S>>,
-    ) -> (StateCheckpoint<S>, TxControlFlow<TransactionReceipt<T>>) {
+    ) -> (StateCheckpoint<S>, TxControlFlow<TransactionReceipt<S>>) {
         let ProvisionalSequencerOutcome {
             reward,
             penalty,
@@ -174,10 +175,8 @@ impl<T: TxReceiptContents, S: Spec> AsyncBatchResponder<TransactionReceipt<T>, S
     }
 }
 
-impl<T: TxReceiptContents, S: Spec> IncrementalBatch<TransactionReceipt<T>, S>
-    for MaybeAsyncBatch<S, TransactionReceipt<T>>
-{
-    type ControlFlow = MaybeAsyncBatchControlFlow<TransactionReceipt<T>, S>;
+impl<S: Spec> IncrementalBatch<S> for MaybeAsyncBatch<S> {
+    type ControlFlow = MaybeAsyncBatchControlFlow<S>;
 
     fn known_remaining_txs(&self) -> Option<usize> {
         match self {
@@ -212,10 +211,10 @@ impl<T: TxReceiptContents, S: Spec> IncrementalBatch<TransactionReceipt<T>, S>
     }
 }
 
-impl<R, S: Spec> Iterator for MaybeAsyncBatch<S, R> {
-    type Item = (FullyBakedTx, MaybeAsyncBatchControlFlow<R, S>);
+impl<S: Spec> Iterator for MaybeAsyncBatch<S> {
+    type Item = (FullyBakedTx, MaybeAsyncBatchControlFlow<S>);
 
-    fn next(&mut self) -> Option<(FullyBakedTx, MaybeAsyncBatchControlFlow<R, S>)> {
+    fn next(&mut self) -> Option<(FullyBakedTx, MaybeAsyncBatchControlFlow<S>)> {
         // Get a handle to the current runtime, then block on receiving an update
         // from the channel. This is coupled to the implementation of the sequencer,
         // which requires that the apply_slot function be spawned on a blocking thread

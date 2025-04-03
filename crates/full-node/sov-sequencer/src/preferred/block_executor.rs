@@ -7,9 +7,9 @@ use sov_modules_api::capabilities::{BlobSelector, BlobSelectorOutput, ChainState
 use sov_modules_api::{
     BlobDataWithId, ExecutionContext, FullyBakedTx, Gas, GasSpec, KernelStateAccessor,
     NestedEnumUtils, RejectReason, Runtime, RuntimeEventProcessor, RuntimeEventResponse,
-    SelectedBlob, Spec, StateCheckpoint, VersionReader, VisibleSlotNumber,
+    SelectedBlob, Spec, StateCheckpoint, TransactionReceipt, VersionReader, VisibleSlotNumber,
 };
-use sov_modules_stf_blueprint::{StfBlueprint, TransactionReceipt};
+use sov_modules_stf_blueprint::StfBlueprint;
 use sov_rest_utils::{json_obj, ErrorObject};
 use sov_state::{Namespace, StateRoot, Storage};
 use tokio::sync::mpsc::error::TrySendError;
@@ -387,9 +387,10 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                     .get_non_preferred_blobs(
                         computed_visible_slot_number.as_true().next().range_inclusive(next_visible_slot_number.as_true()),
                         &mut accessor,
+                        sov_modules_api::NoOpControlFlow,
                     )
                     .into_iter()
-                    .map(|b| b.map_batch(MaybeAsyncBatch::<S, _>::new_sync))
+                    .map(|b| b.map_batch(MaybeAsyncBatch::<S>::new_sync))
                     .collect::<Vec<_>>();
 
                 tracing::debug!(

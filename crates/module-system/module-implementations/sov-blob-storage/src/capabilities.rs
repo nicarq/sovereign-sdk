@@ -6,8 +6,8 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     as_u32_or_panic, Amount, BatchWithId, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec,
-    FullyBakedTx, Gas, GasArray, GasSpec, KernelStateAccessor, ModuleInfo,
-    PrivilegedKernelAccessor, RawTx, SelectedBlob, Spec,
+    FullyBakedTx, Gas, GasArray, GasSpec, InjectedControlFlow, IterableBatchWithId,
+    KernelStateAccessor, ModuleInfo, PrivilegedKernelAccessor, RawTx, SelectedBlob, Spec,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::RelevantBlobIters;
@@ -20,7 +20,6 @@ use crate::{
     PreferredBatchData, PreferredBlobData, PreferredBlobDataWithId, PreferredProofData,
     SequenceNumber, SequencerNumberTracker, SequencerType, ValidatedBlob,
 };
-
 /// A loose upper bound on the size of an emergency registration blob, in bytes. Blobs larger than this are statically known to be invalid
 /// so we don't bother trying to deserialize them.
 const MAX_EMERGENCY_REGISTRATION_BLOB_SIZE: usize = 1000;
@@ -380,13 +379,14 @@ impl<S: Spec> BlobStorage<S> {
     /// - The next one sent by the preferred sequencer (if available)
     /// - Any batches which appeared on chain before or during the current *visible* slot number
     #[tracing::instrument(skip_all)]
-    fn select_blobs_for_preferred_sequencer<'k>(
+    fn select_blobs_for_preferred_sequencer<'k, CF: InjectedControlFlow<S> + Clone>(
         &mut self,
         current_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         state: &mut KernelStateAccessor<'k, S>,
         preferred_sender: &<S::Da as DaSpec>::Address,
         preferred_sequencer: S::Address,
-    ) -> BlobSelectorOutput<SelectedBlob<S>> {
+        cf: CF,
+    ) -> BlobSelectorOutput<SelectedBlob<S, IterableBatchWithId<S, CF>>> {
         let mut sequence_tracker = self
             .upcoming_sequence_numbers
             .get(state)
@@ -544,7 +544,7 @@ impl<S: Spec> BlobStorage<S> {
             selected_blobs: blobs_to_select
                 .inner()
                 .into_iter()
-                .map(|b| b.into_selected_blob())
+                .map(|b| b.into_selected_blob(cf.clone()))
                 .collect(),
             visible_slot_number_increase: visible_height_increase as u64,
         }
@@ -959,11 +959,12 @@ impl<S: Spec> BlobStorage<S> {
     /// 1. Any blobs sent by the preferred sequencer ("prority blobs")
     /// 2. Any non-priority blobs which were sent `DEFERRED_SLOTS_COUNT` slots ago ("expiring deferred blobs")
     /// 3. Some additional deferred blobs needed to fill the total requested by the sequencer, if applicable. ("bonus blobs")
-    pub fn get_blobs_for_this_slot(
+    pub fn get_blobs_for_this_slot<CF: InjectedControlFlow<S> + Clone>(
         &mut self,
         current_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         state: &mut KernelStateAccessor<'_, S>,
-    ) -> anyhow::Result<BlobSelectorOutput<SelectedBlob<S>>> {
+        cf: CF,
+    ) -> anyhow::Result<BlobSelectorOutput<SelectedBlob<S, IterableBatchWithId<S, CF>>>> {
         // If `DEFERRED_SLOTS_COUNT` is 0, we treat the rollup as having no preferred sequencer.
         // In this case, we just process blobs in the order that they appeared on the DA layer
         if config_deferred_slots_count() == 0 {
@@ -973,7 +974,7 @@ impl<S: Spec> BlobStorage<S> {
                 selected_blobs: selection
                     .selected_blobs
                     .into_iter()
-                    .map(|b| b.into_selected_blob())
+                    .map(|b| b.into_selected_blob(cf.clone()))
                     .collect(),
                 visible_slot_number_increase: selection.visible_slot_number_increase,
             });
@@ -986,6 +987,7 @@ impl<S: Spec> BlobStorage<S> {
                 state,
                 &pref_da,
                 pref_seq,
+                cf,
             ));
         }
 
@@ -997,7 +999,7 @@ impl<S: Spec> BlobStorage<S> {
             selected_blobs: selection
                 .selected_blobs
                 .into_iter()
-                .map(|b| b.into_selected_blob())
+                .map(|b| b.into_selected_blob(cf.clone()))
                 .collect(),
             visible_slot_number_increase: selection.visible_slot_number_increase,
         })
@@ -1024,17 +1026,18 @@ impl<S: Spec> BlobStorage<S> {
 
     /// Select the blobs to execute this slot using "based sequencing". In this mode,
     /// blobs are processed in the order that they appear on the DA layer.
-    pub fn select_blobs_as_based_sequencer(
+    pub fn select_blobs_as_based_sequencer<CF: InjectedControlFlow<S> + Clone>(
         &mut self,
         current_blobs: RelevantBlobIters<&mut [<<S as Spec>::Da as DaSpec>::BlobTransaction]>,
         state: &mut KernelStateAccessor<'_, S>,
-    ) -> BlobSelectorOutput<SelectedBlob<S>> {
+        cf: CF,
+    ) -> BlobSelectorOutput<SelectedBlob<S, IterableBatchWithId<S, CF>>> {
         let output = self.select_blobs_as_based_sequencer_inner(current_blobs, state);
         BlobSelectorOutput {
             selected_blobs: output
                 .selected_blobs
                 .into_iter()
-                .map(|b| b.into_selected_blob())
+                .map(|b| b.into_selected_blob(cf.clone()))
                 .collect(),
             visible_slot_number_increase: output.visible_slot_number_increase,
         }

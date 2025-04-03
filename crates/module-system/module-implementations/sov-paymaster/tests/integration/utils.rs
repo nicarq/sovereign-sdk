@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use sov_modules_api::{Amount, CryptoSpec, PrivateKey, SafeVec, SelectedBlob, Spec};
+use sov_modules_api::{Amount, CryptoSpec, PrivateKey, SafeVec, Spec};
 use sov_paymaster::{PayeePolicy, PayerGenesisConfig, PaymasterConfig, PaymasterPolicyInitializer};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -52,10 +52,7 @@ pub trait DoValueSetterTx<S: Spec> {
 
 impl<RT: Runtime<S>, S: Spec> DoValueSetterTx<S> for TestRunner<RT, S>
 where
-    RT: 'static
-        + Runtime<S, BlobType = SelectedBlob<S>>
-        + MinimalGenesis<S>
-        + EncodeCall<ValueSetter<S>>,
+    RT: 'static + Runtime<S> + MinimalGenesis<S> + EncodeCall<ValueSetter<S>>,
     S: Spec<
         Storage = ProverStorage<
             DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>,

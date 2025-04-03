@@ -8,8 +8,8 @@ use sov_modules_api::{
     Amount, BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext,
     FullyBakedTx, Gas, GasArray, GasMeter, GasSpec, GetGasPrice, IgnoredTransactionReceipt,
     IncrementalBatch, InjectedControlFlow, PreExecWorkingSet, ProvisionalSequencerOutcome, Rewards,
-    SequencerBondForTx, SlotGasMeter, Spec, StateCheckpoint, StateProvider, TxControlFlow,
-    TxScratchpad, WorkingSet,
+    SequencerBondForTx, SlotGasMeter, Spec, StateCheckpoint, StateProvider, TransactionReceipt,
+    TxControlFlow, TxScratchpad, WorkingSet, *,
 };
 use sov_rollup_interface::TxHash;
 use tracing::{trace, warn};
@@ -18,10 +18,7 @@ pub use crate::sequencer_mode::common::PreExecError;
 use crate::sequencer_mode::common::{
     apply_batch_logs, apply_tx, create_tx_receipt, get_gas_used, BatchReceipt,
 };
-use crate::{
-    ApplyTxResult, AuthTxOutput, IgnoredTxContents, Runtime, SkippedTxContents, TransactionReceipt,
-    TxProcessingError, TxReceiptContents,
-};
+use crate::{ApplyTxResult, AuthTxOutput, Runtime, TxReceiptContents};
 
 /// Executes the entire transaction lifecycle.
 ///
@@ -48,7 +45,7 @@ where
     S: Spec,
     R: Runtime<S>,
     I: StateProvider<S>,
-    C: InjectedControlFlow<TransactionReceipt<S>, S>,
+    C: InjectedControlFlow<S>,
 {
     #[cfg(feature = "native")]
     let visible_slot_number =
@@ -140,7 +137,7 @@ where
     S: Spec,
     R: Runtime<S>,
     I: StateProvider<S>,
-    C: InjectedControlFlow<TransactionReceipt<S>, S>,
+    C: InjectedControlFlow<S>,
 {
     let (auth_tx, auth_data, message) = validated_output;
 
@@ -310,7 +307,7 @@ pub(crate) fn apply_batch<S, RT, B>(
 where
     S: Spec,
     RT: Runtime<S>,
-    B: IncrementalBatch<crate::TransactionReceipt<S>, S>,
+    B: IncrementalBatch<S>,
 {
     let span = if let Some(id) = batch_with_id.id() {
         tracing::info_span!("batch", batch_id = hex::encode(id)).entered()
@@ -578,7 +575,7 @@ where
     S: Spec,
     RT: Runtime<S>,
     I: StateProvider<S>,
-    C: InjectedControlFlow<TransactionReceipt<S>, S>,
+    C: InjectedControlFlow<S>,
 {
     // CHECKS:
     // 1. `max_tx_check_costs` will not cause an overflow when converted to a token value.

@@ -1,6 +1,5 @@
 use sov_modules_api::macros::config_value;
-use sov_modules_api::CredentialId;
-use sov_modules_stf_blueprint::TxEffect;
+use sov_modules_api::{CredentialId, TxEffect};
 use sov_test_utils::{BatchType, SlotInput, TransactionTestCase, TxProcessingError};
 use sov_uniqueness::Uniqueness;
 

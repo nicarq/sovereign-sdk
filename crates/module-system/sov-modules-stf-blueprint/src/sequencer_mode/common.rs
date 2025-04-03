@@ -2,21 +2,14 @@ use sov_modules_api::capabilities::{AuthenticationError, AuthenticationOutput, F
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
     BatchSequencerReceipt, Context, DispatchCall, Error, IgnoredTransactionReceipt, Spec,
-    StateProvider, TxScratchpad, WorkingSet,
+    StateProvider, TransactionReceipt, TxScratchpad, WorkingSet, *,
 };
 use sov_rollup_interface::TxHash;
 use tracing::{debug, info, warn};
 
 use super::registered::IncrementalBatchReceipt;
 use crate::stf_blueprint::convert_to_runtime_events;
-use crate::{
-    ApplyTxResult, RevertedTxContents, Runtime, SkippedTxContents, SuccessfulTxContents,
-    TransactionAuthenticator, TxEffect, TxReceiptContents,
-};
-
-/// The receipt type for a transaction using the STF blueprint.
-pub type TransactionReceipt<S> =
-    sov_rollup_interface::stf::TransactionReceipt<TxReceiptContents<S>>;
+use crate::{ApplyTxResult, Runtime, TransactionAuthenticator, TxReceiptContents};
 
 /// Applies a single transaction to the current state. In normal execution, we commit twice times execution:
 /// 1. After the pre-dispatch hook. This ensures that the gas charges are paid even if the transaction fails later during execution
