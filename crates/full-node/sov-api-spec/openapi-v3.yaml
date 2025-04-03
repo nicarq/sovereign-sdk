@@ -697,6 +697,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LedgerBatch"
+        timestamp:
+          $ref: "#/components/schemas/Time"
         finality_status:
           type: string
           enum:
@@ -709,6 +711,7 @@ components:
         - state_root
         - batch_range
         - finality_status
+        - timestamp
     LedgerBatch:
       type: object
       properties:
@@ -1018,6 +1021,9 @@ components:
       required:
         - outcome
         - content
+    Time:
+      type: number
+      description: A UNIX timestamp in milliseconds
     AnyJsonValue:
       oneOf:
         - type: string

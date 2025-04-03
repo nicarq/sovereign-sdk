@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use sea_orm::Set;
-use sov_rollup_interface::da::{NanoSeconds, Time};
+use sov_rollup_interface::da::Time;
 
 use crate::{MockBlockHeader, MockHash};
 
@@ -31,9 +31,8 @@ impl From<Model> for MockBlockHeader {
         let hash = MockHash::try_from(value.hash).expect("Corrupted `hash` in database");
         let prev_hash =
             MockHash::try_from(value.prev_hash).expect("Corrupted `prev_hash` in database");
-        let seconds = value.created_at.timestamp();
-        let nanos = value.created_at.timestamp_subsec_nanos();
-        let time = Time::new(seconds, NanoSeconds::new(nanos).unwrap());
+        let millis = value.created_at.timestamp_millis();
+        let time = Time::from_millis(millis);
 
         MockBlockHeader {
             prev_hash,
@@ -46,9 +45,7 @@ impl From<Model> for MockBlockHeader {
 
 impl From<MockBlockHeader> for ActiveModel {
     fn from(block_header: MockBlockHeader) -> Self {
-        let timestamp =
-            DateTime::from_timestamp(block_header.time.secs(), block_header.time.subsec_nanos())
-                .unwrap();
+        let timestamp = DateTime::from_timestamp_millis(block_header.time.as_millis()).unwrap();
         ActiveModel {
             height: Set(block_header.height as i32),
             prev_hash: Set(block_header.prev_hash.0.to_vec()),

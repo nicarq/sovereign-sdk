@@ -8,6 +8,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::common::{hex_string_serde, SlotNumber};
+use crate::da::Time;
 use crate::stf::{EventKey, StoredEvent, TxEffect, TxReceiptContents};
 use crate::zk::aggregated_proof::SerializedAggregatedProof;
 
@@ -207,6 +208,8 @@ pub struct SlotResponse<B, Tx: TxReceiptContents, E> {
     pub batches: Option<Vec<ItemOrHash<BatchResponse<B, Tx, E>>>>,
     /// The status of the slot.
     pub finality_status: FinalityStatus,
+    /// The timestamp of the slot.
+    pub timestamp: Time,
 }
 
 /// The response to a JSON-RPC request for a particular batch.

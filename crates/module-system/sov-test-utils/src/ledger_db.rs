@@ -29,8 +29,8 @@ pub extern crate sov_api_spec;
 pub async fn materialize_simple_ledger_db_data(
     ledger_db: &LedgerDb,
 ) -> anyhow::Result<SchemaBatch> {
-    let block_a = MockBlock::default();
-
+    let mut block_a = MockBlock::default();
+    block_a.header.time = Time::from_secs(100); // Use a non-zero time to test that the time is serialized correctly, but hard-code it to make sure the test is deterministic.
     let mut slot: SlotCommit<MockBlock, i32, TestTxReceiptContents> = SlotCommit::new(block_a);
 
     let tx_receipts = vec![TransactionReceipt {
@@ -94,7 +94,7 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
                 prev_hash: MockHash(sha2::Sha256::digest(b"prev_header").into()),
                 hash: MockHash(sha2::Sha256::digest(b"slot_data").into()),
                 height: 0,
-                time: Time::now(),
+                time: Time::from_secs(100), // Use a non-zero time to test that the time is serialized correctly, but hard-code it to make sure the test is deterministic.
             },
             batch_blobs: Default::default(),
             proof_blobs: Default::default(),

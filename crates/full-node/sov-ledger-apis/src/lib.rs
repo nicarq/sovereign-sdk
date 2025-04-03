@@ -15,6 +15,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use sov_db::schema::types::{BatchNumber, EventNumber, TxNumber};
+use sov_modules_api::da::Time;
 pub use sov_modules_api::ApiTxEffect as TxEffect;
 use sov_modules_api::{EventModuleName, RuntimeEventResponse};
 use sov_rest_utils::errors::{
@@ -733,6 +734,7 @@ struct Slot<B, TxReceipt: TxReceiptContents, E> {
     pub batch_range: Range<u64>,
     pub batches: Vec<Batch<B, TxReceipt, E>>,
     pub finality_status: FinalityStatus,
+    pub timestamp: Time,
 }
 
 impl<B, TxReceipt: TxReceiptContents, E> Slot<B, TxReceipt, E> {
@@ -752,6 +754,7 @@ impl<B, TxReceipt: TxReceiptContents, E> Slot<B, TxReceipt, E> {
             batch_range: slot.batch_range,
             batches,
             finality_status: slot.finality_status,
+            timestamp: slot.timestamp,
         }
     }
 }
