@@ -201,10 +201,14 @@ impl<S: Spec> BlobStorage<S> {
         batches: &[ValidatedBlob<S, BatchWithId<S>>],
         state: &mut KernelStateAccessor<'_, S>,
     ) {
-        // For the kernel state accessor, the `max_allowed_slot_number_to_access` is the true slot number
-        self.deferred_blobs
-            .set(&state.true_slot_number(), batches, state)
-            .unwrap_infallible();
+        // Optimization: we don't store any data for slots with no deferred
+        // blobs.
+        if !batches.is_empty() {
+            // For the kernel state accessor, the `max_allowed_slot_number_to_access` is the true slot number
+            self.deferred_blobs
+                .set(&state.true_slot_number(), batches, state)
+                .unwrap_infallible();
+        }
     }
 
     /// Take all blobs for given block number, return empty vector if not exists
