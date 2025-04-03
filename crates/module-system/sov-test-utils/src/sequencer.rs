@@ -40,6 +40,9 @@ pub struct TestSequencerSetup<Rt: Runtime<TestSpec>> {
     pub da_service: StorableMockDaService,
     /// What was passed to [`Sequencer::create`].
     pub state_update_receiver: watch::Receiver<StateUpdateInfo<<TestSpec as Spec>::Storage>>,
+    // Keep a reference to the state update sender used to create the sequencer
+    // so it doesn't go out of scope and close the channel immediately.
+    _state_update_sender: watch::Sender<StateUpdateInfo<<TestSpec as Spec>::Storage>>,
     /// The [`Sequencer`] used in the test.
     pub sequencer: Arc<StdSequencer<TestSpec, Rt, StorableMockDaService>>,
     /// The admin private key used to create an external user account for transaction handling.
@@ -143,7 +146,7 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
             latest_finalized_slot_number,
         };
 
-        let (_, state_update_receiver) = watch::channel(state_update_info);
+        let (state_update_sender, state_update_receiver) = watch::channel(state_update_info);
         let (shutdown_sender, mut shutdown_receiver) = watch::channel(());
         shutdown_receiver.mark_unchanged();
 
@@ -187,6 +190,7 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
         Ok(Self {
             _dir: dir,
             state_update_receiver,
+            _state_update_sender: state_update_sender,
             config,
             da_service,
             sequencer,
