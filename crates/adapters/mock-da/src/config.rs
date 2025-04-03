@@ -19,7 +19,7 @@ pub(crate) const GENESIS_HEADER: MockBlockHeader = MockBlockHeader {
     hash: MockHash([1; 32]),
     height: 0,
     // 2023-01-01T00:00:00Z
-    time: Time::from_secs(1672531200),
+    time: Time::from_millis(1672531200000),
 };
 
 pub(crate) const GENESIS_BLOCK: MockBlock = MockBlock {

@@ -208,6 +208,10 @@ impl SlotData for MockBlock {
     fn header(&self) -> &Self::BlockHeader {
         &self.header
     }
+
+    fn timestamp(&self) -> Time {
+        self.header.time.clone()
+    }
 }
 
 impl MockBlock {
@@ -268,7 +272,7 @@ mod tests {
             time: Time::from_secs(1672531200),
         };
 
-        let expected = "MockBlockHeader { height: 1, prev_hash: 0x0101010101010101010101010101010101010101010101010101010101010101, hash: 0x0202020202020202020202020202020202020202020202020202020202020202, time: Time { secs: 1672531200, nanos: 0 } }";
+        let expected = "MockBlockHeader { height: 1, prev_hash: 0x0101010101010101010101010101010101010101010101010101010101010101, hash: 0x0202020202020202020202020202020202020202020202020202020202020202, time: Time { millis: 1672531200000 } }";
 
         assert_eq!(expected, header.to_string());
     }

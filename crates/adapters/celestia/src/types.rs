@@ -168,6 +168,11 @@ impl SlotData for FilteredCelestiaBlock {
     fn header(&self) -> &Self::BlockHeader {
         &self.header
     }
+
+    fn timestamp(&self) -> sov_rollup_interface::da::Time {
+        use sov_rollup_interface::da::BlockHeaderTrait;
+        self.header.time()
+    }
 }
 
 impl FilteredCelestiaBlock {

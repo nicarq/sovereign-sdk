@@ -343,6 +343,7 @@ impl LedgerDb {
             // TODO: Add a method to the slot data trait allowing additional data to be stored
             extra_data: vec![].into(),
             batches: BatchNumber(first_batch_number)..BatchNumber(last_batch_number),
+            timestamp: data_to_commit.slot_data.timestamp(),
         };
         self.put_slot(&slot_to_store, &slot_number, &mut schema_batch)?;
 

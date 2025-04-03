@@ -10,7 +10,7 @@ use celestia_types::{DataAvailabilityHeader, ExtendedHeader};
 use prost::bytes::Buf;
 use prost::Message;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{BlockHeaderTrait as BlockHeader, NanoSeconds, Time};
+use sov_rollup_interface::da::{BlockHeaderTrait as BlockHeader, Time};
 #[cfg(feature = "native")]
 use sov_rollup_interface::node::da::SlotData;
 pub use tendermint::block::Header as TendermintHeader;
@@ -238,10 +238,8 @@ impl BlockHeader for CelestiaHeader {
             .expect("Timestamp must be valid");
 
         let timestamp: Timestamp = protobuf_time.into();
-        let timestamp_nanos = NanoSeconds::new(timestamp.nanos as u32)
-            .expect("Nanoseconds should be less than a second");
-
-        Time::new(timestamp.seconds, timestamp_nanos)
+        let nanos: i64 = timestamp.nanos.into();
+        Time::from_millis(timestamp.seconds * 1000 + nanos / 1_000_000)
     }
 }
 
@@ -260,6 +258,10 @@ impl SlotData for CelestiaHeader {
 
     fn header(&self) -> &Self::BlockHeader {
         self
+    }
+
+    fn timestamp(&self) -> sov_rollup_interface::da::Time {
+        self.time()
     }
 }
 

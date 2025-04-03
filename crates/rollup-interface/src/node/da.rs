@@ -11,7 +11,7 @@ use tokio::sync::oneshot;
 use tracing::error;
 
 use crate::common::HexHash;
-use crate::da::{BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs};
+use crate::da::{BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs, Time};
 
 /// Perform a checked arithmetic, returning None if the result is invalid.
 pub trait CheckedMath<Rhs = Self> {
@@ -318,6 +318,8 @@ pub trait SlotData:
     fn hash(&self) -> [u8; 32];
     /// The header of the DA layer block.
     fn header(&self) -> &Self::BlockHeader;
+    /// The timestamp of the DA layer block.
+    fn timestamp(&self) -> Time;
 }
 
 #[cfg(test)]

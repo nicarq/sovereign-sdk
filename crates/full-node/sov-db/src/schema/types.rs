@@ -3,6 +3,7 @@ use std::sync::Arc;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::da::Time;
 use sov_rollup_interface::node::ledger_api::{BatchResponse, TxResponse};
 use sov_rollup_interface::stf::{StoredEvent, TransactionReceipt, TxReceiptContents};
 
@@ -72,6 +73,8 @@ pub struct StoredSlot {
     pub extra_data: DbBytes,
     /// The range of batches which occurred in this slot.
     pub batches: std::ops::Range<BatchNumber>,
+    /// The timestamp of the slot.
+    pub timestamp: Time,
 }
 
 /// The on-disc format for information about state transition.

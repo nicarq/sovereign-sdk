@@ -1,5 +1,4 @@
 use sov_chain_state::ChainState;
-use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{ApiStateAccessor, Gas, GasArray, Spec};
 use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
@@ -88,11 +87,6 @@ fn test_chain_state_update_gas_used() {
     );
 }
 
-fn nanosecs(time: Time) -> u64 {
-    let time_subsec_u64 = time.subsec_nanos() as u64;
-    (time.secs() * 1_000_000_000) as u64 + time_subsec_u64
-}
-
 #[test]
 fn test_chain_state_update_time() {
     let mut previous_time = 0;
@@ -101,7 +95,10 @@ fn test_chain_state_update_time() {
         NUM_ROUNDS,
         NUM_TXS_PER_ROUND,
         &mut |_round, kernel, _result| {
-            let current_time = nanosecs(ChainState::<S>::default().get_time(kernel).unwrap());
+            let current_time = ChainState::<S>::default()
+                .get_time(kernel)
+                .unwrap()
+                .as_millis();
 
             assert!(
                 previous_time < current_time,

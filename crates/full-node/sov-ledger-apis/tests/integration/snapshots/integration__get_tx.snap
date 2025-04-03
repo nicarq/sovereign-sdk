@@ -1,6 +1,6 @@
 ---
 source: crates/full-node/sov-ledger-apis/tests/integration/main.rs
-assertion_line: 119
+assertion_line: 125
 expression: "&tx"
 ---
 {

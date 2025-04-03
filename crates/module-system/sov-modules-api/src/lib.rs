@@ -74,7 +74,7 @@ pub mod optimistic {
 
 /// Reexports traits and utilities for DA layers.
 pub mod da {
-    pub use sov_rollup_interface::da::{BlockHeaderTrait, NanoSeconds, Time};
+    pub use sov_rollup_interface::da::{BlockHeaderTrait, Time};
 }
 
 /// Types releted to receipts.

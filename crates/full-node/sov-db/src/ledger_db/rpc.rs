@@ -514,6 +514,7 @@ impl LedgerRpcReader {
                 batch_range: slot.batches.start.into()..slot.batches.end.into(),
                 batches: None,
                 finality_status,
+                timestamp: slot.timestamp,
             },
             QueryMode::Standard => {
                 let batches = self.get_batch_range(&slot.batches).await?;
@@ -530,6 +531,7 @@ impl LedgerRpcReader {
                     batch_range: slot.batches.start.into()..slot.batches.end.into(),
                     batches: batch_hashes,
                     finality_status,
+                    timestamp: slot.timestamp,
                 }
             }
             QueryMode::Full => {
@@ -548,6 +550,7 @@ impl LedgerRpcReader {
                     batch_range: slot.batches.start.into()..slot.batches.end.into(),
                     batches: Some(batches),
                     finality_status,
+                    timestamp: slot.timestamp,
                 }
             }
         })

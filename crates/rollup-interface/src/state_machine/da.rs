@@ -1,7 +1,6 @@
 //! Defines traits and types used by the rollup to verify claims about the
 //! DA layer.
 use core::fmt::Debug;
-use std::cmp::Ordering;
 use std::fmt::Display;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -263,91 +262,80 @@ impl<T: BlockHeaderTrait> core::fmt::Display for BlockHeaderDisplay<'_, T> {
 }
 
 #[derive(
-    Serialize, Deserialize, Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Default,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    BorshDeserialize,
+    BorshSerialize,
+    Default,
+    Ord,
+    PartialOrd,
+    Serialize,
+    Deserialize,
+)]
+#[cfg_attr(
+    feature = "arbitrary",
+    derive(proptest_derive::Arbitrary, arbitrary::Arbitrary)
 )]
 #[cfg_attr(feature = "native", derive(UniversalWallet))]
+#[serde(transparent)]
 /// A timestamp, represented as seconds since the unix epoch.
 pub struct Time {
     /// The number of seconds since the unix epoch
-    secs: i64,
-    nanos: u32,
+    millis: i64,
 }
-
-impl PartialOrd for Time {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Time {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match self.secs.cmp(&other.secs) {
-            Ordering::Equal => self.nanos.cmp(&other.nanos),
-            other => other,
-        }
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("Only intervals less than one second may be represented as nanoseconds")]
-/// An error that occurs when trying to create a `NanoSeconds` representing more than one second
-pub struct ErrTooManyNanos;
-
-/// A number of nanoseconds
-pub struct NanoSeconds(u32);
-
-impl NanoSeconds {
-    /// Try to turn a u32 into a `NanoSeconds`. Only values less than one second are valid.
-    pub fn new(nanos: u32) -> Result<Self, ErrTooManyNanos> {
-        if nanos < NANOS_PER_SECOND {
-            Ok(NanoSeconds(nanos))
-        } else {
-            Err(ErrTooManyNanos)
-        }
-    }
-}
-
-const NANOS_PER_SECOND: u32 = 1_000_000_000;
 
 impl Time {
-    /// The time since the unix epoch
-    pub const fn new(secs: i64, nanos: NanoSeconds) -> Self {
-        Time {
-            secs,
-            nanos: nanos.0,
-        }
-    }
-
     /// Get the current time
     pub fn now() -> Self {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("Time went backwards");
         Time {
-            secs: current_time.as_secs() as i64,
-            nanos: current_time.subsec_nanos(),
+            millis: current_time.as_millis() as i64,
         }
     }
 
     /// Create a time from the specified number of whole seconds.
-    pub const fn from_secs(secs: i64) -> Self {
-        Time { secs, nanos: 0 }
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the number of seconds is greater than i64::MAX / 1000
+    pub fn from_secs(secs: i64) -> Self {
+        Time {
+            millis: secs.checked_mul(1000).unwrap(),
+        }
+    }
+
+    /// Create a time from the specified number of milliseconds.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the number of milliseconds is greater than i64::MAX
+    pub const fn from_millis(millis: i64) -> Self {
+        Time { millis }
     }
 
     /// Returns the number of whole seconds since the epoch
     ///
-    /// The returned value does not include the fractional (nanosecond) part of the duration,
-    /// which can be obtained using `subsec_nanos`.
-    pub fn secs(&self) -> i64 {
-        self.secs
+    /// The returned value does not include the fractional (millisecond) part of the duration,
+    /// which can be obtained using `subsec_millis`.
+    pub const fn secs(&self) -> i64 {
+        self.millis / 1000
     }
 
-    /// Returns the fractional part of this [`Time`], in nanoseconds.
+    /// Returns the fractional part of this [`Time`], in milliseconds.
     ///
-    /// This method does not return the length of the time when represented by nanoseconds.
+    /// This method does not return the length of the time when represented by milliseconds.
     /// The returned number always represents a fractional portion of a second (i.e., it is less than one billion).
-    pub fn subsec_nanos(&self) -> u32 {
-        self.nanos
+    pub const fn subsec_millis(&self) -> u16 {
+        (self.millis % 1000) as u16
+    }
+
+    /// Returns the time as milliseconds since the unix epoch
+    pub const fn as_millis(&self) -> i64 {
+        self.millis
     }
 }
 
@@ -402,17 +390,38 @@ mod tests {
 
     #[test]
     fn test_time_comparision() {
-        let expected_before = Time::new(1, NanoSeconds(5));
-        let expected_after = Time::new(10, NanoSeconds(1));
+        let expected_before = Time::from_millis(1005);
+        let expected_after = Time::from_millis(1006);
 
         assert!(expected_before < expected_after);
     }
 
     #[test]
     fn test_time_comparision_equal_seconds() {
-        let expected_before = Time::new(1, NanoSeconds(5));
-        let expected_after = Time::new(1, NanoSeconds(6));
+        let expected_first = Time::from_millis(999);
+        let expected_before = Time::from_secs(1);
+        let expected_after = Time::from_millis(1001);
 
+        assert!(expected_first < expected_before);
         assert!(expected_before < expected_after);
+    }
+
+    #[test]
+    fn test_time_serialization_json() {
+        let time = Time::from_millis(1005);
+        let serialized = serde_json::to_string(&time).unwrap();
+        assert_eq!(serialized, "1005");
+
+        let deserialized: Time = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized, time);
+    }
+
+    #[test]
+    fn test_time_serialization_binary() {
+        let time = Time::from_millis(1005);
+        let serialized = bincode::serialize(&time).unwrap();
+
+        let deserialized: Time = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(deserialized, time);
     }
 }

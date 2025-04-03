@@ -1,4 +1,4 @@
-use sov_modules_api::da::{NanoSeconds, Time};
+use sov_modules_api::da::Time;
 use sov_modules_api::prelude::serde_json;
 use sov_test_utils::TestSpec;
 
@@ -6,7 +6,7 @@ use crate::{ChainStateConfig, OperatingMode};
 
 #[test]
 fn test_config_serialization() {
-    let time = Time::new(2, NanoSeconds::new(3).unwrap());
+    let time = Time::from_millis(2003);
     let config = ChainStateConfig {
         current_time: time,
         operating_mode: OperatingMode::Zk,
@@ -17,10 +17,7 @@ fn test_config_serialization() {
 
     let data = r#"
     {
-        "current_time":{
-            "secs":2,
-            "nanos":3
-        },
+        "current_time": 2003,
         "operating_mode": "zk",
         "inner_code_commitment": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         "outer_code_commitment": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],

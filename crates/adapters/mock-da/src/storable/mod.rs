@@ -16,7 +16,7 @@ mod tests {
     use futures::FutureExt;
     use proptest::collection::vec;
     use proptest::prelude::*;
-    use sov_rollup_interface::da::{BlobReaderTrait, NanoSeconds, Time};
+    use sov_rollup_interface::da::{BlobReaderTrait, Time};
     use sov_rollup_interface::node::da::DaService;
     use tokio::sync::RwLock;
 
@@ -101,7 +101,7 @@ mod tests {
     async fn manually_produce_blocks_from_different_sender_with_timestamp() -> anyhow::Result<()> {
         let tempdir = tempfile::tempdir()?;
         let fee = MockFee::zero();
-        let timestamp = Time::new(100, NanoSeconds::new(100)?);
+        let timestamp = Time::from_millis(100001);
 
         let da_layer = Arc::new(RwLock::new(
             StorableMockDaLayer::new_in_path(tempdir.path(), 0).await?,

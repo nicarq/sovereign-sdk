@@ -1,5 +1,7 @@
-# 2025-04-2
+# 2025-04-02
+- #2661 **BREAKING CHANGE** changes the format of `Time` to a UNIX timestamp in milliseconds. In JSON config files, this now serializes as a number instead of an object. **You will need to update `chain_state.json` in your genesis config.**
 - #2683 **BREAKING CHANGE** Removes `BlobType` from `HasKernel` trait.
+
 # 2025-03-27
 - #2649 renames several environment variables:
   1. `SOV_SDK_CONST_OVERRIDE_...` becomes `SOV_TEST_CONST_OVERRIDE_...`.
