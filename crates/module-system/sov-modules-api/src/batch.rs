@@ -2,7 +2,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
-use crate::{Amount, Context, DispatchCall, Gas, Runtime, Spec, StateCheckpoint, TxScratchpad};
+use crate::{
+    Amount, Context, DispatchCall, Gas, Runtime, Spec, StateCheckpoint, TransactionReceipt,
+    TxScratchpad,
+};
 
 /// `FullyBakedTx` represents a serialized signed rollup transaction that has been encoded with
 /// authentication information and is ready to be placed on the DA layer.
@@ -73,7 +76,7 @@ impl RawTx {
 }
 
 /// A blob that has been selected for execution
-pub struct SelectedBlob<S: Spec, B = IterableBatchWithId<S>> {
+pub struct SelectedBlob<S: Spec, B> {
     /// The blob data
     pub blob_data: BlobDataWithId<S, B>,
     /// The da address of the blob's sender
@@ -180,7 +183,7 @@ impl<S: Spec> BlobData<S> {
 /// does not annotate the `B` with the ID again.
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum BlobDataWithId<S: Spec, B = IterableBatchWithId<S>> {
+pub enum BlobDataWithId<S: Spec, B> {
     /// Batch of transactions.
     Batch(B),
     /// Emergency Registration
@@ -240,24 +243,24 @@ pub enum TxControlFlow<R> {
 }
 
 /// The provisional outcome for a sequencer after applying a single transaction
-pub struct ProvisionalSequencerOutcome<R> {
+pub struct ProvisionalSequencerOutcome<S: Spec> {
     /// The sequencer's reward, in rollup tokens
     pub reward: Amount,
     /// The sequencer's penalty, in rollup tokens
     pub penalty: Amount,
     /// Whether the sequencer has run out of funds
-    pub execution_status: MaybeExecuted<R>,
+    pub execution_status: MaybeExecuted<S>,
 }
 
 /// A transaction that may or may not have been executed
-pub enum MaybeExecuted<R> {
+pub enum MaybeExecuted<S: Spec> {
     /// The execution result from the tx
-    Executed(R),
+    Executed(TransactionReceipt<S>),
     /// The transactions wasn't executed because the sequencer ran out of funds
     SequencerOutOfFunds,
 }
 
-impl<R> ProvisionalSequencerOutcome<R> {
+impl<S: Spec> ProvisionalSequencerOutcome<S> {
     /// A convenient constructor for provisionally penalizing the sequencer and indicating
     /// that the sequencer has run out of funds.
     #[must_use]
@@ -270,7 +273,7 @@ impl<R> ProvisionalSequencerOutcome<R> {
     }
 
     /// A convenient constructor for provisionally penalizing the sequencer
-    pub fn penalize(penalty: Amount, receipt: R) -> Self {
+    pub fn penalize(penalty: Amount, receipt: TransactionReceipt<S>) -> Self {
         Self {
             reward: Amount::ZERO,
             penalty,
@@ -278,7 +281,7 @@ impl<R> ProvisionalSequencerOutcome<R> {
         }
     }
     /// A convenient constructor for provisionally rewarding the sequencer
-    pub fn reward(amount: Amount, receipt: R) -> Self {
+    pub fn reward(amount: Amount, receipt: TransactionReceipt<S>) -> Self {
         Self {
             reward: amount,
             penalty: Amount::ZERO,
@@ -290,7 +293,7 @@ impl<R> ProvisionalSequencerOutcome<R> {
 /// Allows the node component which produces a batch to inject logic at two points in transaction
 /// lifecycle. This is used by the sequencer to unwind failing transactions and to inspect
 /// the set of state changes made by a transaction before committing.
-pub trait InjectedControlFlow<Receipt, S: Spec> {
+pub trait InjectedControlFlow<S: Spec> {
     /// Runs after authentication but before the transaction executes
     fn pre_flight<RT: Runtime<S>>(
         &self,
@@ -298,20 +301,19 @@ pub trait InjectedControlFlow<Receipt, S: Spec> {
         context: &Context<S>,
         call: &<RT as DispatchCall>::Decodable,
     ) -> TxControlFlow<()>;
+
     /// Runs after the transaction has executed.
     fn post_tx(
         &self,
-        provisional_outcome: ProvisionalSequencerOutcome<Receipt>,
+        provisional_outcome: ProvisionalSequencerOutcome<S>,
         dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S>>,
-    ) -> (StateCheckpoint<S>, TxControlFlow<Receipt>);
+    ) -> (StateCheckpoint<S>, TxControlFlow<TransactionReceipt<S>>);
 }
 
 /// A batch that can be processed incrementally
-pub trait IncrementalBatch<Receipt, S: Spec>:
-    Iterator<Item = (FullyBakedTx, Self::ControlFlow)>
-{
+pub trait IncrementalBatch<S: Spec>: Iterator<Item = (FullyBakedTx, Self::ControlFlow)> {
     /// The post tx hook type used by this funciton
-    type ControlFlow: InjectedControlFlow<Receipt, S>;
+    type ControlFlow: InjectedControlFlow<S>;
     /// Returns an accurate lower bound on the remaining elements, if known.
     fn known_remaining_txs(&self) -> Option<usize>;
 
@@ -325,7 +327,7 @@ pub trait IncrementalBatch<Receipt, S: Spec>:
     fn sequencer_address(&self) -> S::Address;
 }
 
-impl<R, S: Spec> InjectedControlFlow<R, S> for NoOpControlFlow {
+impl<S: Spec> InjectedControlFlow<S> for NoOpControlFlow {
     fn pre_flight<RT: Runtime<S>>(
         &self,
         _runtime: &RT,
@@ -337,9 +339,9 @@ impl<R, S: Spec> InjectedControlFlow<R, S> for NoOpControlFlow {
 
     fn post_tx(
         &self,
-        provisional_outcome: ProvisionalSequencerOutcome<R>,
+        provisional_outcome: ProvisionalSequencerOutcome<S>,
         dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S>>,
-    ) -> (StateCheckpoint<S>, TxControlFlow<R>) {
+    ) -> (StateCheckpoint<S>, TxControlFlow<TransactionReceipt<S>>) {
         match provisional_outcome.execution_status {
             MaybeExecuted::Executed(receipt) => (
                 dirty_scratchpad.commit(),
@@ -359,36 +361,41 @@ pub struct NoOpControlFlow;
 /// A Batch with its ID.
 #[derive(Debug)]
 
-pub struct IterableBatchWithId<S: Spec> {
+pub struct IterableBatchWithId<S: Spec, CF: InjectedControlFlow<S>> {
     /// Batch of transactions.
     pub batch: std::vec::IntoIter<FullyBakedTx>,
     /// The ID of the batch, carried over from the DA layer. This is the hash of the blob which contained the batch.
     pub id: [u8; 32],
     /// The address of the sequencer that submitted the batch.
     pub sequencer_address: S::Address,
+    /// Control flow.
+    pub cf: CF,
 }
 
-impl<S: Spec> IterableBatchWithId<S> {
+impl<S: Spec, CF: InjectedControlFlow<S>> IterableBatchWithId<S, CF> {
     /// Create a new `IterableBatchWithId` from a `BatchWithId`.
-    pub fn new(batch_with_id: BatchWithId<S>) -> Self {
+    pub fn new(batch_with_id: BatchWithId<S>, cf: CF) -> Self {
         Self {
             batch: batch_with_id.batch.into_iter(),
             id: batch_with_id.id,
             sequencer_address: batch_with_id.sequencer_address,
+            cf,
         }
     }
 }
 
-impl<S: Spec> Iterator for IterableBatchWithId<S> {
-    type Item = (FullyBakedTx, NoOpControlFlow);
+impl<S: Spec, CF: InjectedControlFlow<S> + Clone> Iterator for IterableBatchWithId<S, CF> {
+    type Item = (FullyBakedTx, CF);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.batch.next().map(|tx| (tx, NoOpControlFlow))
+        self.batch.next().map(|tx| (tx, self.cf.clone()))
     }
 }
 
-impl<Receipt, S: Spec> IncrementalBatch<Receipt, S> for IterableBatchWithId<S> {
-    type ControlFlow = NoOpControlFlow;
+impl<S: Spec, CF: InjectedControlFlow<S> + Clone> IncrementalBatch<S>
+    for IterableBatchWithId<S, CF>
+{
+    type ControlFlow = CF;
 
     fn known_remaining_txs(&self) -> Option<usize> {
         Some(self.batch.len())

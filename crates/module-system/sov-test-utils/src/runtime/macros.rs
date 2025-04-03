@@ -159,7 +159,7 @@ macro_rules! generate_bare_runtime_without_capabilities {
             S: ::sov_modules_api::Spec,
             $($runtime_trait_impl_bounds)*
         {
-            type BlobType = sov_modules_api::SelectedBlob<S>;
+
             type Kernel<'a> = $kernel_type;
 
             fn inner(&mut self) -> sov_modules_api::capabilities::Guard<Self::Kernel<'_>> {

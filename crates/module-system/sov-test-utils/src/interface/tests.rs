@@ -1,9 +1,8 @@
 use borsh::BorshDeserialize;
 use sov_modules_api::{
     Amount, ApiStateAccessor, BatchSequencerReceipt, DaSpec, ProofReceipt, Runtime,
-    RuntimeEventProcessor, Spec, TransactionReceipt, TxEffect,
+    RuntimeEventProcessor, Spec, TransactionReceipt, TxEffect, *,
 };
-pub use sov_modules_stf_blueprint::TxReceiptContents;
 use sov_state::{Storage, StorageProof};
 
 use super::{BatchType, ProofInput, TransactionType};
@@ -38,13 +37,13 @@ pub struct TransactionAssertContext<S: Spec, RT: RuntimeEventProcessor> {
     /// The metadata about the blob that contained the transaction
     pub blob_info: BlobInfo,
     /// The outcome of the transaction.
-    pub tx_receipt: TxEffect<TxReceiptContents<S>>,
+    pub tx_receipt: TxEffect<S>,
 }
 
 impl<S: Spec, RT: RuntimeEventProcessor> TransactionAssertContext<S, RT> {
     /// Creates a [`TransactionAssertContext`] from the given [`TransactionReceipt`].
     pub fn from_receipt<Da: DaSpec>(
-        receipt: TransactionReceipt<TxReceiptContents<S>>,
+        receipt: TransactionReceipt<S>,
         blob_info: BlobInfo,
         gas_value_used: Amount,
     ) -> Self {

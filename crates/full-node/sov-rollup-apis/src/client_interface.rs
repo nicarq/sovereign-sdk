@@ -6,10 +6,8 @@ use sov_api_spec::types;
 use sov_modules_api::prelude::anyhow;
 use sov_modules_api::prelude::anyhow::Context;
 use sov_modules_api::transaction::{PriorityFeeBips, TransactionConsumption, TxDetails};
-use sov_modules_api::{Amount, Gas, Spec, StoredEvent, TxEffect};
-use sov_modules_stf_blueprint::{
-    ApplyTxResult, RevertedTxContents, SkippedTxContents, SuccessfulTxContents, TransactionReceipt,
-};
+use sov_modules_api::{Amount, Gas, Spec, StoredEvent, TransactionReceipt, TxEffect, *};
+use sov_modules_stf_blueprint::ApplyTxResult;
 use sov_rollup_interface::common::HexString;
 
 use crate::SimulateExecutionContainer;

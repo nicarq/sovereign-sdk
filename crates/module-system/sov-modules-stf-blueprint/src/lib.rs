@@ -3,28 +3,26 @@
 mod stf_blueprint;
 
 use sequencer_mode::{registered, unregistered};
-use serde::{Deserialize, Serialize};
 use sov_metrics::{save_elapsed, start_timer};
 #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
 use sov_modules_api::track_gas_constants_usage;
 #[cfg(feature = "native")]
 use sov_modules_api::{capabilities::RollupHeight, AccessoryDelta};
 use sov_modules_api::{
-    BatchSequencerReceipt, GasArray, GasSpec, IncrementalBatch, KernelStateAccessor, SelectedBlob,
-    VersionReader,
+    BatchSequencerReceipt, GasArray, GasSpec, IncrementalBatch, InjectedControlFlow,
+    KernelStateAccessor, NoOpControlFlow, SelectedBlob, TransactionReceipt, VersionReader,
 };
 use sov_state::StateRoot;
 mod proof_processing;
 use sov_modules_api::{PrivilegedKernelAccessor, SlotGasMeter};
 use sov_rollup_interface::stf::ProofReceipt;
 mod sequencer_mode;
+use sov_modules_api::{IterableBatchWithId, TxReceiptContents};
 #[cfg(feature = "test-utils")]
 mod utils;
 /// We export the `apply_tx` function to use inside the simulation endpoints.
 pub use sequencer_mode::apply_tx;
-pub use sequencer_mode::common::{
-    get_gas_used, AuthTxOutput, BatchReceipt, TransactionReceipt, ValidatedAuthOutput,
-};
+pub use sequencer_mode::common::{get_gas_used, AuthTxOutput, BatchReceipt, ValidatedAuthOutput};
 pub use sequencer_mode::registered::{process_tx_and_reward_prover, PreExecError};
 use sov_modules_api::capabilities::{
     BatchFromUnregisteredSequencer, BlobSelector, BlobSelectorOutput, BlockGasInfo, ChainState,
@@ -34,7 +32,7 @@ use sov_modules_api::hooks::BlockHooks;
 use sov_modules_api::transaction::TransactionConsumption;
 pub use sov_modules_api::{BatchWithId, BlobData, Runtime};
 use sov_modules_api::{
-    BlobDataWithId, DaSpec, Error, ExecutionContext, Gas, Genesis, Spec, StateCheckpoint,
+    BlobDataWithId, DaSpec, ExecutionContext, Gas, Genesis, Spec, StateCheckpoint,
 };
 #[cfg(feature = "native")]
 use sov_rollup_interface::da::BlockHeaderTrait;
@@ -44,7 +42,6 @@ use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_state::storage::StateUpdate;
 use sov_state::{Storage, StorageProof};
 pub use stf_blueprint::StfBlueprint;
-use thiserror::Error;
 use tracing::trace;
 
 #[cfg(feature = "native")]
@@ -53,101 +50,6 @@ type MaterializedUpdate<S> = (
     <S as Storage>::Witness,
     <S as Storage>::ChangeSet,
 );
-
-/// The contents of the receipt for a skipped transaction
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SkippedTxContents<S: Spec> {
-    /// The gas consumed by the transaction.
-    pub gas_used: S::Gas,
-    /// Reason why the transaction was skipped.
-    pub error: TxProcessingError,
-}
-
-impl<S: Spec> PartialEq for SkippedTxContents<S> {
-    fn eq(&self, other: &Self) -> bool {
-        self.gas_used == other.gas_used && self.error == other.error
-    }
-}
-impl<S: Spec> Eq for SkippedTxContents<S> {}
-
-/// The transaction processing error.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Error)]
-#[serde(rename_all = "snake_case")]
-pub enum TxProcessingError {
-    /// Transaction authentication failed.
-    #[error(" Transaction authentication failed {0}.")]
-    AuthenticationFailed(String),
-    /// The uniqueness check failed.
-    #[error("The uniqueness check failed. Reason: {0}.")]
-    CheckUniquenessFailed(String),
-    /// Impossible to reserve gas for the transaction to be executed.
-    #[error("Impossible to reserve gas for the transaction to be executed, reason: {0}.")]
-    CannotReserveGas(String),
-    /// Impossible to resolve the context of the transaction.
-    #[error("Impossible to resolve the context of the transaction, reason: {0}.")]
-    CannotResolveContext(String),
-    /// Rejected by a pre-flight check.
-    #[error("The transaction was rejected by a pre-flight check.")]
-    RejectedByPreFlight,
-    /// Failed to mark transaction.
-    #[error("Failed to mark transaction, reason: {0}.")]
-    MarkTxAttemptedFailed(String),
-    /// The transaction ran out of gas
-    #[error("The transaction ran out of gas, reason: {0}.")]
-    OutOfGas(String),
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Error)]
-/// The contents of the receipt for a reverted transaction
-pub struct RevertedTxContents<S: Spec> {
-    /// The gas consumed by the transaction
-    pub gas_used: S::Gas,
-    /// The reason the tx reverted.
-    pub reason: Error,
-}
-
-impl<S: Spec> PartialEq for RevertedTxContents<S> {
-    fn eq(&self, other: &Self) -> bool {
-        self.gas_used == other.gas_used && self.reason == other.reason
-    }
-}
-impl<S: Spec> Eq for RevertedTxContents<S> {}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Error)]
-/// The contents of the receipt for a successful transaction
-pub struct SuccessfulTxContents<S: Spec> {
-    /// The gas consumed by the transaction
-    pub gas_used: S::Gas,
-}
-
-impl<S: Spec> PartialEq for SuccessfulTxContents<S> {
-    fn eq(&self, other: &Self) -> bool {
-        self.gas_used == other.gas_used
-    }
-}
-impl<S: Spec> Eq for SuccessfulTxContents<S> {}
-
-/// Ignored transactions consume gas but do not otherwise impact the state of the rollup.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Error, Eq, PartialEq)]
-pub struct IgnoredTxContents<S: Spec> {
-    /// The gas consumed by the transaction
-    pub gas_used: S::Gas,
-    /// Index in the batch.
-    pub index: usize,
-}
-
-/// The effect of a transaction using the STF blueprint.
-pub type TxEffect<S> = sov_rollup_interface::stf::TxEffect<TxReceiptContents<S>>;
-/// The effect of a batch using the STF blueprint.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct TxReceiptContents<S>(std::marker::PhantomData<S>);
-
-impl<S: Spec> sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents<S> {
-    type Skipped = SkippedTxContents<S>;
-    type Reverted = RevertedTxContents<S>;
-    type Successful = SuccessfulTxContents<S>;
-    type Ignored = IgnoredTxContents<S>;
-}
 
 /// The result of applying a transaction to the state.
 /// This is the value returned when [`process_tx_and_reward_prover`] succeeds.
@@ -299,7 +201,7 @@ impl<S, RT> StateTransitionFunction<S::InnerZkvm, S::OuterZkvm, S::Da> for StfBl
 where
     S: Spec,
     RT: Runtime<S>,
-    RT: HasKernel<S, BlobType = SelectedBlob<S>>,
+    RT: HasKernel<S>,
 {
     type StateRoot = <S::Storage as Storage>::Root;
 
@@ -405,6 +307,57 @@ where
         relevant_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         execution_context: ExecutionContext,
     ) -> ApplySlotOutput<S::InnerZkvm, S::OuterZkvm, S::Da, Self> {
+        self.apply_slot_with_control_flow(
+            pre_state_root,
+            pre_state,
+            witness,
+            slot_header,
+            relevant_blobs,
+            execution_context,
+            NoOpControlFlow,
+        )
+    }
+}
+
+impl<S, RT> StfBlueprint<S, RT>
+where
+    S: Spec,
+    RT: Runtime<S>,
+    RT: HasKernel<S>,
+{
+    #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
+    fn select_and_validate_blobs<CF: InjectedControlFlow<S> + Clone>(
+        &self,
+        runtime: &mut RT,
+        relevant_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
+        kernel: &mut KernelStateAccessor<S>,
+        cf: CF,
+    ) -> BlobSelectorOutput<SelectedBlob<S, IterableBatchWithId<S, CF>>> {
+        runtime
+            .blob_selector()
+            .get_blobs_for_this_slot(relevant_blobs, kernel, cf)
+            .expect("blob selection must succeed, probably serialization failed")
+    }
+}
+
+impl<S, RT> StfBlueprint<S, RT>
+where
+    S: Spec,
+    RT: Runtime<S>,
+    RT: HasKernel<S>,
+{
+    /// Run a state transition using the STF blueprint.
+    // Similar to `apply_slot`, but enables the injection of a custom `InjectedControlFlow`.
+    pub fn apply_slot_with_control_flow<CF: InjectedControlFlow<S> + Clone>(
+        &self,
+        pre_state_root: &<S::Storage as Storage>::Root,
+        pre_state: S::Storage,
+        witness: <S::Storage as Storage>::Witness,
+        slot_header: &<S::Da as DaSpec>::BlockHeader,
+        relevant_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
+        execution_context: ExecutionContext,
+        cf: CF,
+    ) -> ApplySlotOutput<S::InnerZkvm, S::OuterZkvm, S::Da, Self> {
         let mut runtime = RT::default();
         // Sanity check that gas limits are set correctly. This is already checked at genesis, but we check again in case
         // Someone modifies the code after genesis.
@@ -450,6 +403,7 @@ where
             &mut runtime,
             relevant_blobs,
             &mut kernel_with_partially_stale_heights,
+            cf,
         );
         tracing::trace!("Done selecting blobs");
 
@@ -566,34 +520,7 @@ where
             witness,
         }
     }
-}
 
-impl<S, RT> StfBlueprint<S, RT>
-where
-    S: Spec,
-    RT: Runtime<S>,
-    RT: HasKernel<S, BlobType = SelectedBlob<S>>,
-{
-    #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
-    fn select_and_validate_blobs(
-        &self,
-        runtime: &mut RT,
-        relevant_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
-        kernel: &mut KernelStateAccessor<S>,
-    ) -> BlobSelectorOutput<SelectedBlob<S>> {
-        runtime
-            .blob_selector()
-            .get_blobs_for_this_slot(relevant_blobs, kernel)
-            .expect("blob selection must succeed, probably serialization failed")
-    }
-}
-
-impl<S, RT> StfBlueprint<S, RT>
-where
-    S: Spec,
-    RT: Runtime<S>,
-    RT: HasKernel<S>,
-{
     /// Run the provided sequence of batches, updating the user-space rollup state as we go.
     /// Batches can inject control flow, which will be respected by the runner.
     ///
@@ -620,7 +547,7 @@ where
         track_gas_constants_usage(visible_hash)
     )]
     #[tracing::instrument(skip_all, fields(context=?execution_context), level = "debug")]
-    pub fn apply_batches_in_user_space<B: IncrementalBatch<TransactionReceipt<S>, S>>(
+    pub fn apply_batches_in_user_space<B: IncrementalBatch<S>>(
         &self,
         runtime: &mut RT,
         blob_selector_output: BlobSelectorOutput<SelectedBlob<S, B>>,

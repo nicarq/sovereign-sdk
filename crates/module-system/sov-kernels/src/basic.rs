@@ -10,8 +10,8 @@ use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel as KernelTrait
 #[cfg(feature = "native")]
 use sov_modules_api::AccessoryStateReaderAndWriter;
 use sov_modules_api::{
-    BootstrapWorkingSet, DaSpec, Gas, KernelStateAccessor, SelectedBlob, Spec, StateReader,
-    VersionReader, VisibleSlotNumber,
+    BootstrapWorkingSet, DaSpec, Gas, InjectedControlFlow, IterableBatchWithId,
+    KernelStateAccessor, SelectedBlob, Spec, StateReader, VersionReader, VisibleSlotNumber,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::RelevantBlobIters;
@@ -65,29 +65,29 @@ impl<'a, S: Spec> KernelTrait<S> for BasicKernel<'a, S> {
 impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
     type Spec = S;
 
-    type BlobType = SelectedBlob<S>;
-
     const ACCEPTS_PREFERRED_BATCHES: bool = false;
 
-    fn get_blobs_for_this_slot(
+    fn get_blobs_for_this_slot<CF: InjectedControlFlow<Self::Spec> + Clone>(
         &mut self,
         current_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         state: &mut KernelStateAccessor<'_, S>,
-    ) -> anyhow::Result<BlobSelectorOutput<SelectedBlob<S>>> {
+        cf: CF,
+    ) -> anyhow::Result<BlobSelectorOutput<SelectedBlob<S, IterableBatchWithId<S, CF>>>> {
         Ok(self
             .blob_storage
-            .select_blobs_as_based_sequencer(current_blobs, state))
+            .select_blobs_as_based_sequencer(current_blobs, state, cf))
     }
 
-    fn get_non_preferred_blobs(
+    fn get_non_preferred_blobs<CF: InjectedControlFlow<Self::Spec> + Clone>(
         &mut self,
         slot_range: impl Iterator<Item = SlotNumber>,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
-    ) -> Vec<SelectedBlob<Self::Spec>> {
+        cf: CF,
+    ) -> Vec<SelectedBlob<Self::Spec, IterableBatchWithId<S, CF>>> {
         self.blob_storage
             .get_non_preferred_blobs(slot_range, state)
             .into_iter()
-            .map(ValidatedBlob::into_selected_blob)
+            .map(|b| ValidatedBlob::into_selected_blob(b, cf.clone()))
             .collect()
     }
 

@@ -6,9 +6,9 @@ use sov_modules_api::prelude::utoipa_swagger_ui::Config;
 use sov_modules_api::rest::utils::{cors_layer, errors};
 use sov_modules_api::rest::{HasRestApi, StateUpdateReceiver};
 use sov_modules_api::{
-    BatchSequencerReceipt, NodeEndpoints, RuntimeEventProcessor, Spec, SyncStatus,
+    BatchSequencerReceipt, NodeEndpoints, RuntimeEventProcessor, Spec, SyncStatus, *,
 };
-use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, TxReceiptContents};
+use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
 use sov_stf_runner::{CorsConfiguration, RollupConfig, RunnerConfig};
 

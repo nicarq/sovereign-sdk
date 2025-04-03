@@ -1,8 +1,7 @@
 use sov_bank::{config_gas_token_id, Bank, Coins, ReserveGasError};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{Amount, Gas, GasUnit, Spec, TxEffect};
-use sov_modules_stf_blueprint::SkippedTxContents;
+use sov_modules_api::{Amount, Gas, GasUnit, SkippedTxContents, Spec, TxEffect};
 use sov_test_utils::{get_gas_used, AsUser, TestUser, TransactionTestCase, TxProcessingError};
 
 use crate::helpers::{setup, TestData, RT};

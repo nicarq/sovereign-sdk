@@ -1,7 +1,10 @@
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec, RelevantBlobIters};
 
-use crate::{as_u32_or_panic, KernelStateAccessor, SelectedBlob, Spec};
+use crate::{
+    as_u32_or_panic, InjectedControlFlow, IterableBatchWithId, KernelStateAccessor, SelectedBlob,
+    Spec,
+};
 
 /// The namespace in which a blob appeared.
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -63,9 +66,6 @@ pub trait BlobSelector {
     /// Spec type
     type Spec: Spec;
 
-    /// The type of batch returned by the selector
-    type BlobType;
-
     /// Whether the kernel accepts "preferred" batches in a special format.
     const ACCEPTS_PREFERRED_BATCHES: bool;
 
@@ -78,20 +78,25 @@ pub trait BlobSelector {
     /// - Ensure that no blobs are selected for execution without a corresponding virtual height increase
     /// - Ensure that the preferred sequencer can't censor blobs by consuming all available rollup-block space.
     #[allow(clippy::type_complexity)]
-    fn get_blobs_for_this_slot(
+    fn get_blobs_for_this_slot<CF: InjectedControlFlow<Self::Spec> + Clone>(
         &mut self,
         current_blobs: RelevantBlobIters<
             &mut [<<Self::Spec as Spec>::Da as DaSpec>::BlobTransaction],
         >,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
-    ) -> anyhow::Result<BlobSelectorOutput<Self::BlobType>>;
+        cf: CF,
+    ) -> anyhow::Result<
+        BlobSelectorOutput<SelectedBlob<Self::Spec, IterableBatchWithId<Self::Spec, CF>>>,
+    >;
 
     /// Extracts all delayed non-preferred blobs that belong to the given slots.
-    fn get_non_preferred_blobs(
+    #[allow(clippy::type_complexity)]
+    fn get_non_preferred_blobs<CF: InjectedControlFlow<Self::Spec> + Clone>(
         &mut self,
         slot_range: impl Iterator<Item = SlotNumber>,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
-    ) -> Vec<SelectedBlob<Self::Spec>>;
+        cf: CF,
+    ) -> Vec<SelectedBlob<Self::Spec, IterableBatchWithId<Self::Spec, CF>>>;
 
     /// Add funds to the escrow for the preferred sequencer.
     #[cfg(feature = "native")]

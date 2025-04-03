@@ -77,6 +77,8 @@ pub mod da {
     pub use sov_rollup_interface::da::{BlockHeaderTrait, NanoSeconds, Time};
 }
 
+/// Types releted to receipts.
+mod tx_receipt;
 use std::collections::{HashMap, HashSet};
 
 pub use batch::*;
@@ -104,7 +106,11 @@ pub use sov_rollup_interface::node::da::SlotData;
 pub use sov_rollup_interface::node::{DaSyncState, SyncStatus};
 pub use sov_rollup_interface::optimistic::{SerializedAttestation, SerializedChallenge};
 pub use sov_rollup_interface::reexports::digest;
-pub use sov_rollup_interface::stf::*;
+pub use sov_rollup_interface::stf::{
+    ApplySlotOutput, BatchReceipt, ExecutionContext, IgnoredTransactionReceipt, InvalidProofError,
+    ProofOutcome, ProofReceipt, ProofReceiptContents, ProofSerializer, StateTransitionFunction,
+    StoredEvent,
+};
 pub use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
 };
@@ -119,6 +125,7 @@ pub use sov_rollup_interface::{execution_mode, BasicAddress, TxHash};
 pub use sov_state::{CompileTimeNamespace, Storage};
 pub use state::*;
 pub use transaction::AuthenticatedTransactionData;
+pub use tx_receipt::*;
 pub use {schemars, sov_universal_wallet};
 
 pub use crate::common::ModuleError as Error;

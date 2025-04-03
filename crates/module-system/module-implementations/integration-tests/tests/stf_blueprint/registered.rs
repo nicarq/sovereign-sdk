@@ -9,11 +9,9 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::{
     Amount, ApiStateAccessor, BlobReaderTrait, Gas, GasArray, GasSpec, GasUnit, ModuleInfo, RawTx,
-    Rewards, Spec, TransactionReceipt,
+    Rewards, Spec, TransactionReceipt, TxEffect,
 };
-use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::da::RelevantBlobs;
-use sov_test_utils::TxReceiptContents;
 
 use super::{get_balance, get_seq_bond, TxStatus};
 use crate::stf_blueprint::{create_tx_valid, setup};
@@ -356,7 +354,7 @@ fn test_batch_gas_used() {
     let gas_used = get_gas_from_txs(&batch_receipt_2.tx_receipts);
     assert_eq!(batch_receipt_2.inner.gas_used, gas_used);
 
-    fn get_gas_from_txs(receipts: &[TransactionReceipt<TxReceiptContents<S>>]) -> <S as Spec>::Gas {
+    fn get_gas_from_txs(receipts: &[TransactionReceipt<S>]) -> <S as Spec>::Gas {
         let mut gas_in_batch = <<S as Spec>::Gas>::zero();
         for receipt in receipts {
             match &receipt.receipt {
@@ -368,6 +366,44 @@ fn test_batch_gas_used() {
         }
         gas_in_batch
     }
+}
+
+/// Check if reverted tx is ignored by the sequecner.
+#[test]
+fn test_sequencer_inores_reverted_tx() {
+    let priority_fee_bips = PriorityFeeBips::from_percentage(5);
+    let (mut runner, users, sequencer_account) = setup(2);
+
+    let actors = Actors {
+        admin_account: users[0].clone(),
+        not_admin_account: users[1].clone(),
+        sequencer_account,
+    };
+
+    let txs = create_txs(
+        &[TxStatus::Reverted],
+        priority_fee_bips,
+        &actors.admin_account,
+        &actors.not_admin_account,
+    );
+
+    let seq_da_address = runner.config.sequencer_da_address;
+
+    let batch_blobs = vec![MockBlob::new_with_hash(
+        borsh::to_vec(&txs).unwrap(),
+        seq_da_address,
+    )];
+
+    let blobs = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs,
+    };
+
+    let result = runner.execute_as_sequencer::<RelevantBlobs<MockBlob>>(blobs);
+    let batch_receipt_1 = result.0.batch_receipts[0].clone();
+
+    // Sequencer ignores reverted txs so the `tx_receipts` should be empty.
+    assert!(&batch_receipt_1.tx_receipts.is_empty());
 }
 
 mod helpers {

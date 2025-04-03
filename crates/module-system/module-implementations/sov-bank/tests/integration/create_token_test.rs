@@ -1,6 +1,6 @@
 use sov_bank::utils::TokenHolder;
 use sov_bank::{get_token_id, Amount, Bank};
-use sov_modules_stf_blueprint::TxEffect;
+use sov_modules_api::TxEffect;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::genesis::TestTokenName;
 use sov_test_utils::runtime::TestRunner;
