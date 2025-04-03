@@ -10243,6 +10243,7 @@ dependencies = [
  "proptest",
  "proptest-derive 0.5.0",
  "schemars",
+ "secp256k1",
  "serde",
  "sha3",
  "sov-address",
