@@ -156,7 +156,9 @@ where
         Vq: ?Sized,
         Writer: StateWriter<N>,
     {
-        state.set(&self.slot_key(key), self.slot_value(value))
+        let key = self.slot_key(key);
+        tracing::trace!(%key, "Setting map value");
+        state.set(&key, self.slot_value(value))
     }
 
     /// Calls [`StateMap::set`] iff the key is not already present in the map.
@@ -222,7 +224,9 @@ where
         Kq: ?Sized,
         Reader: StateReader<N>,
     {
-        state.get_decoded(&self.slot_key(key), self.codec())
+        let key = self.slot_key(key);
+        tracing::trace!(%key, "Getting map value");
+        state.get_decoded(&key, self.codec())
     }
 
     /// Returns a borrowed value from the map, preventing mutable access to the map until this reference is dropped.
@@ -236,7 +240,9 @@ where
         Kq: ?Sized,
         Reader: StateReader<N>,
     {
-        let val = state.get_decoded(&self.slot_key(key), self.codec())?;
+        let key = self.slot_key(key);
+        tracing::trace!(%key, "Borrowing map value");
+        let val = state.get_decoded(&key, self.codec())?;
         Ok(Borrowed::new(val, self))
     }
 
@@ -252,6 +258,7 @@ where
         Reader: StateReader<N>,
     {
         let key = self.slot_key(key);
+        tracing::trace!(%key, "Borrowing map value");
         let val = state.get_decoded(&key, self.codec())?;
         Ok(BorrowedMut::new(key, val, self))
     }
@@ -289,7 +296,9 @@ where
         Kq: ?Sized,
         ReaderAndWriter: StateReaderAndWriter<N>,
     {
-        state.remove_decoded(&self.slot_key(key), self.codec())
+        let key = self.slot_key(key);
+        tracing::trace!(%key, "Removing map value");
+        state.remove_decoded(&key, self.codec())
     }
 
     /// Removes a key from the map, returning the corresponding value (or
@@ -326,7 +335,9 @@ where
         Kq: ?Sized,
         Writer: StateWriter<N>,
     {
-        state.delete(&self.slot_key(key))
+        let key = self.slot_key(key);
+        tracing::trace!(%key, "Deleting map value");
+        state.delete(&key)
     }
 }
 
