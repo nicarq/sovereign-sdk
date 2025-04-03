@@ -141,7 +141,7 @@ pub trait GenesisState<S: Spec>:
 pub enum StateAccessorError<GU: Gas> {
     /// An error occurred when trying to get a value from the state.
     #[error(
-        "An error occured while trying to get the value (key {key:?}) from the state: {inner}, namespace: {namespace:?}"
+        "An error occured while trying to get the value (key {key:}) from the state: {inner}, namespace: {namespace:?}"
     )]
     Get {
         /// The key of the value that was not found.
@@ -165,7 +165,7 @@ pub enum StateAccessorError<GU: Gas> {
     },
     /// An error occurred when trying to decode a value retrieved from the state.
     #[error(
-        "An error occured while trying to decode the value (key {key:?}) in the state: {inner}, namespace: {namespace:?}"
+        "An error occured while trying to decode the value (key {key:}) in the state: {inner}, namespace: {namespace:?}"
     )]
     Decode {
         /// The key of the value that was not found.
@@ -177,7 +177,7 @@ pub enum StateAccessorError<GU: Gas> {
     },
     /// An error occurred when trying to delete a value from the state.
     #[error(
-        "An error occured while trying to delete the value (key {key:?}) in the state: {inner}, namespace: {namespace:?}"
+        "An error occured while trying to delete the value (key {key:}) in the state: {inner}, namespace: {namespace:?}"
     )]
     Delete {
         /// The key of the value that was not found.
@@ -322,15 +322,19 @@ macro_rules! blanket_impl_metered_state_reader {
             storage_value
                 .map(|storage_value| {
                     // We need to charge for the cost to deserialize the value
-                    self.charge_linear_gas(
-                        &<T::Spec as GasSpec>::gas_to_charge_per_byte_borsh_deserialization(),
-                        storage_value.size(),
-                    )
-                    .map_err(|e| StateAccessorError::Decode {
-                        key: storage_key.clone(),
-                        inner: e,
-                        namespace: <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
-                    })?;
+                    tracing::trace_span!("all_accesses::charge_per_byte_borsh_deserialization",)
+                        .in_scope(|| {
+                            self.charge_linear_gas(
+                                &<T::Spec as GasSpec>::gas_to_charge_per_byte_borsh_deserialization(
+                                ),
+                                storage_value.size(),
+                            )
+                        })
+                        .map_err(|e| StateAccessorError::Decode {
+                            key: storage_key.clone(),
+                            inner: e,
+                            namespace: <$namespace as sov_state::CompileTimeNamespace>::NAMESPACE,
+                        })?;
 
                     Ok(codec.value_codec().decode_unwrap(storage_value.value()))
                 })
@@ -501,18 +505,25 @@ fn charge_first_storage_access<Accessor: UniversalStateAccessor + GasMeter>(
     // - cold access bias to load something from the storage (aka Merkle proof cost)
     // - fixed hashing cost
     // - hashing cost of the key length
-    accessor.charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_for_access())?;
-    accessor.charge_gas(&<Accessor::Spec as GasSpec>::gas_to_charge_hash_update())?;
+    tracing::trace_span!("cold_access::charge_bias_for_access",).in_scope(|| {
+        accessor.charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_for_access())
+    })?;
+
+    tracing::trace_span!("cold_access::charge_hash_update",).in_scope(|| {
+        accessor.charge_gas(&<Accessor::Spec as GasSpec>::gas_to_charge_hash_update())
+    })?;
 
     let key_size: u32 = key
         .size()
         .try_into()
         .map_err(|e: TryFromIntError| GasMeteringError::Overflow(e.to_string()))?;
 
-    accessor.charge_linear_gas(
-        &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
-        key_size,
-    )?;
+    tracing::trace_span!("cold_access::charge_per_byte_hash_update").in_scope(|| {
+        accessor.charge_linear_gas(
+            &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
+            key_size,
+        )
+    })?;
 
     Ok(())
 }
@@ -531,7 +542,9 @@ fn charge_read<Accessor: UniversalStateAccessor + GasMeter>(
             // Start by charging for the first storage access cost
             charge_first_storage_access(accessor, key)?;
 
-            accessor.charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_for_cold_read())?;
+            tracing::trace_span!("cold_access::charge_bias_for_cold_read",).in_scope(|| {
+                accessor.charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_for_cold_read())
+            })?;
 
             let value_size = accessor.get_size(namespace, key);
 
@@ -541,31 +554,55 @@ fn charge_read<Accessor: UniversalStateAccessor + GasMeter>(
             // - cold read linear cost to load the value length from the storage (cloning cost).
             // - cold read bias (clone to the cache and outside of the cache)
             if let Some(value_size) = value_size {
-                accessor.charge_gas(&<Accessor::Spec as GasSpec>::gas_to_charge_hash_update())?;
+                tracing::trace_span!("cold_access::charge_hash_update", value_size = value_size)
+                    .in_scope(|| {
+                        accessor
+                            .charge_gas(&<Accessor::Spec as GasSpec>::gas_to_charge_hash_update())
+                    })?;
 
-                accessor.charge_linear_gas(
-                    &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
-                    value_size,
-                )?;
+                tracing::trace_span!(
+                    "cold_access::charge_per_byte_hash_update",
+                    value_size = value_size
+                )
+                .in_scope(|| {
+                    accessor.charge_linear_gas(
+                        &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
+                        value_size,
+                    )
+                })?;
 
-                accessor.charge_linear_gas(
-                    &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_cold_read(),
-                    value_size,
-                )?;
+                tracing::trace_span!(
+                    "cold_access::charge_per_byte_cold_read",
+                    value_size = value_size
+                )
+                .in_scope(|| {
+                    accessor.charge_linear_gas(
+                        &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_cold_read(),
+                        value_size,
+                    )
+                })?;
             }
         }
 
         IsValueCached::Yes(acc) => {
             // We charge a bias for hot reads
-            accessor.charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_for_hot_read())?;
+            tracing::trace_span!(
+                "hot_access::charge_bias_for_hot_read",
+                value_size = acc.size()
+            )
+            .in_scope(|| {
+                accessor.charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_for_hot_read())
+            })?;
 
             // If the value has a size, we need to charge for...
             // - hot read linear cost to load something from the cache (we're cloning the value here)
             if acc.size() > 0 {
-                accessor.charge_linear_gas(
-                    &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hot_read(),
-                    acc.size(),
-                )?;
+                tracing::trace_span!("hot_access::charge_per_byte_hot_read").in_scope(|| {
+                    accessor.charge_linear_gas(
+                        &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hot_read(),
+                        acc.size(),
+                    )
+                })?;
             }
         }
     }

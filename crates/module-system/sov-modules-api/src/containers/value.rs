@@ -94,7 +94,9 @@ where
         Codec::ValueCodec: EncodeLike<Vq, V>,
         Writer: StateWriter<N>,
     {
-        state.set(&self.slot_key(), self.slot_value(value))
+        let key = self.slot_key();
+        tracing::trace!(%key, "Setting state value");
+        state.set(&key, self.slot_value(value))
     }
 
     /// Gets the value from state or returns None if the value is absent.
@@ -102,7 +104,9 @@ where
         &self,
         state: &mut Reader,
     ) -> Result<Option<V>, Reader::Error> {
-        state.get_decoded(&self.slot_key(), self.codec())
+        let key = self.slot_key();
+        tracing::trace!(%key, "Getting state value");
+        state.get_decoded(&key, self.codec())
     }
 
     /// Returns a borrowed value from the map, preventing mutable access to the map until this reference is dropped.
@@ -113,10 +117,9 @@ where
     where
         Reader: StateReader<N>,
     {
-        Ok(Borrowed::new(
-            state.get_decoded(&self.slot_key(), self.codec())?,
-            self,
-        ))
+        let key = self.slot_key();
+        tracing::trace!(%key, "Borrowing state value");
+        Ok(Borrowed::new(state.get_decoded(&key, self.codec())?, self))
     }
 
     /// Returns a mutably borrowed value from the map, preventing access to the map until this reference is dropped.
@@ -128,6 +131,7 @@ where
         Reader: StateReader<N>,
     {
         let key = self.slot_key();
+        tracing::trace!(%key, "Borrowing mut state value");
         let val = state.get_decoded(&key, self.codec())?;
         Ok(BorrowedMut::new(key, val, self))
     }
@@ -147,7 +151,9 @@ where
         &mut self,
         state: &mut ReaderAndWriter,
     ) -> Result<Option<V>, <ReaderAndWriter as StateWriter<N>>::Error> {
-        state.remove_decoded(&self.slot_key(), self.codec())
+        let key = self.slot_key();
+        tracing::trace!(%key, "Removing state value");
+        state.remove_decoded(&key, self.codec())
     }
 
     /// Removes a value from state, returning the value (or Error if the key is absent).
@@ -165,7 +171,9 @@ where
         &mut self,
         state: &mut Writer,
     ) -> Result<(), Writer::Error> {
-        state.delete(&self.slot_key())
+        let key = self.slot_key();
+        tracing::trace!(%key, "Deleting state value");
+        state.delete(&key)
     }
 }
 

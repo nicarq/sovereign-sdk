@@ -815,6 +815,7 @@ impl<S: Spec> BasicGasMeter<S> {
 impl<S: Spec> GasMeter for BasicGasMeter<S> {
     type Spec = S;
     fn charge_gas(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
+        tracing::trace!(%amount, gas_before = %self.remaining_gas, funds_before = ?self.remaining_funds, "Charging gas");
         self.charge_gas_inner(amount)?;
 
         #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
@@ -845,11 +846,14 @@ impl<S: Spec> GasMeter for BasicGasMeter<S> {
         amount: &S::Gas,
         parameter: u32,
     ) -> Result<(), GasMeteringError<<S as Spec>::Gas>> {
-        self.charge_gas_inner(&amount.checked_scalar_product(parameter as u64).ok_or(
-            GasMeteringError::Overflow(format!(
-                "Unable to charge gas. The product of {amount} to {parameter} is overflowing"
-            )),
-        )?)?;
+        let total_amount =
+            amount
+                .checked_scalar_product(parameter as u64)
+                .ok_or(GasMeteringError::Overflow(format!(
+                    "Unable to charge gas. The product of {amount} to {parameter} is overflowing"
+                )))?;
+        tracing::trace!(%total_amount, parameter, gas_before = %self.remaining_gas, funds_before = ?self.remaining_funds, "Charging linear gas");
+        self.charge_gas_inner(&total_amount)?;
 
         #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
         if let Some(name) = amount.name() {
