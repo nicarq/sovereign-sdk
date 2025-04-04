@@ -570,14 +570,29 @@ impl<S: Spec> BlobStorage<S> {
                 preferred_sender,
             );
 
-        self.get_blobs_to_process_from_run(
-            next_run_of_blobs,
-            new_blobs_to_defer,
-            next_sequence_number,
-            sequence_tracker,
-            state,
-        )
-        .unwrap_or_default()
+        let blobs = self
+            .get_blobs_to_process_from_run(
+                next_run_of_blobs,
+                new_blobs_to_defer,
+                next_sequence_number,
+                sequence_tracker,
+                state,
+            )
+            .unwrap_or_default();
+
+        assert!(
+            blobs
+                .windows(2)
+                .all(|two_blobs| two_blobs[0].inner.sequence_number() + 1
+                    == two_blobs[1].inner.sequence_number()),
+            "Preferred blobs to process must have consecutive sequence numbers. This is a bug, please report it"
+        );
+        assert!(
+            blobs.iter().filter(|blob| blob.inner.is_batch()).count() <= 1,
+            "Can't have more than one preferred batch per run. This is a bug, please report it"
+        );
+
+        blobs
     }
 
     /// Returns the next run of blobs to process, an iterator over the blobs that weren't even considered, and the next sequence number

@@ -3,13 +3,16 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use axum::http::StatusCode;
-use sov_modules_api::capabilities::{BlobSelector, BlobSelectorOutput, ChainState, FatalError};
-use sov_modules_api::{
-    BlobDataWithId, ExecutionContext, FullyBakedTx, Gas, GasSpec, KernelStateAccessor,
-    NestedEnumUtils, RejectReason, Runtime, RuntimeEventProcessor, RuntimeEventResponse,
-    SelectedBlob, Spec, StateCheckpoint, TransactionReceipt, VersionReader, VisibleSlotNumber,
+use sov_modules_api::capabilities::{
+    BlobSelector, BlobSelectorOutput, ChainState, FatalError, RollupHeight,
 };
-use sov_modules_stf_blueprint::StfBlueprint;
+use sov_modules_api::{
+    BlobDataWithId, ChangeSet, DaSpec, ExecutionContext, FullyBakedTx, Gas, GasSpec,
+    KernelStateAccessor, NestedEnumUtils, NoOpControlFlow, RejectReason, Runtime,
+    RuntimeEventProcessor, RuntimeEventResponse, SelectedBlob, Spec, StateCheckpoint,
+    TransactionReceipt, TxChangeSet, VersionReader, VisibleSlotNumber,
+};
+use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rest_utils::{json_obj, ErrorObject};
 use sov_state::{Namespace, StateRoot, Storage};
 use tokio::sync::mpsc::error::TrySendError;
@@ -123,12 +126,10 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         // which uses a placeholder state. That's expected, and we shouldn't
         // panic.
         if !matches!(self.state, InternalState::Placeholder) {
-            #[allow(clippy::collapsible_if)]
-            if self.next_event_number != other.next_event_number {
-                // TODO(@neysofu): turn this into a panic.
-                tracing::error!(
-                    "Event numbers don't match after `update_state`; this is a bug and will become a panic in the future");
-            }
+            assert_eq!(
+                self.next_event_number, other.next_event_number,
+                "Event numbers don't match after `update_state`; this is a bug, please report it"
+            );
         }
 
         let current_state = replace(&mut self.state, InternalState::Placeholder);
@@ -222,8 +223,8 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         );
 
         self.start_rollup_block(
+            batch.visible_slot_number_after_increase,
             batch.batch.inner.visible_slots_to_advance,
-            Some(batch.visible_slot_number_after_increase),
             node_state_root,
             // When replaying batches, we wish to be deterministic and not
             // filter out previously-accepted transactions simply because
@@ -276,16 +277,16 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     #[tracing::instrument(skip_all, level = "trace")]
     pub async fn start_rollup_block(
         &mut self,
+        sanity_check_visible_slot_number_after_increase: VisibleSlotNumber,
         visible_increase: VisibleSlotNumberIncrease,
-        visible_slot_number_after_increase: Option<VisibleSlotNumber>,
         // We pass the node state root explicitly because retrieving it is
         // fallible, so it's convenient to front-load the error-checking.
         node_state_root: &<S::Storage as Storage>::Root,
         minimum_profit_per_tx: u128,
     ) {
         self.start_rollup_block_inner(
+            sanity_check_visible_slot_number_after_increase,
             visible_increase,
-            visible_slot_number_after_increase,
             node_state_root,
             minimum_profit_per_tx,
         )
@@ -302,8 +303,8 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     #[tracing::instrument(skip_all, level = "trace")]
     async fn start_rollup_block_inner(
         &mut self,
+        sanity_check_visible_slot_number_after_increase: VisibleSlotNumber,
         visible_increase: VisibleSlotNumberIncrease,
-        visible_slot_number_after_increase: Option<VisibleSlotNumber>,
         node_state_root: &<S::Storage as Storage>::Root,
         minimum_profit_per_tx: u128,
     ) {
@@ -322,19 +323,21 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             "Beginning new rollup block and spawning background loop"
         );
 
-        let computed_visible_slot_number = checkpoint
+        let old_visible_slot_number = checkpoint.current_visible_slot_number();
+        let mut next_visible_slot_number = checkpoint
             .current_visible_slot_number()
             .advance(visible_increase.get().into());
-        let next_visible_slot_number =
-            visible_slot_number_after_increase.unwrap_or(computed_visible_slot_number);
 
-        if let Some(visible_slot_number_after_increase) = visible_slot_number_after_increase {
-            // TODO: Change this to an error log and a panic once all visible slot numbers fixes are merged
+        if next_visible_slot_number != sanity_check_visible_slot_number_after_increase {
+            // TODO: Change this to a sanity check and a panic once all tests
+            // account for the deferred slots count distance.
             tracing::debug!(
                 "Overriding visible slot number from {} to: {}",
-                computed_visible_slot_number,
-                visible_slot_number_after_increase
+                next_visible_slot_number,
+                sanity_check_visible_slot_number_after_increase
             );
+
+            next_visible_slot_number = sanity_check_visible_slot_number_after_increase;
         }
 
         let user_state_root = node_state_root.namespace_root(sov_state::ProvableNamespace::User);
@@ -343,102 +346,24 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         let (result_sender, result_receiver) = mpsc::channel(Self::MAX_BUFFERED_TXS);
 
         let handle = tokio::runtime::Handle::current().spawn_blocking({
-            let sequencer_address = self.config.da_address.clone();
-            let sequencer_rollup_address = self.config.rollup_address.clone();
-            let admin_addresses = Arc::new(self.config.admin_addresses.clone());
-            let shutdown_notifier = self.shutdown_notifier.clone();
-            let mut checkpoint = checkpoint.clone_with_empty_witness_dropping_temp_cache();
-            let old_rollup_height = checkpoint.rollup_height_to_access();
+            let ctx = RollupBlockTaskContext {
+                checkpoint: checkpoint.clone_with_empty_witness_dropping_temp_cache(),
+                tx_receiver,
+                setup_sender,
+                old_visible_slot_number,
+                next_visible_slot_number,
+                visible_increase,
+                result_sender,
+                shutdown_notifier: self.shutdown_notifier.clone(),
+                user_state_root,
+                old_rollup_height: checkpoint.rollup_height_to_access(),
+                minimum_profit_per_tx,
+                admin_addresses: self.config.admin_addresses.clone().into(),
+                sequencer_rollup_address: self.config.rollup_address.clone(),
+                sequencer_da_address: self.config.da_address.clone(),
+            };
 
-            move || {
-                let _span = tracing::trace_span!(
-                    "preferred_seq_bg_task",
-                    checkpoint_height = %checkpoint.rollup_height_to_access(),
-                )
-                .entered();
-
-                let mut blob_selector_output = BlobSelectorOutput {
-                    selected_blobs: vec![SelectedBlob {
-                        blob_data: BlobDataWithId::Batch(MaybeAsyncBatch::new_async(
-                            tx_receiver,
-                            setup_sender,
-                            result_sender,
-                            minimum_profit_per_tx,
-                            admin_addresses,
-                            sequencer_rollup_address,
-                        )),
-                        reserved_gas_tokens: None, // We overwrite this value below.
-                        sender: sequencer_address.clone(),
-                    }],
-                    visible_slot_number_increase: visible_increase.get().into(),
-                };
-                let stf = StfBlueprint::<S, Rt>::new();
-                let mut rt = Rt::default();
-                let mut kernel = rt.kernel();
-                let mut accessor: KernelStateAccessor<'_, S> =
-                    KernelStateAccessor::from_checkpoint(&kernel, &mut checkpoint);
-                kernel.increment_rollup_height(
-                    &mut accessor,
-                    next_visible_slot_number,
-                    &user_state_root,
-                );
-
-                let non_preferred_selected_blobs = kernel
-                    .get_non_preferred_blobs(
-                        computed_visible_slot_number.as_true().next().range_inclusive(next_visible_slot_number.as_true()),
-                        &mut accessor,
-                        sov_modules_api::NoOpControlFlow,
-                    )
-                    .into_iter()
-                    .map(|b| b.map_batch(MaybeAsyncBatch::<S>::new_sync))
-                    .collect::<Vec<_>>();
-
-                tracing::debug!(
-                    num_non_preferred_blobs = %non_preferred_selected_blobs.len(),
-                    %computed_visible_slot_number,
-                    %next_visible_slot_number,
-                    "Extracted non-preferred blobs",
-                );
-                blob_selector_output.selected_blobs.extend(non_preferred_selected_blobs);
-
-                let next_root = kernel
-                    .visible_hash_for(old_rollup_height.saturating_add(1), &mut accessor)
-                    .unwrap();
-                // Now that we've incremented the rollup height, we can get the next gas price. Do that and use it to compute the amount of funds that we should
-                // reserve for the preferred sequencer.
-                let next_gas_price = kernel
-                    .base_fee_per_gas(&mut accessor)
-                    .unwrap_or(S::initial_base_fee_per_gas());
-                let needed_gas_escrow = S::max_tx_check_costs().checked_value(&next_gas_price).expect("Gas price overflow! This is a bug, please report it.");
-                kernel.escrow_funds_for_preferred_sequencer(needed_gas_escrow, &mut accessor).expect("Failed to escrow funds for the preferred sequencer. The sequencer is too low on funds, which could cause soft confirmations to be invalidated. Increase your bond and restart the sequencer.");
-
-                for blob in blob_selector_output.selected_blobs.iter_mut() {
-                    blob.reserved_gas_tokens = Some(needed_gas_escrow);
-                }
-
-                tracing::trace!(
-                    %next_visible_slot_number,
-                    "Applying batches in user space"
-                );
-                let (_, _, batch_receipts, checkpoint) = stf.apply_batches_in_user_space(
-                    &mut Default::default(),
-                    blob_selector_output,
-                    checkpoint,
-                    ExecutionContext::Sequencer,
-                    next_root,
-                );
-                let mut changes = checkpoint.changes();
-                let accessory_delta = stf.materialize_accessory_state(&mut Default::default(), checkpoint);
-
-                changes.changes.extend(
-                    accessory_delta
-                        .freeze()
-                        .into_iter()
-                        .map(|(k, v)| ((k.clone(), Namespace::Accessory), v.clone())),
-                );
-                drop(shutdown_notifier);
-                (batch_receipts, changes)
-            }
+            move || rollup_block_task_body::<S, Rt>(ctx)
         });
 
         {
@@ -549,6 +474,147 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
         trace!("Successfully ended rollup block");
     }
+}
+
+struct RollupBlockTaskContext<S: Spec> {
+    checkpoint: StateCheckpoint<S>,
+    user_state_root: [u8; 32],
+    old_rollup_height: RollupHeight,
+    old_visible_slot_number: VisibleSlotNumber,
+    next_visible_slot_number: VisibleSlotNumber,
+    visible_increase: VisibleSlotNumberIncrease,
+    // Channels
+    // --------
+    tx_receiver: mpsc::Receiver<FullyBakedTx>,
+    setup_sender: oneshot::Sender<ChangeSet>,
+    result_sender: mpsc::Sender<Result<(TransactionReceipt<S>, TxChangeSet), RejectReason>>,
+    shutdown_notifier: mpsc::Sender<()>,
+    // Config values
+    // --------
+    minimum_profit_per_tx: u128,
+    admin_addresses: Arc<Vec<S::Address>>,
+    sequencer_rollup_address: S::Address,
+    sequencer_da_address: <S::Da as DaSpec>::Address,
+}
+
+fn rollup_block_task_body<S, Rt>(
+    ctx: RollupBlockTaskContext<S>,
+) -> (Vec<BatchReceipt<S>>, ChangeSet)
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
+    let RollupBlockTaskContext {
+        mut checkpoint,
+        user_state_root,
+        old_rollup_height,
+        old_visible_slot_number,
+        next_visible_slot_number,
+        visible_increase,
+        tx_receiver,
+        setup_sender,
+        result_sender,
+        shutdown_notifier,
+        minimum_profit_per_tx,
+        admin_addresses,
+        sequencer_rollup_address,
+        sequencer_da_address,
+    } = ctx;
+
+    let _span = tracing::trace_span!(
+        "preferred_seq_bg_task",
+        checkpoint_height = %checkpoint.rollup_height_to_access(),
+    )
+    .entered();
+
+    let stf = StfBlueprint::<S, Rt>::new();
+    let mut rt = Rt::default();
+    let mut kernel = rt.kernel();
+    let mut accessor: KernelStateAccessor<'_, S> =
+        KernelStateAccessor::from_checkpoint(&kernel, &mut checkpoint);
+    kernel.increment_rollup_height(&mut accessor, next_visible_slot_number, &user_state_root);
+
+    let next_root = kernel
+        .visible_hash_for(old_rollup_height.saturating_add(1), &mut accessor)
+        .unwrap();
+    // Now that we've incremented the rollup height, we can get the next gas price. Do that and use it to compute the amount of funds that we should
+    // reserve for the preferred sequencer.
+    let next_gas_price = kernel
+        .base_fee_per_gas(&mut accessor)
+        .unwrap_or(S::initial_base_fee_per_gas());
+    let needed_gas_escrow = S::max_tx_check_costs()
+        .checked_value(&next_gas_price)
+        .expect("Gas price overflow! This is a bug, please report it.");
+    kernel.escrow_funds_for_preferred_sequencer(needed_gas_escrow, &mut accessor).expect("Failed to escrow funds for the preferred sequencer. The sequencer is too low on funds, which could cause soft confirmations to be invalidated. Increase your bond and restart the sequencer.");
+
+    let blob_selector_output = {
+        let preferred_blob = SelectedBlob {
+            blob_data: BlobDataWithId::Batch(MaybeAsyncBatch::new_async(
+                tx_receiver,
+                setup_sender,
+                result_sender,
+                minimum_profit_per_tx,
+                admin_addresses,
+                sequencer_rollup_address,
+            )),
+            reserved_gas_tokens: Some(needed_gas_escrow),
+            sender: sequencer_da_address.clone(),
+        };
+
+        let non_preferred_blobs = kernel
+            .get_non_preferred_blobs(
+                old_visible_slot_number
+                    .as_true()
+                    .next()
+                    .range_inclusive(next_visible_slot_number.as_true()),
+                &mut accessor,
+                NoOpControlFlow,
+            )
+            .into_iter()
+            .map(|mut b| {
+                // Batches from unregistered sequencers don't reserve any gas
+                // tokens.
+                if b.reserved_gas_tokens.is_some() {
+                    b.reserved_gas_tokens = Some(needed_gas_escrow);
+                }
+                b.map_batch(MaybeAsyncBatch::<S>::new_sync)
+            })
+            .collect::<Vec<_>>();
+
+        tracing::debug!(count = %non_preferred_blobs.len(), "Extracted non-preferred blobs");
+
+        let mut selected_blobs = vec![preferred_blob];
+        selected_blobs.extend(non_preferred_blobs);
+
+        BlobSelectorOutput {
+            selected_blobs,
+            visible_slot_number_increase: visible_increase.get().into(),
+        }
+    };
+
+    tracing::trace!(
+        %next_visible_slot_number,
+        "Applying batches in user space"
+    );
+    let (_, _, batch_receipts, checkpoint) = stf.apply_batches_in_user_space(
+        &mut Default::default(),
+        blob_selector_output,
+        checkpoint,
+        ExecutionContext::Sequencer,
+        next_root,
+    );
+    let mut changes = checkpoint.changes();
+    let accessory_delta = stf.materialize_accessory_state(&mut Default::default(), checkpoint);
+
+    changes.changes.extend(
+        accessory_delta
+            .freeze()
+            .into_iter()
+            .map(|(k, v)| ((k.clone(), Namespace::Accessory), v.clone())),
+    );
+    drop(shutdown_notifier);
+
+    (batch_receipts, changes)
 }
 
 fn reject_reason_to_error(
