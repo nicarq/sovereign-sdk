@@ -643,17 +643,6 @@ where
         // means the sequencer only relies on the cache. FIXME(@neysofu).
         Ok(TxStatus::Unknown)
     }
-
-    async fn submit_batch(
-        &self,
-        txs: Vec<FullyBakedTx>,
-    ) -> anyhow::Result<Option<SubmitBatchReceipt>> {
-        for tx in txs.iter() {
-            self.accept_tx(tx.clone()).await.ok(); // FIXME(@neysofu): handle error.
-        }
-
-        self.inner.lock().await.produce_batch_if_possible().await
-    }
 }
 
 struct PreferredBatchToRestore {

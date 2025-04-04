@@ -228,46 +228,6 @@ paths:
           $ref: "#/components/responses/AggregatedProof"
         "404":
           $ref: "#/components/responses/ApiErrorResponse"
-  /sequencer/batches:
-    post:
-      summary: Submit a batch to the rollup
-      operationId: publish_batch
-      tags:
-        - Sequencer
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                transactions:
-                  type: array
-                  items:
-                    type: string
-                    format: base64
-                  minItems: 1
-                  description: >-
-                    The transactions to be included in the batch, encoded as Base64.
-              required:
-                - transactions
-      responses:
-        "200":
-          description: Success
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    $ref: "#/components/schemas/SubmitBatchReceipt"
-                  meta:
-                    type: object
-                required:
-                  - meta
-        "409":
-          $ref: "#/components/responses/ApiErrorResponse"
-        "500":
-          $ref: "#/components/responses/ApiErrorResponse"
   /sequencer/txs:
     post:
       summary: Submit a transaction to the rollup
@@ -866,15 +826,6 @@ components:
         - published
         - processed
         - finalized
-    SubmitBatchReceipt:
-      type: object
-      properties:
-        tx_hashes:
-          type: array
-          items:
-            $ref: "#/components/schemas/TxHash"
-      required:
-        - tx_hashes
     BaseFeePerGas:
       type: object
       properties:

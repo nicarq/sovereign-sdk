@@ -25,8 +25,7 @@ use tokio::task::JoinHandle;
 use tracing::{info, trace};
 
 use crate::{
-    SequencerConfig, SequencerEvent, SequencerNotReadyDetails, SubmitBatchReceipt, TxHash,
-    TxStatus, TxStatusManager,
+    SequencerConfig, SequencerEvent, SequencerNotReadyDetails, TxHash, TxStatus, TxStatusManager,
 };
 
 /// The [`Sequencer`] trait is responsible for accepting transactions and
@@ -95,12 +94,6 @@ pub trait Sequencer: Sized + Send + Sync + 'static {
     ///
     /// Can be used to query and update the status of transactions.
     fn tx_status_manager(&self) -> &TxStatusManager<<Self::Spec as Spec>::Da>;
-
-    /// Produces a batch containing the given transactions.
-    async fn submit_batch(
-        &self,
-        txs: Vec<FullyBakedTx>,
-    ) -> anyhow::Result<Option<SubmitBatchReceipt>>;
 }
 
 /// A transaction that has been accepted by the batch builder.

@@ -68,11 +68,6 @@ resources:
       uint64Range: Uint64Range
   sequencer:
     subresources:
-      batches:
-        methods:
-          create: post /sequencer/batches
-        models:
-          submittedBatchInfo: SubmitBatchReceipt
       txs:
         methods:
           create: post /sequencer/txs

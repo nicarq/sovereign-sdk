@@ -135,11 +135,7 @@ mod helpers {
             S: Spec,
             S::Address: FromVmAddress<EthereumAddress>,
         {
-            let _submitted_batch_info = self
-                .0
-                .publish_batch_with_serialized_txs(transactions)
-                .await
-                .unwrap();
+            let _ = self.0.send_txs_to_sequencer(transactions).await;
         }
 
         async fn get<T: DeserializeOwned>(&self, url: String) -> T {

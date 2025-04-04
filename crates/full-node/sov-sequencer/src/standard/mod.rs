@@ -26,7 +26,7 @@ use sov_rollup_interface::node::DaSyncState;
 use thiserror::Error;
 use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
-use tracing::{debug, error, trace, warn};
+use tracing::{error, trace, warn};
 
 use self::mempool::{Mempool, MempoolCursor, MempoolTx};
 use crate::common::{
@@ -34,10 +34,7 @@ use crate::common::{
     sender_is_allowed, tx_auth, AcceptedTx, EmptyConfirmation, Sequencer, TxStatusBlobSenderHooks,
     WithCachedTxHashes,
 };
-use crate::{
-    SequencerConfig, SequencerNotReadyDetails, SubmitBatchReceipt, TxHash, TxStatus,
-    TxStatusManager,
-};
+use crate::{SequencerConfig, SequencerNotReadyDetails, TxHash, TxStatus, TxStatusManager};
 
 struct Inner<S, Rt, Da>
 where
@@ -388,6 +385,25 @@ where
     }
 }
 
+#[cfg(feature = "test-utils")]
+#[allow(missing_docs)]
+impl<S, Rt, Da> StdSequencer<S, Rt, Da>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+    Da: DaService<Spec = S::Da>,
+{
+    pub async fn produce_and_submit_batch(&self) -> Option<WithCachedTxHashes<Vec<FullyBakedTx>>> {
+        match self.produce_batch().await {
+            Ok(Some(batch)) => {
+                self.publish_batch(&batch).await.unwrap();
+                Some(batch)
+            }
+            _ => None,
+        }
+    }
+}
+
 #[async_trait]
 impl<S, Rt, Da> Sequencer for StdSequencer<S, Rt, Da>
 where
@@ -660,33 +676,6 @@ where
             Ok(TxStatus::Submitted)
         } else {
             Ok(TxStatus::Unknown)
-        }
-    }
-
-    async fn submit_batch(
-        &self,
-        txs: Vec<FullyBakedTx>,
-    ) -> anyhow::Result<Option<SubmitBatchReceipt>> {
-        for tx in txs.iter() {
-            // FIXME(@neysofu): handle error.
-            if let Err(err) = self.accept_tx(tx.clone()).await {
-                debug!(
-                    ?err,
-                    "Failed to accept transaction while manually submitting batch"
-                );
-            }
-        }
-
-        let batch = self.produce_batch().await?;
-
-        if let Some(batch) = batch {
-            self.publish_batch(&batch).await?;
-
-            Ok(Some(SubmitBatchReceipt {
-                tx_hashes: batch.tx_hashes,
-            }))
-        } else {
-            Ok(None)
         }
     }
 }

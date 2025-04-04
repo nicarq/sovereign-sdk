@@ -13,8 +13,8 @@ use serde_with::serde_as;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::RawTx;
 use sov_rest_utils::{
-    errors, json_obj, preconfigured_router_layers, serve_generic_ws_subscription, to_json_object,
-    ApiResult, ErrorObject, Path,
+    errors, preconfigured_router_layers, serve_generic_ws_subscription, to_json_object, ApiResult,
+    ErrorObject, Path,
 };
 use sov_rollup_interface::da::{DaBlobHash, DaSpec};
 use sov_rollup_interface::node::da::DaService;
@@ -22,7 +22,7 @@ use sov_rollup_interface::TxHash;
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::common::Sequencer;
-use crate::{SequencerNotReadyDetails, SubmitBatchReceipt, TxStatus};
+use crate::{SequencerNotReadyDetails, TxStatus};
 
 /// Provides REST APIs for any [`Sequencer`]. See [`SequencerApis::rest_api_server`].
 #[derive(derivative::Derivative)]
@@ -35,7 +35,6 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
         let state = Self(seq);
         let routes_that_require_synced_node = axum::Router::new()
             .route("/txs", axum::routing::post(Self::axum_accept_tx))
-            .route("/batches", axum::routing::post(Self::axum_submit_batch))
             .with_state(state.clone())
             .layer(middleware::from_fn_with_state(
                 state.clone(),
@@ -184,38 +183,6 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
             status: TxStatus::Submitted,
         }
         .into())
-    }
-
-    async fn axum_submit_batch(
-        sequencer: State<Self>,
-        batch: Json<SubmitBatch>,
-    ) -> ApiResult<SubmitBatchReceipt> {
-        let batch = batch
-            .0
-            .transactions
-            .into_iter()
-            .map(|tx| {
-                let raw_tx = RawTx::new(tx.blob);
-                <Seq::Rt as TransactionAuthenticator<Seq::Spec>>::encode_with_standard_auth(raw_tx)
-            })
-            .collect::<Vec<_>>();
-
-        match sequencer.0.0.submit_batch(batch).await {
-            Ok(Some(info)) => Ok(info.into()),
-            Ok(None) => Err(ErrorObject {
-                status: StatusCode::BAD_REQUEST,
-                title: "Can't produce a batch at this time, wait until the DA has progressed more slots or ensure that valid transactions are available".to_string(),
-                details: json_obj!({}),
-            }.into_response()),
-            Err(err) => Err(ErrorObject {
-                status: StatusCode::CONFLICT,
-                title: "Failed to submit batch".to_string(),
-                details: json_obj!({
-                    "message": err.to_string(),
-                }),
-            }
-            .into_response()),
-        }
     }
 
     async fn subscribe_to_events(

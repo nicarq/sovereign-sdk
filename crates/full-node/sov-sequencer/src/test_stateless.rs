@@ -23,9 +23,7 @@ use crate::common::{
     loop_call_update_state, loop_send_tx_notifications, AcceptedTx, EmptyConfirmation, Sequencer,
     TxStatusBlobSenderHooks, WithCachedTxHashes,
 };
-use crate::{
-    SequencerConfig, SequencerNotReadyDetails, SubmitBatchReceipt, TxStatus, TxStatusManager,
-};
+use crate::{SequencerConfig, SequencerNotReadyDetails, TxStatus, TxStatusManager};
 
 #[derive(Clone)]
 struct Inner<S: Spec> {
@@ -228,28 +226,5 @@ where
         tx: FullyBakedTx,
     ) -> Result<AcceptedTx<Self::Confirmation>, ErrorObject> {
         Ok(self.accept_encoded_tx(tx).await)
-    }
-
-    async fn submit_batch(
-        &self,
-        txs: Vec<FullyBakedTx>,
-    ) -> anyhow::Result<Option<SubmitBatchReceipt>> {
-        for tx in txs.iter() {
-            self.accept_tx(tx.clone()).await.ok();
-        }
-
-        let WithCachedTxHashes {
-            inner: txs,
-            tx_hashes,
-        } = self.take_batch().await;
-        let serialized_batch = borsh::to_vec::<Vec<FullyBakedTx>>(&txs)?.into();
-
-        self.blob_sender
-            .lock()
-            .await
-            .publish_batch_blob(serialized_batch, new_blob_id())
-            .await?;
-
-        Ok(Some(SubmitBatchReceipt { tx_hashes }))
     }
 }

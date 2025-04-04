@@ -60,22 +60,6 @@ impl Client {
         self.subscribe_to_ws("/ledger/aggregated-proofs/latest/ws")
             .await
     }
-    /// Sends transactions to the sequencer for immediate publication.
-    pub async fn publish_batch_with_serialized_txs<Tx: BorshSerialize>(
-        &self,
-        txs: &[Tx],
-    ) -> Result<types::SubmitBatchReceipt, Error<types::PublishBatchResponse>> {
-        self.send_txs_to_sequencer(txs)
-            .await
-            .map_err(|err| Error::PreHookError(err.to_string()))?;
-
-        let publish_batch_response = self
-            .publish_batch(&types::PublishBatchBody {
-                transactions: vec![],
-            })
-            .await?;
-        Ok(publish_batch_response.data.clone().unwrap())
-    }
 
     pub async fn send_tx_to_sequencer<Tx: BorshSerialize>(
         &self,
