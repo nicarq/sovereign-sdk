@@ -77,10 +77,9 @@ async fn rpc_subscribe() {
         TxStatus::Unknown
     );
 
-    client
-        .publish_batch_with_serialized_txs(&[txs[0].tx_object.clone()])
-        .await
-        .unwrap();
+    let tx_objs = txs.into_iter().map(|tx| tx.tx_object).collect::<Vec<_>>();
+    let _ = client.send_txs_to_sequencer(&tx_objs).await;
+    let _ = sequencer.sequencer.produce_and_submit_batch().await;
 
     // The transaction status should change once it enters the mempool...
     assert_eq!(

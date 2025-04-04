@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use axum::http::StatusCode;
 use base64::prelude::*;
 use borsh::BorshDeserialize;
 use sov_api_spec::types;
@@ -17,22 +16,6 @@ use sov_test_utils::{TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_USER_BALANCE};
 use crate::utils::{
     build_tx, generate_paymaster_tx, new_sequencer, valid_tx_bytes, wrap_with_auth, RT,
 };
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_submit_on_empty_mempool() {
-    let sequencer = new_sequencer().await;
-    let client = sequencer.client();
-
-    let error_response = client
-        .publish_batch(&types::PublishBatchBody {
-            transactions: vec![],
-        })
-        .await
-        .unwrap_err();
-
-    dbg!(&error_response);
-    assert_eq!(error_response.status().map(|s| s.as_u16()), Some(400));
-}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_submit_happy_path() {
@@ -54,14 +37,7 @@ async fn test_submit_happy_path() {
         })
         .await
         .unwrap();
-
-    sequencer
-        .client()
-        .publish_batch(&types::PublishBatchBody {
-            transactions: vec![],
-        })
-        .await
-        .unwrap();
+    let _ = sequencer.sequencer.produce_and_submit_batch().await;
 
     let mut submitted_block = sequencer.da_service.get_block_at(1).await.unwrap();
     let block_data = submitted_block.batch_blobs[0].full_data();
@@ -87,12 +63,7 @@ async fn test_accept_tx() {
         })
         .await
         .unwrap();
-    client
-        .publish_batch(&types::PublishBatchBody {
-            transactions: vec![],
-        })
-        .await
-        .unwrap();
+    let _ = sequencer.sequencer.produce_and_submit_batch().await;
 
     let mut submitted_block = sequencer.da_service.get_block_at(1).await.unwrap();
     let block_data = submitted_block.batch_blobs[0].full_data();
@@ -144,13 +115,7 @@ async fn test_batch_building_with_out_of_gas_error() {
         })
         .await
         .unwrap();
-
-    client
-        .publish_batch(&types::PublishBatchBody {
-            transactions: vec![],
-        })
-        .await
-        .unwrap();
+    let _ = sequencer.sequencer.produce_and_submit_batch().await;
 
     // As a sanity check, assert that the second transaction wasn't included
     let mut submitted_block = sequencer.da_service.get_block_at(1).await.unwrap();
@@ -188,21 +153,15 @@ async fn not_sequencer_safe_txs_are_restricted() {
             })
             .await
             .unwrap();
-        if let Err(e) = client
-            .publish_batch(&types::PublishBatchBody {
-                transactions: vec![],
-            })
-            .await
-        {
-            assert!(
-                // We return "BAD_REQUEST" on manual calls to publish_batch when no transactions are available.
-                e.status()
-                    .is_some_and(|status| status == StatusCode::BAD_REQUEST),
-                "{e}"
-            );
-        } else {
-            panic!("Sequencer accepted admin tx from non-admin sender");
-        }
+
+        assert!(
+            sequencer
+                .sequencer
+                .produce_and_submit_batch()
+                .await
+                .is_none(),
+            "Sequencer accepted admin tx from non-admin sender"
+        );
     }
 }
 
@@ -235,11 +194,13 @@ async fn sequencer_safe_txs_from_admins_are_accepted() {
             .await
             .unwrap();
 
-        client
-            .publish_batch(&types::PublishBatchBody {
-                transactions: vec![],
-            })
-            .await
-            .expect("Batch publication should succeed because the provided tx is valid and comes from an admin");
+        assert!(
+            sequencer
+                .sequencer
+                .produce_and_submit_batch()
+                .await
+                .is_some(),
+            "Batch publication should succeed because the provided tx is valid and comes from an admin"
+        );
     }
 }

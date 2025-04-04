@@ -103,10 +103,7 @@ async fn submit_blobs_increasing_size() -> anyhow::Result<()> {
             ),
         );
 
-        client
-            .client
-            .publish_batch_with_serialized_txs(&[tx])
-            .await?;
+        let _ = client.client.send_tx_to_sequencer(&tx).await;
         let slot = slot_subscription.next().await.unwrap()?;
         println!("SLOT: {} received", slot.number);
         tokio::time::sleep(Duration::from_millis(1000)).await;

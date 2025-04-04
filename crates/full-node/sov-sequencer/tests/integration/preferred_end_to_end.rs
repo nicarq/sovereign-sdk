@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use sov_api_spec::types::{self as api_types, PublishBatchBody, TxReceiptResult};
+use sov_api_spec::types::{self as api_types, TxReceiptResult};
 use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
@@ -97,8 +97,6 @@ enum TestingAction {
     QuerySetValueHistorical,
     /// A new DA slot will be produced and made available to the node and sequencer.
     NewDaSlot,
-    /// Terminates the in-progress batch and publishes it to the DA layer.
-    PublishBatch,
     /// Sets the pause state of update state execution to provided value.
     /// Allows disabling update_state from running inside the sequencer.
     PauseUpdateStateExecution(bool),
@@ -646,6 +644,7 @@ async fn visible_hashes_match_across_node_and_sequencer() {
 /// to DA (ensuring that the state changes are not visible to the node), then querying the state via the REST API.
 // TODO(@neysofu): unflaky it.
 #[tokio::test(flavor = "multi_thread")]
+#[ignore = "Broken by removal of /batches endpoint, will be testable again when we add node/sequencer state comparision support"]
 async fn flaky_test_hooks_state_is_visible() {
     const FINALIZATION_BLOCKS: u32 = 3;
     let genesis_config =
@@ -759,16 +758,6 @@ async fn flaky_test_hooks_state_is_visible() {
         .unwrap();
     sleep(Duration::from_millis(200)).await;
 
-    // Finish the in-progress batch.
-    test_rollup
-        .api_client
-        .publish_batch(&PublishBatchBody {
-            transactions: vec![],
-        })
-        .await
-        .unwrap();
-
-    tokio::time::sleep(Duration::from_millis(200)).await;
     let begin_slot_count = query_hook_counter("begin-rollup-block").await;
     assert_eq!(begin_slot_count, 1);
     let end_slot_count = query_hook_counter("end-rollup-block").await;
@@ -1168,15 +1157,6 @@ async fn run_action_against_test_rollup(
                     })
                     .await?;
             }
-        }
-        TestingAction::PublishBatch => {
-            test_rollup
-                .api_client
-                .publish_batch(&PublishBatchBody {
-                    transactions: vec![],
-                })
-                .await
-                .ok();
         }
         TestingAction::NewDaSlot { .. } => {
             test_rollup.da_service.produce_block_now().await.unwrap();

@@ -407,7 +407,7 @@ impl TestClient {
 
         self.node_client
             .client
-            .publish_batch_with_serialized_txs(transactions)
+            .send_txs_to_sequencer(transactions)
             .await?;
 
         let _ = slot_subscription.next().await;

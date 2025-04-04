@@ -106,7 +106,6 @@ async fn test_thin_direct_same_transactions() {
         let block = test_rollup.da_service.get_block_at(head + i).await.unwrap();
         if !block.batch_blobs.is_empty() {
             height_to_check = head + i;
-            trigger_publish_batch(test_sequencer_client).await.unwrap();
             test_rollup.da_service.produce_block_now().await.unwrap();
             break;
         }
@@ -136,18 +135,6 @@ fn generate_tx_with_nonce(user: &TestUser<TestSpec>, nonce: u64) -> RawTx {
     );
 
     RawTx::new(borsh::to_vec(&tx).unwrap())
-}
-
-async fn trigger_publish_batch(api_client: &sov_api_spec::client::Client) -> anyhow::Result<()> {
-    let request_body = sov_api_spec::types::PublishBatchBody {
-        transactions: vec![],
-    };
-    let response = api_client.publish_batch(&request_body).await?;
-    let _receipt = response
-        .data
-        .clone()
-        .ok_or_else(|| anyhow::anyhow!("Empty publish batch receipt data was empty"))?;
-    Ok(())
 }
 
 async fn accept_tx_in_rollup(
