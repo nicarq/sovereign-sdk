@@ -108,24 +108,22 @@ where
         debug!(visible_increase, "No in-progress batch, starting a new one");
 
         let node_state_root = self.node_root_hash().map_err(database_error_500)?;
+        let visible_slot_number_after_increase = checkpoint
+            .current_visible_slot_number()
+            .advance(visible_increase.get().into());
 
         // If the database operation fails here it's okay because we still
         // haven't touched the background task nor modified `self`, so
         // everything will be left in a valid state.
         self.db
-            .start_batch(
-                VisibleSlotNumber::new_dangerous(
-                    self.latest_info.latest_finalized_slot_number.get(),
-                ),
-                visible_increase,
-            )
+            .start_batch(visible_slot_number_after_increase, visible_increase)
             .await
             .map_err(database_error_500)?;
 
         self.block_executor
             .start_rollup_block(
+                visible_slot_number_after_increase,
                 visible_increase,
-                None,
                 &node_state_root,
                 self.config.sequencer_kind_config.minimum_profit_per_tx,
             )
