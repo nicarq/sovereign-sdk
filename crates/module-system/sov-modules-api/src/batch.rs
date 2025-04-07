@@ -321,7 +321,7 @@ pub trait IncrementalBatch<S: Spec>: Iterator<Item = (FullyBakedTx, Self::Contro
     fn id(&self) -> Option<[u8; 32]>;
 
     /// Runs just before the batch is applied.
-    fn pre_flight(&mut self, state_checkpoint: &StateCheckpoint<S>);
+    fn pre_flight(&mut self, state_checkpoint: &mut StateCheckpoint<S>);
 
     /// The address of the sequencer that submitted the batch.
     fn sequencer_address(&self) -> S::Address;
@@ -405,7 +405,7 @@ impl<S: Spec, CF: InjectedControlFlow<S> + Clone> IncrementalBatch<S>
         Some(self.id)
     }
 
-    fn pre_flight(&mut self, _state_checkpoint: &StateCheckpoint<S>) {
+    fn pre_flight(&mut self, _state_checkpoint: &mut StateCheckpoint<S>) {
         // Do nothing
     }
 

@@ -67,8 +67,8 @@ impl<S: Storage> Delta<S> {
 
         (
             StateAccesses {
-                user: user_cache.into(),
-                kernel: kernel_cache.into(),
+                user: user_cache.to_ordered_writes_and_reads(),
+                kernel: kernel_cache.to_ordered_writes_and_reads(),
             },
             AccessoryDelta {
                 version,
@@ -80,7 +80,8 @@ impl<S: Storage> Delta<S> {
         )
     }
 
-    pub(super) fn changes(&self) -> ChangeSet {
+    pub(super) fn changes(&mut self) -> ChangeSet {
+        self.commit_revertable_storage_cache();
         let changes = self
             .user_cache
             .get_writes()
@@ -101,6 +102,16 @@ impl<S: Storage> Delta<S> {
 }
 
 impl<S: Storage> Delta<S> {
+    pub fn commit_revertable_storage_cache(&mut self) {
+        self.user_cache.commit_revertable_storage_cache();
+        self.kernel_cache.commit_revertable_storage_cache();
+    }
+
+    pub fn discard_revertable_storage_cache(&mut self) {
+        self.user_cache.discard_revertable_storage_cache();
+        self.kernel_cache.discard_revertable_storage_cache();
+    }
+
     pub fn is_value_cached(&self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
         match namespace {
             Namespace::User => self.user_cache.is_value_cached(key),

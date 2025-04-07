@@ -87,7 +87,7 @@ impl<S: Spec, I: StateProvider<S>> TxScratchpad<S, I> {
 
     /// Gets an iterator over the diff currently written onto this scratchpad. These changes will
     /// be reverted or committed as a unit.
-    pub fn changes(&self) -> TxChangeSet {
+    pub fn tx_changes(&self) -> TxChangeSet {
         TxChangeSet(self.inner.changes())
     }
 

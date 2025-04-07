@@ -1,13 +1,14 @@
 mod da_simulation;
 mod registered;
+mod sequencer;
 mod stf_tests;
 mod tx_revert_tests;
 mod unregistered;
-
 use std::env;
 
 use sov_bank::Bank;
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
+use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{
@@ -81,7 +82,7 @@ fn setup(
 }
 
 #[derive(PartialEq, Eq)]
-enum TxStatus {
+pub(crate) enum TxStatus {
     Success,
     BadGeneration,
     BadChainId,
@@ -269,4 +270,179 @@ pub(crate) fn reset_constants() {
         "SOV_TEST_CONST_OVERRIDE_MAX_UNREGISTERED_SEQUENCER_EXEC_GAS_PER_TX",
         "[10000000,10000000]",
     );
+}
+
+pub(crate) mod helpers {
+    use sov_attester_incentives::AttesterIncentives;
+    use sov_bank::IntoPayable;
+    use sov_modules_api::macros::config_value;
+    use sov_modules_api::transaction::PriorityFeeBips;
+    use sov_modules_api::{Amount, DaSpec, FullyBakedTx, ModuleInfo, Spec};
+    use sov_test_utils::{EncodeCall, TestSequencer, TestUser};
+    use sov_value_setter::{CallMessage, ValueSetter};
+
+    use super::{IntegTestRuntime, *};
+    use crate::stf_blueprint::{
+        create_tx_bad_sender, create_tx_bad_sig, create_tx_out_of_gas, create_tx_valid,
+        IntegTestRuntimeCall,
+    };
+
+    pub(crate) struct Actors {
+        pub(crate) admin_account: TestUser<S>,
+        pub(crate) not_admin_account: TestUser<S>,
+        pub(crate) sequencer_account: TestSequencer<S>,
+    }
+
+    impl Actors {
+        pub(crate) fn balances(&self, state: &mut ApiStateAccessor<S>) -> Balances {
+            let attester_module = AttesterIncentives::<S>::default();
+            Balances {
+                admin_balance: get_balance(&self.admin_account.address(), state),
+                not_admin_balance: get_balance(&self.not_admin_account.address(), state),
+                attester_module_balance: get_balance(attester_module.id().to_payable(), state),
+                sequencer_bond: get_seq_bond(&self.sequencer_account.da_address, state).unwrap(),
+            }
+        }
+    }
+
+    #[derive(Debug, Eq, PartialEq)]
+    pub(crate) struct Balances {
+        pub(crate) admin_balance: Amount,
+        pub(crate) not_admin_balance: Amount,
+        pub(crate) attester_module_balance: Amount,
+        pub(crate) sequencer_bond: Amount,
+    }
+
+    impl Balances {
+        pub(crate) fn total_balance(&self) -> Amount {
+            self.admin_balance
+                .checked_add(self.not_admin_balance)
+                .unwrap()
+                .checked_add(self.sequencer_bond)
+                .unwrap()
+                .checked_add(self.attester_module_balance)
+                .unwrap()
+        }
+    }
+
+    pub(crate) fn create_txs(
+        statuses: &[TxStatus],
+        max_priority_fee_bips: PriorityFeeBips,
+        admin: &TestUser<S>,
+        not_admin: &TestUser<S>,
+    ) -> Vec<FullyBakedTx> {
+        let mut generation = 10;
+        let mut txs: Vec<FullyBakedTx> = Vec::new();
+        for status in statuses {
+            match status {
+                TxStatus::Success => {
+                    let tx = create_tx_valid(
+                        generation,
+                        max_priority_fee_bips,
+                        admin,
+                        config_value!("CHAIN_ID"),
+                        encode_message(None),
+                    );
+                    txs.push(encode(tx));
+                    generation += 1;
+                }
+                TxStatus::BadGeneration => {
+                    if generation == 10 {
+                        panic!("The first transaction will always have a valid generation");
+                    } else {
+                        let tx = create_tx_valid(
+                            0,
+                            max_priority_fee_bips,
+                            admin,
+                            config_value!("CHAIN_ID"),
+                            encode_message(None),
+                        );
+                        txs.push(encode(tx));
+                    }
+                }
+                TxStatus::BadChainId => {
+                    let tx = create_tx_valid(
+                        generation,
+                        max_priority_fee_bips,
+                        admin,
+                        config_value!("CHAIN_ID") + 1,
+                        encode_message(None),
+                    );
+                    txs.push(encode(tx));
+                }
+
+                TxStatus::BadSignature => {
+                    let tx = create_tx_bad_sig(
+                        generation,
+                        max_priority_fee_bips,
+                        admin,
+                        config_value!("CHAIN_ID"),
+                        encode_message(None),
+                    );
+                    txs.push(encode(tx));
+                }
+                TxStatus::OutOfGas => {
+                    let tx = create_tx_out_of_gas(
+                        generation,
+                        max_priority_fee_bips,
+                        admin,
+                        config_value!("CHAIN_ID"),
+                        encode_message(None),
+                    );
+                    txs.push(encode(tx));
+                }
+                TxStatus::Reverted => {
+                    // A call message send by not admin will be reverted.
+                    let tx = create_tx_valid(
+                        0,
+                        max_priority_fee_bips,
+                        not_admin,
+                        config_value!("CHAIN_ID"),
+                        encode_message(None),
+                    );
+                    txs.push(encode(tx));
+                }
+                TxStatus::BadSerialization => {
+                    let tx = FullyBakedTx::new(vec![1, 2, 3]);
+                    txs.push(tx);
+                }
+                TxStatus::SignerDoesNotExist => {
+                    let tx = create_tx_bad_sender(
+                        0,
+                        max_priority_fee_bips,
+                        config_value!("CHAIN_ID"),
+                        encode_message(None),
+                    );
+                    txs.push(encode(tx));
+                }
+            }
+        }
+        txs
+    }
+
+    pub(crate) fn create_blob(
+        statuses: &[TxStatus],
+        max_priority_fee_bips: PriorityFeeBips,
+        admin: &TestUser<S>,
+        not_admin: &TestUser<S>,
+        seq_da_address: <<S as Spec>::Da as DaSpec>::Address,
+    ) -> MockBlob {
+        let txs: Vec<FullyBakedTx> = create_txs(statuses, max_priority_fee_bips, admin, not_admin);
+
+        let blob = borsh::to_vec(&txs).unwrap();
+        MockBlob::new_with_hash(blob, seq_da_address)
+    }
+
+    pub fn encode_message(gas: Option<<S as Spec>::Gas>) -> IntegTestRuntimeCall<S> {
+        <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::to_decodable(CallMessage::SetValue {
+            value: 8,
+            gas,
+        })
+    }
+
+    pub fn encode(tx: Transaction<IntegTestRuntime<S>, S>) -> FullyBakedTx {
+        <IntegTestRuntime<S> as TransactionAuthenticator<S>>::encode_with_standard_auth(RawTx::new(
+            borsh::to_vec(&tx).unwrap(),
+        ))
+    }
 }

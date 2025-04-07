@@ -155,7 +155,7 @@ impl<S: Spec> AsyncBatchResponder<S> {
         };
 
         if !receipt.receipt.is_successful() {
-            self.send_item(Ok((receipt, dirty_scratchpad.changes())));
+            self.send_item(Ok((receipt, dirty_scratchpad.tx_changes())));
             return (dirty_scratchpad.revert(), TxControlFlow::IgnoreTx);
         }
 
@@ -167,7 +167,7 @@ impl<S: Spec> AsyncBatchResponder<S> {
             return (dirty_scratchpad.revert(), TxControlFlow::IgnoreTx);
         }
 
-        self.send_item(Ok((receipt.clone(), dirty_scratchpad.changes())));
+        self.send_item(Ok((receipt.clone(), dirty_scratchpad.tx_changes())));
         (
             dirty_scratchpad.commit(),
             TxControlFlow::ContinueProcessing(receipt),
@@ -192,7 +192,7 @@ impl<S: Spec> IncrementalBatch<S> for MaybeAsyncBatch<S> {
         }
     }
 
-    fn pre_flight(&mut self, state_checkpoint: &StateCheckpoint<S>) {
+    fn pre_flight(&mut self, state_checkpoint: &mut StateCheckpoint<S>) {
         match self {
             MaybeAsyncBatch::Async { setup_sender, .. } => {
                 let changes = state_checkpoint.changes();
