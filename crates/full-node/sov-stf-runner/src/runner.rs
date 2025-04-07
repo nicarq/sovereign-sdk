@@ -29,7 +29,7 @@ use tracing::{debug, info, trace};
 use crate::da_pre_fetcher::FinalizedBlocksBulkFetcher;
 use crate::processes::{new_stf_info_channel, Receiver};
 use crate::state_manager::StateManager;
-use crate::{MonitoringConfig, ProofManagerConfig, RunnerConfig};
+use crate::{CorsConfiguration, MonitoringConfig, ProofManagerConfig, RunnerConfig};
 
 type GenesisParams<ST, InnerVm, OuterVm, Da> =
     <ST as StateTransitionFunction<InnerVm, OuterVm, Da>>::GenesisParams;
@@ -259,12 +259,14 @@ where
         &mut self,
         router: axum::Router<()>,
         methods: RpcModule<()>,
+        cors_configuration: CorsConfiguration,
     ) -> anyhow::Result<SocketAddr> {
         let (http_task_handle, rest_address) = crate::http::start_http_server(
             &self.listen_address_http,
             router,
             methods,
             self.secondary_shutdown_sender.subscribe(),
+            cors_configuration,
         )
         .await?;
 

@@ -52,18 +52,20 @@ pub struct HttpServerConfig {
 ///
 /// # Default
 ///
-/// CORS makes local development easier, so it's enabled by default.
+/// Cross-origin resource sharing (CORS) makes local development easier, so it's enabled by default
 ///
 /// In production, one may want to disable it and let your reverse proxy
 /// handle CORS instead.
-#[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+/// Security note:
+/// Allowing CORS in production allows making requests to rollup node any website on the Internet.
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CorsConfiguration {
     /// Enables CORS with a permissive policy, intended for local development.
     #[default]
-    Enabled,
+    Permissive,
     /// Disables CORS.
-    Disabled,
+    Restrictive,
 }
 
 impl HttpServerConfig {
@@ -80,7 +82,7 @@ impl HttpServerConfig {
             bind_host: "127.0.0.1".to_string(),
             bind_port: port,
             public_address: None,
-            cors: CorsConfiguration::Enabled,
+            cors: CorsConfiguration::Permissive,
         }
     }
 }
@@ -164,7 +166,7 @@ mod tests {
             bind_host = "127.0.0.1"
             bind_port = 12346
             public_address = "https://rollup.sovereign.xyz"
-            cors = "disabled"
+            cors = "restrictive"
             [monitoring]
             telegraf_address = "udp://192.168.4.5:8543"
             max_datagram_size = 1024
