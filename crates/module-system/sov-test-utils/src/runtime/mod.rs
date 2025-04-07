@@ -984,6 +984,7 @@ impl<S: Spec> InjectedControlFlow<S> for SeqControlFlow {
         };
 
         if !receipt.receipt.is_successful() {
+            let _ = dirty_scratchpad.tx_changes();
             return (dirty_scratchpad.revert(), TxControlFlow::IgnoreTx);
         }
 

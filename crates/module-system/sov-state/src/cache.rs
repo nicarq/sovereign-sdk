@@ -1,6 +1,7 @@
 //! Cache key/value definitions
 
 use std::collections::hash_map::Entry;
+use std::mem;
 
 use sov_rollup_interface::common::SlotNumber;
 
@@ -88,54 +89,122 @@ impl Access {
     }
 }
 
-/// [`CacheLog`] keeps track of the original and current values of each key accessed.
-/// By tracking original values, we can detect and eliminate write patterns where a key is
-/// changed temporarily and then reset to its original value
-#[derive(Default, Debug, Clone)]
-struct CacheLog {
-    log: std::collections::HashMap<SlotKey, Access>,
-}
-
-impl CacheLog {
-    // Returns the owned set of key/value pairs of the cache.
-    fn take_writes(self) -> Vec<(SlotKey, Option<SlotValue>)> {
-        self.log
-            .into_iter()
-            .filter_map(|(k, mut access)| access.modified_mut().map(|value| (k, value.take())))
-            .collect()
+mod internal {
+    use super::*;
+    /// [`CacheLog`] keeps track of the original and current values of each key accessed.
+    /// By tracking original values, we can detect and eliminate write patterns where a key is
+    /// changed temporarily and then reset to its original value
+    #[derive(Default, Debug, Clone)]
+    pub(crate) struct CacheLog {
+        revertable_log: std::collections::HashMap<SlotKey, Access>,
+        log: std::collections::HashMap<SlotKey, Access>,
     }
 
-    // Adds a read entry to the cache.
-    fn add_read(&mut self, key: SlotKey, value: Option<NodeLeafAndMaybeValue>) {
-        match self.log.entry(key) {
-            Entry::Occupied(existing) => {
-                // Sanity check.
-                panic!(
-                    "Detected multiple calls to `add_read` for the same key.: {:?}",
-                    existing.key()
-                );
-            }
-            Entry::Vacant(vacancy) => vacancy.insert(Access::Read { original: value }),
-        };
-    }
+    impl CacheLog {
+        // This method is used to get all the changeset from the cache. The `revertable_log`
+        // shoule be either merged or discarded before calling this method.
+        pub(crate) fn iter(&self) -> impl Iterator<Item = (&SlotKey, &Access)> {
+            assert!(
+                self.revertable_log.is_empty(),
+                "Revertable cache should be merged or discarded before calling `iter`"
+            );
+            self.log.iter()
+        }
 
-    // Adds a write entry to the cache.
-    fn add_write(&mut self, key: SlotKey, value: Option<SlotValue>) -> IsValueCached {
-        match self.log.entry(key) {
-            Entry::Occupied(mut existing) => {
-                let out = IsValueCached::Yes(AccessSize::Write(
-                    value.as_ref().map(|v| v.size()).unwrap_or(0),
-                ));
-                existing.get_mut().add_write(value);
-                out
+        // This method is used to take all the changeset from the cache. The `revertable_log`
+        // shoule be either merged or discarded before calling this method.
+        pub(crate) fn take_writes(self) -> Vec<(SlotKey, Option<SlotValue>)> {
+            assert!(
+                self.revertable_log.is_empty(),
+                "Revertable cache should be merged or discarded before calling `take_writes`"
+            );
+            self.log
+                .into_iter()
+                .filter_map(|(k, mut access)| access.modified_mut().map(|value| (k, value.take())))
+                .collect()
+        }
+
+        pub(crate) fn get(&self, key: &SlotKey) -> Option<&Access> {
+            self.revertable_log.get(key).or_else(|| self.log.get(key))
+        }
+
+        pub(crate) fn get_mut(&mut self, key: &SlotKey) -> Option<&mut Access> {
+            self.revertable_log
+                .get_mut(key)
+                .or_else(|| self.log.get_mut(key))
+        }
+
+        // Adds a read entry to the cache. Caller must guarantee that the key is not already present in the cache.
+        pub(crate) fn add_read(&mut self, key: SlotKey, value: Option<NodeLeafAndMaybeValue>) {
+            // We do the sanity check for `revertable_log` because it is free.
+            match self.revertable_log.entry(key) {
+                Entry::Occupied(existing) => {
+                    // Sanity check.
+                    panic!(
+                        "Detected multiple calls to `add_read` for the same key.: {:?}",
+                        existing.key()
+                    );
+                }
+                Entry::Vacant(vacancy) => vacancy.insert(Access::Read { original: value }),
+            };
+        }
+
+        // Adds a write entry to the cache.
+        pub(crate) fn add_write(
+            &mut self,
+            key: SlotKey,
+            value: Option<SlotValue>,
+        ) -> IsValueCached {
+            let out = IsValueCached::Yes(AccessSize::Write(
+                value.as_ref().map(|v| v.size()).unwrap_or(0),
+            ));
+
+            match self.revertable_log.entry(key.clone()) {
+                Entry::Occupied(mut existing) => {
+                    existing.get_mut().add_write(value);
+                    out
+                }
+                Entry::Vacant(vacancy) => {
+                    let out = match self.log.entry(key) {
+                        Entry::Occupied(_) => out,
+                        Entry::Vacant(_) => IsValueCached::No,
+                    };
+                    // The write is added only to `revertable_log`.
+                    // It will later be either committed or discarded.
+                    vacancy.insert(Access::Write { modified: value });
+                    out
+                }
             }
-            Entry::Vacant(vacancy) => {
-                vacancy.insert(Access::Write { modified: value });
-                IsValueCached::No
+        }
+
+        pub(crate) fn commit_revertable_log(&mut self) {
+            for (k, v) in self.revertable_log.drain() {
+                match v {
+                    // 1. merge reads
+                    Access::Read { original: _ } => {
+                        let is_new = self.log.insert(k, v).is_none();
+                        assert!(is_new, "The read is already present in the log");
+                    }
+                    // 2. merge writes
+                    Access::Write { modified } => match self.log.entry(k) {
+                        Entry::Occupied(mut existing) => {
+                            existing.get_mut().add_write(modified);
+                        }
+                        Entry::Vacant(vacancy) => {
+                            vacancy.insert(Access::Write { modified });
+                        }
+                    },
+                }
             }
+        }
+
+        pub(crate) fn discard_revertable_log(&mut self) {
+            self.revertable_log.clear();
         }
     }
 }
+
+use internal::CacheLog;
 
 /// Caches reads and writes for a (key, value) pair. On the first read the value is fetched
 /// from an external source represented by the `ValueReader` trait. On following reads,
@@ -143,7 +212,9 @@ impl CacheLog {
 #[derive(Default, Debug, Clone)]
 pub struct ProvableStorageCache<N> {
     // Transaction cache.
-    tx_cache: CacheLog,
+    cache: CacheLog,
+    //
+    revertable_ordered_reads: Vec<(SlotKey, Option<NodeLeaf>)>,
     // Ordered reads and writes.
     ordered_db_reads: Vec<(SlotKey, Option<NodeLeaf>)>,
     phantom: core::marker::PhantomData<N>,
@@ -168,19 +239,43 @@ pub struct ProvableStorageCache<N> {
 // The key difference is that in ZK mode, values are loaded lazily, only when needed, whereas in native mode, values are eagerly
 // fetched and cached—even when only requesting the size. This is because, in native execution, it's acceptable to cache the full
 // value, but in ZK execution, arbitrary large values cannot be stored as hints in the witness.
-
 impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
+    /// Commit the revertable part of the `ProvableStorageCache`.
+    pub fn commit_revertable_storage_cache(&mut self) {
+        let revertable_ordered_reads = mem::take(&mut self.revertable_ordered_reads);
+        self.ordered_db_reads.extend(revertable_ordered_reads);
+        self.cache.commit_revertable_log();
+    }
+
+    /// Discards the revertable part of the `ProvableStorageCache`.
+    pub fn discard_revertable_storage_cache(&mut self) {
+        self.revertable_ordered_reads.clear();
+        self.cache.discard_revertable_log();
+    }
+
     /// Returns an iterator over the writes
     pub fn get_writes(&self) -> impl Iterator<Item = (&SlotKey, Option<&SlotValue>)> {
-        self.tx_cache
-            .log
+        self.cache
             .iter()
             .filter_map(|(k, access)| access.modified().map(|v| (k, v)))
     }
 
+    /// Converts the `ProvableStorageCache` into `OrderedReadsAndWrites`.
+    pub fn to_ordered_writes_and_reads(mut self) -> OrderedReadsAndWrites {
+        self.commit_revertable_storage_cache();
+        let mut writes = self.cache.take_writes();
+        //This TODO is for performance enhancement, not a security concern.
+        // TODO: Make this more efficient
+        writes.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
+        OrderedReadsAndWrites {
+            ordered_reads: self.ordered_db_reads,
+            ordered_writes: writes,
+        }
+    }
+
     /// Checks if a value corresponding to a given key is cached.
     pub fn is_value_cached(&self, key: &SlotKey) -> IsValueCached {
-        if let Some(access) = self.tx_cache.log.get(key) {
+        if let Some(access) = self.cache.get(key) {
             IsValueCached::Yes(access.as_access_size())
         } else {
             IsValueCached::No
@@ -195,7 +290,7 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         witness: &S::Witness,
         version: Option<SlotNumber>,
     ) -> Option<u32> {
-        match self.tx_cache.log.get(key) {
+        match self.cache.get(key) {
             Some(Access::Read { original }) => original.as_ref().map(|node| node.leaf.size),
             Some(Access::Write { modified }) => modified.as_ref().map(SlotValue::size),
             None => {
@@ -215,7 +310,7 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         witness: &S::Witness,
         version: Option<SlotNumber>,
     ) -> Option<SlotValue> {
-        if let Some(access) = self.tx_cache.log.get_mut(key) {
+        if let Some(access) = self.cache.get_mut(key) {
             match access {
                 Access::Read {
                     original: Some(node),
@@ -259,20 +354,20 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
 
     /// Replaces the keyed value on the storage.
     pub fn set(&mut self, key: &SlotKey, value: SlotValue) {
-        self.tx_cache.add_write(key.clone(), Some(value));
+        self.cache.add_write(key.clone(), Some(value));
     }
 
     /// Deletes a keyed value from the cache.
     pub fn delete(&mut self, key: &SlotKey) {
-        self.tx_cache.add_write(key.clone(), None);
+        self.cache.add_write(key.clone(), None);
     }
 
     // This method can be called only once per given key.
     fn add_read(&mut self, key: SlotKey, node: Option<NodeLeafAndMaybeValue>) {
-        self.ordered_db_reads
+        self.revertable_ordered_reads
             .push((key.clone(), node.as_ref().map(|n| n.leaf)));
 
-        self.tx_cache.add_read(key, node);
+        self.cache.add_read(key, node);
     }
 }
 
@@ -296,26 +391,12 @@ pub struct StateAccesses {
     pub kernel: OrderedReadsAndWrites,
 }
 
-impl<N> From<ProvableStorageCache<N>> for OrderedReadsAndWrites {
-    fn from(val: ProvableStorageCache<N>) -> Self {
-        let mut writes = val.tx_cache.take_writes();
-        //This TODO is for performance enhancement, not a security concern.
-        // TODO: Make this more efficient
-        writes.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
-        Self {
-            ordered_reads: val.ordered_db_reads,
-            ordered_writes: writes,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     // Testing `ProvableStorageCache` requires higher-level types from `sov-modules-api`.
     // While adding `sov-modules-api` as a dev-dependency is an option, we chose to place the relevant tests directly in `sov-modules-api` for the following reasons:
     // 1. The tests rely on concepts and types that are more closely related to `sov-modules-api`.
     // 2. The `UniversalStateAccessor` trait is sealed and cannot be exported from `sov-modules-api`.
-
     use super::*;
 
     pub fn create_key(key: u8) -> SlotKey {
@@ -339,6 +420,7 @@ mod tests {
             });
             cache_log.add_read(key.clone(), value);
 
+            cache_log.commit_revertable_log();
             let writes = cache_log.take_writes();
             assert_eq!(writes.len(), 0);
         }
@@ -349,6 +431,7 @@ mod tests {
             let value = create_value(3);
             cache_log.add_write(key.clone(), value.clone());
 
+            cache_log.commit_revertable_log();
             let writes = cache_log.take_writes();
             assert_eq!(writes.len(), 1);
             assert_eq!((key.clone(), value), writes[0]);
@@ -367,6 +450,7 @@ mod tests {
             let next_value = create_value(5);
             cache_log.add_write(key.clone(), next_value.clone());
 
+            cache_log.commit_revertable_log();
             let writes = cache_log.take_writes();
             assert_eq!(writes.len(), 1);
             assert_eq!((key.clone(), next_value), writes[0]);
@@ -381,9 +465,21 @@ mod tests {
             let next_value = create_value(5);
             cache_log.add_write(key.clone(), next_value.clone());
 
+            cache_log.commit_revertable_log();
             let writes = cache_log.take_writes();
             assert_eq!(writes.len(), 1);
-            assert_eq!((key, next_value), writes[0]);
+            assert_eq!((key.clone(), next_value), writes[0]);
+        }
+
+        // Test discarded write.
+        {
+            let mut cache_log = CacheLog::default();
+            let value = create_value(3);
+            cache_log.add_write(key.clone(), value.clone());
+
+            cache_log.discard_revertable_log();
+            let writes = cache_log.take_writes();
+            assert_eq!(writes.len(), 0);
         }
     }
 }

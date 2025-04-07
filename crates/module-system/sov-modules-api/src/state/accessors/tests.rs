@@ -154,3 +154,48 @@ fn test_values<S: Spec>(state: &mut StateCheckpoint<S>) {
         assert_eq!(maybe_size, Some(8));
     }
 }
+
+#[test]
+fn test_discard_tx_cache() {
+    let storage = create_storage_manager(vec![
+        (vec![PRE_SET_VAL_ID_1], 22),
+        (vec![PRE_SET_VAL_ID_2], 99),
+    ])
+    .create_storage();
+
+    let state_value_to_read =
+        StateValue::<u64>::with_codec(Prefix::new(vec![PRE_SET_VAL_ID_1]), BorshCodec);
+
+    let mut state_value_to_set =
+        StateValue::<u64>::with_codec(Prefix::new(vec![VAL_ID_1]), BorshCodec);
+
+    // Not discarded values are present after the freeze.
+    {
+        let mut state = StateCheckpoint::new(storage.clone(), &MockKernel::<Native>::default());
+
+        let _ = state_value_to_read.get(&mut state).unwrap();
+        state_value_to_set.set(&99, &mut state).unwrap();
+
+        let (state_accesses, _, _) = state.freeze();
+        let ordered_reads = state_accesses.user.ordered_reads;
+        let ordered_writes = state_accesses.user.ordered_writes;
+
+        assert!(!ordered_reads.is_empty());
+        assert!(!ordered_writes.is_empty());
+    }
+
+    // Discarded values are empty after the freeze.
+    {
+        let mut state = StateCheckpoint::new(storage.clone(), &MockKernel::<Native>::default());
+        let _ = state_value_to_read.get(&mut state).unwrap();
+        state_value_to_set.set(&99, &mut state).unwrap();
+
+        state.discard_revertable_storage_cache();
+        let (state_accesses, _, _) = state.freeze();
+        let ordered_reads = state_accesses.user.ordered_reads;
+        let ordered_writes = state_accesses.user.ordered_writes;
+
+        assert!(ordered_reads.is_empty());
+        assert!(ordered_writes.is_empty());
+    }
+}

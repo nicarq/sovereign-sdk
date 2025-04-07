@@ -39,6 +39,16 @@ impl ChangeSet {
 }
 
 impl<S: Spec> StateCheckpoint<S> {
+    /// Commits the revertable part of the `StateCheckpoint` cache.
+    pub fn commit_revertable_storage_cache(&mut self) {
+        self.delta.commit_revertable_storage_cache();
+    }
+
+    /// Discards the revertable part of the `StateCheckpoint` cache.
+    pub fn discard_revertable_storage_cache(&mut self) {
+        self.delta.discard_revertable_storage_cache();
+    }
+
     /// Deep copy the state checkpoint (including its state caches), ignoring
     /// the witness and the temp cache.
     ///
@@ -129,7 +139,7 @@ impl<S: Spec> StateCheckpoint<S> {
     }
 
     /// Returns the list of all changes contained in the state checkpoint.
-    pub fn changes(&self) -> ChangeSet {
+    pub fn changes(&mut self) -> ChangeSet {
         self.delta.changes()
     }
 

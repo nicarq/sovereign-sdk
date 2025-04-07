@@ -596,13 +596,14 @@ where
         %next_visible_slot_number,
         "Applying batches in user space"
     );
-    let (_, _, batch_receipts, checkpoint) = stf.apply_batches_in_user_space(
+    let (_, _, batch_receipts, mut checkpoint) = stf.apply_batches_in_user_space(
         &mut Default::default(),
         blob_selector_output,
         checkpoint,
         ExecutionContext::Sequencer,
         next_root,
     );
+
     let mut changes = checkpoint.changes();
     let accessory_delta = stf.materialize_accessory_state(&mut Default::default(), checkpoint);
 

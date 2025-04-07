@@ -321,7 +321,7 @@ where
         "Applying a batch"
     );
 
-    batch_with_id.pre_flight(&checkpoint);
+    batch_with_id.pre_flight(&mut checkpoint);
 
     // We require non-preferred sequencer to bond for their entire batch up front.
     // However, the *preferred* sequencer streams transactions, so it can't know the total number of transactions in advance.
@@ -329,7 +329,6 @@ where
     let is_preferred_sequencer = runtime
         .sequencer_authorization()
         .is_preferred_sequencer(sequencer_da_address, &mut checkpoint);
-    let mut clean_scratchpad = checkpoint.to_tx_scratchpad();
 
     trace!("Verifying & executing transactions");
 
@@ -364,6 +363,9 @@ where
         SequencerBondForTx::Standard(amount)
     };
     let initial_slot_gas_used = slot_gas_meter.total_gas_used();
+
+    checkpoint.commit_revertable_storage_cache();
+    let mut clean_scratchpad = checkpoint.to_tx_scratchpad();
 
     for (idx, (raw_tx, injected_control_flow)) in batch_with_id.enumerate() {
         // Authorize and process the transaction, handling sequencer rewards/penalties internally.
@@ -423,10 +425,11 @@ where
 
         let provisional_reward = provisional_outcome.reward;
         let provisional_penalty = provisional_outcome.penalty;
-        let (new_checkpoint, outcome) =
+        let (mut new_checkpoint, outcome) =
             injected_control_flow.post_tx(provisional_outcome, dirty_scratchpad);
         match outcome {
             TxControlFlow::ContinueProcessing(receipt) => {
+                new_checkpoint.commit_revertable_storage_cache();
                 // SAFETY: It is safe to unwrap here because the total gas used is guaranteed to be less than the slot gas limit.
                 slot_gas_meter
                     .charge_gas(&gas_used, sequencer_da_address)
@@ -443,6 +446,7 @@ where
             }
             TxControlFlow::IgnoreTx => {
                 if !execution_context.is_sequencer() {
+                    new_checkpoint.commit_revertable_storage_cache();
                     // SAFETY: It is safe to unwrap here because the total gas used is guaranteed to be less than the slot gas limit.
                     slot_gas_meter
                         .charge_gas(&gas_used, sequencer_da_address)
@@ -476,6 +480,8 @@ where
                     };
 
                     ignored_tx_receipts.push(ignored);
+                } else {
+                    new_checkpoint.discard_revertable_storage_cache();
                 }
                 // If we *are* provisionally executing in the sequencer and we run out of funds, the transaction will not be added to the batch.
                 // In that case, we need to undo the accounting for penalization of the sequencer.
