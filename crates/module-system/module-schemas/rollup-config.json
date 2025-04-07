@@ -152,20 +152,20 @@
       ]
     },
     "CorsConfiguration": {
-      "description": "See [`HttpServerConfig::cors`].\n\n# Default\n\nCORS makes local development easier, so it's enabled by default.\n\nIn production, one may want to disable it and let your reverse proxy handle CORS instead.",
+      "description": "See [`HttpServerConfig::cors`].\n\n# Default\n\nCross-origin resource sharing (CORS) makes local development easier, so it's enabled by default\n\nIn production, one may want to disable it and let your reverse proxy handle CORS instead. Security note: Allowing CORS in production allows making requests to rollup node any website on the Internet.",
       "oneOf": [
         {
           "description": "Enables CORS with a permissive policy, intended for local development.",
           "type": "string",
           "enum": [
-            "enabled"
+            "permissive"
           ]
         },
         {
           "description": "Disables CORS.",
           "type": "string",
           "enum": [
-            "disabled"
+            "restrictive"
           ]
         }
       ]
@@ -195,7 +195,7 @@
         },
         "cors": {
           "description": "Enable or disable CORS policy headers. Enabled by default.",
-          "default": "enabled",
+          "default": "permissive",
           "allOf": [
             {
               "$ref": "#/definitions/CorsConfiguration"

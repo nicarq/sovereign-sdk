@@ -3,14 +3,14 @@ use sov_ledger_apis::LedgerRoutes;
 use sov_modules_api::capabilities::HasCapabilities;
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::prelude::utoipa_swagger_ui::Config;
-use sov_modules_api::rest::utils::{cors_layer, errors};
+use sov_modules_api::rest::utils::errors;
 use sov_modules_api::rest::{HasRestApi, StateUpdateReceiver};
 use sov_modules_api::{
     BatchSequencerReceipt, NodeEndpoints, RuntimeEventProcessor, Spec, SyncStatus, *,
 };
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
-use sov_stf_runner::{CorsConfiguration, RollupConfig, RunnerConfig};
+use sov_stf_runner::{RollupConfig, RunnerConfig};
 
 use super::SequencerCreationReceipt;
 use crate::FullNodeBlueprint;
@@ -92,10 +92,6 @@ where
             .external_url_unchecked("/openapi-v3.json", serde_json::to_value(&combined_spec)?)
             .config(Config::from("/openapi-v3.json")),
     );
-
-    if let CorsConfiguration::Enabled = config.runner.http_config.cors {
-        endpoints.axum_router = endpoints.axum_router.layer(cors_layer());
-    }
 
     Ok(endpoints)
 }
@@ -346,7 +342,7 @@ mod tests {
                 bind_host: bind_host.to_string(),
                 bind_port,
                 public_address: public_address.map(|s| s.to_string()),
-                cors: CorsConfiguration::Enabled,
+                cors: sov_stf_runner::CorsConfiguration::Permissive,
             },
             concurrent_sync_tasks: None,
         }

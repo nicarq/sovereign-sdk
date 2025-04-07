@@ -10,23 +10,30 @@ use futures_util::stream::StreamExt;
 use jsonrpsee::RpcModule;
 use tokio::sync::watch;
 use tower::BoxError;
+use tower_http::cors::CorsLayer;
 use tower_http::normalize_path::NormalizePathLayer;
 use tower_layer::Layer;
+
+use crate::CorsConfiguration;
 
 pub(crate) async fn start_http_server(
     listen_address_http: &SocketAddr,
     router: axum::Router<()>,
     methods: RpcModule<()>,
     mut shutdown_receiver: watch::Receiver<()>,
+    cors_configuration: CorsConfiguration,
 ) -> anyhow::Result<(tokio::task::JoinHandle<anyhow::Result<()>>, SocketAddr)> {
     let listener = tokio::net::TcpListener::bind(listen_address_http).await?;
     let rest_address = listener.local_addr()?;
 
-    let (rpc_router, server_handle) = rpc_module_to_router(methods);
+    let (rpc_router, server_handle) = rpc_module_to_router(methods, cors_configuration);
 
     let handle = tokio::spawn(async move {
         tracing::info!(%rest_address, "Starting HTTP server");
-        let router = router.layer(axum::middleware::from_fn(measure_time));
+        let mut router = router.layer(axum::middleware::from_fn(measure_time));
+        if let CorsConfiguration::Permissive = cors_configuration {
+            router = router.layer(CorsLayer::permissive());
+        }
         let router = router.nest("/rpc", rpc_router);
         let router = NormalizePathLayer::trim_trailing_slash().layer(router);
 
@@ -58,10 +65,12 @@ pub(crate) async fn start_http_server(
 /// Build [`axum::Router`] from [`jsonrpsee::RpcModule`] with support of websocket.
 pub fn rpc_module_to_router(
     methods: RpcModule<()>,
+    cors_config: CorsConfiguration,
 ) -> (axum::Router, jsonrpsee::server::ServerHandle) {
     let (stop_handle, server_handle) = jsonrpsee::server::stop_channel();
+
     let rpc_service = jsonrpsee::server::Server::builder()
-        // TODO: Into condfig
+        // TODO: Into config
         .max_connections(10_000)
         .max_subscriptions_per_connection(100)
         .to_service_builder()
@@ -81,11 +90,18 @@ pub fn rpc_module_to_router(
         }))
         .service(rpc_service);
 
+    let cors_layer = match cors_config {
+        CorsConfiguration::Permissive => CorsLayer::permissive(),
+        // New does not set any CORS headers
+        CorsConfiguration::Restrictive => CorsLayer::new(),
+    };
+
     (
         axum::Router::new().route(
             "/",
             axum::routing::get(move |ws_upgrade| ws_rpc_handler(ws_upgrade, methods.clone()))
-                .post_service(rpc_service),
+                .post_service(rpc_service)
+                .layer(cors_layer),
         ),
         server_handle,
     )
@@ -296,6 +312,7 @@ mod tests {
             axum_router,
             methods,
             shutdown_receiver,
+            CorsConfiguration::Restrictive,
         )
         .await
         .unwrap();

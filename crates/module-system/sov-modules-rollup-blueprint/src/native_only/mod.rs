@@ -32,7 +32,8 @@ use sov_state::storage::NativeStorage;
 use sov_state::Storage;
 use sov_stf_runner::processes::{ProverService, RollupProverConfig, WorkflowProcessManager};
 use sov_stf_runner::{
-    initialize_state, query_state_update_info, RollupConfig, StateTransitionRunner,
+    initialize_state, query_state_update_info, CorsConfiguration, RollupConfig,
+    StateTransitionRunner,
 };
 use tokio::signal::unix::SignalKind;
 use tokio::sync::{oneshot, watch};
@@ -441,6 +442,11 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             )
             .await?;
 
+        let endpoints = NodeEndpointsContainer {
+            inner: endpoints,
+            cors_configuration: rollup_config.runner.http_config.cors,
+        };
+
         background_handles.extend(sequencer.background_handles);
 
         spawn_os_signal_handler(main_shutdown_sender.clone());
@@ -453,6 +459,12 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             background_handles,
         })
     }
+}
+
+/// [`NodeEndpoints`] with `CORS` configuration.
+pub struct NodeEndpointsContainer {
+    inner: NodeEndpoints,
+    cors_configuration: CorsConfiguration,
 }
 
 /// Dependencies needed to run the rollup.
@@ -468,7 +480,7 @@ pub struct Rollup<S: FullNodeBlueprint<M>, M: ExecutionMode> {
     >,
 
     /// Server endpoints for the rollup.
-    pub endpoints: NodeEndpoints,
+    pub endpoints: NodeEndpointsContainer,
 
     /// A way to gracefully shut down background tasks.
     pub shutdown_sender: tokio::sync::watch::Sender<()>,
@@ -493,7 +505,11 @@ impl<S: FullNodeBlueprint<M>, M: ExecutionMode> Rollup<S, M> {
         let mut runner = self.runner;
 
         let axum_addr = runner
-            .start_http_server(self.endpoints.axum_router, self.endpoints.jsonrpsee_module)
+            .start_http_server(
+                self.endpoints.inner.axum_router,
+                self.endpoints.inner.jsonrpsee_module,
+                self.endpoints.cors_configuration,
+            )
             .await
             .context("Failed to start Axum Server")?;
         if let Some(sender) = axum_addr_channel {
@@ -508,7 +524,7 @@ impl<S: FullNodeBlueprint<M>, M: ExecutionMode> Rollup<S, M> {
         for handle in self.background_handles {
             handle.await?;
         }
-        for handle in self.endpoints.background_handles {
+        for handle in self.endpoints.inner.background_handles {
             handle.await??;
         }
         tracing::debug!("Rollup completed run");
