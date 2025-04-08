@@ -682,7 +682,7 @@ impl Default for PreferredSequencerConfig {
 }
 
 fn default_events_channel_size() -> usize {
-    100
+    10_000
 }
 
 #[async_trait]
