@@ -146,8 +146,11 @@ impl<Da: DaSpec, S: InitializableNativeStorage> NativeStorageManager<Da, S> {
 
     /// Extensive checks about internal consistency of the internal maps storage manager.
     /// Panics if something is off.
-    #[cfg(debug_assertions)]
-    fn validate_internal_consistency(&self) {
+    fn dbg_validate_internal_consistency(&self) {
+        if !cfg!(debug_assertions) {
+            return;
+        }
+
         for (slot_hash, child_hashes) in self.chain_forks.iter() {
             let mut unique_child_hashes =
                 std::collections::HashSet::<Da::SlotHash>::with_capacity(child_hashes.len());
@@ -220,12 +223,12 @@ where
     type LedgerChangeSet = SchemaBatch;
 
     fn create_bootstrap_state(&mut self) -> anyhow::Result<(Self::StfState, Self::LedgerState)> {
-        #[cfg(debug_assertions)]
-        self.validate_internal_consistency();
+        self.dbg_validate_internal_consistency();
+
         // Create storage based on finalized data
         let (stf_storage, ledger_storage) = self.db_group.create_storage(Vec::new())?;
-        #[cfg(debug_assertions)]
-        self.validate_internal_consistency();
+
+        self.dbg_validate_internal_consistency();
         Ok((stf_storage, ledger_storage))
     }
 
@@ -233,9 +236,9 @@ where
         &mut self,
         block_header: &Da::BlockHeader,
     ) -> anyhow::Result<(Self::StfState, Self::LedgerState)> {
+        self.dbg_validate_internal_consistency();
+
         tracing::trace!(block_header = %block_header.display(), "Requested native storage");
-        #[cfg(debug_assertions)]
-        self.validate_internal_consistency();
         let prev_hash = block_header.prev_hash();
         let current_hash = block_header.hash();
         if let std::collections::hash_map::Entry::Vacant(e) =
@@ -248,8 +251,8 @@ where
             e.insert(prev_hash);
         }
         let state = self.create_state_up_to(block_header.prev_hash())?;
-        #[cfg(debug_assertions)]
-        self.validate_internal_consistency();
+
+        self.dbg_validate_internal_consistency();
         Ok(state)
     }
 
@@ -257,14 +260,14 @@ where
         &mut self,
         block_header: &Da::BlockHeader,
     ) -> anyhow::Result<(Self::StfState, Self::LedgerState)> {
-        #[cfg(debug_assertions)]
-        self.validate_internal_consistency();
+        self.dbg_validate_internal_consistency();
+
         if !self.snapshots.contains_key(&block_header.hash()) {
             anyhow::bail!("There is no snapshot available for the block {}. Use `create_bootstrap_storage` for getting storage from finalized data.", block_header.display())
         }
         let state = self.create_state_up_to(block_header.hash())?;
-        #[cfg(debug_assertions)]
-        self.validate_internal_consistency();
+
+        self.dbg_validate_internal_consistency();
         Ok(state)
     }
 
@@ -274,9 +277,9 @@ where
         stf_change_set: Self::StfChangeSet,
         ledger_change_set: Self::LedgerChangeSet,
     ) -> anyhow::Result<()> {
+        self.dbg_validate_internal_consistency();
+
         tracing::trace!(block_header = %block_header.display(), "Saving changes");
-        #[cfg(debug_assertions)]
-        self.validate_internal_consistency();
         if !self.chain_forks.contains_key(&block_header.prev_hash()) {
             anyhow::bail!(
                 "Attempt to save changeset for unknown block header {}",
@@ -299,18 +302,18 @@ where
         let snapshot =
             SnapshotGroup::new(state_change_set, accessory_change_set, ledger_change_set);
         self.snapshots.insert(block_hash, snapshot);
-        #[cfg(debug_assertions)]
-        self.validate_internal_consistency();
+
+        self.dbg_validate_internal_consistency();
         Ok(())
     }
 
     fn finalize(&mut self, block_header: &Da::BlockHeader) -> anyhow::Result<()> {
+        self.dbg_validate_internal_consistency();
+
         tracing::trace!(block_hash = %block_header.hash(), "Finalizing changes");
-        #[cfg(debug_assertions)]
-        self.validate_internal_consistency();
         self.finalize_by_hash_pair(block_header.prev_hash(), block_header.hash())?;
-        #[cfg(debug_assertions)]
-        self.validate_internal_consistency();
+
+        self.dbg_validate_internal_consistency();
         Ok(())
     }
 }

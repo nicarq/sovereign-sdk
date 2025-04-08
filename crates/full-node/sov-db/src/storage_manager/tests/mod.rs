@@ -188,8 +188,7 @@ fn calls_on_empty() {
 
     let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
     assert!(storage_manager.is_empty());
-    #[cfg(debug_assertions)]
-    storage_manager.validate_internal_consistency();
+    storage_manager.dbg_validate_internal_consistency();
 
     let da_header = MockBlockHeader::from_height(1);
 
@@ -199,8 +198,7 @@ fn calls_on_empty() {
         SchemaBatch::default(),
     );
     assert!(save_result.is_err());
-    #[cfg(debug_assertions)]
-    storage_manager.validate_internal_consistency();
+    storage_manager.dbg_validate_internal_consistency();
     let expected_msg = format!(
         "Attempt to save changeset for unknown block header {}",
         da_header.display()
@@ -209,8 +207,7 @@ fn calls_on_empty() {
 
     let finalize_result = storage_manager.finalize(&da_header);
     assert!(finalize_result.is_err());
-    #[cfg(debug_assertions)]
-    storage_manager.validate_internal_consistency();
+    storage_manager.dbg_validate_internal_consistency();
     let expected_msg = format!(
         "No changes has been previously saved for block header prev_hash={} next_hash={}",
         da_header.prev_hash, da_header.hash,
@@ -275,8 +272,7 @@ fn attempt_to_save_unknown_block(
         SchemaBatch::default(),
     );
     assert!(result.is_err());
-    #[cfg(debug_assertions)]
-    storage_manager.validate_internal_consistency();
+    storage_manager.dbg_validate_internal_consistency();
     let expected_error_message = format!(
         "Attempt to save changeset for unknown block header {}",
         da_header.display()
@@ -322,8 +318,7 @@ fn double_save_changes() {
         SchemaBatch::default(),
     );
     assert!(result.is_err());
-    #[cfg(debug_assertions)]
-    storage_manager.validate_internal_consistency();
+    storage_manager.dbg_validate_internal_consistency();
     let expected_message = format!(
         "Attempt to save changes for the same block {} twice. Probably a bug.",
         da_header.display()
@@ -342,12 +337,10 @@ fn create_state_after_not_saved_block() {
     // It should throw the error as changes for this block is not available.
     let result = storage_manager.create_state_after(&da_header);
     assert!(result.is_err());
-    #[cfg(debug_assertions)]
-    storage_manager.validate_internal_consistency();
+    storage_manager.dbg_validate_internal_consistency();
     let expected_message = format!("There is no snapshot available for the block {}. Use `create_bootstrap_storage` for getting storage from finalized data.", da_header.display());
     assert_eq!(expected_message, result.unwrap_err().to_string());
-    #[cfg(debug_assertions)]
-    storage_manager.validate_internal_consistency();
+    storage_manager.dbg_validate_internal_consistency();
 
     storage_manager
         .save_change_set(&da_header, NativeChangeSet::default(), SchemaBatch::new())
