@@ -1,3 +1,6 @@
+# 2025-04-08
+- #2718 raises the default value of `[sequencer.preferred] events_channel_size` to 10000. This makes the `/sequencer/events/ws` endpoint less prone to lagging and, as a consequence, unprompted disconnects.
+
 # 2025-04-07
 - #2701 **BREAKING CHANGE**. `cors` field to the `runner.http_config` changed from `enabled = true`/`enabled = false` to `cors = "permissive"` or `cors = "restrictive"`.
   When `permissive` is a default.

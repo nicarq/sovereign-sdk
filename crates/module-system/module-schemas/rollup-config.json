@@ -310,7 +310,7 @@
       "properties": {
         "events_channel_size": {
           "description": "The size of the Tokio channel used to stream events.\n\nDon't deviate from the default unless you know what you're doing.",
-          "default": 100,
+          "default": 10000,
           "type": "integer",
           "format": "uint",
           "minimum": 0.0
