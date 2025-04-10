@@ -66,6 +66,7 @@ pub enum PenalizationReason {
     Debug,
     PartialEq,
     Clone,
+    schemars::JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
 /// Events for prover incentives

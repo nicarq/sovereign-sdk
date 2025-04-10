@@ -103,9 +103,17 @@ impl<'a, S: Spec> Payable<S> for TokenHolderRef<'a, S> {
 }
 
 #[derive(
-    Debug, Clone, Eq, PartialEq, serde::Deserialize, BorshDeserialize, derive_more::Display,
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    serde::Deserialize,
+    BorshDeserialize,
+    derive_more::Display,
+    schemars::JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
+#[schemars(untagged)]
 /// The identifier of a a payable entity on the rollup. This can be either a user or a module.
 pub enum TokenHolder<S: Spec> {
     /// A external address the rollup.

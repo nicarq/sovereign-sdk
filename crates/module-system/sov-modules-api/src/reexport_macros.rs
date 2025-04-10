@@ -183,7 +183,7 @@ pub use sov_modules_macros::DispatchCall;
 ///
 /// The current default attributes are:
 ///
-/// - `#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]`
+/// - `#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize, schemars::JsonSchema)]`
 /// - `#[derive(sov_modules_api::prelude::strum::EnumDiscriminants, sov_modules_api::prelude::strum::VariantNames, sov_modules_api::prelude::strum::EnumTryAs, sov_modules_api::prelude::strum::IntoStaticStr, sov_modules_api::prelude::strum::AsRefStr)]`
 /// - `#[strum_discriminants(derive(sov_modules_api::prelude::strum::VariantNames, sov_modules_api::prelude::strum::VariantArray, sov_modules_api::prelude::strum::EnumString, sov_modules_api::prelude::strum::IntoStaticStr, sov_modules_api::prelude::strum::AsRefStr))]`
 /// - `#[serde(untagged, bound = "", rename_all="snake_case")]`

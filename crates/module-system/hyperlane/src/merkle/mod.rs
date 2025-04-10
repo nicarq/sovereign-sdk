@@ -51,7 +51,16 @@ impl<S: Spec> Module for MerkleTreeHooks<S> {
     }
 }
 /// Events that can be emitted by the Merkle module.
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug, PartialEq, Clone)]
+#[derive(
+    BorshDeserialize,
+    BorshSerialize,
+    Serialize,
+    Deserialize,
+    Debug,
+    PartialEq,
+    Clone,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Event {
     /// Emitted when a new element is inserted into the tree.

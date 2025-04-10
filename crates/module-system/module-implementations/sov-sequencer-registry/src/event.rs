@@ -9,6 +9,7 @@ use sov_modules_api::{Amount, Spec};
     Debug,
     PartialEq,
     Clone,
+    schemars::JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum Event<S: Spec> {
