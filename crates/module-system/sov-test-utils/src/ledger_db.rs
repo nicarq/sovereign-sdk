@@ -8,7 +8,7 @@ use sov_bank::utils::TokenHolder;
 use sov_bank::{Amount, Coins, TokenId};
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::SchemaBatch;
-use sov_ledger_apis::LedgerRoutes;
+use sov_ledger_apis::{LedgerRoutes, LedgerState};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockHash};
 use sov_modules_api::da::Time;
 use sov_modules_api::{ModuleId, StoredEvent};
@@ -16,6 +16,7 @@ use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt, TxEffect};
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_rollup_interface::TxHash;
 use tempfile::{tempdir, TempDir};
+use tokio::sync::watch;
 
 use crate::storage::SimpleLedgerStorageManager;
 use crate::{TestSpec, TestTxReceiptContents};
@@ -177,6 +178,8 @@ pub struct LedgerTestService {
     pub axum_handle: axum_server::Handle,
     /// An Axum client.
     pub axum_client: sov_api_spec::Client,
+    /// Shutdown signal receiver to allow for clean shutdowns of the API.
+    pub shutdown_receiver: watch::Receiver<()>,
 }
 
 impl LedgerTestService {
@@ -195,19 +198,26 @@ impl LedgerTestService {
 
         ledger_db.send_notifications();
         storage_manager.commit(ledger_data);
+        let (_, shutdown_receiver) = watch::channel(());
 
         let axum_handle = axum_server::Handle::new();
         let axum_handle1 = axum_handle.clone();
         let ledger_db1 = ledger_db.clone();
+        let shutdown = shutdown_receiver.clone();
         tokio::spawn(async move {
             let addr = SocketAddr::from_str("127.0.0.1:0").unwrap();
+            let state = LedgerState {
+                ledger: ledger_db1.clone(),
+                shutdown_receiver: shutdown_receiver.clone(),
+            };
             axum_server::Server::bind(addr)
                 .handle(axum_handle1)
                 .serve(
                     LedgerRoutes::<LedgerDb, u32, TestTxReceiptContents, TestEvent>::axum_router(
                         ledger_db1.clone(),
+                        shutdown_receiver,
                     )
-                    .with_state::<()>(ledger_db1)
+                    .with_state::<()>(state)
                     .into_make_service(),
                 )
                 .await
@@ -224,6 +234,7 @@ impl LedgerTestService {
             _dir: dir,
             axum_handle,
             axum_client,
+            shutdown_receiver: shutdown,
         })
     }
 }

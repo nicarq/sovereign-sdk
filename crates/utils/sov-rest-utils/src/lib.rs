@@ -233,8 +233,11 @@ pub fn cors_layer_opt(
 
 /// A utility function for serving some data inside a [`futures::Stream`] over a
 /// WebSocket connection.
-pub async fn serve_generic_ws_subscription<S, M>(mut socket: WebSocket, mut subscription: S)
-where
+pub async fn serve_generic_ws_subscription<S, M>(
+    mut socket: WebSocket,
+    mut subscription: S,
+    mut shutdown_receiver: tokio::sync::watch::Receiver<()>,
+) where
     S: futures::Stream<Item = anyhow::Result<M>> + Unpin,
     M: Clone + serde::Serialize + Send + Sync + 'static,
 {
@@ -282,6 +285,7 @@ where
                     },
                 }
             }
+            _ = shutdown_receiver.changed() => break,
         }
     }
 

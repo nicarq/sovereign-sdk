@@ -462,7 +462,7 @@ where
             )
             .await?;
 
-        let router = SequencerApis::rest_api_server(sequencer.clone());
+        let router = SequencerApis::rest_api_server(sequencer.clone(), shutdown_receiver.clone());
 
         let addr = SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 0));
         let listener = tokio::net::TcpListener::bind(addr).await?;

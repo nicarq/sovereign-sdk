@@ -75,6 +75,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         &self,
         state_update_receiver: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
         sync_status_receiver: tokio::sync::watch::Receiver<SyncStatus>,
+        shutdown_receiver: tokio::sync::watch::Receiver<()>,
         ledger_db: &LedgerDb,
         sequencer: &SequencerCreationReceipt<Self::Spec>,
         da_service: &Self::DaService,
@@ -83,6 +84,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         let mut endpoints = sov_modules_rollup_blueprint::register_endpoints::<Self, _>(
             state_update_receiver.clone(),
             sync_status_receiver,
+            shutdown_receiver,
             ledger_db,
             sequencer,
             rollup_config,

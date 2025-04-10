@@ -79,6 +79,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         &self,
         state_update_receiver: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
         sync_status_receiver: tokio::sync::watch::Receiver<SyncStatus>,
+        shutdown_receiver: tokio::sync::watch::Receiver<()>,
         ledger_db: &LedgerDb,
         sequencer: &SequencerCreationReceipt<Self::Spec>,
         da_service: &Self::DaService,
@@ -192,16 +193,16 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                         &rollup_config.storage.path,
                         &rollup_config.sequencer.with_seq_config(seq_config.clone()),
                         ledger_db.clone(),
-                        shutdown_receiver,
+                        shutdown_receiver.clone(),
                     )
                     .await?;
 
                 let mut endpoints = self
                     .sequencer_additional_apis(sequencer.clone(), rollup_config)
                     .await?;
-                endpoints.axum_router = endpoints
-                    .axum_router
-                    .merge(SequencerApis::rest_api_server(sequencer.clone()));
+                endpoints.axum_router = endpoints.axum_router.merge(
+                    SequencerApis::rest_api_server(sequencer.clone(), shutdown_receiver),
+                );
 
                 Ok(SequencerCreationReceipt {
                     api_state: sequencer.api_state(),
@@ -220,16 +221,16 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                         &rollup_config.storage.path,
                         &rollup_config.sequencer.with_seq_config(seq_config.clone()),
                         ledger_db.clone(),
-                        shutdown_receiver,
+                        shutdown_receiver.clone(),
                     )
                     .await?;
 
                 let mut endpoints = self
                     .sequencer_additional_apis(sequencer.clone(), rollup_config)
                     .await?;
-                endpoints.axum_router = endpoints
-                    .axum_router
-                    .merge(SequencerApis::rest_api_server(sequencer.clone()));
+                endpoints.axum_router = endpoints.axum_router.merge(
+                    SequencerApis::rest_api_server(sequencer.clone(), shutdown_receiver),
+                );
 
                 Ok(SequencerCreationReceipt {
                     api_state: sequencer.api_state(),
@@ -435,6 +436,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             .create_endpoints(
                 state_update_receiver,
                 sync_status_receiver,
+                main_shutdown_receiver.clone(),
                 &ledger_db,
                 &sequencer,
                 &da_service,

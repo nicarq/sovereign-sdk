@@ -19,6 +19,7 @@ use sov_rest_utils::{
 use sov_rollup_interface::da::{DaBlobHash, DaSpec};
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::TxHash;
+use tokio::sync::watch::Receiver;
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::common::Sequencer;
@@ -27,12 +28,18 @@ use crate::{SequencerNotReadyDetails, TxStatus};
 /// Provides REST APIs for any [`Sequencer`]. See [`SequencerApis::rest_api_server`].
 #[derive(derivative::Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct SequencerApis<Seq: Sequencer>(Arc<Seq>);
+pub struct SequencerApis<Seq: Sequencer> {
+    sequencer: Arc<Seq>,
+    shutdown_receiver: Receiver<()>,
+}
 
 impl<Seq: Sequencer> SequencerApis<Seq> {
     /// Creates a new Axum router for this sequencer.
-    pub fn rest_api_server(seq: Arc<Seq>) -> axum::Router<()> {
-        let state = Self(seq);
+    pub fn rest_api_server(seq: Arc<Seq>, shutdown_receiver: Receiver<()>) -> axum::Router<()> {
+        let state = Self {
+            sequencer: seq,
+            shutdown_receiver,
+        };
         let routes_that_require_synced_node = axum::Router::new()
             .route("/txs", axum::routing::post(Self::axum_accept_tx))
             .with_state(state.clone())
@@ -55,11 +62,11 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
     }
 
     async fn ready_middleware(
-        State(sequencer): State<Self>,
+        State(state): State<Self>,
         request: Request,
         next: Next,
     ) -> Result<Response, Response> {
-        match sequencer.0.is_ready().await {
+        match state.sequencer.is_ready().await {
             Ok(()) => Ok(next.run(request).await),
             Err(details) => Err(error_not_fully_synced(details).into_response()),
         }
@@ -72,7 +79,7 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
     ) -> anyhow::Result<()> {
         // Send a message with the initial status of the transaction,
         // without waiting for it to change for the first time.
-        let initial_status = self.0.tx_status(&tx_hash).await?;
+        let initial_status = self.sequencer.tx_status(&tx_hash).await?;
         let ws_msg = ws::Message::Text(serde_json::to_string(&TxInfo {
             id: tx_hash,
             status: initial_status,
@@ -83,11 +90,11 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
     }
 
     async fn axum_get_tx_ws(
-        sequencer: State<Self>,
+        state: State<Self>,
         tx_hash: Path<TxHash>,
         ws: ws::WebSocketUpgrade,
     ) -> impl IntoResponse {
-        let tx_status_manager = sequencer.0 .0.tx_status_manager().clone();
+        let tx_status_manager = state.sequencer.tx_status_manager().clone();
 
         ws.on_upgrade(move |mut socket| async move {
             let (_dropper, receiver) = tx_status_manager.subscribe(tx_hash.0);
@@ -127,27 +134,28 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
             })
             .boxed();
 
-            sequencer
+            state
                 .send_initial_status_to_ws(tx_hash.0, &mut socket)
                 .await
                 .ok();
 
-            serve_generic_ws_subscription(socket, subscription).await;
+            serve_generic_ws_subscription(socket, subscription, state.shutdown_receiver.clone())
+                .await;
         })
     }
 
-    async fn axum_get_ready(sequencer: State<Self>) -> ApiResult<()> {
-        match sequencer.0 .0.is_ready().await {
+    async fn axum_get_ready(state: State<Self>) -> ApiResult<()> {
+        match state.sequencer.is_ready().await {
             Ok(()) => Ok(().into()),
             Err(details) => Err(error_not_fully_synced(details).into_response()),
         }
     }
 
     async fn axum_get_tx(
-        sequencer: State<Self>,
+        state: State<Self>,
         tx_hash: Path<TxHash>,
     ) -> ApiResult<TxInfo<<<Seq::Da as DaService>::Spec as DaSpec>::TransactionId>> {
-        let tx_status = sequencer.0 .0.tx_status(&tx_hash.0).await;
+        let tx_status = state.sequencer.tx_status(&tx_hash.0).await;
 
         if let Ok(tx_status) = tx_status {
             Ok(TxInfo {
@@ -161,7 +169,7 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
     }
 
     async fn axum_accept_tx(
-        sequencer: State<Self>,
+        state: State<Self>,
         tx: Json<AcceptTx>,
     ) -> ApiResult<
         TxInfoWithConfirmation<DaBlobHash<<Seq::Da as DaService>::Spec>, Seq::Confirmation>,
@@ -170,9 +178,8 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
         let baked_tx =
             <Seq::Rt as TransactionAuthenticator<Seq::Spec>>::encode_with_standard_auth(raw_tx);
 
-        let tx_with_hash = sequencer
-            .0
-             .0
+        let tx_with_hash = state
+            .sequencer
             .accept_tx(baked_tx)
             .await
             .map_err(IntoResponse::into_response)?;
@@ -186,12 +193,12 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
     }
 
     async fn subscribe_to_events(
-        State(sequencer): State<Self>,
+        State(state): State<Self>,
         ws: WebSocketUpgrade,
     ) -> impl IntoResponse {
         ws.on_upgrade(|socket| async move {
-            let stream = sequencer
-                .0
+            let stream = state
+                .sequencer
                 .subscribe_events()
                 .await
                 .map(|receiver| {
@@ -200,7 +207,7 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
                         .boxed()
                 })
                 .unwrap_or_else(|| futures::stream::empty().boxed());
-            serve_generic_ws_subscription(socket, stream).await;
+            serve_generic_ws_subscription(socket, stream, state.shutdown_receiver.clone()).await;
         })
     }
 }

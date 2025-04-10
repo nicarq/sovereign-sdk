@@ -1,3 +1,7 @@
+# 2025-04-09
+- #2729 `FullNodeBlueprint::create_endpoints` now requires a `shutdown_receiver` parameter. This is to allow for graceful shutdowns in websocket endpoints.
+  Fixes a issue with the node hanging indefinitely on shutdowns with `CTRL+C`, etc.
+
 # 2025-04-08
 - #2718 raises the default value of `[sequencer.preferred] events_channel_size` to 10000. This makes the `/sequencer/events/ws` endpoint less prone to lagging and, as a consequence, unprompted disconnects.
 

@@ -77,6 +77,7 @@ where
         &self,
         state_update_receiver: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
         sync_status_receiver: tokio::sync::watch::Receiver<SyncStatus>,
+        shutdown_receiver: tokio::sync::watch::Receiver<()>,
         ledger_db: &LedgerDb,
         sequencer: &SequencerCreationReceipt<Self::Spec>,
         _da_service: &Self::DaService,
@@ -86,6 +87,7 @@ where
             sov_modules_rollup_blueprint::register_endpoints::<Self, Native>(
                 state_update_receiver,
                 sync_status_receiver,
+                shutdown_receiver,
                 ledger_db,
                 sequencer,
                 rollup_config,
