@@ -16,7 +16,8 @@ use crate::namespaces::{
 use crate::storage::{NativeStorage, SlotKey, SlotValue, StateUpdate, Storage, StorageProof};
 use crate::storage_internals::{SparseMerkleProof, StorageRoot};
 use crate::{
-    open_merkle_proof, MerkleProofSpec, NodeLeaf, NodeLeafAndMaybeValue, ReadType, Witness,
+    open_merkle_proof, MerkleProofSpec, NodeLeaf, NodeLeafAndMaybeValue, ReadType, StateRoot,
+    Witness,
 };
 
 /// A [`Storage`] implementation to be used by the prover in a native execution
@@ -142,6 +143,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &<ProverStorage<S> as Storage>::Witness,
+        prev_state_root: jmt::RootHash,
     ) -> anyhow::Result<(jmt::RootHash, ProverStateUpdate)> {
         let jmt_handler: JmtHandler<N> = self.db.get_jmt_handler();
         let jmt = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&jmt_handler);
@@ -151,10 +153,13 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
             None => (),
             // Previous root and reads are not witnessed during genesis.
             Some(latest_version) => {
-                let root_hash = jmt
+                let stored_root_hash = jmt
                     .get_root_hash(latest_version.get())
                     .expect("Previous root hash was not populated");
-                witness.add_hint(root_hash.0);
+                assert!(
+                    stored_root_hash == prev_state_root,
+                    "Previous root hash does not match stored root hash. This is a bug."
+                );
                 // For each value that's been read from the tree, read it from the logged JMT to populate hints
                 for (key, read_node_leaf) in &state_accesses.ordered_reads {
                     let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
@@ -316,6 +321,11 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     type StateUpdate = NamespacedStateUpdate;
     type ChangeSet = NativeChangeSet;
 
+    const PRE_GENESIS_ROOT: Self::Root = StorageRoot::<S>::new(
+        JellyfishMerkleTree::<JmtHandler<DBUserNamespace>, S::Hasher>::EMPTY_ROOT.0,
+        JellyfishMerkleTree::<JmtHandler<DBUserNamespace>, S::Hasher>::EMPTY_ROOT.0,
+    );
+
     fn put_in_witness(&self, value: Option<SlotValue>, witness: &Self::Witness) {
         witness.add_hint(value);
     }
@@ -369,12 +379,23 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         &self,
         state_accesses: StateAccesses,
         witness: &Self::Witness,
+        prev_state_root: Self::Root,
     ) -> anyhow::Result<(Self::Root, Self::StateUpdate)> {
-        let (user_root, user_state_update) =
-            self.compute_state_update_namespace::<DBUserNamespace>(state_accesses.user, witness)?;
+        let prev_user_root = prev_state_root.namespace_root(ProvableNamespace::User);
+        let prev_kernel_root = prev_state_root.namespace_root(ProvableNamespace::Kernel);
+        let (user_root, user_state_update) = self
+            .compute_state_update_namespace::<DBUserNamespace>(
+                state_accesses.user,
+                witness,
+                jmt::RootHash(prev_user_root),
+            )?;
 
         let (kernel_root, kernel_state_update) = self
-            .compute_state_update_namespace::<DBKernelNamespace>(state_accesses.kernel, witness)?;
+            .compute_state_update_namespace::<DBKernelNamespace>(
+                state_accesses.kernel,
+                witness,
+                jmt::RootHash(prev_kernel_root),
+            )?;
 
         Ok((
             StorageRoot::<S>::new(user_root.0, kernel_root.0),

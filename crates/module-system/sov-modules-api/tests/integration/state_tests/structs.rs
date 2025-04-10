@@ -221,18 +221,19 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
     let mut state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     // Native execution
-    let witness: ArrayWitness = {
+    let (witness, root) = {
         // Simulate genesis.
         // First native call to `validate_and_materialize` is during genesis,
         // when witness is not populated.
         let storage = storage_manager.create_storage();
-        let (_, genesis_change_set) = storage
+        let (root, genesis_change_set) = storage
             .validate_and_materialize(
                 StateAccesses {
                     user: Default::default(),
                     kernel: Default::default(),
                 },
                 &ArrayWitness::default(),
+                <<S as Spec>::Storage as Storage>::PRE_GENESIS_ROOT,
             )
             .expect("Native jmt validation should succeed");
         storage_manager.commit(genesis_change_set);
@@ -247,9 +248,9 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
         let (cache_log, _, witness) = state.freeze();
 
         let _ = storage
-            .validate_and_materialize(cache_log, &witness)
+            .validate_and_materialize(cache_log, &witness, root)
             .expect("Native jmt validation should succeed");
-        witness
+        (witness, root)
     };
 
     {
@@ -262,7 +263,7 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
         let (cache_log, _, witness) = state_checkpoint.freeze();
 
         let _ = storage
-            .validate_and_materialize(cache_log, &witness)
+            .validate_and_materialize(cache_log, &witness, root)
             .expect("ZK validation should succeed");
     };
 

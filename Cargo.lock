@@ -1529,7 +1529,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4429b21a37997c08390d6f8fc325d29b8e72f3dca39f7acfe48d639e2f82a553"
 dependencies = [
  "bytes",
- "prost 0.13.3",
+ "prost",
  "prost-build",
  "prost-types",
  "protox",
@@ -1548,7 +1548,7 @@ dependencies = [
  "celestia-types",
  "http 1.1.0",
  "jsonrpsee",
- "prost 0.13.3",
+ "prost",
  "serde",
  "thiserror 1.0.64",
  "tracing",
@@ -1572,7 +1572,7 @@ dependencies = [
  "leopard-codec",
  "multihash",
  "nmt-rs",
- "prost 0.13.3",
+ "prost",
  "ruint",
  "serde",
  "serde_repr",
@@ -1833,7 +1833,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "86ed14aa9c9f927213c6e4f3ef75faaad3406134efe84ba2cb7983431d5f0931"
 dependencies = [
  "futures-core",
- "prost 0.13.3",
+ "prost",
  "prost-types",
  "tonic",
  "tracing-core",
@@ -1852,7 +1852,7 @@ dependencies = [
  "hdrhistogram",
  "humantime",
  "hyper-util",
- "prost 0.13.3",
+ "prost",
  "prost-types",
  "serde",
  "serde_json",
@@ -4232,9 +4232,9 @@ dependencies = [
 
 [[package]]
 name = "ics23"
-version = "0.11.3"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18798160736c1e368938ba6967dbcb3c7afb3256b442a5506ba5222eebb68a5a"
+checksum = "73b17f1a5bd7d12ad30a21445cfa5f52fd7651cb3243ba866f9916b1ec112f12"
 dependencies = [
  "anyhow",
  "blake2",
@@ -4242,7 +4242,7 @@ dependencies = [
  "bytes",
  "hex",
  "informalsystems-pbjson",
- "prost 0.12.6",
+ "prost",
  "ripemd",
  "serde",
  "sha2 0.10.8",
@@ -4643,8 +4643,8 @@ checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
 name = "jmt"
-version = "0.10.0"
-source = "git+https://github.com/penumbra-zone/jmt.git?rev=dc554608895439022f1f11809d2d7a5f76f9a13f#dc554608895439022f1f11809d2d7a5f76f9a13f"
+version = "0.11.0"
+source = "git+https://github.com/penumbra-zone/jmt.git?rev=f60beb0fa54d9231706f62a8b1315e3c57855590#f60beb0fa54d9231706f62a8b1315e3c57855590"
 dependencies = [
  "anyhow",
  "borsh",
@@ -5972,7 +5972,7 @@ dependencies = [
  "opentelemetry",
  "opentelemetry-proto",
  "opentelemetry_sdk",
- "prost 0.13.3",
+ "prost",
  "thiserror 1.0.64",
  "tokio",
  "tonic",
@@ -5986,7 +5986,7 @@ checksum = "a6e05acbfada5ec79023c85368af14abd0b307c015e9064d249b2a950ef459a6"
 dependencies = [
  "opentelemetry",
  "opentelemetry_sdk",
- "prost 0.13.3",
+ "prost",
  "tonic",
 ]
 
@@ -6962,22 +6962,12 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.12.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "deb1435c188b76130da55f17a466d252ff7b1418b2ad3e037d127b94e3411f29"
-dependencies = [
- "bytes",
- "prost-derive 0.12.6",
-]
-
-[[package]]
-name = "prost"
 version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b0487d90e047de87f984913713b85c601c05609aad5b0df4b4573fbf69aa13f"
 dependencies = [
  "bytes",
- "prost-derive 0.13.3",
+ "prost-derive",
 ]
 
 [[package]]
@@ -6994,24 +6984,11 @@ dependencies = [
  "once_cell",
  "petgraph",
  "prettyplease",
- "prost 0.13.3",
+ "prost",
  "prost-types",
  "regex",
  "syn 2.0.98",
  "tempfile",
-]
-
-[[package]]
-name = "prost-derive"
-version = "0.12.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
-dependencies = [
- "anyhow",
- "itertools 0.12.1",
- "proc-macro2",
- "quote",
- "syn 2.0.98",
 ]
 
 [[package]]
@@ -7036,7 +7013,7 @@ dependencies = [
  "logos",
  "miette",
  "once_cell",
- "prost 0.13.3",
+ "prost",
  "prost-types",
 ]
 
@@ -7046,7 +7023,7 @@ version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4759aa0d3a6232fb8dbdb97b61de2c20047c68aca932c7ed76da9d788508d670"
 dependencies = [
- "prost 0.13.3",
+ "prost",
 ]
 
 [[package]]
@@ -7057,7 +7034,7 @@ checksum = "6f352af331bf637b8ecc720f7c87bf903d2571fa2e14a66e9b2558846864b54a"
 dependencies = [
  "bytes",
  "miette",
- "prost 0.13.3",
+ "prost",
  "prost-reflect",
  "prost-types",
  "protox-parse",
@@ -8594,7 +8571,7 @@ dependencies = [
  "lazy-regex",
  "num-bigint 0.4.6",
  "num-traits",
- "prost 0.13.3",
+ "prost",
  "rand",
  "rayon",
  "risc0-binfmt",
@@ -9948,7 +9925,7 @@ dependencies = [
  "nmt-rs",
  "postcard",
  "proptest",
- "prost 0.13.3",
+ "prost",
  "reltester",
  "risc0-zkvm",
  "risc0-zkvm-platform",
@@ -12111,7 +12088,7 @@ dependencies = [
  "k256",
  "num-traits",
  "once_cell",
- "prost 0.13.3",
+ "prost",
  "ripemd",
  "serde",
  "serde_bytes",
@@ -12134,7 +12111,7 @@ checksum = "9ae9e1705aa0fa5ecb2c6aa7fb78c2313c4a31158ea5f02048bf318f849352eb"
 dependencies = [
  "bytes",
  "flex-error",
- "prost 0.13.3",
+ "prost",
  "serde",
  "serde_bytes",
  "subtle-encoding",
@@ -12632,7 +12609,7 @@ dependencies = [
  "hyper-util",
  "percent-encoding",
  "pin-project",
- "prost 0.13.3",
+ "prost",
  "socket2",
  "tokio",
  "tokio-stream",

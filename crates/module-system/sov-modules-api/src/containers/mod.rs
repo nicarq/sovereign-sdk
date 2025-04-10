@@ -236,7 +236,7 @@ mod test {
     use sov_mock_zkvm::MockZkvm;
     use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
     use sov_state::namespaces::User;
-    use sov_state::{DefaultStorageSpec, SlotKey, SlotValue, Storage};
+    use sov_state::{DefaultStorageSpec, ProverStorage, SlotKey, SlotValue, Storage};
     use sov_test_utils::storage::SimpleStorageManager;
 
     use crate::capabilities::mocks::MockKernel;
@@ -282,6 +282,7 @@ mod test {
     #[test]
     fn test_jmt_storage() -> anyhow::Result<()> {
         let mut storage_manager = SimpleStorageManager::<StorageSpec>::new();
+        let mut prev_root = <ProverStorage<StorageSpec> as Storage>::PRE_GENESIS_ROOT;
         let tests = create_tests();
         {
             let mut kernel = MockKernel::<TestSpec>::default();
@@ -294,9 +295,10 @@ mod test {
                     let (scratchpad, _gas_meter, _) = working_set.finalize();
                     let checkpoint = scratchpad.commit();
                     let (cache, _, witness) = checkpoint.freeze();
-                    let (_, change_set) = storage
-                        .validate_and_materialize(cache, &witness)
+                    let (new_root, change_set) = storage
+                        .validate_and_materialize(cache, &witness, prev_root)
                         .expect("storage is valid");
+                    prev_root = new_root;
                     storage_manager.commit(change_set);
                     kernel.increase_heights();
                     let storage = storage_manager.create_storage();
@@ -341,7 +343,11 @@ mod test {
             StateWriter::<User>::set(&mut working_set, &key, value.clone())?;
             let (cache, _, witness) = working_set.finalize().0.commit().freeze();
             let (_, change_set) = storage
-                .validate_and_materialize(cache, &witness)
+                .validate_and_materialize(
+                    cache,
+                    &witness,
+                    <ProverStorage<StorageSpec> as Storage>::PRE_GENESIS_ROOT,
+                )
                 .expect("storage is valid");
             storage_manager.commit(change_set);
         }

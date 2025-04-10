@@ -95,6 +95,7 @@ fn concurrent_prover_storages() {
         vec![(the_user_key.clone(), Some(user_value_1.clone()))],
         vec![(the_kernel_key.clone(), Some(kernel_value_1.clone()))],
         vec![(the_accessory_key.clone(), Some(accessory_value_1.clone()))],
+        <ProverStorage<TestStorageSpec> as Storage>::PRE_GENESIS_ROOT,
     );
     let storage_1 = storage_manager.create_storage();
     let assert_storage_1 = || {
@@ -129,6 +130,7 @@ fn concurrent_prover_storages() {
         vec![(the_user_key.clone(), Some(user_value_2.clone()))],
         vec![(the_kernel_key.clone(), Some(kernel_value_2.clone()))],
         vec![(the_accessory_key.clone(), Some(accessory_value_2.clone()))],
+        root_1,
     );
     let storage_2 = storage_manager.create_storage();
     let assert_storage_2 = || {
@@ -165,6 +167,7 @@ fn concurrent_prover_storages() {
         vec![(the_user_key.clone(), None)],
         vec![(the_kernel_key.clone(), None)],
         vec![(the_accessory_key.clone(), None)],
+        root_2,
     );
     let storage_3 = storage_manager.create_storage();
     let assert_storage_3 = || {
@@ -203,6 +206,7 @@ fn concurrent_prover_storages() {
         vec![(the_user_key.clone(), Some(user_value_4.clone()))],
         vec![(the_kernel_key.clone(), Some(kernel_value_4.clone()))],
         vec![(the_accessory_key.clone(), Some(accessory_value_4.clone()))],
+        root_3,
     );
     let storage_4 = storage_manager.create_storage();
     let assert_storage_4 = || {
@@ -263,6 +267,7 @@ fn materialize_writes(
     user_writes: Vec<(SlotKey, Option<SlotValue>)>,
     kernel_writes: Vec<(SlotKey, Option<SlotValue>)>,
     accessory_writes: Vec<(SlotKey, Option<SlotValue>)>,
+    root: StorageRoot<TestStorageSpec>,
 ) -> (StorageRoot<TestStorageSpec>, NativeChangeSet) {
     let state_accesses = StateAccesses {
         user: OrderedReadsAndWrites {
@@ -276,7 +281,7 @@ fn materialize_writes(
     };
 
     let (root, mut state_update) = storage
-        .compute_state_update(state_accesses, &ArrayWitness::default())
+        .compute_state_update(state_accesses, &ArrayWitness::default(), root)
         .unwrap();
 
     state_update.add_accessory_items(accessory_writes);

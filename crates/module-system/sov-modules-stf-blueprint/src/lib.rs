@@ -111,10 +111,11 @@ where
         runtime: &mut RT,
         create_rollup_block: bool,
         checkpoint: StateCheckpoint<S>,
+        prev_state_root: <S::Storage as Storage>::Root,
     ) -> MaterializedUpdate<S::Storage> {
         let rollup_height = checkpoint.rollup_height_to_access();
         let (next_root_hash, mut state_update, mut accessory_delta, witness, storage) =
-            checkpoint.materialize_update();
+            checkpoint.materialize_update(prev_state_root);
 
         // Special case: at genesis, we save the genesis root to the accessory state here. This ensure's it's available even before
         // the next slot causes `synchronize_chain` to be called.
@@ -147,6 +148,7 @@ where
         &self,
         _create_rollup_block: bool,
         checkpoint: StateCheckpoint<S>,
+        prev_state_root: <S::Storage as Storage>::Root,
     ) -> (
         <S::Storage as Storage>::Root,
         <S::Storage as Storage>::Witness,
@@ -156,7 +158,8 @@ where
 
         Self::check_state_root_delay();
 
-        let (next_root_hash, state_update, _, witness, storage) = checkpoint.materialize_update();
+        let (next_root_hash, state_update, _, witness, storage) =
+            checkpoint.materialize_update(prev_state_root);
 
         let change_set = storage.materialize_changes(state_update);
         assert!(witness.is_empty(), "Non-native execution must completely consume the witness! The prover may be malicious, or this may be a bug.");
@@ -246,10 +249,18 @@ where
         }
 
         #[cfg(feature = "native")]
-        let (genesis_hash, _, change_set) =
-            self.materialize_slot(&mut runtime, true, state_checkpoint);
+        let (genesis_hash, _, change_set) = self.materialize_slot(
+            &mut runtime,
+            true,
+            state_checkpoint,
+            <S::Storage as Storage>::PRE_GENESIS_ROOT,
+        );
         #[cfg(not(feature = "native"))]
-        let (genesis_hash, _, change_set) = self.materialize_slot(true, state_checkpoint);
+        let (genesis_hash, _, change_set) = self.materialize_slot(
+            true,
+            state_checkpoint,
+            <S::Storage as Storage>::PRE_GENESIS_ROOT,
+        );
 
         (genesis_hash, change_set)
     }
@@ -486,7 +497,7 @@ where
             // So we structure this code to make it obvious that we're handling both cases.
             #[cfg(not(feature = "native"))]
             {
-                self.materialize_slot(create_rollup_block, state)
+                self.materialize_slot(create_rollup_block, state, pre_state_root.clone())
             }
             #[cfg(feature = "native")]
             {
@@ -494,8 +505,12 @@ where
                 let visible_slot_number = state.current_visible_slot_number();
 
                 // Note the call to materialize slot mixed in with metrics operations here.
-                let (state_root, witness, change_set) =
-                    self.materialize_slot(&mut runtime, create_rollup_block, state);
+                let (state_root, witness, change_set) = self.materialize_slot(
+                    &mut runtime,
+                    create_rollup_block,
+                    state,
+                    pre_state_root.clone(),
+                );
 
                 let slot_finalization_time = slot_finalization_start.elapsed();
                 sov_metrics::track_metrics(|tracker| {

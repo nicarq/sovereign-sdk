@@ -3,7 +3,6 @@ use std::num::NonZero;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
-use borsh::{BorshDeserialize, BorshSerialize};
 use futures::StreamExt;
 use proptest::prelude::*;
 use rand::SeedableRng;
@@ -34,35 +33,11 @@ use super::*;
 #[derive(PartialEq, Debug, Clone, Eq, serde::Serialize, serde::Deserialize, Default)]
 pub struct MockStf;
 
-#[derive(
-    Clone,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    BorshSerialize,
-    BorshDeserialize,
-    derive_more::Display,
-    derive_more::Debug,
-    derive_more::From,
-    derive_more::AsRef,
-)]
-#[display("{}", hex::encode(&self.0))]
-#[debug("MockRoot({})", hex::encode(&self.0))]
-/// A mock state root
-pub struct MockRoot(Vec<u8>);
-
-impl AsRef<[u8]> for MockRoot {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
 impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, OuterVm, Da>
     for MockStf
 {
     type Address = Vec<u8>;
-    type StateRoot = MockRoot;
+    type StateRoot = <ProverStorage<S> as Storage>::Root;
     type GasPrice = ();
     type GenesisParams = ();
     type PreState = ();
@@ -79,7 +54,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, 
         _base_state: Self::PreState,
         _params: Self::GenesisParams,
     ) -> (Self::StateRoot, ()) {
-        (Vec::default().into(), ())
+        (<ProverStorage<S> as Storage>::PRE_GENESIS_ROOT, ())
     }
 
     fn apply_slot(
@@ -92,7 +67,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, 
         _execution_context: ExecutionContext,
     ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self> {
         ApplySlotOutput::<InnerVm, OuterVm, Da, Self> {
-            state_root: Vec::default().into(),
+            state_root: <ProverStorage<S> as Storage>::PRE_GENESIS_ROOT,
             change_set: (),
             proof_receipts: vec![],
             batch_receipts: vec![BatchReceipt {
@@ -171,7 +146,7 @@ async fn test_instant_finality() -> anyhow::Result<()> {
     state_manager.stf_info_sender = Some(sender);
     let da_service = MockDaService::new(SEQUENCER_ADDRESS);
 
-    let mut state_root = state_manager.get_state_root().clone();
+    let mut state_root = *state_manager.get_state_root();
     for height in 1..4 {
         da_service
             .send_transaction(&[height as u8; 10], MockFee::zero())
@@ -248,14 +223,11 @@ async fn test_reorg_happened_correct_block_returned() -> anyhow::Result<()> {
                 finality,
             )
             .await?;
-            let current_state_root = state_manager.get_state_root().clone();
+            let current_state_root = *state_manager.get_state_root();
             let received_storage = state_update_receiver.borrow().storage.clone();
             let received_storage_root = received_storage.get_latest_root_hash()?;
-            assert_eq!(
-                current_state_root,
-                received_storage_root.root_hash().to_vec().into()
-            );
-            post_state_roots.push(current_state_root.clone());
+            assert_eq!(current_state_root, received_storage_root);
+            post_state_roots.push(current_state_root);
             hash_to_post_state_root.insert(block_hash, current_state_root);
         } else {
             let (prover_storage, returned_block) = state_manager
@@ -472,7 +444,7 @@ async fn test_progressing_with_shuffle(
 
         let slot_commit: MockSlotCommit = SlotCommit::new(returned_block.clone());
 
-        let state_root_hash = transition_witness.final_state_root.clone();
+        let state_root_hash = transition_witness.final_state_root;
         state_manager
             .process_stf_changes(
                 &da_service,
@@ -691,7 +663,7 @@ async fn test_with_frequent_periodic_batch_production() -> anyhow::Result<()> {
 
         let slot_commit: MockSlotCommit = SlotCommit::new(returned_block.clone());
 
-        let state_root_hash = transition_witness.final_state_root.clone();
+        let state_root_hash = transition_witness.final_state_root;
         state_manager
             .process_stf_changes(
                 &da_service,
@@ -790,7 +762,7 @@ async fn test_chain_progress_between_prepare_storage_and_save_changes(
 
         let slot_commit: MockSlotCommit = SlotCommit::new(returned_block.clone());
 
-        let state_root_hash = transition_witness.final_state_root.clone();
+        let state_root_hash = transition_witness.final_state_root;
         state_manager
             .process_stf_changes(
                 &da_service,
@@ -1045,8 +1017,11 @@ async fn setup_storage_manager(
     let (genesis_storage, ledger_state) = storage_manager.create_state_for(&genesis_header)?;
     let ledger_db = LedgerDb::with_reader(ledger_state)?;
 
-    let (state_root, change_set) =
-        produce_synthetic_changes::<MockDaSpec>(genesis_storage, &genesis_header);
+    let (state_root, change_set) = produce_synthetic_changes::<MockDaSpec>(
+        genesis_storage,
+        &genesis_header,
+        <ProverStorage<S> as Storage>::PRE_GENESIS_ROOT,
+    );
 
     let data_to_commit: SlotCommit<_, TestBatchReceiptContents, TestTxReceiptContents> =
         SlotCommit::new(genesis_block);
@@ -1100,7 +1075,8 @@ where
 fn produce_synthetic_changes<Da: DaSpec>(
     prover_storage: ProverStorage<S>,
     block_header: &Da::BlockHeader,
-) -> (StateRoot, NativeChangeSet) {
+    pre_state_root: <ProverStorage<S> as Storage>::Root,
+) -> (<ProverStorage<S> as Storage>::Root, NativeChangeSet) {
     let mut data = block_header.height().to_le_bytes().to_vec();
     data.extend_from_slice(block_header.hash().as_ref());
     let mut accesses = StateAccesses::default();
@@ -1109,15 +1085,15 @@ fn produce_synthetic_changes<Da: DaSpec>(
         .ordered_writes
         .push((SlotKey::from(data.clone()), Some(SlotValue::from(data))));
     let (state_root, state_update) = prover_storage
-        .compute_state_update(accesses, &ArrayWitness::default())
+        .compute_state_update(accesses, &ArrayWitness::default(), pre_state_root)
         .unwrap();
     let change_set = prover_storage.materialize_changes(state_update);
 
-    (state_root.root_hash().to_vec().into(), change_set)
+    (state_root, change_set)
 }
 
 async fn produce_synthetic_state_transition_witness<Da: DaService>(
-    initial_state_root: StateRoot,
+    initial_state_root: <ProverStorage<S> as Storage>::Root,
     prover_storage: ProverStorage<S>,
     da_service: &Da,
     filtered_block: Da::FilteredBlock,
@@ -1125,8 +1101,11 @@ async fn produce_synthetic_state_transition_witness<Da: DaService>(
     NativeChangeSet,
     StateTransitionWitness<StateRoot, Witness, Da::Spec>,
 ) {
-    let (state_root, change_set) =
-        produce_synthetic_changes::<Da::Spec>(prover_storage, filtered_block.header());
+    let (state_root, change_set) = produce_synthetic_changes::<Da::Spec>(
+        prover_storage,
+        filtered_block.header(),
+        initial_state_root,
+    );
     let (relevant_blobs, relevant_proofs) = da_service
         .extract_relevant_blobs_with_proof(&filtered_block)
         .await;

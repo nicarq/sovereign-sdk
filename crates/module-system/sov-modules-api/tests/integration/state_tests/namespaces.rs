@@ -6,7 +6,7 @@ use sov_modules_api::{
     KernelStateValue, StateCheckpoint, StateMap, StateValue, VersionedStateValue,
 };
 use sov_rollup_interface::common::IntoSlotNumber;
-use sov_state::{BorshCodec, Prefix, ProvableNamespace};
+use sov_state::{BorshCodec, Prefix, ProvableNamespace, ProverStorage, Storage};
 use sov_test_utils::storage::SimpleStorageManager;
 
 use crate::state_tests::{commit_to_storage, StorageSpec, S};
@@ -24,7 +24,13 @@ fn test_state_value_user_namespace() -> Result<(), Infallible> {
     // Native execution
     let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);
     state_value.set(&11, &mut state)?;
-    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
+    let (storage, root) = commit_to_storage(
+        state,
+        storage,
+        &mut kernel,
+        &mut storage_manager,
+        <ProverStorage<StorageSpec> as Storage>::PRE_GENESIS_ROOT,
+    );
 
     // In the first version the user and the kernel root hashes are different
     let kernel_root_hash = storage
@@ -38,7 +44,8 @@ fn test_state_value_user_namespace() -> Result<(), Infallible> {
     let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);
     let _ = state_value.get(&mut state);
     state_value.set(&22, &mut state)?;
-    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
+    let (storage, _root) =
+        commit_to_storage(state, storage, &mut kernel, &mut storage_manager, root);
 
     // Then the kernel is the same but the user root hash changes
     let new_kernel_root_hash = storage
@@ -68,7 +75,13 @@ fn test_state_value_kernel_namespace() -> Result<(), Infallible> {
     let mut kernel_working_set = kernel.accessor(&mut state);
     state_value.set(&11, &mut kernel_working_set)?;
 
-    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
+    let (storage, root) = commit_to_storage(
+        state,
+        storage,
+        &mut kernel,
+        &mut storage_manager,
+        <ProverStorage<StorageSpec> as Storage>::PRE_GENESIS_ROOT,
+    );
 
     // In the first version the user and the kernel root hashes are different
     let kernel_root_hash = storage
@@ -83,7 +96,8 @@ fn test_state_value_kernel_namespace() -> Result<(), Infallible> {
     let mut kernel_working_set = kernel.accessor(&mut state);
     let _ = state_value.get(&mut kernel_working_set);
     state_value.set(&22, &mut kernel_working_set)?;
-    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
+    let (storage, _root) =
+        commit_to_storage(state, storage, &mut kernel, &mut storage_manager, root);
 
     // Then the kernel is the same, but the user root hash changes
     let new_kernel_root_hash = storage
@@ -112,7 +126,13 @@ fn test_state_map_user_namespace() -> Result<(), Infallible> {
     state_value.set(&11, &0, &mut state)?;
 
     // Committing data at height 0
-    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
+    let (storage, root) = commit_to_storage(
+        state,
+        storage,
+        &mut kernel,
+        &mut storage_manager,
+        <ProverStorage<StorageSpec> as Storage>::PRE_GENESIS_ROOT,
+    );
 
     let kernel_root_hash = storage
         .get_root_hash_namespace(ProvableNamespace::Kernel, 0.to_slot_number())
@@ -128,7 +148,8 @@ fn test_state_map_user_namespace() -> Result<(), Infallible> {
     let _ = state_value.get(&0, &mut state);
     state_value.set(&22, &0, &mut state)?;
     // Committing at height = 1
-    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
+    let (storage, _root) =
+        commit_to_storage(state, storage, &mut kernel, &mut storage_manager, root);
 
     // Then the kernel is the same but the user root hash changes
     let new_kernel_root_hash: sov_state::jmt::RootHash = storage
@@ -160,7 +181,13 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
         .set_true_current(&11, &mut kernel_working_set)
         .unwrap();
 
-    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
+    let (storage, root) = commit_to_storage(
+        state,
+        storage,
+        &mut kernel,
+        &mut storage_manager,
+        <ProverStorage<StorageSpec> as Storage>::PRE_GENESIS_ROOT,
+    );
 
     // In the first version the user and the kernel root hashes are different from one another
     let kernel_root_hash = storage
@@ -177,7 +204,8 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     state_value
         .set_true_current(&22, &mut kernel_working_set)
         .unwrap();
-    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
+    let (storage, _root) =
+        commit_to_storage(state, storage, &mut kernel, &mut storage_manager, root);
 
     // Then the kernel is the same but the user root hash changes
     let new_kernel_root_hash = storage
