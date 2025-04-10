@@ -15,7 +15,11 @@ fn increase_value_and_commit(
     storage: ProverStorage<StorageSpec>,
     kernel: &mut MockKernel<S>,
     storage_manager: &mut SimpleStorageManager<StorageSpec>,
-) -> ProverStorage<StorageSpec> {
+    pre_state_root: <ProverStorage<StorageSpec> as Storage>::Root,
+) -> (
+    ProverStorage<StorageSpec>,
+    <ProverStorage<StorageSpec> as Storage>::Root,
+) {
     let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), kernel);
 
     // Setting value, starting from 0
@@ -26,7 +30,7 @@ fn increase_value_and_commit(
 
     state_value.set(&value, &mut state).unwrap_infallible();
 
-    commit_to_storage(state, storage, kernel, storage_manager)
+    commit_to_storage(state, storage, kernel, storage_manager, pre_state_root)
 }
 
 /// Tests that the archival state is correctly retrieved from the DB and updates to the head state don't interfere
@@ -35,6 +39,7 @@ fn archival_state_updates_correctly() -> Result<(), Infallible> {
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new();
     let mut kernel = MockKernel::default();
     let mut state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
+    let mut prev_root = <ProverStorage<StorageSpec> as Storage>::PRE_GENESIS_ROOT;
 
     for current_height in 0..100 {
         let storage = storage_manager.create_storage();
@@ -51,8 +56,14 @@ fn archival_state_updates_correctly() -> Result<(), Infallible> {
             assert_eq!(value, Some(past_height as u32));
         }
 
-        let storage =
-            increase_value_and_commit(&mut state_value, storage, &mut kernel, &mut storage_manager);
+        let (storage, next_root) = increase_value_and_commit(
+            &mut state_value,
+            storage,
+            &mut kernel,
+            &mut storage_manager,
+            prev_root,
+        );
+        prev_root = next_root;
         let state_checkpoint = StateCheckpoint::new(storage, &kernel);
         let api_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel.clone()));
 

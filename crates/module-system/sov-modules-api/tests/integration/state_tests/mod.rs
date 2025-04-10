@@ -25,15 +25,19 @@ pub fn commit_to_storage<S: Spec<Storage = ProverStorage<StorageSpec>>>(
     storage: ProverStorage<StorageSpec>,
     kernel: &mut MockKernel<S>,
     storage_manager: &mut SimpleStorageManager<StorageSpec>,
-) -> ProverStorage<StorageSpec> {
+    pre_state_root: <<S as Spec>::Storage as Storage>::Root,
+) -> (
+    ProverStorage<StorageSpec>,
+    <<S as Spec>::Storage as Storage>::Root,
+) {
     let (cache_log, _, witness) = state.freeze();
 
-    let (_, change_set) = storage
-        .validate_and_materialize(cache_log, &witness)
+    let (root, change_set) = storage
+        .validate_and_materialize(cache_log, &witness, pre_state_root)
         .expect("Native JMT validation should succeed");
     storage_manager.commit(change_set);
 
     kernel.increase_heights();
 
-    storage_manager.create_storage()
+    (storage_manager.create_storage(), root)
 }

@@ -115,6 +115,7 @@ impl<S: Spec> StateCheckpoint<S> {
     #[allow(clippy::type_complexity)]
     pub fn materialize_update(
         self,
+        prev_state_root: <S::Storage as Storage>::Root,
     ) -> (
         <S::Storage as Storage>::Root,
         <S::Storage as Storage>::StateUpdate,
@@ -125,7 +126,7 @@ impl<S: Spec> StateCheckpoint<S> {
         let (cache_log, accessory_delta, witness, storage) = self.delta.freeze();
 
         let (root, update) = storage
-            .compute_state_update(cache_log, &witness)
+            .compute_state_update(cache_log, &witness, prev_state_root)
             .expect("state update computation must succeed");
         (root, update, accessory_delta, witness, storage)
     }

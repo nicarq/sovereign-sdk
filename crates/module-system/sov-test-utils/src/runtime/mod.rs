@@ -420,11 +420,12 @@ where
 
         let (reads_writes, _, witness) = state.freeze();
 
-        let (_new_state_root, change_set) = stf_state
-            .validate_and_materialize(reads_writes, &witness)
+        let (new_state_root, change_set) = stf_state
+            .validate_and_materialize(reads_writes, &witness, self.state_root)
             .unwrap();
 
         self.storage_manager.commit(change_set);
+        self.state_root = new_state_root;
         self.synchronize_storage_channel();
     }
 

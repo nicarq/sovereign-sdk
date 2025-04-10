@@ -382,6 +382,9 @@ pub trait Storage: Clone {
     /// Collections of all the writes that have been made on top of this instance of the storage;
     type ChangeSet: Send + Sync;
 
+    /// The rooot hash of storage *before* genesis, when it's completely empty.
+    const PRE_GENESIS_ROOT: Self::Root;
+
     /// Puts the value in the witness.
     fn put_in_witness(&self, value: Option<SlotValue>, witness: &Self::Witness);
 
@@ -409,6 +412,7 @@ pub trait Storage: Clone {
         &self,
         state_accesses: StateAccesses,
         witness: &Self::Witness,
+        prev_state_root: Self::Root,
     ) -> anyhow::Result<(Self::Root, Self::StateUpdate)>;
 
     /// Materializes changes from given [`Self::StateUpdate`] into [`Self::ChangeSet`].
@@ -420,8 +424,10 @@ pub trait Storage: Clone {
         state_accesses: StateAccesses,
         witness: &Self::Witness,
         accessory_updates: Vec<(SlotKey, Option<SlotValue>)>,
+        prev_state_root: Self::Root,
     ) -> anyhow::Result<(Self::Root, Self::ChangeSet)> {
-        let (root_hash, mut node_batch) = self.compute_state_update(state_accesses, witness)?;
+        let (root_hash, mut node_batch) =
+            self.compute_state_update(state_accesses, witness, prev_state_root)?;
         for write in accessory_updates {
             node_batch.add_accessory_item(write.0, write.1);
         }
@@ -438,12 +444,14 @@ pub trait Storage: Clone {
         self,
         state_accesses: StateAccesses,
         witness: &Self::Witness,
+        prev_state_root: Self::Root,
     ) -> anyhow::Result<(Self::Root, Self::ChangeSet)> {
         Self::validate_and_materialize_with_accessory_update(
             self,
             state_accesses,
             witness,
             Vec::default(),
+            prev_state_root,
         )
     }
 

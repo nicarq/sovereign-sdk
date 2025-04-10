@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use jmt::storage::TreeReader;
+use jmt::JellyfishMerkleTree;
 #[cfg(feature = "bench")]
 use sov_modules_macros::cycle_tracker;
 use sov_rollup_interface::common::SlotNumber;
@@ -10,7 +12,8 @@ use crate::namespaces::CompileTimeNamespace;
 use crate::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use crate::storage_internals::SparseMerkleProof;
 use crate::{
-    open_merkle_proof, MerkleProofSpec, NodeLeafAndMaybeValue, ReadType, StorageRoot, Witness,
+    open_merkle_proof, MerkleProofSpec, NodeLeafAndMaybeValue, ProvableNamespace, ReadType,
+    StateRoot, StorageRoot, Witness,
 };
 
 /// A [`Storage`] implementation designed to be used inside the zkVM.
@@ -91,15 +94,40 @@ impl<S: MerkleProofSpec> ZkStorage<S> {
     fn compute_state_update_namespace(
         state_accesses: OrderedReadsAndWrites,
         witness: &S::Witness,
+        prev_state_root: jmt::RootHash,
     ) -> anyhow::Result<jmt::RootHash> {
-        let prev_state_root = witness.get_hint();
-
         // For each value that's been read from the tree, verify the provided smt proof
-        jmt_verify_existence::<S>(prev_state_root, &state_accesses, witness)?;
+        jmt_verify_existence::<S>(prev_state_root.0, &state_accesses, witness)?;
 
-        let new_root = jmt_verify_update::<S>(prev_state_root, state_accesses, witness);
+        let new_root = jmt_verify_update::<S>(prev_state_root.0, state_accesses, witness);
 
         Ok(jmt::RootHash(new_root))
+    }
+}
+
+/// A helper struct for computing the empty root hash. We need this because the jmt puts a `TreeReader`
+/// constraint on its DB to compute provide the empty root const, even though that reader is not actually touched.
+struct EmptyTreeReader;
+impl TreeReader for EmptyTreeReader {
+    fn get_node_option(
+        &self,
+        _node_key: &jmt::storage::NodeKey,
+    ) -> anyhow::Result<Option<jmt::storage::Node>> {
+        Ok(None)
+    }
+
+    fn get_value_option(
+        &self,
+        _max_version: jmt::Version,
+        _key_hash: KeyHash,
+    ) -> anyhow::Result<Option<jmt::OwnedValue>> {
+        Ok(None)
+    }
+
+    fn get_rightmost_leaf(
+        &self,
+    ) -> anyhow::Result<Option<(jmt::storage::NodeKey, jmt::storage::LeafNode)>> {
+        Ok(None)
     }
 }
 
@@ -110,6 +138,11 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     type Root = StorageRoot<S>;
     type StateUpdate = ();
     type ChangeSet = ();
+
+    const PRE_GENESIS_ROOT: Self::Root = StorageRoot::<S>::new(
+        JellyfishMerkleTree::<EmptyTreeReader, S::Hasher>::EMPTY_ROOT.0,
+        JellyfishMerkleTree::<EmptyTreeReader, S::Hasher>::EMPTY_ROOT.0,
+    );
 
     fn get_accessory(&self, _key: &SlotKey, _version: Option<SlotNumber>) -> Option<SlotValue> {
         unimplemented!("The ZkStorage does not have access to the accessory state.")
@@ -143,11 +176,20 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         &self,
         state_accesses: StateAccesses,
         witness: &Self::Witness,
+        prev_state_root: Self::Root,
     ) -> anyhow::Result<(Self::Root, Self::StateUpdate)> {
-        let user_root =
-            ZkStorage::<S>::compute_state_update_namespace(state_accesses.user, witness)?;
-        let kernel_root =
-            ZkStorage::<S>::compute_state_update_namespace(state_accesses.kernel, witness)?;
+        let prev_user_root = prev_state_root.namespace_root(ProvableNamespace::User);
+        let prev_kernel_root = prev_state_root.namespace_root(ProvableNamespace::Kernel);
+        let user_root = ZkStorage::<S>::compute_state_update_namespace(
+            state_accesses.user,
+            witness,
+            jmt::RootHash(prev_user_root),
+        )?;
+        let kernel_root = ZkStorage::<S>::compute_state_update_namespace(
+            state_accesses.kernel,
+            witness,
+            jmt::RootHash(prev_kernel_root),
+        )?;
 
         Ok((StorageRoot::<S>::new(user_root.0, kernel_root.0), ()))
     }

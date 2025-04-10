@@ -28,7 +28,11 @@ fn make_user_map_proof(
     let (cache_log, _, witness) = state.freeze();
 
     let (root, change_set) = storage
-        .validate_and_materialize(cache_log, &witness)
+        .validate_and_materialize(
+            cache_log,
+            &witness,
+            <<S as Spec>::Storage as Storage>::PRE_GENESIS_ROOT,
+        )
         .expect("Native jmt validation should succeed");
     storage_manager.commit(change_set);
     let storage = storage_manager.create_storage();
@@ -58,7 +62,7 @@ fn make_user_value_proof(
     let (cache_log, _, witness) = state.freeze();
 
     let (root, change_set) = storage
-        .validate_and_materialize(cache_log, &witness)
+        .validate_and_materialize(cache_log, &witness, <S as Spec>::Storage::PRE_GENESIS_ROOT)
         .expect("Native jmt validation should succeed");
     storage_manager.commit(change_set);
     let storage = storage_manager.create_storage();
@@ -163,6 +167,7 @@ fn test_archival_proof_gen() {
 
     // Update the state value and calculate a new root for each iteration
     let mut roots = vec![];
+    let mut current_root = <S as Spec>::Storage::PRE_GENESIS_ROOT;
     for iter in 0..NUM_ITER {
         let storage = storage_manager.create_storage();
 
@@ -182,8 +187,9 @@ fn test_archival_proof_gen() {
         let (cache_log, _, witness) = state.freeze();
 
         let (root, change_set) = storage
-            .validate_and_materialize(cache_log, &witness)
+            .validate_and_materialize(cache_log, &witness, current_root)
             .expect("Native jmt validation should succeed");
+        current_root = root;
 
         storage_manager.commit(change_set);
 

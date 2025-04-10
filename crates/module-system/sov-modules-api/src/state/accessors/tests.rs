@@ -23,12 +23,15 @@ const NAMESPACE: Namespace = Namespace::User;
 
 fn create_storage_manager(
     initial_values: Vec<(Vec<u8>, u64)>,
-) -> SimpleStorageManager<TestStorageSpec> /*ProverStorage<DefaultStorageSpec<sha2::Sha256>>*/
+) -> (
+    SimpleStorageManager<TestStorageSpec>,
+    <<Native as Spec>::Storage as Storage>::Root,
+) /*ProverStorage<DefaultStorageSpec<sha2::Sha256>>*/
 {
     let mut storage_manager = SimpleStorageManager::new();
     let storage = storage_manager.create_storage();
 
-    let (_, genesis_change_set) = storage
+    let (root, genesis_change_set) = storage
         .validate_and_materialize(
             StateAccesses {
                 user: OrderedReadsAndWrites {
@@ -45,21 +48,22 @@ fn create_storage_manager(
                 kernel: Default::default(),
             },
             &ArrayWitness::default(),
+            <Native as Spec>::Storage::PRE_GENESIS_ROOT,
         )
         .expect("Native jmt validation should succeed");
     storage_manager.commit(genesis_change_set);
-    storage_manager
+    (storage_manager, root)
 }
 
 #[test]
 fn test_witness_generation() {
     // Run the test with Native storage and create the witness.
-    let witness = {
-        let storage = create_storage_manager(vec![
+    let (witness, root) = {
+        let (manager, root) = create_storage_manager(vec![
             (vec![PRE_SET_VAL_ID_1], 22),
             (vec![PRE_SET_VAL_ID_2], 99),
-        ])
-        .create_storage();
+        ]);
+        let storage = manager.create_storage();
 
         let mut state = StateCheckpoint::new(storage.clone(), &MockKernel::<Native>::default());
 
@@ -67,9 +71,9 @@ fn test_witness_generation() {
         let (cache_log, _, witness) = state.freeze();
 
         let _ = storage
-            .validate_and_materialize(cache_log, &witness)
+            .validate_and_materialize(cache_log, &witness, root)
             .expect("Native jmt validation should succeed");
-        witness
+        (witness, root)
     };
 
     // Run the test with Zk storage and consume the witness.
@@ -83,7 +87,7 @@ fn test_witness_generation() {
         let (cache_log, _, witness) = state.freeze();
 
         let _ = storage
-            .validate_and_materialize(cache_log, &witness)
+            .validate_and_materialize(cache_log, &witness, root)
             .expect("ZK validation should succeed");
     }
 }
@@ -157,11 +161,11 @@ fn test_values<S: Spec>(state: &mut StateCheckpoint<S>) {
 
 #[test]
 fn test_discard_tx_cache() {
-    let storage = create_storage_manager(vec![
+    let (manager, _) = create_storage_manager(vec![
         (vec![PRE_SET_VAL_ID_1], 22),
         (vec![PRE_SET_VAL_ID_2], 99),
-    ])
-    .create_storage();
+    ]);
+    let storage = manager.create_storage();
 
     let state_value_to_read =
         StateValue::<u64>::with_codec(Prefix::new(vec![PRE_SET_VAL_ID_1]), BorshCodec);

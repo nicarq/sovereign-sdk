@@ -35,6 +35,7 @@ impl HashStf {
         hasher: sha2::Sha256,
         storage: ProverStorage<S>,
         witness: &ArrayWitness,
+        root: StorageRoot<S>,
     ) -> (StorageRoot<S>, NativeChangeSet) {
         let result = hasher.finalize();
 
@@ -51,7 +52,7 @@ impl HashStf {
         };
 
         let (jmt_root_hash, state_update) = storage
-            .compute_state_update(state_accesses, witness)
+            .compute_state_update(state_accesses, witness, root)
             .unwrap();
 
         let change_set = storage.materialize_changes(state_update);
@@ -84,7 +85,12 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, 
         let mut hasher = sha2::Sha256::new();
         hasher.update(params);
 
-        HashStf::save_from_hasher(hasher, genesis_state, &ArrayWitness::default())
+        HashStf::save_from_hasher(
+            hasher,
+            genesis_state,
+            &ArrayWitness::default(),
+            <ProverStorage<S> as Storage>::PRE_GENESIS_ROOT,
+        )
     }
 
     #[tracing::instrument(name = "HashStf::apply_slot", skip_all)]
@@ -164,7 +170,8 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, 
             });
         }
 
-        let (state_root, change_set) = HashStf::save_from_hasher(hasher, pre_state, &witness);
+        let (state_root, change_set) =
+            HashStf::save_from_hasher(hasher, pre_state, &witness, *pre_state_root);
 
         tracing::debug!(
             from = hex::encode(pre_state_root),

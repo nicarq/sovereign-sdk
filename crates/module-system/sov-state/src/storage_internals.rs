@@ -83,11 +83,19 @@ impl<S: MerkleProofSpec> StorageRoot<S> {
     /// Creates a new `[ProverStorageRoot]` instance from specified root hashes.
     /// Concretely this method builds the prover root hash by concatenating the user and
     /// the kernel root hashes.
-    pub fn new(user_hash: [u8; 32], kernel_hash: [u8; 32]) -> Self {
+    pub const fn new(user_hash: [u8; 32], kernel_hash: [u8; 32]) -> Self {
         // Concatenate the user and kernel root hashes
         let mut root_hashes = [0u8; 64];
-        root_hashes[..32].copy_from_slice(&user_hash);
-        root_hashes[32..].copy_from_slice(&kernel_hash);
+        let mut i = 0;
+        // We don't have access to `for` loops or `copy_from_slice` in const fns - so we use a while loop even though it's a bit awkward
+        while i < 32 {
+            root_hashes[i] = user_hash[i];
+            i += 1;
+        }
+        while i < 64 {
+            root_hashes[i] = kernel_hash[i - 32];
+            i += 1;
+        }
 
         Self {
             root_hashes,
