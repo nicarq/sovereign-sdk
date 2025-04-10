@@ -1,5 +1,4 @@
 [
-	"scripts/switcheroo",
 	"crates/rollup-interface",
 	"crates/adapters/mock-da",
 	"crates/adapters/mock-zkvm",
