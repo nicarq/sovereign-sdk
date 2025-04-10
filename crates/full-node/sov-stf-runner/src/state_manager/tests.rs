@@ -253,7 +253,7 @@ async fn test_reorg_happened_correct_block_returned() -> anyhow::Result<()> {
             let received_storage_root = received_storage.get_latest_root_hash()?;
             assert_eq!(
                 current_state_root,
-                received_storage_root.root_hash().0.to_vec().into()
+                received_storage_root.root_hash().to_vec().into()
             );
             post_state_roots.push(current_state_root.clone());
             hash_to_post_state_root.insert(block_hash, current_state_root);
@@ -1113,7 +1113,7 @@ fn produce_synthetic_changes<Da: DaSpec>(
         .unwrap();
     let change_set = prover_storage.materialize_changes(state_update);
 
-    (state_root.root_hash().0.to_vec().into(), change_set)
+    (state_root.root_hash().to_vec().into(), change_set)
 }
 
 async fn produce_synthetic_state_transition_witness<Da: DaService>(

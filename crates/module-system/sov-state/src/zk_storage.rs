@@ -149,7 +149,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         let kernel_root =
             ZkStorage::<S>::compute_state_update_namespace(state_accesses.kernel, witness)?;
 
-        Ok((StorageRoot::<S>::new(user_root, kernel_root), ()))
+        Ok((StorageRoot::<S>::new(user_root.0, kernel_root.0), ()))
     }
 
     fn materialize_changes(self, _node_batch: Self::StateUpdate) {}

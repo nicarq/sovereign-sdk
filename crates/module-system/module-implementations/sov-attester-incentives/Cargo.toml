@@ -15,10 +15,9 @@ publish = false
 workspace = true
 
 [dev-dependencies]
-tempfile = { workspace = true }
 strum = { workspace = true }
 sov-attester-incentives = { workspace = true, features = ["native"] }
-sov-db = { workspace = true }
+
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true }
 sov-test-utils = { workspace = true }
@@ -46,16 +45,16 @@ tokio = { workspace = true, optional = true }
 [features]
 default = []
 native = [
-	"sov-attester-incentives/native",
-	"sov-address/native",
-	"sov-bank/native",
-	"sov-chain-state/native",
-	"sov-mock-da/native",
-	"sov-mock-zkvm/native",
-	"sov-modules-api/native",
-	"sov-rollup-interface/native",
-	"sov-state/native",
-	"tokio",
-	"sov-modules-rollup-blueprint/native",
-	"sov-value-setter/native"
+    "sov-attester-incentives/native",
+    "sov-address/native",
+    "sov-bank/native",
+    "sov-chain-state/native",
+    "sov-mock-da/native",
+    "sov-mock-zkvm/native",
+    "sov-modules-api/native",
+    "sov-rollup-interface/native",
+    "sov-state/native",
+    "tokio",
+    "sov-modules-rollup-blueprint/native",
+    "sov-value-setter/native"
 ]

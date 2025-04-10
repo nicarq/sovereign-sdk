@@ -6,7 +6,6 @@ use sov_mock_da::MockHash;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{InvalidProofError, ProofOutcome};
 use sov_rollup_interface::common::SlotNumber;
-use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
@@ -93,8 +92,7 @@ fn setup_with_wrong_attestation() -> (
             .query_visible_state(|state| build_proof(state, 1, &genesis_attester_address))
             .unwrap();
 
-        attestation_proof.post_state_root =
-            StorageRoot::new(RootHash([255; 32]), RootHash([255; 32]));
+        attestation_proof.post_state_root = StorageRoot::new([255; 32], [255; 32]);
 
         runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
             input: ProofInput(make_attestation_blob(attestation_proof)),
@@ -273,7 +271,7 @@ fn test_invalid_challenge_initial_state_root() {
         })
         .unwrap();
 
-    challenge_proof.initial_state_root = StorageRoot::new(RootHash([255; 32]), RootHash([255; 32]));
+    challenge_proof.initial_state_root = StorageRoot::new([255; 32], [255; 32]);
 
     test_invalid_challenge_helper(
         &mut runner,
