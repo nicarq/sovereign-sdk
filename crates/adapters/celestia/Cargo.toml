@@ -15,7 +15,7 @@ publish = true
 workspace = true
 
 [dependencies]
-borsh = { version = "1", features = ["derive", "bytes"] }
+borsh = { workspace = true, features = ["derive", "bytes"] }
 bech32 = { version = "0.11" }
 prost = "0.13"
 
