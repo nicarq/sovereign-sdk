@@ -11,7 +11,7 @@ default-run = "main"
 
 [dependencies]
 tokio = { version = "1.42", default-features = false }
-borsh = { version = "1", features = ["derive"] }
+borsh = { workspace = true, features = ["derive"] }
 
 schemars = { version = "0.8.21", features = ["derive"] }
 serde = { version = "1.0.208", default-features = false, features = [
