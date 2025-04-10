@@ -168,7 +168,7 @@ async fn test_instant_finality() -> anyhow::Result<()> {
         NonZero::new(40).unwrap(),
     )
     .await?;
-    state_manager.st_info_sender = Some(sender);
+    state_manager.stf_info_sender = Some(sender);
     let da_service = MockDaService::new(SEQUENCER_ADDRESS);
 
     let mut state_root = state_manager.get_state_root().clone();
@@ -183,7 +183,7 @@ async fn test_instant_finality() -> anyhow::Result<()> {
         // TODO: Check how state manager internal state looks like on instant finality.
         let finalized = receiver.read_next().await?.unwrap();
 
-        if let Some(sender) = state_manager.st_info_sender.as_ref() {
+        if let Some(sender) = state_manager.stf_info_sender.as_ref() {
             sender.inc_next_height_to_receive();
         };
 

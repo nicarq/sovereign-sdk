@@ -31,7 +31,7 @@ pub struct ZkProofManager<Ps: ProverService> {
     proof_serializer: Box<dyn ProofSerializer>,
     backoff_policy: ExponentialBuilder,
     genesis_state_root: Ps::StateRoot,
-    st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
+    stf_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
     shutdown_receiver: tokio::sync::watch::Receiver<()>,
 }
 
@@ -47,7 +47,7 @@ where
         aggregated_proof_block_jump: NonZero<usize>,
         proof_serializer: Box<dyn ProofSerializer>,
         genesis_state_root: Ps::StateRoot,
-        st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
+        stf_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> Self {
         Self {
@@ -61,7 +61,7 @@ where
                 .with_max_delay(Duration::from_secs(BACKOFF_POLICY_MAX_DELAY))
                 .with_max_times(BACKOFF_POLICY_MAX_NUM_RETRIES),
             genesis_state_root,
-            st_info_receiver,
+            stf_info_receiver,
             shutdown_receiver,
         }
     }
@@ -126,7 +126,7 @@ where
     /// The proof is created only when there are enough of inner proofs in the `ProverService` queue.
     async fn post_aggregated_proof_to_da_when_ready(mut self) -> anyhow::Result<()> {
         loop {
-            match future_or_shutdown(self.st_info_receiver.read_next(), &self.shutdown_receiver)
+            match future_or_shutdown(self.stf_info_receiver.read_next(), &self.shutdown_receiver)
                 .await
             {
                 FutureOrShutdownOutput::Shutdown => {
@@ -159,7 +159,7 @@ where
             <Ps::DaService as DaService>::Spec,
         >,
     ) -> anyhow::Result<()> {
-        let first_height_unproven = self.st_info_receiver.next_height_to_receive();
+        let first_height_unproven = self.stf_info_receiver.next_height_to_receive();
 
         let prover_service = &self.prover_service;
 
@@ -228,7 +228,7 @@ where
             };
 
             // Update the next height to receive
-            self.st_info_receiver
+            self.stf_info_receiver
                 .inc_next_height_to_receive_by(num_proofs_to_create as u64);
         }
         Ok(())

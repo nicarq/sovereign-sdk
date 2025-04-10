@@ -220,7 +220,7 @@ pub async fn initialize_runner(
     .await
     .unwrap();
 
-    let handle = if let Some(st_info_receiver) = runner.take_st_info_receiver() {
+    let handle = if let Some(stf_info_receiver) = runner.take_stf_info_receiver() {
         let prover_service = ParallelProverService::<_, _, _, _, MockZkvm, MockZkvm>::new(
             inner_vm.clone(),
             outer_vm.clone(),
@@ -236,7 +236,7 @@ pub async fn initialize_runner(
             da_service.clone(),
             genesis_state_root,
             shutdown_receiver.clone(),
-            st_info_receiver,
+            stf_info_receiver,
             Box::new(DummyProofSerializer {}),
         );
 

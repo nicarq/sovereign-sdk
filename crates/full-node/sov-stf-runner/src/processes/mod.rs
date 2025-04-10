@@ -26,7 +26,7 @@ pub struct WorkflowProcessManager<Ps: ProverService> {
     genesis_state_root: Ps::StateRoot,
     shutdown_receiver: watch::Receiver<()>,
     proof_serializer: Box<dyn ProofSerializer>,
-    st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
+    stf_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
 }
 
 impl<Ps> WorkflowProcessManager<Ps>
@@ -40,7 +40,7 @@ where
         da_service: Arc<Ps::DaService>,
         genesis_state_root: Ps::StateRoot,
         shutdown_receiver: watch::Receiver<()>,
-        st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
+        stf_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
         proof_serializer: Box<dyn ProofSerializer>,
     ) -> Self {
         Self {
@@ -48,7 +48,7 @@ where
             da_service,
             genesis_state_root,
             shutdown_receiver,
-            st_info_receiver,
+            stf_info_receiver,
             proof_serializer,
         }
     }
@@ -64,7 +64,7 @@ where
             aggregated_proof_block_jump,
             self.proof_serializer,
             self.genesis_state_root,
-            self.st_info_receiver,
+            self.stf_info_receiver,
             self.shutdown_receiver,
         );
 
@@ -79,7 +79,7 @@ where
         bonding_proof_service: Bps,
     ) -> anyhow::Result<JoinHandle<()>> {
         let attestations_manager = AttestationsManager::new(
-            self.st_info_receiver,
+            self.stf_info_receiver,
             bonding_proof_service,
             self.proof_serializer,
             self.da_service,

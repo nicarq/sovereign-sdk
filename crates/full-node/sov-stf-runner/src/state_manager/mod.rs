@@ -91,7 +91,7 @@ where
     // Helper for faster iteration over fork tree.
     seen_on_height: BTreeMap<u64, HashSet<<Da::Spec as DaSpec>::SlotHash>>,
     state_update_sender: watch::Sender<StateUpdateInfo<Sm::StfState>>,
-    st_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
+    stf_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
     max_provable_slot_number_tracker: Box<dyn ProvableHeightTracker>,
     is_initialized: bool,
     da_sync_state: Arc<DaSyncState>,
@@ -115,7 +115,7 @@ where
         ledger_db: LedgerDb,
         initial_state_root: StateRoot,
         state_update_channel: watch::Sender<StateUpdateInfo<Sm::StfState>>,
-        st_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
+        stf_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
         state_height_tracker: Box<dyn ProvableHeightTracker>,
         da_sync_state: Arc<DaSyncState>,
         da_polling_interval: std::time::Duration,
@@ -127,7 +127,7 @@ where
             state_on_block: Default::default(),
             seen_on_height: Default::default(),
             state_update_sender: state_update_channel,
-            st_info_sender,
+            stf_info_sender,
             max_provable_slot_number_tracker: state_height_tracker,
             is_initialized: false,
             da_sync_state,
@@ -136,7 +136,7 @@ where
     }
 
     pub(crate) async fn startup(&mut self) -> anyhow::Result<()> {
-        if let Some(sender) = &mut self.st_info_sender {
+        if let Some(sender) = &mut self.stf_info_sender {
             // If this state manager uses a channel, it MUST be correctly
             // initialized before usage.
             sender
@@ -343,13 +343,13 @@ where
             "Last finalized slot is materialized into LedgerDb ChangeSet"
         );
 
-        if let Some(st_info_sender) = &self.st_info_sender {
+        if let Some(stf_info_sender) = &self.stf_info_sender {
             tracing::trace!("Going to materialize StateTransitionInfo");
             let stf_info = StateTransitionInfo {
                 data: transition_witness,
                 slot_number,
             };
-            let stf_info_schema = st_info_sender
+            let stf_info_schema = stf_info_sender
                 .materialize_stf_info(&stf_info, &self.ledger_db)
                 .await?;
             ledger_change_set.merge(stf_info_schema);
@@ -375,12 +375,12 @@ where
         }
         tracing::trace!("All finalized transitions are marked as finalized");
 
-        if let Some(st_info_sender) = &mut self.st_info_sender {
+        if let Some(stf_info_sender) = &mut self.stf_info_sender {
             // Notify `StateTransitionInfo` consumers that the data is saved in the Db.
             let max_provable_slot_number = self
                 .max_provable_slot_number_tracker
                 .max_provable_slot_number();
-            st_info_sender
+            stf_info_sender
                 .notify(max_provable_slot_number, &self.ledger_db)
                 .await?;
         }

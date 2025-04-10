@@ -14,7 +14,7 @@ use crate::processes::{Receiver, StateTransitionInfo};
 
 /// Manages the lifecycle of the [`Attestation`].
 pub struct AttestationsManager<StateRoot, Witness, Da: DaService, Bps: BondingProofService> {
-    st_info_receiver: Receiver<StateRoot, Witness, Da::Spec>,
+    stf_info_receiver: Receiver<StateRoot, Witness, Da::Spec>,
     bonding_proof_service: Bps,
     proof_serializer: Box<dyn ProofSerializer>,
     da_service: Arc<Da>,
@@ -30,14 +30,14 @@ where
 {
     /// Creates a new [`AttestationsManager`]
     pub fn new(
-        st_info_receiver: Receiver<StateRoot, Witness, Da::Spec>,
+        stf_info_receiver: Receiver<StateRoot, Witness, Da::Spec>,
         bonding_proof_service: Bps,
         proof_serializer: Box<dyn ProofSerializer>,
         da_service: Arc<Da>,
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> Self {
         Self {
-            st_info_receiver,
+            stf_info_receiver,
             bonding_proof_service,
             da_service,
             proof_serializer,
@@ -56,7 +56,7 @@ where
 
     async fn post_attestation_to_da(mut self) -> anyhow::Result<()> {
         loop {
-            match future_or_shutdown(self.st_info_receiver.read_next(), &self.shutdown_receiver)
+            match future_or_shutdown(self.stf_info_receiver.read_next(), &self.shutdown_receiver)
                 .await
             {
                 FutureOrShutdownOutput::Shutdown => {
@@ -116,7 +116,7 @@ where
             .await??;
         tracing::debug!(%receipt, %slot_number, %attestation_height, "Attestation has been posted to DA");
 
-        self.st_info_receiver.inc_next_height_to_receive();
+        self.stf_info_receiver.inc_next_height_to_receive();
         Ok(())
     }
 }
