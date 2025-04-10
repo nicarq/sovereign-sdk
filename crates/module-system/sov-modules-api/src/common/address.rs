@@ -27,16 +27,20 @@ macro_rules! impl_bech32_conversion {
             PartialEq,
             Clone,
             Eq,
+            schemars::JsonSchema,
         )]
         #[serde(try_from = "String", into = "String")]
+        #[schemars(description = "A bech32 string")]
         pub struct $bech32_version (
             /// A validated bech32 string
+            #[schemars(regex = "__bech32_conversion_impls::RegexValidator")]
             String,
         );
 
         const fn __bech32_hrp() -> &'static str {
             $human_readable_prefix
         }
+
 
         mod __bech32_conversion_impls {
             use super:: $id;
@@ -47,6 +51,19 @@ macro_rules! impl_bech32_conversion {
             use $crate::prelude::{bech32, serde, anyhow};
             use bech32::primitives::decode::{UncheckedHrpstring, CheckedHrpstring};
             use bech32::{Bech32m, Hrp};
+
+            /// A regex validator for the bech32 string
+            ///
+            /// Schemars allows any type which has a `to_string` method to provide the regex pattern, so
+            /// we generate a unit type that yields regex with the correct HRP.
+            pub struct RegexValidator;
+            impl core::fmt::Display for RegexValidator {
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    write!(f, "{}1[a-zA-Z0-9]+$", super::__bech32_hrp())
+                }
+            }
+
+
 
             impl From<$bech32_version> for String {
                 fn from(bech: $bech32_version) -> Self {
@@ -211,7 +228,6 @@ macro_rules! impl_hash32_type {
             Hash,
             borsh::BorshDeserialize,
             borsh::BorshSerialize,
-            schemars::JsonSchema,
             sov_modules_api::macros::UniversalWallet,
         )]
         #[cfg_attr(
@@ -277,6 +293,16 @@ macro_rules! impl_hash32_type {
             #[must_use]
             pub const fn from_const_slice(addr: [u8; $len]) -> Self {
                 Self(addr)
+            }
+        }
+
+        impl schemars::JsonSchema for $id {
+            fn schema_name() -> String {
+                stringify!($id).to_string()
+            }
+
+            fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+                <$bech32_version as schemars::JsonSchema>::json_schema(gen)
             }
         }
 
