@@ -152,7 +152,7 @@ async fn start_stop_empty(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_start_stop_zk_instant_finality() -> anyhow::Result<()> {
+async fn flaky_test_start_stop_zk_instant_finality() -> anyhow::Result<()> {
     start_stop_empty(OperatingMode::Zk, 0, RollupProverConfig::Skip).await?;
     // if can_execute_zk_guest() {
     //     start_stop_empty(OperatingMode::Zk, 0, RollupProverConfig::Execute).await?;
@@ -161,7 +161,7 @@ async fn test_start_stop_zk_instant_finality() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_start_stop_zk_non_instant_finality() -> anyhow::Result<()> {
+async fn flaky_test_start_stop_zk_non_instant_finality() -> anyhow::Result<()> {
     start_stop_empty(OperatingMode::Zk, 3, RollupProverConfig::Skip).await?;
     // if can_execute_zk_guest() {
     //     start_stop_empty(OperatingMode::Zk, 3, RollupProverConfig::Execute).await?;
@@ -170,7 +170,7 @@ async fn test_start_stop_zk_non_instant_finality() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_start_stop_optimistic_instant_finality() -> anyhow::Result<()> {
+async fn flaky_test_start_stop_optimistic_instant_finality() -> anyhow::Result<()> {
     start_stop_empty(OperatingMode::Optimistic, 0, RollupProverConfig::Skip).await?;
     // if can_execute_zk_guest() {
     //     start_stop_empty(OperatingMode::Optimistic, 0, RollupProverConfig::Execute).await?;
@@ -179,7 +179,7 @@ async fn test_start_stop_optimistic_instant_finality() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_start_stop_optimistic_non_instant_finality() -> anyhow::Result<()> {
+async fn flaky_test_start_stop_optimistic_non_instant_finality() -> anyhow::Result<()> {
     start_stop_empty(OperatingMode::Optimistic, 3, RollupProverConfig::Skip).await?;
     // if can_execute_zk_guest() {
     //     start_stop_empty(OperatingMode::Optimistic, 3, RollupProverConfig::Execute).await?;
