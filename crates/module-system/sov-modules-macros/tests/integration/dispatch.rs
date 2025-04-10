@@ -43,6 +43,7 @@ pub mod first_test_module {
         Debug,
         PartialEq,
         Clone,
+        schemars::JsonSchema,
     )]
     pub enum Event {
         FirstModuleEnum1(u64),
@@ -116,6 +117,7 @@ pub mod second_test_module {
         Debug,
         PartialEq,
         Clone,
+        schemars::JsonSchema,
     )]
     pub enum Event {
         SecondModuleEnum,

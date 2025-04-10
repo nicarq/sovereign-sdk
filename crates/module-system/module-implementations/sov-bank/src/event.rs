@@ -12,6 +12,7 @@ use crate::{Amount, Coins, TokenId};
     Debug,
     PartialEq,
     Clone,
+    schemars::JsonSchema,
 )]
 #[serde(
     bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned",

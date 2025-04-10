@@ -67,6 +67,7 @@ impl Debug for CallMessage {
     Copy,
     Serialize,
     Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
 /// Error type that explains why a user is slashed

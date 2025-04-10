@@ -63,6 +63,7 @@ impl EventMacro {
                         Clone,
                         Debug,
                         PartialEq,
+                        sov_modules_api::prelude::schemars::JsonSchema,
                         sov_modules_api::prelude::strum::EnumDiscriminants,
                         sov_modules_api::prelude::strum::VariantNames,
                         sov_modules_api::prelude::strum::EnumTryAs,

@@ -28,6 +28,7 @@ pub const MAX_U128_DECIMAL_PLACES: u8 = 39;
     feature = "arbitrary",
     derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
 )]
+#[schemars(with = "AmountString")]
 #[debug("{}", self.0)]
 #[display("{}", self.0)]
 /// A token amount.
@@ -47,6 +48,11 @@ impl Amount {
         Self(amount)
     }
 }
+
+// This helper struct isn't actually dead. It's used by Schemars, which rustc doesn't detect.
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+struct AmountString(#[schemars(regex(pattern = "^[0-9]+$"))] String);
 
 impl IntegerDisplayable for Amount {
     fn integer_type() -> sov_universal_wallet::ty::IntegerType {

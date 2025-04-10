@@ -1,4 +1,5 @@
-# 2025-04-09
+# 2025-04-09 
+- #2736  **BREAKING CHANGE** attempts to derive `schemars::JsonSchema` on all event types by default. To upgrade, be sure you derive `JsonSchema` on your module's event type.
 - #2729 `FullNodeBlueprint::create_endpoints` now requires a `shutdown_receiver` parameter. This is to allow for graceful shutdowns in websocket endpoints.
   Fixes a issue with the node hanging indefinitely on shutdowns with `CTRL+C`, etc.
 - #2741 Marks `start_stop_zk_non_instant_finality` as flaky
