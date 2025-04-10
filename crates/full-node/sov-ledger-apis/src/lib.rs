@@ -32,6 +32,7 @@ use sov_rollup_interface::node::ledger_api::{
     SlotIdentifier, SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::TxReceiptContents;
+use tokio::sync::watch;
 
 type PathMap = Path<HashMap<String, NumberOrHash>>;
 
@@ -75,6 +76,12 @@ pub struct LedgerRoutes<T, B, Tx, E> {
     phantom: PhantomData<(T, B, Tx, E)>,
 }
 
+#[derive(Clone)]
+pub struct LedgerState<T: LedgerStateProvider + Clone + Send + Sync + 'static> {
+    pub ledger: T,
+    pub shutdown_receiver: watch::Receiver<()>,
+}
+
 impl<T, B, TxReceipt, E> LedgerRoutes<T, B, TxReceipt, E>
 where
     T: LedgerStateProvider + Clone + Send + Sync + 'static,
@@ -91,8 +98,15 @@ where
         + 'static,
 {
     /// Returns an [`axum::Router`] that exposes ledger data.
-    pub fn axum_router(ledger: T) -> axum::Router<T> {
-        let routes = axum::Router::<T>::new()
+    pub fn axum_router(
+        ledger: T,
+        shutdown_receiver: watch::Receiver<()>,
+    ) -> axum::Router<LedgerState<T>> {
+        let state = LedgerState {
+            ledger,
+            shutdown_receiver,
+        };
+        let routes = axum::Router::<LedgerState<T>>::new()
             .route(
                 "/aggregated-proofs/latest",
                 get(Self::get_latest_aggregated_proof),
@@ -109,47 +123,47 @@ where
             )
             .nest(
                 "/slots/latest",
-                Self::router_slot(ledger.clone()).route_layer(middleware::from_fn_with_state(
-                    ledger.clone(),
+                Self::router_slot(state.clone()).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
                     Self::resolve_latest_slot,
                 )),
             )
             .nest(
                 "/slots/finalized",
-                Self::router_slot(ledger.clone()).route_layer(middleware::from_fn_with_state(
-                    ledger.clone(),
+                Self::router_slot(state.clone()).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
                     Self::resolve_finalized_slot,
                 )),
             )
             .nest(
                 "/slots/:slotId",
-                Self::router_slot(ledger.clone()).route_layer(middleware::from_fn_with_state(
-                    ledger.clone(),
+                Self::router_slot(state.clone()).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
                     Self::resolve_slot_id,
                 )),
             )
             .nest(
                 "/batches/:batchId",
-                Self::router_batch(ledger.clone()).route_layer(middleware::from_fn_with_state(
-                    ledger.clone(),
+                Self::router_batch(state.clone()).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
                     Self::resolve_batch_id,
                 )),
             )
             .nest(
                 "/txs/:txId",
-                Self::router_tx(ledger.clone()).route_layer(middleware::from_fn_with_state(
-                    ledger.clone(),
+                Self::router_tx(state.clone()).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
                     Self::resolve_tx_id,
                 )),
             )
             .nest(
                 "/events/:eventId",
                 Self::router_event().route_layer(middleware::from_fn_with_state(
-                    ledger,
+                    state,
                     Self::resolve_event_id,
                 )),
             );
-        preconfigured_router_layers(axum::Router::<T>::new().nest("/ledger", routes))
+        preconfigured_router_layers(axum::Router::<LedgerState<T>>::new().nest("/ledger", routes))
     }
 
     // ROUTERS
@@ -163,43 +177,43 @@ where
     // - /slots/latest/batches/2
     // - /txs/0x1337/events/42
 
-    fn router_slot(ledger: T) -> axum::Router<T> {
+    fn router_slot(state: LedgerState<T>) -> axum::Router<LedgerState<T>> {
         axum::Router::new()
             .route("/", get(Self::get_slot))
             .nest(
                 "/batches/:batchOffset",
-                Self::router_batch(ledger.clone()).layer(middleware::from_fn_with_state(
-                    ledger.clone(),
+                Self::router_batch(state.clone()).layer(middleware::from_fn_with_state(
+                    state.clone(),
                     Self::resolve_batch_offset,
                 )),
             )
             .route("/events", get(Self::get_slot_events))
     }
 
-    fn router_batch(ledger: T) -> axum::Router<T> {
+    fn router_batch(state: LedgerState<T>) -> axum::Router<LedgerState<T>> {
         axum::Router::new().route("/", get(Self::get_batch)).nest(
             "/txs/:txOffset",
-            Self::router_tx(ledger.clone()).layer(middleware::from_fn_with_state(
-                ledger.clone(),
+            Self::router_tx(state.clone()).layer(middleware::from_fn_with_state(
+                state.clone(),
                 Self::resolve_tx_offset,
             )),
         )
     }
 
-    fn router_tx(ledger: T) -> axum::Router<T> {
+    fn router_tx(state: LedgerState<T>) -> axum::Router<LedgerState<T>> {
         axum::Router::new()
             .route("/", get(Self::get_tx))
             .route("/events", get(Self::get_tx_events))
             .nest(
                 "/events/:eventOffset",
                 Self::router_event().layer(middleware::from_fn_with_state(
-                    ledger,
+                    state,
                     Self::resolve_event_offset,
                 )),
             )
     }
 
-    fn router_event() -> axum::Router<T> {
+    fn router_event() -> axum::Router<LedgerState<T>> {
         axum::Router::new().route("/", get(Self::get_event))
     }
 
@@ -210,11 +224,12 @@ where
     // carefully inspect the routers to see how they are set.
 
     async fn get_slot(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         include_children_opt: Option<Query<IncludeChildren>>,
         Extension(slot_number): Extension<SlotNumber>,
     ) -> ApiResult<Slot<B, TxReceipt, E>> {
-        match ledger
+        match state
+            .ledger
             .get_slot_by_number::<B, TxReceipt, RuntimeEventResponse<E>>(
                 slot_number,
                 include_children_opt.map(|q| q.0).unwrap_or_default().into(),
@@ -228,12 +243,13 @@ where
     }
 
     async fn get_slot_events(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         Extension(slot_number): Extension<SlotNumber>,
         event_key_prefix_opt: Option<Query<EventFilter>>,
     ) -> ApiResult<Vec<RuntimeEventResponse<E>>> {
         let filter = event_key_prefix_opt.map(|q| q.0.prefix.into());
-        let events = ledger
+        let events = state
+            .ledger
             .get_filtered_slot_events::<B, TxReceipt, RuntimeEventResponse<E>>(
                 &SlotIdentifier::Number(slot_number),
                 filter,
@@ -245,11 +261,12 @@ where
     }
 
     async fn get_batch(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         include_children_opt: Option<Query<IncludeChildren>>,
         Extension(BatchNumber(batch_number)): Extension<BatchNumber>,
     ) -> ApiResult<Batch<B, TxReceipt, E>> {
-        match ledger
+        match state
+            .ledger
             .get_batch_by_number::<B, TxReceipt, RuntimeEventResponse<E>>(
                 batch_number,
                 include_children_opt.map(|q| q.0).unwrap_or_default().into(),
@@ -263,11 +280,12 @@ where
     }
 
     async fn get_tx(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         include_children_opt: Option<Query<IncludeChildren>>,
         Extension(TxNumber(tx_number)): Extension<TxNumber>,
     ) -> ApiResult<Transaction<TxReceipt, E>> {
-        match ledger
+        match state
+            .ledger
             .get_tx_by_number::<TxReceipt, RuntimeEventResponse<E>>(
                 tx_number,
                 include_children_opt.map(|q| q.0).unwrap_or_default().into(),
@@ -281,11 +299,12 @@ where
     }
 
     async fn get_tx_events(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         Extension(TxNumber(tx_number)): Extension<TxNumber>,
         event_key_prefix_opt: Option<Query<EventFilter>>,
     ) -> ApiResult<Vec<RuntimeEventResponse<E>>> {
-        match ledger
+        match state
+            .ledger
             .get_events_by_txn_number::<RuntimeEventResponse<E>>(tx_number)
             .await
         {
@@ -305,10 +324,11 @@ where
     }
 
     async fn get_event(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         Extension(EventNumber(event_number)): Extension<EventNumber>,
     ) -> ApiResult<RuntimeEventResponse<E>> {
-        match ledger
+        match state
+            .ledger
             .get_event_by_number::<RuntimeEventResponse<E>>(event_number)
             .await
         {
@@ -324,11 +344,12 @@ where
     // numbers) or the "root" entity, given its hash or number.
 
     async fn resolve_latest_slot(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         mut request: Request,
         next: Next,
     ) -> Result<Response, Response> {
-        let latest_slot = ledger
+        let latest_slot = state
+            .ledger
             .get_head_slot_number()
             .await
             .map_err(database_error_response_500)?
@@ -339,11 +360,12 @@ where
     }
 
     async fn resolve_finalized_slot(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         mut request: Request,
         next: Next,
     ) -> Result<Response, Response> {
-        let finalized_slot = ledger
+        let finalized_slot = state
+            .ledger
             .get_latest_finalized_slot_number()
             .await
             .map_err(database_error_response_500)?;
@@ -353,7 +375,7 @@ where
     }
 
     async fn resolve_slot_id(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         path_values: PathMap,
         mut request: Request,
         next: Next,
@@ -365,7 +387,8 @@ where
             NumberOrHash::Hash(hash) => SlotIdentifier::Hash(hash.0),
         };
 
-        let rollup_height = ledger
+        let rollup_height = state
+            .ledger
             .resolve_slot_identifier(&identifier)
             .await
             .map_err(database_error_response_500)?
@@ -384,7 +407,7 @@ where
 
     async fn resolve_batch_id(
         path_values: PathMap,
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         mut request: Request,
         next: Next,
     ) -> Result<Response, Response> {
@@ -392,7 +415,8 @@ where
             NumberOrHash::Number(number) => BatchIdentifier::Number(number),
             NumberOrHash::Hash(hash) => BatchIdentifier::Hash(hash.0),
         };
-        let batch_number = ledger
+        let batch_number = state
+            .ledger
             .resolve_batch_identifier(&identifier)
             .await
             .map_err(database_error_response_500)?
@@ -403,7 +427,7 @@ where
     }
 
     async fn resolve_tx_id(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         path_values: PathMap,
         mut request: Request,
         next: Next,
@@ -412,7 +436,8 @@ where
             NumberOrHash::Number(number) => TxIdentifier::Number(number),
             NumberOrHash::Hash(hash) => TxIdentifier::Hash(hash.0),
         };
-        let tx_number = ledger
+        let tx_number = state
+            .ledger
             .resolve_tx_identifier(&identifier)
             .await
             .map_err(database_error_response_500)?
@@ -423,7 +448,7 @@ where
     }
 
     async fn resolve_event_id(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         path_values: PathMap,
         mut request: Request,
         next: Next,
@@ -431,7 +456,8 @@ where
         // Events can't be resolved by hash, only by number.
         let identifier = EventIdentifier::Number(get_path_number(&path_values, "eventId")?);
 
-        let event_number = ledger
+        let event_number = state
+            .ledger
             .resolve_event_identifier(&identifier)
             .await
             .map_err(database_error_response_500)?
@@ -450,7 +476,7 @@ where
     // parent entity.
 
     async fn resolve_batch_offset(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         path_values: PathMap,
         Extension(slot_number): Extension<SlotNumber>,
         mut request: Request,
@@ -462,7 +488,8 @@ where
             slot_id: SlotIdentifier::Number(slot_number),
             offset: batch_offset,
         });
-        let batch_number = ledger
+        let batch_number = state
+            .ledger
             .resolve_batch_identifier(&identifier)
             .await
             .map_err(database_error_response_500)?
@@ -473,7 +500,7 @@ where
     }
 
     async fn resolve_tx_offset(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         path_values: PathMap,
         Extension(batch_number): Extension<BatchNumber>,
         mut request: Request,
@@ -485,7 +512,8 @@ where
             offset: tx_offset,
         });
 
-        let tx_number = ledger
+        let tx_number = state
+            .ledger
             .resolve_tx_identifier(&identifier)
             .await
             .map_err(database_error_response_500)?
@@ -496,7 +524,7 @@ where
     }
 
     async fn resolve_event_offset(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         path_values: PathMap,
         Extension(tx_number): Extension<TxNumber>,
         mut request: Request,
@@ -507,7 +535,8 @@ where
             tx_id: TxIdentifier::Number(tx_number.0),
             offset: event_offset,
         });
-        let event_number = ledger
+        let event_number = state
+            .ledger
             .resolve_event_identifier(&identifier)
             .await
             .map_err(database_error_response_500)?
@@ -517,8 +546,11 @@ where
         Ok(next.run(request).await)
     }
 
-    async fn get_latest_aggregated_proof(State(ledger): State<T>) -> ApiResult<AggregatedProof> {
-        let latest_proof: AggregatedProof = ledger
+    async fn get_latest_aggregated_proof(
+        State(state): State<LedgerState<T>>,
+    ) -> ApiResult<AggregatedProof> {
+        let latest_proof: AggregatedProof = state
+            .ledger
             .get_latest_aggregated_proof()
             .await
             .map_err(database_error_response_500)?
@@ -533,15 +565,16 @@ where
     // -------------
 
     async fn subscribe_to_slot_events(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         event_key_prefix_opt: Option<Query<EventFilter>>,
         ws: WebSocketUpgrade,
     ) -> impl IntoResponse {
         ws.on_upgrade(|socket| async move {
-            let subscription = ledger
+            let subscription = state
+                .ledger
                 .subscribe_slots()
                 .then(|slot_num| {
-                    let ledger = ledger.clone();
+                    let ledger = state.ledger.clone();
                     let filter = event_key_prefix_opt
                         .as_ref()
                         .map(|q| q.0.prefix.as_bytes().to_vec());
@@ -564,25 +597,25 @@ where
                 })
                 .boxed();
 
-            serve_generic_ws_subscription(socket, subscription).await;
+            serve_generic_ws_subscription(socket, subscription, state.shutdown_receiver).await;
         })
     }
 
     async fn subscribe_to_aggregated_proofs(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         ws: WebSocketUpgrade,
     ) -> impl IntoResponse {
         ws.on_upgrade(|socket| async move {
-            let subscription = ledger.subscribe_proof_saved().map(|data| {
+            let subscription = state.ledger.subscribe_proof_saved().map(|data| {
                 AggregatedProof::try_from(data)
                     .context("Failed to convert proof to REST API representation")
             });
-            serve_generic_ws_subscription(socket, subscription).await;
+            serve_generic_ws_subscription(socket, subscription, state.shutdown_receiver).await;
         })
     }
 
     async fn subscribe_to_head(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         maybe_query: Option<Query<IncludeChildren>>,
         ws: WebSocketUpgrade,
     ) -> impl IntoResponse {
@@ -591,6 +624,7 @@ where
         } else {
             QueryMode::Compact
         };
+        let ledger = state.ledger;
 
         ws.on_upgrade(move |socket| async move {
             let subscription = ledger
@@ -611,12 +645,12 @@ where
                 })
                 .boxed();
 
-            serve_generic_ws_subscription(socket, subscription).await;
+            serve_generic_ws_subscription(socket, subscription, state.shutdown_receiver).await;
         })
     }
 
     async fn subscribe_to_finalized(
-        State(ledger): State<T>,
+        State(state): State<LedgerState<T>>,
         maybe_query: Option<Query<IncludeChildren>>,
         ws: WebSocketUpgrade,
     ) -> impl IntoResponse {
@@ -625,6 +659,7 @@ where
         } else {
             QueryMode::Compact
         };
+        let ledger = state.ledger;
 
         ws.on_upgrade(move |socket| async move {
             let initial_slot = match ledger.get_latest_finalized_slot_number().await {
@@ -686,7 +721,7 @@ where
                 .flatten()
                 .boxed();
 
-            serve_generic_ws_subscription(socket, subscription).await;
+            serve_generic_ws_subscription(socket, subscription, state.shutdown_receiver).await;
         })
     }
 }

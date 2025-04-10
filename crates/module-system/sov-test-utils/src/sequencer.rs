@@ -167,12 +167,12 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
             dir.path(),
             &config,
             ledger_db,
-            shutdown_receiver,
+            shutdown_receiver.clone(),
         )
         .await?;
 
         let (axum_addr, sequencer_axum_server) = {
-            let router = SequencerApis::rest_api_server(sequencer.clone());
+            let router = SequencerApis::rest_api_server(sequencer.clone(), shutdown_receiver);
             let handle = axum_server::Handle::new();
 
             let handle1 = handle.clone();

@@ -1,5 +1,5 @@
 use sov_db::ledger_db::LedgerDb;
-use sov_ledger_apis::LedgerRoutes;
+use sov_ledger_apis::{LedgerRoutes, LedgerState};
 use sov_modules_api::capabilities::HasCapabilities;
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::prelude::utoipa_swagger_ui::Config;
@@ -20,6 +20,7 @@ use crate::FullNodeBlueprint;
 pub async fn register_endpoints<B, M>(
     state_update_receiver: StateUpdateReceiver<<B::Spec as Spec>::Storage>,
     sync_status_receiver: tokio::sync::watch::Receiver<SyncStatus>,
+    shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ledger_db: &LedgerDb,
     sequencer: &SequencerCreationReceipt<B::Spec>,
     config: &RollupConfig<<B::Spec as Spec>::Address, B::DaService>,
@@ -42,19 +43,24 @@ where
 
     // Ledger endpoint.
     {
-        let ledger_axum_router = LedgerRoutes::<
-            LedgerDb,
-            // Can keep hard-coding:
-            // BatchSequencerReceipt<B::DaSpec>,
-            // or use some associated type.
-            // TODO: But ideally it needs to be addressed properly: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1268
-            BatchSequencerReceipt<B::Spec>,
-            TxReceiptContents<B::Spec>,
-            <B::Runtime as RuntimeEventProcessor>::RuntimeEvent,
-        >::axum_router(ledger_db.clone());
+        let ledger_axum_router =
+            LedgerRoutes::<
+                LedgerDb,
+                // Can keep hard-coding:
+                // BatchSequencerReceipt<B::DaSpec>,
+                // or use some associated type.
+                // TODO: But ideally it needs to be addressed properly: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1268
+                BatchSequencerReceipt<B::Spec>,
+                TxReceiptContents<B::Spec>,
+                <B::Runtime as RuntimeEventProcessor>::RuntimeEvent,
+            >::axum_router(ledger_db.clone(), shutdown_receiver.clone());
+        let ledger_state = LedgerState {
+            ledger: ledger_db.clone(),
+            shutdown_receiver,
+        };
         endpoints.axum_router = endpoints
             .axum_router
-            .merge(ledger_axum_router.with_state(ledger_db.clone()));
+            .merge(ledger_axum_router.with_state(ledger_state));
     }
 
     // Rollup endpoint
