@@ -39,7 +39,7 @@ schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sov-universal-wallet = { workspace = true, features = ["macros"] }
-sha2 = { workspace = true }
+sha2 = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tracing = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["macros", "sync", "rt"], optional = true }
@@ -68,5 +68,6 @@ arbitrary = [
     "proptest-derive",
     "sov-rollup-interface/arbitrary",
     "sov-test-utils/arbitrary",
+    "dep:sha2",
 ]
 vec-compat = []

@@ -171,9 +171,9 @@ impl<T: TryFrom<Vec<u8>>> FromStr for HexString<T> {
 
 impl BlockHashTrait for HexHash {}
 
-impl From<sha2::digest::Output<sha2::Sha256>> for HexHash {
-    fn from(value: sha2::digest::Output<sha2::Sha256>) -> Self {
-        Self(value.into())
+impl From<digest::generic_array::GenericArray<u8, digest::typenum::U32>> for HexHash {
+    fn from(value: digest::generic_array::GenericArray<u8, digest::typenum::U32>) -> Self {
+        HexHash::new(value.into())
     }
 }
 
