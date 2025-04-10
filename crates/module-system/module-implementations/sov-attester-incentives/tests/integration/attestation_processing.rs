@@ -1,7 +1,6 @@
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Amount, InvalidProofError, ProofOutcome, SovAttestation};
 use sov_rollup_interface::common::IntoSlotNumber;
-use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
 use sov_test_utils::runtime::sov_attester_incentives::{AttesterIncentives, CallMessage, Event};
 use sov_test_utils::runtime::TestRunner;
@@ -148,8 +147,7 @@ fn test_burn_on_invalid_attestation() {
             .query_visible_state(|state| build_proof(state, 1, &attester_address))
             .unwrap();
 
-        attestation_proof.initial_state_root =
-            StorageRoot::new(RootHash([255; 32]), RootHash([255; 32]));
+        attestation_proof.initial_state_root = StorageRoot::new([255; 32], [255; 32]);
 
         let invalid_initial_state_slashed =
             invalid_initial_state_slashed(&genesis_attester, initial_balance, attestation_proof);
@@ -195,8 +193,7 @@ fn test_burn_on_invalid_attestation() {
             .query_visible_state(|state| build_proof(state, 2, &attester_address))
             .unwrap();
 
-        attestation_proof.post_state_root =
-            StorageRoot::new(RootHash([255; 32]), RootHash([255; 32]));
+        attestation_proof.post_state_root = StorageRoot::new([255; 32], [255; 32]);
 
         let invalid_post_state_root_is_challengeable = invalid_post_state_root_is_challengeable(
             &genesis_attester,

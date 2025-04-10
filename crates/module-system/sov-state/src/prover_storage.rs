@@ -377,7 +377,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
             .compute_state_update_namespace::<DBKernelNamespace>(state_accesses.kernel, witness)?;
 
         Ok((
-            StorageRoot::<S>::new(user_root, kernel_root),
+            StorageRoot::<S>::new(user_root.0, kernel_root.0),
             NamespacedStateUpdate::new(user_state_update, kernel_state_update, Default::default()),
         ))
     }
@@ -464,6 +464,6 @@ impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
         let kernel_root =
             self.get_root_hash_namespace_helper::<DBKernelNamespace>(version_to_use)?;
 
-        Ok(StorageRoot::<S>::new(user_root, kernel_root))
+        Ok(StorageRoot::<S>::new(user_root.0, kernel_root.0))
     }
 }

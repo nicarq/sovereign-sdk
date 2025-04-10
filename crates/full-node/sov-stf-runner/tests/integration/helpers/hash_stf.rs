@@ -105,7 +105,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, 
         tracing::debug!(
             header = %slot_header.display(),
             passed = hex::encode(pre_state_root),
-            from_storage = hex::encode(storage_root_hash.root_hash().0),
+            from_storage = hex::encode(storage_root_hash.root_hash()),
             "HashStf, starting apply slot",
         );
 

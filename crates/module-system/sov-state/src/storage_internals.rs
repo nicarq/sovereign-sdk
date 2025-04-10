@@ -56,11 +56,11 @@ impl<S: MerkleProofSpec> Clone for StorageRoot<S> {
 
 impl<S: MerkleProofSpec> StateRoot for StorageRoot<S> {
     fn global_root(&self) -> [u8; 32] {
-        self.root_hash().0
+        self.root_hash()
     }
 
     fn from_namespace_roots(user_root: [u8; 32], kernel_root: [u8; 32]) -> Self {
-        Self::new(jmt::RootHash(user_root), jmt::RootHash(kernel_root))
+        Self::new(user_root, kernel_root)
     }
 
     fn namespace_root(&self, namespace: ProvableNamespace) -> [u8; 32] {
@@ -83,10 +83,8 @@ impl<S: MerkleProofSpec> StorageRoot<S> {
     /// Creates a new `[ProverStorageRoot]` instance from specified root hashes.
     /// Concretely this method builds the prover root hash by concatenating the user and
     /// the kernel root hashes.
-    pub fn new(user_root_hash: jmt::RootHash, kernel_root_hash: jmt::RootHash) -> Self {
+    pub fn new(user_hash: [u8; 32], kernel_hash: [u8; 32]) -> Self {
         // Concatenate the user and kernel root hashes
-        let user_hash = user_root_hash.0;
-        let kernel_hash = kernel_root_hash.0;
         let mut root_hashes = [0u8; 64];
         root_hashes[..32].copy_from_slice(&user_hash);
         root_hashes[32..].copy_from_slice(&kernel_hash);
@@ -98,12 +96,11 @@ impl<S: MerkleProofSpec> StorageRoot<S> {
     }
 
     /// Returns the global root hash of the prover storage.
-    pub fn root_hash(&self) -> jmt::RootHash {
-        let mut hasher = <S::Hasher as sha2::Digest>::new();
+    pub fn root_hash(&self) -> [u8; 32] {
+        let mut hasher = <S::Hasher as Digest>::new();
         Digest::update(&mut hasher, self.namespace_root(ProvableNamespace::User));
         Digest::update(&mut hasher, self.namespace_root(ProvableNamespace::Kernel));
-        let output: [u8; 32] = Digest::finalize(hasher).into();
-        jmt::RootHash(output)
+        Digest::finalize(hasher).into()
     }
 }
 
