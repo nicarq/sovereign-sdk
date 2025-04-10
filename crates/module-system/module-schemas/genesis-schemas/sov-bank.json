@@ -164,15 +164,9 @@
       }
     },
     "TokenId": {
-      "description": "A globally unique identifier.",
-      "type": "array",
-      "items": {
-        "type": "integer",
-        "format": "uint8",
-        "minimum": 0.0
-      },
-      "maxItems": 32,
-      "minItems": 32
+      "description": "A bech32 string",
+      "type": "string",
+      "pattern": "token_1[a-zA-Z0-9]+$"
     }
   }
 }
