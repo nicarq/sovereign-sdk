@@ -386,7 +386,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             )
             .await?;
 
-        if let Some(st_info_receiver) = runner.take_st_info_receiver() {
+        if let Some(stf_info_receiver) = runner.take_stf_info_receiver() {
             let prover_config = prover_config
                 .expect("This code path should not be possible; this is a bug, please report it");
 
@@ -399,7 +399,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                 da_service.clone(),
                 genesis_state_root,
                 secondary_shutdown_receiver.clone(),
-                st_info_receiver,
+                stf_info_receiver,
                 Box::new(self.create_proof_serializer(
                     &rollup_config,
                     sequencer.sequence_number_provider.clone(),

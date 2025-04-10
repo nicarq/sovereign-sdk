@@ -53,7 +53,7 @@ where
     stf: Stf,
     state_manager: StateManager<Stf::StateRoot, Stf::Witness, Sm, Da>,
     listen_address_http: SocketAddr,
-    st_info_receiver: Option<Receiver<Stf::StateRoot, Stf::Witness, Da::Spec>>,
+    stf_info_receiver: Option<Receiver<Stf::StateRoot, Stf::Witness, Da::Spec>>,
     sync_state: Arc<DaSyncState>,
     sync_fetcher: FinalizedBlocksBulkFetcher<Da>,
     shutdown_receiver: watch::Receiver<()>,
@@ -173,7 +173,7 @@ where
             proof_manager_config = ?pm_config,
             "Initializing StfRunner");
 
-        let (st_info_sender, st_info_receiver) = if let Some(config) = pm_config {
+        let (stf_info_sender, stf_info_receiver) = if let Some(config) = pm_config {
             let channel = new_stf_info_channel(
                 ledger_db.clone(),
                 config.max_number_of_transitions_in_memory,
@@ -199,7 +199,7 @@ where
             ledger_db,
             prev_state_root,
             state_update_channel,
-            st_info_sender,
+            stf_info_sender,
             state_height_tracker,
             sync_state.clone(),
             da_polling_interval,
@@ -231,7 +231,7 @@ where
             state_manager,
             listen_address_http,
             sync_state,
-            st_info_receiver,
+            stf_info_receiver,
             sync_fetcher,
             shutdown_receiver,
             secondary_shutdown_sender,
@@ -243,10 +243,10 @@ where
     ///
     /// Only one [`Receiver`] is allowed, and subsequent calls to this method
     /// will return [`None`].
-    pub fn take_st_info_receiver(
+    pub fn take_stf_info_receiver(
         &mut self,
     ) -> Option<Receiver<Stf::StateRoot, Stf::Witness, Da::Spec>> {
-        self.st_info_receiver.take()
+        self.stf_info_receiver.take()
     }
 
     /// Returns the [`DaSyncState`] of the node.
