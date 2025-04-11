@@ -106,6 +106,22 @@ where
         }
     }
 
+    #[cfg(feature = "native")]
+    fn compute_tx_hash(&self, tx: &FullyBakedTx) -> anyhow::Result<sov_modules_api::TxHash> {
+        let input: Auth = borsh::from_slice(&tx.data)?;
+
+        match input {
+            Auth::Mod(tx) => Ok(sov_modules_api::runtime::capabilities::calculate_hash(
+                &tx,
+                &mut sov_modules_api::gas::UnlimitedGasMeter::<S>::default(),
+            )?),
+            Auth::Evm(tx) => {
+                let (_rlp, tx) = sov_evm::decode_evm_tx(&tx)?;
+                Ok(sov_modules_api::TxHash::new(tx.hash().into()))
+            }
+        }
+    }
+
     fn add_standard_auth(tx: RawTx) -> Self::Input {
         Auth::Mod(tx.data)
     }

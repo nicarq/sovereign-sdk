@@ -71,6 +71,18 @@ where
         )
     }
 
+    fn compute_tx_hash(
+        &self,
+        tx: &sov_modules_api::FullyBakedTx,
+    ) -> anyhow::Result<sov_modules_api::TxHash> {
+        let input: AuthenticatorInput = borsh::from_slice(&tx.data)?;
+
+        Ok(sov_modules_api::runtime::capabilities::calculate_hash(
+            &input.0.data,
+            &mut sov_modules_api::gas::UnlimitedGasMeter::<S>::default(),
+        )?)
+    }
+
     fn authenticate_unregistered<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,
         batch: &BatchFromUnregisteredSequencer,

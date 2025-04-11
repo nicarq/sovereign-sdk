@@ -692,6 +692,13 @@ where
     let raw_tx_hash = validated_output.0.raw_tx_hash;
     let span = tracing::info_span!("transaction", id = %raw_tx_hash, idx = %idx).entered();
 
+    #[cfg(feature = "native")]
+    assert_eq!(
+        runtime.compute_tx_hash(raw_tx).ok(),
+        Some(raw_tx_hash),
+        "Sanity check failed. The transaction hash computed by the authenticator does not match the hash computed by the dedicated tx hash calculation utility method. This is a bug, please report it."
+    );
+
     // Process the transaction and reward the sequencer if everything went well. Responsibility for
     // penalizing the sequencer if the transaction cannot be executed due to sequencer error is with the caller.
     let process_tx_result = process_tx_and_reward_prover(

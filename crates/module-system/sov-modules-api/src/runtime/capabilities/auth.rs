@@ -55,6 +55,10 @@ pub trait TransactionAuthenticator<S: Spec> {
         state: &mut Accessor,
     ) -> Result<AuthenticationOutput<S, Self::Decodable>, AuthenticationError>;
 
+    /// MUST return the same hash as [`TransactionAuthenticator::authenticate`].
+    #[cfg(feature = "native")]
+    fn compute_tx_hash(&self, tx: &FullyBakedTx) -> anyhow::Result<TxHash>;
+
     #[cfg(feature = "native")]
     /// Decode a transaction into a message and signature.
     /// This method doesn’t charge gas for deserialization, so it’s meant for off-chain code only (hence to the `native` feature).
@@ -329,13 +333,12 @@ pub fn decode_sov_tx<S: Spec, D: DispatchCall<Spec = S>>(
 ///
 /// # Errors
 /// Returns an error if the operation runs out of gas.
-pub fn calculate_hash<Accessor: ProvableStateReader<User, Spec = S>, S: Spec>(
+pub fn calculate_hash<G: GasMeter<Spec = S>, S: Spec>(
     data: &[u8],
-    accessor: &mut Accessor,
+    gas_meter: &mut G,
 ) -> Result<TxHash, GasMeteringError<S::Gas>> {
-    let hash =
-        MeteredHasher::<Accessor, <S::CryptoSpec as CryptoSpec>::Hasher>::digest(data, accessor)
-            .map(TxHash::new)?;
+    let hash = MeteredHasher::<G, <S::CryptoSpec as CryptoSpec>::Hasher>::digest(data, gas_meter)
+        .map(TxHash::new)?;
 
     Ok(hash)
 }
