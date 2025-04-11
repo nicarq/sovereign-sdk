@@ -122,12 +122,8 @@ where
 
         let tx_scratchpad = ctx.state_checkpoint.to_tx_scratchpad();
 
-        let (tx_scratchpad, output_res) = tx_auth(
-            &self.runtime,
-            tx_scratchpad,
-            ctx.gas_price.clone(),
-            &mempool_tx.tx,
-        );
+        let (tx_scratchpad, output_res) =
+            tx_auth::<S, Rt, _>(tx_scratchpad, ctx.gas_price.clone(), &mempool_tx.tx);
 
         let (auth_output, gas_meter) = match output_res {
             Ok(ok) => ok,
@@ -593,12 +589,8 @@ where
             let mut runtime: Rt = Default::default();
             let gas_price = runtime.chain_state().base_fee_per_gas(&mut checkpoint).expect("Impossible to get the gas price for the current slot. This is a bug. Please report it");
 
-            let (tx_scratchpad, output_res) = tx_auth(
-                &self.runtime,
-                checkpoint.to_tx_scratchpad(),
-                gas_price,
-                &baked_tx.clone(),
-            );
+            let (tx_scratchpad, output_res) =
+                tx_auth::<S, Rt, _>(checkpoint.to_tx_scratchpad(), gas_price, &baked_tx.clone());
 
             let (auth_output, gas_meter) = match output_res {
                 Ok(ok) => ok,

@@ -26,7 +26,7 @@ pub use sequencer_mode::common::{get_gas_used, AuthTxOutput, BatchReceipt, Valid
 pub use sequencer_mode::registered::{process_tx_and_reward_prover, PreExecError};
 use sov_modules_api::capabilities::{
     BatchFromUnregisteredSequencer, BlobSelector, BlobSelectorOutput, BlockGasInfo, ChainState,
-    HasKernel, Kernel, SequencerRemuneration, TransactionAuthenticator,
+    HasKernel, Kernel, SequencerRemuneration,
 };
 use sov_modules_api::hooks::BlockHooks;
 use sov_modules_api::transaction::TransactionConsumption;

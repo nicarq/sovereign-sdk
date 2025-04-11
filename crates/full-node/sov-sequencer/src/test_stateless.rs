@@ -8,7 +8,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use sov_blob_sender::{new_blob_id, BlobSender};
 use sov_db::ledger_db::LedgerDb;
-use sov_modules_api::capabilities::AuthenticationError;
+use sov_modules_api::capabilities::{AuthenticationError, TransactionAuthenticator};
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{FullyBakedTx, Runtime, Spec, StateCheckpoint};
 use sov_rest_utils::ErrorObject;
@@ -82,7 +82,7 @@ where
         let checkpoint = StateCheckpoint::new(storage, &runtime.kernel());
         let mut tx_scratchpad = checkpoint.to_working_set_unmetered();
 
-        match runtime.authenticate(tx, &mut tx_scratchpad) {
+        match R::Auth::authenticate(tx, &mut tx_scratchpad) {
             Ok((a, _, _)) => a.raw_tx_hash,
             Err(err) => match err {
                 AuthenticationError::FatalError(err, tx_hash) => {

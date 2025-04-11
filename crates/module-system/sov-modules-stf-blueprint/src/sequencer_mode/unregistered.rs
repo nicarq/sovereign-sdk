@@ -1,6 +1,6 @@
 use sov_modules_api::capabilities::{
-    BatchFromUnregisteredSequencer, GasEnforcer, SequencerRemuneration, TransactionAuthorizer,
-    UnregisteredAuthenticationError,
+    BatchFromUnregisteredSequencer, GasEnforcer, SequencerRemuneration, TransactionAuthenticator,
+    TransactionAuthorizer, UnregisteredAuthenticationError,
 };
 use sov_modules_api::*;
 use tracing::{debug, warn};
@@ -143,11 +143,11 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
 #[allow(clippy::type_complexity)]
 #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
-    runtime: &R,
     batch: &BatchFromUnregisteredSequencer,
     pre_exec_working_set: &mut PreExecWorkingSet<S, I>,
 ) -> Result<AuthTxOutput<S, R>, UnregisteredAuthenticationError> {
-    runtime.authenticate_unregistered(batch, pre_exec_working_set)
+    let (tx, auth_data, call) = R::Auth::authenticate_unregistered(batch, pre_exec_working_set)?;
+    Ok((tx, auth_data, R::wrap_call(call)))
 }
 
 #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
@@ -231,7 +231,7 @@ where
 
     let mut pre_exec_working_set = scratchpad.to_pre_exec_working_set(meter);
     let authentication_result =
-        authenticate_unregistered_tx(runtime, &batch, &mut pre_exec_working_set);
+        authenticate_unregistered_tx::<S, RT, _>(&batch, &mut pre_exec_working_set);
 
     let validated_output = match authentication_result {
         Ok(auth_output) => auth_output,

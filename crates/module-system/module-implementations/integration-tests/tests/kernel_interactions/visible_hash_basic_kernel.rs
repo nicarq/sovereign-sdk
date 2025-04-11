@@ -1,21 +1,21 @@
 use sov_state::{ProvableNamespace, StateRoot};
-use sov_test_utils::{generate_bare_runtime, impl_standard_runtime_authenticator};
+use sov_test_utils::generate_runtime;
 
 use crate::kernel_interactions::{
     last_state_root_closure, HighLevelOptimisticGenesisConfig, TestClosureArgs, TestUser,
     TestVisibleHashModule, S,
 };
 
-generate_bare_runtime! {
+generate_runtime! {
     name: TestVisibleHashRuntime,
     modules: [visible_hash_module: TestVisibleHashModule<S>],
     operating_mode: sov_modules_api::OperatingMode::Optimistic,
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S>,
     runtime_trait_impl_bounds: [],
-    kernel_type: sov_kernels::basic::BasicKernel<'a, S>
+    kernel_type: sov_kernels::basic::BasicKernel<'a, S>,
+    auth_type: sov_modules_api::capabilities::RollupAuthenticator<S, TestVisibleHashRuntime<S>>,
+    auth_call_wrapper: |call| call,
 }
-
-impl_standard_runtime_authenticator!(TestVisibleHashRuntime<S>);
 
 type TestRunner<RT> = sov_test_utils::runtime::TestRunner<RT, S>;
 

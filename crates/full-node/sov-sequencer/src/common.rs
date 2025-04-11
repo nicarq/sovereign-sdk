@@ -11,7 +11,7 @@ use axum::http::StatusCode;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_blob_sender::{BlobInternalId, BlobSenderHooks};
 use sov_db::ledger_db::LedgerDb;
-use sov_modules_api::capabilities::AuthenticationOutput;
+use sov_modules_api::capabilities::{AuthenticationOutput, TransactionAuthenticator};
 use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::*;
@@ -363,7 +363,6 @@ pub fn generic_accept_tx_error(details: impl std::fmt::Debug) -> ErrorObject {
 }
 
 pub fn tx_auth<S, Rt, I>(
-    runtime: &Rt,
     tx_scratchpad: TxScratchpad<S, I>,
     gas_price: <S::Gas as Gas>::Price,
     baked_tx: &FullyBakedTx,
@@ -377,7 +376,7 @@ where
 
     let mut pre_exec_ws = tx_scratchpad.to_pre_exec_working_set(gas_meter);
 
-    let auth_res = match runtime.authenticate(baked_tx, &mut pre_exec_ws) {
+    let auth_res = match Rt::Auth::authenticate(baked_tx, &mut pre_exec_ws) {
         Ok(ok) => ok,
         Err(err) => {
             let tx_scratchpad = pre_exec_ws.to_scratchpad_and_gas_meter().0;
@@ -385,7 +384,9 @@ where
         }
     };
 
+    let auth_res = (auth_res.0, auth_res.1, Rt::wrap_call(auth_res.2));
     let (tx_scratchpad, gas_meter) = pre_exec_ws.to_scratchpad_and_gas_meter();
+
     (tx_scratchpad, Ok((auth_res, gas_meter)))
 }
 

@@ -38,7 +38,7 @@ pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
-pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
+pub use sov_sequencer_registry::{self, SequencerConfig, SequencerRegistry};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 pub use sov_uniqueness::Uniqueness;
 pub use sov_value_setter::{

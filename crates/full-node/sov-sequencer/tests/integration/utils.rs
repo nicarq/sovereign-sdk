@@ -65,7 +65,9 @@ pub fn build_tx<RT: Runtime<TestSpec>>(
 }
 
 pub fn wrap_with_auth(raw_tx: RawTx) -> FullyBakedTx {
-    TestOptimisticRuntime::<TestSpec>::encode_with_standard_auth(raw_tx)
+    <<TestOptimisticRuntime<TestSpec> as Runtime<TestSpec>>::Auth as TransactionAuthenticator<
+        TestSpec,
+    >>::encode_with_standard_auth(raw_tx)
 }
 
 /// Includes transaction data encoded in several ways, for use with different
@@ -93,8 +95,7 @@ pub fn generate_txs(admin_private_key: TestPrivateKey) -> Vec<GeneratedTx> {
             <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher::digest(&raw_tx).into(),
         );
 
-        let fully_baked_tx =
-            TestOptimisticRuntime::<TestSpec>::encode_with_standard_auth(raw_tx.clone());
+        let fully_baked_tx = wrap_with_auth(raw_tx.clone());
 
         txs.push(GeneratedTx {
             tx_hash,

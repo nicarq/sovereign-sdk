@@ -1,5 +1,6 @@
 use sov_modules_api::capabilities::{
-    AuthenticationError, GasEnforcer, SequencerAuthorization, TransactionAuthorizer,
+    AuthenticationError, GasEnforcer, SequencerAuthorization, TransactionAuthenticator,
+    TransactionAuthorizer,
 };
 use sov_modules_api::transaction::TransactionConsumption;
 #[cfg(feature = "native")]
@@ -266,11 +267,11 @@ where
     tracing::instrument(skip_all, name = "StfBlueprint::authenticate")
 )]
 fn deserialize_and_authenticate<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
-    runtime: &R,
     tx: &FullyBakedTx,
     pre_exec_working_set: &mut PreExecWorkingSet<S, I>,
 ) -> Result<AuthTxOutput<S, R>, AuthenticationError> {
-    runtime.authenticate(tx, pre_exec_working_set)
+    let (tx, auth_data, call) = R::Auth::authenticate(tx, pre_exec_working_set)?;
+    Ok((tx, auth_data, R::wrap_call(call)))
 }
 
 pub struct IncrementalBatchReceipt<S: Spec> {
@@ -639,7 +640,7 @@ where
         .expect("The gas meter should be able to charge the pre-execution checks");
 
     let authentication_result =
-        deserialize_and_authenticate(runtime, raw_tx, &mut pre_exec_working_set);
+        deserialize_and_authenticate::<S, RT, I>(raw_tx, &mut pre_exec_working_set);
 
     let validated_output = match authentication_result {
         Ok(auth_output) => auth_output,
@@ -694,7 +695,7 @@ where
 
     #[cfg(feature = "native")]
     assert_eq!(
-        runtime.compute_tx_hash(raw_tx).ok(),
+        RT::Auth::compute_tx_hash(raw_tx).ok(),
         Some(raw_tx_hash),
         "Sanity check failed. The transaction hash computed by the authenticator does not match the hash computed by the dedicated tx hash calculation utility method. This is a bug, please report it."
     );

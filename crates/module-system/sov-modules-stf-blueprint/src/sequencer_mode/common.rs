@@ -9,7 +9,7 @@ use tracing::{debug, info, warn};
 
 use super::registered::IncrementalBatchReceipt;
 use crate::stf_blueprint::convert_to_runtime_events;
-use crate::{ApplyTxResult, Runtime, TransactionAuthenticator, TxReceiptContents};
+use crate::{ApplyTxResult, Runtime, TxReceiptContents};
 
 /// Applies a single transaction to the current state. In normal execution, we commit twice times execution:
 /// 1. After the pre-dispatch hook. This ensures that the gas charges are paid even if the transaction fails later during execution
@@ -111,8 +111,7 @@ pub enum PreExecError {
 }
 
 /// Alias for `AuthenticationOutput`.
-pub type AuthTxOutput<S, R> =
-    AuthenticationOutput<S, <R as TransactionAuthenticator<S>>::Decodable>;
+pub type AuthTxOutput<S, R> = AuthenticationOutput<S, <R as DispatchCall>::Decodable>;
 
 /// The receipt for a batch using the STF blueprint.
 pub type BatchReceipt<S> =

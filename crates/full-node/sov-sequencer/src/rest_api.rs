@@ -11,6 +11,7 @@ use futures::{StreamExt, TryStreamExt};
 use serde_with::base64::Base64;
 use serde_with::serde_as;
 use sov_modules_api::capabilities::TransactionAuthenticator;
+use sov_modules_api::runtime::Runtime;
 use sov_modules_api::RawTx;
 use sov_rest_utils::{
     errors, preconfigured_router_layers, serve_generic_ws_subscription, to_json_object, ApiResult,
@@ -175,8 +176,9 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
         TxInfoWithConfirmation<DaBlobHash<<Seq::Da as DaService>::Spec>, Seq::Confirmation>,
     > {
         let raw_tx = RawTx::new(tx.0.body.blob);
-        let baked_tx =
-            <Seq::Rt as TransactionAuthenticator<Seq::Spec>>::encode_with_standard_auth(raw_tx);
+        let baked_tx = <<Seq::Rt as Runtime<Seq::Spec>>::Auth as TransactionAuthenticator<
+            Seq::Spec,
+        >>::encode_with_standard_auth(raw_tx);
 
         let tx_with_hash = state
             .sequencer

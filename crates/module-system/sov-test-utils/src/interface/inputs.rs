@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use derivative::Derivative;
 use sov_mock_da::{MockAddress, MockBlob};
+use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 use sov_modules_api::{Amount, CryptoSpec, DispatchCall, FullyBakedTx, PrivateKey, RawTx, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
@@ -103,12 +104,12 @@ impl<RT: Runtime<S>, S: Spec> TransactionType<RT, S> {
     ) -> FullyBakedTx {
         match self {
             TransactionType::PreAuthenticated(data) => data,
-            TransactionType::PreSigned(raw_tx) => RT::encode_with_standard_auth(raw_tx),
+            TransactionType::PreSigned(raw_tx) => RT::Auth::encode_with_standard_auth(raw_tx),
             TransactionType::Plain {
                 message,
                 key,
                 details,
-            } => RT::encode_with_standard_auth(Self::sign_and_serialize(
+            } => RT::Auth::encode_with_standard_auth(Self::sign_and_serialize(
                 message,
                 key,
                 &RT::CHAIN_HASH,

@@ -135,9 +135,7 @@ pub trait MessageGenerator {
     }
 
     /// Creates a vector of raw transactions from the module.
-    fn create_default_encoded_txs<
-        RT: TransactionAuthenticator<Self::Spec> + EncodeCall<Self::Module> + Runtime<Self::Spec>,
-    >(
+    fn create_default_encoded_txs<RT: Runtime<Self::Spec> + EncodeCall<Self::Module>>(
         &self,
     ) -> Vec<FullyBakedTx> {
         self.create_encoded_txs::<RT>(
@@ -150,7 +148,7 @@ pub trait MessageGenerator {
 
     /// Generates a list of raw transactions originating from the module using default transaction details and no gas usage.
     fn create_default_encoded_txs_without_gas_usage<
-        RT: TransactionAuthenticator<Self::Spec> + EncodeCall<Self::Module> + Runtime<Self::Spec>,
+        RT: Runtime<Self::Spec> + EncodeCall<Self::Module>,
     >(
         &self,
     ) -> Vec<FullyBakedTx> {
@@ -163,9 +161,7 @@ pub trait MessageGenerator {
     }
 
     /// Creates a vector of raw transactions from the module.
-    fn create_encoded_txs<
-        RT: TransactionAuthenticator<Self::Spec> + EncodeCall<Self::Module> + Runtime<Self::Spec>,
-    >(
+    fn create_encoded_txs<RT: Runtime<Self::Spec> + EncodeCall<Self::Module>>(
         &self,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
@@ -183,7 +179,7 @@ pub trait MessageGenerator {
         let mut serialized_messages = Vec::default();
         for message in messages_iter {
             let tx = message.to_tx::<RT>();
-            serialized_messages.push(RT::encode_with_standard_auth(RawTx::new(
+            serialized_messages.push(RT::Auth::encode_with_standard_auth(RawTx::new(
                 borsh::to_vec(&tx).unwrap(),
             )));
         }
@@ -192,9 +188,7 @@ pub trait MessageGenerator {
 
     /// Generates a list of blobs originating from the module using default transaction details.
     /// This function calls [`MessageGenerator::create_default_encoded_txs`].
-    fn create_blobs<
-        RT: TransactionAuthenticator<Self::Spec> + EncodeCall<Self::Module> + Runtime<Self::Spec>,
-    >(
+    fn create_blobs<RT: Runtime<Self::Spec> + EncodeCall<Self::Module>>(
         &self,
         mode: &BlobBuildingCtx,
     ) -> Vec<u8> {

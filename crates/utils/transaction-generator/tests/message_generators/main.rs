@@ -55,7 +55,9 @@ generate_runtime! {
     minimal_genesis_config_type: MinimalOptimisticGenesisConfig<S>,
     gas_enforcer: paymaster: Paymaster<S>,
     runtime_trait_impl_bounds: [],
-    kernel_type: sov_kernels::basic::BasicKernel<'a, S>
+    kernel_type: sov_kernels::basic::BasicKernel<'a, S>,
+    auth_type: sov_modules_api::capabilities::RollupAuthenticator<S, Self>,
+    auth_call_wrapper: |call| call,
 }
 
 type RT = TestRuntime<S>;

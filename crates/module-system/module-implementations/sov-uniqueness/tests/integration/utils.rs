@@ -102,7 +102,7 @@ pub(crate) fn generate_value_setter_tx(
         &<TestNonceRuntime<S> as Runtime<S>>::CHAIN_HASH,
         transaction,
     );
-    TransactionType::PreAuthenticated(RT::encode_with_standard_auth(RawTx {
+    TransactionType::PreAuthenticated(<RT as Runtime<S>>::Auth::encode_with_standard_auth(RawTx {
         data: borsh::to_vec(&transaction).unwrap(),
     }))
 }
