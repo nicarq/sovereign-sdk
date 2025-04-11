@@ -156,8 +156,8 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
                 let stored_root_hash = jmt
                     .get_root_hash(latest_version.get())
                     .expect("Previous root hash was not populated");
-                assert!(
-                    stored_root_hash == prev_state_root,
+                assert_eq!(
+                    stored_root_hash, prev_state_root,
                     "Previous root hash does not match stored root hash. This is a bug."
                 );
                 // For each value that's been read from the tree, read it from the logged JMT to populate hints
@@ -186,7 +186,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
                             ))
                         );
                     }
-                    witness.add_hint(proof);
+                    witness.add_hint(&proof);
                 }
             }
         };
@@ -219,8 +219,8 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
             .put_value_set_with_proof(batch, next_version)
             .expect("JMT update must succeed");
 
-        witness.add_hint(update_proof);
-        witness.add_hint(new_root.0);
+        witness.add_hint(&update_proof);
+        witness.add_hint(&new_root.0);
 
         let new_state_update = ProverStateUpdate {
             data_to_materialize: StateTreeChanges {
@@ -327,7 +327,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     );
 
     fn put_in_witness(&self, value: Option<SlotValue>, witness: &Self::Witness) {
-        witness.add_hint(value);
+        witness.add_hint(&value);
     }
 
     fn get_leaf<N: ProvableCompileTimeNamespace>(
@@ -356,7 +356,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
                     value: ReadType::GetSizeValueNotFetched,
                 });
 
-        witness.add_hint(node_leaf_without_value);
+        witness.add_hint(&node_leaf_without_value);
         node_leaf_with_fetched_value
     }
 
@@ -367,7 +367,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         witness: &Self::Witness,
     ) -> Option<SlotValue> {
         let val = self.read_value::<N>(key, version);
-        witness.add_hint(val.clone());
+        witness.add_hint(&val);
         val
     }
 
