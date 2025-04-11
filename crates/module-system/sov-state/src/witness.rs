@@ -22,7 +22,7 @@ pub trait Witness: Default + Serialize + DeserializeOwned {
     ///
     /// This method **SHOULD** only be called from the native execution
     /// environment.
-    fn add_hint<T: BorshSerialize>(&self, hint: T);
+    fn add_hint<T: BorshSerialize>(&self, hint: &T);
 
     /// Retrieves a "hint" from the witness value.
     fn get_hint<T: BorshDeserialize>(&self) -> T;
@@ -40,8 +40,8 @@ pub trait Witness: Default + Serialize + DeserializeOwned {
 ///
 /// let witness = ArrayWitness::default();
 ///
-/// witness.add_hint(1u64);
-/// witness.add_hint(2u64);
+/// witness.add_hint(&1u64);
+/// witness.add_hint(&2u64);
 ///
 /// assert_eq!(witness.get_hint::<u64>(), 1u64);
 /// assert_eq!(witness.get_hint::<u64>(), 2u64);
@@ -52,11 +52,11 @@ pub struct ArrayWitness {
 }
 
 impl Witness for ArrayWitness {
-    fn add_hint<T: BorshSerialize>(&self, hint: T) {
+    fn add_hint<T: BorshSerialize>(&self, hint: &T) {
         self.hints
             .lock()
             .unwrap()
-            .push_back(borsh::to_vec(&hint).unwrap());
+            .push_back(borsh::to_vec(hint).unwrap());
     }
 
     fn get_hint<T: BorshDeserialize>(&self) -> T {
