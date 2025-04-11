@@ -19,37 +19,6 @@ pub(crate) static METRICS_TRACKER: OnceLock<MetricsTracker> = OnceLock::new();
 pub static METRICS_METADATA: LazyLock<RwLock<HashMap<String, String>>> =
     std::sync::LazyLock::new(|| RwLock::new(HashMap::new()));
 
-#[cfg(feature = "gas-constant-estimation")]
-pub mod gas_constant_estimation {
-    use std::cell::RefCell;
-    use std::collections::HashMap;
-    use std::io::Write;
-
-    use crate::influxdb::Metric;
-
-    thread_local! {
-        /// A map of gas constants and their associated weight.
-        pub static GAS_CONSTANTS: RefCell<HashMap<String, i64>> = RefCell::new(HashMap::new());
-    }
-
-    #[derive(Debug)]
-    pub struct GasConstantMetric {
-        pub constant: String,
-        pub num_invocations: u64,
-    }
-
-    impl Metric for GasConstantMetric {
-        fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-            write!(
-                buffer,
-                "sov_rollup_gas_constant,constant={} num_invocations={}",
-                self.constant, self.num_invocations
-            )?;
-            Ok(())
-        }
-    }
-}
-
 /// Alias for number of nano-seconds since unix epoch.
 pub(crate) type Timestamp = u128;
 
@@ -696,6 +665,8 @@ impl Metric for SovRollupMetric {
         };
 
         write!(buffer, " {timestamp}")
+        // TODO BenchRunner: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2738
+        //writeln!(buffer, " {timestamp}")
     }
 }
 

@@ -16,6 +16,9 @@
 - #2701 **BREAKING CHANGE**. `cors` field to the `runner.http_config` changed from `enabled = true`/`enabled = false` to `cors = "permissive"` or `cors = "restrictive"`.
   When `permissive` is a default.
 
+# 2025-04-05
+- #2699 incorporates the latest changes from the gas optimization workstream to the `sov-benchmark` crate.
+
 # 2025-04-02
 - #2687 Deprecates the sequencers `/batches` endpoint. There is no replacement for this endpoint because it's functionality (trigger a batch to be built & submitted to DA) is not intended to be user facing.
 - #2661 **BREAKING CHANGE** changes the format of `Time` to a UNIX timestamp in milliseconds. In JSON config files, this now serializes as a number instead of an object. **You will need to update `chain_state.json` in your genesis config.**

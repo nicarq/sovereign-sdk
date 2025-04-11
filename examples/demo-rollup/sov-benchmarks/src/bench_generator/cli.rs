@@ -29,44 +29,58 @@ const DEFAULT_INITIAL_SEED: u128 = 0;
 const NUM_SLOTS: u64 = 500;
 
 /// Benchmark parameters to define a small benchmark
-pub const SMALL_BENCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
-    min_txs_per_batch: 1500,
-    max_txs_per_batch: 1500,
+pub const SMALL_TXS_LARGE_SMALL_BATCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
+    min_txs_per_batch: 1,
+    max_txs_per_batch: 1,
     min_batches_per_slot: 1,
     max_batches_per_slot: 1,
     randomization_buffer_size: DEFAULT_RANDOMIZATION_BUFFER_SIZE / 10,
-    max_value_setter_vec_len: 1_000,
-    pattern_maximum_write_data_length: 100,
-    pattern_maximum_write_begin_index: 1_000,
-    pattern_maximum_write_size: 100,
+    max_value_setter_vec_len: 2,
+    pattern_maximum_write_data_length: 10,
+    pattern_maximum_write_begin_index: 10,
+    pattern_maximum_write_size: 10,
+    pattern_maximum_hooks_ops: 10,
+};
+
+/// Benchmark parameters to define a small benchmark
+pub const SMALL_TXS_LARGE_BATCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
+    min_txs_per_batch: 100,
+    max_txs_per_batch: 750,
+    min_batches_per_slot: 1,
+    max_batches_per_slot: 1,
+    randomization_buffer_size: DEFAULT_RANDOMIZATION_BUFFER_SIZE / 10,
+    max_value_setter_vec_len: 10,
+    pattern_maximum_write_data_length: 10,
+    pattern_maximum_write_begin_index: 60,
+    pattern_maximum_write_size: 20,
     pattern_maximum_hooks_ops: 10,
 };
 
 /// Benchmark parameters to define a standard benchmark
-pub const STANDARD_BENCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
-    min_txs_per_batch: 500,
-    max_txs_per_batch: 1500,
-    min_batches_per_slot: 5,
-    max_batches_per_slot: 15,
-    randomization_buffer_size: DEFAULT_RANDOMIZATION_BUFFER_SIZE,
-    max_value_setter_vec_len: 10_000,
-    pattern_maximum_write_data_length: 100,
-    pattern_maximum_write_begin_index: 1_000,
-    pattern_maximum_write_size: 100,
+pub const STANDARD_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
+    min_txs_per_batch: 50,
+    max_txs_per_batch: 300,
+    min_batches_per_slot: 1,
+    max_batches_per_slot: 1,
+    randomization_buffer_size: DEFAULT_RANDOMIZATION_BUFFER_SIZE / 10,
+    max_value_setter_vec_len: 300,
+    pattern_maximum_write_data_length: 300,
+    pattern_maximum_write_begin_index: 40,
+    pattern_maximum_write_size: 40,
     pattern_maximum_hooks_ops: 10,
 };
 
 /// Benchmark parameters to define a large benchmark
-pub const LARGE_BENCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
-    min_txs_per_batch: 1000,
-    max_txs_per_batch: 2000,
-    min_batches_per_slot: 10,
-    max_batches_per_slot: 20,
-    randomization_buffer_size: 10 * DEFAULT_RANDOMIZATION_BUFFER_SIZE,
-    max_value_setter_vec_len: 100_000,
-    pattern_maximum_write_data_length: 100,
-    pattern_maximum_write_begin_index: 1_000,
-    pattern_maximum_write_size: 100,
+pub const LARGE_TXS_SMALL_BATCH_PARAMS: BenchCLICustomArgs = BenchCLICustomArgs {
+    min_txs_per_batch: 10,
+    max_txs_per_batch: 70,
+    min_batches_per_slot: 1,
+    max_batches_per_slot: 1,
+    randomization_buffer_size: DEFAULT_RANDOMIZATION_BUFFER_SIZE / 10,
+    max_value_setter_vec_len: 900,
+    pattern_maximum_write_data_length: 900,
+    pattern_maximum_write_begin_index: 30,
+    pattern_maximum_write_size: 10,
     pattern_maximum_hooks_ops: 10,
 };
 
@@ -106,9 +120,10 @@ impl BenchCLI {
     /// Parses the size argument into a [`BenchCLICustomArgs`]
     pub fn parse_size(&self) -> &BenchCLICustomArgs {
         match &self.size {
-            BenchSize::Small => &SMALL_BENCH_PARAMS,
-            BenchSize::Standard => &STANDARD_BENCH_PARAMS,
-            BenchSize::Large => &LARGE_BENCH_PARAMS,
+            BenchSize::VerySmall => &SMALL_TXS_LARGE_SMALL_BATCH_PARAMS,
+            BenchSize::Small => &SMALL_TXS_LARGE_BATCH_PARAMS,
+            BenchSize::Standard => &STANDARD_PARAMS,
+            BenchSize::Large => &LARGE_TXS_SMALL_BATCH_PARAMS,
             BenchSize::Custom(params) => params,
         }
     }
@@ -117,11 +132,13 @@ impl BenchCLI {
 /// The different sizes available for benchmarking.
 #[derive(Subcommand, Debug)]
 pub enum BenchSize {
-    /// Runs a small benchmark. Ie, with [`SMALL_BENCH_PARAMS`] values.
+    /// Runs a benchmark of small transactions and small batches. Ie, with [`SMALL_TXS_LARGE_SMALL_BATCH_PARAMS`] values.
+    VerySmall,
+    /// Runs a benchmark of small transactions and large batches. Ie, with [`SMALL_TXS_LARGE_BATCH_PARAMS`] values.
     Small,
-    /// Runs a standard benchmark. Ie, with [`STANDARD_BENCH_PARAMS`] values.
+    /// Runs a benchmark of standard transactions and batches. Ie, with [`STANDARD_PARAMS`] values.
     Standard,
-    /// Runs a large benchmark. Ie, with [`LARGE_BENCH_PARAMS`] values.
+    /// Runs a benchmark of large transactions and small batches. Ie, with [`LARGE_TXS_SMALL_BATCH_PARAMS`] values.
     Large,
     /// Generates a benchmark with custom arguments.
     Custom(BenchCLICustomArgs),

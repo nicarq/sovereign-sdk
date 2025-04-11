@@ -22,17 +22,28 @@ pub mod gas_estimation {
             {
                 let inputs = vec![ #(#inputs_iter,)* ];
 
-                let constants_usage_before: ::sov_metrics::GasConstantTracker =
-                    ::sov_metrics::GAS_CONSTANTS.with(|gas_constants| gas_constants.borrow().clone());
-                let result = (|| #block)();
-                let constants_usage_after: ::sov_metrics::GasConstantTracker =
-                    ::sov_metrics::GAS_CONSTANTS.with(|gas_constants| gas_constants.borrow().clone());
+                let closure = move |constants_usage_before: ::sov_metrics::GasConstantTracker| {
+                    let result = (|| #block)();
+                    let constants_usage_after: ::sov_metrics::GasConstantTracker =
+                        ::sov_metrics::GAS_CONSTANTS.with(|gas_constants| gas_constants.borrow().clone());
 
-                let constants_usage_diff = constants_usage_after.diff(constants_usage_before);
+                    let constants_usage_diff = constants_usage_after.diff(constants_usage_before);
 
-                constants_usage_diff.report_gas_constants_usage(stringify!(#ident), inputs);
+                    constants_usage_diff.report_gas_constants_usage(stringify!(#ident), inputs);
 
-                result
+                    result
+                };
+
+                if let Ok(constants_usage_before) =
+                    ::sov_metrics::GAS_CONSTANTS.try_with(|gas_constants| gas_constants.borrow().clone()) {
+                        closure(constants_usage_before)
+                } else {
+                    ::sov_metrics::GAS_CONSTANTS.sync_scope(
+                        std::cell::RefCell::new(::sov_metrics::GasConstantTracker::default()), || {
+                            closure(::sov_metrics::GasConstantTracker::default())
+                        }
+                    )
+                }
             }
         };
 

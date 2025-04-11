@@ -1,66 +1,31 @@
 use std::collections::{HashMap, HashSet};
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::ensure;
-use demo_stf::runtime::GenesisConfig;
+use backon::Retryable;
 use futures::{Stream, StreamExt};
-use sov_metrics::TelegrafSocketConfig;
 use sov_mock_da::storable::service::StorableMockDaService;
-use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::transaction::TxDetails;
 use sov_modules_api::{CryptoSpec, HexHash, Runtime, Spec};
 use sov_node_client::NodeClient;
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
 use sov_test_utils::ledger_db::sov_api_spec::types::{Slot, TxReceiptResult};
-use sov_test_utils::test_rollup::GenesisSource;
 use sov_test_utils::{TransactionType, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 use tokio::select;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
+use tokio::time::{interval, Instant};
 use tracing::{info, trace};
 
-use super::{BenchLogs, BenchMessage, BenchRollup, BenchRollupBuilder, RT, S};
-use crate::{mock_da_risc0_host_args, DEFAULT_FINALIZATION_BLOCKS};
+use super::{BenchLogs, BenchMessage, RT, S};
+use crate::bench_runner::AGG_PROOF_JUMP;
 
-/// Setups the rollup for the benchmarks.
-/// We give the maximum possible gas balance to the prover and sequencer to ensure that they can pay for the transactions.
-pub async fn setup_rollup(
-    genesis_config: GenesisConfig<S>,
-    telegraf_address: TelegrafSocketConfig,
-) -> anyhow::Result<BenchRollup> {
-    let sequencer_da_address = genesis_config.sequencer_registry.seq_da_address;
-    let prover_address = genesis_config
-        .prover_incentives
-        .initial_provers
-        .first()
-        .unwrap()
-        .0;
-
-    let rollup_builder = BenchRollupBuilder::new(
-        GenesisSource::CustomParams(genesis_config.into_genesis_params()),
-        BlockProducingConfig::Manual,
-        DEFAULT_FINALIZATION_BLOCKS,
-    )
-    .with_zkvm_host_args(mock_da_risc0_host_args())
-    .set_config(|config| {
-        config.prover_address = prover_address.to_string();
-        config.automatic_batch_production = true;
-        config.telegraf_address = telegraf_address;
-        config.aggregated_proof_block_jump = 1;
-
-        // This value should be greater than the number of slots we want to run as part of the benchmark.
-        config.max_channel_size = 1_500;
-        config.max_infos_in_db = 1_500;
-    })
-    .set_da_config(|da_config| {
-        da_config.sender_address = sequencer_da_address;
-    });
-
-    rollup_builder.start().await
-}
+const PROOF_TIMEOUT_DURATION: Duration = Duration::from_secs(1800);
+const PROOF_TIMEOUT_CHECK_INTERVAL: Duration = Duration::from_secs(60);
 
 /// A simple struct that sends batches to the sequencer on behalf of the user
 pub struct BatchSender {
@@ -85,6 +50,8 @@ pub struct BatchReceiver {
     highest_slot_to_prove: u64,
     /// The highest slot number proven so far.
     highest_slot_proven: u64,
+    /// Timestamp of the last proof received
+    last_proof_stamp: Instant,
     /// Channel used to receive transactions to wait for to the sender task
     tx_channel: Receiver<HashSet<HexHash>>,
     /// For now we use a slot subscription until we can reliably receive [`TxStatus::Processed`] from the full-node
@@ -93,6 +60,8 @@ pub struct BatchReceiver {
     proof_subscription: broadcast::Receiver<()>,
     /// The DA service used to send transactions to the sequencer
     da_service: Arc<StorableMockDaService>,
+    /// The client used to subscribe to slots
+    client: NodeClient,
 }
 
 impl BatchReceiver {
@@ -109,6 +78,8 @@ impl BatchReceiver {
             highest_slot_proven: 0,
             highest_slot_to_prove: 0,
             tx_channel,
+            last_proof_stamp: Instant::now(),
+            client: client.clone(),
             slots_subscription: client
                 .client
                 .subscribe_finalized_slots_with_children(IncludeChildren::new(true))
@@ -123,6 +94,7 @@ impl BatchReceiver {
     /// Waits for the results of the transactions sent to the sequencer to be available in the full node.
     pub fn start_receiver(mut self) -> JoinHandle<anyhow::Result<()>> {
         tokio::spawn(async move {
+            let mut proof_timeout_check_interval = interval(PROOF_TIMEOUT_CHECK_INTERVAL);
             loop {
                 select! {
                     txs = self.tx_channel.recv(), if !self.tx_channel.is_closed() => {
@@ -132,20 +104,46 @@ impl BatchReceiver {
                     },
 
                     maybe_next_slot = self.slots_subscription.next(), if !self.txs_to_wait_for.is_empty() => {
-                        let next_slot = maybe_next_slot.ok_or_else(|| anyhow::anyhow!("{}: The stream of slots has terminated!", self.bench_name))?.map_err(|e| anyhow::anyhow!("{}: An error occurred while waiting for the next slot! {:?}", self.bench_name, e))?;
+                        let next_slot = if let Some(next_slot) = maybe_next_slot {
+                            next_slot.map_err(
+                                |e| {
+                                    tracing::error!(bench = self.bench_name, err = ?e, "An error occurred while waiting for the next slot");
+                                    anyhow::anyhow!("{}: An error occurred while waiting for the next slot: {:?}", self.bench_name, e)
+                                }
+                            )?
+                        } else {
+                                tracing::warn!(bench = self.bench_name, "The stream of slots has terminated! Resubscribing");
+
+                                self.slots_subscription = self.client.client
+                                .subscribe_finalized_slots_with_children(IncludeChildren::new(true))
+                                .await
+                                .map_err(|e|
+                                    {
+                                        tracing::error!(bench = self.bench_name, err = ?e, "An error occurred when trying to resubscribe to the slots stream");
+                                        anyhow::anyhow!("{}: An error occurred when trying to resubscribe to the slots stream: {:?}", self.bench_name, e)
+                                    })?;
+
+                                continue;
+                        };
 
                         for batch in next_slot.batches {
                             for tx in batch.txs {
                                 let parsed_hash: HexHash =
-                                    tx.hash.parse().expect("Impossible to parse tx_hash!");
+                                    tx.hash.parse().map_err(
+                                        |e| {
+                                            tracing::error!(bench = self.bench_name, hash = ?tx.hash, err = ?e, "An error occurred while parsing the tx hash");
+                                            anyhow::anyhow!("{}: An error occurred while parsing the tx hash: {:?}", self.bench_name, e)
+                                        }
+                                    )?;
 
 
                                 if self.txs_to_wait_for.contains(&parsed_hash) {
-                                    assert_eq!(
-                                        tx.receipt.result,
-                                        TxReceiptResult::Successful,
-                                        "The transaction should be successful"
-                                    );
+                                    if tx.receipt.result !=
+                                        TxReceiptResult::Successful
+                                    {
+                                        tracing::error!(bench = self.bench_name, hash = ?tx.hash, result = ?tx.receipt.result, "The transaction should be successful");
+                                        anyhow::bail!("{}: The transaction should be successful: {:?}", self.bench_name, tx);
+                                    }
 
                                     self.txs_to_wait_for.remove(&parsed_hash);
 
@@ -160,14 +158,35 @@ impl BatchReceiver {
                     },
 
                     maybe_next_proof = self.proof_subscription.recv(), if self.highest_slot_to_prove > self.highest_slot_proven => {
-                        maybe_next_proof.map_err(|e| anyhow::anyhow!("{}: An error occurred while waiting for the next proof! {:?}", self.bench_name, e))?;
+                        maybe_next_proof.map_err(|e|
+                            {
+                                tracing::error!(bench = self.bench_name, err = ?e, "An error occurred while waiting for the next proof");
+                                anyhow::anyhow!("{}: An error occurred while waiting for the next proof! {:?}", self.bench_name, e)
+                            }
+                            )?;
 
-                        self.highest_slot_proven += 1;
+                        self.highest_slot_proven += AGG_PROOF_JUMP;
+                        self.last_proof_stamp = Instant::now();
 
                         info!(bench = self.bench_name, thread = "receiver", higest_slot_proven = self.highest_slot_proven, highest_slot_to_prove = self.highest_slot_to_prove, "Received a proof");
 
                         // We need to produce a block to ensure that the proof is included in the DA layer.
-                        self.da_service.produce_block_now().await?;
+                        self.da_service.produce_block_now().await.map_err(
+                            |e| {
+                                tracing::error!(bench = self.bench_name, err = ?e, "An error occurred while producing a block");
+                                anyhow::anyhow!("{}: An error occurred while producing a block! {:?}", self.bench_name, e)
+                            }
+                        )?;
+                    },
+
+                    tick = proof_timeout_check_interval.tick(), if self.highest_slot_to_prove > self.highest_slot_proven => {
+                        let duration = tick.duration_since(self.last_proof_stamp);
+                        if duration > PROOF_TIMEOUT_DURATION {
+                            tracing::error!(bench = self.bench_name, thread = "receiver", duration_secs = duration.as_secs(), "No proof received. Timeout exceeded. Exiting receiver");
+                            anyhow::bail!("{}: No proof has been received for the last {} seconds. Exiting...", self.bench_name, PROOF_TIMEOUT_DURATION.as_secs());
+                        } else {
+                            tracing::trace!(bench = self.bench_name, thread = "receiver", duration_secs = duration.as_secs(), "No proof received.");
+                        }
                     },
 
                     else => {
@@ -235,12 +254,20 @@ impl BatchSender {
                 )
             });
 
-        let batch_hashes = self
-            .client
-            .client
-            .send_txs_to_sequencer(&txs)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to publish batch. Error {e}"))?
+        let send_txs_to_sequencer = || async {
+            self.client
+                .client
+                .send_txs_to_sequencer(&txs)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to publish batch. Error {e}"))
+        };
+
+        let batch_hashes = send_txs_to_sequencer
+            .retry(&backon::ExponentialBuilder::default())
+            .notify(|err, dur| {
+                tracing::warn!(bench = self.bench_name, err = ?err, duration = ?dur, "Failed to publish batch. Retrying...")
+            })
+            .await?
             .iter()
             .map(|val| val.data.id.clone())
             .collect::<Vec<_>>();

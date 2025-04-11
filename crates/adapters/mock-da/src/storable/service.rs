@@ -25,7 +25,7 @@ use crate::{
     DEFAULT_BLOCK_WAITING_TIME_MS,
 };
 
-const DEFAULT_BLOCK_WAITING_TIME: Duration = Duration::from_secs(120);
+const DEFAULT_BLOCK_WAITING_TIME: Duration = Duration::from_secs(3600);
 // Time to accommodate rare cases of lock waiting time or latency to the database.
 const EXTRA_TIME_FOR_MAX_BLOCK: Duration = Duration::from_secs(10);
 

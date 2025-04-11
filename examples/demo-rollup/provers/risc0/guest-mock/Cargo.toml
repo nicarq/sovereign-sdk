@@ -9,7 +9,7 @@ resolver = "2"
 
 [dependencies]
 risc0-zkvm = { version = "1.2", default-features = false, features = ["std"] }
-risc0-zkvm-platform = { version = "1.2", features = ["sys-getenv", "heap-embedded-alloc"] }
+risc0-zkvm-platform = { version = "1.2", features = ["sys-getenv"] }
 sov-mock-da = { path = "../../../../../crates/adapters/mock-da" }
 demo-stf = { path = "../../../stf" }
 sov-risc0-adapter = { path = "../../../../../crates/adapters/risc0" }
