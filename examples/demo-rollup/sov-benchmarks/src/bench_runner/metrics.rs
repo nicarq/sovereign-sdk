@@ -13,7 +13,8 @@ use tracing::{info, trace};
 
 use super::ParsedMetricsParameters;
 
-const METRICS_REFRESH_WINDOW: Duration = Duration::from_secs(100);
+/// Should be greater or equal to influx's flush interval.
+const METRICS_FLUSH_INTERVAL: Duration = Duration::from_secs(200);
 
 async fn get_metrics(
     bench_name: String,
@@ -31,7 +32,7 @@ async fn get_metrics(
     );
 
     let post_addr = format!(
-        "http://{}/api/v2/query?orgID={}",
+        "http://{}/api/v2/query?org={}",
         metrics_params.influx_address, metrics_params.influx_org_id
     );
 
@@ -50,12 +51,6 @@ async fn get_metrics(
     }
 
     let response = response_builder.send().await?.error_for_status()?;
-
-    trace!(
-        bench = bench_name,
-        thread = "metrics_storage",
-        "Successfully queried metrics from InfluxDB."
-    );
 
     // Stream the response to the output file.
     let response_stream = response.bytes_stream();
@@ -79,11 +74,13 @@ async fn get_metrics(
 
     writer.flush()?;
 
-    trace!(
+    info!(
         bench = bench_name,
-        thread = "metrics_storage",
+        start = start_timestamp,
+        end = end_timestamp,
         output = metrics_params.output_file,
-        "Successfully written metrics to output file."
+        thread = "metrics_storage",
+        "Successfully queried metrics from InfluxDB."
     );
 
     Ok(())
@@ -122,9 +119,12 @@ pub async fn start_metrics_thread(
     let mut output_file = File::create(metrics_params.output_file.clone())
         .expect("Failed to create metrics output file");
 
-    let mut start_timestamp = initial_timestamp;
+    let mut curr_start_timestamp = initial_timestamp;
 
-    let mut interval = interval(METRICS_REFRESH_WINDOW);
+    // We are storing the previous interval when the current one is finished to ensure all metrics are flushed.
+    let mut prev_start_stamp = initial_timestamp;
+
+    let mut interval = interval(METRICS_FLUSH_INTERVAL);
 
     loop {
         match future_or_shutdown(interval.tick(), &shutdown_receiver).await {
@@ -136,15 +136,21 @@ pub async fn start_metrics_thread(
                 );
 
                 let curr_stamp = timestamp();
-                get_metrics(
-                    bench_name.clone(),
-                    start_timestamp,
-                    curr_stamp,
-                    &metrics_params,
-                    &mut output_file,
-                )
-                .await?;
-                start_timestamp = curr_stamp;
+
+                // We store metrics with a delay to ensure that everything is flushed.
+                if curr_start_timestamp > prev_start_stamp {
+                    get_metrics(
+                        bench_name.clone(),
+                        prev_start_stamp,
+                        curr_start_timestamp,
+                        &metrics_params,
+                        &mut output_file,
+                    )
+                    .await?;
+                }
+
+                prev_start_stamp = curr_start_timestamp;
+                curr_start_timestamp = curr_stamp;
             }
             FutureOrShutdownOutput::Shutdown => {
                 // We store the last metrics before exiting.
@@ -157,7 +163,7 @@ pub async fn start_metrics_thread(
                 let curr_stamp = timestamp();
                 get_metrics(
                     bench_name.clone(),
-                    start_timestamp,
+                    prev_start_stamp,
                     curr_stamp,
                     &metrics_params,
                     &mut output_file,

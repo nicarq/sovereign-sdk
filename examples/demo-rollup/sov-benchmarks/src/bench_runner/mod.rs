@@ -6,14 +6,16 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use anyhow::{bail, Context};
 use cli::BenchRunnerCLI;
-use demo_stf::runtime::{Runtime, RuntimeCall};
-use helpers::{setup_rollup, BatchReceiver, BatchSender};
-use sov_metrics::{timestamp, MonitoringConfig, TelegrafSocketConfig, METRICS_METADATA};
-use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
+use demo_stf::runtime::{GenesisConfig, Runtime, RuntimeCall};
+use helpers::{BatchReceiver, BatchSender};
+use humantime::Timestamp;
+use sov_metrics::{timestamp, TelegrafSocketConfig, METRICS_METADATA};
+use sov_mock_da::BlockProducingConfig;
+use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::RtAgnosticBlueprint;
 use sov_transaction_generator::generators::basic::{BasicChangeLogEntry, BasicClientConfig};
 use sov_transaction_generator::{assert_logs_against_state, GeneratedMessage};
@@ -22,7 +24,7 @@ use tracing::{info, trace};
 
 use crate::bench_generator::BenchmarkData;
 use crate::bench_runner::cli::MetricsCLI;
-use crate::BenchRisc0Spec;
+use crate::{mock_da_risc0_host_args, BenchRisc0Spec, DEFAULT_FINALIZATION_BLOCKS};
 
 pub type S = BenchRisc0Spec;
 pub type RT = Runtime<S>;
@@ -39,13 +41,18 @@ pub mod metrics;
 pub const DEFAULT_BENCH_FILES: &str = "./src/bench_files";
 pub const DEFAULT_METRICS_OUTPUT: &str = "./src/metrics";
 pub const DEFAULT_TELEGRAF_ADDRESS: TelegrafSocketConfig =
-    MonitoringConfig::standard().telegraf_address;
+    TelegrafSocketConfig::tcp(std::net::SocketAddr::V4(std::net::SocketAddrV4::new(
+        std::net::Ipv4Addr::LOCALHOST,
+        8094,
+    )));
 pub const DEFAULT_INFLUX_DB_ADDRESS: SocketAddr =
     SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 8086));
 pub const DEFAULT_NUM_THREADS: u8 = 10;
 
 /// Number of slots the DA layer has to produce before the sequencer can start producing batches.
 const BOOTSTRAP_SLOTS_NUM: usize = 2;
+
+const AGG_PROOF_JUMP: u64 = 1;
 
 pub struct ParsedMetricsParameters {
     pub(crate) influx_address: SocketAddr,
@@ -59,6 +66,43 @@ pub struct ParsedMetricsParameters {
 /// Parses the next slot from a bench file.
 pub fn parse_next_data(reader: &mut BufReader<File>) -> anyhow::Result<BenchmarkData<S>> {
     Ok(bincode::deserialize_from(reader)?)
+}
+
+/// Setups the rollup for the benchmarks.
+/// We give the maximum possible gas balance to the prover and sequencer to ensure that they can pay for the transactions.
+pub async fn setup_rollup(
+    genesis_config: GenesisConfig<S>,
+    telegraf_address: TelegrafSocketConfig,
+) -> anyhow::Result<BenchRollup> {
+    let sequencer_da_address = genesis_config.sequencer_registry.seq_da_address;
+    let prover_address = genesis_config
+        .prover_incentives
+        .initial_provers
+        .first()
+        .unwrap()
+        .0;
+
+    let rollup_builder = BenchRollupBuilder::new(
+        GenesisSource::CustomParams(genesis_config.into_genesis_params()),
+        BlockProducingConfig::Manual,
+        DEFAULT_FINALIZATION_BLOCKS,
+    )
+    .with_zkvm_host_args(mock_da_risc0_host_args())
+    .set_config(|config| {
+        config.prover_address = prover_address.to_string();
+        config.automatic_batch_production = true;
+        config.telegraf_address = telegraf_address;
+        config.aggregated_proof_block_jump = AGG_PROOF_JUMP as usize;
+
+        // This value should be greater than the number of slots we want to run as part of the benchmark.
+        config.max_channel_size = 2000;
+        config.max_infos_in_db = 2000;
+    })
+    .set_da_config(|da_config| {
+        da_config.sender_address = sequencer_da_address;
+    });
+
+    rollup_builder.start().await
 }
 
 /// Runs a bench file and gathers metrics.
@@ -115,6 +159,9 @@ async fn runner(
 
     rollup.da_service.produce_block_now().await?;
 
+    // We need to wait to be sure the sequencer sends the first transactions to the DA layer.
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
     while let Ok(bench) = parse_next_data(&mut reader) {
         let slot_start = timestamp();
         let (slot_number, slot) = match bench {
@@ -146,6 +193,9 @@ async fn runner(
         let slot_end = timestamp();
 
         rollup.da_service.produce_block_now().await?;
+
+        // We need to wait to be sure the sequencer sends the last transactions to the DA layer to be included in the next block.
+        tokio::time::sleep(Duration::from_secs(2)).await;
 
         let exec_duration = Duration::from_nanos((slot_end - slot_start) as u64);
         let throughput = num_txs as f64 / exec_duration.as_secs_f64();
@@ -261,7 +311,7 @@ pub async fn run_bench_file(input: BenchRunnerCLI) {
                     let mut path_with_stamp = PathBuf::from(format!(
                         "{}_{}",
                         file_path.file_stem().unwrap().to_str().unwrap(),
-                        timestamp()
+                        Timestamp::from(SystemTime::now())
                     ));
 
                     if encoded {
@@ -305,5 +355,7 @@ pub async fn run_bench_file(input: BenchRunnerCLI) {
     .unwrap_or_else(|e| panic!("{bench_name_str}: Impossible to run bench file. Err {e})"));
 
     // Shutdown the metrics collection task
+    // TODO https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2737
     metrics_shutdown_sender.send(()).unwrap();
+    tokio::time::sleep(Duration::from_secs(15)).await;
 }

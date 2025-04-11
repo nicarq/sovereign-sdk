@@ -4,12 +4,11 @@ use std::env;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Instant, SystemTime};
 
 use clap::Parser;
 use sov_benchmarks::bench_generator::benches::all_benches;
 use sov_benchmarks::bench_generator::cli::BenchCLI;
-use sov_metrics::timestamp;
 use sov_test_utils::initialize_logging;
 use tracing::{info, info_span};
 
@@ -19,7 +18,7 @@ async fn main() {
 
     // If the env var is not set, then we set it to the default value.
     if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "warn,error,sov_benchmarks=info");
+        env::set_var("RUST_LOG", "warn,error,bench_generator=info");
     }
 
     initialize_logging();
@@ -48,8 +47,8 @@ async fn main() {
             let generation_base_path_cloned = generation_base_path.clone();
             joinset.spawn(async move {
                 let mut bench_with_extension = benchmark.name.clone();
-                let bench_stamp = timestamp();
-                bench_with_extension.push_str(&format!("_{bench_stamp}.bin"));
+                let bench_stamp = humantime::Timestamp::from(SystemTime::now());
+                bench_with_extension.push_str(&format!("_{}.bin", bench_stamp));
 
                 info!(bench = benchmark.name, "Generating benchmark...");
 
@@ -66,7 +65,7 @@ async fn main() {
                 )
                 });
 
-                let begin_stamp = timestamp();
+                let begin_stamp = Instant::now();
                 benchmark
                     .generate_and_write_benchmark_messages(&mut BufWriter::new(file))
                     .unwrap_or_else(|_| {
@@ -75,9 +74,9 @@ async fn main() {
                             benchmark.name
                         )
                     });
-                let end_stamp = timestamp();
+                let end_stamp = Instant::now();
 
-                let exec_duration = Duration::from_nanos((end_stamp - begin_stamp) as u64);
+                let exec_duration = end_stamp.duration_since(begin_stamp);
 
                 info!(
                     bench = benchmark.name,

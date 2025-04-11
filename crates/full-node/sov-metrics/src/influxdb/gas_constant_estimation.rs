@@ -2,13 +2,15 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Write;
 
+use tokio::task_local;
+
 use crate::influxdb::tracker::{serialize_metadata, SovRollupMetric};
 use crate::influxdb::{safe_telegraf_string, Metric};
 use crate::{timestamp, MetricsTracker};
 
-thread_local! {
+task_local! {
     /// A map of gas constants and their associated weight.
-    pub static GAS_CONSTANTS: RefCell<GasConstantTracker> = RefCell::new(GasConstantTracker::default());
+    pub static GAS_CONSTANTS: RefCell<GasConstantTracker>;
 }
 
 /// A structure used to track the usage of gas constants.
@@ -21,7 +23,11 @@ impl GasConstantTracker {
     pub fn diff(mut self, previous: Self) -> Self {
         for (constant, weight) in previous.0.into_iter() {
             if let Some(current_weight) = self.0.get(&constant) {
-                self.0.insert(constant, *current_weight - weight);
+                if *current_weight != weight {
+                    self.0.insert(constant, *current_weight - weight);
+                } else {
+                    self.0.remove(&constant);
+                }
             }
         }
 

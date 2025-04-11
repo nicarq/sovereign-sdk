@@ -6,6 +6,8 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use clap::Parser;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use sov_benchmarks::bench_runner::cli::BenchRunnerCLI;
 use sov_benchmarks::bench_runner::run_bench_file;
 use sov_test_utils::initialize_logging;
@@ -39,11 +41,14 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // Max concurrent processes
+    const MAX_PROCESSES: usize = 4;
+
     // If the path points to a directory, then we run all the bench files inside the directory.
     let bench_files = fs::read_dir(path).unwrap_or_else(|err| panic!("Failed to read bench directory: {err}. Please make sure you provide a valid directory or file path!"));
 
     // Spawn a child process for each bench file. Await the processes concurrently
-    let mut processes = Vec::new();
+    let mut processes = FuturesUnordered::new();
 
     for bench_file in bench_files {
         // We remove both the path and its argument if it exist. They are replaced when calling the process.
@@ -68,24 +73,41 @@ async fn main() -> anyhow::Result<()> {
         };
 
         let file_path = bench_file.unwrap().path();
+        let file_path_str = file_path.into_os_string().into_string().unwrap();
 
-        // The first argument is always the process name.
-        let handle = tokio::process::Command::new(args[0].clone())
-            .args(vec![
-                "-p",
-                &file_path.into_os_string().into_string().unwrap(),
-            ])
-            .args(args.into_iter().skip(1))
-            .kill_on_drop(true)
-            .spawn()
-            .with_context(|| "Impossible to create child process")?;
+        if processes.len() >= MAX_PROCESSES {
+            tracing::info!(
+                "Max concurrent processes reached. Waiting for the oldest spawned process to finish..."
+            );
 
-        processes.push(handle);
+            let (bench, status) = processes
+                .next()
+                .await
+                .ok_or(anyhow::anyhow!("No processes to wait for."))?;
+
+            tracing::info!(bench, ?status, "Bench file execution completed");
+        }
+
+        processes.push(async {
+            // The first argument is always the process name.
+            let mut handle = tokio::process::Command::new(args[0].clone())
+                .args(vec!["-p", &file_path_str.clone()])
+                .args(args.into_iter().skip(1))
+                .kill_on_drop(true)
+                .spawn()
+                .with_context(|| "Impossible to create child process")
+                .unwrap();
+
+            let res = handle.wait().await.unwrap();
+            (file_path_str, res)
+        });
     }
 
-    for mut process in processes {
-        process.wait().await?;
+    while let Some((bench, status)) = processes.next().await {
+        tracing::info!(bench, ?status, "Bench file execution completed");
     }
+
+    tracing::info!("All bench files have been run successfully.");
 
     Ok(())
 }

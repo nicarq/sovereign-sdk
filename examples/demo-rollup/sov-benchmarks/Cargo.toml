@@ -11,7 +11,11 @@ publish = false
 [dependencies]
 # Sovereign dependencies
 sov-rollup-interface = { workspace = true, features = ["arbitrary"] }
-sov-modules-api = { workspace = true, features = ["arbitrary", "bench"] }
+
+sov-modules-api = { workspace = true, features = ["arbitrary", "bench", "native"] }
+sov-capabilities = { workspace = true }
+
+sov-test-modules = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true, features = ["arbitrary"] }
 sov-sequencer = { workspace = true, default-features = false }
 sov-address = { workspace = true }
@@ -20,12 +24,12 @@ sov-modules-stf-blueprint = { workspace = true, features = ["bench"] }
 sov-transaction-generator = { workspace = true }
 sov-modules-rollup-blueprint = { workspace = true, default-features = false }
 sov-node-client = { workspace = true }
+
 sov-metrics = { workspace = true, default-features = false }
 
 sov-mock-da = { workspace = true, features = ["arbitrary", "native"] }
 sov-celestia-adapter = { workspace = true, features = ["arbitrary", "bench", "native"] }
 
-sov-test-modules = { workspace = true, features = ["native"] }
 demo-stf = { workspace = true, features = ["test-utils"] }
 reqwest = { workspace = true, features = ["rustls-tls", "stream"], default-features = false }
 
@@ -49,6 +53,7 @@ serde = { workspace = true, default-features = false, features = [
     "alloc",
     "derive",
 ] }
+backon = { workspace = true }
 progenitor = { version = "0.8" }
 tokio = { workspace = true, default-features = false, features = ["process"] }
 humantime = "2.1"
@@ -72,5 +77,5 @@ harness = false
 gas-constant-estimation = [
     "sov-modules-api/gas-constant-estimation",
     "sov-metrics/gas-constant-estimation",
-    "sov-modules-stf-blueprint/gas-constant-estimation"
+    "sov-modules-stf-blueprint/gas-constant-estimation",
 ]
