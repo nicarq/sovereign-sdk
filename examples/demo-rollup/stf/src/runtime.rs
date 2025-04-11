@@ -32,14 +32,15 @@ use sov_address::{EthereumAddress, FromVmAddress};
 #[cfg(feature = "native")]
 pub use sov_attester_incentives::BondingProofServiceImpl;
 use sov_capabilities::StandardProvenRollupCapabilities as StandardCapabilities;
+use sov_evm::{EthereumAuthenticator, EvmAuthenticatorInput};
 use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 #[cfg(feature = "native")]
 use sov_modules_api::capabilities::KernelWithSlotMapping;
-use sov_modules_api::capabilities::{Guard, HasCapabilities, HasKernel};
+use sov_modules_api::capabilities::{Guard, HasCapabilities, HasKernel, TransactionAuthenticator};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{DispatchCall, Event, Genesis, Hooks, MessageCodec, Spec};
+use sov_modules_api::{DispatchCall, Event, Genesis, Hooks, MessageCodec, RawTx, Spec};
 
 #[cfg(feature = "native")]
 use crate::genesis_config::GenesisPaths;
@@ -94,6 +95,8 @@ where
     #[cfg(feature = "native")]
     type GenesisInput = GenesisPaths;
 
+    type Auth = sov_evm::EvmAuthenticator<S, Self>;
+
     #[cfg(feature = "native")]
     fn endpoints(
         api_state: sov_modules_api::rest::ApiState<S>,
@@ -129,6 +132,24 @@ where
 
     fn operating_mode(genesis: &Self::GenesisConfig) -> sov_modules_api::OperatingMode {
         genesis.chain_state.operating_mode
+    }
+
+    fn wrap_call(
+        auth_data: <Self::Auth as TransactionAuthenticator<S>>::Decodable,
+    ) -> Self::Decodable {
+        match auth_data {
+            EvmAuthenticatorInput::Evm(call) => Self::Decodable::Evm(call),
+            EvmAuthenticatorInput::Standard(call) => call,
+        }
+    }
+
+    fn allow_unregistered_tx(call: &Self::Decodable) -> bool {
+        matches!(
+            call,
+            Self::Decodable::SequencerRegistry(
+                sov_sequencer_registry::CallMessage::Register { .. }
+            )
+        )
     }
 }
 
@@ -166,5 +187,14 @@ where
     #[cfg(feature = "native")]
     fn kernel_with_slot_mapping(&self) -> Arc<dyn KernelWithSlotMapping<S>> {
         Arc::new(self.chain_state.clone())
+    }
+}
+
+impl<S: Spec> EthereumAuthenticator<S> for Runtime<S>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
+    fn add_ethereum_auth(tx: RawTx) -> <Self::Auth as TransactionAuthenticator<S>>::Input {
+        EvmAuthenticatorInput::Evm(tx)
     }
 }

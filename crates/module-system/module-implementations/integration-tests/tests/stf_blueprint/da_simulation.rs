@@ -97,7 +97,7 @@ pub fn simulate_da_with_bad_serialization(key: TestPrivateKey) -> Vec<FullyBaked
 
 fn encode_with_auth(tx: Transaction<IntegTestRuntime<S>, S>) -> FullyBakedTx {
     let tx_bytes = RawTx::new(borsh::to_vec(&tx).unwrap());
-    IntegTestRuntime::<S>::encode_with_standard_auth(tx_bytes)
+    <IntegTestRuntime<S> as Runtime<S>>::Auth::encode_with_standard_auth(tx_bytes)
 }
 
 pub fn simulate_da_with_incorrect_direct_registration_msg(admin: TestPrivateKey) -> RawTx {

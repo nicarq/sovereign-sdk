@@ -1,5 +1,7 @@
 //! This module defines abstractions and workflows around authenticating and authorizing
 //! transactions within a rollup.
+use std::marker::PhantomData;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value_private;
@@ -11,11 +13,12 @@ use thiserror::Error;
 
 use crate::transaction::{
     AuthenticatedTransactionAndRawHash, Credentials, Transaction, TransactionVerificationError,
+    TransactionWithoutCall,
 };
 use crate::{
-    metered_credential, Context, CryptoSpec, DispatchCall, FullyBakedTx, GasMeter,
+    capabilities, metered_credential, Context, CryptoSpec, DispatchCall, FullyBakedTx, GasMeter,
     GasMeteringError, MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher,
-    ProvableStateReader, RawTx, Spec, StateAccessor,
+    ProvableStateReader, RawTx, Runtime, Spec, StateAccessor,
 };
 
 /// The chain ID of the rollup.
@@ -50,20 +53,18 @@ pub trait TransactionAuthenticator<S: Spec> {
     /// Authenticates a transaction (typically by checking the signature) and deserializes its contents
     /// into an executable message.
     fn authenticate<Accessor: ProvableStateReader<User, Spec = S>>(
-        &self,
         tx: &FullyBakedTx,
         state: &mut Accessor,
     ) -> Result<AuthenticationOutput<S, Self::Decodable>, AuthenticationError>;
 
     /// MUST return the same hash as [`TransactionAuthenticator::authenticate`].
     #[cfg(feature = "native")]
-    fn compute_tx_hash(&self, tx: &FullyBakedTx) -> anyhow::Result<TxHash>;
+    fn compute_tx_hash(tx: &FullyBakedTx) -> anyhow::Result<TxHash>;
 
-    #[cfg(feature = "native")]
     /// Decode a transaction into a message and signature.
     /// This method doesn’t charge gas for deserialization, so it’s meant for off-chain code only (hence to the `native` feature).
+    #[cfg(feature = "native")]
     fn decode_serialized_tx(
-        &self,
         tx: &FullyBakedTx,
     ) -> Result<(Self::Decodable, Self::Signature), FatalError>;
 
@@ -77,7 +78,6 @@ pub trait TransactionAuthenticator<S: Spec> {
     /// the blob storage capability bounds the number of unregistered blobs that can be submitted,
     /// and (2) if authentication succeeds then the gas for the blob is paid by the submitter.
     fn authenticate_unregistered<Accessor: ProvableStateReader<User, Spec = S>>(
-        &self,
         batch: &BatchFromUnregisteredSequencer,
         state: &mut Accessor,
     ) -> Result<AuthenticationOutput<S, Self::Decodable>, UnregisteredAuthenticationError>;
@@ -95,6 +95,76 @@ pub trait TransactionAuthenticator<S: Spec> {
     #[must_use]
     fn encode_with_standard_auth(tx: RawTx) -> FullyBakedTx {
         Self::encode_authenticator_input(&Self::add_standard_auth(tx))
+    }
+}
+
+/// See [`RollupAuthenticator`].
+#[derive(std::fmt::Debug, Clone, borsh::BorshDeserialize, borsh::BorshSerialize)]
+pub struct AuthenticatorInput(RawTx);
+
+/// Canonical implementation of [`TransactionAuthenticator`].
+#[derive(Debug, PartialEq, Clone, Default)]
+pub struct RollupAuthenticator<S, Rt>(PhantomData<(S, Rt)>);
+
+impl<S, Rt> TransactionAuthenticator<S> for RollupAuthenticator<S, Rt>
+where
+    S: Spec,
+    Rt: Runtime<S> + DispatchCall<Spec = S>,
+{
+    type Decodable = Rt::Decodable;
+    type Input = AuthenticatorInput;
+    type Signature = TransactionWithoutCall<S>;
+
+    #[cfg(feature = "native")]
+    fn decode_serialized_tx(
+        tx: &FullyBakedTx,
+    ) -> Result<(Self::Decodable, Self::Signature), FatalError> {
+        let tx: AuthenticatorInput = borsh::from_slice(&tx.data)
+            .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
+        capabilities::decode_sov_tx::<S, Rt>(&tx.0.data)
+    }
+
+    fn authenticate<Accessor: ProvableStateReader<sov_state::User, Spec = S>>(
+        tx: &FullyBakedTx,
+        pre_exec_ws: &mut Accessor,
+    ) -> ::core::result::Result<
+        capabilities::AuthenticationOutput<S, Self::Decodable>,
+        capabilities::AuthenticationError,
+    > {
+        let input: AuthenticatorInput = borsh::from_slice(&tx.data).map_err(|e| {
+            capabilities::fatal_deserialization_error::<_, S, _>(&tx.data, e, pre_exec_ws)
+        })?;
+
+        crate::capabilities::authenticate::<_, S, Rt>(&input.0.data, &Rt::CHAIN_HASH, pre_exec_ws)
+    }
+
+    #[cfg(feature = "native")]
+    fn compute_tx_hash(tx: &FullyBakedTx) -> anyhow::Result<TxHash> {
+        let input: AuthenticatorInput = borsh::from_slice(&tx.data)?;
+
+        Ok(calculate_hash(
+            &input.0.data,
+            &mut crate::gas::UnlimitedGasMeter::<S>::default(),
+        )?)
+    }
+
+    fn authenticate_unregistered<Accessor: ProvableStateReader<sov_state::User, Spec = S>>(
+        batch: &BatchFromUnregisteredSequencer,
+        pre_exec_ws: &mut Accessor,
+    ) -> Result<AuthenticationOutput<S, Self::Decodable>, UnregisteredAuthenticationError> {
+        crate::capabilities::authenticate::<_, S, Rt>(&batch.tx.data, &Rt::CHAIN_HASH, pre_exec_ws)
+            .map_err(|e| match e {
+                AuthenticationError::FatalError(err, hash) => {
+                    UnregisteredAuthenticationError::FatalError(err, hash)
+                }
+                AuthenticationError::OutOfGas(err) => {
+                    UnregisteredAuthenticationError::OutOfGas(err)
+                }
+            })
+    }
+
+    fn add_standard_auth(tx: RawTx) -> Self::Input {
+        AuthenticatorInput(tx)
     }
 }
 
@@ -317,8 +387,8 @@ pub fn authenticate<
     verify_and_decode_tx::<S, D>(raw_tx_hash, tx, chain_hash, state)
 }
 
-#[cfg(feature = "native")]
 /// Decode bytes as a Sovereign SDK transaction, returning the message and tx info.
+#[cfg(feature = "native")]
 pub fn decode_sov_tx<S: Spec, D: DispatchCall<Spec = S>>(
     mut raw_tx: &[u8],
 ) -> Result<(D::Decodable, crate::transaction::TransactionWithoutCall<S>), FatalError> {

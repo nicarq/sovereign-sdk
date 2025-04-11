@@ -1,7 +1,6 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-pub mod authentication;
 #[cfg(feature = "native")]
 pub mod genesis_config;
 pub mod runtime;

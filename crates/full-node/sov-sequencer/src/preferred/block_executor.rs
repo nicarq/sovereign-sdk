@@ -5,6 +5,7 @@ use anyhow::Context;
 use axum::http::StatusCode;
 use sov_modules_api::capabilities::{
     BlobSelector, BlobSelectorOutput, ChainState, FatalError, RollupHeight,
+    TransactionAuthenticator,
 };
 use sov_modules_api::{
     BlobDataWithId, ChangeSet, DaSpec, ExecutionContext, FullyBakedTx, Gas, GasSpec,
@@ -80,7 +81,6 @@ where
     next_event_number: u64,
     events_sender: Option<broadcast::Sender<SequencerEvent<Rt>>>,
     state: InternalState<S>,
-    runtime: Rt,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     // A sender notifying that this acceptor has successfully shut down. We give a handle to
     // each background task when it is spawned, ensuring that this channel remains open as long
@@ -106,7 +106,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             state,
             config,
             shutdown_notifier,
-            runtime: Default::default(),
         }
     }
 
@@ -178,7 +177,8 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         checkpoint: &mut StateCheckpoint<S>,
         task_state: &mut BackgroundTaskState<S>,
     ) -> Result<TransactionReceipt<S>, RollupBlockExecutorError<S>> {
-        let (call, _) = Rt::decode_serialized_tx(&self.runtime, baked_tx)?;
+        let (call, _) = Rt::Auth::decode_serialized_tx(baked_tx)?;
+        let call = Rt::wrap_call(call);
 
         if let Err(TrySendError::Full(_)) = task_state.tx_sender.try_send(baked_tx.clone()) {
             return Err(RollupBlockExecutorError::Overloaded);

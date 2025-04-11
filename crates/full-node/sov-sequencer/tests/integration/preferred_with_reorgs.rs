@@ -43,7 +43,9 @@ generate_runtime! {
     minimal_genesis_config_type: MinimalZkGenesisConfig<S>,
     gas_enforcer: paymaster: Paymaster<S>,
     runtime_trait_impl_bounds: [],
-    kernel_type: sov_kernels::soft_confirmations::SoftConfirmationsKernel<'a, S>
+    kernel_type: sov_kernels::soft_confirmations::SoftConfirmationsKernel<'a, S>,
+    auth_type: sov_modules_api::capabilities::RollupAuthenticator<S, TestRuntime<S>>,
+    auth_call_wrapper: |call| call,
 }
 
 type S = TestSpec;

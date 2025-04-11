@@ -1,13 +1,15 @@
 /// Generates a bare runtime without implementing the `HasCapabilities` trait.
 #[macro_export]
-macro_rules! generate_bare_runtime_without_capabilities {
+macro_rules! generate_runtime_without_capabilities {
     (
         name: $id:ident,
         modules: [$($module_name:ident : $module_ty:path),* $(,)?],
         operating_mode: $operating_mode:path,
         minimal_genesis_config_type: $minimal_genesis_config_ty:path,
         runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds:tt)*],
-        kernel_type: $kernel_type:ty
+        kernel_type: $kernel_type:ty,
+        auth_type: $auth:ty,
+        auth_call_wrapper: $auth_wrapper:expr
         // optional final comma
         $(,)?
     ) => {
@@ -94,7 +96,8 @@ macro_rules! generate_bare_runtime_without_capabilities {
             }
         }
 
-        impl<S> $crate::runtime::Runtime<S> for $id<S> where
+        impl<S> $crate::runtime::Runtime<S> for $id<S>
+        where
             S: ::sov_modules_api::Spec,
             ::sov_modules_api::transaction::Transaction::<Self, S>: $crate::sov_universal_wallet::schema::SchemaGenerator,
             <Self as ::sov_modules_api::DispatchCall>::Decodable: $crate::sov_universal_wallet::schema::SchemaGenerator,
@@ -103,8 +106,8 @@ macro_rules! generate_bare_runtime_without_capabilities {
             const CHAIN_HASH: [u8; 32] = [11; 32];
 
             type GenesisConfig = <Self as ::sov_modules_api::Genesis>::Config;
-
             type GenesisInput = ();
+            type Auth = $auth;
 
             fn endpoints(api_state: sov_modules_api::rest::ApiState<S>) -> ::sov_modules_api::NodeEndpoints {
                 use $crate::sov_rollup_apis::dedup::{DeDupEndpoint, NonceDeDupEndpoint};
@@ -152,6 +155,16 @@ macro_rules! generate_bare_runtime_without_capabilities {
                 genesis.chain_state.operating_mode
             }
 
+            fn wrap_call(auth_data: <Self::Auth as sov_modules_api::capabilities::TransactionAuthenticator<S>>::Decodable) -> Self::Decodable {
+                $auth_wrapper(auth_data)
+            }
+
+            fn allow_unregistered_tx(call: &Self::Decodable) -> bool {
+                matches!(
+                    call,
+                    Self::Decodable::SequencerRegistry($crate::runtime::sov_sequencer_registry::CallMessage::Register {..})
+                )
+            }
         }
 
 
@@ -180,7 +193,7 @@ macro_rules! generate_bare_runtime_without_capabilities {
 /// Excludes the TransactionAuthenticator trait to allow custom runtimes like EVM to provide their own
 /// implementation.
 #[macro_export]
-macro_rules! generate_bare_runtime {
+macro_rules! generate_runtime {
     (
         name: $id:ident,
         modules: [$($module_name:ident : $module_ty:path),* $(,)?],
@@ -188,22 +201,27 @@ macro_rules! generate_bare_runtime {
         minimal_genesis_config_type: $minimal_genesis_config_ty:path,
         gas_enforcer: $payer_name:ident : $gas_enforcer_ty:ty,
         runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds:tt)*],
-        kernel_type: $kernel_type:ty
+        kernel_type: $kernel_type:ty,
+        auth_type: $auth:ty,
+        auth_call_wrapper: $auth_wrapper:expr
         // optional final comma
         $(,)?
     ) => {
-        $crate::generate_bare_runtime_without_capabilities! {
+        $crate::generate_runtime_without_capabilities! {
             name: $id,
             modules: [$($module_name : $module_ty),*],
             operating_mode: $operating_mode,
             minimal_genesis_config_type: $minimal_genesis_config_ty,
             runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds)*],
             kernel_type: $kernel_type,
+            auth_type: $auth,
+            auth_call_wrapper: $auth_wrapper
         }
 
-        impl<S> ::sov_modules_api::capabilities::HasCapabilities<S> for $id<S> where
-        S: ::sov_modules_api::Spec,
-        $($runtime_trait_impl_bounds)*
+        impl<S> ::sov_modules_api::capabilities::HasCapabilities<S> for $id<S>
+        where
+            S: ::sov_modules_api::Spec,
+            $($runtime_trait_impl_bounds)*
         {
             type Capabilities<'a> = $crate::runtime::StandardProvenRollupCapabilities<'a, S, &'a mut $gas_enforcer_ty>;
 
@@ -229,22 +247,27 @@ macro_rules! generate_bare_runtime {
         operating_mode: $operating_mode:path,
         minimal_genesis_config_type: $minimal_genesis_config_ty:path,
         runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds:tt)*],
-        kernel_type: $kernel_type:ty
+        kernel_type: $kernel_type:ty,
+        auth_type: $auth:ty,
+        auth_call_wrapper: $auth_wrapper:expr
         // optional final comma
         $(,)?
     ) => {
-        $crate::generate_bare_runtime_without_capabilities! {
+        $crate::generate_runtime_without_capabilities! {
             name: $id,
             modules: [$($module_name : $module_ty),*],
             operating_mode: $operating_mode,
             minimal_genesis_config_type: $minimal_genesis_config_ty,
             runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds)*],
             kernel_type: $kernel_type,
+            auth_type: $auth,
+            auth_call_wrapper: $auth_wrapper,
         }
 
-        impl<S> ::sov_modules_api::capabilities::HasCapabilities<S> for $id<S> where
-        S: ::sov_modules_api::Spec,
-        $($runtime_trait_impl_bounds)*
+        impl<S> ::sov_modules_api::capabilities::HasCapabilities<S> for $id<S>
+        where
+            S: ::sov_modules_api::Spec,
+            $($runtime_trait_impl_bounds)*
         {
             type Capabilities<'a> = $crate::runtime::StandardProvenRollupCapabilities<'a, S>;
 
@@ -264,128 +287,6 @@ macro_rules! generate_bare_runtime {
 
         }
     }
-}
-
-/// Base macro used for generating runtimes.
-/// Generally this should be wrapped by another macro to generate a specific concrete
-/// runtime implementation, optimistic vs proving for example with a simpler interface
-/// for usage in general tests.
-#[macro_export]
-macro_rules! generate_runtime {
-    (
-        name: $id:ident,
-        $($rest:tt)*
-    ) => {
-        $crate::generate_bare_runtime! {
-            name: $id,
-            $($rest)*
-        }
-
-        $crate::impl_standard_runtime_authenticator!($id<S>);
-    };
-}
-
-/// Implements a default `TransactionAuthenticator` that uses sov modules authentication.
-#[macro_export]
-macro_rules! impl_standard_runtime_authenticator {
-    ($runtime:ty) => {
-        /// The input for the runtime's authenticator functionality.
-        #[derive(std::fmt::Debug, Clone, ::borsh::BorshDeserialize, ::borsh::BorshSerialize)]
-        pub struct AuthenticatorInput(::sov_modules_api::RawTx);
-
-        impl<S> ::sov_modules_api::capabilities::TransactionAuthenticator<S> for $runtime
-        where
-            S: ::sov_modules_api::Spec,
-            ::sov_modules_api::transaction::Transaction::<Self, S>: $crate::sov_universal_wallet::schema::SchemaGenerator,
-            ::sov_modules_api::transaction::UnsignedTransaction::<Self, S>: $crate::sov_universal_wallet::schema::SchemaGenerator,
-            <Self as ::sov_modules_api::DispatchCall>::Decodable: $crate::sov_universal_wallet::schema::SchemaGenerator,
-        {
-            type Decodable = <$runtime as ::sov_modules_api::DispatchCall>::Decodable;
-            type Input = AuthenticatorInput;
-
-            type Signature = ::sov_modules_api::transaction::TransactionWithoutCall<S>;
-
-            fn decode_serialized_tx(
-                &self,
-                tx: &sov_modules_api::FullyBakedTx,
-            ) -> Result<(Self::Decodable, Self::Signature), ::sov_modules_api::capabilities::FatalError> {
-                let tx: AuthenticatorInput = borsh::from_slice(&tx.data).map_err(|e| {
-                    sov_modules_api::capabilities::FatalError::DeserializationFailed(e.to_string())
-                })?;
-                ::sov_modules_api::capabilities::decode_sov_tx::<_, Self>(&tx.0.data)
-            }
-
-
-            fn authenticate<Accessor: ::sov_modules_api::ProvableStateReader<::sov_state::User, Spec = S>>(
-                &self,
-                tx: &sov_modules_api::FullyBakedTx,
-                pre_exec_ws: &mut Accessor,
-            ) -> ::core::result::Result<
-                ::sov_modules_api::capabilities::AuthenticationOutput<
-                    S,
-                    Self::Decodable,
-                >,
-                ::sov_modules_api::capabilities::AuthenticationError,
-            > {
-                let input: AuthenticatorInput = borsh::from_slice(&tx.data).map_err(|e| {
-                    sov_modules_api::capabilities::fatal_deserialization_error::<_, S, _>(
-                        &tx.data, e, pre_exec_ws,
-                    )
-                })?;
-
-                ::sov_modules_api::capabilities::authenticate::<_, S, Self>(
-                    &input.0.data,
-                    &<$runtime as $crate::runtime::Runtime<S>>::CHAIN_HASH,
-                    pre_exec_ws,
-                )
-            }
-
-            fn compute_tx_hash(
-                &self,
-                tx: &sov_modules_api::FullyBakedTx,
-            ) -> ::sov_modules_api::prelude::anyhow::Result<::sov_modules_api::TxHash> {
-                let input: AuthenticatorInput = borsh::from_slice(&tx.data)?;
-
-                Ok(sov_modules_api::runtime::capabilities::calculate_hash(
-                    &input.0.data,
-                    &mut sov_modules_api::gas::UnlimitedGasMeter::<S>::default(),
-                )?)
-            }
-
-            fn authenticate_unregistered<Accessor: ::sov_modules_api::ProvableStateReader<::sov_state::User, Spec = S>>(
-                &self,
-                batch: &sov_modules_api::capabilities::BatchFromUnregisteredSequencer,
-                pre_exec_ws: &mut Accessor,
-            ) -> ::core::result::Result<
-                ::sov_modules_api::capabilities::AuthenticationOutput<
-                    S,
-                    Self::Decodable,
-                >,
-                ::sov_modules_api::capabilities::UnregisteredAuthenticationError,
-            > {
-                ::sov_modules_api::capabilities::authenticate::<
-                    _,
-                    S,
-                    Self
-                >(
-                    &batch.tx.data,
-                    &<$runtime as $crate::runtime::Runtime<S>>::CHAIN_HASH,
-                    pre_exec_ws
-                ) .map_err(|e| match e {
-                    ::sov_modules_api::capabilities::AuthenticationError::FatalError(err, hash) => {
-                        ::sov_modules_api::capabilities::UnregisteredAuthenticationError::FatalError(err, hash)
-                    }
-                    ::sov_modules_api::capabilities::AuthenticationError::OutOfGas(err) => {
-                        ::sov_modules_api::capabilities::UnregisteredAuthenticationError::OutOfGas(err)
-                    }
-                })
-            }
-
-            fn add_standard_auth(tx: ::sov_modules_api::RawTx) -> Self::Input {
-                AuthenticatorInput(tx)
-            }
-        }
-    };
 }
 
 /// Generates a optimistic runtime containing the [`Bank`](sov_bank::Bank), [`AttesterIncentives`](sov_attester_incentives::AttesterIncentives),
@@ -411,6 +312,8 @@ macro_rules! generate_optimistic_runtime_with_kernel {
             minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S>,
             runtime_trait_impl_bounds: [],
             kernel_type: $kernel_ty,
+            auth_type: sov_modules_api::capabilities::RollupAuthenticator<S, Self>,
+            auth_call_wrapper: |auth_data| auth_data,
         }
     };
 }
@@ -438,7 +341,9 @@ macro_rules! generate_zk_runtime_with_kernel {
             operating_mode: sov_modules_api::runtime::OperatingMode::Zk,
             minimal_genesis_config_type: $crate::runtime::genesis::zk::MinimalZkGenesisConfig<S>,
             runtime_trait_impl_bounds: [],
-            kernel_type: $kernel_ty
+            kernel_type: $kernel_ty,
+            auth_type: sov_modules_api::capabilities::RollupAuthenticator<S, Self>,
+            auth_call_wrapper: |auth_data| auth_data,
         }
     };
 }

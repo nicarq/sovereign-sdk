@@ -441,7 +441,7 @@ pub(crate) mod helpers {
     }
 
     pub fn encode(tx: Transaction<IntegTestRuntime<S>, S>) -> FullyBakedTx {
-        <IntegTestRuntime<S> as TransactionAuthenticator<S>>::encode_with_standard_auth(RawTx::new(
+        <IntegTestRuntime<S> as Runtime<S>>::Auth::encode_with_standard_auth(RawTx::new(
             borsh::to_vec(&tx).unwrap(),
         ))
     }
