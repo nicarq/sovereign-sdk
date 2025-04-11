@@ -7,7 +7,7 @@ use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::runtime::Runtime;
 use sov_modules_api::sov_universal_wallet::schema::SchemaGenerator;
 use sov_modules_api::transaction::{Transaction, TransactionWithoutCall};
-use sov_modules_api::{FullyBakedTx, ProvableStateReader, RawTx, Spec};
+use sov_modules_api::{FullyBakedTx, ProvableStateReader, RawTx, Spec, TxHash};
 use sov_rollup_interface::execution_mode::Native;
 use sov_state::User;
 use sov_test_utils::{generate_bare_runtime, MockDaSpec, MockZkvm, MockZkvmCryptoSpec};
@@ -99,6 +99,21 @@ where
 
                 Ok((tx_and_raw_hash, auth_data, runtime_call))
             }
+        }
+    }
+
+    fn compute_tx_hash(&self, tx: &FullyBakedTx) -> anyhow::Result<TxHash> {
+        let input: Auth = borsh::from_slice(&tx.data)?;
+
+        match input {
+            Auth::Evm(tx) => {
+                let (_rlp, tx) = sov_evm::decode_evm_tx(&tx.data)?;
+                Ok(TxHash::new(tx.hash().into()))
+            }
+            Auth::Standard(tx) => Ok(sov_modules_api::runtime::capabilities::calculate_hash(
+                &tx.data,
+                &mut sov_modules_api::gas::UnlimitedGasMeter::<S>::default(),
+            )?),
         }
     }
 

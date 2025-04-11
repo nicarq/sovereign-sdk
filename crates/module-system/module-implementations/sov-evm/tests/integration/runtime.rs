@@ -1,13 +1,13 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use reth_primitives::TransactionSigned;
 use sov_address::{EthereumAddress, FromVmAddress, MultiAddressEvm};
-use sov_evm::Evm;
+use sov_evm::{decode_evm_tx, Evm};
 use sov_modules_api::capabilities::{BatchFromUnregisteredSequencer, TransactionAuthenticator};
 use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::runtime::Runtime;
 use sov_modules_api::sov_universal_wallet::schema::SchemaGenerator;
 use sov_modules_api::transaction::{Transaction, TransactionWithoutCall};
-use sov_modules_api::{DispatchCall, FullyBakedTx, ProvableStateReader, RawTx, Spec};
+use sov_modules_api::{DispatchCall, FullyBakedTx, ProvableStateReader, RawTx, Spec, TxHash};
 use sov_rollup_interface::execution_mode::Native;
 use sov_state::User;
 use sov_test_utils::{generate_bare_runtime, MockDaSpec, MockZkvm, MockZkvmCryptoSpec};
@@ -98,6 +98,24 @@ where
 
                 Ok((tx_and_raw_hash, auth_data, runtime_call))
             }
+        }
+    }
+
+    fn compute_tx_hash(
+        &self,
+        tx: &sov_modules_api::FullyBakedTx,
+    ) -> anyhow::Result<sov_modules_api::TxHash> {
+        let input: Auth = borsh::from_slice(&tx.data)?;
+
+        match input {
+            Auth::Evm(tx) => {
+                let (_rlp, tx) = decode_evm_tx(&tx.data)?;
+                Ok(TxHash::new(tx.hash().into()))
+            }
+            Auth::Standard(tx) => Ok(sov_modules_api::runtime::capabilities::calculate_hash(
+                &tx.data,
+                &mut sov_modules_api::gas::UnlimitedGasMeter::<S>::default(),
+            )?),
         }
     }
 

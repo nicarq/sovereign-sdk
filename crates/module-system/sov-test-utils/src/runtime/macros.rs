@@ -340,6 +340,18 @@ macro_rules! impl_standard_runtime_authenticator {
                 )
             }
 
+            fn compute_tx_hash(
+                &self,
+                tx: &sov_modules_api::FullyBakedTx,
+            ) -> ::sov_modules_api::prelude::anyhow::Result<::sov_modules_api::TxHash> {
+                let input: AuthenticatorInput = borsh::from_slice(&tx.data)?;
+
+                Ok(sov_modules_api::runtime::capabilities::calculate_hash(
+                    &input.0.data,
+                    &mut sov_modules_api::gas::UnlimitedGasMeter::<S>::default(),
+                )?)
+            }
+
             fn authenticate_unregistered<Accessor: ::sov_modules_api::ProvableStateReader<::sov_state::User, Spec = S>>(
                 &self,
                 batch: &sov_modules_api::capabilities::BatchFromUnregisteredSequencer,
