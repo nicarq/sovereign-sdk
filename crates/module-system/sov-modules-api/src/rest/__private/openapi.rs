@@ -29,7 +29,24 @@ fn rollup_height_param() -> utoipa::openapi::path::Parameter {
     serde_json::from_value(json!({
         "name": "rollup_height",
         "in": "query",
-        "description": "The height of the rollup to query. If not provided, the rollup head is used.",
+        "description": "The height of the rollup to query. If neither slot_number nor rollup_height is provided, the rollup head is used.",
+        "required": false,
+        "schema": {
+            "type": "integer",
+            "minimum": 0,
+        }
+    }))
+    .unwrap()
+}
+
+/// This should ideally be a reusable parameter defined in `#/parameters`, but
+/// [`utoipa::openapi::path::Parameter`] doesn't support `$ref` at the time of
+/// writing.
+fn slot_number_param() -> utoipa::openapi::path::Parameter {
+    serde_json::from_value(json!({
+        "name": "slot_number",
+        "in": "query",
+        "description": "The slot number of the rollup to query. If neither slot_number nor rollup_height is provided, the rollup head is used.",
         "required": false,
         "schema": {
             "type": "integer",
@@ -49,7 +66,7 @@ pub fn state_value_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
                 "summary": "Get the value of a StateValue.",
                 "operationId": format!("{}_{}_get_state_value", module_name.to_snake_case(), field_name),
                 "tags": [module_name],
-                "parameters": [rollup_height_param()],
+                "parameters": [rollup_height_param(), slot_number_param()],
                 "responses": {
                     "200": {
                         "$ref": "#/components/responses/StateValueResponse"
@@ -74,7 +91,7 @@ pub fn state_map_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
                     "summary": "Get general information about a `StateMap`.",
                     "operationId": format!("{}_{}_get_state_map_info", module_name.to_snake_case(), field_name),
                     "tags": [module_name],
-                    "parameters": [rollup_height_param()],
+                    "parameters": [rollup_height_param(), slot_number_param()],
                     "responses": {
                         "200": {
                             "$ref": "#/components/responses/StateMapInfoResponse"
@@ -103,6 +120,7 @@ pub fn state_map_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
                             }
                         },
                         rollup_height_param(),
+                        slot_number_param(),
                     ],
                     "responses": {
                         "200": {
@@ -132,7 +150,7 @@ pub fn state_vec_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
                     "summary": "Get general information about a `StateVec`, including its length.",
                     "operationId": format!("{}_{}_get_state_vec_info", module_name.to_snake_case(), field_name),
                     "tags": [module_name],
-                    "parameters": [rollup_height_param()],
+                    "parameters": [rollup_height_param(), slot_number_param()],
                     "responses": {
                         "200": {
                             "$ref": "#/components/responses/StateVecInfoResponse"
@@ -160,6 +178,7 @@ pub fn state_vec_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
                             }
                         },
                         rollup_height_param(),
+                        slot_number_param(),
                     ],
                     "responses": {
                         "200": {

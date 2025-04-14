@@ -311,7 +311,13 @@ impl<S: Spec> ChainState<S> {
         self.slots
             .set_true_current(&in_progress_slot, state)
             .expect("An error occurred while setting the last slot in progress. This is a bug. Please report it.");
-
+        self.true_slot_number_to_rollup_height
+            .set(
+                &state.true_slot_number(),
+                &state.rollup_height_to_access(),
+                state,
+            )
+            .unwrap_infallible();
         self.true_to_visible_slot_number_history
             .set_true_current(
                 // The true slot number was already incremented.
@@ -489,6 +495,16 @@ const _: () = {
             state: &mut ApiStateAccessor<S>,
         ) -> Option<<<S as Spec>::Gas as sov_modules_api::Gas>::Price> {
             self.base_fee_per_gas_at(height, state).unwrap_infallible()
+        }
+
+        fn true_slot_number_to_rollup_height(
+            &self,
+            slot_number: SlotNumber,
+            state: &mut sov_modules_api::state::ApiStateAccessor<S>,
+        ) -> Option<RollupHeight> {
+            self.true_slot_number_to_rollup_height
+                .get(&slot_number, state)
+                .unwrap_infallible()
         }
     }
 };

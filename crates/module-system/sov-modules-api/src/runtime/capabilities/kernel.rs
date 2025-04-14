@@ -23,6 +23,13 @@ pub trait KernelWithSlotMapping<S: Spec>: Sync + Send + 'static {
         state: &mut crate::state::ApiStateAccessor<S>,
     ) -> Option<VisibleSlotNumber>;
 
+    /// Returns the associated rollup height given a true slot number.
+    fn true_slot_number_to_rollup_height(
+        &self,
+        slot_number: SlotNumber,
+        state: &mut crate::state::ApiStateAccessor<S>,
+    ) -> Option<RollupHeight>;
+
     /// Returns the latest known rollup height.
     fn current_rollup_height(&self, state: &mut crate::state::ApiStateAccessor<S>) -> RollupHeight;
 
