@@ -1,0 +1,58 @@
+# Specification for custom bank REST API endpoints
+openapi: "3.0.2"
+info:
+  title: sov-hyperlane-integration custom endpoints
+  version: 0.1.0
+paths:
+  /nonce:
+    get:
+      summary: Get the current nonce of mailbox's dispatch state
+      operationId: "hyperlane_mailbox_nonce"
+      tags: [Mailbox]
+      responses:
+        '200':
+          $ref: '#/components/responses/NonceResponse'
+  /recipient-ism/{hyperlane-address}:
+    get:
+      summary: Fetch the type of ISM used by the recipient with a given address
+      operationId: "hyperlane_mailbox_recipient_ism"
+      tags: [Mailbox]
+      parameters:
+        - name: hyperlane-address
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/HyperlaneAddress'
+      responses:
+        '200':
+          $ref: '#/components/responses/RecipientIsmResponse'
+        '404':
+          # Referring type from `runtime-base.yaml`
+          $ref: '#/components/responses/StateNotFound'
+
+components:
+  schemas:
+    HyperlaneAddress:
+      type: string
+      title: Hyperlane address
+      pattern: "^0x[a-fA-F0-9]{64}$"
+      description: Hyperlane address
+      example: "0x71c7656ec7ab88b098defb751b7401b5f6d8976fae23aeb2342aedac24843ead"
+    IsmKind:
+      type: integer
+      minimum: 0
+      maximum: 7
+      description: Type of the ISM in use
+  responses:
+    NonceResponse:
+      description: Nonce
+      content:
+        application/json:
+          schema:
+            type: integer
+    RecipientIsmResponse:
+      description: Type of the ISM the recipient uses
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IsmKind'

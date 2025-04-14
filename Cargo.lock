@@ -1294,9 +1294,9 @@ dependencies = [
 
 [[package]]
 name = "bollard"
-version = "0.17.1"
+version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d41711ad46fda47cd701f6908e59d1bd6b9a2b7464c0d0aeab95c6d37096ff8a"
+checksum = "97ccca1260af6a459d75994ad5acc1651bcabcbdbc41467cc9786519ab854c30"
 dependencies = [
  "base64 0.22.1",
  "bollard-stubs",
@@ -1315,7 +1315,7 @@ dependencies = [
  "log",
  "pin-project-lite",
  "rustls 0.23.12",
- "rustls-native-certs",
+ "rustls-native-certs 0.8.1",
  "rustls-pemfile 2.1.3",
  "rustls-pki-types",
  "serde",
@@ -1323,7 +1323,7 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "serde_urlencoded",
- "thiserror 1.0.64",
+ "thiserror 2.0.11",
  "tokio",
  "tokio-util",
  "tower-service",
@@ -1333,9 +1333,9 @@ dependencies = [
 
 [[package]]
 name = "bollard-stubs"
-version = "1.45.0-rc.26.0.1"
+version = "1.47.1-rc.27.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d7c5415e3a6bc6d3e99eff6268e488fd4ee25e7b28c10f08fa6760bd9de16e4"
+checksum = "3f179cfbddb6e77a5472703d4b30436bff32929c0aa8a9008ecf23d1d3cdd0da"
 dependencies = [
  "serde",
  "serde_repr",
@@ -1940,10 +1940,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "core-foundation-sys"
-version = "0.8.6"
+name = "core-foundation"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06ea2b9bc92be3c2baa9334a323ebca2d6f074ff852cd1d7b11064035cd3868f"
+checksum = "b55271e5c8c478ad3f38ad24ef34923091e0548492a266d19b3c0b4d82574c63"
+dependencies = [
+ "core-foundation-sys",
+ "libc",
+]
+
+[[package]]
+name = "core-foundation-sys"
+version = "0.8.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "core-graphics-types"
@@ -1952,7 +1962,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "45390e6114f68f718cc7a830514a96f903cccd70d02a8f6d9f643ac4ba45afaf"
 dependencies = [
  "bitflags 1.3.2",
- "core-foundation",
+ "core-foundation 0.9.4",
  "libc",
 ]
 
@@ -5495,7 +5505,7 @@ dependencies = [
  "openssl-probe",
  "openssl-sys",
  "schannel",
- "security-framework",
+ "security-framework 2.11.1",
  "security-framework-sys",
  "tempfile",
 ]
@@ -8882,7 +8892,19 @@ dependencies = [
  "rustls-pemfile 2.1.3",
  "rustls-pki-types",
  "schannel",
- "security-framework",
+ "security-framework 2.11.1",
+]
+
+[[package]]
+name = "rustls-native-certs"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fcff2dd52b58a8d98a70243663a0d234c4e2b79235637849d15913394a247d3"
+dependencies = [
+ "openssl-probe",
+ "rustls-pki-types",
+ "schannel",
+ "security-framework 3.2.0",
 ]
 
 [[package]]
@@ -8906,9 +8928,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-pki-types"
-version = "1.8.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc0a2ce646f8655401bb81e7927b812614bd5d91dbc968696be50603510fcaf0"
+checksum = "917ce264624a4b4db1c364dcc35bfca9ded014d0a958cd47ad3e960e988ea51c"
 dependencies = [
  "web-time",
 ]
@@ -8919,16 +8941,16 @@ version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93bda3f493b9abe5b93b3e7e3ecde0df292f2bd28c0296b90586ee0055ff5123"
 dependencies = [
- "core-foundation",
+ "core-foundation 0.9.4",
  "core-foundation-sys",
  "jni",
  "log",
  "once_cell",
  "rustls 0.23.12",
- "rustls-native-certs",
+ "rustls-native-certs 0.7.1",
  "rustls-platform-verifier-android",
  "rustls-webpki 0.102.6",
- "security-framework",
+ "security-framework 2.11.1",
  "security-framework-sys",
  "webpki-roots",
  "winapi",
@@ -9240,7 +9262,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "897b2245f0b511c87893af39b033e5ca9cce68824c4d7e7630b5a1d339658d02"
 dependencies = [
  "bitflags 2.6.0",
- "core-foundation",
+ "core-foundation 0.9.4",
  "core-foundation-sys",
  "libc",
  "num-bigint 0.4.6",
@@ -9248,10 +9270,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "security-framework-sys"
-version = "2.11.1"
+name = "security-framework"
+version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75da29fe9b9b08fe9d6b22b5b4bcbc75d8db3aa31e639aa56bb62e9d46bfceaf"
+checksum = "271720403f46ca04f7ba6f55d438f8bd878d6b8ca0a1046e8228c4145bcbb316"
+dependencies = [
+ "bitflags 2.6.0",
+ "core-foundation 0.10.0",
+ "core-foundation-sys",
+ "libc",
+ "security-framework-sys",
+]
+
+[[package]]
+name = "security-framework-sys"
+version = "2.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49db231d56a190491cb4aeda9527f1ad45345af50b0851622a7adb8c03b01c32"
 dependencies = [
  "core-foundation-sys",
  "libc",
@@ -10213,6 +10248,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "arbitrary",
+ "base64 0.22.1",
  "borsh",
  "hex",
  "proptest",
@@ -10220,17 +10256,25 @@ dependencies = [
  "schemars",
  "secp256k1",
  "serde",
+ "serde_json",
+ "serde_yaml",
  "sha3",
  "sov-address",
+ "sov-api-spec",
  "sov-bank",
  "sov-hyperlane-integration",
+ "sov-mock-da",
  "sov-modules-api",
+ "sov-sequencer",
  "sov-state",
  "sov-test-utils",
  "sov-value-setter",
  "strum",
  "tempfile",
+ "testcontainers",
  "thiserror 1.0.64",
+ "tokio",
+ "tokio-stream",
  "workspace-hack",
 ]
 
@@ -10332,7 +10376,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-test-utils",
  "tempfile",
- "testcontainers 0.21.1",
+ "testcontainers",
  "testcontainers-modules",
  "tokio",
  "toml",
@@ -11006,7 +11050,7 @@ dependencies = [
  "sov-value-setter",
  "strum",
  "tempfile",
- "testcontainers 0.23.1",
+ "testcontainers",
  "tokio",
  "tracing",
  "tracing-subscriber 0.3.18",
@@ -12015,7 +12059,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba3a3adc5c275d719af8cb4272ea1c4a6d668a777f37e115f6d11ddbc1c8e0e7"
 dependencies = [
  "bitflags 1.3.2",
- "core-foundation",
+ "core-foundation 0.9.4",
  "system-configuration-sys 0.5.0",
 ]
 
@@ -12026,7 +12070,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c879d448e9d986b661742763247d3693ed13609438cf3d006f51f5368a5ba6b"
 dependencies = [
  "bitflags 2.6.0",
- "core-foundation",
+ "core-foundation 0.9.4",
  "system-configuration-sys 0.6.0",
 ]
 
@@ -12176,37 +12220,9 @@ dependencies = [
 
 [[package]]
 name = "testcontainers"
-version = "0.21.1"
+version = "0.23.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f7d80fe0008971413157e67062150cbf508b92f0eb525b9f49de1aec4267f24"
-dependencies = [
- "async-trait",
- "bollard",
- "bollard-stubs",
- "bytes",
- "dirs",
- "docker_credential",
- "either",
- "futures",
- "log",
- "memchr",
- "parse-display",
- "pin-project-lite",
- "serde",
- "serde_json",
- "serde_with",
- "thiserror 1.0.64",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "url",
-]
-
-[[package]]
-name = "testcontainers"
-version = "0.23.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f40cc2bd72e17f328faf8ca7687fe337e61bccd8acf9674fa78dd3792b045e1"
+checksum = "59a4f01f39bb10fc2a5ab23eb0d888b1e2bb168c157f61a1b98e6c501c639c74"
 dependencies = [
  "async-trait",
  "bollard",
@@ -12223,7 +12239,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "thiserror 1.0.64",
+ "thiserror 2.0.11",
  "tokio",
  "tokio-stream",
  "tokio-tar",
@@ -12233,11 +12249,11 @@ dependencies = [
 
 [[package]]
 name = "testcontainers-modules"
-version = "0.9.0"
+version = "0.11.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "868e8e818fe37b8ed4c21ac72185206b48e8767b5ad3836d7ec0e5c9386e19a2"
+checksum = "4d43ed4e8f58424c3a2c6c56dbea6643c3c23e8666a34df13c54f0a184e6c707"
 dependencies = [
- "testcontainers 0.21.1",
+ "testcontainers",
 ]
 
 [[package]]

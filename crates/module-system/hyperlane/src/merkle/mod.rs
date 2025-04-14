@@ -1,19 +1,21 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use sov_bank::Amount;
 use sov_modules_api::{
     BorrowedMut, Context, DaSpec, Error, EventEmitter, GenesisState, HexHash, HexString, Module,
     ModuleId, ModuleInfo, ModuleRestApi, Spec, StateValue, TxState,
 };
-mod tree;
-use serde::{Deserialize, Serialize};
 use tree::MerkleTree;
 
 use crate::traits::PostDispatchHook;
 use crate::types::{keccak256_hash, HookType};
+
+mod tree;
+
 /// A helper modules which merklizes each message as it is dispatched.
 // Note: In a future iteration, we may consider moving this into the Mailbox module.
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
-pub struct MerkleTreeHooks<S: Spec> {
+pub struct MerkleTreeHook<S: Spec> {
     /// Module identifier.
     #[id]
     pub id: ModuleId,
@@ -26,7 +28,7 @@ pub struct MerkleTreeHooks<S: Spec> {
     phantom: std::marker::PhantomData<S>,
 }
 
-impl<S: Spec> Module for MerkleTreeHooks<S> {
+impl<S: Spec> Module for MerkleTreeHook<S> {
     type Spec = S;
     type Config = ();
     type CallMessage = ();
@@ -73,7 +75,7 @@ pub enum Event {
 }
 
 /// Implementation of `PostDispatchHook` for the Merkle tree hooks module.
-impl<S: Spec> PostDispatchHook<S> for MerkleTreeHooks<S> {
+impl<S: Spec> PostDispatchHook<S> for MerkleTreeHook<S> {
     fn hook_type(
         &self,
         _addr: &S::Address,

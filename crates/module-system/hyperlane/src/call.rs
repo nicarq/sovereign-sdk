@@ -119,7 +119,7 @@ where
 
         let metadata = metadata.unwrap_or_else(|| HexString::new(vec![]));
 
-        self.merkle_tree_hooks
+        self.merkle_tree_hook
             .post_dispatch(&metadata, &message_hex, state)?;
 
         // TODO: Add default hook and use custom hook or remove

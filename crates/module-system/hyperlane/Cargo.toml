@@ -16,30 +16,41 @@ workspace = true
 
 [dev-dependencies]
 sov-address = { workspace = true }
-tempfile = { workspace = true }
-strum = { workspace = true }
-sov-value-setter = { workspace = true, features = ["native"] }
+sov-api-spec = { workspace = true }
+sov-hyperlane-integration = { path = ".", features = ["test-utils", "native"] }
+sov-mock-da = { workspace = true }
 sov-modules-api = { workspace = true, features = ["native"] }
-sov-test-utils = { workspace = true }
+sov-sequencer = { workspace = true }
 sov-state = { workspace = true, features = ["native"] }
+sov-test-utils = { workspace = true }
+sov-value-setter = { workspace = true, features = ["native"] }
+
+base64 = { workspace = true }
 hex = { workspace = true }
-sov-hyperlane-integration = { path = ".", features = ["test-utils"] }
-workspace-hack = { workspace = true }                                 # required for feature unification with arbitrary
+serde_json = { workspace = true }
+strum = { workspace = true }
+tempfile = { workspace = true }
+testcontainers = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+workspace-hack = { workspace = true } # required for feature unification with arbitrary
 
 [dependencies]
+sov-bank = { workspace = true }
+sov-modules-api = { workspace = true }
+
+anyhow = { workspace = true }
+arbitrary = { workspace = true, optional = true }
+borsh = { workspace = true, features = ["rc"] }
 proptest-derive = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
-arbitrary = { workspace = true, optional = true }
-anyhow = { workspace = true }
-sov-bank = { workspace = true }
-strum = { workspace = true }
-sov-modules-api = { workspace = true }
 schemars = { workspace = true }
-serde = { workspace = true }
-thiserror = { workspace = true }
-borsh = { workspace = true, features = ["rc"] }
 secp256k1 = { workspace = true }
+serde = { workspace = true }
+serde_yaml = { workspace = true }
 sha3 = { workspace = true }
+strum = { workspace = true }
+thiserror = { workspace = true }
 
 [features]
 default = []
@@ -54,6 +65,7 @@ arbitrary = [
 	"sov-modules-api/arbitrary",
 	"sov-state/arbitrary",
 	"sov-test-utils/arbitrary",
+	"sov-mock-da/arbitrary"
 ]
 native = [
 	"sov-modules-api/native",
@@ -62,4 +74,5 @@ native = [
 	"sov-address/native",
 	"sov-bank/native",
 	"sov-hyperlane-integration/native",
+	"sov-mock-da/native",
 ]

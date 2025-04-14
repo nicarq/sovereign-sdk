@@ -4,7 +4,7 @@
 //! <https://github.com/many-things/cw-hyperlane/blob/7573576c97fe9ee9a91c3e4557ff5a32bfbcee40/packages/interface/src/types/merkle.rs#L11>
 
 use anyhow::Result;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sov_modules_api::{HexHash, HexString};
 
 pub const TREE_DEPTH: usize = 32;
@@ -139,7 +139,9 @@ pub const ZERO_HASHES: [HexHash; TREE_DEPTH] = [
     ]),
 ];
 
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Serialize, Debug, PartialEq, Clone)]
+#[derive(
+    borsh::BorshDeserialize, borsh::BorshSerialize, Serialize, Deserialize, Debug, PartialEq, Clone,
+)]
 // Incremental Merkle Tree implementation based very heavily on the implementation from cosmwasm-hyperlane:
 // https://github.com/hyperlane-xyz/cosmwasm/blob/main/packages/interface/src/types/merkle.rs
 pub struct MerkleTree {

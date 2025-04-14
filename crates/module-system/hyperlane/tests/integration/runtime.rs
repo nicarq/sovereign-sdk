@@ -1,7 +1,7 @@
 use sov_hyperlane_integration::test_recipient::{
     CallMessage as RecipientCallMessage, TestRecipient,
 };
-use sov_hyperlane_integration::{HyperlaneAddress, Ism, Mailbox as RawMailbox, MerkleTreeHooks};
+use sov_hyperlane_integration::{HyperlaneAddress, Ism, Mailbox as RawMailbox, MerkleTreeHook};
 use sov_modules_api::HexHash;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
@@ -13,7 +13,7 @@ pub type RT = TestRuntime<S>;
 
 generate_runtime! {
     name: TestRuntime,
-    modules: [mailbox: Mailbox<S>, test_recipient: TestRecipient<S>, merkle_tree_hooks: MerkleTreeHooks<S>],
+    modules: [mailbox: Mailbox<S>, test_recipient: TestRecipient<S>, merkle_tree_hook: MerkleTreeHook<S>],
     operating_mode: sov_modules_api::runtime::OperatingMode::Zk,
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::zk::config::MinimalZkGenesisConfig<S>,
     runtime_trait_impl_bounds: [S::Address: HyperlaneAddress],
@@ -29,7 +29,7 @@ pub fn setup() -> (TestRunner<TestRuntime<S>, S>, TestUser<S>, TestUser<S>) {
     let admin_account = genesis_config.additional_accounts[0].clone();
     let extra_account = genesis_config.additional_accounts[1].clone();
 
-    let genesis = GenesisConfig::from_minimal_config(genesis_config.clone().into(), (), (), ());
+    let genesis = GenesisConfig::from_minimal_config(genesis_config.into(), (), (), ());
 
     (
         TestRunner::new_with_genesis(genesis.into_genesis_params(), Default::default()),
