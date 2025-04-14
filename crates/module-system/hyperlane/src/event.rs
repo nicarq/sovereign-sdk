@@ -1,5 +1,7 @@
 use sov_modules_api::{HexHash, HexString};
 
+use crate::{EthAddress, StorageLocation};
+
 /// Sample Event
 #[derive(
     borsh::BorshDeserialize,
@@ -45,5 +47,12 @@ pub enum Event {
     ProcessId {
         /// The ID of the message.
         id: HexHash,
+    },
+    /// Announcement of validator and its signatures location.
+    ValidatorAnnouncement {
+        /// Ethereum address of the validator.
+        address: EthAddress,
+        /// Storage for the validator's signatures.
+        storage_location: StorageLocation,
     },
 }

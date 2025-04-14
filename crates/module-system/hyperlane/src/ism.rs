@@ -2,22 +2,28 @@
 
 use std::collections::HashSet;
 
-use anyhow::Context as _;
+use anyhow::{Context as _, Result};
 use borsh::{BorshDeserialize, BorshSerialize};
-use crypto::compute_hash_for_signatures;
 use schemars::JsonSchema;
 use secp256k1::ecdsa::RecoverableSignature;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{Context, GasMeter, GasSpec, HexHash, HexString, SafeVec, Spec};
 
-use crate::types::{keccak256_hash, Message};
-use crate::HyperlaneAddress;
-
-type EthAddress = HexString<[u8; 20]>;
+use crate::crypto::{
+    compute_hash_for_signatures, decode_signature, ec_recover, eth_address_from_public_key,
+};
+use crate::types::Message;
+use crate::{EthAddress, HyperlaneAddress};
 
 const MAX_VALIDATORS: usize = 128;
-mod crypto;
+// See <https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/7656fe1c3865f817d68971ed3c8b939376065283/solidity/contracts/isms/libs/MessageIdMultisigIsmMetadata.sol#L9>
+const ADDRESS_SIZE: usize = 32;
+const MERKLE_ROOT_SIZE: usize = 32;
+const MERKLE_INDEX_SIZE: usize = 4;
+const SIGNATURE_SIZE: usize = 65;
+const MERKLE_INDEX_OFFSET: usize = ADDRESS_SIZE + MERKLE_ROOT_SIZE;
+const SIGNATURES_OFFSET: usize = MERKLE_INDEX_OFFSET + MERKLE_INDEX_SIZE;
 
 /// Represents the available ISMs
 #[derive(
@@ -79,15 +85,6 @@ pub enum IsmKind {
     CcipRead = 7,
 }
 
-/// Metadata for Message ID Multisig ISM
-/// See <https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/7656fe1c3865f817d68971ed3c8b939376065283/solidity/contracts/isms/libs/MessageIdMultisigIsmMetadata.sol#L4-L5>
-pub struct MessageIdMultisigIsmMetadata {
-    pub origin_merkle_tree: HexHash,
-    pub merkle_root: HexHash,
-    pub merkle_index: u32,
-    pub signatures: Vec<RecoverableSignature>,
-}
-
 impl Ism {
     /// Verify that a message is valid for the given ISM
     pub fn verify<S: Spec>(
@@ -96,7 +93,7 @@ impl Ism {
         message: &Message,
         metadata: &HexString,
         gas_meter: &mut impl GasMeter<Spec = S>,
-    ) -> anyhow::Result<()>
+    ) -> Result<()>
     where
         S::Address: HyperlaneAddress,
     {
@@ -118,7 +115,14 @@ impl Ism {
                     .try_into()
                     .expect("Threshold is too big for a usize. This is only possible on 16-bit platforms, which are not supported.");
                 let metadata = MessageIdMultisigIsmMetadata::decode(&metadata.0, threshold)?;
-                let hash = compute_hash_for_signatures(message, &metadata);
+
+                // todo: charge for hashing too?
+                let hash = compute_hash_for_signatures(
+                    message,
+                    &metadata.origin_merkle_tree,
+                    &metadata.merkle_root,
+                    metadata.merkle_index,
+                );
                 let mut validators: HashSet<&EthAddress> = original_validators.iter().collect();
                 // We've already checked that exactly the right number of signatures are present,
                 // so we can just iterate over them and check that each one is valid and in the set, removing the validator from the set as we go.
@@ -127,12 +131,8 @@ impl Ism {
                         &<S as GasSpec>::fixed_gas_to_charge_per_signature_verification(),
                     )?;
                     let pubkey_bytes =
-                        crypto::ec_recover(hash.0, &signature).context("Invalid signature")?;
-                    let addr = HexString(
-                        keccak256_hash(pubkey_bytes.0.as_ref()).0[12..]
-                            .try_into()
-                            .unwrap(),
-                    );
+                        ec_recover(hash.0, &signature).context("Invalid signature")?;
+                    let addr = eth_address_from_public_key(pubkey_bytes);
                     if !validators.remove(&addr) {
                         // We make the error message more helpful by checking if the validator was in the original list of validators.
                         // This lets us distinguish between double-signing and unknown validators.
@@ -159,5 +159,61 @@ impl Ism {
             Ism::TrustedRelayer { .. } => IsmKind::Null, // TrustedRelayer is used with relayer carrying no metadata
             Ism::MessageIdMultisig { .. } => IsmKind::MessageIdMultisig,
         }
+    }
+}
+
+/// Metadata for Message ID Multisig ISM
+/// See <https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/7656fe1c3865f817d68971ed3c8b939376065283/solidity/contracts/isms/libs/MessageIdMultisigIsmMetadata.sol#L4-L5>
+struct MessageIdMultisigIsmMetadata {
+    origin_merkle_tree: HexHash,
+    merkle_root: HexHash,
+    merkle_index: u32,
+    signatures: Vec<RecoverableSignature>,
+}
+
+impl MessageIdMultisigIsmMetadata {
+    /// Decode the metadata from a message.
+    // See <https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/7656fe1c3865f817d68971ed3c8b939376065283/solidity/contracts/isms/libs/MessageIdMultisigIsmMetadata.sol#L9>
+    // for the reference on the expected format.
+    fn decode(metadata: &[u8], num_signatures: usize) -> Result<Self> {
+        let expected_len =
+            ADDRESS_SIZE + MERKLE_ROOT_SIZE + MERKLE_INDEX_SIZE + num_signatures * SIGNATURE_SIZE;
+        anyhow::ensure!(
+            metadata.len() == expected_len,
+            "Invalid metadata length: expected {}, got {}",
+            expected_len,
+            metadata.len()
+        );
+        // Safety: we've already checked the length so all unwraps are infallible
+        let origin_merkle_tree: HexHash = HexString(metadata[0..ADDRESS_SIZE].try_into().unwrap());
+        let merkle_root: HexHash = HexString(
+            metadata[ADDRESS_SIZE..MERKLE_INDEX_OFFSET]
+                .try_into()
+                .unwrap(),
+        );
+        let merkle_index = u32::from_be_bytes(
+            metadata[MERKLE_INDEX_OFFSET..SIGNATURES_OFFSET]
+                .try_into()
+                .unwrap(),
+        );
+        let signatures = metadata[SIGNATURES_OFFSET..]
+            .chunks_exact(SIGNATURE_SIZE)
+            .map(decode_signature)
+            .collect::<Result<Vec<_>>>()?;
+
+        // Sanity check that the number of signatures is correct. We already checked the length at the top of this function,
+        // so a failure here indicates a bug.
+        assert!(
+            signatures.len() == num_signatures,
+            "Invalid number of signatures: expected {}, got {}",
+            num_signatures,
+            signatures.len()
+        );
+        Ok(Self {
+            origin_merkle_tree,
+            merkle_root,
+            merkle_index,
+            signatures,
+        })
     }
 }

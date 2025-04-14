@@ -1,6 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{HexHash, HexString};
+use sov_modules_api::{HexHash, HexString, SizedSafeString};
+
+use crate::crypto::keccak256_hash;
 
 /// These are returned from `hook_type` to indicate to the caller (usually a relayer) what type of metadata
 /// to pass into `post_dispatch/quote_dispatch`. These are defined by the hyperlane protocol here:
@@ -57,14 +59,6 @@ pub struct Message {
     pub body: HexString,
 }
 
-/// Convert a slice of bytes into a 32-byte hash using the keccak256 algorithm.
-#[must_use]
-pub fn keccak256_hash(bz: &[u8]) -> HexHash {
-    use sha3::{Digest, Keccak256};
-
-    Keccak256::digest(bz).into()
-}
-
 impl Message {
     /// Decode a message from a hex string.
     pub fn decode(message: &[u8]) -> anyhow::Result<Self> {
@@ -108,6 +102,15 @@ impl Message {
         keccak256_hash(hex.as_ref())
     }
 }
+
+/// A storage location of a validator. Allows up to 256 characters.
+pub type StorageLocation = SizedSafeString<256>;
+
+/// Representation of ethereum address.
+pub type EthAddress = HexString<[u8; 20]>;
+
+/// Represantation of a single validator signature.
+pub type ValidatorSignature = HexString<[u8; 65]>;
 
 #[cfg(test)]
 mod tests {

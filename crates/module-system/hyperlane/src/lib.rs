@@ -14,20 +14,31 @@ use sov_modules_api::{
 };
 use traits::NoOpPostDispatchHook;
 
+#[cfg(feature = "native")]
+mod api;
 mod call;
+#[cfg(feature = "test-utils")]
+pub mod crypto;
+#[cfg(not(feature = "test-utils"))]
+mod crypto;
 mod event;
 mod genesis;
 mod ism;
 mod merkle;
-pub use merkle::{Event as MerkleTreeEvent, MerkleTreeHook};
 #[cfg(feature = "test-utils")]
 pub mod test_recipient;
 pub mod traits;
 mod types;
-pub use types::Message;
 
-#[cfg(feature = "native")]
-mod api;
+pub use merkle::{Event as MerkleTreeEvent, MerkleTreeHook};
+pub use types::{EthAddress, Message, StorageLocation, ValidatorSignature};
+
+/// A fixed assumed address of mailbox contract on sovereign rollup.
+///
+/// Hyperlane uses contract addresses for various operations, however in this implementation
+/// we use sovereign-sdk module system. To satisfy hyperlane protocol, we use this constant
+/// as a stub for an address of a mailbox on the rollup.
+pub const MAILBOX_ADDR: [u8; 32] = [0; 32];
 
 /// The state of the mailbox.
 #[derive(
@@ -67,6 +78,10 @@ pub struct Mailbox<S: Spec, R: Recipient<S>> {
     /// A map of message IDs to their delivery status.
     #[state]
     pub deliveries: StateMap<MessageId, Delivery>,
+
+    /// A map of announced validator addresses to their signature locations.
+    #[state]
+    pub validators: StateMap<EthAddress, Vec<StorageLocation>>,
 
     /// A reference to the merkle tree hooks module.
     #[module]
@@ -133,6 +148,11 @@ where
                 context,
                 state,
             )?),
+            call::CallMessage::Announce {
+                validator_address,
+                storage_location,
+                signature,
+            } => Ok(self.announce(validator_address, storage_location, signature, state)?),
         }
     }
 }
@@ -194,6 +214,20 @@ pub trait Recipient<S: Spec>:
         body: HexString,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()>;
+
+    /// Handle validator announcement.
+    ///
+    /// Implement this to react to to validators announcing themselves.
+    /// It is called after the identity of validator has already been confirmed.
+    /// Default implementation just ignores any announcements.
+    fn handle_validator_announce(
+        &self,
+        _validator_address: &EthAddress,
+        _storage_location: &StorageLocation,
+        _state: &mut impl TxState<S>,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 /// A helper trait which requires `HasRestApi` if the `native` feature is enabled.
