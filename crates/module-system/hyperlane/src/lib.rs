@@ -5,11 +5,12 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub use call::*;
 pub use event::Event;
 pub use ism::Ism;
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 use sov_modules_api::rest::HasRestApi;
 use sov_modules_api::{
-    Context, DaSpec, Error, GenesisState, HexHash, HexString, Module, ModuleId, ModuleInfo, Spec,
-    StateMap, StateValue, TxState,
+    Context, DaSpec, Error, GenesisState, HexHash, HexString, Module, ModuleId, ModuleInfo,
+    ModuleRestApi, Spec, StateMap, StateValue, TxState,
 };
 use traits::NoOpPostDispatchHook;
 
@@ -18,15 +19,20 @@ mod event;
 mod genesis;
 mod ism;
 mod merkle;
-pub use merkle::{Event as MerkleTreeEvent, MerkleTreeHooks};
+pub use merkle::{Event as MerkleTreeEvent, MerkleTreeHook};
 #[cfg(feature = "test-utils")]
 pub mod test_recipient;
 pub mod traits;
 mod types;
 pub use types::Message;
 
+#[cfg(feature = "native")]
+mod api;
+
 /// The state of the mailbox.
-#[derive(Clone, BorshDeserialize, BorshSerialize, Debug, PartialEq, Eq, Hash)]
+#[derive(
+    Clone, BorshDeserialize, BorshSerialize, Debug, PartialEq, Eq, Hash, Serialize, Deserialize,
+)]
 pub struct DispatchState {
     /// The nonce for the current dispatch.
     pub nonce: u32,
@@ -37,7 +43,9 @@ pub struct DispatchState {
 type MessageId = HexHash;
 
 /// The delivery receipt of a message.
-#[derive(Clone, BorshDeserialize, BorshSerialize, Debug, PartialEq, Eq, Hash)]
+#[derive(
+    Clone, BorshDeserialize, BorshSerialize, Debug, PartialEq, Eq, Hash, Serialize, Deserialize,
+)]
 pub struct Delivery {
     /// The sender of the message.
     pub sender: HexHash,
@@ -46,7 +54,7 @@ pub struct Delivery {
 }
 
 /// The mailbox module is the entrypoint for the hyperlane protocol. All messages sent or received are routed through this module.
-#[derive(Clone, ModuleInfo)]
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
 pub struct Mailbox<S: Spec, R: Recipient<S>> {
     /// The ID of the module.
     #[id]
@@ -62,7 +70,7 @@ pub struct Mailbox<S: Spec, R: Recipient<S>> {
 
     /// A reference to the merkle tree hooks module.
     #[module]
-    pub merkle_tree_hooks: MerkleTreeHooks<S>,
+    pub merkle_tree_hook: MerkleTreeHook<S>,
 
     /// A reference to the recipient module.
     #[module]

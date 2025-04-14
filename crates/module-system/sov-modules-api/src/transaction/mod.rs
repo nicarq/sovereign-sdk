@@ -56,7 +56,7 @@ pub struct Transaction<R: TransactionCallable, S: Spec> {
     pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
     /// The public key of the sender of the transaction.
     pub pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
-    /// The runtime call of the transaction.     
+    /// The runtime call of the transaction.
     #[cfg_attr(
         feature = "native",
         sov_wallet(

@@ -62,8 +62,8 @@ tokio = { workspace = true, features = [
     "rt-multi-thread",
 ] }
 rand = { workspace = true }
-testcontainers = { version = "0.21", features = ["blocking"] }
-testcontainers-modules = { version = "0.9", features = ["postgres"] }
+testcontainers = { workspace = true, features = ["blocking"] }
+testcontainers-modules = { workspace = true, features = ["postgres"] }
 
 [features]
 default = []
