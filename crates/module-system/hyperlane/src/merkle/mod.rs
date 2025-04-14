@@ -7,8 +7,9 @@ use sov_modules_api::{
 };
 use tree::MerkleTree;
 
+use crate::crypto::keccak256_hash;
 use crate::traits::PostDispatchHook;
-use crate::types::{keccak256_hash, HookType};
+use crate::types::HookType;
 
 mod tree;
 

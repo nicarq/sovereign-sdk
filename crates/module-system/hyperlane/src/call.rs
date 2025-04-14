@@ -1,21 +1,24 @@
 use std::fmt::Debug;
 
-use anyhow::{Context as _, Result};
+use anyhow::{ensure, Context as _, Result};
 use schemars::JsonSchema;
 use sov_modules_api::macros::{config_value, UniversalWallet};
 use sov_modules_api::{Context, EventEmitter, HexHash, HexString, SafeVec, Spec, TxState};
 use strum::{EnumDiscriminants, EnumIs, VariantArray};
 
 use super::Mailbox;
+use crate::crypto::{
+    decode_signature, ec_recover, eth_address_from_public_key, keccak256_hash, AnnouncementHash,
+    DomainHash, EthSignHash, HashKind,
+};
 use crate::event::Event;
 use crate::ism::Ism;
 use crate::traits::PostDispatchHook;
-use crate::types::{keccak256_hash, Message};
-use crate::{Delivery, DispatchState, HyperlaneAddress, Recipient};
+use crate::types::{EthAddress, Message, StorageLocation, ValidatorSignature};
+use crate::{Delivery, DispatchState, HyperlaneAddress, Recipient, MAILBOX_ADDR};
 
 /// The version of the hyperlane message format used by the mailbox module.
 pub const MESSAGE_VERSION: u8 = 3;
-
 /// The maximum size of a message body.
 // Currently set to 8KB
 pub const MAX_MESSAGE_BODY_SIZE: usize = 8192;
@@ -63,6 +66,15 @@ pub enum CallMessage {
         metadata: HexString<SafeVec<u8, MAX_MESSAGE_BODY_SIZE>>,
         /// The serialized [`Message`] struct
         message: HexString<SafeVec<u8, MAX_MESSAGE_METADATA_SIZE>>,
+    },
+    /// Announce a validator and its signatures' storage.
+    Announce {
+        /// Address of a validator.
+        validator_address: EthAddress,
+        /// Location of validator's signatures.
+        storage_location: StorageLocation,
+        /// Signature of the announcement message for verification.
+        signature: ValidatorSignature,
     },
 }
 impl<S: Spec, R: Recipient<S>> Mailbox<S, R>
@@ -207,4 +219,65 @@ where
 
         Ok(())
     }
+
+    pub(crate) fn announce(
+        &mut self,
+        validator_address: EthAddress,
+        storage_location: StorageLocation,
+        signature: ValidatorSignature,
+        state: &mut impl TxState<S>,
+    ) -> Result<()> {
+        let mut storage_locations = self
+            .validators
+            .borrow_mut(&validator_address, state)?
+            .unwrap_or(Vec::new());
+
+        ensure!(
+            !storage_locations.contains(&storage_location),
+            "Validator {validator_address} already announced location {storage_location}"
+        );
+
+        validate_validator_announcement(&validator_address, &storage_location, signature)?;
+
+        storage_locations.push(storage_location.clone());
+        storage_locations.save(state)?;
+
+        // pass the announcement to recipient
+        self.recipients
+            .handle_validator_announce(&validator_address, &storage_location, state)?;
+
+        self.emit_event(
+            state,
+            Event::ValidatorAnnouncement {
+                address: validator_address,
+                storage_location,
+            },
+        );
+
+        Ok(())
+    }
+}
+
+fn validate_validator_announcement(
+    validator_address: &EthAddress,
+    location: &StorageLocation,
+    signature: ValidatorSignature,
+) -> Result<()> {
+    let domain = config_value!("HYPERLANE_BRIDGE_DOMAIN");
+
+    // todo: charge gas for hashing
+    let domain_hash = DomainHash::new(domain, &MAILBOX_ADDR, HashKind::HyperlaneAnnouncement);
+    let announcement_hash = AnnouncementHash::new(domain_hash, location);
+    let digest = EthSignHash::new(announcement_hash.0);
+
+    // todo: charge gas for sig check
+    let signature = decode_signature(&signature.0)?;
+    let pub_key = ec_recover(digest.0, &signature)?;
+    let eth_addr = eth_address_from_public_key(pub_key);
+
+    ensure!(
+        validator_address == &eth_addr,
+        "Recovered address doesn't match announced address"
+    );
+    Ok(())
 }

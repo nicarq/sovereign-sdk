@@ -10,7 +10,7 @@ use sov_modules_api::{
 };
 
 use crate::ism::Ism;
-use crate::{HyperlaneAddress, Recipient};
+use crate::{EthAddress, HyperlaneAddress, Recipient, StorageLocation};
 
 /// A magic domain number used to signal that the sender is a Sovereign SDK chain.
 pub const MAGIC_SOV_CHAIN_DOMAIN: u32 = 12345;
@@ -61,6 +61,13 @@ pub enum Event<S: Spec> {
         sender: S::Address,
         #[allow(missing_docs)]
         body: String,
+    },
+    /// An event emitted when recipient sees validator announcement.
+    AnnouncementReceived {
+        #[allow(missing_docs)]
+        address: EthAddress,
+        #[allow(missing_docs)]
+        storage_location: StorageLocation,
     },
 }
 
@@ -164,6 +171,22 @@ where
                 },
             );
         }
+        Ok(())
+    }
+
+    fn handle_validator_announce(
+        &self,
+        validator_address: &EthAddress,
+        storage_location: &StorageLocation,
+        state: &mut impl TxState<S>,
+    ) -> anyhow::Result<()> {
+        self.emit_event(
+            state,
+            Event::AnnouncementReceived {
+                address: *validator_address,
+                storage_location: storage_location.clone(),
+            },
+        );
         Ok(())
     }
 }

@@ -11,7 +11,7 @@ use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::{RtAgnosticBlueprint, TestProver, TestSequencer, TestSpec, TestUser};
 use testcontainers::core::client::docker_client_instance;
-use testcontainers::core::{Host, IntoContainerPort, WaitFor};
+use testcontainers::core::{CmdWaitFor, ExecCommand, ExecResult, Host, IntoContainerPort, WaitFor};
 use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, GenericImage, ImageExt};
 use tokio::io::AsyncBufReadExt;
@@ -30,10 +30,56 @@ pub const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingC
 pub const DEFAULT_FINALIZATION_BLOCKS: u32 = 10;
 /// Use `container.get_host_port_ipv4(RELAYER_METRICS_PORT)` to get metrics
 pub const RELAYER_METRICS_PORT: u16 = 9091;
+pub const VALIDATOR_METRICS_PORT: u16 = 9097;
+/// Fixed Eth keys created by anvil. They don't change. Each address is funded 1000ETH
+pub const ANVIL_ACCOUNTS: &[(&str, &str)] = &[
+    (
+        // First account is used by relayer, the rest belongs to validators
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+    ),
+    (
+        "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+        "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+    ),
+    (
+        "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+        "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+    ),
+    (
+        "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
+        "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6",
+    ),
+    (
+        "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65",
+        "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
+    ),
+    (
+        "0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc",
+        "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
+    ),
+    (
+        "0x976ea74026e726554db657fa54763abd0c3a0aa9",
+        "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
+    ),
+    (
+        "0x14dc79964da2c08b23698b3d3cc7ca32193d9955",
+        "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
+    ),
+    (
+        "0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f",
+        "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
+    ),
+    (
+        "0xa0ee7a142d267c1f36714e4a8f75612f20a79720",
+        "0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6",
+    ),
+];
 
 pub struct Setup {
     pub sequencer: TestSequencer<TestSpec>,
     pub relayer: TestUser<TestSpec>,
+    pub validator: TestUser<TestSpec>,
     pub prover: TestProver<TestSpec>,
     pub genesis_config: GenesisConfig<TestSpec>,
 }
@@ -42,6 +88,7 @@ pub fn generate_setup() -> Setup {
     let genesis_config = HighLevelZkGenesisConfig::generate_with_additional_accounts(2);
 
     let relayer = genesis_config.additional_accounts[0].clone();
+    let validator = genesis_config.additional_accounts[1].clone();
     let sequencer = genesis_config.initial_sequencer.clone();
     let prover = genesis_config.initial_prover.clone();
 
@@ -50,6 +97,7 @@ pub fn generate_setup() -> Setup {
     Setup {
         sequencer,
         relayer,
+        validator,
         prover,
         genesis_config,
     }
@@ -57,7 +105,6 @@ pub fn generate_setup() -> Setup {
 
 pub async fn setup_rollup(
     storage_path: PathBuf,
-    axum_port: u16,
     setup: Setup,
 ) -> TestRollup<RollupBlueprint, PathBuf> {
     let rollup_builder = TestRollupBuilder::new_with_storage_path(
@@ -75,7 +122,6 @@ pub async fn setup_rollup(
         });
         config.prover_address = setup.prover.user_info.address().to_string();
         config.aggregated_proof_block_jump = 3;
-        config.axum_port = axum_port;
     })
     .set_da_config(|da_config| {
         da_config.sender_address = setup.sequencer.da_address;
@@ -90,6 +136,7 @@ pub async fn setup_rollup(
 pub struct Hyperlane {
     pub image: GenericImage,
     pub container: Option<ContainerAsync<GenericImage>>,
+    pub validators: Vec<ExecResult>,
 }
 
 impl Hyperlane {
@@ -119,6 +166,7 @@ impl Hyperlane {
         Self {
             image,
             container: None,
+            validators: vec![],
         }
     }
 
@@ -132,8 +180,9 @@ impl Hyperlane {
         let container = self
             .image
             .clone()
-            // map metrics port to localhost
+            // map metrics ports to localhost
             .with_exposed_port(RELAYER_METRICS_PORT.tcp())
+            .with_exposed_port(VALIDATOR_METRICS_PORT.tcp())
             // after this message relayer is ready
             .with_wait_for(WaitFor::message_on_stdout("Starting tokio console server"))
             // a bridge to the host system, to reach rollup from within container
@@ -141,18 +190,13 @@ impl Hyperlane {
             // default signing key for relayer
             // it's the first ethereum key created and reported by anvil
             // run `docker run --rm ghcr.io/eigerco/hyperlane anvil` to see all keys
-            .with_env_var(
-                "HYP_KEY",
-                "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-            )
+            .with_env_var("HYP_KEY", ANVIL_ACCOUNTS[0].1)
             // setup agent config
             .with_copy_to("/agent-config.json", agent_config(rollup_port))
             .with_env_var("CONFIG_FILES", "/agent-config.json")
             // setup relayer keys
             .with_copy_to("/relayer-key.json", private_key)
             .with_env_var("TOKEN_KEY_FILE", "/relayer-key.json") // todo: rename this var in hyperlane
-            // place to look for validator signatures
-            .with_env_var("VALIDATOR_SIGNATURES_DIR", "/validator-sigs")
             // relayer command
             .with_cmd([
                 "relayer",
@@ -172,14 +216,95 @@ impl Hyperlane {
         self.container = Some(container);
     }
 
+    /// Run Hyperlane validator in docker.
+    pub async fn start_validator(&mut self, private_key: &PrivateKey) {
+        let Some(container) = self.container.as_ref() else {
+            panic!("called start_validator on not running container")
+        };
+
+        let private_key = json!({ "private_key": private_key });
+        let private_key = serde_json::to_string(&private_key).unwrap();
+
+        let val_id = self.validators.len();
+        let val_key_file = format!("/validator{val_id}-key.json");
+        let val_db_path = format!("/validator{val_id}/db");
+        let val_sigs_path = format!("/validator{val_id}/signatures");
+
+        // set the known port only for first validator, and let os choose random one for rest
+        let metrics_port = if val_id == 0 {
+            VALIDATOR_METRICS_PORT
+        } else {
+            0
+        };
+
+        let mkdir_cmd =
+            ExecCommand::new(["mkdir", "-p", val_db_path.as_str(), val_sigs_path.as_str()]);
+        container.exec(mkdir_cmd).await.unwrap();
+
+        let upload_key_cmd = ExecCommand::new([
+            "bash",
+            "-c",
+            format!("echo '{private_key}' > {val_key_file}").as_str(),
+        ]);
+        container.exec(upload_key_cmd).await.unwrap();
+
+        let cmd = ExecCommand::new([
+            // env vars for the validator
+            "env",
+            // location of the key for validator
+            format!("TOKEN_KEY_FILE={val_key_file}").as_str(),
+            // validator command
+            "validator",
+            // save signatures on local fs
+            "--checkpointSyncer.type",
+            "localStorage",
+            // path to save signatures to, uses env var set in container
+            "--checkpointSyncer.path",
+            val_sigs_path.as_str(),
+            // a database for validator storage
+            "--db",
+            val_db_path.as_str(),
+            // a chain of which messages are going to be signed
+            "--originChainName",
+            "sovtest",
+            // an eth key for the validator, reported by anvil
+            "--validator.key",
+            ANVIL_ACCOUNTS[val_id + 1].1,
+            "--defaultSigner.type",
+            "hexKey",
+            "--defaultSigner.key",
+            ANVIL_ACCOUNTS[val_id + 1].1,
+            // port for metrics
+            "--metrics-port",
+            metrics_port.to_string().as_str(),
+        ])
+        .with_cmd_ready_condition(CmdWaitFor::message_on_stdout("starting server on 0.0.0.0"));
+
+        let exec_result = container
+            .exec(cmd)
+            .await
+            .expect("starting validator failed");
+        self.validators.push(exec_result);
+    }
+
     /// Prints container's stdout
-    pub async fn print_stdout(&self) {
+    pub async fn print_stdout(&mut self) {
         let Some(container) = self.container.as_ref() else {
             return;
         };
+        println!("RELAYER\n");
         let mut stdout = container.stdout(false).lines();
         while let Some(line) = stdout.next_line().await.unwrap() {
             println!("{line}");
+        }
+
+        for (n, val) in self.validators.iter_mut().enumerate() {
+            println!("\n\nVALIDATOR {n}\n");
+
+            let mut stdout = val.stdout().lines();
+            while let Some(line) = stdout.next_line().await.unwrap() {
+                println!("{line}");
+            }
         }
     }
 }

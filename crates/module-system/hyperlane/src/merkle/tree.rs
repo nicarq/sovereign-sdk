@@ -242,7 +242,7 @@ mod tests {
     use sov_modules_api::HexString;
 
     use super::*;
-    use crate::types::keccak256_hash;
+    use crate::crypto::keccak256_hash;
 
     #[test]
     fn test_default_merkle_tree() {
