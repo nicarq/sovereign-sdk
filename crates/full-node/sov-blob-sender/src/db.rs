@@ -1,6 +1,6 @@
 use std::path::Path;
+use std::sync::Arc;
 
-use bytes::Bytes;
 use rockbound::{gen_rocksdb_options, SchemaBatch};
 use sov_rollup_interface::node::da::DaService;
 
@@ -85,8 +85,8 @@ impl BlobSenderDb {
 
 #[derive(Debug, Clone, PartialEq, Eq, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub enum BlobToSend {
-    Batch { data: Bytes },
-    Proof { data: Bytes },
+    Batch { data: Arc<[u8]> },
+    Proof { data: Arc<[u8]> },
 }
 
 impl BlobToSend {

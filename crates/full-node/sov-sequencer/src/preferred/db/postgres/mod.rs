@@ -1,4 +1,5 @@
 use std::num::NonZero;
+use std::sync::Arc;
 
 use axum::async_trait;
 use futures::stream::BoxStream;
@@ -173,7 +174,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         &mut self,
         sequence_number: SequenceNumber,
         blob_id: BlobInternalId,
-        data: Vec<u8>,
+        data: Arc<[u8]>,
     ) -> anyhow::Result<()> {
         sqlx::query::<Postgres>("INSERT INTO blobs (sequence_number, borsh_value) VALUES ($1, $2)")
             .bind(i64::try_from(sequence_number)?)

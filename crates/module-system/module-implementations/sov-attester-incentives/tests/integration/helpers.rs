@@ -7,10 +7,12 @@ use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkvmHost;
 use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::{
-    Amount, ApiStateAccessor, DaSpec, ProofOutcome, ProofSerializer as _, SerializedAttestation,
-    SerializedChallenge, Spec, StateTransitionPublicData,
+    Amount, ApiStateAccessor, DaSpec, ProofOutcome, SerializedAttestation, SerializedChallenge,
+    Spec, StateTransitionPublicData,
 };
-use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
+use sov_modules_rollup_blueprint::proof_sender::{
+    serialize_attestation_blob_with_metadata, serialize_challenge_blob_with_metadata,
+};
 use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
 use sov_state::{Storage, StorageProof};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -20,8 +22,6 @@ use sov_test_utils::{
     TestAttester, TestChallenger, TestUser, TransactionType,
 };
 use sov_value_setter::ValueSetterConfig;
-use tokio::runtime::{self, Handle};
-use tokio::task;
 
 pub(crate) type S = sov_test_utils::TestSpec;
 
@@ -185,23 +185,8 @@ pub(crate) fn make_attestation_blob(
 ) -> Vec<u8> {
     let serialized_attestation = SerializedAttestation::from_attestation(&attestation).unwrap();
 
-    tokio::task::block_in_place(|| {
-        let f = async move {
-            SovApiProofSerializer::<S>::new(None)
-                .serialize_attestation_blob_with_metadata(serialized_attestation)
-                .await
-                .unwrap()
-        };
-
-        if let Ok(handle) = Handle::try_current() {
-            handle.block_on(f)
-        } else {
-            runtime::Builder::new_multi_thread()
-                .build()
-                .unwrap()
-                .block_on(f)
-        }
-    })
+    borsh::to_vec(&serialize_attestation_blob_with_metadata::<S>(serialized_attestation).unwrap())
+        .unwrap()
 }
 
 pub(crate) fn create_test_case(
@@ -293,21 +278,8 @@ pub(crate) fn make_challenge_blob(
         raw_challenge: serialized_challenge,
     };
 
-    task::block_in_place(move || {
-        let f = async move {
-            SovApiProofSerializer::<S>::new(None)
-                .serialize_challenge_blob_with_metadata(serialized_challenge, challenge_slot)
-                .await
-                .unwrap()
-        };
-
-        if let Ok(handle) = Handle::try_current() {
-            handle.block_on(f)
-        } else {
-            runtime::Builder::new_multi_thread()
-                .build()
-                .unwrap()
-                .block_on(f)
-        }
-    })
+    borsh::to_vec(
+        &serialize_challenge_blob_with_metadata::<S>(serialized_challenge, challenge_slot).unwrap(),
+    )
+    .unwrap()
 }

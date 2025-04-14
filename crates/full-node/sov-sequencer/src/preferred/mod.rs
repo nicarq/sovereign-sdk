@@ -17,8 +17,8 @@ use db::rocksdb::RocksDbBackend;
 use db::{PreferredSequencerDb, PreferredSequencerDbBackend, PreferredSequencerReadBlob};
 use schemars::JsonSchema;
 use serde_with::serde_as;
-use sov_blob_sender::{BlobInternalId, BlobSender};
-use sov_blob_storage::PreferredBatchData;
+use sov_blob_sender::{new_blob_id, BlobInternalId, BlobSender};
+use sov_blob_storage::{PreferredBatchData, PreferredProofData};
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::BlobSelector;
 use sov_modules_api::rest::utils::ErrorObject;
@@ -45,8 +45,8 @@ use crate::common::{
 };
 use crate::preferred::block_executor::{RollupBlockExecutor, RollupBlockExecutorError};
 use crate::{
-    SequenceNumberProvider, SequencerConfig, SequencerEvent, SequencerNotReadyDetails,
-    SubmitBatchReceipt, TxStatus, TxStatusManager,
+    ProofBlobSender, SequencerConfig, SequencerEvent, SequencerNotReadyDetails, SubmitBatchReceipt,
+    TxStatus, TxStatusManager,
 };
 
 type VisibleSlotNumberIncrease = NonZero<u8>;
@@ -686,19 +686,38 @@ fn default_events_channel_size() -> usize {
 }
 
 #[async_trait]
-impl<S, Rt, Da> SequenceNumberProvider for PreferredSequencer<S, Rt, Da>
+impl<S, Rt, Da> ProofBlobSender for PreferredSequencer<S, Rt, Da>
 where
     S: Spec,
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
-    async fn generate_sequence_number(&self, preferred_blob: &[u8]) -> anyhow::Result<u64> {
-        self.inner
-            .lock()
-            .await
+    async fn publish_proof_blob(&self, proof_data: Arc<[u8]>) -> anyhow::Result<()> {
+        let blob_id = new_blob_id();
+        let mut inner = self.inner.lock().await;
+
+        let sequence_number = inner
             .db
-            .insert_proof_blob(preferred_blob.to_vec())
-            .await
+            .insert_proof_blob(blob_id, proof_data.clone())
+            .await?;
+
+        let blob = PreferredProofData {
+            sequence_number,
+            data: proof_data.to_vec(),
+        };
+        let blob_bytes = Arc::from(borsh::to_vec(&blob)?);
+
+        debug!(
+            sequence_number,
+            blob_id, "Dispatching proof blob for publishing"
+        );
+
+        inner
+            .blob_sender
+            .publish_proof_blob(blob_bytes, blob_id)
+            .await?;
+
+        Ok(())
     }
 }
 

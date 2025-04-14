@@ -26,7 +26,7 @@ use sov_rollup_interface::node::DaSyncState;
 use thiserror::Error;
 use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
-use tracing::{error, trace, warn};
+use tracing::{debug, error, trace, warn};
 
 use self::mempool::{Mempool, MempoolCursor, MempoolTx};
 use crate::common::{
@@ -34,7 +34,9 @@ use crate::common::{
     sender_is_allowed, tx_auth, AcceptedTx, EmptyConfirmation, Sequencer, TxStatusBlobSenderHooks,
     WithCachedTxHashes,
 };
-use crate::{SequencerConfig, SequencerNotReadyDetails, TxHash, TxStatus, TxStatusManager};
+use crate::{
+    ProofBlobSender, SequencerConfig, SequencerNotReadyDetails, TxHash, TxStatus, TxStatusManager,
+};
 
 struct Inner<S, Rt, Da>
 where
@@ -669,6 +671,33 @@ where
         } else {
             Ok(TxStatus::Unknown)
         }
+    }
+}
+
+#[async_trait]
+impl<S, Rt, Da> ProofBlobSender for StdSequencer<S, Rt, Da>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+    Da: DaService<Spec = S::Da>,
+{
+    async fn publish_proof_blob(&self, proof_blob: Arc<[u8]>) -> anyhow::Result<()> {
+        let blob_id = new_blob_id();
+        let blob_bytes = borsh::to_vec(&proof_blob)?.into();
+
+        debug!(blob_id, "Dispatching proof blob for publishing");
+
+        self.inner
+            .lock()
+            .await
+            .blob_sender
+            // TODO: Put SerializedAggregatedProof directly on chain without
+            // wrapping in a vec
+            // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1065>
+            .publish_proof_blob(blob_bytes, blob_id)
+            .await?;
+
+        Ok(())
     }
 }
 

@@ -1,3 +1,6 @@
+# 2025-04-11
+- #2739 renames some items inside `FullNodeBlueprint`. `ProofSerializer` becomes `ProofSender`, `create_proof_serializer` becomes `create_proof_sender` and has a new signature. The inner function body likely doesn't need to be changed.
+
 # 2025-04-09
 - #2727 adds a method `TransactionAuthenticator::compute_tx_hash` to compute the hash of a transaction. Such logic is already present inside `TransactionAuthenticator::authenticate`, but the new method isolates hash computation from authentication logic.
 - #2728 adds a new associated type `Auth: TransactionAuthenticator<S>` to the `Runtime` trait, and two related methods (`wrap_call` and `allow_unregistered_tx`). These changes allow you to use externally defined `TransactionAuthenticator` implementations, notably `sov_modules_api::runtime::capabilities::RollupAuthenticator` and `sov_evm::EvmAuthenticator`. You can take a look `demo-rollup` for an example of the necessary changes to your `Runtime` trait implementation.

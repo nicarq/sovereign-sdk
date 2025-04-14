@@ -35,8 +35,6 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/Slot"
-        "404":
-          $ref: "#/components/responses/ApiErrorResponse"
   /ledger/slots/finalized:
     get:
       tags:

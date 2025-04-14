@@ -3,7 +3,6 @@ use std::num::NonZero;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use sov_api_spec::Client;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::SchemaBatch;
@@ -13,17 +12,17 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaSpec};
 use sov_modules_api::{DaSyncState, Runtime, SlotData, Spec, SyncStatus};
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_paymaster::{PaymasterConfig, SafeVec};
-use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::StateUpdateInfo;
 use sov_sequencer::standard::{StdSequencer, StdSequencerConfig};
 pub use sov_sequencer::test_stateless::TestStatelessSequencer;
-use sov_sequencer::{SequenceNumberProvider, Sequencer, SequencerApis, SequencerConfig};
+use sov_sequencer::{Sequencer, SequencerApis, SequencerConfig};
 use sov_state::{DefaultStorageSpec, ProverStorage};
+use sov_stf_runner::query_state_update_info;
 use sov_value_setter::ValueSetterConfig;
 use tempfile::TempDir;
-use tokio::sync::{watch, Mutex};
+use tokio::sync::watch;
 
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::{GenesisConfig, TestOptimisticRuntime};
@@ -131,20 +130,7 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
             vec![]
         };
 
-        let slot_number = ledger_db.get_head_slot_number().await?.unwrap_or_default();
-        let next_event_number = ledger_db
-            .get_latest_event_number()
-            .await?
-            .map(|x| x + 1)
-            .unwrap_or_default();
-        let latest_finalized_slot_number = ledger_db.get_latest_finalized_slot_number().await?;
-
-        let state_update_info = StateUpdateInfo {
-            storage: stf_state,
-            next_event_number,
-            slot_number,
-            latest_finalized_slot_number,
-        };
+        let state_update_info = query_state_update_info(&ledger_db, stf_state).await?;
 
         let (state_update_sender, state_update_receiver) = watch::channel(state_update_info);
         let (shutdown_sender, mut shutdown_receiver) = watch::channel(());
@@ -260,23 +246,5 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
     /// and then builds a new [`StdSequencer`] to instantiate a [`Sequencer`]. Instantiates an Axum server in a separate thread.
     pub async fn with_real_sequencer() -> anyhow::Result<Self> {
         Self::with_real_sequencer_and_mempool_max_txs_count(NonZero::new(usize::MAX).unwrap()).await
-    }
-}
-
-/// A [`SequenceNumberProvider`] that can be used in tests.
-#[derive(Default)]
-pub struct IncrementalSequenceNumberProvider {
-    next_sequence_number: Mutex<u64>,
-}
-
-#[async_trait]
-impl SequenceNumberProvider for IncrementalSequenceNumberProvider {
-    async fn generate_sequence_number(&self, _preferred_blob: &[u8]) -> anyhow::Result<u64> {
-        let mut lock = self.next_sequence_number.lock().await;
-
-        let n = *lock;
-        *lock += 1;
-
-        Ok(n)
     }
 }

@@ -1,11 +1,10 @@
 use std::num::NonZero;
-use std::sync::Arc;
 
 use backon::{BackoffBuilder, ExponentialBuilder};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
-use sov_rollup_interface::stf::ProofSerializer;
+use sov_rollup_interface::stf::ProofSender;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
@@ -24,11 +23,10 @@ const BACKOFF_POLICY_MAX_NUM_RETRIES: usize = 5;
 /// Manages the lifecycle of the `AggregatedProof`.
 #[allow(clippy::type_complexity)]
 pub struct ZkProofManager<Ps: ProverService> {
-    da_service: Arc<Ps::DaService>,
     prover_service: Ps,
     proofs_to_create: UnAggregatedProofList<Ps>,
     aggregated_proof_block_jump: NonZero<usize>,
-    proof_serializer: Box<dyn ProofSerializer>,
+    proof_sender: Box<dyn ProofSender>,
     backoff_policy: ExponentialBuilder,
     genesis_state_root: Ps::StateRoot,
     stf_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
@@ -42,20 +40,18 @@ where
     /// Creates a new proof manager.
     #[allow(clippy::type_complexity)]
     pub fn new(
-        da_service: Arc<Ps::DaService>,
         prover_service: Ps,
         aggregated_proof_block_jump: NonZero<usize>,
-        proof_serializer: Box<dyn ProofSerializer>,
+        proof_sender: Box<dyn ProofSender>,
         genesis_state_root: Ps::StateRoot,
         stf_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> Self {
         Self {
-            da_service,
             prover_service,
             proofs_to_create: UnAggregatedProofList::new(),
             aggregated_proof_block_jump,
-            proof_serializer,
+            proof_sender,
             backoff_policy: ExponentialBuilder::default()
                 .with_min_delay(Duration::from_secs(BACKOFF_POLICY_MIN_DELAY))
                 .with_max_delay(Duration::from_secs(BACKOFF_POLICY_MAX_DELAY))
@@ -142,7 +138,7 @@ where
                         Some(stf_info) => stf_info,
                     };
 
-                    self.proccess_stf_info(stf_info).await?;
+                    self.process_stf_info(stf_info).await?;
                 }
             }
         }
@@ -151,7 +147,7 @@ where
     }
 
     /// Processes current STF info and optionally published aggregated proof to DA.
-    async fn proccess_stf_info(
+    async fn process_stf_info(
         &mut self,
         stf_info: StateTransitionInfo<
             Ps::StateRoot,
@@ -207,25 +203,9 @@ where
                 "Sending aggregated proof to DA"
             );
 
-            let serialized_proof = self
-                .proof_serializer
-                .serialize_proof_blob_with_metadata(agg_proof)
+            self.proof_sender
+                .publish_proof_blob_with_metadata(agg_proof)
                 .await?;
-
-            let fee = self.da_service.estimate_fee(serialized_proof.len()).await?;
-
-            let receipt = self
-                .da_service
-                .send_proof(&serialized_proof, fee)
-                .await
-                .await?;
-
-            match receipt {
-                Ok(receipt) => {
-                    tracing::debug!(%receipt, "Successfully posted aggregate proof to DA");
-                }
-                Err(error) => tracing::warn!(%error, "Failed to post aggregate proof to DA"),
-            };
 
             // Update the next height to receive
             self.stf_info_receiver

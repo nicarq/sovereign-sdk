@@ -146,7 +146,7 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
         &mut self,
         sequence_number: SequenceNumber,
         blob_id: BlobInternalId,
-        data: Vec<u8>,
+        data: Arc<[u8]>,
     ) -> anyhow::Result<()> {
         self.db
             .put_async::<tables::CompletedBlobs>(

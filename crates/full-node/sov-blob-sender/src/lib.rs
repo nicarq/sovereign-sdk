@@ -1,18 +1,18 @@
 mod db;
 
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use db::{BlobSenderDb, BlobToSend};
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::{DaSpec, EventModuleName, RuntimeEventResponse};
 use sov_rollup_interface::node::da::{DaService, Fee, SubmitBlobReceipt};
 use sov_rollup_interface::node::ledger_api::{LedgerStateProvider, QueryMode};
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{mpsc, oneshot, watch, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, error, info, trace};
@@ -77,7 +77,7 @@ pub struct BlobSender<Da: DaService, H> {
     blob_sender: mpsc::UnboundedSender<BlobSubmissionRequest<Da>>,
     db: Arc<BlobSenderDb>,
     hooks: Arc<H>,
-    last_blob_id: Option<BlobInternalId>,
+    processed_blobs: Arc<Mutex<HashSet<BlobInternalId>>>,
 }
 
 impl<Da, H> BlobSender<Da, H>
@@ -97,26 +97,32 @@ where
         let db = Arc::new(BlobSenderDb::new(storage_path).await?);
         let (blob_sender, blob_receiver) = mpsc::unbounded_channel();
 
-        let hooks = Arc::new(hooks);
+        let all_blobs = db.get_all().await?;
 
+        let mut processed_blobs = HashSet::new();
+        for b in &all_blobs {
+            processed_blobs.insert(b.blob_id);
+        }
+
+        let processed_blobs = Arc::new(Mutex::new(processed_blobs));
+
+        let hooks = Arc::new(hooks);
         let task_state = TaskState {
             inner: Arc::new(TaskStateInner {
                 da,
                 ledger_db,
                 db: db.clone(),
                 hooks: hooks.clone(),
+                processed_blobs: processed_blobs.clone(),
                 shutdown_receiver,
             }),
         };
-
-        let all_blobs = db.get_all().await?;
-        let last_blob_id = all_blobs.last().map(|b| b.blob_id);
 
         let mut sender = Self {
             blob_sender,
             db,
             hooks,
-            last_blob_id,
+            processed_blobs,
         };
 
         let handle = tokio::spawn(async move {
@@ -140,7 +146,7 @@ where
     /// Can be called again with the same [`BlobInternalId`] to resume publishing.
     pub async fn publish_batch_blob(
         &mut self,
-        data: Bytes,
+        data: Arc<[u8]>,
         id: BlobInternalId,
     ) -> anyhow::Result<()> {
         self.publish_blob_inner(
@@ -154,7 +160,7 @@ where
     /// Can be called again with the same [`BlobInternalId`] to resume publishing.
     pub async fn publish_proof_blob(
         &mut self,
-        data: Bytes,
+        data: Arc<[u8]>,
         id: BlobInternalId,
     ) -> anyhow::Result<()> {
         self.publish_blob_inner(
@@ -171,25 +177,23 @@ where
         blob_id: BlobInternalId,
         latest_known_processing_state: BlobProcessingState<Da>,
     ) -> anyhow::Result<()> {
-        if let Some(last_blob_id) = self.last_blob_id {
-            if blob_id <= last_blob_id {
-                info!(
-                    blob_id,
-                    last_blob_id,
-                    "No need to publish blob as it's already in-flight or awaiting finalization. Skipping."
-                );
-                return Ok(());
-            }
+        if self.processed_blobs.lock().await.contains(&blob_id) {
+            info!(
+                blob_id,
+                "No need to publish blob as it's already in-flight or awaiting finalization. Skipping."
+            );
+            return Ok(());
         }
-
         self.db.push(blob.clone(), blob_id).await?;
-        self.blob_sender.send(BlobSubmissionRequest {
-            blob,
-            blob_id,
-            latest_known_processing_state,
-        })?;
-        self.last_blob_id = Some(blob_id);
+        self.blob_sender
+            .send(BlobSubmissionRequest {
+                blob,
+                blob_id,
+                latest_known_processing_state,
+            })
+            .ok(); // This can only fail if the channel is closed, which means the node is shutting down. We're okay with that.
 
+        self.processed_blobs.lock().await.insert(blob_id);
         Ok(())
     }
 }
@@ -206,6 +210,7 @@ struct TaskStateInner<Da: DaService> {
     ledger_db: LedgerDb,
     db: Arc<BlobSenderDb>,
     hooks: Arc<dyn BlobSenderHooks<Da = Da::Spec>>,
+    processed_blobs: Arc<Mutex<HashSet<BlobInternalId>>>,
     shutdown_receiver: watch::Receiver<()>,
 }
 
@@ -430,6 +435,7 @@ impl<Da: DaService> TaskState<Da> {
             }
         }
 
+        self.processed_blobs.lock().await.remove(&blob_id);
         trace!("Exiting blob submission task");
 
         Ok(())
@@ -462,11 +468,15 @@ impl<Da: DaService> TaskState<Da> {
             .map_err(|da_err| anyhow::anyhow!("Failed to estimate fee: {da_err}"))?;
 
         trace!(
+            blob_len = blob.data().len(),
             gas_estimate = fee.gas_estimate(),
-            "Will attempt to publish batch to DA"
+            "Will attempt to publish blob to DA"
         );
 
-        Ok(self.da.send_transaction(blob.data(), fee).await)
+        match blob {
+            BlobToSend::Batch { data } => Ok(self.da.send_transaction(&data, fee).await),
+            BlobToSend::Proof { data } => Ok(self.da.send_proof(&data, fee).await),
+        }
     }
 }
 

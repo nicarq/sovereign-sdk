@@ -298,7 +298,7 @@ pub trait LedgerStateProvider {
     type Error: ToString + Send + Sync + 'static;
 
     /// Get the latest rollup height in the ledger.
-    async fn get_head_slot_number(&self) -> Result<Option<SlotNumber>, Self::Error>;
+    async fn get_head_slot_number(&self) -> Result<SlotNumber, Self::Error>;
 
     /// Get the latest rollup height in the ledger.
     async fn get_latest_finalized_slot_number(&self) -> Result<SlotNumber, Self::Error>;
@@ -307,17 +307,16 @@ pub trait LedgerStateProvider {
     async fn get_head<B, T, E>(
         &self,
         query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T, E>>, Self::Error>
+    ) -> Result<SlotResponse<B, T, E>, Self::Error>
     where
         B: DeserializeOwned + Clone + Send + Sync,
         T: TxReceiptContents,
         E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
-        if let Some(head_number) = self.get_head_slot_number().await? {
-            self.get_slot_by_number(head_number, query_mode).await
-        } else {
-            Ok(None)
-        }
+        let head_number = self.get_head_slot_number().await?;
+        self.get_slot_by_number(head_number, query_mode)
+            .await
+            .map(|opt| opt.expect("Head slot should always exist. This is a bug, please report it"))
     }
 
     /// Get a list of slots by id. The IDs need not be ordered.

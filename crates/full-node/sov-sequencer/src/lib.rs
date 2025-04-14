@@ -67,12 +67,10 @@ pub struct SequencerEvent<Rt: RuntimeEventProcessor> {
     pub event: RuntimeEventResponse<Rt::RuntimeEvent>,
 }
 
-/// An object-safe interface to the preferred sequencer, which can be used to
-/// get a sequence number assigned to preferred proof blobs.
+/// An object-safe interface to the sequencer, which can be used to
+/// publish a proof blob to DA.
 #[async_trait]
-pub trait SequenceNumberProvider: Send + Sync + 'static {
-    /// Generates the next sequence number to use for a new preferred proof blob.
-    ///
-    /// Subsequent calls to this method MUST return different (greater) values.
-    async fn generate_sequence_number(&self, preferred_blob: &[u8]) -> anyhow::Result<u64>;
+pub trait ProofBlobSender: Send + Sync + 'static {
+    /// Publishes a proof blob to DA.
+    async fn publish_proof_blob(&self, proof_blob: Arc<[u8]>) -> anyhow::Result<()>;
 }

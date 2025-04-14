@@ -13,14 +13,14 @@ use sov_modules_api::execution_mode::{ExecutionMode, Native};
 use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::{CryptoSpec, NodeEndpoints, Spec, SyncStatus, ZkVerifier};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
-use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
+use sov_modules_rollup_blueprint::proof_sender::SovApiProofSender;
 use sov_modules_rollup_blueprint::{
     FullNodeBlueprint, RollupBlueprint, SequencerCreationReceipt, WalletBlueprint,
 };
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::{Risc0, Risc0CryptoSpec};
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
-use sov_sequencer::SequenceNumberProvider;
+use sov_sequencer::ProofBlobSender;
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 use sov_stf_runner::processes::{ParallelProverService, ProverService, RollupProverConfig};
 use sov_stf_runner::RollupConfig;
@@ -63,7 +63,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         <Self::Spec as Spec>::OuterZkvm,
     >;
 
-    type ProofSerializer = SovApiProofSerializer<Self::Spec>;
+    type ProofSender = SovApiProofSender<Self::Spec>;
 
     fn create_outer_code_commitment(
         &self,
@@ -150,12 +150,12 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         NativeStorageManager::new(&rollup_config.storage.path)
     }
 
-    fn create_proof_serializer(
+    fn create_proof_sender(
         &self,
         _rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
-        sequence_number_provider: Option<Arc<dyn SequenceNumberProvider>>,
-    ) -> anyhow::Result<Self::ProofSerializer> {
-        Ok(Self::ProofSerializer::new(sequence_number_provider))
+        sequence_number_provider: Arc<dyn ProofBlobSender>,
+    ) -> anyhow::Result<Self::ProofSender> {
+        Ok(Self::ProofSender::new(sequence_number_provider))
     }
 }
 

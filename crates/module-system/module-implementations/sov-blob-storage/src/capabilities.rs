@@ -945,7 +945,7 @@ impl<S: Spec> BlobStorage<S> {
                     &blob.verified_data()[..std::cmp::min(100, blob.verified_data().len())];
                 debug!(
                     deserializing_as = std::any::type_name::<B>(),
-                    ?leading_bytes,
+                    leading_bytes = %hex::encode(leading_bytes),
                     "Deserializing blob"
                 );
                 error!(

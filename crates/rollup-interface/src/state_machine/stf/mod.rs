@@ -7,14 +7,14 @@
 mod events;
 #[cfg(any(test, feature = "arbitrary"))]
 pub mod fuzzing;
-mod proof_serializer;
+mod proof_sender;
 mod transaction;
 mod verifier;
 
 use std::fmt::{Debug, Display};
 
 pub use events::*;
-pub use proof_serializer::*;
+pub use proof_sender::*;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

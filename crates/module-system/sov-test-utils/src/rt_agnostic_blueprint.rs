@@ -12,12 +12,12 @@ use sov_modules_api::prelude::axum::async_trait;
 use sov_modules_api::rest::{HasRestApi, StateUpdateReceiver};
 use sov_modules_api::{CryptoSpec, NodeEndpoints, Spec, SyncStatus, ZkVerifier, Zkvm};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
-use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
+use sov_modules_rollup_blueprint::proof_sender::SovApiProofSender;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint, SequencerCreationReceipt};
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::ZkvmHost;
-use sov_sequencer::SequenceNumberProvider;
+use sov_sequencer::ProofBlobSender;
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 use sov_stf_runner::processes::{ParallelProverService, ProverService, RollupProverConfig};
 use sov_stf_runner::RollupConfig;
@@ -65,7 +65,7 @@ where
         <Self::Spec as Spec>::OuterZkvm,
     >;
 
-    type ProofSerializer = SovApiProofSerializer<Self::Spec>;
+    type ProofSender = SovApiProofSender<Self::Spec>;
 
     fn create_outer_code_commitment(
         &self,
@@ -134,11 +134,11 @@ where
         NativeStorageManager::new(&rollup_config.storage.path)
     }
 
-    fn create_proof_serializer(
+    fn create_proof_sender(
         &self,
         _rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
-        sequence_number_provider: Option<Arc<dyn SequenceNumberProvider>>,
-    ) -> anyhow::Result<Self::ProofSerializer> {
-        Ok(Self::ProofSerializer::new(sequence_number_provider))
+        proof_blob_sender: Arc<dyn ProofBlobSender>,
+    ) -> anyhow::Result<Self::ProofSender> {
+        Ok(Self::ProofSender::new(proof_blob_sender))
     }
 }
