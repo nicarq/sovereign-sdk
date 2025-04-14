@@ -8,7 +8,9 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::{HexHash, HexString};
 use sov_test_utils::{AsUser, TransactionTestCase};
 
-use crate::runtime::{register_recipient, setup, Mailbox, TestRuntimeEvent, RT, S};
+use crate::runtime::{
+    register_recipient, setup, unlimited_gas_meter, Mailbox, TestRuntimeEvent, RT, S,
+};
 
 #[test]
 fn test_send_receive_basic() {
@@ -26,7 +28,7 @@ fn test_send_receive_basic() {
         body: message_body.to_vec().into(),
     };
 
-    let message_id = expected_message.id();
+    let message_id = expected_message.id(&mut unlimited_gas_meter()).unwrap();
     let admin_address = admin.address();
     register_recipient(&mut runner, &admin, recipient_address);
 
@@ -56,7 +58,8 @@ fn test_send_receive_basic() {
             assert!(result.events.iter().any(|event| {
                 matches!(
                     event,
-                    TestRuntimeEvent::TestRecipient(Event::MessageReceivedGeneric { sender, body, .. }) if *sender == admin_address.to_sender() && body == &HexString::new(message_body.to_vec())
+                    TestRuntimeEvent::TestRecipient(Event::MessageReceivedGeneric { sender, body, .. })
+                        if *sender == admin_address.to_sender() && body == &HexString::new(message_body.to_vec())
                 )
             }),
             "Did not receive expected message. {:?}, tx receipt: {:?}",

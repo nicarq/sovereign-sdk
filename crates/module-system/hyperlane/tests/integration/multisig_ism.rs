@@ -5,13 +5,12 @@ use std::str::FromStr;
 use sov_bank::Amount;
 use sov_hyperlane_integration::test_recipient::Event;
 use sov_hyperlane_integration::{CallMessage, Ism, Message};
-use sov_modules_api::gas::GasArray;
-use sov_modules_api::{
-    Address, BasicGasMeter, Context, Gas, GasPrice, GasUnit, HexString, Spec, TxEffect,
-};
+use sov_modules_api::{Address, BasicGasMeter, Context, GasPrice, GasUnit, HexString, TxEffect};
 use sov_test_utils::{AsUser, TransactionTestCase};
 
-use crate::runtime::{register_recipient_with_ism, setup, Mailbox, TestRuntimeEvent, RT, S};
+use crate::runtime::{
+    register_recipient_with_ism, setup, unlimited_gas_meter, Mailbox, TestRuntimeEvent, RT, S,
+};
 
 pub struct MultisigIsmTestData {
     pub message: Message,
@@ -38,14 +37,6 @@ fn get_message() -> Message {
         .unwrap(),
         body: HexString(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
     }
-}
-
-fn unlimited_gas_meter() -> BasicGasMeter<S> {
-    BasicGasMeter::new_with_funds_and_gas(
-        Amount::MAX,
-        <<S as Spec>::Gas as Gas>::max(),
-        <<S as Spec>::Gas as Gas>::Price::ZEROED,
-    )
 }
 
 // Adapted from https://github.com/eigerco/hyperlane-monorepo/blob/b68fe264b3585ecd9d95a5ec2ec2d7defbe907d2/rust/sealevel/programs/ism/multisig-ism-message-id/src/processor.rs#L623

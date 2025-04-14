@@ -3,7 +3,9 @@ use std::fmt::Debug;
 use anyhow::{ensure, Context as _, Result};
 use schemars::JsonSchema;
 use sov_modules_api::macros::{config_value, UniversalWallet};
-use sov_modules_api::{Context, EventEmitter, HexHash, HexString, SafeVec, Spec, TxState};
+use sov_modules_api::{
+    Context, EventEmitter, GasMeter, HexHash, HexString, SafeVec, Spec, TxState,
+};
 use strum::{EnumDiscriminants, EnumIs, VariantArray};
 
 use super::Mailbox;
@@ -111,7 +113,7 @@ where
             recipient: recipient_address,
             body: message_body,
         };
-        let message_id = message.id();
+        let message_id = message.id(state)?;
 
         dispatch_state.nonce += 1;
         dispatch_state.last_dispatched_id = message_id;
@@ -156,7 +158,7 @@ where
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
-        let message_id = keccak256_hash(&message.0);
+        let message_id = keccak256_hash(&message.0, state)?;
         let message = Message::decode(message.as_ref())
             .context(format!("Failed to decode message {}", message_id))?;
         // Ensure message version is correct
@@ -200,7 +202,7 @@ where
                 recipient_address: message.recipient,
             },
         );
-        self.emit_event(state, Event::ProcessId { id: message.id() });
+        self.emit_event(state, Event::ProcessId { id: message_id });
 
         // Try and get ISM from recipient registry, if not found, use default ISM
         let ism = match self.recipients.ism(&message.recipient, state)? {
@@ -237,7 +239,7 @@ where
             "Validator {validator_address} already announced location {storage_location}"
         );
 
-        validate_validator_announcement(&validator_address, &storage_location, signature)?;
+        validate_validator_announcement(&validator_address, &storage_location, signature, state)?;
 
         storage_locations.push(storage_location.clone());
         storage_locations.save(state)?;
@@ -258,22 +260,26 @@ where
     }
 }
 
-fn validate_validator_announcement(
+fn validate_validator_announcement<S: Spec>(
     validator_address: &EthAddress,
     location: &StorageLocation,
     signature: ValidatorSignature,
+    gas_meter: &mut impl GasMeter<Spec = S>,
 ) -> Result<()> {
     let domain = config_value!("HYPERLANE_BRIDGE_DOMAIN");
 
-    // todo: charge gas for hashing
-    let domain_hash = DomainHash::new(domain, &MAILBOX_ADDR, HashKind::HyperlaneAnnouncement);
-    let announcement_hash = AnnouncementHash::new(domain_hash, location);
-    let digest = EthSignHash::new(announcement_hash.0);
+    let domain_hash = DomainHash::new(
+        domain,
+        &MAILBOX_ADDR,
+        HashKind::HyperlaneAnnouncement,
+        gas_meter,
+    )?;
+    let announcement_hash = AnnouncementHash::new(domain_hash, location, gas_meter)?;
+    let digest = EthSignHash::new(announcement_hash.0, gas_meter)?;
 
-    // todo: charge gas for sig check
     let signature = decode_signature(&signature.0)?;
-    let pub_key = ec_recover(digest.0, &signature)?;
-    let eth_addr = eth_address_from_public_key(pub_key);
+    let pub_key = ec_recover(digest.0, &signature, gas_meter)?;
+    let eth_addr = eth_address_from_public_key(pub_key, gas_meter)?;
 
     ensure!(
         validator_address == &eth_addr,

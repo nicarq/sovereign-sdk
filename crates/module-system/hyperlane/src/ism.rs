@@ -8,7 +8,7 @@ use schemars::JsonSchema;
 use secp256k1::ecdsa::RecoverableSignature;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::{Context, GasMeter, GasSpec, HexHash, HexString, SafeVec, Spec};
+use sov_modules_api::{Context, GasMeter, HexHash, HexString, SafeVec, Spec};
 
 use crate::crypto::{
     compute_hash_for_signatures, decode_signature, ec_recover, eth_address_from_public_key,
@@ -116,23 +116,20 @@ impl Ism {
                     .expect("Threshold is too big for a usize. This is only possible on 16-bit platforms, which are not supported.");
                 let metadata = MessageIdMultisigIsmMetadata::decode(&metadata.0, threshold)?;
 
-                // todo: charge for hashing too?
                 let hash = compute_hash_for_signatures(
                     message,
                     &metadata.origin_merkle_tree,
                     &metadata.merkle_root,
                     metadata.merkle_index,
-                );
+                    gas_meter,
+                )?;
                 let mut validators: HashSet<&EthAddress> = original_validators.iter().collect();
                 // We've already checked that exactly the right number of signatures are present,
                 // so we can just iterate over them and check that each one is valid and in the set, removing the validator from the set as we go.
                 for signature in metadata.signatures {
-                    gas_meter.charge_gas(
-                        &<S as GasSpec>::fixed_gas_to_charge_per_signature_verification(),
-                    )?;
                     let pubkey_bytes =
-                        ec_recover(hash.0, &signature).context("Invalid signature")?;
-                    let addr = eth_address_from_public_key(pubkey_bytes);
+                        ec_recover(hash.0, &signature, gas_meter).context("Invalid signature")?;
+                    let addr = eth_address_from_public_key(pubkey_bytes, gas_meter)?;
                     if !validators.remove(&addr) {
                         // We make the error message more helpful by checking if the validator was in the original list of validators.
                         // This lets us distinguish between double-signing and unknown validators.

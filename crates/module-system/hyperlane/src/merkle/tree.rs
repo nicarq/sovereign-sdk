@@ -5,7 +5,9 @@
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{HexHash, HexString};
+use sov_modules_api::{GasMeter, HexHash, HexString, Spec};
+
+use crate::crypto::keccak256_concat;
 
 pub const TREE_DEPTH: usize = 32;
 pub const ZERO_BYTES: HexHash = HexString([0u8; 32]);
@@ -158,20 +160,14 @@ impl Default for MerkleTree {
     }
 }
 
-fn keccak256_concat(a: &HexHash, b: &HexHash) -> HexHash {
-    use sha3::{Digest, Keccak256};
-    use sov_modules_api::digest::FixedOutput;
-
-    let mut hasher = Keccak256::new();
-    hasher.update(a);
-    hasher.update(b);
-    hasher.finalize_fixed().into()
-}
-
 impl MerkleTree {
     /// Insert a new leaf into the tree.
     // Compare with https://github.com/hyperlane-xyz/cosmwasm/blob/c4485e00c89c2d57315503955946bf7f155e7a47/packages/interface/src/types/merkle.rs#L68
-    pub fn insert(&mut self, node: HexHash) -> Result<()> {
+    pub fn insert<S: Spec>(
+        &mut self,
+        node: HexHash,
+        gas_meter: &mut impl GasMeter<Spec = S>,
+    ) -> Result<()> {
         self.count = self
             .count
             .checked_add(1)
@@ -184,44 +180,53 @@ impl MerkleTree {
                 *branch_node = current_node;
                 return Ok(());
             }
-            current_node = keccak256_concat(branch_node, &current_node);
+            current_node = keccak256_concat(branch_node, &current_node, gas_meter)?;
             size >>= 1;
         }
         panic!("loop above must lead to return")
     }
 
     /// Get the root of the tree.
-    pub fn root_with_ctx(&self, zeroes: &[HexHash; TREE_DEPTH]) -> HexHash {
+    pub fn root_with_ctx<S: Spec>(
+        &self,
+        zeroes: &[HexHash; TREE_DEPTH],
+        gas_meter: &mut impl GasMeter<Spec = S>,
+    ) -> Result<HexHash> {
         let idx = self.count;
+        let mut current = MerkleTree::zero();
 
-        zeroes
-            .iter()
-            .enumerate()
-            .fold(MerkleTree::zero(), |current, (i, zero)| {
-                let ith_bit = (idx >> i) & 1;
-                let next = self.branch[i];
-                if ith_bit == 1 {
-                    keccak256_concat(&next, &current)
-                } else {
-                    keccak256_concat(&current, zero)
-                }
-            })
+        for (i, zero) in zeroes.iter().enumerate() {
+            let ith_bit = (idx >> i) & 1;
+            let next = self.branch[i];
+            if ith_bit == 1 {
+                current = keccak256_concat(&next, &current, gas_meter)?;
+            } else {
+                current = keccak256_concat(&current, zero, gas_meter)?;
+            }
+        }
+
+        Ok(current)
     }
 
     /// Get the root of the tree.
-    pub fn root(&self) -> HexHash {
-        self.root_with_ctx(MerkleTree::zeroes())
+    pub fn root<S: Spec>(&self, gas_meter: &mut impl GasMeter<Spec = S>) -> Result<HexHash> {
+        self.root_with_ctx(MerkleTree::zeroes(), gas_meter)
     }
 
     /// Get the root of the tree at a specific index.
-    pub fn branch_root(item: HexHash, branch: &[HexHash; TREE_DEPTH], idx: u128) -> HexHash {
-        branch
-            .iter()
-            .enumerate()
-            .fold(item, |current, (i, next)| match (idx >> i) & 1 {
-                1 => keccak256_concat(next, &current),
-                _ => keccak256_concat(&current, next),
-            })
+    pub fn branch_root<S: Spec>(
+        mut item: HexHash,
+        branch: &[HexHash; TREE_DEPTH],
+        idx: u128,
+        gas_meter: &mut impl GasMeter<Spec = S>,
+    ) -> Result<HexHash> {
+        for (i, next) in branch.iter().enumerate() {
+            item = match (idx >> i) & 1 {
+                1 => keccak256_concat(next, &item, gas_meter)?,
+                _ => keccak256_concat(&item, next, gas_meter)?,
+            }
+        }
+        Ok(item)
     }
 
     /// Get the zero hash.
@@ -239,7 +244,9 @@ impl MerkleTree {
 mod tests {
     use std::str::FromStr;
 
-    use sov_modules_api::HexString;
+    use sov_bank::Amount;
+    use sov_modules_api::{BasicGasMeter, Gas, GasArray, HexString};
+    use sov_test_utils::TestSpec;
 
     use super::*;
     use crate::crypto::keccak256_hash;
@@ -253,9 +260,14 @@ mod tests {
 
     #[test]
     fn test_compatibility() {
+        let gas_meter = &mut unlimited_gas_meter();
         let digest: HexString = [
-            keccak256_hash("hello_world".as_bytes()).0,
-            keccak256_hash("world_hello".as_bytes()).0,
+            keccak256_hash("hello_world".as_bytes(), gas_meter)
+                .unwrap()
+                .0,
+            keccak256_hash("world_hello".as_bytes(), gas_meter)
+                .unwrap()
+                .0,
         ]
         .concat()
         .into();
@@ -269,10 +281,14 @@ mod tests {
 
     #[test]
     fn test_insert() {
+        let gas_meter = &mut unlimited_gas_meter();
         let mut tree = MerkleTree::default();
         for i in 0..1000 {
-            tree.insert(keccak256_hash(i.to_string().as_bytes()))
-                .unwrap();
+            tree.insert(
+                keccak256_hash(i.to_string().as_bytes(), gas_meter).unwrap(),
+                gas_meter,
+            )
+            .unwrap();
         }
         assert_eq!(tree.count, 1000);
     }
@@ -324,5 +340,13 @@ mod tests {
                 i, expected, actual
             );
         }
+    }
+
+    fn unlimited_gas_meter() -> BasicGasMeter<TestSpec> {
+        BasicGasMeter::new_with_funds_and_gas(
+            Amount::MAX,
+            <<TestSpec as Spec>::Gas as Gas>::max(),
+            <<TestSpec as Spec>::Gas as Gas>::Price::ZEROED,
+        )
     }
 }
