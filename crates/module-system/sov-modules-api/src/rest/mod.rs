@@ -32,6 +32,7 @@ use axum::http::StatusCode;
 use axum::routing::get;
 use serde::{Deserialize, Serialize};
 use sov_rest_utils::{json_obj, ErrorObject, Query};
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::StateUpdateInfo;
 use tokio::sync::watch;
 use utoipa::openapi::OpenApi;
@@ -178,7 +179,7 @@ pub struct ApiState<S: Spec, T = ()> {
     checkpoint_receiver: watch::Receiver<StateCheckpoint<S>>,
     kernel: Arc<dyn KernelWithSlotMapping<S>>,
     /// The `height` query parameter extracted from the request, when applicable.
-    requested_height: Option<RollupHeight>,
+    requested_height: Option<HeightParam>,
 }
 
 impl<S: Spec, T> ApiState<S, T> {
@@ -188,7 +189,7 @@ impl<S: Spec, T> ApiState<S, T> {
         inner: Arc<T>,
         checkpoint_receiver: watch::Receiver<StateCheckpoint<S>>,
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
-        requested_height: Option<RollupHeight>,
+        requested_height: Option<HeightParam>,
     ) -> Self {
         Self {
             inner,
@@ -229,36 +230,95 @@ impl<S: Spec, T> ApiState<S, T> {
     /// uses a zeroed gas price.
     pub fn build_api_state_accessor(
         &self,
-        maybe_height: Option<RollupHeight>,
+        height_param: Option<HeightParam>,
     ) -> Result<ApiStateAccessor<S>, anyhow::Error> {
         let checkpoint = self.checkpoint_receiver.borrow();
 
-        let height = maybe_height.unwrap_or(checkpoint.rollup_height_to_access());
         let kernel = self.kernel.clone();
 
-        let mut state = if let Some(height) = maybe_height {
-            ApiStateAccessor::new_archival(&checkpoint, kernel.clone(), height)?
-        } else {
-            ApiStateAccessor::new(&checkpoint, kernel.clone())
+        tracing::trace!(?height_param, "Building an API state accessor");
+        let state = match height_param {
+            Some(HeightParam::RollupHeight(height)) => {
+                let mut state =
+                    ApiStateAccessor::new_archival(&checkpoint, kernel.clone(), height)?;
+                // This is not a security isse and this code runs offchain.
+                // TODO: Move this inside the constructor
+                // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2244>
+                let gas_price = self
+                .kernel
+                .base_fee_per_gas_at(height, &mut state)
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Impossible to get the rollup state at the specified height. Please ensure you have queried the correct height.")
+                })?;
+
+                state.set_gas_price(gas_price);
+
+                state
+            }
+            Some(HeightParam::SlotNumber(slot_number)) => {
+                // This constructor sets the gas price correctly, so we don't need to do it manually.
+                ApiStateAccessor::new_archival_with_true_slot_number(
+                    &checkpoint,
+                    kernel.clone(),
+                    slot_number,
+                )?
+            }
+            None => {
+                let height = checkpoint.rollup_height_to_access();
+                let mut state = ApiStateAccessor::new(&checkpoint, kernel.clone());
+                // This is not a security isse and this code runs offchain.
+                // TODO: Move this inside the constructor
+                // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2244>
+                let gas_price = self
+                .kernel
+                .base_fee_per_gas_at(height, &mut state)
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Impossible to get the rollup state at the specified height. Please ensure you have queried the correct height.")
+                })?;
+
+                state.set_gas_price(gas_price);
+
+                state
+            }
         };
-        tracing::trace!(?maybe_height, ?state, "Building an API state accessor");
-
-        // This is not a security isse and this code runs offchain.
-        // TODO: Move this inside the constructor
-        // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2244>
-        let gas_price = self
-            .kernel
-            .base_fee_per_gas_at(height, &mut state)
-            .ok_or_else(|| {
-                anyhow::anyhow!("Impossible to get the rollup state at the specified height. Please ensure you have queried the correct height.")
-            })?;
-
-        state.set_gas_price(gas_price);
 
         Ok(state)
     }
 }
 
+/// The height parameter for REST API requests. This can be a rollup height or a slot number.
+#[derive(Debug, Clone, Copy)]
+pub enum HeightParam {
+    /// The rollup height to access.
+    RollupHeight(RollupHeight),
+    /// The slot number to access.
+    SlotNumber(SlotNumber),
+}
+
+// Custom deserializer to work with serde_url_encoded, which chokes on enums
+impl<'de> Deserialize<'de> for HeightParam {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+        #[derive(Deserialize)]
+        struct HeightParamInner {
+            rollup_height: Option<RollupHeight>,
+            slot_number: Option<SlotNumber>,
+        }
+
+        let input = HeightParamInner::deserialize(deserializer)?;
+        match (input.rollup_height, input.slot_number) {
+            (Some(rollup_height), None) => Ok(HeightParam::RollupHeight(rollup_height)),
+            (None, Some(slot_number)) => Ok(HeightParam::SlotNumber(slot_number)),
+            (Some(_), Some(_)) => Err(D::Error::custom(
+                "Only one of rollup_height or slot_number can be provided",
+            )),
+            (None, None) => Err(D::Error::custom("No height parameter provided")),
+        }
+    }
+}
 #[axum::async_trait]
 impl<S, T> FromRequestParts<ApiState<S, T>> for ApiState<S, T>
 where
@@ -271,12 +331,13 @@ where
         parts: &mut axum::http::request::Parts,
         state: &ApiState<S, T>,
     ) -> Result<Self, Self::Rejection> {
-        let rollup_height = Query::<RollupHeightQueryParam>::from_request_parts(parts, state)
+        let height_param = Query::<HeightParam>::from_request_parts(parts, state)
             .await
             .ok()
-            .map(|q| q.0.rollup_height);
+            .map(|q| q.0);
+
         let mut output = state.clone();
-        output.requested_height = rollup_height;
+        output.requested_height = height_param;
         Ok(output)
     }
 }
@@ -293,13 +354,13 @@ where
         parts: &mut axum::http::request::Parts,
         state: &ApiState<S, T>,
     ) -> Result<Self, Self::Rejection> {
-        let rollup_height = Query::<RollupHeightQueryParam>::from_request_parts(parts, state)
+        let height_param = Query::<HeightParam>::from_request_parts(parts, state)
             .await
             .ok()
-            .map(|q| q.0.rollup_height);
+            .map(|q| q.0);
 
         state
-            .build_api_state_accessor(rollup_height)
+            .build_api_state_accessor(height_param)
             .map_err(|e| ErrorObject {
                 status: StatusCode::NOT_FOUND,
                 title: "invalid rollup height".to_string(),
@@ -308,9 +369,4 @@ where
                 }),
             })
     }
-}
-
-#[derive(Copy, Clone, Debug, Deserialize)]
-pub(crate) struct RollupHeightQueryParam {
-    pub rollup_height: RollupHeight,
 }

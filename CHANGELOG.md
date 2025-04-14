@@ -1,10 +1,12 @@
 # 2025-04-11
 - #2739 renames some items inside `FullNodeBlueprint`. `ProofSerializer` becomes `ProofSender`, `create_proof_serializer` becomes `create_proof_sender` and has a new signature. The inner function body likely doesn't need to be changed.
 
+# 2025-04-10
+- #2720 adds an optional `slot_number` query parameter to all state queries.
+
 # 2025-04-09
 - #2727 adds a method `TransactionAuthenticator::compute_tx_hash` to compute the hash of a transaction. Such logic is already present inside `TransactionAuthenticator::authenticate`, but the new method isolates hash computation from authentication logic.
 - #2728 adds a new associated type `Auth: TransactionAuthenticator<S>` to the `Runtime` trait, and two related methods (`wrap_call` and `allow_unregistered_tx`). These changes allow you to use externally defined `TransactionAuthenticator` implementations, notably `sov_modules_api::runtime::capabilities::RollupAuthenticator` and `sov_evm::EvmAuthenticator`. You can take a look `demo-rollup` for an example of the necessary changes to your `Runtime` trait implementation.
-# 2025-04-09 
 - #2736  **BREAKING CHANGE** attempts to derive `schemars::JsonSchema` on all event types by default. To upgrade, be sure you derive `JsonSchema` on your module's event type.
 - #2729 `FullNodeBlueprint::create_endpoints` now requires a `shutdown_receiver` parameter. This is to allow for graceful shutdowns in websocket endpoints.
   Fixes a issue with the node hanging indefinitely on shutdowns with `CTRL+C`, etc.

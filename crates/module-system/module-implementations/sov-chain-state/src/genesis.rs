@@ -64,6 +64,12 @@ impl<S: Spec> ChainState<S> {
         self.true_slot_number_history
             .set(&RollupHeight::GENESIS, &SlotNumber::GENESIS, state)?;
 
+        self.true_slot_number_to_rollup_height.set(
+            &SlotNumber::GENESIS,
+            &RollupHeight::GENESIS,
+            state,
+        )?;
+
         self.inner_code_commitment
             .set(&config.inner_code_commitment, state)?;
 

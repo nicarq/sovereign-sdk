@@ -155,6 +155,9 @@ pub struct ChainState<S: Spec> {
     true_slot_number_history: AccessoryStateMap<RollupHeight, SlotNumber>,
 
     #[state]
+    true_slot_number_to_rollup_height: AccessoryStateMap<SlotNumber, RollupHeight>,
+
+    #[state]
     true_to_visible_slot_number_history: VersionedStateValue<VisibleSlotNumber>,
 
     /// The real rollup height of the rollup.

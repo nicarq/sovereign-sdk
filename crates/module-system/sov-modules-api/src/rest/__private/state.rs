@@ -26,7 +26,7 @@ use sov_state::{CompileTimeNamespace, Kernel, Namespace, StateCodec, StateItemCo
 use unwrap_infallible::UnwrapInfallible;
 
 use super::types::StateItemContents;
-use super::{ApiState, ModuleSendSync, RollupHeightQueryParam, StateItemInfo};
+use super::{ApiState, HeightParam, ModuleSendSync, StateItemInfo};
 use crate::map::NamespacedStateMap;
 use crate::rest::{json_obj, StatusCode};
 use crate::value::NamespacedStateValue;
@@ -61,14 +61,14 @@ where
         parts: &mut axum::http::request::Parts,
         state: &StateItemRestApiImpl<M, T>,
     ) -> Result<Self, Self::Rejection> {
-        let rollup_height = Query::<RollupHeightQueryParam>::from_request_parts(parts, state)
+        let height_param = Query::<HeightParam>::from_request_parts(parts, state)
             .await
             .ok()
-            .map(|q| q.0.rollup_height);
+            .map(|q| q.0);
 
         state
             .api_state
-            .build_api_state_accessor(rollup_height)
+            .build_api_state_accessor(height_param)
             .map_err(|e| ErrorObject {
                 status: StatusCode::NOT_FOUND,
                 title: "invalid rollup height".to_string(),

@@ -124,7 +124,12 @@ impl<S: Spec> UniversalStateAccessor for ApiStateAccessor<S> {
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum StateToAccess {
     RollupHeight(RollupHeight),
-    TrueSlotNumber(SlotNumber),
+    TrueSlotNumber(
+        SlotNumber,
+        // We always cache the rollup height for the requested slot number during initialization. However,
+        // it can be `None` while initialization is still in progress.
+        Option<RollupHeight>,
+    ),
 }
 
 /// A [`crate::StateReaderAndWriter`] designed for use within REST APIs and JSON-RPC.
@@ -211,7 +216,7 @@ const _: () = {
                     .kernel
                     .clone()
                     .true_slot_number_at_historical_height(rollup_height, self),
-                StateToAccess::TrueSlotNumber(slot_number) => Some(slot_number),
+                StateToAccess::TrueSlotNumber(slot_number, _) => Some(slot_number),
             };
             // We set the permissions back to the original value here
             self.safe_true_slot_number_to_use = safe_true_slot_number_to_use;
@@ -268,6 +273,19 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         .expect("Creating an ApiStateCheckpoint without specifying a height is infallible")
     }
 
+    /// Creates a new [`ApiStateAccessor`] which queries all state at the provided slot number.
+    pub fn new_archival_with_true_slot_number(
+        state_checkpoint: &StateCheckpoint<S>,
+        kernel: Arc<dyn KernelWithSlotMapping<S>>,
+        slot_number: SlotNumber,
+    ) -> Result<Self, ApiStateAccessorError> {
+        Self::build_archival_state(
+            state_checkpoint.delta.inner.clone(),
+            kernel,
+            StateToAccess::TrueSlotNumber(slot_number, None),
+        )
+    }
+
     /// Creates a fully initialized [`ApiStateAccessor`] from a [`StateCheckpoint`] and a [`RollupHeight`], if the requested
     /// height is available in storage.
     ///
@@ -279,7 +297,11 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
         height: RollupHeight,
     ) -> Result<Self, ApiStateAccessorError> {
-        Self::build_archival_state(state_checkpoint.delta.inner.clone(), kernel, height)
+        Self::build_archival_state(
+            state_checkpoint.delta.inner.clone(),
+            kernel,
+            StateToAccess::RollupHeight(height),
+        )
     }
 
     /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with a gas price of zero at the [`StateCheckpoint::rollup_height_to_access`].
@@ -291,7 +313,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         Self::new_with_price_and_state_to_access(
             state_checkpoint,
             kernel,
-            StateToAccess::TrueSlotNumber(slot_number),
+            StateToAccess::TrueSlotNumber(slot_number, None),
             <S::Gas as Gas>::Price::ZEROED,
         )
     }
@@ -330,7 +352,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         Self::new_with_price_and_state_to_access(
             state_checkpoint,
             kernel,
-            StateToAccess::TrueSlotNumber(slot_number),
+            StateToAccess::TrueSlotNumber(slot_number, None),
             gas_price,
         )
     }
@@ -359,14 +381,23 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
             safe_true_slot_number_to_use: None,
         };
 
-        out.safe_true_slot_number_to_use = match state_to_access {
+        (out.safe_true_slot_number_to_use) = match state_to_access {
             // The current slot may not be stored in the `true_slot_number_at_historical_height` map, so we use the previous slot number.
             StateToAccess::RollupHeight(rollup_height) => {
                 // If this is a slot that has already been executed, we know the correct true slot number. Use that.
                 kernel.true_slot_number_at_historical_height(rollup_height, &mut out)
             }
-            StateToAccess::TrueSlotNumber(slot_number) => Some(slot_number),
+            StateToAccess::TrueSlotNumber(slot_number, _) => Some(slot_number),
         };
+
+        if let StateToAccess::TrueSlotNumber(slot_number, _) = state_to_access {
+            let Some(rollup_height) =
+                kernel.true_slot_number_to_rollup_height(slot_number, &mut out)
+            else {
+                return Err(ApiStateAccessorError::HeightNotAccessible);
+            };
+            out.state_to_access = StateToAccess::TrueSlotNumber(slot_number, Some(rollup_height));
+        }
 
         let Some(visible_slot_number) = out.lookup_visible_slot_number() else {
             return Err(ApiStateAccessorError::HeightNotAccessible);
@@ -405,7 +436,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
                 .kernel
                 .clone()
                 .rollup_height_to_visible_slot_number(rollup_height, self),
-            StateToAccess::TrueSlotNumber(slot_number) => {
+            StateToAccess::TrueSlotNumber(slot_number, _) => {
                 let visible_slot_number = VisibleSlotNumber::new_dangerous(slot_number.get());
                 Some(visible_slot_number)
             }
@@ -426,39 +457,51 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     fn build_archival_state(
         storage: S::Storage,
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
-        height: RollupHeight,
+        height: StateToAccess,
     ) -> Result<Self, ApiStateAccessorError> {
         let latest_true_slot_number = storage.latest_version();
-        let mut state = ApiStateAccessor::get_uninitialized_empty_accessor(
-            storage,
-            kernel.clone(),
-            StateToAccess::RollupHeight(height),
-        );
-        // Check if the requested height is accessible.
-        let true_slot_number = if let Some(true_slot_number) =
-            kernel.true_slot_number_at_historical_height(height, &mut state)
-        {
-            true_slot_number
-        } else {
-            // There's a tricky case here where the height exists in storage but the true slot number is not available via the kernel yet.
-            // This is because the true slot number mapping is updated at the beginning of the next slot, but the rest of the values are written
-            // at the end of the current slot.
-            //
-            // Since the ApiStateAccessor has empty caches right now, we can check if we're in this case by checking whether the requested height is equal to the current rollup height
-            // as reported by the kernel. (Recall that, since the caches are empty, the "current_rollup_height" value reported by the kernel is the value stored at S::Storage::latest_version.)
-            if height == kernel.current_rollup_height(&mut state) {
-                latest_true_slot_number
-            } else {
-                return Err(ApiStateAccessorError::HeightNotAccessible);
+        let mut state =
+            ApiStateAccessor::get_uninitialized_empty_accessor(storage, kernel.clone(), height);
+        let true_slot_number = match height {
+            // If the caller provided a rollup height, find the associated true slot number.
+            StateToAccess::RollupHeight(height) => {
+                if let Some(true_slot_number) =
+                    kernel.true_slot_number_at_historical_height(height, &mut state)
+                {
+                    true_slot_number
+                } else {
+                    // There's a tricky case here where the height exists in storage but the true slot number is not available via the kernel yet.
+                    // This is because the true slot number mapping is updated at the beginning of the next slot, but the rest of the values are written
+                    // at the end of the current slot.
+                    //
+                    // Since the ApiStateAccessor has empty caches right now, we can check if we're in this case by checking whether the requested height is equal to the current rollup height
+                    // as reported by the kernel. (Recall that, since the caches are empty, the "current_rollup_height" value reported by the kernel is the value stored at S::Storage::latest_version.)
+                    if height == kernel.current_rollup_height(&mut state) {
+                        latest_true_slot_number
+                    } else {
+                        return Err(ApiStateAccessorError::HeightNotAccessible);
+                    }
+                }
+            }
+            StateToAccess::TrueSlotNumber(slot_number, _) => slot_number,
+        };
+        // If the caller provided a true slot number, find the associated rollup height.
+        let rollup_height = match height {
+            StateToAccess::RollupHeight(rollup_height) | StateToAccess::TrueSlotNumber(_, Some(rollup_height))=> rollup_height,
+            StateToAccess::TrueSlotNumber(slot_number, None) => {
+                kernel
+                .true_slot_number_to_rollup_height(slot_number, &mut state)
+                .unwrap_or_else(|| panic!("Visible slot number not available for slot_number {}, but that slot exists in storage. This is a bug. Please report it.", slot_number))
             }
         };
-
+        // Use the slot number to find the visible slot number.
         let Some(visible_slot_number) = kernel.visible_slot_number_at(true_slot_number, &mut state)
         else {
-            panic!("Visible slot number not available at height {}, but that height exist in storage. This is a bug. Please report it.", height);
+            panic!("Visible slot number not available at slot number {}, but that height exist in storage. This is a bug. Please report it.", true_slot_number);
         };
-        let Some(base_fee_per_gas) = kernel.base_fee_per_gas_at(height, &mut state) else {
-            panic!("Base fee per gas not available at height {}, but that height exist in storage. This is a bug. Please report it.", height);
+        // Use the rollup height to find the base fee per gas.
+        let Some(base_fee_per_gas) = kernel.base_fee_per_gas_at(rollup_height, &mut state) else {
+            panic!("Base fee per gas not available at height {}, but that height exist in storage. This is a bug. Please report it.", rollup_height);
         };
         state.visible_slot_number = Some(visible_slot_number);
         state.safe_true_slot_number_to_use = Some(true_slot_number);
@@ -476,7 +519,11 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         &self,
         height: RollupHeight,
     ) -> Result<ApiStateAccessor<S>, ApiStateAccessorError> {
-        Self::build_archival_state(self.storage.clone(), self.kernel.clone(), height)
+        Self::build_archival_state(
+            self.storage.clone(),
+            self.kernel.clone(),
+            StateToAccess::RollupHeight(height),
+        )
     }
 
     /// Get the true slot number being used for queries.
@@ -499,8 +546,9 @@ impl<S: Spec> VersionReader for ApiStateAccessor<S> {
     fn rollup_height_to_access(&self) -> RollupHeight {
         match self.state_to_access {
             StateToAccess::RollupHeight(rollup_height) => rollup_height,
-            StateToAccess::TrueSlotNumber(_slot_number) => {
-                todo!()
+            StateToAccess::TrueSlotNumber(_slot_number, Some(rollup_height)) => rollup_height,
+            StateToAccess::TrueSlotNumber(slot_number, None) => {
+                panic!("Rollup height not cached for slot number {}, but that slot exists in storage. This is a bug in ApiStateAccessor initialization. Please report it.", slot_number);
             }
         }
     }

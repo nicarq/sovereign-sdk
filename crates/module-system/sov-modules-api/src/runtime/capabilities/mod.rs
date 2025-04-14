@@ -238,6 +238,14 @@ pub mod mocks {
         ) -> Option<<<S as Spec>::Gas as crate::Gas>::Price> {
             Some(state.gas_price().clone())
         }
+
+        fn true_slot_number_to_rollup_height(
+            &self,
+            _true_slot_number: SlotNumber,
+            _state: &mut crate::state::ApiStateAccessor<S>,
+        ) -> Option<RollupHeight> {
+            Some(RollupHeight::new(self.visible_slot_number.get()))
+        }
     }
 
     impl<S: Spec> Kernel<S> for MockKernel<S> {

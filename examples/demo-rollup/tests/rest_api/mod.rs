@@ -195,7 +195,7 @@ async fn check_base_runtime_info(client: &demo_stf_json_client::Client) -> anyho
 async fn check_state_value(client: &demo_stf_json_client::Client) -> anyhow::Result<()> {
     // Known value: u64
     let finality_period = client
-        .attester_incentives_rollup_finality_period_get_state_value(None)
+        .attester_incentives_rollup_finality_period_get_state_value(None, None)
         .await?;
     let finality_period = if let RuntimeAnyJsonValue::Object(inner) = &finality_period.data {
         let value = inner
@@ -212,7 +212,9 @@ async fn check_state_value(client: &demo_stf_json_client::Client) -> anyhow::Res
     assert!(finality_period >= 1);
 
     // Empty value
-    let empty_value = client.value_setter_value_get_state_value(None).await?;
+    let empty_value = client
+        .value_setter_value_get_state_value(None, None)
+        .await?;
     match &empty_value.data {
         RuntimeAnyJsonValue::Object(inner) => {
             let value = inner.get("value");
@@ -227,7 +229,7 @@ async fn check_state_value(client: &demo_stf_json_client::Client) -> anyhow::Res
 async fn check_state_map(client: &demo_stf_json_client::Client) -> anyhow::Result<()> {
     // State Map meta info
     let meta_info = client
-        .sequencer_registry_known_sequencers_get_state_map_info(None)
+        .sequencer_registry_known_sequencers_get_state_map_info(None, None)
         .await?;
 
     let meta_info = meta_info.data.clone();
@@ -244,22 +246,22 @@ async fn check_state_map(client: &demo_stf_json_client::Client) -> anyhow::Resul
 
 async fn check_state_vec(client: &demo_stf_json_client::Client) -> anyhow::Result<()> {
     let state_vec_info = client
-        .value_setter_many_values_get_state_vec_info(None)
+        .value_setter_many_values_get_state_vec_info(None, None)
         .await
         .context("vector info")?;
     let info = state_vec_info.data.clone().length.unwrap();
     assert_eq!(8, info);
 
     let state_vec_element_0 = client
-        .value_setter_many_values_get_state_vec_element(0, None)
+        .value_setter_many_values_get_state_vec_element(0, None, None)
         .await
         .context("first element")?;
 
     let state_vec_element_1 = client
-        .value_setter_many_values_get_state_vec_element(1, None)
+        .value_setter_many_values_get_state_vec_element(1, None, None)
         .await?;
     let state_vec_element_last = client
-        .value_setter_many_values_get_state_vec_element(7, None)
+        .value_setter_many_values_get_state_vec_element(7, None, None)
         .await
         .context("last element")?;
 
@@ -281,7 +283,7 @@ async fn check_state_vec(client: &demo_stf_json_client::Client) -> anyhow::Resul
     }
 
     let state_vec_out_of_bounds = client
-        .value_setter_many_values_get_state_vec_element(u16::MAX as u64, None)
+        .value_setter_many_values_get_state_vec_element(u16::MAX as u64, None, None)
         .await
         .unwrap_err();
 
@@ -333,14 +335,14 @@ async fn check_custom_endpoints(client: &demo_stf_json_client::Client) -> anyhow
 
 async fn check_historical_data(client: &demo_stf_json_client::Client) -> anyhow::Result<()> {
     let state_vec_info = client
-        .value_setter_many_values_get_state_vec_info(Some(0))
+        .value_setter_many_values_get_state_vec_info(Some(0), None)
         .await?;
     let info = state_vec_info.data.clone().length.unwrap();
     assert_eq!(0, info);
 
     // StateVec info is zero in the future
     let state_vec_err = client
-        .value_setter_many_values_get_state_vec_info(Some(u32::MAX as u64))
+        .value_setter_many_values_get_state_vec_info(Some(u32::MAX as u64), None)
         .await
         .unwrap_err();
 
@@ -352,7 +354,7 @@ async fn check_historical_data(client: &demo_stf_json_client::Client) -> anyhow:
     }
 
     let state_vec_element_response = client
-        .value_setter_many_values_get_state_vec_element(1, Some(u32::MAX as u64))
+        .value_setter_many_values_get_state_vec_element(1, Some(u32::MAX as u64), None)
         .await
         .unwrap_err();
     check_not_found_error(

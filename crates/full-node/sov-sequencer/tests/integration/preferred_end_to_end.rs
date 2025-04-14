@@ -2,6 +2,7 @@
 //! thus test sequencer + node interactions.
 
 use std::collections::HashMap;
+use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -236,6 +237,145 @@ async fn txs_below_min_fee_are_rejected() {
     );
 }
 
+/// Ensure that we use the correct visible slot number when replaying transactions after a call to `update_state` in the sequencer.
+/// The key thing that this test does is to execute the same transaction 3 times - once in the sequencer via `accept_tx`, once via `update_state`
+/// and once in the node. Everything else is implementation details.
+///
+/// # How it works (currently)
+/// Here's how the test works currently - feel free to change this as the sequencer logic evolves.
+///  1. Produce enough empty *DA blocks* that the sequencer will produce an empty batch
+///  2. Before including that first empty batch on DA, submit a transaction to the sequencer which asserts the correct visible slot number.
+///      This will cause the sequencer to start bulding a new batch on top of the updated state.
+///  3. Include the empty batch on DA, and wait for the node to process it. This triggers a call to `update_state` in the sequencer, which will panic on error.
+///  4. Accept the sequencer's new batch (which contains the transaction asserting the correct visible slot number) onto the DA layer. Defensively assert that it
+///     gets processed correctly by the node.
+#[tokio::test(flavor = "multi_thread")]
+async fn query_historical_values() {
+    let tx_builder = |key| tx_set_value(&key, 0, 7);
+    let assertions = |test_rollup| async move {
+        query_set_value(&test_rollup, Some(2), 7).await.unwrap();
+        query_set_value(&test_rollup, Some(0), 0).await.unwrap();
+        query_set_value_by_slot_number(&test_rollup, Some(5), 7)
+            .await
+            .unwrap();
+        query_set_value_by_slot_number(&test_rollup, Some(1), 0)
+            .await
+            .unwrap();
+    };
+    do_manual_block_production_test(tx_builder, assertions, 22222).await;
+}
+
+async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
+    tx_builder: impl Fn(Ed25519PrivateKey) -> RawTx,
+    assertions: impl Fn(TestRollup<TestBlueprint>) -> Fut,
+    port: u16,
+) {
+    const FINALIZATION_BLOCKS: u32 = 0;
+    let genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    let admin = genesis_config.additional_accounts[0].clone();
+
+    let rt_genesis_config =
+        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
+            genesis_config.into(),
+            ValueSetterConfig {
+                admin: admin.address(),
+            },
+            (),
+            PaymasterConfig::default(),
+            (),
+        );
+    let genesis_params = GenesisParams {
+        runtime: rt_genesis_config.clone(),
+    };
+
+    let dir = Arc::new(tempfile::tempdir().unwrap());
+
+    let da_layer = Arc::new(tokio::sync::RwLock::new(
+        StorableMockDaLayer::new_in_memory(FINALIZATION_BLOCKS)
+            .await
+            .unwrap(),
+    ));
+    let test_rollup = {
+        let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
+        RollupBuilder::<TestBlueprint>::new(
+            GenesisSource::CustomParams(genesis_params),
+            BlockProducingConfig::Manual, // Use manual block production to be sure that the changes are happening in the sequencer only, not the node.
+            FINALIZATION_BLOCKS,
+        )
+        .set_config(|c| {
+            c.rollup_prover_config = Some(RollupProverConfig::Skip);
+            c.storage = dir;
+            c.axum_port = port;
+        })
+        .set_da_config(|c| {
+            c.sender_address = sequencer_addr;
+            c.da_layer = Some(da_layer.clone());
+        })
+        .start()
+        .await
+        .unwrap()
+    };
+    let mut slot_subscription = test_rollup
+        .api_client
+        .subscribe_slots_with_children(IncludeChildren::new(true))
+        .await
+        .unwrap();
+    // First, produce two empty blocks. After the second one, the preferred sequencer will produce an empty batch in an attempt
+    // to keep the visible_slot_number within 2 of the DA slot number.
+    da_layer.write().await.produce_block().await.unwrap();
+    slot_subscription.next().await.unwrap().unwrap();
+    da_layer.write().await.produce_block().await.unwrap();
+    slot_subscription.next().await.unwrap().unwrap();
+    // Wait for the node to process the empty blocks. This ensures that the sequencer has time to produce an empty batch.
+    // Right here (invisibly) the preferred sequencer will produce its empty batch and send it to DA
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // Produce a block with a transaction that asserts the correct visible slot number.
+    // Note: The exact number height asserted here is not important, as long as it's correct
+    // at the time we submit the transaction - if we change the sequencer logic, this number may need to be updated.
+    let tx = tx_builder(admin.private_key.clone());
+    test_rollup
+        .api_client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx),
+        })
+        .await
+        .unwrap();
+
+    // Produce a block. This places the (invisibly produced) empty preferred batch on DA, triggering the sequencer to replay the soft-confirmed transaction
+    // on top of that new state. The replay will fail if the visible slot number was not correctly set.
+    da_layer.write().await.produce_block().await.unwrap();
+    let slot = slot_subscription.next().await.unwrap().unwrap();
+    // Right here, we check that we really did receive an empty batch from the preferred sequencer.
+    // This is a test of the test logic, not a test of the sequencer - it's perfectly valid to modify
+    // the sequencer such that a batch is not produced here - but in that case we need to update this test.
+    assert_eq!(slot.number, 3);
+    assert_eq!(slot.batches.len(), 1);
+    assert_eq!(slot.batches[0].txs.len(), 0);
+
+    // Produce another block. This one will be empty because the sequencer is currently very conservative about
+    // waiting to have some finalized blocks available before producing a batch. If we update the sequencer to be as eager
+    // as safely possible about producing batches, we will need to remove this call to `produce_block`.
+    da_layer.write().await.produce_block().await.unwrap();
+    slot_subscription.next().await.unwrap().unwrap();
+
+    // Ensure that the sequencer has time to see the updated state and submit its batch containing the transaction to DA.
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    da_layer.write().await.produce_block().await.unwrap();
+    let next = slot_subscription.next().await.unwrap().unwrap();
+
+    assert_eq!(next.number, 5);
+    assert_eq!(
+        next.batches[0].txs[0].receipt.result,
+        TxReceiptResult::Successful,
+        "Replay in the sequencer was successful, but replay on the node failed: {:?}",
+        next.batches[0],
+    );
+
+    assertions(test_rollup).await;
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn events_are_returned_in_tx_response() {
     let genesis_config =
@@ -297,107 +437,8 @@ async fn events_are_returned_in_tx_response() {
 ///     gets processed correctly by the node.
 #[tokio::test(flavor = "multi_thread")]
 async fn replay_uses_correct_visible_slot_number() {
-    const FINALIZATION_BLOCKS: u32 = 0;
-    let genesis_config =
-        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
-    let admin = genesis_config.additional_accounts[0].clone();
-
-    let rt_genesis_config =
-        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
-            genesis_config.into(),
-            ValueSetterConfig {
-                admin: admin.address(),
-            },
-            (),
-            PaymasterConfig::default(),
-            (),
-        );
-    let genesis_params = GenesisParams {
-        runtime: rt_genesis_config.clone(),
-    };
-
-    let dir = Arc::new(tempfile::tempdir().unwrap());
-
-    let da_layer = Arc::new(tokio::sync::RwLock::new(
-        StorableMockDaLayer::new_in_memory(FINALIZATION_BLOCKS)
-            .await
-            .unwrap(),
-    ));
-    let test_rollup = {
-        let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
-        RollupBuilder::<TestBlueprint>::new(
-            GenesisSource::CustomParams(genesis_params),
-            BlockProducingConfig::Manual, // Use manual block production to be sure that the changes are happening in the sequencer only, not the node.
-            FINALIZATION_BLOCKS,
-        )
-        .set_config(|c| {
-            c.rollup_prover_config = Some(RollupProverConfig::Skip);
-            c.storage = dir;
-        })
-        .set_da_config(|c| {
-            c.sender_address = sequencer_addr;
-            c.da_layer = Some(da_layer.clone());
-        })
-        .start()
-        .await
-        .unwrap()
-    };
-    let mut slot_subscription = test_rollup
-        .api_client
-        .subscribe_slots_with_children(IncludeChildren::new(true))
-        .await
-        .unwrap();
-    // First, produce two empty blocks. After the second one, the preferred sequencer will produce an empty batch in an attempt
-    // to keep the visible_slot_number within 2 of the DA slot number.
-    da_layer.write().await.produce_block().await.unwrap();
-    slot_subscription.next().await.unwrap().unwrap();
-    da_layer.write().await.produce_block().await.unwrap();
-    slot_subscription.next().await.unwrap().unwrap();
-    // Wait for the node to process the empty blocks. This ensures that the sequencer has time to produce an empty batch.
-    // Right here (invisibly) the preferred sequencer will produce its empty batch and send it to DA
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Produce a block with a transaction that asserts the correct visible slot number.
-    // Note: The exact number height asserted here is not important, as long as it's correct
-    // at the time we submit the transaction - if we change the sequencer logic, this number may need to be updated.
-    let tx = tx_assert_visible_slot_number(&admin.private_key, 0, 2);
-    test_rollup
-        .api_client
-        .accept_tx(&api_types::AcceptTxBody {
-            body: BASE64_STANDARD.encode(&tx),
-        })
-        .await
-        .unwrap();
-
-    // Produce a block. This places the (invisibly produced) empty preferred batch on DA, triggering the sequencer to replay the soft-confirmed transaction
-    // on top of that new state. The replay will fail if the visible slot number was not correctly set.
-    da_layer.write().await.produce_block().await.unwrap();
-    let slot = slot_subscription.next().await.unwrap().unwrap();
-    // Right here, we check that we really did receive an empty batch from the preferred sequencer.
-    // This is a test of the test logic, not a test of the sequencer - it's perfectly valid to modify
-    // the sequencer such that a batch is not produced here - but in that case we need to update this test.
-    assert_eq!(slot.number, 3);
-    assert_eq!(slot.batches.len(), 1);
-    assert_eq!(slot.batches[0].txs.len(), 0);
-
-    // Produce another block. This one will be empty because the sequencer is currently very conservative about
-    // waiting to have some finalized blocks available before producing a batch. If we update the sequencer to be as eager
-    // as safely possible about producing batches, we will need to remove this call to `produce_block`.
-    da_layer.write().await.produce_block().await.unwrap();
-    slot_subscription.next().await.unwrap().unwrap();
-
-    // Ensure that the sequencer has time to see the updated state and submit its batch containing the transaction to DA.
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    da_layer.write().await.produce_block().await.unwrap();
-    let next = slot_subscription.next().await.unwrap().unwrap();
-
-    assert_eq!(next.number, 5);
-    assert_eq!(
-        next.batches[0].txs[0].receipt.result,
-        TxReceiptResult::Successful,
-        "Replay in the sequencer was successful, but replay on the node failed: {:?}",
-        next.batches[0],
-    );
+    let tx_builder = |key| tx_assert_visible_slot_number(&key, 0, 2);
+    do_manual_block_production_test(tx_builder, |_| async {}, 22223).await;
 }
 
 /// This test checks that the sequencer correctly rejects transactions at startup until finalized blocks are available for batch creation.
@@ -1181,18 +1222,43 @@ async fn run_action_against_test_rollup(
 
 async fn query_set_value(
     test_rollup: &TestRollup<TestBlueprint>,
+    rollup_height: Option<u64>,
+    expected: u64,
+) -> anyhow::Result<()> {
+    query_set_value_helper(
+        test_rollup,
+        rollup_height.map(|n| format!("rollup_height={}", n)),
+        expected,
+    )
+    .await
+}
+
+async fn query_set_value_by_slot_number(
+    test_rollup: &TestRollup<TestBlueprint>,
     slot_number: Option<u64>,
+    expected: u64,
+) -> anyhow::Result<()> {
+    query_set_value_helper(
+        test_rollup,
+        slot_number.map(|n| format!("slot_number={}", n)),
+        expected,
+    )
+    .await
+}
+
+async fn query_set_value_helper(
+    test_rollup: &TestRollup<TestBlueprint>,
+    query_param: Option<String>,
     expected: u64,
 ) -> anyhow::Result<()> {
     let url = format!(
         "/modules/value-setter/state/value{}",
-        if let Some(slot_number) = slot_number {
-            format!("?rollup_height={}", slot_number)
+        if let Some(query_param) = query_param {
+            format!("?{}", query_param)
         } else {
             "".to_string()
         }
     );
-
     let response = test_rollup
         .client
         .query_rest_endpoint::<ResponseObject<serde_json::Value>>(&url)
@@ -1200,7 +1266,7 @@ async fn query_set_value(
 
     debug!(?response, "Querying value");
 
-    let found_value = response.data.unwrap()["value"].as_u64().unwrap();
+    let found_value = response.data.unwrap()["value"].as_u64().unwrap_or_default();
 
     anyhow::ensure!(found_value == expected);
 
