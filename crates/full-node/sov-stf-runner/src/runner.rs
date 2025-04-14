@@ -622,10 +622,7 @@ pub async fn query_state_update_info<S>(
     ledger_db: &LedgerDb,
     storage: S,
 ) -> anyhow::Result<StateUpdateInfo<S>> {
-    let slot_number = ledger_db
-        .get_head_slot_number()
-        .await?
-        .expect("The rollup height should always be available");
+    let slot_number = ledger_db.get_head_slot_number().await?;
     let next_event_number = ledger_db
         .get_latest_event_number()
         .await?

@@ -561,8 +561,11 @@ impl LedgerRpcReader {
 impl LedgerStateProvider for LedgerDb {
     type Error = anyhow::Error;
 
-    async fn get_head_slot_number(&self) -> Result<Option<SlotNumber>, Self::Error> {
-        self.get_rpc_reader().get_head_slot_number().await
+    async fn get_head_slot_number(&self) -> Result<SlotNumber, Self::Error> {
+        self.get_rpc_reader()
+            .get_head_slot_number()
+            .await
+            .map(Option::unwrap_or_default)
     }
 
     async fn get_latest_finalized_slot_number(&self) -> Result<SlotNumber, Self::Error> {

@@ -352,8 +352,7 @@ where
             .ledger
             .get_head_slot_number()
             .await
-            .map_err(database_error_response_500)?
-            .ok_or_else(|| not_found_404("Slot", "latest"))?;
+            .map_err(database_error_response_500)?;
 
         request.extensions_mut().insert(latest_slot);
         Ok(next.run(request).await)

@@ -55,6 +55,7 @@ jsonrpsee = { workspace = true, features = ["client", "ws-client"] }
 sov-sequencer-registry = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true, features = ["native"] }
 sov-modules-stf-blueprint = { workspace = true, features = ["native"] }
+sov-modules-rollup-blueprint = { workspace = true, features = ["native"] }
 
 sov-accounts = { workspace = true, features = ["native"] }
 sov-sequencer = { workspace = true }

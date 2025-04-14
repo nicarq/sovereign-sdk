@@ -17,7 +17,7 @@ use sov_mock_da::{
 use sov_mock_zkvm::{MockZkvm, MockZkvmHost};
 use sov_modules_api::provable_height_tracker::InfiniteHeight;
 use sov_modules_api::{
-    FullyBakedTx, ProofSerializer, StateTransitionFunction, StateUpdateInfo, SyncStatus,
+    FullyBakedTx, ProofSender, StateTransitionFunction, StateUpdateInfo, SyncStatus,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::DaSpec;
@@ -30,11 +30,11 @@ use sov_sequencer::standard::StdSequencerConfig;
 use sov_sequencer::{SequencerConfig, SequencerKindConfig};
 use sov_state::{DefaultStorageSpec, NativeStorage, ProverStorage};
 use sov_stf_runner::processes::{
-    ParallelProverService, RollupProverConfigDiscriminants, WorkflowProcessManager,
+    start_zk_workflow_in_background, ParallelProverService, RollupProverConfigDiscriminants,
 };
 use sov_stf_runner::{
-    initialize_state, HttpServerConfig, ProofManagerConfig, RollupConfig, RunnerConfig,
-    StateTransitionRunner, StorageConfig,
+    initialize_state, query_state_update_info, HttpServerConfig, ProofManagerConfig, RollupConfig,
+    RunnerConfig, StateTransitionRunner, StorageConfig,
 };
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::watch;
@@ -113,29 +113,36 @@ impl TestNode {
     }
 }
 
-struct DummyProofSerializer {}
+struct MockProofSender {
+    da: Arc<MockDaService>,
+}
 
 #[async_trait]
-impl ProofSerializer for DummyProofSerializer {
-    async fn serialize_proof_blob_with_metadata(
+impl ProofSender for MockProofSender {
+    async fn publish_proof_blob_with_metadata(
         &self,
         serialized_proof: SerializedAggregatedProof,
-    ) -> anyhow::Result<Vec<u8>> {
-        Ok(serialized_proof.raw_aggregated_proof)
+    ) -> anyhow::Result<()> {
+        let serialized_blob = serialized_proof.raw_aggregated_proof;
+
+        let fee = self.da.estimate_fee(serialized_blob.len()).await?;
+        self.da.send_proof(&serialized_blob, fee).await.await??;
+
+        Ok(())
     }
 
-    async fn serialize_attestation_blob_with_metadata(
+    async fn publish_attestation_blob_with_metadata(
         &self,
         _serialized_attestation: sov_modules_api::SerializedAttestation,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> anyhow::Result<()> {
         unimplemented!()
     }
 
-    async fn serialize_challenge_blob_with_metadata(
+    async fn publish_challenge_blob_with_metadata(
         &self,
         _serialized_challenge: sov_modules_api::SerializedChallenge,
         _slot_height: SlotNumber,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> anyhow::Result<()> {
         unimplemented!()
     }
 }
@@ -147,24 +154,7 @@ pub async fn bootstrap_state_update_info(
     let (stf_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
     let ledger_db = LedgerDb::with_reader(ledger_state)?;
 
-    let state_update_info = {
-        let slot_number = ledger_db.get_head_slot_number().await?.unwrap_or_default();
-        let next_event_number = ledger_db
-            .get_latest_event_number()
-            .await?
-            .map(|x| x + 1)
-            .unwrap_or_default();
-        let latest_finalized_slot_number = ledger_db.get_latest_finalized_slot_number().await?;
-
-        StateUpdateInfo {
-            storage: stf_storage,
-            next_event_number,
-            slot_number,
-            latest_finalized_slot_number,
-        }
-    };
-
-    Ok(state_update_info)
+    query_state_update_info(&ledger_db, stf_storage).await
 }
 
 pub async fn initialize_runner(
@@ -221,31 +211,29 @@ pub async fn initialize_runner(
     .unwrap();
 
     let handle = if let Some(stf_info_receiver) = runner.take_stf_info_receiver() {
-        let prover_service = ParallelProverService::<_, _, _, _, MockZkvm, MockZkvm>::new(
-            inner_vm.clone(),
-            outer_vm.clone(),
-            verifier,
-            RollupProverConfigDiscriminants::Prove,
-            nb_of_prover_threads.unwrap(),
-            Default::default(),
-            MockAddress::new([0u8; 32]),
-        );
+        let prover_service =
+            ParallelProverService::<_, _, _, MockDaService, MockZkvm, MockZkvm>::new(
+                inner_vm.clone(),
+                outer_vm.clone(),
+                verifier,
+                RollupProverConfigDiscriminants::Prove,
+                nb_of_prover_threads.unwrap(),
+                Default::default(),
+                MockAddress::new([0u8; 32]),
+            );
 
-        let process_manager = WorkflowProcessManager::new(
+        let handle = start_zk_workflow_in_background::<_>(
             prover_service,
-            da_service.clone(),
+            rollup_config.proof_manager.aggregated_proof_block_jump,
+            Box::new(MockProofSender {
+                da: da_service.clone(),
+            }),
             genesis_state_root,
-            shutdown_receiver.clone(),
             stf_info_receiver,
-            Box::new(DummyProofSerializer {}),
-        );
-
-        let handle = process_manager
-            .start_zk_workflow_in_background(
-                rollup_config.proof_manager.aggregated_proof_block_jump,
-            )
-            .await
-            .unwrap();
+            shutdown_receiver.clone(),
+        )
+        .await
+        .unwrap();
 
         Some(handle)
     } else {

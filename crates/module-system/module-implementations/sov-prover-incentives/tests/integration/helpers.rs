@@ -4,15 +4,13 @@ use serde::Serialize;
 use sov_bank::{config_gas_token_id, Bank};
 use sov_chain_state::ChainState;
 use sov_mock_zkvm::MockCodeCommitment;
-use sov_modules_api::prelude::tokio::runtime::{self, Handle};
-use sov_modules_api::prelude::tokio::task;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{
-    AggregatedProofPublicData, Amount, ApiStateAccessor, CodeCommitment, ProofSerializer as _,
-    SerializedAggregatedProof, Spec, Storage,
+    AggregatedProofPublicData, Amount, ApiStateAccessor, CodeCommitment, SerializedAggregatedProof,
+    Spec, Storage,
 };
-use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
+use sov_modules_rollup_blueprint::proof_sender::serialize_proof_blob_with_metadata;
 use sov_prover_incentives::ProverIncentives;
 use sov_rollup_interface::common::SlotNumber;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
@@ -125,21 +123,5 @@ pub(crate) fn serialize_proof<T: Serialize>(agg_proof: T) -> Vec<u8> {
         raw_aggregated_proof: proof,
     };
 
-    task::block_in_place(move || {
-        let f = async move {
-            SovApiProofSerializer::<S>::new(None)
-                .serialize_proof_blob_with_metadata(serialized_proof)
-                .await
-                .unwrap()
-        };
-
-        if let Ok(handle) = Handle::try_current() {
-            handle.block_on(f)
-        } else {
-            runtime::Builder::new_multi_thread()
-                .build()
-                .unwrap()
-                .block_on(f)
-        }
-    })
+    borsh::to_vec(&serialize_proof_blob_with_metadata::<S>(serialized_proof).unwrap()).unwrap()
 }

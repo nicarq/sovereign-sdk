@@ -15,6 +15,7 @@ pub mod rocksdb;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::num::NonZero;
+use std::sync::Arc;
 
 use axum::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -66,7 +67,7 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         &mut self,
         sequence_number: SequenceNumber,
         blob_id: BlobInternalId,
-        data: Vec<u8>,
+        data: Arc<[u8]>,
     ) -> anyhow::Result<()>;
 
     /// Instructs the database it MAY delete all data up to the given
@@ -110,7 +111,7 @@ pub enum PreferredSequencerReadBlob {
         blob_id: BlobInternalId,
         sequence_number: SequenceNumber,
         #[allow(dead_code)]
-        data: Vec<u8>,
+        data: Arc<[u8]>,
     },
 }
 
@@ -269,29 +270,31 @@ where
         };
 
         // Now is as good a time as any to prune old blobs that are no longer needed.
-        if let Some(last_finalized_sequence_number) =
-            next_sequence_number_as_of_latest_finalized_rollup_height.checked_sub(1)
-        {
-            self.prune(last_finalized_sequence_number).await?;
-        }
-
-        let mut blobs = vec![];
-
-        // We could also do a binary search, but this only runs during sequencer
-        // initialization so we don't carea about performance all that much.
-        for blob in self.completed_blobs.iter() {
-            if blob.sequence_number() < next_sequence_number_as_of_latest_finalized_rollup_height {
-                continue;
+        match next_sequence_number_as_of_latest_finalized_rollup_height.checked_sub(1) {
+            Some(last_finalized_sequence_number) => {
+                self.prune(last_finalized_sequence_number).await?;
             }
-
-            blobs.push(blob.clone());
+            None => {
+                // Nothing to prune because there's no sequence number history.
+            }
         }
 
-        Ok(blobs)
+        Ok(self
+            .completed_blobs
+            .iter()
+            .filter(|b| {
+                // Pruning invariants say it MAY remove older blobs, but we don't know for sure.
+                b.sequence_number() >= next_sequence_number_as_of_latest_finalized_rollup_height
+            })
+            .cloned()
+            .collect())
     }
 
-    pub async fn insert_proof_blob(&mut self, data: Vec<u8>) -> anyhow::Result<SequenceNumber> {
-        let blob_id = new_blob_id();
+    pub async fn insert_proof_blob(
+        &mut self,
+        blob_id: BlobInternalId,
+        data: Arc<[u8]>,
+    ) -> anyhow::Result<SequenceNumber> {
         let sequence_number = self.sequence_number_of_next_blob;
 
         self.backend
@@ -354,6 +357,6 @@ pub enum StoredBlob {
     },
     Proof {
         blob_id: BlobInternalId,
-        data: Vec<u8>,
+        data: Arc<[u8]>,
     },
 }

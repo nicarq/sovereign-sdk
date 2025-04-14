@@ -1,6 +1,6 @@
 mod endpoints;
 pub mod logging;
-pub mod proof_serializer;
+pub mod proof_sender;
 mod telemetry;
 mod wallet;
 
@@ -17,7 +17,7 @@ use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::provable_height_tracker::MaximumProvableHeight;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
-    NodeEndpoints, OperatingMode, ProofSerializer, Spec, StateUpdateInfo, SyncStatus, ZkVerifier,
+    NodeEndpoints, OperatingMode, ProofSender, Spec, StateUpdateInfo, SyncStatus, ZkVerifier,
 };
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::common::SlotNumber;
@@ -27,10 +27,13 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::ProvableHeightTracker;
 use sov_sequencer::preferred::PreferredSequencer;
 use sov_sequencer::standard::StdSequencer;
-use sov_sequencer::{SequenceNumberProvider, Sequencer, SequencerApis, SequencerKindConfig};
+use sov_sequencer::{ProofBlobSender, Sequencer, SequencerApis, SequencerKindConfig};
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
-use sov_stf_runner::processes::{ProverService, RollupProverConfig, WorkflowProcessManager};
+use sov_stf_runner::processes::{
+    start_op_workflow_in_background, start_zk_workflow_in_background, ProverService,
+    RollupProverConfig,
+};
 use sov_stf_runner::{
     initialize_state, query_state_update_info, CorsConfiguration, RollupConfig,
     StateTransitionRunner,
@@ -67,7 +70,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
     >;
 
     /// Serialize proof blob and adds metadata needed for verification.
-    type ProofSerializer: ProofSerializer + 'static;
+    type ProofSender: ProofSender + 'static;
 
     /// Creates code commitments for the outer zkVM program.
     fn create_outer_code_commitment(
@@ -127,12 +130,12 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
     ) -> anyhow::Result<Self::StorageManager>;
 
-    /// Instantiates [`FullNodeBlueprint::ProofSerializer`].
-    fn create_proof_serializer(
+    /// Instantiates [`FullNodeBlueprint::ProofSender`].
+    fn create_proof_sender(
         &self,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
-        sequence_number_provider: Option<Arc<dyn SequenceNumberProvider>>,
-    ) -> anyhow::Result<Self::ProofSerializer>;
+        sequencer: Arc<dyn ProofBlobSender>,
+    ) -> anyhow::Result<Self::ProofSender>;
 
     /// Creates an instance of a LedgerDb.
     fn create_ledger_db(
@@ -208,7 +211,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     api_state: sequencer.api_state(),
                     endpoints,
                     background_handles,
-                    sequence_number_provider: None,
+                    proof_sender: sequencer,
                 })
             }
 
@@ -236,7 +239,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     api_state: sequencer.api_state(),
                     endpoints,
                     background_handles,
-                    sequence_number_provider: Some(sequencer),
+                    proof_sender: sequencer,
                 })
             }
         }
@@ -394,17 +397,8 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                 .create_prover_service(prover_config, &rollup_config, &da_service)
                 .await;
 
-            let process_manager = WorkflowProcessManager::new(
-                prover_service,
-                da_service.clone(),
-                genesis_state_root,
-                secondary_shutdown_receiver.clone(),
-                stf_info_receiver,
-                Box::new(self.create_proof_serializer(
-                    &rollup_config,
-                    sequencer.sequence_number_provider.clone(),
-                )?),
-            );
+            let proof_sender =
+                Box::new(self.create_proof_sender(&rollup_config, sequencer.proof_sender.clone())?);
 
             let workflow_task_handle = match operating_mode {
                 OperatingMode::Optimistic => {
@@ -416,16 +410,24 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                         state_update_receiver.clone(),
                     );
 
-                    process_manager
-                        .start_op_workflow_in_background(bonding_proof_service)
-                        .await?
+                    start_op_workflow_in_background::<Self::ProverService, _>(
+                        bonding_proof_service,
+                        proof_sender,
+                        secondary_shutdown_receiver,
+                        stf_info_receiver,
+                    )
+                    .await?
                 }
                 OperatingMode::Zk => {
-                    process_manager
-                        .start_zk_workflow_in_background(
-                            rollup_config.proof_manager.aggregated_proof_block_jump,
-                        )
-                        .await?
+                    start_zk_workflow_in_background(
+                        prover_service,
+                        rollup_config.proof_manager.aggregated_proof_block_jump,
+                        proof_sender,
+                        genesis_state_root,
+                        stf_info_receiver,
+                        secondary_shutdown_receiver,
+                    )
+                    .await?
                 }
             };
 
@@ -563,10 +565,10 @@ pub struct SequencerCreationReceipt<S: Spec> {
     ///
     /// See [`sov_modules_api::rest::HasRestApi::rest_api`].
     pub api_state: ApiState<S>,
-    /// Will be passed to [`FullNodeBlueprint::create_proof_serializer`].
+    /// Will be passed to [`FullNodeBlueprint::create_proof_sender`].
     ///
-    /// See [`crate::proof_serializer::SovApiProofSerializer::new`].
-    pub sequence_number_provider: Option<Arc<dyn SequenceNumberProvider>>,
+    /// See [`crate::proof_sender::SovApiProofSender::new`].
+    pub proof_sender: Arc<dyn ProofBlobSender>,
     #[allow(missing_docs)]
     pub endpoints: NodeEndpoints,
     #[allow(missing_docs)]
