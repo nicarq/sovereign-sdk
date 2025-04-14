@@ -1,6 +1,7 @@
+use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{HexHash, HexString, SizedSafeString};
+use sov_modules_api::{GasMeter, HexHash, HexString, SizedSafeString, Spec};
 
 use crate::crypto::keccak256_hash;
 
@@ -61,7 +62,7 @@ pub struct Message {
 
 impl Message {
     /// Decode a message from a hex string.
-    pub fn decode(message: &[u8]) -> anyhow::Result<Self> {
+    pub fn decode(message: &[u8]) -> Result<Self> {
         anyhow::ensure!(
             message.len() >= 77,
             "Message is too short. A valid message must be at least 77 bytes"
@@ -96,10 +97,9 @@ impl Message {
     }
 
     /// Generate a unique identifier for the message.
-    #[must_use]
-    pub fn id(&self) -> HexHash {
+    pub fn id<S: Spec>(&self, gas_meter: &mut impl GasMeter<Spec = S>) -> Result<HexHash> {
         let hex: HexString = self.encode();
-        keccak256_hash(hex.as_ref())
+        keccak256_hash(hex.as_ref(), gas_meter)
     }
 }
 

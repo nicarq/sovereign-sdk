@@ -1,8 +1,10 @@
+use sov_bank::Amount;
 use sov_hyperlane_integration::test_recipient::{
     CallMessage as RecipientCallMessage, TestRecipient,
 };
 use sov_hyperlane_integration::{HyperlaneAddress, Ism, Mailbox as RawMailbox, MerkleTreeHook};
-use sov_modules_api::HexHash;
+use sov_modules_api::gas::GasArray;
+use sov_modules_api::{BasicGasMeter, Gas, HexHash, Spec};
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_runtime, AsUser, TestSpec, TestUser, TransactionTestCase};
@@ -64,4 +66,12 @@ pub fn register_recipient_with_ism(
             );
         }),
     });
+}
+
+pub fn unlimited_gas_meter() -> BasicGasMeter<S> {
+    BasicGasMeter::new_with_funds_and_gas(
+        Amount::MAX,
+        <<S as Spec>::Gas as Gas>::max(),
+        <<S as Spec>::Gas as Gas>::Price::ZEROED,
+    )
 }

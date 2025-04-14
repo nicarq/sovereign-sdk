@@ -100,12 +100,12 @@ impl<S: Spec> PostDispatchHook<S> for MerkleTreeHook<S> {
         message: &HexString,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
-        let id = keccak256_hash(&message.0);
+        let id = keccak256_hash(&message.0, state)?;
         let mut tree: BorrowedMut<MerkleTree, _> =
             self.tree.borrow_mut(state)?.unwrap_or(Default::default());
         let index = tree.count;
 
-        tree.insert(id)?;
+        tree.insert(id, state)?;
         tree.save(state)?;
 
         self.emit_event(state, Event::InsertedIntoTree { index, id });
