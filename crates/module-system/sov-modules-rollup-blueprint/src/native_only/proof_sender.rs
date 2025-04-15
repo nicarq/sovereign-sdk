@@ -18,25 +18,16 @@ const MAX_FEE: Amount = Amount::new(10_000_000);
 /// Adds metadata about gas & fees to the proof blob.
 pub struct SovApiProofSender<S: Spec> {
     _phantom: std::marker::PhantomData<S>,
-    proof_blob_sender: Arc<dyn ProofBlobSender>,
+    inner: Arc<dyn ProofBlobSender>,
 }
 
 impl<S: Spec> SovApiProofSender<S> {
     /// Creates a new [`SovApiProofSender`].
-    pub fn new(proof_blob_sender: Arc<dyn ProofBlobSender>) -> Self {
+    pub fn new(inner: Arc<dyn ProofBlobSender>) -> Self {
         Self {
             _phantom: Default::default(),
-            proof_blob_sender,
+            inner,
         }
-    }
-
-    async fn publish_proof_data(&self, proof_data: Arc<[u8]>) -> anyhow::Result<()> {
-        tracing::debug!("About to publish proof blob");
-
-        self.proof_blob_sender
-            .publish_proof_blob(proof_data)
-            .await?;
-        Ok(())
     }
 }
 
@@ -46,20 +37,24 @@ impl<S: Spec> ProofSender for SovApiProofSender<S> {
         &self,
         serialized_proof: SerializedAggregatedProof,
     ) -> anyhow::Result<()> {
-        Ok(self
-            .publish_proof_data(serialize_proof_blob_with_metadata::<S>(serialized_proof)?)
-            .await?)
+        let proof_data = serialize_proof_blob_with_metadata::<S>(serialized_proof)?;
+        self.inner
+            .produce_and_publish_proof_blob(proof_data)
+            .await?;
+
+        Ok(())
     }
 
     async fn publish_attestation_blob_with_metadata(
         &self,
         serialized_attestation: SerializedAttestation,
     ) -> anyhow::Result<()> {
-        Ok(self
-            .publish_proof_data(serialize_attestation_blob_with_metadata::<S>(
-                serialized_attestation,
-            )?)
-            .await?)
+        let proof_data = serialize_attestation_blob_with_metadata::<S>(serialized_attestation)?;
+        self.inner
+            .produce_and_publish_proof_blob(proof_data)
+            .await?;
+
+        Ok(())
     }
 
     async fn publish_challenge_blob_with_metadata(
@@ -67,12 +62,13 @@ impl<S: Spec> ProofSender for SovApiProofSender<S> {
         serialized_challenge: SerializedChallenge,
         slot_height: SlotNumber,
     ) -> anyhow::Result<()> {
-        Ok(self
-            .publish_proof_data(serialize_challenge_blob_with_metadata::<S>(
-                serialized_challenge,
-                slot_height,
-            )?)
-            .await?)
+        let proof_data =
+            serialize_challenge_blob_with_metadata::<S>(serialized_challenge, slot_height)?;
+        self.inner
+            .produce_and_publish_proof_blob(proof_data)
+            .await?;
+
+        Ok(())
     }
 }
 

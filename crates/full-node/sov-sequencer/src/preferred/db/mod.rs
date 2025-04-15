@@ -19,8 +19,6 @@ use std::sync::Arc;
 
 use axum::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
-use futures::stream::BoxStream;
-use futures::StreamExt;
 use sov_blob_sender::{new_blob_id, BlobInternalId};
 use sov_blob_storage::{PreferredBatchData, SequenceNumber};
 use sov_modules_api::capabilities::BlobSelector;
@@ -63,9 +61,7 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         cached: &PreferredSequencerReadBatch,
     ) -> anyhow::Result<()>;
 
-    async fn read_completed_blobs(
-        &self,
-    ) -> anyhow::Result<BoxStream<anyhow::Result<PreferredSequencerReadBlob>>>;
+    async fn read_completed_blobs(&self) -> anyhow::Result<Vec<PreferredSequencerReadBlob>>;
 
     async fn read_in_progress_batch(&self) -> anyhow::Result<Option<PreferredSequencerReadBatch>>;
 
@@ -151,14 +147,7 @@ where
     Rt: Runtime<S>,
 {
     pub async fn new(backend: Box<dyn PreferredSequencerDbBackend>) -> anyhow::Result<Self> {
-        let mut completed_blobs = VecDeque::new();
-
-        let mut iter = backend.read_completed_blobs().await?;
-        while let Some(blob_res) = iter.next().await {
-            completed_blobs.push_back(blob_res?);
-        }
-        drop(iter);
-
+        let completed_blobs = VecDeque::from(backend.read_completed_blobs().await?);
         let in_progress_batch = backend.read_in_progress_batch().await?;
 
         let sequence_number_of_next_blob = match (completed_blobs.back(), &in_progress_batch) {

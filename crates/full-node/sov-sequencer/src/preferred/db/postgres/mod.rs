@@ -2,8 +2,6 @@ use std::num::NonZero;
 use std::sync::Arc;
 
 use axum::async_trait;
-use futures::stream::BoxStream;
-use futures::StreamExt;
 use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
 use sov_modules_api::{FullyBakedTx, TxHash};
@@ -203,9 +201,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         Ok(())
     }
 
-    async fn read_completed_blobs(
-        &self,
-    ) -> anyhow::Result<BoxStream<anyhow::Result<PreferredSequencerReadBlob>>> {
+    async fn read_completed_blobs(&self) -> anyhow::Result<Vec<PreferredSequencerReadBlob>> {
         let stored_blobs: Vec<(i64, Vec<u8>)> = sqlx::query_as::<Postgres, _>(
             "SELECT sequence_number, borsh_value FROM blobs ORDER BY sequence_number",
         )
@@ -220,7 +216,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
             blobs.push(self.read_blob(sequence_number, stored_blob).await?);
         }
 
-        Ok(futures::stream::iter(blobs).map(Ok).boxed())
+        Ok(blobs)
     }
 
     async fn read_in_progress_batch(

@@ -681,8 +681,12 @@ where
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
-    async fn publish_proof_blob(&self, proof_blob: Arc<[u8]>) -> anyhow::Result<()> {
+    async fn produce_and_publish_proof_blob(&self, proof_blob: Arc<[u8]>) -> anyhow::Result<()> {
         let blob_id = new_blob_id();
+
+        // TODO: Put SerializedAggregatedProof directly on chain without
+        // wrapping in a vec
+        // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1065>
         let blob_bytes = borsh::to_vec(&proof_blob)?.into();
 
         debug!(blob_id, "Dispatching proof blob for publishing");
@@ -691,9 +695,6 @@ where
             .lock()
             .await
             .blob_sender
-            // TODO: Put SerializedAggregatedProof directly on chain without
-            // wrapping in a vec
-            // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1065>
             .publish_proof_blob(blob_bytes, blob_id)
             .await?;
 
