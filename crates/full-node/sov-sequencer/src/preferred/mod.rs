@@ -20,7 +20,7 @@ use serde_with::serde_as;
 use sov_blob_sender::{new_blob_id, BlobInternalId, BlobSender};
 use sov_blob_storage::{PreferredBatchData, PreferredProofData};
 use sov_db::ledger_db::LedgerDb;
-use sov_modules_api::capabilities::BlobSelector;
+use sov_modules_api::capabilities::{BlobSelector, TransactionAuthenticator};
 use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
@@ -40,8 +40,8 @@ use tokio::task::JoinHandle;
 use tracing::{debug, error, trace, Instrument};
 
 use crate::common::{
-    loop_call_update_state, loop_send_tx_notifications, AcceptedTx, Sequencer,
-    TxStatusBlobSenderHooks, WithCachedTxHashes,
+    generic_accept_tx_error, loop_call_update_state, loop_send_tx_notifications, AcceptedTx,
+    Sequencer, TxStatusBlobSenderHooks, WithCachedTxHashes,
 };
 use crate::preferred::block_executor::{RollupBlockExecutor, RollupBlockExecutorError};
 use crate::{
@@ -559,7 +559,10 @@ where
                     batch: in_progress_batch.into(),
                 };
                 let node_root = inner.node_root_hash()?;
-                executor.replay_batch(&batch, &node_root).await?;
+
+                if executor.replay_batch(&batch, &node_root).await? {
+                    inner.db.pop_tx_from_in_progress_batch().await?;
+                }
             }
             _ => trace!("No new transaction or batch state while updating node state"),
         }
@@ -605,18 +608,27 @@ where
             panic!("No batch in progress, and no batch can be started. This is either because of (1) a bug, or (2) misuse of the `POST /sequencer/batches` endpoint. Please use automatic batch production exclusively, and report this bug if necessary. {:?} {:?}", inner.block_executor.state(), inner.latest_info);
         }
 
-        let (receipt, events) = inner
-            .block_executor
-            .apply_tx_to_in_progress_batch(&baked_tx)
-            .await
-            .map_err(RollupBlockExecutorError::into_http_error)?;
-        let tx_hash = receipt.tx_hash;
+        let Inner {
+            block_executor, db, ..
+        } = &mut *inner;
 
-        inner
-            .db
-            .insert_tx(baked_tx.clone(), receipt.tx_hash)
-            .await
-            .map_err(database_error_500)?;
+        let tx_hash = Rt::Auth::compute_tx_hash(&baked_tx).map_err(generic_accept_tx_error)?;
+
+        let apply_tx_fut = block_executor.apply_tx_to_in_progress_batch(&baked_tx);
+        let insert_tx_fut = db.insert_tx(baked_tx.clone(), tx_hash);
+
+        let (apply_tx_res, insert_tx_res) = futures::join!(apply_tx_fut, insert_tx_fut);
+
+        let () = insert_tx_res.map_err(database_error_500)?;
+        let (receipt, events) = match apply_tx_res {
+            Ok(res) => res,
+            Err(err) => {
+                db.pop_tx_from_in_progress_batch()
+                    .await
+                    .map_err(database_error_500)?;
+                return Err(RollupBlockExecutorError::into_http_error(err));
+            }
+        };
 
         tracing::trace!(%tx_hash, ?events, "Transaction was accepted by the sequencer");
 

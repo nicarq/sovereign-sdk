@@ -19,7 +19,7 @@ use sov_state::{Namespace, StateRoot, Storage};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::{broadcast, oneshot};
-use tracing::trace;
+use tracing::{trace, warn};
 
 use super::{
     BackgroundTaskState, InternalState, PreferredBatchToRestore, PreferredSequencerConfig,
@@ -205,12 +205,13 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         Ok(receipt)
     }
 
+    /// Returns true if [`super::db::PreferredSequencerDb::pop_tx`] ought to be called.
     #[tracing::instrument(skip_all, level = "trace")]
     pub async fn replay_batch(
         &mut self,
         batch: &PreferredBatchToRestore,
         node_state_root: &<S::Storage as Storage>::Root,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         assert!(
             matches!(self.state, InternalState::Idle { .. }),
             "Replaying a preferred batch, but the state is invalid and doesn't allow it ({:?}). This is a bug, please report it.",
@@ -242,6 +243,8 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
         trace!("Replaying txs");
 
+        let last_tx_hash = batch.batch.tx_hashes.last();
+
         for (tx, tx_hash) in batch
             .batch
             .inner
@@ -255,6 +258,12 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             );
 
             if let Err(err) = self.apply_tx_to_in_progress_batch(tx).await {
+                if Some(tx_hash) == last_tx_hash && batch.is_in_progress {
+                    warn!(%tx_hash, "The very last transaction failed to be applied, this is likelythe result of a hard node crash. We'll remove it from the database and continue normal operations.");
+
+                    return Ok(true);
+                }
+
                 tracing::error!(
                     "Transaction was soft-confirmed but failed to be re-applied; this is a bug, please report it {:?}",
                     err
@@ -271,7 +280,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             trace!("The batch is still in progress; will keep the background task running");
         }
 
-        Ok(())
+        Ok(false)
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
