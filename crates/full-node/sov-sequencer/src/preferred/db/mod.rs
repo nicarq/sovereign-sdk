@@ -52,6 +52,12 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         hash: TxHash,
     ) -> anyhow::Result<()>;
 
+    async fn pop_tx(
+        &mut self,
+        sequence_number_of_in_progress_batch: SequenceNumber,
+        tx_idx_within_batch: u64,
+    ) -> anyhow::Result<()>;
+
     async fn end_rollup_block(
         &mut self,
         cached: &PreferredSequencerReadBatch,
@@ -182,25 +188,42 @@ where
 
     #[tracing::instrument(skip_all, level = "trace")]
     pub async fn insert_tx(&mut self, tx: FullyBakedTx, hash: TxHash) -> anyhow::Result<()> {
-        let Some(in_progress_batch) = self.in_progress_batch.as_ref() else {
+        let Some(batch) = self.in_progress_batch.as_mut() else {
             panic!("No in-progress batch; this is a bug, please report it");
         };
 
         self.backend
             .add_tx(
-                in_progress_batch.sequence_number,
-                in_progress_batch.txs.len() as u64,
+                batch.sequence_number,
+                batch.txs.len() as u64,
                 tx.clone(),
                 hash,
             )
             .await?;
-        let batch = self
-            .in_progress_batch
-            .as_mut()
-            .expect("No in-progress batch; this is a bug, please report it");
 
         batch.txs.push(tx);
         batch.tx_hashes.push(hash);
+
+        Ok(())
+    }
+
+    pub async fn pop_tx_from_in_progress_batch(&mut self) -> anyhow::Result<()> {
+        let Some(batch) = self.in_progress_batch.as_mut() else {
+            panic!("No in-progress batch; this is a bug, please report it");
+        };
+
+        let tx_idx_within_batch = batch
+            .txs
+            .len()
+            .checked_sub(1)
+            .expect("Popping tx but list of txs is empty. This is a bug, please report it");
+
+        self.backend
+            .pop_tx(batch.sequence_number, tx_idx_within_batch as u64)
+            .await?;
+
+        batch.txs.pop().unwrap();
+        batch.tx_hashes.pop().unwrap();
 
         Ok(())
     }

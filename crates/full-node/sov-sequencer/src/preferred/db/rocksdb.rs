@@ -98,6 +98,21 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
         Ok(())
     }
 
+    async fn pop_tx(
+        &mut self,
+        sequence_number_of_in_progress_batch: SequenceNumber,
+        tx_idx_within_batch: u64,
+    ) -> anyhow::Result<()> {
+        self.db
+            .delete_async::<tables::BatchContents>(&(
+                sequence_number_of_in_progress_batch,
+                tx_idx_within_batch,
+            ))
+            .await?;
+
+        Ok(())
+    }
+
     #[tracing::instrument(skip_all, level = "trace")]
     async fn end_rollup_block(
         &mut self,
