@@ -29,6 +29,7 @@ mod merkle;
 pub mod test_recipient;
 pub mod traits;
 mod types;
+pub mod warp;
 
 pub use merkle::{Event as MerkleTreeEvent, MerkleTreeHook};
 pub use types::{EthAddress, Message, StorageLocation, ValidatorSignature};

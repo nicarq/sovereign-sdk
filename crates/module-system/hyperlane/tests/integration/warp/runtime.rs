@@ -1,0 +1,127 @@
+use std::sync::Arc;
+
+use sov_hyperlane_integration::warp::{
+    Admin, CallMessage as WarpCallMessage, Event as WarpEvent, TokenKind, Warp,
+};
+use sov_hyperlane_integration::{HyperlaneAddress, Ism, Mailbox as RawMailbox, MerkleTreeHook};
+use sov_modules_api::{HexHash, HexString};
+use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
+use sov_test_utils::runtime::TestRunner;
+use sov_test_utils::{generate_runtime, AsUser, TestSpec, TestUser, TransactionTestCase};
+
+pub type Mailbox<S> = RawMailbox<S, Warp<S>>;
+pub type S = TestSpec;
+pub type RT = TestRuntime<S>;
+type WarpRouteId = HexHash;
+
+generate_runtime! {
+    name: TestRuntime,
+    modules: [mailbox: Mailbox<S>, warp: Warp<S>, merkle_tree_hooks: MerkleTreeHook<S>],
+    operating_mode: sov_modules_api::runtime::OperatingMode::Zk,
+    minimal_genesis_config_type: sov_test_utils::runtime::genesis::zk::config::MinimalZkGenesisConfig<S>,
+    runtime_trait_impl_bounds: [S::Address: HyperlaneAddress],
+    kernel_type: sov_test_utils::runtime::BasicKernel<'a, S>,
+    auth_type: sov_modules_api::capabilities::RollupAuthenticator<S, TestRuntime<S>>,
+    auth_call_wrapper: |call| call,
+}
+/// The input for the runtime's authenticator functionality.
+#[derive(std::fmt::Debug, Clone, borsh::BorshDeserialize, borsh::BorshSerialize)]
+pub struct AuthenticatorInput(sov_modules_api::RawTx);
+
+pub const CONFIGURED_DOMAIN: u32 = 1;
+pub const CONFIGURED_REMOTE_ROUTER_ADDRESS: HexHash = HexString([1; 32]);
+
+#[allow(clippy::type_complexity)]
+pub fn setup() -> (TestRunner<TestRuntime<S>, S>, TestUser<S>, TestUser<S>) {
+    let genesis_config = HighLevelZkGenesisConfig::generate_with_additional_accounts(2);
+
+    let admin_account = genesis_config.additional_accounts[0].clone();
+    let extra_account = genesis_config.additional_accounts[1].clone();
+
+    let genesis = GenesisConfig::from_minimal_config(genesis_config.clone().into(), (), (), ());
+
+    (
+        TestRunner::new_with_genesis(genesis.into_genesis_params(), Default::default()),
+        admin_account,
+        extra_account,
+    )
+}
+
+pub fn register_basic_warp_route(
+    runner: &mut TestRunner<RT, S>,
+    user: &TestUser<S>,
+) -> WarpRouteId {
+    register_warp_route_with_ism_and_token_source(runner, user, Ism::AlwaysTrust, TokenKind::Native)
+}
+
+pub fn register_basic_warp_route_and_enroll_router(
+    runner: &mut TestRunner<RT, S>,
+    user: &TestUser<S>,
+) -> WarpRouteId {
+    register_basic_warp_route_and_enroll_router_with_ism(runner, user, Ism::AlwaysTrust)
+}
+
+pub fn enroll_router(
+    runner: &mut TestRunner<RT, S>,
+    user: &TestUser<S>,
+    warp_route_id: WarpRouteId,
+) {
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<RT, Warp<S>>(WarpCallMessage::EnrollRemoteRouter {
+            warp_route: warp_route_id,
+            remote_domain: CONFIGURED_DOMAIN,
+            remote_router_address: CONFIGURED_REMOTE_ROUTER_ADDRESS,
+            metadata: None,
+        }),
+        assert: Box::new(move |result, _| {
+            assert!(
+                result.tx_receipt.is_successful(),
+                "Enrollment transaction should be successful"
+            );
+        }),
+    });
+}
+
+pub fn register_basic_warp_route_and_enroll_router_with_ism(
+    runner: &mut TestRunner<RT, S>,
+    user: &TestUser<S>,
+    ism: Ism,
+) -> WarpRouteId {
+    let warp_route_id =
+        register_warp_route_with_ism_and_token_source(runner, user, ism, TokenKind::Native);
+    enroll_router(runner, user, warp_route_id);
+    warp_route_id
+}
+
+pub fn register_warp_route_with_ism_and_token_source(
+    runner: &mut TestRunner<RT, S>,
+    user: &TestUser<S>,
+    ism: Ism,
+    token_source: TokenKind,
+) -> WarpRouteId {
+    // The borrow checker doesn't know that the closure runs before the end of execute transaction, so it complains about lifetimes
+    // if we don't Arc the warp route id
+    let warp_route_id = Arc::new(std::sync::Mutex::new(HexString([0; 32])));
+    let id_ref = warp_route_id.clone();
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<RT, Warp<S>>(WarpCallMessage::Register {
+            admin: Admin::InsecureOwner(user.address()),
+            token_source,
+            ism,
+        }),
+        assert: Box::new(move |result, _| {
+            assert!(
+                result.tx_receipt.is_successful(),
+                "Recipient was not registered successfully"
+            );
+            for event in result.events {
+                if let TestRuntimeEvent::Warp(WarpEvent::RouteRegistered { route_id, .. }) = event {
+                    *id_ref.lock().unwrap() = route_id;
+                }
+            }
+        }),
+    });
+    let id = *warp_route_id.lock().unwrap();
+    assert!(id != HexString([0; 32]), "Warp route was not registered");
+    id
+}

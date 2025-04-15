@@ -1,0 +1,712 @@
+use std::sync::Arc;
+
+use sov_bank::event::Event as BankEvent;
+use sov_bank::{config_gas_token_id, Amount, Bank, CallMessage as BankCallMessage, TokenId};
+use sov_hyperlane_integration::warp::{
+    Admin, CallMessage as WarpCallMessage, Event as WarpEvent, StoredTokenKind, TokenKind, Warp,
+};
+use sov_hyperlane_integration::{
+    CallMessage, HyperlaneAddress, Ism, Mailbox, Message, MESSAGE_VERSION,
+};
+use sov_modules_api::macros::config_value;
+use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::{HexHash, HexString, Spec, TxEffect};
+use sov_test_utils::runtime::TestRunner;
+use sov_test_utils::{AsUser, TestUser, TransactionTestCase};
+
+use super::runtime::*;
+
+fn do_inbound_transfer_success(
+    runner: &mut TestRunner<RT, S>,
+    admin: &TestUser<S>,
+    from_domain: u32,
+    from_router_address: HexHash,
+    warp_route_id: HexHash,
+    to: HexHash,
+    amount: Amount,
+    token_id: TokenId,
+) {
+    do_inbound_transfer_success_with_scaled_amount(
+        runner,
+        admin,
+        from_domain,
+        from_router_address,
+        warp_route_id,
+        to,
+        amount,
+        encode_amount(amount),
+        token_id,
+    );
+}
+
+fn do_inbound_transfer_success_with_scaled_amount(
+    runner: &mut TestRunner<RT, S>,
+    admin: &TestUser<S>,
+    from_domain: u32,
+    from_router_address: HexHash,
+    warp_route_id: HexHash,
+    to: HexHash,
+    local_amount: Amount,
+    remote_amount: HexHash,
+    token_id: TokenId,
+) {
+    let message_body = {
+        let mut out = Vec::with_capacity(64);
+        out.extend_from_slice(&to.0);
+        out.extend_from_slice(&remote_amount.0);
+        out
+    };
+    let domain: u32 = config_value!("HYPERLANE_BRIDGE_DOMAIN");
+    let message = Message {
+        version: MESSAGE_VERSION,
+        nonce: 0,
+        origin_domain: from_domain,
+        sender: from_router_address, // The sender doesn't matter for this test
+        dest_domain: domain,
+        recipient: warp_route_id,
+        body: message_body.into(),
+    };
+
+    let to_address = <<S as Spec>::Address>::from_sender(to).unwrap();
+    let balance_before = runner.query_state(|state| {
+        let bank = Bank::<S>::default();
+        bank.get_balance_of(&to_address, token_id, state)
+            .unwrap_infallible()
+            .unwrap_or_default()
+    });
+
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Mailbox<S, Warp<S>>>(CallMessage::Process {
+            metadata: HexString(vec![].try_into().unwrap()),
+            message: HexString(message.encode().0.try_into().unwrap()),
+        }),
+        assert: Box::new(move |result, state| {
+            assert!(
+                result.tx_receipt.is_successful(),
+                "Inbound transfer should be successful but failed with: {:?}",
+                result.tx_receipt
+            );
+            assert!(
+                result.events.iter().any(|event| matches!(
+                    event,
+                    TestRuntimeEvent::Warp(WarpEvent::TokenTransferReceived {
+                        route_id,
+                        recipient,
+                        amount,
+                        from_domain,
+                    }) if route_id == &warp_route_id && recipient == &to && amount == &local_amount  && *from_domain == CONFIGURED_DOMAIN
+                )),
+                "Token transferred event should be emitted"
+            );
+
+			let bank = Bank::<S>::default();
+			let balance_after = bank.get_balance_of(&to_address, token_id, state).unwrap_infallible().unwrap_or_default();
+			assert_eq!(
+                balance_before.0 + local_amount.0, balance_after.0,
+				"Balance should update correctly"
+            );
+        }),
+    });
+}
+
+fn do_inbound_transfer_failure(
+    runner: &mut TestRunner<RT, S>,
+    admin: &TestUser<S>,
+    from_domain: u32,
+    from_router_address: HexHash,
+    warp_route_id: HexHash,
+    to: HexHash,
+    amount: Amount,
+
+    expected_error: &'static str,
+) {
+    let message_body = Warp::<S>::pack_transfer_body(to, amount, &StoredTokenKind::Native);
+    let domain: u32 = config_value!("HYPERLANE_BRIDGE_DOMAIN");
+    let message = Message {
+        version: MESSAGE_VERSION,
+        nonce: 0,
+        origin_domain: from_domain,
+        sender: from_router_address, // The sender doesn't matter for this test
+        dest_domain: domain,
+        recipient: warp_route_id,
+        body: message_body.into(),
+    };
+
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Mailbox<S, Warp<S>>>(CallMessage::Process {
+            metadata: HexString(vec![].try_into().unwrap()),
+            message: HexString(message.encode().0.try_into().unwrap()),
+        }),
+        assert: Box::new(move |result, _| match result.tx_receipt {
+            TxEffect::Reverted(reason) => {
+                assert!(
+                    reason.reason.to_string().contains(expected_error),
+                    "Transaction should be reverted with the correct error but reverted with: {}",
+                    reason.reason
+                );
+            }
+            _ => panic!("Transaction should be reverted"),
+        }),
+    });
+}
+
+fn do_outbound_transfer(
+    runner: &mut TestRunner<RT, S>,
+    admin: &TestUser<S>,
+    warp_route_id: HexHash,
+    amount: Amount,
+    remote_amount: HexHash,
+) {
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::TransferRemote { warp_route: warp_route_id, destination_domain: CONFIGURED_DOMAIN, recipient: CONFIGURED_REMOTE_ROUTER_ADDRESS, amount }),
+        assert: Box::new(move |result, _| {
+            assert!(
+                result.tx_receipt.is_successful(),
+                "Outbound transfer should be successful but failed with: {:?}",
+                result.tx_receipt
+            );
+            assert!(
+                result.events.iter().any(|event| matches!(
+                    event,
+                    TestRuntimeEvent::Warp(WarpEvent::TokenTransferredRemote {
+                        route_id,
+                        to_domain,
+                        recipient,
+                        amount,
+                    }) if route_id == &warp_route_id && *to_domain == CONFIGURED_DOMAIN && recipient == &CONFIGURED_REMOTE_ROUTER_ADDRESS && amount == &remote_amount
+                )),
+                "Token transferred event should be emitted"
+            );
+        }),
+    });
+}
+
+fn do_outbound_transfer_failure(
+    runner: &mut TestRunner<RT, S>,
+    admin: &TestUser<S>,
+    warp_route_id: HexHash,
+    amount: Amount,
+    expected_error: &'static str,
+) {
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::TransferRemote {
+            warp_route: warp_route_id,
+            destination_domain: CONFIGURED_DOMAIN,
+            recipient: CONFIGURED_REMOTE_ROUTER_ADDRESS,
+            amount,
+        }),
+        assert: Box::new(move |result, _| match result.tx_receipt {
+            TxEffect::Reverted(reason) => {
+                assert!(
+                    reason.reason.to_string().contains(expected_error),
+                    "Transaction should be reverted with the correct error but reverted with: {}",
+                    reason.reason
+                );
+            }
+            _ => panic!("Transaction should be reverted"),
+        }),
+    });
+}
+
+#[test]
+fn test_transfer_roundtrip() {
+    let (mut runner, admin, other) = setup();
+
+    let warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
+
+    do_outbound_transfer(
+        &mut runner,
+        &admin,
+        warp_route_id,
+        Amount(100),
+        encode_amount(Amount(100)),
+    );
+    do_inbound_transfer_success(
+        &mut runner,
+        &admin,
+        1,
+        HexString([1; 32]),
+        warp_route_id,
+        other.address().to_sender(),
+        Amount(100),
+        config_gas_token_id(),
+    );
+}
+
+#[test]
+fn test_transfer_inbound_fails_various_edge_cases() {
+    let (mut runner, admin, other) = setup();
+
+    let warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
+
+    do_outbound_transfer(
+        &mut runner,
+        &admin,
+        warp_route_id,
+        Amount(100),
+        encode_amount(Amount(100)),
+    );
+    do_inbound_transfer_failure(
+        &mut runner,
+        &admin,
+        2, // Origin domain is not enrolled
+        CONFIGURED_REMOTE_ROUTER_ADDRESS,
+        warp_route_id,
+        other.address().to_sender(),
+        Amount(100),
+        "origin 2 not found",
+    );
+    do_inbound_transfer_failure(
+        &mut runner,
+        &admin,
+        CONFIGURED_DOMAIN,
+        HexString([0; 32]), // Remote router is the wrong address
+        warp_route_id,
+        other.address().to_sender(),
+        Amount(100),
+        "Enrolled router does not match sender",
+    );
+    do_inbound_transfer_failure(
+        &mut runner,
+        &admin,
+        CONFIGURED_DOMAIN,
+        CONFIGURED_REMOTE_ROUTER_ADDRESS,
+        HexString([0; 32]), // Warp route id is wrong
+        other.address().to_sender(),
+        Amount(100),
+        "not found",
+    );
+    do_inbound_transfer_failure(
+        &mut runner,
+        &admin,
+        CONFIGURED_DOMAIN,
+        CONFIGURED_REMOTE_ROUTER_ADDRESS,
+        warp_route_id,
+        other.address().to_sender(),
+        Amount(101), // Amount is more than the amount of locked tokens
+        "Failed to transfer token",
+    );
+
+    // Check that the correct transfer still succeeds after all of these failures
+    do_inbound_transfer_success(
+        &mut runner,
+        &admin,
+        CONFIGURED_DOMAIN,
+        CONFIGURED_REMOTE_ROUTER_ADDRESS,
+        warp_route_id,
+        other.address().to_sender(),
+        Amount(100),
+        config_gas_token_id(),
+    );
+}
+
+#[test]
+fn test_transfer_remote_fails_if_not_enough_balance() {
+    let (mut runner, admin, _) = setup();
+    let full_balance = admin.available_gas_balance;
+
+    let warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::TransferRemote {
+            warp_route: warp_route_id,
+            destination_domain: CONFIGURED_DOMAIN,
+            recipient: CONFIGURED_REMOTE_ROUTER_ADDRESS,
+            amount: full_balance,
+        }),
+        assert: Box::new(move |result, _| {
+            match result.tx_receipt {
+                TxEffect::Reverted(reason) => {
+                    assert!(
+                    reason.reason.to_string().contains("Failed to transfer"),
+                    "Transaction should be reverted with the correct error but reverted with: {}",
+                    reason.reason
+                );
+                }
+                _ => panic!("Transaction should be reverted"),
+            };
+        }),
+    });
+}
+
+#[test]
+fn test_transfer_remote_fails_if_domain_not_enrolled() {
+    let (mut runner, admin, _) = setup();
+
+    let warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::TransferRemote {
+            warp_route: warp_route_id,
+            destination_domain: 2,
+            recipient: CONFIGURED_REMOTE_ROUTER_ADDRESS,
+            amount: Amount(100),
+        }),
+        assert: Box::new(move |result, _| {
+            match result.tx_receipt {
+                TxEffect::Reverted(reason) => {
+                    assert!(
+                    reason.reason.to_string().contains("does not have remote router for domain 2"),
+                    "Transaction should be reverted with the correct error but reverted with: {}",
+                    reason.reason
+                );
+                }
+                _ => panic!("Transaction should be reverted"),
+            };
+        }),
+    });
+}
+
+#[test]
+fn test_transfer_remote_fails_if_route_does_not_exist() {
+    let (mut runner, admin, _) = setup();
+
+    let _warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::TransferRemote {
+            warp_route: HexString([0; 32]),
+            destination_domain: 2,
+            recipient: CONFIGURED_REMOTE_ROUTER_ADDRESS,
+            amount: Amount(100),
+        }),
+        assert: Box::new(move |result, _| {
+            match result.tx_receipt {
+                TxEffect::Reverted(reason) => assert!(
+                    reason.reason.to_string().contains("not found"),
+                    "Transaction should be reverted with the correct error but reverted with: {}",
+                    reason.reason
+                ),
+                _ => panic!("Transaction should be reverted"),
+            };
+        }),
+    });
+}
+
+fn encode_amount(amount: Amount) -> HexHash {
+    let mut encoded = [0u8; 32];
+    encoded[16..].copy_from_slice(&amount.0.to_be_bytes());
+    HexString(encoded)
+}
+
+#[test]
+fn test_inbound_transfer_fails_if_ism_rejects() {
+    let (mut runner, admin, other) = setup();
+
+    let warp_route_id = register_basic_warp_route_and_enroll_router_with_ism(
+        &mut runner,
+        &admin,
+        Ism::TrustedRelayer {
+            relayer: admin.address().to_sender(),
+        },
+    );
+    // Do an outbound transfer to ensure we have enough balance
+    do_outbound_transfer(
+        &mut runner,
+        &admin,
+        warp_route_id,
+        Amount(100),
+        encode_amount(Amount(100)),
+    );
+    // Try the outbound tranfser without using the trusted relayer
+    do_inbound_transfer_failure(
+        &mut runner,
+        &other, // wrong relayer
+        CONFIGURED_DOMAIN,
+        CONFIGURED_REMOTE_ROUTER_ADDRESS,
+        warp_route_id,
+        other.address().to_sender(),
+        Amount(100),
+        "is trusted to relay messages for this ISM",
+    );
+
+    // Try the outbound tranfser using the correct relayer and ensure it succeeds
+    do_inbound_transfer_success(
+        &mut runner,
+        &admin,
+        CONFIGURED_DOMAIN,
+        CONFIGURED_REMOTE_ROUTER_ADDRESS,
+        warp_route_id,
+        other.address().to_sender(),
+        Amount(100),
+        config_gas_token_id(),
+    );
+}
+
+#[test]
+fn test_collateral_route() {
+    let (mut runner, admin, other) = setup();
+
+    let new_token_id = Arc::new(std::sync::Mutex::new(None));
+    let token_id_ref = new_token_id.clone();
+    runner.execute_transaction(TransactionTestCase {
+        input: other.create_plain_message::<RT, Bank<S>>(BankCallMessage::CreateToken {
+            token_name: "test".to_string().try_into().unwrap(),
+            token_decimals: None,
+            initial_balance: Amount(1000),
+            mint_to_address: other.address(),
+            admins: vec![other.address()].try_into().unwrap(),
+            supply_cap: None,
+        }),
+        assert: Box::new(move |result, _| {
+            assert!(
+                result.tx_receipt.is_successful(),
+                "Token should be created successfully"
+            );
+            let token_id = result.events.iter().find_map(|event| {
+                if let TestRuntimeEvent::Bank(BankEvent::TokenCreated { coins, .. }) = event {
+                    Some(coins.token_id)
+                } else {
+                    None
+                }
+            });
+            *token_id_ref.lock().unwrap() = token_id;
+        }),
+    });
+
+    let token_id = new_token_id.lock().unwrap().unwrap();
+    let warp_route_id = register_warp_route_with_ism_and_token_source(
+        &mut runner,
+        &admin,
+        Ism::AlwaysTrust,
+        TokenKind::Collateral { token: token_id },
+    );
+    enroll_router(&mut runner, &admin, warp_route_id);
+    // Outbond transfer from the admin should fail because of insufficient balance
+    do_outbound_transfer_failure(
+        &mut runner,
+        &admin,
+        warp_route_id,
+        Amount(100),
+        "Failed to transfer token",
+    );
+    // Inbound transfer should fail because the warp module has no tokens
+    do_inbound_transfer_failure(
+        &mut runner,
+        &other,
+        CONFIGURED_DOMAIN,
+        CONFIGURED_REMOTE_ROUTER_ADDRESS,
+        warp_route_id,
+        other.address().to_sender(),
+        Amount(100),
+        "Failed to transfer token",
+    );
+    // Outbound transfer from the other user should succeed, since we minted the token to him
+    do_outbound_transfer(
+        &mut runner,
+        &other,
+        warp_route_id,
+        Amount(100),
+        encode_amount(Amount(100)),
+    );
+    // Inbound transfer should succeed now
+    do_inbound_transfer_success(
+        &mut runner,
+        &other,
+        CONFIGURED_DOMAIN,
+        CONFIGURED_REMOTE_ROUTER_ADDRESS,
+        warp_route_id,
+        other.address().to_sender(),
+        Amount(100),
+        token_id,
+    );
+}
+
+fn register_synthetic_route(
+    runner: &mut TestRunner<RT, S>,
+    admin: &TestUser<S>,
+    token_source: TokenKind,
+    ism: Ism,
+) -> (HexHash, TokenId) {
+    // The borrow checker doesn't know that the closure runs before the end of execute transaction, so it complains about lifetimes
+    // if we don't Arc the warp route id
+    let warp_route_id = Arc::new(std::sync::Mutex::new(HexString([0; 32])));
+    let warp_route_id_ref = warp_route_id.clone();
+    let local_token_id = Arc::new(std::sync::Mutex::new(None));
+    let local_token_id_ref = local_token_id.clone();
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::Register {
+            admin: Admin::InsecureOwner(admin.address()),
+            token_source,
+            ism,
+        }),
+        assert: Box::new(move |result, _| {
+            assert!(
+                result.tx_receipt.is_successful(),
+                "Recipient was not registered successfully"
+            );
+            for event in result.events {
+                if let TestRuntimeEvent::Warp(WarpEvent::RouteRegistered {
+                    route_id,
+                    token_source,
+                    ..
+                }) = event
+                {
+                    *warp_route_id_ref.lock().unwrap() = route_id;
+                    let StoredTokenKind::Synthetic { local_token_id, .. } = token_source else {
+                        panic!("Token source should be synthetic");
+                    };
+                    *local_token_id_ref.lock().unwrap() = Some(local_token_id);
+                }
+            }
+        }),
+    });
+    let local_token_id = local_token_id.lock().unwrap().unwrap();
+    let route_id = *warp_route_id.lock().unwrap();
+    assert!(
+        route_id != HexString([0; 32]),
+        "Warp route was not registered"
+    );
+    (route_id, local_token_id)
+}
+
+#[test]
+fn test_synthetic_route() {
+    const REMOTE_TOKEN_ID: HexHash = HexString([255; 32]);
+    let (mut runner, admin, other) = setup();
+
+    let (warp_route_id, synthetic_token_id) = register_synthetic_route(
+        &mut runner,
+        &admin,
+        TokenKind::Synthetic {
+            remote_token_id: REMOTE_TOKEN_ID,
+            synthetic_decimals: Some(16),
+            synthetic_scale: Some(Amount(100)),
+        },
+        Ism::AlwaysTrust,
+    );
+    enroll_router(&mut runner, &admin, warp_route_id);
+    // Outbond transfer from the admin should fail because of insufficient balance
+    do_outbound_transfer_failure(
+        &mut runner,
+        &admin,
+        warp_route_id,
+        Amount(100),
+        "supply=0 is less than burn amount=100",
+    );
+    // Inbound transfer should succeed
+    do_inbound_transfer_success_with_scaled_amount(
+        &mut runner,
+        &other,
+        CONFIGURED_DOMAIN,
+        CONFIGURED_REMOTE_ROUTER_ADDRESS,
+        warp_route_id,
+        other.address().to_sender(),
+        Amount(100),
+        encode_amount(Amount(10001)), // Send an extra token to ensure we round down correctly
+        synthetic_token_id,
+    );
+
+    // Outbond transfer from the admin should fail because of insufficient balance
+    do_outbound_transfer_failure(
+        &mut runner,
+        &admin,
+        warp_route_id,
+        Amount(1), // Amount is more than the amount of locked tokens
+        "Insufficient balance",
+    );
+
+    // Outbond transfer from the other user should fail because of insufficient balance
+    do_outbound_transfer_failure(
+        &mut runner,
+        &other,
+        warp_route_id,
+        Amount(101), // Amount is more than the amount of locked tokens
+        "supply=100 is less than burn amount=101",
+    );
+    // Outbound transfer should succeed
+    do_outbound_transfer(
+        &mut runner,
+        &other,
+        warp_route_id,
+        Amount(100),
+        encode_amount(Amount(10000)),
+    );
+}
+
+#[test]
+fn test_synthetic_route_with_standard_amount() {
+    const REMOTE_TOKEN_ID: HexHash = HexString([255; 32]);
+    let (mut runner, admin, other) = setup();
+
+    let (warp_route_id, synthetic_token_id) = register_synthetic_route(
+        &mut runner,
+        &admin,
+        TokenKind::Synthetic {
+            remote_token_id: REMOTE_TOKEN_ID,
+            synthetic_decimals: None,
+            synthetic_scale: None,
+        },
+        Ism::AlwaysTrust,
+    );
+    enroll_router(&mut runner, &admin, warp_route_id);
+    // Outbond transfer from the admin should fail because of insufficient balance
+    do_outbound_transfer_failure(
+        &mut runner,
+        &admin,
+        warp_route_id,
+        Amount(100),
+        "supply=0 is less than burn amount=100",
+    );
+    // Inbound transfer should succeed
+    do_inbound_transfer_success_with_scaled_amount(
+        &mut runner,
+        &other,
+        CONFIGURED_DOMAIN,
+        CONFIGURED_REMOTE_ROUTER_ADDRESS,
+        warp_route_id,
+        other.address().to_sender(),
+        Amount(100),
+        encode_amount(Amount(100)),
+        synthetic_token_id,
+    );
+
+    // Outbond transfer from the admin should fail because of insufficient balance
+    do_outbound_transfer_failure(
+        &mut runner,
+        &admin,
+        warp_route_id,
+        Amount(1), // Amount is more than the amount of locked tokens
+        "Insufficient balance",
+    );
+
+    // Outbond transfer from the other user should fail because of insufficient balance
+    do_outbound_transfer_failure(
+        &mut runner,
+        &other,
+        warp_route_id,
+        Amount(101), // Amount is more than the amount of locked tokens
+        "supply=100 is less than burn amount=101",
+    );
+    // Outbound transfer should succeed
+    do_outbound_transfer(
+        &mut runner,
+        &other,
+        warp_route_id,
+        Amount(100),
+        encode_amount(Amount(100)),
+    );
+}
+
+#[test]
+fn test_synthetic_route_with_zero_scale_should_reject() {
+    const REMOTE_TOKEN_ID: HexHash = HexString([255; 32]);
+    let (mut runner, admin, _) = setup();
+
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::Register {
+            admin: Admin::InsecureOwner(admin.address()),
+            token_source: TokenKind::Synthetic {
+                remote_token_id: REMOTE_TOKEN_ID,
+                synthetic_decimals: None,
+                synthetic_scale: Some(Amount(0)),
+            },
+            ism: Ism::AlwaysTrust,
+        }),
+        assert: Box::new(move |result, _| {
+            match result.tx_receipt {
+                TxEffect::Reverted(reason) => {
+                    assert!(reason.reason.to_string().contains("Synthetic scale must be non zero"), "Transaction should be reverted with the correct error but reverted with: {}", reason.reason);
+                }
+                _ => panic!("Transaction should be reverted"),
+            };
+        }),
+    });
+}
