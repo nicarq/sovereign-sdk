@@ -72,5 +72,5 @@ pub struct SequencerEvent<Rt: RuntimeEventProcessor> {
 #[async_trait]
 pub trait ProofBlobSender: Send + Sync + 'static {
     /// Publishes a proof blob to DA.
-    async fn publish_proof_blob(&self, proof_blob: Arc<[u8]>) -> anyhow::Result<()>;
+    async fn produce_and_publish_proof_blob(&self, proof_blob: Arc<[u8]>) -> anyhow::Result<()>;
 }

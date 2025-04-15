@@ -14,7 +14,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use db::postgres::PostgresBackend;
 use db::rocksdb::RocksDbBackend;
-use db::{PreferredSequencerDb, PreferredSequencerDbBackend, PreferredSequencerReadBlob};
+use db::{
+    PreferredSequencerDb, PreferredSequencerDbBackend, PreferredSequencerReadBatch,
+    PreferredSequencerReadBlob,
+};
 use schemars::JsonSchema;
 use serde_with::serde_as;
 use sov_blob_sender::{new_blob_id, BlobInternalId, BlobSender};
@@ -159,6 +162,42 @@ where
 
         self.update_api_state().await;
 
+        let tx_hashes: Arc<[TxHash]> = batch.tx_hashes.clone().into();
+
+        self.blob_sender
+            .hooks()
+            .add_txs(batch.blob_id, tx_hashes.clone())
+            .await;
+        self.publish_batch(batch).await?;
+
+        Ok(Some(SubmitBatchReceipt { tx_hashes }))
+    }
+
+    async fn publish_proof(
+        &mut self,
+        proof_data: Arc<[u8]>,
+        sequence_number: u64,
+        blob_id: BlobInternalId,
+    ) -> anyhow::Result<()> {
+        let blob = PreferredProofData {
+            sequence_number,
+            data: proof_data.to_vec(),
+        };
+        let blob_bytes = Arc::from(borsh::to_vec(&blob)?);
+
+        debug!(
+            sequence_number,
+            blob_id, "Dispatching proof blob for publishing"
+        );
+
+        self.blob_sender
+            .publish_proof_blob(blob_bytes, blob_id)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn publish_batch(&mut self, batch: PreferredSequencerReadBatch) -> anyhow::Result<()> {
         let serialized_batch = borsh::to_vec::<PreferredBatchData>(&PreferredBatchData {
             sequence_number: batch.sequence_number,
             visible_slots_to_advance: batch.visible_slots_to_advance,
@@ -166,17 +205,33 @@ where
         })?
         .into();
 
-        let tx_hashes: Arc<[TxHash]> = batch.tx_hashes.into();
-
-        self.blob_sender
-            .hooks()
-            .add_txs(batch.blob_id, tx_hashes.clone())
-            .await;
         self.blob_sender
             .publish_batch_blob(serialized_batch, batch.blob_id)
             .await?;
 
-        Ok(Some(SubmitBatchReceipt { tx_hashes }))
+        Ok(())
+    }
+
+    async fn publish_blobs(
+        &mut self,
+        completed_blobs: Vec<PreferredSequencerReadBlob>,
+    ) -> anyhow::Result<()> {
+        for blob in completed_blobs {
+            match blob {
+                PreferredSequencerReadBlob::Batch(batch) => {
+                    self.publish_batch(batch).await?;
+                }
+                PreferredSequencerReadBlob::Proof {
+                    data,
+                    sequence_number,
+                    blob_id,
+                } => {
+                    self.publish_proof(data, sequence_number, blob_id).await?;
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -357,6 +412,7 @@ where
             } else {
                 Box::new(RocksDbBackend::new(storage_path).await?)
             };
+        let completed_blobs = db_backend.read_completed_blobs().await?;
 
         let (blob_sender, blob_sender_handle) = BlobSender::new(
             da,
@@ -369,7 +425,7 @@ where
         .await?;
         handles.push(blob_sender_handle);
 
-        let inner = Inner {
+        let mut inner = Inner {
             db: PreferredSequencerDb::<S, Rt>::new(db_backend).await?,
             latest_info: latest_state_update.clone(),
             checkpoint_sender,
@@ -384,6 +440,14 @@ where
             ),
             blob_sender,
         };
+
+        // It's possible that sov-blob-sender's DB might miss some blob data at
+        // node startup due to:
+        //  1. Disk failure (the sequencer can use Postgres so it's durable).
+        //  2. DB corruption.
+        //  3. Node crash at an inconvenient time.
+        // Let's restore all missing blob data to make sure they land on the DA.
+        inner.publish_blobs(completed_blobs).await?;
 
         let seq = Arc::new(PreferredSequencer {
             inner: inner.into(),
@@ -704,7 +768,7 @@ where
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
-    async fn publish_proof_blob(&self, proof_data: Arc<[u8]>) -> anyhow::Result<()> {
+    async fn produce_and_publish_proof_blob(&self, proof_data: Arc<[u8]>) -> anyhow::Result<()> {
         let blob_id = new_blob_id();
         let mut inner = self.inner.lock().await;
 
@@ -713,20 +777,8 @@ where
             .insert_proof_blob(blob_id, proof_data.clone())
             .await?;
 
-        let blob = PreferredProofData {
-            sequence_number,
-            data: proof_data.to_vec(),
-        };
-        let blob_bytes = Arc::from(borsh::to_vec(&blob)?);
-
-        debug!(
-            sequence_number,
-            blob_id, "Dispatching proof blob for publishing"
-        );
-
         inner
-            .blob_sender
-            .publish_proof_blob(blob_bytes, blob_id)
+            .publish_proof(proof_data, sequence_number, blob_id)
             .await?;
 
         Ok(())

@@ -3,8 +3,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use axum::async_trait;
-use futures::stream::BoxStream;
-use futures::StreamExt;
 use rockbound::{gen_rocksdb_options, SchemaBatch};
 use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
@@ -23,9 +21,7 @@ pub struct RocksDbBackend {
 #[async_trait]
 impl PreferredSequencerDbBackend for RocksDbBackend {
     #[tracing::instrument(skip_all, level = "trace")]
-    async fn read_completed_blobs(
-        &self,
-    ) -> anyhow::Result<BoxStream<anyhow::Result<PreferredSequencerReadBlob>>> {
+    async fn read_completed_blobs(&self) -> anyhow::Result<Vec<PreferredSequencerReadBlob>> {
         let mut blobs = vec![];
 
         // Iteration might be slow, but getters are only called during
@@ -38,7 +34,7 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
             blobs.push(self.read_blob(sequence_number, stored_blob).await?);
         }
 
-        Ok(futures::stream::iter(blobs).map(Ok).boxed())
+        Ok(blobs)
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
