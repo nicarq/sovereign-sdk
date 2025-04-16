@@ -29,9 +29,34 @@ paths:
         '404':
           # Referring type from `runtime-base.yaml`
           $ref: '#/components/responses/StateNotFound'
+  /recipient-ism/{hyperlane-address}/validators_and_threshold:
+    get:
+      summary: Fetch the multisig configuration of MessageIdMultisig ISM
+      operationId: "hyperlane_mailbox_recipient_ism_validators_and_threshold"
+      tags: [Mailbox]
+      parameters:
+        - name: hyperlane-address
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/HyperlaneAddress'
+      responses:
+        '200':
+          $ref: '#/components/responses/ValidatorsAndThresholdResponse'
+        # Referring types from `runtime-base.yaml`
+        '400':
+          $ref: '#/components/responses/BadRequestResponse'
+        '404':
+          $ref: '#/components/responses/StateNotFound'
 
 components:
   schemas:
+    EthAddress:
+      type: string
+      title: Ethereum address
+      pattern: "^0x[a-fA-F0-9]{40}$"
+      description: Ethereum address
+      example: "0xb7401b5f6d8976fae23aeb2342aedac24843ead3"
     HyperlaneAddress:
       type: string
       title: Hyperlane address
@@ -43,6 +68,17 @@ components:
       minimum: 0
       maximum: 7
       description: Type of the ISM in use
+    ValidatorsAndThreshold:
+      type: object
+      properties:
+        validators:
+          type: array
+          description: Addresses of trusted validators
+          items:
+            $ref: "#/components/schemas/EthAddress"
+        threshold:
+          type: integer
+          description: Multisig threshold
   responses:
     NonceResponse:
       description: Nonce
@@ -56,3 +92,9 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/IsmKind'
+    ValidatorsAndThresholdResponse:
+      description: Validators and threshold configuration of MessageIdMultisig(5) ISM
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidatorsAndThreshold'

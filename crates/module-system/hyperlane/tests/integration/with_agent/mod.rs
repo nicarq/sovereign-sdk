@@ -21,7 +21,7 @@ async fn test_validator_announces_itself() {
     let mut hyperlane = Hyperlane::new().await;
     let setup = generate_setup();
     let relayer = setup.relayer.clone();
-    let validator = setup.validator.clone();
+    let validator = setup.validators[0].clone();
     let rollup = setup_rollup(dir.path().to_path_buf(), setup).await;
 
     hyperlane
@@ -135,6 +135,88 @@ async fn test_relayer_basic_dispatch_process() {
             assert_eq!(
                 test_recipient_event.value["MessageReceivedGeneric"]["body"],
                 format!("0x{}", hex::encode("Hello there"))
+            );
+
+            rollup.shutdown().await.unwrap();
+            return;
+        }
+    }
+
+    rollup.shutdown().await.unwrap();
+    hyperlane.print_stdout().await;
+    panic!("Mailbox/Process event not found");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_multisig_ism() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut hyperlane = Hyperlane::new().await;
+    let setup = generate_setup();
+    let relayer = setup.relayer.clone();
+    let prover = setup.prover.clone();
+    let prover_addr = prover.user_info.address();
+    let validators = setup.validators.clone();
+    let rollup = setup_rollup(dir.path().to_path_buf(), setup).await;
+
+    hyperlane
+        .start(&relayer.private_key, rollup.http_addr.port())
+        .await;
+
+    // start only first two validators, more isn't needed due to threshold
+    for validator in &validators[..2] {
+        hyperlane.start_validator(&validator.private_key).await;
+    }
+
+    // wait for first finalized block
+    let mut slot_subscription = rollup.api_client.subscribe_slots().await.unwrap();
+    for _ in 0..DEFAULT_FINALIZATION_BLOCKS {
+        slot_subscription.next().await.unwrap().unwrap();
+    }
+
+    // register prover as a recipient with first 3 validators addresses for multisig
+    let val_addresses: Vec<_> = ANVIL_ACCOUNTS[1..4]
+        .iter()
+        .map(|(addr, _)| addr.parse().unwrap())
+        .collect();
+    let register_call = TestRuntimeCall::TestRecipient(test_recipient::CallMessage::Register {
+        address: prover_addr.to_sender(),
+        ism: Ism::MessageIdMultisig {
+            validators: val_addresses.try_into().unwrap(),
+            threshold: 2,
+        },
+    });
+    let register_tx = encode_call(prover.user_info.private_key(), 0, &register_call);
+    submit_tx(&rollup.api_client, register_tx).await;
+
+    // dispatch message to prover
+    let dispatch_tx = tx_send_message(
+        relayer.private_key(),
+        prover_addr.to_sender(),
+        b"Hello there",
+        1,
+    );
+    submit_tx(&rollup.api_client, dispatch_tx).await;
+
+    // look for `process` event
+    // we use much bigger number of slots there to avoid flakiness
+    // because we start 2 additional validator processes while rollup
+    // is already producing slots, so transactions end up in later slots
+    for slot in 0..DEFAULT_FINALIZATION_BLOCKS * 15 {
+        slot_subscription.next().await.unwrap().unwrap();
+        let events = rollup
+            .api_client
+            .get_slot_filtered_events(&IntOrHash::Integer(slot as u64), None)
+            .await
+            .unwrap();
+
+        if let Some(process_event) = events.data.iter().find(|ev| ev.key == "Mailbox/Process") {
+            assert_eq!(
+                process_event.value["process"]["recipient_address"],
+                prover_addr.to_sender().to_string(),
+            );
+            assert_eq!(
+                process_event.value["process"]["sender_address"],
+                relayer.address().to_sender().to_string(),
             );
 
             rollup.shutdown().await.unwrap();
