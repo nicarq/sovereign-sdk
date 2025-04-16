@@ -1,11 +1,12 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::io::Write;
+use std::fs::File;
+use std::io::{self, BufWriter, Write};
 
 use tokio::task_local;
 
+use crate::influxdb::safe_telegraf_string;
 use crate::influxdb::tracker::{serialize_metadata, SovRollupMetric};
-use crate::influxdb::{safe_telegraf_string, Metric};
 use crate::{timestamp, MetricsTracker};
 
 task_local! {
@@ -79,8 +80,22 @@ impl MetricsTracker {
     }
 }
 
-impl Metric for GasConstantMetric {
-    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+impl GasConstantMetric {
+    pub(crate) fn write_to_csv(&self, writer: &mut BufWriter<File>) -> io::Result<()> {
+        let meta = &self.metadata;
+        let maybe_pre_state_root = meta.iter().find(|(k, _)| k == "pre_state_root");
+        if let Some(pre_state_root) = maybe_pre_state_root {
+            let row = format!(
+                "{},{},{},{}\n",
+                self.name, self.constant, self.num_invocations, pre_state_root.1
+            );
+            writer.write_all(row.as_bytes())?;
+            writer.flush()?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         // We are adding the metadata as measurmement tags in the influxdb line protocol.
         let parsed_metadata = if !self.metadata.is_empty() {
             format!(

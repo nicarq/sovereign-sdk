@@ -303,7 +303,7 @@ pub struct UserSpaceSlotProcessingMetrics {
     pub gas_used: Vec<u64>,
 }
 
-impl Metric for RunnerDaMetrics {
+impl RunnerDaMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
@@ -317,7 +317,7 @@ impl Metric for RunnerDaMetrics {
     }
 }
 
-impl Metric for RunnerCountMetrics {
+impl RunnerCountMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
@@ -334,7 +334,7 @@ impl Metric for RunnerCountMetrics {
     }
 }
 
-impl Metric for RunnerTimeMetrics {
+impl RunnerTimeMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
@@ -351,7 +351,7 @@ impl Metric for RunnerTimeMetrics {
     }
 }
 
-impl Metric for TransactionProcessingMetrics {
+impl TransactionProcessingMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
@@ -377,7 +377,7 @@ impl Metric for TransactionProcessingMetrics {
     }
 }
 
-impl Metric for SlotProcessingMetrics {
+impl SlotProcessingMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
@@ -403,7 +403,7 @@ impl Metric for SlotProcessingMetrics {
     }
 }
 
-impl Metric for UserSpaceSlotProcessingMetrics {
+impl UserSpaceSlotProcessingMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
@@ -449,7 +449,7 @@ pub struct BatchMetrics {
     pub ignored_transactions_count: usize,
 }
 
-impl Metric for BatchMetrics {
+impl BatchMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
@@ -480,7 +480,7 @@ pub struct HttpMetrics {
     pub handler_processing_time: std::time::Duration,
 }
 
-impl Metric for HttpMetrics {
+impl HttpMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
@@ -513,7 +513,26 @@ pub struct ZkVmExecutionChunk {
     pub memory_used: u64,
 }
 
-impl Metric for ZkVmExecutionChunk {
+impl ZkVmExecutionChunk {
+    #[cfg(feature = "gas-constant-estimation")]
+    fn write_to_csv(&self, writer: &mut std::io::BufWriter<std::fs::File>) -> std::io::Result<()> {
+        let meta = &self.metadata;
+        let maybe_pre_state_root = meta.iter().find(|(k, _)| k == "pre_state_root");
+        if let Some(pre_state_root) = maybe_pre_state_root {
+            let row = format!(
+                "{},{},{},{},{}\n",
+                self.name,
+                self.cycles_count,
+                self.memory_used,
+                self.free_heap_bytes,
+                pre_state_root.1
+            );
+            writer.write_all(row.as_bytes())?;
+            writer.flush()?;
+        }
+        Ok(())
+    }
+
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         // We are adding the metadata as measurmement tags in the influxdb line protocol.
         let metadata = if !self.metadata.is_empty() {
@@ -560,7 +579,7 @@ pub struct ZkProvingTime {
     pub zk_circuit: ZkCircuit,
 }
 
-impl Metric for ZkProvingTime {
+impl ZkProvingTime {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
@@ -667,6 +686,15 @@ impl Metric for SovRollupMetric {
         write!(buffer, " {timestamp}")
         // TODO BenchRunner: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2738
         //writeln!(buffer, " {timestamp}")
+    }
+
+    #[cfg(feature = "gas-constant-estimation")]
+    fn write_to_csv(&self, writers: &mut super::csv_helper::CsvWriteres) -> std::io::Result<()> {
+        match self {
+            SovRollupMetric::GasConstantUsage(_, m) => m.write_to_csv(&mut writers.constatn_writer),
+            SovRollupMetric::ZkVm(_, m) => m.write_to_csv(&mut writers.zk_vm_writer),
+            _ => Ok(()),
+        }
     }
 }
 
