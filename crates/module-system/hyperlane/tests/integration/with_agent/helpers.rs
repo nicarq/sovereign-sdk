@@ -1,5 +1,6 @@
 use std::env;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use serde_json::json;
 use sov_mock_da::BlockProducingConfig;
@@ -16,6 +17,7 @@ use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, GenericImage, ImageExt};
 use tokio::io::AsyncBufReadExt;
 use tokio::net::{TcpListener, TcpStream};
+use tokio::time::timeout;
 
 use super::preferred_sequencer_runtime::{GenesisConfig, TestRuntime};
 
@@ -79,16 +81,19 @@ pub const ANVIL_ACCOUNTS: &[(&str, &str)] = &[
 pub struct Setup {
     pub sequencer: TestSequencer<TestSpec>,
     pub relayer: TestUser<TestSpec>,
-    pub validator: TestUser<TestSpec>,
+    pub validators: Vec<TestUser<TestSpec>>,
     pub prover: TestProver<TestSpec>,
     pub genesis_config: GenesisConfig<TestSpec>,
 }
 
 pub fn generate_setup() -> Setup {
-    let genesis_config = HighLevelZkGenesisConfig::generate_with_additional_accounts(2);
+    let genesis_config =
+        HighLevelZkGenesisConfig::generate_with_additional_accounts(ANVIL_ACCOUNTS.len());
 
     let relayer = genesis_config.additional_accounts[0].clone();
-    let validator = genesis_config.additional_accounts[1].clone();
+    let validators = (1..ANVIL_ACCOUNTS.len())
+        .map(|n| genesis_config.additional_accounts[n].clone())
+        .collect();
     let sequencer = genesis_config.initial_sequencer.clone();
     let prover = genesis_config.initial_prover.clone();
 
@@ -97,7 +102,7 @@ pub fn generate_setup() -> Setup {
     Setup {
         sequencer,
         relayer,
-        validator,
+        validators,
         prover,
         genesis_config,
     }
@@ -278,7 +283,7 @@ impl Hyperlane {
             "--metrics-port",
             metrics_port.to_string().as_str(),
         ])
-        .with_cmd_ready_condition(CmdWaitFor::message_on_stdout("starting server on 0.0.0.0"));
+        .with_cmd_ready_condition(CmdWaitFor::message_on_stdout("Agent validator starting up"));
 
         let exec_result = container
             .exec(cmd)
@@ -298,13 +303,20 @@ impl Hyperlane {
             println!("{line}");
         }
 
+        // we don't have an option for no-follow stdout access
+        // on `ExecResult`s, so this would hang infinitly waiting
+        // for `exec`s to exit. Instead we give them at most 1s of
+        // printing time each.
         for (n, val) in self.validators.iter_mut().enumerate() {
             println!("\n\nVALIDATOR {n}\n");
 
-            let mut stdout = val.stdout().lines();
-            while let Some(line) = stdout.next_line().await.unwrap() {
-                println!("{line}");
-            }
+            let _ = timeout(Duration::from_secs(1), async {
+                let mut stdout = val.stdout().lines();
+                while let Some(line) = stdout.next_line().await.unwrap() {
+                    println!("{line}");
+                }
+            })
+            .await;
         }
     }
 }

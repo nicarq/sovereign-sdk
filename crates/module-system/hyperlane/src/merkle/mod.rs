@@ -11,6 +11,8 @@ use crate::crypto::keccak256_hash;
 use crate::traits::PostDispatchHook;
 use crate::types::HookType;
 
+#[cfg(feature = "native")]
+mod api;
 mod tree;
 
 /// A helper modules which merklizes each message as it is dispatched.

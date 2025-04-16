@@ -1,11 +1,21 @@
 use axum::routing::get;
+use serde::Serialize;
 use sov_modules_api::prelude::utoipa::openapi::OpenApi;
 use sov_modules_api::prelude::{axum, UnwrapInfallible};
 use sov_modules_api::rest::utils::{errors, ApiResult, Path};
 use sov_modules_api::rest::{ApiState, HasCustomRestApi};
 use sov_modules_api::{ApiStateAccessor, HexHash, Spec};
 
-use crate::{Mailbox, Recipient};
+use crate::{EthAddress, Ism, Mailbox, Recipient};
+
+/// A configuration of an [`Ism::MessageIdMultisig`].
+#[derive(Serialize)]
+pub struct ValidatorsAndThreshold {
+    /// The addresses of the validators
+    validators: Vec<EthAddress>,
+    /// The number of signatures required to accept a message
+    threshold: u32,
+}
 
 impl<S: Spec, R: Recipient<S>> HasCustomRestApi for Mailbox<S, R> {
     type Spec = S;
@@ -14,6 +24,10 @@ impl<S: Spec, R: Recipient<S>> HasCustomRestApi for Mailbox<S, R> {
         axum::Router::new()
             .route("/nonce", get(Self::get_nonce))
             .route("/recipient-ism/:address", get(Self::get_recipient_ism))
+            .route(
+                "/recipient-ism/:address/validators_and_threshold",
+                get(Self::get_recipient_ism_validators_and_threshold),
+            )
             .with_state(state.with(self.clone()))
     }
 
@@ -53,5 +67,34 @@ impl<S: Spec, R: Recipient<S>> Mailbox<S, R> {
             .map_err(|_| errors::not_found_404("Mailbox", address))?
             .ok_or_else(|| errors::not_found_404("Mailbox", address))?;
         Ok((ism.ism_kind() as u8).into())
+    }
+
+    async fn get_recipient_ism_validators_and_threshold(
+        state: ApiState<S, Self>,
+        Path(address): Path<HexHash>,
+        mut accessor: ApiStateAccessor<S>,
+    ) -> ApiResult<ValidatorsAndThreshold> {
+        let ism = state
+            .recipients
+            .ism(&address, &mut accessor)
+            .map_err(|_| errors::not_found_404("Mailbox", address))?
+            .ok_or_else(|| errors::not_found_404("Mailbox", address))?;
+
+        let Ism::MessageIdMultisig {
+            validators,
+            threshold,
+        } = ism
+        else {
+            return Err(errors::bad_request_400(
+                "Failed getting validators and threshold",
+                "Ism is not of type MessageIdMultisig",
+            ));
+        };
+
+        Ok(ValidatorsAndThreshold {
+            validators: validators.into(),
+            threshold,
+        }
+        .into())
     }
 }
