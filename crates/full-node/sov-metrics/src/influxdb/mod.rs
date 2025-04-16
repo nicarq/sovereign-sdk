@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 mod config;
 #[cfg(feature = "gas-constant-estimation")]
+mod csv_helper;
+#[cfg(feature = "gas-constant-estimation")]
 mod gas_constant_estimation;
 mod publisher;
 mod tracker;
@@ -31,6 +33,13 @@ pub struct MetricsTracker {
 pub trait Metric: Send + Sync + std::fmt::Debug {
     /// Write InfluxDb [`line protocol`](https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol/) format.
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()>;
+
+    #[cfg(feature = "gas-constant-estimation")]
+    /// Optionally writes metrics to a CSV file.  
+    /// By default, this implementation does not write to the file.
+    fn write_to_csv(&self, _writers: &mut csv_helper::CsvWriteres) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 /// Applies a function to the global [`MetricsTracker`] instance.

@@ -105,7 +105,20 @@ pub(crate) async fn metrics_publisher_task(
     tracing::trace!("Starting metrics publishing task");
     let mut buffer: Vec<u8> = Vec::with_capacity(max_buffer_size);
 
+    #[cfg(feature = "gas-constant-estimation")]
+    let csv_writers = &mut match crate::influxdb::csv_helper::CsvWriteres::new().await {
+        Ok(csv_writers) => csv_writers,
+        Err(err) => {
+            tracing::warn!(?err, "Failed to create CSV writers, aborting metrics task");
+            return;
+        }
+    };
+
     while let Some(measurement) = receiver.recv().await {
+        #[cfg(feature = "gas-constant-estimation")]
+        if let Err(err) = measurement.write_to_csv(csv_writers) {
+            tracing::warn!(?err, "Failed to write metrics to CSV file");
+        }
         tracing::trace!(?measurement, "Received measurement");
         if !buffer.is_empty() {
             buffer.push(b'\n');
