@@ -31,6 +31,8 @@ risc0-zkvm = { workspace = true, default-features = false, features = [
 risc0-zkvm-platform = { workspace = true, features = ["export-syscalls"], optional = true }
 sp1-lib = { version = "3.0", default-features = false, optional = true }
 
+chrono = { workspace = true, optional = true }
+
 [dev-dependencies]
 sov-metrics = { path = ".", features = ["native"] }
 anyhow = { workspace = true }
@@ -40,7 +42,7 @@ toml = { workspace = true }
 
 [features]
 default = []
-gas-constant-estimation = []
+gas-constant-estimation = ["chrono"]
 risc0 = [
     "dep:risc0-zkvm",
     "dep:risc0-zkvm-platform",
