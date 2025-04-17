@@ -3,23 +3,26 @@
 use std::str::FromStr;
 
 use sov_bank::Amount;
+use sov_hyperlane_integration::crypto::compute_hash_for_signatures;
 use sov_hyperlane_integration::test_recipient::Event;
 use sov_hyperlane_integration::{CallMessage, Ism, Message};
+use sov_modules_api::macros::config_value;
 use sov_modules_api::{Address, BasicGasMeter, Context, GasPrice, GasUnit, HexString, TxEffect};
 use sov_test_utils::{AsUser, TransactionTestCase};
 
 use crate::runtime::{
-    register_recipient_with_ism, setup, unlimited_gas_meter, Mailbox, TestRuntimeEvent, RT, S,
+    random_validator, register_recipient_with_ism, setup, sign, unlimited_gas_meter, Mailbox,
+    TestRuntimeEvent, RT, S,
 };
 
 pub struct MultisigIsmTestData {
     pub message: Message,
     pub validators: Vec<HexString<[u8; 20]>>,
     pub signatures: Vec<Vec<u8>>,
+    pub metadata_without_signatures: HexString,
 }
 
 const ORIGIN_DOMAIN: u32 = 1234u32;
-const DESTINATION_DOMAIN: u32 = 4321u32;
 
 fn get_message() -> Message {
     Message {
@@ -30,7 +33,7 @@ fn get_message() -> Message {
             "0xafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafaf",
         )
         .unwrap(),
-        dest_domain: DESTINATION_DOMAIN,
+        dest_domain: config_value!("HYPERLANE_BRIDGE_DOMAIN"),
         recipient: HexString::from_str(
             "0xbebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebe",
         )
@@ -39,42 +42,44 @@ fn get_message() -> Message {
     }
 }
 
-// Adapted from https://github.com/eigerco/hyperlane-monorepo/blob/b68fe264b3585ecd9d95a5ec2ec2d7defbe907d2/rust/sealevel/programs/ism/multisig-ism-message-id/src/processor.rs#L623
 pub fn get_multisig_ism_test_data() -> MultisigIsmTestData {
+    let gas_meter = &mut unlimited_gas_meter();
     let message = get_message();
 
-    // The hash being signed is equal to:
-    // 0x3fd308215a20af20b137372f8a69fd336ebf93d57d4076a7c46e13f315255257
+    // assume some arbitrary state of the counterparty
+    let origin_merkle_tree = HexString([12; 32]);
+    let checkpoint_root = HexString([21; 32]);
+    // different than nonce to make sure it's parsed from metadata
+    let checkpoint_index = message.nonce + 1;
 
-    // Validator 0:
-    // Address: 0xE3DCDBbc248cE191bDc271f3FCcd0d95911BFC5D
-    // Private Key: 0x788aa7213bd92ff92017d767fde0d75601425818c8e4b21e87314c2a4dcd6091
-    let validator_0 = HexString::from_str("0xE3DCDBbc248cE191bDc271f3FCcd0d95911BFC5D").unwrap();
-    // > await (new ethers.Wallet('0x788aa7213bd92ff92017d767fde0d75601425818c8e4b21e87314c2a4dcd6091')).signMessage(ethers.utils.arrayify('0x3fd308215a20af20b137372f8a69fd336ebf93d57d4076a7c46e13f315255257'))
-    // '0x081d398e1452ae12267f63f224d3037b4bb3f496cb55c14a2076c5e27ed944ad6d8e10d3164bc13b5820846a3f19e013e1c551b67a3c863882f7b951acdab96d1c'
-    let signature_0 = hex::decode("081d398e1452ae12267f63f224d3037b4bb3f496cb55c14a2076c5e27ed944ad6d8e10d3164bc13b5820846a3f19e013e1c551b67a3c863882f7b951acdab96d1c").unwrap();
+    let digest = compute_hash_for_signatures(
+        &message,
+        &origin_merkle_tree,
+        &checkpoint_root,
+        checkpoint_index,
+        gas_meter,
+    )
+    .unwrap();
 
-    // Validator 1:
-    // Address: 0xb25206874C24733F05CC0dD11924724A8E7175bd
-    // Private Key: 0x4a599de3915f404d84a2ebe522bfe7032ebb1ca76a65b55d6eb212b129043a0e
-    let validator_1 = HexString::from_str("0xb25206874C24733F05CC0dD11924724A8E7175bd").unwrap();
-    // > await (new ethers.Wallet('0x4a599de3915f404d84a2ebe522bfe7032ebb1ca76a65b55d6eb212b129043a0e')).signMessage(ethers.utils.arrayify('0x3fd308215a20af20b137372f8a69fd336ebf93d57d4076a7c46e13f315255257'))
-    // '0x0c189e25dea6bb93292af16fd0516f3adc8a19556714c0b8d624016175bebcba7a5fe8218dad6fc86faeb8104fad8390ccdec989d992e852553ea6b61fbb2eda1b'
-    let signature_1 = hex::decode("0c189e25dea6bb93292af16fd0516f3adc8a19556714c0b8d624016175bebcba7a5fe8218dad6fc86faeb8104fad8390ccdec989d992e852553ea6b61fbb2eda1b").unwrap();
+    let (sk_0, validator_0) = random_validator();
+    let signature_0 = sign(digest.0, &sk_0).0.to_vec();
 
-    // Validator 2:
-    // Address: 0x28b8d0E2bBfeDe9071F8Ff3DaC9CcE3d3176DBd3
-    // Private Key: 0x2cc76d56db9924ddc3388164454dfea9edd2d5f5da81102fd3594fc7c5281515
-    let validator_2 = HexString::from_str("0x28b8d0E2bBfeDe9071F8Ff3DaC9CcE3d3176DBd3").unwrap();
-    // > await (new ethers.Wallet('0x2cc76d56db9924ddc3388164454dfea9edd2d5f5da81102fd3594fc7c5281515')).signMessage(ethers.utils.arrayify('0x3fd308215a20af20b137372f8a69fd336ebf93d57d4076a7c46e13f315255257'))
-    // '0x5493449e8a09c1105195ecf913997de51bd50926a075ad98fe3e845e0a11126b5212a2cd1afdd35a44322146d31f8fa3d179d8a9822637d8db0e2fa8b3d292421b'
-    let signature_2 = hex::decode("5493449e8a09c1105195ecf913997de51bd50926a075ad98fe3e845e0a11126b5212a2cd1afdd35a44322146d31f8fa3d179d8a9822637d8db0e2fa8b3d292421b").unwrap();
+    let (sk_1, validator_1) = random_validator();
+    let signature_1 = sign(digest.0, &sk_1).0.to_vec();
+
+    let (sk_2, validator_2) = random_validator();
+    let signature_2 = sign(digest.0, &sk_2).0.to_vec();
+
+    let mut metadata_without_signatures = vec![];
+    metadata_without_signatures.extend_from_slice(&origin_merkle_tree.0);
+    metadata_without_signatures.extend_from_slice(&checkpoint_root.0);
+    metadata_without_signatures.extend_from_slice(&checkpoint_index.to_be_bytes());
 
     MultisigIsmTestData {
         message,
-        // checkpoint,
         validators: vec![validator_0, validator_1, validator_2],
         signatures: vec![signature_0, signature_1, signature_2],
+        metadata_without_signatures: metadata_without_signatures.into(),
     }
 }
 
@@ -87,13 +92,10 @@ fn dummy_context() -> Context<S> {
     )
 }
 
-// Encoded metadata taken from: https://github.com/eigerco/hyperlane-monorepo/blob/b68fe264b3585ecd9d95a5ec2ec2d7defbe907d2/rust/sealevel/programs/ism/multisig-ism-message-id/src/processor.rs#L623
-const METADATA_WITHOUT_SIGNATURES: &str = "0xababababababababababababababababababababababababababababababababcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd00000046";
-
 #[test]
 fn test_verify_valid() {
     let data = get_multisig_ism_test_data();
-    let mut metadata: HexString = HexString::from_str(METADATA_WITHOUT_SIGNATURES).unwrap();
+    let mut metadata = data.metadata_without_signatures;
     // Put two valid signatures in the metadata
     metadata.0.extend(data.signatures[0].iter());
     metadata.0.extend(data.signatures[1].iter());
@@ -114,7 +116,7 @@ fn test_verify_valid() {
 #[test]
 fn test_verify_wrong_message() {
     let mut data = get_multisig_ism_test_data();
-    let mut metadata: HexString = HexString::from_str(METADATA_WITHOUT_SIGNATURES).unwrap();
+    let mut metadata = data.metadata_without_signatures;
     // Put two valid signatures in the metadata
     metadata.0.extend(data.signatures[0].iter());
     metadata.0.extend(data.signatures[1].iter());
@@ -137,7 +139,7 @@ fn test_verify_wrong_message() {
 #[test]
 fn test_verify_duplicate_signatures() {
     let data: MultisigIsmTestData = get_multisig_ism_test_data();
-    let mut metadata: HexString = HexString::from_str(METADATA_WITHOUT_SIGNATURES).unwrap();
+    let mut metadata = data.metadata_without_signatures;
     // Put the same signature twice
     metadata.0.extend(data.signatures[0].iter());
     metadata.0.extend(data.signatures[0].iter());
@@ -158,7 +160,7 @@ fn test_verify_duplicate_signatures() {
 #[test]
 fn test_verify_not_enough_signatures() {
     let data: MultisigIsmTestData = get_multisig_ism_test_data();
-    let mut metadata: HexString = HexString::from_str(METADATA_WITHOUT_SIGNATURES).unwrap();
+    let mut metadata = data.metadata_without_signatures;
     // Only put one signature in the metadata
     metadata.0.extend(data.signatures[0].iter());
     let ism = Ism::MessageIdMultisig {
@@ -178,7 +180,7 @@ fn test_verify_not_enough_signatures() {
 #[test]
 fn test_verify_invalid_signatures() {
     let mut data: MultisigIsmTestData = get_multisig_ism_test_data();
-    let mut metadata: HexString = HexString::from_str(METADATA_WITHOUT_SIGNATURES).unwrap();
+    let mut metadata = data.metadata_without_signatures;
     // Modify the first signature so that it's invalid
     data.signatures[0][0] += 1;
     metadata.0.extend(data.signatures[0].iter());
@@ -201,7 +203,7 @@ fn test_verify_invalid_signatures() {
 #[test]
 fn test_verify_too_many_signatures() {
     let data: MultisigIsmTestData = get_multisig_ism_test_data();
-    let mut metadata: HexString = HexString::from_str(METADATA_WITHOUT_SIGNATURES).unwrap();
+    let mut metadata = data.metadata_without_signatures;
     // Put three signatures in the metadata
     metadata.0.extend(data.signatures[0].iter());
     metadata.0.extend(data.signatures[1].iter());
@@ -223,7 +225,7 @@ fn test_verify_too_many_signatures() {
 #[test]
 fn test_verify_out_of_order_signatures() {
     let data: MultisigIsmTestData = get_multisig_ism_test_data();
-    let mut metadata: HexString = HexString::from_str(METADATA_WITHOUT_SIGNATURES).unwrap();
+    let mut metadata = data.metadata_without_signatures;
 
     // Put the last two signatures in the metadata
     metadata.0.extend(data.signatures[2].iter());
@@ -245,7 +247,7 @@ fn test_verify_out_of_order_signatures() {
 #[test]
 fn test_verify_not_enough_gas() {
     let data: MultisigIsmTestData = get_multisig_ism_test_data();
-    let mut metadata: HexString = HexString::from_str(METADATA_WITHOUT_SIGNATURES).unwrap();
+    let mut metadata = data.metadata_without_signatures;
 
     // Put the last two signatures in the metadata
     metadata.0.extend(data.signatures[2].iter());
@@ -267,13 +269,8 @@ fn test_verify_not_enough_gas() {
 /// Run an end-to-end test that verifies a valid message is processed correctly with the multisig ISM
 #[test]
 fn test_verify_valid_end_to_end() {
-    std::env::set_var(
-        "SOV_TEST_CONST_OVERRIDE_HYPERLANE_BRIDGE_DOMAIN",
-        DESTINATION_DOMAIN.to_string(),
-    );
-
     let data: MultisigIsmTestData = get_multisig_ism_test_data();
-    let mut metadata: HexString = HexString::from_str(METADATA_WITHOUT_SIGNATURES).unwrap();
+    let mut metadata = data.metadata_without_signatures;
     // Put two valid signatures in the metadata
     metadata.0.extend(data.signatures[0].iter());
     metadata.0.extend(data.signatures[1].iter());
@@ -305,7 +302,8 @@ fn test_verify_valid_end_to_end() {
             assert!(result.events.iter().any(|event| {
                 matches!(
                     event,
-                    TestRuntimeEvent::TestRecipient(Event::MessageReceivedGeneric { sender, body, .. }) if *sender == expected_sender && body == &HexString::new(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+                    TestRuntimeEvent::TestRecipient(Event::MessageReceivedGeneric { sender, body, .. })
+                        if *sender == expected_sender && body == &HexString::new(vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
                 )
             }),
             "Did not receive expected message. {:?}, tx receipt: {:?}",
@@ -319,13 +317,8 @@ fn test_verify_valid_end_to_end() {
 /// Run an end-to-end test that verifies an invalid message is rejected with the multisig ISM
 #[test]
 fn test_verify_invalid_end_to_end() {
-    std::env::set_var(
-        "SOV_TEST_CONST_OVERRIDE_HYPERLANE_BRIDGE_DOMAIN",
-        DESTINATION_DOMAIN.to_string(),
-    );
-
     let data: MultisigIsmTestData = get_multisig_ism_test_data();
-    let mut metadata: HexString = HexString::from_str(METADATA_WITHOUT_SIGNATURES).unwrap();
+    let mut metadata = data.metadata_without_signatures;
     // Duplicate the first signature
     metadata.0.extend(data.signatures[0].iter());
     metadata.0.extend(data.signatures[0].iter());

@@ -135,11 +135,11 @@ impl Ism {
                         // This lets us distinguish between double-signing and unknown validators.
                         if original_validators.contains(&addr) {
                             return Err(anyhow::anyhow!(
-                                "Not enough unique validators signed the message. 0x{} signed multiple times.", addr
+                                "Not enough unique validators signed the message. {} signed multiple times.", addr
                             ));
                         } else {
                             return Err(anyhow::anyhow!(
-                                "Not enough unique validators signed the message. 0x{} is not an allowed validator.", addr
+                                "Not enough unique validators signed the message. {} is not an allowed validator.", addr
                             ));
                         }
                     }
