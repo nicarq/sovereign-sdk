@@ -1,10 +1,15 @@
+use secp256k1::rand::rngs::OsRng;
+use secp256k1::{Message, Secp256k1, SecretKey};
 use sov_bank::Amount;
+use sov_hyperlane_integration::crypto::eth_address_from_public_key;
 use sov_hyperlane_integration::test_recipient::{
     CallMessage as RecipientCallMessage, TestRecipient,
 };
-use sov_hyperlane_integration::{HyperlaneAddress, Ism, Mailbox as RawMailbox, MerkleTreeHook};
+use sov_hyperlane_integration::{
+    EthAddress, HyperlaneAddress, Ism, Mailbox as RawMailbox, MerkleTreeHook, ValidatorSignature,
+};
 use sov_modules_api::gas::GasArray;
-use sov_modules_api::{BasicGasMeter, Gas, HexHash, Spec};
+use sov_modules_api::{BasicGasMeter, Gas, HexHash, HexString, Spec};
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_runtime, AsUser, TestSpec, TestUser, TransactionTestCase};
@@ -66,6 +71,24 @@ pub fn register_recipient_with_ism(
             );
         }),
     });
+}
+
+pub fn random_validator() -> (SecretKey, EthAddress) {
+    let secp = Secp256k1::new();
+    let (secret_key, public_key) = secp.generate_keypair(&mut OsRng);
+    let address = eth_address_from_public_key(public_key, &mut unlimited_gas_meter()).unwrap();
+    (secret_key, address)
+}
+
+pub fn sign(digest: [u8; 32], sk: &SecretKey) -> ValidatorSignature {
+    let secp = Secp256k1::new();
+    let signature = secp.sign_ecdsa_recoverable(&Message::from_digest(digest), sk);
+    let (recovery_id, sig_bytes) = signature.serialize_compact();
+
+    let mut bytes = [0u8; 65];
+    bytes[..64].copy_from_slice(&sig_bytes);
+    bytes[64] = recovery_id.to_i32() as u8;
+    HexString(bytes)
 }
 
 pub fn unlimited_gas_meter() -> BasicGasMeter<S> {
