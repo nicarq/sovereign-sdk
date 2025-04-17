@@ -1,4 +1,3 @@
 config.env
 *.log
-zk_vm.csv
-constnats_output.csv
+data
