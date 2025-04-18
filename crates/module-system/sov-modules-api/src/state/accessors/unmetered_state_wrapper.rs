@@ -42,6 +42,11 @@ impl<'a, Inner> UnmeteredStateWrapper<'a, Inner> {
     pub fn inner(&self) -> &Inner {
         self.inner
     }
+
+    /// Returns a mutable reference to the inner state accessor. Use this with caution, since operations on the inner accessor may be metered.
+    pub fn inner_mut(&mut self) -> &mut Inner {
+        self.inner
+    }
 }
 
 impl<'a, Inner, N: CompileTimeNamespace> StateReader<N> for UnmeteredStateWrapper<'a, Inner>
