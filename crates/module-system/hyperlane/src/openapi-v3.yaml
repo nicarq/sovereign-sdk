@@ -48,6 +48,35 @@ paths:
           $ref: '#/components/responses/BadRequestResponse'
         '404':
           $ref: '#/components/responses/StateNotFound'
+  /quote-dispatch:
+    get:
+      summary: Get the estimated gas price for relaying message
+      operationId: "hyperlane_igp_quote_dispatch"
+      tags: [Mailbox]
+      parameters:
+        - name: destination-domain
+          in: query
+          description: The destination domain ID.
+          required: true
+          schema:
+            type: integer
+            format: uint32
+        - name: relayer-address
+          in: query
+          description: The address of relayer. Could be optional if default relayer address is present.
+          required: false
+          schema:
+            type: string
+        - name: gas-limit
+          in: query
+          description: The gas limit to use for the interchain transfer.
+          required: true
+          schema:
+            type: integer
+            format: uint128
+      responses:
+        '200':
+          $ref: '#/components/responses/QuoteDispatchResponse'
 
 components:
   schemas:
@@ -79,6 +108,22 @@ components:
         threshold:
           type: integer
           description: Multisig threshold
+    Meta:
+      type: object
+    TokenId:
+      type: string
+      pattern: "^token_1[02-9ac-hj-np-z]+$"
+      description: bech32 encoded token id, prefix with "token_".
+    Coins:
+      type: object
+      description: Token Id and amount.
+      properties:
+        token_id:
+          $ref: "#/components/schemas/TokenId"
+        amount:
+          type: integer
+          format: uint128
+          description: Amount
   responses:
     NonceResponse:
       description: Nonce
@@ -98,3 +143,14 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ValidatorsAndThreshold'
+    QuoteDispatchResponse:
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              meta:
+                $ref: '#/components/schemas/Meta'
+              data:
+                $ref: '#/components/schemas/Coins'

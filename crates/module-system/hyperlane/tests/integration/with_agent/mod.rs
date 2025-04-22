@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use helpers::{
@@ -6,11 +9,17 @@ use helpers::{
 use preferred_sequencer_runtime::{TestRuntime, TestRuntimeCall};
 use sov_api_spec::types::{self as api_types, IntOrHash};
 use sov_api_spec::Client;
-use sov_hyperlane_integration::{test_recipient, CallMessage, HyperlaneAddress, Ism};
+use sov_bank::Amount;
+use sov_hyperlane_integration::{
+    test_recipient, CallMessage, ExchangeRateAndGasPrice, HyperlaneAddress,
+    InterchainGasPaymasterCallMessage, Ism,
+};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::{CryptoSpec, DispatchCall, HexHash, HexString, RawTx, Runtime, Spec};
-use sov_test_utils::{default_test_signed_transaction, TestSpec};
+use sov_test_utils::{default_test_signed_transaction, TestSpec, TestUser};
 use tokio_stream::StreamExt;
+
+use crate::igp::{default_gas_hashmap_to_safe_vec, oracle_data_hashmap_to_safe_vec};
 
 mod helpers;
 mod preferred_sequencer_runtime;
@@ -91,21 +100,20 @@ async fn test_relayer_basic_dispatch_process() {
         slot_subscription.next().await.unwrap().unwrap();
     }
 
+    // set relayer igp config
+    let relayer_config_tx = tx_set_relayer_config(&relayer);
+    submit_tx(&rollup.api_client, relayer_config_tx).await;
+
     // register prover as a recipient
     let register_call = TestRuntimeCall::TestRecipient(test_recipient::CallMessage::Register {
         address: prover_addr.to_sender(),
         ism: Ism::AlwaysTrust,
     });
-    let register_tx = encode_call(prover.user_info.private_key(), 0, &register_call);
+    let register_tx = encode_call(prover.user_info.private_key(), &register_call);
     submit_tx(&rollup.api_client, register_tx).await;
 
     // dispatch message to prover
-    let dispatch_tx = tx_send_message(
-        relayer.private_key(),
-        prover_addr.to_sender(),
-        b"Hello there",
-        1,
-    );
+    let dispatch_tx = tx_send_message(&relayer, prover_addr.to_sender(), b"Hello there");
     submit_tx(&rollup.api_client, dispatch_tx).await;
 
     // look for `process` event
@@ -173,6 +181,10 @@ async fn test_multisig_ism() {
         slot_subscription.next().await.unwrap().unwrap();
     }
 
+    // set relayer igp config
+    let relayer_config_tx = tx_set_relayer_config(&relayer);
+    submit_tx(&rollup.api_client, relayer_config_tx).await;
+
     // register prover as a recipient with first 3 validators addresses for multisig
     let val_addresses: Vec<_> = ANVIL_ACCOUNTS[1..4]
         .iter()
@@ -185,16 +197,11 @@ async fn test_multisig_ism() {
             threshold: 2,
         },
     });
-    let register_tx = encode_call(prover.user_info.private_key(), 0, &register_call);
+    let register_tx = encode_call(prover.user_info.private_key(), &register_call);
     submit_tx(&rollup.api_client, register_tx).await;
 
     // dispatch message to prover
-    let dispatch_tx = tx_send_message(
-        relayer.private_key(),
-        prover_addr.to_sender(),
-        b"Hello there",
-        1,
-    );
+    let dispatch_tx = tx_send_message(&relayer, prover_addr.to_sender(), b"Hello there");
     submit_tx(&rollup.api_client, dispatch_tx).await;
 
     // look for `process` event
@@ -230,30 +237,30 @@ async fn test_multisig_ism() {
 }
 
 fn tx_send_message(
-    relayer: &<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
+    relayer: &TestUser<TestSpec>,
     recipient_address: HexHash,
     message_body: &[u8],
-    nonce: u64,
 ) -> RawTx {
     let call = TestRuntimeCall::Mailbox(CallMessage::Dispatch {
         domain: config_value!("HYPERLANE_BRIDGE_DOMAIN"),
         recipient: recipient_address,
         body: HexString(message_body.to_vec().try_into().unwrap()),
         metadata: None,
+        relayer: Some(relayer.address()),
+        gas_payment_limit: Amount::MAX,
     });
 
-    encode_call(relayer, nonce, &call)
+    encode_call(relayer.private_key(), &call)
 }
 
 fn encode_call(
     key: &<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
-    nonce: u64,
     call_message: &<TestRuntime<TestSpec> as DispatchCall>::Decodable,
 ) -> RawTx {
     let tx = default_test_signed_transaction::<TestRuntime<TestSpec>, TestSpec>(
         key,
         call_message,
-        nonce,
+        nonce(),
         &<TestRuntime<TestSpec> as Runtime<TestSpec>>::CHAIN_HASH,
     );
 
@@ -267,4 +274,30 @@ async fn submit_tx(client: &Client, tx_body: RawTx) {
         })
         .await
         .unwrap();
+}
+
+fn tx_set_relayer_config(relayer: &TestUser<TestSpec>) -> RawTx {
+    let domain_oracles = HashMap::from([(
+        config_value!("HYPERLANE_BRIDGE_DOMAIN"),
+        ExchangeRateAndGasPrice {
+            gas_price: Amount(345),
+            token_exchange_rate: 1,
+        },
+    )]);
+    let domain_gas = HashMap::from([(config_value!("HYPERLANE_BRIDGE_DOMAIN"), Amount(2000))]);
+    let call = TestRuntimeCall::InterchainGasPaymaster(
+        InterchainGasPaymasterCallMessage::SetRelayerConfig {
+            domain_oracle_data: oracle_data_hashmap_to_safe_vec(domain_oracles),
+            domain_default_gas: default_gas_hashmap_to_safe_vec(domain_gas),
+            default_gas: Amount(2000),
+            beneficiary: Some(relayer.address()),
+        },
+    );
+
+    encode_call(relayer.private_key(), &call)
+}
+
+fn nonce() -> u64 {
+    static NONCE: AtomicU64 = AtomicU64::new(0);
+    NONCE.fetch_add(1, Ordering::Relaxed)
 }

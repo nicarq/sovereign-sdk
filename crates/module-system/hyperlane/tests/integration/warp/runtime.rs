@@ -1,13 +1,20 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
+use sov_bank::Amount;
 use sov_hyperlane_integration::warp::{
     Admin, CallMessage as WarpCallMessage, Event as WarpEvent, TokenKind, Warp,
 };
-use sov_hyperlane_integration::{HyperlaneAddress, Ism, Mailbox as RawMailbox, MerkleTreeHook};
-use sov_modules_api::{HexHash, HexString};
+use sov_hyperlane_integration::{
+    ExchangeRateAndGasPrice, HyperlaneAddress, InterchainGasPaymaster,
+    InterchainGasPaymasterCallMessage, Ism, Mailbox as RawMailbox, MerkleTreeHook,
+};
+use sov_modules_api::{HexHash, HexString, Spec};
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_runtime, AsUser, TestSpec, TestUser, TransactionTestCase};
+
+use crate::igp::{default_gas_hashmap_to_safe_vec, oracle_data_hashmap_to_safe_vec};
 
 pub type Mailbox<S> = RawMailbox<S, Warp<S>>;
 pub type S = TestSpec;
@@ -16,7 +23,7 @@ type WarpRouteId = HexHash;
 
 generate_runtime! {
     name: TestRuntime,
-    modules: [mailbox: Mailbox<S>, warp: Warp<S>, merkle_tree_hooks: MerkleTreeHook<S>],
+    modules: [mailbox: Mailbox<S>, warp: Warp<S>, merkle_tree_hooks: MerkleTreeHook<S>, interchain_gas_paymaster: InterchainGasPaymaster<S>],
     operating_mode: sov_modules_api::runtime::OperatingMode::Zk,
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::zk::config::MinimalZkGenesisConfig<S>,
     runtime_trait_impl_bounds: [S::Address: HyperlaneAddress],
@@ -32,18 +39,25 @@ pub const CONFIGURED_DOMAIN: u32 = 1;
 pub const CONFIGURED_REMOTE_ROUTER_ADDRESS: HexHash = HexString([1; 32]);
 
 #[allow(clippy::type_complexity)]
-pub fn setup() -> (TestRunner<TestRuntime<S>, S>, TestUser<S>, TestUser<S>) {
-    let genesis_config = HighLevelZkGenesisConfig::generate_with_additional_accounts(2);
+pub fn setup() -> (
+    TestRunner<TestRuntime<S>, S>,
+    TestUser<S>,
+    TestUser<S>,
+    TestUser<S>,
+) {
+    let genesis_config = HighLevelZkGenesisConfig::generate_with_additional_accounts(3);
 
     let admin_account = genesis_config.additional_accounts[0].clone();
     let extra_account = genesis_config.additional_accounts[1].clone();
+    let relayer_account = genesis_config.additional_accounts[1].clone();
 
-    let genesis = GenesisConfig::from_minimal_config(genesis_config.clone().into(), (), (), ());
+    let genesis = GenesisConfig::from_minimal_config(genesis_config.clone().into(), (), (), (), ());
 
     (
         TestRunner::new_with_genesis(genesis.into_genesis_params(), Default::default()),
         admin_account,
         extra_account,
+        relayer_account,
     )
 }
 
@@ -124,4 +138,53 @@ pub fn register_warp_route_with_ism_and_token_source(
     let id = *warp_route_id.lock().unwrap();
     assert!(id != HexString([0; 32]), "Warp route was not registered");
     id
+}
+
+pub fn register_relayer_with_dummy_igp(
+    runner: &mut TestRunner<RT, S>,
+    relayer: &TestUser<S>,
+    domain: u32,
+) {
+    let domain_oracle_data = HashMap::from([(
+        domain,
+        ExchangeRateAndGasPrice {
+            gas_price: Amount(100),
+            token_exchange_rate: 100,
+        },
+    )]);
+    let domain_default_gas = HashMap::from([(domain, Amount(100))]);
+    register_relayer_with_igp(
+        runner,
+        relayer,
+        domain_oracle_data,
+        domain_default_gas,
+        Amount(100),
+        None,
+    );
+}
+
+pub fn register_relayer_with_igp(
+    runner: &mut TestRunner<RT, S>,
+    relayer: &TestUser<S>,
+    domain_oracle_data: HashMap<u32, ExchangeRateAndGasPrice>,
+    domain_default_gas: HashMap<u32, Amount>,
+    default_gas: Amount,
+    beneficiary: Option<<S as Spec>::Address>,
+) {
+    runner.execute_transaction(TransactionTestCase {
+        input: relayer.create_plain_message::<RT, InterchainGasPaymaster<S>>(
+            InterchainGasPaymasterCallMessage::SetRelayerConfig {
+                domain_oracle_data: oracle_data_hashmap_to_safe_vec(domain_oracle_data.clone()),
+                domain_default_gas: default_gas_hashmap_to_safe_vec(domain_default_gas.clone()),
+                default_gas,
+                beneficiary,
+            },
+        ),
+        assert: Box::new(|result, _| {
+            assert!(
+                result.tx_receipt.is_successful(),
+                "IGP set relayer config was not done successfully"
+            );
+        }),
+    });
 }

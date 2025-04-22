@@ -1,5 +1,6 @@
 use sov_modules_api::{HexHash, HexString};
 
+use crate::types::Domain;
 use crate::{EthAddress, StorageLocation};
 
 /// Sample Event
@@ -21,7 +22,7 @@ pub enum Event {
         /// The sender of the message.
         sender: HexHash,
         /// The destination domain of the message.
-        destination_domain: u32,
+        destination_domain: Domain,
         /// The recipient address of the message.
         recipient_address: HexHash,
         /// The message body.
@@ -36,7 +37,7 @@ pub enum Event {
     /// A message has been received and processed.
     Process {
         /// The origin domain of the message.
-        origin_domain: u32,
+        origin_domain: Domain,
         /// The sender address of the message.
         sender_address: HexHash,
         /// The recipient address of the message.

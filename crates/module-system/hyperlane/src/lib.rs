@@ -2,17 +2,14 @@
 #![doc = include_str!("../README.md")]
 
 use borsh::{BorshDeserialize, BorshSerialize};
-pub use call::*;
-pub use event::Event;
-pub use ism::Ism;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 use sov_modules_api::rest::HasRestApi;
 use sov_modules_api::{
     Context, DaSpec, Error, GenesisState, HexHash, HexString, Module, ModuleId, ModuleInfo,
-    ModuleRestApi, Spec, StateMap, StateValue, TxState,
+    ModuleRestApi, Spec, StateMap, StateReader, StateValue, TxState,
 };
-use traits::NoOpPostDispatchHook;
+use sov_state::User;
 
 #[cfg(feature = "native")]
 mod api;
@@ -23,6 +20,8 @@ pub mod crypto;
 mod crypto;
 mod event;
 mod genesis;
+mod igp;
+
 mod ism;
 mod merkle;
 #[cfg(feature = "test-utils")]
@@ -31,6 +30,16 @@ pub mod traits;
 mod types;
 pub mod warp;
 
+pub use call::*;
+pub use event::Event;
+pub use igp::metadata::IGPMetadata;
+pub use igp::types::{
+    DomainDefaultGas, DomainOracleData, ExchangeRateAndGasPrice, RelayerWithDomainKey,
+};
+pub use igp::{
+    Event as InterchainGasPaymasterEvent, InterchainGasPaymaster, InterchainGasPaymasterCallMessage,
+};
+pub use ism::Ism;
 pub use merkle::{Event as MerkleTreeEvent, MerkleTreeHook};
 pub use types::{EthAddress, Message, StorageLocation, ValidatorSignature};
 
@@ -88,6 +97,13 @@ pub struct Mailbox<S: Spec, R: Recipient<S>> {
     #[module]
     pub merkle_tree_hook: MerkleTreeHook<S>,
 
+    /// A reference to the interchain gas paymaster module.
+    ///
+    /// IGP is a custom hook in Hyperlane's Ethereum implementation that allows users to select a relayer through the relayer's IGP smart contract.
+    /// We provide users with the ability to select a relayer by including the relayer's address as an additional parameter sent with the message (though this address is not part of the IGP message itself).
+    #[module]
+    pub interchain_gas_paymaster: InterchainGasPaymaster<S>,
+
     /// A reference to the recipient module.
     #[module]
     pub recipients: R,
@@ -104,7 +120,7 @@ where
 
     type Config = ();
 
-    type CallMessage = call::CallMessage;
+    type CallMessage = call::CallMessage<S>;
 
     type Event = Event;
 
@@ -130,6 +146,8 @@ where
                 recipient,
                 body,
                 metadata,
+                relayer,
+                gas_payment_limit,
             } => {
                 self.dispatch(
                     domain,
@@ -137,7 +155,8 @@ where
                     context.sender().to_sender(),
                     HexString::new(body.0.into()),
                     metadata.map(|m| HexString::new(m.0.into())),
-                    Option::<NoOpPostDispatchHook>::None,
+                    relayer,
+                    gas_payment_limit,
                     context,
                     state,
                 )?;
@@ -154,6 +173,25 @@ where
                 storage_location,
                 signature,
             } => Ok(self.announce(validator_address, storage_location, signature, state)?),
+        }
+    }
+}
+
+impl<S: Spec, R: Recipient<S>> Mailbox<S, R> {
+    pub(crate) fn with_default_relayer(
+        &self,
+        preselected_relayer: Option<S::Address>,
+        recipient_address: &HexHash,
+        state: &impl StateReader<User, Error: Into<anyhow::Error>>,
+    ) -> anyhow::Result<S::Address> {
+        match preselected_relayer {
+            Some(relayer) => Ok(relayer),
+            None => {
+                let default_relayer = self.recipients.default_relayer(recipient_address, state)?;
+
+                default_relayer
+                    .ok_or_else(|| anyhow::anyhow!("relayer not selected and no default one"))
+            }
         }
     }
 }
@@ -228,6 +266,17 @@ pub trait Recipient<S: Spec>:
         _state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
         Ok(())
+    }
+
+    /// Returns default relayer
+    ///
+    /// Implement this if recipient should provide default relayer if user did not specify it
+    fn default_relayer(
+        &self,
+        _recipient: &HexHash,
+        _state: &impl StateReader<User, Error: Into<anyhow::Error>>,
+    ) -> anyhow::Result<Option<S::Address>> {
+        Ok(None)
     }
 }
 

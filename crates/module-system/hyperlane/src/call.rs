@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use anyhow::{ensure, Context as _, Result};
 use schemars::JsonSchema;
+use sov_bank::Amount;
 use sov_modules_api::macros::{config_value, UniversalWallet};
 use sov_modules_api::{
     Context, EventEmitter, GasMeter, HexHash, HexString, SafeVec, Spec, TxState,
@@ -16,8 +17,8 @@ use crate::crypto::{
 use crate::event::Event;
 use crate::ism::Ism;
 use crate::traits::PostDispatchHook;
-use crate::types::{EthAddress, Message, StorageLocation, ValidatorSignature};
-use crate::{Delivery, DispatchState, HyperlaneAddress, Recipient, MAILBOX_ADDR};
+use crate::types::{Domain, EthAddress, StorageLocation, ValidatorSignature};
+use crate::{Delivery, DispatchState, HyperlaneAddress, Message, Recipient, MAILBOX_ADDR};
 
 /// The version of the hyperlane message format used by the mailbox module.
 pub const MESSAGE_VERSION: u8 = 3;
@@ -43,20 +44,28 @@ pub const MAX_MESSAGE_METADATA_SIZE: usize = 8192;
     EnumIs,
     UniversalWallet,
 )]
-#[serde(rename_all = "snake_case")]
 #[strum_discriminants(derive(VariantArray, EnumIs))]
-pub enum CallMessage {
+#[serde(bound = "S: Spec", rename_all = "snake_case")]
+#[schemars(bound = "S: Spec", rename = "CallMessage")]
+pub enum CallMessage<S: Spec> {
     /// Sends an outbound message to the specified recipient.
     Dispatch {
         /// The destination domain (aka "Chain ID")
-        domain: u32,
+        domain: Domain,
         /// The recipient address. Must implement the `handle` function - i.e. be a smart contract
         recipient: HexHash,
         /// The message body. For example, if the recipient is a warp route, this will encode the amount/type of funds being transferred
         body: HexString<SafeVec<u8, MAX_MESSAGE_BODY_SIZE>>,
-        /// The "metadata" which is used to verify the message or control hooks. Currently set to `None` at construction since none of
-        /// our currently implemented ISMs require metadata. This will change in an upcoming version.
+        /// The "metadata" which is used to verify the message or control hooks.
+        /// Can be used to set the destination gas limit for a message using
+        /// [`IGPMetadata`](crate::IGPMetadata)
         metadata: Option<HexString<SafeVec<u8, MAX_MESSAGE_METADATA_SIZE>>>,
+        /// Selected relayer
+        relayer: Option<S::Address>,
+        /// A limit for the payment to relayer to cover gas needed for message delivery.
+        /// If relayer demands more than this value of native gas token, dispatching message
+        /// will fail. If it demands less than this, only needed amount will be paid.
+        gas_payment_limit: Amount,
     },
     /// Receive an inbound message. This is called *on the desitination chain* by the relayer after
     /// a `dispatch` call has been made on the source chain.
@@ -79,6 +88,7 @@ pub enum CallMessage {
         signature: ValidatorSignature,
     },
 }
+
 impl<S: Spec, R: Recipient<S>> Mailbox<S, R>
 where
     S::Address: HyperlaneAddress,
@@ -88,13 +98,14 @@ where
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn dispatch(
         &mut self,
-        destination_domain: u32,
+        destination_domain: Domain,
         recipient_address: HexHash,
         sender: HexHash,
         message_body: HexString,
         metadata: Option<HexString>,
-        _custom_hook: Option<impl PostDispatchHook<S>>,
-        _context: &Context<S>,
+        relayer: Option<S::Address>,
+        gas_payment_limit: Amount,
+        context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> Result<HexString> {
         let mut dispatch_state = self
@@ -133,18 +144,27 @@ where
 
         let metadata = metadata.unwrap_or_else(|| HexString::new(vec![]));
 
-        self.merkle_tree_hook
-            .post_dispatch(&metadata, &message_hex, state)?;
+        let relayer = self.with_default_relayer(relayer, &recipient_address, state)?;
 
-        // TODO: Add default hook and use custom hook or remove
-        // let hook = match custom_hook {
-        //     Some(hook) => Some(hook),
-        //     None => self.default_hook.get_or_err(state)??,
-        // };
-        // hook.map(|hook| {
-        //     self.hook_registry
-        //         .post_dispatch(&metadata, &message_hex, state, context)
-        // });
+        self.merkle_tree_hook.post_dispatch(
+            &message_id,
+            &message,
+            &metadata,
+            &relayer,
+            gas_payment_limit,
+            context,
+            state,
+        )?;
+
+        self.interchain_gas_paymaster.post_dispatch(
+            &message_id,
+            &message,
+            &metadata,
+            &relayer,
+            gas_payment_limit,
+            context,
+            state,
+        )?;
 
         Ok(message_hex)
     }

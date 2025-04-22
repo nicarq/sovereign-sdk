@@ -5,6 +5,8 @@ use sov_modules_api::{GasMeter, HexHash, HexString, SizedSafeString, Spec};
 
 use crate::crypto::keccak256_hash;
 
+pub type Domain = u32;
+
 /// These are returned from `hook_type` to indicate to the caller (usually a relayer) what type of metadata
 /// to pass into `post_dispatch/quote_dispatch`. These are defined by the hyperlane protocol here:
 /// <https://github.com/eigerco/hyperlane-monorepo/blob/b68fe264b3585ecd9d95a5ec2ec2d7defbe907d2/solidity/contracts/interfaces/hooks/IPostDispatchHook.sol#L18>
@@ -49,11 +51,11 @@ pub struct Message {
     /// A nonce used to ensure message ids are unique even if the recipient and contents are identical
     pub nonce: u32,
     /// Domain of the origin chain.
-    pub origin_domain: u32,
+    pub origin_domain: Domain,
     /// Address of the sender.
     pub sender: HexHash,
     /// Domain of the destination chain.
-    pub dest_domain: u32,
+    pub dest_domain: Domain,
     /// Address of the recipient.
     pub recipient: HexHash,
     /// Some application-specific message to be deserialized and processed by the recipient.

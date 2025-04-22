@@ -1,15 +1,16 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_bank::Amount;
+use sov_modules_api::prelude::tracing::{self, instrument};
 use sov_modules_api::{
     BorrowedMut, Context, DaSpec, Error, EventEmitter, GenesisState, HexHash, HexString, Module,
     ModuleId, ModuleInfo, ModuleRestApi, Spec, StateValue, TxState,
 };
 use tree::MerkleTree;
 
-use crate::crypto::keccak256_hash;
 use crate::traits::PostDispatchHook;
 use crate::types::HookType;
+use crate::Message;
 
 #[cfg(feature = "native")]
 mod api;
@@ -96,29 +97,41 @@ impl<S: Spec> PostDispatchHook<S> for MerkleTreeHook<S> {
     }
 
     // compare to https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/ff0d4af74ecc586ef0c036e37fa4cf9c2ba5050e/solidity/contracts/hooks/MerkleTreeHook.sol#L63
+    #[instrument(skip(self, _context, state))]
     fn post_dispatch(
         &mut self,
+        message_id: &HexHash,
+        _message: &Message,
         _metadata: &HexString,
-        message: &HexString,
+        _relayer: &S::Address,
+        _gas_payment_limit: Amount,
+        _context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
-        let id = keccak256_hash(&message.0, state)?;
         let mut tree: BorrowedMut<MerkleTree, _> =
             self.tree.borrow_mut(state)?.unwrap_or(Default::default());
         let index = tree.count;
 
-        tree.insert(id, state)?;
+        tree.insert(*message_id, state)?;
         tree.save(state)?;
 
-        self.emit_event(state, Event::InsertedIntoTree { index, id });
+        self.emit_event(
+            state,
+            Event::InsertedIntoTree {
+                index,
+                id: *message_id,
+            },
+        );
 
         Ok(())
     }
 
     fn quote_dispatch(
         &self,
+        _message: &Message,
         _metadata: &HexString,
-        _message: &HexString,
+        _relayer: &S::Address,
+        _context: &Context<S>,
         _state: &mut impl TxState<S>,
     ) -> anyhow::Result<Amount> {
         Ok(Amount::ZERO)

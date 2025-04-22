@@ -97,7 +97,7 @@ pub fn generate_setup() -> Setup {
     let sequencer = genesis_config.initial_sequencer.clone();
     let prover = genesis_config.initial_prover.clone();
 
-    let genesis_config = GenesisConfig::from_minimal_config(genesis_config.into(), (), (), ());
+    let genesis_config = GenesisConfig::from_minimal_config(genesis_config.into(), (), (), (), ());
 
     Setup {
         sequencer,

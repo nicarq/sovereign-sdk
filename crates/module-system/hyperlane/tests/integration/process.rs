@@ -12,7 +12,7 @@ use crate::runtime::{
 
 #[test]
 fn test_send_message_basic() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     let recipient_address: HexHash = [5u8; 32].into();
     let message_body = b"Hello, world!";
@@ -61,7 +61,7 @@ fn test_send_message_basic() {
 /// Tests that messages are rejected if the destination domain is wrong (i.e. the message was intended for a different chain)
 #[test]
 fn test_send_message_to_wrong_domain() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     let recipient_address: HexHash = [5u8; 32].into();
     let message_body = b"Hello, world!";
@@ -102,7 +102,7 @@ fn test_send_message_to_wrong_domain() {
 /// Tests that message cannot be replayed
 #[test]
 fn test_replay_message_delivery() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     let recipient_address: HexHash = [5u8; 32].into();
     let message_body = b"Hello, world!";
@@ -155,7 +155,7 @@ fn test_replay_message_delivery() {
 /// Tests that messages are rejected by the "trusted relayer" ISM if the actual relayer is not the allowed relayer
 #[test]
 fn test_send_message_with_untrusted_relayer_to_trusted_relayer_ism() {
-    let (mut runner, admin, test_user) = setup();
+    let (mut runner, admin, test_user, ..) = setup();
 
     let recipient_address: HexHash = [5u8; 32].into();
     let message_body = b"Hello, world!";
@@ -224,7 +224,7 @@ fn test_send_message_with_untrusted_relayer_to_trusted_relayer_ism() {
 /// Tests that messages are rejected if the version is wrong
 #[test]
 fn test_send_message_with_wrong_version() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     let recipient_address: HexHash = [5u8; 32].into();
     let message_body = b"Hello, world!";

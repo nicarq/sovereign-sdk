@@ -19,7 +19,7 @@ use crate::runtime::{
 
 #[test]
 fn test_correct_validator_announcement() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     let recipient_address: HexHash = [5u8; 32].into();
     register_recipient(&mut runner, &admin, recipient_address);
@@ -126,7 +126,7 @@ fn assert_invalid_validator_announcement(
 
 #[test]
 fn test_invalid_signature() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     let (val_sk, val_addr) = random_validator();
     let location = "file:///dev/null".parse().unwrap();
@@ -221,7 +221,7 @@ fn test_invalid_signature() {
 
 #[test]
 fn test_duplicate_announcement() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     let (val_sk, val_addr) = random_validator();
     let location = "file:///dev/null".parse().unwrap();

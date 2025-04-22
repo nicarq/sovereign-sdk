@@ -120,21 +120,19 @@ impl std::str::FromStr for RemoteRouterAddress {
 
 /// Multiplies a u128 by a u128 and returns a big-endian u256
 fn mul_u128s(scale: u128, amount: u128) -> [u8; 32] {
-    use num_traits::FromPrimitive;
-    use ruint::Uint;
-    type U256 = Uint<256, 4>;
-    let out = U256::from_u128(scale).unwrap() * U256::from_u128(amount).unwrap();
+    type U256 = ruint::Uint<256, 4>;
+
+    let out = U256::try_from(scale).unwrap() * U256::try_from(amount).unwrap();
     out.to_be_bytes()
 }
 
 fn div_u256(amount: [u8; 32], scale: u128) -> anyhow::Result<Amount> {
-    use num_traits::{FromPrimitive, ToPrimitive};
-    use ruint::Uint;
-    type U256 = Uint<256, 4>;
-    let out = U256::from_be_bytes(amount) / U256::from_u128(scale).unwrap();
-    Ok(Amount(out.to_u128().ok_or(anyhow::anyhow!(
-        "Amount may not exceed 2^128 - 1 after scaling"
-    ))?))
+    type U256 = ruint::Uint<256, 4>;
+
+    let out = U256::from_be_bytes(amount) / U256::try_from(scale).unwrap();
+    Ok(Amount(out.try_into().map_err(|_| {
+        anyhow::anyhow!("Amount may not exceed 2^128 - 1 after scaling")
+    })?))
 }
 
 impl StoredTokenKind {
