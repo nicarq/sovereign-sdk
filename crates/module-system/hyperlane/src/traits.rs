@@ -1,8 +1,9 @@
 //! Traits for the hyperlane protocol.
 use sov_bank::Amount;
-use sov_modules_api::{HexString, Spec, TxState};
+use sov_modules_api::{Context, HexHash, HexString, Spec, TxState};
 
 use crate::types::HookType;
+use crate::Message;
 
 /// Allows a module to be used as a post-dispatch hook.
 pub trait PostDispatchHook<S: Spec> {
@@ -18,18 +19,25 @@ pub trait PostDispatchHook<S: Spec> {
     ) -> anyhow::Result<bool>;
 
     /// Post-dispatch hook. Called by the mailbox at the end of the `dispatch` method.
+    #[allow(clippy::too_many_arguments)]
     fn post_dispatch(
         &mut self,
+        message_id: &HexHash,
+        message: &Message,
         metadata: &HexString,
-        message: &HexString,
+        relayer: &S::Address,
+        gas_payment_limit: Amount,
+        context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()>;
 
     /// Estimate the cost of dispatch, in the native currency of the chain.
     fn quote_dispatch(
         &self,
+        message: &Message,
         metadata: &HexString,
-        message: &HexString,
+        relayer: &S::Address,
+        context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<Amount>;
 }
@@ -56,8 +64,12 @@ impl<S: Spec> PostDispatchHook<S> for NoOpPostDispatchHook {
 
     fn post_dispatch(
         &mut self,
+        _message_id: &HexHash,
+        _message: &Message,
         _metadata: &HexString,
-        _message: &HexString,
+        _relayer: &S::Address,
+        _gas_payment_limit: Amount,
+        _context: &Context<S>,
         _state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
         Ok(())
@@ -65,8 +77,10 @@ impl<S: Spec> PostDispatchHook<S> for NoOpPostDispatchHook {
 
     fn quote_dispatch(
         &self,
+        _message: &Message,
         _metadata: &HexString,
-        _message: &HexString,
+        _relayer: &S::Address,
+        _context: &Context<S>,
         _state: &mut impl TxState<S>,
     ) -> anyhow::Result<Amount> {
         Ok(Amount::ZERO)

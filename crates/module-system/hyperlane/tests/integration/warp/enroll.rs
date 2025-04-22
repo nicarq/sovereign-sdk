@@ -9,7 +9,7 @@ use super::runtime::*;
 
 #[test]
 fn test_enroll_remote_router() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     let warp_route_id = register_basic_warp_route(&mut runner, &admin);
     runner.execute_transaction(TransactionTestCase {
@@ -41,7 +41,7 @@ fn test_enroll_remote_router() {
 
 #[test]
 fn test_unenroll_remote_router() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     let warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
     runner.execute_transaction(TransactionTestCase {
@@ -70,7 +70,7 @@ fn test_unenroll_remote_router() {
 
 #[test]
 fn test_unenroll_remote_router_fails_if_domain_not_enrolled() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     let warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
 
@@ -94,7 +94,7 @@ fn test_unenroll_remote_router_fails_if_domain_not_enrolled() {
 
 #[test]
 fn test_unenroll_remote_router_fails_if_route_does_not_exist() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     let _ = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
 
@@ -118,7 +118,7 @@ fn test_unenroll_remote_router_fails_if_route_does_not_exist() {
 
 #[test]
 fn test_unenroll_remote_router_fails_if_not_admin() {
-    let (mut runner, admin, other) = setup();
+    let (mut runner, admin, other, ..) = setup();
 
     let warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
 
@@ -145,7 +145,7 @@ fn test_unenroll_remote_router_fails_if_not_admin() {
 
 #[test]
 fn test_enroll_remote_router_fails_if_not_admin() {
-    let (mut runner, admin, other) = setup();
+    let (mut runner, admin, other, ..) = setup();
 
     let warp_route_id = register_basic_warp_route(&mut runner, &admin);
     runner.execute_transaction(TransactionTestCase {
@@ -174,7 +174,7 @@ fn test_enroll_remote_router_fails_if_not_admin() {
 
 #[test]
 fn test_enroll_remote_router_fails_if_duplicate() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     let warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
     runner.execute_transaction(TransactionTestCase {
@@ -200,7 +200,7 @@ fn test_enroll_remote_router_fails_if_duplicate() {
 
 #[test]
 fn test_register_warp_route_duplicate_registrations_fail() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     let _warp_route_id = register_basic_warp_route(&mut runner, &admin);
     runner.execute_transaction(TransactionTestCase {

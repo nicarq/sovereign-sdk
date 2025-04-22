@@ -16,6 +16,7 @@ use sov_test_utils::{AsUser, TestUser, TransactionTestCase};
 
 use super::runtime::*;
 
+#[allow(clippy::too_many_arguments)]
 fn do_inbound_transfer_success(
     runner: &mut TestRunner<RT, S>,
     admin: &TestUser<S>,
@@ -39,6 +40,7 @@ fn do_inbound_transfer_success(
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn do_inbound_transfer_success_with_scaled_amount(
     runner: &mut TestRunner<RT, S>,
     admin: &TestUser<S>,
@@ -109,6 +111,7 @@ fn do_inbound_transfer_success_with_scaled_amount(
     });
 }
 
+#[allow(clippy::too_many_arguments)]
 fn do_inbound_transfer_failure(
     runner: &mut TestRunner<RT, S>,
     admin: &TestUser<S>,
@@ -117,7 +120,6 @@ fn do_inbound_transfer_failure(
     warp_route_id: HexHash,
     to: HexHash,
     amount: Amount,
-
     expected_error: &'static str,
 ) {
     let message_body = Warp::<S>::pack_transfer_body(to, amount, &StoredTokenKind::Native);
@@ -155,10 +157,18 @@ fn do_outbound_transfer(
     admin: &TestUser<S>,
     warp_route_id: HexHash,
     amount: Amount,
+    relayer: <S as Spec>::Address,
     remote_amount: HexHash,
 ) {
     runner.execute_transaction(TransactionTestCase {
-        input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::TransferRemote { warp_route: warp_route_id, destination_domain: CONFIGURED_DOMAIN, recipient: CONFIGURED_REMOTE_ROUTER_ADDRESS, amount }),
+        input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::TransferRemote {
+            warp_route: warp_route_id,
+            destination_domain: CONFIGURED_DOMAIN,
+            recipient: CONFIGURED_REMOTE_ROUTER_ADDRESS,
+            amount,
+            relayer: Some(relayer),
+            gas_payment_limit: Amount::MAX
+        }),
         assert: Box::new(move |result, _| {
             assert!(
                 result.tx_receipt.is_successful(),
@@ -186,6 +196,7 @@ fn do_outbound_transfer_failure(
     admin: &TestUser<S>,
     warp_route_id: HexHash,
     amount: Amount,
+    relayer: <S as Spec>::Address,
     expected_error: &'static str,
 ) {
     runner.execute_transaction(TransactionTestCase {
@@ -194,6 +205,8 @@ fn do_outbound_transfer_failure(
             destination_domain: CONFIGURED_DOMAIN,
             recipient: CONFIGURED_REMOTE_ROUTER_ADDRESS,
             amount,
+            relayer: Some(relayer),
+            gas_payment_limit: Amount::MAX,
         }),
         assert: Box::new(move |result, _| match result.tx_receipt {
             TxEffect::Reverted(reason) => {
@@ -210,8 +223,9 @@ fn do_outbound_transfer_failure(
 
 #[test]
 fn test_transfer_roundtrip() {
-    let (mut runner, admin, other) = setup();
+    let (mut runner, admin, other, relayer) = setup();
 
+    register_relayer_with_dummy_igp(&mut runner, &relayer, CONFIGURED_DOMAIN);
     let warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
 
     do_outbound_transfer(
@@ -219,6 +233,7 @@ fn test_transfer_roundtrip() {
         &admin,
         warp_route_id,
         Amount(100),
+        relayer.address(),
         encode_amount(Amount(100)),
     );
     do_inbound_transfer_success(
@@ -235,7 +250,9 @@ fn test_transfer_roundtrip() {
 
 #[test]
 fn test_transfer_inbound_fails_various_edge_cases() {
-    let (mut runner, admin, other) = setup();
+    let (mut runner, admin, other, relayer) = setup();
+
+    register_relayer_with_dummy_igp(&mut runner, &relayer, CONFIGURED_DOMAIN);
 
     let warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
 
@@ -244,6 +261,7 @@ fn test_transfer_inbound_fails_various_edge_cases() {
         &admin,
         warp_route_id,
         Amount(100),
+        relayer.address(),
         encode_amount(Amount(100)),
     );
     do_inbound_transfer_failure(
@@ -302,8 +320,10 @@ fn test_transfer_inbound_fails_various_edge_cases() {
 
 #[test]
 fn test_transfer_remote_fails_if_not_enough_balance() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, _, relayer) = setup();
     let full_balance = admin.available_gas_balance;
+
+    register_relayer_with_dummy_igp(&mut runner, &relayer, CONFIGURED_DOMAIN);
 
     let warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
     runner.execute_transaction(TransactionTestCase {
@@ -312,6 +332,8 @@ fn test_transfer_remote_fails_if_not_enough_balance() {
             destination_domain: CONFIGURED_DOMAIN,
             recipient: CONFIGURED_REMOTE_ROUTER_ADDRESS,
             amount: full_balance,
+            relayer: Some(relayer.address()),
+            gas_payment_limit: Amount::MAX,
         }),
         assert: Box::new(move |result, _| {
             match result.tx_receipt {
@@ -330,7 +352,9 @@ fn test_transfer_remote_fails_if_not_enough_balance() {
 
 #[test]
 fn test_transfer_remote_fails_if_domain_not_enrolled() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, _, relayer) = setup();
+
+    register_relayer_with_dummy_igp(&mut runner, &relayer, CONFIGURED_DOMAIN);
 
     let warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
     runner.execute_transaction(TransactionTestCase {
@@ -339,6 +363,8 @@ fn test_transfer_remote_fails_if_domain_not_enrolled() {
             destination_domain: 2,
             recipient: CONFIGURED_REMOTE_ROUTER_ADDRESS,
             amount: Amount(100),
+            relayer: Some(relayer.address()),
+            gas_payment_limit: Amount::MAX,
         }),
         assert: Box::new(move |result, _| {
             match result.tx_receipt {
@@ -357,7 +383,9 @@ fn test_transfer_remote_fails_if_domain_not_enrolled() {
 
 #[test]
 fn test_transfer_remote_fails_if_route_does_not_exist() {
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, _, relayer) = setup();
+
+    register_relayer_with_dummy_igp(&mut runner, &relayer, CONFIGURED_DOMAIN);
 
     let _warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
     runner.execute_transaction(TransactionTestCase {
@@ -366,6 +394,8 @@ fn test_transfer_remote_fails_if_route_does_not_exist() {
             destination_domain: 2,
             recipient: CONFIGURED_REMOTE_ROUTER_ADDRESS,
             amount: Amount(100),
+            relayer: Some(relayer.address()),
+            gas_payment_limit: Amount::MAX,
         }),
         assert: Box::new(move |result, _| {
             match result.tx_receipt {
@@ -388,7 +418,9 @@ fn encode_amount(amount: Amount) -> HexHash {
 
 #[test]
 fn test_inbound_transfer_fails_if_ism_rejects() {
-    let (mut runner, admin, other) = setup();
+    let (mut runner, admin, other, relayer) = setup();
+
+    register_relayer_with_dummy_igp(&mut runner, &relayer, CONFIGURED_DOMAIN);
 
     let warp_route_id = register_basic_warp_route_and_enroll_router_with_ism(
         &mut runner,
@@ -403,6 +435,7 @@ fn test_inbound_transfer_fails_if_ism_rejects() {
         &admin,
         warp_route_id,
         Amount(100),
+        relayer.address(),
         encode_amount(Amount(100)),
     );
     // Try the outbound tranfser without using the trusted relayer
@@ -432,8 +465,9 @@ fn test_inbound_transfer_fails_if_ism_rejects() {
 
 #[test]
 fn test_collateral_route() {
-    let (mut runner, admin, other) = setup();
+    let (mut runner, admin, other, relayer, ..) = setup();
 
+    register_relayer_with_dummy_igp(&mut runner, &relayer, CONFIGURED_DOMAIN);
     let new_token_id = Arc::new(std::sync::Mutex::new(None));
     let token_id_ref = new_token_id.clone();
     runner.execute_transaction(TransactionTestCase {
@@ -475,6 +509,7 @@ fn test_collateral_route() {
         &admin,
         warp_route_id,
         Amount(100),
+        relayer.address(),
         "Failed to transfer token",
     );
     // Inbound transfer should fail because the warp module has no tokens
@@ -494,6 +529,7 @@ fn test_collateral_route() {
         &other,
         warp_route_id,
         Amount(100),
+        relayer.address(),
         encode_amount(Amount(100)),
     );
     // Inbound transfer should succeed now
@@ -560,7 +596,9 @@ fn register_synthetic_route(
 #[test]
 fn test_synthetic_route() {
     const REMOTE_TOKEN_ID: HexHash = HexString([255; 32]);
-    let (mut runner, admin, other) = setup();
+    let (mut runner, admin, other, relayer) = setup();
+
+    register_relayer_with_dummy_igp(&mut runner, &relayer, CONFIGURED_DOMAIN);
 
     let (warp_route_id, synthetic_token_id) = register_synthetic_route(
         &mut runner,
@@ -579,6 +617,7 @@ fn test_synthetic_route() {
         &admin,
         warp_route_id,
         Amount(100),
+        relayer.address(),
         "supply=0 is less than burn amount=100",
     );
     // Inbound transfer should succeed
@@ -600,6 +639,7 @@ fn test_synthetic_route() {
         &admin,
         warp_route_id,
         Amount(1), // Amount is more than the amount of locked tokens
+        relayer.address(),
         "Insufficient balance",
     );
 
@@ -609,6 +649,7 @@ fn test_synthetic_route() {
         &other,
         warp_route_id,
         Amount(101), // Amount is more than the amount of locked tokens
+        relayer.address(),
         "supply=100 is less than burn amount=101",
     );
     // Outbound transfer should succeed
@@ -617,6 +658,7 @@ fn test_synthetic_route() {
         &other,
         warp_route_id,
         Amount(100),
+        relayer.address(),
         encode_amount(Amount(10000)),
     );
 }
@@ -624,8 +666,9 @@ fn test_synthetic_route() {
 #[test]
 fn test_synthetic_route_with_standard_amount() {
     const REMOTE_TOKEN_ID: HexHash = HexString([255; 32]);
-    let (mut runner, admin, other) = setup();
+    let (mut runner, admin, other, relayer) = setup();
 
+    register_relayer_with_dummy_igp(&mut runner, &relayer, CONFIGURED_DOMAIN);
     let (warp_route_id, synthetic_token_id) = register_synthetic_route(
         &mut runner,
         &admin,
@@ -643,6 +686,7 @@ fn test_synthetic_route_with_standard_amount() {
         &admin,
         warp_route_id,
         Amount(100),
+        relayer.address(),
         "supply=0 is less than burn amount=100",
     );
     // Inbound transfer should succeed
@@ -664,6 +708,7 @@ fn test_synthetic_route_with_standard_amount() {
         &admin,
         warp_route_id,
         Amount(1), // Amount is more than the amount of locked tokens
+        relayer.address(),
         "Insufficient balance",
     );
 
@@ -673,6 +718,7 @@ fn test_synthetic_route_with_standard_amount() {
         &other,
         warp_route_id,
         Amount(101), // Amount is more than the amount of locked tokens
+        relayer.address(),
         "supply=100 is less than burn amount=101",
     );
     // Outbound transfer should succeed
@@ -681,6 +727,7 @@ fn test_synthetic_route_with_standard_amount() {
         &other,
         warp_route_id,
         Amount(100),
+        relayer.address(),
         encode_amount(Amount(100)),
     );
 }
@@ -688,7 +735,7 @@ fn test_synthetic_route_with_standard_amount() {
 #[test]
 fn test_synthetic_route_with_zero_scale_should_reject() {
     const REMOTE_TOKEN_ID: HexHash = HexString([255; 32]);
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     runner.execute_transaction(TransactionTestCase {
         input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::Register {

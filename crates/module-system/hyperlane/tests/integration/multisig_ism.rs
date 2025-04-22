@@ -279,7 +279,7 @@ fn test_verify_valid_end_to_end() {
         threshold: 2,
     };
 
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     register_recipient_with_ism(
         &mut runner,
@@ -327,7 +327,7 @@ fn test_verify_invalid_end_to_end() {
         threshold: 2,
     };
 
-    let (mut runner, admin, _) = setup();
+    let (mut runner, admin, ..) = setup();
 
     register_recipient_with_ism(
         &mut runner,

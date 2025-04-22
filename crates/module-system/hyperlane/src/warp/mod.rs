@@ -14,7 +14,7 @@ use sov_modules_api::{
 pub use types::*;
 
 use crate::ism::Ism;
-use crate::{HyperlaneAddress, Mailbox, NoOpPostDispatchHook, Recipient};
+use crate::{HyperlaneAddress, Mailbox, Recipient};
 
 mod types;
 
@@ -96,6 +96,10 @@ pub enum CallMessage<S: Spec> {
         recipient: HexHash,
         /// The amount to transfer.
         amount: Amount,
+        /// Selected relayer
+        relayer: Option<S::Address>,
+        /// A limit for the payment to relayer to cover gas needed for message delivery.
+        gas_payment_limit: Amount,
     },
 }
 
@@ -215,12 +219,16 @@ where
                 destination_domain,
                 recipient,
                 amount,
+                relayer,
+                gas_payment_limit,
             } => {
                 self.transfer_remote(
                     warp_route,
                     destination_domain,
                     recipient,
                     amount,
+                    relayer,
+                    gas_payment_limit,
                     context,
                     state,
                 )?;
@@ -441,12 +449,15 @@ where
     }
 
     /// Transfer a token from the local chain to the remote chain.
+    #[allow(clippy::too_many_arguments)]
     fn transfer_remote(
         &mut self,
         warp_route: WarpRouteId,
         destination_domain: u32,
         recipient: HexHash,
         amount: Amount,
+        relayer: Option<S::Address>,
+        gas_payment_limit: Amount,
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
@@ -529,7 +540,8 @@ where
             warp_route, // Use the route ID as the sender
             HexString(body),
             None,
-            Option::<NoOpPostDispatchHook>::None,
+            relayer,
+            gas_payment_limit,
             context,
             state,
         )?;
