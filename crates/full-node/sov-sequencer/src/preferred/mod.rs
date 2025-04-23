@@ -639,6 +639,8 @@ where
 
         if self.config.automatic_batch_production {
             inner.produce_batch_if_possible().await?;
+        } else {
+            tracing::warn!("Skipping batch production due to settings");
         }
 
         // Currently the sequencers height increases alongside the node inside this function.
