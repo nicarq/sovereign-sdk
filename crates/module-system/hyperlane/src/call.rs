@@ -15,7 +15,6 @@ use crate::crypto::{
     DomainHash, EthSignHash, HashKind,
 };
 use crate::event::Event;
-use crate::ism::Ism;
 use crate::traits::PostDispatchHook;
 use crate::types::{Domain, EthAddress, StorageLocation, ValidatorSignature};
 use crate::{Delivery, DispatchState, HyperlaneAddress, Message, Recipient, MAILBOX_ADDR};
@@ -227,7 +226,12 @@ where
         // Try and get ISM from recipient registry, if not found, use default ISM
         let ism = match self.recipients.ism(&message.recipient, state)? {
             Some(ism) => ism,
-            None => Ism::AlwaysTrust, // TODO: Add a less insecure default ISM
+            None => self.recipients.default_ism(state)?.ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No dedicated or default ISM found for recipient {}",
+                    message.recipient
+                )
+            })?,
         };
 
         ism.verify(context, &message, &metadata, state)?;

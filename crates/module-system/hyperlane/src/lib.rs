@@ -244,6 +244,14 @@ pub trait Recipient<S: Spec>:
     /// Get the [`ISM`](Ism) for a given recipient address.
     fn ism(&self, recipient: &HexHash, state: &mut impl TxState<S>) -> anyhow::Result<Option<Ism>>;
 
+    /// Get the default [`ISM`](Ism).
+    ///
+    /// Default `ISM` will be used for verifying messages
+    /// to recipients which don't have a dedicated `ISM` configured.
+    /// If no dedicated `ISM` is set for a recipient, and this function
+    /// returns `None`, then a delivery of a message will fail.
+    fn default_ism(&self, _state: &mut impl TxState<S>) -> anyhow::Result<Option<Ism>>;
+
     /// Handle an inbound message.
     fn handle(
         &mut self,

@@ -7,7 +7,8 @@ use sov_modules_api::{HexHash, HexString, TxEffect};
 use sov_test_utils::{AsUser, TransactionTestCase};
 
 use crate::runtime::{
-    register_recipient, register_recipient_with_ism, setup, Mailbox, TestRuntimeEvent, RT, S,
+    register_recipient, register_recipient_with_ism, set_default_ism, setup, Mailbox,
+    TestRuntimeEvent, RT, S,
 };
 
 #[test]
@@ -36,7 +37,7 @@ fn test_send_message_basic() {
         assert: Box::new(|result, _| {
             assert!(
                 result.tx_receipt.is_reverted(),
-                "No recipient is registered but the tx succeeded"
+                "No recipient or default ism is registered but the tx succeeded"
             );
         }),
     });
@@ -148,6 +149,89 @@ fn test_replay_message_delivery() {
             _ => {
                 panic!("Unexpected tx receipt: {:?}", result.tx_receipt);
             }
+        }),
+    });
+}
+
+#[test]
+fn test_send_message_with_default_ism() {
+    let (mut runner, admin, ..) = setup();
+
+    let recipient_address: HexHash = [5u8; 32].into();
+    let message_body = b"Hello, world!";
+    let message = Message {
+        version: MESSAGE_VERSION,
+        nonce: 0,
+        origin_domain: test_recipient::MAGIC_SOV_CHAIN_DOMAIN, // Signal that the sender is a Sovereign SDK chain, so the sender address can be parsed. This makes the test output nicer.
+        sender: admin.address().to_sender(), // The sender doesn't matter for this test
+        dest_domain: config_value!("HYPERLANE_BRIDGE_DOMAIN"),
+        recipient: recipient_address,
+        body: message_body.to_vec().into(),
+    };
+
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Mailbox<S>>(CallMessage::Process {
+            message: HexString(message.encode().0.try_into().unwrap()),
+            metadata: HexString(vec![].try_into().unwrap()),
+        }),
+        assert: Box::new(|result, _| {
+            assert!(
+                result.tx_receipt.is_reverted(),
+                "No recipient or default ism is registered but the tx succeeded"
+            );
+        }),
+    });
+
+    // Set default ism
+    set_default_ism(&mut runner, &admin, Ism::AlwaysTrust);
+    // Now the message should be delivered
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Mailbox<S>>(CallMessage::Process {
+            message: HexString(message.encode().0.try_into().unwrap()),
+            metadata: HexString(vec![].try_into().unwrap()),
+        }),
+        assert: Box::new(move |result, _| {
+            assert!(result.events.iter().any(|event| {
+                matches!(
+                    event,
+                    TestRuntimeEvent::TestRecipient(Event::MessageReceivedUnknownRecipient { recipient, body, .. })
+                        if *recipient == recipient_address && body == &HexString::new(message_body.to_vec())
+                )
+            }));
+        }),
+    });
+
+    // Now register recipient with more strict ISM
+    register_recipient_with_ism(
+        &mut runner,
+        &admin,
+        recipient_address,
+        Ism::TrustedRelayer {
+            relayer: [11; 32].into(),
+        },
+    );
+
+    // Since dedicated ISM takes precedence over default ism, this should fail as ISM condition
+    // won't be met
+    let message = Message {
+        version: MESSAGE_VERSION,
+        nonce: 1,
+        origin_domain: test_recipient::MAGIC_SOV_CHAIN_DOMAIN, // Signal that the sender is a Sovereign SDK chain, so the sender address can be parsed. This makes the test output nicer.
+        sender: admin.address().to_sender(), // The sender doesn't matter for this test
+        dest_domain: config_value!("HYPERLANE_BRIDGE_DOMAIN"),
+        recipient: recipient_address,
+        body: message_body.to_vec().into(),
+    };
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Mailbox<S>>(CallMessage::Process {
+            message: HexString(message.encode().0.try_into().unwrap()),
+            metadata: HexString(vec![].try_into().unwrap()),
+        }),
+        assert: Box::new(|result, _| {
+            assert!(
+                result.tx_receipt.is_reverted(),
+                "Admin is not trusted relayer for recipient but tx succeeded"
+            );
         }),
     });
 }
