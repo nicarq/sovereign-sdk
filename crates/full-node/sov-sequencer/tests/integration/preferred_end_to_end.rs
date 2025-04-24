@@ -131,11 +131,10 @@ async fn new_test_rollup(
         c.storage = dir;
     })
     .set_da_config(|c| c.sender_address = sequencer_addr)
-    .with_preferred_seq_min_profit_per_tx(minimum_profit_per_tx)
-    .with_postgres_sequencer()
-    .await;
+    .with_preferred_seq_min_profit_per_tx(minimum_profit_per_tx);
+    // .with_postgres_sequencer().await TODO: enable this once port scanning issue on build server is fixed
 
-    match builder_res {
+    match Result::<_, anyhow::Error>::Ok(builder_res) {
         Ok(builder) => Some(builder.start().await.unwrap()),
         Err(e) => {
             if std::env::var("SOV_TEST_SKIP_DOCKER") == Ok("1".to_string()) {
