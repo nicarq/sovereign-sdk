@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{
     Context, Error, EventEmitter, HexHash, HexString, Module, ModuleId, ModuleInfo, ModuleRestApi,
-    Spec, StateMap, TxState,
+    Spec, StateMap, StateValue, TxState,
 };
 
 use crate::ism::Ism;
@@ -22,9 +22,13 @@ pub struct TestRecipient<S: Spec> {
     #[id]
     pub id: ModuleId,
 
-    /// A from registered recipient addresses to their ISM.
+    /// A map from registered recipient addresses to their ISM.
     #[state]
     pub isms: StateMap<HexHash, Ism>,
+
+    /// A default ism used by the module.
+    #[state]
+    pub default_ism: StateValue<Ism>,
 
     #[phantom]
     phantom: std::marker::PhantomData<S>,
@@ -62,6 +66,17 @@ pub enum Event<S: Spec> {
         #[allow(missing_docs)]
         body: String,
     },
+    /// A "message received" event for recipient that is not registered.
+    MessageReceivedUnknownRecipient {
+        #[allow(missing_docs)]
+        origin: u32,
+        #[allow(missing_docs)]
+        sender: HexHash,
+        #[allow(missing_docs)]
+        recipient: HexHash,
+        #[allow(missing_docs)]
+        body: HexString,
+    },
     /// An event emitted when recipient sees validator announcement.
     AnnouncementReceived {
         #[allow(missing_docs)]
@@ -93,6 +108,11 @@ pub enum CallMessage {
         #[allow(missing_docs)]
         ism: Ism,
     },
+    /// Set a default ISM for recipients without dedicated ISM configured.
+    SetDefaultIsm {
+        #[allow(missing_docs)]
+        ism: Ism,
+    },
 }
 
 impl<S: Spec> Module for TestRecipient<S> {
@@ -111,6 +131,7 @@ impl<S: Spec> Module for TestRecipient<S> {
             CallMessage::Register { address, ism } => {
                 self.register(address, ism, state)?;
             }
+            CallMessage::SetDefaultIsm { ism } => self.set_default_ism(ism, state)?,
         }
         Ok(())
     }
@@ -129,6 +150,11 @@ impl<S: Spec> TestRecipient<S> {
         self.isms.set(&address, &ism, state)?;
         Ok(())
     }
+
+    fn set_default_ism(&mut self, ism: Ism, state: &mut impl TxState<S>) -> anyhow::Result<()> {
+        self.default_ism.set(&ism, state)?;
+        Ok(())
+    }
 }
 
 impl<S: Spec> Recipient<S> for TestRecipient<S>
@@ -137,6 +163,10 @@ where
 {
     fn ism(&self, recipient: &HexHash, state: &mut impl TxState<S>) -> anyhow::Result<Option<Ism>> {
         self.isms.get(recipient, state).map_err(anyhow::Error::new)
+    }
+
+    fn default_ism(&self, state: &mut impl TxState<S>) -> anyhow::Result<Option<Ism>> {
+        self.default_ism.get(state).map_err(anyhow::Error::new)
     }
 
     /// Handles an inbound message. Note that this deviates from more standard Hyperlane `handle` API because all messages
@@ -150,9 +180,16 @@ where
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
         if self.isms.get(recipient, state)?.is_none() {
-            anyhow::bail!("Recipient not registered");
-        }
-        if origin == MAGIC_SOV_CHAIN_DOMAIN {
+            self.emit_event(
+                state,
+                Event::MessageReceivedUnknownRecipient {
+                    origin,
+                    sender,
+                    recipient: *recipient,
+                    body,
+                },
+            );
+        } else if origin == MAGIC_SOV_CHAIN_DOMAIN {
             self.emit_event(
                 state,
                 Event::MessageReceived {

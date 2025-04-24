@@ -141,6 +141,20 @@ pub fn register_recipient_with_ism(
     });
 }
 
+pub fn set_default_ism(runner: &mut TestRunner<RT, S>, user: &TestUser<S>, ism: Ism) {
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<RT, TestRecipient<S>>(
+            RecipientCallMessage::SetDefaultIsm { ism },
+        ),
+        assert: Box::new(|result, _| {
+            assert!(
+                result.tx_receipt.is_successful(),
+                "ISM was not set successfully"
+            );
+        }),
+    });
+}
+
 pub fn random_validator() -> (SecretKey, EthAddress) {
     let secp = Secp256k1::new();
     let (secret_key, public_key) = secp.generate_keypair(&mut OsRng);

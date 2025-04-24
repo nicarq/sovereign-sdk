@@ -143,7 +143,7 @@ fn do_inbound_transfer_failure(
             TxEffect::Reverted(reason) => {
                 assert!(
                     reason.reason.to_string().contains(expected_error),
-                    "Transaction should be reverted with the correct error but reverted with: {}",
+                    "Revert reason should contain '{expected_error}' but reverted with: {}",
                     reason.reason
                 );
             }
@@ -292,7 +292,7 @@ fn test_transfer_inbound_fails_various_edge_cases() {
         HexString([0; 32]), // Warp route id is wrong
         other.address().to_sender(),
         Amount(100),
-        "not found",
+        "No dedicated or default ISM found for recipient",
     );
     do_inbound_transfer_failure(
         &mut runner,

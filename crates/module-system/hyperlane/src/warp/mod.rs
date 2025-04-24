@@ -676,6 +676,11 @@ where
 
         Ok(())
     }
+
+    /// Each warp route must have a dedicated ISM set and only they are recipients.
+    fn default_ism(&self, _state: &mut impl TxState<S>) -> anyhow::Result<Option<Ism>> {
+        Ok(None)
+    }
 }
 
 #[cfg(test)]
