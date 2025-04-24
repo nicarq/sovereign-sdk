@@ -1,7 +1,7 @@
 use internals::Delta;
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 /// Provides specialized working set wrappers for dealing with protected state.
-use sov_state::{IsValueCached, SlotKey, SlotValue};
+use sov_state::{SlotKey, SlotValue};
 
 use self::checkpoints::StateCheckpoint;
 use super::{checkpoints, internals, Namespace, UniversalStateAccessor};
@@ -16,10 +16,6 @@ pub struct BootstrapWorkingSet<'a, S: Spec> {
 }
 
 impl<'a, S: Spec> UniversalStateAccessor for BootstrapWorkingSet<'a, S> {
-    fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
-        self.inner.is_value_cached(namespace, key)
-    }
-
     fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         self.inner.get_size(namespace, key)
     }
@@ -121,10 +117,6 @@ impl<'a, S: Spec> KernelStateAccessor<'a, S> {
 }
 
 impl<S: Spec> UniversalStateAccessor for KernelStateAccessor<'_, S> {
-    fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
-        self.checkpoint.is_value_cached(namespace, key)
-    }
-
     fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         self.checkpoint.get_size(namespace, key)
     }

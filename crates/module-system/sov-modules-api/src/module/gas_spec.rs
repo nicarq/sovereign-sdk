@@ -26,26 +26,17 @@ pub trait GasSpec:
     /// Returns the gas to charge for accessing a value from the storage.
     fn bias_to_charge_for_access() -> Self::Gas;
 
-    /// Returns the bias to charge for a state update.
-    fn bias_to_charge_cold_storage_update() -> Self::Gas;
-
     /// The cost of encoding and storing storage bytes to cache.
     fn gas_to_charge_per_byte_storage_update() -> Self::Gas;
 
     /// The cost of encoding and storing storage bytes to cache.
     fn bias_to_charge_storage_update() -> Self::Gas;
 
-    /// The cost of reading a storage value from the storage.
-    fn bias_to_charge_for_cold_read() -> Self::Gas;
-
-    /// The cost of reading a storage value from the storage. Charged per byte of the value to read.
-    fn gas_to_charge_per_byte_cold_read() -> Self::Gas;
-
     /// The cost of reading a storage value from the cache.
-    fn bias_to_charge_for_hot_read() -> Self::Gas;
+    fn bias_to_charge_for_read() -> Self::Gas;
 
     /// The cost of reading a storage value into the cache.
-    fn gas_to_charge_per_byte_hot_read() -> Self::Gas;
+    fn gas_to_charge_per_byte_read() -> Self::Gas;
 
     // --- End Gas parameters to charge for state accesses ---
 
@@ -133,24 +124,12 @@ impl<S: Spec> GasSpec for S {
         new_constant!("GAS_TO_CHARGE_PER_STORAGE_ACCESS", Self::Gas)
     }
 
-    fn bias_to_charge_for_cold_read() -> Self::Gas {
-        new_constant!("GAS_TO_CHARGE_PER_COLD_READ", Self::Gas)
+    fn bias_to_charge_for_read() -> Self::Gas {
+        new_constant!("GAS_TO_CHARGE_PER_READ", Self::Gas)
     }
 
-    fn gas_to_charge_per_byte_cold_read() -> Self::Gas {
-        new_constant!("GAS_TO_CHARGE_PER_BYTE_COLD_READ", Self::Gas)
-    }
-
-    fn bias_to_charge_for_hot_read() -> Self::Gas {
-        new_constant!("GAS_TO_CHARGE_PER_HOT_READ", Self::Gas)
-    }
-
-    fn gas_to_charge_per_byte_hot_read() -> Self::Gas {
-        new_constant!("GAS_TO_CHARGE_PER_BYTE_HOT_READ", Self::Gas)
-    }
-
-    fn bias_to_charge_cold_storage_update() -> Self::Gas {
-        new_constant!("BIAS_COLD_STORAGE_UPDATE", Self::Gas)
+    fn gas_to_charge_per_byte_read() -> Self::Gas {
+        new_constant!("GAS_TO_CHARGE_PER_BYTE_READ", Self::Gas)
     }
 
     fn bias_to_charge_storage_update() -> Self::Gas {

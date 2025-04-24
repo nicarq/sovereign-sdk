@@ -212,16 +212,6 @@ impl<S: Storage> AccessoryDelta<S> {
 }
 
 impl<S: Storage> UniversalStateAccessor for AccessoryDelta<S> {
-    fn is_value_cached(&self, _namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
-        if let Some(access) = self.writes.get(key) {
-            IsValueCached::Yes(AccessSize::Write(
-                access.as_ref().map(|v| v.size()).unwrap_or(0),
-            ))
-        } else {
-            IsValueCached::No
-        }
-    }
-
     fn get_size(&mut self, _namespace: Namespace, key: &SlotKey) -> Option<u32> {
         if let Some(value) = self.writes.get(key) {
             return value.clone().map(|v| v.size());
@@ -314,15 +304,6 @@ impl<T> UniversalStateAccessor for RevertableWriter<T>
 where
     T: UniversalStateAccessor,
 {
-    fn is_value_cached(&self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        if let Some(access) = self.writes.get(&(key.clone(), namespace)) {
-            IsValueCached::Yes(AccessSize::Write(
-                access.as_ref().map(|v| v.size()).unwrap_or(0),
-            ))
-        } else {
-            <T as UniversalStateAccessor>::is_value_cached(&self.inner, namespace, key)
-        }
-    }
     fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         if let Some(value) = self.writes.get(&(key.clone(), namespace)) {
             value.as_ref().map(|v| v.size())

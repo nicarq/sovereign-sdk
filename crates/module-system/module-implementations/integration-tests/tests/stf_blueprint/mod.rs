@@ -127,7 +127,7 @@ fn create_tx_bad_sig(
         message,
         chain_id,
         max_priority_fee_bips,
-        Amount::new(200_000),
+        TEST_DEFAULT_MAX_FEE,
         nonce,
         None,
     );

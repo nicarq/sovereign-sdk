@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{
-    namespaces, AccessSize, EventContainer, IsValueCached, Namespace, NativeStorage,
-    ProvableStorageCache, SlotKey, SlotValue, Storage,
+    namespaces, EventContainer, Namespace, NativeStorage, ProvableStorageCache, SlotKey, SlotValue,
+    Storage,
 };
 
 use super::temp_cache::{CacheLookup, TempCache};
@@ -33,22 +33,6 @@ fn get_slot_number(visible_slot_number: Option<VisibleSlotNumber>) -> Option<Slo
 }
 
 impl<S: Spec> UniversalStateAccessor for ApiStateAccessor<S> {
-    fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
-        match namespace {
-            Namespace::User => self.user_cache.is_value_cached(key),
-            Namespace::Kernel => self.kernel_cache.is_value_cached(key),
-            Namespace::Accessory => {
-                if let Some(access) = self.accessory_writes.get(key) {
-                    IsValueCached::Yes(AccessSize::Write(
-                        access.as_ref().map(|v| v.size()).unwrap_or(0),
-                    ))
-                } else {
-                    IsValueCached::No
-                }
-            }
-        }
-    }
-
     fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u32> {
         match namespace {
             Namespace::User => self.user_cache.get_size_or_fetch(

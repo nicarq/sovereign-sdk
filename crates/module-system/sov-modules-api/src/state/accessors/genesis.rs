@@ -1,5 +1,5 @@
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
-use sov_state::{EventContainer, IsValueCached, SlotKey, SlotValue};
+use sov_state::{EventContainer, SlotKey, SlotValue};
 
 use super::checkpoints::StateCheckpoint;
 use super::temp_cache::{BorshSerializedSize, CacheLookup, TempCache};
@@ -53,10 +53,6 @@ impl<S: Spec> VersionReader for GenesisStateAccessor<'_, S> {
 }
 
 impl<'a, S: Spec> UniversalStateAccessor for GenesisStateAccessor<'a, S> {
-    fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
-        self.checkpoint.is_value_cached(namespace, key)
-    }
-
     fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u32> {
         self.checkpoint.get_size(namespace, key)
     }
