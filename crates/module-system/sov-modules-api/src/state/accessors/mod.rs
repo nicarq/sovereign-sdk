@@ -45,12 +45,10 @@ use super::{StateReaderAndWriter, VersionReader};
 use crate::Spec;
 
 pub(super) mod seal {
-    use sov_state::{IsValueCached, Namespace, SlotKey, SlotValue};
+    use sov_state::{Namespace, SlotKey, SlotValue};
 
     /// A helper trait allowing a type to access any namespace by their *runtime* enum variant.
     pub trait UniversalStateAccessor {
-        fn is_value_cached(&self, namespace: Namespace, key: &SlotKey) -> IsValueCached;
-
         fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32>;
 
         fn get_value(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue>;

@@ -255,6 +255,7 @@ fn blob_test_max_allowed_data_size() {
 
 mod helpers {
     use sov_modules_stf_blueprint::Runtime;
+    use sov_test_utils::TEST_DEFAULT_MAX_FEE;
 
     use super::*;
     use crate::stf_blueprint::{
@@ -339,7 +340,7 @@ mod helpers {
             encoded_message,
             chain_id,
             max_priority_fee_bips,
-            Amount::new(200_000),
+            TEST_DEFAULT_MAX_FEE,
             nonce,
             None,
         );

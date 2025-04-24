@@ -39,6 +39,11 @@ impl ChangeSet {
 }
 
 impl<S: Spec> StateCheckpoint<S> {
+    /// Check if key is in the cache.
+    pub fn is_value_cached(&self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+        self.delta.is_value_cached(namespace, key)
+    }
+
     /// Commits the revertable part of the `StateCheckpoint` cache.
     pub fn commit_revertable_storage_cache(&mut self) {
         self.delta.commit_revertable_storage_cache();
@@ -184,10 +189,6 @@ impl<S: Spec> VersionReader for StateCheckpoint<S> {
 }
 
 impl<S: Spec> UniversalStateAccessor for StateCheckpoint<S> {
-    fn is_value_cached(&self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        self.delta.is_value_cached(namespace, key)
-    }
-
     fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         self.delta.get_size(namespace, key)
     }
@@ -207,7 +208,7 @@ impl<S: Spec> UniversalStateAccessor for StateCheckpoint<S> {
 
 #[cfg(feature = "native")]
 pub mod native {
-    use sov_state::{IsValueCached, SlotKey, SlotValue};
+    use sov_state::{SlotKey, SlotValue};
 
     use crate::state::accessors::UniversalStateAccessor;
     use crate::{Spec, StateCheckpoint};
@@ -229,10 +230,6 @@ pub mod native {
     }
 
     impl<'a, S: Spec> UniversalStateAccessor for AccessoryStateCheckpoint<'a, S> {
-        fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
-            self.checkpoint.is_value_cached(namespace, key)
-        }
-
         fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u32> {
             self.checkpoint.get_size(namespace, key)
         }

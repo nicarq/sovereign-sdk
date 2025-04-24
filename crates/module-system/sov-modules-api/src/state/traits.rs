@@ -6,9 +6,9 @@ use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 #[cfg(feature = "native")]
 use sov_state::StorageProof;
 use sov_state::{
-    namespaces, AccessSize, Accessory, CompileTimeNamespace, EventContainer, IsValueCached, Kernel,
-    Namespace, ProvableCompileTimeNamespace, SlotKey, SlotValue, StateCodec, StateItemCodec,
-    StateItemDecoder, User,
+    namespaces, Accessory, CompileTimeNamespace, EventContainer, Kernel, Namespace,
+    ProvableCompileTimeNamespace, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder,
+    User,
 };
 use thiserror::Error;
 
@@ -496,8 +496,8 @@ pub trait PrivilegedKernelAccessor: StateWriter<namespaces::Kernel> {
     fn true_slot_number(&self) -> SlotNumber;
 }
 
-/// Amount to pay on very first access to a storage value if not cached.
-fn charge_first_storage_access<Accessor: UniversalStateAccessor + GasMeter>(
+/// Amount to pay for access to a storage value.
+fn charge_storage_access<Accessor: UniversalStateAccessor + GasMeter>(
     accessor: &mut Accessor,
     key: &SlotKey,
 ) -> Result<(), GasMeteringError<<Accessor::Spec as Spec>::Gas>> {
@@ -505,11 +505,11 @@ fn charge_first_storage_access<Accessor: UniversalStateAccessor + GasMeter>(
     // - cold access bias to load something from the storage (aka Merkle proof cost)
     // - fixed hashing cost
     // - hashing cost of the key length
-    tracing::trace_span!("cold_access::charge_bias_for_access",).in_scope(|| {
+    tracing::trace_span!("access::charge_bias_for_access",).in_scope(|| {
         accessor.charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_for_access())
     })?;
 
-    tracing::trace_span!("cold_access::charge_hash_update",).in_scope(|| {
+    tracing::trace_span!("access::charge_hash_update",).in_scope(|| {
         accessor.charge_gas(&<Accessor::Spec as GasSpec>::gas_to_charge_hash_update())
     })?;
 
@@ -518,12 +518,14 @@ fn charge_first_storage_access<Accessor: UniversalStateAccessor + GasMeter>(
         .try_into()
         .map_err(|e: TryFromIntError| GasMeteringError::Overflow(e.to_string()))?;
 
-    tracing::trace_span!("cold_access::charge_per_byte_hash_update").in_scope(|| {
-        accessor.charge_linear_gas(
-            &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
-            key_size,
-        )
-    })?;
+    if key_size > 0 {
+        tracing::trace_span!("access::charge_per_byte_hash_update").in_scope(|| {
+            accessor.charge_linear_gas(
+                &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
+                key_size,
+            )
+        })?;
+    }
 
     Ok(())
 }
@@ -533,77 +535,38 @@ fn charge_read<Accessor: UniversalStateAccessor + GasMeter>(
     namespace: Namespace,
     key: &SlotKey,
 ) -> Result<(), GasMeteringError<<Accessor::Spec as Spec>::Gas>> {
-    let is_value_cached = accessor.is_value_cached(namespace, key);
+    charge_storage_access(accessor, key)?;
 
-    match is_value_cached {
-        // If the value is not cached, we need to charge for...
-        // - the first storage access cost
-        IsValueCached::No => {
-            // Start by charging for the first storage access cost
-            charge_first_storage_access(accessor, key)?;
+    tracing::trace_span!("access::charge_bias_for_read",).in_scope(|| {
+        accessor.charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_for_read())
+    })?;
 
-            tracing::trace_span!("cold_access::charge_bias_for_cold_read",).in_scope(|| {
-                accessor.charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_for_cold_read())
+    let value_size = accessor.get_size(namespace, key);
+
+    match value_size {
+        Some(0) | None => {}
+        Some(value_size) => {
+            tracing::trace_span!("access::charge_per_byte_read").in_scope(|| {
+                accessor.charge_linear_gas(
+                    &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_read(),
+                    value_size,
+                )
             })?;
 
-            let value_size = accessor.get_size(namespace, key);
+            tracing::trace_span!("access::charge_hash_update", value_size = value_size).in_scope(
+                || accessor.charge_gas(&<Accessor::Spec as GasSpec>::gas_to_charge_hash_update()),
+            )?;
 
-            // Charge:
-            // - fixed gas to hash
-            // - linear hashing cost of the value length
-            // - cold read linear cost to load the value length from the storage (cloning cost).
-            // - cold read bias (clone to the cache and outside of the cache)
-            if let Some(value_size) = value_size {
-                tracing::trace_span!("cold_access::charge_hash_update", value_size = value_size)
-                    .in_scope(|| {
-                        accessor
-                            .charge_gas(&<Accessor::Spec as GasSpec>::gas_to_charge_hash_update())
-                    })?;
-
-                tracing::trace_span!(
-                    "cold_access::charge_per_byte_hash_update",
-                    value_size = value_size
-                )
-                .in_scope(|| {
-                    accessor.charge_linear_gas(
-                        &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
-                        value_size,
-                    )
-                })?;
-
-                tracing::trace_span!(
-                    "cold_access::charge_per_byte_cold_read",
-                    value_size = value_size
-                )
-                .in_scope(|| {
-                    accessor.charge_linear_gas(
-                        &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_cold_read(),
-                        value_size,
-                    )
-                })?;
-            }
-        }
-
-        IsValueCached::Yes(acc) => {
-            // We charge a bias for hot reads
             tracing::trace_span!(
-                "hot_access::charge_bias_for_hot_read",
-                value_size = acc.size()
+                "access::charge_per_byte_hash_update",
+                value_size = value_size
             )
             .in_scope(|| {
-                accessor.charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_for_hot_read())
+                accessor.charge_linear_gas(
+                    &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
+                    value_size,
+                )
             })?;
-
-            // If the value has a size, we need to charge for...
-            // - hot read linear cost to load something from the cache (we're cloning the value here)
-            if acc.size() > 0 {
-                tracing::trace_span!("hot_access::charge_per_byte_hot_read").in_scope(|| {
-                    accessor.charge_linear_gas(
-                        &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hot_read(),
-                        acc.size(),
-                    )
-                })?;
-            }
         }
     }
 
@@ -612,60 +575,24 @@ fn charge_read<Accessor: UniversalStateAccessor + GasMeter>(
 
 fn charge_write<Accessor: UniversalStateAccessor + GasMeter>(
     accessor: &mut Accessor,
-    namespace: Namespace,
+    _namespace: Namespace,
     key: &SlotKey,
     value_size: u32,
 ) -> Result<(), GasMeteringError<<Accessor::Spec as Spec>::Gas>> {
-    let is_value_cached = accessor.is_value_cached(namespace, key);
+    charge_storage_access(accessor, key)?;
 
-    // We always need to charge for the cost to encode the value
     accessor.charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_storage_update())?;
     accessor.charge_linear_gas(
         &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_storage_update(),
         value_size,
     )?;
 
-    match is_value_cached {
-        // If the key has not been written yet, we need to charge for...
-        // - the first storage access cost
-        // - cost to hash the new value
-        // - bias to do a storage update (merkle tree update)
-        // - doing a cold write (bias + linear term, mostly for memory consumption costs)
-        IsValueCached::No | IsValueCached::Yes(AccessSize::Read(_)) => {
-            charge_first_storage_access(accessor, key)?;
+    accessor.charge_gas(&<Accessor::Spec as GasSpec>::gas_to_charge_hash_update())?;
 
-            accessor
-                .charge_gas(&<Accessor::Spec as GasSpec>::bias_to_charge_cold_storage_update())?;
-
-            accessor.charge_gas(&<Accessor::Spec as GasSpec>::gas_to_charge_hash_update())?;
-            accessor.charge_linear_gas(
-                &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
-                value_size,
-            )?;
-        }
-
-        // If the key has been written before, we need to charge for...
-        // - difference in size between the old and new value
-        // - doing a hot write (bias + linear term, mostly for memory consumption costs)
-        IsValueCached::Yes(AccessSize::Write(size)) => {
-            let new_size: u32 = value_size;
-
-            #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
-            if new_size < size {
-                accessor.remove_gas_pattern(
-                    &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
-                    size - new_size,
-                );
-            }
-
-            if new_size >= size {
-                accessor.charge_linear_gas(
-                    &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
-                    new_size - size,
-                )?;
-            }
-        }
-    }
+    accessor.charge_linear_gas(
+        &<Accessor::Spec as GasSpec>::gas_to_charge_per_byte_hash_update(),
+        value_size,
+    )?;
 
     Ok(())
 }

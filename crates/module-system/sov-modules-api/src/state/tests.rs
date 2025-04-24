@@ -48,7 +48,7 @@ fn test_charge_gas_to_set() {
 #[ignore = "TODO(@theochap): Fix the computation"]
 fn test_charge_gas_retrieve() {
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from([Amount::new(1); 2]);
-    let gas_access_cost = <S as GasSpec>::bias_to_charge_for_cold_read();
+    let gas_access_cost = <S as GasSpec>::bias_to_charge_for_read();
     let remaining_funds = gas_access_cost.value(&gas_price);
 
     let mut working_set = create_working_set(remaining_funds, &gas_price);
@@ -72,8 +72,8 @@ fn test_charge_gas_set_then_retrieve() {
     let value = SlotValue::from("value");
     let gas_price = <<S as Spec>::Gas as Gas>::Price::from([Amount::new(1); 2]);
 
-    let gas_access_cost = <S as GasSpec>::bias_to_charge_for_cold_read();
-    let gas_load_cost = <S as GasSpec>::gas_to_charge_per_byte_cold_read()
+    let gas_access_cost = <S as GasSpec>::bias_to_charge_for_read();
+    let gas_load_cost = <S as GasSpec>::gas_to_charge_per_byte_read()
         .checked_scalar_product(value.size().into())
         .unwrap();
 

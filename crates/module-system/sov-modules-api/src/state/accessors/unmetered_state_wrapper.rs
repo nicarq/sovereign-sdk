@@ -1,8 +1,7 @@
 use std::convert::Infallible;
 
 use sov_state::{
-    CompileTimeNamespace, IsValueCached, SlotKey, SlotValue, StateCodec, StateItemCodec,
-    StateItemDecoder,
+    CompileTimeNamespace, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder,
 };
 
 use super::UniversalStateAccessor;
@@ -16,10 +15,6 @@ pub struct UnmeteredStateWrapper<'a, T> {
 }
 
 impl<'a, T: UniversalStateAccessor> UniversalStateAccessor for UnmeteredStateWrapper<'a, T> {
-    fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
-        self.inner.is_value_cached(namespace, key)
-    }
-
     fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u32> {
         self.inner.get_size(namespace, key)
     }

@@ -3,7 +3,7 @@
 use std::marker::PhantomData;
 
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
-use sov_state::{EventContainer, IsValueCached, Namespace, SlotKey, SlotValue};
+use sov_state::{EventContainer, Namespace, SlotKey, SlotValue};
 
 use super::checkpoints::StateCheckpoint;
 use super::internals::RevertableWriter;
@@ -38,14 +38,6 @@ pub struct TxScratchpad<S: Spec, I: StateProvider<S>> {
 }
 
 impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for TxScratchpad<S, I> {
-    fn is_value_cached(&self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        <RevertableWriter<I> as UniversalStateAccessor>::is_value_cached(
-            &self.inner,
-            namespace,
-            key,
-        )
-    }
-
     fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         <RevertableWriter<I> as UniversalStateAccessor>::get_size(&mut self.inner, namespace, key)
     }
@@ -195,10 +187,6 @@ impl<S: Spec, I: StateProvider<S>> GetGasPrice for PreExecWorkingSet<S, I> {
 }
 
 impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for PreExecWorkingSet<S, I> {
-    fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
-        <TxScratchpad<S, I> as UniversalStateAccessor>::is_value_cached(&self.inner, namespace, key)
-    }
-
     fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         <TxScratchpad<S, I> as UniversalStateAccessor>::get_size(&mut self.inner, namespace, key)
     }
@@ -442,10 +430,6 @@ impl<S: Spec, I: StateProvider<S>> GetGasPrice for WorkingSet<S, I> {
 }
 
 impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for WorkingSet<S, I> {
-    fn is_value_cached(&self, namespace: sov_state::Namespace, key: &SlotKey) -> IsValueCached {
-        self.delta.is_value_cached(namespace, key)
-    }
-
     fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         self.delta.get_size(namespace, key)
     }
