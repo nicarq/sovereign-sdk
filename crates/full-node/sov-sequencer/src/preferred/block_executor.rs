@@ -8,10 +8,10 @@ use sov_modules_api::capabilities::{
     TransactionAuthenticator,
 };
 use sov_modules_api::{
-    BlobDataWithId, ChangeSet, DaSpec, ExecutionContext, FullyBakedTx, Gas, GasSpec,
-    KernelStateAccessor, NestedEnumUtils, NoOpControlFlow, RejectReason, Runtime,
-    RuntimeEventProcessor, RuntimeEventResponse, SelectedBlob, Spec, StateCheckpoint,
-    TransactionReceipt, TxChangeSet, VersionReader, VisibleSlotNumber,
+    call_message_repr, BlobDataWithId, ChangeSet, DaSpec, ExecutionContext, FullyBakedTx, Gas,
+    GasSpec, KernelStateAccessor, NoOpControlFlow, RejectReason, Runtime, RuntimeEventProcessor,
+    RuntimeEventResponse, SelectedBlob, Spec, StateCheckpoint, TransactionReceipt, TxChangeSet,
+    VersionReader, VisibleSlotNumber,
 };
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rest_utils::{json_obj, ErrorObject};
@@ -193,7 +193,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         let (receipt, change_set) =
             result.map_err(|reason| RollupBlockExecutorError::Rejected {
                 reason,
-                call: format!("{:?}", call.discriminant()),
+                call: call_message_repr::<Rt>(&call),
             })?;
 
         if !receipt.receipt.is_successful() {
