@@ -84,7 +84,7 @@ impl<'a> StructDef<'a> {
                     state: &mut ::sov_modules_api::WorkingSet<Self::Spec, I>,
                     context: &::sov_modules_api::Context<Self::Spec>,
                 ) -> ::core::result::Result<(), ::sov_modules_api::Error> {
-                    ::sov_modules_api::prelude::tracing::debug!("Dispatching call: {:?}", decodable);
+                    ::sov_modules_api::prelude::tracing::trace!("Dispatching call: {:?}", decodable);
 
                     match decodable {
                         #(#match_legs)*

@@ -199,7 +199,7 @@ fn test_penalize_sequencer() {
             match &result.tx_receipt {
                 sov_modules_api::TxEffect::Skipped(skipped) => {
                     if let TxProcessingError::OutOfGas(error_message) = &skipped.error {
-                        assert!(error_message.contains("The gas to charge is greater than the funds available in the meter."), "Error message doesn't contain with the expected phrase. Got: {}", error_message);
+                        assert!(error_message.contains("The amount to charge is greater than the funds available in the meter."), "Error message doesn't contain with the expected phrase. Got: {}", error_message);
                     } else {
                         panic!("Expected CannotReserveGas error, but got a different SkippedReason: {:?}", skipped.error);
                     }
@@ -278,7 +278,7 @@ fn test_authentication_out_of_gas_error() {
                 sov_modules_api::TxEffect::Skipped(skipped) => {
                     if let TxProcessingError::OutOfGas(error_message) = &skipped.error {
                         assert!(
-                            error_message.contains("The gas to charge is greater than the funds available in the meter."),
+                            error_message.contains("The amount to charge is greater than the funds available in the meter."),
                             "Error message doesn't contain with the expected phrase. Got: {}",
                             error_message
                         );
