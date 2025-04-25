@@ -3,8 +3,6 @@ use sov_modules_api::capabilities::{
     TransactionAuthorizer,
 };
 use sov_modules_api::transaction::TransactionConsumption;
-#[cfg(feature = "native")]
-use sov_modules_api::NestedEnumUtils;
 use sov_modules_api::{
     Amount, BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext,
     FullyBakedTx, Gas, GasArray, GasMeter, GasSpec, GetGasPrice, IgnoredTransactionReceipt,
@@ -56,7 +54,7 @@ where
     let (start, discriminant) = {
         (
             std::time::Instant::now(),
-            format!("{:?}", validated_output.2.discriminant()),
+            call_message_repr::<R>(&validated_output.2),
         )
     };
 
