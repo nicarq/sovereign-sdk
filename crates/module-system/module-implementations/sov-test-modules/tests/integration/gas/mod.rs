@@ -204,7 +204,7 @@ fn not_enough_gas_wont_panic() {
 
                 assert!(
                     chain.next().unwrap().to_string().contains(
-                        "The gas to charge is greater than the funds available in the meter."
+                        "The amount to charge is greater than the funds available in the meter."
                     ),
                     "The error message is incorrect"
                 );

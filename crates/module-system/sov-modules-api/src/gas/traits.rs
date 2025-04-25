@@ -494,6 +494,16 @@ pub enum GasMeteringError<GU: Gas> {
         /// The remaining gas.
         remaining_gas: GU,
     },
+    /// The gas meter has ran out of funds.
+    #[error("The amount to charge is greater than the funds available in the meter. Amount to charge {amount_to_charge}, remaining_funds  {remaining_funds}, price {gas_price}")]
+    OutOfFunds {
+        /// The amount to charge.
+        amount_to_charge: Amount,
+        /// Remaining funds.
+        remaining_funds: Amount,
+        /// The current gas price.
+        gas_price: GU::Price,
+    },
     /// The refund operation failed for the gas meter.
     #[error("The gas to refund is greater than the gas used. Gas to refund {gas_to_refund}, gas used {gas_used}")]
     ImpossibleToRefundGas {
@@ -756,11 +766,10 @@ impl<S: Spec> BasicGasMeter<S> {
 
         remaining_funds.checked_sub(amount_value).ok_or_else(|| {
             tracing::warn!(%remaining_funds, amount_to_charge = %amount_value, "Out of gas during `compute_remaining_funds`");
-            GasMeteringError::OutOfGas {
-                gas_to_charge: amount.clone(),
+            GasMeteringError::OutOfFunds {
+                amount_to_charge: amount_value,
+                remaining_funds,
                 gas_price: self.gas_price.clone(),
-                initial_gas: self.initial_gas.clone(),
-                remaining_gas: self.remaining_gas.clone(),
             }
         })
     }

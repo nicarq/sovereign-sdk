@@ -689,6 +689,7 @@ where
         let (receipt, events) = match apply_tx_res {
             Ok(res) => res,
             Err(err) => {
+                tracing::debug!(%tx_hash, "Transaction was dropped by the sequencer");
                 db.pop_tx_from_in_progress_batch()
                     .await
                     .map_err(database_error_500)?;
@@ -696,7 +697,7 @@ where
             }
         };
 
-        tracing::trace!(%tx_hash, ?events, "Transaction was accepted by the sequencer");
+        tracing::debug!(%tx_hash, "Transaction was accepted by the sequencer");
 
         inner.update_api_state().await; // TODO: we only want to do this when updated state from node?
 

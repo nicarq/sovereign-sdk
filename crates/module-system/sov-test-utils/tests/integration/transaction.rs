@@ -62,7 +62,7 @@ fn test_custom_transaction_details_max_fee() {
                 sov_modules_api::TxEffect::Skipped(skipped) => {
                     if let TxProcessingError::OutOfGas(error_message) = &skipped.error {
                         assert!(
-                            error_message.contains("The gas to charge is greater than the funds available in the meter."),
+                            error_message.contains("The amount to charge is greater than the funds available in the meter."),
                             "Error message doesn't contain with the expected phrase. Got: {}",
                             error_message
                         );
