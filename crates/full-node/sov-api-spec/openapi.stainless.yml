@@ -54,6 +54,7 @@ resources:
               retrieve: get /ledger/txs/{txId}/events/{eventOffset}
       events:
         methods:
+          latest: get /ledger/events/latest
           retrieve: get /ledger/events/{eventId}
       aggregated_proofs:
         methods:
