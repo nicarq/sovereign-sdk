@@ -156,6 +156,7 @@ where
                     Self::resolve_tx_id,
                 )),
             )
+            .route("/events/latest", get(Self::get_latest_event))
             .nest(
                 "/events/:eventId",
                 Self::router_event().route_layer(middleware::from_fn_with_state(
@@ -336,6 +337,24 @@ where
             Ok(None) => Err(errors::not_found_404("Event", event_number)),
             Err(err) => Err(errors::database_error_response_500(err)),
         }
+    }
+
+    async fn get_latest_event(
+        State(state): State<LedgerState<T>>,
+    ) -> ApiResult<RuntimeEventResponse<E>> {
+        let event_number = state
+            .ledger
+            .get_latest_event_number()
+            .await
+            .map_err(errors::database_error_response_500)?
+            .ok_or_else(|| errors::not_found_404("Event", "latest"))?;
+        let event = state
+            .ledger
+            .get_event_by_number::<RuntimeEventResponse<E>>(event_number)
+            .await
+            .map_err(errors::database_error_response_500)?
+            .ok_or_else(|| errors::not_found_404("Event", event_number))?;
+        Ok(event.into())
     }
 
     // ENTITY ID RESOLVERS

@@ -199,6 +199,17 @@ paths:
           $ref: "#/components/responses/LedgerEvent"
         "404":
           $ref: "#/components/responses/ApiErrorResponse"
+  /ledger/events/latest:
+    get:
+      tags:
+        - Ledger
+      summary: Gets the latest event.
+      operationId: get_latest_event
+      responses:
+        "200":
+          $ref: "#/components/responses/LedgerEvent"
+        "404":
+          $ref: "#/components/responses/ApiErrorResponse"
   /ledger/events/{eventId}:
     get:
       tags:
