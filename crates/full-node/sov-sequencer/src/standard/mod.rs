@@ -57,7 +57,7 @@ pub struct StdSequencerConfig {
     /// Maximum number of transactions in mempool. Once this limit is reached,
     /// the batch builder will evict older transactions.
     pub mempool_max_txs_count: Option<NonZero<usize>>,
-    /// Maximum size of a batch. The batch builder will not build batches larger
+    /// Maximum size of a batch. The sequencer will not build batches larger
     /// than this size.
     pub max_batch_size_bytes: Option<NonZero<usize>>,
 }

@@ -1,3 +1,6 @@
+# 2025-04-28
+- #2804 fixes several instances of a sequencer syncing bug that manifests itself as `SequenceNumberTooLow` showing up in the logs.
+
 # 2025-04-11
 - #2739 renames some items inside `FullNodeBlueprint`. `ProofSerializer` becomes `ProofSender`, `create_proof_serializer` becomes `create_proof_sender` and has a new signature. The inner function body likely doesn't need to be changed.
 

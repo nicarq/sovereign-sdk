@@ -382,7 +382,9 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             let setup_changes = setup_receiver
                 .await
                 .with_context(|| "Setup must finish successfully")
-                .expect("The batch builder can't recover from this error; this is a bug, please report it");
+                .expect(
+                    "The sequencer can't recover from this error; this is a bug, please report it",
+                );
             trace!("Applied setup changes");
 
             checkpoint.apply_changes(setup_changes);
@@ -545,6 +547,7 @@ where
 
     let next_root = kernel
         .visible_hash_for(old_rollup_height.saturating_add(1), &mut accessor)
+        .ok_or_else(|| format!("Can't get visible hash for {old_rollup_height} + 1"))
         .unwrap();
     // Now that we've incremented the rollup height, we can get the next gas price. Do that and use it to compute the amount of funds that we should
     // reserve for the preferred sequencer.

@@ -19,7 +19,7 @@ use crate::test_helpers::test_genesis_source;
 
 /// Starts test rollup node.  
 pub(crate) async fn start_node(
-    rollup_prover_config: RollupProverConfig<Risc0>,
+    _rollup_prover_config: RollupProverConfig<Risc0>,
     finalization_blocks: u32,
 ) -> TestRollup<MockDemoRollup<Native>> {
     // Don't provide a prover since the EVM is not currently provable
@@ -33,7 +33,7 @@ pub(crate) async fn start_node(
     .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|c| {
         c.automatic_batch_production = false; // FIXME(@neysofu): finish migrating all tests off of manual batch production.
-        c.rollup_prover_config = Some(rollup_prover_config);
+        c.rollup_prover_config = None; // FIXME(@neysofu): reenable once sov-ethereum is compatible with proof blobs
         c.aggregated_proof_block_jump = 5;
         c.max_infos_in_db = 30;
         c.max_channel_size = 20;
