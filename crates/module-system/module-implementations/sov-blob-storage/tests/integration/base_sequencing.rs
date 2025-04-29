@@ -60,9 +60,9 @@ fn check_blob_selection() {
         let slot_to_send = build_basic_blobs(
             &vec![
                 (preferred_sequencer.clone(), 20),
-                (preferred_sequencer.clone(), 50),
+                (preferred_sequencer.clone(), 45),
                 (preferred_sequencer.clone(), 10),
-                (preferred_sequencer.clone(), 30),
+                (preferred_sequencer.clone(), 25),
             ],
             &mut nonces,
         );

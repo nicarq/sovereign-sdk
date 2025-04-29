@@ -100,7 +100,14 @@ pub trait TransactionAuthenticator<S: Spec> {
 
 /// See [`RollupAuthenticator`].
 #[derive(std::fmt::Debug, Clone, borsh::BorshDeserialize, borsh::BorshSerialize)]
-pub struct AuthenticatorInput(RawTx);
+pub enum AuthenticatorInput {
+    /// A rollup transaction.
+    ///
+    /// This is the only possible variant, but we keep this an `enum` instead of
+    /// a `struct` to allow for future transaction types in a
+    /// backwards-compatible way.
+    Standard(RawTx),
+}
 
 /// Canonical implementation of [`TransactionAuthenticator`].
 #[derive(Debug, PartialEq, Clone, Default)]
@@ -119,9 +126,10 @@ where
     fn decode_serialized_tx(
         tx: &FullyBakedTx,
     ) -> Result<(Self::Decodable, Self::Signature), FatalError> {
-        let tx: AuthenticatorInput = borsh::from_slice(&tx.data)
+        let AuthenticatorInput::Standard(tx) = borsh::from_slice(&tx.data)
             .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
-        capabilities::decode_sov_tx::<S, Rt>(&tx.0.data)
+
+        capabilities::decode_sov_tx::<S, Rt>(&tx.data)
     }
 
     fn authenticate<Accessor: ProvableStateReader<sov_state::User, Spec = S>>(
@@ -131,19 +139,19 @@ where
         capabilities::AuthenticationOutput<S, Self::Decodable>,
         capabilities::AuthenticationError,
     > {
-        let input: AuthenticatorInput = borsh::from_slice(&tx.data).map_err(|e| {
+        let AuthenticatorInput::Standard(input) = borsh::from_slice(&tx.data).map_err(|e| {
             capabilities::fatal_deserialization_error::<_, S, _>(&tx.data, e, pre_exec_ws)
         })?;
 
-        crate::capabilities::authenticate::<_, S, Rt>(&input.0.data, &Rt::CHAIN_HASH, pre_exec_ws)
+        crate::capabilities::authenticate::<_, S, Rt>(&input.data, &Rt::CHAIN_HASH, pre_exec_ws)
     }
 
     #[cfg(feature = "native")]
     fn compute_tx_hash(tx: &FullyBakedTx) -> anyhow::Result<TxHash> {
-        let input: AuthenticatorInput = borsh::from_slice(&tx.data)?;
+        let AuthenticatorInput::Standard(input) = borsh::from_slice(&tx.data)?;
 
         Ok(calculate_hash(
-            &input.0.data,
+            &input.data,
             &mut crate::gas::UnlimitedGasMeter::<S>::default(),
         )?)
     }
@@ -164,7 +172,7 @@ where
     }
 
     fn add_standard_auth(tx: RawTx) -> Self::Input {
-        AuthenticatorInput(tx)
+        AuthenticatorInput::Standard(tx)
     }
 }
 
