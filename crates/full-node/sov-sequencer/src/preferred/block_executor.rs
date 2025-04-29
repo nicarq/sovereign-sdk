@@ -632,25 +632,13 @@ fn reject_reason_to_error(
     call_discriminant: impl std::fmt::Debug,
 ) -> ErrorObject {
     match error {
-        // TODO: get appropriate number of slots to advance.
-        // TODO: There's a complicated edge case here where the sequencer doesn't have enough stake for the number of incoming transactions
-        // (recall that the sequencer must have enough take to cover all N authentication attempts in order to submit a batch of size N).
-        // In that case, this check will fail repeatedly in a short time window. However, the sequencer is only allowed to submit 1 batch
-        // per slot. In that case, the "correct" solution is to raise the required fees per transaction and plow the profits into increasing
-        // the sequencer's stake.
-        // Finally, there's one small edge case where the sequencer isn't staked enough to cover even a single tx. In that case, we should
-        // probably throw an error on startup.
-        RejectReason::SequencerOutOfGas => {
-            todo!("The sequencer ran out of gas! Support for recovery is not yet implemented");
-            #[allow(unreachable_code)]
-            ErrorObject {
-                status: StatusCode::SERVICE_UNAVAILABLE,
-                title: "Batch is full".to_string(),
-                details: json_obj!({
-                    "message": "More transactions were submitted that the sequencer is allowed to put into a single batch. Wait a few seconds and try again."
-                }),
-            }
-        }
+        RejectReason::SequencerOutOfGas => ErrorObject {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            title: "Batch is full".to_string(),
+            details: json_obj!({
+                "message": "More transactions were submitted that the sequencer is allowed to put into a single batch. Wait a few seconds and try again."
+            }),
+        },
         RejectReason::InsufficientReward { expected, found } => ErrorObject {
             status: StatusCode::FORBIDDEN,
             title: "Sequencer tip too low".to_string(),
