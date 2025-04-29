@@ -27,7 +27,7 @@ const FINALIZATION_BLOCKS: u32 = 1;
 
 // Verifies that a rollup with a preferred sequencer can handle forced registration from a different DA address.
 // Steps:
-// 1. Start the rollup with the preferred batch builder and demo-stf.
+// 1. Start the rollup with the preferred sequencer and demo-stf.
 // 2. Submit a forced registration from another DA address.
 // 3. Wait until the forced registration is processed.
 // 4. Use the REST API to confirm that the new sequencer is registered.

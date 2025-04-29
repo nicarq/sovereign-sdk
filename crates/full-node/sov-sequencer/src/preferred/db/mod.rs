@@ -146,7 +146,10 @@ where
     S: Spec,
     Rt: Runtime<S>,
 {
-    pub async fn new(backend: Box<dyn PreferredSequencerDbBackend>) -> anyhow::Result<Self> {
+    pub async fn new(
+        backend: Box<dyn PreferredSequencerDbBackend>,
+        latest_state_info: &StateUpdateInfo<S::Storage>,
+    ) -> anyhow::Result<Self> {
         let completed_blobs = VecDeque::from(backend.read_completed_blobs().await?);
         let in_progress_batch = backend.read_in_progress_batch().await?;
 
@@ -159,14 +162,34 @@ where
             (None, None) => 0,
         };
 
-        Ok(Self {
+        let mut db = Self {
             backend,
             phantom: PhantomData,
             runtime: Default::default(),
             sequence_number_of_next_blob,
             completed_blobs,
             in_progress_batch,
-        })
+        };
+
+        db.set_next_sequence_number(latest_state_info)?;
+
+        Ok(db)
+    }
+
+    fn set_next_sequence_number(
+        &mut self,
+        latest_state_info: &StateUpdateInfo<S::Storage>,
+    ) -> anyhow::Result<()> {
+        // Under normal operations, the sequencer will determine the next
+        // sequence number to use. When a secondary preferred sequencer first
+        // syncs, however, the DA (i.e. the node) will determine the next
+        // sequence number to use.
+        self.sequence_number_of_next_blob = std::cmp::max(
+            next_sequence_number_according_to_node(latest_state_info, &mut self.runtime),
+            self.sequence_number_of_next_blob,
+        );
+
+        Ok(())
     }
 
     pub async fn in_progress_batch_opt(
@@ -264,27 +287,27 @@ where
         Ok(sequence_number)
     }
 
-    pub async fn subsequent_completed_blobs(
+    /// Synchronizes the database with the latest state information coming from
+    /// the node.
+    ///
+    /// Additionally, returns all known blobs that were not processed by the
+    /// node yet.
+    pub async fn sync_and_compute_subsequent_completed_blobs(
         &mut self,
         latest_state_info: &StateUpdateInfo<S::Storage>,
     ) -> anyhow::Result<Vec<PreferredSequencerReadBlob>> {
-        let next_sequence_number_as_of_latest_finalized_rollup_height = {
-            let mut checkpoint =
-                StateCheckpoint::new(latest_state_info.storage.clone(), &self.runtime.kernel());
-            let mut state =
-                KernelStateAccessor::from_checkpoint(&self.runtime.kernel(), &mut checkpoint);
+        let next_sequence_number_according_to_node =
+            next_sequence_number_according_to_node(latest_state_info, &mut self.runtime);
 
-            // Now, we query what the situation is as of the latest finalized
-            // height. We don't care to hold data related to anything older than
-            // that.
-            state.update_true_slot_number(latest_state_info.latest_finalized_slot_number);
-            self.runtime.kernel().next_sequence_number(&mut state)
-        };
+        self.sequence_number_of_next_blob = std::cmp::max(
+            next_sequence_number_according_to_node,
+            self.sequence_number_of_next_blob,
+        );
 
         // Now is as good a time as any to prune old blobs that are no longer needed.
-        match next_sequence_number_as_of_latest_finalized_rollup_height.checked_sub(1) {
-            Some(last_finalized_sequence_number) => {
-                self.prune(last_finalized_sequence_number).await?;
+        match latest_finalized_sequence_number(latest_state_info, &mut self.runtime) {
+            Some(num) => {
+                self.prune(num).await?;
             }
             None => {
                 // Nothing to prune because there's no sequence number history.
@@ -296,7 +319,7 @@ where
             .iter()
             .filter(|b| {
                 // Pruning invariants say it MAY remove older blobs, but we don't know for sure.
-                b.sequence_number() >= next_sequence_number_as_of_latest_finalized_rollup_height
+                b.sequence_number() >= next_sequence_number_according_to_node
             })
             .cloned()
             .collect())
@@ -371,4 +394,36 @@ pub enum StoredBlob {
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
     },
+}
+
+fn next_sequence_number_according_to_node<S, Rt>(
+    latest_state_info: &StateUpdateInfo<S::Storage>,
+    runtime: &mut Rt,
+) -> SequenceNumber
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
+    let mut checkpoint = StateCheckpoint::new(latest_state_info.storage.clone(), &runtime.kernel());
+    let mut state = KernelStateAccessor::from_checkpoint(&runtime.kernel(), &mut checkpoint);
+
+    runtime.kernel().next_sequence_number(&mut state)
+}
+
+fn latest_finalized_sequence_number<S, Rt>(
+    latest_state_info: &StateUpdateInfo<S::Storage>,
+    runtime: &mut Rt,
+) -> Option<SequenceNumber>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
+    let mut checkpoint = StateCheckpoint::new(latest_state_info.storage.clone(), &runtime.kernel());
+    let mut state = KernelStateAccessor::from_checkpoint(&runtime.kernel(), &mut checkpoint);
+
+    state.update_true_slot_number(latest_state_info.latest_finalized_slot_number);
+    runtime
+        .kernel()
+        .next_sequence_number(&mut state)
+        .checked_sub(1)
 }

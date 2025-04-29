@@ -618,7 +618,7 @@
       "type": "object",
       "properties": {
         "max_batch_size_bytes": {
-          "description": "Maximum size of a batch. The batch builder will not build batches larger than this size.",
+          "description": "Maximum size of a batch. The sequencer will not build batches larger than this size.",
           "type": [
             "integer",
             "null"

@@ -44,12 +44,14 @@ async fn evm_tx_test(
     )
     .await;
 
-    send_tx_test_to_eth(&test_client).await.unwrap();
+    sanity_checks(&test_client).await;
+    execute_evm_tests(&test_client).await.unwrap();
+
     test_rollup.shutdown_sender.send(()).unwrap();
     Ok(())
 }
 
-async fn send_tx_test_to_eth(test_client: &TestClient) -> Result<(), Box<dyn std::error::Error>> {
+async fn sanity_checks(test_client: &TestClient) {
     let etc_accounts = test_client.eth_accounts().await;
     assert_eq!(vec![test_client.from_addr], etc_accounts);
 
@@ -66,11 +68,9 @@ async fn send_tx_test_to_eth(test_client: &TestClient) -> Result<(), Box<dyn std
 
     assert_eq!(latest_block, earliest_block);
     assert_eq!(latest_block.number.unwrap().as_u64(), 0);
-
-    execute_evm_tests(test_client).await
 }
 
-async fn execute_evm_tests(client: &TestClient) -> Result<(), Box<dyn std::error::Error>> {
+async fn evm_genesis_tests(client: &TestClient) -> anyhow::Result<()> {
     // Nonce should be 0 in genesis
     let nonce = client.eth_get_transaction_count(client.from_addr).await;
     assert_eq!(0, nonce);
@@ -78,6 +78,12 @@ async fn execute_evm_tests(client: &TestClient) -> Result<(), Box<dyn std::error
     // Balance should be > 0 in genesis
     let balance = client.eth_get_balance(client.from_addr).await;
     assert!(balance > ethereum_types::U256::zero());
+
+    Ok(())
+}
+
+async fn execute_evm_tests(client: &TestClient) -> Result<(), Box<dyn std::error::Error>> {
+    evm_genesis_tests(client).await?;
 
     let mut slot_subscription = client.subscribe_for_slots().await?;
 

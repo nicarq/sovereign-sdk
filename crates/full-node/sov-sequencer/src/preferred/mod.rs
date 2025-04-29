@@ -40,7 +40,7 @@ use sov_state::{NativeStorage, Storage};
 use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::{broadcast, watch, Mutex, MutexGuard};
 use tokio::task::JoinHandle;
-use tracing::{debug, error, trace, Instrument};
+use tracing::{debug, error, trace, warn, Instrument};
 
 use crate::common::{
     generic_accept_tx_error, loop_call_update_state, loop_send_tx_notifications, AcceptedTx,
@@ -372,7 +372,7 @@ where
         let latest_state_update = state_update_receiver.borrow().clone();
         debug!(
             ?latest_state_update,
-            "Instantiating the preferred batch builder"
+            "Instantiating the preferred sequencer"
         );
 
         let mut runtime: Rt = Default::default();
@@ -426,7 +426,7 @@ where
         handles.push(blob_sender_handle);
 
         let mut inner = Inner {
-            db: PreferredSequencerDb::<S, Rt>::new(db_backend).await?,
+            db: PreferredSequencerDb::<S, Rt>::new(db_backend, &latest_state_update).await?,
             latest_info: latest_state_update.clone(),
             checkpoint_sender,
             config: config.clone(),
@@ -638,9 +638,13 @@ where
         trace!("Node state update completed successfully");
 
         if self.config.automatic_batch_production {
-            inner.produce_batch_if_possible().await?;
+            if self.da_sync_state.status().distance()
+                <= sov_blob_storage::config_deferred_slots_count()
+            {
+                inner.produce_batch_if_possible().await?;
+            }
         } else {
-            tracing::warn!("Skipping batch production due to settings");
+            warn!("Skipping batch production due to settings");
         }
 
         // Currently the sequencers height increases alongside the node inside this function.
@@ -828,7 +832,7 @@ where
     S: Spec,
     Rt: Runtime<S>,
 {
-    let blobs_to_apply = match db.subsequent_completed_blobs(info).await {
+    let blobs_to_apply = match db.sync_and_compute_subsequent_completed_blobs(info).await {
         Ok(b) => b,
         Err(err) => {
             error!(%err, "Database error while re-applying state changes. This is a critical error. Database integrity is intact, but the sequencer may momentarily provide outdated state and break soft-confirmations.");
