@@ -524,6 +524,28 @@ where
     R::Spec: Spec<Da = MockDaSpec>,
     StoragePath: AsPath,
 {
+    /// Pauses batch production for the preferred sequencer.
+    ///
+    /// Transactions accepted by the preferred sequencer after this call (and
+    /// before [`TestRollup::resume_preferred_batches`]) will all be part of the
+    /// same batch.
+    pub async fn pause_preferred_batches(&self) {
+        std::env::set_var("SOV_TEST_PAUSE_SEQUENCER_UPDATE_STATE", "1");
+    }
+
+    /// Resumes batch production after [`TestRollup::pause_preferred_batches`].
+    ///
+    /// Note: calling this method MAY NOT immediately produce a batch.
+    pub async fn resume_preferred_batches(&self) {
+        assert_eq!(
+            std::env::var("SOV_TEST_PAUSE_SEQUENCER_UPDATE_STATE").unwrap(),
+            "1",
+            "Resuming but it was never paused in the first place",
+        );
+
+        std::env::remove_var("SOV_TEST_PAUSE_SEQUENCER_UPDATE_STATE");
+    }
+
     /// Shuts down the rollup and waits for all background tasks to finish.
     pub async fn shutdown(self) -> anyhow::Result<()> {
         self.shutdown_sender
