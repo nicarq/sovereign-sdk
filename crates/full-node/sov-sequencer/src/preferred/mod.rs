@@ -53,6 +53,15 @@ use crate::{
 };
 
 type VisibleSlotNumberIncrease = NonZero<u8>;
+// Constant overhead for a serialized batch:
+// - 8 bytes for batch_sequence_number
+// - 1 byte for visible_slots_to_advance
+// - 4 bytes for BORSH metadata
+// Total (rounded up) = 16 bytes
+const BATCH_SIZE_OVERHEAD: usize = 16;
+// Each transaction is inserted into a vector of transactions in the batch.
+// BORSH overhead for this is 4 bytes.
+const PER_TX_BORSH_OVERHEAD: usize = 4;
 
 /// A inner sequencer struct containing state that requires synchronized access.
 struct Inner<S, Rt, Da>
@@ -67,6 +76,8 @@ where
     blob_sender: BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>>,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     block_executor: RollupBlockExecutor<S, Rt>,
+    max_batch_size_bytes: usize,
+    current_batch_size_bytes: usize,
 }
 
 impl<S, Rt, Da> Inner<S, Rt, Da>
@@ -158,6 +169,7 @@ where
         }
 
         let batch = self.db.terminate_batch().await?;
+        self.current_batch_size_bytes = BATCH_SIZE_OVERHEAD;
         self.block_executor.end_rollup_block_if_in_progress().await;
 
         self.update_api_state().await;
@@ -427,6 +439,8 @@ where
 
         let mut inner = Inner {
             db: PreferredSequencerDb::<S, Rt>::new(db_backend, &latest_state_update).await?,
+            max_batch_size_bytes: config.max_batch_size_bytes,
+            current_batch_size_bytes: BATCH_SIZE_OVERHEAD,
             latest_info: latest_state_update.clone(),
             checkpoint_sender,
             config: config.clone(),
@@ -679,8 +693,19 @@ where
         }
 
         let Inner {
-            block_executor, db, ..
+            block_executor,
+            db,
+            max_batch_size_bytes,
+            current_batch_size_bytes,
+            ..
         } = &mut *inner;
+
+        let tx_size_bytes = baked_tx.data.len() + PER_TX_BORSH_OVERHEAD;
+        check_batch_size(
+            *current_batch_size_bytes,
+            tx_size_bytes,
+            *max_batch_size_bytes,
+        )?;
 
         let tx_hash = Rt::Auth::compute_tx_hash(&baked_tx).map_err(generic_accept_tx_error)?;
 
@@ -693,14 +718,15 @@ where
         let (receipt, events) = match apply_tx_res {
             Ok(res) => res,
             Err(err) => {
-                tracing::debug!(%tx_hash, "Transaction was dropped by the sequencer");
                 db.pop_tx_from_in_progress_batch()
                     .await
                     .map_err(database_error_500)?;
+                tracing::debug!(%tx_hash, "Transaction was dropped by the sequencer");
                 return Err(RollupBlockExecutorError::into_http_error(err));
             }
         };
 
+        *current_batch_size_bytes += tx_size_bytes;
         tracing::debug!(%tx_hash, "Transaction was accepted by the sequencer");
 
         inner.update_api_state().await; // TODO: we only want to do this when updated state from node?
@@ -726,6 +752,28 @@ where
         // means the sequencer only relies on the cache. FIXME(@neysofu).
         Ok(TxStatus::Unknown)
     }
+}
+
+fn check_batch_size(
+    current_batch_size_bytes: usize,
+    tx_size_bytes: usize,
+    max_batch_size_bytes: usize,
+) -> Result<(), ErrorObject> {
+    if current_batch_size_bytes + tx_size_bytes > max_batch_size_bytes {
+        return Err(ErrorObject {
+            status: axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            title: "Transaction cannot be included in the batch.".to_string(),
+            details: sov_rest_utils::json_obj!({
+            "message": format!("The transaction is too large.
+                    Transaction size: {current_batch_size_bytes}, 
+                    current batch size: {current_batch_size_bytes}, 
+                    and batch size limit: {max_batch_size_bytes}."
+                )
+            }),
+        });
+    };
+
+    Ok(())
 }
 
 struct PreferredBatchToRestore {

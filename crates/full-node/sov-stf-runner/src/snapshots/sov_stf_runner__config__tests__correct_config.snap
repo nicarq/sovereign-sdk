@@ -44,7 +44,8 @@ expression: config
     "standard": {
       "mempool_max_txs_count": null,
       "max_batch_size_bytes": null
-    }
+    },
+    "max_batch_size_bytes": 1048576
   },
   "monitoring": {
     "telegraf_address": "udp://192.168.4.5:8543",

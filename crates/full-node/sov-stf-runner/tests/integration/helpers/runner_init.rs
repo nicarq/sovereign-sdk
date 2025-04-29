@@ -36,6 +36,7 @@ use sov_stf_runner::{
     initialize_state, query_state_update_info, HttpServerConfig, ProofManagerConfig, RollupConfig,
     RunnerConfig, StateTransitionRunner, StorageConfig,
 };
+use sov_test_utils::TEST_MAX_BATCH_SIZE;
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -375,6 +376,7 @@ pub fn rollup_config_with_da<Da: DaService<Config = MockDaConfig>>(
                 mempool_max_txs_count: None,
                 max_batch_size_bytes: None,
             }),
+            max_batch_size_bytes: TEST_MAX_BATCH_SIZE,
         },
         monitoring: MonitoringConfig::standard(),
     }

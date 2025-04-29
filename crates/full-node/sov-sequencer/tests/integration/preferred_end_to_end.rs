@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use borsh::{BorshDeserialize, BorshSerialize};
 use sov_api_spec::types::{self as api_types, TxReceiptResult};
 use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::BlockProducingConfig;
@@ -27,7 +28,7 @@ use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::{
     default_test_signed_transaction, default_test_tx_details,
     generate_optimistic_runtime_with_kernel, test_signed_transaction, RtAgnosticBlueprint,
-    TestSpec,
+    TestSpec, TEST_MAX_BATCH_SIZE,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use test_strategy::Arbitrary;
@@ -116,6 +117,7 @@ async fn new_test_rollup(
     genesis_params: GenesisParams<<TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig>,
     minimum_profit_per_tx: u128,
     automatic_batch_production: bool,
+    max_batch_size_bytes: usize,
 ) -> Option<TestRollup<TestBlueprint>> {
     const FINALIZATION_BLOCKS: u32 = 3;
     let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
@@ -131,6 +133,7 @@ async fn new_test_rollup(
         c.rollup_prover_config = Some(RollupProverConfig::Skip);
         c.automatic_batch_production = automatic_batch_production;
         c.storage = dir;
+        c.max_batch_size_bytes = max_batch_size_bytes;
     })
     .set_da_config(|c| c.sender_address = sequencer_addr)
     .with_preferred_seq_min_profit_per_tx(minimum_profit_per_tx);
@@ -207,7 +210,9 @@ async fn txs_below_min_fee_are_rejected() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup(dir.clone(), genesis_params, 1, false).await else {
+    let Some(test_rollup) =
+        new_test_rollup(dir.clone(), genesis_params, 1, false, TEST_MAX_BATCH_SIZE).await
+    else {
         // Docker issues, don't fail the test and just return early.
         return;
     };
@@ -237,7 +242,6 @@ async fn txs_below_min_fee_are_rejected() {
         err_message
     );
 }
-
 #[tokio::test(flavor = "multi_thread")]
 async fn seq_out_of_gas() {
     let mut genesis_config =
@@ -275,7 +279,9 @@ async fn seq_out_of_gas() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup(dir.clone(), genesis_params, 0, true).await else {
+    let Some(test_rollup) =
+        new_test_rollup(dir.clone(), genesis_params, 0, true, TEST_MAX_BATCH_SIZE).await
+    else {
         // Docker issues, don't fail the test and just return early.
         return;
     };
@@ -288,6 +294,7 @@ async fn seq_out_of_gas() {
     sleep(Duration::from_millis(200)).await;
 
     let client = test_rollup.api_client.clone();
+    test_rollup.pause_preferred_batches().await;
 
     // Produce the first transaction that nearly exhausts the gas slot limit.
     {
@@ -328,6 +335,7 @@ async fn seq_out_of_gas() {
         let error_str = resp.to_string();
         assert!(error_str.contains("More transactions were submitted that the sequencer is allowed to put into a single batch."));
     }
+    test_rollup.resume_preferred_batches().await;
     test_rollup.da_service.produce_block_now().await.unwrap();
     sleep(Duration::from_millis(200)).await;
 
@@ -344,6 +352,120 @@ async fn seq_out_of_gas() {
 
         query_set_value(&test_rollup, None, 9).await.unwrap();
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn max_batch_size() {
+    let genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+
+    let admin = genesis_config.additional_accounts[0].clone();
+
+    let rt_genesis_config =
+        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
+            genesis_config.into(),
+            ValueSetterConfig {
+                admin: admin.address(),
+            },
+            (),
+            PaymasterConfig::default(),
+            (),
+        );
+
+    let genesis_params = GenesisParams {
+        runtime: rt_genesis_config.clone(),
+    };
+
+    let dir = tempdir_inside_codebase_dir();
+
+    let max_batch_size = 1024;
+    let Some(test_rollup) =
+        new_test_rollup(dir.clone(), genesis_params, 0, true, max_batch_size).await
+    else {
+        // Docker issues, don't fail the test and just return early.
+        return;
+    };
+
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(5)
+        .await
+        .unwrap();
+    sleep(Duration::from_millis(200)).await;
+
+    let client = test_rollup.api_client.clone();
+
+    // The transaction is rejected because it is too large.
+    {
+        let tx = tx_set_many_values(&admin.private_key, 0, vec![0; 1024]);
+
+        let resp = client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap_err();
+
+        let error_str = resp.to_string();
+        assert!(error_str.contains("Transaction cannot be included in the batch."));
+    }
+
+    test_rollup.da_service.produce_block_now().await.unwrap();
+    sleep(Duration::from_millis(200)).await;
+
+    test_rollup.pause_preferred_batches().await;
+    // The first and third transactions are processed, but the second and fourth are too large to be included in the batch.
+    {
+        let tx = tx_set_many_values(&admin.private_key, 0, vec![0; 128]);
+        let _ = client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+
+        let tx = tx_set_many_values(&admin.private_key, 1, vec![0; 1024]);
+        let _ = client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap_err();
+
+        let tx = tx_set_many_values(&admin.private_key, 1, vec![0; 512]);
+        let _ = client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+
+        let tx = tx_set_many_values(&admin.private_key, 2, vec![0; 512]);
+        let _ = client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap_err();
+    }
+
+    test_rollup.resume_preferred_batches().await;
+
+    test_rollup.da_service.produce_block_now().await.unwrap();
+    sleep(Duration::from_millis(200)).await;
+
+    // Once we start creating a fresh batch, we can insert a transaction that was previously rejected.
+    {
+        let tx = tx_set_many_values(&admin.private_key, 2, vec![0; 512]);
+        let _ = client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+    }
+    test_rollup.da_service.produce_block_now().await.unwrap();
+    sleep(Duration::from_millis(200)).await;
 }
 
 /// Ensure that we use the correct visible slot number when replaying transactions after a call to `update_state` in the sequencer.
@@ -507,7 +629,9 @@ async fn events_are_returned_in_tx_response() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup(dir.clone(), genesis_params, 0, false).await else {
+    let Some(test_rollup) =
+        new_test_rollup(dir.clone(), genesis_params, 0, false, TEST_MAX_BATCH_SIZE).await
+    else {
         // Docker issues, don't fail the test and just return early.
         return;
     };
@@ -957,7 +1081,9 @@ async fn not_sequencer_safe_txs_are_restricted() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup(dir.clone(), genesis_params, 0, false).await else {
+    let Some(test_rollup) =
+        new_test_rollup(dir.clone(), genesis_params, 0, false, TEST_MAX_BATCH_SIZE).await
+    else {
         // Docker issues, don't fail the test and just return early.
         return;
     };
@@ -1073,6 +1199,11 @@ async fn restart_after_big_batch_regression() {
     preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
 }
 
+#[derive(BorshSerialize, BorshDeserialize, Clone)]
+struct X {
+    data: Vec<Vec<u8>>,
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_batch_production_with_immediate_finalization() {
     let actions = vec![
@@ -1152,7 +1283,9 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup(dir.clone(), genesis_params, 0, false).await else {
+    let Some(test_rollup) =
+        new_test_rollup(dir.clone(), genesis_params, 0, false, TEST_MAX_BATCH_SIZE).await
+    else {
         // Docker issues, don't fail the test and just return early.
         return;
     };
@@ -1407,6 +1540,13 @@ fn tx_set_value_with_gas(
     );
 
     encode_call_with_fee(key, nonce, &msg, max_fee)
+}
+
+fn tx_set_many_values(key: &Ed25519PrivateKey, nonce: u64, values_to_set: Vec<u8>) -> RawTx {
+    let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
+        sov_value_setter::CallMessage::SetManyValues(values_to_set),
+    );
+    encode_call(key, nonce, &msg)
 }
 
 fn tx_assert_visible_slot_number(

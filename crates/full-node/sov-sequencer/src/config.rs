@@ -56,6 +56,8 @@ pub struct SequencerConfig<Da: DaSpec, Address, Sc = SequencerKindConfig> {
     /// Sequencer-type specific configuration.
     #[serde(flatten)]
     pub sequencer_kind_config: Sc,
+    /// Maximum size of a batch.
+    pub max_batch_size_bytes: usize,
 }
 
 fn default_automatic_batch_production() -> bool {
@@ -73,6 +75,7 @@ impl<Da: DaSpec, Addr: Clone, BbConfig> SequencerConfig<Da, Addr, BbConfig> {
             max_allowed_node_distance_behind: self.max_allowed_node_distance_behind,
             admin_addresses: self.admin_addresses.clone(),
             sequencer_kind_config: seq_config,
+            max_batch_size_bytes: self.max_batch_size_bytes,
         }
     }
 }
