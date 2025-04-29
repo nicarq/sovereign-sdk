@@ -162,7 +162,17 @@ pub fn default_test_signed_transaction<T: TransactionCallable, S: Spec>(
     chain_hash: &[u8; 32],
 ) -> Transaction<T, S> {
     let tx_details = default_test_tx_details::<S>();
+    test_signed_transaction(key, msg, nonce, chain_hash, tx_details)
+}
 
+/// Creates signed transaction.
+pub fn test_signed_transaction<T: TransactionCallable, S: Spec>(
+    key: &<<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
+    msg: &T::Call,
+    nonce: u64,
+    chain_hash: &[u8; 32],
+    tx_details: TxDetails<S>,
+) -> Transaction<T, S> {
     Transaction::<T, S>::new_signed_tx(
         key,
         chain_hash,

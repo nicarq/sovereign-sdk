@@ -13,7 +13,7 @@ use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Amount, DispatchCall, RawTx, Runtime};
+use sov_modules_api::{Amount, DispatchCall, Gas, GasArray, GasPrice, GasUnit, RawTx, Runtime};
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_node_client::NodeClient;
 use sov_paymaster::{Paymaster, PaymasterConfig};
@@ -25,7 +25,8 @@ use sov_test_modules::hooks_count::HooksCount;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::{
-    default_test_signed_transaction, generate_optimistic_runtime_with_kernel, RtAgnosticBlueprint,
+    default_test_signed_transaction, default_test_tx_details,
+    generate_optimistic_runtime_with_kernel, test_signed_transaction, RtAgnosticBlueprint,
     TestSpec,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
@@ -114,6 +115,7 @@ async fn new_test_rollup(
     dir: Arc<tempfile::TempDir>,
     genesis_params: GenesisParams<<TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig>,
     minimum_profit_per_tx: u128,
+    automatic_batch_production: bool,
 ) -> Option<TestRollup<TestBlueprint>> {
     const FINALIZATION_BLOCKS: u32 = 3;
     let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
@@ -127,7 +129,7 @@ async fn new_test_rollup(
     )
     .set_config(|c| {
         c.rollup_prover_config = Some(RollupProverConfig::Skip);
-        c.automatic_batch_production = false;
+        c.automatic_batch_production = automatic_batch_production;
         c.storage = dir;
     })
     .set_da_config(|c| c.sender_address = sequencer_addr)
@@ -205,7 +207,7 @@ async fn txs_below_min_fee_are_rejected() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup(dir.clone(), genesis_params, 1).await else {
+    let Some(test_rollup) = new_test_rollup(dir.clone(), genesis_params, 1, false).await else {
         // Docker issues, don't fail the test and just return early.
         return;
     };
@@ -234,6 +236,114 @@ async fn txs_below_min_fee_are_rejected() {
         "Full error message does not contain expect part: {}",
         err_message
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn seq_out_of_gas() {
+    let mut genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+
+    let initial_gas_limit = GasUnit::from(config_value!("INITIAL_GAS_LIMIT"));
+    let max_exec_gas_per_tx = GasUnit::from(config_value!("MAX_SEQUENCER_EXEC_GAS_PER_TX"));
+    let price_array = config_value!("INITIAL_BASE_FEE_PER_GAS");
+    let gas_price = GasPrice::<2>::from([
+        Amount::from(price_array[0] as u64),
+        Amount::from(price_array[1] as u64),
+    ]);
+
+    let max_amount_limit = initial_gas_limit.value(&gas_price);
+
+    // Set very high initial balance for the admin.
+    genesis_config.additional_accounts[0].available_gas_balance =
+        max_amount_limit.checked_mul(Amount::new(10)).unwrap();
+
+    let admin = genesis_config.additional_accounts[0].clone();
+
+    let rt_genesis_config =
+        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
+            genesis_config.into(),
+            ValueSetterConfig {
+                admin: admin.address(),
+            },
+            (),
+            PaymasterConfig::default(),
+            (),
+        );
+    let genesis_params = GenesisParams {
+        runtime: rt_genesis_config.clone(),
+    };
+
+    let dir = tempdir_inside_codebase_dir();
+
+    let Some(test_rollup) = new_test_rollup(dir.clone(), genesis_params, 0, true).await else {
+        // Docker issues, don't fail the test and just return early.
+        return;
+    };
+
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(5)
+        .await
+        .unwrap();
+    sleep(Duration::from_millis(200)).await;
+
+    let client = test_rollup.api_client.clone();
+
+    // Produce the first transaction that nearly exhausts the gas slot limit.
+    {
+        let gas_to_charge = initial_gas_limit
+            .checked_sub(&max_exec_gas_per_tx)
+            .unwrap()
+            .checked_sub(&GasUnit::from([200000, 200000]))
+            .unwrap();
+
+        let tx = tx_set_value_with_gas(
+            &admin.private_key,
+            0,
+            7,
+            Some(gas_to_charge),
+            max_amount_limit,
+        );
+        client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+
+        query_set_value(&test_rollup, None, 7).await.unwrap();
+    }
+
+    // The second transaction will be rejected because of the slot gas limit.
+    {
+        let tx = tx_set_value(&admin.private_key, 1, 8);
+
+        let resp = client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap_err();
+
+        let error_str = resp.to_string();
+        assert!(error_str.contains("More transactions were submitted that the sequencer is allowed to put into a single batch."));
+    }
+    test_rollup.da_service.produce_block_now().await.unwrap();
+    sleep(Duration::from_millis(200)).await;
+
+    // The third transaction is accepted because a new slot has started.
+    {
+        let tx = tx_set_value(&admin.private_key, 1, 9);
+
+        client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+
+        query_set_value(&test_rollup, None, 9).await.unwrap();
+    }
 }
 
 /// Ensure that we use the correct visible slot number when replaying transactions after a call to `update_state` in the sequencer.
@@ -397,7 +507,7 @@ async fn events_are_returned_in_tx_response() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup(dir.clone(), genesis_params, 0).await else {
+    let Some(test_rollup) = new_test_rollup(dir.clone(), genesis_params, 0, false).await else {
         // Docker issues, don't fail the test and just return early.
         return;
     };
@@ -847,7 +957,7 @@ async fn not_sequencer_safe_txs_are_restricted() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup(dir.clone(), genesis_params, 0).await else {
+    let Some(test_rollup) = new_test_rollup(dir.clone(), genesis_params, 0, false).await else {
         // Docker issues, don't fail the test and just return early.
         return;
     };
@@ -1042,7 +1152,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup(dir.clone(), genesis_params, 0).await else {
+    let Some(test_rollup) = new_test_rollup(dir.clone(), genesis_params, 0, false).await else {
         // Docker issues, don't fail the test and just return early.
         return;
     };
@@ -1273,14 +1383,30 @@ async fn query_set_value_helper(
 }
 
 fn tx_set_value(key: &Ed25519PrivateKey, nonce: u64, value_to_set: u64) -> RawTx {
+    tx_set_value_with_gas(
+        key,
+        nonce,
+        value_to_set,
+        None,
+        sov_test_utils::TEST_DEFAULT_MAX_FEE,
+    )
+}
+
+fn tx_set_value_with_gas(
+    key: &Ed25519PrivateKey,
+    nonce: u64,
+    value_to_set: u64,
+    gas: Option<GasUnit<2>>,
+    max_fee: Amount,
+) -> RawTx {
     let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
         sov_value_setter::CallMessage::SetValue {
             value: value_to_set as u32,
-            gas: None,
+            gas,
         },
     );
 
-    encode_call(key, nonce, &msg)
+    encode_call_with_fee(key, nonce, &msg, max_fee)
 }
 
 fn tx_assert_visible_slot_number(
@@ -1321,6 +1447,25 @@ fn encode_call(
         call_message,
         nonce,
         &<TestRuntime<TestSpec> as Runtime<TestSpec>>::CHAIN_HASH,
+    );
+
+    RawTx::new(borsh::to_vec(&tx).unwrap())
+}
+
+fn encode_call_with_fee(
+    key: &Ed25519PrivateKey,
+    nonce: u64,
+    call_message: &<TestRuntime<TestSpec> as DispatchCall>::Decodable,
+    max_fee: Amount,
+) -> RawTx {
+    let mut tx_details = default_test_tx_details();
+    tx_details.max_fee = max_fee;
+    let tx = test_signed_transaction::<TestRuntime<TestSpec>, TestSpec>(
+        key,
+        call_message,
+        nonce,
+        &<TestRuntime<TestSpec> as Runtime<TestSpec>>::CHAIN_HASH,
+        tx_details,
     );
 
     RawTx::new(borsh::to_vec(&tx).unwrap())
