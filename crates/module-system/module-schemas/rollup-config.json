@@ -567,6 +567,7 @@
       "required": [
         "da_address",
         "max_allowed_node_distance_behind",
+        "max_batch_size_bytes",
         "rollup_address"
       ],
       "properties": {
@@ -601,6 +602,12 @@
           "description": "The sequencer won't process incoming requests unless the node is within this many blocks or ahead of the sequencer.",
           "type": "integer",
           "format": "uint64",
+          "minimum": 0.0
+        },
+        "max_batch_size_bytes": {
+          "description": "Maximum size of a batch.",
+          "type": "integer",
+          "format": "uint",
           "minimum": 0.0
         },
         "rollup_address": {
