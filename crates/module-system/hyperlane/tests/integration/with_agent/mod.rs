@@ -4,10 +4,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use helpers::{
-    generate_setup, setup_rollup, Hyperlane, ANVIL_ACCOUNTS, DEFAULT_FINALIZATION_BLOCKS,
+    generate_setup, parse_eth_addr, setup_rollup, HyperlaneBuilder, ANVIL_ACCOUNTS,
+    DEFAULT_FINALIZATION_BLOCKS, EVM_DOMAIN,
 };
 use preferred_sequencer_runtime::{TestRuntime, TestRuntimeCall};
-use sov_api_spec::types::{self as api_types, IntOrHash};
+use serde_json::{Map, Value};
+use sov_api_spec::types::{self as api_types, GetSlotFilteredEventsResponse, IntOrHash};
 use sov_api_spec::Client;
 use sov_bank::Amount;
 use sov_hyperlane_integration::{
@@ -21,23 +23,23 @@ use tokio_stream::StreamExt;
 
 use crate::igp::{default_gas_hashmap_to_safe_vec, oracle_data_hashmap_to_safe_vec};
 
+mod configs;
 mod helpers;
 mod preferred_sequencer_runtime;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_validator_announces_itself() {
     let dir = tempfile::tempdir().unwrap();
-    let mut hyperlane = Hyperlane::new().await;
+    let builder = HyperlaneBuilder::setup_image().await;
     let setup = generate_setup();
-    let relayer = setup.relayer.clone();
     let validator = setup.validators[0].clone();
     let rollup = setup_rollup(dir.path().to_path_buf(), setup).await;
 
-    hyperlane
-        .start(&relayer.private_key, rollup.http_addr.port())
+    let mut hyperlane = builder
+        .with_rollup_port(rollup.http_addr.port())
+        .with_validators([&validator])
+        .start()
         .await;
-
-    hyperlane.start_validator(&validator.private_key).await;
 
     // wait for first finalized block
     let mut slot_subscription = rollup.api_client.subscribe_slots().await.unwrap();
@@ -54,21 +56,15 @@ async fn test_validator_announces_itself() {
             .await
             .unwrap();
 
-        if let Some(process_event) = events
-            .data
-            .iter()
-            .find(|ev| ev.key == "Mailbox/ValidatorAnnouncement")
-        {
+        if let Some(process_event) = find_event(&events, "Mailbox/ValidatorAnnouncement") {
             assert_eq!(
-                process_event.value["validator_announcement"]["address"],
+                process_event["validator_announcement"]["address"],
                 ANVIL_ACCOUNTS[1].0.to_string(),
             );
-            assert!(
-                process_event.value["validator_announcement"]["storage_location"]
-                    .as_str()
-                    .unwrap()
-                    .starts_with("file:///validator0/signatures")
-            );
+            assert!(process_event["validator_announcement"]["storage_location"]
+                .as_str()
+                .unwrap()
+                .starts_with("file:///validator0/signatures"));
 
             rollup.shutdown().await.unwrap();
             return;
@@ -83,15 +79,17 @@ async fn test_validator_announces_itself() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_relayer_basic_dispatch_process() {
     let dir = tempfile::tempdir().unwrap();
-    let mut hyperlane = Hyperlane::new().await;
+    let builder = HyperlaneBuilder::setup_image().await;
     let setup = generate_setup();
     let relayer = setup.relayer.clone();
     let prover = setup.prover.clone();
     let prover_addr = prover.user_info.address();
     let rollup = setup_rollup(dir.path().to_path_buf(), setup).await;
 
-    hyperlane
-        .start(&relayer.private_key, rollup.http_addr.port())
+    let mut hyperlane = builder
+        .with_rollup_port(rollup.http_addr.port())
+        .with_relayer(&relayer)
+        .start()
         .await;
 
     // wait for first finalized block
@@ -113,7 +111,7 @@ async fn test_relayer_basic_dispatch_process() {
     submit_tx(&rollup.api_client, register_tx).await;
 
     // dispatch message to prover
-    let dispatch_tx = tx_send_message(&relayer, prover_addr.to_sender(), b"Hello there");
+    let dispatch_tx = tx_send_message(&relayer, prover_addr.to_sender(), None, b"Hello there");
     submit_tx(&rollup.api_client, dispatch_tx).await;
 
     // look for `process` event
@@ -125,23 +123,20 @@ async fn test_relayer_basic_dispatch_process() {
             .await
             .unwrap();
 
-        if let Some(process_event) = events.data.iter().find(|ev| ev.key == "Mailbox/Process") {
+        if let Some(process_event) = find_event(&events, "Mailbox/Process") {
             assert_eq!(
-                process_event.value["process"]["recipient_address"],
+                process_event["process"]["recipient_address"],
                 prover_addr.to_sender().to_string(),
             );
             assert_eq!(
-                process_event.value["process"]["sender_address"],
+                process_event["process"]["sender_address"],
                 relayer.address().to_sender().to_string(),
             );
 
-            let test_recipient_event = events
-                .data
-                .iter()
-                .find(|ev| ev.key == "TestRecipient/MessageReceivedGeneric")
-                .unwrap();
+            let test_recipient_event =
+                find_event(&events, "TestRecipient/MessageReceivedGeneric").unwrap();
             assert_eq!(
-                test_recipient_event.value["MessageReceivedGeneric"]["body"],
+                test_recipient_event["MessageReceivedGeneric"]["body"],
                 format!("0x{}", hex::encode("Hello there"))
             );
 
@@ -158,7 +153,7 @@ async fn test_relayer_basic_dispatch_process() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_multisig_ism() {
     let dir = tempfile::tempdir().unwrap();
-    let mut hyperlane = Hyperlane::new().await;
+    let builder = HyperlaneBuilder::setup_image().await;
     let setup = generate_setup();
     let relayer = setup.relayer.clone();
     let prover = setup.prover.clone();
@@ -166,14 +161,12 @@ async fn test_multisig_ism() {
     let validators = setup.validators.clone();
     let rollup = setup_rollup(dir.path().to_path_buf(), setup).await;
 
-    hyperlane
-        .start(&relayer.private_key, rollup.http_addr.port())
+    let mut hyperlane = builder
+        .with_rollup_port(rollup.http_addr.port())
+        .with_relayer(&relayer)
+        .with_validators(&validators[..2])
+        .start()
         .await;
-
-    // start only first two validators, more isn't needed due to threshold
-    for validator in &validators[..2] {
-        hyperlane.start_validator(&validator.private_key).await;
-    }
 
     // wait for first finalized block
     let mut slot_subscription = rollup.api_client.subscribe_slots().await.unwrap();
@@ -201,7 +194,7 @@ async fn test_multisig_ism() {
     submit_tx(&rollup.api_client, register_tx).await;
 
     // dispatch message to prover
-    let dispatch_tx = tx_send_message(&relayer, prover_addr.to_sender(), b"Hello there");
+    let dispatch_tx = tx_send_message(&relayer, prover_addr.to_sender(), None, b"Hello there");
     submit_tx(&rollup.api_client, dispatch_tx).await;
 
     // look for `process` event
@@ -216,13 +209,13 @@ async fn test_multisig_ism() {
             .await
             .unwrap();
 
-        if let Some(process_event) = events.data.iter().find(|ev| ev.key == "Mailbox/Process") {
+        if let Some(process_event) = find_event(&events, "Mailbox/Process") {
             assert_eq!(
-                process_event.value["process"]["recipient_address"],
+                process_event["process"]["recipient_address"],
                 prover_addr.to_sender().to_string(),
             );
             assert_eq!(
-                process_event.value["process"]["sender_address"],
+                process_event["process"]["sender_address"],
                 relayer.address().to_sender().to_string(),
             );
 
@@ -236,13 +229,177 @@ async fn test_multisig_ism() {
     panic!("Mailbox/Process event not found");
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn test_process_message_from_evm_counterparty() {
+    let dir = tempfile::tempdir().unwrap();
+    let builder = HyperlaneBuilder::setup_image().await;
+    let setup = generate_setup();
+    let relayer = setup.relayer.clone();
+    let prover = setup.prover.clone();
+    let prover_addr = prover.user_info.address();
+    let rollup = setup_rollup(dir.path().to_path_buf(), setup).await;
+
+    let mut hyperlane = builder
+        .with_rollup_port(rollup.http_addr.port())
+        .with_relayer(&relayer)
+        .with_evm_counterparty(prover_addr.to_sender())
+        .start()
+        .await;
+
+    // wait for first finalized block
+    let mut slot_subscription = rollup.api_client.subscribe_slots().await.unwrap();
+    for _ in 0..DEFAULT_FINALIZATION_BLOCKS {
+        slot_subscription.next().await.unwrap().unwrap();
+    }
+
+    // register prover as a recipient
+    let register_call = TestRuntimeCall::TestRecipient(test_recipient::CallMessage::Register {
+        address: prover_addr.to_sender(),
+        ism: Ism::AlwaysTrust,
+    });
+    let register_tx = encode_call(prover.user_info.private_key(), &register_call);
+    submit_tx(&rollup.api_client, register_tx).await;
+
+    // dispatch test message to prover from evm
+    let (expected_message, expected_message_id) = hyperlane.dispatch_msg_from_counterparty().await;
+    let sender_addr = parse_eth_addr(ANVIL_ACCOUNTS[0].0);
+
+    assert_eq!(expected_message.origin_domain, EVM_DOMAIN);
+    assert_eq!(
+        expected_message.dest_domain,
+        config_value!("HYPERLANE_BRIDGE_DOMAIN")
+    );
+    assert_eq!(expected_message.sender, sender_addr);
+    assert_eq!(expected_message.recipient, prover_addr.to_sender());
+
+    // finalize the block with dispatched message
+    hyperlane.mine_next_block_on_counterparty().await;
+
+    // look for `process` event
+    for slot in 0..DEFAULT_FINALIZATION_BLOCKS * 30 {
+        slot_subscription.next().await.unwrap().unwrap();
+        let events = rollup
+            .api_client
+            .get_slot_filtered_events(&IntOrHash::Integer(slot as u64), None)
+            .await
+            .unwrap();
+
+        if let Some(process_event) = find_event(&events, "Mailbox/Process") {
+            assert_eq!(
+                process_event["process"]["recipient_address"],
+                prover_addr.to_sender().to_string(),
+            );
+            assert_eq!(
+                process_event["process"]["sender_address"],
+                sender_addr.to_string(),
+            );
+
+            let test_recipient_event =
+                find_event(&events, "TestRecipient/MessageReceivedGeneric").unwrap();
+            assert_eq!(
+                test_recipient_event["MessageReceivedGeneric"]["body"],
+                expected_message.body.to_string(),
+            );
+
+            let process_id_event = find_event(&events, "Mailbox/ProcessId").unwrap();
+            assert_eq!(
+                process_id_event["process_id"]["id"],
+                expected_message_id.to_string()
+            );
+
+            rollup.shutdown().await.unwrap();
+            return;
+        }
+    }
+
+    rollup.shutdown().await.unwrap();
+    hyperlane.print_stdout().await;
+    panic!("Mailbox/Process event not found");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_dispatch_message_to_evm_counterparty() {
+    let dir = tempfile::tempdir().unwrap();
+    let builder = HyperlaneBuilder::setup_image().await;
+    let setup = generate_setup();
+    let relayer = setup.relayer.clone();
+    let prover = setup.prover.clone();
+    let prover_addr = prover.user_info.address();
+    let rollup = setup_rollup(dir.path().to_path_buf(), setup).await;
+
+    let mut hyperlane = builder
+        .with_rollup_port(rollup.http_addr.port())
+        .with_relayer(&relayer)
+        .with_evm_counterparty(prover_addr.to_sender())
+        .start()
+        .await;
+
+    // wait for first finalized block
+    let mut slot_subscription = rollup.api_client.subscribe_slots().await.unwrap();
+    for _ in 0..DEFAULT_FINALIZATION_BLOCKS {
+        slot_subscription.next().await.unwrap().unwrap();
+    }
+
+    // set relayer igp config
+    let relayer_config_tx = tx_set_relayer_config(&relayer);
+    submit_tx(&rollup.api_client, relayer_config_tx).await;
+
+    let evm_recipient = hyperlane.evm_recipient.unwrap();
+    // dispatch message to evm test recipient
+    let dispatch_tx = tx_send_message(&relayer, evm_recipient, Some(EVM_DOMAIN), b"Hello there");
+    submit_tx(&rollup.api_client, dispatch_tx).await;
+
+    // look for `dispatch` event
+    for slot in 0..DEFAULT_FINALIZATION_BLOCKS * 10 {
+        slot_subscription.next().await.unwrap().unwrap();
+        let events = rollup
+            .api_client
+            .get_slot_filtered_events(&IntOrHash::Integer(slot as u64), None)
+            .await
+            .unwrap();
+
+        if let Some(process_event) = find_event(&events, "Mailbox/Dispatch") {
+            assert_eq!(process_event["dispatch"]["destination_domain"], EVM_DOMAIN,);
+            assert_eq!(
+                process_event["dispatch"]["recipient_address"],
+                evm_recipient.to_string(),
+            );
+
+            let message_id_event = find_event(&events, "Mailbox/DispatchId").unwrap();
+            let message_id = message_id_event["dispatch_id"]["id"]
+                .as_str()
+                .unwrap()
+                .parse()
+                .unwrap();
+
+            // Find the dispatched message on counterparty
+            let evm_event = hyperlane.latest_message_on_counterparty().await;
+            assert_eq!(
+                evm_event.origin_domain,
+                config_value!("HYPERLANE_BRIDGE_DOMAIN")
+            );
+            assert_eq!(evm_event.sender_address, relayer.address().to_sender());
+            assert_eq!(evm_event.recipient_address, evm_recipient);
+            assert_eq!(evm_event.id, message_id);
+
+            rollup.shutdown().await.unwrap();
+            return;
+        }
+    }
+
+    rollup.shutdown().await.unwrap();
+    hyperlane.print_stdout().await;
+    panic!("Mailbox/Dispatch event not found");
+}
+
 fn tx_send_message(
     relayer: &TestUser<TestSpec>,
     recipient_address: HexHash,
+    domain: Option<u32>,
     message_body: &[u8],
 ) -> RawTx {
     let call = TestRuntimeCall::Mailbox(CallMessage::Dispatch {
-        domain: config_value!("HYPERLANE_BRIDGE_DOMAIN"),
+        domain: domain.unwrap_or(config_value!("HYPERLANE_BRIDGE_DOMAIN")),
         recipient: recipient_address,
         body: HexString(message_body.to_vec().try_into().unwrap()),
         metadata: None,
@@ -276,20 +433,41 @@ async fn submit_tx(client: &Client, tx_body: RawTx) {
         .unwrap();
 }
 
+fn find_event(events: &GetSlotFilteredEventsResponse, event: &str) -> Option<Map<String, Value>> {
+    events
+        .data
+        .iter()
+        .find(|ev| ev.key == event)
+        .map(|ev| ev.value.clone())
+}
+
 fn tx_set_relayer_config(relayer: &TestUser<TestSpec>) -> RawTx {
-    let domain_oracles = HashMap::from([(
-        config_value!("HYPERLANE_BRIDGE_DOMAIN"),
-        ExchangeRateAndGasPrice {
-            gas_price: Amount(345),
-            token_exchange_rate: 1,
-        },
-    )]);
-    let domain_gas = HashMap::from([(config_value!("HYPERLANE_BRIDGE_DOMAIN"), Amount(2000))]);
+    let default_gas = Amount(2000);
+    let domain_oracles = HashMap::from([
+        (
+            config_value!("HYPERLANE_BRIDGE_DOMAIN"),
+            ExchangeRateAndGasPrice {
+                gas_price: Amount(1),
+                token_exchange_rate: 1,
+            },
+        ),
+        (
+            EVM_DOMAIN,
+            ExchangeRateAndGasPrice {
+                gas_price: Amount(1),
+                token_exchange_rate: 1,
+            },
+        ),
+    ]);
+    let domain_gas = HashMap::from([
+        (config_value!("HYPERLANE_BRIDGE_DOMAIN"), default_gas),
+        (EVM_DOMAIN, default_gas),
+    ]);
     let call = TestRuntimeCall::InterchainGasPaymaster(
         InterchainGasPaymasterCallMessage::SetRelayerConfig {
             domain_oracle_data: oracle_data_hashmap_to_safe_vec(domain_oracles),
             domain_default_gas: default_gas_hashmap_to_safe_vec(domain_gas),
-            default_gas: Amount(2000),
+            default_gas,
             beneficiary: Some(relayer.address()),
         },
     );
