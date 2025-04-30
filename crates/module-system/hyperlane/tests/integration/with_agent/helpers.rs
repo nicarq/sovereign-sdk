@@ -1,29 +1,39 @@
 use std::env;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use serde_json::json;
+use futures::future::join_all;
+use futures::FutureExt;
+use serde::de::DeserializeOwned;
+use serde::Deserialize;
+use serde_json::{json, Value};
+use sov_hyperlane_integration::{EthAddress, Message};
 use sov_mock_da::BlockProducingConfig;
-use sov_modules_api::macros::config_value;
-use sov_modules_api::{CryptoSpec, Spec};
+use sov_modules_api::{CryptoSpec, HexHash, HexString, Spec};
 use sov_sequencer::preferred::PreferredSequencerConfig;
 use sov_sequencer::SequencerKindConfig;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::{RtAgnosticBlueprint, TestProver, TestSequencer, TestSpec, TestUser};
 use testcontainers::core::client::docker_client_instance;
-use testcontainers::core::{CmdWaitFor, ExecCommand, ExecResult, Host, IntoContainerPort, WaitFor};
+use testcontainers::core::{CmdWaitFor, ExecCommand, ExecResult, Host, IntoContainerPort};
 use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, GenericImage, ImageExt};
 use tokio::io::AsyncBufReadExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 
+use super::configs::{
+    agent_config, core_config, ethtest_metadata, sovtest_addresses, sovtest_metadata,
+};
 use super::preferred_sequencer_runtime::{GenesisConfig, TestRuntime};
 
 pub type RollupBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
 pub type TestRollupBuilder = RollupBuilder<RollupBlueprint, PathBuf>;
 pub type PrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
+
+type Container = ContainerAsync<GenericImage>;
 
 pub const DEFAULT_BLOCK_TIME_MS: u64 = 400;
 pub const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic {
@@ -31,9 +41,18 @@ pub const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingC
 };
 pub const DEFAULT_FINALIZATION_BLOCKS: u32 = 10;
 /// Use `container.get_host_port_ipv4(RELAYER_METRICS_PORT)` to get metrics
+pub const ANVIL_PORT: u16 = 8545;
 pub const RELAYER_METRICS_PORT: u16 = 9091;
 pub const VALIDATOR_METRICS_PORT: u16 = 9097;
+/// Domain id of the evm counterparty chain
+pub const EVM_DOMAIN: u32 = 31337;
+/// Address of the mailbox on evm counterparty chain
+/// 0x8A791620dd6260079BF849Dc5567aDC3F2FdC318
+pub const EVM_MAILBOX: EthAddress = HexString([
+    138, 121, 22, 32, 221, 98, 96, 7, 155, 248, 73, 220, 85, 103, 173, 195, 242, 253, 195, 24,
+]);
 /// Fixed Eth keys created by anvil. They don't change. Each address is funded 1000ETH
+// run `docker run --rm ghcr.io/eigerco/hyperlane anvil` to see all keys
 pub const ANVIL_ACCOUNTS: &[(&str, &str)] = &[
     (
         // First account is used by relayer, the rest belongs to validators
@@ -138,15 +157,17 @@ pub async fn setup_rollup(
 }
 
 /// Helper for handling the dockerized hyperlane setup.
-pub struct Hyperlane {
-    pub image: GenericImage,
-    pub container: Option<ContainerAsync<GenericImage>>,
-    pub validators: Vec<ExecResult>,
+pub struct HyperlaneBuilder {
+    image: GenericImage,
+    rollup_port: Option<u16>,
+    rollup_recipient: Option<HexHash>,
+    relayer: Option<PrivateKey>,
+    validators: Vec<PrivateKey>,
 }
 
-impl Hyperlane {
+impl HyperlaneBuilder {
     /// Sets up and pulls hyperlane image
-    pub async fn new() -> Self {
+    pub async fn setup_image() -> Self {
         let docker_image = env::var("CUSTOM_HLP_DOCKER_IMAGE");
         let has_custom_image = !matches!(docker_image, Err(env::VarError::NotPresent));
 
@@ -170,145 +191,235 @@ impl Hyperlane {
 
         Self {
             image,
-            container: None,
+            rollup_port: None,
+            rollup_recipient: None,
+            relayer: None,
             validators: vec![],
         }
     }
 
-    /// Starts the container with hyperlane network
-    pub async fn start(&mut self, private_key: &PrivateKey, rollup_port: u16) {
-        let private_key = json!({ "private_key": private_key });
-        let private_key = serde_json::to_vec(&private_key).unwrap();
+    /// Set rollup port hyperlane can reach out to.
+    pub fn with_rollup_port(mut self, rollup_port: u16) -> Self {
+        self.rollup_port = Some(rollup_port);
+        self
+    }
 
-        tokio::spawn(rollup_proxy(rollup_port));
+    /// Run relayer with specified key.
+    pub fn with_relayer(mut self, relayer: &TestUser<TestSpec>) -> Self {
+        self.relayer = Some(relayer.private_key.clone());
+        self
+    }
 
+    /// Run validators with specified keys.
+    pub fn with_validators<'a>(
+        mut self,
+        validators: impl IntoIterator<Item = &'a TestUser<TestSpec>>,
+    ) -> Self {
+        self.validators = validators
+            .into_iter()
+            .map(|user| &user.private_key)
+            .cloned()
+            .collect();
+        self
+    }
+
+    /// Run evm counterparty that will send test messages to specified recipient
+    pub fn with_evm_counterparty(mut self, rollup_recipient: HexHash) -> Self {
+        self.rollup_recipient = Some(rollup_recipient);
+        self
+    }
+
+    /// Start the configured hyperlane network setup.
+    pub async fn start(self) -> Hyperlane {
+        let rollup_port = self.rollup_port.expect("Rollup port must be set");
+
+        // Start container with just basic env and no processes
         let container = self
             .image
-            .clone()
-            // map metrics ports to localhost
+            // map needed ports to localhost
+            .with_exposed_port(ANVIL_PORT.tcp())
             .with_exposed_port(RELAYER_METRICS_PORT.tcp())
             .with_exposed_port(VALIDATOR_METRICS_PORT.tcp())
-            // after this message relayer is ready
-            .with_wait_for(WaitFor::message_on_stdout("Starting tokio console server"))
             // a bridge to the host system, to reach rollup from within container
             .with_host("host.docker.internal", Host::HostGateway)
-            // default signing key for relayer
-            // it's the first ethereum key created and reported by anvil
-            // run `docker run --rm ghcr.io/eigerco/hyperlane anvil` to see all keys
+            // default signing key for hyperlane cli and relayer in evm
             .with_env_var("HYP_KEY", ANVIL_ACCOUNTS[0].1)
             // setup agent config
             .with_copy_to("/agent-config.json", agent_config(rollup_port))
             .with_env_var("CONFIG_FILES", "/agent-config.json")
-            // setup relayer keys
-            .with_copy_to("/relayer-key.json", private_key)
-            .with_env_var("TOKEN_KEY_FILE", "/relayer-key.json") // todo: rename this var in hyperlane
-            // relayer command
-            .with_cmd([
-                "relayer",
-                "--db",
-                "/relayer-db",
-                "--relayChains",
-                "sovtest",
-                "--allowLocalCheckpointSyncers", // allow using validator signatures from local fs
-                "true",
-                "--metrics-port",
-                RELAYER_METRICS_PORT.to_string().as_str(),
-            ])
+            // a dummy command because we will populate services by execs appropriately
+            .with_cmd(["tail", "-f", "/dev/null"])
             .start()
             .await
             .expect("Failed starting hyperlane image");
 
-        self.container = Some(container);
+        // evm counterparty must be started before agents
+        // because they will try to reach out to it immediately.
+        // same goes for rollup, but we assume its runnig knowing its port.
+        let (anvil, evm_recipient) = if let Some(rollup_recipient) = self.rollup_recipient {
+            let (anvil, evm_recipient) =
+                start_evm_counterparty(&container, rollup_recipient, rollup_port).await;
+            (Some(anvil), Some(evm_recipient))
+        } else {
+            (None, None)
+        };
+
+        // spawn a proxy between docker container and the rollup
+        tokio::spawn(rollup_proxy(rollup_port));
+
+        // start all the hyperlane agents concurrently
+        let has_relayer = self.relayer.is_some();
+        let maybe_relayer_fut = if has_relayer {
+            let fut = start_relayer(&container, self.relayer.unwrap(), anvil.is_some());
+            Some(fut.boxed_local())
+        } else {
+            None
+        };
+        let validators_futs = self
+            .validators
+            .into_iter()
+            .enumerate()
+            .map(|(id, key)| start_validator(&container, id, key).boxed_local());
+
+        let mut agents = join_all(
+            maybe_relayer_fut
+                .into_iter()
+                .chain(validators_futs.into_iter()),
+        )
+        .await;
+
+        let relayer = if has_relayer {
+            Some(agents.remove(0))
+        } else {
+            None
+        };
+
+        Hyperlane {
+            container,
+            anvil,
+            evm_recipient,
+            relayer,
+            validators: agents,
+        }
+    }
+}
+
+pub struct Hyperlane {
+    pub container: Container,
+    pub anvil: Option<ExecResult>,
+    pub evm_recipient: Option<HexHash>,
+    pub relayer: Option<ExecResult>,
+    pub validators: Vec<ExecResult>,
+}
+
+impl Hyperlane {
+    /// Send test message from evm counterparty to sov test recipient
+    pub async fn dispatch_msg_from_counterparty(&self) -> (Message, HexHash) {
+        if self.anvil.is_none() {
+            panic!("called dispatch_msg_from_counterparty without set up counterparty");
+        }
+
+        let output = self
+            .container
+            .exec(ExecCommand::new([
+                "hyperlane",
+                "send",
+                "message",
+                "--origin",
+                "ethtest",
+                "--destination",
+                "sovtest",
+                // don't wait for confirmation of delivery
+                "--quick",
+            ]))
+            .await
+            .unwrap()
+            .stdout_to_vec()
+            .await
+            .unwrap();
+
+        let output = String::from_utf8_lossy(&output);
+        // skip everything up to Message info
+        let lines: Vec<_> = output
+            .lines()
+            .skip_while(|&line| line != "Message:")
+            .collect();
+
+        let extract_field = |pattern, split| {
+            lines
+                .iter()
+                .find(|l| l.contains(pattern))
+                .and_then(|l| l.split(split).nth(1))
+                .unwrap()
+                .trim()
+        };
+        // we extract from two patterns and take second element
+        // - '   something: 1234' using ': '
+        // - '   something: "0x123...224"' using '"' to remove quotes
+        let message_id = extract_field("id: ", "\"").parse().unwrap();
+        let message = Message {
+            version: extract_field("version: ", ": ").parse().unwrap(),
+            nonce: extract_field("nonce: ", ": ").parse().unwrap(),
+            origin_domain: extract_field("origin: ", ": ").parse().unwrap(),
+            sender: extract_field("sender: ", "\"").parse().unwrap(),
+            dest_domain: extract_field("destination: ", ": ").parse().unwrap(),
+            recipient: extract_field("recipient: ", "\"").parse().unwrap(),
+            body: extract_field("body: ", "\"").parse().unwrap(),
+        };
+
+        (message, message_id)
     }
 
-    /// Run Hyperlane validator in docker.
-    pub async fn start_validator(&mut self, private_key: &PrivateKey) {
-        let Some(container) = self.container.as_ref() else {
-            panic!("called start_validator on not running container")
-        };
+    /// Searches latest block on evm counterparty (where there's block per tx)
+    /// and tries to extract the Mailbox Process event from it.
+    pub async fn latest_message_on_counterparty(&self) -> EvmProcessWithId {
+        #[derive(Debug, Deserialize)]
+        struct Log {
+            address: EthAddress,
+            topics: Vec<HexHash>,
+        }
 
-        let private_key = json!({ "private_key": private_key });
-        let private_key = serde_json::to_string(&private_key).unwrap();
+        // fetch logs in latest block
+        let logs: Vec<Log> = anvil_rpc(&self.container, "eth_getLogs", json!([{}])).await;
+        let mut logs = logs.into_iter().filter(|log| log.address == EVM_MAILBOX);
+        let process = logs.next().unwrap();
+        let process_id = logs.next().unwrap();
 
-        let val_id = self.validators.len();
-        let val_key_file = format!("/validator{val_id}-key.json");
-        let val_db_path = format!("/validator{val_id}/db");
-        let val_sigs_path = format!("/validator{val_id}/signatures");
+        // we should only have 2 logs
+        assert!(logs.next().is_none());
 
-        // set the known port only for first validator, and let os choose random one for rest
-        let metrics_port = if val_id == 0 {
-            VALIDATOR_METRICS_PORT
-        } else {
-            0
-        };
+        EvmProcessWithId::new(&process.topics, &process_id.topics)
+    }
 
-        let mkdir_cmd =
-            ExecCommand::new(["mkdir", "-p", val_db_path.as_str(), val_sigs_path.as_str()]);
-        container.exec(mkdir_cmd).await.unwrap();
+    /// Mines next block on the counterparty evm chain.
+    ///
+    /// Needed to finalize previous blocks for relayer to pick up txs.
+    pub async fn mine_next_block_on_counterparty(&self) {
+        if self.anvil.is_none() {
+            panic!("Called mine next block on counterparty before its setup");
+        }
 
-        let upload_key_cmd = ExecCommand::new([
-            "bash",
-            "-c",
-            format!("echo '{private_key}' > {val_key_file}").as_str(),
-        ]);
-        container.exec(upload_key_cmd).await.unwrap();
-
-        let cmd = ExecCommand::new([
-            // env vars for the validator
-            "env",
-            // location of the key for validator
-            format!("TOKEN_KEY_FILE={val_key_file}").as_str(),
-            // validator command
-            "validator",
-            // save signatures on local fs
-            "--checkpointSyncer.type",
-            "localStorage",
-            // path to save signatures to, uses env var set in container
-            "--checkpointSyncer.path",
-            val_sigs_path.as_str(),
-            // a database for validator storage
-            "--db",
-            val_db_path.as_str(),
-            // a chain of which messages are going to be signed
-            "--originChainName",
-            "sovtest",
-            // an eth key for the validator, reported by anvil
-            "--validator.key",
-            ANVIL_ACCOUNTS[val_id + 1].1,
-            "--defaultSigner.type",
-            "hexKey",
-            "--defaultSigner.key",
-            ANVIL_ACCOUNTS[val_id + 1].1,
-            // port for metrics
-            "--metrics-port",
-            metrics_port.to_string().as_str(),
-        ])
-        .with_cmd_ready_condition(CmdWaitFor::message_on_stdout("Agent validator starting up"));
-
-        let exec_result = container
-            .exec(cmd)
-            .await
-            .expect("starting validator failed");
-        self.validators.push(exec_result);
+        anvil_rpc::<Value>(&self.container, "anvil_mine", json!([1])).await;
     }
 
     /// Prints container's stdout
     pub async fn print_stdout(&mut self) {
-        let Some(container) = self.container.as_ref() else {
-            return;
-        };
-        println!("RELAYER\n");
-        let mut stdout = container.stdout(false).lines();
-        while let Some(line) = stdout.next_line().await.unwrap() {
-            println!("{line}");
-        }
-
         // we don't have an option for no-follow stdout access
         // on `ExecResult`s, so this would hang infinitly waiting
         // for `exec`s to exit. Instead we give them at most 1s of
         // printing time each.
-        for (n, val) in self.validators.iter_mut().enumerate() {
-            println!("\n\nVALIDATOR {n}\n");
+        let has_relayer = self.relayer.is_some();
+        for (n, val) in self
+            .relayer
+            .iter_mut()
+            .chain(self.validators.iter_mut())
+            .enumerate()
+        {
+            if n == 0 && has_relayer {
+                println!("RELAYER\n");
+            } else {
+                println!("\n\nVALIDATOR {n}\n");
+            }
 
             let _ = timeout(Duration::from_secs(1), async {
                 let mut stdout = val.stdout().lines();
@@ -321,84 +432,246 @@ impl Hyperlane {
     }
 }
 
-/// Generates a configuration file for the agents with the given rollup port
-fn agent_config(rollup_port: u16) -> Vec<u8> {
-    let config = json!({
-        "chains": {
-            "sovtest": {
-                "chainId": config_value!("CHAIN_ID"),
-                "displayName": "SovTest",
-                "domainId": config_value!("HYPERLANE_BRIDGE_DOMAIN"),
-                "isTestnet": true,
-                "name": "sovtest",
-                "nativeToken": {
-                    "decimals": 18,
-                    "name": "SovToken",
-                    "symbol": "sov"
-                },
-                "protocol": "sovereign",
-                "rpcUrls": [{
-                    "http": format!("HTTP://host.docker.internal:{rollup_port}")
-                }],
-                // note: here we don't do much based on contract addresses, but some of those may
-                // be needed to set to real addresses in a future
-                "domainRoutingIsmFactory": "0x0000000000000000000000000000000000000000",
-                "interchainAccountIsm": "0x0000000000000000000000000000000000000000",
-                "interchainAccountRouter": "0x0000000000000000000000000000000000000000",
-                "mailbox": "0x0000000000000000000000000000000000000000",
-                "proxyAdmin": "0x0000000000000000000000000000000000000000",
-                "staticAggregationHookFactory": "0x0000000000000000000000000000000000000000",
-                "staticAggregationIsmFactory": "0x0000000000000000000000000000000000000000",
-                "staticMerkleRootMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
-                "staticMerkleRootWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
-                "staticMessageIdMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
-                "staticMessageIdWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
-                "testRecipient": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "validatorAnnounce": "0x0000000000000000000000000000000000000000",
-                "merkleTreeHook": "0x0000000000000000000000000000000000000000",
-                "interchainGasPaymaster": "0x0000000000000000000000000000000000000000"
-            }
-            // An ethereum chain setup, to be used when writing end to end test between sov and evm
-            // chain. May need some further tweaks.
-            // "ethtest": {
-            //     "chainId": 31337,
-            //     "displayName": "EthTest",
-            //     "domainId": 31337,
-            //     "isTestnet": true,
-            //     "name": "ethtest",
-            //     "nativeToken": {
-            //         "decimals": 18,
-            //         "name": "Ether",
-            //         "symbol": "ETH"
-            //     },
-            //     "protocol": "ethereum",
-            //     "rpcUrls": [{
-            //         "http": "HTTP://127.0.0.1:8545"
-            //     }],
-            //     "domainRoutingIsmFactory": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
-            //     "interchainAccountIsm": "0x9A676e781A523b5d0C0e43731313A708CB607508",
-            //     "interchainAccountRouter": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed",
-            //     "mailbox": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
-            //     "merkleTreeHook": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
-            //     "proxyAdmin": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
-            //     "staticAggregationHookFactory": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
-            //     "staticAggregationIsmFactory": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
-            //     "staticMerkleRootMultisigIsmFactory": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-            //     "staticMerkleRootWeightedMultisigIsmFactory": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
-            //     "staticMessageIdMultisigIsmFactory": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
-            //     "staticMessageIdWeightedMultisigIsmFactory": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
-            //     "testRecipient": "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d",
-            //     "validatorAnnounce": "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c",
-            //     "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
-            //     "index": {
-            //         "from": 9
-            //     }
-            // }
-        },
-        "defaultRpcConsensusType": "fallback"
-    });
+pub struct EvmProcessWithId {
+    /// The origin domain of the message.
+    pub origin_domain: u32,
+    /// The sender address of the message.
+    pub sender_address: HexHash,
+    /// The recipient address of the message.
+    pub recipient_address: HexHash,
+    /// The ID of the message.
+    pub id: HexHash,
+}
 
-    serde_json::to_vec(&config).unwrap()
+impl EvmProcessWithId {
+    /// Reconstruct combined process event from contract log's topics.
+    fn new(dispatch_topics: &[HexHash], dispatch_id_topics: &[HexHash]) -> Self {
+        // Topics are events, where first topic is event signature,
+        // followed by event's fields in order.
+        //
+        // Fields on evm have the same order as our events
+        // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/7656fe1c3865f817d68971ed3c8b939376065283/solidity/contracts/interfaces/IMailbox.sol#L29-L45
+        assert_eq!(dispatch_topics.len(), 4);
+        assert_eq!(dispatch_id_topics.len(), 2);
+
+        let domain_topic = dispatch_topics[1];
+        // first 28 bytes should be zero
+        assert!(domain_topic.0[0..28].iter().all(|&b| b == 0));
+        let origin_domain = u32::from_be_bytes(domain_topic.0[28..].try_into().unwrap());
+
+        EvmProcessWithId {
+            origin_domain,
+            sender_address: dispatch_topics[2],
+            recipient_address: dispatch_topics[3],
+            id: dispatch_id_topics[1],
+        }
+    }
+}
+
+/// Starts a relayer in docker container
+async fn start_relayer(
+    container: &Container,
+    private_key: PrivateKey,
+    relay_evm: bool,
+) -> ExecResult {
+    let private_key = json!({ "private_key": private_key });
+    let private_key = serde_json::to_string(&private_key).unwrap();
+    let relayer_key_file = "/relayer-key.json";
+
+    exec_in_bash(
+        container,
+        format!("echo '{private_key}' > {relayer_key_file}"),
+    )
+    .await;
+
+    let relay_chains = if relay_evm {
+        "sovtest,ethtest"
+    } else {
+        "sovtest"
+    };
+
+    let cmd = ExecCommand::new([
+        // env vars for the validator
+        "env",
+        // location of the key for validator
+        format!("TOKEN_KEY_FILE={relayer_key_file}").as_str(),
+        // relayer command
+        "relayer",
+        // database locations
+        "--db",
+        "/relayer-db",
+        // chains to relay
+        "--relayChains",
+        relay_chains,
+        // allow using validator signatures from local fs
+        "--allowLocalCheckpointSyncers",
+        "true",
+        // port for metrics
+        "--metrics-port",
+        RELAYER_METRICS_PORT.to_string().as_str(),
+    ])
+    .with_cmd_ready_condition(CmdWaitFor::message_on_stdout("Agent relayer starting up"));
+
+    container.exec(cmd).await.expect("starting relayer failed")
+}
+
+/// Starts a relayer in docker container
+async fn start_validator(
+    container: &Container,
+    val_id: usize,
+    private_key: PrivateKey,
+) -> ExecResult {
+    // set the known port only for first validator, and let os choose random one for rest
+    let metrics_port = if val_id == 0 {
+        VALIDATOR_METRICS_PORT
+    } else {
+        0
+    };
+
+    let private_key = json!({ "private_key": private_key });
+    let private_key = serde_json::to_string(&private_key).unwrap();
+
+    let val_key_file = format!("/validator{val_id}-key.json");
+    let val_db_path = format!("/validator{val_id}/db");
+    let val_sigs_path = format!("/validator{val_id}/signatures");
+    let val_eth_key = ANVIL_ACCOUNTS[val_id + 1].1;
+
+    // upload the key to container
+    exec_in_bash(container, format!("echo '{private_key}' > {val_key_file}")).await;
+    // make directories for db and signatures
+    let mkdir_cmd = ExecCommand::new(["mkdir", "-p", val_db_path.as_str(), val_sigs_path.as_str()]);
+    container.exec(mkdir_cmd).await.unwrap();
+
+    let cmd = ExecCommand::new([
+        // env vars for the validator
+        "env",
+        // location of the key for validator
+        format!("TOKEN_KEY_FILE={val_key_file}").as_str(),
+        // validator command
+        "validator",
+        // save signatures on local fs
+        "--checkpointSyncer.type",
+        "localStorage",
+        // path to save signatures to
+        "--checkpointSyncer.path",
+        val_sigs_path.as_str(),
+        // a database for validator storage
+        "--db",
+        val_db_path.as_str(),
+        // a chain of which messages are going to be signed
+        "--originChainName",
+        "sovtest",
+        // an eth key for the validator, reported by anvil
+        "--validator.key",
+        val_eth_key,
+        "--defaultSigner.type",
+        "hexKey",
+        "--defaultSigner.key",
+        val_eth_key,
+        // port for metrics
+        "--metrics-port",
+        metrics_port.to_string().as_str(),
+    ])
+    .with_cmd_ready_condition(CmdWaitFor::message_on_stdout("Agent validator starting up"));
+
+    // run validator
+    container
+        .exec(cmd)
+        .await
+        .expect("starting validator failed")
+}
+
+/// Run Evm counterparty chain in docker.
+///
+/// Takes an address of sov test recipient, that can be used as a target of test
+/// messages sent by `hyperlane-cli` and returns an address of evm test recipient
+async fn start_evm_counterparty(
+    container: &Container,
+    rollup_recipient: HexHash,
+    rollup_port: u16,
+) -> (ExecResult, HexHash) {
+    let anvil = container
+        .exec(ExecCommand::new([
+            "anvil",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            &ANVIL_PORT.to_string(),
+        ]))
+        .await
+        .unwrap();
+
+    // Create chains configuration files for `hyperlane-cli`
+    let chains_dir = "/root/.hyperlane/chains";
+    let sovtest_config = sovtest_metadata(rollup_port);
+    let ethtest_config = ethtest_metadata();
+    for (chain, config) in [("sovtest", sovtest_config), ("ethtest", ethtest_config)] {
+        exec_in_bash(
+            container,
+            format!("mkdir -p {chains_dir}/{chain}; echo '{config}' > {chains_dir}/{chain}/metadata.yaml")
+        )
+        .await;
+    }
+
+    // core config of hyperlane-cli, see `core_config`
+    let core_config = core_config(ANVIL_ACCOUNTS[0].0.parse().unwrap());
+    exec_in_bash(
+        container,
+        format!("mkdir configs && echo '{core_config}' > configs/core-config.yaml"),
+    )
+    .await;
+
+    // Deploy smart contracts on ethereum and create
+    // `~/.hyperlane/chains/ethtest/addresses.yaml
+    let mut res = container
+        .exec(ExecCommand::new([
+            "hyperlane",
+            "core",
+            "deploy",
+            "--chain",
+            "ethtest",
+            "--yes",
+        ]))
+        .await
+        .unwrap();
+
+    let stderr = res.stderr_to_vec().await.unwrap();
+    if res.exit_code().await.unwrap().unwrap() != 0 {
+        println!("{}", String::from_utf8_lossy(&stderr));
+        panic!("hyperlane deployment on evm chain failed");
+    }
+
+    // create `~/.hyperlane/chains/sovtest/addresses.yaml
+    let sov_addresses = sovtest_addresses(rollup_recipient);
+    exec_in_bash(
+        container,
+        format!("echo '{sov_addresses}' > {chains_dir}/sovtest/addresses.yaml"),
+    )
+    .await;
+
+    // get ethereum test recipient
+    let output = container
+        .exec(ExecCommand::new([
+            "awk",
+            "-F",
+            "\"",
+            "/testRecipient/ { print $2 }",
+            &format!("{chains_dir}/ethtest/addresses.yaml"),
+        ]))
+        .await
+        .unwrap()
+        .stdout_to_vec()
+        .await
+        .unwrap();
+    let output = String::from_utf8_lossy(&output);
+
+    (anvil, parse_eth_addr(&output))
+}
+
+/// runs docker exec <container> bash -c "cmd"
+async fn exec_in_bash(container: &Container, cmd: impl AsRef<str>) -> ExecResult {
+    let bash_c = ExecCommand::new(["bash", "-c", cmd.as_ref()]);
+    container.exec(bash_c).await.unwrap()
 }
 
 /// Very simple proxy that listens on the docker's network interface and forwards traffic
@@ -438,4 +711,42 @@ async fn rollup_proxy(rollup_port: u16) {
             let _ = tokio::io::copy_bidirectional(&mut docker_socket, &mut rollup_socket).await;
         });
     }
+}
+
+// parses eth addr 0x(40 chars hex) into HexHash
+pub fn parse_eth_addr(addr: &str) -> HexHash {
+    let address: HexString<[u8; 20]> = addr.trim().parse().unwrap();
+    let mut res = [0; 32];
+    res[12..].copy_from_slice(&address.0);
+
+    res.into()
+}
+
+pub async fn anvil_rpc<T: DeserializeOwned>(
+    container: &Container,
+    method: &str,
+    params: Value,
+) -> T {
+    static ID: AtomicUsize = AtomicUsize::new(0);
+    let port = container.get_host_port_ipv4(ANVIL_PORT).await.unwrap();
+    let resp = reqwest::Client::new()
+        .post(format!("http://localhost:{port}"))
+        .json(&json!({
+            "id": ID.fetch_add(1, Ordering::Relaxed),
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json::<Value>()
+        .await
+        .unwrap();
+
+    if let Some(error) = resp.get("error") {
+        panic!("Errors calling anvil jrpc: {error:?}");
+    }
+
+    serde_json::from_value(resp["result"].clone()).unwrap()
 }
