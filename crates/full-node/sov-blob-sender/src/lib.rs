@@ -457,7 +457,7 @@ impl<Da: DaService> TaskState<Da> {
         let latest_finalized_slot_number =
             self.ledger_db.get_latest_finalized_slot_number().await?;
 
-        Ok(Some(slot_number >= latest_finalized_slot_number))
+        Ok(Some(slot_number <= latest_finalized_slot_number))
     }
 
     async fn send_blob(&self, blob: BlobToSend) -> anyhow::Result<BlobReceiptFut<Da>> {
