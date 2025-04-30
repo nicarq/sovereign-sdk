@@ -172,11 +172,6 @@ where
             call::CallMessage::ExitChallenger => self.exit_challenger(context, state),
         }
         .map_err(|e| e.into());
-        if let Err(ref err) = res {
-            tracing::debug!("Attester incentives call reverted with error {}", err);
-        } else {
-            tracing::debug!("Attester incentives call succeeded!");
-        }
         res
     }
 }

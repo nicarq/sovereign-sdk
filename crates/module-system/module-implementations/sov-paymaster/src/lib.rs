@@ -224,7 +224,7 @@ impl<S: Spec> Paymaster<S> {
         // If the paymaster will not pay for whatever reason, the user pays.
         // This prevents someone from censoring transactions by setting overly strict payer policies which cause
         // them to be rejected.
-        tracing::debug!("Falling back to user balance to reserve gas");
+        tracing::trace!("Falling back to user balance to reserve gas");
         self.bank
             .reserve_gas(tx, gas_price, context.sender(), state)?;
         context.set_gas_refund_recipient(context.sender().clone());
