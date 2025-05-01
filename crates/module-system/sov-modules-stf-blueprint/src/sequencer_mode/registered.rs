@@ -110,7 +110,7 @@ fn track_transaction_metrics<S: Spec>(
             gas_used: gas_used.as_ref().to_vec(),
         };
 
-        metrics_tracker.track_transaction_processing(transaction_metrics);
+        metrics_tracker.submit(transaction_metrics);
     });
 }
 

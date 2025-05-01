@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![deny(missing_docs)]
 
-/// Contains utilities to track zkvm cycles
+/// Contains utilities to track zkVM cycles.
 pub mod cycle_utils;
 
 #[cfg(feature = "native")]
@@ -11,7 +11,7 @@ mod influxdb;
 pub use influxdb::{
     init_metrics_tracker, timestamp, track_metrics, BatchMetrics, BatchOutcome, HttpMetrics,
     Metric, MetricsTracker, MonitoringConfig, RunnerMetrics, SlotProcessingMetrics,
-    SovRollupMetrics, TelegrafSocketConfig, TransactionEffect, TransactionProcessingMetrics,
+    TelegrafSocketConfig, TransactionEffect, TransactionProcessingMetrics,
     UserSpaceSlotProcessingMetrics, ZkCircuit, ZkProvingTime, ZkVmExecutionChunk, METRICS_METADATA,
 };
 #[cfg(all(feature = "native", feature = "gas-constant-estimation"))]

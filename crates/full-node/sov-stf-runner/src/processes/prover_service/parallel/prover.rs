@@ -249,7 +249,7 @@ where
     sov_metrics::track_metrics(|tracker| {
         let proving_time = proving_start.elapsed();
         let is_success = result.is_ok();
-        tracker.track_zk_proving_time(sov_metrics::ZkProvingTime {
+        tracker.submit(sov_metrics::ZkProvingTime {
             proving_time,
             is_success,
             zk_circuit: sov_metrics::ZkCircuit::Inner,
