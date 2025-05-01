@@ -15,7 +15,7 @@ pub use config::{MonitoringConfig, TelegrafSocketConfig};
 pub use gas_constant_estimation::{GasConstantTracker, GAS_CONSTANTS};
 pub use tracker::{
     init_metrics_tracker, timestamp, BatchMetrics, BatchOutcome, HttpMetrics, RunnerMetrics,
-    SlotProcessingMetrics, SovRollupMetrics, TransactionEffect, TransactionProcessingMetrics,
+    SlotProcessingMetrics, TransactionEffect, TransactionProcessingMetrics,
     UserSpaceSlotProcessingMetrics, ZkCircuit, ZkProvingTime, ZkVmExecutionChunk, METRICS_METADATA,
 };
 
@@ -31,13 +31,16 @@ pub struct MetricsTracker {
 
 /// Anything that makes sense to serialize for telegraf.
 pub trait Metric: Send + Sync + std::fmt::Debug {
+    /// The name of the measurement for use in Flux queries.
+    fn measurement_name(&self) -> &'static str;
+
     /// Write InfluxDb [`line protocol`](https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol/) format.
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()>;
 
-    #[cfg(feature = "gas-constant-estimation")]
     /// Optionally writes metrics to a CSV file.  
     /// By default, this implementation does not write to the file.
-    fn write_to_csv(&self, _writers: &mut csv_helper::CsvWriteres) -> std::io::Result<()> {
+    #[cfg(feature = "gas-constant-estimation")]
+    fn write_to_csv(&self, _writers: &mut csv_helper::CsvWriters) -> std::io::Result<()> {
         Ok(())
     }
 }
@@ -169,11 +172,17 @@ mod tests {
     }
 
     impl Metric for MyCustomMetric {
+        fn measurement_name(&self) -> &'static str {
+            "my_custom_metric"
+        }
+
         fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
             write!(
                 buffer,
-                "my_custom_metric my_tag={} my_value={}",
-                self.tag, self.value,
+                "{} my_tag={} my_value={}",
+                self.measurement_name(),
+                self.tag,
+                self.value,
             )
         }
     }
@@ -200,7 +209,7 @@ mod tests {
 
         let my_metric = MyCustomMetric { value: 120, tag: 3 };
 
-        tracker.track_custom::<MyCustomMetric>(my_metric);
+        tracker.submit(my_metric);
 
         let sent_metric = receive_with_timeout(&mut metrics_back_receiver)
             .await

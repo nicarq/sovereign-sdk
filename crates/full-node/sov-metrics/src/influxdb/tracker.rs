@@ -7,8 +7,6 @@ use std::sync::{LazyLock, OnceLock, RwLock};
 
 use sov_rollup_interface::common::VisibleSlotNumber;
 
-#[cfg(feature = "gas-constant-estimation")]
-use crate::influxdb::gas_constant_estimation::GasConstantMetric;
 use crate::influxdb::{publisher, safe_telegraf_string, Metric};
 use crate::{MetricsTracker, MonitoringConfig};
 
@@ -40,10 +38,37 @@ pub fn init_metrics_tracker(config: &MonitoringConfig) {
     }
 }
 
+#[derive(Debug)]
+struct MetricWithTimestamp(Box<dyn Metric>, Timestamp);
+
+impl Metric for MetricWithTimestamp {
+    fn measurement_name(&self) -> &'static str {
+        self.0.measurement_name()
+    }
+
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        self.0.serialize_for_telegraf(buffer)?;
+        write!(buffer, " {}", self.1)
+    }
+
+    #[cfg(feature = "gas-constant-estimation")]
+    fn write_to_csv(&self, writers: &mut super::csv_helper::CsvWriters) -> std::io::Result<()> {
+        self.0.write_to_csv(writers)
+    }
+}
+
 impl MetricsTracker {
-    pub(crate) fn submit(&self, measurement: SovRollupMetric) {
+    /// Submits a metric.
+    pub fn submit(&self, measurement: impl Metric + 'static) {
+        self.submit_with_time(timestamp(), measurement);
+    }
+
+    /// Submits a metric with a timestamp.
+    pub fn submit_with_time(&self, timestamp: u128, measurement: impl Metric + 'static) {
         tracing::trace!(?measurement, "Submitting a measurement");
-        if let Err(e) = self.sender.try_send(Box::new(measurement)) {
+        let metric = MetricWithTimestamp(Box::new(measurement), timestamp);
+
+        if let Err(e) = self.sender.try_send(Box::new(metric)) {
             tracing::trace!(error = ?e, "Dropped measurement");
         };
     }
@@ -66,15 +91,15 @@ impl MetricsTracker {
             extract_blobs_time,
             extraction_proof_time,
         } = point;
-        self.submit(SovRollupMetric::RunnerDa(
+        self.submit_with_time(
             timestamp,
             RunnerDaMetrics {
                 da_height: da_height_processed,
                 sync_distance,
                 get_block_time,
             },
-        ));
-        self.submit(SovRollupMetric::RunnerCount(
+        );
+        self.submit_with_time(
             timestamp,
             RunnerCountMetrics {
                 da_height: da_height_processed,
@@ -84,8 +109,8 @@ impl MetricsTracker {
                 proofs_processed,
                 proof_bytes_processed,
             },
-        ));
-        self.submit(SovRollupMetric::RunnerTimes(
+        );
+        self.submit_with_time(
             timestamp,
             RunnerTimeMetrics {
                 da_height: da_height_processed,
@@ -95,55 +120,7 @@ impl MetricsTracker {
                 extract_blobs_time,
                 extraction_proof_time,
             },
-        ));
-    }
-
-    /// Tracks processing of transaction.
-    pub fn track_transaction_processing(&self, point: TransactionProcessingMetrics) {
-        let timestamp = timestamp();
-        self.submit(SovRollupMetric::TransactionProcessing(timestamp, point));
-    }
-
-    /// Tracks metrics related to the part of slot processing that happens in user space. Written as a single point.
-    pub fn track_user_space_slot_processing(&self, point: UserSpaceSlotProcessingMetrics) {
-        let timestamp = timestamp();
-        self.submit(SovRollupMetric::UserSpaceSlotProcessing(timestamp, point));
-    }
-
-    /// Tracks metrics related to slot processing. Written as a single point.
-    pub fn track_slot_processing(&self, point: SlotProcessingMetrics) {
-        let timestamp = timestamp();
-        self.submit(SovRollupMetric::SlotProcessing(timestamp, point));
-    }
-
-    /// Tracks metrics related to batch processing.
-    pub fn track_batch_processing(&self, point: BatchMetrics) {
-        let timestamp = timestamp();
-        self.submit(SovRollupMetric::BatchProcessing(timestamp, point));
-    }
-
-    /// Tracks HTTP-related metrics.
-    pub fn track_http_request(&self, point: HttpMetrics) {
-        let timestamp = timestamp();
-        self.submit(SovRollupMetric::Http(timestamp, point));
-    }
-
-    /// Tracks ZKVM cycles count.
-    pub fn track_zkvm_metric(&self, point: ZkVmExecutionChunk) {
-        let timestamp = timestamp();
-        self.submit(SovRollupMetric::ZkVm(timestamp, point));
-    }
-
-    /// Wall clock time for proving.
-    pub fn track_zk_proving_time(&self, point: ZkProvingTime) {
-        let timestamp = timestamp();
-        self.submit(SovRollupMetric::ZkProving(timestamp, point));
-    }
-
-    /// Track custom metric. Timestamp is added at this moment.
-    pub fn track_custom<M: Metric + 'static>(&self, measurement: M) {
-        let timestamp = timestamp();
-        self.submit(SovRollupMetric::Custom(timestamp, Box::new(measurement)));
+        );
     }
 }
 
@@ -303,13 +280,18 @@ pub struct UserSpaceSlotProcessingMetrics {
     pub gas_used: Vec<u64>,
 }
 
-impl RunnerDaMetrics {
+impl Metric for RunnerDaMetrics {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_runner_da"
+    }
+
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
         write!(
             buffer,
-            "sov_rollup_runner_da{metadata} da_height={},sync_distance={},get_block_time_ms={}",
+            "{}{metadata} da_height={},sync_distance={},get_block_time_ms={}",
+            self.measurement_name(),
             self.da_height,
             self.sync_distance,
             self.get_block_time.as_millis(),
@@ -317,13 +299,18 @@ impl RunnerDaMetrics {
     }
 }
 
-impl RunnerCountMetrics {
+impl Metric for RunnerCountMetrics {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_runner_counts"
+    }
+
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
         write!(
             buffer,
-            "sov_rollup_runner_counts{metadata} da_height={},batches_c={},transactions_c={},proofs_c={},batch_bytes={},proof_bytes={}",
+            "{}{metadata} da_height={},batches_c={},transactions_c={},proofs_c={},batch_bytes={},proof_bytes={}",
+            self.measurement_name(),
             self.da_height,
             self.batches,
             self.transactions,
@@ -334,13 +321,18 @@ impl RunnerCountMetrics {
     }
 }
 
-impl RunnerTimeMetrics {
+impl Metric for RunnerTimeMetrics {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_runner_times_us"
+    }
+
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
         write!(
             buffer,
-            "sov_rollup_runner_times_us{metadata} da_height={},process_slot={},apply_slot={},stf_transition={},extract_blobs={},blob_extraction_proof={}",
+            "{}{metadata} da_height={},process_slot={},apply_slot={},stf_transition={},extract_blobs={},blob_extraction_proof={}",
+            self.measurement_name(),
             self.da_height,
             self.process_slot_time.as_micros(),
             self.apply_slot_time.as_micros(),
@@ -351,11 +343,16 @@ impl RunnerTimeMetrics {
     }
 }
 
-impl TransactionProcessingMetrics {
+impl Metric for TransactionProcessingMetrics {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_transaction_execution_us"
+    }
+
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
-        write!(buffer, "sov_rollup_transaction_execution_us,status={:?},context={:?},call_message={},sequencer={}{metadata} value={},rollup_height={}",
+        write!(buffer, "{},status={:?},context={:?},call_message={},sequencer={}{metadata} value={},rollup_height={}",
+               self.measurement_name(),
                // tags
                self.tx_effect,
                self.execution_context,
@@ -377,13 +374,18 @@ impl TransactionProcessingMetrics {
     }
 }
 
-impl SlotProcessingMetrics {
+impl Metric for SlotProcessingMetrics {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_slot_execution_time_us"
+    }
+
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
         write!(
             buffer,
-            "sov_rollup_slot_execution_time_us,context={:?}{metadata} blobs_selection={},finalization={},visible_slot_number={},da_height={}",
+            "{},context={:?}{metadata} blobs_selection={},finalization={},visible_slot_number={},da_height={}",
+            self.measurement_name(),
             // Tags
             self.execution_context,
             // Fields
@@ -403,13 +405,18 @@ impl SlotProcessingMetrics {
     }
 }
 
-impl UserSpaceSlotProcessingMetrics {
+impl Metric for UserSpaceSlotProcessingMetrics {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_slot_execution_time_us"
+    }
+
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
         write!(
             buffer,
-            "sov_rollup_slot_execution_time_us,context={:?}{metadata} begin_hooks={},blobs_processing={},end_hooks={},rollup_height={}",
+            "{},context={:?}{metadata} begin_hooks={},blobs_processing={},end_hooks={},rollup_height={}",
+            self.measurement_name(),
             // Tags
             self.execution_context,
             // Fields
@@ -449,13 +456,18 @@ pub struct BatchMetrics {
     pub ignored_transactions_count: usize,
 }
 
-impl BatchMetrics {
+impl Metric for BatchMetrics {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_batch_processing"
+    }
+
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
         write!(
             buffer,
-            "sov_rollup_batch_processing{metadata} processing_time_us={},transactions={},ignored_transactions={}",
+            "{}{metadata} processing_time_us={},transactions={},ignored_transactions={}",
+            self.measurement_name(),
             self.processing_time.as_micros(),
             self.transactions_count,
             self.ignored_transactions_count,
@@ -480,13 +492,18 @@ pub struct HttpMetrics {
     pub handler_processing_time: std::time::Duration,
 }
 
-impl HttpMetrics {
+impl Metric for HttpMetrics {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_http_handlers"
+    }
+
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
         write!(
             buffer,
-            "sov_rollup_http_handlers,req_method={},resp_status={},path={}{metadata} processing_time_us={},response_body_bytes={}",
+            "{},req_method={},resp_status={},path={}{metadata} processing_time_us={},response_body_bytes={}",
+            self.measurement_name(),
             // Tags
             self.request_method,
             self.response_status.as_u16(),
@@ -513,9 +530,15 @@ pub struct ZkVmExecutionChunk {
     pub memory_used: u64,
 }
 
-impl ZkVmExecutionChunk {
+impl Metric for ZkVmExecutionChunk {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_zkvm"
+    }
+
     #[cfg(feature = "gas-constant-estimation")]
-    fn write_to_csv(&self, writer: &mut std::io::BufWriter<std::fs::File>) -> std::io::Result<()> {
+    fn write_to_csv(&self, writers: &mut super::csv_helper::CsvWriters) -> std::io::Result<()> {
+        let writer = &mut writers.zk_vm_writer;
+
         let meta = &self.metadata;
         let maybe_pre_state_root = meta.iter().find(|(k, _)| k == "pre_state_root");
         if let Some(pre_state_root) = maybe_pre_state_root {
@@ -555,8 +578,12 @@ impl ZkVmExecutionChunk {
 
         write!(
             buffer,
-            "sov_rollup_zkvm,name={}{metadata} cycles_count={},free_heap_bytes={},memory_used={}",
-            self.name, self.cycles_count, self.free_heap_bytes, self.memory_used
+            "{},name={}{metadata} cycles_count={},free_heap_bytes={},memory_used={}",
+            self.measurement_name(),
+            self.name,
+            self.cycles_count,
+            self.free_heap_bytes,
+            self.memory_used
         )
     }
 }
@@ -579,122 +606,22 @@ pub struct ZkProvingTime {
     pub zk_circuit: ZkCircuit,
 }
 
-impl ZkProvingTime {
+impl Metric for ZkProvingTime {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_zkvm_proving"
+    }
+
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         let metadata = serialize_metadata();
 
         write!(
             buffer,
-            "sov_rollup_zkvm_proving,is_success={},circuit={:?}{metadata} proving_time_ms={}",
+            "{},is_success={},circuit={:?}{metadata} proving_time_ms={}",
+            self.measurement_name(),
             self.is_success,
             self.zk_circuit,
             self.proving_time.as_millis()
         )
-    }
-}
-
-#[derive(strum::EnumDiscriminants, Debug)]
-#[strum_discriminants(
-    derive(strum::EnumString),
-    name(SovRollupMetrics),
-    vis(pub),
-    strum(serialize_all = "snake_case")
-)]
-#[strum(serialize_all = "snake_case")]
-pub(crate) enum SovRollupMetric {
-    /// Metrics for the Da layer.
-    RunnerDa(Timestamp, RunnerDaMetrics),
-    /// Metrics to track the number of transactions, batches and slots processed inside the runner.
-    RunnerCount(Timestamp, RunnerCountMetrics),
-    /// Metrics to track the time spent on processing transactions, batches and slots inside the runner.
-    RunnerTimes(Timestamp, RunnerTimeMetrics),
-    /// Metrics to track the time spent on processing slots.
-    SlotProcessing(Timestamp, SlotProcessingMetrics),
-    /// Metrics to track user space slot processing.
-    UserSpaceSlotProcessing(Timestamp, UserSpaceSlotProcessingMetrics),
-    /// Metrics to track batch processing.
-    BatchProcessing(Timestamp, BatchMetrics),
-    /// Metrics to track transaction processing.
-    TransactionProcessing(Timestamp, TransactionProcessingMetrics),
-    /// Metrics to track HTTP requests.
-    Http(Timestamp, HttpMetrics),
-    /// Metrics to track ZKVM execution.
-    ZkVm(Timestamp, ZkVmExecutionChunk),
-    /// Metrics to track ZK proving.
-    ZkProving(Timestamp, ZkProvingTime),
-    #[cfg(feature = "gas-constant-estimation")]
-    /// Metrics to track gas constant usage.
-    GasConstantUsage(Timestamp, GasConstantMetric),
-    /// Any custom metric can be developed externally
-    Custom(Timestamp, Box<dyn Metric>),
-}
-
-impl Metric for SovRollupMetric {
-    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-        let timestamp = match self {
-            SovRollupMetric::RunnerCount(t, m) => {
-                m.serialize_for_telegraf(buffer)?;
-                t
-            }
-            SovRollupMetric::RunnerDa(t, m) => {
-                m.serialize_for_telegraf(buffer)?;
-                t
-            }
-            SovRollupMetric::RunnerTimes(t, m) => {
-                m.serialize_for_telegraf(buffer)?;
-                t
-            }
-            SovRollupMetric::SlotProcessing(t, m) => {
-                m.serialize_for_telegraf(buffer)?;
-                t
-            }
-            SovRollupMetric::BatchProcessing(t, m) => {
-                m.serialize_for_telegraf(buffer)?;
-                t
-            }
-            SovRollupMetric::TransactionProcessing(t, m) => {
-                m.serialize_for_telegraf(buffer)?;
-                t
-            }
-            SovRollupMetric::Http(t, m) => {
-                m.serialize_for_telegraf(buffer)?;
-                t
-            }
-            SovRollupMetric::UserSpaceSlotProcessing(t, m) => {
-                m.serialize_for_telegraf(buffer)?;
-                t
-            }
-            SovRollupMetric::ZkVm(t, m) => {
-                m.serialize_for_telegraf(buffer)?;
-                t
-            }
-            SovRollupMetric::ZkProving(t, m) => {
-                m.serialize_for_telegraf(buffer)?;
-                t
-            }
-            #[cfg(feature = "gas-constant-estimation")]
-            SovRollupMetric::GasConstantUsage(t, m) => {
-                m.serialize_for_telegraf(buffer)?;
-                t
-            }
-            SovRollupMetric::Custom(t, m) => {
-                m.serialize_for_telegraf(buffer)?;
-                t
-            }
-        };
-
-        write!(buffer, " {timestamp}")
-        // TODO BenchRunner: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2738
-        //writeln!(buffer, " {timestamp}")
-    }
-
-    #[cfg(feature = "gas-constant-estimation")]
-    fn write_to_csv(&self, writers: &mut super::csv_helper::CsvWriteres) -> std::io::Result<()> {
-        match self {
-            SovRollupMetric::GasConstantUsage(_, m) => m.write_to_csv(&mut writers.constatn_writer),
-            SovRollupMetric::ZkVm(_, m) => m.write_to_csv(&mut writers.zk_vm_writer),
-            _ => Ok(()),
-        }
     }
 }
 

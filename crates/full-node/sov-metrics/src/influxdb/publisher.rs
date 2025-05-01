@@ -106,7 +106,7 @@ pub(crate) async fn metrics_publisher_task(
     let mut buffer: Vec<u8> = Vec::with_capacity(max_buffer_size);
 
     #[cfg(feature = "gas-constant-estimation")]
-    let csv_writers = &mut match crate::influxdb::csv_helper::CsvWriteres::new().await {
+    let csv_writers = &mut match crate::influxdb::csv_helper::CsvWriters::new().await {
         Ok(csv_writers) => csv_writers,
         Err(err) => {
             tracing::warn!(?err, "Failed to create CSV writers, aborting metrics task");
@@ -189,6 +189,10 @@ mod tests {
     struct SampleMetric(Vec<u8>);
 
     impl Metric for SampleMetric {
+        fn measurement_name(&self) -> &'static str {
+            unimplemented!()
+        }
+
         fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
             buffer.extend_from_slice(&self.0);
             Ok(())

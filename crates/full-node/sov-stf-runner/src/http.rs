@@ -132,7 +132,7 @@ async fn measure_time(
             response_body_size: exact_or_lower,
             handler_processing_time: duration,
         };
-        tracker.track_http_request(point);
+        tracker.submit(point);
     });
 
     response

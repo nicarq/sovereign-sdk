@@ -49,10 +49,15 @@ pub struct MyCustomMetric {
 }
 
 impl sov_metrics::Metric for MyCustomMetric {
+    fn measurement_name(&self) -> &'static str {
+        "my_custom_metric"
+    }
+
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         write!(
             buffer,
-            "my_custom_metric my_tag={} my_value={},my_time_spent_ms={}",
+            "{} my_tag={} my_value={},my_time_spent_ms={}",
+            self.measurement_name(),
             self.tag,
             self.value,
             self.time.as_millis(),
@@ -84,11 +89,16 @@ Here's an example of tracking metrics during the execution of some computational
 # }
 #
 # impl sov_metrics::Metric for MyCustomMetric {
+#     fn measurement_name(&self) -> &'static str {
+#         "a"
+#     }
+#
 #     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
 #        use std::io::Write;
 #         write!(
 #             buffer,
-#             "a tag={} v={},time={}",
+#             "{} tag={} v={},time={}",
+#             self.measurement_name(),
 #             self.tag,
 #             self.value,
 #             self.time.as_millis(),
@@ -104,7 +114,7 @@ fn my_code(input: u64) -> u64 {
     {
         sov_metrics::track_metrics(|tracker| {
             // Timestamp will be added at this moment.
-            tracker.track_custom::<MyCustomMetric>(
+            tracker.submit(
                 MyCustomMetric { value: result, tag: input, time: my_operation_time }
             );
             // More metrics can be tracked at once

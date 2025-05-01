@@ -1,13 +1,12 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::{self, BufWriter, Write};
+use std::io::{self, Write};
 
 use tokio::task_local;
 
 use crate::influxdb::safe_telegraf_string;
-use crate::influxdb::tracker::{serialize_metadata, SovRollupMetric};
-use crate::{timestamp, MetricsTracker};
+use crate::influxdb::tracker::serialize_metadata;
+use crate::{timestamp, Metric, MetricsTracker};
 
 task_local! {
     /// A map of gas constants and their associated weight.
@@ -75,13 +74,18 @@ impl MetricsTracker {
     /// Tracks HTTP-related metrics.
     fn track_gas_constants_usage(&self, point: GasConstantMetric) {
         let timestamp = timestamp();
-
-        self.submit(SovRollupMetric::GasConstantUsage(timestamp, point));
+        self.submit_with_time(timestamp, point);
     }
 }
 
-impl GasConstantMetric {
-    pub(crate) fn write_to_csv(&self, writer: &mut BufWriter<File>) -> io::Result<()> {
+impl Metric for GasConstantMetric {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_gas_constant"
+    }
+
+    fn write_to_csv(&self, writer: &mut super::csv_helper::CsvWriters) -> io::Result<()> {
+        let writer = &mut writer.constant_writer;
+
         let meta = &self.metadata;
         let maybe_pre_state_root = meta.iter().find(|(k, _)| k == "pre_state_root");
         if let Some(pre_state_root) = maybe_pre_state_root {
@@ -95,7 +99,7 @@ impl GasConstantMetric {
         Ok(())
     }
 
-    pub(crate) fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         // We are adding the metadata as measurmement tags in the influxdb line protocol.
         let parsed_metadata = if !self.metadata.is_empty() {
             format!(
@@ -119,8 +123,11 @@ impl GasConstantMetric {
 
         write!(
             buffer,
-            "sov_rollup_gas_constant,name={},constant={}{parsed_metadata} num_invocations={}",
-            self.name, self.constant, self.num_invocations
+            "{},name={},constant={}{parsed_metadata} num_invocations={}",
+            self.measurement_name(),
+            self.name,
+            self.constant,
+            self.num_invocations
         )?;
         Ok(())
     }

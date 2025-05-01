@@ -667,6 +667,7 @@ where
         self.node_delta_watcher
             .sequencer_height
             .store(node_slot_num, Ordering::Release);
+
         Ok(())
     }
 

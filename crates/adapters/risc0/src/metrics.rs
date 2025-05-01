@@ -18,7 +18,7 @@ pub fn metrics_callback(input: Bytes) -> anyhow::Result<Bytes> {
     } = sov_metrics::cycle_utils::deserialize_metrics_call(input.as_ref())?;
 
     sov_metrics::track_metrics(|tracker| {
-        tracker.track_zkvm_metric(sov_metrics::ZkVmExecutionChunk {
+        tracker.submit(sov_metrics::ZkVmExecutionChunk {
             name: metric,
             metadata,
             cycles_count,

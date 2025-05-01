@@ -514,7 +514,7 @@ where
 
                 let slot_finalization_time = slot_finalization_start.elapsed();
                 sov_metrics::track_metrics(|tracker| {
-                    tracker.track_slot_processing(sov_metrics::SlotProcessingMetrics {
+                    tracker.submit(sov_metrics::SlotProcessingMetrics {
                         blobs_selection_time: blob_selection_time,
                         slot_finalization_time,
                         da_height: slot_header.height(),
@@ -654,7 +654,7 @@ where
                         let ignored_transactions_count = batch_receipt.tx_receipts.len();
 
                         sov_metrics::track_metrics(|tracker| {
-                            tracker.track_batch_processing(sov_metrics::BatchMetrics {
+                            tracker.submit(sov_metrics::BatchMetrics {
                                 processing_time,
                                 transactions_count,
                                 ignored_transactions_count,
@@ -738,16 +738,14 @@ where
         {
             let total_gas = slot_gas_meter.total_gas_used().as_ref().to_vec();
             sov_metrics::track_metrics(|tracker| {
-                tracker.track_user_space_slot_processing(
-                    sov_metrics::UserSpaceSlotProcessingMetrics {
-                        begin_block_hook_time,
-                        blobs_processing_time: blob_processing_time,
-                        visible_slot_number: state.current_visible_slot_number(),
-                        execution_context,
-                        end_block_hook_time,
-                        gas_used: total_gas,
-                    },
-                );
+                tracker.submit(sov_metrics::UserSpaceSlotProcessingMetrics {
+                    begin_block_hook_time,
+                    blobs_processing_time: blob_processing_time,
+                    visible_slot_number: state.current_visible_slot_number(),
+                    execution_context,
+                    end_block_hook_time,
+                    gas_used: total_gas,
+                });
             });
         }
 

@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use clap::{command, Parser, Subcommand};
-use sov_metrics::{SovRollupMetrics, TelegrafSocketConfig};
+use sov_metrics::TelegrafSocketConfig;
 
 use super::{
     DEFAULT_BENCH_FILES, DEFAULT_INFLUX_DB_ADDRESS, DEFAULT_METRICS_OUTPUT, DEFAULT_NUM_THREADS,
@@ -11,9 +11,7 @@ use super::{
 #[derive(clap::Subcommand, Debug, Clone)]
 pub enum MetricsQueryParameters {
     /// Only keep the following measurements.
-    Measurements {
-        sov_rollup_metrics: Vec<SovRollupMetrics>,
-    },
+    Measurements { sov_rollup_metrics: Vec<String> },
     /// Runs a custom query. Must be a valid flux query parameter.
     /// Examples of query parameters:
     /// ```ignore
@@ -30,28 +28,7 @@ impl MetricsQueryParameters {
         let query_vec = match self {
             Self::Measurements { sov_rollup_metrics } => sov_rollup_metrics
                 .iter()
-                .map(|m| {
-                    let measurement_name = match m {
-                        SovRollupMetrics::RunnerDa => "sov_rollup_runner_da",
-                        SovRollupMetrics::RunnerCount => "sov_rollup_runner_counts",
-                        SovRollupMetrics::RunnerTimes => "sov_rollup_runner_times_us",
-                        SovRollupMetrics::SlotProcessing
-                        | SovRollupMetrics::UserSpaceSlotProcessing => {
-                            "sov_rollup_slot_execution_time_us"
-                        }
-                        SovRollupMetrics::BatchProcessing => "sov_rollup_batch_processing",
-                        SovRollupMetrics::TransactionProcessing => {
-                            "sov_rollup_transaction_execution_us"
-                        }
-                        SovRollupMetrics::Http => "sov_rollup_http_handlers",
-                        SovRollupMetrics::ZkVm => "sov_rollup_zkvm",
-                        SovRollupMetrics::ZkProving => "sov_rollup_zkvm_proving",
-                        #[cfg(feature = "gas-constant-estimation")]
-                        SovRollupMetrics::GasConstantUsage => "sov_rollup_gas_constant",
-                        SovRollupMetrics::Custom => "____custom",
-                    };
-                    format!("r._measurement == \"{}\"", measurement_name)
-                })
+                .map(|m| format!("r._measurement == \"{m}\""))
                 .collect::<Vec<_>>(),
             Self::Custom { query_filters } => query_filters,
         };

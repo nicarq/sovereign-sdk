@@ -1,8 +1,12 @@
+# 2025-05-01
+- #2821 simplifies several methods on `sov_metrics::MetricsTracker` by merging them into `MetricsTracker::submit` (and `submit_with_time`).
+
 # 2025-04-28
 - #2804 fixes several instances of a sequencer syncing bug that manifests itself as `SequenceNumberTooLow` showing up in the logs.
 
 # 2025-04-29
 - #2808 **BREAKING CHANGE** Adds `max_batch_size_bytes` (set to 1MB) in `celestia_rollup_config.toml` & `mock_rollup_config.toml`. The preferred sequencer will reject transactions that would cause the batch to exceed the size limit.
+
 # 2025-04-11
 - #2739 renames some items inside `FullNodeBlueprint`. `ProofSerializer` becomes `ProofSender`, `create_proof_serializer` becomes `create_proof_sender` and has a new signature. The inner function body likely doesn't need to be changed.
 
