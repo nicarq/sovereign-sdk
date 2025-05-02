@@ -468,6 +468,63 @@ async fn max_batch_size() {
     sleep(Duration::from_millis(200)).await;
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn seq_back_pressure() {
+    //sov_test_utils::initialize_logging();
+    let genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    let admin = genesis_config.additional_accounts[0].clone();
+
+    let rt_genesis_config =
+        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
+            genesis_config.into(),
+            ValueSetterConfig {
+                admin: admin.address(),
+            },
+            (),
+            PaymasterConfig::default(),
+            (),
+        );
+    let genesis_params = GenesisParams {
+        runtime: rt_genesis_config.clone(),
+    };
+
+    let dir = tempdir_inside_codebase_dir();
+
+    let Some(test_rollup) =
+        new_test_rollup(dir.clone(), genesis_params, 0, true, TEST_MAX_BATCH_SIZE).await
+    else {
+        // Docker issues, don't fail the test and just return early.
+        return;
+    };
+
+    // Produce a few blocks to DA blocks to make sure there's a finalized slot after genesis.
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(5)
+        .await
+        .unwrap();
+    sleep(Duration::from_millis(200)).await;
+
+    for _ in 0..10 {
+        // Produce a few blocks to DA blocks to make sure there's a finalized slot after genesis.
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        sleep(Duration::from_millis(200)).await;
+    }
+
+    let client = test_rollup.api_client.clone();
+    let tx = tx_set_value(&admin.private_key, 0, 99);
+
+    let response = client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx),
+        })
+        .await;
+
+    assert!(response.is_ok());
+    test_rollup.da_service.produce_block_now().await.unwrap();
+}
+
 /// Ensure that we use the correct visible slot number when replaying transactions after a call to `update_state` in the sequencer.
 /// The key thing that this test does is to execute the same transaction 3 times - once in the sequencer via `accept_tx`, once via `update_state`
 /// and once in the node. Everything else is implementation details.
