@@ -182,7 +182,7 @@ fn test_verify_invalid_signatures() {
     let mut data: MultisigIsmTestData = get_multisig_ism_test_data();
     let mut metadata = data.metadata_without_signatures;
     // Modify the first signature so that it's invalid
-    data.signatures[0][0] += 1;
+    data.signatures[0][0] = data.signatures[0][0].wrapping_add(1);
     metadata.0.extend(data.signatures[0].iter());
     metadata.0.extend(data.signatures[1].iter());
     metadata.0[64] = 27;
