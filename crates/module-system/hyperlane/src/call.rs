@@ -57,7 +57,7 @@ pub enum CallMessage<S: Spec> {
         body: HexString<SafeVec<u8, MAX_MESSAGE_BODY_SIZE>>,
         /// The "metadata" which is used to verify the message or control hooks.
         /// Can be used to set the destination gas limit for a message using
-        /// [`IGPMetadata`](crate::IGPMetadata)
+        /// [`IGPMetadata`](crate::igp::IGPMetadata)
         metadata: Option<HexString<SafeVec<u8, MAX_MESSAGE_METADATA_SIZE>>>,
         /// Selected relayer
         relayer: Option<S::Address>,

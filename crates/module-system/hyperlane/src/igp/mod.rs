@@ -1,10 +1,11 @@
+//! Defines a module that handles interchain gas payments to relayers.
+//!
+//! <https://docs.hyperlane.xyz/docs/protocol/interchain-gas-payment>
+
 use std::collections::HashMap;
 
 use anyhow::{anyhow, bail, Context as _, Result};
 // reference https://github.com/many-things/cw-hyperlane/blob/main/contracts/igps
-use call::CallMessage;
-pub use event::Event;
-use metadata::IGPMetadata;
 use sov_bank::{config_gas_token_id, Amount, Bank, Coins};
 use sov_modules_api::prelude::tracing;
 use sov_modules_api::{
@@ -12,24 +13,27 @@ use sov_modules_api::{
     SafeVec, Spec, StateMap, StateReader,
 };
 use sov_state::User;
-use types::{DomainDefaultGas, DomainOracleData, ExchangeRateAndGasPrice, RelayerWithDomainKey};
-
-mod call;
-pub use call::CallMessage as InterchainGasPaymasterCallMessage;
 
 use crate::types::Domain;
-pub mod event;
+
+mod call;
+mod event;
 mod hooks;
-pub mod metadata;
-pub mod types;
+mod metadata;
+mod types;
+
+pub use call::CallMessage;
+pub use event::Event;
+pub use metadata::IGPMetadata;
+pub use types::*;
 
 /// Scaling factor used for representing and calculating token exchange rates.
 ///
 /// The same value as in sealevel implementation was choosen, to allow for
 /// flexibility scaling between different chains. This gives 19/20 digits on the
 /// left of decimal point and 19 digits on the right of it.
-/// https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/d7cb7ab1f413c510c66bf8152e4cdbdcbacbc359/rust/sealevel/programs/hyperlane-sealevel-igp/src/accounts.rs#L14-L16
-pub(crate) const TOKEN_EXCHANGE_RATE_SCALE: u128 = 10u128.pow(19);
+// See <https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/d7cb7ab1f413c510c66bf8152e4cdbdcbacbc359/rust/sealevel/programs/hyperlane-sealevel-igp/src/accounts.rs#L14-L16>
+pub const TOKEN_EXCHANGE_RATE_SCALE: u128 = 10u128.pow(19);
 
 /// Interchain Gas Paymaster module
 ///

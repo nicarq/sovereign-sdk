@@ -4,13 +4,13 @@ use secp256k1::rand::rngs::OsRng;
 use secp256k1::{Message, Secp256k1, SecretKey};
 use sov_bank::Amount;
 use sov_hyperlane_integration::crypto::eth_address_from_public_key;
+use sov_hyperlane_integration::igp::ExchangeRateAndGasPrice;
 use sov_hyperlane_integration::test_recipient::{
     CallMessage as RecipientCallMessage, TestRecipient,
 };
 use sov_hyperlane_integration::{
-    EthAddress, ExchangeRateAndGasPrice, HyperlaneAddress, InterchainGasPaymaster,
-    InterchainGasPaymasterCallMessage, Ism, Mailbox as RawMailbox, MerkleTreeHook,
-    ValidatorSignature,
+    EthAddress, HyperlaneAddress, InterchainGasPaymaster, InterchainGasPaymasterCallMessage, Ism,
+    Mailbox as RawMailbox, MerkleTreeHook, ValidatorSignature,
 };
 use sov_modules_api::gas::GasArray;
 use sov_modules_api::{BasicGasMeter, Gas, HexHash, HexString, Spec};

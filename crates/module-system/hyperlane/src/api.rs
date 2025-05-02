@@ -7,7 +7,8 @@ use sov_modules_api::rest::utils::{errors, ApiResult, Path, Query};
 use sov_modules_api::rest::{ApiState, HasCustomRestApi};
 use sov_modules_api::{ApiStateAccessor, CredentialId, HexHash, Spec};
 
-use crate::{EthAddress, Ism, Mailbox, Recipient, RelayerWithDomainKey};
+use crate::igp::RelayerWithDomainKey;
+use crate::{EthAddress, Ism, Mailbox, Recipient};
 
 /// A configuration of an [`Ism::MessageIdMultisig`].
 #[derive(Serialize)]

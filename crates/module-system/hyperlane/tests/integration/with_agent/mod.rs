@@ -12,9 +12,9 @@ use serde_json::{Map, Value};
 use sov_api_spec::types::{self as api_types, GetSlotFilteredEventsResponse, IntOrHash};
 use sov_api_spec::Client;
 use sov_bank::Amount;
+use sov_hyperlane_integration::igp::ExchangeRateAndGasPrice;
 use sov_hyperlane_integration::{
-    test_recipient, CallMessage, ExchangeRateAndGasPrice, HyperlaneAddress,
-    InterchainGasPaymasterCallMessage, Ism,
+    test_recipient, CallMessage, HyperlaneAddress, InterchainGasPaymasterCallMessage, Ism,
 };
 use sov_modules_api::macros::config_value;
 use sov_modules_api::{CryptoSpec, DispatchCall, HexHash, HexString, RawTx, Runtime, Spec};
