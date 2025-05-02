@@ -20,8 +20,7 @@ pub mod crypto;
 mod crypto;
 mod event;
 mod genesis;
-mod igp;
-
+pub mod igp;
 mod ism;
 mod merkle;
 #[cfg(feature = "test-utils")]
@@ -32,16 +31,14 @@ pub mod warp;
 
 pub use call::*;
 pub use event::Event;
-pub use igp::metadata::IGPMetadata;
-pub use igp::types::{
-    DomainDefaultGas, DomainOracleData, ExchangeRateAndGasPrice, RelayerWithDomainKey,
-};
 pub use igp::{
-    Event as InterchainGasPaymasterEvent, InterchainGasPaymaster, InterchainGasPaymasterCallMessage,
+    CallMessage as InterchainGasPaymasterCallMessage, Event as InterchainGasPaymasterEvent,
+    InterchainGasPaymaster,
 };
 pub use ism::Ism;
 pub use merkle::{Event as MerkleTreeEvent, MerkleTreeHook};
 pub use types::{EthAddress, Message, StorageLocation, ValidatorSignature};
+pub use warp::{CallMessage as WarpCallMessage, Event as WarpEvent, Warp};
 
 /// A fixed assumed address of mailbox contract on sovereign rollup.
 ///

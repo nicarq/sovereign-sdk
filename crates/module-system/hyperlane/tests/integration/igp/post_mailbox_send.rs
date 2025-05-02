@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 use sov_bank::{config_gas_token_id, Amount, Bank, IntoPayable};
+use sov_hyperlane_integration::igp::ExchangeRateAndGasPrice;
 use sov_hyperlane_integration::{
-    CallMessage, Event as MailboxEvent, ExchangeRateAndGasPrice, HyperlaneAddress,
-    InterchainGasPaymaster, InterchainGasPaymasterCallMessage, InterchainGasPaymasterEvent,
-    Message, MESSAGE_VERSION,
+    CallMessage, Event as MailboxEvent, HyperlaneAddress, InterchainGasPaymaster,
+    InterchainGasPaymasterCallMessage, InterchainGasPaymasterEvent, Message, MESSAGE_VERSION,
 };
 use sov_modules_api::macros::config_value;
 use sov_modules_api::{HexHash, HexString, Spec, TxEffect};

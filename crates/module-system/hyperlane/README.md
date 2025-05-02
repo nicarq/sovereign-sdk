@@ -2,10 +2,11 @@
 
 This crate implements a generic `mailbox` for sending and receiving [Hyperlane](https://docs.hyperlane.xyz/) messages.
 
-To use this crate, you need to add three modules to your runtime:
+To use this crate, you need to add four modules to your runtime:
 1. `Mailbox` which sends and receives messages
 2. `MerkleTreeHook`, a helper module which computes a merkle root of all messages sent from the mailbox
-3. Any module which implements the `Recipient` trait defined in this crate. This module will be in charge of acting on inbound messages once they've been validated by the mailbox.
+3. `InterchainGasPaymaster`, which handles interchain fees payments to relayers.
+4. Any module which implements the `Recipient` trait defined in this crate. This module will be in charge of acting on inbound messages once they've been validated by the mailbox. An example of such module is `Warp`, responsible for intechain token transfers.
 
 
 ## Note for Maintainers

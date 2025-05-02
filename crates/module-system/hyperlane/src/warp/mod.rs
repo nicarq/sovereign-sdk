@@ -1,4 +1,6 @@
-//! Defines a module that can receive messages for testing.
+//! Defines a module that can send and receive tokens using hyperlane's Warp protocol.
+//!
+//! <https://docs.hyperlane.xyz/docs/protocol/warp-routes/warp-routes-overview>
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use schemars::JsonSchema;
@@ -11,12 +13,13 @@ use sov_modules_api::{
     Amount, Context, CryptoSpec, Error, EventEmitter, HexHash, HexString, Module, ModuleId,
     ModuleInfo, ModuleRestApi, SafeVec, Spec, StateMap, TxState,
 };
-pub use types::*;
 
 use crate::ism::Ism;
 use crate::{HyperlaneAddress, Mailbox, Recipient};
 
 mod types;
+
+pub use types::*;
 
 /// The maximum size of metadata that can be stored for a router.
 const MAX_METADATA_SIZE: usize = 1024;

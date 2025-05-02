@@ -2,11 +2,10 @@ use std::sync::Arc;
 
 use sov_bank::event::Event as BankEvent;
 use sov_bank::{config_gas_token_id, Amount, Bank, CallMessage as BankCallMessage, TokenId};
-use sov_hyperlane_integration::warp::{
-    Admin, CallMessage as WarpCallMessage, Event as WarpEvent, StoredTokenKind, TokenKind, Warp,
-};
+use sov_hyperlane_integration::warp::{Admin, StoredTokenKind, TokenKind};
 use sov_hyperlane_integration::{
-    CallMessage, HyperlaneAddress, Ism, Mailbox, Message, MESSAGE_VERSION,
+    CallMessage, HyperlaneAddress, Ism, Mailbox, Message, Warp, WarpCallMessage, WarpEvent,
+    MESSAGE_VERSION,
 };
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;

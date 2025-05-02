@@ -1,7 +1,7 @@
 use sov_bank::Amount;
+use sov_hyperlane_integration::igp::{ExchangeRateAndGasPrice, RelayerWithDomainKey};
 use sov_hyperlane_integration::{
-    ExchangeRateAndGasPrice, InterchainGasPaymaster, InterchainGasPaymasterCallMessage,
-    InterchainGasPaymasterEvent, RelayerWithDomainKey,
+    InterchainGasPaymaster, InterchainGasPaymasterCallMessage, InterchainGasPaymasterEvent,
 };
 use sov_modules_api::macros::config_value;
 use sov_test_utils::{AsUser, TransactionTestCase};

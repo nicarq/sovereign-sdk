@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sov_bank::Amount;
-use sov_hyperlane_integration::{DomainDefaultGas, DomainOracleData, ExchangeRateAndGasPrice};
+use sov_hyperlane_integration::igp::{DomainDefaultGas, DomainOracleData, ExchangeRateAndGasPrice};
 use sov_modules_api::SafeVec;
 
 pub mod post_mailbox_send;
