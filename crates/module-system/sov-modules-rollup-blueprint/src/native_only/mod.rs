@@ -270,7 +270,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         let da_service = self
             .create_da_service(&rollup_config, secondary_shutdown_receiver.clone())
             .await;
-        let da_service_handle = da_service.take_background_join_handle();
+        let da_service_handle = da_service.take_background_join_handle().await;
         let da_service = Arc::new(da_service);
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;

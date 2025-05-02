@@ -1,6 +1,6 @@
 mod db;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -12,7 +12,7 @@ use sov_modules_api::{DaSpec, EventModuleName, RuntimeEventResponse};
 use sov_rollup_interface::node::da::{DaService, Fee, SubmitBlobReceipt};
 use sov_rollup_interface::node::ledger_api::{LedgerStateProvider, QueryMode};
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
-use tokio::sync::{mpsc, oneshot, watch, Mutex};
+use tokio::sync::{oneshot, watch, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, error, info, trace};
@@ -72,12 +72,13 @@ pub trait BlobSenderHooks: Send + Sync + 'static {
 }
 
 /// A reusable component that manages blob submission to the [`DaService`].
-#[derive(Clone)]
 pub struct BlobSender<Da: DaService, H> {
-    blob_sender: mpsc::UnboundedSender<BlobSubmissionRequest<Da>>,
     db: Arc<BlobSenderDb>,
     hooks: Arc<H>,
-    processed_blobs: Arc<Mutex<HashSet<BlobInternalId>>>,
+    handles: Arc<Mutex<HashMap<BlobInternalId, JoinHandle<()>>>>,
+    shutdown_receiver: watch::Receiver<()>,
+    da: Da,
+    ledger_db: LedgerDb,
 }
 
 impl<Da, H> BlobSender<Da, H>
@@ -95,7 +96,6 @@ where
         shutdown_receiver: watch::Receiver<()>,
     ) -> anyhow::Result<(Self, JoinHandle<()>)> {
         let db = Arc::new(BlobSenderDb::new(storage_path).await?);
-        let (blob_sender, blob_receiver) = mpsc::unbounded_channel();
 
         let all_blobs = db.get_all().await?;
 
@@ -104,30 +104,19 @@ where
             processed_blobs.insert(b.blob_id);
         }
 
-        let processed_blobs = Arc::new(Mutex::new(processed_blobs));
-
         let hooks = Arc::new(hooks);
-        let task_state = TaskState {
-            inner: Arc::new(TaskStateInner {
-                da,
-                ledger_db,
-                db: db.clone(),
-                hooks: hooks.clone(),
-                processed_blobs: processed_blobs.clone(),
-                shutdown_receiver,
-            }),
-        };
+        let handles: Arc<Mutex<_>> = Default::default();
 
         let mut sender = Self {
-            blob_sender,
             db,
             hooks,
-            processed_blobs,
+            handles: handles.clone(),
+            shutdown_receiver: shutdown_receiver.clone(),
+            da,
+            ledger_db,
         };
 
-        let handle = tokio::spawn(async move {
-            task_state.main_background_task(blob_receiver).await;
-        });
+        let handle = Self::cleanup_task(handles, shutdown_receiver).await;
 
         for b in all_blobs {
             sender
@@ -177,24 +166,81 @@ where
         blob_id: BlobInternalId,
         latest_known_processing_state: BlobProcessingState<Da>,
     ) -> anyhow::Result<()> {
-        if self.processed_blobs.lock().await.contains(&blob_id) {
+        if self.shutdown_receiver.has_changed()? {
+            return Ok(());
+        }
+
+        // It is ok to hold the lock here because:
+        // 1. The logic bellow is not blocking.
+        // 2. The lock shared only between this method and the cleanup task which is invoked only once.
+        let mut handles = self.handles.lock().await;
+        if handles.contains_key(&blob_id) {
             info!(
                 blob_id,
                 "No need to publish blob as it's already in-flight or awaiting finalization. Skipping."
             );
             return Ok(());
         }
-        self.db.push(blob.clone(), blob_id).await?;
-        self.blob_sender
-            .send(BlobSubmissionRequest {
-                blob,
-                blob_id,
-                latest_known_processing_state,
-            })
-            .ok(); // This can only fail if the channel is closed, which means the node is shutting down. We're okay with that.
 
-        self.processed_blobs.lock().await.insert(blob_id);
+        self.db.push(blob.clone(), blob_id).await?;
+
+        let task_state = TaskState {
+            da: self.da.clone(),
+            ledger_db: self.ledger_db.clone(),
+            db: self.db.clone(),
+            hooks: self.hooks.clone(),
+        };
+
+        let shutdown_receiver = self.shutdown_receiver.clone();
+
+        handles.insert(blob_id,tokio::task::spawn({
+            let state = task_state;
+
+            async move {
+                   let fut = state.manage_blob_submission_inside_task(
+                    blob,
+                    blob_id,
+                    latest_known_processing_state,
+                );
+                let res = future_or_shutdown(fut, &shutdown_receiver).await;
+
+                match res {
+                    FutureOrShutdownOutput::Output(Ok(())) |
+                        FutureOrShutdownOutput::Shutdown => {},
+                    FutureOrShutdownOutput::Output(Err(err)) => {
+                        error!(%err, %blob_id, "Error while submitting blob; this is either a bug or a database issue");
+                    },
+                }
+            }
+        }));
+
+        // TODO: handle errors from the spawned tasks.
+        handles.retain(|_, h| !h.is_finished());
         Ok(())
+    }
+
+    async fn cleanup_task(
+        handles: Arc<Mutex<HashMap<BlobInternalId, JoinHandle<()>>>>,
+        mut shutdown_receiver: watch::Receiver<()>,
+    ) -> JoinHandle<()> {
+        tokio::spawn(async move {
+            if let Err(err) = shutdown_receiver.changed().await {
+                error!(%err, "BlobSender: The shutdown sender was dropped, shutting down anyway");
+            }
+
+            let mut handles = handles.lock().await;
+
+            debug!(
+                num_handles_to_join = handles.len(),
+                "Exiting the blob sender background task..."
+            );
+
+            for handle in handles.values_mut() {
+                if let Err(err) = handle.await {
+                    error!(%err, "Error in a blob sender background task");
+                }
+            }
+        })
     }
 }
 
@@ -205,95 +251,16 @@ type BlobReceiptFut<Da> = oneshot::Receiver<
     >,
 >;
 
-struct TaskStateInner<Da: DaService> {
+struct TaskState<Da: DaService> {
     da: Da,
     ledger_db: LedgerDb,
     db: Arc<BlobSenderDb>,
     hooks: Arc<dyn BlobSenderHooks<Da = Da::Spec>>,
-    processed_blobs: Arc<Mutex<HashSet<BlobInternalId>>>,
-    shutdown_receiver: watch::Receiver<()>,
-}
-
-#[derive(Clone)]
-struct TaskState<Da: DaService> {
-    inner: Arc<TaskStateInner<Da>>,
-}
-
-impl<Da: DaService> std::ops::Deref for TaskState<Da> {
-    type Target = TaskStateInner<Da>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
 }
 
 impl<Da: DaService> TaskState<Da> {
     const RESUBMIT_INTERVAL: Duration = Duration::from_secs(20);
     const LEDGER_POLL_INTERVAL: Duration = Duration::from_secs(1);
-
-    #[tracing::instrument(skip_all, level = "debug")]
-    async fn main_background_task(
-        &self,
-        mut blob_receiver: mpsc::UnboundedReceiver<BlobSubmissionRequest<Da>>,
-    ) {
-        let mut handles = vec![];
-
-        loop {
-            let fut = future_or_shutdown(blob_receiver.recv(), &self.shutdown_receiver);
-            let FutureOrShutdownOutput::Output(channel_msg) = fut.await else {
-                debug!("Received a shutdown signal");
-                break;
-            };
-
-            let Some(BlobSubmissionRequest {
-                blob,
-                blob_id,
-                latest_known_processing_state,
-            }) = channel_msg
-            else {
-                // Channel was closed, the node is shutting down.
-                break;
-            };
-
-            let shutdown_receiver = self.shutdown_receiver.clone();
-            handles.push(tokio::task::spawn({
-                let state = self.clone();
-
-                async move {
-                    let fut = state.manage_blob_submission_inside_task(
-                        blob,
-                        blob_id,
-                        latest_known_processing_state,
-                    );
-                    let res = future_or_shutdown(fut, &shutdown_receiver).await;
-
-                    match res {
-                        FutureOrShutdownOutput::Output(Ok(())) |
-                            FutureOrShutdownOutput::Shutdown => {},
-                        FutureOrShutdownOutput::Output(Err(err)) => {
-                            error!(%err, %blob_id, "Error while submitting blob; this is either a bug or a database issue");
-                        },
-                    }
-                }
-            }));
-
-            // Clean up finished tasks.
-            handles.retain(|handle| !handle.is_finished());
-        }
-
-        debug!(
-            num_handles_to_join = handles.len(),
-            "Exiting the blob sender background task..."
-        );
-
-        for handle in handles {
-            if let Err(err) = handle.await {
-                error!(%err, "Error in a blob sender background task");
-            }
-        }
-
-        debug!("Blob sender background task exited");
-    }
 
     #[tracing::instrument(skip(self, blob), level = "debug")]
     async fn manage_blob_submission_inside_task(
@@ -435,7 +402,6 @@ impl<Da: DaService> TaskState<Da> {
             }
         }
 
-        self.processed_blobs.lock().await.remove(&blob_id);
         trace!("Exiting blob submission task");
 
         Ok(())

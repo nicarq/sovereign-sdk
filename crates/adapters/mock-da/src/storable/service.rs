@@ -1,6 +1,6 @@
 //! Data Availability service is a controller of [`StorableMockDaLayer`].
 use core::time::Duration;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
 
 use async_trait::async_trait;
@@ -12,7 +12,7 @@ use sov_rollup_interface::da::{
 };
 use sov_rollup_interface::node::da::{DaService, SlotData, SubmitBlobReceipt};
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
-use tokio::sync::{broadcast, oneshot, watch, RwLock};
+use tokio::sync::{broadcast, oneshot, watch, Mutex, RwLock};
 use tokio::task::JoinHandle;
 use tokio::time::{interval, sleep};
 use tracing::Instrument;
@@ -122,6 +122,7 @@ impl StorableMockDaService {
             let da_layer = da_layer.read().await;
             da_layer.subscribe_to_head_updates()
         };
+
         Self {
             sequencer_da_address,
             da_layer,
@@ -502,8 +503,8 @@ impl DaService for StorableMockDaService {
         Ok(MockFee::zero())
     }
 
-    fn take_background_join_handle(&self) -> Option<JoinHandle<()>> {
-        self.block_producer_handle.lock().unwrap().take()
+    async fn take_background_join_handle(&self) -> Option<JoinHandle<()>> {
+        self.block_producer_handle.lock().await.take()
     }
 }
 
