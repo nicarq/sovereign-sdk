@@ -28,7 +28,7 @@ impl serde::Serialize for ModuleError {
         S: serde::Serializer,
     {
         let error = match self {
-            ModuleError::ModuleError(e) => format!("{e:?}"),
+            ModuleError::ModuleError(e) => format!("{e:}"),
         };
         error.serialize(serializer)
     }
