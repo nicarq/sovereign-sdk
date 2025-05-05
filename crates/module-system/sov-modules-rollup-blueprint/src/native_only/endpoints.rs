@@ -76,6 +76,10 @@ where
         endpoints.axum_router = endpoints.axum_router.merge(rollup_router);
     }
 
+    endpoints.axum_router = endpoints.axum_router.route(
+        "/healthcheck",
+        sov_modules_api::prelude::axum::routing::get(|| async { "ok" }),
+    );
     endpoints.axum_router = endpoints.axum_router.fallback(errors::global_404);
 
     // Even if runtime does not have Open API spec, we still want to plug in Sequencer and Ledger.
