@@ -551,9 +551,9 @@ where
 
     /// Shuts down the rollup and waits for all background tasks to finish.
     pub async fn shutdown(self) -> anyhow::Result<()> {
-        self.shutdown_sender
-            .send(())
-            .expect("Shutdown sender already closed");
+        if let Err(error) = self.shutdown_sender.send(()) {
+            tracing::info!(%error, "shutdown triggered elsewhere, this is probably OK");
+        }
         self.rollup_task.await.expect("Can't join rollup task")?;
 
         Ok(())
@@ -561,9 +561,9 @@ where
 
     /// Restarts the rollup.
     pub async fn restart(self) -> anyhow::Result<Self> {
-        self.shutdown_sender
-            .send(())
-            .expect("Shutdown sender already closed");
+        if let Err(error) = self.shutdown_sender.send(()) {
+            tracing::info!(%error, "shutdown triggered elsewhere, this is probably OK");
+        }
         self.rollup_task.await.expect("Can't join rollup task")?;
 
         let TestRollup { builder, .. } = self;
