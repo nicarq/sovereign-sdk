@@ -4,6 +4,8 @@
 
 # 2025-05-01
 - #2821 simplifies several methods on `sov_metrics::MetricsTracker` by merging them into `MetricsTracker::submit` (and `submit_with_time`).
+# 2025-04-30
+- #2813 simplifies integration of the Ethereum JSON-RPC APIs into rollup code. See the new code for `demo-rollup` for usage examples.
 
 # 2025-04-28
 - #2804 fixes several instances of a sequencer syncing bug that manifests itself as `SequenceNumberTooLow` showing up in the logs.

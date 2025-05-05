@@ -31,7 +31,7 @@ use crate::{
 /// The [`Sequencer`] trait is responsible for accepting transactions and
 /// assembling them into batches.
 #[async_trait]
-pub trait Sequencer: Sized + Send + Sync + 'static {
+pub trait Sequencer: Send + Sync + 'static {
     /// What data is returned to clients when a transaction is accepted.
     type Confirmation: serde::Serialize + Send + Sync + 'static;
     /// Arbitrary configuration value(s) fed to [`Sequencer::create`].

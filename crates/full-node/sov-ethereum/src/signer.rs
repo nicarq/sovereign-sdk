@@ -6,8 +6,8 @@ use sov_address::{EthereumAddress, FromVmAddress};
 use sov_evm::{EthereumAuthenticator, Evm, RlpEvmTransaction};
 use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::macros::config_value;
-use sov_modules_api::ApiStateAccessor;
-use sov_rollup_interface::node::da::DaService;
+use sov_modules_api::{ApiStateAccessor, RawTx, Spec};
+use sov_sequencer::Sequencer;
 
 use crate::{to_jsonrpsee_error_object, Ethereum, ETH_RPC_ERROR};
 
@@ -15,15 +15,14 @@ fn config_chain_id() -> u64 {
     config_value!("CHAIN_ID")
 }
 
-pub(crate) fn register_signer_rpc_methods<
-    S: sov_modules_api::Spec,
-    Da: DaService,
-    RT: EthereumAuthenticator<S> + HasKernel<S> + Default + Send + Sync + 'static,
->(
-    rpc: &mut RpcModule<Ethereum<S, Da, RT>>,
+pub fn register_signer_rpc_methods<S, Seq>(
+    rpc: &mut RpcModule<Ethereum<S, Seq>>,
 ) -> Result<(), jsonrpsee::core::client::Error>
 where
+    S: Spec,
+    Seq: Sequencer<Spec = S>,
     S::Address: FromVmAddress<EthereumAddress>,
+    Seq::Rt: HasKernel<S> + EthereumAuthenticator<S> + Default + Send + Sync + 'static,
 {
     rpc.register_async_method("eth_accounts", |_parameters, ethereum, _| async move {
         Ok::<_, ErrorObjectOwned>(ethereum.eth_signer.signers())
@@ -50,7 +49,7 @@ where
             }
 
             let raw_evm_tx = {
-                let mut state = ethereum.api_state_accessor();
+                let mut state = ethereum.sequencer.api_state().default_api_state_accessor();
 
                 // set nonce if none
                 if transaction_request.nonce.is_none() {
@@ -78,7 +77,14 @@ where
                 .make_raw_tx(raw_evm_tx)
                 .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
-            ethereum.add_messages(vec![raw_message]);
+            let tx = Seq::Rt::encode_with_ethereum_auth(RawTx::new(raw_message));
+
+            ethereum.sequencer.accept_tx(tx).await.map_err(|e| {
+                to_jsonrpsee_error_object(
+                    format!("{} - '{}' ({:?})", e.status, e.title, e.details),
+                    ETH_RPC_ERROR,
+                )
+            })?;
 
             Ok::<_, ErrorObjectOwned>(tx_hash)
         },

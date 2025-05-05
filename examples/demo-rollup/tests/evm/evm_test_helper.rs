@@ -4,9 +4,8 @@ use ethers_core::abi::Address;
 use ethers_providers::ProviderError;
 use ethers_signers::{LocalWallet, Signer};
 use futures::future::join_all;
-use futures::stream::BoxStream;
-use futures::StreamExt;
 use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
+use sov_eth_client::TestClient;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_risc0_adapter::Risc0;
@@ -14,7 +13,6 @@ use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
 use sov_test_utils::SimpleStorageContract;
 
-use super::test_client::TestClient;
 use crate::test_helpers::test_genesis_source;
 
 /// Starts test rollup node.  
@@ -25,14 +23,13 @@ pub(crate) async fn start_node(
     // Don't provide a prover since the EVM is not currently provable
     RollupBuilder::new(
         test_genesis_source(sov_modules_api::OperatingMode::Zk),
-        BlockProducingConfig::OnBatchSubmit {
-            block_wait_timeout_ms: Some(1_000),
+        BlockProducingConfig::Periodic {
+            block_time_ms: 1_000,
         },
         finalization_blocks,
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|c| {
-        c.automatic_batch_production = false; // FIXME(@neysofu): finish migrating all tests off of manual batch production.
         c.rollup_prover_config = None; // FIXME(@neysofu): reenable once sov-ethereum is compatible with proof blobs
         c.aggregated_proof_block_jump = 5;
         c.max_infos_in_db = 30;
@@ -68,13 +65,10 @@ pub(crate) async fn create_test_client(
 /// Deploys a test contract on the test rollup.
 pub(crate) async fn deploy_contract_check(
     client: &TestClient,
-    slot_subscription: &mut BoxStream<'static, anyhow::Result<u64>>,
 ) -> Result<Address, Box<dyn std::error::Error>> {
     let runtime_code = client.deploy_contract_call().await?;
 
     let deploy_contract_req = client.deploy_contract().await?;
-    client.send_publish_batch_request().await;
-    let _ = slot_subscription.next().await.unwrap().unwrap();
 
     let contract_address = deploy_contract_req
         .await?
@@ -93,16 +87,13 @@ pub(crate) async fn deploy_contract_check(
 /// Calls `set_value` on the test contract.
 pub(crate) async fn set_value_check(
     client: &TestClient,
-    slot_subscription: &mut BoxStream<'static, anyhow::Result<u64>>,
     contract_address: Address,
     set_arg: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let tx_hash = {
+    let _tx_hash = {
         let set_value_req = client
             .set_value(contract_address, set_arg, None, None)
             .await;
-        client.send_publish_batch_request().await;
-        let _ = slot_subscription.next().await.unwrap().unwrap();
         set_value_req.await.unwrap().unwrap().transaction_hash
     };
 
@@ -116,23 +107,16 @@ pub(crate) async fn set_value_check(
         .await;
     assert_eq!(storage_value, ethereum_types::U256::from(set_arg));
 
-    let latest_block = client.eth_get_block_by_number(None).await;
-    assert_eq!(latest_block.transactions.len(), 1);
-    assert_eq!(latest_block.transactions[0], tx_hash);
-
     Ok(())
 }
 
 /// Calls `set_value` on the test contract with unsigned transaction.
 pub(crate) async fn set_value_unsigned_check(
     client: &TestClient,
-    slot_subscription: &mut BoxStream<'static, anyhow::Result<u64>>,
     contract_address: Address,
     set_arg: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let set_value_req = client.set_value_unsigned(contract_address, set_arg).await;
-    client.send_publish_batch_request().await;
-    let _ = slot_subscription.next().await.unwrap().unwrap();
     set_value_req.await.unwrap().unwrap();
 
     let get_arg = client.query_contract(contract_address).await?;
@@ -144,16 +128,12 @@ pub(crate) async fn set_value_unsigned_check(
 /// Calls `set_values` on the test contract.
 pub(crate) async fn set_multiple_values_check(
     client: &TestClient,
-    slot_subscription: &mut BoxStream<'static, anyhow::Result<u64>>,
     contract_address: Address,
     values: Vec<u32>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let requests = client
         .set_values(contract_address, values, None, None)
         .await;
-
-    client.send_publish_batch_request().await;
-    let _ = slot_subscription.next().await.unwrap().unwrap();
 
     let receipts: Vec<Result<Option<_>, ProviderError>> = join_all(requests).await;
     assert!(receipts
@@ -169,41 +149,38 @@ pub(crate) async fn set_multiple_values_check(
     Ok(())
 }
 
-/// Checks evm gas evolution.
-pub(crate) async fn gas_check(
-    client: &TestClient,
-    slot_subscription: &mut BoxStream<'static, anyhow::Result<u64>>,
-    contract_address: Address,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // get initial gas price
-    let initial_base_fee_per_gas = client.eth_gas_price().await;
-
-    let mut last_rollup_height = u64::MAX;
-    // send 10 "set" transactions with high gas fee in 5 batches to increase gas price
-    for _ in 0..5 {
-        let values: Vec<u32> = (0..10).collect();
-        let requests = client
-            .set_values(contract_address, values, Some(200u64), Some(210u128))
-            .await;
-        client.send_publish_batch_request().await;
-        let slot = slot_subscription.next().await.transpose()?.unwrap();
-        last_rollup_height = std::cmp::min(last_rollup_height, slot);
-        let receipts: Vec<Result<Option<_>, ProviderError>> = join_all(requests).await;
-        assert!(receipts
-            .into_iter()
-            .all(|x| x.is_ok() && x.unwrap().is_some()));
-    }
-    // get gas price
-    let latest_gas_price = client.eth_gas_price().await;
-
-    // assert gas price is higher
-    // TODO: emulate gas price oracle here to have exact value
-    assert!(
-        latest_gas_price > initial_base_fee_per_gas,
-        "Failed gas check initial={:?} latest={:?} after slots={}",
-        initial_base_fee_per_gas,
-        latest_gas_price,
-        last_rollup_height
-    );
-    Ok(())
-}
+// TODO: reenable this check by figuring out a way to get finer grained control over preferred batch production.
+// /// Checks evm gas evolution.
+// pub(crate) async fn gas_check(
+//     client: &TestClient,
+//     da_service: &StorableMockDaService,
+//     contract_address: Address,
+// ) -> Result<(), Box<dyn std::error::Error>> {
+//     // get initial gas price
+//     let initial_base_fee_per_gas = client.eth_gas_price().await;
+//
+//     // send 10 "set" transactions with high gas fee in 5 batches to increase gas price
+//     for _ in 0..5 {
+//         let values: Vec<u32> = (0..10).collect();
+//         let requests = client
+//             .set_values(contract_address, values, Some(200u64), Some(210u128))
+//             .await;
+//
+//         let receipts: Vec<Result<Option<_>, ProviderError>> = join_all(requests).await;
+//         assert!(receipts
+//             .into_iter()
+//             .all(|x| x.is_ok() && x.unwrap().is_some()));
+//     }
+//     // get gas price
+//     let latest_gas_price = client.eth_gas_price().await;
+//
+//     // assert gas price is higher
+//     // TODO: emulate gas price oracle here to have exact value
+//     assert!(
+//         latest_gas_price > initial_base_fee_per_gas,
+//         "Failed gas check initial={:?} latest={:?}",
+//         initial_base_fee_per_gas,
+//         latest_gas_price,
+//     );
+//     Ok(())
+// }

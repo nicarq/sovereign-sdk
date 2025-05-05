@@ -10117,6 +10117,7 @@ dependencies = [
  "sov-chain-state",
  "sov-cli",
  "sov-db",
+ "sov-eth-client",
  "sov-ethereum",
  "sov-kernels",
  "sov-metrics",
@@ -10166,6 +10167,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-eth-client"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "ethereum-types",
+ "ethers-core",
+ "ethers-middleware",
+ "ethers-providers",
+ "ethers-signers",
+ "futures",
+ "jsonrpsee",
+ "reth-primitives",
+ "sov-cli",
+ "sov-modules-api",
+ "sov-test-utils",
+ "tracing",
+]
+
+[[package]]
 name = "sov-eth-dev-signer"
 version = "0.3.0"
 dependencies = [
@@ -10180,7 +10200,15 @@ dependencies = [
 name = "sov-ethereum"
 version = "0.3.0"
 dependencies = [
+ "anyhow",
  "borsh",
+ "ethereum-types",
+ "ethers-contract",
+ "ethers-core",
+ "ethers-middleware",
+ "ethers-providers",
+ "ethers-signers",
+ "futures",
  "jsonrpsee",
  "proptest",
  "reth-primitives",
@@ -10188,12 +10216,22 @@ dependencies = [
  "reth-rpc-types",
  "schnellru",
  "serde",
+ "sov-accounts",
  "sov-address",
+ "sov-api-spec",
  "sov-blob-storage",
+ "sov-cli",
  "sov-eth-dev-signer",
  "sov-evm",
+ "sov-kernels",
+ "sov-mock-da",
  "sov-modules-api",
  "sov-rollup-interface",
+ "sov-sequencer",
+ "sov-state",
+ "sov-stf-runner",
+ "sov-test-utils",
+ "strum",
  "test-strategy",
  "tokio",
  "tracing",

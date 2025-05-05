@@ -5,6 +5,7 @@ use demo_stf::runtime::Runtime;
 use sov_address::{EthereumAddress, FromVmAddress, MultiAddressEvm};
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
+use sov_ethereum::{EthRpcConfig, GasPriceOracleConfig};
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm, MockZkvmHost};
@@ -18,10 +19,12 @@ use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint, Sequencer
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::{Risc0, Risc0CryptoSpec};
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
-use sov_sequencer::ProofBlobSender;
+use sov_sequencer::{ProofBlobSender, Sequencer};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 use sov_stf_runner::processes::{ParallelProverService, ProverService, RollupProverConfig};
 use sov_stf_runner::RollupConfig;
+
+use crate::eth_dev_signer;
 
 /// Rollup with a [`ConfigurableSpec`] with [`MockDaSpec`] as Da spec, [`Risc0`] inner vm and [`MockZkvm`] for outer vm
 #[derive(Default)]
@@ -75,10 +78,10 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
         ledger_db: &LedgerDb,
         sequencer: &SequencerCreationReceipt<Self::Spec>,
-        da_service: &Self::DaService,
+        _da_service: &Self::DaService,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
     ) -> anyhow::Result<NodeEndpoints> {
-        let mut endpoints = sov_modules_rollup_blueprint::register_endpoints::<Self, Native>(
+        sov_modules_rollup_blueprint::register_endpoints::<Self, Native>(
             state_update_receiver.clone(),
             sync_status_receiver,
             shutdown_receiver,
@@ -86,17 +89,28 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
             sequencer,
             rollup_config,
         )
-        .await?;
+        .await
+    }
 
-        // TODO: Add issue for Sequencer level RPC injection:
-        //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366
-        crate::eth::register_ethereum::<Self::Spec, Self::DaService, Self::Runtime>(
-            da_service.clone(),
-            state_update_receiver,
-            &mut endpoints.jsonrpsee_module,
-        )?;
+    async fn sequencer_additional_apis<Seq>(
+        &self,
+        sequencer: Arc<Seq>,
+        _rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
+    ) -> anyhow::Result<NodeEndpoints>
+    where
+        Seq: Sequencer<Spec = Self::Spec, Rt = Self::Runtime, Da = Self::DaService>,
+    {
+        let eth_signer = eth_dev_signer();
+        let eth_rpc_config = EthRpcConfig {
+            eth_signer,
+            gas_price_oracle_config: GasPriceOracleConfig::default(),
+        };
 
-        Ok(endpoints)
+        Ok(NodeEndpoints {
+            jsonrpsee_module: sov_ethereum::get_ethereum_rpc(eth_rpc_config, sequencer)
+                .remove_context(),
+            ..Default::default()
+        })
     }
 
     async fn create_da_service(

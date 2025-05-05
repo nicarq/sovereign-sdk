@@ -1,13 +1,13 @@
 use demo_stf::runtime::{Runtime, RuntimeCall};
 use ethers_core::abi::Address;
 use sov_demo_rollup::{mock_da_risc0_host_args, MockRollupSpec};
+use sov_eth_client::TestClient;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_macros::config_value;
 use sov_test_utils::test_rollup::{get_appropriate_rollup_prover_config, read_private_key};
 use sov_test_utils::{TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 
-use super::test_client::TestClient;
 use crate::evm::evm_test_helper::{self};
 use crate::test_helpers::{DemoRollupSpec, CHAIN_HASH};
 
@@ -87,17 +87,14 @@ async fn execute_evm_tests(client: &TestClient) -> Result<(), Box<dyn std::error
     let balance = client.eth_get_balance(client.from_addr).await;
     assert!(balance > ethereum_types::U256::zero());
 
-    let mut slot_subscription = client.subscribe_for_slots().await?;
-    let contract_address =
-        evm_test_helper::deploy_contract_check(client, &mut slot_subscription).await?;
+    let contract_address = evm_test_helper::deploy_contract_check(client).await?;
 
     // Nonce should be 1 after the deploy
     let nonce = client.eth_get_transaction_count(client.from_addr).await;
     assert_eq!(1, nonce);
 
     let set_arg = 923;
-    evm_test_helper::set_value_check(client, &mut slot_subscription, contract_address, set_arg)
-        .await?;
+    evm_test_helper::set_value_check(client, contract_address, set_arg).await?;
 
     Ok(())
 }

@@ -1,11 +1,10 @@
-use demo_stf::runtime::Runtime;
+#![allow(missing_docs)]
+
 use ethereum_types::H160;
 use ethers_core::abi::Address;
 use ethers_core::k256::ecdsa::SigningKey;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
-use ethers_core::types::{
-    Block, Eip1559TransactionRequest, Transaction, TransactionRequest, TxHash,
-};
+use ethers_core::types::{Block, Eip1559TransactionRequest, TransactionRequest, TxHash};
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Http, Middleware, PendingTransaction, Provider};
 use ethers_signers::Wallet;
@@ -14,19 +13,15 @@ use jsonrpsee::core::client::ClientT;
 use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use reth_primitives::Bytes;
-use sov_api_spec::WsSubscription;
 use sov_cli::NodeClient;
+use sov_modules_api::{Runtime, Spec};
 use sov_test_utils::{SimpleStorageContract, TEST_DEFAULT_MAX_FEE};
-
-use crate::test_helpers::DemoRollupSpec;
-
-type TestSpec = DemoRollupSpec;
 
 const GAS: u64 = 900000u64;
 
-pub(crate) struct TestClient {
-    pub(crate) chain_id: u64,
-    pub(crate) from_addr: Address,
+pub struct TestClient {
+    pub chain_id: u64,
+    pub from_addr: Address,
     contract: SimpleStorageContract,
     client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
     node_client: NodeClient,
@@ -34,8 +29,7 @@ pub(crate) struct TestClient {
 }
 
 impl TestClient {
-    #[allow(dead_code)]
-    pub(crate) async fn new(
+    pub async fn new(
         chain_id: u64,
         key: Wallet<SigningKey>,
         from_addr: Address,
@@ -67,15 +61,7 @@ impl TestClient {
         }
     }
 
-    pub(crate) async fn send_publish_batch_request(&self) {
-        let _: String = self
-            .rpc
-            .request("eth_publishBatch", rpc_params![])
-            .await
-            .unwrap();
-    }
-
-    pub(crate) async fn deploy_contract(
+    pub async fn deploy_contract(
         &self,
     ) -> Result<PendingTransaction<'_, Http>, Box<dyn std::error::Error>> {
         let req = Eip1559TransactionRequest::new()
@@ -97,7 +83,7 @@ impl TestClient {
         Ok(receipt_req)
     }
 
-    pub(crate) async fn deploy_contract_call(&self) -> Result<Bytes, Box<dyn std::error::Error>> {
+    pub async fn deploy_contract_call(&self) -> Result<Bytes, Box<dyn std::error::Error>> {
         let req = Eip1559TransactionRequest::new()
             .from(self.from_addr)
             .chain_id(self.chain_id)
@@ -114,7 +100,7 @@ impl TestClient {
         Ok(receipt_req)
     }
 
-    pub(crate) async fn set_value_unsigned(
+    pub async fn set_value_unsigned(
         &self,
         contract_address: H160,
         set_arg: u32,
@@ -134,7 +120,7 @@ impl TestClient {
         self.eth_send_transaction(typed_transaction).await
     }
 
-    pub(crate) async fn set_values(
+    pub async fn set_values(
         &self,
         contract_address: H160,
         set_args: Vec<u32>,
@@ -167,7 +153,7 @@ impl TestClient {
         requests
     }
 
-    pub(crate) async fn set_value(
+    pub async fn set_value(
         &self,
         contract_address: H160,
         set_arg: u32,
@@ -195,7 +181,7 @@ impl TestClient {
             .unwrap()
     }
 
-    pub(crate) async fn set_value_call(
+    pub async fn set_value_call(
         &self,
         contract_address: H160,
         set_arg: u32,
@@ -229,7 +215,7 @@ impl TestClient {
         Ok(response)
     }
 
-    pub(crate) async fn failing_call(
+    pub async fn failing_call(
         &self,
         contract_address: H160,
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
@@ -252,7 +238,7 @@ impl TestClient {
             .await
     }
 
-    pub(crate) async fn query_contract(
+    pub async fn query_contract(
         &self,
         contract_address: H160,
     ) -> Result<ethereum_types::U256, Box<dyn std::error::Error>> {
@@ -274,17 +260,15 @@ impl TestClient {
         Ok(ethereum_types::U256::from(resp_array))
     }
 
-    pub(crate) async fn eth_accounts(&self) -> Vec<Address> {
+    #[allow(dead_code)]
+    pub async fn eth_accounts(&self) -> Vec<Address> {
         self.rpc
             .request("eth_accounts", rpc_params![])
             .await
             .unwrap()
     }
 
-    pub(crate) async fn eth_send_transaction(
-        &self,
-        tx: TypedTransaction,
-    ) -> PendingTransaction<'_, Http> {
+    pub async fn eth_send_transaction(&self, tx: TypedTransaction) -> PendingTransaction<'_, Http> {
         self.client
             .provider()
             .send_transaction(tx, None)
@@ -292,7 +276,7 @@ impl TestClient {
             .unwrap()
     }
 
-    pub(crate) async fn eth_chain_id(&self) -> u64 {
+    pub async fn eth_chain_id(&self) -> u64 {
         let chain_id: ethereum_types::U64 = self
             .rpc
             .request("eth_chainId", rpc_params![])
@@ -302,14 +286,14 @@ impl TestClient {
         chain_id.as_u64()
     }
 
-    pub(crate) async fn eth_get_balance(&self, address: Address) -> ethereum_types::U256 {
+    pub async fn eth_get_balance(&self, address: Address) -> ethereum_types::U256 {
         self.rpc
             .request("eth_getBalance", rpc_params![address, "latest"])
             .await
             .unwrap()
     }
 
-    pub(crate) async fn eth_get_storage_at(
+    pub async fn eth_get_storage_at(
         &self,
         address: Address,
         index: ethereum_types::U256,
@@ -320,14 +304,14 @@ impl TestClient {
             .unwrap()
     }
 
-    pub(crate) async fn eth_get_code(&self, address: Address) -> Bytes {
+    pub async fn eth_get_code(&self, address: Address) -> Bytes {
         self.rpc
             .request("eth_getCode", rpc_params![address, "latest"])
             .await
             .unwrap()
     }
 
-    pub(crate) async fn eth_get_transaction_count(&self, address: Address) -> u64 {
+    pub async fn eth_get_transaction_count(&self, address: Address) -> u64 {
         let count: ethereum_types::U64 = self
             .rpc
             .request("eth_getTransactionCount", rpc_params![address, "latest"])
@@ -337,34 +321,21 @@ impl TestClient {
         count.as_u64()
     }
 
-    pub(crate) async fn eth_gas_price(&self) -> ethereum_types::U256 {
+    pub async fn eth_gas_price(&self) -> ethereum_types::U256 {
         self.rpc
             .request("eth_gasPrice", rpc_params![])
             .await
             .unwrap()
     }
 
-    pub(crate) async fn eth_get_block_by_number(
-        &self,
-        block_number: Option<String>,
-    ) -> Block<TxHash> {
+    pub async fn eth_get_block_by_number(&self, block_number: Option<String>) -> Block<TxHash> {
         self.rpc
             .request("eth_getBlockByNumber", rpc_params![block_number, false])
             .await
             .unwrap()
     }
 
-    pub(crate) async fn eth_get_block_by_number_with_detail(
-        &self,
-        block_number: Option<String>,
-    ) -> Block<Transaction> {
-        self.rpc
-            .request("eth_getBlockByNumber", rpc_params![block_number, true])
-            .await
-            .unwrap()
-    }
-
-    pub(crate) async fn eth_call(
+    pub async fn eth_call(
         &self,
         tx: TypedTransaction,
         block_number: Option<String>,
@@ -375,7 +346,7 @@ impl TestClient {
             .map_err(|e| e.into())
     }
 
-    pub(crate) async fn eth_estimate_gas(
+    pub async fn eth_estimate_gas(
         &self,
         tx: TypedTransaction,
         block_number: Option<String>,
@@ -389,19 +360,9 @@ impl TestClient {
         gas.as_u64()
     }
 
-    pub(crate) async fn subscribe_for_slots(&self) -> WsSubscription<u64> {
-        Ok(self
-            .node_client
-            .client
-            .subscribe_slots()
-            .await?
-            .map(|s| s.map(|s| s.number))
-            .boxed())
-    }
-
-    pub(crate) async fn send_transactions_and_wait_slot(
+    pub async fn send_transactions_and_wait_slot<S: Spec, Rt: Runtime<S>>(
         &self,
-        transactions: &[sov_modules_api::transaction::Transaction<Runtime<TestSpec>, TestSpec>],
+        transactions: &[sov_modules_api::transaction::Transaction<Rt, S>],
     ) -> anyhow::Result<()> {
         let mut slot_subscription = self.node_client.client.subscribe_slots().await?;
 
