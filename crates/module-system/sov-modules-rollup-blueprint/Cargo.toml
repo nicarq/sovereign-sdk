@@ -29,6 +29,7 @@ sov-rollup-apis = { workspace = true, optional = true }
 sov-api-spec = { workspace = true, optional = true }
 
 anyhow = { workspace = true }
+futures = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 borsh = { workspace = true }
 openapiv3 = { workspace = true }
@@ -50,6 +51,7 @@ tracing-opentelemetry = { version = "0.28.0", default-features = false, features
 default = ["native"]
 native = [
     "async-trait",
+    "futures",
     "console-subscriber",
     "derivative",
     "serde_json",

@@ -522,18 +522,53 @@ impl<S: FullNodeBlueprint<M>, M: ExecutionMode> Rollup<S, M> {
                 .map_err(|_| anyhow::anyhow!("Failed to send Axum address"))?;
         }
 
+        let monitoring_task = spawn_task_monitor(self.shutdown_sender, self.background_handles);
+
         runner.run_in_process().await?;
         tracing::info!("STF Runner has completed execution");
         self.secondary_shutdown_sender.send(())?;
-        for handle in self.background_handles {
-            handle.await?;
-        }
+        // blocks until background handles have shutdown
+        monitoring_task.await??;
         for handle in self.endpoints.inner.background_handles {
             handle.await??;
         }
         tracing::debug!("Rollup completed run");
         Ok(())
     }
+}
+
+fn spawn_task_monitor(
+    shutdown_sender: tokio::sync::watch::Sender<()>,
+    handles: Vec<tokio::task::JoinHandle<()>>,
+) -> tokio::task::JoinHandle<Result<(), tokio::task::JoinError>> {
+    tokio::spawn(async move {
+        let shutdown_recv = shutdown_sender.subscribe();
+        tracing::trace!("blocking until a background task joins or rollup shutdown");
+        let (result, _, handles) = futures::future::select_all(handles).await;
+
+        if let Err(error) = result {
+            tracing::error!(error = %error, "background task joined with error");
+        } else {
+            // If shutdown receiver hasn't changed then it's implied that one of the handles
+            // joined early before a shutdown signal was sent. This likely indicates
+            // incorrect behaviour and so we send the signal ourselves to begin the shutdown process.
+            if let Ok(false) = shutdown_recv.has_changed() {
+                tracing::error!("background task joined with success status and no shutdown signal was sent, this is a error!");
+                // Start graceful shutdown
+                _ = shutdown_sender.send(());
+            }
+        }
+
+        tracing::trace!("waiting for background tasks to join");
+
+        for handle in handles {
+            handle.await?;
+        }
+
+        tracing::trace!("task monitoring is complete");
+
+        Ok(())
+    })
 }
 
 fn spawn_os_signal_handler(shutdown_sender: tokio::sync::watch::Sender<()>) {

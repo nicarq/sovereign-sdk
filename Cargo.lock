@@ -10533,6 +10533,7 @@ dependencies = [
  "borsh",
  "console-subscriber",
  "derivative",
+ "futures",
  "hex",
  "openapiv3",
  "opentelemetry",

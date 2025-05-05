@@ -33,6 +33,10 @@ async fn main() -> Result<(), anyhow::Error> {
         args.db_connection_url,
     )
     .await;
+    // There's a race condition here - when tasks fail at startup
+    // we might not have been subscribed to the sender yet so the rollup haults
+    // and we remain waiting on the `select!` below until we ctrl+c
+    let mut shutdown_recv = rollup.shutdown_sender.subscribe();
 
     let mut terminate = tokio::signal::unix::signal(SignalKind::terminate())
         .expect("Failed to set up SIGTERM handler");
@@ -42,6 +46,9 @@ async fn main() -> Result<(), anyhow::Error> {
         _ = tokio::signal::ctrl_c() => tracing::info!("Received Ctrl+C"),
         _ = terminate.recv() => tracing::info!("Received SIGTERM"),
         _ = quit.recv() => tracing::info!("Received SIGQUIT"),
+        // might not be desired because soak tests are intended to run continously until we stop
+        // them, if we got a shutdown msg something probably went wrong :-)
+        _ = shutdown_recv.changed() => tracing::warn!("Rollup execution finished, this might not be desired!!"),
     }
 
     rollup.shutdown().await?;
