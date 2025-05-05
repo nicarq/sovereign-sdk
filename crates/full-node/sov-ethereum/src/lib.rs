@@ -1,19 +1,8 @@
-use std::num::NonZero;
-use std::sync::atomic::{AtomicU64, Ordering};
-
-use sov_blob_storage::PreferredBatchData;
-#[cfg(feature = "local")]
-pub use sov_eth_dev_signer::DevSigner;
-use sov_modules_api::capabilities::HasKernel;
-use sov_modules_api::rest::StateUpdateReceiver;
-use sov_modules_api::{FullyBakedTx, Spec};
-mod batch_builder;
 mod gas_price;
 #[cfg(feature = "local")]
 mod signer;
 
-use std::marker::PhantomData;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
@@ -21,228 +10,63 @@ use reth_primitives::{Bytes, B256, U256};
 use reth_rpc_eth_types::EthApiError;
 pub use reth_rpc_eth_types::GasPriceOracleConfig;
 use sov_address::{EthereumAddress, FromVmAddress};
+#[cfg(feature = "local")]
+pub use sov_eth_dev_signer::DevSigner;
 pub use sov_evm::EthereumAuthenticator;
 use sov_evm::{convert_to_transaction_signed, Evm, RlpEvmTransaction};
-use sov_modules_api::{ApiStateAccessor, RawTx, StateCheckpoint};
-use sov_rollup_interface::node::da::DaService;
+use sov_modules_api::capabilities::HasKernel;
+use sov_modules_api::{ApiStateAccessor, RawTx, Spec};
+use sov_sequencer::Sequencer;
 
-use crate::batch_builder::EthBatchBuilder;
 use crate::gas_price::gas_oracle::GasPriceOracle;
 
 const ETH_RPC_ERROR: &str = "ETH_RPC_ERROR";
 
 #[derive(Clone)]
 pub struct EthRpcConfig {
-    pub min_blob_size: Option<usize>,
     pub gas_price_oracle_config: GasPriceOracleConfig,
     #[cfg(feature = "local")]
     pub eth_signer: DevSigner,
 }
 
-pub fn get_ethereum_rpc<
-    S: sov_modules_api::Spec,
-    Da: DaService,
-    RT: EthereumAuthenticator<S> + HasKernel<S> + Default + Send + Sync + 'static,
->(
-    da_service: Da,
-    eth_rpc_config: EthRpcConfig,
-    state_update: StateUpdateReceiver<S::Storage>,
-) -> RpcModule<Ethereum<S, Da, RT>>
+pub fn get_ethereum_rpc<S, Seq>(eth_rpc_config: EthRpcConfig, sequencer: Arc<Seq>) -> RpcModule<()>
 where
+    S: Spec,
+    Seq: Sequencer<Spec = S>,
     S::Address: FromVmAddress<EthereumAddress>,
+    Seq::Rt: HasKernel<S> + EthereumAuthenticator<S> + Default + Send + Sync + 'static,
 {
     // Unpack config
     let EthRpcConfig {
-        min_blob_size,
         #[cfg(feature = "local")]
         eth_signer,
         gas_price_oracle_config,
     } = eth_rpc_config;
 
-    // Fetch nonce from storage
-    let mut rpc = RpcModule::new(Ethereum::new(
-        da_service,
-        Arc::new(Mutex::new(EthBatchBuilder::new(min_blob_size))),
-        gas_price_oracle_config,
+    let mut rpc = RpcModule::new(Ethereum {
+        sequencer,
+        gas_price_oracle: GasPriceOracle::new(Evm::<S>::default(), gas_price_oracle_config),
         #[cfg(feature = "local")]
         eth_signer,
-        state_update,
-    ));
+    });
 
-    register_rpc_methods::<S, Da, RT>(&mut rpc).expect("Failed to register sequencer RPC methods");
-    rpc
+    register_rpc_methods::<S, Seq>(&mut rpc).expect("Failed to register sequencer RPC methods");
+
+    rpc.remove_context()
 }
 
-pub struct Ethereum<
-    S: sov_modules_api::Spec,
-    Da: DaService,
-    RT: EthereumAuthenticator<S> + HasKernel<S> + Default,
-> {
-    da_service: Da,
-    batch_builder: Arc<Mutex<EthBatchBuilder>>,
-    sequence_number: Arc<AtomicU64>,
-    gas_price_oracle: GasPriceOracle<S>,
-    #[cfg(feature = "local")]
-    eth_signer: DevSigner,
-    state_update: StateUpdateReceiver<<S as Spec>::Storage>,
-    _phantom: PhantomData<RT>,
-}
-
-impl<
-        S: sov_modules_api::Spec,
-        Da: DaService,
-        RT: EthereumAuthenticator<S> + HasKernel<S> + Default,
-    > Ethereum<S, Da, RT>
-where
-    S::Address: FromVmAddress<EthereumAddress>,
-{
-    fn new(
-        da_service: Da,
-        batch_builder: Arc<Mutex<EthBatchBuilder>>,
-        gas_price_oracle_config: GasPriceOracleConfig,
-        #[cfg(feature = "local")] eth_signer: DevSigner,
-        state_update: StateUpdateReceiver<S::Storage>,
-    ) -> Self {
-        let evm = Evm::<S>::default();
-        let gas_price_oracle = GasPriceOracle::new(evm, gas_price_oracle_config);
-        Self {
-            da_service,
-            batch_builder,
-            sequence_number: Arc::new(AtomicU64::new(0)),
-            gas_price_oracle,
-            #[cfg(feature = "local")]
-            eth_signer,
-            state_update,
-            _phantom: PhantomData,
-        }
-    }
-
-    #[cfg(feature = "local")]
-    fn api_state_accessor(&self) -> ApiStateAccessor<S> {
-        let mut runtime = RT::default();
-        let empty_checkpoint = StateCheckpoint::new(
-            self.state_update.borrow().storage.clone(),
-            &runtime.kernel(),
-        );
-        ApiStateAccessor::new(&empty_checkpoint, runtime.kernel_with_slot_mapping())
-    }
-}
-
-impl<
-        S: sov_modules_api::Spec,
-        Da: DaService,
-        RT: HasKernel<S> + EthereumAuthenticator<S> + Default,
-    > Ethereum<S, Da, RT>
-{
-    fn make_raw_tx(&self, raw_tx: RlpEvmTransaction) -> Result<(B256, Vec<u8>), ErrorObjectOwned> {
-        let signed_transaction =
-            convert_to_transaction_signed(raw_tx.clone()).map_err(EthApiError::from)?;
-
-        let tx_hash = signed_transaction.hash();
-        let message = borsh::to_vec(&raw_tx).expect("Failed to serialize raw tx");
-
-        Ok((tx_hash, message))
-    }
-
-    async fn build_and_submit_batch(
-        &self,
-        min_blob_size: Option<usize>,
-    ) -> Result<(), jsonrpsee::core::client::Error> {
-        tracing::info!(
-            min_blob_size = min_blob_size,
-            "Build and submit ETH batch request has been received",
-        );
-        let tx_batch = self.build_tx_batch(min_blob_size)?;
-        tracing::debug!(transactions_count = tx_batch.len(), "Batch have been built");
-
-        self.submit_tx_batch(tx_batch)
-            .await
-            .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-        Ok(())
-    }
-
-    async fn submit_tx_batch(
-        &self,
-        tx_batch: Vec<Vec<u8>>,
-    ) -> Result<(), jsonrpsee::core::client::Error> {
-        if tx_batch.is_empty() {
-            tracing::error!("Attempt to submit empty batch");
-            return Err(jsonrpsee::core::client::Error::Custom(
-                "Attempt to submit empty batch".to_string(),
-            ));
-        }
-
-        let txs = tx_batch
-            .into_iter()
-            .map(|tx| RT::encode_with_ethereum_auth(RawTx::new(tx)))
-            .collect::<Vec<FullyBakedTx>>();
-
-        let sequence_number = self.sequence_number.load(Ordering::SeqCst);
-
-        let serialized_batch = borsh::to_vec(&PreferredBatchData {
-            sequence_number,
-            data: txs,
-            visible_slots_to_advance: NonZero::new(1).unwrap(),
-        })
-        .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-        let fee = self
-            .da_service
-            .estimate_fee(serialized_batch.len())
-            .await
-            .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-        self.da_service
-            .send_transaction(&serialized_batch, fee)
-            .await
-            .await
-            .expect("The transaction sender should not fail")
-            .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-        tracing::debug!("ETH Batch has been submitted");
-        self.sequence_number.fetch_add(1, Ordering::SeqCst);
-
-        Ok(())
-    }
-
-    fn build_tx_batch(
-        &self,
-        min_blob_size: Option<usize>,
-    ) -> Result<Vec<Vec<u8>>, jsonrpsee::core::client::Error> {
-        let batch = self
-            .batch_builder
-            .lock()
-            .unwrap()
-            .get_next_blob(min_blob_size);
-
-        Ok(batch)
-    }
-
-    fn add_messages(&self, messages: Vec<Vec<u8>>) {
-        self.batch_builder.lock().unwrap().add_messages(messages);
-    }
-}
-
-fn register_rpc_methods<
-    S: sov_modules_api::Spec,
-    Da: DaService,
-    RT: HasKernel<S> + EthereumAuthenticator<S> + Default + Send + Sync + 'static,
->(
-    rpc: &mut RpcModule<Ethereum<S, Da, RT>>,
+fn register_rpc_methods<S, Seq>(
+    rpc: &mut RpcModule<Ethereum<S, Seq>>,
 ) -> Result<(), jsonrpsee::core::client::Error>
 where
+    S: Spec,
+    Seq: Sequencer<Spec = S>,
     S::Address: FromVmAddress<EthereumAddress>,
+    Seq::Rt: HasKernel<S> + EthereumAuthenticator<S> + Default + Send + Sync + 'static,
 {
     rpc.register_async_method("eth_gasPrice", |_, ethereum, _| async move {
         let price = {
-            let mut runtime = RT::default();
-            let empty_checkpoint = StateCheckpoint::new(
-                ethereum.state_update.borrow().storage.clone(),
-                &runtime.kernel(),
-            );
-            let mut state =
-                ApiStateAccessor::new(&empty_checkpoint, runtime.kernel_with_slot_mapping());
+            let mut state = ethereum.api_state_accessor();
 
             let suggested_tip = ethereum
                 .gas_price_oracle
@@ -266,15 +90,6 @@ where
         Ok::<U256, ErrorObjectOwned>(price)
     })?;
 
-    rpc.register_async_method("eth_publishBatch", |_params, ethereum, _| async move {
-        ethereum
-            .build_and_submit_batch(Some(1))
-            .await
-            .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-
-        Ok::<String, ErrorObjectOwned>("Submitted transaction".to_string())
-    })?;
-
     rpc.register_async_method(
         "eth_sendRawTransaction",
         |parameters, ethereum, _| async move {
@@ -286,16 +101,52 @@ where
                 .make_raw_tx(raw_evm_tx)
                 .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
-            ethereum.add_messages(vec![raw_message]);
+            let tx = Seq::Rt::encode_with_ethereum_auth(RawTx::new(raw_message));
+
+            ethereum.sequencer.accept_tx(tx).await.map_err(|e| {
+                to_jsonrpsee_error_object(
+                    format!("{} - '{}' ({:?})", e.status, e.title, e.details),
+                    ETH_RPC_ERROR,
+                )
+            })?;
 
             Ok::<_, ErrorObjectOwned>(tx_hash)
         },
     )?;
 
     #[cfg(feature = "local")]
-    signer::register_signer_rpc_methods::<_, _, RT>(rpc)?;
+    signer::register_signer_rpc_methods::<S, Seq>(rpc)?;
 
     Ok(())
+}
+
+struct Ethereum<S: Spec, Seq: Sequencer<Spec = S>> {
+    sequencer: Arc<Seq>,
+    gas_price_oracle: GasPriceOracle<S>,
+    #[cfg(feature = "local")]
+    eth_signer: DevSigner,
+}
+
+impl<S, Seq> Ethereum<S, Seq>
+where
+    S: Spec,
+    Seq: Sequencer<Spec = S>,
+    S::Address: FromVmAddress<EthereumAddress>,
+    Seq::Rt: HasKernel<S> + EthereumAuthenticator<S> + Default + Send + Sync + 'static,
+{
+    fn api_state_accessor(&self) -> ApiStateAccessor<S> {
+        self.sequencer.api_state().default_api_state_accessor()
+    }
+
+    fn make_raw_tx(&self, raw_tx: RlpEvmTransaction) -> Result<(B256, Vec<u8>), ErrorObjectOwned> {
+        let signed_transaction =
+            convert_to_transaction_signed(raw_tx.clone()).map_err(EthApiError::from)?;
+
+        let tx_hash = signed_transaction.hash();
+        let message = borsh::to_vec(&raw_tx).expect("Failed to serialize raw tx");
+
+        Ok((tx_hash, message))
+    }
 }
 
 pub(crate) fn to_jsonrpsee_error_object(err: impl ToString, message: &str) -> ErrorObjectOwned {

@@ -7,6 +7,7 @@ use sov_celestia_adapter::verifier::{CelestiaSpec, CelestiaVerifier, RollupParam
 use sov_celestia_adapter::CelestiaService;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
+use sov_ethereum::{EthRpcConfig, GasPriceOracleConfig};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm, MockZkvmHost};
 use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native};
@@ -20,12 +21,12 @@ use sov_modules_rollup_blueprint::{
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::{Risc0, Risc0CryptoSpec};
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
-use sov_sequencer::ProofBlobSender;
+use sov_sequencer::{ProofBlobSender, Sequencer};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 use sov_stf_runner::processes::{ParallelProverService, ProverService, RollupProverConfig};
 use sov_stf_runner::RollupConfig;
 
-use crate::{ROLLUP_BATCH_NAMESPACE, ROLLUP_PROOF_NAMESPACE};
+use crate::{eth_dev_signer, ROLLUP_BATCH_NAMESPACE, ROLLUP_PROOF_NAMESPACE};
 
 /// Rollup with CelestiaDa
 #[derive(Default)]
@@ -78,10 +79,10 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
         ledger_db: &LedgerDb,
         sequencer: &SequencerCreationReceipt<Self::Spec>,
-        da_service: &Self::DaService,
+        _da_service: &Self::DaService,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
     ) -> anyhow::Result<NodeEndpoints> {
-        let mut endpoints = sov_modules_rollup_blueprint::register_endpoints::<Self, _>(
+        sov_modules_rollup_blueprint::register_endpoints::<Self, _>(
             state_update_receiver.clone(),
             sync_status_receiver,
             shutdown_receiver,
@@ -89,17 +90,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
             sequencer,
             rollup_config,
         )
-        .await?;
-
-        // TODO: Add issue for Sequencer level RPC injection:
-        //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366
-        crate::eth::register_ethereum::<Self::Spec, Self::DaService, Self::Runtime>(
-            da_service.clone(),
-            state_update_receiver,
-            &mut endpoints.jsonrpsee_module,
-        )?;
-
-        Ok(endpoints)
+        .await
     }
 
     async fn create_da_service(
@@ -115,6 +106,27 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
             },
         )
         .await
+    }
+
+    async fn sequencer_additional_apis<Seq>(
+        &self,
+        sequencer: Arc<Seq>,
+        _rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
+    ) -> anyhow::Result<NodeEndpoints>
+    where
+        Seq: Sequencer<Spec = Self::Spec, Rt = Self::Runtime, Da = Self::DaService>,
+    {
+        let eth_signer = eth_dev_signer();
+        let eth_rpc_config = EthRpcConfig {
+            eth_signer,
+            gas_price_oracle_config: GasPriceOracleConfig::default(),
+        };
+
+        Ok(NodeEndpoints {
+            jsonrpsee_module: sov_ethereum::get_ethereum_rpc(eth_rpc_config, sequencer)
+                .remove_context(),
+            ..Default::default()
+        })
     }
 
     async fn create_prover_service(
