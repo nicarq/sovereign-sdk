@@ -766,7 +766,7 @@ fn check_batch_size(
             title: "Transaction cannot be included in the batch.".to_string(),
             details: sov_rest_utils::json_obj!({
             "message": format!("The transaction is too large.
-                    Transaction size: {current_batch_size_bytes}, 
+                    Transaction size: {tx_size_bytes}, 
                     current batch size: {current_batch_size_bytes}, 
                     and batch size limit: {max_batch_size_bytes}."
                 )
