@@ -18,8 +18,8 @@ serde = { version = "1.0.208", default-features = false, features = [
     "alloc",
     "derive",
 ] }
-backon = "0.4.4"
-anyhow = { version = "1.0.95" }
+backon = { workspace = true }
+anyhow = { workspace = true }
 derivative = { version = "2.2", features = ["use_core"] }
 strum = { version = "0.26.3", features = ["derive"] }
 rand = "0.8"
