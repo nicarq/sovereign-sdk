@@ -48,6 +48,8 @@ thiserror = { workspace = true }
 tokio = { workspace = true, optional = true, features = ["sync"] }
 tower = { workspace = true, optional = true }
 tracing = { workspace = true }
+# Used by the checker.
+rand = { workspace = true, optional = true }
 
 sov-metrics = { workspace = true, optional = true }
 sov-modules-macros = { workspace = true, optional = true }
@@ -83,7 +85,8 @@ native = [
     "sov-rollup-interface/native",
     "sov-metrics?/native",
     "dep:tower",
-    "sov-modules-macros?/native"
+    "sov-modules-macros?/native",
+    "dep:rand",
 ]
 bench = [
     "dep:sov-metrics",

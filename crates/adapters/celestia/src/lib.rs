@@ -1,5 +1,7 @@
 pub mod celestia;
 #[cfg(feature = "native")]
+pub mod checker;
+#[cfg(feature = "native")]
 mod da_service;
 #[cfg(feature = "native")]
 pub(crate) mod middleware;

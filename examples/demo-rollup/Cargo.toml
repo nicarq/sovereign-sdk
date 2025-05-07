@@ -119,3 +119,8 @@ path = "src/sov-cli/main.rs"
 [[bin]]
 name = "sov-demo-rollup"
 path = "src/main.rs"
+
+
+[[bin]]
+name = "demo-celestia-tester"
+path = "src/da_tester/demo_celestia_tester.rs"
