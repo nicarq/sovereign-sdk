@@ -9768,13 +9768,13 @@ name = "sov-api-spec"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "backon",
  "base64 0.22.1",
  "borsh",
  "chrono",
  "futures",
  "openapiv3",
  "progenitor",
- "rand",
  "regress 0.4.1",
  "reqwest 0.12.9",
  "serde",
@@ -10890,7 +10890,6 @@ name = "sov-soak-testing"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "backon",
  "borsh",
  "clap",
  "demo-stf",

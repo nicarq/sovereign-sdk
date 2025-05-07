@@ -2,8 +2,10 @@
 //! [`progenitor`].
 
 use std::str::FromStr;
+use std::time::Duration;
 
 use anyhow::Context;
+use backon::{ExponentialBuilder, Retryable};
 use base64::prelude::*;
 use borsh::BorshSerialize;
 use futures::stream::BoxStream;
@@ -68,6 +70,38 @@ impl Client {
         let tx_bytes = borsh::to_vec(tx).map_err(|err| Error::InvalidRequest(err.to_string()))?;
         let tx_b64 = BASE64_STANDARD.encode(&tx_bytes);
         self.accept_tx(&types::AcceptTxBody { body: tx_b64 }).await
+    }
+
+    pub async fn send_tx_to_sequencer_with_retry<Tx: BorshSerialize>(
+        &self,
+        tx: &Tx,
+    ) -> Result<ResponseValue<AcceptTxResponse>, Error<types::AcceptTxResponse>> {
+        let tx_bytes = borsh::to_vec(tx).map_err(|err| Error::InvalidRequest(err.to_string()))?;
+        let tx_b64 = BASE64_STANDARD.encode(&tx_bytes);
+        let backoff = ExponentialBuilder::default()
+            .with_factor(1.5)
+            .with_min_delay(Duration::from_millis(200))
+            .with_max_times(100);
+        let tx = types::AcceptTxBody { body: tx_b64 };
+        let client = self.clone();
+        let fut = || async { client.accept_tx(&tx).await };
+        fut.retry(&backoff)
+            .when(|err| {
+                match err {
+                    Error::InvalidRequest(_) | Error::InvalidUpgrade(_) | Error::PreHookError(_) => false,
+                    Error::CommunicationError(_) | Error::ErrorResponse(_) | Error::ResponseBodyError(_) | Error::UnexpectedResponse(_) => true,
+                    // This needs further improvement on the generated client.
+                    // Details in https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/2799
+                    Error::InvalidResponsePayload(bytes, _error) => {
+                        // All non-HTTP 4** are retried.
+                        !std::str::from_utf8(bytes.as_ref()).unwrap_or("").contains("\"status\":4")
+                    }
+                }
+            })
+            .notify(|err, dur| {
+                tracing::warn!(err = ?err, duration = ?dur, "Failed to submit transaction. Retrying...");
+            })
+            .await
     }
 
     /// Sends transactions to the sequencer for later publication.
