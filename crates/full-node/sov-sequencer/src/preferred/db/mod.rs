@@ -28,6 +28,7 @@ use sov_modules_api::{
 };
 
 use crate::common::WithCachedTxHashes;
+use crate::metrics::track_sequence_number;
 
 #[async_trait]
 pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
@@ -171,12 +172,17 @@ where
             in_progress_batch,
         };
 
-        db.set_next_sequence_number(latest_state_info)?;
+        db.sync_next_sequence_number(latest_state_info)?;
 
         Ok(db)
     }
 
-    fn set_next_sequence_number(
+    fn set_next_sequence_number(&mut self, sequence_number: SequenceNumber) {
+        self.sequence_number_of_next_blob = sequence_number;
+        track_sequence_number(self.sequence_number_of_next_blob);
+    }
+
+    fn sync_next_sequence_number(
         &mut self,
         latest_state_info: &StateUpdateInfo<S::Storage>,
     ) -> anyhow::Result<()> {
@@ -184,18 +190,18 @@ where
         // sequence number to use. When a secondary preferred sequencer first
         // syncs, however, the DA (i.e. the node) will determine the next
         // sequence number to use.
-        self.sequence_number_of_next_blob = std::cmp::max(
-            next_sequence_number_according_to_node(latest_state_info, &mut self.runtime),
+        let next_sequence_number_according_to_node =
+            next_sequence_number_according_to_node(latest_state_info, &mut self.runtime);
+        self.set_next_sequence_number(std::cmp::max(
+            next_sequence_number_according_to_node,
             self.sequence_number_of_next_blob,
-        );
+        ));
 
         Ok(())
     }
 
-    pub async fn in_progress_batch_opt(
-        &self,
-    ) -> anyhow::Result<Option<&PreferredSequencerReadBatch>> {
-        Ok(self.in_progress_batch.as_ref())
+    pub fn in_progress_batch_opt(&self) -> Option<&PreferredSequencerReadBatch> {
+        self.in_progress_batch.as_ref()
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
@@ -282,7 +288,7 @@ where
             txs: vec![],
             tx_hashes: vec![],
         });
-        self.sequence_number_of_next_blob += 1;
+        self.set_next_sequence_number(sequence_number + 1);
 
         Ok(sequence_number)
     }
@@ -299,10 +305,21 @@ where
         let next_sequence_number_according_to_node =
             next_sequence_number_according_to_node(latest_state_info, &mut self.runtime);
 
-        self.sequence_number_of_next_blob = std::cmp::max(
+        sov_metrics::track_metrics(|tracker| {
+            tracker.submit_inline(
+                "sov_rollup_sequence_number_delta",
+                format!(
+                    "delta={}i",
+                    (self.sequence_number_of_next_blob as i64)
+                        - (next_sequence_number_according_to_node as i64)
+                ),
+            );
+        });
+
+        self.set_next_sequence_number(std::cmp::max(
             next_sequence_number_according_to_node,
             self.sequence_number_of_next_blob,
-        );
+        ));
 
         // Now is as good a time as any to prune old blobs that are no longer needed.
         match latest_finalized_sequence_number(latest_state_info, &mut self.runtime) {
@@ -342,7 +359,7 @@ where
                 sequence_number,
                 data,
             });
-        self.sequence_number_of_next_blob += 1;
+        self.set_next_sequence_number(sequence_number + 1);
 
         Ok(sequence_number)
     }

@@ -2,7 +2,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use rockbound::{gen_rocksdb_options, SchemaBatch};
-use sov_rollup_interface::node::da::DaService;
+use sov_modules_api::DaSpec;
 
 use crate::{BlobInternalId, BlobProcessingState, BlobSubmissionRequest};
 
@@ -27,7 +27,7 @@ impl BlobSenderDb {
         Ok(Self { db })
     }
 
-    pub async fn get_all<Da: DaService>(&self) -> anyhow::Result<Vec<BlobSubmissionRequest<Da>>> {
+    pub async fn get_all<Da: DaSpec>(&self) -> anyhow::Result<Vec<BlobSubmissionRequest<Da>>> {
         let mut blobs = vec![];
 
         for iter_res in self.db.iter::<tables::Blobs>()? {
@@ -60,7 +60,7 @@ impl BlobSenderDb {
         Ok(())
     }
 
-    pub async fn set_state<Da: DaService>(
+    pub async fn set_state<Da: DaSpec>(
         &self,
         blob_id: BlobInternalId,
         state: &BlobProcessingState<Da>,
@@ -104,14 +104,14 @@ pub struct BlobInfo {
 }
 
 impl BlobInfo {
-    fn new<Da: DaService>(blob_processing_state: &BlobProcessingState<Da>) -> Self {
+    fn new<Da: DaSpec>(blob_processing_state: &BlobProcessingState<Da>) -> Self {
         Self {
             json_serialized_state: serde_json::to_vec(blob_processing_state)
                 .expect("Failed to serialize blob processing state"),
         }
     }
 
-    fn blob_processing_state<Da: DaService>(&self) -> BlobProcessingState<Da> {
+    fn blob_processing_state<Da: DaSpec>(&self) -> BlobProcessingState<Da> {
         serde_json::from_slice(&self.json_serialized_state)
             .expect("Invalid blob info in the database")
     }

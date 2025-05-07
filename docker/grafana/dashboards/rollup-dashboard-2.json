@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 2,
+  "id": 3,
   "links": [],
   "panels": [
     {
@@ -29,9 +29,9 @@
         "x": 0,
         "y": 0
       },
-      "id": 3,
+      "id": 44,
       "panels": [],
-      "title": "Detailed Processing Times",
+      "title": "Sequencer",
       "type": "row"
     },
     {
@@ -39,619 +39,6 @@
         "type": "influxdb",
         "uid": "${DS}"
       },
-      "description": "The time taken after receiving the raw block from DA through State Transition Function and committing to the database",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "µs"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 0,
-        "y": 1
-      },
-      "id": 29,
-      "options": {
-        "legend": {
-          "calcs": [
-            "min",
-            "mean",
-            "p50",
-            "max",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "influxdb",
-            "uid": "${DS}"
-          },
-          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_times_us\" and r._field != \"da_height\"\n  )\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json}))\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data\n",
-          "refId": "A"
-        }
-      ],
-      "title": "Runner loop times",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "influxdb",
-        "uid": "${DS}"
-      },
-      "description": "How much time does it take to process slot, split by following stages:\n\n1. blob_selection\n2. begin_hooks\n3. blobs_processing\n4. end_hooks\n5. finalization",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "µs"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 12,
-        "y": 1
-      },
-      "id": 25,
-      "options": {
-        "legend": {
-          "calcs": [
-            "min",
-            "mean",
-            "p50",
-            "max",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "influxdb",
-            "uid": "${DS}"
-          },
-          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_slot_execution_time_us\" and\n    r._field != \"da_height\" and r._field != \"rollup_height\" and r._field != \"visible_slot_number\" and r._field != \"gas_used_compute\" and r._field != \"gas_used_mem\"\n  )\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json}))\n  \n\nif agg_func == \"raw\" then\n   data\nelse\n   data \n    |> aggregateWindow(every: ${agg_interval}, fn: sum)",
-          "refId": "A"
-        }
-      ],
-      "title": "Slot Processing Times",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "influxdb",
-        "uid": "${DS}"
-      },
-      "description": "How much time does it take to process slot, split by following stages:\n\n1. blob_selection\n2. begin_hooks\n3. blobs_processing\n4. end_hooks\n5. finalization",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "µs"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 0,
-        "y": 11
-      },
-      "id": 32,
-      "options": {
-        "legend": {
-          "calcs": [
-            "min",
-            "mean",
-            "p50",
-            "max",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "influxdb",
-            "uid": "${DS}"
-          },
-          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_batch_processing\" and\n    r._field != \"da_height\" and r._field != \"transactions\"\n  )\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json}))\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
-          "refId": "A"
-        }
-      ],
-      "title": "Batch Processing Time",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "influxdb",
-        "uid": "${DS}"
-      },
-      "description": "How much gas used for slot, in terms of gas unit spent on compute and memory",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 12,
-        "y": 11
-      },
-      "id": 38,
-      "options": {
-        "legend": {
-          "calcs": [
-            "min",
-            "mean",
-            "p50",
-            "max",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "influxdb",
-            "uid": "${DS}"
-          },
-          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_slot_execution_time_us\" and (r._field == \"gas_used_compute\" or r._field == \"gas_used_mem\")\n  )\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json}))\n  \n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
-          "refId": "A"
-        }
-      ],
-      "title": "Slot Gas Usage",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "influxdb",
-        "uid": "${DS}"
-      },
-      "description": "Time it takes to process single transaction.\nDoes not include signature check",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "µs"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 0,
-        "y": 21
-      },
-      "id": 24,
-      "options": {
-        "legend": {
-          "calcs": [
-            "min",
-            "mean",
-            "p50",
-            "max",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "influxdb",
-            "uid": "${DS}"
-          },
-          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_transaction_execution_us\" and\n    r._field == \"value\"\n  )\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json}))\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data\n",
-          "refId": "A"
-        }
-      ],
-      "title": "Transaction Processing Time",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "influxdb",
-        "uid": "${DS}"
-      },
-      "description": "Time it takes to process single transaction.\nDoes not include signature check",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "Gas Units",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 12,
-        "y": 21
-      },
-      "id": 39,
-      "options": {
-        "legend": {
-          "calcs": [
-            "min",
-            "mean",
-            "p50",
-            "max",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "11.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "influxdb",
-            "uid": "${DS}"
-          },
-          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_transaction_execution_us\" and\n    (r._field == \"gas_used_compute\" or r._field == \"gas_used_mem\")\n  )\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json}))\n\n\nif agg_func == \"raw\" then\n   data\nelse\n   data \n    |> aggregateWindow(every: ${agg_interval}, fn: sum)",
-          "refId": "A"
-        }
-      ],
-      "title": "Transaction Gas Usage",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "influxdb",
-        "uid": "${DS}"
-      },
-      "description": "The time taken to fetch the block from the Data Availability layer",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -709,27 +96,27 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
+        "h": 8,
         "w": 12,
         "x": 0,
-        "y": 31
+        "y": 1
       },
-      "id": 1,
+      "id": 45,
       "options": {
         "legend": {
           "calcs": [
             "min",
             "mean",
-            "p50",
             "max",
-            "lastNotNull"
+            "lastNotNull",
+            "p50",
+            "p99"
           ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
@@ -741,12 +128,430 @@
             "type": "influxdb",
             "uid": "${DS}"
           },
-          "hide": false,
-          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_da\" and\n    r._field != \"da_height\" and r._field != \"sync_distance\"\n  )\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json}))\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data\n",
+          "query": "// Use dashboard variables for aggregation function and interval\nagg_func = \"${agg_func}\"\n\n// Base query to get the relevant data\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    // Filter by the specific measurement name from your Rust code\n    r._measurement == \"sov_rollup_preferred_sequencer_update_state\" and\n    // Filter for the two fields you want to plot\n    (r._field == \"duration_ms\" or r._field == \"lock_duration_ms\") \n  )\n  // Filter by the selected host(s) using the dashboard variable\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json})) \n\n// Apply aggregation based on the selected aggregation function\nif agg_func == \"raw\" then\n  data // No aggregation if \"raw\" is selected\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  // Use a custom function for quantiles in aggregateWindow\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) => tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) => tables |> quantile(q: 0.99, column: column))\nelse\n  // Default aggregation if the variable value is unexpected (e.g., mean)\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)",
           "refId": "A"
         }
       ],
-      "title": "Fetch Data Availability block time",
+      "title": "State replay performance",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 0,
+          "fieldMinMax": false,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "batches_count"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "left"
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "# of batches to replay"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "transactions_count"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "custom.axisLabel",
+                "value": "# of transactions to replay"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "id": 46,
+      "options": {
+        "legend": {
+          "calcs": [
+            "min",
+            "mean",
+            "max",
+            "lastNotNull",
+            "p50",
+            "p99"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS}"
+          },
+          "query": "// Use dashboard variables for aggregation function and interval\nagg_func = \"${agg_func}\"\n\n// Base query to get the count data\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    // Filter by the specific measurement name\n    r._measurement == \"sov_rollup_preferred_sequencer_update_state\" and\n    // Filter ONLY for the two count fields\n    (r._field == \"batches_count\" or r._field == \"transactions_count\") \n  )\n  // Filter by the selected host(s) using the dashboard variable\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json})) \n\n// Apply aggregation based on the selected aggregation function\n// Consider using 'sum' or 'mean' for counts depending on what's most useful\nif agg_func == \"raw\" then\n  data \nelse if agg_func == \"sum\" then // Example: Summing counts over the interval\n  data |> aggregateWindow(every: ${agg_interval}, fn: sum)\nelse if agg_func == \"mean\" then \n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"median\" then\n   data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) => tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) => tables |> quantile(q: 0.99, column: column))\nelse\n   // Default aggregation (e.g., sum or mean)\n  data |> aggregateWindow(every: ${agg_interval}, fn: sum)",
+          "refId": "A"
+        }
+      ],
+      "title": "State replay workload (batches & txs)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "id": 49,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS}"
+          },
+          "query": "// Define the bucket using Grafana's variable\nbucket = v.bucket\n\n// Define the measurement name from your Rust code\nmeasurementName = \"sov_rollup_in_progress_batch_size\"\n\n// Define the field name from your Rust code\nfieldName = \"num_txs\"\n\nfrom(bucket: bucket)\n  // Use Grafana's dynamic time range variables\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  // Filter for the specific measurement\n  |> filter(fn: (r) => r._measurement == measurementName)\n  // Filter for the specific field containing the transaction count\n  |> filter(fn: (r) => r._field == fieldName)\n  // Aggregate data points based on Grafana's calculated window period.\n  // 'mean' or 'last' are often suitable for batch sizes. 'mean' shows the average size\n  // within each window, 'last' shows the size reported at the end of the window.\n  // createEmpty: false prevents generating null values for empty windows.\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  // Optional: Rename the output field for clarity in the legend/tooltip\n  |> map(fn: (r) => ({ r with _field: \"In-Progress Batch Size\" }))\n  // Output the results for Grafana\n  |> yield(name: \"mean\") // 'mean' here matches the 'fn' used in aggregateWindow",
+          "refId": "A"
+        }
+      ],
+      "title": "Num. of txs in latest batch",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "id": 52,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS}"
+          },
+          "query": "// ============================================================\n// Query 1: Raw Current Sequence Number (for Time Series)\n// ============================================================\n// Shows the value of the sequence number at the end of each time window.\n\n// Define the bucket using Grafana's variable\nbucket = v.bucket\n\n// Define the measurement name from your Rust code\nmeasurementName = \"sov_rollup_current_sequence_number\"\n\n// Define the field name from your Rust code\nfieldName = \"current_sequence_number\"\n\nfrom(bucket: bucket)\n  // Use Grafana's dynamic time range variables\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  // Filter for the specific measurement\n  |> filter(fn: (r) => r._measurement == measurementName)\n  // Filter for the specific field\n  |> filter(fn: (r) => r._field == fieldName)\n  // Aggregate data points using Grafana's window period.\n  // 'last' is suitable for showing the latest reported sequence number within the window.\n  // 'max' could also be used for a strictly increasing counter.\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n  // Optional: Rename for clarity in legend/tooltip\n  |> map(fn: (r) => ({ r with _field: \"Sequence number\" }))\n  // Output the results\n  |> yield(name: \"last_value\")\n\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Sequence number over time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "id": 54,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS}"
+          },
+          "query": "// Define the bucket using Grafana's variable\nbucket = v.bucket\n\n// Define the measurement name from your Rust code\nmeasurementName = \"sov_rollup_sequence_number_delta\"\n\n// Define the field name from your Rust code (based on the format string \"delta={}i\")\nfieldName = \"delta\"\n\nfrom(bucket: bucket)\n  // Use Grafana's dynamic time range variables\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  // Filter for the specific measurement\n  |> filter(fn: (r) => r._measurement == measurementName)\n  // Filter for the specific field containing the delta value\n  |> filter(fn: (r) => r._field == fieldName)\n  // Optional: Rename the output field for clarity in the legend/tooltip\n  |> map(fn: (r) => ({ r with _field: \"Delta\" }))\n  // Output the results for Grafana\n  |> yield()\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Sequence number delta (sequencer - node)",
       "type": "timeseries"
     },
     {
@@ -755,7 +560,1220 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 41
+        "y": 26
+      },
+      "id": 47,
+      "panels": [],
+      "title": "In-flight blobs",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 27
+      },
+      "id": 51,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "mean"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS}"
+          },
+          "query": "// Define the bucket using Grafana's variable\nbucket = v.bucket\n\n// Define the measurement name from your Rust code\nmeasurementName = \"sov_rollup_num_of_in_flight_blobs\"\n\n// Define the field name from your Rust code (based on the format string \"num_of_in_flight_blobs={}i\")\nfieldName = \"num_of_in_flight_blobs\"\n\nfrom(bucket: bucket)\n  // Use Grafana's dynamic time range variables\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  // Filter for the specific measurement\n  |> filter(fn: (r) => r._measurement == measurementName)\n  // Filter for the specific field containing the count\n  |> filter(fn: (r) => r._field == fieldName)\n  // Optional: Rename the output field for clarity in the legend/tooltip\n  |> map(fn: (r) => ({ r with _field: \"Num. of in-flight blobs\" }))\n  // Output the results for Grafana\n  |> yield()\n\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Num. of in-flight blobs over time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 27
+      },
+      "id": 53,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS}"
+          },
+          "query": "// Define the bucket using Grafana's variable or your actual bucket name\nbucket = v.bucket\n\n// Define the measurement name for the exit scope event\nmeasurementName = \"sov_rollup_blobs_exit_scope\"\n\n// How far back to look for the latest point.\n// Adjust if exit events can be very infrequent.\nqueryWindow = -60m // Example: Look back 10 minutes\n\nfrom(bucket: bucket)\n  // Look back over the defined window\n  |> range(start: queryWindow)\n  // Filter for the specific exit scope measurement\n  |> filter(fn: (r) => r._measurement == measurementName)\n  // Find the single most recent point (based on _time) across all series\n  |> last()\n  // Keep ONLY the time column\n  |> keep(columns: [\"_time\"])\n\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Time of last update",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false,
+            "inspect": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "snapshot_time"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Blob creation"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "blob_iid"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Blob ID (UUIDv7)"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duration_ms"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Task duration"
+              },
+              {
+                "id": "unit",
+                "value": "dtdurationms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "is_batch"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "false": {
+                        "index": 1,
+                        "text": "Proof"
+                      },
+                      "true": {
+                        "index": 0,
+                        "text": "Batch"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "displayName",
+                "value": "Blob type"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "was_resurrected"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Recovered from DB"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Blob ID (UUIDv7)"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 306
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Task duration"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 155
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Blob creation"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Blob type"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 98
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "size_in_bytes"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Size"
+              },
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Size"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 73
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "last_known_state"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "State"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "json-view"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Recovered from DB"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 157
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Gas estimate"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 116
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Gas est."
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 76
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "id": 48,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "enablePagination": true,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS}"
+          },
+          "query": "import \"array\"\nimport \"influxdata/influxdb/schema\" // Needed for findRecord\nimport \"types\" // Needed for types.isType()\n\n// --- Configuration ---\n\n// Measurement names\nscopeEnterMeasurement = \"sov_rollup_blobs_enter_scope\"\nsnapshotMeasurement = \"sov_rollup_in_flight_blobs_snapshot\"\n\n// How far back to look for the latest scope start event. Adjust if scopes can start infrequently.\nscopeLookback = -24h // Example: Look back 24 hours\n\n// IMPORTANT: Adjust this list if your serialize_metadata() adds ANY tags.\n// If it adds tags like \"host\", \"application\", list them here: [\"host\", \"application\"]\ncontextTags = [] // Currently empty based on your provided query\n\n// List the fields you expect in the snapshot data (excluding tags).\nexpectedFields = [\"blob_iid\", \"is_batch\", \"size_in_bytes\", \"was_resurrected\", \"duration_ms\", \"last_known_state\"] // Adjust if needed\n\n// --- Pre-computation ---\n\n// Combine column names for the final 'keep()' function\n// Uses the CORRECT array.concat syntax (arr:, v:)\nfieldsAndTags = array.concat(arr: expectedFields, v: contextTags)\nfinalKeepColumns = array.concat(arr: [\"snapshot_time\"], v: fieldsAndTags)\n\n// Define the list of columns for the pivot rowKey.\n// MUST include \"_time\" PLUS all tags listed in contextTags.\n// If contextTags is empty, this just becomes [\"_time\"].\npivotRowKey = array.concat(arr: [\"_time\"], v: contextTags)\n\n\n// --- Find the Start Time of the Latest Scope ---\n\n// Find the latest 'enter_scope' event record within the lookback period.\n// findRecord returns the record directly, or nil if no record is found.\nlatestEnterScopeRecord = from(bucket: v.bucket)\n    |> range(start: scopeLookback)\n    |> filter(fn: (r) => r._measurement == scopeEnterMeasurement)\n    |> last() // Get the most recent event record\n    |> findRecord(\n        fn: (key) => true, // Match any table (there should only be one after last())\n        idx: 0 // Get the first (and only) record\n        // Removed the 'default' parameter which caused the error\n    )\n\n// Check if a record was found AND its _time field is a valid time type.\n// If not, use epoch time. Otherwise, use the record's time.\nscopeStartTime = if exists latestEnterScopeRecord and exists latestEnterScopeRecord._time and types.isType(v: latestEnterScopeRecord._time, type: \"time\") then // <-- MODIFIED THIS LINE\n    latestEnterScopeRecord._time\nelse\n    time(v: 0) // Default to Unix epoch if no record found or _time is invalid\n\n\n// --- Main Query Logic ---\n\n// Fetch snapshot data starting from the determined scope start time until now.\nfrom(bucket: v.bucket)\n    |> range(start: scopeStartTime) // Use the dynamic start time\n    |> filter(fn: (r) => r._measurement == snapshotMeasurement)\n    // Filter out data if scopeStartTime is still the default epoch time (meaning no scope start was found)\n    // This prevents processing potentially huge amounts of data if the default is used.\n    |> filter(fn: (r) => scopeStartTime != time(v: 0))\n\n    // --- Start of adapted logic from your previous query ---\n\n    // Pivot the fields for each point into columns.\n    // Uses the pre-calculated pivotRowKey list.\n    |> pivot(\n        rowKey: pivotRowKey, // Use the list: [\"_time\"] or [\"_time\", \"tag1\", \"tag2\"...]\n        columnKey: [\"_field\"],\n        valueColumn: \"_value\"\n       )\n    // Rename the time column\n    |> rename(columns: {_time: \"snapshot_time\"})\n\n    // Select the final columns for the table using the pre-combined list 'finalKeepColumns'\n    |> keep(columns: finalKeepColumns)\n\n    // Sort the results (optional, but recommended) e.g., most recent first\n    |> sort(columns: [\"snapshot_time\"], desc: true)\n\n    // Ungroup to ensure flat table format\n    |> group()\n\n    // Yield the final result for Grafana\n    |> yield(name: \"snapshots_in_latest_scope\")\n\n",
+          "refId": "A"
+        }
+      ],
+      "title": "Current in-flight blobs",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {
+              "blob_iid": 6,
+              "duration_ms": 1,
+              "gas_estimate": 4,
+              "is_batch": 2,
+              "last_known_state": 7,
+              "size_in_bytes": 3,
+              "snapshot_time": 0,
+              "was_resurrected": 5
+            },
+            "renameByName": {
+              "gas_estimate": "Gas est."
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      },
+      "id": 3,
+      "panels": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS}"
+          },
+          "description": "The time taken after receiving the raw block from DA through State Transition Function and committing to the database",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "µs"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 20
+          },
+          "id": 29,
+          "options": {
+            "legend": {
+              "calcs": [
+                "min",
+                "mean",
+                "p50",
+                "max",
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "influxdb",
+                "uid": "${DS}"
+              },
+              "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_times_us\" and r._field != \"da_height\"\n  )\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json}))\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data\n",
+              "refId": "A"
+            }
+          ],
+          "title": "Runner loop times",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS}"
+          },
+          "description": "How much time does it take to process slot, split by following stages:\n\n1. blob_selection\n2. begin_hooks\n3. blobs_processing\n4. end_hooks\n5. finalization",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "µs"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 20
+          },
+          "id": 25,
+          "options": {
+            "legend": {
+              "calcs": [
+                "min",
+                "mean",
+                "p50",
+                "max",
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "influxdb",
+                "uid": "${DS}"
+              },
+              "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_slot_execution_time_us\" and\n    r._field != \"da_height\" and r._field != \"rollup_height\" and r._field != \"visible_slot_number\" and r._field != \"gas_used_compute\" and r._field != \"gas_used_mem\"\n  )\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json}))\n  \n\nif agg_func == \"raw\" then\n   data\nelse\n   data \n    |> aggregateWindow(every: ${agg_interval}, fn: sum)",
+              "refId": "A"
+            }
+          ],
+          "title": "Slot Processing Times",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS}"
+          },
+          "description": "How much time does it take to process slot, split by following stages:\n\n1. blob_selection\n2. begin_hooks\n3. blobs_processing\n4. end_hooks\n5. finalization",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "µs"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 48
+          },
+          "id": 32,
+          "options": {
+            "legend": {
+              "calcs": [
+                "min",
+                "mean",
+                "p50",
+                "max",
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "influxdb",
+                "uid": "${DS}"
+              },
+              "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_batch_processing\" and\n    r._field != \"da_height\" and r._field != \"transactions\"\n  )\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json}))\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
+              "refId": "A"
+            }
+          ],
+          "title": "Batch Processing Time",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS}"
+          },
+          "description": "How much gas used for slot, in terms of gas unit spent on compute and memory",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 48
+          },
+          "id": 38,
+          "options": {
+            "legend": {
+              "calcs": [
+                "min",
+                "mean",
+                "p50",
+                "max",
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "influxdb",
+                "uid": "${DS}"
+              },
+              "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_slot_execution_time_us\" and (r._field == \"gas_used_compute\" or r._field == \"gas_used_mem\")\n  )\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json}))\n  \n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
+              "refId": "A"
+            }
+          ],
+          "title": "Slot Gas Usage",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS}"
+          },
+          "description": "Time it takes to process single transaction.\nDoes not include signature check",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "µs"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 58
+          },
+          "id": 24,
+          "options": {
+            "legend": {
+              "calcs": [
+                "min",
+                "mean",
+                "p50",
+                "max",
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "influxdb",
+                "uid": "${DS}"
+              },
+              "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_transaction_execution_us\" and\n    r._field == \"value\"\n  )\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json}))\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data\n",
+              "refId": "A"
+            }
+          ],
+          "title": "Transaction Processing Time",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS}"
+          },
+          "description": "Time it takes to process single transaction.\nDoes not include signature check",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "Gas Units",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 58
+          },
+          "id": 39,
+          "options": {
+            "legend": {
+              "calcs": [
+                "min",
+                "mean",
+                "p50",
+                "max",
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "influxdb",
+                "uid": "${DS}"
+              },
+              "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_transaction_execution_us\" and\n    (r._field == \"gas_used_compute\" or r._field == \"gas_used_mem\")\n  )\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json}))\n\n\nif agg_func == \"raw\" then\n   data\nelse\n   data \n    |> aggregateWindow(every: ${agg_interval}, fn: sum)",
+              "refId": "A"
+            }
+          ],
+          "title": "Transaction Gas Usage",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS}"
+          },
+          "description": "The time taken to fetch the block from the Data Availability layer",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green"
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "ms"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 68
+          },
+          "id": 1,
+          "options": {
+            "legend": {
+              "calcs": [
+                "min",
+                "mean",
+                "p50",
+                "max",
+                "lastNotNull"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.4.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "influxdb",
+                "uid": "${DS}"
+              },
+              "hide": false,
+              "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"${bucket}\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_da\" and\n    r._field != \"da_height\" and r._field != \"sync_distance\"\n  )\n  |> filter(fn: (r) => contains(value: r[\"host\"], set: ${host:json}))\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data\n",
+              "refId": "A"
+            }
+          ],
+          "title": "Fetch Data Availability block time",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Detailed Processing Times",
+      "type": "row"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 46
       },
       "id": 10,
       "panels": [],
@@ -830,7 +1848,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 42
+        "y": 47
       },
       "id": 11,
       "options": {
@@ -934,7 +1952,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 42
+        "y": 47
       },
       "id": 40,
       "options": {
@@ -1036,7 +2054,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 42
+        "y": 47
       },
       "id": 12,
       "options": {
@@ -1124,8 +2142,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1140,7 +2157,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 50
+        "y": 55
       },
       "id": 13,
       "options": {
@@ -1228,8 +2245,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1244,7 +2260,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 50
+        "y": 55
       },
       "id": 15,
       "options": {
@@ -1332,8 +2348,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1348,7 +2363,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 50
+        "y": 55
       },
       "id": 17,
       "options": {
@@ -1436,8 +2451,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1452,7 +2466,7 @@
         "h": 8,
         "w": 5,
         "x": 0,
-        "y": 58
+        "y": 63
       },
       "id": 14,
       "options": {
@@ -1540,8 +2554,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1556,7 +2569,7 @@
         "h": 8,
         "w": 5,
         "x": 5,
-        "y": 58
+        "y": 63
       },
       "id": 33,
       "options": {
@@ -1644,8 +2657,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1661,7 +2673,7 @@
         "h": 8,
         "w": 6,
         "x": 10,
-        "y": 58
+        "y": 63
       },
       "id": 18,
       "options": {
@@ -1749,8 +2761,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1765,7 +2776,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 58
+        "y": 63
       },
       "id": 16,
       "options": {
@@ -1853,8 +2864,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1870,7 +2880,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 66
+        "y": 71
       },
       "id": 23,
       "options": {
@@ -1958,8 +2968,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1975,7 +2984,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 66
+        "y": 71
       },
       "id": 21,
       "options": {
@@ -2063,8 +3072,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2080,7 +3088,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 66
+        "y": 71
       },
       "id": 22,
       "options": {
@@ -2168,8 +3176,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2185,7 +3192,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 74
+        "y": 79
       },
       "id": 20,
       "options": {
@@ -2273,8 +3280,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2290,7 +3296,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 74
+        "y": 79
       },
       "id": 30,
       "options": {
@@ -2378,8 +3384,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2395,7 +3400,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 74
+        "y": 79
       },
       "id": 31,
       "options": {
@@ -2437,7 +3442,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 82
+        "y": 87
       },
       "id": 27,
       "panels": [],
@@ -2493,8 +3498,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2510,7 +3514,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 83
+        "y": 88
       },
       "id": 26,
       "options": {
@@ -2595,8 +3599,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2612,7 +3615,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 83
+        "y": 88
       },
       "id": 28,
       "options": {
@@ -2654,7 +3657,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 91
+        "y": 96
       },
       "id": 35,
       "panels": [],
@@ -2713,8 +3716,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2738,7 +3740,7 @@
         "h": 10,
         "w": 8,
         "x": 0,
-        "y": 92
+        "y": 97
       },
       "id": 34,
       "options": {
@@ -2825,8 +3827,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2842,7 +3843,7 @@
         "h": 10,
         "w": 8,
         "x": 8,
-        "y": 92
+        "y": 97
       },
       "id": 36,
       "options": {
@@ -2930,8 +3931,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2955,7 +3955,7 @@
         "h": 10,
         "w": 8,
         "x": 16,
-        "y": 92
+        "y": 97
       },
       "id": 37,
       "options": {
@@ -2999,7 +3999,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 102
+        "y": 107
       },
       "id": 41,
       "panels": [],
@@ -3054,8 +4054,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -3071,7 +4070,7 @@
         "h": 11,
         "w": 12,
         "x": 0,
-        "y": 103
+        "y": 108
       },
       "id": 42,
       "options": {
@@ -3148,8 +4147,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -3165,7 +4163,7 @@
         "h": 11,
         "w": 12,
         "x": 12,
-        "y": 103
+        "y": 108
       },
       "id": 43,
       "options": {

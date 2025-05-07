@@ -58,6 +58,25 @@ impl Metric for MetricWithTimestamp {
 }
 
 impl MetricsTracker {
+    /// Quick way to submit a string metric without dealing with [`Metric`].
+    pub fn submit_inline(&self, measurement: &'static str, rest: impl ToString) {
+        #[derive(Debug)]
+        struct InlineMetric(&'static str, String);
+
+        impl Metric for InlineMetric {
+            fn measurement_name(&self) -> &'static str {
+                self.0
+            }
+
+            fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+                let metadata = serialize_metadata();
+                write!(buffer, "{}{metadata} {}", self.measurement_name(), self.1)
+            }
+        }
+
+        self.submit(InlineMetric(measurement, rest.to_string()));
+    }
+
     /// Submits a metric.
     pub fn submit(&self, measurement: impl Metric + 'static) {
         self.submit_with_time(timestamp(), measurement);
@@ -625,7 +644,8 @@ impl Metric for ZkProvingTime {
     }
 }
 
-pub(crate) fn serialize_metadata() -> String {
+/// Serialized Telegraf metric metadata.
+pub fn serialize_metadata() -> String {
     let metadata = METRICS_METADATA.read().unwrap();
 
     let metadata_string = metadata

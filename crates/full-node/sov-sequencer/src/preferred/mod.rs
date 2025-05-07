@@ -46,6 +46,7 @@ use crate::common::{
     generic_accept_tx_error, loop_call_update_state, loop_send_tx_notifications, AcceptedTx,
     Sequencer, TxStatusBlobSenderHooks, WithCachedTxHashes,
 };
+use crate::metrics::{track_in_progress_batch_size, PreferredSequencerUpdateStateMetrics};
 use crate::preferred::block_executor::{RollupBlockExecutor, RollupBlockExecutorError};
 use crate::{
     ProofBlobSender, SequencerConfig, SequencerEvent, SequencerNotReadyDetails, SubmitBatchReceipt,
@@ -181,6 +182,13 @@ where
             .add_txs(batch.blob_id, tx_hashes.clone())
             .await;
         self.publish_batch(batch).await?;
+
+        track_in_progress_batch_size(
+            self.db
+                .in_progress_batch_opt()
+                .map(|b| b.txs.len() as u64)
+                .unwrap_or(0),
+        );
 
         Ok(Some(SubmitBatchReceipt { tx_hashes }))
     }
@@ -554,6 +562,8 @@ where
 
     #[tracing::instrument(skip_all, level = "debug")]
     async fn update_state(&self, info: StateUpdateInfo<S::Storage>) -> anyhow::Result<()> {
+        let start = std::time::Instant::now();
+
         self.node_delta_watcher
             .node_height
             .store(info.slot_number.get(), Ordering::Release);
@@ -562,6 +572,12 @@ where
 
             batches_to_process(&mut inner.db, &info).await?
         };
+
+        let batches_count = batches_to_process.len() as u64;
+        let transactions_count = batches_to_process
+            .iter()
+            .map(|b| b.batch.inner.data.len() as u64)
+            .sum::<u64>();
 
         if tracing::enabled!(tracing::Level::TRACE) {
             let batch_details_to_log = batches_to_process
@@ -605,8 +621,12 @@ where
 
         // We stop accepting new txns in accept_tx for a short time while we catch up
         let mut inner = self.lock_inner().await;
-        let current_in_progress_batch = inner.db.in_progress_batch_opt().await?.cloned();
+        let lock_start_time = std::time::Instant::now();
+
+        let current_in_progress_batch = inner.db.in_progress_batch_opt().cloned();
         let node_slot_num = info.slot_number.get();
+
+        let in_progress_batch_exists = current_in_progress_batch.is_some();
 
         // Currently it's not possible for `accept_tx` to end a batch, this will likely
         // change in the future when it can close batches due to gas, stake, batch sizes, etc.
@@ -667,6 +687,18 @@ where
         self.node_delta_watcher
             .sequencer_height
             .store(node_slot_num, Ordering::Release);
+
+        {
+            sov_metrics::track_metrics(|t| {
+                t.submit(PreferredSequencerUpdateStateMetrics {
+                    duration: start.elapsed(),
+                    lock_duration: lock_start_time.elapsed(),
+                    batches_count,
+                    transactions_count,
+                    in_progress_batch: in_progress_batch_exists,
+                });
+            });
+        }
 
         Ok(())
     }
@@ -729,6 +761,12 @@ where
 
         *current_batch_size_bytes += tx_size_bytes;
         tracing::debug!(%tx_hash, "Transaction was accepted by the sequencer");
+
+        track_in_progress_batch_size(
+            db.in_progress_batch_opt()
+                .map(|b| b.txs.len() as u64)
+                .unwrap_or(0),
+        );
 
         inner.update_api_state().await; // TODO: we only want to do this when updated state from node?
 
@@ -922,7 +960,7 @@ where
         })
         .collect();
 
-    if let Some(batch) = db.in_progress_batch_opt().await?.cloned() {
+    if let Some(batch) = db.in_progress_batch_opt().cloned() {
         batches.push(PreferredBatchToRestore {
             is_in_progress: true,
             visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
