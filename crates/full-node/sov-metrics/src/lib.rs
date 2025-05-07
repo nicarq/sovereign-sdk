@@ -9,16 +9,17 @@ mod influxdb;
 
 #[cfg(feature = "native")]
 pub use influxdb::{
-    init_metrics_tracker, timestamp, track_metrics, BatchMetrics, BatchOutcome, HttpMetrics,
-    Metric, MetricsTracker, MonitoringConfig, RunnerMetrics, SlotProcessingMetrics,
-    TelegrafSocketConfig, TransactionEffect, TransactionProcessingMetrics,
-    UserSpaceSlotProcessingMetrics, ZkCircuit, ZkProvingTime, ZkVmExecutionChunk, METRICS_METADATA,
+    init_metrics_tracker, safe_telegraf_string, serialize_metadata, timestamp, track_metrics,
+    BatchMetrics, BatchOutcome, HttpMetrics, Metric, MetricsTracker, MonitoringConfig,
+    RunnerMetrics, SlotProcessingMetrics, TelegrafSocketConfig, TransactionEffect,
+    TransactionProcessingMetrics, UserSpaceSlotProcessingMetrics, ZkCircuit, ZkProvingTime,
+    ZkVmExecutionChunk, METRICS_METADATA,
 };
 #[cfg(all(feature = "native", feature = "gas-constant-estimation"))]
 pub use influxdb::{GasConstantTracker, GAS_CONSTANTS};
 
-#[macro_export]
 /// Starts a timer if the `native` feature is enabled. Otherwise, does nothing.
+#[macro_export]
 macro_rules! start_timer {
     ($timer:ident) => {
         #[cfg(feature = "native")]
@@ -26,8 +27,8 @@ macro_rules! start_timer {
     };
 }
 
-#[macro_export]
 /// Returns the elapsed time since the timer if the `native` feature is enabled. Otherwise does nothing.
+#[macro_export]
 macro_rules! save_elapsed {
     ($end:ident SINCE $start:ident) => {
         #[cfg(feature = "native")]

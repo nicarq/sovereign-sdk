@@ -37,6 +37,7 @@ sov-blob-sender = { workspace = true }
 sov-blob-storage = { workspace = true, features = ["native"] }
 sqlx = { version = "0.8", features = [ "runtime-tokio", "tls-rustls-ring-webpki", "postgres", "migrate" ] }
 sov-kernels = { workspace = true, features = ["native"] }
+sov-metrics = { workspace = true }
 sov-rest-utils = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-modules-api = { workspace = true, features = ["native"] }

@@ -1,12 +1,14 @@
 mod db;
+mod metrics;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use async_trait::async_trait;
 use db::{BlobSenderDb, BlobToSend};
+use metrics::{track_num_of_in_flight_blobs, InFlightBlobInfo};
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::{DaSpec, EventModuleName, RuntimeEventResponse};
 use sov_rollup_interface::node::da::{DaService, Fee, SubmitBlobReceipt};
@@ -14,7 +16,7 @@ use sov_rollup_interface::node::ledger_api::{LedgerStateProvider, QueryMode};
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
 use tokio::sync::{oneshot, watch, Mutex};
 use tokio::task::JoinHandle;
-use tokio::time::sleep;
+use tokio::time::{interval, sleep};
 use tracing::{debug, error, info, trace};
 
 /// Uniquely identifies a blob managed by the [`BlobSender`].
@@ -75,6 +77,7 @@ pub trait BlobSenderHooks: Send + Sync + 'static {
 pub struct BlobSender<Da: DaService, H> {
     db: Arc<BlobSenderDb>,
     hooks: Arc<H>,
+    in_flight_blobs: Arc<Mutex<HashMap<BlobInternalId, InFlightBlobInfo<Da::Spec>>>>,
     handles: Arc<Mutex<HashMap<BlobInternalId, JoinHandle<()>>>>,
     shutdown_receiver: watch::Receiver<()>,
     da: Da,
@@ -97,26 +100,23 @@ where
     ) -> anyhow::Result<(Self, JoinHandle<()>)> {
         let db = Arc::new(BlobSenderDb::new(storage_path).await?);
 
-        let all_blobs = db.get_all().await?;
-
-        let mut processed_blobs = HashSet::new();
-        for b in &all_blobs {
-            processed_blobs.insert(b.blob_id);
-        }
+        let all_blobs = db.get_all::<Da::Spec>().await?;
 
         let hooks = Arc::new(hooks);
+        let in_flight_blobs: Arc<Mutex<_>> = Default::default();
         let handles: Arc<Mutex<_>> = Default::default();
 
         let mut sender = Self {
             db,
             hooks,
+            in_flight_blobs: in_flight_blobs.clone(),
             handles: handles.clone(),
             shutdown_receiver: shutdown_receiver.clone(),
             da,
             ledger_db,
         };
 
-        let handle = Self::cleanup_task(handles, shutdown_receiver).await;
+        let handle = Self::main_task(handles, in_flight_blobs, shutdown_receiver).await;
 
         for b in all_blobs {
             sender
@@ -164,17 +164,17 @@ where
         &mut self,
         blob: BlobToSend,
         blob_id: BlobInternalId,
-        latest_known_processing_state: BlobProcessingState<Da>,
+        latest_known_processing_state: BlobProcessingState<Da::Spec>,
     ) -> anyhow::Result<()> {
         if self.shutdown_receiver.has_changed()? {
             return Ok(());
         }
 
         // It is ok to hold the lock here because:
-        // 1. The logic bellow is not blocking.
-        // 2. The lock shared only between this method and the cleanup task which is invoked only once.
-        let mut handles = self.handles.lock().await;
-        if handles.contains_key(&blob_id) {
+        //  1. The logic below is not blocking.
+        //  2. The lock is shared only between this method and the cleanup task which is invoked only once.
+        let mut blobs = self.in_flight_blobs.lock().await;
+        if blobs.contains_key(&blob_id) {
             info!(
                 blob_id,
                 "No need to publish blob as it's already in-flight or awaiting finalization. Skipping."
@@ -182,22 +182,28 @@ where
             return Ok(());
         }
 
+        let mut handles = self.handles.lock().await;
+
         self.db.push(blob.clone(), blob_id).await?;
 
+        let is_batch = matches!(blob, BlobToSend::Batch { .. });
         let task_state = TaskState {
             da: self.da.clone(),
             ledger_db: self.ledger_db.clone(),
             db: self.db.clone(),
             hooks: self.hooks.clone(),
+            in_flight_blobs: self.in_flight_blobs.clone(),
         };
 
         let shutdown_receiver = self.shutdown_receiver.clone();
 
-        handles.insert(blob_id,tokio::task::spawn({
+        handles.insert(blob_id, tokio::task::spawn({
             let state = task_state;
+            let blob = blob.clone();
+            let latest_known_processing_state = latest_known_processing_state.clone();
 
             async move {
-                   let fut = state.manage_blob_submission_inside_task(
+                let fut = state.manage_blob_submission_inside_task(
                     blob,
                     blob_id,
                     latest_known_processing_state,
@@ -205,40 +211,78 @@ where
                 let res = future_or_shutdown(fut, &shutdown_receiver).await;
 
                 match res {
-                    FutureOrShutdownOutput::Output(Ok(())) |
-                        FutureOrShutdownOutput::Shutdown => {},
+                    FutureOrShutdownOutput::Output(Ok(())) | FutureOrShutdownOutput::Shutdown => {}
                     FutureOrShutdownOutput::Output(Err(err)) => {
                         error!(%err, %blob_id, "Error while submitting blob; this is either a bug or a database issue");
-                    },
+                    }
                 }
             }
         }));
 
+        blobs.insert(
+            blob_id,
+            InFlightBlobInfo {
+                blob_iid: blob_id,
+                start_time: std::time::Instant::now(),
+                is_batch,
+                size_in_bytes: blob.data().len() as u64,
+                was_resurrected: false,
+                last_known_state: latest_known_processing_state.clone(),
+            },
+        );
+
         // TODO: handle errors from the spawned tasks.
-        handles.retain(|_, h| !h.is_finished());
+        handles.retain(|_, i| !i.is_finished());
+
         Ok(())
     }
 
-    async fn cleanup_task(
+    async fn main_task(
         handles: Arc<Mutex<HashMap<BlobInternalId, JoinHandle<()>>>>,
+        in_flight_blobs: Arc<Mutex<HashMap<BlobInternalId, InFlightBlobInfo<Da::Spec>>>>,
         mut shutdown_receiver: watch::Receiver<()>,
     ) -> JoinHandle<()> {
         tokio::spawn(async move {
-            if let Err(err) = shutdown_receiver.changed().await {
-                error!(%err, "BlobSender: The shutdown sender was dropped, shutting down anyway");
-            }
+            loop {
+                let mut metrics_interval = interval(Duration::from_secs(10));
+                let fut = future_or_shutdown(metrics_interval.tick(), &shutdown_receiver);
 
-            let mut handles = handles.lock().await;
+                match fut.await {
+                    FutureOrShutdownOutput::Shutdown => {
+                        if let Err(err) = shutdown_receiver.changed().await {
+                            error!(%err, "BlobSender: The shutdown sender was dropped, shutting down anyway");
+                        }
+                    }
+                    FutureOrShutdownOutput::Output(_) => {
+                        let in_flight_blobs = in_flight_blobs.lock().await;
 
-            debug!(
-                num_handles_to_join = handles.len(),
-                "Exiting the blob sender background task..."
-            );
+                        sov_metrics::track_metrics(|tracker| {
+                            tracker.submit_inline("sov_rollup_blobs_enter_scope", "foo=1");
+                            for b in in_flight_blobs.values() {
+                                tracker.submit(b.clone());
+                            }
+                            tracker.submit_inline("sov_rollup_blobs_exit_scope", "foo=1");
+                        });
 
-            for handle in handles.values_mut() {
-                if let Err(err) = handle.await {
-                    error!(%err, "Error in a blob sender background task");
+                        track_num_of_in_flight_blobs(in_flight_blobs.len() as u64);
+                        continue;
+                    }
                 }
+
+                let mut handles = handles.lock().await;
+
+                debug!(
+                    num_handles_to_join = handles.len(),
+                    "Exiting the blob sender background task..."
+                );
+
+                for handle in handles.values_mut() {
+                    if let Err(err) = handle.await {
+                        error!(%err, "Error in a blob sender background task");
+                    }
+                }
+
+                break;
             }
         })
     }
@@ -256,6 +300,7 @@ struct TaskState<Da: DaService> {
     ledger_db: LedgerDb,
     db: Arc<BlobSenderDb>,
     hooks: Arc<dyn BlobSenderHooks<Da = Da::Spec>>,
+    in_flight_blobs: Arc<Mutex<HashMap<BlobInternalId, InFlightBlobInfo<Da::Spec>>>>,
 }
 
 impl<Da: DaService> TaskState<Da> {
@@ -267,23 +312,38 @@ impl<Da: DaService> TaskState<Da> {
         &self,
         blob: BlobToSend,
         blob_id: BlobInternalId,
-        latest_known_processing_state: BlobProcessingState<Da>,
+        latest_known_processing_state: BlobProcessingState<Da::Spec>,
     ) -> anyhow::Result<()> {
+        let start_time = std::time::Instant::now();
         let mut blob_state = latest_known_processing_state;
 
         'outer: loop {
             trace!(?blob_state, ?blob_id, "Tracking blob submission state");
 
+            let blob_state_clone = blob_state.clone();
+            let is_batch = matches!(blob, BlobToSend::Batch { .. });
+            self.in_flight_blobs.lock().await.insert(
+                blob_id,
+                InFlightBlobInfo {
+                    blob_iid: blob_id,
+                    start_time,
+                    is_batch,
+                    size_in_bytes: blob.data().len() as u64,
+                    was_resurrected: false,
+                    last_known_state: blob_state_clone,
+                },
+            );
+
             match blob_state {
                 BlobProcessingState::MustSubmit => {
-                    let receipt_fut = self.send_blob(blob.clone()).await?;
+                    let (receipt_fut, gas_estimate) = self.send_blob(blob.clone()).await?;
 
                     self.db.set_state(blob_id, &blob_state).await?;
 
                     tokio::select! {
                         receipt_res = receipt_fut => {
                             let receipt = receipt_res?.map_err(|err| anyhow::anyhow!("Failed to track blob submission: {err}"))?;
-                            blob_state = BlobProcessingState::Published { receipt };
+                            blob_state = BlobProcessingState::Published { receipt, gas_estimate };
                         }
                         _ = sleep(Self::RESUBMIT_INTERVAL) => {
                             // We successfully submitted the blob, but it wasn't
@@ -295,7 +355,10 @@ impl<Da: DaService> TaskState<Da> {
                         },
                     };
                 }
-                BlobProcessingState::Published { receipt } => {
+                BlobProcessingState::Published {
+                    receipt,
+                    gas_estimate,
+                } => {
                     self.hooks
                         .on_published_blob(
                             blob_id,
@@ -306,7 +369,8 @@ impl<Da: DaService> TaskState<Da> {
                     self.db
                         .set_state(
                             blob_id,
-                            &BlobProcessingState::<Da>::Published {
+                            &BlobProcessingState::<Da::Spec>::Published {
+                                gas_estimate,
                                 receipt: receipt.clone(),
                             },
                         )
@@ -332,7 +396,10 @@ impl<Da: DaService> TaskState<Da> {
                             Some(_) => {
                                 // Never skip directly to `Finalized` state, or
                                 // we won't send out the notification.
-                                blob_state = BlobProcessingState::Processed { receipt };
+                                blob_state = BlobProcessingState::Processed {
+                                    receipt,
+                                    gas_estimate,
+                                };
                                 break;
                             }
                             None => {
@@ -341,7 +408,10 @@ impl<Da: DaService> TaskState<Da> {
                         }
                     }
                 }
-                BlobProcessingState::Processed { receipt } => {
+                BlobProcessingState::Processed {
+                    receipt,
+                    gas_estimate,
+                } => {
                     self.hooks
                         .on_processed_blob(
                             blob_id,
@@ -353,7 +423,8 @@ impl<Da: DaService> TaskState<Da> {
                     self.db
                         .set_state(
                             blob_id,
-                            &BlobProcessingState::<Da>::Processed {
+                            &BlobProcessingState::<Da::Spec>::Processed {
+                                gas_estimate,
                                 receipt: receipt.clone(),
                             },
                         )
@@ -369,7 +440,10 @@ impl<Da: DaService> TaskState<Da> {
                                 continue;
                             }
                             Some(true) => {
-                                blob_state = BlobProcessingState::Finalized { receipt };
+                                blob_state = BlobProcessingState::Finalized {
+                                    receipt,
+                                    gas_estimate,
+                                };
                                 break;
                             }
                             None => {
@@ -384,7 +458,7 @@ impl<Da: DaService> TaskState<Da> {
                         }
                     }
                 }
-                BlobProcessingState::Finalized { receipt } => {
+                BlobProcessingState::Finalized { receipt, .. } => {
                     // Upon crashing, we'd rather call the hook twice rather than not
                     // calling it at all. So, we call it *before* removing the blob from
                     // the database.
@@ -402,6 +476,7 @@ impl<Da: DaService> TaskState<Da> {
             }
         }
 
+        self.in_flight_blobs.lock().await.remove(&blob_id);
         trace!("Exiting blob submission task");
 
         Ok(())
@@ -426,27 +501,31 @@ impl<Da: DaService> TaskState<Da> {
         Ok(Some(slot_number <= latest_finalized_slot_number))
     }
 
-    async fn send_blob(&self, blob: BlobToSend) -> anyhow::Result<BlobReceiptFut<Da>> {
+    async fn send_blob(&self, blob: BlobToSend) -> anyhow::Result<(BlobReceiptFut<Da>, u64)> {
         let fee = self
             .da
             .estimate_fee(blob.data().len())
             .await
             .map_err(|da_err| anyhow::anyhow!("Failed to estimate fee: {da_err}"))?;
 
+        let gas_estimate = fee.gas_estimate();
+
         trace!(
             blob_len = blob.data().len(),
-            gas_estimate = fee.gas_estimate(),
+            gas_estimate,
             "Will attempt to publish blob to DA"
         );
 
         match blob {
-            BlobToSend::Batch { data } => Ok(self.da.send_transaction(&data, fee).await),
-            BlobToSend::Proof { data } => Ok(self.da.send_proof(&data, fee).await),
+            BlobToSend::Batch { data } => {
+                Ok((self.da.send_transaction(&data, fee).await, gas_estimate))
+            }
+            BlobToSend::Proof { data } => Ok((self.da.send_proof(&data, fee).await, gas_estimate)),
         }
     }
 }
 
-struct BlobSubmissionRequest<Da: DaService> {
+struct BlobSubmissionRequest<Da: DaSpec> {
     blob: BlobToSend,
     blob_id: BlobInternalId,
     latest_known_processing_state: BlobProcessingState<Da>,
@@ -454,16 +533,22 @@ struct BlobSubmissionRequest<Da: DaService> {
 
 #[derive(derive_more::Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[debug(bounds())]
-enum BlobProcessingState<Da: DaService> {
+enum BlobProcessingState<Da: DaSpec> {
     MustSubmit,
     Published {
-        receipt: SubmitBlobReceipt<<Da::Spec as DaSpec>::TransactionId>,
+        #[serde(default)] // To avoid breaking changes in DB schema
+        gas_estimate: u64,
+        receipt: SubmitBlobReceipt<Da::TransactionId>,
     },
     Processed {
-        receipt: SubmitBlobReceipt<<Da::Spec as DaSpec>::TransactionId>,
+        #[serde(default)]
+        gas_estimate: u64,
+        receipt: SubmitBlobReceipt<Da::TransactionId>,
     },
     Finalized {
-        receipt: SubmitBlobReceipt<<Da::Spec as DaSpec>::TransactionId>,
+        #[serde(default)]
+        gas_estimate: u64,
+        receipt: SubmitBlobReceipt<Da::TransactionId>,
     },
 }
 
