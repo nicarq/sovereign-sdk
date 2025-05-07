@@ -2,10 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use backon::{ExponentialBuilder, Retryable};
 use clap::Parser;
 use rand::Rng;
-use sov_api_spec::{Client, Error};
 use sov_bank::Bank;
 use sov_bank::CallMessageDiscriminants::Transfer;
 use sov_modules_api::prelude::arbitrary::Unstructured;
@@ -123,7 +121,7 @@ async fn worker_task_inner<R: Runtime<S> + EncodeCall<Bank<S>> + Clone, S: Spec>
         let mut txns = vec![];
         for _ in 0..txn_count {
             let validity = Distribution::with_equiprobable_values(vec![MessageValidity::Valid]);
-            let validity = validity.select_value(u).unwrap();
+            let validity = validity.select_value(u)?;
             let msg = generator.generate(&modules, *validity);
             let tx = plain_tx_with_default_details::<R, S>(&msg);
             let signed_tx = {
@@ -141,44 +139,13 @@ async fn worker_task_inner<R: Runtime<S> + EncodeCall<Bank<S>> + Clone, S: Spec>
             txns.push(signed_tx);
         }
 
-        let txs_count = txns.len();
-
-        let backoff = ExponentialBuilder::default()
-            .with_factor(1.5)
-            .with_min_delay(Duration::from_millis(200))
-            .with_max_times(100);
-
         let start = std::time::Instant::now();
-
-        let c = client.clone();
-        let txs = &txns;
-        let fut = || async { c.send_txs_to_sequencer(txs).await };
-
-        let _ = fut.retry(&backoff)
-            .when(|err| {
-                match err {
-                    Error::InvalidRequest(_) => false,
-                    Error::CommunicationError(_) => true,
-                    Error::InvalidUpgrade(_) => false,
-                    Error::ErrorResponse(_) => true,
-                    Error::ResponseBodyError(_) => true,
-                    // This needs further improvement on the generated client.
-                    // Details in https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/2799
-                   Error::InvalidResponsePayload(bytes, _error) => {
-                       // All non-HTTP 4** are retried.
-                       !std::str::from_utf8(bytes.as_ref()).unwrap_or("").contains("\"status\":4")
-                   },
-                    Error::UnexpectedResponse(_) => true,
-                    Error::PreHookError(_) => false,
-                }
-            })
-            .notify(|err, dur| {
-                tracing::warn!(err = ?err, duration = ?dur, "Failed to submit transactions. Retrying...")
-            })
-            .await?;
+        for tx in &txns {
+            client.send_tx_to_sequencer_with_retry(tx).await?;
+            total_txns += 1;
+        }
         let elapsed = start.elapsed();
-        total_txns += txs_count;
-        tracing::debug!(id = %worker_id, "Sent {} transactions in {}ms. Current throughput: {}txs per second. Running throughput: {}txs per second", txns.len(), elapsed.as_millis(), (txns.len() * num_workers as usize) as f64 / elapsed.as_secs_f64(), (total_txns * num_workers as usize) as f64 / worker_start.elapsed().as_secs_f64());
+        tracing::debug!(id = %worker_id, "Sent {} transactions in {}ms. Current throughput: {:.2} txs per second. Running throughput: {:.2} txs per second", txns.len(), elapsed.as_millis(), (txns.len() * num_workers as usize) as f64 / elapsed.as_secs_f64(), (total_txns * num_workers as usize) as f64 / worker_start.elapsed().as_secs_f64());
     }
     Ok(())
 }
@@ -194,7 +161,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .connect_timeout(Duration::from_secs(60))
         .read_timeout(Duration::from_secs(120))
         .build()?;
-    let client = Client::new_with_client(&args.api_url, reqwest_client);
+    let client = sov_api_spec::Client::new_with_client(&args.api_url, reqwest_client);
 
     for i in 0..args.num_workers {
         worker_set.spawn(worker_task(
