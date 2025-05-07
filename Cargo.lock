@@ -9969,6 +9969,7 @@ dependencies = [
  "postcard",
  "proptest",
  "prost",
+ "rand",
  "reltester",
  "risc0-zkvm",
  "risc0-zkvm-platform",
