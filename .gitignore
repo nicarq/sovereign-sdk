@@ -36,3 +36,5 @@ riscv32im-succinct-zkvm-elf
 build
 
 runtime_call.json
+zk_vm.csv
+constants_output.csv
