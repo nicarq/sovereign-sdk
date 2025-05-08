@@ -36,19 +36,36 @@ async fn check_blobs_roundtrip(
     let mut sent_blobs: HashMap<u64, HexHash> = HashMap::with_capacity(blobs.len());
 
     let head_before = da_service.get_head_block_header().await?;
+    // Padding from the previous round
+    let head_before = da_service.get_block_at(head_before.height() + 1).await?;
+    // Blob cannot land on the previous block.
+    let start = head_before.header.height();
 
     for blob in blobs {
         let fee = da_service.estimate_fee(blob.len()).await?;
         let receipt = da_service.send_transaction(blob, fee).await.await??;
-        let prev_value = sent_blobs.insert(hash_bytes(blob), receipt.blob_hash);
+        let bytes_hash = hash_bytes(blob);
+        tracing::info!(
+            "Sent blob of size {} bytes hash {} blob hash {}",
+            blob.len(),
+            bytes_hash,
+            receipt.blob_hash
+        );
+        let prev_value = sent_blobs.insert(bytes_hash, receipt.blob_hash);
         if prev_value.is_some() {
-            anyhow::bail!("Non unique blob, test cannot be performed");
+            anyhow::bail!(
+                "Non unique blob {} size={}, test cannot be performed",
+                bytes_hash,
+                blob.len()
+            );
         }
     }
 
     let head_after = da_service.get_head_block_header().await?;
 
-    for height in head_before.height()..=head_after.height() {
+    // But blob can land in follow up blocks
+    let end = head_after.height().saturating_add(2);
+    for height in start..=end {
         let block = da_service.get_block_at(height).await?;
 
         let (received_blobs, _) = da_service.extract_relevant_blobs_with_proof(&block).await;
@@ -58,12 +75,18 @@ async fn check_blobs_roundtrip(
                 continue;
             }
 
-            tracing::info!("Received batch hash: {}", batch.hash());
+            tracing::info!("Received batch hash: {}, height={}", batch.hash(), height);
             let data = batch.full_data();
+            let data_len = data.len();
             let bytes_hash = hash_bytes(data);
             match sent_blobs.remove(&bytes_hash) {
                 None => {
-                    anyhow::bail!("Received blob not found in sent blobs. Bug or there's another sender colluding with the test.");
+                    anyhow::bail!(
+                        "Received blob celestia_hash={} bytes_hash={} len={} not found in sent blobs. Bug or there's another sender colluding with the test.",
+                        batch.hash(),
+                        bytes_hash,
+                        data_len,
+                    );
                 }
                 Some(sent_blob_hash) => {
                     if sent_blob_hash.0 != *batch.hash().inner() {
@@ -75,7 +98,8 @@ async fn check_blobs_roundtrip(
     }
 
     if !sent_blobs.is_empty() {
-        anyhow::bail!("Some blobs were not received");
+        tracing::info!("Remaining blobs: {:?}", sent_blobs);
+        anyhow::bail!("Error: {} blobs were not received", sent_blobs.len());
     }
 
     Ok(())
