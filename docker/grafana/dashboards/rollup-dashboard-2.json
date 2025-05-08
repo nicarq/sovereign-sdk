@@ -656,7 +656,7 @@
             "type": "influxdb",
             "uid": "${DS}"
           },
-          "query": "// Define the bucket using Grafana's variable\nbucket = v.bucket\n\n// Define the measurement name from your Rust code\nmeasurementName = \"sov_rollup_num_of_in_flight_blobs\"\n\n// Define the field name from your Rust code (based on the format string \"num_of_in_flight_blobs={}i\")\nfieldName = \"num_of_in_flight_blobs\"\n\nfrom(bucket: bucket)\n  // Use Grafana's dynamic time range variables\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  // Filter for the specific measurement\n  |> filter(fn: (r) => r._measurement == measurementName)\n  // Filter for the specific field containing the count\n  |> filter(fn: (r) => r._field == fieldName)\n  // Optional: Rename the output field for clarity in the legend/tooltip\n  |> map(fn: (r) => ({ r with _field: \"Num. of in-flight blobs\" }))\n  // Output the results for Grafana\n  |> yield()\n\n",
+          "query": "// Use dashboard variables for aggregation function and interval\nagg_func = \"${agg_func}\"\n\n// Define the bucket using Grafana`s variable\nbucket = v.bucket\n\n// Define the measurement name from your Rust code\nmeasurementName = \"sov_rollup_num_of_in_flight_blobs\"\n\n// Define the field name from your Rust code (based on the format string \"num_of_in_flight_blobs={}i\")\nfieldName = \"num_of_in_flight_blobs\"\n\ndata = from(bucket: bucket)\n  // Use Grafana`s dynamic time range variables\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  // Filter for the specific measurement\n  |> filter(fn: (r) => r._measurement == measurementName)\n  // Filter for the specific field containing the count\n  |> filter(fn: (r) => r._field == fieldName)\n  // Optional: Rename the output field for clarity in the legend/tooltip\n  |> map(fn: (r) => ({ r with _field: \"Num. of in-flight blobs\" }))\n\n// Apply aggregation based on the selected aggregation function\nif agg_func == \"raw\" then\n  data // No aggregation if \"raw\" is selected\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  // Use a custom function for quantiles in aggregateWindow\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) => tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) => tables |> quantile(q: 0.99, column: column))\nelse\n  // Default aggregation if the variable value is unexpected (e.g., mean)\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)",
           "refId": "A"
         }
       ],
@@ -4195,7 +4195,7 @@
   ],
   "preload": false,
   "refresh": "",
-  "schemaVersion": 40,
+  "schemaVersion": 41,
   "tags": [],
   "templating": {
     "list": [
@@ -4257,8 +4257,8 @@
         "auto_count": 30,
         "auto_min": "10s",
         "current": {
-          "text": "5m",
-          "value": "5m"
+          "text": "10s",
+          "value": "10s"
         },
         "description": "Interval used for aggregating values, if aggregation is specified",
         "label": "Aggregation Interval",
@@ -4355,7 +4355,7 @@
     ]
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {},
