@@ -24,7 +24,7 @@ struct Args {
 /// To run it several times, pass `--rounds` parameter.
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    initialize_logging();
+    let _otel_guard = initialize_logging();
     let args = Args::parse();
 
     let rollup_config: RollupConfig<MultiAddressEvm, CelestiaService> =
