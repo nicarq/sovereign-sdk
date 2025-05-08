@@ -21,6 +21,7 @@ use sov_modules_api::{Spec, Zkvm};
 use sov_modules_rollup_blueprint::FullNodeBlueprint;
 use sov_modules_stf_blueprint::{GenesisParams, Runtime};
 use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::{DaSyncState, SyncStatus};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::ZkvmHost;
@@ -319,7 +320,12 @@ where
         let (rest_addr_tx, rest_addr_rx) = tokio::sync::oneshot::channel();
         let shutdown_sender = rollup.shutdown_sender.clone();
 
+        let mut other_handles = Vec::new();
         let da_service = rollup.runner.da_service();
+
+        if let Some(handle) = da_service.take_background_join_handle().await {
+            other_handles.push(handle);
+        }
 
         let (secondary_test_sequencer_client, secondary_sequencer_state_sender) =
             match self.with_secondary_sequencer {
@@ -379,6 +385,7 @@ where
             shutdown_sender,
             secondary_test_sequencer_client,
             _secondary_sequencer_state_sender: secondary_sequencer_state_sender,
+            other_handles,
         })
     }
 
@@ -488,7 +495,7 @@ where
 }
 
 /// Represents a **running** rollup node while providing access to its
-/// [`DaService`](sov_rollup_interface::node::da::DaService) and wallet client
+/// [`DaService`] and wallet client
 /// to help run end-to-end tests against its APIs.
 pub struct TestRollup<R: FullNodeBlueprint<Native>, StoragePath = Arc<tempfile::TempDir>> {
     /// A wallet client that can be used to interact with the node and submit
@@ -500,7 +507,7 @@ pub struct TestRollup<R: FullNodeBlueprint<Native>, StoragePath = Arc<tempfile::
     pub http_addr: SocketAddr,
     /// The rollup config used to run the rollup.
     pub rollup_config: RollupConfig<<R::Spec as Spec>::Address, R::DaService>,
-    /// A copy of the [`DaService`](sov_rollup_interface::node::da::DaService)
+    /// A copy of the [`DaService`]
     /// that the node uses.
     ///
     /// You can use it to query DA layer information or directly submit blobs,
@@ -511,6 +518,8 @@ pub struct TestRollup<R: FullNodeBlueprint<Native>, StoragePath = Arc<tempfile::
     pub shutdown_sender: watch::Sender<()>,
     /// Used for cleanup/shutdown logic.
     pub rollup_task: JoinHandle<anyhow::Result<()>>,
+    /// For optional handles to background tasks.
+    pub other_handles: Vec<JoinHandle<()>>,
     /// In case the rollup was started with a secondary sequencer, this is the
     /// client that can be used to submit transactions.
     pub secondary_test_sequencer_client: Option<sov_api_spec::client::Client>,
@@ -556,6 +565,10 @@ where
         }
         self.rollup_task.await.expect("Can't join rollup task")?;
 
+        for handle in self.other_handles {
+            handle.await.expect("Can't join other handles");
+        }
+
         Ok(())
     }
 
@@ -565,6 +578,9 @@ where
             tracing::info!(%error, "shutdown triggered elsewhere, this is probably OK");
         }
         self.rollup_task.await.expect("Can't join rollup task")?;
+        for handle in self.other_handles {
+            handle.await.expect("Can't join other handles");
+        }
 
         let TestRollup { builder, .. } = self;
 
