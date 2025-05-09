@@ -121,7 +121,7 @@ fn do_inbound_transfer_failure(
     amount: Amount,
     expected_error: &'static str,
 ) {
-    let message_body = Warp::<S>::pack_transfer_body(to, amount, &StoredTokenKind::Native);
+    let message_body = Warp::<S>::pack_transfer_body(to, amount, &StoredTokenKind::Native).unwrap();
     let domain: u32 = config_value!("HYPERLANE_BRIDGE_DOMAIN");
     let message = Message {
         version: MESSAGE_VERSION,
@@ -196,7 +196,7 @@ fn do_outbound_transfer_failure(
     warp_route_id: HexHash,
     amount: Amount,
     relayer: <S as Spec>::Address,
-    expected_error: &'static str,
+    expected_error: impl AsRef<str> + 'static,
 ) {
     runner.execute_transaction(TransactionTestCase {
         input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::TransferRemote {
@@ -210,8 +210,9 @@ fn do_outbound_transfer_failure(
         assert: Box::new(move |result, _| match result.tx_receipt {
             TxEffect::Reverted(reason) => {
                 assert!(
-                    reason.reason.to_string().contains(expected_error),
-                    "Transaction should be reverted with the correct error but reverted with: {}",
+                    reason.reason.to_string().contains(expected_error.as_ref()),
+                    "Revert reason should contain '{}' but reverted with: '{}'",
+                    expected_error.as_ref(),
                     reason.reason
                 );
             }
@@ -592,32 +593,28 @@ fn register_synthetic_route(
     (route_id, local_token_id)
 }
 
-#[test]
-fn test_synthetic_route() {
-    const REMOTE_TOKEN_ID: HexHash = HexString([255; 32]);
+fn test_synthetic_route(
+    token: TokenKind,
+    amount_sent_inbound: Amount,
+    amount_received_inbound: Amount,
+    amount_sent_outbound: Amount,
+    amount_received_outbound: Amount,
+) {
     let (mut runner, admin, other, relayer) = setup();
 
     register_relayer_with_dummy_igp(&mut runner, &relayer, CONFIGURED_DOMAIN);
 
-    let (warp_route_id, synthetic_token_id) = register_synthetic_route(
-        &mut runner,
-        &admin,
-        TokenKind::Synthetic {
-            remote_token_id: REMOTE_TOKEN_ID,
-            synthetic_decimals: Some(16),
-            synthetic_scale: Some(Amount(100)),
-        },
-        Ism::AlwaysTrust,
-    );
+    let (warp_route_id, synthetic_token_id) =
+        register_synthetic_route(&mut runner, &admin, token, Ism::AlwaysTrust);
     enroll_router(&mut runner, &admin, warp_route_id);
     // Outbond transfer from the admin should fail because of insufficient balance
     do_outbound_transfer_failure(
         &mut runner,
         &admin,
         warp_route_id,
-        Amount(100),
+        amount_received_inbound,
         relayer.address(),
-        "supply=0 is less than burn amount=100",
+        format!("supply=0 is less than burn amount={amount_received_inbound}"),
     );
     // Inbound transfer should succeed
     do_inbound_transfer_success_with_scaled_amount(
@@ -627,8 +624,8 @@ fn test_synthetic_route() {
         CONFIGURED_REMOTE_ROUTER_ADDRESS,
         warp_route_id,
         other.address().to_sender(),
-        Amount(100),
-        encode_amount(Amount(10001)), // Send an extra token to ensure we round down correctly
+        amount_received_inbound,
+        encode_amount(amount_sent_inbound),
         synthetic_token_id,
     );
 
@@ -643,116 +640,67 @@ fn test_synthetic_route() {
     );
 
     // Outbond transfer from the other user should fail because of insufficient balance
+    let amount_bigger_than_balance = amount_received_inbound.checked_add(Amount(1)).unwrap();
     do_outbound_transfer_failure(
         &mut runner,
         &other,
         warp_route_id,
-        Amount(101), // Amount is more than the amount of locked tokens
+        amount_bigger_than_balance,
         relayer.address(),
-        "supply=100 is less than burn amount=101",
+        format!("supply={amount_received_inbound} is less than burn amount={amount_bigger_than_balance}"),
     );
     // Outbound transfer should succeed
     do_outbound_transfer(
         &mut runner,
         &other,
         warp_route_id,
-        Amount(100),
+        amount_sent_outbound,
         relayer.address(),
-        encode_amount(Amount(10000)),
+        encode_amount(amount_received_outbound),
     );
 }
 
 #[test]
-fn test_synthetic_route_with_standard_amount() {
-    const REMOTE_TOKEN_ID: HexHash = HexString([255; 32]);
-    let (mut runner, admin, other, relayer) = setup();
-
-    register_relayer_with_dummy_igp(&mut runner, &relayer, CONFIGURED_DOMAIN);
-    let (warp_route_id, synthetic_token_id) = register_synthetic_route(
-        &mut runner,
-        &admin,
+fn test_synthetic_route_scaled_down() {
+    test_synthetic_route(
         TokenKind::Synthetic {
-            remote_token_id: REMOTE_TOKEN_ID,
-            synthetic_decimals: None,
-            synthetic_scale: None,
+            remote_token_id: HexString([255; 32]),
+            remote_decimals: 18,
+            local_decimals: Some(16),
         },
-        Ism::AlwaysTrust,
-    );
-    enroll_router(&mut runner, &admin, warp_route_id);
-    // Outbond transfer from the admin should fail because of insufficient balance
-    do_outbound_transfer_failure(
-        &mut runner,
-        &admin,
-        warp_route_id,
+        Amount(10011), // send extra coins to test we round down correctly
         Amount(100),
-        relayer.address(),
-        "supply=0 is less than burn amount=100",
-    );
-    // Inbound transfer should succeed
-    do_inbound_transfer_success_with_scaled_amount(
-        &mut runner,
-        &other,
-        CONFIGURED_DOMAIN,
-        CONFIGURED_REMOTE_ROUTER_ADDRESS,
-        warp_route_id,
-        other.address().to_sender(),
         Amount(100),
-        encode_amount(Amount(100)),
-        synthetic_token_id,
-    );
-
-    // Outbond transfer from the admin should fail because of insufficient balance
-    do_outbound_transfer_failure(
-        &mut runner,
-        &admin,
-        warp_route_id,
-        Amount(1), // Amount is more than the amount of locked tokens
-        relayer.address(),
-        "Insufficient balance",
-    );
-
-    // Outbond transfer from the other user should fail because of insufficient balance
-    do_outbound_transfer_failure(
-        &mut runner,
-        &other,
-        warp_route_id,
-        Amount(101), // Amount is more than the amount of locked tokens
-        relayer.address(),
-        "supply=100 is less than burn amount=101",
-    );
-    // Outbound transfer should succeed
-    do_outbound_transfer(
-        &mut runner,
-        &other,
-        warp_route_id,
-        Amount(100),
-        relayer.address(),
-        encode_amount(Amount(100)),
+        Amount(10000),
     );
 }
 
 #[test]
-fn test_synthetic_route_with_zero_scale_should_reject() {
-    const REMOTE_TOKEN_ID: HexHash = HexString([255; 32]);
-    let (mut runner, admin, ..) = setup();
+fn test_synthetic_route_scaled_up() {
+    test_synthetic_route(
+        TokenKind::Synthetic {
+            remote_token_id: HexString([255; 32]),
+            remote_decimals: 18,
+            local_decimals: Some(20),
+        },
+        Amount(100),
+        Amount(10000),
+        Amount(9099),
+        Amount(90),
+    );
+}
 
-    runner.execute_transaction(TransactionTestCase {
-        input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::Register {
-            admin: Admin::InsecureOwner(admin.address()),
-            token_source: TokenKind::Synthetic {
-                remote_token_id: REMOTE_TOKEN_ID,
-                synthetic_decimals: None,
-                synthetic_scale: Some(Amount(0)),
-            },
-            ism: Ism::AlwaysTrust,
-        }),
-        assert: Box::new(move |result, _| {
-            match result.tx_receipt {
-                TxEffect::Reverted(reason) => {
-                    assert!(reason.reason.to_string().contains("Synthetic scale must be non zero"), "Transaction should be reverted with the correct error but reverted with: {}", reason.reason);
-                }
-                _ => panic!("Transaction should be reverted"),
-            };
-        }),
-    });
+#[test]
+fn test_synthetic_route_without_scaling() {
+    test_synthetic_route(
+        TokenKind::Synthetic {
+            remote_token_id: HexString([255; 32]),
+            remote_decimals: 18,
+            local_decimals: None,
+        },
+        Amount(100),
+        Amount(100),
+        Amount(100),
+        Amount(100),
+    );
 }

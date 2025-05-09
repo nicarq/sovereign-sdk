@@ -277,22 +277,19 @@ where
         // (Use an exhaustive match in case more token sources are added.)
         let stored_token_kind = match &token_source {
             TokenKind::Synthetic {
-                synthetic_decimals,
                 remote_token_id,
-                synthetic_scale,
+                local_decimals,
+                remote_decimals,
             } => {
-                let stored_scale = match synthetic_scale {
-                    Some(Amount(0)) => anyhow::bail!("Synthetic scale must be non zero"),
-                    Some(Amount(1)) | None => None, // If the scale is 1, we can ignore it
-                    Some(scale) => Some(*scale),
-                };
+                let local_decimals = local_decimals.unwrap_or(*remote_decimals);
                 let local_token_id =
-                    self.deploy_synthetic_token(route_id, *synthetic_decimals, state)?;
+                    self.deploy_synthetic_token(route_id, local_decimals, state)?;
+
                 StoredTokenKind::Synthetic {
                     remote_token_id: *remote_token_id,
                     local_token_id,
-                    synthetic_decimals: *synthetic_decimals,
-                    synthetic_scale: stored_scale,
+                    local_decimals,
+                    remote_decimals: *remote_decimals,
                 }
             }
             TokenKind::Collateral { token } => StoredTokenKind::Collateral { token: *token },
@@ -325,13 +322,13 @@ where
     fn deploy_synthetic_token(
         &mut self,
         warp_route: WarpRouteId,
-        decimals: Option<u8>,
+        decimals: u8,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<TokenId> {
         let holder: DerivedHolder = warp_route.0.into();
         self.bank.create_token(
             format!("Synthetic token for {}", warp_route),
-            decimals,
+            Some(decimals),
             Amount::ZERO,              // No initial balance
             holder.to_payable(), // Mint the initial balance to the warp route. Since it's 0, this doesn't matter - but use the holder anyway
             vec![holder.to_payable()], // The warp route is the only admin
@@ -511,8 +508,8 @@ where
             }
         };
 
-        let body = Self::pack_transfer_body(recipient, amount, &route.token_source);
-        let remote_amount = HexString(route.token_source.outbound_amount(amount));
+        let body = Self::pack_transfer_body(recipient, amount, &route.token_source)?;
+        let remote_amount = HexString(route.token_source.outbound_amount(amount)?);
         self.emit_event(
             state,
             Event::TokenTransferredRemote {
@@ -543,12 +540,12 @@ where
         recipient: HexHash,
         local_amount: Amount,
         token_source: &StoredTokenKind,
-    ) -> Vec<u8> {
+    ) -> anyhow::Result<Vec<u8>> {
         let mut out = Vec::with_capacity(64);
         out.extend_from_slice(&recipient.0);
-        let amount = token_source.outbound_amount(local_amount); // Convert the local amount to the remote token amount
+        let amount = token_source.outbound_amount(local_amount)?; // Convert the local amount to the remote token amount
         out.extend_from_slice(&amount);
-        out
+        Ok(out)
     }
 
     fn unpack_transfer_body(

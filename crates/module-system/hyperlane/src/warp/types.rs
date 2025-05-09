@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -30,14 +32,17 @@ pub enum TokenKind {
     Synthetic {
         /// The ID of the remote token.
         remote_token_id: HexHash,
+        /// The number of decimal places of the remote token.
+        remote_decimals: u8,
         /// The number of decimal places for the local (synthetic) token.
-        synthetic_decimals: Option<u8>,
-        /// How many remote tokens are equivalent to one local token.
-        /// <https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/9334f3345724886953bdc980b2dff717b80bb87c/solidity/contracts/token/libs/FungibleTokenRouter.sol#L17-L29>
         ///
-        /// We multiply the token amount sent to the Warp route by this scale when sending a message.
-        /// and divide by it when issuing tokens after receiving a message.
-        synthetic_scale: Option<Amount>,
+        /// Should be set if remote token should be scaled locally, defaults to remote decimals.
+        // NOTE: this implementation follows the sealevel implementation of scaling rather
+        // than solidity's one. Solidity uses `decimals` which isn't involved in computations
+        // and `scale`, but only allowing scaling down by arbitrary unsigned integer.
+        // sealevel <https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/accounts.rs#L77>
+        // evm <https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/9334f3345724886953bdc980b2dff717b80bb87c/solidity/contracts/token/libs/FungibleTokenRouter.sol>
+        local_decimals: Option<u8>,
     },
     /// The token is natively issued on the local chain.
     Collateral {
@@ -69,13 +74,9 @@ pub enum StoredTokenKind {
         /// The ID of the remote token.
         remote_token_id: HexHash,
         /// The number of decimal places for the local (synthetic) token.
-        synthetic_decimals: Option<u8>,
-        /// How many remote tokens are equivalent to one local token.
-        /// <https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/9334f3345724886953bdc980b2dff717b80bb87c/solidity/contracts/token/libs/FungibleTokenRouter.sol#L17-L29>
-        ///
-        /// We multiply the token amount sent to the Warp route by this scale when sending a message.
-        /// and divide by it when issuing tokens after receiving a message.
-        synthetic_scale: Option<Amount>,
+        local_decimals: u8,
+        /// The number of decimal places of the remote token.
+        remote_decimals: u8,
         /// The token ID of the token on the *local* chain.
         local_token_id: TokenId,
     },
@@ -118,68 +119,66 @@ impl std::str::FromStr for RemoteRouterAddress {
     }
 }
 
-/// Multiplies a u128 by a u128 and returns a big-endian u256
-fn mul_u128s(scale: u128, amount: u128) -> [u8; 32] {
-    type U256 = ruint::Uint<256, 4>;
+type U256 = ruint::Uint<256, 4>;
 
-    let out = U256::try_from(scale).unwrap() * U256::try_from(amount).unwrap();
-    out.to_be_bytes()
+/// Converts an amount from one decimal representation to another.
+fn convert_decimals(amount: U256, from_decimals: u8, to_decimals: u8) -> anyhow::Result<U256> {
+    let scale_overflow = || {
+        anyhow::anyhow!(
+            "Scale to convert from {from_decimals} to {to_decimals} decimals must not be bigger than 2^256 - 1"
+        )
+    };
+    match from_decimals.cmp(&to_decimals) {
+        Ordering::Greater => {
+            let divisor = U256::from(10u64)
+                .checked_pow(U256::from(from_decimals - to_decimals))
+                .ok_or_else(scale_overflow)?;
+            Ok(amount / divisor) // exponentiation cannot be 0
+        }
+        Ordering::Less => {
+            let multiplier = U256::from(10u64)
+                .checked_pow(U256::from(to_decimals - from_decimals))
+                .ok_or_else(scale_overflow)?;
+            amount.checked_mul(multiplier).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Result of scaling {amount} by {multiplier} must not be bigger than 2^256 - 1"
+                )
+            })
+        }
+        Ordering::Equal => Ok(amount),
+    }
 }
 
-fn div_u256(amount: [u8; 32], scale: u128) -> anyhow::Result<Amount> {
-    type U256 = ruint::Uint<256, 4>;
-
-    let out = U256::from_be_bytes(amount) / U256::try_from(scale).unwrap();
-    Ok(Amount(out.try_into().map_err(|_| {
-        anyhow::anyhow!("Amount may not exceed 2^128 - 1 after scaling")
-    })?))
+/// Returns (local, remote) decimals for scaling the token for sythetic tokens
+/// or (1, 1) for other kinds, thus should only be used for conversion purposes.
+fn conversion_decimals(token: &StoredTokenKind) -> (u8, u8) {
+    match token {
+        StoredTokenKind::Synthetic {
+            local_decimals,
+            remote_decimals,
+            ..
+        } => (*local_decimals, *remote_decimals),
+        _ => (1, 1),
+    }
 }
 
 impl StoredTokenKind {
     /// Scales the amount to account for the differences in decimals when sending to a destination chain.
-    /// <https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/9334f3345724886953bdc980b2dff717b80bb87c/solidity/contracts/token/libs/FungibleTokenRouter.sol#L17-L29>
-    pub fn outbound_amount(&self, local_amount: Amount) -> [u8; 32] {
-        match self {
-            StoredTokenKind::Synthetic {
-                synthetic_scale: Some(synthetic_scale),
-                ..
-            } => mul_u128s(synthetic_scale.0, local_amount.0),
-            StoredTokenKind::Synthetic {
-                synthetic_scale: None,
-                ..
-            }
-            | StoredTokenKind::Collateral { .. }
-            | StoredTokenKind::Native => {
-                let mut out = [0u8; 32];
-                out[16..].copy_from_slice(&local_amount.0.to_be_bytes());
-                out
-            }
-        }
+    pub fn outbound_amount(&self, local_amount: Amount) -> anyhow::Result<[u8; 32]> {
+        let amount = U256::try_from(local_amount.0).unwrap();
+        let (local_decimals, remote_decimals) = conversion_decimals(self);
+        convert_decimals(amount, local_decimals, remote_decimals).map(|res| res.to_be_bytes())
     }
 
     /// Scales the amount to account for the differences in decimals when receiving a message.
-    /// <https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/9334f3345724886953bdc980b2dff717b80bb87c/solidity/contracts/token/libs/FungibleTokenRouter.sol#L17-L29>
     pub fn inbound_amount(&self, amount: [u8; 32]) -> anyhow::Result<Amount> {
-        match self {
-            StoredTokenKind::Synthetic {
-                synthetic_scale: Some(synthetic_scale),
-                ..
-            } => div_u256(amount, synthetic_scale.0),
-            StoredTokenKind::Synthetic {
-                synthetic_scale: None,
-                ..
-            }
-            | StoredTokenKind::Collateral { .. }
-            | StoredTokenKind::Native => {
-                anyhow::ensure!(
-                    amount.starts_with(&[0u8; 16]),
-                    "Amount may not exceed 2^128 - 1"
-                );
-                let mut out = [0u8; 16];
-                out.copy_from_slice(&amount[16..]);
-                Ok(Amount(u128::from_be_bytes(out)))
-            }
-        }
+        let amount = U256::from_be_bytes(amount);
+        let (local_decimals, remote_decimals) = conversion_decimals(self);
+        let scaled = convert_decimals(amount, remote_decimals, local_decimals)?;
+
+        Ok(Amount(scaled.try_into().map_err(|_| {
+            anyhow::anyhow!("Amount may not exceed 2^128 - 1 after scaling")
+        })?))
     }
 }
 
@@ -287,5 +286,54 @@ impl std::str::FromStr for RouterKey {
             route_id,
             remote_domain: destination_domain,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_equal_decimals_conversion() {
+        for (from_dec, to_dec) in [(0, 0), (1, 1), (8, 8), (255, 255)] {
+            assert_eq!(
+                U256::from(1),
+                convert_decimals(U256::from(1), from_dec, to_dec).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn test_scaling_back_and_forth() {
+        let amount = U256::from(1000);
+        let from_dec = 3;
+        let to_dec = 5;
+        let scaled = convert_decimals(amount, from_dec, to_dec).unwrap();
+
+        assert_eq!(U256::from(100000), scaled);
+        assert_eq!(amount, convert_decimals(scaled, to_dec, from_dec).unwrap());
+
+        // loss of precision
+        let amount = U256::from(12345);
+        let from_dec = 4;
+        let to_dec = 2;
+        let scaled = convert_decimals(amount, from_dec, to_dec).unwrap();
+
+        assert_eq!(
+            U256::from(12300),
+            convert_decimals(scaled, to_dec, from_dec).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_scaling_overflows() {
+        // this shouldn't overflow
+        convert_decimals(U256::from(1), 1, 78).unwrap();
+        convert_decimals(U256::from(1), 78, 1).unwrap();
+        // but this makes scale too big
+        convert_decimals(U256::from(1), 1, 79).unwrap_err();
+        convert_decimals(U256::from(1), 79, 1).unwrap_err();
+        // and this makes result after scaling too big
+        convert_decimals(U256::from(10), 1, 78).unwrap_err();
     }
 }
