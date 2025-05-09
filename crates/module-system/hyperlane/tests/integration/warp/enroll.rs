@@ -15,7 +15,6 @@ fn test_enroll_remote_router() {
             warp_route: warp_route_id,
             remote_domain: CONFIGURED_DOMAIN,
             remote_router_address: CONFIGURED_REMOTE_ROUTER_ADDRESS,
-            metadata: None,
         }),
         assert: Box::new(move |result, _| {
             assert!(
@@ -152,7 +151,6 @@ fn test_enroll_remote_router_fails_if_not_admin() {
             warp_route: warp_route_id,
             remote_domain: CONFIGURED_DOMAIN,
             remote_router_address: CONFIGURED_REMOTE_ROUTER_ADDRESS,
-            metadata: None,
         }),
         assert: Box::new(move |result, _| {
             match result.tx_receipt {
@@ -181,7 +179,6 @@ fn test_enroll_remote_router_fails_if_duplicate() {
             warp_route: warp_route_id,
             remote_domain: CONFIGURED_DOMAIN,
             remote_router_address: CONFIGURED_REMOTE_ROUTER_ADDRESS,
-            metadata: None,
         }),
         assert: Box::new(move |result, _| {
             match result.tx_receipt {

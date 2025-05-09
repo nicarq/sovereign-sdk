@@ -11,7 +11,7 @@ use sov_modules_api::digest::Digest;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{
     Amount, Context, CryptoSpec, Error, EventEmitter, HexHash, HexString, Module, ModuleId,
-    ModuleInfo, ModuleRestApi, SafeVec, Spec, StateMap, TxState,
+    ModuleInfo, ModuleRestApi, Spec, StateMap, TxState,
 };
 
 use crate::ism::Ism;
@@ -20,9 +20,6 @@ use crate::{HyperlaneAddress, Mailbox, Recipient};
 mod types;
 
 pub use types::*;
-
-/// The maximum size of metadata that can be stored for a router.
-const MAX_METADATA_SIZE: usize = 1024;
 
 /// Implements support for Hyperlane Warp Routes
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
@@ -39,8 +36,8 @@ pub struct Warp<S: Spec> {
     #[state]
     routers: StateMap<RouterKey, RemoteRouterAddress>,
 
-    #[module]
     /// The bank module.
+    #[module]
     pub bank: Bank<S>,
 
     #[phantom]
@@ -79,8 +76,6 @@ pub enum CallMessage<S: Spec> {
         remote_domain: u32,
         /// The router address on the remote chain.
         remote_router_address: HexHash,
-        /// Metadata validating the route change, if necessary. This is only required if the admin is `UseIsm`.
-        metadata: Option<SafeVec<u8, MAX_METADATA_SIZE>>,
     },
     /// Remove a counterparty router on another chain.
     UnEnrollRemoteRouter {
@@ -200,13 +195,11 @@ where
                 warp_route,
                 remote_domain,
                 remote_router_address,
-                metadata,
             } => {
                 self.enroll_remote_router(
                     warp_route,
                     remote_domain,
                     remote_router_address,
-                    metadata,
                     context,
                     state,
                 )?;
@@ -357,7 +350,6 @@ where
         warp_route: WarpRouteId,
         remote_domain: u32,
         remote_router_address: HexHash,
-        _metadata: Option<SafeVec<u8, MAX_METADATA_SIZE>>,
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
@@ -373,9 +365,6 @@ where
                 warp_route,
                 admin
             ),
-            Admin::UseIsm => {
-                todo!()
-            }
         }
 
         let router_key = RouterKey {
@@ -425,9 +414,6 @@ where
                 warp_route,
                 admin
             ),
-            Admin::UseIsm => {
-                todo!()
-            }
         }
 
         let router_key = RouterKey {

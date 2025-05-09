@@ -219,14 +219,9 @@ pub(crate) type WarpRouteId = HexHash;
 pub enum Admin<S: Spec> {
     /// No admin - the route is immutable.
     None,
-    // /// Allow the specified address to modify the route. This is extremely insecure,
-    // /// but it seems to be common practice.
-    // InsecureEthAddress(EthAddress),
     /// Allow the specified address to modify the route. This is extremely insecure,
     /// but it seems to be common practice in Hyperlane.
     InsecureOwner(S::Address),
-    /// Use the ISM to authorize changes to the route.
-    UseIsm,
 }
 
 /// Represents the warp route instance.

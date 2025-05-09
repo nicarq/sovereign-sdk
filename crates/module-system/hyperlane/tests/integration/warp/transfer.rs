@@ -100,11 +100,11 @@ fn do_inbound_transfer_success_with_scaled_amount(
                 "Token transferred event should be emitted"
             );
 
-			let bank = Bank::<S>::default();
-			let balance_after = bank.get_balance_of(&to_address, token_id, state).unwrap_infallible().unwrap_or_default();
-			assert_eq!(
+            let bank = Bank::<S>::default();
+            let balance_after = bank.get_balance_of(&to_address, token_id, state).unwrap_infallible().unwrap_or_default();
+            assert_eq!(
                 balance_before.0 + local_amount.0, balance_after.0,
-				"Balance should update correctly"
+                "Balance should update correctly"
             );
         }),
     });
@@ -338,10 +338,10 @@ fn test_transfer_remote_fails_if_not_enough_balance() {
             match result.tx_receipt {
                 TxEffect::Reverted(reason) => {
                     assert!(
-                    reason.reason.to_string().contains("Failed to transfer"),
-                    "Transaction should be reverted with the correct error but reverted with: {}",
-                    reason.reason
-                );
+                        reason.reason.to_string().contains("Failed to transfer"),
+                        "Transaction should be reverted with the correct error but reverted with: {}",
+                        reason.reason
+                    );
                 }
                 _ => panic!("Transaction should be reverted"),
             };
@@ -369,10 +369,10 @@ fn test_transfer_remote_fails_if_domain_not_enrolled() {
             match result.tx_receipt {
                 TxEffect::Reverted(reason) => {
                     assert!(
-                    reason.reason.to_string().contains("does not have remote router for domain 2"),
-                    "Transaction should be reverted with the correct error but reverted with: {}",
-                    reason.reason
-                );
+                        reason.reason.to_string().contains("does not have remote router for domain 2"),
+                        "Transaction should be reverted with the correct error but reverted with: {}",
+                        reason.reason
+                    );
                 }
                 _ => panic!("Transaction should be reverted"),
             };

@@ -84,7 +84,6 @@ pub fn enroll_router(
             warp_route: warp_route_id,
             remote_domain: CONFIGURED_DOMAIN,
             remote_router_address: CONFIGURED_REMOTE_ROUTER_ADDRESS,
-            metadata: None,
         }),
         assert: Box::new(move |result, _| {
             assert!(
