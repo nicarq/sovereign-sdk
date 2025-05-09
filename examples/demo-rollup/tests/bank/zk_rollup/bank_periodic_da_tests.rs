@@ -14,8 +14,7 @@ use sov_rollup_interface::zk::aggregated_proof::{
     AggregateProofVerifier, AggregatedProofPublicData,
 };
 use sov_state::Storage;
-use sov_stf_runner::processes::RollupProverConfig;
-use sov_test_utils::test_rollup::RollupBuilder;
+use sov_test_utils::test_rollup::{RollupBuilder, RollupProverConfig};
 use sov_test_utils::TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING;
 
 use crate::bank::helpers::*;
@@ -49,6 +48,7 @@ async fn inner(finalization_blocks: u32) -> anyhow::Result<()> {
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|c| {
+        c.max_concurrent_blobs = 65536;
         c.rollup_prover_config = Some(RollupProverConfig::Skip);
     })
     .start()

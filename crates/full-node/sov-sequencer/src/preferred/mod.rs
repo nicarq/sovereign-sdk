@@ -87,6 +87,14 @@ where
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
+    fn blob_sender_busy(&self) -> Option<usize> {
+        let nb_of_blobs_in_flight = self.blob_sender.nb_of_concurrent_blob_submissions();
+        if nb_of_blobs_in_flight > self.config.max_concurrent_blobs {
+            return Some(nb_of_blobs_in_flight);
+        }
+        None
+    }
+
     /// Syncs [`ApiState`]s with the latest [`StateCheckpoint`].
     #[tracing::instrument(skip_all, level = "trace")]
     async fn update_api_state(&self) {
@@ -533,6 +541,14 @@ where
             self.has_been_ready.store(true, Ordering::Release);
         }
 
+        let blob_sender_busy = { self.lock_inner().await.blob_sender_busy() };
+        if let Some(nb_of_blobs_in_flight) = blob_sender_busy {
+            return Err(SequencerNotReadyDetails::WaitingOnBlobSender {
+                max_concurrent_blobs: self.config.max_concurrent_blobs,
+                nb_of_blobs_in_flight,
+            });
+        }
+
         self.node_delta_watcher.check_delta()?;
 
         let status = self.da_sync_state.status();
@@ -674,6 +690,7 @@ where
         if self.config.automatic_batch_production {
             if self.da_sync_state.status().distance()
                 <= sov_blob_storage::config_deferred_slots_count()
+                && inner.blob_sender_busy().is_none()
             {
                 inner.produce_batch_if_possible().await?;
             }

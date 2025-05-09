@@ -41,7 +41,10 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::debug;
 
-use crate::{TEST_DEFAULT_PROVER_ADDRESS, TEST_DEFAULT_SEQUENCER_ADDRESS, TEST_MAX_BATCH_SIZE};
+use crate::{
+    TEST_DEFAULT_PROVER_ADDRESS, TEST_DEFAULT_SEQUENCER_ADDRESS, TEST_MAX_BATCH_SIZE,
+    TEST_MAX_CONCURRENT_BLOBS,
+};
 
 /// Specifies how to source the genesis data for a rollup.
 #[derive(Derivative)]
@@ -87,6 +90,7 @@ pub struct RollupBuilderConfig<S: Spec, StoragePath = Arc<tempfile::TempDir>> {
     pub storage: StoragePath,
     pub axum_port: u16,
     pub max_batch_size_bytes: usize,
+    pub max_concurrent_blobs: usize,
 }
 
 /// A one-stop shop for building entire rollups and starting them in the
@@ -198,6 +202,7 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
             postgres_container_opt: None,
             config: RollupBuilderConfig {
                 max_batch_size_bytes: TEST_MAX_BATCH_SIZE,
+                max_concurrent_blobs: TEST_MAX_CONCURRENT_BLOBS,
                 max_channel_size: 60,
                 max_infos_in_db: 80 + finalization_blocks as u64,
                 automatic_batch_production: true,
@@ -421,6 +426,7 @@ where
                 admin_addresses: vec![],
                 sequencer_kind_config: self.config.sequencer_config.clone(),
                 max_batch_size_bytes: self.config.max_batch_size_bytes,
+                max_concurrent_blobs: self.config.max_concurrent_blobs,
             },
 
             monitoring: MonitoringConfig {

@@ -42,6 +42,7 @@ async fn flaky_test_forced_sequencer_registration() -> anyhow::Result<()> {
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|c| {
+        c.max_concurrent_blobs = 65536;
         c.automatic_batch_production = true;
         c.rollup_prover_config = None;
         c.max_channel_size = 1;

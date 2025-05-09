@@ -3,6 +3,7 @@ mod in_flight_blob;
 
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
@@ -81,6 +82,7 @@ pub struct BlobSender<Da: DaService, H> {
     shutdown_receiver: watch::Receiver<()>,
     da: Da,
     ledger_db: LedgerDb,
+    nb_of_concurrent_blob_submissions: Arc<AtomicUsize>,
 }
 
 impl<Da, H> BlobSender<Da, H>
@@ -111,6 +113,7 @@ where
             shutdown_receiver: shutdown_receiver.clone(),
             da,
             ledger_db,
+            nb_of_concurrent_blob_submissions: Arc::new(AtomicUsize::new(0)),
         };
 
         let handle = Self::main_task(in_flight_blobs, shutdown_receiver).await;
@@ -122,6 +125,17 @@ where
         }
 
         Ok((sender, handle))
+    }
+
+    /// Number of concurrent blob submissions in flight.
+    pub fn nb_of_concurrent_blob_submissions(&self) -> usize {
+        self.nb_of_concurrent_blob_submissions
+            .load(Ordering::Relaxed)
+    }
+
+    fn inc_nb_of_concurrent_blob_submissions(&self) {
+        self.nb_of_concurrent_blob_submissions
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     /// Returns a reference to the [`BlobSenderHooks`] instance.
@@ -188,10 +202,12 @@ where
             db: self.db.clone(),
             hooks: self.hooks.clone(),
             in_flight_blobs: self.in_flight_blobs.clone(),
+            nb_of_concurrent_blob_submissions: self.nb_of_concurrent_blob_submissions.clone(),
         };
 
         let shutdown_receiver = self.shutdown_receiver.clone();
 
+        self.inc_nb_of_concurrent_blob_submissions();
         let handle = tokio::task::spawn({
             let state = task_state;
             let blob = blob.clone();
@@ -211,6 +227,7 @@ where
                         error!(%err, %blob_id, "Error while submitting blob; this is either a bug or a database issue");
                     }
                 }
+                state.dec_nb_of_concurrent_blob_submissions();
             }
         });
 
@@ -309,11 +326,17 @@ struct TaskState<Da: DaService> {
     db: Arc<BlobSenderDb>,
     hooks: Arc<dyn BlobSenderHooks<Da = Da::Spec>>,
     in_flight_blobs: Arc<Mutex<HashMap<BlobInternalId, InFlightBlob<Da::Spec>>>>,
+    nb_of_concurrent_blob_submissions: Arc<AtomicUsize>,
 }
 
 impl<Da: DaService> TaskState<Da> {
     const RESUBMIT_INTERVAL: Duration = Duration::from_secs(20);
     const LEDGER_POLL_INTERVAL: Duration = Duration::from_secs(1);
+
+    fn dec_nb_of_concurrent_blob_submissions(&self) {
+        self.nb_of_concurrent_blob_submissions
+            .fetch_sub(1, Ordering::Relaxed);
+    }
 
     #[tracing::instrument(skip(self, blob), level = "debug")]
     async fn manage_blob_submission_inside_task(

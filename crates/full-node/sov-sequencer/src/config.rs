@@ -58,6 +58,8 @@ pub struct SequencerConfig<Da: DaSpec, Address, Sc = SequencerKindConfig> {
     pub sequencer_kind_config: Sc,
     /// Maximum size of a batch.
     pub max_batch_size_bytes: usize,
+    /// Maximum number of blobs sent in parallel.
+    pub max_concurrent_blobs: usize,
 }
 
 fn default_automatic_batch_production() -> bool {
@@ -74,8 +76,9 @@ impl<Da: DaSpec, Addr: Clone, BbConfig> SequencerConfig<Da, Addr, BbConfig> {
             rollup_address: self.rollup_address.clone(),
             max_allowed_node_distance_behind: self.max_allowed_node_distance_behind,
             admin_addresses: self.admin_addresses.clone(),
-            sequencer_kind_config: seq_config,
             max_batch_size_bytes: self.max_batch_size_bytes,
+            max_concurrent_blobs: self.max_concurrent_blobs,
+            sequencer_kind_config: seq_config,
         }
     }
 }

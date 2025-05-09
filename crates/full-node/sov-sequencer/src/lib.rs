@@ -54,6 +54,11 @@ pub enum SequencerNotReadyDetails {
         current_delta: u64,
         max_allowed_delta: u64,
     },
+    /// The sequencer is waiting for the blob sender to be ready.
+    WaitingOnBlobSender {
+        max_concurrent_blobs: usize,
+        nb_of_blobs_in_flight: usize,
+    },
 }
 
 /// See [`crate::common::Sequencer::subscribe_events`].

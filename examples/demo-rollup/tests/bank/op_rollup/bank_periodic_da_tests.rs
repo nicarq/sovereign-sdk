@@ -37,6 +37,7 @@ async fn bank_tx_periodic_da_tests() -> anyhow::Result<()> {
         BLOCK_PRODUCING_CONFIG,
         test_case.finalization_blocks,
     )
+    .set_config(|c| c.max_concurrent_blobs = 16777216)
     .with_zkvm_host_args(mock_da_risc0_host_args())
     .start()
     .await?;

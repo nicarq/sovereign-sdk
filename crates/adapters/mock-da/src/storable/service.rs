@@ -107,6 +107,7 @@ pub struct StorableMockDaService {
     aggregated_proof_sender: broadcast::Sender<()>,
     head_block: watch::Receiver<MockBlockHeader>,
     block_producer_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
+    block_producing_pauser: Arc<Mutex<Option<watch::Sender<()>>>>,
 }
 
 impl StorableMockDaService {
@@ -130,7 +131,21 @@ impl StorableMockDaService {
             aggregated_proof_sender: aggregated_proof_subscription,
             head_block,
             block_producer_handle: Arc::new(Mutex::new(block_producer_handle)),
+            block_producing_pauser: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// Suspend blob submission in the mock DA.
+    pub async fn set_blob_submission_pause(&self) {
+        let (sender, _) = watch::channel(());
+        *self.block_producing_pauser.lock().await = Some(sender);
+    }
+
+    /// Resume blob submission in the mock DA.
+    pub async fn resume_blob_submission(&self) {
+        let mut sender = self.block_producing_pauser.lock().await;
+        sender.as_ref().unwrap().send(()).unwrap();
+        *sender = None;
     }
 
     /// Create a new [` StorableMockDaService `] with the given address.
@@ -417,6 +432,16 @@ impl DaService for StorableMockDaService {
     ) -> oneshot::Receiver<
         Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
     > {
+        let block_producing_pauser = {
+            let pauser = self.block_producing_pauser.lock().await;
+            pauser.clone()
+        };
+
+        if let Some(sender) = block_producing_pauser {
+            let mut rec = sender.subscribe();
+            rec.changed().await.unwrap();
+        }
+
         let (tx, rx) = oneshot::channel();
         let should_produce_block = match &self.block_producing {
             BlockProducingConfig::OnBatchSubmit { .. }

@@ -13,6 +13,7 @@ use sov_api_spec::types::{self as api_types, TxReceiptResult};
 use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
+use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Amount, DispatchCall, Gas, GasArray, GasPrice, GasUnit, RawTx, Runtime};
 use sov_modules_stf_blueprint::GenesisParams;
@@ -21,10 +22,9 @@ use sov_paymaster::{Paymaster, PaymasterConfig};
 use sov_rest_utils::ResponseObject;
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
-use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_modules::hooks_count::HooksCount;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
+use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, RollupProverConfig, TestRollup};
 use sov_test_utils::{
     default_test_signed_transaction, default_test_tx_details,
     generate_optimistic_runtime_with_kernel, test_signed_transaction, RtAgnosticBlueprint,
@@ -56,6 +56,10 @@ fn tempdir_inside_codebase_dir() -> Arc<tempfile::TempDir> {
 }
 
 type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
+
+const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnBatchSubmit {
+    block_wait_timeout_ms: None,
+};
 
 /// All the interesting "things" that can happen during sequencer operations, and to
 /// which the sequencer ought to know how to respond.
@@ -118,19 +122,19 @@ async fn new_test_rollup(
     minimum_profit_per_tx: u128,
     automatic_batch_production: bool,
     max_batch_size_bytes: usize,
+    block_producing_config: BlockProducingConfig,
+    rollup_prover_config: Option<RollupProverConfig<MockZkvm>>,
 ) -> Option<TestRollup<TestBlueprint>> {
     const FINALIZATION_BLOCKS: u32 = 3;
     let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
 
     let builder_res = RollupBuilder::<TestBlueprint>::new(
         GenesisSource::CustomParams(genesis_params),
-        BlockProducingConfig::OnAnySubmit {
-            block_wait_timeout_ms: None,
-        },
+        block_producing_config,
         FINALIZATION_BLOCKS,
     )
     .set_config(|c| {
-        c.rollup_prover_config = Some(RollupProverConfig::Skip);
+        c.rollup_prover_config = rollup_prover_config;
         c.automatic_batch_production = automatic_batch_production;
         c.storage = dir;
         c.max_batch_size_bytes = max_batch_size_bytes;
@@ -210,8 +214,16 @@ async fn txs_below_min_fee_are_rejected() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) =
-        new_test_rollup(dir.clone(), genesis_params, 1, false, TEST_MAX_BATCH_SIZE).await
+    let Some(test_rollup) = new_test_rollup(
+        dir.clone(),
+        genesis_params,
+        1,
+        false,
+        TEST_MAX_BATCH_SIZE,
+        DEFAULT_BLOCK_PRODUCING_CONFIG,
+        Some(RollupProverConfig::Skip),
+    )
+    .await
     else {
         // Docker issues, don't fail the test and just return early.
         return;
@@ -279,8 +291,16 @@ async fn seq_out_of_gas() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) =
-        new_test_rollup(dir.clone(), genesis_params, 0, true, TEST_MAX_BATCH_SIZE).await
+    let Some(test_rollup) = new_test_rollup(
+        dir.clone(),
+        genesis_params,
+        0,
+        true,
+        TEST_MAX_BATCH_SIZE,
+        BlockProducingConfig::Manual,
+        None,
+    )
+    .await
     else {
         // Docker issues, don't fail the test and just return early.
         return;
@@ -291,6 +311,7 @@ async fn seq_out_of_gas() {
         .produce_n_blocks_now(5)
         .await
         .unwrap();
+
     sleep(Duration::from_millis(200)).await;
 
     let client = test_rollup.api_client.clone();
@@ -336,7 +357,11 @@ async fn seq_out_of_gas() {
         assert!(error_str.contains("More transactions were submitted that the sequencer is allowed to put into a single batch."));
     }
     test_rollup.resume_preferred_batches().await;
-    test_rollup.da_service.produce_block_now().await.unwrap();
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(2)
+        .await
+        .unwrap();
     sleep(Duration::from_millis(200)).await;
 
     // The third transaction is accepted because a new slot has started.
@@ -379,8 +404,16 @@ async fn max_batch_size() {
     let dir = tempdir_inside_codebase_dir();
 
     let max_batch_size = 1024;
-    let Some(test_rollup) =
-        new_test_rollup(dir.clone(), genesis_params, 0, true, max_batch_size).await
+    let Some(test_rollup) = new_test_rollup(
+        dir.clone(),
+        genesis_params,
+        0,
+        true,
+        max_batch_size,
+        BlockProducingConfig::Manual,
+        None,
+    )
+    .await
     else {
         // Docker issues, don't fail the test and just return early.
         return;
@@ -410,7 +443,6 @@ async fn max_batch_size() {
         assert!(error_str.contains("Transaction cannot be included in the batch."));
     }
 
-    test_rollup.da_service.produce_block_now().await.unwrap();
     sleep(Duration::from_millis(200)).await;
 
     test_rollup.pause_preferred_batches().await;
@@ -450,8 +482,11 @@ async fn max_batch_size() {
     }
 
     test_rollup.resume_preferred_batches().await;
-
-    test_rollup.da_service.produce_block_now().await.unwrap();
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(2)
+        .await
+        .unwrap();
     sleep(Duration::from_millis(200)).await;
 
     // Once we start creating a fresh batch, we can insert a transaction that was previously rejected.
@@ -464,8 +499,6 @@ async fn max_batch_size() {
             .await
             .unwrap();
     }
-    test_rollup.da_service.produce_block_now().await.unwrap();
-    sleep(Duration::from_millis(200)).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -491,38 +524,75 @@ async fn seq_back_pressure() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) =
-        new_test_rollup(dir.clone(), genesis_params, 0, true, TEST_MAX_BATCH_SIZE).await
+    let Some(test_rollup) = new_test_rollup(
+        dir.clone(),
+        genesis_params,
+        0,
+        true,
+        TEST_MAX_BATCH_SIZE,
+        BlockProducingConfig::Manual,
+        None,
+    )
+    .await
     else {
         // Docker issues, don't fail the test and just return early.
         return;
     };
 
-    // Produce a few blocks to DA blocks to make sure there's a finalized slot after genesis.
     test_rollup
         .da_service
         .produce_n_blocks_now(5)
         .await
         .unwrap();
+
     sleep(Duration::from_millis(200)).await;
 
-    for _ in 0..10 {
-        // Produce a few blocks to DA blocks to make sure there's a finalized slot after genesis.
-        test_rollup.da_service.produce_block_now().await.unwrap();
-        sleep(Duration::from_millis(200)).await;
-    }
-
     let client = test_rollup.api_client.clone();
-    let tx = tx_set_value(&admin.private_key, 0, 99);
+    let tx = tx_set_value(&admin.private_key, 0, 9);
 
-    let response = client
+    client
         .accept_tx(&api_types::AcceptTxBody {
             body: BASE64_STANDARD.encode(&tx),
         })
-        .await;
+        .await
+        .unwrap();
 
-    assert!(response.is_ok());
-    test_rollup.da_service.produce_block_now().await.unwrap();
+    // Pause block submission and produce some pending blocks.
+    {
+        test_rollup.da_service.set_blob_submission_pause().await;
+        for _ in 0..sov_test_utils::TEST_MAX_CONCURRENT_BLOBS + 3 {
+            test_rollup.da_service.produce_block_now().await.unwrap();
+            sleep(Duration::from_millis(200)).await;
+        }
+
+        let tx = tx_set_value(&admin.private_key, 1, 9);
+        let err = client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap_err();
+
+        assert!(err
+            .to_string()
+            .contains("The sequencer is waiting for the blob sender to be ready"));
+
+        test_rollup.da_service.resume_blob_submission().await;
+    }
+
+    for _ in 0..5 {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        sleep(Duration::from_millis(200)).await;
+    }
+    sleep(Duration::from_millis(1000)).await;
+
+    let tx = tx_set_value(&admin.private_key, 1, 9);
+    client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx),
+        })
+        .await
+        .unwrap();
 }
 
 /// Ensure that we use the correct visible slot number when replaying transactions after a call to `update_state` in the sequencer.
@@ -592,7 +662,7 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
             FINALIZATION_BLOCKS,
         )
         .set_config(|c| {
-            c.rollup_prover_config = Some(RollupProverConfig::Skip);
+            c.rollup_prover_config = None;
             c.storage = dir;
             c.axum_port = port;
         })
@@ -686,8 +756,16 @@ async fn events_are_returned_in_tx_response() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) =
-        new_test_rollup(dir.clone(), genesis_params, 0, false, TEST_MAX_BATCH_SIZE).await
+    let Some(test_rollup) = new_test_rollup(
+        dir.clone(),
+        genesis_params,
+        0,
+        false,
+        TEST_MAX_BATCH_SIZE,
+        DEFAULT_BLOCK_PRODUCING_CONFIG,
+        Some(RollupProverConfig::Skip),
+    )
+    .await
     else {
         // Docker issues, don't fail the test and just return early.
         return;
@@ -768,7 +846,7 @@ async fn returns_syncing_at_startup() {
             FINALIZATION_BLOCKS,
         )
         .set_config(|c| {
-            c.rollup_prover_config = Some(RollupProverConfig::Skip);
+            c.rollup_prover_config = None;
             c.storage = dir;
         })
         .set_da_config(|c| {
@@ -864,7 +942,7 @@ async fn visible_hashes_match_across_node_and_sequencer() {
             FINALIZATION_BLOCKS,
         )
         .set_config(|c| {
-            c.rollup_prover_config = Some(RollupProverConfig::Skip);
+            c.rollup_prover_config = None;
             c.storage = dir;
         })
         .set_da_config(|c| {
@@ -1012,7 +1090,7 @@ async fn flaky_test_hooks_state_is_visible() {
         )
         .set_config(|c| {
             c.automatic_batch_production = false;
-            c.rollup_prover_config = Some(RollupProverConfig::Skip);
+            c.rollup_prover_config = None;
             c.storage = dir;
         })
         .set_da_config(|c| {
@@ -1138,8 +1216,16 @@ async fn not_sequencer_safe_txs_are_restricted() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) =
-        new_test_rollup(dir.clone(), genesis_params, 0, false, TEST_MAX_BATCH_SIZE).await
+    let Some(test_rollup) = new_test_rollup(
+        dir.clone(),
+        genesis_params,
+        0,
+        false,
+        TEST_MAX_BATCH_SIZE,
+        DEFAULT_BLOCK_PRODUCING_CONFIG,
+        Some(RollupProverConfig::Skip),
+    )
+    .await
     else {
         // Docker issues, don't fail the test and just return early.
         return;
@@ -1340,8 +1426,16 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) =
-        new_test_rollup(dir.clone(), genesis_params, 0, false, TEST_MAX_BATCH_SIZE).await
+    let Some(test_rollup) = new_test_rollup(
+        dir.clone(),
+        genesis_params,
+        0,
+        false,
+        TEST_MAX_BATCH_SIZE,
+        DEFAULT_BLOCK_PRODUCING_CONFIG,
+        Some(RollupProverConfig::Skip),
+    )
+    .await
     else {
         // Docker issues, don't fail the test and just return early.
         return;

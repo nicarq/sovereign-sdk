@@ -29,6 +29,7 @@ async fn flaky_bank_tx_tests() -> anyhow::Result<()> {
         TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING,
         test_case.finalization_blocks,
     )
+    .set_config(|c| c.max_concurrent_blobs = 65536)
     .with_zkvm_host_args(mock_da_risc0_host_args())
     .start()
     .await?;

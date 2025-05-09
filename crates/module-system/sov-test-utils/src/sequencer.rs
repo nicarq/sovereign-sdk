@@ -26,7 +26,10 @@ use tokio::sync::watch;
 
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::{GenesisConfig, TestOptimisticRuntime};
-use crate::{TestHasher, TestPrivateKey, TestSpec, TestStfBlueprint, TEST_MAX_BATCH_SIZE};
+use crate::{
+    TestHasher, TestPrivateKey, TestSpec, TestStfBlueprint, TEST_MAX_BATCH_SIZE,
+    TEST_MAX_CONCURRENT_BLOBS,
+};
 
 /// A `struct` that contains a [`Sequencer`] and a copy of its running Axum
 /// server, for use in tests. See [`TestSequencerSetup::new`] and
@@ -145,6 +148,7 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
             dropped_tx_ttl_secs: 0,
             sequencer_kind_config: sequencer_config,
             max_batch_size_bytes: TEST_MAX_BATCH_SIZE,
+            max_concurrent_blobs: TEST_MAX_CONCURRENT_BLOBS,
         };
 
         let (sequencer, _) = StdSequencer::<TestSpec, Rt, StorableMockDaService>::create(

@@ -3,6 +3,7 @@
 - #2823 adds a task to monitor critial background tasks for errors/early exits and will trigger a rollup shutdown if any are detected.
 - #2845 adds a Celestia checker to the demo-rollup
 - #2849 fixes celestia checker ranges.
+- #2828 adds `max_concurrent_blobs` field to the sequencer config. This field is used to limit the number of blobs that can be submitted to the DA layer at once.
 
 # 2025-05-01
 - #2821 simplifies several methods on `sov_metrics::MetricsTracker` by merging them into `MetricsTracker::submit` (and `submit_with_time`).

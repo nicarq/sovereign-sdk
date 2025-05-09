@@ -86,6 +86,9 @@ pub type TestStorageManager =
 /// The maximum batch size that the preferred sequencer can create.
 pub const TEST_MAX_BATCH_SIZE: usize = 1024 * 1024;
 
+/// The maximum number of concurrent blobs.
+pub const TEST_MAX_CONCURRENT_BLOBS: usize = 16;
+
 /// The default max fee to set for a transaction. This should be enough to be able to execute most standard transactions for the test rollup.
 pub const TEST_DEFAULT_MAX_FEE: Amount = Amount::new(100_000_000_000);
 /// The default gas limit to set for a transaction. This is an optional parameter.

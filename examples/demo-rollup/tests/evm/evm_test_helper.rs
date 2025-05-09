@@ -30,6 +30,7 @@ pub(crate) async fn start_node(
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|c| {
+        c.max_concurrent_blobs = 65536;
         c.rollup_prover_config = None; // FIXME(@neysofu): reenable once sov-ethereum is compatible with proof blobs
         c.aggregated_proof_block_jump = 5;
         c.max_infos_in_db = 30;

@@ -223,6 +223,9 @@ fn error_not_fully_synced(details: SequencerNotReadyDetails) -> ErrorObject {
         SequencerNotReadyDetails::WaitingOnNode { .. } => {
             "The sequencer is waiting for the node to process more blocks"
         }
+        SequencerNotReadyDetails::WaitingOnBlobSender { .. } => {
+            "The sequencer is waiting for the blob sender to be ready"
+        }
     };
     ErrorObject {
         status: StatusCode::SERVICE_UNAVAILABLE,

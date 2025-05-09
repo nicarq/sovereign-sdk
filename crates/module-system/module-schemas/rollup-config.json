@@ -568,6 +568,7 @@
         "da_address",
         "max_allowed_node_distance_behind",
         "max_batch_size_bytes",
+        "max_concurrent_blobs",
         "rollup_address"
       ],
       "properties": {
@@ -606,6 +607,12 @@
         },
         "max_batch_size_bytes": {
           "description": "Maximum size of a batch.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "max_concurrent_blobs": {
+          "description": "Maximum number of blobs sent in parallel.",
           "type": "integer",
           "format": "uint",
           "minimum": 0.0

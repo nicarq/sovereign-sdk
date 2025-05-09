@@ -89,6 +89,7 @@ pub async fn setup_rollup(
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())
     .set_config(|config| {
+        config.max_concurrent_blobs = 1024;
         config.prover_address = prover_address.to_string();
         config.automatic_batch_production = true;
         config.telegraf_address = telegraf_address;
