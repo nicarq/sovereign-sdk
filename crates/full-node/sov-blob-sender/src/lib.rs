@@ -1,5 +1,5 @@
 mod db;
-mod metrics;
+mod in_flight_blob;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -8,7 +8,7 @@ use std::time::{Duration, SystemTime};
 
 use async_trait::async_trait;
 use db::{BlobSenderDb, BlobToSend};
-use metrics::{track_num_of_in_flight_blobs, InFlightBlobInfo};
+use in_flight_blob::{track_num_of_in_flight_blobs, InFlightBlob, InFlightBlobInfo};
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::{DaSpec, EventModuleName, RuntimeEventResponse};
 use sov_rollup_interface::node::da::{DaService, Fee, SubmitBlobReceipt};
@@ -77,8 +77,7 @@ pub trait BlobSenderHooks: Send + Sync + 'static {
 pub struct BlobSender<Da: DaService, H> {
     db: Arc<BlobSenderDb>,
     hooks: Arc<H>,
-    in_flight_blobs: Arc<Mutex<HashMap<BlobInternalId, InFlightBlobInfo<Da::Spec>>>>,
-    handles: Arc<Mutex<HashMap<BlobInternalId, JoinHandle<()>>>>,
+    in_flight_blobs: Arc<Mutex<HashMap<BlobInternalId, InFlightBlob<Da::Spec>>>>,
     shutdown_receiver: watch::Receiver<()>,
     da: Da,
     ledger_db: LedgerDb,
@@ -104,19 +103,17 @@ where
 
         let hooks = Arc::new(hooks);
         let in_flight_blobs: Arc<Mutex<_>> = Default::default();
-        let handles: Arc<Mutex<_>> = Default::default();
 
         let mut sender = Self {
             db,
             hooks,
             in_flight_blobs: in_flight_blobs.clone(),
-            handles: handles.clone(),
             shutdown_receiver: shutdown_receiver.clone(),
             da,
             ledger_db,
         };
 
-        let handle = Self::main_task(handles, in_flight_blobs, shutdown_receiver).await;
+        let handle = Self::main_task(in_flight_blobs, shutdown_receiver).await;
 
         for b in all_blobs {
             sender
@@ -182,8 +179,6 @@ where
             return Ok(());
         }
 
-        let mut handles = self.handles.lock().await;
-
         self.db.push(blob.clone(), blob_id).await?;
 
         let is_batch = matches!(blob, BlobToSend::Batch { .. });
@@ -197,7 +192,7 @@ where
 
         let shutdown_receiver = self.shutdown_receiver.clone();
 
-        handles.insert(blob_id, tokio::task::spawn({
+        let handle = tokio::task::spawn({
             let state = task_state;
             let blob = blob.clone();
             let latest_known_processing_state = latest_known_processing_state.clone();
@@ -217,34 +212,36 @@ where
                     }
                 }
             }
-        }));
+        });
 
         blobs.insert(
             blob_id,
-            InFlightBlobInfo {
-                blob_iid: blob_id,
-                start_time: std::time::Instant::now(),
-                is_batch,
-                size_in_bytes: blob.data().len() as u64,
-                was_resurrected: false,
-                last_known_state: latest_known_processing_state.clone(),
+            InFlightBlob {
+                handle,
+                info: InFlightBlobInfo {
+                    blob_iid: blob_id,
+                    start_time: std::time::Instant::now(),
+                    is_batch,
+                    size_in_bytes: blob.data().len() as u64,
+                    was_resurrected: false,
+                    last_known_state: latest_known_processing_state.clone(),
+                },
             },
         );
 
         // TODO: handle errors from the spawned tasks.
-        handles.retain(|_, i| !i.is_finished());
+        blobs.retain(|_, b| !b.handle.is_finished());
 
         Ok(())
     }
 
     async fn main_task(
-        handles: Arc<Mutex<HashMap<BlobInternalId, JoinHandle<()>>>>,
-        in_flight_blobs: Arc<Mutex<HashMap<BlobInternalId, InFlightBlobInfo<Da::Spec>>>>,
+        in_flight_blobs: Arc<Mutex<HashMap<BlobInternalId, InFlightBlob<Da::Spec>>>>,
         mut shutdown_receiver: watch::Receiver<()>,
     ) -> JoinHandle<()> {
         tokio::spawn(async move {
+            let mut metrics_interval = interval(Duration::from_secs(10));
             loop {
-                let mut metrics_interval = interval(Duration::from_secs(10));
                 let fut = future_or_shutdown(metrics_interval.tick(), &shutdown_receiver);
 
                 match fut.await {
@@ -254,30 +251,41 @@ where
                         }
                     }
                     FutureOrShutdownOutput::Output(_) => {
-                        let in_flight_blobs = in_flight_blobs.lock().await;
+                        let infos = {
+                            let mut in_flight_blobs = in_flight_blobs.lock().await;
+                            in_flight_blobs.retain(|_, b| !b.handle.is_finished());
+                            in_flight_blobs
+                                .values()
+                                .map(|b| b.info.clone())
+                                .collect::<Vec<_>>()
+                        };
 
+                        let len = infos.len();
                         sov_metrics::track_metrics(|tracker| {
                             tracker.submit_inline("sov_rollup_blobs_enter_scope", "foo=1");
-                            for b in in_flight_blobs.values() {
-                                tracker.submit(b.clone());
+                            for b in infos {
+                                tracker.submit(b);
                             }
                             tracker.submit_inline("sov_rollup_blobs_exit_scope", "foo=1");
                         });
 
-                        track_num_of_in_flight_blobs(in_flight_blobs.len() as u64);
+                        track_num_of_in_flight_blobs(len as u64);
+
                         continue;
                     }
                 }
 
-                let mut handles = handles.lock().await;
+                let mut blobs = in_flight_blobs.lock().await;
 
                 debug!(
-                    num_handles_to_join = handles.len(),
+                    num_handles_to_join = blobs.len(),
                     "Exiting the blob sender background task..."
                 );
 
-                for handle in handles.values_mut() {
-                    if let Err(err) = handle.await {
+                let blobs = std::mem::take(&mut *blobs);
+
+                for (_, b) in blobs.into_iter() {
+                    if let Err(err) = b.handle.await {
                         error!(%err, "Error in a blob sender background task");
                     }
                 }
@@ -300,7 +308,7 @@ struct TaskState<Da: DaService> {
     ledger_db: LedgerDb,
     db: Arc<BlobSenderDb>,
     hooks: Arc<dyn BlobSenderHooks<Da = Da::Spec>>,
-    in_flight_blobs: Arc<Mutex<HashMap<BlobInternalId, InFlightBlobInfo<Da::Spec>>>>,
+    in_flight_blobs: Arc<Mutex<HashMap<BlobInternalId, InFlightBlob<Da::Spec>>>>,
 }
 
 impl<Da: DaService> TaskState<Da> {
@@ -314,25 +322,18 @@ impl<Da: DaService> TaskState<Da> {
         blob_id: BlobInternalId,
         latest_known_processing_state: BlobProcessingState<Da::Spec>,
     ) -> anyhow::Result<()> {
-        let start_time = std::time::Instant::now();
         let mut blob_state = latest_known_processing_state;
 
         'outer: loop {
             trace!(?blob_state, ?blob_id, "Tracking blob submission state");
 
             let blob_state_clone = blob_state.clone();
-            let is_batch = matches!(blob, BlobToSend::Batch { .. });
-            self.in_flight_blobs.lock().await.insert(
-                blob_id,
-                InFlightBlobInfo {
-                    blob_iid: blob_id,
-                    start_time,
-                    is_batch,
-                    size_in_bytes: blob.data().len() as u64,
-                    was_resurrected: false,
-                    last_known_state: blob_state_clone,
-                },
-            );
+
+            {
+                if let Some(b) = self.in_flight_blobs.lock().await.get_mut(&blob_id) {
+                    b.info.last_known_state = blob_state_clone.clone();
+                }
+            }
 
             match blob_state {
                 BlobProcessingState::MustSubmit => {
@@ -476,7 +477,6 @@ impl<Da: DaService> TaskState<Da> {
             }
         }
 
-        self.in_flight_blobs.lock().await.remove(&blob_id);
         trace!("Exiting blob submission task");
 
         Ok(())

@@ -2,8 +2,15 @@ use std::io::Write;
 
 use sov_metrics::{serialize_metadata, Metric};
 use sov_modules_api::DaSpec;
+use tokio::task::JoinHandle;
 
 use crate::{BlobInternalId, BlobProcessingState};
+
+#[derive(Debug)]
+pub struct InFlightBlob<Da: DaSpec> {
+    pub info: InFlightBlobInfo<Da>,
+    pub handle: JoinHandle<()>,
+}
 
 #[derive(Debug, Clone)]
 pub struct InFlightBlobInfo<Da: DaSpec> {
