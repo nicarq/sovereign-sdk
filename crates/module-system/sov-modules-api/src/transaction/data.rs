@@ -4,8 +4,7 @@ use std::rc::Rc;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
-use crate::transaction::Transaction;
-use crate::{Amount, BasicGasMeter, DispatchCall, Gas, GasArray, Spec};
+use crate::{Amount, BasicGasMeter, Gas, GasArray, Spec};
 
 /// A type wrapper around a u64 which represents the priority fee.
 /// Since the priority fee is expressed as a basis point, we should use this wrapper for
@@ -130,12 +129,6 @@ pub struct TxDetails<S: Spec> {
 impl<S: Spec> From<TxDetails<S>> for AuthenticatedTransactionData<S> {
     fn from(details: TxDetails<S>) -> Self {
         Self(details)
-    }
-}
-
-impl<T: DispatchCall, S: Spec> From<Transaction<T, S>> for AuthenticatedTransactionData<S> {
-    fn from(tx: Transaction<T, S>) -> Self {
-        tx.details.into()
     }
 }
 

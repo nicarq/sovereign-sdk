@@ -1,5 +1,8 @@
 
 # 2025-05-05
+- #2659 **BREAKING CHANGE** Added support for versioned transactions. SDK consumers must now use the new constructor `Transaction::with_call_v0`.
+
+# 2025-05-05
 - #2823 adds a task to monitor critial background tasks for errors/early exits and will trigger a rollup shutdown if any are detected.
 - #2845 adds a Celestia checker to the demo-rollup
 - #2849 fixes celestia checker ranges.

@@ -10,7 +10,9 @@ use sov_bank::Bank;
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::{
+    PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction, VersionedTx,
+};
 use sov_modules_api::{
     Amount, ApiStateAccessor, DaSpec, FullyBakedTx, Gas, PrivateKey, RawTx, Rewards, Spec,
 };
@@ -132,14 +134,26 @@ fn create_tx_bad_sig(
         None,
     );
 
-    let mut signed_tx =
+    let signed_tx =
         Transaction::new_signed_tx(&signer.private_key, &IntegTestRuntime::<S>::CHAIN_HASH, utx);
 
     // Create a signature for a different message so it won't verify in the stf.
     let bad_signature = signer.private_key.sign(&[1, 2, 3]);
-    signed_tx.signature = bad_signature;
 
-    signed_tx
+    match signed_tx.versioned_tx {
+        VersionedTx::V0(inner) => Transaction::new_with_details_v0(
+            inner.pub_key.clone(),
+            inner.runtime_call.clone(),
+            bad_signature,
+            inner.generation,
+            TxDetails {
+                max_priority_fee_bips,
+                max_fee: Amount::new(200_000),
+                gas_limit: None,
+                chain_id,
+            },
+        ),
+    }
 }
 
 fn create_tx_bad_sender(

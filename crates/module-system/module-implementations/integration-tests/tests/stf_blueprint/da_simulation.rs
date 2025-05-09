@@ -46,7 +46,7 @@ pub fn simulate_da_with_revert_msg(admin: TestPrivateKey) -> Vec<FullyBakedTx> {
 pub fn simulate_da_with_bad_sig(key: TestPrivateKey) -> Vec<FullyBakedTx> {
     let bank_generator: BankMessageGenerator<S> = BankMessageGenerator::with_minter(key.clone());
     let create_token_message = bank_generator.create_default_messages().remove(0);
-    let tx = Transaction::<IntegTestRuntime<S>, S>::new_with_details(
+    let tx = Transaction::<IntegTestRuntime<S>, S>::new_with_details_v0(
         create_token_message.sender_key.pub_key(),
         <IntegTestRuntime<S> as EncodeCall<Bank<S>>>::to_decodable(create_token_message.content),
         // Use the signature of an empty message

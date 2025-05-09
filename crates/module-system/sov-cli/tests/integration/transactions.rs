@@ -5,7 +5,7 @@ use sov_cli::workflows::keys::KeyWorkflow;
 use sov_cli::workflows::transactions::{TransactionLoadWorkflow, TransactionWorkflow};
 use sov_cli::UnsignedTransactionWithoutNonce;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
-use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::{Transaction, UnsignedTransaction, VersionedTx};
 use sov_modules_api::{
     Amount, CryptoSpec, DispatchCall, MeteredBorshDeserialize, PrivateKey, Spec,
 };
@@ -201,10 +201,14 @@ fn transaction_signed_properly_from_file() {
 
     let default_pubkey = &wallet_state.addresses.default_address().unwrap().pub_key;
 
-    assert_eq!(default_pubkey, &signed_tx.pub_key);
-    assert_eq!(nonce, signed_tx.generation);
+    match &signed_tx.versioned_tx {
+        VersionedTx::V0(inner) => {
+            assert_eq!(default_pubkey, &inner.pub_key);
+            assert_eq!(nonce, inner.generation);
+        }
+    }
 
-    assert_eq!(&runtime_call, &signed_tx.runtime_call);
+    assert_eq!(&runtime_call, signed_tx.runtime_call());
 }
 
 #[test]
@@ -246,7 +250,7 @@ fn transaction_signed_properly_from_json_string() {
             &mut new_test_gas_meter(),
         )
         .unwrap();
-    assert_eq!(&runtime_call, &signed_tx.runtime_call);
+    assert_eq!(&runtime_call, signed_tx.runtime_call());
 }
 
 #[test]
@@ -316,7 +320,11 @@ fn transaction_signed_by_account_nickname() {
         })
         .unwrap();
 
-    assert_eq!(&key2.pub_key, &signed_tx.pub_key);
+    match signed_tx.versioned_tx {
+        VersionedTx::V0(inner) => {
+            assert_eq!(&key2.pub_key, &inner.pub_key);
+        }
+    }
 }
 
 #[test]
