@@ -89,7 +89,7 @@ where
 
 #[cfg(feature = "native")]
 pub(crate) fn convert_to_runtime_events<S, RT>(
-    events: Vec<sov_modules_api::TypedEvent>,
+    events: Vec<sov_modules_api::TypeErasedEvent>,
 ) -> Vec<StoredEvent>
 where
     S: Spec,
@@ -120,7 +120,7 @@ where
 
 #[cfg(not(feature = "native"))]
 pub(crate) fn convert_to_runtime_events<S, RT>(
-    _events: Vec<sov_modules_api::TypedEvent>,
+    _events: Vec<sov_modules_api::TypeErasedEvent>,
 ) -> Vec<StoredEvent>
 where
     S: Spec,

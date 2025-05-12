@@ -4,7 +4,7 @@ use std::sync::Arc;
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{
     namespaces, EventContainer, Namespace, NativeStorage, ProvableStorageCache, SlotKey, SlotValue,
-    Storage,
+    Storage, TypeErasedEvent,
 };
 
 use super::temp_cache::{CacheLookup, TempCache};
@@ -12,7 +12,7 @@ use super::{BorshSerializedSize, StateCheckpoint, UniversalStateAccessor};
 use crate::capabilities::{KernelWithSlotMapping, RollupHeight};
 use crate::gas::GasArray;
 use crate::state::traits::PerBlockCache;
-use crate::{Gas, GasMeter, GetGasPrice, Spec, TypedEvent, VersionReader};
+use crate::{Gas, GasMeter, GetGasPrice, Spec, VersionReader};
 
 fn get_slot_number(visible_slot_number: Option<VisibleSlotNumber>) -> Option<SlotNumber> {
     // This TODO is not a security risk.
@@ -125,7 +125,7 @@ pub struct ApiStateAccessor<S: Spec> {
     storage: S::Storage,
     #[debug(skip)]
     witness: <<S as Spec>::Storage as Storage>::Witness,
-    events: Vec<TypedEvent>,
+    events: Vec<TypeErasedEvent>,
     gas_price: <S::Gas as Gas>::Price,
     kernel_cache: ProvableStorageCache<namespaces::Kernel>,
     user_cache: ProvableStorageCache<namespaces::User>,
@@ -230,7 +230,11 @@ impl<S: Spec> GetGasPrice for ApiStateAccessor<S> {
 
 impl<S: Spec> EventContainer for ApiStateAccessor<S> {
     fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E) {
-        self.events.push(TypedEvent::new(event_key, event));
+        self.events.push(TypeErasedEvent::new(event_key, event));
+    }
+
+    fn add_type_erased_event(&mut self, event: TypeErasedEvent) {
+        self.events.push(event);
     }
 }
 

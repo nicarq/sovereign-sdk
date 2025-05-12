@@ -160,7 +160,7 @@ impl EventMacro {
                 type RuntimeEvent = #event_enum_name #type_generics;
 
                 fn convert_to_runtime_event(
-                    event: ::sov_modules_api::TypedEvent
+                    event: ::sov_modules_api::TypeErasedEvent
                 ) -> Option<Self::RuntimeEvent> {
                     match event.type_id() {
                         #(#event_cases)*

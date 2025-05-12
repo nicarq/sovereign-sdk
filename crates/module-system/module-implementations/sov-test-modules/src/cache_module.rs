@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::UniversalWallet;
 // use sov_modules_api::sov_universal_wallet::schema::SchemaGenerator;
 use sov_modules_api::{
-    BorshSerializedSize, Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
-    ModuleRestApi, SafeString, Spec, TxState,
+    BorshSerializedSize, Context, DaSpec, Error, EventEmitter, GenesisState, Module, ModuleId,
+    ModuleInfo, ModuleRestApi, SafeString, Spec, StateValue, TxState,
 };
 
 /// A message to test and set a value
@@ -32,6 +32,12 @@ pub enum CallMessage {
     TestAndSetString(TestAndSet<SafeString>),
     /// Sets a value, but then reverts the tx resulting an a no-op
     SetAndRevertString(Option<SafeString>),
+    /// Tests and set a value, then conditionally undoes the changes without reverting.
+    TestSetAndMaybeUndo {
+        cache_value: TestAndSet<SafeString>,
+        state_value: u64,
+        undo: bool,
+    },
 }
 
 /// A message to set a value
@@ -80,23 +86,41 @@ impl<T: std::fmt::Debug + PartialEq + Eq + Send + Sync + BorshSerializedSize + '
 
 /// A module for testing the block-level cache.
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
-pub struct CacheTester<S: Spec> {
+pub struct CacheAndRevertTester<S: Spec> {
     /// The ID of the module.
     #[id]
     pub id: ModuleId,
+
+    #[state]
+    pub value: StateValue<u64>,
 
     #[phantom]
     _phantom: std::marker::PhantomData<S>,
 }
 
-impl<S: Spec> Module for CacheTester<S> {
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    schemars::JsonSchema,
+    BorshSerialize,
+    BorshDeserialize,
+)]
+pub enum Event {
+    SetValue(u64),
+}
+
+impl<S: Spec> Module for CacheAndRevertTester<S> {
     type Spec = S;
 
     type Config = ();
 
     type CallMessage = CallMessage;
 
-    type Event = ();
+    type Event = Event;
 
     fn genesis(
         &mut self,
@@ -123,6 +147,23 @@ impl<S: Spec> Module for CacheTester<S> {
                     None => state.delete_cached::<String>(),
                 }
                 Err(anyhow::anyhow!("Reverting"))
+            }
+            CallMessage::TestSetAndMaybeUndo {
+                cache_value,
+                state_value,
+                undo,
+            } => {
+                let mut state_wrapped = state.to_revertable();
+                let state = &mut state_wrapped;
+                cache_value.run(state)?;
+                self.value
+                    .set(&state_value, state)
+                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+                self.emit_event(state, Event::SetValue(state_value));
+                if !undo {
+                    state_wrapped.commit();
+                }
+                Ok(())
             }
         }?)
     }

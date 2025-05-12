@@ -6,6 +6,7 @@ mod bytes;
 mod cache;
 pub mod codec;
 pub mod config;
+mod event;
 pub mod namespaces;
 #[cfg(feature = "native")]
 mod prover_storage;
@@ -19,6 +20,7 @@ pub mod jmt {
     //! Re-export the [`jellyfish-merkle-tree`](https://github.com/penumbra-zone/jmt) crate.
     pub use jmt::{KeyHash, RootHash, Version};
 }
+pub use event::TypeErasedEvent;
 #[cfg(feature = "native")]
 pub use prover_storage::ProverStorage;
 use sha2::digest::typenum::U32;
@@ -60,4 +62,7 @@ impl<H: Digest<OutputSize = U32> + Send + Sync> MerkleProofSpec for DefaultStora
 pub trait EventContainer {
     /// Adds a typed event to the working set.
     fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E);
+
+    /// Adds a type erased event to the working set.
+    fn add_type_erased_event(&mut self, event: TypeErasedEvent);
 }

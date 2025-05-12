@@ -1,11 +1,11 @@
-use sov_test_modules::cache_module::{CacheTester, CallMessage, TestAndSet};
+use sov_test_modules::cache_module::{CacheAndRevertTester, CallMessage, Event, TestAndSet};
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
     generate_zk_runtime, AsUser, SlotInput, TestSpec, TestUser, TransactionTestCase,
 };
 
-generate_zk_runtime!(TestRuntime <= test_module: CacheTester<S>);
+generate_zk_runtime!(TestRuntime <= test_module: CacheAndRevertTester<S>);
 
 type S = TestSpec;
 type RT = TestRuntime<S>;
@@ -37,19 +37,25 @@ fn test_setting_and_getting_values() {
     let (mut runner, admin, _) = setup();
     // First, we'll create two batches running various cache operations
     let first_batch_ops = vec![
-        admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetU8(TestAndSet {
-            expected_value: None, // Insert a new u8. Cache should have been empty
-            new_value: Some(1),
-        })),
-        admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetU8(TestAndSet {
-            expected_value: Some(1), // Update the u8. Cache should have remembered the old value
-            new_value: Some(2),
-        })),
-        admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetU16(TestAndSet {
-            expected_value: None, // Insert a new u16. no u16 should be cached
-            new_value: Some(11),
-        })),
-        admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
+        admin.create_plain_message::<RT, CacheAndRevertTester<S>>(CallMessage::TestAndSetU8(
+            TestAndSet {
+                expected_value: None, // Insert a new u8. Cache should have been empty
+                new_value: Some(1),
+            },
+        )),
+        admin.create_plain_message::<RT, CacheAndRevertTester<S>>(CallMessage::TestAndSetU8(
+            TestAndSet {
+                expected_value: Some(1), // Update the u8. Cache should have remembered the old value
+                new_value: Some(2),
+            },
+        )),
+        admin.create_plain_message::<RT, CacheAndRevertTester<S>>(CallMessage::TestAndSetU16(
+            TestAndSet {
+                expected_value: None, // Insert a new u16. no u16 should be cached
+                new_value: Some(11),
+            },
+        )),
+        admin.create_plain_message::<RT, CacheAndRevertTester<S>>(CallMessage::TestAndSetString(
             TestAndSet {
                 new_value: Some("hello".try_into().unwrap()), // Insert a new string. No string should be cached
                 expected_value: None,
@@ -57,44 +63,48 @@ fn test_setting_and_getting_values() {
         )),
     ];
     let second_batch_ops = vec![
-        admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
+        admin.create_plain_message::<RT, CacheAndRevertTester<S>>(CallMessage::TestAndSetString(
             TestAndSet {
                 expected_value: Some("hello".try_into().unwrap()), // Update the string. The old value should be cached from the previous batch
                 new_value: Some("goodbye".try_into().unwrap()),
             },
         )),
-        admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
+        admin.create_plain_message::<RT, CacheAndRevertTester<S>>(CallMessage::TestAndSetString(
             TestAndSet {
                 expected_value: Some("goodbye".try_into().unwrap()), // Delete the string. The old value should be cached from the previous tx
                 new_value: None,
             },
         )),
-        admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
+        admin.create_plain_message::<RT, CacheAndRevertTester<S>>(CallMessage::TestAndSetString(
             TestAndSet {
                 expected_value: None, // Insert a new string. No string should be cached
                 new_value: Some("hello again".try_into().unwrap()),
             },
         )),
-        admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
+        admin.create_plain_message::<RT, CacheAndRevertTester<S>>(CallMessage::TestAndSetString(
             TestAndSet {
                 expected_value: Some("hello again".try_into().unwrap()),
                 new_value: Some("hello again".try_into().unwrap()), // Update the string to itself. Nothing weird should happen
             },
         )),
-        admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
+        admin.create_plain_message::<RT, CacheAndRevertTester<S>>(CallMessage::TestAndSetString(
             TestAndSet {
                 expected_value: Some("hello again".try_into().unwrap()), // Ensure that the string still has the original value. Update it again
                 new_value: Some("goodbye again".try_into().unwrap()),
             },
         )),
-        admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetU16(TestAndSet {
-            expected_value: Some(11),
-            new_value: Some(11), // Check that the u16 is still cached. Leave it where it is
-        })),
-        admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetU8(TestAndSet {
-            expected_value: Some(2), // Delete the u8. The old value should be cached from the previous batch
-            new_value: None,
-        })),
+        admin.create_plain_message::<RT, CacheAndRevertTester<S>>(CallMessage::TestAndSetU16(
+            TestAndSet {
+                expected_value: Some(11),
+                new_value: Some(11), // Check that the u16 is still cached. Leave it where it is
+            },
+        )),
+        admin.create_plain_message::<RT, CacheAndRevertTester<S>>(CallMessage::TestAndSetU8(
+            TestAndSet {
+                expected_value: Some(2), // Delete the u8. The old value should be cached from the previous batch
+                new_value: None,
+            },
+        )),
     ];
 
     // Second, execute the two batches
@@ -128,34 +138,34 @@ fn test_setting_and_getting_values() {
 
     // Finally, check that the cache has been cleared.
     runner.execute_transaction(TransactionTestCase {
-        input: admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
-            TestAndSet {
+        input: admin.create_plain_message::<RT, CacheAndRevertTester<S>>(
+            CallMessage::TestAndSetString(TestAndSet {
                 expected_value: None,
                 new_value: None,
-            },
-        )),
+            }),
+        ),
         assert: Box::new(|output, _| {
             assert!(output.tx_receipt.is_successful());
         }),
     });
     runner.execute_transaction(TransactionTestCase {
-        input: admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetU16(
-            TestAndSet {
+        input: admin.create_plain_message::<RT, CacheAndRevertTester<S>>(
+            CallMessage::TestAndSetU16(TestAndSet {
                 expected_value: None,
                 new_value: None,
-            },
-        )),
+            }),
+        ),
         assert: Box::new(|output, _| {
             assert!(output.tx_receipt.is_successful());
         }),
     });
     runner.execute_transaction(TransactionTestCase {
-        input: admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetU8(
-            TestAndSet {
+        input: admin.create_plain_message::<RT, CacheAndRevertTester<S>>(
+            CallMessage::TestAndSetU8(TestAndSet {
                 expected_value: None,
                 new_value: None,
-            },
-        )),
+            }),
+        ),
         assert: Box::new(|output, _| {
             assert!(output.tx_receipt.is_successful());
         }),
@@ -168,22 +178,24 @@ fn test_reverted_txs_dont_modify_cache() {
     let (mut runner, admin, _) = setup();
     let output = runner.execute(SlotInput::Batch(
         vec![
-            admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::SetAndRevertString(
-                Some("hello".try_into().unwrap()),
-            )), // Set a value, but then revert the tx
-            admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
-                TestAndSet {
+            admin.create_plain_message::<RT, CacheAndRevertTester<S>>(
+                CallMessage::SetAndRevertString(Some("hello".try_into().unwrap())),
+            ), // Set a value, but then revert the tx
+            admin.create_plain_message::<RT, CacheAndRevertTester<S>>(
+                CallMessage::TestAndSetString(TestAndSet {
                     expected_value: None, // Assert that the value is not cached, then insert an entry
                     new_value: Some("hello".try_into().unwrap()),
-                },
-            )),
-            admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::SetAndRevertString(None)), // Delete the value, but then revert the tx
-            admin.create_plain_message::<RT, CacheTester<S>>(CallMessage::TestAndSetString(
-                TestAndSet {
+                }),
+            ),
+            admin.create_plain_message::<RT, CacheAndRevertTester<S>>(
+                CallMessage::SetAndRevertString(None),
+            ), // Delete the value, but then revert the tx
+            admin.create_plain_message::<RT, CacheAndRevertTester<S>>(
+                CallMessage::TestAndSetString(TestAndSet {
                     expected_value: Some("hello".try_into().unwrap()), // Assert that the value is still cached
                     new_value: None,
-                },
-            )),
+                }),
+            ),
         ]
         .into(),
     ));
@@ -193,4 +205,107 @@ fn test_reverted_txs_dont_modify_cache() {
     assert!(receipt.tx_receipts[1].receipt.is_successful());
     assert!(receipt.tx_receipts[2].receipt.is_reverted());
     assert!(receipt.tx_receipts[3].receipt.is_successful());
+}
+
+/// Tests that updates to the cache are not affected by the "undo" capability of tx state if undo is not triggered and
+/// that "undo" does revert cache changes.
+#[test]
+fn test_set_and_maybe_undo_cache_behavior() {
+    let (mut runner, admin, _) = setup();
+    let output = runner.execute(SlotInput::Batch(
+        vec![
+            admin.create_plain_message::<RT, CacheAndRevertTester<S>>(
+                // Setup: Set a value in cache
+                CallMessage::TestSetAndMaybeUndo {
+                    cache_value: TestAndSet {
+                        expected_value: None,
+                        new_value: Some("hello".try_into().unwrap()),
+                    },
+                    state_value: 1,
+                    undo: false,
+                },
+            ),
+            admin.create_plain_message::<RT, CacheAndRevertTester<S>>(
+                // Test and set that value, but then undo the change in user space. This tx should not revert but should have no effect on the cache
+                CallMessage::TestSetAndMaybeUndo {
+                    cache_value: TestAndSet {
+                        expected_value: Some("hello".try_into().unwrap()),
+                        new_value: None,
+                    },
+                    state_value: 1,
+                    undo: true,
+                },
+            ),
+            admin.create_plain_message::<RT, CacheAndRevertTester<S>>(
+                // Test and set the cache value again. This tx should be successful because the previous one did not modify the cache
+                CallMessage::TestSetAndMaybeUndo {
+                    cache_value: TestAndSet {
+                        expected_value: Some("hello".try_into().unwrap()),
+                        new_value: None,
+                    },
+                    state_value: 2,
+                    undo: false,
+                },
+            ),
+        ]
+        .into(),
+    ));
+
+    let receipt = output.0.batch_receipts[0].clone();
+    assert_eq!(receipt.tx_receipts.len(), 3);
+    assert!(receipt.tx_receipts[0].receipt.is_successful());
+    assert!(receipt.tx_receipts[1].receipt.is_successful());
+    assert!(receipt.tx_receipts[2].receipt.is_successful());
+}
+
+/// Tests that functionality for user-space undo does not prevent values from being written or events from being emitted unless
+/// "undo" is triggered.
+#[test]
+fn test_set_and_maybe_undo_state_and_event_behavior() {
+    let (mut runner, admin, _) = setup();
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, CacheAndRevertTester<S>>(
+            // Write a value to state and emit an event. Assert that they go through
+            CallMessage::TestSetAndMaybeUndo {
+                cache_value: TestAndSet {
+                    expected_value: None,
+                    new_value: None,
+                },
+                state_value: 1,
+                undo: false,
+            },
+        ),
+        assert: Box::new(|output, state| {
+            // Check that the output is here
+            assert!(output.tx_receipt.is_successful());
+            assert_eq!(output.events.len(), 1);
+            assert_eq!(
+                output.events[0],
+                TestRuntimeEvent::TestModule(Event::SetValue(1))
+            );
+            let module = CacheAndRevertTester::<S>::default();
+            assert_eq!(module.value.get(state).unwrap(), Some(1));
+        }),
+    });
+
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, CacheAndRevertTester<S>>(
+            // Write a value to state and emit an event, then undo them. The tx should not revert but the state and event should not be written
+            CallMessage::TestSetAndMaybeUndo {
+                cache_value: TestAndSet {
+                    expected_value: None,
+                    new_value: None,
+                },
+                state_value: 2,
+                undo: true,
+            },
+        ),
+        assert: Box::new(|output, state| {
+            // The tx should be successful, but no events should be emitted and the state should not be modified
+            assert!(output.tx_receipt.is_successful());
+            assert_eq!(output.events.len(), 0);
+            let module = CacheAndRevertTester::<S>::default();
+            assert_eq!(module.value.get(state).unwrap(), Some(1));
+        }),
+    });
 }

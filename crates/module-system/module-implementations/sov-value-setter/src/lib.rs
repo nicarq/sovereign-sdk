@@ -81,7 +81,9 @@ impl<S: Spec> Module for ValueSetter<S> {
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
     ) -> Result<(), Error> {
-        match msg {
+        let mut state_wrapped = state.to_revertable();
+        let state = &mut state_wrapped;
+        let res = match msg {
             call::CallMessage::SetValue {
                 value: new_value,
                 gas,
@@ -92,6 +94,8 @@ impl<S: Spec> Module for ValueSetter<S> {
             } => {
                 Ok(self.assert_visible_slot_number(expected_visible_slot_number, context, state)?)
             }
-        }
+        };
+        state_wrapped.commit();
+        res
     }
 }

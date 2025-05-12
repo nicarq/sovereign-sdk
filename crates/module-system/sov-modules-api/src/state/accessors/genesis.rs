@@ -1,11 +1,10 @@
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
-use sov_state::{EventContainer, SlotKey, SlotValue};
+use sov_state::{EventContainer, SlotKey, SlotValue, TypeErasedEvent};
 
 use super::checkpoints::StateCheckpoint;
 use super::temp_cache::{BorshSerializedSize, CacheLookup, TempCache};
 use super::UniversalStateAccessor;
 use crate::capabilities::RollupHeight;
-use crate::state::events::TypedEvent;
 use crate::state::traits::PerBlockCache;
 use crate::{GasMeter, Genesis, PrivilegedKernelAccessor, Spec, VersionReader};
 
@@ -13,7 +12,7 @@ use crate::{GasMeter, Genesis, PrivilegedKernelAccessor, Spec, VersionReader};
 /// Since genesis is unproven, this state accessor may read and write to every namespace, and it is not metered.
 pub struct GenesisStateAccessor<'a, S: Spec> {
     checkpoint: &'a mut StateCheckpoint<S>,
-    pub(super) events: Vec<TypedEvent>,
+    pub(super) events: Vec<TypeErasedEvent>,
     pub(super) cache: TempCache,
 }
 
@@ -76,12 +75,12 @@ impl<'a, S: Spec> GasMeter for GenesisStateAccessor<'a, S> {
 
 impl<'a, S: Spec> GenesisStateAccessor<'a, S> {
     /// Extracts all typed events from this working set.
-    pub fn take_events(&mut self) -> Vec<TypedEvent> {
+    pub fn take_events(&mut self) -> Vec<TypeErasedEvent> {
         core::mem::take(&mut self.events)
     }
 
     /// Extracts a typed event at index `index`
-    pub fn take_event(&mut self, index: usize) -> Option<TypedEvent> {
+    pub fn take_event(&mut self, index: usize) -> Option<TypeErasedEvent> {
         if index < self.events.len() {
             Some(self.events.remove(index))
         } else {
@@ -92,14 +91,18 @@ impl<'a, S: Spec> GenesisStateAccessor<'a, S> {
     /// Returns an immutable map of all typed events that have been previously
     /// written to this working set.
     #[must_use]
-    pub fn events(&self) -> &[TypedEvent] {
+    pub fn events(&self) -> &[TypeErasedEvent] {
         &self.events
     }
 }
 
 impl<'a, S: Spec> EventContainer for GenesisStateAccessor<'a, S> {
     fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E) {
-        self.events.push(TypedEvent::new(event_key, event));
+        self.events.push(TypeErasedEvent::new(event_key, event));
+    }
+
+    fn add_type_erased_event(&mut self, event: TypeErasedEvent) {
+        self.events.push(event);
     }
 }
 

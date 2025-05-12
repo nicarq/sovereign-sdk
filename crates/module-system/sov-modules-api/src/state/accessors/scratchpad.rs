@@ -1,27 +1,181 @@
 //! Runtime state machine definitions.
 
+use std::collections::HashMap;
 use std::marker::PhantomData;
 
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
-use sov_state::{EventContainer, Namespace, SlotKey, SlotValue};
+use sov_state::{
+    EventContainer, Kernel as KernelType, Namespace, SlotKey, SlotValue, TypeErasedEvent, User,
+};
 
 use super::checkpoints::StateCheckpoint;
 use super::internals::RevertableWriter;
-use super::temp_cache::TempCache;
+use super::temp_cache::{CacheLookup, TempCache};
 use super::{BorshSerializedSize, ChangeSet, StateProvider, UniversalStateAccessor};
 use crate::capabilities::RollupHeight;
 use crate::module::Spec;
-use crate::state::events::TypedEvent;
 use crate::state::traits::PerBlockCache;
 use crate::transaction::{
     transaction_consumption_helper, AuthenticatedTransactionData, PriorityFeeBips,
     TransactionConsumption,
 };
 #[cfg(feature = "test-utils")]
-use crate::GasArray;
+use crate::{AccessoryStateReader, GasArray};
 use crate::{
-    Amount, BasicGasMeter, Gas, GasInfo, GasMeter, GasMeteringError, GetGasPrice, VersionReader,
+    AccessoryStateWriter, Amount, BasicGasMeter, Gas, GasInfo, GasMeter, GasMeteringError,
+    GetGasPrice, ProvableStateReader, ProvableStateWriter, TxState, VersionReader,
 };
+
+/// A state diff over the storage that contains all the changes related to transaction execution.
+///
+/// This structure is built from a [`StateProvider`] (typically a
+/// [`StateCheckpoint`]) and is used in the entire transaction lifecycle (from
+/// pre-execution checks to post execution state updates).
+///
+/// ## Usage note
+/// This method tracks the gas consumed outside of the transaction lifecycle without explicitly consuming a finite resource.
+/// This should only be used in infailible methods.
+pub struct RevertableTxState<'a, S: Spec, State> {
+    pub(super) inner: &'a mut State,
+    pub(super) events: Vec<TypeErasedEvent>,
+    pub(super) temp_cache: TempCache,
+    pub(super) writes: HashMap<(Namespace, SlotKey), Option<SlotValue>>,
+    pub(super) phantom: PhantomData<S>,
+}
+
+impl<'a, S: Spec, I: TxState<S>> RevertableTxState<'a, S, I> {
+    /// Creates a new [`RevertableTxState`] from the provided [`TxState`].
+    ///
+    /// # Important
+    /// You *MUST* call [`RevertableTxState::commit`] to save any changes made to this state.
+    pub fn new(inner: &'a mut I) -> Self {
+        Self {
+            inner,
+            events: Vec::default(),
+            temp_cache: TempCache::new(),
+            writes: HashMap::default(),
+            phantom: PhantomData,
+        }
+    }
+
+    /// Commits the changes from this [`RevertableTxState`] into the underlying state.
+    pub fn commit(self) -> &'a mut I {
+        for event in self.events {
+            self.inner.add_type_erased_event(event);
+        }
+        for (key, value) in self.writes {
+            if let Some(value) = value {
+                self.inner.set_value(key.0, &key.1, value);
+            } else {
+                self.inner.delete_value(key.0, &key.1);
+            }
+        }
+        self.inner.update_cache_with(self.temp_cache);
+        self.inner
+    }
+
+    /// Reverts the changes from this [`RevertableTxState`] and returns the underlying state.
+    pub fn revert(self) -> &'a mut I {
+        self.inner
+    }
+}
+
+impl<'a, S: Spec, I: TxState<S>> PerBlockCache for RevertableTxState<'a, S, I> {
+    fn get_cached<T: 'static + Send + Sync>(&self) -> Option<&T> {
+        match self.temp_cache.get::<T>() {
+            CacheLookup::Hit(value) => value,
+            CacheLookup::Miss => self.inner.get_cached::<T>(),
+        }
+    }
+
+    fn put_cached<T: 'static + Send + Sync + BorshSerializedSize>(&mut self, value: T) {
+        self.temp_cache.set(value);
+    }
+
+    fn delete_cached<T: 'static + Send + Sync>(&mut self) {
+        self.temp_cache.delete::<T>();
+    }
+
+    fn update_cache_with(&mut self, other: TempCache) {
+        self.temp_cache.update_with(other);
+    }
+}
+
+impl<'a, S: Spec, I: TxState<S>> VersionReader for RevertableTxState<'a, S, I> {
+    fn rollup_height_to_access(&self) -> RollupHeight {
+        self.inner.rollup_height_to_access()
+    }
+
+    fn current_visible_slot_number(&self) -> VisibleSlotNumber {
+        self.inner.current_visible_slot_number()
+    }
+
+    fn max_allowed_slot_number_to_access(&self) -> SlotNumber {
+        self.inner.max_allowed_slot_number_to_access()
+    }
+}
+
+impl<'a, S: Spec, I: TxState<S>> UniversalStateAccessor for RevertableTxState<'a, S, I> {
+    fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
+        if let Some(value) = self.writes.get(&(namespace, key.clone())) {
+            return value.as_ref().map(|v| v.size());
+        }
+        self.inner.get_size(namespace, key)
+    }
+
+    fn get_value(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue> {
+        if let Some(value) = self.writes.get(&(namespace, key.clone())) {
+            return value.clone();
+        }
+        self.inner.get_value(namespace, key)
+    }
+
+    fn set_value(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) {
+        self.writes.insert((namespace, key.clone()), Some(value));
+    }
+
+    fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) {
+        self.writes.insert((namespace, key.clone()), None);
+    }
+}
+
+impl<'a, S: Spec, I: TxState<S>> GasMeter for RevertableTxState<'a, S, I> {
+    type Spec = S;
+    fn charge_gas(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
+        self.inner.charge_gas(amount)
+    }
+
+    fn charge_linear_gas(
+        &mut self,
+        amount: &<Self::Spec as Spec>::Gas,
+        parameter: u32,
+    ) -> anyhow::Result<(), GasMeteringError<<Self::Spec as Spec>::Gas>> {
+        self.inner.charge_linear_gas(amount, parameter)
+    }
+
+    #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
+    fn remove_gas_pattern(&mut self, amount: &<Self::Spec as Spec>::Gas, parameter: u32) {
+        self.inner.remove_gas_pattern(amount, parameter);
+    }
+}
+
+impl<'a, S: Spec, I: TxState<S>> ProvableStateReader<User> for RevertableTxState<'a, S, I> {}
+impl<'a, S: Spec, I: TxState<S>> ProvableStateReader<KernelType> for RevertableTxState<'a, S, I> {}
+impl<'a, S: Spec, I: TxState<S>> ProvableStateWriter<User> for RevertableTxState<'a, S, I> {}
+impl<'a, S: Spec, I: TxState<S>> ProvableStateWriter<KernelType> for RevertableTxState<'a, S, I> {}
+impl<'a, S: Spec, I: TxState<S>> AccessoryStateWriter for RevertableTxState<'a, S, I> {}
+#[cfg(feature = "test-utils")]
+impl<'a, S: Spec, I: TxState<S>> AccessoryStateReader for RevertableTxState<'a, S, I> {}
+
+impl<'a, S: Spec, I: TxState<S>> EventContainer for RevertableTxState<'a, S, I> {
+    fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E) {
+        self.events.push(TypeErasedEvent::new(event_key, event));
+    }
+
+    fn add_type_erased_event(&mut self, event: TypeErasedEvent) {
+        self.events.push(event);
+    }
+}
 
 /// A state diff over the storage that contains all the changes related to transaction execution.
 ///
@@ -256,7 +410,7 @@ impl<S: Spec> StateCheckpoint<S> {
 ///    are reverted and the previous [`TxScratchpad`] is returned.
 pub struct WorkingSet<S: Spec, I: StateProvider<S> = StateCheckpoint<S>> {
     pub(super) delta: RevertableWriter<TxScratchpad<S, I>>,
-    events: Vec<TypedEvent>,
+    events: Vec<TypeErasedEvent>,
     gas_meter: BasicGasMeter<S>,
     // Gas parameters of the transaction associated with the working set
     max_fee: Amount,
@@ -307,7 +461,7 @@ impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
     ) -> (
         TxScratchpad<S, I>,
         TransactionConsumption<S::Gas>,
-        Vec<TypedEvent>,
+        Vec<TypeErasedEvent>,
     ) {
         let tx_reward = self.transaction_consumption();
         (self.delta.commit(), tx_reward, self.events)
@@ -321,12 +475,12 @@ impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
     }
 
     /// Extracts all typed events from this working set.
-    pub fn take_events(&mut self) -> Vec<TypedEvent> {
+    pub fn take_events(&mut self) -> Vec<TypeErasedEvent> {
         core::mem::take(&mut self.events)
     }
 
     /// Extracts a typed event at index `index`
-    pub fn take_event(&mut self, index: usize) -> Option<TypedEvent> {
+    pub fn take_event(&mut self, index: usize) -> Option<TypeErasedEvent> {
         if index < self.events.len() {
             Some(self.events.remove(index))
         } else {
@@ -336,7 +490,7 @@ impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
 
     /// Returns an immutable map of all typed events that have been previously
     /// written to this working set.
-    pub fn events(&self) -> &[TypedEvent] {
+    pub fn events(&self) -> &[TypeErasedEvent] {
         &self.events
     }
 
@@ -448,7 +602,11 @@ impl<S: Spec, I: StateProvider<S>> UniversalStateAccessor for WorkingSet<S, I> {
 
 impl<S: Spec, I: StateProvider<S>> EventContainer for WorkingSet<S, I> {
     fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E) {
-        self.events.push(TypedEvent::new(event_key, event));
+        self.events.push(TypeErasedEvent::new(event_key, event));
+    }
+
+    fn add_type_erased_event(&mut self, event: TypeErasedEvent) {
+        self.events.push(event);
     }
 }
 

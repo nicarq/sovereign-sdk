@@ -10,23 +10,23 @@ use std::any::Any;
 /// - `type_id`: The type identifier of the event, using [`core::any::TypeId`].
 /// - `boxed_event`: The event encapsulated in a box, implementing [`core::any::Any`] and [`core::marker::Send`].
 #[derive(Debug)]
-pub struct TypedEvent {
+pub struct TypeErasedEvent {
     event_key: Vec<u8>,
     type_id: core::any::TypeId,
     boxed_event: Box<dyn core::any::Any + core::marker::Send>,
 }
 
-impl TypedEvent {
+impl TypeErasedEvent {
     /// Created a Typed Event
     pub fn new<E: 'static + core::marker::Send>(event_key: &str, event: E) -> Self {
-        TypedEvent {
+        TypeErasedEvent {
             event_key: event_key.as_bytes().to_vec(),
             type_id: event.type_id(),
             boxed_event: Box::new(event),
         }
     }
 
-    /// Try to cast from the `TypedEvent` to a specific type `E` provided
+    /// Try to cast from the `TypeErasedEvent` to a specific type `E` provided
     /// Checks `type_id` to avoid unnecessary casting
     #[must_use]
     pub fn downcast<E: core::clone::Clone + 'static>(self) -> Option<E> {
@@ -37,7 +37,7 @@ impl TypedEvent {
         }
     }
 
-    // Try to cast from the `TypedEvent` to a reference to a specific type `E` provided
+    // Try to cast from the `TypeErasedEvent` to a reference to a specific type `E` provided
     /// Checks `type_id` to avoid unnecessary casting
     #[must_use]
     pub fn downcast_ref<E: core::clone::Clone + 'static>(&self) -> Option<&E> {

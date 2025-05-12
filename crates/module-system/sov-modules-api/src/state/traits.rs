@@ -17,7 +17,7 @@ use super::accessors::{BorshSerializedSize, TempCache};
 use crate::capabilities::RollupHeight;
 #[cfg(any(feature = "test-utils", feature = "evm"))]
 use crate::UnmeteredStateWrapper;
-use crate::{Gas, GasMeter, GasMeteringError, GasSpec, Spec};
+use crate::{Gas, GasMeter, GasMeteringError, GasSpec, RevertableTxState, Spec};
 
 /// A type that can both read and write the normal "user-space" state of the rollup.
 ///
@@ -94,7 +94,14 @@ pub trait TxState<S: Spec>:
     + EventContainer
     + PerBlockCache
     + GasMeter<Spec = S>
+    + Sized
 {
+    /// Converts this state accessor into a [`RevertableTxState`].
+    ///
+    /// You *MUST* call .commit() to save the changes from the resulting accessor if you want them to be persisted
+    fn to_revertable(&mut self) -> RevertableTxState<S, Self> {
+        RevertableTxState::new(self)
+    }
 }
 
 impl<S: Spec, T> TxState<S> for T where
@@ -107,6 +114,7 @@ impl<S: Spec, T> TxState<S> for T where
         + EventContainer
         + PerBlockCache
         + GasMeter<Spec = S>
+        + Sized
 {
 }
 
