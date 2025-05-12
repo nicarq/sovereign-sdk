@@ -28,11 +28,11 @@ pub enum ByteDisplayType {
     Hex,
     Decimal,
     Bech32 {
-        #[darling(with = "darling::util::parse_expr::parse_str_literal")]
+        #[darling(with = darling::util::parse_expr::parse_str_literal)]
         prefix: syn::Expr,
     },
     Bech32m {
-        #[darling(with = "darling::util::parse_expr::parse_str_literal")]
+        #[darling(with = darling::util::parse_expr::parse_str_literal)]
         prefix: syn::Expr,
     },
     Base58,
