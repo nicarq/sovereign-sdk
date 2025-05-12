@@ -12,7 +12,7 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::runtime::capabilities::AuthenticationError;
 use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, Credentials, PriorityFeeBips,
-    TransactionWithoutCall, TxDetails,
+    TxDetails,
 };
 use sov_modules_api::{
     Amount, DispatchCall, FullyBakedTx, ProvableStateReader, RawTx, Runtime, Spec,
@@ -132,30 +132,23 @@ where
 {
     type Decodable = EvmAuthenticatorInput<call::CallMessage, <Rt as DispatchCall>::Decodable>;
     type Input = EvmAuthenticatorInput;
-    type Signature = EvmAuthenticatorInput<TransactionSigned, TransactionWithoutCall<S>>;
 
     #[cfg(feature = "native")]
     fn decode_serialized_tx(
         tx: &FullyBakedTx,
-    ) -> Result<(Self::Decodable, Self::Signature), sov_modules_api::capabilities::FatalError> {
+    ) -> Result<Self::Decodable, sov_modules_api::capabilities::FatalError> {
         let auth_variant: EvmAuthenticatorInput = borsh::from_slice(&tx.data).map_err(|e| {
             sov_modules_api::capabilities::FatalError::DeserializationFailed(e.to_string())
         })?;
 
         match auth_variant {
             EvmAuthenticatorInput::Evm(raw_tx) => {
-                let (call, tx) = decode_evm_tx(&raw_tx.data)?;
-                Ok((
-                    EvmAuthenticatorInput::Evm(call::CallMessage { rlp: call }),
-                    EvmAuthenticatorInput::Evm(tx),
-                ))
+                let (call, _tx) = decode_evm_tx(&raw_tx.data)?;
+                Ok(EvmAuthenticatorInput::Evm(call::CallMessage { rlp: call }))
             }
             EvmAuthenticatorInput::Standard(raw_tx) => {
-                let (call, tx) = capabilities::decode_sov_tx::<S, Rt>(&raw_tx.data)?;
-                Ok((
-                    EvmAuthenticatorInput::Standard(call),
-                    EvmAuthenticatorInput::Standard(tx),
-                ))
+                let call = capabilities::decode_sov_tx::<S, Rt>(&raw_tx.data)?;
+                Ok(EvmAuthenticatorInput::Standard(call))
             }
         }
     }

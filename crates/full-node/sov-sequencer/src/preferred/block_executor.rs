@@ -177,7 +177,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         checkpoint: &mut StateCheckpoint<S>,
         task_state: &mut BackgroundTaskState<S>,
     ) -> Result<TransactionReceipt<S>, RollupBlockExecutorError<S>> {
-        let (call, _) = Rt::Auth::decode_serialized_tx(baked_tx)?;
+        let call = Rt::Auth::decode_serialized_tx(baked_tx)?;
         let call = Rt::wrap_call(call);
 
         if let Err(TrySendError::Full(_)) = task_state.tx_sender.try_send(baked_tx.clone()) {

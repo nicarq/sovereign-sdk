@@ -13,7 +13,7 @@ use thiserror::Error;
 
 use crate::transaction::{
     AuthenticatedTransactionAndRawHash, Credentials, Transaction, TransactionVerificationError,
-    TransactionWithoutCall, VersionedTx,
+    VersionedTx,
 };
 use crate::{
     capabilities, metered_credential, AuthenticatedTransactionData, Context, CryptoSpec,
@@ -48,9 +48,6 @@ pub trait TransactionAuthenticator<S: Spec> {
     /// The input to the authenticator
     type Input: BorshDeserialize + BorshSerialize + Clone + std::fmt::Debug + Send + Sync + 'static;
 
-    /// The signature of the transaction.
-    type Signature;
-
     /// Authenticates a transaction (typically by checking the signature) and deserializes its contents
     /// into an executable message.
     fn authenticate<Accessor: ProvableStateReader<User, Spec = S>>(
@@ -62,12 +59,10 @@ pub trait TransactionAuthenticator<S: Spec> {
     #[cfg(feature = "native")]
     fn compute_tx_hash(tx: &FullyBakedTx) -> anyhow::Result<TxHash>;
 
-    /// Decode a transaction into a message and signature.
+    /// Decode a transaction into a message.
     /// This method doesn’t charge gas for deserialization, so it’s meant for off-chain code only (hence to the `native` feature).
     #[cfg(feature = "native")]
-    fn decode_serialized_tx(
-        tx: &FullyBakedTx,
-    ) -> Result<(Self::Decodable, Self::Signature), FatalError>;
+    fn decode_serialized_tx(tx: &FullyBakedTx) -> Result<Self::Decodable, FatalError>;
 
     /// Authenticates raw transaction that is submitted from unregistered sequencers for the
     /// purpose of forced registration (circumventing censorship by currently registered sequencers).
@@ -121,12 +116,9 @@ where
 {
     type Decodable = Rt::Decodable;
     type Input = AuthenticatorInput;
-    type Signature = TransactionWithoutCall<S>;
 
     #[cfg(feature = "native")]
-    fn decode_serialized_tx(
-        tx: &FullyBakedTx,
-    ) -> Result<(Self::Decodable, Self::Signature), FatalError> {
+    fn decode_serialized_tx(tx: &FullyBakedTx) -> Result<Self::Decodable, FatalError> {
         let AuthenticatorInput::Standard(tx) = borsh::from_slice(&tx.data)
             .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
 
@@ -406,12 +398,11 @@ pub fn authenticate<
 #[cfg(feature = "native")]
 pub fn decode_sov_tx<S: Spec, D: DispatchCall<Spec = S>>(
     mut raw_tx: &[u8],
-) -> Result<(D::Decodable, crate::transaction::TransactionWithoutCall<S>), FatalError> {
+) -> Result<D::Decodable, FatalError> {
     let tx = <Transaction<D, S> as MeteredBorshDeserialize<S>>::unmetered_deserialize(&mut raw_tx)
         .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
 
-    let (tx, call) = tx.split();
-    Ok((call, tx))
+    Ok(tx.call())
 }
 
 /// Calculates the hash of `data` and charges gas.

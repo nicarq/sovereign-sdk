@@ -1,6 +1,9 @@
 # 2025-05-12
 - #2862 There was an issue where `darling`, a dependency we use, introduced a breaking change that Cargo was auto-upgrading to. This required users to add a workaround of explicitly pinning the version using `darling = "=0.20.10"`. This has now been fixed and the workaround is no longer necessary.
 
+# 2025-05-12
+- #2659 **BREAKING CHANGE** Removes `Signature` associated type from the `TransactionAuthenticator`
+
 # 2025-05-05
 - #2659 **BREAKING CHANGE** Added support for versioned transactions. SDK consumers must now use the new constructor `Transaction::with_call_v0`.
 
