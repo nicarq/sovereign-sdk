@@ -98,7 +98,7 @@ where
                 self.bank_module
                     .get_balance_of(&rollup_address, config_gas_token_id(), state)?;
 
-            debug_assert!(
+            assert!(
                 !(acc.balance != U256::ZERO && bank_balance.is_some()),
                 "EVM account balance can only be set from one genesis config to avoid conflicts. 
                 Choose either the Bank or the EVM module genesis config."

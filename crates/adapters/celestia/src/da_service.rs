@@ -561,11 +561,11 @@ impl DaService for CelestiaService {
 /// Technically, we rely on constants about size,
 /// and it should be good as long as there are only two types of shares.
 fn shares_needed_for_bytes(payload_bytes: usize) -> usize {
-    debug_assert_ne!(
+    assert_ne!(
         CONTINUATION_SPARSE_SHARE_CONTENT_SIZE, 0,
         "Something wrong with celestia lib"
     );
-    debug_assert_ne!(
+    assert_ne!(
         FIRST_SPARSE_SHARE_CONTENT_SIZE, 0,
         "Something wrong with celestia lib"
     );

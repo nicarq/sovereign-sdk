@@ -65,8 +65,9 @@ where
 
         match maybe_account_info {
             Some(mut account_info) => {
-                debug_assert!(
-                    account_info.balance == U256::ZERO,
+                assert_eq!(
+                    account_info.balance,
+                    U256::ZERO,
                     "EVM balance is not zero - balance should be stored in the bank module instead"
                 );
 

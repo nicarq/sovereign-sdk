@@ -647,11 +647,11 @@ where
         // The difference in this case with the loop above,
         // is that we check that block at earliest seen transition height also points to last finalized height.
 
-        debug_assert!(
+        assert!(
             high <= highest_seen_height.saturating_add(1),
             "Error in `high`"
         );
-        debug_assert!(low >= earliest_seen_height, "Error in `low`");
+        assert!(low >= earliest_seen_height, "Error in `low`");
 
         if low == earliest_seen_height {
             tracing::trace!(
@@ -663,7 +663,7 @@ where
             );
             let candidate = final_candidate.expect("Should be set");
 
-            debug_assert_eq!(candidate.header().height(), earliest_seen_height);
+            assert_eq!(candidate.header().height(), earliest_seen_height);
 
             // All earliest transitions point to the last known finalized state
             let any_earliest_seen_hash = self
@@ -701,7 +701,7 @@ where
 
             // This candidate obviously is not fit, otherwise it would've been selected in the main loop
             let mut candidate = final_candidate.expect("Should be set");
-            debug_assert_eq!(
+            assert_eq!(
                 candidate.header().height(),
                 high,
                 "Wrong candidate for the future block",
