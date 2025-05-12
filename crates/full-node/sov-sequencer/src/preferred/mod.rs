@@ -1,6 +1,7 @@
 //! See [`PreferredSequencer`].
 
 mod async_batch;
+mod batch_size_tracker;
 mod block_executor;
 mod db;
 
@@ -10,8 +11,10 @@ use std::num::NonZero;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
+use batch_size_tracker::BatchSizeTracker;
 use db::postgres::PostgresBackend;
 use db::rocksdb::RocksDbBackend;
 use db::{
@@ -23,7 +26,7 @@ use serde_with::serde_as;
 use sov_blob_sender::{new_blob_id, BlobInternalId, BlobSender};
 use sov_blob_storage::{PreferredBatchData, PreferredProofData};
 use sov_db::ledger_db::LedgerDb;
-use sov_modules_api::capabilities::{BlobSelector, TransactionAuthenticator};
+use sov_modules_api::capabilities::{BlobSelector, RollupHeight, TransactionAuthenticator};
 use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
@@ -54,15 +57,6 @@ use crate::{
 };
 
 type VisibleSlotNumberIncrease = NonZero<u8>;
-// Constant overhead for a serialized batch:
-// - 8 bytes for batch_sequence_number
-// - 1 byte for visible_slots_to_advance
-// - 4 bytes for BORSH metadata
-// Total (rounded up) = 16 bytes
-const BATCH_SIZE_OVERHEAD: usize = 16;
-// Each transaction is inserted into a vector of transactions in the batch.
-// BORSH overhead for this is 4 bytes.
-const PER_TX_BORSH_OVERHEAD: usize = 4;
 
 /// A inner sequencer struct containing state that requires synchronized access.
 struct Inner<S, Rt, Da>
@@ -77,8 +71,7 @@ where
     blob_sender: BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>>,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     block_executor: RollupBlockExecutor<S, Rt>,
-    max_batch_size_bytes: usize,
-    current_batch_size_bytes: usize,
+    batch_size_tracker: BatchSizeTracker,
 }
 
 impl<S, Rt, Da> Inner<S, Rt, Da>
@@ -178,7 +171,7 @@ where
         }
 
         let batch = self.db.terminate_batch().await?;
-        self.current_batch_size_bytes = BATCH_SIZE_OVERHEAD;
+        self.batch_size_tracker = BatchSizeTracker::new(self.config.max_batch_size_bytes);
         self.block_executor.end_rollup_block_if_in_progress().await;
 
         self.update_api_state().await;
@@ -257,6 +250,42 @@ where
                     self.publish_proof(data, sequence_number, blob_id).await?;
                 }
             }
+        }
+
+        Ok(())
+    }
+
+    fn err_if_cant_fit_tx(&self, tx: &FullyBakedTx) -> Result<(), ErrorObject> {
+        if !self.batch_size_tracker.can_fit_tx(tx.data.len()) {
+            return Err(ErrorObject {
+                status: axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                title: "Transaction cannot be included in the batch.".to_string(),
+                details: sov_rest_utils::json_obj!({
+                    "message": format!("The transaction is too large.
+                            Serialized transaction size: {}, 
+                            current batch size: {}, 
+                            and batch size limit: {}."
+                        ,
+                    BatchSizeTracker::serialized_tx_size(tx.data.len()),
+                    self.batch_size_tracker.current_batch_size,
+                    self.batch_size_tracker.max_batch_size,
+                )
+                }),
+            });
+        }
+
+        Ok(())
+    }
+
+    async fn trigger_batch_production(&mut self, da_sync_status: SyncStatus) -> anyhow::Result<()> {
+        if self.config.automatic_batch_production {
+            if da_sync_status.distance() <= sov_blob_storage::config_deferred_slots_count()
+                && self.blob_sender_busy().is_none()
+            {
+                self.produce_batch_if_possible().await?;
+            }
+        } else {
+            warn!("Skipping batch production due to settings");
         }
 
         Ok(())
@@ -356,6 +385,11 @@ where
     shutdown_notifier: Sender<()>,
 }
 
+struct SoftConfirmationsReplayReceipt {
+    inner_lock_start_time: std::time::Instant,
+    metrics: PreferredSequencerUpdateStateMetrics,
+}
+
 impl<S, Rt, Da> PreferredSequencer<S, Rt, Da>
 where
     S: Spec,
@@ -365,6 +399,187 @@ where
     #[tracing::instrument(skip_all, level = "debug")]
     async fn lock_inner(&self) -> MutexGuard<Inner<S, Rt, Da>> {
         self.inner.lock().await
+    }
+
+    async fn replay_soft_confirmations_on_top_of_node_state(
+        &self,
+        info: &StateUpdateInfo<S::Storage>,
+    ) -> anyhow::Result<(MutexGuard<Inner<S, Rt, Da>>, SoftConfirmationsReplayReceipt)> {
+        let batches_to_process = {
+            // We gotta briefly lock to access the database, but release the lock ASAP.
+            let mut inner = self.lock_inner().await;
+
+            batches_to_process(&mut inner.db, info).await?
+        };
+
+        let batches_count = batches_to_process.len() as u64;
+        let transactions_count = batches_to_process
+            .iter()
+            .map(|b| b.batch.inner.data.len() as u64)
+            .sum::<u64>();
+
+        if tracing::enabled!(tracing::Level::TRACE) {
+            let batch_details_to_log = batches_to_process
+                .iter()
+                .map(|batch| {
+                    (
+                        batch.batch.inner.sequence_number,
+                        batch.batch.inner.visible_slots_to_advance,
+                        batch.batch.inner.data.len(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            trace!(
+                ?batch_details_to_log,
+                "Prepared batches to apply to the state"
+            );
+        }
+
+        // Now that we're not locking on the sequencer state anymore, we can replay all the batches.
+
+        let mut executor = RollupBlockExecutor::<_, Rt>::new(
+            InternalState::node(info, &mut Rt::default()),
+            info.next_event_number,
+            None, // We don't re-send events when replaying batches in the background.
+            self.config.clone(),
+            self.shutdown_notifier.clone(),
+        );
+
+        let node_state_root = tracing::trace_span!("root_hash")
+            .in_scope(|| info.storage.get_root_hash(info.slot_number))?;
+        let last_batch = batches_to_process.last();
+        let last_replayed_batch_in_progress = last_batch.map(|batch| batch.is_in_progress);
+        let latest_batch_txs_len = last_batch.map(|batch| batch.batch.tx_hashes.len());
+
+        async {
+            for batch in batches_to_process {
+                executor.replay_batch(&batch, &node_state_root).await?;
+            }
+            Ok::<(), anyhow::Error>(())
+        }
+        .instrument(tracing::debug_span!("process_batches"))
+        .await?;
+
+        // We stop accepting new txns in accept_tx for a short time while we catch up
+        let mut inner = self.lock_inner().await;
+        let inner_lock_start_time = std::time::Instant::now();
+
+        let current_in_progress_batch = inner.db.in_progress_batch_opt().cloned();
+
+        let in_progress_batch_exists = current_in_progress_batch.is_some();
+
+        // Currently it's not possible for `accept_tx` to end a batch, this will likely
+        // change in the future when it can close batches due to gas, stake, batch sizes, etc.
+        // When that happens we'll also need to handle the case where `accept_tx` closes the batch.
+        match (last_replayed_batch_in_progress, current_in_progress_batch) {
+            // We have an in-progress batch, see if there's any new additions
+            // since we've replayed the batches on the nodes state
+            (Some(true), Some(batch)) => {
+                let prev_txs_len =
+                    latest_batch_txs_len.expect("In progress check was Some but txs len was None");
+                let new_txs = batch.txs[prev_txs_len..].to_vec();
+
+                trace!(new_txs = new_txs.len(), "Applying any new transactions have been added to in-progress batch while updating node state");
+
+                for tx in new_txs {
+                    let _ = executor.apply_tx_to_in_progress_batch(&tx).await;
+                }
+            }
+            // There wasn't an in-progress batch previously but there is one now
+            // It was started by accept_tx, lets add it to our state
+            (_, Some(in_progress_batch)) => {
+                trace!("Replaying batch that was initialized while updating node state");
+                let batch = PreferredBatchToRestore {
+                    is_in_progress: true,
+                    visible_slot_number_after_increase: in_progress_batch
+                        .visible_slot_number_after_increase,
+                    blob_id: in_progress_batch.blob_id,
+                    batch: in_progress_batch.into(),
+                };
+                let node_root = inner.node_root_hash()?;
+
+                if executor.replay_batch(&batch, &node_root).await? {
+                    inner.db.pop_tx_from_in_progress_batch().await?;
+                }
+            }
+            _ => trace!("No new transaction or batch state while updating node state"),
+        }
+
+        let metrics = PreferredSequencerUpdateStateMetrics {
+            duration: Duration::ZERO,
+            lock_duration: Duration::ZERO,
+            batches_count,
+            transactions_count,
+            in_progress_batch: in_progress_batch_exists,
+        };
+
+        trace!("Node state update complete, swapping new state into sequencer");
+        inner.block_executor.replace_state(executor, true).await;
+
+        Ok((
+            inner,
+            SoftConfirmationsReplayReceipt {
+                inner_lock_start_time,
+                metrics,
+            },
+        ))
+    }
+
+    async fn replay_soft_confirmations_if_necessary(
+        &self,
+        info: StateUpdateInfo<S::Storage>,
+    ) -> anyhow::Result<SoftConfirmationsReplayReceipt> {
+        let is_necessary = !is_node_state_fresher_than_sequencer_state::<S, Rt>(
+            self.api_state
+                .default_api_state_accessor()
+                .rollup_height_to_access(),
+            &info,
+        )
+        .await?;
+
+        let (mut inner, receipt) = if is_necessary {
+            self.replay_soft_confirmations_on_top_of_node_state(&info)
+                .await?
+        } else {
+            let executor = RollupBlockExecutor::<_, Rt>::new(
+                InternalState::node(&info, &mut Rt::default()),
+                info.next_event_number,
+                None, // We don't re-send events when replaying batches in the background.
+                self.config.clone(),
+                self.shutdown_notifier.clone(),
+            );
+
+            let metrics = PreferredSequencerUpdateStateMetrics {
+                duration: Duration::ZERO,
+                lock_duration: Duration::ZERO,
+                batches_count: 0,
+                transactions_count: 0,
+                in_progress_batch: false,
+            };
+
+            let mut inner = self.lock_inner().await;
+            let inner_lock_start_time = std::time::Instant::now();
+
+            inner.block_executor.replace_state(executor, false).await;
+
+            (
+                inner,
+                SoftConfirmationsReplayReceipt {
+                    inner_lock_start_time,
+                    metrics,
+                },
+            )
+        };
+
+        inner.latest_info = info;
+        inner.update_api_state().await;
+        trace!("Sequencer state update completed successfully");
+
+        inner
+            .trigger_batch_production(self.da_sync_state.status())
+            .await?;
+
+        Ok(receipt)
     }
 }
 
@@ -455,8 +670,7 @@ where
 
         let mut inner = Inner {
             db: PreferredSequencerDb::<S, Rt>::new(db_backend, &latest_state_update).await?,
-            max_batch_size_bytes: config.max_batch_size_bytes,
-            current_batch_size_bytes: BATCH_SIZE_OVERHEAD,
+            batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
             latest_info: latest_state_update.clone(),
             checkpoint_sender,
             config: config.clone(),
@@ -578,125 +792,17 @@ where
 
     #[tracing::instrument(skip_all, level = "debug")]
     async fn update_state(&self, info: StateUpdateInfo<S::Storage>) -> anyhow::Result<()> {
-        let start = std::time::Instant::now();
+        let timer_start = std::time::Instant::now();
+        let node_slot_num = info.slot_number.get();
 
         self.node_delta_watcher
             .node_height
             .store(info.slot_number.get(), Ordering::Release);
-        let batches_to_process = {
-            let mut inner = self.lock_inner().await;
 
-            batches_to_process(&mut inner.db, &info).await?
-        };
-
-        let batches_count = batches_to_process.len() as u64;
-        let transactions_count = batches_to_process
-            .iter()
-            .map(|b| b.batch.inner.data.len() as u64)
-            .sum::<u64>();
-
-        if tracing::enabled!(tracing::Level::TRACE) {
-            let batch_details_to_log = batches_to_process
-                .iter()
-                .map(|batch| {
-                    (
-                        batch.batch.inner.sequence_number,
-                        batch.batch.inner.visible_slots_to_advance,
-                        batch.batch.inner.data.len(),
-                    )
-                })
-                .collect::<Vec<_>>();
-            trace!(
-                ?batch_details_to_log,
-                "Prepared batches to apply to the state"
-            );
-        }
-
-        let mut executor = RollupBlockExecutor::<_, Rt>::new(
-            InternalState::node(&info, &mut Rt::default()),
-            info.next_event_number,
-            None, // We don't re-send events when replaying batches in the background.
-            self.config.clone(),
-            self.shutdown_notifier.clone(),
-        );
-
-        let node_state_root = tracing::trace_span!("root_hash")
-            .in_scope(|| info.storage.get_root_hash(info.slot_number))?;
-        let last_batch = batches_to_process.last();
-        let last_replayed_batch_in_progress = last_batch.map(|batch| batch.is_in_progress);
-        let latest_batch_txs_len = last_batch.map(|batch| batch.batch.tx_hashes.len());
-
-        async {
-            for batch in batches_to_process {
-                executor.replay_batch(&batch, &node_state_root).await?;
-            }
-            Ok::<(), anyhow::Error>(())
-        }
-        .instrument(tracing::debug_span!("process_batches"))
-        .await?;
-
-        // We stop accepting new txns in accept_tx for a short time while we catch up
-        let mut inner = self.lock_inner().await;
-        let lock_start_time = std::time::Instant::now();
-
-        let current_in_progress_batch = inner.db.in_progress_batch_opt().cloned();
-        let node_slot_num = info.slot_number.get();
-
-        let in_progress_batch_exists = current_in_progress_batch.is_some();
-
-        // Currently it's not possible for `accept_tx` to end a batch, this will likely
-        // change in the future when it can close batches due to gas, stake, batch sizes, etc.
-        // When that happens we'll also need to handle the case where `accept_tx` closes the batch.
-        match (last_replayed_batch_in_progress, current_in_progress_batch) {
-            // We have an in-progress batch, see if there's any new additions
-            // since we've replayed the batches on the nodes state
-            (Some(true), Some(batch)) => {
-                let prev_txs_len =
-                    latest_batch_txs_len.expect("In progress check was Some but txs len was None");
-                let new_txs = batch.txs[prev_txs_len..].to_vec();
-
-                trace!(new_txs = new_txs.len(), "Applying any new transactions have been added to in-progress batch while updating node state");
-
-                for tx in new_txs {
-                    let _ = executor.apply_tx_to_in_progress_batch(&tx).await;
-                }
-            }
-            // There wasn't an in-progress batch previously but there is one now
-            // It was started by accept_tx, lets add it to our state
-            (_, Some(in_progress_batch)) => {
-                trace!("Replaying batch that was initialized while updating node state");
-                let batch = PreferredBatchToRestore {
-                    is_in_progress: true,
-                    visible_slot_number_after_increase: in_progress_batch
-                        .visible_slot_number_after_increase,
-                    blob_id: in_progress_batch.blob_id,
-                    batch: in_progress_batch.into(),
-                };
-                let node_root = inner.node_root_hash()?;
-
-                if executor.replay_batch(&batch, &node_root).await? {
-                    inner.db.pop_tx_from_in_progress_batch().await?;
-                }
-            }
-            _ => trace!("No new transaction or batch state while updating node state"),
-        }
-
-        trace!("Node state update complete, swapping new state into sequencer");
-        inner.latest_info = info;
-        inner.block_executor.replace_state(executor).await;
-        inner.update_api_state().await;
-        trace!("Node state update completed successfully");
-
-        if self.config.automatic_batch_production {
-            if self.da_sync_state.status().distance()
-                <= sov_blob_storage::config_deferred_slots_count()
-                && inner.blob_sender_busy().is_none()
-            {
-                inner.produce_batch_if_possible().await?;
-            }
-        } else {
-            warn!("Skipping batch production due to settings");
-        }
+        let SoftConfirmationsReplayReceipt {
+            inner_lock_start_time,
+            mut metrics,
+        } = self.replay_soft_confirmations_if_necessary(info).await?;
 
         // Currently the sequencers height increases alongside the node inside this function.
         // In the future the sequencer might be able to produce rollup blocks
@@ -705,17 +811,12 @@ where
             .sequencer_height
             .store(node_slot_num, Ordering::Release);
 
-        {
-            sov_metrics::track_metrics(|t| {
-                t.submit(PreferredSequencerUpdateStateMetrics {
-                    duration: start.elapsed(),
-                    lock_duration: lock_start_time.elapsed(),
-                    batches_count,
-                    transactions_count,
-                    in_progress_batch: in_progress_batch_exists,
-                });
-            });
-        }
+        sov_metrics::track_metrics(|t| {
+            metrics.duration = timer_start.elapsed();
+            metrics.lock_duration = inner_lock_start_time.elapsed();
+
+            t.submit(metrics);
+        });
 
         Ok(())
     }
@@ -742,20 +843,14 @@ where
             panic!("No batch in progress, and no batch can be started. This is either because of (1) a bug, or (2) misuse of the `POST /sequencer/batches` endpoint. Please use automatic batch production exclusively, and report this bug if necessary. {:?} {:?}", inner.block_executor.state(), inner.latest_info);
         }
 
+        inner.err_if_cant_fit_tx(&baked_tx)?;
+
         let Inner {
             block_executor,
             db,
-            max_batch_size_bytes,
-            current_batch_size_bytes,
+            batch_size_tracker,
             ..
         } = &mut *inner;
-
-        let tx_size_bytes = baked_tx.data.len() + PER_TX_BORSH_OVERHEAD;
-        check_batch_size(
-            *current_batch_size_bytes,
-            tx_size_bytes,
-            *max_batch_size_bytes,
-        )?;
 
         let tx_hash = Rt::Auth::compute_tx_hash(&baked_tx).map_err(generic_accept_tx_error)?;
 
@@ -776,7 +871,7 @@ where
             }
         };
 
-        *current_batch_size_bytes += tx_size_bytes;
+        batch_size_tracker.add_tx(baked_tx.data.len());
         tracing::debug!(%tx_hash, "Transaction was accepted by the sequencer");
 
         track_in_progress_batch_size(
@@ -808,28 +903,6 @@ where
         // means the sequencer only relies on the cache. FIXME(@neysofu).
         Ok(TxStatus::Unknown)
     }
-}
-
-fn check_batch_size(
-    current_batch_size_bytes: usize,
-    tx_size_bytes: usize,
-    max_batch_size_bytes: usize,
-) -> Result<(), ErrorObject> {
-    if current_batch_size_bytes + tx_size_bytes > max_batch_size_bytes {
-        return Err(ErrorObject {
-            status: axum::http::StatusCode::SERVICE_UNAVAILABLE,
-            title: "Transaction cannot be included in the batch.".to_string(),
-            details: sov_rest_utils::json_obj!({
-            "message": format!("The transaction is too large.
-                    Transaction size: {tx_size_bytes}, 
-                    current batch size: {current_batch_size_bytes}, 
-                    and batch size limit: {max_batch_size_bytes}."
-                )
-            }),
-        });
-    };
-
-    Ok(())
 }
 
 struct PreferredBatchToRestore {
@@ -925,6 +998,21 @@ where
 {
     events: Vec<RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>,
     receipt: ApiTxEffect<TxReceiptContents<S>>,
+}
+
+async fn is_node_state_fresher_than_sequencer_state<S, Rt>(
+    sequencer_height: RollupHeight,
+    info: &StateUpdateInfo<S::Storage>,
+) -> anyhow::Result<bool>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
+    let mut runtime = Rt::default();
+    let node_height =
+        StateCheckpoint::new(info.storage.clone(), &runtime.kernel()).rollup_height_to_access();
+
+    Ok(node_height > sequencer_height)
 }
 
 #[tracing::instrument(skip_all, level = "trace")]

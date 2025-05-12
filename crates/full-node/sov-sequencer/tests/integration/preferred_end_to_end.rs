@@ -254,6 +254,7 @@ async fn txs_below_min_fee_are_rejected() {
         err_message
     );
 }
+
 #[tokio::test(flavor = "multi_thread")]
 async fn seq_out_of_gas() {
     let mut genesis_config =

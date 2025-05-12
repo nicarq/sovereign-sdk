@@ -114,7 +114,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
-    pub async fn replace_state(&mut self, other: Self) {
+    pub async fn replace_state(&mut self, other: Self, visible_state_is_expected_to_match: bool) {
         assert!(
             !matches!(other.state, InternalState::Placeholder),
             "Can't replace with placeholder state; this is a bug, please report it (self.state is {:?})",
@@ -124,7 +124,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         // The event numbers will mismatch during the very first state update,
         // which uses a placeholder state. That's expected, and we shouldn't
         // panic.
-        if !matches!(self.state, InternalState::Placeholder) {
+        if visible_state_is_expected_to_match && !matches!(self.state, InternalState::Placeholder) {
             assert_eq!(
                 self.next_event_number, other.next_event_number,
                 "Event numbers don't match after `update_state`; this is a bug, please report it"

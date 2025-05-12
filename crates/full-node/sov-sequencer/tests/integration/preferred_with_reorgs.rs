@@ -192,21 +192,15 @@ impl TestState {
 }
 
 /// Test sends a stream of transactions to the sequencer and waits for them to become processed state.
-/// Parameters:
-///  * `block_time_ms` - StorableMockDa is started in PeriodicBatchProduction mode, so this parameter defines block time
-///  * `finalization_blocks` - Blocks to finality for mock DA
-///  * `da_slots` and `txs_per_da_slot` are go hand in hand. Client does not care or know about how many batches rollup is going to create.
-///     But in order to increase probability, that there are several batches at least, it only sends `txs_per_da_slot` in single before next da slot appeared.
-///     Total number of transactions sent `da_slots x txs_per_da_slot`.
-///  * `additional_users` - parameter for genesis
-///  * `randomization_config` - Parameter for randomization for `StorableMockDaLayer`.
 async fn test_stream_of_transactions(
-    block_time_ms: u64,
-    finalization_blocks: u32,
-    da_slots: usize,
-    txs_per_da_slot: usize,
-    additional_users: usize,
-    randomization_config: Option<RandomizationConfig>,
+    StreamOfTransactionsArgs {
+        block_time_ms,
+        finalization_blocks,
+        da_slots,
+        txs_per_da_slot,
+        additional_users,
+        randomization_config,
+    }: StreamOfTransactionsArgs,
 ) -> anyhow::Result<()> {
     // ------------
     // Setup rollup
@@ -333,7 +327,14 @@ async fn test_stream_of_transactions(
 async fn test_check_no_reorgs() -> anyhow::Result<()> {
     tokio::time::timeout(
         TEST_TIMEOUT,
-        test_stream_of_transactions(500, 5, 3, 10, 20, None),
+        test_stream_of_transactions(StreamOfTransactionsArgs {
+            block_time_ms: 500,
+            finalization_blocks: 5,
+            da_slots: 3,
+            txs_per_da_slot: 10,
+            additional_users: 20,
+            randomization_config: None,
+        }),
     )
     .await?
 }
@@ -342,9 +343,36 @@ async fn test_check_no_reorgs() -> anyhow::Result<()> {
 async fn test_check_no_reorgs_longer() -> anyhow::Result<()> {
     tokio::time::timeout(
         TEST_TIMEOUT,
-        test_stream_of_transactions(500, 10, 50, 10, 20, None),
+        test_stream_of_transactions(StreamOfTransactionsArgs {
+            block_time_ms: 500,
+            finalization_blocks: 10,
+            da_slots: 50,
+            txs_per_da_slot: 10,
+            additional_users: 20,
+            randomization_config: None,
+        }),
     )
     .await?
+}
+
+struct StreamOfTransactionsArgs {
+    /// StorableMockDa is started in PeriodicBatchProduction mode, so this
+    /// parameter defines block time.
+    block_time_ms: u64,
+    /// Blocks to finality for mock DA.
+    finalization_blocks: u32,
+    /// `da_slots` and `txs_per_da_slot` are go hand in hand. Client does not
+    /// care or know about how many batches rollup is going to create.
+    /// But in order to increase probability, that there are several batches at
+    /// least, it only sends `txs_per_da_slot` in single before next da slot
+    /// appeared.
+    /// Total number of transactions sent is `da_slots x txs_per_da_slot`.
+    da_slots: usize,
+    txs_per_da_slot: usize,
+    /// parameter for genesis
+    additional_users: usize,
+    /// Parameter for randomization for `StorableMockDaLayer`.
+    randomization_config: Option<RandomizationConfig>,
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -358,7 +386,14 @@ async fn test_small_reshuffle_no_drops() -> anyhow::Result<()> {
     };
     tokio::time::timeout(
         TEST_TIMEOUT,
-        test_stream_of_transactions(500, finality, 3, 10, 20, Some(randomization_config)),
+        test_stream_of_transactions(StreamOfTransactionsArgs {
+            block_time_ms: 500,
+            finalization_blocks: finality,
+            da_slots: 3,
+            txs_per_da_slot: 10,
+            additional_users: 20,
+            randomization_config: Some(randomization_config),
+        }),
     )
     .await?
 }
@@ -377,7 +412,14 @@ async fn test_small_shuffle_rewind() -> anyhow::Result<()> {
     };
     tokio::time::timeout(
         TEST_TIMEOUT,
-        test_stream_of_transactions(500, finality, 25, 10, 20, Some(randomization_config)),
+        test_stream_of_transactions(StreamOfTransactionsArgs {
+            block_time_ms: 500,
+            finalization_blocks: finality,
+            da_slots: 25,
+            txs_per_da_slot: 10,
+            additional_users: 20,
+            randomization_config: Some(randomization_config),
+        }),
     )
     .await?
 }
@@ -395,7 +437,14 @@ async fn test_small_reshuffle_half_dropped() -> anyhow::Result<()> {
     };
     tokio::time::timeout(
         TEST_TIMEOUT,
-        test_stream_of_transactions(500, finality, 30, 10, 20, Some(randomization_config)),
+        test_stream_of_transactions(StreamOfTransactionsArgs {
+            block_time_ms: 500,
+            finalization_blocks: finality,
+            da_slots: 30,
+            txs_per_da_slot: 10,
+            additional_users: 20,
+            randomization_config: Some(randomization_config),
+        }),
     )
     .await?
 }
