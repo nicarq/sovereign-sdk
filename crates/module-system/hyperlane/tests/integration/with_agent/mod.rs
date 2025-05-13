@@ -1,24 +1,29 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 
+use anyhow::Result;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use futures::Stream;
 use helpers::{
     generate_setup, parse_eth_addr, setup_rollup, HyperlaneBuilder, ANVIL_ACCOUNTS,
     DEFAULT_FINALIZATION_BLOCKS, EVM_DOMAIN,
 };
 use preferred_sequencer_runtime::{TestRuntime, TestRuntimeCall};
 use serde_json::{Map, Value};
-use sov_api_spec::types::{self as api_types, GetSlotFilteredEventsResponse, IntOrHash};
+use sov_api_spec::types::{self as api_types, GetSlotFilteredEventsResponse, IntOrHash, Slot};
 use sov_api_spec::Client;
 use sov_bank::Amount;
 use sov_hyperlane_integration::igp::ExchangeRateAndGasPrice;
+use sov_hyperlane_integration::warp::{self, Admin, TokenKind};
 use sov_hyperlane_integration::{
     test_recipient, CallMessage, HyperlaneAddress, InterchainGasPaymasterCallMessage, Ism,
 };
 use sov_modules_api::macros::config_value;
 use sov_modules_api::{CryptoSpec, DispatchCall, HexHash, HexString, RawTx, Runtime, Spec};
 use sov_test_utils::{default_test_signed_transaction, TestSpec, TestUser};
+use tokio::time::sleep;
 use tokio_stream::StreamExt;
 
 use crate::igp::{default_gas_hashmap_to_safe_vec, oracle_data_hashmap_to_safe_vec};
@@ -48,13 +53,8 @@ async fn test_validator_announces_itself() {
     }
 
     // look for `validator announce` event
-    for slot in 0..DEFAULT_FINALIZATION_BLOCKS * 5 {
-        slot_subscription.next().await.unwrap().unwrap();
-        let events = rollup
-            .api_client
-            .get_slot_filtered_events(&IntOrHash::Integer(slot as u64), None)
-            .await
-            .unwrap();
+    for _ in 0..DEFAULT_FINALIZATION_BLOCKS * 10 {
+        let events = next_slot_events(&rollup.api_client, &mut slot_subscription).await;
 
         if let Some(process_event) = find_event(&events, "Mailbox/ValidatorAnnouncement") {
             assert_eq!(
@@ -115,13 +115,8 @@ async fn test_relayer_basic_dispatch_process() {
     submit_tx(&rollup.api_client, dispatch_tx).await;
 
     // look for `process` event
-    for slot in 0..DEFAULT_FINALIZATION_BLOCKS * 5 {
-        slot_subscription.next().await.unwrap().unwrap();
-        let events = rollup
-            .api_client
-            .get_slot_filtered_events(&IntOrHash::Integer(slot as u64), None)
-            .await
-            .unwrap();
+    for _ in 0..DEFAULT_FINALIZATION_BLOCKS * 10 {
+        let events = next_slot_events(&rollup.api_client, &mut slot_subscription).await;
 
         if let Some(process_event) = find_event(&events, "Mailbox/Process") {
             assert_eq!(
@@ -198,16 +193,8 @@ async fn test_multisig_ism() {
     submit_tx(&rollup.api_client, dispatch_tx).await;
 
     // look for `process` event
-    // we use much bigger number of slots there to avoid flakiness
-    // because we start 2 additional validator processes while rollup
-    // is already producing slots, so transactions end up in later slots
-    for slot in 0..DEFAULT_FINALIZATION_BLOCKS * 15 {
-        slot_subscription.next().await.unwrap().unwrap();
-        let events = rollup
-            .api_client
-            .get_slot_filtered_events(&IntOrHash::Integer(slot as u64), None)
-            .await
-            .unwrap();
+    for _ in 0..DEFAULT_FINALIZATION_BLOCKS * 10 {
+        let events = next_slot_events(&rollup.api_client, &mut slot_subscription).await;
 
         if let Some(process_event) = find_event(&events, "Mailbox/Process") {
             assert_eq!(
@@ -276,13 +263,8 @@ async fn test_process_message_from_evm_counterparty() {
     hyperlane.mine_next_block_on_counterparty().await;
 
     // look for `process` event
-    for slot in 0..DEFAULT_FINALIZATION_BLOCKS * 30 {
-        slot_subscription.next().await.unwrap().unwrap();
-        let events = rollup
-            .api_client
-            .get_slot_filtered_events(&IntOrHash::Integer(slot as u64), None)
-            .await
-            .unwrap();
+    for _ in 0..DEFAULT_FINALIZATION_BLOCKS * 10 {
+        let events = next_slot_events(&rollup.api_client, &mut slot_subscription).await;
 
         if let Some(process_event) = find_event(&events, "Mailbox/Process") {
             assert_eq!(
@@ -350,13 +332,8 @@ async fn test_dispatch_message_to_evm_counterparty() {
     submit_tx(&rollup.api_client, dispatch_tx).await;
 
     // look for `dispatch` event
-    for slot in 0..DEFAULT_FINALIZATION_BLOCKS * 10 {
-        slot_subscription.next().await.unwrap().unwrap();
-        let events = rollup
-            .api_client
-            .get_slot_filtered_events(&IntOrHash::Integer(slot as u64), None)
-            .await
-            .unwrap();
+    for _ in 0..DEFAULT_FINALIZATION_BLOCKS * 10 {
+        let events = next_slot_events(&rollup.api_client, &mut slot_subscription).await;
 
         if let Some(process_event) = find_event(&events, "Mailbox/Dispatch") {
             assert_eq!(process_event["dispatch"]["destination_domain"], EVM_DOMAIN,);
@@ -373,6 +350,7 @@ async fn test_dispatch_message_to_evm_counterparty() {
                 .unwrap();
 
             // Find the dispatched message on counterparty
+            sleep(Duration::from_secs(10)).await; // give relayer extra time to relay
             let evm_event = hyperlane.latest_message_on_counterparty().await;
             assert_eq!(
                 evm_event.origin_domain,
@@ -390,6 +368,254 @@ async fn test_dispatch_message_to_evm_counterparty() {
     rollup.shutdown().await.unwrap();
     hyperlane.print_stdout().await;
     panic!("Mailbox/Dispatch event not found");
+}
+
+async fn test_warp_transfer_back_and_forth_with_evm_counterparty(
+    local_decimals: u8,
+    inbound_sent_amount: Amount,
+    inbound_received_amount: Amount,
+    outbound_sent_amount: Amount,
+    outbound_received_amount: Amount,
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let builder = HyperlaneBuilder::setup_image().await;
+    let setup = generate_setup();
+    let relayer = setup.relayer.clone();
+    let prover = setup.prover.clone();
+    let prover_addr = prover.user_info.address();
+    let rollup = setup_rollup(dir.path().to_path_buf(), setup).await;
+
+    let mut hyperlane = builder
+        .with_rollup_port(rollup.http_addr.port())
+        .with_relayer(&relayer)
+        .with_evm_counterparty(prover_addr.to_sender())
+        .start()
+        .await;
+
+    // wait for first finalized block
+    let mut slot_subscription = rollup.api_client.subscribe_slots().await.unwrap();
+    for _ in 0..DEFAULT_FINALIZATION_BLOCKS {
+        slot_subscription.next().await.unwrap().unwrap();
+    }
+
+    // set relayer igp config
+    let relayer_config_tx = tx_set_relayer_config(&relayer);
+    submit_tx(&rollup.api_client, relayer_config_tx).await;
+
+    // native ETH doesn't have its own address, so let's create a dummy one
+    let addr = format!(
+        "{}_{}_warp_nativeETH",
+        config_value!("HYPERLANE_BRIDGE_DOMAIN"),
+        EVM_DOMAIN
+    );
+    let mut token_addr_on_counterparty = [0; 32];
+    token_addr_on_counterparty[32 - addr.as_bytes().len()..].copy_from_slice(addr.as_bytes());
+    let token_addr_on_counterparty = HexString(token_addr_on_counterparty);
+
+    // register warp route for nativeETH
+    let register_call = TestRuntimeCall::Warp(warp::CallMessage::Register {
+        admin: Admin::InsecureOwner(relayer.address()),
+        token_source: TokenKind::Synthetic {
+            // use the warp route address for token id
+            remote_token_id: token_addr_on_counterparty,
+            local_decimals: Some(local_decimals),
+            remote_decimals: 18,
+        },
+        ism: Ism::AlwaysTrust,
+    });
+    let register_tx = encode_call(relayer.private_key(), &register_call);
+    submit_tx(&rollup.api_client, register_tx).await;
+
+    let mut route_deployed = false;
+    let mut local_route_id = HexString([0; 32]);
+    let mut remote_route_id = HexString([0; 32]);
+    // look for `route registered` event
+    for _ in 0..DEFAULT_FINALIZATION_BLOCKS * 10 {
+        let events = next_slot_events(&rollup.api_client, &mut slot_subscription).await;
+
+        if let Some(route_registered_event) = find_event(&events, "Warp/RouteRegistered") {
+            assert_eq!(
+                route_registered_event["route_registered"]["token_source"]["Synthetic"]
+                    ["remote_token_id"],
+                token_addr_on_counterparty.to_string()
+            );
+            local_route_id = route_registered_event["route_registered"]["route_id"]
+                .as_str()
+                .unwrap()
+                .parse()
+                .unwrap();
+
+            // deploy warp route on counterparty
+            remote_route_id = hyperlane
+                .deploy_warp_route_on_counterparty(local_route_id, local_decimals)
+                .await;
+
+            // enroll remote router on rollup
+            let enroll_router_call = TestRuntimeCall::Warp(warp::CallMessage::EnrollRemoteRouter {
+                warp_route: local_route_id,
+                remote_domain: EVM_DOMAIN,
+                remote_router_address: remote_route_id,
+            });
+            let enroll_router_tx = encode_call(relayer.private_key(), &enroll_router_call);
+            submit_tx(&rollup.api_client, enroll_router_tx).await;
+
+            route_deployed = true;
+            break;
+        }
+    }
+
+    if !route_deployed {
+        rollup.shutdown().await.unwrap();
+        hyperlane.print_stdout().await;
+        panic!("Warp/RouteRegistered event not found");
+    }
+
+    // transfer native eth from evm counterparty to prover
+    let prover_addr = prover.user_info.address().to_sender();
+    hyperlane
+        .send_warp_token_transfer_from_counterparty(prover_addr, inbound_sent_amount)
+        .await;
+    hyperlane.mine_next_block_on_counterparty().await;
+
+    let mut transfer_received = false;
+    for _ in 0..DEFAULT_FINALIZATION_BLOCKS * 10 {
+        let events = next_slot_events(&rollup.api_client, &mut slot_subscription).await;
+
+        if let Some(token_recv_event) = find_event(&events, "Warp/TokenTransferReceived") {
+            assert_eq!(
+                token_recv_event["token_transfer_received"]["route_id"],
+                local_route_id.to_string()
+            );
+            assert_eq!(
+                token_recv_event["token_transfer_received"]["from_domain"],
+                EVM_DOMAIN
+            );
+            assert_eq!(
+                token_recv_event["token_transfer_received"]["recipient"],
+                prover_addr.to_string()
+            );
+            assert_eq!(
+                token_recv_event["token_transfer_received"]["amount"],
+                inbound_received_amount.to_string(),
+            );
+
+            transfer_received = true;
+            break;
+        }
+    }
+
+    if !transfer_received {
+        rollup.shutdown().await.unwrap();
+        hyperlane.print_stdout().await;
+        panic!("Warp/TokenTransferReceived event not found");
+    }
+
+    // Now transfer it back to the remote
+    // choose some account which didn't have to pay for anything yet
+    // to simplify balance asserts
+    let evm_recipient = parse_eth_addr(ANVIL_ACCOUNTS[8].0);
+    let recipient_balance_before_transfer = hyperlane.counterparty_balance_of(evm_recipient).await;
+    assert_eq!(
+        recipient_balance_before_transfer,
+        10_000_000_000_000_000_000_000
+    );
+
+    let transfer_call = TestRuntimeCall::Warp(warp::CallMessage::TransferRemote {
+        warp_route: local_route_id,
+        destination_domain: EVM_DOMAIN,
+        recipient: evm_recipient,
+        amount: outbound_sent_amount,
+        relayer: Some(relayer.address()),
+        gas_payment_limit: Amount::MAX,
+    });
+    let transfer_tx = encode_call(prover.user_info.private_key(), &transfer_call);
+    submit_tx(&rollup.api_client, transfer_tx).await;
+
+    for _ in 0..DEFAULT_FINALIZATION_BLOCKS * 10 {
+        let events = next_slot_events(&rollup.api_client, &mut slot_subscription).await;
+
+        // look for event that sent outbound transfer
+        if let Some(token_sent_event) = find_event(&events, "Warp/TokenTransferredRemote") {
+            assert_eq!(
+                token_sent_event["token_transferred_remote"]["route_id"],
+                local_route_id.to_string()
+            );
+            assert_eq!(
+                token_sent_event["token_transferred_remote"]["to_domain"],
+                EVM_DOMAIN
+            );
+            assert_eq!(
+                token_sent_event["token_transferred_remote"]["recipient"],
+                evm_recipient.to_string()
+            );
+            let mut amount_hex = [0; 32];
+            amount_hex[16..].copy_from_slice(&outbound_received_amount.0.to_be_bytes());
+            assert_eq!(
+                token_sent_event["token_transferred_remote"]["amount"],
+                HexString(amount_hex).to_string()
+            );
+
+            // check if transfer was received by counterparty
+            sleep(Duration::from_secs(10)).await; // give relayer extra time to relay
+            let (origin_domain, recipient) = hyperlane
+                .latest_warp_transfer_on_counterparty(remote_route_id)
+                .await;
+            assert_eq!(origin_domain, config_value!("HYPERLANE_BRIDGE_DOMAIN"));
+            assert_eq!(recipient, evm_recipient);
+
+            let recipient_balance_after_transfer =
+                hyperlane.counterparty_balance_of(evm_recipient).await;
+            assert_eq!(
+                recipient_balance_before_transfer
+                    .checked_add(outbound_received_amount)
+                    .unwrap(),
+                recipient_balance_after_transfer
+            );
+
+            rollup.shutdown().await.unwrap();
+            return;
+        }
+    }
+
+    rollup.shutdown().await.unwrap();
+    hyperlane.print_stdout().await;
+    panic!("Warp/TokenTransferredRemote event not found");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_warp_transfer_back_and_forth_with_evm_without_scaling() {
+    test_warp_transfer_back_and_forth_with_evm_counterparty(
+        18,
+        Amount(1234),
+        Amount(1234),
+        Amount(1234),
+        Amount(1234),
+    )
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_warp_transfer_back_and_forth_with_evm_scaled_down() {
+    test_warp_transfer_back_and_forth_with_evm_counterparty(
+        16,
+        Amount(1234),
+        Amount(12),
+        Amount(12),
+        Amount(1200),
+    )
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_warp_transfer_back_and_forth_with_evm_scaled_up() {
+    test_warp_transfer_back_and_forth_with_evm_counterparty(
+        20,
+        Amount(1234),
+        Amount(123400),
+        Amount(123333),
+        Amount(1233),
+    )
+    .await;
 }
 
 fn tx_send_message(
@@ -431,6 +657,18 @@ async fn submit_tx(client: &Client, tx_body: RawTx) {
         })
         .await
         .unwrap();
+}
+
+async fn next_slot_events<S>(client: &Client, subscription: &mut S) -> GetSlotFilteredEventsResponse
+where
+    S: Stream<Item = Result<Slot>> + Unpin,
+{
+    let slot = subscription.next().await.unwrap().unwrap();
+    client
+        .get_slot_filtered_events(&IntOrHash::Integer(slot.number), None)
+        .await
+        .unwrap()
+        .clone()
 }
 
 fn find_event(events: &GetSlotFilteredEventsResponse, event: &str) -> Option<Map<String, Value>> {
