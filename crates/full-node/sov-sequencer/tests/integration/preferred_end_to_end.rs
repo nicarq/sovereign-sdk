@@ -610,6 +610,15 @@ async fn seq_back_pressure() {
 ///     gets processed correctly by the node.
 #[tokio::test(flavor = "multi_thread")]
 async fn query_historical_values() {
+    let panicked = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let panicked_ref = panicked.clone();
+    let prev_hook = std::panic::take_hook();
+    // Set a new panic hook
+    std::panic::set_hook(Box::new(move |panic_info| {
+        // Your custom panic handling logic here
+        panicked_ref.store(true, std::sync::atomic::Ordering::SeqCst);
+        prev_hook(panic_info);
+    }));
     let tx_builder = |key| tx_set_value(&key, 0, 7);
     let assertions = |test_rollup| async move {
         query_set_value(&test_rollup, Some(2), 7).await.unwrap();
@@ -620,13 +629,27 @@ async fn query_historical_values() {
         query_set_value_by_slot_number(&test_rollup, Some(1), 0)
             .await
             .unwrap();
+        // Query some future heights/slot numbers to be sure they don't panic
+        assert!(query_set_value(&test_rollup, Some(100000), 0)
+            .await
+            .is_err());
+        assert!(
+            query_set_value_by_slot_number(&test_rollup, Some(100000), 0)
+                .await
+                .is_err()
+        );
+        test_rollup.shutdown().await.unwrap();
+        assert!(
+            !panicked.load(std::sync::atomic::Ordering::SeqCst),
+            "Panicked during assertions"
+        );
     };
     do_manual_block_production_test(tx_builder, assertions, 22222).await;
 }
 
 async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
     tx_builder: impl Fn(Ed25519PrivateKey) -> RawTx,
-    assertions: impl Fn(TestRollup<TestBlueprint>) -> Fut,
+    assertions: impl FnOnce(TestRollup<TestBlueprint>) -> Fut,
     port: u16,
 ) {
     const FINALIZATION_BLOCKS: u32 = 0;
@@ -1660,7 +1683,12 @@ async fn query_set_value_helper(
 
     debug!(?response, "Querying value");
 
-    let found_value = response.data.unwrap()["value"].as_u64().unwrap_or_default();
+    let found_value = response
+        .data
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("No data found. {:?}", response))?["value"]
+        .as_u64()
+        .unwrap_or_default();
 
     anyhow::ensure!(found_value == expected);
 

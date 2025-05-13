@@ -526,7 +526,11 @@ impl<S: FullNodeBlueprint<M>, M: ExecutionMode> Rollup<S, M> {
 
         runner.run_in_process().await?;
         tracing::info!("STF Runner has completed execution");
-        self.secondary_shutdown_sender.send(())?;
+        if self.secondary_shutdown_sender.send(()).is_err() {
+            tracing::info!(
+                "Failed to send secondary shutdown signal because all receivers have been dropped"
+            );
+        }
         // blocks until background handles have shutdown
         monitoring_task.await??;
         for handle in self.endpoints.inner.background_handles {

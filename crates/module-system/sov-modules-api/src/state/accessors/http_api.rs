@@ -471,7 +471,12 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
                     }
                 }
             }
-            StateToAccess::TrueSlotNumber(slot_number, _) => slot_number,
+            StateToAccess::TrueSlotNumber(slot_number, _) => {
+                if slot_number > latest_true_slot_number {
+                    return Err(ApiStateAccessorError::HeightNotAccessible);
+                }
+                slot_number
+            }
         };
         // If the caller provided a true slot number, find the associated rollup height.
         let rollup_height = match height {
