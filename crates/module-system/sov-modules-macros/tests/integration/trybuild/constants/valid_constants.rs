@@ -52,6 +52,10 @@ fn array_of_u8() -> [u8; 32] {
     config_value!("ARRAY_OF_U8")
 }
 
+fn chain_id_u128() -> u128 {
+    config_value!("CHAIN_ID")
+}
+
 fn main() {
     env::set_var(
         "SOV_TEST_CONST_OVERRIDE_TOKEN_ID",
@@ -98,4 +102,7 @@ fn main() {
         "[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]",
     );
     assert_eq!(array_of_u8(), [1; 32]);
+
+    env::set_var("SOV_TEST_CONST_OVERRIDE_CHAIN_ID", "0");
+    assert_eq!(chain_id_u128(), 0);
 }

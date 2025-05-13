@@ -16,7 +16,7 @@ CHAIN_NAME = "TestChain"
 # will be invalidated due to congestion on the DA layer. (Note that with an honest sequencer, this parameter has no effect
 # on the speed of inclusion for forced transactions, since they will always be included ASAP.)
 # Setting this parameter to 0 disables soft-confirmations entirely.
-DEFERRED_SLOTS_COUNT = 50
+DEFERRED_SLOTS_COUNT = 15_000 # About one day on Celestia, given 6s block times.
 # The maximum number of visible slots that the sequencer can advance the rollup in a single slot.
 # Larger values of this parameter mean that the soft-confirmations are less vulnerable to congestion on the DA layer,
 # but make it correspondingly easier for a malicious sequencer to grief other sequencers.

@@ -171,15 +171,9 @@ fn allowed_toml_value_to_const_expr(
 
 fn allowed_toml_value_to_expr_with_override_logic(value: &AllowedTomlValue) -> TokenStream {
     match value {
-        AllowedTomlValue::Bool(_) | AllowedTomlValue::Integer(_) => {
-            quote::quote!({
-                use sov_modules_api::prelude::{serde, toml};
-
-                let deserializer = toml::de::ValueDeserializer::new(&env_value);
-                serde::Deserialize::deserialize(deserializer).unwrap()
-            })
+        AllowedTomlValue::Bool(_) | AllowedTomlValue::Integer(_) | AllowedTomlValue::Bech32(_) => {
+            quote::quote!({ str::parse(&env_value).unwrap() })
         }
-        AllowedTomlValue::Bech32(_) => quote::quote!({ str::parse(&env_value).unwrap() }),
         AllowedTomlValue::String(_) => quote::quote!({
             // We need a value of the same type as string literal i.e. `&'static str`.
             // The only way to do that starting from a `String` is to leak it.

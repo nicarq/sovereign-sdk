@@ -27,6 +27,8 @@ const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Perio
 
 #[tokio::test(flavor = "multi_thread")]
 async fn bank_tx_periodic_da_tests() -> anyhow::Result<()> {
+    std::env::set_var("SOV_TEST_CONST_OVERRIDE_DEFERRED_SLOTS_COUNT", "50");
+
     let test_case = TestCase {
         wait_for_aggregated_proof: true,
         finalization_blocks: 0,

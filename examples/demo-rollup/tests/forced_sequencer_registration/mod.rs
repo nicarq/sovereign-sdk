@@ -33,6 +33,8 @@ const FINALIZATION_BLOCKS: u32 = 1;
 // 4. Use the REST API to confirm that the new sequencer is registered.
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_test_forced_sequencer_registration() -> anyhow::Result<()> {
+    std::env::set_var("SOV_TEST_CONST_OVERRIDE_DEFERRED_SLOTS_COUNT", "50");
+
     let rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
         test_genesis_source(OperatingMode::Zk),
         // We need to set the block producing mode to periodic to ensure that the forced registration

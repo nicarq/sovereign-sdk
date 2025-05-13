@@ -3,6 +3,8 @@
 
 # 2025-05-12
 - #2659 **BREAKING CHANGE** Removes `Signature` associated type from the `TransactionAuthenticator`
+- #2863 increases `DEFERRED_SLOTS_COUNT` to 15000.
+
 
 # 2025-05-05
 - #2659 **BREAKING CHANGE** Added support for versioned transactions. SDK consumers must now use the new constructor `Transaction::with_call_v0`.
