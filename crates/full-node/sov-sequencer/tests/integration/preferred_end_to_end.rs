@@ -502,9 +502,87 @@ async fn max_batch_size() {
     }
 }
 
+/// Test that the sequencer can compute state roots for itself to avoid panics.
+///
+/// This test works by causing the node to fall far behind the sequencer in processsing rollup blocks.
+/// This is done by preventing the seuqencer batches from being included on DA, while still producing lots of DA blocks.
+///
+/// Since there are always new finalized blocks available, the sequencer will happily create new rollup blocks far in advance of the node, triggering the case we care about.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_state_root_computation_when_blobs_are_delayed() {
+    std::env::set_var("SOV_TEST_CONST_OVERRIDE_STATE_ROOT_DELAY_BLOCKS", "1");
+    let genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    let admin = genesis_config.additional_accounts[0].clone();
+
+    let rt_genesis_config =
+        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
+            genesis_config.into(),
+            ValueSetterConfig {
+                admin: admin.address(),
+            },
+            (),
+            PaymasterConfig::default(),
+            (),
+        );
+    let genesis_params = GenesisParams {
+        runtime: rt_genesis_config.clone(),
+    };
+
+    let dir = tempdir_inside_codebase_dir();
+
+    let Some(test_rollup) = new_test_rollup(
+        dir.clone(),
+        genesis_params,
+        0,
+        true,
+        TEST_MAX_BATCH_SIZE,
+        BlockProducingConfig::OnAnySubmit {
+            block_wait_timeout_ms: None,
+        },
+        None,
+    )
+    .await
+    else {
+        // Docker issues, don't fail the test and just return early.
+        return;
+    };
+
+    // Produce a few blocks to DA blocks to make sure there's a finalized slot after genesis.
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(5)
+        .await
+        .unwrap();
+    sleep(Duration::from_millis(200)).await;
+    test_rollup.da_service.set_delay_blobs_by(100).await;
+
+    let client = test_rollup.api_client.clone();
+    let mut slot_subscription = test_rollup.api_client.subscribe_slots().await.unwrap();
+    for i in 0..100 {
+        let tx = tx_set_value(&admin.private_key, i, i);
+        client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        slot_subscription.next().await;
+    }
+
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(100)
+        .await
+        .unwrap();
+    sleep(Duration::from_millis(200)).await;
+    test_rollup.shutdown().await.unwrap();
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn seq_back_pressure() {
-    //sov_test_utils::initialize_logging();
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
     let admin = genesis_config.additional_accounts[0].clone();
@@ -563,7 +641,7 @@ async fn seq_back_pressure() {
         test_rollup.da_service.set_blob_submission_pause().await;
         for _ in 0..sov_test_utils::TEST_MAX_CONCURRENT_BLOBS + 3 {
             test_rollup.da_service.produce_block_now().await.unwrap();
-            sleep(Duration::from_millis(200)).await;
+            sleep(Duration::from_millis(800)).await;
         }
 
         let tx = tx_set_value(&admin.private_key, 1, 9);
@@ -583,7 +661,7 @@ async fn seq_back_pressure() {
 
     for _ in 0..5 {
         test_rollup.da_service.produce_block_now().await.unwrap();
-        sleep(Duration::from_millis(200)).await;
+        sleep(Duration::from_millis(800)).await;
     }
     sleep(Duration::from_millis(1000)).await;
 

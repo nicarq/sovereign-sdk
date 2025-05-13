@@ -12,7 +12,8 @@ use sov_modules_api::{
     BatchSequencerReceipt, GasArray, GasSpec, IncrementalBatch, InjectedControlFlow,
     KernelStateAccessor, NoOpControlFlow, SelectedBlob, TransactionReceipt, VersionReader,
 };
-use sov_state::StateRoot;
+#[cfg(feature = "native")]
+use sov_state::{SlotValue, StateAccesses};
 mod proof_processing;
 use sov_modules_api::{PrivilegedKernelAccessor, SlotGasMeter};
 use sov_rollup_interface::stf::ProofReceipt;
@@ -86,9 +87,13 @@ where
         &self,
         runtime: &mut RT,
         checkpoint: StateCheckpoint<S>,
-    ) -> AccessoryDelta<S::Storage> {
+    ) -> (
+        AccessoryDelta<S::Storage>,
+        StateAccesses,
+        <S::Storage as Storage>::Witness,
+    ) {
         let rollup_height = checkpoint.rollup_height_to_access();
-        let (_, mut accessory_delta, _) = checkpoint.freeze();
+        let (accesses, mut accessory_delta, witness) = checkpoint.freeze();
         let next_visible_hash =
             Self::next_visible_root(runtime, &mut accessory_delta, rollup_height);
 
@@ -96,7 +101,7 @@ where
             runtime.finalize_hook(&next_visible_hash, &mut accessory_delta);
         });
 
-        accessory_delta
+        (accessory_delta, accesses, witness)
     }
 
     /// Compute the new state root and change set after running a batch.
@@ -110,10 +115,19 @@ where
         &self,
         runtime: &mut RT,
         create_rollup_block: bool,
-        checkpoint: StateCheckpoint<S>,
+        mut checkpoint: StateCheckpoint<S>,
         prev_state_root: <S::Storage as Storage>::Root,
     ) -> MaterializedUpdate<S::Storage> {
         let rollup_height = checkpoint.rollup_height_to_access();
+        let mut changes = None;
+        // This is a debug feature to capture the state changes for a given rollup block. This mirrors logic in `RollupBlockExecutor` -
+        // if you change this, be sure to modify that as well.
+        let capture_state_changes = std::env::var("SOV_DEBUG_STATE_ROOT_COMPUTATION").is_ok();
+        if create_rollup_block && capture_state_changes {
+            let mut found = checkpoint.changes().changes;
+            found.sort_by_key(|((key, _), _)| key.clone());
+            changes = Some(found);
+        }
         let (next_root_hash, mut state_update, mut accessory_delta, witness, storage) =
             checkpoint.materialize_update(prev_state_root);
 
@@ -132,6 +146,41 @@ where
 
         // Run the finalize hook if necessary
         if create_rollup_block {
+            if capture_state_changes {
+                use sov_state::StateRoot;
+                let file_name = format!(
+                    "{}-{}.txt",
+                    rollup_height,
+                    hex::encode(next_root_hash.namespace_root(sov_state::ProvableNamespace::User))
+                );
+                match std::fs::File::create(&file_name) {
+                    Ok(mut out_file) => {
+                        for ((key, namespace), value) in changes.expect("State changes must have been captured if capture_state_changes is true") {
+                            use std::io::Write;
+                            if namespace == sov_state::Namespace::User {
+                                if let Err(e) = out_file.write_all(
+                                    format!(
+                                        "{} => {}\n",
+                                        key,
+                                        SlotValue::debug_show(value.as_ref())
+                                    )
+                                    .as_bytes(),
+                                ) {
+                                    tracing::error!("Error while writing state root to file for debugging {}: {}", &file_name, e);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to create file for state root debugging {}: {}",
+                            &file_name,
+                            e
+                        );
+                    }
+                }
+            }
             let next_visible_hash =
                 Self::next_visible_root(runtime, &mut accessory_delta, rollup_height);
 
@@ -195,7 +244,7 @@ where
                 .genesis_root(accessory_delta).expect("genesis root must be set on first iteration of `materialize_slot`. This is a bug - please report it")
         } else {
             runtime.chain_state().visible_hash_with_accessory_state(rollup_height.saturating_add(1), accessory_delta)
-                .expect("next visible hash must be known in advance, but was unable to get it for rollup height {}. This is a bug - please report it")
+                .unwrap_or_else(|| panic!("next visible hash must be known in advance, but was unable to get it for rollup height {}. This is a bug - please report it", rollup_height))
         }
     }
 }
@@ -440,7 +489,6 @@ where
             runtime.chain_state().increment_rollup_height(
                 &mut kernel_with_partially_stale_heights,
                 visible_slot_number,
-                &pre_state_root.namespace_root(sov_state::ProvableNamespace::User),
             );
 
             // All heights have been updated.

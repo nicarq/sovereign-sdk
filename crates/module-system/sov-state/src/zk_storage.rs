@@ -18,7 +18,7 @@ use crate::{
 
 /// A [`Storage`] implementation designed to be used inside the zkVM.
 #[derive(Default, derivative::Derivative)]
-#[derivative(Clone(bound = "S: MerkleProofSpec"))]
+#[derivative(Clone(bound = "S: MerkleProofSpec"), Debug(bound = ""))]
 pub struct ZkStorage<S: MerkleProofSpec> {
     _phantom_hasher: PhantomData<S::Hasher>,
 }

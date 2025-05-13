@@ -308,6 +308,11 @@
       "description": "Configuration for [`PreferredSequencer`].",
       "type": "object",
       "properties": {
+        "disable_state_root_consistency_checks": {
+          "description": "When enabled, the sequencer will skip some expensive consistency checks on the state root. This means that bugs in the implementation are less likely to be detected but may improve performance and allows the sequencer to continue operating in case of known bugs.",
+          "default": false,
+          "type": "boolean"
+        },
         "events_channel_size": {
           "description": "The size of the Tokio channel used to stream events.\n\nDon't deviate from the default unless you know what you're doing.",
           "default": 10000,

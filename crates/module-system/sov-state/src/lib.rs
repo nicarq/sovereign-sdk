@@ -39,7 +39,7 @@ pub use crate::witness::{ArrayWitness, Witness};
 /// merkle proofs for storage access
 pub trait MerkleProofSpec: Send + Sync {
     /// The structure that accumulates the witness data
-    type Witness: Witness + Send + Sync;
+    type Witness: Witness + Send + Sync + core::fmt::Debug;
     /// The hash function used to compute the merkle root
     type Hasher: Digest<OutputSize = sha2::digest::typenum::U32> + Send + Sync;
 }

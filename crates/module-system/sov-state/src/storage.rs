@@ -200,6 +200,20 @@ impl SlotValue {
         }
     }
 
+    /// Get a debug string for an optional value suitable for logging.
+    pub fn debug_show(value: Option<&Self>) -> String {
+        match value {
+            Some(v) => {
+                if v.value.len() > 128 {
+                    format!("{:?}...", &v.value.as_ref()[..128])
+                } else {
+                    format!("{:?}", v.value.as_ref())
+                }
+            }
+            None => "None".to_string(),
+        }
+    }
+
     /// Get the bytes of this value.
     pub fn value(&self) -> &[u8] {
         &self.value
@@ -354,12 +368,12 @@ pub trait StateRoot:
 }
 
 /// An interface for retrieving values from the storage and producing change set of new write operations.
-pub trait Storage: Clone {
+pub trait Storage: Clone + core::fmt::Debug {
     /// Hasher
     type Hasher: Digest<OutputSize = typenum::U32> + Send + Sync;
 
     /// The witness type for this storage instance.
-    type Witness: Witness + Send + Sync;
+    type Witness: Witness + Send + Sync + core::fmt::Debug;
 
     /// A cryptographic proof that a particular key has a particular value, or is absent.
     type Proof: Serialize

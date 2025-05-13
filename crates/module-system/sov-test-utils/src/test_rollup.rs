@@ -239,6 +239,9 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
         self.config.rollup_prover_config = Some(get_appropriate_rollup_prover_config::<R::Spec>(
             zkvm_host_args,
         ));
+        if let SequencerKindConfig::Preferred(ref mut config) = &mut self.config.sequencer_config {
+            config.disable_state_root_consistency_checks = true;
+        }
         self
     }
 
@@ -293,6 +296,13 @@ where
     /// task. See [`TestRollup`] for usage information.
     pub async fn start(self) -> anyhow::Result<TestRollup<R, StoragePath>> {
         let blueprint: R = Default::default();
+        if let SequencerKindConfig::Preferred(sequencer_conf) = &self.config.sequencer_config {
+            if self.config.rollup_prover_config.is_some()
+                && !sequencer_conf.disable_state_root_consistency_checks
+            {
+                tracing::warn!("Prover process is enabled, but state root consistency checks are not disabled. This will cause crashes in the sequencer since proofs are created but not yet handled by the sequencer. Consider disabling one of the two options.");
+            }
+        }
         std::fs::create_dir_all(self.config.storage.as_path()).with_context(|| {
             format!(
                 "Failed to create storage directory: {}",

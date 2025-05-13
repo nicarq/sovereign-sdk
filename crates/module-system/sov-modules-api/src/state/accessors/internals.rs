@@ -44,6 +44,11 @@ impl<S: Storage> Delta<S> {
         }
     }
 
+    #[cfg(feature = "native")]
+    pub(super) fn inner(&self) -> &S {
+        &self.inner
+    }
+
     pub(super) fn with_witness(inner: S, witness: S::Witness, version: Option<SlotNumber>) -> Self {
         Self {
             inner,

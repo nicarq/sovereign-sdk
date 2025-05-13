@@ -12,6 +12,7 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::OperatingMode;
 use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_sequencer::SequencerKindConfig;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
 use sov_test_utils::{TEST_DEFAULT_MOCK_DA_ON_ANY_SUBMIT, TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING};
@@ -92,6 +93,9 @@ async fn start_stop_empty(
                 c.max_concurrent_blobs = 65536;
                 c.storage = rollup_storage_dir.clone();
                 c.rollup_prover_config = Some(rollup_prover_config.clone());
+                if let SequencerKindConfig::Preferred(sequencer_conf) = &mut c.sequencer_config {
+                    sequencer_conf.disable_state_root_consistency_checks = true;
+                }
                 c.aggregated_proof_block_jump = 10;
             })
             .start(),
@@ -219,6 +223,10 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
         c.max_concurrent_blobs = 65536;
         c.storage = rollup_storage_dir.clone();
         c.rollup_prover_config = Some(RollupProverConfig::Skip);
+        // Since we have the prover enabled, we need to disable state root consistency checks.
+        if let SequencerKindConfig::Preferred(sequencer_conf) = &mut c.sequencer_config {
+            sequencer_conf.disable_state_root_consistency_checks = true;
+        }
         c.aggregated_proof_block_jump = jump_size;
     });
 

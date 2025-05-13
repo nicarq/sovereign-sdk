@@ -169,6 +169,12 @@ impl StorableMockDaService {
         Self::new(sequencer_da_address, da_layer, BlockProducingConfig::Manual).await
     }
 
+    /// Set the number of blocks to wait before including blobs on DA
+    pub async fn set_delay_blobs_by(&self, delay: u32) {
+        let mut da_layer = self.da_layer.write().await;
+        da_layer.set_delay_blobs_by(delay);
+    }
+
     /// Creates a new instance with different address, but on the same [`StorableMockDaLayer`].
     /// Block production of this new instance is manual.
     /// Panics if passed address is the same as the original one.

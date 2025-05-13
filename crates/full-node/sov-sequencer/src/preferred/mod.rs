@@ -4,6 +4,7 @@ mod async_batch;
 mod batch_size_tracker;
 mod block_executor;
 mod db;
+mod state_root_compute;
 
 use std::boxed::Box;
 use std::marker::PhantomData;
@@ -14,6 +15,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use axum::http::StatusCode;
 use batch_size_tracker::BatchSizeTracker;
 use db::postgres::PostgresBackend;
 use db::rocksdb::RocksDbBackend;
@@ -39,7 +41,8 @@ use sov_rest_utils::errors::database_error_500;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
-use sov_state::{NativeStorage, Storage};
+use sov_state::{NativeStorage, StateAccesses, Storage};
+use state_root_compute::StateRootBackgroundTaskState;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::{broadcast, watch, Mutex, MutexGuard};
 use tokio::task::JoinHandle;
@@ -144,6 +147,15 @@ where
                 self.config.sequencer_kind_config.minimum_profit_per_tx,
             )
             .await;
+        // If the node is shutting down, we may not be able to start the rollup block. In that case, just return early.
+        if self
+            .block_executor
+            .shutdown_receiver
+            .has_changed()
+            .unwrap_or(true)
+        {
+            return Ok(None);
+        }
 
         Ok(Some(()))
     }
@@ -167,6 +179,16 @@ where
             .map_err(|_| anyhow::anyhow!("Unable to start a new batch; this is likely a database issue or a bug, please report it"));
 
         if new_batch_res?.is_none() {
+            return Ok(None);
+        }
+
+        // If the node is shutting down, we may not be able to terminate the batch. In that case, just return early.
+        if self
+            .block_executor
+            .shutdown_receiver
+            .has_changed()
+            .unwrap_or(true)
+        {
             return Ok(None);
         }
 
@@ -258,7 +280,7 @@ where
     fn err_if_cant_fit_tx(&self, tx: &FullyBakedTx) -> Result<(), ErrorObject> {
         if !self.batch_size_tracker.can_fit_tx(tx.data.len()) {
             return Err(ErrorObject {
-                status: axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                status: StatusCode::SERVICE_UNAVAILABLE,
                 title: "Transaction cannot be included in the batch.".to_string(),
                 details: sov_rest_utils::json_obj!({
                     "message": format!("The transaction is too large.
@@ -383,6 +405,8 @@ where
     has_been_ready: AtomicBool,
     node_delta_watcher: NodeDeltaWatcher,
     shutdown_notifier: Sender<()>,
+    state_root_compute_task: StateRootBackgroundTaskState<S>,
+    shutdown_receiver: watch::Receiver<()>,
 }
 
 struct SoftConfirmationsReplayReceipt {
@@ -443,6 +467,8 @@ where
             None, // We don't re-send events when replaying batches in the background.
             self.config.clone(),
             self.shutdown_notifier.clone(),
+            self.state_root_compute_task.request_sender.clone(),
+            self.shutdown_receiver.clone(),
         );
 
         let node_state_root = tracing::trace_span!("root_hash")
@@ -454,6 +480,9 @@ where
         async {
             for batch in batches_to_process {
                 executor.replay_batch(&batch, &node_state_root).await?;
+                if self.shutdown_receiver.has_changed().unwrap_or(true) {
+                    return Ok(());
+                }
             }
             Ok::<(), anyhow::Error>(())
         }
@@ -547,6 +576,8 @@ where
                 None, // We don't re-send events when replaying batches in the background.
                 self.config.clone(),
                 self.shutdown_notifier.clone(),
+                self.state_root_compute_task.request_sender.clone(),
+                self.shutdown_receiver.clone(),
             );
 
             let metrics = PreferredSequencerUpdateStateMetrics {
@@ -575,9 +606,11 @@ where
         inner.update_api_state().await;
         trace!("Sequencer state update completed successfully");
 
-        inner
-            .trigger_batch_production(self.da_sync_state.status())
-            .await?;
+        if !self.shutdown_receiver.has_changed().unwrap_or(true) {
+            inner
+                .trigger_batch_production(self.da_sync_state.status())
+                .await?;
+        }
 
         Ok(receipt)
     }
@@ -668,6 +701,16 @@ where
         .await?;
         handles.push(blob_sender_handle);
 
+        let (state_root_compute_handle, state_root_compute_task) =
+            StateRootBackgroundTaskState::create(
+                shutdown_notifier.clone(),
+                shutdown_receiver.clone(),
+                !config
+                    .sequencer_kind_config
+                    .disable_state_root_consistency_checks,
+            );
+        handles.push(state_root_compute_handle);
+
         let mut inner = Inner {
             db: PreferredSequencerDb::<S, Rt>::new(db_backend, &latest_state_update).await?,
             batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
@@ -681,6 +724,8 @@ where
                 Some(events_sender.clone()),
                 config.clone(),
                 shutdown_notifier.clone(),
+                state_root_compute_task.request_sender.clone(),
+                shutdown_receiver.clone(),
             ),
             blob_sender,
         };
@@ -704,6 +749,8 @@ where
             config: config.clone(),
             has_been_ready: AtomicBool::new(false),
             node_delta_watcher: NodeDeltaWatcher::new(config.max_allowed_node_distance_behind),
+            state_root_compute_task,
+            shutdown_receiver: shutdown_receiver.clone(),
         });
 
         seq.update_state(latest_state_update.clone())
@@ -834,6 +881,16 @@ where
         &self,
         baked_tx: FullyBakedTx,
     ) -> Result<AcceptedTx<Self::Confirmation>, ErrorObject> {
+        if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            return Err(ErrorObject {
+                status: StatusCode::SERVICE_UNAVAILABLE,
+                title: "The sequencer is shutting down".to_string(),
+                details: sov_rest_utils::json_obj!({
+                    "message": "The sequencer is shutting down. Transactions cannot be accepted at this time".to_string(),
+                }),
+            });
+        }
+
         let mut inner = self.lock_inner().await;
         if inner
             .try_to_create_and_start_batch_if_none_in_progress(false)
@@ -929,6 +986,11 @@ pub struct PreferredSequencerConfig {
     /// RocksDB.
     #[serde(default)]
     pub postgres_connection_string: Option<String>,
+    /// When enabled, the sequencer will skip some expensive consistency checks
+    /// on the state root. This means that bugs in the implementation are less likely to be detected
+    /// but may improve performance and allows the sequencer to continue operating in case of known bugs.
+    #[serde(default)]
+    pub disable_state_root_consistency_checks: bool,
 }
 
 impl Default for PreferredSequencerConfig {
@@ -937,6 +999,7 @@ impl Default for PreferredSequencerConfig {
             minimum_profit_per_tx: 0,
             events_channel_size: default_events_channel_size(),
             postgres_connection_string: None,
+            disable_state_root_consistency_checks: false,
         }
     }
 }
@@ -969,15 +1032,22 @@ where
     }
 }
 
+type BlockExecutionOutput<S> = (
+    Vec<BatchReceipt<S>>,
+    ChangeSet,
+    StateAccesses,
+    <<S as Spec>::Storage as Storage>::Witness,
+);
+
 #[derive(Debug)]
 struct BackgroundTaskState<S: Spec> {
-    handle: JoinHandle<(Vec<BatchReceipt<S>>, ChangeSet)>,
+    handle: JoinHandle<BlockExecutionOutput<S>>,
     tx_sender: mpsc::Sender<FullyBakedTx>,
     result_receiver: mpsc::Receiver<Result<(TransactionReceipt<S>, TxChangeSet), RejectReason>>,
 }
 
 impl<S: Spec> BackgroundTaskState<S> {
-    fn shutdown(self) -> JoinHandle<(Vec<BatchReceipt<S>>, ChangeSet)> {
+    fn shutdown(self) -> JoinHandle<BlockExecutionOutput<S>> {
         // Must be dropped before the result receiver, or a deadlock happens.
         drop(self.tx_sender);
         self.handle

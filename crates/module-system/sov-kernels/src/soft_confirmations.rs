@@ -147,10 +147,9 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for SoftConfirmation
         &mut self,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
         visible_slot_number: VisibleSlotNumber,
-        user_state_root: &[u8; 32],
     ) {
         self.chain_state
-            .increment_rollup_height(state, visible_slot_number, user_state_root);
+            .increment_rollup_height(state, visible_slot_number);
     }
 
     #[cfg(feature = "native")]
@@ -161,6 +160,16 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for SoftConfirmation
     ) -> Option<<<Self::Spec as Spec>::Storage as Storage>::Root> {
         self.chain_state
             .visible_hash_with_accessory_state(rollup_height, state)
+    }
+
+    #[cfg(feature = "native")]
+    fn save_user_state_root(
+        &mut self,
+        height: RollupHeight,
+        root: [u8; 32],
+        state: &mut KernelStateAccessor<'_, Self::Spec>,
+    ) {
+        self.chain_state.save_user_state_root(height, root, state);
     }
 
     #[cfg(feature = "native")]

@@ -13,6 +13,7 @@ use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregateProofVerifier, AggregatedProofPublicData,
 };
+use sov_sequencer::SequencerKindConfig;
 use sov_state::Storage;
 use sov_test_utils::test_rollup::{RollupBuilder, RollupProverConfig};
 use sov_test_utils::TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING;
@@ -36,7 +37,7 @@ async fn flaky_bank_tx_tests_periodic_da_non_instant_finality() -> anyhow::Resul
 }
 
 async fn inner(finalization_blocks: u32) -> anyhow::Result<()> {
-    let test_case = TestCase {
+    let test_case: TestCase = TestCase {
         wait_for_aggregated_proof: true,
         finalization_blocks,
     };
@@ -50,6 +51,11 @@ async fn inner(finalization_blocks: u32) -> anyhow::Result<()> {
     .set_config(|c| {
         c.max_concurrent_blobs = 65536;
         c.rollup_prover_config = Some(RollupProverConfig::Skip);
+        // Since we've enabled the prover, we need to disable the state root consistency checks
+        // This is because proofs are not yet played in the sequencer, causing the state root to be incorrect
+        if let SequencerKindConfig::Preferred(sequencer_conf) = &mut c.sequencer_config {
+            sequencer_conf.disable_state_root_consistency_checks = true;
+        }
     })
     .start()
     .await?;

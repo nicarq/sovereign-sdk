@@ -10,7 +10,7 @@ use sov_modules_api::{
     DaSpec, GasSpec, KernelStateAccessor, PrivilegedKernelAccessor, Spec, StateReader,
 };
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
-use sov_state::{Kernel, ProvableNamespace, Storage, User};
+use sov_state::{Kernel, ProvableNamespace, StateRoot, Storage, User};
 
 use crate::{BlockGasInfo, ChainState, SlotInformation, VersionReader};
 
@@ -60,7 +60,8 @@ impl<S: Spec> VisibleHashHelper<S> for KernelStateAccessor<'_, S> {
         rollup_height: RollupHeight,
     ) -> Option<[u8; 32]> {
         chain_state
-            .user_pre_state_root_at_height(rollup_height, self)
+            .past_user_state_roots
+            .get(&rollup_height.saturating_sub(1), self)
             .unwrap_infallible()
     }
 }
@@ -183,6 +184,22 @@ impl<S: Spec> ChainState<S> {
             .unwrap_infallible();
     }
 
+    /// Saves the user state root to the chain state module.
+    #[cfg(feature = "native")]
+    pub fn save_user_state_root(
+        &mut self,
+        height: RollupHeight,
+        root: [u8; 32],
+        state: &mut KernelStateAccessor<'_, S>,
+    ) {
+        self.past_user_state_roots
+            .set(&height, &root, state)
+            .unwrap_infallible();
+        self.accessory_past_user_state_roots
+            .set(&height, &root, state)
+            .unwrap_infallible();
+    }
+
     /// Saves the genesis state root to the chain state module.
     #[cfg(feature = "native")]
     pub fn genesis_root(
@@ -199,16 +216,9 @@ impl<S: Spec> ChainState<S> {
         &mut self,
         state: &mut KernelStateAccessor<'_, S>,
         visible_slot_number: VisibleSlotNumber,
-        user_state_root: &[u8; 32],
     ) {
         let stale_rollup_height = self.rollup_height(state).unwrap_infallible();
-        self.past_user_state_roots
-            .set(&stale_rollup_height, user_state_root, state)
-            .unwrap_infallible();
-        // Duplicate the user space state root to the accessory state
-        self.accessory_past_user_state_roots
-            .set(&stale_rollup_height, user_state_root, state)
-            .unwrap_infallible();
+
         // Update the rollup height
         let next_rollup_height = stale_rollup_height.saturating_add(1);
         self.current_heights
@@ -253,6 +263,17 @@ impl<S: Spec> ChainState<S> {
                     .expect("True slot number must be set at genesis and updated at each slot"),
                 state,
             )
+            .unwrap_infallible();
+
+        let user_root = pre_state_root.namespace_root(ProvableNamespace::User);
+        // Technically this does some duplicate work; if we're not creating a new rollup block, we could skip this because neither pre-state root nor rollup_height change,
+        // so it would get set correctly on the next iteration
+        self.past_user_state_roots
+            .set(&leftover_rollup_height, &user_root, state)
+            .unwrap_infallible();
+        // Duplicate the user space state root to the accessory state
+        self.accessory_past_user_state_roots
+            .set(&leftover_rollup_height, &user_root, state)
             .unwrap_infallible();
 
         // We increment the slot number at the very beginning of the slot execution

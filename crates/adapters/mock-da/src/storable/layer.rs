@@ -29,6 +29,8 @@ pub struct StorableMockDaLayer {
     /// The height which is currently being built.
     next_height: u32,
     last_finalized_height: u32,
+    /// Defines how many blocks should pass between receiving a blob and including it in a block.
+    delay_blobs_by: u32,
     /// Defines how many blocks should be submitted before the block is finalized.
     /// Zero means instant finality.
     pub(crate) blocks_to_finality: u32,
@@ -70,6 +72,7 @@ impl StorableMockDaLayer {
         Ok(StorableMockDaLayer {
             conn,
             next_height,
+            delay_blobs_by: 0,
             last_finalized_height,
             blocks_to_finality,
             finalized_header_sender,
@@ -124,7 +127,7 @@ impl StorableMockDaLayer {
         };
 
         let blobs = Blobs::find()
-            .filter(blobs::Column::BlockHeight.eq(self.next_height))
+            .filter(blobs::Column::BlockHeight.eq(self.next_height + self.delay_blobs_by))
             .all(&self.conn)
             .await?;
         let blobs_count = blobs.len();
@@ -183,6 +186,11 @@ impl StorableMockDaLayer {
         Ok(())
     }
 
+    /// Wait the specified number of blocks before including blobs on DA
+    pub fn set_delay_blobs_by(&mut self, delay: u32) {
+        self.delay_blobs_by = delay;
+    }
+
     /// Saves new block header into a database.
     pub async fn produce_block(&mut self) -> anyhow::Result<()> {
         tracing::trace!(
@@ -239,10 +247,12 @@ impl StorableMockDaLayer {
         );
         let (blob, hash) = blobs::build_batch_blob(self.next_height as i32, batch_data, sender);
         blob.insert(&self.conn).await?;
+        let include_at = self.next_height + self.delay_blobs_by;
         tracing::trace!(
             %hash,
             %sender,
             next_da_height = self.next_height,
+            include_at = %include_at,
             "Submitted batch is saved"
         );
         Ok(hash)

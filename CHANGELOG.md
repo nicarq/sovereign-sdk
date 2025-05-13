@@ -1,3 +1,5 @@
+# 2025-05-02
+- #2824 More aggressively checks for nondeterminism in the sequencer
 # 2025-05-12
 - #2862 There was an issue where `darling`, a dependency we use, introduced a breaking change that Cargo was auto-upgrading to. This required users to add a workaround of explicitly pinning the version using `darling = "=0.20.10"`. This has now been fixed and the workaround is no longer necessary.
 

@@ -15,8 +15,8 @@ mod gas;
 #[cfg(test)]
 mod tests;
 use sov_modules_api::{
-    BootstrapWorkingSet, CodeCommitmentFor, GenesisState, KernelStateAccessor, ModuleError,
-    ModuleId, ModuleInfo, Spec, StateAccessor, StateReader,
+    BootstrapWorkingSet, CodeCommitmentFor, GenesisState, KernelStateAccessor, KernelStateMap,
+    ModuleError, ModuleId, ModuleInfo, Spec, StateAccessor, StateReader,
 };
 
 mod genesis;
@@ -202,7 +202,7 @@ pub struct ChainState<S: Spec> {
     /// most up to date state root inside the current slot. We have to wait for the next slot to start getting processed and return
     /// the pre-state root.
     #[state]
-    past_user_state_roots: StateMap<RollupHeight, [u8; 32]>,
+    past_user_state_roots: KernelStateMap<RollupHeight, [u8; 32]>,
 
     /// The state root hashes from genesis to the current slot, duplicated into accessory state.
     ///
@@ -406,25 +406,6 @@ impl<S: Spec> ChainState<S> {
             .slots
             .get(&slot_number, state)?
             .map(|slot| slot.prev_state_root))
-    }
-
-    /// Returns the post-state root hash of the state at the provided height.
-    pub fn user_root_at_height<Accessor: StateReader<User>>(
-        &self,
-        rollup_height: RollupHeight,
-        state: &mut Accessor,
-    ) -> Result<Option<[u8; 32]>, Accessor::Error> {
-        self.past_user_state_roots.get(&rollup_height, state)
-    }
-
-    /// Returns the pre-state root hash of the state at the provided height.
-    pub fn user_pre_state_root_at_height<Accessor: StateReader<User>>(
-        &self,
-        rollup_height: RollupHeight,
-        state: &mut Accessor,
-    ) -> Result<Option<[u8; 32]>, Accessor::Error> {
-        self.past_user_state_roots
-            .get(&rollup_height.saturating_sub(1), state)
     }
 
     /// Returns the slot information from the state at the provided height.

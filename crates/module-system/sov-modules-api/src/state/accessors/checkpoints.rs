@@ -72,6 +72,12 @@ impl<S: Spec> StateCheckpoint<S> {
         }
     }
 
+    /// Returns a reference to the storage underlying the state checkpoint.
+    #[cfg(feature = "native")]
+    pub fn storage(&self) -> &S::Storage {
+        self.delta.inner()
+    }
+
     /// Creates a new [`StateCheckpoint`] instance without any changes, backed
     /// by the given [`Storage`].
     pub fn new<K: Kernel<S>>(inner: S::Storage, kernel: &K) -> Self {

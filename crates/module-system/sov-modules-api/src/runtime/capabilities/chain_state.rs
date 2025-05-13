@@ -47,7 +47,6 @@ pub trait ChainState {
         &mut self,
         state_with_partially_stale_heights: &mut KernelStateAccessor<'_, Self::Spec>,
         visible_slot_number: VisibleSlotNumber,
-        user_state_root: &[u8; 32],
     );
 
     /// Called at the end of a slot after all tx execution has completed.
@@ -108,6 +107,18 @@ pub trait ChainState {
         &mut self,
         state: &mut impl AccessoryStateReaderAndWriter,
         genesis_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+    );
+
+    /// Returns the visible root hash accessible at the requested rollup height using the accessory state.
+    ///
+    /// ## Note
+    /// This method can return `None` if the visible root hash for the rollup height cannot be determined yet.
+    #[cfg(feature = "native")]
+    fn save_user_state_root(
+        &mut self,
+        rollup_height: RollupHeight,
+        user_state_root: [u8; 32],
+        state: &mut KernelStateAccessor<'_, Self::Spec>,
     );
 
     #[cfg(feature = "native")]

@@ -1,3 +1,4 @@
+use std::collections::{BTreeMap, VecDeque};
 use std::mem::replace;
 use std::sync::Arc;
 
@@ -7,20 +8,23 @@ use sov_modules_api::capabilities::{
     BlobSelector, BlobSelectorOutput, ChainState, FatalError, RollupHeight,
     TransactionAuthenticator,
 };
+use sov_modules_api::macros::config_value;
 use sov_modules_api::{
     call_message_repr, BlobDataWithId, ChangeSet, DaSpec, ExecutionContext, FullyBakedTx, Gas,
-    GasSpec, KernelStateAccessor, NoOpControlFlow, RejectReason, Runtime, RuntimeEventProcessor,
-    RuntimeEventResponse, SelectedBlob, Spec, StateCheckpoint, TransactionReceipt, TxChangeSet,
-    VersionReader, VisibleSlotNumber,
+    GasSpec, HexString, KernelStateAccessor, NoOpControlFlow, RejectReason, Runtime,
+    RuntimeEventProcessor, RuntimeEventResponse, SelectedBlob, Spec, StateCheckpoint,
+    TransactionReceipt, TxChangeSet, VersionReader, VisibleSlotNumber,
 };
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rest_utils::{json_obj, ErrorObject};
-use sov_state::{Namespace, StateRoot, Storage};
+use sov_state::{Namespace, StateAccesses, StateRoot, Storage};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::{self, Sender};
-use tokio::sync::{broadcast, oneshot};
+use tokio::sync::{broadcast, oneshot, watch};
 use tracing::{trace, warn};
+use uuid::Uuid;
 
+use super::state_root_compute::StateRootComputeRequest;
 use super::{
     BackgroundTaskState, InternalState, PreferredBatchToRestore, PreferredSequencerConfig,
     VisibleSlotNumberIncrease,
@@ -33,7 +37,6 @@ type TxReceiptWithEvents<S, Rt> = (
     TransactionReceipt<S>,
     Vec<RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>,
 );
-
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum RollupBlockExecutorError<S: Spec> {
     #[error(transparent)]
@@ -73,6 +76,9 @@ impl<S: Spec> RollupBlockExecutorError<S> {
     }
 }
 
+type StateRootReceiver<S> =
+    oneshot::Receiver<(RollupHeight, <<S as Spec>::Storage as Storage>::Root)>;
+
 pub(crate) struct RollupBlockExecutor<S, Rt>
 where
     S: Spec,
@@ -86,6 +92,11 @@ where
     // each background task when it is spawned, ensuring that this channel remains open as long
     // as any background task is operational even if the acceptor is dropped.
     shutdown_notifier: Sender<()>,
+    state_root_request_sender: tokio::sync::mpsc::Sender<StateRootComputeRequest<S>>,
+    state_roots: BTreeMap<RollupHeight, <S::Storage as Storage>::Root>,
+    state_root_responses: VecDeque<StateRootReceiver<S>>,
+    pub(super) shutdown_receiver: watch::Receiver<()>,
+    id: Uuid,
 }
 
 impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
@@ -99,6 +110,8 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         events_sender: Option<broadcast::Sender<SequencerEvent<Rt>>>,
         config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
         shutdown_notifier: Sender<()>,
+        state_root_request_sender: tokio::sync::mpsc::Sender<StateRootComputeRequest<S>>,
+        shutdown_receiver: watch::Receiver<()>,
     ) -> RollupBlockExecutor<S, Rt> {
         RollupBlockExecutor {
             next_event_number,
@@ -106,6 +119,11 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             state,
             config,
             shutdown_notifier,
+            state_root_request_sender,
+            state_roots: Default::default(),
+            state_root_responses: Default::default(),
+            id: Uuid::now_v7(),
+            shutdown_receiver,
         }
     }
 
@@ -115,6 +133,10 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
     #[tracing::instrument(skip_all, level = "trace")]
     pub async fn replace_state(&mut self, other: Self, visible_state_is_expected_to_match: bool) {
+        if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            return;
+        }
+
         assert!(
             !matches!(other.state, InternalState::Placeholder),
             "Can't replace with placeholder state; this is a bug, please report it (self.state is {:?})",
@@ -130,6 +152,15 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                 "Event numbers don't match after `update_state`; this is a bug, please report it"
             );
         }
+        tracing::trace!(
+            "Replacing state for executor {} with executor {}",
+            self.id,
+            other.id
+        );
+
+        // Update our list of state roots from the other executor.
+        self.state_roots = other.state_roots;
+        self.state_root_responses = other.state_root_responses;
 
         let current_state = replace(&mut self.state, InternalState::Placeholder);
         if let InternalState::InProgressBatch { task_state, .. } = current_state {
@@ -241,6 +272,9 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         )
         .await;
 
+        if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            return Ok(false);
+        }
         trace!("Replaying txs");
 
         let last_tx_hash = batch.batch.tx_hashes.last();
@@ -293,6 +327,11 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         node_state_root: &<S::Storage as Storage>::Root,
         minimum_profit_per_tx: u128,
     ) {
+        // If we've started shutting down, don't start a new block.
+        if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            tracing::info!("Shutdown receiver has changed. New block not started");
+            return;
+        }
         self.start_rollup_block_inner(
             sanity_check_visible_slot_number_after_increase,
             visible_increase,
@@ -300,6 +339,11 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             minimum_profit_per_tx,
         )
         .await;
+
+        // If we've started shutting down since last time we checked, the assertion may not hold. In that case, we'll just return early.
+        if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            return;
+        }
 
         // Just a sanity check.
         assert!(
@@ -332,6 +376,13 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             "Beginning new rollup block and spawning background loop"
         );
 
+        self.populate_state_roots(&mut checkpoint, node_state_root)
+            .await;
+        if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            tracing::info!("Shutdown receiver has changed. New block not started");
+            return;
+        }
+
         let old_visible_slot_number = checkpoint.current_visible_slot_number();
         let next_visible_slot_number = checkpoint
             .current_visible_slot_number()
@@ -343,7 +394,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             "Sanity check failed: visible slot number calculation was incorrect. This is a bug, please report it."
         );
 
-        let user_state_root = node_state_root.namespace_root(sov_state::ProvableNamespace::User);
         let (setup_sender, setup_receiver) = oneshot::channel();
         let (tx_sender, tx_receiver) = mpsc::channel(Self::MAX_BUFFERED_TXS);
         let (result_sender, result_receiver) = mpsc::channel(Self::MAX_BUFFERED_TXS);
@@ -358,7 +408,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                 visible_increase,
                 result_sender,
                 shutdown_notifier: self.shutdown_notifier.clone(),
-                user_state_root,
                 old_rollup_height: checkpoint.rollup_height_to_access(),
                 minimum_profit_per_tx,
                 admin_addresses: self.config.admin_addresses.clone().into(),
@@ -439,6 +488,83 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         events
     }
 
+    /// Before starting a rollup block, we need to have stored any visible state roots that it might need in state.
+    /// In the node, this is done automatically, but sometimes the sequencer can run too far ahead of the node and need to compute these roots itself.
+    async fn populate_state_roots(
+        &mut self,
+        checkpoint: &mut StateCheckpoint<S>,
+        node_state_root: &<S::Storage as Storage>::Root,
+    ) {
+        if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            return;
+        }
+        // If we don't have any state roots yet, insert the node's state root. That's our starting point.
+        if self.state_roots.is_empty() {
+            self.state_roots.insert(
+                checkpoint.rollup_height_to_access(),
+                node_state_root.clone(),
+            );
+        }
+
+        // Compute the next visible root height that we need to fetch.
+        let next_rollup_height = checkpoint.rollup_height_to_access().saturating_add(1);
+        let next_visible_root_height =
+            next_rollup_height.saturating_sub(config_value!("STATE_ROOT_DELAY_BLOCKS"));
+        tracing::trace!(
+            "Fetching state root for height: {} if necessary",
+            next_visible_root_height
+        );
+
+        // If we don't have the next visible root locally, fetch it from the background task.
+        // Note: The request will *always* be the next one in our inbound queue if we take this branch.
+        // If this block is the first one computed using the RollupBlockExecutor, then the root we need is just the one from the node,
+        // so we *don't* take this branch.
+        // Otherwise, the request will already have been sent during the previous iteration of `end_rollup_block`, so we can just await it here.
+        if next_visible_root_height
+            > *self
+                .state_roots
+                .keys()
+                .max()
+                .unwrap_or(&RollupHeight::GENESIS)
+        {
+            tracing::trace!(
+                "Fetching state root for height: {}",
+                next_visible_root_height
+            );
+            let (received_height, next_visible_root) = match self.state_root_responses.pop_front().unwrap_or_else(||
+                    panic!("Executor {} Needed response for state root for height {} before sending request. This is a bug in the `RollupBlockExecutor`, please report it.", self.id, next_visible_root_height))
+            .await {
+                Ok((received_height, next_visible_root)) => {
+                   (received_height, next_visible_root)
+                }
+                Err(_) => {
+                    tracing::info!("State root computation background task has shutdown. New block not started");
+                    return;
+                }
+            };
+            // Sanity check: the height we received should match the height we need.
+            if received_height != next_visible_root_height {
+                tracing::error!("Received height ({}) did not equal expected height for assertion {}. This is a bug in the RollupBlockExecutor, please report it.", received_height, next_visible_root_height);
+                panic!("Received height ({}) did not equal expected height for assertion {}. This is a bug in the RollupBlockExecutor, please report it.", received_height, next_visible_root_height);
+            }
+            tracing::trace!(
+                "Received state root for height {} : {}",
+                next_visible_root_height,
+                HexString(next_visible_root.namespace_root(sov_state::ProvableNamespace::User))
+            );
+            self.state_roots
+                .insert(next_visible_root_height, next_visible_root);
+        }
+        // take all roots greater than self.started_from
+        for (height, root) in self.state_roots.iter() {
+            let user_root = root.namespace_root(sov_state::ProvableNamespace::User);
+            let mut runtime = Rt::default();
+            let mut kernel = runtime.kernel();
+            let mut kernel_state = KernelStateAccessor::from_checkpoint(&kernel, checkpoint);
+            kernel.save_user_state_root(*height, user_root, &mut kernel_state);
+        }
+    }
+
     async fn end_rollup_block_if_in_progress_inner(&mut self) {
         trace!("Ending rollup block");
 
@@ -457,9 +583,11 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                 }
             };
 
-        let (batch_receipts, changes) = task_state.shutdown().await.expect(
-            "Transaction acceptor task failed unexpectedly! This is a bug, please report it.",
-        );
+        let rollup_height = checkpoint.rollup_height_to_access();
+        let (batch_receipts, changes, state_accesses, witness) =
+            task_state.shutdown().await.expect(
+                "Transaction acceptor task failed unexpectedly! This is a bug, please report it.",
+            );
 
         for batch_receipt in batch_receipts {
             // We already increment the event number for our own transactions
@@ -473,6 +601,24 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             }
         }
 
+        tracing::trace!(executor_id = %self.id, "Sending state root computation to background task at height {}", rollup_height);
+        let (response_channel, response_receiver) = oneshot::channel();
+        self.state_root_responses.push_back(response_receiver);
+        if self
+            .state_root_request_sender
+            .send(StateRootComputeRequest {
+                state_accesses,
+                witness,
+                storage: checkpoint.storage().clone(),
+                rollup_height,
+                response_channel,
+            })
+            .await
+            .is_err()
+        {
+            tracing::info!(executor_id = %self.id, "State root computation background task has shutdown. State root will not be computed.");
+        }
+
         checkpoint.apply_changes(changes);
 
         self.state = InternalState::Idle { checkpoint };
@@ -483,7 +629,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
 struct RollupBlockTaskContext<S: Spec> {
     checkpoint: StateCheckpoint<S>,
-    user_state_root: [u8; 32],
     old_rollup_height: RollupHeight,
     old_visible_slot_number: VisibleSlotNumber,
     next_visible_slot_number: VisibleSlotNumber,
@@ -504,14 +649,18 @@ struct RollupBlockTaskContext<S: Spec> {
 
 fn rollup_block_task_body<S, Rt>(
     ctx: RollupBlockTaskContext<S>,
-) -> (Vec<BatchReceipt<S>>, ChangeSet)
+) -> (
+    Vec<BatchReceipt<S>>,
+    ChangeSet,
+    StateAccesses,
+    <S::Storage as Storage>::Witness,
+)
 where
     S: Spec,
     Rt: Runtime<S>,
 {
     let RollupBlockTaskContext {
         mut checkpoint,
-        user_state_root,
         old_rollup_height,
         old_visible_slot_number,
         next_visible_slot_number,
@@ -537,7 +686,7 @@ where
     let mut kernel = rt.kernel();
     let mut accessor: KernelStateAccessor<'_, S> =
         KernelStateAccessor::from_checkpoint(&kernel, &mut checkpoint);
-    kernel.increment_rollup_height(&mut accessor, next_visible_slot_number, &user_state_root);
+    kernel.increment_rollup_height(&mut accessor, next_visible_slot_number);
 
     let next_root = kernel
         .visible_hash_for(old_rollup_height.saturating_add(1), &mut accessor)
@@ -611,7 +760,8 @@ where
     );
 
     let mut changes = checkpoint.changes();
-    let accessory_delta = stf.materialize_accessory_state(&mut Default::default(), checkpoint);
+    let (accessory_delta, state_accesses, witness) =
+        stf.materialize_accessory_state(&mut Default::default(), checkpoint);
 
     changes.changes.extend(
         accessory_delta
@@ -621,7 +771,7 @@ where
     );
     drop(shutdown_notifier);
 
-    (batch_receipts, changes)
+    (batch_receipts, changes, state_accesses, witness)
 }
 
 fn reject_reason_to_error(
