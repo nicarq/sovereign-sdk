@@ -324,7 +324,13 @@ where
         // Now is as good a time as any to prune old blobs that are no longer needed.
         match latest_finalized_sequence_number(latest_state_info, &mut self.runtime) {
             Some(num) => {
-                self.prune(num).await?;
+                // TODO(@neysofu): somehow, if we prune too close to the latest
+                // finalized sequence number, we get panics due to missing blobs
+                // and inconsistent state. There is clearly something wrong with
+                // the pruning height calculation height.
+                if let Some(num) = num.checked_sub(100) {
+                    self.prune(num).await?;
+                }
             }
             None => {
                 // Nothing to prune because there's no sequence number history.

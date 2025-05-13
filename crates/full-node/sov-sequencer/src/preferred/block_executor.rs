@@ -333,21 +333,15 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         );
 
         let old_visible_slot_number = checkpoint.current_visible_slot_number();
-        let mut next_visible_slot_number = checkpoint
+        let next_visible_slot_number = checkpoint
             .current_visible_slot_number()
             .advance(visible_increase.get().into());
 
-        if next_visible_slot_number != sanity_check_visible_slot_number_after_increase {
-            // TODO: Change this to a sanity check and a panic once all tests
-            // account for the deferred slots count distance.
-            tracing::debug!(
-                "Overriding visible slot number from {} to: {}",
-                next_visible_slot_number,
-                sanity_check_visible_slot_number_after_increase
-            );
-
-            next_visible_slot_number = sanity_check_visible_slot_number_after_increase;
-        }
+        assert_eq!(
+            next_visible_slot_number,
+            sanity_check_visible_slot_number_after_increase,
+            "Sanity check failed: visible slot number calculation was incorrect. This is a bug, please report it."
+        );
 
         let user_state_root = node_state_root.namespace_root(sov_state::ProvableNamespace::User);
         let (setup_sender, setup_receiver) = oneshot::channel();
