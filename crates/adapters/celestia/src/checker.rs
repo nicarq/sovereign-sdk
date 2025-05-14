@@ -6,7 +6,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use rand::RngCore;
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait};
-use sov_rollup_interface::node::da::DaService;
+use sov_rollup_interface::node::da::{DaService, SlotData};
 
 use crate::verifier::address::CelestiaAddress;
 use crate::CelestiaService;
@@ -69,6 +69,12 @@ async fn check_blobs_roundtrip(
         let block = da_service.get_block_at(height).await?;
 
         let (received_blobs, _) = da_service.extract_relevant_blobs_with_proof(&block).await;
+        tracing::info!(
+            "Inspecting block {}. batch blobs: {} proof blobs: {}",
+            block.header().display(),
+            received_blobs.batch_blobs.len(),
+            received_blobs.proof_blobs.len(),
+        );
 
         for mut batch in received_blobs.batch_blobs {
             if batch.sender() != *sender {
@@ -82,7 +88,8 @@ async fn check_blobs_roundtrip(
             match sent_blobs.remove(&bytes_hash) {
                 None => {
                     anyhow::bail!(
-                        "Received blob celestia_hash={} bytes_hash={} len={} not found in sent blobs. Bug or there's another sender colluding with the test.",
+                        "Received blob on height={} celestia_hash={} bytes_hash={} len={} not found in sent blobs. Bug or there's another sender colluding with the test.",
+                        block.header().height(),
                         batch.hash(),
                         bytes_hash,
                         data_len,
@@ -158,23 +165,29 @@ pub async fn check_da_service(
     for _ in 0..4 {
         important_sizes.extend(large_blobs.clone());
     }
-
-    let mut blobs: Vec<Vec<u8>> = Vec::with_capacity(important_sizes.len());
-
-    let mut rng = rand::thread_rng();
-
-    for size in important_sizes {
-        let mut blob = vec![0u8; size];
-        rng.fill_bytes(&mut blob);
-        blobs.push(blob);
-    }
     tracing::info!(
-        "Generated {} blobs. Going to submit then in {} rounds",
-        blobs.len(),
+        "Going to generate {} blobs. Going to submit then in {} rounds",
+        important_sizes.len(),
         rounds
     );
 
     for i in 0..rounds {
+        let mut blobs: Vec<Vec<u8>> = Vec::with_capacity(important_sizes.len());
+        let mut rng = rand::thread_rng();
+
+        for size in &important_sizes {
+            let mut blob = vec![0u8; *size];
+            rng.fill_bytes(&mut blob);
+            blobs.push(blob);
+        }
+        let blobs_cumulative_size = blobs.iter().map(|b| b.len()).sum::<usize>();
+        tracing::info!(
+            "Starting round {}. Going to submit {} blobs of total size {} bytes",
+            i,
+            blobs.len(),
+            blobs_cumulative_size
+        );
+
         check_blobs_roundtrip(da_service, sender, &blobs).await?;
         tracing::info!("Round {} complete", i + 1);
     }
