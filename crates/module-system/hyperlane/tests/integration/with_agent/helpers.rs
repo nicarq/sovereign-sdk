@@ -246,6 +246,8 @@ impl HyperlaneBuilder {
             .with_exposed_port(VALIDATOR_METRICS_PORT.tcp())
             // a bridge to the host system, to reach rollup from within container
             .with_host("host.docker.internal", Host::HostGateway)
+            // test runtime uses fixed value for chain hash, this lets relayer know
+            .with_env_var("SOV_TEST_UTILS_FIXED_CHAIN_HASH", "true")
             // default signing key for hyperlane cli and relayer in evm
             .with_env_var("HYP_KEY", ANVIL_ACCOUNTS[0].1)
             // setup agent config
