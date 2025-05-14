@@ -20,6 +20,15 @@ pub struct Pagination<T> {
     pub selection: PageSelection<T>,
 }
 
+impl<T> Default for Pagination<T> {
+    fn default() -> Self {
+        Self {
+            size: PAGE_SIZE_DEFAULT,
+            selection: Default::default(),
+        }
+    }
+}
+
 impl<T: serde::Serialize> serde::Serialize for Pagination<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

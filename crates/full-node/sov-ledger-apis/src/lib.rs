@@ -23,7 +23,7 @@ use sov_rest_utils::errors::{
 };
 use sov_rest_utils::{
     json_obj, preconfigured_router_layers, serve_generic_ws_subscription, ApiResult, ErrorObject,
-    Path, Query,
+    PageSelection, Pagination, Path, Query,
 };
 use sov_rollup_interface::common::{HexHash, HexString, SlotNumber};
 use sov_rollup_interface::node::ledger_api::{
@@ -156,6 +156,7 @@ where
                     Self::resolve_tx_id,
                 )),
             )
+            .route("/events", get(Self::list_events))
             .route("/events/latest", get(Self::get_latest_event))
             .nest(
                 "/events/:eventId",
@@ -337,6 +338,42 @@ where
             Ok(None) => Err(errors::not_found_404("Event", event_number)),
             Err(err) => Err(errors::database_error_response_500(err)),
         }
+    }
+
+    // TODO: we're going to want to start using range/iters
+    // when retrieving events from ledger db.
+    // With that in mind we're using cursor based pagination
+    // so the implementation can be updated without changing the REST API interface.
+    async fn list_events(
+        State(state): State<LedgerState<T>>,
+        pagination_opt: Option<Query<Pagination<String>>>,
+    ) -> ApiResult<Vec<RuntimeEventResponse<E>>> {
+        let pagination = match pagination_opt {
+            Some(Query(pagination)) => pagination,
+            None => Default::default(),
+        };
+        let start = match pagination.selection {
+            PageSelection::Next { cursor } => cursor
+                .parse::<u64>()
+                .map_err(|e| errors::bad_request_400("Cursor was not valid u64", e))?,
+            PageSelection::First => 0,
+            PageSelection::Last => return Err(errors::not_implemented_501()),
+        };
+        let end = start
+            .checked_add(pagination.size as u64)
+            .unwrap_or(u64::MAX);
+        let nums = (start..=end)
+            .map(EventIdentifier::Number)
+            .collect::<Vec<_>>();
+        let events = state
+            .ledger
+            .get_events::<RuntimeEventResponse<E>>(nums.as_slice())
+            .await
+            .map_err(errors::database_error_response_500)?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        Ok(events.into())
     }
 
     async fn get_latest_event(

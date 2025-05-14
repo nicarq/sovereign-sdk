@@ -199,6 +199,27 @@ paths:
           $ref: "#/components/responses/LedgerEvent"
         "404":
           $ref: "#/components/responses/ApiErrorResponse"
+  /ledger/events:
+    get:
+      tags:
+        - Ledger
+      summary: Lists events.
+      operationId: list_events
+      parameters:
+        - $ref: "#/components/parameters/pageType"
+        - $ref: "#/components/parameters/pageSize"
+        - $ref: "#/components/parameters/pageCursor"
+      responses:
+        "200":
+          description: "Returns a list of events"
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LedgerEvent"
+        "400":
+          $ref: "#/components/responses/ApiErrorResponse"
   /ledger/events/latest:
     get:
       tags:
@@ -418,6 +439,29 @@ paths:
                   - meta
 components:
   parameters:
+    pageType:
+      name: page
+      in: query
+      description: Pagination type (first, next, or last)
+      schema:
+        type: string
+        enum: [first, next, last]
+        default: first
+    pageSize:
+      name: page[size]
+      in: query
+      description: Number of items per page
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        default: 25
+    pageCursor:
+      name: page[cursor]
+      in: query
+      description: Cursor for next page (required when page=next)
+      schema:
+        type: string
     slotId:
       name: slotId
       in: path
