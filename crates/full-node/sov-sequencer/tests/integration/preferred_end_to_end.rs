@@ -9,6 +9,7 @@ use std::time::Duration;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
+use futures::future;
 use sov_api_spec::types::{self as api_types, TxReceiptResult};
 use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::BlockProducingConfig;
@@ -28,7 +29,7 @@ use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, RollupProverConf
 use sov_test_utils::{
     default_test_signed_transaction, default_test_tx_details,
     generate_optimistic_runtime_with_kernel, test_signed_transaction, RtAgnosticBlueprint,
-    TestSpec, TEST_MAX_BATCH_SIZE,
+    TestSpec, TestUser, TEST_MAX_BATCH_SIZE,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use test_strategy::Arbitrary;
@@ -157,6 +158,45 @@ async fn new_test_rollup(
     }
 }
 
+async fn create_test_rollup(
+    minimum_profit_per_tx: u128,
+    max_batch_size: usize,
+) -> (Option<TestRollup<TestBlueprint>>, TestUser<TestSpec>) {
+    let genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    let admin = genesis_config.additional_accounts[0].clone();
+
+    let rt_genesis_config =
+        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
+            genesis_config.into(),
+            ValueSetterConfig {
+                admin: admin.address(),
+            },
+            (),
+            PaymasterConfig::default(),
+            (),
+        );
+    let genesis_params = GenesisParams {
+        runtime: rt_genesis_config.clone(),
+    };
+
+    let dir = tempdir_inside_codebase_dir();
+
+    (
+        new_test_rollup(
+            dir.clone(),
+            genesis_params,
+            minimum_profit_per_tx,
+            true,
+            max_batch_size,
+            BlockProducingConfig::Manual,
+            None,
+        )
+        .await,
+        admin,
+    )
+}
+
 #[derive(Debug, Default)]
 struct TestState {
     value_by_slot_number: HashMap<SlotNumber, u64>,
@@ -194,38 +234,9 @@ struct TestState {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn txs_below_min_fee_are_rejected() {
-    let genesis_config =
-        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
-    let admin = genesis_config.additional_accounts[0].clone();
+    let (test_rollup, admin) = create_test_rollup(1, TEST_MAX_BATCH_SIZE).await;
 
-    let rt_genesis_config =
-        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
-            genesis_config.into(),
-            ValueSetterConfig {
-                admin: admin.address(),
-            },
-            (),
-            PaymasterConfig::default(),
-            (),
-        );
-    let genesis_params = GenesisParams {
-        runtime: rt_genesis_config.clone(),
-    };
-
-    let dir = tempdir_inside_codebase_dir();
-
-    let Some(test_rollup) = new_test_rollup(
-        dir.clone(),
-        genesis_params,
-        1,
-        false,
-        TEST_MAX_BATCH_SIZE,
-        DEFAULT_BLOCK_PRODUCING_CONFIG,
-        Some(RollupProverConfig::Skip),
-    )
-    .await
-    else {
-        // Docker issues, don't fail the test and just return early.
+    let Some(test_rollup) = test_rollup else {
         return;
     };
 
@@ -382,41 +393,10 @@ async fn seq_out_of_gas() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn max_batch_size() {
-    let genesis_config =
-        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
-
-    let admin = genesis_config.additional_accounts[0].clone();
-
-    let rt_genesis_config =
-        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
-            genesis_config.into(),
-            ValueSetterConfig {
-                admin: admin.address(),
-            },
-            (),
-            PaymasterConfig::default(),
-            (),
-        );
-
-    let genesis_params = GenesisParams {
-        runtime: rt_genesis_config.clone(),
-    };
-
-    let dir = tempdir_inside_codebase_dir();
-
     let max_batch_size = 1024;
-    let Some(test_rollup) = new_test_rollup(
-        dir.clone(),
-        genesis_params,
-        0,
-        true,
-        max_batch_size,
-        BlockProducingConfig::Manual,
-        None,
-    )
-    .await
-    else {
-        // Docker issues, don't fail the test and just return early.
+    let (test_rollup, admin) = create_test_rollup(0, max_batch_size).await;
+
+    let Some(test_rollup) = test_rollup else {
         return;
     };
 
@@ -583,38 +563,9 @@ async fn test_state_root_computation_when_blobs_are_delayed() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn seq_back_pressure() {
-    let genesis_config =
-        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
-    let admin = genesis_config.additional_accounts[0].clone();
+    let (test_rollup, admin) = create_test_rollup(0, TEST_MAX_BATCH_SIZE).await;
 
-    let rt_genesis_config =
-        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
-            genesis_config.into(),
-            ValueSetterConfig {
-                admin: admin.address(),
-            },
-            (),
-            PaymasterConfig::default(),
-            (),
-        );
-    let genesis_params = GenesisParams {
-        runtime: rt_genesis_config.clone(),
-    };
-
-    let dir = tempdir_inside_codebase_dir();
-
-    let Some(test_rollup) = new_test_rollup(
-        dir.clone(),
-        genesis_params,
-        0,
-        true,
-        TEST_MAX_BATCH_SIZE,
-        BlockProducingConfig::Manual,
-        None,
-    )
-    .await
-    else {
-        // Docker issues, don't fail the test and just return early.
+    let Some(test_rollup) = test_rollup else {
         return;
     };
 
@@ -672,6 +623,61 @@ async fn seq_back_pressure() {
         })
         .await
         .unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn seq_many_invalid_txs() {
+    let (test_rollup, admin) = create_test_rollup(0, TEST_MAX_BATCH_SIZE).await;
+
+    let Some(test_rollup) = test_rollup else {
+        return;
+    };
+
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(5)
+        .await
+        .unwrap();
+
+    sleep(Duration::from_millis(200)).await;
+
+    let client = test_rollup.api_client.clone();
+    let tx = tx_set_value(&admin.private_key, 100, 0);
+
+    client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx),
+        })
+        .await
+        .unwrap();
+
+    let mut handles = Vec::default();
+    for i in 0..100 {
+        let client = client.clone();
+        let da_service = test_rollup.da_service.clone();
+
+        let tx = tx_set_value(&admin.private_key, 0, i);
+        let tx = api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx),
+        };
+
+        handles.push(tokio::spawn(async move {
+            let res = client.accept_tx(&tx).await;
+            da_service.produce_block_now().await.unwrap();
+            res
+        }));
+    }
+
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(50)
+        .await
+        .unwrap();
+
+    let results = future::join_all(handles).await;
+    for res in results {
+        assert!(res.unwrap().is_err());
+    }
 }
 
 /// Ensure that we use the correct visible slot number when replaying transactions after a call to `update_state` in the sequencer.
@@ -838,38 +844,9 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn events_are_returned_in_tx_response() {
-    let genesis_config =
-        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
-    let admin = genesis_config.additional_accounts[0].clone();
+    let (test_rollup, admin) = create_test_rollup(0, TEST_MAX_BATCH_SIZE).await;
 
-    let rt_genesis_config =
-        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
-            genesis_config.into(),
-            ValueSetterConfig {
-                admin: admin.address(),
-            },
-            (),
-            PaymasterConfig::default(),
-            (),
-        );
-    let genesis_params = GenesisParams {
-        runtime: rt_genesis_config.clone(),
-    };
-
-    let dir = tempdir_inside_codebase_dir();
-
-    let Some(test_rollup) = new_test_rollup(
-        dir.clone(),
-        genesis_params,
-        0,
-        false,
-        TEST_MAX_BATCH_SIZE,
-        DEFAULT_BLOCK_PRODUCING_CONFIG,
-        Some(RollupProverConfig::Skip),
-    )
-    .await
-    else {
-        // Docker issues, don't fail the test and just return early.
+    let Some(test_rollup) = test_rollup else {
         return;
     };
 
@@ -1292,44 +1269,9 @@ async fn batch_production_and_accept_tx() {
 // when the sender address is not configured as an admin in the sequencer config.
 #[tokio::test(flavor = "multi_thread")]
 async fn not_sequencer_safe_txs_are_restricted() {
-    let mut genesis_config =
-        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
-    genesis_config.initial_sequencer.bond = genesis_config
-        .initial_sequencer
-        .bond
-        .checked_mul(Amount::new(100))
-        .unwrap();
+    let (test_rollup, admin) = create_test_rollup(0, TEST_MAX_BATCH_SIZE).await;
 
-    let admin = genesis_config.additional_accounts[0].clone();
-
-    let rt_genesis_config =
-        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
-            genesis_config.into(),
-            ValueSetterConfig {
-                admin: admin.address(),
-            },
-            (),
-            PaymasterConfig::default(),
-            (),
-        );
-    let genesis_params = GenesisParams {
-        runtime: rt_genesis_config.clone(),
-    };
-
-    let dir = tempdir_inside_codebase_dir();
-
-    let Some(test_rollup) = new_test_rollup(
-        dir.clone(),
-        genesis_params,
-        0,
-        false,
-        TEST_MAX_BATCH_SIZE,
-        DEFAULT_BLOCK_PRODUCING_CONFIG,
-        Some(RollupProverConfig::Skip),
-    )
-    .await
-    else {
-        // Docker issues, don't fail the test and just return early.
+    let Some(test_rollup) = test_rollup else {
         return;
     };
 
@@ -1495,6 +1437,45 @@ async fn test_sequencer_state_and_node_state_matches() {
         // give time for update state to run
         TestingAction::Sleep { duration_ms: 500 },
         // Should be unchanged
+        TestingAction::QuerySetValue,
+    ];
+
+    preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn api_state_race_condition_regression2() {
+    let actions = vec![
+        TestingAction::QuerySetValue,
+        TestingAction::AcceptTx,
+        TestingAction::QuerySetValue,
+        TestingAction::AcceptTxs { count: 1 },
+        TestingAction::QuerySetValue,
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::TryAcceptBadTx {
+            invalid_reason: InvalidGeneration::DuplicateTransaction,
+        },
+        TestingAction::TryAcceptBadTx {
+            invalid_reason: InvalidGeneration::TooOld,
+        },
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::QuerySetValue,
+        TestingAction::TryAcceptBadTx {
+            invalid_reason: InvalidGeneration::TooOld,
+        },
+        TestingAction::NewDaSlot {},
+        TestingAction::QuerySetValue,
+        TestingAction::QuerySetValue,
+        TestingAction::QuerySetValue,
+        TestingAction::QuerySetValue,
+        TestingAction::AcceptTxs { count: 4 },
+        TestingAction::TryAcceptBadTx {
+            invalid_reason: InvalidGeneration::TooOld,
+        },
+        TestingAction::AcceptTxs { count: 4 },
         TestingAction::QuerySetValue,
     ];
 
