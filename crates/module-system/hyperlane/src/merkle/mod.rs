@@ -42,8 +42,11 @@ impl<S: Spec> Module for MerkleTreeHook<S> {
         &mut self,
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         _config: &Self::Config,
-        _state: &mut impl GenesisState<S>,
+        state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {
+        self.tree
+            .set(&MerkleTree::default(), state)
+            .map_err(|e| anyhow::anyhow!(e))?;
         Ok(())
     }
 
