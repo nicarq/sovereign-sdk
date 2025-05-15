@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::str::FromStr;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -16,13 +16,15 @@ pub type HexHash = HexString<[u8; 32]>;
 /// A [`serde`]-compatible newtype wrapper around [`Vec<u8>`] or other
 /// bytes-like types, which is serialized as a 0x-prefixed hex string.
 #[derive(
-    Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::AsRef, UniversalWallet,
+    Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::AsRef, UniversalWallet,
 )]
 #[cfg_attr(
     feature = "arbitrary",
     derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
 )]
-pub struct HexString<T = Vec<u8>>(pub T);
+pub struct HexString<T = Vec<u8>>(pub T)
+where
+    T: AsRef<[u8]>;
 
 impl schemars::JsonSchema for HexString {
     fn schema_name() -> String {
@@ -70,7 +72,7 @@ impl<const N: usize> schemars::JsonSchema for HexString<SafeVec<u8, N>> {
     }
 }
 
-impl<T> HexString<T> {
+impl<T: AsRef<[u8]>> HexString<T> {
     /// Creates a new [`HexString`] from its inner contents.
     pub const fn new(bytes: T) -> Self {
         Self(bytes)
@@ -89,13 +91,22 @@ impl From<HexHash> for [u8; 32] {
     }
 }
 
-impl<T> From<T> for HexString<T> {
+impl<T: AsRef<[u8]>> From<T> for HexString<T> {
     fn from(bytes: T) -> Self {
         Self(bytes)
     }
 }
 
 impl<T> Display for HexString<T>
+where
+    T: AsRef<[u8]>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "0x{}", hex::encode(&self.0))
+    }
+}
+
+impl<T> Debug for HexString<T>
 where
     T: AsRef<[u8]>,
 {
@@ -127,7 +138,7 @@ where
 
 impl<'de, T> serde::Deserialize<'de> for HexString<T>
 where
-    T: TryFrom<Vec<u8>>,
+    T: TryFrom<Vec<u8>> + AsRef<[u8]>,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -146,19 +157,19 @@ where
     }
 }
 
-impl<T: BorshSerialize> BorshSerialize for HexString<T> {
+impl<T: BorshSerialize + AsRef<[u8]>> BorshSerialize for HexString<T> {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
         self.0.serialize(writer)
     }
 }
 
-impl<T: BorshDeserialize> BorshDeserialize for HexString<T> {
+impl<T: BorshDeserialize + AsRef<[u8]>> BorshDeserialize for HexString<T> {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         T::deserialize_reader(reader).map(Self)
     }
 }
 
-impl<T: TryFrom<Vec<u8>>> FromStr for HexString<T> {
+impl<T: TryFrom<Vec<u8>> + AsRef<[u8]>> FromStr for HexString<T> {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -205,7 +216,7 @@ pub mod hex_string_serde {
     pub fn deserialize<'de, D, T>(deserializer: D) -> Result<T, D::Error>
     where
         D: Deserializer<'de>,
-        T: TryFrom<Vec<u8>>,
+        T: TryFrom<Vec<u8>> + AsRef<[u8]>,
     {
         HexString::<T>::deserialize(deserializer).map(|s| s.0)
     }

@@ -891,6 +891,9 @@ where
             });
         }
 
+        let tx_hash = Rt::Auth::compute_tx_hash(&baked_tx).map_err(generic_accept_tx_error)?;
+        tracing::debug!(%tx_hash, "Executing accept_tx");
+
         let mut inner = self.lock_inner().await;
         if inner
             .try_to_create_and_start_batch_if_none_in_progress(false)
@@ -909,24 +912,21 @@ where
             ..
         } = &mut *inner;
 
-        let tx_hash = Rt::Auth::compute_tx_hash(&baked_tx).map_err(generic_accept_tx_error)?;
+        let apply_tx_res = block_executor
+            .apply_tx_to_in_progress_batch(&baked_tx)
+            .await;
 
-        let apply_tx_fut = block_executor.apply_tx_to_in_progress_batch(&baked_tx);
-        let insert_tx_fut = db.insert_tx(baked_tx.clone(), tx_hash);
-
-        let (apply_tx_res, insert_tx_res) = futures::join!(apply_tx_fut, insert_tx_fut);
-
-        let () = insert_tx_res.map_err(database_error_500)?;
         let (receipt, events) = match apply_tx_res {
             Ok(res) => res,
             Err(err) => {
-                db.pop_tx_from_in_progress_batch()
-                    .await
-                    .map_err(database_error_500)?;
-                tracing::debug!(%tx_hash, "Transaction was dropped by the sequencer");
+                tracing::debug!(%tx_hash, %err, "Transaction was dropped by the sequencer");
                 return Err(RollupBlockExecutorError::into_http_error(err));
             }
         };
+
+        db.insert_tx(baked_tx.clone(), tx_hash)
+            .await
+            .map_err(database_error_500)?;
 
         batch_size_tracker.add_tx(baked_tx.data.len());
         tracing::debug!(%tx_hash, "Transaction was accepted by the sequencer");
