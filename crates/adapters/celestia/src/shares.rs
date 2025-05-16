@@ -1,118 +1,118 @@
-use borsh::{BorshDeserialize, BorshSerialize};
+use celestia_types::consts::appconsts;
 use celestia_types::nmt::{Namespace, NS_SIZE};
-use celestia_types::row_namespace_data::NamespaceData;
 use prost::bytes::Buf;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::Bytes;
 
-use crate::utils::read_varint;
-use crate::verifier::PFB_NAMESPACE;
-
 /// The length of the "reserved bytes" field in a compact share
-pub const RESERVED_BYTES_LEN: usize =
-    celestia_types::consts::appconsts::COMPACT_SHARE_RESERVED_BYTES;
+pub(crate) const RESERVED_BYTES_LEN: usize = appconsts::COMPACT_SHARE_RESERVED_BYTES;
 /// The length of the "info byte" field in a compact share
-pub const INFO_BYTE_LEN: usize = celestia_types::consts::appconsts::SHARE_INFO_BYTES;
+pub(crate) const INFO_BYTE_LEN: usize = appconsts::SHARE_INFO_BYTES;
 /// The length of the "sequence length" field
-pub const SEQUENCE_LENGTH_BYTES: usize = celestia_types::consts::appconsts::SEQUENCE_LEN_BYTES;
-/// The size of a share, in bytes
-pub const SHARE_SIZE: usize = celestia_types::consts::appconsts::SHARE_SIZE;
+pub(crate) const SEQUENCE_LENGTH_LEN: usize = appconsts::SEQUENCE_LEN_BYTES;
+/// The length of the "signer" field
+// TODO: import constant once lumina updates their types.
+pub(crate) const SIGNER_LEN: usize = 20;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
-pub enum Share {
-    Continuation(Bytes),
-    Start(Bytes),
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub(crate) enum SovShare {
+    Start(VersionedStartShare),
+    Continuation(celestia_types::Share),
 }
 
-#[derive(Debug, Clone, PartialEq, Copy)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub(crate) enum VersionedStartShare {
+    Zero(celestia_types::Share),
+    One(celestia_types::Share),
+}
+
+impl AsRef<[u8]> for VersionedStartShare {
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            VersionedStartShare::Zero(inner) | VersionedStartShare::One(inner) => inner.as_ref(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum ShareError {
     NotAStartShare,
+    InvalidVersion,
     InvalidEncoding,
+    InvalidSigner(String),
 }
 
-impl Share {
-    pub fn new(inner: Bytes) -> Self {
-        enforce_version_zero(inner.as_ref());
+impl SovShare {
+    pub(crate) fn new(inner: celestia_types::Share) -> anyhow::Result<Self> {
         if is_continuation_unchecked(inner.as_ref()) {
-            Self::Continuation(inner)
+            Ok(Self::Continuation(inner))
         } else {
-            Self::Start(inner)
+            let version = version_unchecked(inner.as_ref());
+            Ok(match version {
+                0 => Self::Start(VersionedStartShare::Zero(inner)),
+                1 => Self::Start(VersionedStartShare::One(inner)),
+                _ => anyhow::bail!(
+                    "Unsupported share version {version}. Share must be version 0 or 1"
+                ),
+            })
         }
     }
 
-    pub fn from_slice(slice: impl AsRef<[u8]>) -> Self {
-        Self::new(Bytes::copy_from_slice(slice.as_ref()))
-    }
-
-    pub fn as_serialized(&self) -> &[u8] {
-        self.raw_inner_ref()
-    }
-
-    pub fn is_sequence_start(&self) -> bool {
+    pub(crate) fn sequence_length(&self) -> Result<u64, ShareError> {
         match self {
-            Share::Continuation(_) => false,
-            Share::Start(_) => true,
+            SovShare::Continuation(_) => Err(ShareError::NotAStartShare),
+            SovShare::Start(VersionedStartShare::Zero(inner))
+            | SovShare::Start(VersionedStartShare::One(inner)) => inner
+                .sequence_length()
+                .map(u64::from)
+                .ok_or(ShareError::InvalidEncoding),
         }
     }
 
-    pub fn sequence_length(&self) -> Result<u64, ShareError> {
+    pub(crate) fn blob_signer(
+        &self,
+    ) -> Result<crate::verifier::address::CelestiaAddress, ShareError> {
         match self {
-            Share::Continuation(_) => Err(ShareError::NotAStartShare),
-            Share::Start(inner) => {
-                let mut inner = inner.clone();
-                inner.advance(NS_SIZE + INFO_BYTE_LEN);
-                Ok(inner.get_u32() as u64)
-            }
-        }
-    }
+            SovShare::Continuation(_) => Err(ShareError::NotAStartShare),
+            SovShare::Start(start_share) => match start_share {
+                VersionedStartShare::Zero(_) => Err(ShareError::InvalidVersion),
+                VersionedStartShare::One(inner) => {
+                    let start_idx = NS_SIZE + INFO_BYTE_LEN + SEQUENCE_LENGTH_LEN;
+                    let end_idx = start_idx + SIGNER_LEN;
 
-    /// Returns this share in raw serialized form as Bytes
-    fn raw_inner(&self) -> Bytes {
-        match self {
-            Share::Continuation(inner) | Share::Start(inner) => inner.clone(),
+                    let share_bytes = inner.as_ref();
+                    if share_bytes.len() < end_idx {
+                        return Err(ShareError::InvalidSigner(
+                            "Share is too short to contain a valid signer".to_string(),
+                        ));
+                    }
+                    let signer_bytes = &share_bytes[start_idx..end_idx];
+                    crate::verifier::address::CelestiaAddress::try_from(signer_bytes)
+                        .map_err(|e| ShareError::InvalidSigner(e.to_string()))
+                }
+            },
         }
     }
 
     /// Returns this share in raw serialized form as a slice
-    fn raw_inner_ref(&self) -> &[u8] {
+    pub(crate) fn raw_inner_ref(&self) -> &[u8] {
         match self {
-            Share::Continuation(inner) | Share::Start(inner) => inner.as_ref(),
+            SovShare::Continuation(inner) => inner.as_ref(),
+            SovShare::Start(inner) => inner.as_ref(),
         }
     }
 
-    pub fn hash(&self) -> [u8; 32] {
-        use sha2::Digest;
-        sha2::Sha256::digest(self.raw_inner_ref()).into()
-    }
-
-    /// Returns the offset *into the data portion* of this share at which
-    /// the first tx begins. So, for example, if this share is the start of a sequence,
-    /// the returned offset will be 0.
-    fn offset_of_first_tx(&self) -> Option<usize> {
-        // FIXME: account for continuation vs. start shares
-        match self {
-            Share::Continuation(_) => {
-                let reserved_bytes_offset = NS_SIZE + INFO_BYTE_LEN;
-                let mut raw = self.raw_inner();
-                raw.advance(reserved_bytes_offset);
-                let idx_of_next_start = raw.get_u32() as usize;
-                if idx_of_next_start == 0 {
-                    None
-                } else {
-                    Some(idx_of_next_start - self.get_data_offset())
-                }
-            }
-            // Start shares always have a sequence beginning at the first byte
-            Share::Start(_) => Some(0),
-        }
-    }
-
-    fn get_data_offset(&self) -> usize {
+    /// When lumina adds support for share v1, can be removed and use [`celestia_types::Share::payload`].
+    /// But for now it
+    fn get_payload_offset(&self) -> usize {
         // All shares are prefixed with metadata including the namespace (8 bytes), and info byte (1 byte)
         let mut offset = NS_SIZE + INFO_BYTE_LEN;
         // Start shares are also prefixed with a sequence length
-        if let Self::Start(_) = self {
-            offset += SEQUENCE_LENGTH_BYTES;
+        if let Self::Start(version) = self {
+            offset += SEQUENCE_LENGTH_LEN;
+            if matches!(version, VersionedStartShare::One(_)) {
+                offset += SIGNER_LEN;
+            };
         }
         if self.namespace().is_reserved_on_celestia() {
             // Compact shares (shares in reserved namespaces) are prefixed with 4 reserved bytes
@@ -122,15 +122,13 @@ impl Share {
     }
 
     /// Returns the data of this share as a `Bytes`
-    pub fn data(&self) -> Bytes {
-        let mut output = self.raw_inner();
-        output.advance(self.get_data_offset());
-        output
+    pub fn payload(&self) -> Bytes {
+        Bytes::copy_from_slice(self.payload_ref())
     }
 
     /// Returns the data of this share as &[u8]
-    pub fn data_ref(&self) -> &[u8] {
-        &self.raw_inner_ref()[self.get_data_offset()..]
+    pub fn payload_ref(&self) -> &[u8] {
+        &self.raw_inner_ref()[self.get_payload_offset()..]
     }
 
     /// Get the namespace associated with this share
@@ -140,37 +138,13 @@ impl Share {
             .expect("can't fail for correct size");
         Namespace::from_raw(&out).expect("invalid namespace")
     }
-
-    pub fn is_valid_tx_start(&self, idx: usize) -> bool {
-        if self.namespace() != PFB_NAMESPACE {
-            return false;
-        }
-        // Check if this share contains the start of any txs
-        if let Some(mut next_legal_start_offset) = self.offset_of_first_tx() {
-            let mut remaining_data = self.data();
-            // If so, iterate over the txs in this share and check if the given idx is the start of one of them
-            loop {
-                if next_legal_start_offset == idx {
-                    return true;
-                }
-                if let Ok((tx_len, len_of_len)) = read_varint(&mut remaining_data) {
-                    next_legal_start_offset += tx_len as usize + len_of_len;
-                    remaining_data.advance(tx_len as usize);
-                } else {
-                    return false;
-                }
-            }
-        }
-        // Otherwise, the start index is invalid
-        false
-    }
 }
 
-impl AsRef<[u8]> for Share {
+impl AsRef<[u8]> for SovShare {
     fn as_ref(&self) -> &[u8] {
         match self {
-            Share::Continuation(c) => c.as_ref(),
-            Share::Start(s) => s.as_ref(),
+            SovShare::Continuation(c) => c.as_ref(),
+            SovShare::Start(s) => s.as_ref(),
         }
     }
 }
@@ -179,75 +153,93 @@ fn is_continuation_unchecked(share: &[u8]) -> bool {
     share[NS_SIZE] & 0x01 == 0
 }
 
-fn enforce_version_zero(share: &[u8]) {
-    assert_eq!(share[NS_SIZE] & !0x01, 0);
+fn version_unchecked(share: &[u8]) -> u8 {
+    share[NS_SIZE] >> 1
 }
 
-/// A group of shares, in a single namespace
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
-pub enum NamespaceGroup {
-    Compact(Vec<Share>),
-    Sparse(Vec<Share>),
-}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub(crate) struct Blob(pub Vec<SovShare>);
 
-impl NamespaceGroup {
-    pub fn from_shares<I, B>(shares: I) -> Self
-    where
-        I: IntoIterator<Item = B>,
-        B: AsRef<[u8]>,
-    {
-        shares
-            .into_iter()
-            .map(|bytes| Share::new(Bytes::copy_from_slice(bytes.as_ref())))
-            .collect()
-    }
-
-    pub fn shares(&self) -> &Vec<Share> {
-        match self {
-            NamespaceGroup::Compact(shares) | NamespaceGroup::Sparse(shares) => shares,
-        }
-    }
-
-    pub fn blobs(&self) -> NamespaceIterator {
-        NamespaceIterator {
-            offset: 0,
-            shares: self,
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.shares().is_empty()
-    }
-}
-
-impl FromIterator<Share> for NamespaceGroup {
-    fn from_iter<T: IntoIterator<Item = Share>>(iter: T) -> Self {
-        let shares: Vec<_> = iter.into_iter().collect();
-        if shares.is_empty() {
-            // if there are no shares at all return sparse empty group
-            return NamespaceGroup::Sparse(vec![]);
-        }
-
-        if shares[0].namespace().is_reserved_on_celestia() {
-            NamespaceGroup::Compact(shares)
-        } else {
-            NamespaceGroup::Sparse(shares)
+impl Blob {
+    #[cfg(feature = "native")]
+    pub(crate) fn signer(&self) -> Option<crate::verifier::address::CelestiaAddress> {
+        match self.0[0].blob_signer() {
+            Ok(signer) => Some(signer),
+            Err(ShareError::InvalidVersion) => {
+                tracing::warn!("Invalid share version for getting a signer");
+                None
+            }
+            Err(e) => panic!(
+                "Unexpected error when finding blob signer. This is a bug. Error: {:?}",
+                e
+            ),
         }
     }
 }
 
-impl From<&NamespaceData> for NamespaceGroup {
-    fn from(value: &NamespaceData) -> Self {
-        Self::from_shares(value.rows.iter().flat_map(|row| row.shares.iter()))
+/// Represents blob as a sequence of shares.
+/// The first share in the `shares` vector should always be sequence start.
+/// There can be only one such share.
+/// Correct data block could be built from this struct.
+#[cfg(feature = "native")]
+pub(crate) struct ShareSequence {
+    pub(crate) shares: Vec<celestia_types::Share>,
+    // Range inside namespace, not data square.
+    pub(crate) range_in_ns: std::ops::Range<usize>,
+}
+
+#[cfg(all(debug_assertions, feature = "native"))]
+impl ShareSequence {
+    pub(crate) fn check_consistency(&self) {
+        assert!(
+            !self.shares.is_empty(),
+            "empty share seq does not make sense"
+        );
+        assert_eq!(
+            self.shares.len(),
+            self.range_in_ns.end - self.range_in_ns.start,
+            "range/shares mismatch in share seq"
+        );
+        let first_share = &self.shares[0];
+        let seq_len = first_share
+            .sequence_length()
+            .expect("first share must have sequence length");
+        assert!(
+            (seq_len as usize) < (self.shares.len() * appconsts::SHARE_SIZE),
+            "sequence len {} won't fit into shares in this sequence {}",
+            seq_len,
+            self.shares.len(),
+        );
+        for idx in 1..self.shares.len() {
+            let share = &self.shares[idx];
+            assert_eq!(
+                share.sequence_length(),
+                None,
+                "should be only one start share"
+            );
+        }
+        let namespace = first_share.namespace();
+        self.shares.iter().for_each(|share| {
+            assert_eq!(
+                share.namespace(),
+                namespace,
+                "All shares in sequence must have same namespace"
+            );
+        });
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
-pub struct Blob(pub Vec<Share>);
+#[cfg(feature = "native")]
+impl TryFrom<ShareSequence> for Blob {
+    type Error = anyhow::Error;
 
-impl<'a> From<BlobRef<'a>> for Blob {
-    fn from(value: BlobRef<'a>) -> Self {
-        Self(value.0.to_vec())
+    fn try_from(value: ShareSequence) -> Result<Self, Self::Error> {
+        let mut sov_shares = Vec::with_capacity(value.shares.len());
+        for share in value.shares {
+            let sov_share = SovShare::new(share)?;
+            sov_shares.push(sov_share);
+        }
+        Ok(Self(sov_shares))
     }
 }
 
@@ -263,57 +255,14 @@ impl IntoIterator for Blob {
         BlobIterator {
             sequence_len: sequence_length as usize,
             consumed: 0,
-            current: self.0[0].data(),
+            current: self.0[0].payload(),
             current_idx: 0,
             blob: self,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct BlobRef<'a>(pub &'a [Share]);
-
-impl<'a> BlobRef<'a> {
-    pub fn with(shares: &'a [Share]) -> Self {
-        Self(shares)
-    }
-
-    pub fn data(&self) -> BlobRefIterator {
-        let sequence_length = self.0[0]
-            .sequence_length()
-            .expect("blob must contain start share at idx 0");
-        BlobRefIterator {
-            sequence_len: sequence_length as usize,
-            consumed: 0,
-            current: self.0[0].data(),
-            current_idx: 0,
-            shares: self.0,
-        }
-    }
-
-    pub fn is_padding(&self) -> bool {
-        // Padding checks as per (https://github.com/celestiaorg/celestia-app/blob/main/specs/src/specs/shares.md#padding)
-        // 1. Start share
-        // 2. Sequence length is 0
-        // 3. Remaining non metadata bytes are 0
-        // The sequence_length check also checks for start share.
-        // Zero check is not strictly necessary but is added to be as specific as possible
-        self.0[0]
-            .sequence_length()
-            .expect("blob must contain start share at idx 0")
-            == 0
-            && self.0[0].data().iter().all(|&byte| byte == 0)
-    }
-
-    pub fn celestia_shares(&self) -> Vec<celestia_types::Share> {
-        self.0
-            .iter()
-            .map(|s| celestia_types::Share::from_raw(s.as_ref()).expect("Cannot convert share"))
-            .collect()
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, BorshDeserialize, BorshSerialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BlobIterator {
     sequence_len: usize,
     consumed: usize,
@@ -334,7 +283,7 @@ impl Iterator for BlobIterator {
             return Some(self.current.get_u8());
         }
         self.current_idx += 1;
-        self.current = self.blob.0[self.current_idx].data();
+        self.current = self.blob.0[self.current_idx].payload();
         self.next()
     }
 }
@@ -372,7 +321,7 @@ impl Buf for BlobIterator {
                 return &[];
             }
             // Otherwise, take the next chunk
-            self.blob.0[self.current_idx + 1].data_ref()
+            self.blob.0[self.current_idx + 1].payload_ref()
         };
         // Chunks are zero-padded, so truncate if necessary
         let remaining = self.remaining();
@@ -396,7 +345,7 @@ impl Buf for BlobIterator {
                 // a non-empty array.
                 if (self.current_idx + 1) < self.blob.0.len() {
                     self.current_idx += 1;
-                    self.current = self.blob.0[self.current_idx].data();
+                    self.current = self.blob.0[self.current_idx].payload();
                 } else {
                     // If advancing the current share was not possible, then we must have exactly used up the bytes
                     // in this blob. Assert that this is the case
@@ -411,181 +360,149 @@ impl Buf for BlobIterator {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct BlobRefIterator<'a> {
-    sequence_len: usize,
-    consumed: usize,
-    current: Bytes,
-    current_idx: usize,
-    shares: &'a [Share],
+/// Goes over namespace and splits it into blobs.
+#[cfg(feature = "native")]
+#[derive(Debug)]
+pub(crate) struct NamespaceDataIterator<'a> {
+    total_offset: usize,
+    rows: &'a [celestia_types::row_namespace_data::RowNamespaceData],
+    current_row_idx: Option<usize>,
+    relative_share_idx: Option<usize>,
 }
 
-impl<'a> BlobRefIterator<'a> {
-    pub fn current_position(&self) -> (usize, usize) {
-        (
-            self.current_idx,
-            self.shares[self.current_idx].data_ref().len() - self.current.remaining(),
-        )
+#[cfg(feature = "native")]
+impl<'a> NamespaceDataIterator<'a> {
+    #[cfg(feature = "native")]
+    pub(crate) fn new(data: &'a celestia_types::row_namespace_data::NamespaceData) -> Self {
+        let shares = data.rows.iter().map(|row| row.shares.len()).sum::<usize>();
+        tracing::trace!(
+            "Initialized NamespaceDataIterator: rows: {} shares: {}",
+            data.rows.len(),
+            shares
+        );
+        for (row_idx, row) in data.rows.iter().enumerate() {
+            tracing::trace!("row {}: has {} shares", row_idx, row.shares.len());
+        }
+        NamespaceDataIterator {
+            total_offset: 0,
+            rows: &data.rows,
+            current_row_idx: None,
+            relative_share_idx: None,
+        }
     }
 }
 
-impl<'a> Iterator for BlobRefIterator<'a> {
-    type Item = u8;
+#[cfg(feature = "native")]
+impl<'a> Iterator for NamespaceDataIterator<'a> {
+    type Item = ShareSequence;
 
+    // Go over each row and each share, tracking offset.
     fn next(&mut self) -> Option<Self::Item> {
-        if self.consumed == self.sequence_len {
+        tracing::trace!(
+            "NamespaceDataIterator.next(). offset: {} current_row_idx: {:?}",
+            self.total_offset,
+            self.current_row_idx
+        );
+        if self.rows.is_empty() {
+            // This can happen if the target namespace is empty. Then the row will
+            // often contain two namespaces where the first is lower than the target and the second is larger.
+            // In that case, the namespace root will "contain" the namespace, but no shares will be present.
             return None;
         }
-        if self.current.has_remaining() {
-            self.consumed += 1;
-            return Some(self.current.get_u8());
+
+        let mut row_idx = self.current_row_idx.unwrap_or(0);
+        if row_idx >= self.rows.len() {
+            return None;
         }
-        self.current_idx += 1;
-        self.current = self.shares[self.current_idx].data();
-        self.next()
-    }
-}
+        let mut relative_share_idx = self.relative_share_idx.unwrap_or(0);
 
-impl<'a> Buf for BlobRefIterator<'a> {
-    fn remaining(&self) -> usize {
-        self.sequence_len - self.consumed
-    }
+        let start = self.total_offset;
+        let mut current_shares: Vec<celestia_types::Share> = Vec::new();
 
-    fn chunk(&self) -> &[u8] {
-        let chunk = if self.current.has_remaining() {
-            self.current.as_ref()
+        while row_idx < self.rows.len() {
+            let current_row = &self.rows[row_idx];
+
+            while relative_share_idx < current_row.shares.len() {
+                let share = &current_row.shares[relative_share_idx];
+                let is_start = !is_continuation_unchecked(share.data());
+                let is_tail_padding = is_tail_padding(share);
+                // Found the new start. Stop and return all existing
+                if is_start && !current_shares.is_empty() {
+                    let range = start..self.total_offset;
+                    self.current_row_idx = Some(row_idx);
+                    return Some(ShareSequence {
+                        shares: current_shares,
+                        range_in_ns: range,
+                    });
+                }
+                self.total_offset += 1;
+                relative_share_idx += 1;
+                self.relative_share_idx = Some(relative_share_idx);
+                if !is_tail_padding {
+                    current_shares.push(share.clone());
+                }
+            }
+            row_idx += 1;
+            self.current_row_idx = Some(row_idx);
+            relative_share_idx = 0;
+            self.relative_share_idx = Some(relative_share_idx);
+        }
+
+        self.current_row_idx = Some(self.rows.len());
+        if !current_shares.is_empty() {
+            // Return remaining
+            let range = start..self.total_offset;
+            Some(ShareSequence {
+                shares: current_shares,
+                range_in_ns: range,
+            })
         } else {
-            // If the current share is exhausted, try to take the data from the next one
-            // if there is no next chunk, we're done. Return the empty slice.
-            if self.current_idx + 1 >= self.shares.len() {
-                return &[];
-            }
-            // Otherwise, take the next chunk
-            self.shares[self.current_idx + 1].data_ref()
-        };
-        // Chunks are zero-padded, so truncate if necessary
-        let remaining = self.remaining();
-        if chunk.len() > remaining {
-            return &chunk[..remaining];
-        }
-        chunk
-    }
-
-    fn advance(&mut self, mut cnt: usize) {
-        self.consumed += cnt;
-        while cnt > 0 {
-            if self.current.remaining() >= cnt {
-                self.current.advance(cnt);
-                return;
-            }
-
-            cnt = cnt
-                .checked_sub(self.current.remaining())
-                .expect("Underflow!");
-
-            self.current.advance(self.current.remaining());
-            self.current_idx += 1;
-            match self.shares.get(self.current_idx) {
-                Some(share) => self.current = share.data(),
-                None => assert_eq!(cnt, 0, "Tried to read more bytes than are available"),
-            }
+            None
         }
     }
 }
 
-pub struct NamespaceIterator<'a> {
-    offset: usize,
-    shares: &'a NamespaceGroup,
+pub(crate) fn is_tail_padding(share: &celestia_types::Share) -> bool {
+    share.sequence_length() == Some(0)
 }
 
-impl<'a> Iterator for NamespaceIterator<'a> {
-    type Item = BlobRef<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.offset == self.shares.shares().len() {
-            return None;
-        }
-        match self.shares {
-            NamespaceGroup::Compact(shares) => {
-                self.offset = shares.len();
-                Some(BlobRef::with(shares))
-            }
-            NamespaceGroup::Sparse(shares) => {
-                let start = self.offset;
-                self.offset += 1;
-
-                if self.offset == shares.len() {
-                    return Some(BlobRef::with(&shares[start..self.offset]));
-                }
-
-                for (idx, share) in shares[self.offset..].iter().enumerate() {
-                    if share.is_sequence_start() {
-                        self.offset += idx;
-                        return Some(BlobRef::with(&shares[start..self.offset]));
-                    }
-                }
-
-                self.offset = shares.len();
-                Some(BlobRef::with(&shares[start..self.offset]))
-            }
-        }
-    }
+/// How many Celestia shares are needed to represent a payload of this size.
+/// Celestia has two types of shares:
+///  1. The first has extra metadata about the size of payload
+///  2. Continuation shares have namespace and info bytes.
+///
+/// Technically, we rely on constants about size,
+/// and it should be good as long as there are only two types of shares.
+/// Copied from [`celestia_types::Blob::shares_len`]
+pub(crate) fn shares_needed_for_bytes(payload_bytes: usize) -> usize {
+    let Some(without_first_share) =
+        payload_bytes.checked_sub(appconsts::FIRST_SPARSE_SHARE_CONTENT_SIZE)
+    else {
+        return 1;
+    };
+    1 + without_first_share.div_ceil(appconsts::CONTINUATION_SPARSE_SHARE_CONTENT_SIZE)
 }
 
 #[cfg(test)]
 mod tests {
     use celestia_types::nmt::NS_ID_V0_SIZE;
-    use postcard::{from_bytes, to_allocvec, Result};
+    use celestia_types::row_namespace_data::NamespaceData;
     use proptest::collection::vec;
     use proptest::prelude::*;
     use sov_rollup_interface::da::CountedBufReader;
 
     use super::*;
+    use crate::types::APP_VERSION;
 
-    #[test]
-    fn test_share_start_serialization() {
-        let hex_blob = "736f762d7465737401000000b801000000b000000004ee8ca2c343fe0acd2b72249c48b56351ebfb4b7eef73ddae363880b61380cc23b3ebf15375aa110d7aa84206b1f22c1885b26e980d5e03244cc588e314b004a60b594d5751dc2a326c18923eaa74b48424c0f246733c6c028d7ee16899ad944400000001000b000000000000000e000000736f762d746573742d746f6b656e8813000000000000a3201954f70ad62230dc3d840a5bf767702c04869e85ab3eee0b962857ba75980000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
-        let sample = hex::decode(hex_blob).unwrap();
-        // let share = Share::new(Bytes::from(sample.clone()));
-        let share = Share::Start(Bytes::from(sample));
-
-        let raw_share: Vec<u8> = to_allocvec(&share).unwrap();
-
-        let decoded_share: Result<Share> = from_bytes(&raw_share);
-        assert!(decoded_share.is_ok());
-        let decoded_share = decoded_share.unwrap();
-        assert_eq!(share, decoded_share);
-    }
-
-    #[test]
-    fn test_padding_blob() {
-        // Padding share
-        let padding_share_hex = "00000000000000000000000000000000000000736f762d726f6c6c3035010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
-        let padding_share = [Share::Start(Bytes::from(
-            hex::decode(padding_share_hex).unwrap(),
-        ))];
-        let padding_blob = BlobRef(&padding_share);
-        assert!(padding_blob.is_padding());
-    }
-
-    #[test]
-    fn test_non_padding_blob() {
-        // Padding share
-        let share_hex = "00000000000000000000000000000000000000736f762d726f6c6c3035006db170157acaac31df9bba6cd40e7329e608eabd000000000000000000000000000000000000000000000000003326000000000000cf000000f5fc0b24032bf0b1d2f6074c4adda7b885606fc3781fca2a6bc3731258d596544ffdcd85ad6b4dd3dec3e4ad75ecbfb81c16cd28beca51ddad55c4ae3a354a0a7b758bf2e7670fafaf6bf0015ce0ff5aa802306fc7e3f45762853ffc37180fe64a000000010175fdcede95433da8366f1101b9b62519fe9f5438c8e7d03645bdec9ab669371d0100000000000000135d23aee8cb15c890831ff36db170157acaac31df9bba6cd40e7329e608eabd000000000000000000000000000000000000000000000000003426000000000000cf00000020b12d2405dc2660e67ca004839ba50fe2ee09effdae3abd5caca862d572750ea4149e49f8a2fd7c519a7dd5c4030b21f17a88c4d23ee6d14fd2e6136d8718077b758bf2e7670fafaf6bf0015ce0ff5aa802306fc7e3f45762853ffc37180fe64a00000001019f2c2726ebcc5912a95ed4d2b4d2d56a7b159d7968fa6ebca1913db3d149d2f10100000000000000135d23aee8cb15c890831ff36db170157acaac31df9bba6cd40e7329e608eabd000000000000000000000000000000000000000000000000003526000000000000cf000000cc786d";
-        let share = [Share::Start(Bytes::from(hex::decode(share_hex).unwrap()))];
-        let non_padding_blob = BlobRef(&share);
-        assert!(!non_padding_blob.is_padding());
-    }
-
-    /// This test detects a regression where we panic on trying to read the entire contents a blob using the `Buf` trait.
-    /// A previous implementation caused buf.advance(buf.remaining()) to panic, because an internal state change of
-    /// `current_share = blob.shares[blob.current_idx+1]` would be triggered  as soon as the
+    /// This test detects a regression, where we panic on trying to read the entire contents of a blob using the `Buf` trait.
+    /// A previous implementation caused buf.advance(buf.remaining()) to panic because an internal state change of
+    /// `current_share = blob.shares[blob.current_idx+1]` would be triggered as soon as the
     /// current share's data was read - even if the next share did not exist and would never be read.
     #[test]
     fn test_reading_full_blob_regression() {
         let data: NamespaceData = serde_json::from_str("[{\"shares\":[\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAc292LXRlc3QBAAAB3gEAAADWAQAA2EYzlAhN9KIdK3QP5WgAxmNMAiO3KOZd54PG1ndFjNud8Ij/Tn3TfZMkgVVIPduDBwKbg/S5/ShVT2cNHhn7CvitJDeieeHIkywHNYyR3E/jSGSpjGwl8pjioBmcFQn/UQEAAAIBSwEAAEZCB10foCn5JspyMO6m5QA8qYnV44fWffQU2E57kHzs4hKqnEjNwYnUJABmr6B1OJ/5+v7+BgPeOpxnaK4M5XovSUs8ExC7QtzrZxZT08DiU8nKCzK0VEUcDiu72Iyhnycjfxep9Nk7NuWt18/cz7YyUWYzlQcn6AN12JxkNF/Afx+DJzDJEzFE7bpzdjvFrl0im+L+wFF/T0IWonUXPL+oCvKoNDrDr+xA25mn9/rMDG/UGT0FI+KXHqx7c3ZR+5lLQheaxdVMRQcz2Mnst9uh8JKxVVVl9Fg4d7Jh6n2f9ZbBAfwg3YhW/5szA8YPKNg6o6nVnb90Cgk2RFVSOvxym4BijKId47SK6dfCS7G69iRFrDU+OcQTxsvkNb3mmnYa4TI9TGRHwl2N1yMHoJcWIboQPcLsKuykcJV+w4bvuB+uu8/pMVPjIDYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"],\"proof\":{\"start\":1,\"end\":2,\"nodes\":[\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABH1fFJqiHwbfG4vQXdK1Oh9vrkjlqWB365SYrsZxmaER\",\"/////////////////////////////////////////////////////////////////////////////yu8ipB5WivrLzIkx/iKuwyXvQFePPFTx9ZGUEhlxazq\"],\"leaf_hash\":\"\",\"is_max_namespace_ignored\":true}}]").unwrap();
-        let ns_group: NamespaceGroup = (&data).into();
-        let blob: Blob = ns_group.blobs().next().unwrap().into();
+        let ns_iterator = NamespaceDataIterator::new(&data);
+        let blob: Blob = ns_iterator.into_iter().next().unwrap().try_into().unwrap();
         let mut blob = CountedBufReader::new(blob.into_iter());
         // Try to read the entire contents of the blob
         blob.advance(blob.total_len());
@@ -594,15 +511,40 @@ mod tests {
     prop_compose! {
         fn share_bytes_strategy()(
             ns in vec(0u8.., NS_ID_V0_SIZE),
-            mut share in vec(0u8.., SHARE_SIZE),
+            mut share in vec(0u8.., appconsts::SHARE_SIZE),
+            version in prop::bool::ANY, // Randomly choose between version 0 and 1
         ) -> Vec<u8> {
             let namespace = Namespace::new_v0(&ns).expect("doesn't exceed size");
             // overwrite namespace
             share[..NS_SIZE].copy_from_slice(namespace.as_ref());
-            // set version to zero
-            share[NS_SIZE] &= 0x01;
+
+            let version = if version {
+                1u8
+            } else {
+                0u8
+            };
+            share[NS_SIZE] = (version << 1) | (share[NS_SIZE] & 0x01);
 
             share
+        }
+    }
+
+    prop_compose! {
+        fn blob_strategy()(
+            ns in vec(0u8.., NS_ID_V0_SIZE),
+            payload in vec(0u8.., 10_000),
+            // Different version is not supported by Lumina now.
+            // version in prop::bool::ANY,
+        ) -> (celestia_types::Blob, Vec<u8>) {
+            let namespace = Namespace::new_v0(&ns).expect("doesn't exceed size");
+            // let version = if version {
+            //     1u8
+            // } else {
+            //     0u8
+            // };
+            let blob = celestia_types::Blob::new(namespace, payload.clone(), APP_VERSION).unwrap();
+            // blob.share_version = ;
+            (blob, payload)
         }
     }
 
@@ -610,10 +552,48 @@ mod tests {
     fn proptest_share_serialization_deserialization(
         #[strategy(share_bytes_strategy())] data: Vec<u8>,
     ) {
-        let bytes = Bytes::from(data);
-        let share = Share::new(bytes);
-        let serialized = borsh::to_vec(&share).unwrap();
-        let deserialized: Share = Share::try_from_slice(&serialized).unwrap();
-        prop_assert_eq!(share, deserialized);
+        let bytes = celestia_types::Share::from_raw(&data).unwrap();
+        let sov_share = SovShare::new(bytes).unwrap();
+        let serialized = postcard::to_allocvec(&sov_share).unwrap();
+        let deserialized: SovShare = postcard::from_bytes(&serialized).unwrap();
+        prop_assert_eq!(sov_share, deserialized);
+    }
+
+    #[test_strategy::proptest]
+    fn proptest_share_payload_test(
+        #[strategy(blob_strategy())] input: (celestia_types::Blob, Vec<u8>),
+    ) {
+        let (blob, payload) = input;
+        verify_share_payload(blob, payload);
+    }
+
+    fn verify_share_payload(blob: celestia_types::Blob, payload: Vec<u8>) {
+        let shares = blob.to_shares().unwrap();
+        let sov_shares = shares
+            .into_iter()
+            .map(SovShare::new)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        let mut reconstructed_payload = Vec::with_capacity(payload.len());
+
+        for share in sov_shares {
+            let share_data = share.payload_ref();
+            reconstructed_payload.extend_from_slice(share_data);
+        }
+
+        // We allow reconstructed payload to be lagger, because of padding celestia adds.
+        // This supposed to be handled by higher level structs
+        assert!(reconstructed_payload.len() >= payload.len());
+        assert_eq!(&reconstructed_payload[..payload.len()], &payload[..]);
+    }
+
+    #[test]
+    #[ignore = "To be implemented"]
+    fn share_payload_test() {
+        let namespace = Namespace::new_v0(&[11u8; NS_ID_V0_SIZE]).unwrap();
+        let payload = vec![11u8; 1200];
+        let blob = celestia_types::Blob::new(namespace, payload.clone(), APP_VERSION).unwrap();
+        verify_share_payload(blob, payload);
     }
 }

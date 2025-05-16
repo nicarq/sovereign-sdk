@@ -23,7 +23,7 @@ derivative = { version = "2.2", features = ["use_core"] }
 strum = { version = "0.26.3", features = ["derive"] }
 rand = "0.8"
 clap = { version = "4", features = ["derive"] }
-
+reqwest = { workspace = true }
 
 sov-api-spec = { path = "../../../crates/full-node/sov-api-spec" }
 sov-metrics = { path = "../../../crates/full-node/sov-metrics" }
@@ -63,7 +63,6 @@ sov-paymaster = { path = "../../../crates/module-system/module-implementations/s
 sov-celestia-adapter = { workspace = true, features = ["native", "arbitrary"] }
 sov-address = { workspace = true }
 demo-stf = { path = "../stf", features = ["native"] }
-reqwest = { workspace = true }
 
 [[bin]]
 name = "main"

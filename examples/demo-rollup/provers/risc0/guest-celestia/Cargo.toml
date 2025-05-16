@@ -12,6 +12,7 @@ risc0-zkvm = { version = "1.2", default-features = false, features = ["std"] }
 risc0-zkvm-platform = { version = "1.2", features = ["sys-getenv", "heap-embedded-alloc"] }
 demo-stf = { path = "../../../stf" }
 sov-risc0-adapter = { path = "../../../../../crates/adapters/risc0" }
+sov-rollup-interface = { path = "../../../../../crates/rollup-interface" }
 sov-mock-zkvm = { path = "../../../../../crates/adapters/mock-zkvm" }
 const-rollup-config = { path = "../../../../const-rollup-config" }
 sov-celestia-adapter = { path = "../../../../../crates/adapters/celestia" }

@@ -20,8 +20,8 @@ bech32 = { version = "0.11" }
 prost = "0.13"
 
 celestia-proto = { version = "0.7.0" }
-celestia-rpc = { version = "0.9.1", default-features = false, optional = true }
-celestia-types = { version = "0.10.1", default-features = false }
+celestia-rpc = { version = "0.10.0", default-features = false, optional = true }
+celestia-types = { version = "0.11.0", default-features = false }
 tendermint = { version = "0.40.1", default-features = false }
 tendermint-proto = { version = "0.40.1" }
 nmt-rs = { version = "0.2.3", features = ["serde", "borsh"] }
@@ -71,6 +71,7 @@ tokio = { workspace = true, features = [
 risc0-zkvm = { workspace = true, features = ["std"] }
 risc0-zkvm-platform = { workspace = true }
 bincode = { workspace = true }
+rand = { workspace = true, features = ["small_rng"] }
 
 [features]
 default = []

@@ -102,6 +102,16 @@ Additionally, the chain has will change.
 - #2583 **BREAKING CHANGE** Removes the `DaService::subscribe_finalized_header` method from the `DaService` trait. This method was only used in tests and not in the SDK.
 - #2570 The `sov_universal_wallet::Schema::json_to_borsh` parsing functionality can now accept stringified numbers and booleans in the input JSON. For most types this is a convenience, but notably this allows 128-bit numbers to be passed around as strings in JSON and parsed correctly in wallets.
 - #2567 removes the `flaky_` prefix from a handful of tests. No breaking changes.
+- #2575 **BREAKING CHANGE FOR CELESTIA DA** - added support for authored blobs, new configuration parameter is needed:
+  ```toml
+  [da]
+  celestia_rpc_auth_token = "MY.SECRET.TOKEN"
+  celestia_rpc_address = "http://127.0.0.1:26658"
+  max_celestia_response_body_size = 104_857_600
+  celestia_rpc_timeout_seconds = 60
+  # **New parameter**: Address of the sender. Should match celestia node configuration.
+  signer_address = "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s"
+  ```
 
 ## 2025-03-07
 - #2555 **BREAKING CHANGE** The method of calculating the credential ID for public keys that are 32 bytes in size has been updated. This is a breaking change, as all addresses used in tests must be updated. See the changes in the `.json` files in PR #2555.

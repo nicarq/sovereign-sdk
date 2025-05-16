@@ -1,18 +1,9 @@
-use std::ops::Range;
 use std::sync::{Arc, Mutex};
 
-use anyhow::Context;
 use borsh::{BorshDeserialize, BorshSerialize};
-use celestia_proto::celestia::blob::v1::MsgPayForBlobs;
-use celestia_proto::cosmos::tx::v1beta1::Tx;
-use celestia_proto::proto::blob::v1::IndexWrapper;
-use celestia_types::{DataAvailabilityHeader, ExtendedHeader};
-use prost::bytes::Buf;
-use prost::Message;
+use celestia_types::{DataAvailabilityHeader, ExtendedHeader, ValidateBasicWithAppVersion};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlockHeaderTrait as BlockHeader, Time};
-#[cfg(feature = "native")]
-use sov_rollup_interface::node::da::SlotData;
 pub use tendermint::block::Header as TendermintHeader;
 use tendermint::block::Height;
 use tendermint::crypto::default::Sha256;
@@ -21,11 +12,8 @@ use tendermint::Hash;
 use tendermint_proto::google::protobuf::Timestamp;
 pub use tendermint_proto::v0_38 as celestia_tm_version;
 use tendermint_proto::Protobuf;
-use tracing::trace;
 
-use crate::shares::{BlobRefIterator, NamespaceGroup};
-use crate::utils::{read_varint, BoxError};
-use crate::verifier::{TmHash, PFB_NAMESPACE};
+use crate::types::{TmHash, ValidationError, APP_VERSION};
 
 pub const GENESIS_PLACEHOLDER_HASH: &[u8; 32] = &[255; 32];
 
@@ -36,10 +24,9 @@ pub const GENESIS_PLACEHOLDER_HASH: &[u8; 32] = &[255; 32];
 /// a tendermint::block::Header from being deserialized in most formats except JSON. However
 /// it also provides a significant efficiency benefit over the standard tendermint type, which
 /// performs a complete protobuf serialization every time `.hash()` is called.
-// TODO: derive borsh Serialize, Deserialize <https://github.com/eigerco/celestia-node-rs/issues/155>
 #[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub struct CompactHeader {
+pub(crate) struct CompactHeader {
     /// Header version
     pub version: Vec<u8>,
 
@@ -111,9 +98,9 @@ impl From<TendermintHeader> for CompactHeader {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
-pub struct ProtobufHash(pub [u8; 32]);
+pub(crate) struct ProtobufHash(pub [u8; 32]);
 
-pub fn protobuf_encode(hash: &Option<ProtobufHash>) -> Vec<u8> {
+pub(crate) fn protobuf_encode(hash: &Option<ProtobufHash>) -> Vec<u8> {
     match hash {
         Some(ProtobufHash(value)) => prost::Message::encode_to_vec(&value.to_vec()),
         None => prost::Message::encode_to_vec(&vec![]),
@@ -153,13 +140,11 @@ impl CompactHeader {
     }
 }
 
-// TODO: derive borsh Serialize, Deserialize <https://github.com/eigerco/celestia-node-rs/issues/155>
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct CelestiaHeader {
-    pub dah: DataAvailabilityHeader,
-    pub header: CompactHeader,
-    // #[borsh_skip]
+    pub(crate) dah: DataAvailabilityHeader,
+    pub(crate) header: CompactHeader,
     #[serde(skip)]
     cached_prev_hash: Arc<Mutex<Option<TmHash>>>,
 }
@@ -171,7 +156,7 @@ impl PartialEq for CelestiaHeader {
 }
 
 impl CelestiaHeader {
-    pub fn new(dah: DataAvailabilityHeader, header: CompactHeader) -> Self {
+    pub(crate) fn new(dah: DataAvailabilityHeader, header: CompactHeader) -> Self {
         Self {
             dah,
             header,
@@ -179,8 +164,60 @@ impl CelestiaHeader {
         }
     }
 
-    pub fn square_size(&self) -> usize {
-        self.dah.row_roots().len()
+    pub(crate) fn square_width(&self) -> usize {
+        self.dah.square_width() as usize
+    }
+
+    pub(crate) fn row_length(&self) -> usize {
+        // It is divided by 2 because:
+        // https://github.com/celestiaorg/celestia-app/blob/fd4b78483022faf90f345ea5cb3e45790820387a/pkg/da/data_availability_header.go#L26
+        // DataAvailabilityHeader (DAHeader) contains the row and column roots of the
+        // erasure coded version of the data in Block.Data. The original Block.Data is
+        // split into shares and arranged in a square of width squareSize. Then, this
+        // square is "extended" into an extended data square (EDS) of width 2*squareSize
+        // by applying Reed-Solomon encoding. For details see Section 5.2 of
+        // https://arxiv.org/abs/1809.09044 or the Celestia specification:
+        // https://github.com/celestiaorg/celestia-specs/blob/master/src/specs/data_structures.md#availabledataheader
+        self.square_width()
+            .checked_div(2)
+            .expect("square_width must be divisible by 2")
+    }
+
+    /// Calculates row number based on row length of given block.
+    /// `share_idx` is a row relative (not namespace relative).
+    pub(crate) fn calculate_row_number_for_share(&self, share_idx: usize) -> usize {
+        share_idx
+            .checked_div(self.row_length())
+            .expect("the square size is invalid")
+    }
+
+    #[cfg(feature = "native")]
+    pub(crate) fn get_row_roots_for_namespace(
+        &self,
+        namespace: celestia_types::nmt::Namespace,
+    ) -> impl Iterator<Item = &celestia_types::nmt::NamespacedHash> {
+        self.dah.row_roots().iter().filter(move |row_hash| {
+            row_hash.contains::<celestia_types::nmt::NamespacedSha2Hasher>(*namespace)
+        })
+    }
+
+    /// Validates that [`DataAvailabilityHeader`] is correct and not malformed.
+    /// This means:
+    ///  - Well-formed row_roots and column_roots for [`APP_VERSION`] being used.
+    ///  - Hash of [`DataAvailabilityHeader`] matches the hash of the block header.
+    ///    This validation allows trusting [`DataAvailabilityHeader::row_roots`],
+    ///    as they are included in this hash.
+    pub(crate) fn validate_dah(&self) -> Result<(), ValidationError> {
+        self.dah.validate_basic(APP_VERSION)?;
+        let data_hash = self
+            .header
+            .data_hash
+            .as_ref()
+            .ok_or(ValidationError::MissingDataHash)?;
+        if self.dah.hash().as_ref() != data_hash.0 {
+            return Err(ValidationError::InvalidDataRoot);
+        }
+        Ok(())
     }
 }
 
@@ -199,7 +236,7 @@ impl BlockHeader for CelestiaHeader {
             return hash.clone();
         }
 
-        // We special case the block following genesis, since genesis has a `None` hash, which
+        // Special case the block following genesis, since genesis has a `None` hash, which
         // we don't want to deal with. In this case, we return a special placeholder for the
         // block "hash"
         if Height::decode_vec(&self.header.height)
@@ -212,7 +249,7 @@ impl BlockHeader for CelestiaHeader {
             return prev_hash;
         }
 
-        // In all other cases, we simply return the previous block hash parsed from the header
+        // In all other cases, simply return the previous block hash parsed from the header
         let hash =
             <tendermint::block::Id as Protobuf<celestia_tm_version::types::BlockId>>::decode(
                 self.header.last_block_id.as_ref(),
@@ -243,10 +280,10 @@ impl BlockHeader for CelestiaHeader {
     }
 }
 
-/// We implement [`SlotData`] for [`CelestiaHeader`] in a similar fashion as for
+/// We implement [`sov_rollup_interface::node::da::SlotData`] for [`CelestiaHeader`] in a similar fashion as for
 /// [`FilteredCelestiaBlock`](crate::types::FilteredCelestiaBlock).
 #[cfg(feature = "native")]
-impl SlotData for CelestiaHeader {
+impl sov_rollup_interface::node::da::SlotData for CelestiaHeader {
     type BlockHeader = CelestiaHeader;
 
     fn hash(&self) -> [u8; 32] {
@@ -266,82 +303,12 @@ impl SlotData for CelestiaHeader {
 }
 
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
-pub struct CelestiaVersion {
-    pub block: u32,
-}
-
-#[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
-pub struct PreviousBlock {
-    pub hash: Sha2Hash,
-    // TODO: add parts
-}
-
-#[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 pub struct Sha2Hash(#[serde(deserialize_with = "hex::deserialize")] pub [u8; 32]);
 
 impl AsRef<[u8]> for Sha2Hash {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
-}
-
-pub fn parse_pfb_namespace(
-    group: NamespaceGroup,
-) -> Result<Vec<(MsgPayForBlobs, TxPosition)>, BoxError> {
-    if group.shares().is_empty() {
-        return Ok(vec![]);
-    }
-    assert_eq!(group.shares()[0].namespace(), PFB_NAMESPACE);
-    let mut pfbs = Vec::new();
-    for blob in group.blobs() {
-        let mut data = blob.data();
-        while data.has_remaining() {
-            pfbs.push(next_pfb(&mut data)?);
-        }
-    }
-    Ok(pfbs)
-}
-
-#[derive(
-    Debug, PartialEq, Clone, serde::Serialize, Deserialize, BorshSerialize, BorshDeserialize,
-)]
-pub struct TxPosition {
-    /// The half-open range of shares across which this transaction is serialized.
-    /// For example a transaction which was split across shares 5,6, and 7 would have range 5..8
-    pub share_range: Range<usize>,
-    /// The offset into the first share at which the transaction starts
-    pub start_offset: usize,
-}
-
-pub(crate) fn pfb_from_iter(data: impl Buf, pfb_len: usize) -> Result<MsgPayForBlobs, BoxError> {
-    let blob_tx = IndexWrapper::decode(data.take(pfb_len)).context("failed decoding blob tx")?;
-    let cosmos_tx =
-        Tx::decode(&blob_tx.tx[..]).context("failed decoding cosmos tx from blob tx")?;
-    let messages = cosmos_tx.body.context("No body in cosmos tx")?.messages;
-
-    anyhow::ensure!(messages.len() == 1, "Expected 1 message in cosmos tx");
-    MsgPayForBlobs::decode(&messages[0].value[..]).context("failed decoding PFB frob cosmos tx")
-}
-
-fn next_pfb(mut data: &mut BlobRefIterator) -> Result<(MsgPayForBlobs, TxPosition), BoxError> {
-    let (start_idx, start_offset) = data.current_position();
-    let (len, prefix_len) = read_varint(&mut data).context("failed decoding varint")?;
-    trace!(
-        len_in_bytes = len,
-        prefix_len_in_bytes = prefix_len,
-        "Decoding wrapped PFB after stripping prefix metdata",
-    );
-
-    let current_share_idx = data.current_position().0;
-    let pfb = pfb_from_iter(data, len as usize)?;
-
-    Ok((
-        pfb,
-        TxPosition {
-            share_range: start_idx..current_share_idx + 1,
-            start_offset,
-        },
-    ))
 }
 
 #[cfg(test)]
@@ -376,8 +343,8 @@ mod tests {
     #[test]
     fn test_compact_header_hash() {
         let expected_hashes = [
-            "11ddc09acac0e884e5fdd312226ce43b94471846df8f6536f1dc3304a1a1637b",
-            "67de5ff33f0814b0d4d2cbafc202f3cdd8038c5589869f687e9cfbf30941784d",
+            "f45a8d5efb8b64a7f1ddbdc5f24f29163ec24007dde9df62b966f2504b347fcc",
+            "ff623b7e8a9075cc40fa32c64348632d80d3178e56fdef4e778ebb0a3f94f328",
         ];
         for (header_json, expected_hash) in HEADER_JSON_RESPONSES.iter().zip(expected_hashes.iter())
         {
@@ -388,8 +355,8 @@ mod tests {
 
             assert_eq!(tm_header.hash(), compact_header.hash());
             assert_eq!(
-                hex::decode(expected_hash).unwrap(),
-                compact_header.hash().as_bytes()
+                expected_hash,
+                &hex::encode(compact_header.hash().as_bytes()),
             );
 
             assert_eq!(tm_header.hash(), compact_header.hash(),);

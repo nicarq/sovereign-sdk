@@ -20,6 +20,7 @@ use sov_modules_rollup_blueprint::{
 };
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::{Risc0, Risc0CryptoSpec};
+use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_sequencer::{ProofBlobSender, Sequencer};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
@@ -140,10 +141,12 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
 
         let outer_vm = MockZkvmHost::new_non_blocking();
 
-        let da_verifier = CelestiaVerifier {
+        let rollup_params = RollupParams {
             rollup_batch_namespace: ROLLUP_BATCH_NAMESPACE,
             rollup_proof_namespace: ROLLUP_PROOF_NAMESPACE,
         };
+
+        let da_verifier = CelestiaVerifier::new(rollup_params);
 
         ParallelProverService::new_with_default_workers(
             inner_vm,

@@ -2,14 +2,13 @@
   {
     "shares": [],
     "proof": {
-      "start": 2,
-      "end": 3,
+      "start": 1,
+      "end": 2,
       "nodes": [
-        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABEOx/5Dw9P45TBiPbQSRp0Iozd/Q26b8E5fFjcpQVsvQ",
-        "AAAAAAAAAAAAAAAAAAAAAAAAAPxtQ2jlIaiqMi4AAAAAAAAAAAAAAAAAAAAAAAAA/G1DaOUhqKoyLhUz+K4Z5TJ0i0ZXCWTtEKRFJm9J0zsDmngfLJIShWCn",
-        "/////////////////////////////////////////////////////////////////////////////wJmko3hg439gImAypgButRTOMwq1+SIIPGWqFuWJssZ"
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABNq2touI3T0jZ6W3BUNZIHYi4eN5Zy/dDcIqRYjV0wHz",
+        "/////////////////////////////////////////////////////////////////////////////yJrIlyOqMrz4hTnA/C4PgXKpUrFwP8u+rrkigcu8jWx"
       ],
-      "leaf_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAIvtbFh24m+LNpUAAAAAAAAAAAAAAAAAAAAAAAAAi+1sWHbib4s2lcmeFRLinSslQkf29kfq2rR0sNxA1zwiyfM5JNMbxRXy",
+      "leaf_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAHNvdi1uYW1lLXgAAAAAAAAAAAAAAAAAAAAAAAAAc292LW5hbWUteFZqV991TxcwY/ryTYq/DRD/LVnBSUYcNAkSNXXV83ua",
       "is_max_namespace_ignored": true
     }
   }

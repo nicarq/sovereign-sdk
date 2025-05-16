@@ -14,6 +14,7 @@ use sov_modules_api::execution_mode::Zk;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_risc0_adapter::guest::Risc0Guest;
 use sov_risc0_adapter::{Risc0, Risc0CryptoSpec};
+use sov_rollup_interface::da::DaVerifier;
 use sov_state::ZkStorage;
 
 // The rollup stores its data in the namespace b"sov-test" on Celestia
@@ -30,13 +31,12 @@ pub fn main() {
         Runtime<_>,
     > = StfBlueprint::new();
 
-    let stf_verifier = StfVerifier::<_, _, _, _, _>::new(
-        stf,
-        CelestiaVerifier {
-            rollup_batch_namespace: ROLLUP_BATCH_NAMESPACE,
-            rollup_proof_namespace: ROLLUP_PROOF_NAMESPACE,
-        },
-    );
+    let rollup_params = sov_celestia_adapter::verifier::RollupParams {
+        rollup_batch_namespace: ROLLUP_BATCH_NAMESPACE,
+        rollup_proof_namespace: ROLLUP_PROOF_NAMESPACE,
+    };
+
+    let stf_verifier = StfVerifier::<_, _, _, _, _>::new(stf, CelestiaVerifier::new(rollup_params));
     stf_verifier
         .run_block(guest, storage)
         .expect("Prover must be honest");

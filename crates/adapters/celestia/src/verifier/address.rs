@@ -29,7 +29,7 @@ pub struct CelestiaAddress(
         deserialize_with = "deserialize_celestia_address"
     )]
     #[sov_wallet(as_ty = "CelestiaAddressSchema")]
-    AccAddress,
+    pub(crate) AccAddress,
 );
 
 #[cfg(feature = "arbitrary")]
@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_celestia_address_schema() {
-        let raw_address_str = "celestia1hvp2nfz3r6nqt8mlrzqf9ctwle942tkr0wql75";
+        let raw_address_str = ADDR_2;
         let address = CelestiaAddress::from_str(raw_address_str).unwrap();
 
         let schema = Schema::of_single_type::<CelestiaAddress>().unwrap();
@@ -170,7 +170,7 @@ mod tests {
 
     #[test]
     fn test_address_display_from_string() {
-        let raw_address_str = "celestia1hvp2nfz3r6nqt8mlrzqf9ctwle942tkr0wql75";
+        let raw_address_str = ADDR_2;
         let address = CelestiaAddress::from_str(raw_address_str).unwrap();
         let output = format!("{}", address);
         assert_eq!(raw_address_str, output);
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_address_display_try_vec() {
-        let raw_address_str = "celestia1w7wcupk5gswj25c0khnkey5fwmlndx6t5aarmk";
+        let raw_address_str = ADDR_3;
         let raw_address: Vec<u8> = raw_address_str.bytes().collect();
         let address = CelestiaAddress::try_from(&raw_address[..]).unwrap();
         let output = format!("{}", address);
@@ -199,11 +199,11 @@ mod tests {
 
     #[test]
     fn test_from_str_and_from_slice_same() {
-        let raw_address_str = "celestia1w7wcupk5gswj25c0khnkey5fwmlndx6t5aarmk";
-        let raw_address_array = *b"celestia1w7wcupk5gswj25c0khnkey5fwmlndx6t5aarmk";
+        let raw_address_str = ADDR_3;
+        let raw_address_array = ADDR_3.as_bytes();
 
         let address_from_str = CelestiaAddress::from_str(raw_address_str).unwrap();
-        let address_from_slice = CelestiaAddress::try_from(&raw_address_array[..]).unwrap();
+        let address_from_slice = CelestiaAddress::try_from(raw_address_array).unwrap();
 
         assert_eq!(address_from_str, address_from_slice);
     }
@@ -247,6 +247,8 @@ mod tests {
     }
 
     use proptest::sample::size_range;
+
+    use crate::test_helper::{ADDR_2, ADDR_3};
 
     #[test_strategy::proptest]
     fn test_try_from_any_slice(#[any(size_range(0..100).lift())] input: Vec<u8>) {

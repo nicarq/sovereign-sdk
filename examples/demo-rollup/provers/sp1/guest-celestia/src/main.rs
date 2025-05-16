@@ -11,6 +11,7 @@ use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::execution_mode::Zk;
 use sov_modules_stf_blueprint::StfBlueprint;
+use sov_rollup_interface::da::DaVerifier;
 use sov_sp1_adapter::guest::SP1Guest;
 use sov_sp1_adapter::{SP1CryptoSpec, SP1};
 use sov_state::ZkStorage;
@@ -27,13 +28,14 @@ pub fn main() {
         Runtime<_>,
     > = StfBlueprint::new();
 
-    let stf_verifier = StfVerifier::<_, _, _, SP1, MockZkvm>::new(
-        stf,
-        CelestiaVerifier {
-            rollup_batch_namespace: ROLLUP_BATCH_NAMESPACE,
-            rollup_proof_namespace: ROLLUP_PROOF_NAMESPACE,
-        },
-    );
+    let rollup_params = sov_celestia_adapter::verifier::RollupParams {
+        rollup_batch_namespace: ROLLUP_BATCH_NAMESPACE,
+        rollup_proof_namespace: ROLLUP_PROOF_NAMESPACE,
+    };
+
+    let stf_verifier =
+        StfVerifier::<_, _, _, SP1, MockZkvm>::new(stf, CelestiaVerifier::new(rollup_params));
+
     stf_verifier
         .run_block(guest, storage)
         .expect("Prover must be honest");

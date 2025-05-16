@@ -1,4 +1,3 @@
-use std::num::NonZero;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -7,15 +6,12 @@ use async_trait::async_trait;
 use backon::ExponentialBuilder;
 use celestia_rpc::prelude::*;
 use celestia_types::blob::Blob as JsonBlob;
-use celestia_types::consts::appconsts::{
-    CONTINUATION_SPARSE_SHARE_CONTENT_SIZE, FIRST_SPARSE_SHARE_CONTENT_SIZE, SHARE_SIZE,
-};
+use celestia_types::consts::appconsts;
 use celestia_types::nmt::Namespace;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HeaderMap, HttpClient};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::{DaProof, DaSpec, RelevantBlobs, RelevantProofs};
@@ -27,12 +23,18 @@ use tokio::time::Instant;
 use tower::ServiceBuilder;
 use tracing::{debug, info, instrument, trace};
 
+pub use crate::config::CelestiaConfig;
 use crate::middleware::{TimingLayer, TimingMiddleware};
-use crate::types::{FilteredCelestiaBlock, NamespaceWithShares, APP_VERSION};
-use crate::utils::BoxError;
+use crate::shares::shares_needed_for_bytes;
+use crate::types::{
+    FilteredCelestiaBlock, NamespaceBoundaryProof, NamespaceRelevantData, TmHash, APP_VERSION,
+};
+use crate::verifier::address::CelestiaAddress;
 use crate::verifier::proofs::{self};
-use crate::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams, TmHash, PFB_NAMESPACE};
+use crate::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams};
 use crate::CelestiaHeader;
+
+type BoxError = anyhow::Error;
 
 // https://github.com/celestiaorg/celestia-app/blob/c90e61d5a2d0c0bd0e123df4ab416f6f0d141b7f/pkg/appconsts/initial_consts.go#L16-L18
 // `DefaultGasPerBlobByte`
@@ -76,6 +78,7 @@ pub struct CelestiaService {
     read_client: Arc<TimedHttpClient>,
     rollup_batch_namespace: Namespace,
     rollup_proof_namespace: Namespace,
+    signer_address: CelestiaAddress,
     safe_lead_time: Duration,
     backoff_policy: ExponentialBuilder,
 }
@@ -85,6 +88,7 @@ impl CelestiaService {
         client: TimedHttpClient,
         rollup_batch_namespace: Namespace,
         rollup_proof_namespace: Namespace,
+        signer_address: CelestiaAddress,
         safe_lead_time: Duration,
     ) -> Self {
         // NOTE: Current exponential backoff policy defaults:
@@ -96,6 +100,7 @@ impl CelestiaService {
             read_client: Arc::new(client),
             rollup_batch_namespace,
             rollup_proof_namespace,
+            signer_address,
             safe_lead_time,
             backoff_policy,
         }
@@ -111,11 +116,17 @@ impl CelestiaService {
         let bytes = blob.len();
         debug!(bytes, ?fee, ?namespace, "Sending raw data to Celestia");
 
-        let blob = JsonBlob::new(namespace, blob.to_vec(), APP_VERSION)?;
+        let blob = JsonBlob::new_with_signer(
+            namespace,
+            blob.to_vec(),
+            self.signer_address.0.clone(),
+            APP_VERSION,
+        )?;
         info!(
             commitment = hex::encode(blob.commitment.hash()),
             ?fee,
             bytes,
+            data_bytes = blob.data.len(),
             "Submitting a blob"
         );
         let blob_hash = HexHash::new(*blob.commitment.hash());
@@ -152,42 +163,6 @@ impl CelestiaService {
     }
 }
 
-/// Runtime configuration for the [`DaService`] implementation.
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize, JsonSchema)]
-pub struct CelestiaConfig {
-    /// The JWT used to authenticate with the Celestia RPC server
-    pub celestia_rpc_auth_token: String,
-    /// The address of the Celestia RPC server
-    #[serde(default = "default_rpc_addr")]
-    pub celestia_rpc_address: String,
-    /// The maximum size of a Celestia RPC response, in bytes
-    #[serde(default = "default_max_response_size")]
-    pub max_celestia_response_body_size: NonZero<u32>,
-    /// The timeout for a Celestia RPC request, in seconds
-    #[serde(default = "default_request_timeout_seconds")]
-    pub celestia_rpc_timeout_seconds: NonZero<u64>,
-    /// See [`DaService::safe_lead_time`].
-    #[serde(default = "default_safe_lead_time_ms")]
-    pub safe_lead_time_ms: u64,
-}
-
-fn default_safe_lead_time_ms() -> u64 {
-    500
-}
-
-fn default_rpc_addr() -> String {
-    "http://localhost:11111/".into()
-}
-
-fn default_max_response_size() -> NonZero<u32> {
-    // 100 MiB
-    NonZero::new(1024 * 1024 * 100).unwrap()
-}
-
-fn default_request_timeout_seconds() -> NonZero<u64> {
-    NonZero::new(60).unwrap()
-}
-
 impl CelestiaService {
     pub async fn new(config: CelestiaConfig, chain_params: RollupParams) -> Self {
         let client = {
@@ -203,7 +178,7 @@ impl CelestiaService {
                 .set_headers(headers)
                 .max_response_size(config.max_celestia_response_body_size.get())
                 .max_request_size(config.max_celestia_response_body_size.get())
-                .request_timeout(std::time::Duration::from_secs(
+                .request_timeout(Duration::from_secs(
                     config.celestia_rpc_timeout_seconds.get(),
                 ))
                 .set_http_middleware(ServiceBuilder::new().layer(TimingLayer))
@@ -215,6 +190,7 @@ impl CelestiaService {
             client,
             chain_params.rollup_batch_namespace,
             chain_params.rollup_proof_namespace,
+            config.signer_address,
             Duration::from_millis(config.safe_lead_time_ms),
         )
     }
@@ -286,7 +262,6 @@ impl CelestiaService {
         trace!(%header, height, time_ms = start_get_block.elapsed().as_millis(), "Got the block header");
 
         let data_futures_all = Instant::now();
-        let etx_rows_future = client.share_get_namespace_data(&header, PFB_NAMESPACE);
 
         let rollup_batch_rows_future =
             client.share_get_namespace_data(&header, self.rollup_batch_namespace);
@@ -294,32 +269,25 @@ impl CelestiaService {
         let rollup_proof_rows_future =
             client.share_get_namespace_data(&header, self.rollup_proof_namespace);
 
-        let (batch_rows, proof_rows, etx_rows) = tokio::try_join!(
-            rollup_batch_rows_future,
-            rollup_proof_rows_future,
-            etx_rows_future,
-        )
-        .map_err(|e| MaybeRetryable::Transient(e.into()))?;
+        let (batch_rows, proof_rows) =
+            tokio::try_join!(rollup_batch_rows_future, rollup_proof_rows_future,)
+                .map_err(|e| MaybeRetryable::Transient(e.into()))?;
         trace!(
             time_ms = data_futures_all.elapsed().as_millis(),
             "All data futures are resolved"
         );
 
-        let rollup_batch_shares = NamespaceWithShares {
-            namespace: self.rollup_batch_namespace,
-            rows: batch_rows,
-        };
+        let rollup_batch_shares =
+            NamespaceRelevantData::new(self.rollup_batch_namespace, batch_rows);
 
-        let rollup_proof_shares = NamespaceWithShares {
-            namespace: self.rollup_proof_namespace,
-            rows: proof_rows,
-        };
+        let rollup_proof_shares =
+            NamespaceRelevantData::new(self.rollup_proof_namespace, proof_rows);
 
         trace!(
             time_ms = start_get_block.elapsed().as_millis(),
             "Get block total"
         );
-        FilteredCelestiaBlock::new(rollup_batch_shares, rollup_proof_shares, header, etx_rows)
+        FilteredCelestiaBlock::new(rollup_batch_shares, rollup_proof_shares, header)
             .map_err(MaybeRetryable::Permanent)
     }
 
@@ -395,6 +363,16 @@ impl DaService for CelestiaService {
     type Fee = CelestiaFee;
 
     #[instrument(skip(self))]
+    async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || self.get_block_at_inner(height),
+            "get_block_at",
+        )
+        .await
+    }
+
+    #[instrument(skip(self))]
     async fn get_block_header_at(
         &self,
         height: u64,
@@ -407,16 +385,6 @@ impl DaService for CelestiaService {
         .await
     }
 
-    #[instrument(skip(self))]
-    async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
-        run_maybe_retryable_async_fn_with_retries(
-            &self.backoff_policy,
-            || self.get_block_at_inner(height),
-            "get_block_at",
-        )
-        .await
-    }
-
     fn safe_lead_time(&self) -> Duration {
         self.safe_lead_time
     }
@@ -424,7 +392,7 @@ impl DaService for CelestiaService {
     #[instrument(skip(self))]
     async fn get_last_finalized_block_header(
         &self,
-    ) -> Result<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlockHeader, Self::Error> {
+    ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
         // Tendermint has instant finality, so head block is the one that finalized
         // and network is always guaranteed to be secure,
         // it can work even if the node is still catching up.
@@ -434,7 +402,7 @@ impl DaService for CelestiaService {
     #[instrument(skip(self))]
     async fn get_head_block_header(
         &self,
-    ) -> Result<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlockHeader, Self::Error> {
+    ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
         run_maybe_retryable_async_fn_with_retries(
             &self.backoff_policy,
             || self.get_head_block_header_inner(),
@@ -446,9 +414,9 @@ impl DaService for CelestiaService {
     fn extract_relevant_blobs(
         &self,
         block: &Self::FilteredBlock,
-    ) -> RelevantBlobs<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction> {
-        let proof_blobs = block.rollup_proof_data.get_blob_with_sender();
-        let batch_blobs = block.rollup_batch_data.get_blob_with_sender();
+    ) -> RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction> {
+        let proof_blobs = block.rollup_proof_data.get_blobs_with_sender();
+        let batch_blobs = block.rollup_batch_data.get_blobs_with_sender();
         RelevantBlobs {
             proof_blobs,
             batch_blobs,
@@ -458,22 +426,23 @@ impl DaService for CelestiaService {
     async fn get_extraction_proof(
         &self,
         block: &Self::FilteredBlock,
-        blobs: &RelevantBlobs<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlobTransaction>,
+        blobs: &RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction>,
     ) -> RelevantProofs<
-        <Self::Spec as sov_rollup_interface::da::DaSpec>::InclusionMultiProof,
-        <Self::Spec as sov_rollup_interface::da::DaSpec>::CompletenessProof,
+        <Self::Spec as DaSpec>::InclusionMultiProof,
+        <Self::Spec as DaSpec>::CompletenessProof,
     > {
         let batch = {
             let inclusion_proof = proofs::new_inclusion_proof(
                 &block.header,
-                &block.etx_rows,
                 &block.rollup_batch_data,
                 &blobs.batch_blobs,
             );
 
             DaProof {
                 inclusion_proof,
-                completeness_proof: block.rollup_batch_data.rows.clone(),
+                completeness_proof: NamespaceBoundaryProof::from_namespace_data(
+                    &block.rollup_batch_data,
+                ),
             }
         };
 
@@ -481,14 +450,15 @@ impl DaService for CelestiaService {
             // Note: The second call to new_inclusion_proof merklizes and parse the executable transactions namespace again.
             let inclusion_proof = proofs::new_inclusion_proof(
                 &block.header,
-                &block.etx_rows,
                 &block.rollup_proof_data,
                 &blobs.proof_blobs,
             );
 
             DaProof {
                 inclusion_proof,
-                completeness_proof: block.rollup_proof_data.rows.clone(),
+                completeness_proof: NamespaceBoundaryProof::from_namespace_data(
+                    &block.rollup_proof_data,
+                ),
             }
         };
 
@@ -550,84 +520,51 @@ impl DaService for CelestiaService {
     }
 }
 
-// ------------------------------------------------------------------------
-// ------------------------------------------------------------------------
-// ------------------------------------------------------------------------
-/// How many Celestia shares is needed to represent payload of this size.
-/// Celestia has two types of shares:
-///  1. The first has extra metadata about the size of payload
-///  2. Continuation shares have namespace and info bytes.
-///
-/// Technically, we rely on constants about size,
-/// and it should be good as long as there are only two types of shares.
-fn shares_needed_for_bytes(payload_bytes: usize) -> usize {
-    assert_ne!(
-        CONTINUATION_SPARSE_SHARE_CONTENT_SIZE, 0,
-        "Something wrong with celestia lib"
-    );
-    assert_ne!(
-        FIRST_SPARSE_SHARE_CONTENT_SIZE, 0,
-        "Something wrong with celestia lib"
-    );
-    if payload_bytes == 0 {
-        return 0;
-    }
-    if payload_bytes <= FIRST_SPARSE_SHARE_CONTENT_SIZE {
-        return 1;
-    }
-    // we use unchecked subtraction, as we did an explicit check 2 lines before
-    let remaining_payload = payload_bytes - FIRST_SPARSE_SHARE_CONTENT_SIZE;
-
-    let additional_shares = remaining_payload
-        .saturating_add(CONTINUATION_SPARSE_SHARE_CONTENT_SIZE - 1)
-        / CONTINUATION_SPARSE_SHARE_CONTENT_SIZE;
-
-    additional_shares.saturating_add(1)
+#[cfg(test)]
+pub fn raw_blob_from_data(
+    namespace: Namespace,
+    data: Vec<u8>,
+    signer: &CelestiaAddress,
+) -> anyhow::Result<celestia_types::blob::RawBlob> {
+    Ok(celestia_types::blob::RawBlob::from(
+        celestia_types::blob::Blob::new_with_signer(
+            namespace,
+            data,
+            signer.0.clone(),
+            APP_VERSION,
+        )?,
+    ))
 }
 
-// // DefaultEstimateGas runs EstimateGas with the system defaults. The network may change these values
-// // through governance, thus this function should predominantly be used in testing.
-// func DefaultEstimateGas(blobSizes []uint32) uint64 {
-// 	return EstimateGas(blobSizes, appconsts.DefaultGasPerBlobByte, auth.DefaultTxSizeCostPerByte)
-// }
+// ------------------------------------------------------------------------
+// ------------------------------------------------------------------------
+// ------------------------------------------------------------------------
+
+//
 // func EstimateGas(blobSizes []uint32, gasPerByte uint32, txSizeCost uint64) uint64 {
 // 	return GasToConsume(blobSizes, gasPerByte) + (txSizeCost * BytesPerBlobInfo * uint64(len(blobSizes))) + PFBGasFixedCost
 // }
-//
-// // GasToConsume works out the extra gas charged to pay for a set of blobs in a PFB.
-// // Note that transactions will incur other gas costs, such as the signature verification
-// // and reads to the user's account.
-// func GasToConsume(blobSizes []uint32, gasPerByte uint32) uint64 {
-// 	var totalSharesUsed uint64
-// 	for _, size := range blobSizes {
-// 		totalSharesUsed += uint64(appshares.SparseSharesNeeded(size))
-// 	}
-//
-// 	return totalSharesUsed * appconsts.ShareSize * uint64(gasPerByte)
-// }
-// Calculates conservatively as if blob will be the only one in whole DA slot
 fn get_gas_limit_for_bytes_as_in_golang(payload_size: usize) -> usize {
     gas_to_consume_from_data(payload_size, DEFAULT_GAS_PER_BLOB_BYTE)
         .saturating_add(DEFAULT_FIXED_COST_SINGLE_BLOB)
 }
 
 // Similar to GasToConsume
-#[allow(dead_code)]
 fn gas_to_consume_from_data(bytes: usize, gas_per_byte: usize) -> usize {
     let shares_needed = shares_needed_for_bytes(bytes);
     shares_needed
-        .saturating_mul(SHARE_SIZE)
+        .saturating_mul(appconsts::SHARE_SIZE)
         .saturating_mul(gas_per_byte)
 }
 
 #[cfg(test)]
 mod tests {
     use std::num::NonZero;
+    use std::str::FromStr;
     use std::time::Duration;
 
-    use celestia_types::blob::RawBlob;
+    use anyhow::Context;
     use celestia_types::nmt::Namespace;
-    use celestia_types::Blob as JsonBlob;
     use serde_json::json;
     use sov_rollup_interface::da::{DaVerifier, RelevantBlobs};
     use sov_rollup_interface::node::da::DaService;
@@ -635,27 +572,28 @@ mod tests {
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
     use super::{
-        default_request_timeout_seconds, get_gas_limit_for_bytes_as_in_golang,
-        shares_needed_for_bytes,
+        get_gas_limit_for_bytes_as_in_golang, raw_blob_from_data, shares_needed_for_bytes,
     };
+    use crate::config::default_request_timeout_seconds;
     use crate::da_service::{CelestiaConfig, CelestiaFee, CelestiaService, GAS_PRICE_UTIA};
     use crate::test_helper::files::*;
-    use crate::test_helper::{ROLLUP_BATCH_NAMESPACE, ROLLUP_PROOF_NAMESPACE};
-    use crate::types::{FilteredCelestiaBlock, APP_VERSION};
+    use crate::test_helper::{ADDR_1, ADDR_2, ROLLUP_PARAMS_DEV};
+    use crate::types::{BlobWithSender, FilteredCelestiaBlock, APP_VERSION};
+    use crate::verifier::address::CelestiaAddress;
     use crate::verifier::{CelestiaVerifier, RollupParams};
 
     async fn setup_test_service(
         timeout_sec: Option<u64>,
-    ) -> (MockServer, CelestiaConfig, CelestiaService, RollupParams) {
-        setup_service(timeout_sec, ROLLUP_BATCH_NAMESPACE, ROLLUP_PROOF_NAMESPACE).await
+        rollup_params: RollupParams,
+    ) -> (MockServer, CelestiaConfig, CelestiaService) {
+        setup_service(timeout_sec, rollup_params).await
     }
 
     // Last return value is namespace
     async fn setup_service(
         timeout_sec: Option<u64>,
-        rollup_batch_namespace: Namespace,
-        rollup_proof_namespace: Namespace,
-    ) -> (MockServer, CelestiaConfig, CelestiaService, RollupParams) {
+        params: RollupParams,
+    ) -> (MockServer, CelestiaConfig, CelestiaService) {
         // Start a background HTTP server on a random local port
         let mock_server = MockServer::start().await;
 
@@ -668,16 +606,12 @@ mod tests {
             max_celestia_response_body_size: NonZero::new(120_000).unwrap(),
             celestia_rpc_timeout_seconds: timeout_sec,
             safe_lead_time_ms: 0,
+            signer_address: CelestiaAddress::from_str(ADDR_1).unwrap(),
         };
 
-        let params = RollupParams {
-            rollup_batch_namespace,
-            rollup_proof_namespace,
-        };
+        let da_service = CelestiaService::new(config.clone(), params).await;
 
-        let da_service = CelestiaService::new(config.clone(), params.clone()).await;
-
-        (mock_server, config, da_service, params)
+        (mock_server, config, da_service)
     }
 
     #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -690,18 +624,17 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_submit_blob_correct() -> anyhow::Result<()> {
-        let (mock_server, config, da_service, rollup_params) = setup_test_service(None).await;
+        let rollup_params = ROLLUP_PARAMS_DEV;
+        let (mock_server, config, da_service) = setup_test_service(None, rollup_params).await;
 
-        let blob = [1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
+        let blob = vec![1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
         let gas_limit = get_gas_limit_for_bytes_as_in_golang(blob.len());
 
-        let raw_blob: RawBlob = JsonBlob::new(
+        let raw_blob = raw_blob_from_data(
             rollup_params.rollup_batch_namespace,
-            blob.to_vec(),
-            APP_VERSION,
-        )
-        .unwrap()
-        .into();
+            blob.clone(),
+            &config.signer_address,
+        );
         let mut tx_config = celestia_rpc::TxConfig::default();
         tx_config
             .with_gas_price(GAS_PRICE_UTIA as f64)
@@ -713,7 +646,7 @@ mod tests {
             "jsonrpc": "2.0",
             "method": "state.SubmitPayForBlob",
             "params": [
-                [raw_blob],
+                [raw_blob?],
                 tx_config
             ]
         });
@@ -759,7 +692,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_submit_blob_application_level_error() -> anyhow::Result<()> {
         // Our calculation of gas is off and the gas limit exceeded, for example
-        let (mock_server, _config, da_service, _namespace) = setup_test_service(None).await;
+        let (mock_server, _config, da_service) = setup_test_service(None, ROLLUP_PARAMS_DEV).await;
 
         let blob: Vec<u8> = vec![1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
 
@@ -802,7 +735,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_submit_blob_internal_server_error() -> anyhow::Result<()> {
-        let (mock_server, _config, da_service, _namespace) = setup_test_service(None).await;
+        let (mock_server, _config, da_service) = setup_test_service(None, ROLLUP_PARAMS_DEV).await;
 
         let error_response = ResponseTemplate::new(500).set_body_bytes("Internal Error".as_bytes());
 
@@ -832,8 +765,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_submit_blob_response_timeout() -> anyhow::Result<()> {
         let timeout = 1;
-        let (mock_server, _config, da_service, _namespace) =
-            setup_test_service(Some(timeout)).await;
+        let (mock_server, _config, da_service) =
+            setup_test_service(Some(timeout), ROLLUP_PARAMS_DEV).await;
 
         let response_json = json!({
             "jsonrpc": "2.0",
@@ -878,17 +811,55 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn verification_succeeds_for_correct_blocks() {
+    async fn verification_for_correct_blocks<F1, F2>(
+        batch_processing_fn: F1,
+        proof_processing_fn: F2,
+    ) where
+        F1: Fn(&mut BlobWithSender),
+        F2: Fn(&mut BlobWithSender),
+    {
         let blocks = [
-            with_rollup_batch_data::filtered_block(),
-            without_rollup_batch_data::filtered_block(),
+            with_rollup_batch_data::test_case(),
+            with_rollup_proof_data::test_case(),
+            without_rollup_batch_data::test_case(),
+            with_several_small_rollup_batches::test_case(),
+            with_several_medium_rollup_batches::test_case(),
+            with_several_large_rollup_batches::test_case(),
+            with_preceding_blobs_from_different_namespaces::test_case(),
+            with_batch_and_proof_same_block::test_case(),
+            with_namespace_padding::test_case(),
+            medium_from_devnet::test_case(),
+            from_testnet::test_case(),
+            from_testnet_no_shares::test_case(),
+            with_mixed_v0_and_v1_blobs::test_case(),
+            from_testnet_with_tail_padding::test_case(),
         ];
 
-        for block in blocks {
-            let (_, _, da_service, rollup_params) = setup_test_service(None).await;
+        for (block, rollup_params, signers) in blocks {
+            let (_, _, da_service) = setup_test_service(None, rollup_params).await;
 
-            let relevant_blobs = da_service.extract_relevant_blobs(&block);
+            let mut signers = signers.into_iter();
+            let mut relevant_blobs = da_service.extract_relevant_blobs(&block);
+
+            // Reading all blobs and proofs, so proof is built for the full data.
+            {
+                let blob_iters = relevant_blobs.as_iters();
+                for batch in blob_iters.batch_blobs {
+                    let signer = signers
+                        .next()
+                        .expect("missing signer in test data for batch");
+                    assert_eq!(signer, batch.sender);
+                    batch_processing_fn(batch);
+                }
+                for proof in blob_iters.proof_blobs {
+                    let signer = signers
+                        .next()
+                        .expect("missing signer in test data for batch");
+                    assert_eq!(signer, proof.sender);
+                    proof_processing_fn(proof);
+                }
+            }
+
             let relevant_proofs = da_service
                 .get_extraction_proof(&block, &relevant_blobs)
                 .await;
@@ -902,9 +873,110 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn verification_succeeds_for_correct_blocks() {
+        let read_full = |blob_with_sender: &mut BlobWithSender| {
+            let total_len = blob_with_sender.blob.total_len();
+            blob_with_sender.blob.advance(total_len);
+            let data = blob_with_sender.blob.accumulator();
+            assert_eq!(data.len(), total_len);
+        };
+        let no_read = |blob_with_sender: &mut BlobWithSender| {
+            let data = blob_with_sender.blob.accumulator();
+            assert_eq!(data.len(), 0);
+        };
+        let single_byte = |blob_with_sender: &mut BlobWithSender| {
+            let total_len = blob_with_sender.blob.total_len();
+            if total_len > 0 {
+                blob_with_sender.blob.advance(1);
+            }
+            let data = blob_with_sender.blob.accumulator();
+            let expected_len = std::cmp::min(total_len, 1);
+            assert_eq!(data.len(), expected_len);
+        };
+        let read_half = |blob_with_sender: &mut BlobWithSender| {
+            let total_len = blob_with_sender.blob.total_len();
+            let half_len = total_len / 2;
+            blob_with_sender.blob.advance(half_len);
+            let data = blob_with_sender.blob.accumulator();
+            assert_eq!(data.len(), half_len);
+        };
+
+        // No read
+        verification_for_correct_blocks(no_read, no_read).await;
+        // Full read
+        verification_for_correct_blocks(read_full, read_full).await;
+        verification_for_correct_blocks(read_full, no_read).await;
+        verification_for_correct_blocks(no_read, read_full).await;
+        verification_for_correct_blocks(read_full, single_byte).await;
+        // Single byte read
+        verification_for_correct_blocks(single_byte, single_byte).await;
+        // Half Read
+        verification_for_correct_blocks(read_half, read_half).await;
+        verification_for_correct_blocks(read_half, no_read).await;
+        verification_for_correct_blocks(no_read, read_half).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[should_panic(expected = "invalid proof self-check: InvalidRoot")]
+    async fn verification_fails_if_sender_changed() {
+        // This is the preparation part, consider it as malicious native code:
+        let mut block = with_rollup_batch_data::filtered_block();
+        let rollup_params = with_rollup_batch_data::ROLLUP_PARAMS;
+        let addr_1 = CelestiaAddress::from_str(ADDR_1).unwrap();
+        let addr_2 = CelestiaAddress::from_str(ADDR_2).unwrap();
+        let addr_len = addr_1.as_ref().len();
+
+        let row = block.rollup_batch_data.data.rows.get_mut(0).unwrap();
+        let share = row.shares.get_mut(0).unwrap();
+        let mut raw_share_1 = share.data().clone().to_vec();
+
+        let add_pos = raw_share_1
+            .windows(addr_len)
+            .position(|window| window == addr_1.as_ref())
+            .expect("Block should contain given address. Check source data");
+
+        raw_share_1.splice(add_pos..add_pos + addr_len, addr_2.as_ref().iter().copied());
+
+        let malicious_share = celestia_types::Share::from_raw(&raw_share_1).unwrap();
+
+        row.shares[0] = malicious_share;
+
+        // This is how it is observed
+        verification_error(block, "InvalidRoot", rollup_params)
+            .await
+            .unwrap();
+    }
+
+    async fn verification_error(
+        block: FilteredCelestiaBlock,
+        expected_err_pattern: &str,
+        rollup_params: RollupParams,
+    ) -> anyhow::Result<()> {
+        let (_, _, da_service) = setup_test_service(None, rollup_params).await;
+
+        let relevant_blobs = da_service.extract_relevant_blobs(&block);
+        let relevant_proofs = da_service
+            .get_extraction_proof(&block, &relevant_blobs)
+            .await;
+
+        let verifier = CelestiaVerifier::new(rollup_params);
+
+        let error = verifier
+            .verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs)
+            .unwrap_err();
+        assert!(
+            error.to_string().contains(expected_err_pattern),
+            "Actual error: {}",
+            error
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn verification_fails_if_tx_missing() {
         let block = with_rollup_batch_data::filtered_block();
-        let (_, _, da_service, rollup_params) = setup_test_service(None).await;
+        let rollup_params = with_rollup_batch_data::ROLLUP_PARAMS;
+        let (_, _, da_service) = setup_test_service(None, rollup_params).await;
 
         let relevant_blobs = da_service.extract_relevant_blobs(&block);
         let relevant_proofs = da_service
@@ -922,20 +994,27 @@ mod tests {
             .verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs)
             .unwrap_err();
 
-        assert!(error.to_string().contains("Transaction missing"));
+        assert!(
+            error
+                .to_string()
+                .contains("IncompleteNamespace(ProofError(Invalid(WrongAmountOfLeavesProvided)))"),
+            "Actual error: {}",
+            error
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn verification_fails_if_not_all_etxs_are_proven() {
+    async fn verification_fails_if_not_all_blobs_are_proven() {
         let block = with_rollup_batch_data::filtered_block();
-        let (_, _, da_service, rollup_params) = setup_test_service(None).await;
+        let rollup_params = with_rollup_batch_data::ROLLUP_PARAMS;
+        let (_, _, da_service) = setup_test_service(None, rollup_params).await;
 
         let relevant_blobs = da_service.extract_relevant_blobs(&block);
 
         let mut relevant_proofs = da_service
             .get_extraction_proof(&block, &relevant_blobs)
             .await;
-        // drop the proof for last etx
+        // drop the proof for last batch
         relevant_proofs.batch.inclusion_proof.pop();
 
         let verifier = CelestiaVerifier::new(rollup_params);
@@ -944,34 +1023,30 @@ mod tests {
             .verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs)
             .unwrap_err();
 
-        assert!(error.to_string().contains("not all blobs proven"));
+        assert!(
+            error
+                .to_string()
+                .contains("InvalidRowProof(ProofError(Missing))"),
+            "Actual error: {}",
+            error
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_blobs_from_padded_namespace() {
         let block: FilteredCelestiaBlock = with_namespace_padding::filtered_block();
-        let (_, _, da_service, _) = setup_service(
-            None,
-            with_namespace_padding::ROLLUP_BATCH_NAMESPACE,
-            with_namespace_padding::ROLLUP_PROOF_NAMESPACE,
-        )
-        .await;
+        let rollup_params = with_namespace_padding::ROLLUP_PARAMS;
+        let (_, _, da_service) = setup_service(None, rollup_params).await;
         let relevant_blobs = da_service.extract_relevant_blobs(&block);
         assert_eq!(relevant_blobs.batch_blobs.len(), 1);
         assert_eq!(relevant_blobs.proof_blobs.len(), 0);
     }
 
-    // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/430
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore = "TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/430"]
-    async fn _verification_for_padded_namespace() {
+    async fn verification_for_padded_namespace() {
         let block: FilteredCelestiaBlock = with_namespace_padding::filtered_block();
-        let (_, _, da_service, rollup_params) = setup_service(
-            None,
-            with_namespace_padding::ROLLUP_BATCH_NAMESPACE,
-            with_namespace_padding::ROLLUP_PROOF_NAMESPACE,
-        )
-        .await;
+        let rollup_params = with_namespace_padding::ROLLUP_PARAMS;
+        let (_, _, da_service) = setup_service(None, rollup_params).await;
 
         let relevant_blobs = da_service.extract_relevant_blobs(&block);
         let relevant_proofs = da_service
@@ -988,14 +1063,15 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn verification_fails_if_there_is_less_blobs_than_proofs() {
         let block = with_rollup_batch_data::filtered_block();
-        let (_, _, da_service, rollup_params) = setup_test_service(None).await;
+        let rollup_params = with_rollup_batch_data::ROLLUP_PARAMS;
+        let (_, _, da_service) = setup_test_service(None, rollup_params).await;
 
         let relevant_blobs = da_service.extract_relevant_blobs(&block);
         let mut relevant_proofs = da_service
             .get_extraction_proof(&block, &relevant_blobs)
             .await;
 
-        // push one extra etx proof
+        // push one extra blob proof
         relevant_proofs
             .batch
             .inclusion_proof
@@ -1007,14 +1083,18 @@ mod tests {
             .verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs)
             .unwrap_err();
 
-        assert!(error.to_string().contains("more proofs than blobs"));
+        assert!(
+            error.to_string().contains("WrongStartShareIndex"),
+            "Actual error: {}",
+            error
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[should_panic]
     async fn verification_fails_for_incorrect_namespace() {
         let block = with_rollup_proof_data::filtered_block();
-        let (_, _, da_service, _) = setup_test_service(None).await;
+        let rollup_params = with_rollup_proof_data::ROLLUP_PARAMS;
+        let (_, _, da_service) = setup_test_service(None, rollup_params).await;
 
         let relevant_blobs = da_service.extract_relevant_blobs(&block);
         let relevant_proofs = da_service
@@ -1027,24 +1107,31 @@ mod tests {
             rollup_batch_namespace: Namespace::new_v0(b"xyz").unwrap(),
         });
 
-        let _panics =
-            verifier.verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs);
+        let error = verifier
+            .verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs)
+            .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("InvalidRowProof(ProofError(Invalid(InvalidRoot)))"),
+            "Actual error: {}",
+            error
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_submit_proof() -> anyhow::Result<()> {
-        let (mock_server, config, da_service, rollup_params) = setup_test_service(None).await;
+        let rollup_params = ROLLUP_PARAMS_DEV;
+        let (mock_server, config, da_service) = setup_test_service(None, rollup_params).await;
 
         let zk_proof: Vec<u8> = vec![1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
         let gas_limit = get_gas_limit_for_bytes_as_in_golang(zk_proof.len());
 
-        let raw_blob: RawBlob = JsonBlob::new(
+        let raw_blob = raw_blob_from_data(
             rollup_params.rollup_proof_namespace,
-            zk_proof.to_vec(),
-            APP_VERSION,
-        )
-        .unwrap()
-        .into();
+            zk_proof.clone(),
+            &config.signer_address,
+        );
         let mut tx_config = celestia_rpc::TxConfig::default();
         tx_config
             .with_gas_price(GAS_PRICE_UTIA as f64)
@@ -1055,7 +1142,7 @@ mod tests {
             "jsonrpc": "2.0",
             "method": "state.SubmitPayForBlob",
             "params": [
-                [raw_blob],
+                [raw_blob?],
                 tx_config
             ]
         });
@@ -1189,24 +1276,84 @@ mod tests {
         get_gas_limit_for_bytes_as_in_golang(blob_size);
     }
 
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_payload_can_be_read_back() -> anyhow::Result<()> {
+        let cases = [
+            (
+                with_rollup_batch_data::test_case(),
+                with_rollup_batch_data::get_payload(),
+            ),
+            (
+                with_rollup_proof_data::test_case(),
+                with_rollup_proof_data::get_payload(),
+            ),
+            (
+                with_several_small_rollup_batches::test_case(),
+                with_several_small_rollup_batches::get_payload(),
+            ),
+            (
+                with_several_medium_rollup_batches::test_case(),
+                with_several_medium_rollup_batches::get_payload(),
+            ),
+            (
+                with_several_large_rollup_batches::test_case(),
+                with_several_large_rollup_batches::get_payload(),
+            ),
+            (
+                with_namespace_padding::test_case(),
+                with_namespace_padding::get_payload(),
+            ),
+        ];
+
+        let assert_payload = |blobs: &mut Vec<BlobWithSender>, expected_blobs: Vec<Vec<u8>>| {
+            assert_eq!(blobs.len(), expected_blobs.len());
+            for (actual_batch, expected_batch) in blobs.iter_mut().zip(expected_blobs.iter()) {
+                let total_len = actual_batch.blob.total_len();
+                assert_eq!(total_len, expected_batch.len());
+                actual_batch.blob.advance(total_len);
+                let full_data = actual_batch.blob.accumulator();
+
+                assert_eq!(full_data, expected_batch);
+            }
+        };
+
+        for ((block, rollup_params, _signers), payload) in cases {
+            let (_, _, da_service) = setup_test_service(None, rollup_params).await;
+
+            let mut relevant_blobs = da_service.extract_relevant_blobs(&block);
+
+            let expected_batches = payload.batches();
+            assert_payload(&mut relevant_blobs.batch_blobs, expected_batches);
+
+            let expected_proofs = payload.proofs();
+            assert_payload(&mut relevant_blobs.proof_blobs, expected_proofs);
+        }
+
+        Ok(())
+    }
+
     #[test]
+    #[ignore = "Disabled due to not having corresponding methods in lumina to test against."]
     fn test_blob_size_from_payload() {
-        // This tests checked [`shares_needed_for_bytes`] against actual shares generated by
+        // This test checked [`shares_needed_for_bytes`] against actual shares generated by
         // `Blob::new`
         let sizes: Vec<usize> = (0..100)
             .chain(400..700)
             .chain(900..1200)
             .chain(4800..5200)
             .collect();
+        let namespace = Namespace::new_v0(b"test").unwrap();
+        let signer = CelestiaAddress::from_str(ADDR_1).unwrap();
         for payload_size in sizes {
             let payload = vec![255; payload_size];
-            let namespace = Namespace::new_v0(b"test").unwrap();
-            let blob = JsonBlob::new(namespace, payload, APP_VERSION).unwrap();
-
-            let shares = blob.to_shares().unwrap();
-
-            let shares_count = shares.len();
-            // let total_size: usize = shares.iter().map(|s| s.len()).sum();
+            let blob = celestia_types::Blob::new_with_signer(
+                namespace,
+                payload,
+                signer.0.clone(),
+                APP_VERSION,
+            )
+            .unwrap();
+            let shares_count = blob.shares_len();
 
             let our_shares = shares_needed_for_bytes(payload_size);
 
@@ -1220,5 +1367,62 @@ mod tests {
         let extreme_case = shares_needed_for_bytes(usize::MAX);
         // Doesn't make much sense, but it does not panic!
         assert!(extreme_case > 1);
+    }
+
+    // This test is supposed to be run manually when celestia data format is updated.
+    // Run celestia dev environment.
+    // It does not require authentication.
+    // The script will take payload for each test block and regenerate test data.
+    // Payload was generated ages ago, so we just read it from file
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "should be run manually"]
+    async fn regenerate_test_data() -> anyhow::Result<()> {
+        let client =
+            jsonrpsee::http_client::HttpClientBuilder::default().build("http://127.0.0.1:26658")?;
+
+        let signer = CelestiaAddress::from_str(ADDR_1)?;
+
+        let paths = [
+            (with_rollup_batch_data::DATA_PATH, true),
+            (without_rollup_batch_data::DATA_PATH, false),
+            (with_rollup_proof_data::DATA_PATH, false),
+            (with_namespace_padding::DATA_PATH, false),
+        ];
+
+        for (data_path, with_prev_header) in paths {
+            let path = make_test_path(data_path);
+            update_block_data(&path, &client, &signer, with_prev_header)
+                .await
+                .with_context(|| format!("In path {}", data_path))?;
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "should be run manually"]
+    async fn generate_synthetic_test_blocks() -> anyhow::Result<()> {
+        let client =
+            jsonrpsee::http_client::HttpClientBuilder::default().build("http://127.0.0.1:26658")?;
+
+        let signer = CelestiaAddress::from_str(ADDR_1)?;
+        with_several_small_rollup_batches::update_test_data(&client, &signer).await;
+        with_several_medium_rollup_batches::update_test_data(&client, &signer).await;
+        with_several_large_rollup_batches::update_test_data(&client, &signer).await;
+        with_preceding_blobs_from_different_namespaces::update_test_data(&client, &signer).await?;
+        with_batch_and_proof_same_block::update_test_data(&client, &signer).await;
+        with_mixed_v0_and_v1_blobs::update_test_data(&client, &signer).await;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "should be run manually"]
+    async fn generate_mocha_testnet_blocks() -> anyhow::Result<()> {
+        let client =
+            jsonrpsee::http_client::HttpClientBuilder::default().build("http://127.0.0.1:26658")?;
+
+        from_testnet_no_shares::update_test_data(&client).await;
+        from_testnet_with_tail_padding::update_test_data(&client).await;
+        Ok(())
     }
 }

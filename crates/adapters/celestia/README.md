@@ -1,129 +1,122 @@
-# Sov-celestia-adapter
+# sov-celestia-adapter
 
-sov-celestia-adapter is a _research-only_ adapter making Celestia compatible with the Sovereign SDK. 
-None of its code is suitable for production use. 
-It contains known security flaws and numerous inefficiencies.
+`sov-celestia-adapter` is an adapter making [Celestia](https://docs.celestia.org/) compatible with the Sovereign SDK.
+
+## ⚠️ Important Warning
+
+`sov-celestia-adapter` is a _research-only_ prototype.
+This code has not been audited, and may contain critical vulnerabilities. Do not attempt to use in production.
 
 ## Celestia Integration
 
-The current version of sov-celestia-adapter runs against celestia-node version `v0.20.4`.
-This is the version used on the `arabica` and `mocha` testnets as of Dec 29, 2024.
-Please use official Celestia documentation to set up a node, 
-for example, [how to run a light node](https://docs.celestia.org/how-to-guides/light-node)
+The current version of `sov-celestia-adapter` runs against celestia-node version `v0.21.7`.
+This is the version used on the `mocha` testnet as of Apr 8th, 2025.
 
+To set up Celestia nodes, please refer to the official documentation provided by Celestia, for example: 
+[how to run a light node](https://docs.celestia.org/how-to-guides/light-node)
 
-## Warning
-
-sov-celestia-adapter a research prototype. 
-It contains known vulnerabilities and should not be used in production under any circumstances.
 
 ## How it Works
 
-All of sov-celestia-adapter boils down to two trait implementations: 
- - [`DaVerifier`](https://github.com/Sovereign-Labs/sovereign-sdk/blob/8388dc2176940bc6a909076e5ed43feb5a87bf7a/sdk/src/state_machine/da.rs#L36)
- - [`DaService`](https://github.com/Sovereign-Labs/sovereign-sdk/blob/8388dc2176940bc6a909076e5ed43feb5a87bf7a/sdk/src/node/services/da.rs#L13).
+All of `sov-celestia-adapter` boils down to two trait implementations: 
+ - [`DaVerifier`](https://github.com/Sovereign-Labs/sovereign-sdk-wip/blob/9be27233219959e8555402807e75b0c6d1f5f0e0/crates/rollup-interface/src/state_machine/da.rs#L58)
+ - [`DaService`](https://github.com/Sovereign-Labs/sovereign-sdk-wip/blob/9be27233219959e8555402807e75b0c6d1f5f0e0/crates/rollup-interface/src/node/da.rs#L130)
 
-### The DaVerifier Trait
+### The `DaVerifier` Trait
 
-The DaVerifier trait is the simpler of the two core traits. Its job is to take a list of BlobTransactions from a DA layer block
-and verify that the list is _complete_ and _correct_. Once deployed in a rollup, the data verified by this trait
-will be passed to the state transition function, so non-determinism should be strictly avoided.
+The `DaVerifier` trait is responsible for verifying a set of `BlobTransactions` fetched from a Data Availability (DA) layer block, 
+ensuring these transactions are both **complete** and **correct**.
 
-The logic inside this trait will get compiled down into your rollup's proof system, so it's important to gain a high
-degree of confidence in its correctness (upgrading SNARKs is hard!) and think carefully about performance.
+- Once deployed in a rollup environment, verified data is passed to the state transition function. Thus, strict determinism must be maintained.
+- The verification logic within this trait is eventually compiled into your rollup SNARK (proof system). Hence, correctness must be thoroughly validated (updating SNARK logic later can be challenging).
+- Performance considerations are critical when designing a verifier due to potentially high computational costs during proof verification.
 
 At a bare minimum, you should ensure that the verifier rejects...
 
-1. If the order of the blobs in an otherwise valid input is changed
-1. If the sender of any of the blobs is tampered with
-1. If any blob is omitted
-1. If any blob is duplicated
-1. If any extra blobs are added
+1. Any modification to the blobs' original order,
+2. Tampering with the sender information of the blobs,
+3. Omission of any blob,
+4. Duplication of any blob,
+5. Addition of extra blobs.
 
-We also recommend (but don't require) that any logic in the `DaVerifier` be able to build with `no_std`.
-This maximizes your odds of being compatible with new zk proof systems as they become available. However,
-it's worth noting that some Rust-compatible SNARKs (including Risc0) support limited versions of `std`. If you only care
-about compatibility with these proof systems, then `no_std` isn't a requirement.
+We recommend, but don't mandate, that verifier logic is implemented with Rust's `no_std` attribute. 
+Doing so maintains compatibility with a broad range of zero-knowledge (ZK) proof systems becoming available. 
+However, certain Rust-compatible SNARKs such as Risc0 support limited `std` features; 
+thus, using `no_std` is optional if compatibility is only required for such proof systems.
 
-**sov-celestia-adapter's DA Verifier**
+**`sov-celestia-adapter`'s DA Verifier Internals**
 
-Blobs submitted to Celestia are processed and composed into the `ExtendedDataSquare`. 
-Submitting the blobs to the Celestia results in two different additions in the data square.
+Blobs submitted to Celestia are integrated into Celestia’s data structure called the [`ExtendedDataSquare`](https://celestiaorg.github.io/celestia-app/specs/data_square_layout.html)
 
-First, the cosmos `Tx` is created which contains the `MsgPayForBlobs` message. 
-This message contains the address of the `signer`, namespaces of all the blobs included and their commitments.
-This cosmos transaction is then appended to other transactions appearing in a given block. All the transactions are then
-splitted into [`Compact Shares`](https://github.com/celestiaorg/celestia-app/blob/main/specs/src/specs/shares.md#transaction-shares)
-and included in the data square under the [`PAY_FOR_BLOB_NAMESPACE`](https://github.com/celestiaorg/celestia-app/blob/main/specs/src/specs/namespace.md).
+Each blob submitted to Celestia is divided into [`Sparse Shares`](https://celestiaorg.github.io/celestia-app/specs/shares.html#overview) and included within the data square under its own unique namespace.
 
-Second, each submitted blob is split into the [`Sparse Shares`](https://github.com/celestiaorg/celestia-app/blob/main/specs/src/specs/shares.md#share-format)
-and also included in the data square, each blob under it's own namespace.
+For details on how an `ExtendedDataSquare` is structured, refer to Celestia's-[data square layout specification](https://celestiaorg.github.io/celestia-app/specs/data_square_layout.html) and [data structures specification](https://celestiaorg.github.io/celestia-app/specs/data_structures.html).
 
-The layout and structure of the `ExtendedDataSquare` is explained in [data square layout spec](https://github.com/celestiaorg/celestia-app/blob/main/specs/src/specs/data_square_layout.md#data-square-layout)
-and in the [data structures spec](https://github.com/celestiaorg/celestia-app/blob/main/specs/src/specs/data_structures.md#arranging-available-data-into-shares).
-Celestia distributes the [`DataAvailabilityHeader`](https://github.com/celestiaorg/celestia-app/blob/main/specs/src/specs/data_structures.md#availabledataheader)
-in block's `ExtendedHeader` which have all the merkle roots for each row and column of the data square.
-Those can be later compared with the computed row roots from the NMT proofs.
+Celestia distributes data through an [`ExtendedHeader`](https://celestiaorg.github.io/celestia-app/specs/data_structures.html#header) within each block, 
+containing the `DataAvailabilityHeader`. 
+This header includes Merkle roots representing each row and column in the data square. 
+These roots can subsequently be validated against computed roots derived from [Namespaced Merkle Tree (NMT) proofs](https://github.com/celestiaorg/nmt/blob/ca7cd2f2b0b0e18c9fc2f8e3c8b07756bbff0d88/docs/spec/nmt.md).
 
 #### Checking _completeness_ of the data
 
-In order to acquire the data for a given block, the [`share.GetNamespaceData`](https://node-rpc-docs.celestia.org/?version=v0.20.4#share.GetNamespaceData) RPC call is used. In return, celestia-node
-provides all the shares for the given namespace (rollup's namespace) together with the proofs. The shares are returned as a
-list of rows, in order, each row having only the relevant shares and the proof of inclusion of those shares or a single empty
-row and the proof of absence of rollup's data.
+To retrieve data for a specific block, use the [`share.GetNamespaceData`](https://node-rpc-docs.celestia.org/?version=v0.21.7#share.GetNamespaceData) RPC call.
 
-Data is complete when it includes all the transactions belonging to the rollup in a given block.
-Checking _completeness_ of the data in celestia is done by verifying that the namespaces of the siblings of rollup's data shares
-are respectively lower and higher than rollup's namespace. This can be done using [`NmtProof::verify_complete_namespace`](https://github.com/Sovereign-Labs/nmt-rs/blob/master/src/nmt_proof.rs#L38)
-for each row in data square that hold's rollup's data. Merkle roots computed using the proofs should be equal to the roots
-obtained from the `DataAvailabilityHeader` header of this block.
-As for the empty blocks (not containing rollup's data), we get an empty row with an absence proof, the same logic
-applies for proving that there is no rollup's data.
+Celestia node then responds with shares for the requested namespace (which identifies the rollup), 
+along with proofs of inclusion or absence. The response is organized as an ordered list of rows, where each row can contain:
+
+- All shares relevant to the rollup’s namespace along with their inclusion proofs, or
+- An empty row paired with an absence proof, indicating no relevant rollup data for this block.
+
+**Verifying Completeness**
+
+Completeness verification in Celestia ensures that all transactions belonging to the rollup for the block are obtained. 
+Specifically, this means validating the namespaces of sibling nodes adjacent to the rollup’s namespace in the data square. 
+A correct verification confirms:
+
+- The namespace immediately left (preceding shares) is strictly lower than the rollup's namespace.
+- The namespace immediately right (following shares) is strictly higher than the rollup's namespace.
+- All blobs within the rollup’s namespace are contiguous, leaving no gaps or omissions. But irrelevant shares of some blobs are not verified.
+
+This verification can either:
+- Iterate over all rows containing rollup-relevant data and use [`NmtProof::verify_complete_namespace`](https://github.com/Sovereign-Labs/nmt-rs/blob/7b73324b92c8c43f9caa124ad4e5510be01c221d/src/nmt_proof.rs#L50), 
+  which entails passing all namespace shares to the verifier—a potentially costly choice that exposes you to DoS (Denial of Service) risks due to verifying unnecessary shares.
+- Alternatively, perform targeted checks asserting namespace order and continuity as described above, significantly reducing verification overhead.
+
+Subsequently, Merkle roots computed from provided proofs must match those from the block's `DataAvailabilityHeader`. 
+The same verification logic also applies efficiently to blocks containing no rollup data, namely confirming the correctness of absence proofs.
 
 #### Checking _correctness_ of the data
 
-Checking _correctness_, is a bit more complicated. Unfortunately, Celestia does not currently provide a natural
-way to associate a blob of data with its sender - so we have to be pretty creative with our solution. (Recall that the
-Sovereign SDK requires blobs to be attributable to a particular sender for DOS protection). We have to read
-all of the data from a special reserved namespace on Celestia which contains the Cosmos SDK transactions associated
-with the current block. The transactions are serialized using `protobuf` and encoded into data square in
-[compact share format](https://github.com/celestiaorg/celestia-app/blob/main/specs/src/specs/shares.md#transaction-shares).
+The current version of the adapter relies on sparsed shares V1 which support authored blobs as described in [CIP-21](https://cips.celestia.org/cip-021.html).
 
-In order to prove that, we use a proofs called `EtxProof` which consist of the merkle proofs for all the shares containing transaction
-as well the offset to the beginning of the cosmos transaction in first of those shares.
+To check correctness, a verifier compares each Blob with given prove and checks the following conditions:
 
-To verify them, we first iterate over rollup's blobs re-created from _completeness_ verification. 
-We associate each blob with its `EtxProof`. 
-Then we verify that the etx proof holds the contiguous range of shares and verify the merkle proofs
-of it's shares with corresponding row_roots from `DataAvailabilityHeader`.
-If that process succeeds, we can extract the cosmos transaction data from the given proof. We need to check if the
-transaction offset provided in proof is indeed a start of a new transaction, and then we extract transaction data from
-the contiguous shares according to the compact share format. Then we acquire the `MsgPayForBlobs` message from it
-deserializing cosmos transaction and then it's data.
-Then, we can finally verify the sender and commitment of the rollup's blob. As the `MsgPayForBlobs` can hold metadata
-about many blobs, we then iterate over them. When we encounter the rollup's namespace, we take next provided rollup transaction
-and check if it's sender is equal to the rollup tx's sender. Then we verify if current's blob data is equal to the verified rollup
-tx's data and if recomputed blob's commitment is matching the commitment from the current metadata.
-(note: I think this has a flaw. If any `MsgPayForBlobs` holds metadata for more than a single rollup's blob, then we will try to verify
-next transaction with the old blob. To fix that, we could only iterate over the `EtxProof`s and take both next blob and next transaction
-when we encounter metadata for rollup's namespace. This shouldn't be an issue now as in `DaService` we only submit a single blob at a time
-but can become an issue when that's changed).
-If all proofs and all blobs were verified successfully, that means the data is correct.
+1. The blob proof range starts at the beginning of namespace or immediately after the previous blob
+2. The first share of the blob has a signer address matching the blob sender and this share is the correct version
+3. For each byte read by the rollup, the verifier checks that this data matches the share included in the proof
+4. The merkle proof for each share verifies against the corresponding row_root from the `DataAvailabilityHeader`.
+
+If all proofs and all blobs were verified successfully, then the data is correct.
+
+Note, that if the rollup skipped a blob entirely, the verifier will only validate the first share
 
 ### The DaService Trait
 
-The `DaService` trait is slightly more complicated than the `DaVerifier`. Thankfully, it exists entirely outside of the
-rollup's state machine - so it never has to be proven in ZK context. This means that its performance is less critical, and that
-upgrading it in response to a vulnerability is much easier.
+The `DaService` trait is slightly more complicated than the `DaVerifier`. 
+Thankfully, it exists entirely outside of the rollup's state machine — so it never has to be proven in ZK context. 
+This means that its performance is less critical, and that upgrading it in response to a vulnerability is much easier.
 
-The job of the `DaService` is to allow the Sovereign SDK's node software to communicate with a DA layer. It has two related
-responsibilities. The first is to interact with DA layer nodes via RPC - retrieving data for the rollup as it becomes
-available. The second is to process that data into the form expected by the `DaVerifier`. For example, almost all DA layers
-provide data in JSON format via RPC - but, parsing JSON in a zk-SNARK would be horribly inefficient. So, the `DaService`
-is responsible for both querying the RPC service and transforming its responses into a more useful format.
+The job of the `DaService` is to allow the Sovereign SDK's node software to communicate with a DA layer. 
+It has two related responsibilities. 
+The first is to interact with DA layer nodes via RPC - retrieving data for the rollup as it becomes available. 
+The second is to process that data into the form expected by the `DaVerifier`. 
+For example, almost all DA layers  provide data in JSON format via RPC - but, 
+parsing JSON in a zk-SNARK would be horribly inefficient. 
+So, the `DaService` is responsible for both querying the RPC service and transforming its responses into a more useful format.
 
 **sov-celestia-adapter's DA Service**
-sov-celestia-adapter's DA service currently communicates with a local Celestia node via JSON-RPC. 
+
+`sov-celestia-adapter`'s DA service currently communicates with a local Celestia node via JSON-RPC. 
 Each time a Celestia block is created, 
 the DA service makes a series of RPC requests to obtain all of the relevant share data. 
 Then, it packages that data into the format expected by the DA verifier and returns.
