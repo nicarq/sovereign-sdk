@@ -204,7 +204,7 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
                 max_batch_size_bytes: TEST_MAX_BATCH_SIZE,
                 max_concurrent_blobs: TEST_MAX_CONCURRENT_BLOBS,
                 max_channel_size: 60,
-                max_infos_in_db: 80 + finalization_blocks as u64,
+                max_infos_in_db: 100 + finalization_blocks as u64,
                 automatic_batch_production: true,
                 sequencer_config: SequencerKindConfig::Preferred(Default::default()),
                 prover_address: TEST_DEFAULT_PROVER_ADDRESS.to_string(),

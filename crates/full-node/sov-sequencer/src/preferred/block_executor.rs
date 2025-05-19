@@ -379,6 +379,8 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         self.populate_state_roots(&mut checkpoint, node_state_root)
             .await;
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            // TODO https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2898
+            self.state = InternalState::Idle { checkpoint };
             tracing::info!("Shutdown receiver has changed. New block not started");
             return;
         }
