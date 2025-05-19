@@ -350,8 +350,8 @@ impl<S: Spec> InternalState<S> {
 }
 
 struct NodeDeltaWatcher {
-    sequencer_height: AtomicU64,
-    node_height: AtomicU64,
+    sequencer_slot_number: AtomicU64,
+    node_slot_number: AtomicU64,
     max_delta: u64,
 }
 
@@ -360,25 +360,25 @@ impl NodeDeltaWatcher {
         Self {
             // The height fields are initialized by the
             // `update_state()` call when first initializing the sequencer
-            sequencer_height: 0.into(),
-            node_height: 0.into(),
+            sequencer_slot_number: 0.into(),
+            node_slot_number: 0.into(),
             max_delta,
         }
     }
 
     fn check_delta(&self) -> Result<(), SequencerNotReadyDetails> {
-        let node_height = self.node_height.load(Ordering::Acquire);
-        let sequencer_height = self.sequencer_height.load(Ordering::Acquire);
+        let node_slot_number = self.node_slot_number.load(Ordering::Acquire);
+        let sequencer_slot_number = self.sequencer_slot_number.load(Ordering::Acquire);
 
-        let delta = match sequencer_height.checked_sub(node_height) {
+        let delta = match sequencer_slot_number.checked_sub(node_slot_number) {
             Some(diff) => diff,
             None => return Ok(()),
         };
 
         if delta >= self.max_delta {
             Err(SequencerNotReadyDetails::WaitingOnNode {
-                current_node_height: node_height,
-                current_sequencer_height: sequencer_height,
+                current_node_slot_number: node_slot_number,
+                current_sequencer_slot_number: sequencer_slot_number,
                 current_delta: delta,
                 max_allowed_delta: self.max_delta,
             })
@@ -843,7 +843,7 @@ where
         let node_slot_num = info.slot_number.get();
 
         self.node_delta_watcher
-            .node_height
+            .node_slot_number
             .store(info.slot_number.get(), Ordering::Release);
 
         let SoftConfirmationsReplayReceipt {
@@ -855,7 +855,7 @@ where
         // In the future the sequencer might be able to produce rollup blocks
         // independently in which case this height updating logic will need to be updated.
         self.node_delta_watcher
-            .sequencer_height
+            .sequencer_slot_number
             .store(node_slot_num, Ordering::Release);
 
         sov_metrics::track_metrics(|t| {
@@ -1191,39 +1191,39 @@ mod tests {
     #[test]
     fn test_check_node_delta() {
         let mut tracker = NodeDeltaWatcher {
-            sequencer_height: 10.into(),
-            node_height: 5.into(),
+            sequencer_slot_number: 10.into(),
+            node_slot_number: 5.into(),
             max_delta: 5,
         };
         // delta equal to max delta
         assert!(tracker.check_delta().is_err());
-        tracker.node_height = 4.into();
+        tracker.node_slot_number = 4.into();
         // delta greater than max delta
         assert!(tracker.check_delta().is_err());
         // no delta
-        tracker.node_height = 10.into();
+        tracker.node_slot_number = 10.into();
         assert!(tracker.check_delta().is_ok());
         // node ahead
-        tracker.node_height = 11.into();
+        tracker.node_slot_number = 11.into();
         assert!(tracker.check_delta().is_ok());
     }
 
     #[test]
     fn test_check_node_delta_returned_fields() {
         let tracker = NodeDeltaWatcher {
-            sequencer_height: 10.into(),
-            node_height: 2.into(),
+            sequencer_slot_number: 10.into(),
+            node_slot_number: 2.into(),
             max_delta: 5,
         };
         if let Err(SequencerNotReadyDetails::WaitingOnNode {
-            current_node_height,
-            current_sequencer_height,
+            current_node_slot_number,
+            current_sequencer_slot_number,
             current_delta,
             max_allowed_delta,
         }) = tracker.check_delta()
         {
-            assert_eq!(current_node_height, 2);
-            assert_eq!(current_sequencer_height, 10);
+            assert_eq!(current_node_slot_number, 2);
+            assert_eq!(current_sequencer_slot_number, 10);
             assert_eq!(current_delta, 8);
             assert_eq!(max_allowed_delta, 5);
         } else {

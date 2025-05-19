@@ -49,8 +49,8 @@ pub enum SequencerNotReadyDetails {
     },
     /// The sequencer is waiting for the node to catch up to them
     WaitingOnNode {
-        current_node_height: u64,
-        current_sequencer_height: u64,
+        current_node_slot_number: u64,
+        current_sequencer_slot_number: u64,
         current_delta: u64,
         max_allowed_delta: u64,
     },
