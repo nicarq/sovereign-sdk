@@ -1,15 +1,21 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
 
+use rand::Rng;
 use sov_address::MultiAddressEvm;
 use sov_bank::Bank;
+use sov_bank::CallMessageDiscriminants::Transfer;
 use sov_celestia_adapter::verifier::CelestiaSpec;
 use sov_mock_da::{BlockProducingConfig, MockDaSpec};
 use sov_mock_zkvm::{MockZkvm, MockZkvmCryptoSpec};
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::configurable_spec::ConfigurableSpec;
-use sov_modules_api::prelude::arbitrary::{self};
+use sov_modules_api::prelude::arbitrary::{self, Unstructured};
+use sov_modules_api::prelude::tracing;
 use sov_modules_api::transaction::TxDetails;
-use sov_modules_api::{Amount, DispatchCall, EncodeCall, Runtime, Spec};
+use sov_modules_api::{Amount, CryptoSpec, DispatchCall, EncodeCall, Runtime, Spec};
 use sov_paymaster::{
     PayeePolicy, PayerGenesisConfig, Paymaster, PaymasterConfig, PaymasterPolicyInitializer,
     SafeVec,
@@ -25,12 +31,15 @@ use sov_test_utils::{
     TransactionType, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
     TEST_DEFAULT_USER_BALANCE,
 };
+use sov_transaction_generator::generators::bank::harness_interface::BankHarness;
+use sov_transaction_generator::generators::bank::BankMessageGenerator;
 use sov_transaction_generator::generators::basic::{
     BasicCallMessageFactory, BasicChangeLogEntry, BasicModuleRef, BasicTag,
 };
 use sov_transaction_generator::interface::rng_utils::{get_random_bytes, randomize_buffer};
 use sov_transaction_generator::interface::MessageValidity;
-use sov_transaction_generator::{Distribution, GeneratedMessage, State};
+use sov_transaction_generator::{Distribution, GeneratedMessage, Percent, State};
+use tokio::sync::watch::Receiver;
 
 pub const DEFAULT_BLOCK_TIME_MS: u64 = 200;
 pub const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic {
@@ -249,4 +258,71 @@ pub async fn setup_rollup(
         .start()
         .await
         .expect("Impossible to start rollup")
+}
+
+/// Runs the transaction generator - currently only using the Bank harness.
+/// The passed client is responsible for handling timeouts (otherwise calls can block).
+pub async fn run_generator_task<R: Runtime<S> + EncodeCall<Bank<S>> + Clone, S: Spec>(
+    client: sov_api_spec::Client,
+    rx: Receiver<bool>,
+    worker_id: u128,
+    num_workers: u32,
+) -> anyhow::Result<()> {
+    let mut nonces: HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64> =
+        Default::default();
+
+    let random_bytes = get_random_bytes(100_000_000, worker_id);
+    let u = &mut Unstructured::new(&random_bytes[..]);
+    let bank_harness = BankHarness::new(BankMessageGenerator::<S>::new(
+        Distribution::with_equiprobable_values(vec![Transfer]),
+        Percent::one_hundred(),
+    ));
+    let modules: Vec<BasicModuleRef<S, R>> = vec![Arc::new(bank_harness.clone())];
+    let modules = Distribution::with_equiprobable_values(modules);
+    let mut generator: TestGenerator<R, S> = setup_harness(worker_id);
+
+    let worker_start = std::time::Instant::now();
+    let mut total_txns = 0;
+    while !*rx.borrow() {
+        let txn_count = {
+            // rng must fall out of scope before awaiting anything so this fn is Send
+            let mut rng = rand::thread_rng();
+
+            // Do this at the start so we add some jitter to initial API requests
+            let sleep_ms = rng.gen_range(25..100);
+            std::thread::sleep(Duration::from_millis(sleep_ms));
+
+            rng.gen_range(10..100)
+        };
+
+        let mut txns = vec![];
+        for _ in 0..txn_count {
+            let validity = Distribution::with_equiprobable_values(vec![MessageValidity::Valid]);
+            let validity = validity.select_value(u)?;
+            let msg = generator.generate(&modules, *validity);
+            let tx = plain_tx_with_default_details::<R, S>(&msg);
+            let signed_tx = {
+                let TransactionType::Plain {
+                    message,
+                    key,
+                    details,
+                } = tx
+                else {
+                    panic!("The method `plain_tx_with_default_details` should return a plain transaction!");
+                };
+
+                TransactionType::<R, S>::sign(message, key, &R::CHAIN_HASH, details, &mut nonces)
+            };
+            txns.push(signed_tx);
+        }
+
+        let start = std::time::Instant::now();
+        for tx in &txns {
+            client.send_tx_to_sequencer_with_retry(tx).await?;
+            total_txns += 1;
+        }
+        let elapsed = start.elapsed();
+        tracing::debug!(id = %worker_id, "Sent {} transactions in {}ms. Current throughput: {:.2} txs per second. Running throughput: {:.2} txs per second", txns.len(), elapsed.as_millis(), (txns.len() * num_workers as usize) as f64 / elapsed.as_secs_f64(), (total_txns * num_workers as usize) as f64 / worker_start.elapsed().as_secs_f64());
+    }
+    Ok(())
 }
