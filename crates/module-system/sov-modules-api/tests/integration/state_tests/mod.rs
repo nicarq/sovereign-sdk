@@ -12,7 +12,7 @@ use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::{execution_mode, CryptoSpec, Spec, StateCheckpoint, Storage};
 use sov_state::ProverStorage;
 use sov_test_utils::storage::SimpleStorageManager;
-use sov_test_utils::TestSpec;
+use sov_test_utils::{validate_and_materialize, TestSpec};
 
 pub type S = TestSpec;
 pub type Zk =
@@ -32,8 +32,7 @@ pub fn commit_to_storage<S: Spec<Storage = ProverStorage<StorageSpec>>>(
 ) {
     let (cache_log, _, witness) = state.freeze();
 
-    let (root, change_set) = storage
-        .validate_and_materialize(cache_log, &witness, pre_state_root)
+    let (root, change_set) = validate_and_materialize(storage, cache_log, &witness, pre_state_root)
         .expect("Native JMT validation should succeed");
     storage_manager.commit(change_set);
 

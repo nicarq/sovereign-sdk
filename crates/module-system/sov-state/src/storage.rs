@@ -432,43 +432,6 @@ pub trait Storage: Clone + core::fmt::Debug {
     /// Materializes changes from given [`Self::StateUpdate`] into [`Self::ChangeSet`].
     fn materialize_changes(self, state_update: Self::StateUpdate) -> Self::ChangeSet;
 
-    /// A version of [`Storage::validate_and_materialize`] that allows for "accessory" non-JMT updates.
-    fn validate_and_materialize_with_accessory_update(
-        self,
-        state_accesses: StateAccesses,
-        witness: &Self::Witness,
-        accessory_updates: Vec<(SlotKey, Option<SlotValue>)>,
-        prev_state_root: Self::Root,
-    ) -> anyhow::Result<(Self::Root, Self::ChangeSet)> {
-        let (root_hash, mut node_batch) =
-            self.compute_state_update(state_accesses, witness, prev_state_root)?;
-        for write in accessory_updates {
-            node_batch.add_accessory_item(write.0, write.1);
-        }
-        let change_set = self.materialize_changes(node_batch);
-
-        Ok((root_hash, change_set))
-    }
-
-    /// Validate all the storage accesses in a particular cache log,
-    /// returning the new state root and change set after applying all writes.
-    /// This function is equivalent to calling:
-    /// `self.compute_state_update` & `self.materialize_changes`
-    fn validate_and_materialize(
-        self,
-        state_accesses: StateAccesses,
-        witness: &Self::Witness,
-        prev_state_root: Self::Root,
-    ) -> anyhow::Result<(Self::Root, Self::ChangeSet)> {
-        Self::validate_and_materialize_with_accessory_update(
-            self,
-            state_accesses,
-            witness,
-            Vec::default(),
-            prev_state_root,
-        )
-    }
-
     /// Opens a storage access proof and validates it against a state root.
     /// It returns a result with the opened leaf (key, value) pair in case of success.
     fn open_proof(

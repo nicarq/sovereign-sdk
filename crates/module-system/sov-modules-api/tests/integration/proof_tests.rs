@@ -5,6 +5,7 @@ use capabilities::RollupHeight;
 use sov_modules_api::*;
 use sov_state::{BorshCodec, Prefix, Storage, StorageProof};
 use sov_test_utils::storage::SimpleStorageManager;
+use sov_test_utils::validate_and_materialize;
 use unwrap_infallible::UnwrapInfallible;
 
 type S = sov_test_utils::TestSpec;
@@ -27,13 +28,13 @@ fn make_user_map_proof(
 
     let (cache_log, _, witness) = state.freeze();
 
-    let (root, change_set) = storage
-        .validate_and_materialize(
-            cache_log,
-            &witness,
-            <<S as Spec>::Storage as Storage>::PRE_GENESIS_ROOT,
-        )
-        .expect("Native jmt validation should succeed");
+    let (root, change_set) = validate_and_materialize(
+        storage,
+        cache_log,
+        &witness,
+        <<S as Spec>::Storage as Storage>::PRE_GENESIS_ROOT,
+    )
+    .expect("Native jmt validation should succeed");
     storage_manager.commit(change_set);
     let storage = storage_manager.create_storage();
 
@@ -61,9 +62,13 @@ fn make_user_value_proof(
 
     let (cache_log, _, witness) = state.freeze();
 
-    let (root, change_set) = storage
-        .validate_and_materialize(cache_log, &witness, <S as Spec>::Storage::PRE_GENESIS_ROOT)
-        .expect("Native jmt validation should succeed");
+    let (root, change_set) = validate_and_materialize(
+        storage,
+        cache_log,
+        &witness,
+        <S as Spec>::Storage::PRE_GENESIS_ROOT,
+    )
+    .expect("Native jmt validation should succeed");
     storage_manager.commit(change_set);
     let storage = storage_manager.create_storage();
 
@@ -186,9 +191,9 @@ fn test_archival_proof_gen() {
 
         let (cache_log, _, witness) = state.freeze();
 
-        let (root, change_set) = storage
-            .validate_and_materialize(cache_log, &witness, current_root)
-            .expect("Native jmt validation should succeed");
+        let (root, change_set) =
+            validate_and_materialize(storage, cache_log, &witness, current_root)
+                .expect("Native jmt validation should succeed");
         current_root = root;
 
         storage_manager.commit(change_set);

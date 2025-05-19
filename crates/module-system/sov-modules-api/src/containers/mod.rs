@@ -231,13 +231,13 @@ where
 
 #[cfg(test)]
 mod test {
-
     use sov_mock_da::MockDaSpec;
     use sov_mock_zkvm::MockZkvm;
     use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
     use sov_state::namespaces::User;
     use sov_state::{DefaultStorageSpec, ProverStorage, SlotKey, SlotValue, Storage};
     use sov_test_utils::storage::SimpleStorageManager;
+    use sov_test_utils::validate_and_materialize;
 
     use crate::capabilities::mocks::MockKernel;
     use crate::execution_mode::Native;
@@ -295,9 +295,9 @@ mod test {
                     let (scratchpad, _gas_meter, _) = working_set.finalize();
                     let checkpoint = scratchpad.commit();
                     let (cache, _, witness) = checkpoint.freeze();
-                    let (new_root, change_set) = storage
-                        .validate_and_materialize(cache, &witness, prev_root)
-                        .expect("storage is valid");
+                    let (new_root, change_set) =
+                        validate_and_materialize(storage, cache, &witness, prev_root)
+                            .expect("storage is valid");
                     prev_root = new_root;
                     storage_manager.commit(change_set);
                     kernel.increase_heights();
@@ -342,13 +342,13 @@ mod test {
                 WorkingSet::new_with_kernel(storage.clone(), &MockKernel::<TestSpec>::default());
             StateWriter::<User>::set(&mut working_set, &key, value.clone())?;
             let (cache, _, witness) = working_set.finalize().0.commit().freeze();
-            let (_, change_set) = storage
-                .validate_and_materialize(
-                    cache,
-                    &witness,
-                    <ProverStorage<StorageSpec> as Storage>::PRE_GENESIS_ROOT,
-                )
-                .expect("storage is valid");
+            let (_, change_set) = validate_and_materialize(
+                storage,
+                cache,
+                &witness,
+                <ProverStorage<StorageSpec> as Storage>::PRE_GENESIS_ROOT,
+            )
+            .expect("storage is valid");
             storage_manager.commit(change_set);
         }
 

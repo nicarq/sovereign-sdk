@@ -28,6 +28,7 @@ use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::execution_mode::{Native, Zk};
 pub use sov_state::ProverStorage;
+use sov_state::{StateAccesses, Storage};
 pub use {sov_bank, sov_paymaster, sov_rollup_apis, sov_universal_wallet};
 
 mod evm;
@@ -263,4 +264,21 @@ where
     let json = serde_json::to_value(item).unwrap();
 
     jsonschema::validate(&schema, &json).map_err(|e| e.kind)
+}
+
+/// Validate all the storage accesses in a particular cache log,
+/// returning the new state root and change set after applying all writes.
+/// This function is equivalent to calling:
+/// `self.compute_state_update` & `self.materialize_changes`
+pub fn validate_and_materialize<ST: Storage>(
+    stotage: ST,
+    state_accesses: StateAccesses,
+    witness: &ST::Witness,
+    prev_state_root: ST::Root,
+) -> anyhow::Result<(ST::Root, ST::ChangeSet)> {
+    let (root_hash, node_batch) =
+        stotage.compute_state_update(state_accesses, witness, prev_state_root)?;
+
+    let change_set = stotage.materialize_changes(node_batch);
+    Ok((root_hash, change_set))
 }

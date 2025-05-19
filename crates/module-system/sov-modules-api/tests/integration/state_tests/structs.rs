@@ -226,16 +226,16 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
         // First native call to `validate_and_materialize` is during genesis,
         // when witness is not populated.
         let storage = storage_manager.create_storage();
-        let (root, genesis_change_set) = storage
-            .validate_and_materialize(
-                StateAccesses {
-                    user: Default::default(),
-                    kernel: Default::default(),
-                },
-                &ArrayWitness::default(),
-                <<S as Spec>::Storage as Storage>::PRE_GENESIS_ROOT,
-            )
-            .expect("Native jmt validation should succeed");
+        let (root, genesis_change_set) = validate_and_materialize(
+            storage,
+            StateAccesses {
+                user: Default::default(),
+                kernel: Default::default(),
+            },
+            &ArrayWitness::default(),
+            <<S as Spec>::Storage as Storage>::PRE_GENESIS_ROOT,
+        )
+        .expect("Native jmt validation should succeed");
         storage_manager.commit(genesis_change_set);
         // Actual
         let mut mock_kernel = MockKernel::<S>::default();
@@ -247,8 +247,7 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
         state_value.set(&22, &mut state)?;
         let (cache_log, _, witness) = state.freeze();
 
-        let _ = storage
-            .validate_and_materialize(cache_log, &witness, root)
+        let _ = validate_and_materialize(storage, cache_log, &witness, root)
             .expect("Native jmt validation should succeed");
         (witness, root)
     };
@@ -262,8 +261,7 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
         state_value.set(&22, &mut state_checkpoint)?;
         let (cache_log, _, witness) = state_checkpoint.freeze();
 
-        let _ = storage
-            .validate_and_materialize(cache_log, &witness, root)
+        let _ = validate_and_materialize(storage, cache_log, &witness, root)
             .expect("ZK validation should succeed");
     };
 

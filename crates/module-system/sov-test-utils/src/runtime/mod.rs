@@ -53,9 +53,10 @@ pub use {
 
 use crate::storage::SimpleStorageManager;
 use crate::{
-    generate_optimistic_runtime, Arc, BatchAssertContext, BatchReceipt, BatchTestCase, BatchType,
-    ProofAssertContext, ProofTestCase, SequencerInfo, SlotInput, SoftConfirmationBlobInfo,
-    TestStfBlueprint, TransactionAssertContext, TransactionTestCase, TransactionType,
+    generate_optimistic_runtime, validate_and_materialize, Arc, BatchAssertContext, BatchReceipt,
+    BatchTestCase, BatchType, ProofAssertContext, ProofTestCase, SequencerInfo, SlotInput,
+    SoftConfirmationBlobInfo, TestStfBlueprint, TransactionAssertContext, TransactionTestCase,
+    TransactionType,
 };
 
 pub(crate) mod macros;
@@ -420,9 +421,8 @@ where
 
         let (reads_writes, _, witness) = state.freeze();
 
-        let (new_state_root, change_set) = stf_state
-            .validate_and_materialize(reads_writes, &witness, self.state_root)
-            .unwrap();
+        let (new_state_root, change_set) =
+            validate_and_materialize(stf_state, reads_writes, &witness, self.state_root).unwrap();
 
         self.storage_manager.commit(change_set);
         self.state_root = new_state_root;

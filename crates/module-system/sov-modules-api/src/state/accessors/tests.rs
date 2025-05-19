@@ -5,7 +5,7 @@ use sov_state::{
     StateAccesses, Storage, ZkStorage,
 };
 use sov_test_utils::storage::SimpleStorageManager;
-use sov_test_utils::{MockDaSpec, TestStorageSpec};
+use sov_test_utils::{validate_and_materialize, MockDaSpec, TestStorageSpec};
 
 use super::seal::UniversalStateAccessor;
 use crate::capabilities::mocks::MockKernel;
@@ -31,26 +31,25 @@ fn create_storage_manager(
     let mut storage_manager = SimpleStorageManager::new();
     let storage = storage_manager.create_storage();
 
-    let (root, genesis_change_set) = storage
-        .validate_and_materialize(
-            StateAccesses {
-                user: OrderedReadsAndWrites {
-                    ordered_reads: Default::default(),
-                    ordered_writes: initial_values
-                        .into_iter()
-                        .map(|(k, v)| {
-                            let state_value =
-                                StateValue::<u64>::with_codec(Prefix::new(k), BorshCodec);
-                            (state_value.slot_key(), Some(state_value.slot_value(&v)))
-                        })
-                        .collect(),
-                },
-                kernel: Default::default(),
+    let (root, genesis_change_set) = validate_and_materialize(
+        storage,
+        StateAccesses {
+            user: OrderedReadsAndWrites {
+                ordered_reads: Default::default(),
+                ordered_writes: initial_values
+                    .into_iter()
+                    .map(|(k, v)| {
+                        let state_value = StateValue::<u64>::with_codec(Prefix::new(k), BorshCodec);
+                        (state_value.slot_key(), Some(state_value.slot_value(&v)))
+                    })
+                    .collect(),
             },
-            &ArrayWitness::default(),
-            <Native as Spec>::Storage::PRE_GENESIS_ROOT,
-        )
-        .expect("Native jmt validation should succeed");
+            kernel: Default::default(),
+        },
+        &ArrayWitness::default(),
+        <Native as Spec>::Storage::PRE_GENESIS_ROOT,
+    )
+    .expect("Native jmt validation should succeed");
     storage_manager.commit(genesis_change_set);
     (storage_manager, root)
 }
@@ -70,8 +69,7 @@ fn test_witness_generation() {
         test_values(&mut state);
         let (cache_log, _, witness) = state.freeze();
 
-        let _ = storage
-            .validate_and_materialize(cache_log, &witness, root)
+        let _ = validate_and_materialize(storage, cache_log, &witness, root)
             .expect("Native jmt validation should succeed");
         (witness, root)
     };
@@ -86,8 +84,7 @@ fn test_witness_generation() {
 
         let (cache_log, _, witness) = state.freeze();
 
-        let _ = storage
-            .validate_and_materialize(cache_log, &witness, root)
+        let _ = validate_and_materialize(storage, cache_log, &witness, root)
             .expect("ZK validation should succeed");
     }
 }

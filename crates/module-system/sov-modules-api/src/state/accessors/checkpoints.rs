@@ -107,9 +107,7 @@ impl<S: Spec> StateCheckpoint<S> {
 
     /// Extracts ordered reads, writes, and witness from this [`StateCheckpoint`].
     ///
-    /// You can then use these to call [`Storage::validate_and_materialize`] or some
-    /// of the other related [`Storage`] methods. Note that this data is moved
-    /// **out** of the [`StateCheckpoint`] i.e. it can't be extracted twice.
+    /// Note that this data is moved **out** of the [`StateCheckpoint`] i.e. it can't be extracted twice.
     pub fn freeze(
         self,
     ) -> (
