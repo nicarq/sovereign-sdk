@@ -90,6 +90,7 @@ where
 #[cfg(feature = "native")]
 pub(crate) fn convert_to_runtime_events<S, RT>(
     events: Vec<sov_modules_api::TypeErasedEvent>,
+    tx_hash: [u8; 32],
 ) -> Vec<StoredEvent>
 where
     S: Spec,
@@ -113,6 +114,7 @@ where
                     .expect("Unknown event type"),
                 )
                 .expect("unable to serialize event"),
+                tx_hash,
             )
         })
         .collect()
@@ -121,6 +123,7 @@ where
 #[cfg(not(feature = "native"))]
 pub(crate) fn convert_to_runtime_events<S, RT>(
     _events: Vec<sov_modules_api::TypeErasedEvent>,
+    _tx_hash: [u8; 32],
 ) -> Vec<StoredEvent>
 where
     S: Spec,

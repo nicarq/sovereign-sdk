@@ -130,7 +130,7 @@ pub fn materialize_stf_changes(da_header: &MockBlockHeader) -> NativeChangeSet {
 pub fn materialize_ledger_changes(da_header: &MockBlockHeader) -> SchemaBatch {
     let mut change_set = SchemaBatch::default();
     let key = &EventNumber(da_header.height());
-    let value = StoredEvent::new(&da_header.hash().0, &da_header.hash().0);
+    let value = StoredEvent::new(&da_header.hash().0, &da_header.hash().0, da_header.hash().0);
 
     change_set.put::<EventByNumber>(key, &value).unwrap();
 

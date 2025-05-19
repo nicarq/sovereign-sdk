@@ -62,7 +62,7 @@ impl<S: Spec> TryFrom<types::SimulateExecutionResponse> for SimulateExecutionCon
             {
                 let decoded_key = decode_b64(&event_key)?;
                 let decoded_value = decode_b64(&event_value)?;
-                events.push(StoredEvent::new(&decoded_key, &decoded_value));
+                events.push(StoredEvent::new(&decoded_key, &decoded_value, [0; 32]));
             }
 
             events

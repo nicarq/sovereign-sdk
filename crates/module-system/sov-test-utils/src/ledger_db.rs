@@ -82,8 +82,16 @@ fn events() -> Vec<StoredEvent> {
     });
 
     vec![
-        StoredEvent::new("foo".as_bytes(), &borsh::to_vec(&event_value1).unwrap()),
-        StoredEvent::new("bar".as_bytes(), &borsh::to_vec(&event_value2).unwrap()),
+        StoredEvent::new(
+            "foo".as_bytes(),
+            &borsh::to_vec(&event_value1).unwrap(),
+            [0; 32],
+        ),
+        StoredEvent::new(
+            "bar".as_bytes(),
+            &borsh::to_vec(&event_value2).unwrap(),
+            [0; 32],
+        ),
     ]
 }
 
@@ -116,8 +124,16 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
                     tx_hash: sha2::Sha256::digest(b"tx2").into(),
                     body_to_save: Some(b"tx2 body".to_vec()),
                     events: vec![
-                        StoredEvent::new("event1_key".as_bytes(), "event1_value".as_bytes()),
-                        StoredEvent::new("event2_key".as_bytes(), "event2_value".as_bytes()),
+                        StoredEvent::new(
+                            "event1_key".as_bytes(),
+                            "event1_value".as_bytes(),
+                            sha2::Sha256::digest(b"tx2").into(),
+                        ),
+                        StoredEvent::new(
+                            "event2_key".as_bytes(),
+                            "event2_value".as_bytes(),
+                            sha2::Sha256::digest(b"tx2").into(),
+                        ),
                     ],
                     receipt: TxEffect::Successful(1),
                 },

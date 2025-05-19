@@ -40,7 +40,7 @@ where
                 TransactionReceipt {
                     tx_hash: raw_tx_hash,
                     body_to_save: None,
-                    events: convert_to_runtime_events::<S, RT>(events),
+                    events: convert_to_runtime_events::<S, RT>(events, raw_tx_hash.into()),
                     receipt: TxEffect::Successful(SuccessfulTxContents {
                         gas_used: gas_used.clone(),
                     }),

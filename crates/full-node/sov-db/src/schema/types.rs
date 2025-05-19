@@ -167,7 +167,20 @@ pub fn split_tx_for_storage<T: TxReceiptContents>(
         ),
         batch_number,
     };
-    (tx_for_storage, tx.events)
+
+    let events_with_tx_hash = tx
+        .events
+        .into_iter()
+        .map(|event| {
+            StoredEvent::new(
+                event.key().inner(),
+                event.value().inner(),
+                tx.tx_hash.into(),
+            )
+        })
+        .collect();
+
+    (tx_for_storage, events_with_tx_hash)
 }
 
 /// A singleton key for the latest finalized slot

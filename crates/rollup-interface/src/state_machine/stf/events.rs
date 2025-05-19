@@ -7,14 +7,16 @@ use serde::{Deserialize, Serialize};
 pub struct StoredEvent {
     key: EventKey,
     value: EventValue,
+    tx_hash: [u8; 32],
 }
 
 impl StoredEvent {
-    /// Create a new event with the given key and value.
-    pub fn new(key: &[u8], value: &[u8]) -> Self {
+    /// Create a new event with the given key, value, and transaction hash.
+    pub fn new(key: &[u8], value: &[u8], tx_hash: [u8; 32]) -> Self {
         Self {
             key: EventKey(key.to_vec()),
             value: EventValue(value.to_vec()),
+            tx_hash,
         }
     }
 
@@ -26,6 +28,11 @@ impl StoredEvent {
     /// Get the event value
     pub fn value(&self) -> &EventValue {
         &self.value
+    }
+
+    /// Get the transaction hash that emitted this event.
+    pub fn tx_hash(&self) -> &[u8; 32] {
+        &self.tx_hash
     }
 }
 

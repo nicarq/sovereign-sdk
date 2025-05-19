@@ -1,3 +1,4 @@
+use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::stf::TxReceiptContents;
 
 /// A trait that enables event processing for storage
@@ -61,6 +62,8 @@ pub struct RuntimeEventResponse<E> {
     pub value: E,
     /// Module name
     pub module: ModuleRef,
+    /// The hash of the transaction that emitted this event, in hex format
+    pub tx_hash: HexHash,
 }
 
 impl<E> TryFrom<(u64, &sov_rollup_interface::stf::StoredEvent)> for RuntimeEventResponse<E>
@@ -91,6 +94,7 @@ where
             key: key_str,
             value: runtime_event,
             module: ModuleRef { name: module_name },
+            tx_hash: HexHash::from(*stored_event.tx_hash()),
         })
     }
 }

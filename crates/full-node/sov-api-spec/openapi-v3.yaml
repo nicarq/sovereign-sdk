@@ -817,6 +817,8 @@ components:
           additionalProperties: true
         module:
           $ref: "#/components/schemas/ModuleRef"
+        tx_hash:
+          $ref: "#/components/schemas/Hash"
       required:
         - type
         - number
