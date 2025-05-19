@@ -9,11 +9,10 @@ mod influxdb;
 
 #[cfg(feature = "native")]
 pub use influxdb::{
-    init_metrics_tracker, safe_telegraf_string, serialize_metadata, timestamp, track_metrics,
-    BatchMetrics, BatchOutcome, HttpMetrics, Metric, MetricsTracker, MonitoringConfig,
-    RunnerMetrics, SlotProcessingMetrics, TelegrafSocketConfig, TransactionEffect,
-    TransactionProcessingMetrics, UserSpaceSlotProcessingMetrics, ZkCircuit, ZkProvingTime,
-    ZkVmExecutionChunk, METRICS_METADATA,
+    init_metrics_tracker, safe_telegraf_string, timestamp, track_metrics, BatchMetrics,
+    BatchOutcome, HttpMetrics, Metric, MetricsTracker, MonitoringConfig, RunnerMetrics,
+    SlotProcessingMetrics, TelegrafSocketConfig, TransactionEffect, TransactionProcessingMetrics,
+    UserSpaceSlotProcessingMetrics, ZkCircuit, ZkProvingTime, ZkVmExecutionChunk,
 };
 #[cfg(all(feature = "native", feature = "gas-constant-estimation"))]
 pub use influxdb::{GasConstantTracker, GAS_CONSTANTS};

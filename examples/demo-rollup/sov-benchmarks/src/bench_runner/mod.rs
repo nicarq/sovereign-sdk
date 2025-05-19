@@ -13,7 +13,7 @@ use cli::BenchRunnerCLI;
 use demo_stf::runtime::{GenesisConfig, Runtime, RuntimeCall};
 use helpers::{BatchReceiver, BatchSender};
 use humantime::Timestamp;
-use sov_metrics::{timestamp, TelegrafSocketConfig, METRICS_METADATA};
+use sov_metrics::{timestamp, TelegrafSocketConfig};
 use sov_mock_da::BlockProducingConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::RtAgnosticBlueprint;
@@ -291,16 +291,6 @@ pub async fn run_bench_file(input: BenchRunnerCLI) {
     }) = input.metrics
     {
         let bench_name = bench_name_str.to_string();
-
-        // Setting the metrics metadata
-        if METRICS_METADATA
-            .write()
-            .unwrap()
-            .insert("bench_file".to_string(), bench_name.clone())
-            .is_some()
-        {
-            panic!("Impossible to insert metrics metadata")
-        }
 
         // Spawning the metrics collection task in a separate thread.
         tokio::spawn(async move {

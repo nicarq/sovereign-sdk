@@ -37,12 +37,6 @@ async fn test_metrics_macro() {
         .await
         .expect("Impossible to bind to port");
 
-    // Insert metadata for the metrics
-    sov_metrics::METRICS_METADATA
-        .write()
-        .unwrap()
-        .insert("test_metadata".to_string(), "test_value".to_string());
-
     init_metrics_tracker(&MonitoringConfig {
         telegraf_address: TelegrafSocketConfig::udp(channel.local_addr().unwrap()),
         max_datagram_size: Some(1),
@@ -66,7 +60,7 @@ async fn test_metrics_macro() {
     let mut parsed_buf = std::str::from_utf8(&buf[..]).unwrap().split(" ");
     assert_eq!(
         parsed_buf.next().unwrap(),
-        "sov_rollup_gas_constant,name=test_metrics,constant=test,input=10,test_metadata=test_value"
+        "sov_rollup_gas_constant,name=test_metrics,constant=test,input=10"
     );
     assert_eq!(parsed_buf.next().unwrap(), "num_invocations=1");
 }

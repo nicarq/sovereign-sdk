@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use sov_metrics::{serialize_metadata, Metric};
+use sov_metrics::Metric;
 
 pub fn track_sequence_number(sequence_number: u64) {
     sov_metrics::track_metrics(|tracker| {
@@ -35,11 +35,9 @@ impl Metric for PreferredSequencerUpdateStateMetrics {
     }
 
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-        let metadata = serialize_metadata();
-
         write!(
             buffer,
-            "{}{metadata} duration_ms={},lock_duration_ms={},batches_count={},transactions_count={},in_progress_batch={}",
+            "{} duration_ms={},lock_duration_ms={},batches_count={},transactions_count={},in_progress_batch={}",
             self.measurement_name(),
             self.duration.as_millis(),
             self.lock_duration.as_millis(),

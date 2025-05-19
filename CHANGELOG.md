@@ -1,21 +1,20 @@
-# 2025-05-02
-- #2824 More aggressively checks for nondeterminism in the sequencer
-# 2025-05-12
-- #2862 There was an issue where `darling`, a dependency we use, introduced a breaking change that Cargo was auto-upgrading to. This required users to add a workaround of explicitly pinning the version using `darling = "=0.20.10"`. This has now been fixed and the workaround is no longer necessary.
+# 2025-05-16
+- #2886 Removes metadata lock from sov-metrics
 
 # 2025-05-12
+- #2862 There was an issue where `darling`, a dependency we use, introduced a breaking change that Cargo was auto-upgrading to. This required users to add a workaround of explicitly pinning the version using `darling = "=0.20.10"`. This has now been fixed and the workaround is no longer necessary.
 - #2659 **BREAKING CHANGE** Removes `Signature` associated type from the `TransactionAuthenticator`
 - #2863 increases `DEFERRED_SLOTS_COUNT` to 15000.
 
-
 # 2025-05-05
 - #2659 **BREAKING CHANGE** Added support for versioned transactions. SDK consumers must now use the new constructor `Transaction::with_call_v0`.
-
-# 2025-05-05
 - #2823 adds a task to monitor critial background tasks for errors/early exits and will trigger a rollup shutdown if any are detected.
 - #2845 adds a Celestia checker to the demo-rollup
 - #2849 fixes celestia checker ranges.
 - #2828 adds `max_concurrent_blobs` field to the sequencer config. This field is used to limit the number of blobs that can be submitted to the DA layer at once.
+
+# 2025-05-02
+- #2824 More aggressively checks for nondeterminism in the sequencer
 
 # 2025-05-01
 - #2821 simplifies several methods on `sov_metrics::MetricsTracker` by merging them into `MetricsTracker::submit` (and `submit_with_time`).

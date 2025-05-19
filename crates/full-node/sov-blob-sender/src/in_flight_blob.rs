@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use sov_metrics::{serialize_metadata, Metric};
+use sov_metrics::Metric;
 use sov_modules_api::DaSpec;
 use tokio::task::JoinHandle;
 
@@ -28,11 +28,9 @@ impl<Da: DaSpec> Metric for InFlightBlobInfo<Da> {
     }
 
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-        let metadata = serialize_metadata();
-
         write!(
             buffer,
-            "{}{metadata} blob_iid=\"{}\",is_batch={},size_in_bytes={}i,was_resurrected={},duration_ms={}i,last_known_state=\"{}\"",
+            "{} blob_iid=\"{}\",is_batch={},size_in_bytes={}i,was_resurrected={},duration_ms={}i,last_known_state=\"{}\"",
             self.measurement_name(),
             uuid::Uuid::from_u128(self.blob_iid).as_simple(),
             self.is_batch,

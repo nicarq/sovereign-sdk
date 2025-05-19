@@ -1,9 +1,8 @@
 //! Implementation for the [`MetricsTracker`] for Influxdb.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::Write;
-use std::sync::{LazyLock, OnceLock, RwLock};
+use std::sync::OnceLock;
 
 use sov_rollup_interface::common::VisibleSlotNumber;
 
@@ -11,11 +10,6 @@ use crate::influxdb::{publisher, safe_telegraf_string, Metric};
 use crate::{MetricsTracker, MonitoringConfig};
 
 pub(crate) static METRICS_TRACKER: OnceLock<MetricsTracker> = OnceLock::new();
-
-/// Global metadata that is added as measurement key/value pairs of the metrics.
-// TODO: Investigate if we actually need this.
-pub static METRICS_METADATA: LazyLock<RwLock<HashMap<String, String>>> =
-    std::sync::LazyLock::new(|| RwLock::new(HashMap::new()));
 
 /// Alias for number of nano-seconds since unix epoch.
 pub(crate) type Timestamp = u128;
@@ -69,8 +63,7 @@ impl MetricsTracker {
             }
 
             fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-                let metadata = serialize_metadata();
-                write!(buffer, "{}{metadata} {}", self.measurement_name(), self.1)
+                write!(buffer, "{} {}", self.measurement_name(), self.1)
             }
         }
 
@@ -305,11 +298,9 @@ impl Metric for RunnerDaMetrics {
     }
 
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-        let metadata = serialize_metadata();
-
         write!(
             buffer,
-            "{}{metadata} da_height={},sync_distance={},get_block_time_ms={}",
+            "{} da_height={},sync_distance={},get_block_time_ms={}",
             self.measurement_name(),
             self.da_height,
             self.sync_distance,
@@ -324,11 +315,9 @@ impl Metric for RunnerCountMetrics {
     }
 
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-        let metadata = serialize_metadata();
-
         write!(
             buffer,
-            "{}{metadata} da_height={},batches_c={},transactions_c={},proofs_c={},batch_bytes={},proof_bytes={}",
+            "{} da_height={},batches_c={},transactions_c={},proofs_c={},batch_bytes={},proof_bytes={}",
             self.measurement_name(),
             self.da_height,
             self.batches,
@@ -346,11 +335,9 @@ impl Metric for RunnerTimeMetrics {
     }
 
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-        let metadata = serialize_metadata();
-
         write!(
             buffer,
-            "{}{metadata} da_height={},process_slot={},apply_slot={},stf_transition={},extract_blobs={},blob_extraction_proof={}",
+            "{} da_height={},process_slot={},apply_slot={},stf_transition={},extract_blobs={},blob_extraction_proof={}",
             self.measurement_name(),
             self.da_height,
             self.process_slot_time.as_micros(),
@@ -368,18 +355,18 @@ impl Metric for TransactionProcessingMetrics {
     }
 
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-        let metadata = serialize_metadata();
-
-        write!(buffer, "{},status={:?},context={:?},call_message={},sequencer={}{metadata} value={},rollup_height={}",
-               self.measurement_name(),
-               // tags
-               self.tx_effect,
-               self.execution_context,
-               self.call_message,
-               self.sequencer_address,
-               //fields
-               self.execution_time.as_micros(),
-               self.visible_slot_number,
+        write!(
+            buffer,
+            "{},status={:?},context={:?},call_message={},sequencer={} value={},rollup_height={}",
+            self.measurement_name(),
+            // tags
+            self.tx_effect,
+            self.execution_context,
+            self.call_message,
+            self.sequencer_address,
+            //fields
+            self.execution_time.as_micros(),
+            self.visible_slot_number,
         )?;
         if self.gas_used.len() >= 2 {
             write!(
@@ -399,11 +386,9 @@ impl Metric for SlotProcessingMetrics {
     }
 
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-        let metadata = serialize_metadata();
-
         write!(
             buffer,
-            "{},context={:?}{metadata} blobs_selection={},finalization={},visible_slot_number={},da_height={}",
+            "{},context={:?} blobs_selection={},finalization={},visible_slot_number={},da_height={}",
             self.measurement_name(),
             // Tags
             self.execution_context,
@@ -430,11 +415,9 @@ impl Metric for UserSpaceSlotProcessingMetrics {
     }
 
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-        let metadata = serialize_metadata();
-
         write!(
             buffer,
-            "{},context={:?}{metadata} begin_hooks={},blobs_processing={},end_hooks={},rollup_height={}",
+            "{},context={:?} begin_hooks={},blobs_processing={},end_hooks={},rollup_height={}",
             self.measurement_name(),
             // Tags
             self.execution_context,
@@ -481,11 +464,9 @@ impl Metric for BatchMetrics {
     }
 
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-        let metadata = serialize_metadata();
-
         write!(
             buffer,
-            "{}{metadata} processing_time_us={},transactions={},ignored_transactions={}",
+            "{} processing_time_us={},transactions={},ignored_transactions={}",
             self.measurement_name(),
             self.processing_time.as_micros(),
             self.transactions_count,
@@ -517,11 +498,9 @@ impl Metric for HttpMetrics {
     }
 
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-        let metadata = serialize_metadata();
-
         write!(
             buffer,
-            "{},req_method={},resp_status={},path={}{metadata} processing_time_us={},response_body_bytes={}",
+            "{},req_method={},resp_status={},path={} processing_time_us={},response_body_bytes={}",
             self.measurement_name(),
             // Tags
             self.request_method,
@@ -577,23 +556,17 @@ impl Metric for ZkVmExecutionChunk {
 
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         // We are adding the metadata as measurmement tags in the influxdb line protocol.
-        let metadata = if !self.metadata.is_empty() {
-            let zk_metadata = self
-                .metadata
-                .iter()
-                .map(|(key, value)| {
-                    // Uses special telegraf formatting
-                    let telegraf_formatted_key = safe_telegraf_string(key);
+        let metadata = self
+            .metadata
+            .iter()
+            .map(|(key, value)| {
+                // Uses special telegraf formatting
+                let telegraf_formatted_key = safe_telegraf_string(key);
 
-                    format!("{}={}", telegraf_formatted_key, value)
-                })
-                .collect::<Vec<_>>()
-                .join(",");
-
-            format!(",{zk_metadata}{}", serialize_metadata())
-        } else {
-            serialize_metadata()
-        };
+                format!("{}={}", telegraf_formatted_key, value)
+            })
+            .collect::<Vec<_>>()
+            .join(",");
 
         write!(
             buffer,
@@ -631,36 +604,13 @@ impl Metric for ZkProvingTime {
     }
 
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-        let metadata = serialize_metadata();
-
         write!(
             buffer,
-            "{},is_success={},circuit={:?}{metadata} proving_time_ms={}",
+            "{},is_success={},circuit={:?} proving_time_ms={}",
             self.measurement_name(),
             self.is_success,
             self.zk_circuit,
             self.proving_time.as_millis()
         )
-    }
-}
-
-/// Serialized Telegraf metric metadata.
-pub fn serialize_metadata() -> String {
-    let metadata = METRICS_METADATA.read().unwrap();
-
-    let metadata_string = metadata
-        .iter()
-        .map(|(key, value)| {
-            let telegraf_key = safe_telegraf_string(key);
-            let telegraf_value = safe_telegraf_string(value);
-            format!("{telegraf_key}={telegraf_value}")
-        })
-        .collect::<Vec<_>>()
-        .join(",");
-
-    if !metadata_string.is_empty() {
-        format!(",{metadata_string}")
-    } else {
-        String::new()
     }
 }

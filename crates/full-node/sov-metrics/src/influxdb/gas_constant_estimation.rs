@@ -5,7 +5,6 @@ use std::io::{self, Write};
 use tokio::task_local;
 
 use crate::influxdb::safe_telegraf_string;
-use crate::influxdb::tracker::serialize_metadata;
 use crate::{timestamp, Metric, MetricsTracker};
 
 task_local! {
@@ -100,35 +99,33 @@ impl Metric for GasConstantMetric {
     }
 
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
-        // We are adding the metadata as measurmement tags in the influxdb line protocol.
-        let parsed_metadata = if !self.metadata.is_empty() {
-            format!(
-                ",{}{}",
-                self.metadata
-                    .iter()
-                    .map(|(key, value)| {
-                        // Replace spaces with underscores to make them compatible with telegraf
-                        // Source: (Special telegraf characters)[`https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol/#special-characters`]
-                        let telegraf_formatted_key = safe_telegraf_string(key);
-
-                        format!("{}={}", telegraf_formatted_key, value)
-                    })
-                    .collect::<Vec<_>>()
-                    .join(","),
-                serialize_metadata()
-            )
-        } else {
-            serialize_metadata()
-        };
-
         write!(
             buffer,
-            "{},name={},constant={}{parsed_metadata} num_invocations={}",
+            "{},name={},constant={}",
             self.measurement_name(),
             self.name,
             self.constant,
-            self.num_invocations
         )?;
+
+        let parsed_metadata = self
+            .metadata
+            .iter()
+            .map(|(key, value)| {
+                // Replace spaces with underscores to make them compatible with telegraf
+                // Source: (Special telegraf characters)[`https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol/#special-characters`]
+                let telegraf_formatted_key = safe_telegraf_string(key);
+
+                format!("{}={}", telegraf_formatted_key, value)
+            })
+            .collect::<Vec<_>>();
+
+        if !parsed_metadata.is_empty() {
+            // We are adding the metadata as measurement tags in the influxdb line protocol.
+            write!(buffer, ",{}", parsed_metadata.join(","))?;
+        }
+
+        // Now actual value. Note, leading space is important.
+        write!(buffer, " num_invocations={}", self.num_invocations)?;
         Ok(())
     }
 }
