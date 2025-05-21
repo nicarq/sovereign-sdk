@@ -542,9 +542,7 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
     for i in 0..100 {
         let tx = tx_set_value(&admin.private_key, i, i);
         client
-            .accept_tx(&api_types::AcceptTxBody {
-                body: BASE64_STANDARD.encode(&tx),
-            })
+            .send_raw_tx_to_sequencer_with_retry(&tx)
             .await
             .unwrap();
 

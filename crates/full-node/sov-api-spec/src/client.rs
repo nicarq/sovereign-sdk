@@ -10,6 +10,7 @@ use base64::prelude::*;
 use borsh::BorshSerialize;
 use futures::stream::BoxStream;
 use futures::StreamExt;
+use sov_modules_api::RawTx;
 use sov_rollup_interface::node::ledger_api::{FinalityStatus, IncludeChildren};
 use sov_rollup_interface::zk::aggregated_proof;
 use sov_rollup_interface::TxHash;
@@ -76,8 +77,16 @@ impl Client {
         &self,
         tx: &Tx,
     ) -> Result<ResponseValue<AcceptTxResponse>, Error<types::AcceptTxResponse>> {
-        let tx_bytes = borsh::to_vec(tx).map_err(|err| Error::InvalidRequest(err.to_string()))?;
-        let tx_b64 = BASE64_STANDARD.encode(&tx_bytes);
+        let raw_tx =
+            RawTx::new(borsh::to_vec(tx).map_err(|err| Error::InvalidRequest(err.to_string()))?);
+        self.send_raw_tx_to_sequencer_with_retry(&raw_tx).await
+    }
+
+    pub async fn send_raw_tx_to_sequencer_with_retry(
+        &self,
+        raw_tx: &RawTx,
+    ) -> Result<ResponseValue<AcceptTxResponse>, Error<types::AcceptTxResponse>> {
+        let tx_b64 = BASE64_STANDARD.encode(raw_tx);
         let backoff = ExponentialBuilder::default()
             .with_factor(1.5)
             .with_min_delay(Duration::from_millis(200))
