@@ -10183,6 +10183,7 @@ dependencies = [
  "futures",
  "hex",
  "jmt",
+ "nomt",
  "proptest",
  "proptest-derive 0.5.0",
  "rand",

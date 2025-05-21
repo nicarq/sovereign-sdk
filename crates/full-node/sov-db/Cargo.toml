@@ -17,6 +17,7 @@ workspace = true
 jmt = { workspace = true }
 rockbound = { workspace = true }
 sov-rollup-interface = { workspace = true, features = ["native"] }
+nomt = { workspace = true }
 
 # External
 anyhow = { workspace = true, default-features = true }
@@ -54,17 +55,17 @@ proptest = { workspace = true }
 
 [features]
 arbitrary = [
-	"dep:arbitrary",
-	"dep:proptest",
-	"dep:proptest-derive",
-	"dep:tempfile",
-	"rockbound/arbitrary",
-	"sov-mock-zkvm/arbitrary",
-	"sov-rollup-interface/arbitrary",
-	"sov-test-utils/arbitrary",
-	"sov-mock-da/arbitrary",
-	"sov-db/arbitrary",
-	"uuid/arbitrary"
+    "dep:arbitrary",
+    "dep:proptest",
+    "dep:proptest-derive",
+    "dep:tempfile",
+    "rockbound/arbitrary",
+    "sov-mock-zkvm/arbitrary",
+    "sov-rollup-interface/arbitrary",
+    "sov-test-utils/arbitrary",
+    "sov-mock-da/arbitrary",
+    "sov-db/arbitrary",
+    "uuid/arbitrary"
 ]
 test-utils = ["dep:rand"]
 

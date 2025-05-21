@@ -27,6 +27,28 @@ impl InitializableNativeStorage for TestNativeStorage {
     }
 }
 
+#[cfg(test)]
+pub type H = sha2::Sha256;
+
+/// Simple container fo unlocking testing of NomtStorageManager without relying on sov-state.
+#[cfg(test)]
+pub struct TestNomtStorage {
+    #[allow(missing_docs)]
+    pub state_session: crate::state_db_nomt::StateSession<H>,
+    #[allow(missing_docs)]
+    pub accessory_db: AccessoryDb,
+}
+
+#[cfg(test)]
+impl crate::storage_manager::InitializableNativeNomtStorage<H> for TestNomtStorage {
+    fn new(state_db: crate::state_db_nomt::StateSession<H>, accessory_db: AccessoryDb) -> Self {
+        TestNomtStorage {
+            state_session: state_db,
+            accessory_db,
+        }
+    }
+}
+
 #[allow(missing_docs)]
 pub fn generate_random_bytes(count: usize) -> HashSet<Vec<u8>> {
     let seed: [u8; 32] = [1; 32];

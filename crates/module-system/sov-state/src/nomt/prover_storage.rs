@@ -8,6 +8,8 @@ use anyhow::Context;
 use nomt::hasher::BinaryHasher;
 use nomt::proof::MultiProof;
 use nomt::FinishedSession;
+use sov_db::accessory_db::AccessoryDb;
+use sov_db::storage_manager::{InitializableNativeNomtStorage, NomtChangeSet};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::reexports::digest::Digest;
 
@@ -20,12 +22,16 @@ use crate::{
 
 type NomtSession<H> = nomt::Session<BinaryHasher<H>>;
 
+struct StateSession<H> {
+    user: NomtSession<H>,
+    kernel: NomtSession<H>,
+}
+
 /// A [`Storage`] implementation to be used by the prover in a native execution based on NOMT.
 #[derive(derivative::Derivative)]
 #[derivative(Clone(bound = "S: MerkleProofSpec"))]
 pub struct NomtProverStorage<S: MerkleProofSpec> {
-    user_session: Arc<Mutex<Option<NomtSession<S::Hasher>>>>,
-    kernel_session: Arc<Mutex<Option<NomtSession<S::Hasher>>>>,
+    state_session: Arc<Mutex<Option<StateSession<S::Hasher>>>>,
 }
 
 impl<S: MerkleProofSpec> core::fmt::Debug for NomtProverStorage<S> {
@@ -36,13 +42,10 @@ impl<S: MerkleProofSpec> core::fmt::Debug for NomtProverStorage<S> {
 
 impl<S: MerkleProofSpec> NomtProverStorage<S> {
     /// Create the new instance of [`NomtProverStorage`] with the given sessions.
-    pub fn new(
-        user_session: NomtSession<S::Hasher>,
-        kernel_session: NomtSession<S::Hasher>,
-    ) -> Self {
+    pub fn new(user: NomtSession<S::Hasher>, kernel: NomtSession<S::Hasher>) -> Self {
+        let state_session = StateSession { user, kernel };
         Self {
-            kernel_session: Arc::new(Mutex::new(Some(kernel_session))),
-            user_session: Arc::new(Mutex::new(Some(user_session))),
+            state_session: Arc::new(Mutex::new(Some(state_session))),
         }
     }
 
@@ -59,15 +62,27 @@ impl<S: MerkleProofSpec> NomtProverStorage<S> {
             );
         }
         let key_path = S::Hasher::digest(key.as_ref()).into();
-        let session_lock = match N::NAMESPACE {
-            Namespace::User => self
-                .user_session
-                .lock()
-                .expect("Failed to acquire lock on user session"),
-            Namespace::Kernel => self
-                .kernel_session
-                .lock()
-                .expect("Failed to acquire lock on kernel session"),
+        let value = match N::NAMESPACE {
+            Namespace::User => {
+                let session_lock = self
+                    .state_session
+                    .lock()
+                    .expect("Failed to acquire lock on state session");
+                let session = &session_lock.as_ref().expect("Session is None").user;
+
+                session.warm_up(key_path);
+                session.read(key_path).expect("Underlying I/O failed")
+            }
+            Namespace::Kernel => {
+                let session_lock = self
+                    .state_session
+                    .lock()
+                    .expect("Failed to acquire lock on state session");
+                let session = &session_lock.as_ref().expect("Session is None").kernel;
+
+                session.warm_up(key_path);
+                session.read(key_path).expect("Underlying I/O failed")
+            }
             Namespace::Accessory => {
                 unimplemented!(
                     "NomProverStorage does not support accessory data yet. Key: {}, version: {:?}.",
@@ -76,9 +91,6 @@ impl<S: MerkleProofSpec> NomtProverStorage<S> {
                 );
             }
         };
-        let session = session_lock.as_ref().expect("Session is None");
-        session.warm_up(key_path);
-        let value = session.read(key_path).expect("Underlying I/O failed");
         value.map(Into::into)
     }
 }
@@ -164,6 +176,19 @@ fn compute_state_update_namespace<S: MerkleProofSpec>(
     Ok(finished)
 }
 
+impl<S: MerkleProofSpec> InitializableNativeNomtStorage<S::Hasher> for NomtProverStorage<S> {
+    fn new(
+        state_db: sov_db::state_db_nomt::StateSession<S::Hasher>,
+        _accessory_db: AccessoryDb,
+    ) -> Self {
+        let sov_db::state_db_nomt::StateSession {
+            user_session,
+            kernel_session,
+        } = state_db;
+        Self::new(user_session, kernel_session)
+    }
+}
+
 #[allow(missing_docs)]
 pub struct NomtStateUpdate {
     pub user: FinishedSession,
@@ -188,7 +213,7 @@ impl<S: MerkleProofSpec> Storage for NomtProverStorage<S> {
     type Root = StorageRoot<S>;
     // These 2 are effectively the same thing, `StateUpdate` is not materialized, change is materialized.
     type StateUpdate = NomtStateUpdate;
-    type ChangeSet = ();
+    type ChangeSet = NomtChangeSet;
     const PRE_GENESIS_ROOT: Self::Root =
         StorageRoot::new(nomt::trie::TERMINATOR, nomt::trie::TERMINATOR);
 
@@ -247,23 +272,26 @@ impl<S: MerkleProofSpec> Storage for NomtProverStorage<S> {
         witness: &Self::Witness,
         prev_state_root: Self::Root,
     ) -> anyhow::Result<(Self::Root, Self::StateUpdate)> {
-        let StateAccesses { user, kernel } = state_accesses;
-
-        let prev_user_root = prev_state_root.namespace_root(ProvableNamespace::User);
+        let StateAccesses {
+            user: user_accesses,
+            kernel: kernel_accesses,
+        } = state_accesses;
+        let mut state_session = self
+            .state_session
+            .lock()
+            .expect("Failed to acquire lock on state session");
+        let StateSession {
+            user: user_session,
+            kernel: kernel_session,
+        } = state_session
+            .take()
+            .expect("user session has been taken already");
 
         // User
-        let user_finished_session = {
-            let mut user_session = self
-                .user_session
-                .lock()
-                .expect("Failed to acquire lock on user session");
-            // Note: It will be solved later: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2634
-            let session = user_session
-                .take()
-                .expect("user session has been taken already");
-            compute_state_update_namespace::<S>(session, user, witness).context("user state")?
-        };
-
+        let prev_user_root = prev_state_root.namespace_root(ProvableNamespace::User);
+        let user_finished_session =
+            compute_state_update_namespace::<S>(user_session, user_accesses, witness)
+                .context("user state")?;
         assert_eq!(
             user_finished_session.prev_root().as_ref(),
             &prev_user_root,
@@ -272,17 +300,9 @@ impl<S: MerkleProofSpec> Storage for NomtProverStorage<S> {
 
         // Kernel
         let prev_kernel_root = prev_state_root.namespace_root(ProvableNamespace::Kernel);
-        let kernel_finished_session = {
-            let mut kernel_session = self
-                .kernel_session
-                .lock()
-                .expect("Failed to acquire lock on kernel session");
-            // Note: It will be solved later: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2634
-            let session = kernel_session
-                .take()
-                .expect("kernel session has been taken already");
-            compute_state_update_namespace::<S>(session, kernel, witness).context("kernel state")?
-        };
+        let kernel_finished_session =
+            compute_state_update_namespace::<S>(kernel_session, kernel_accesses, witness)
+                .context("user state")?;
         assert_eq!(
             kernel_finished_session.prev_root().as_ref(),
             &prev_kernel_root,
