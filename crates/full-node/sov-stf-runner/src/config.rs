@@ -85,6 +85,17 @@ impl HttpServerConfig {
             cors: CorsConfiguration::Permissive,
         }
     }
+
+    /// Creates an [`HttpServerConfig`] that listens on provided host and port,
+    /// using sensible default for local testing
+    pub fn on_host_port(host: impl Into<String>, port: u16) -> Self {
+        HttpServerConfig {
+            bind_host: host.into(),
+            bind_port: port,
+            public_address: None,
+            cors: CorsConfiguration::Permissive,
+        }
+    }
 }
 
 /// Simple storage configuration

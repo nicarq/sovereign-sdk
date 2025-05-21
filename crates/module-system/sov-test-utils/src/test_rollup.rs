@@ -88,6 +88,7 @@ pub struct RollupBuilderConfig<S: Spec, StoragePath = Arc<tempfile::TempDir>> {
     ///  6. Voila, your data is still there and you can test node behavior after
     ///     a restart.
     pub storage: StoragePath,
+    pub axum_host: String,
     pub axum_port: u16,
     pub max_batch_size_bytes: usize,
     pub max_concurrent_blobs: usize,
@@ -215,6 +216,7 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
                 )),
                 storage: storage_path,
                 telegraf_address: MonitoringConfig::standard().telegraf_address,
+                axum_host: "127.0.0.1".to_string(),
                 axum_port: 0,
             },
             with_secondary_sequencer: None,
@@ -377,15 +379,15 @@ where
 
         let rest_addr = rest_addr_rx.await?;
 
-        let rest_port = rest_addr.port();
-        let client = match NodeClient::new_at_localhost(rest_port).await {
+        let rest_url = format!("http://{}:{}", rest_addr.ip(), rest_addr.port());
+        let client = match NodeClient::new(&rest_url).await {
             Ok(client) => client,
             Err(e) => {
                 tracing::warn!(
-                    "Unable to instantiate standard NodeClient for node at localhost:{}: {e}",
-                    rest_port
+                    "Unable to instantiate standard NodeClient for node at {}: {e}",
+                    rest_url,
                 );
-                NodeClient::new_at_localhost_unchecked(rest_port)
+                NodeClient::new_unchecked(&rest_url)
             }
         };
 
@@ -412,7 +414,10 @@ where
             runner: RunnerConfig {
                 genesis_height: 0,
                 da_polling_interval_ms: 30,
-                http_config: HttpServerConfig::localhost_on_port(self.config.axum_port),
+                http_config: HttpServerConfig::on_host_port(
+                    &self.config.axum_host,
+                    self.config.axum_port,
+                ),
                 concurrent_sync_tasks: Some(1),
             },
             da: self.da_config.clone(),

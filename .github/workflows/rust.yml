@@ -322,7 +322,7 @@ jobs:
     runs-on:
       - nscloud-ubuntu-22.04-amd64-16x32-with-cache
       - nscloud-cache-tag-cache-coverage
-      - nscloud-cache-size-100gb
+      - nscloud-cache-size-150gb
     timeout-minutes: 90
     env:
       SKIP_GUEST_BUILD: "1"

@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use futures::future::join_all;
-use futures::FutureExt;
+use futures::{FutureExt, StreamExt};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -22,7 +22,6 @@ use testcontainers::core::{CmdWaitFor, ExecCommand, ExecResult, Host, IntoContai
 use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, GenericImage, ImageExt};
 use tokio::io::AsyncBufReadExt;
-use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 
 use super::configs::{
@@ -39,6 +38,7 @@ pub type PrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey
 type Container = ContainerAsync<GenericImage>;
 
 pub const DEFAULT_BLOCK_TIME_MS: u64 = 400;
+pub const FINALIZED_BLOCKS_AT_START: usize = 3;
 pub const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic {
     block_time_ms: DEFAULT_BLOCK_TIME_MS,
 };
@@ -134,7 +134,16 @@ pub fn generate_setup() -> Setup {
 pub async fn setup_rollup(
     storage_path: PathBuf,
     setup: Setup,
+    wait_for_finalized_slot: bool,
 ) -> TestRollup<RollupBlueprint, PathBuf> {
+    let axum_bind_ip = if cfg!(target_os = "macos") {
+        // MacOS runs docker inside the VM, so returned gateway IP does not match any address on the host.
+        // Test containers already expose all the ports to `0.0.0.0` so this does not increase security risk significantly.
+        // If better solution exists, happy to apply it
+        "0.0.0.0".to_string()
+    } else {
+        get_docker_gateway_ip().await
+    };
     let rollup_builder = TestRollupBuilder::new_with_storage_path(
         GenesisSource::CustomParams(setup.genesis_config.clone().into_genesis_params()),
         DEFAULT_BLOCK_PRODUCING_CONFIG,
@@ -150,14 +159,31 @@ pub async fn setup_rollup(
         });
         config.prover_address = setup.prover.user_info.address().to_string();
         config.aggregated_proof_block_jump = 3;
+        // Make rollup listen on docker host interface, so it can be accessed from containers.
+        config.axum_host = axum_bind_ip;
     })
     .set_da_config(|da_config| {
         da_config.sender_address = setup.sequencer.da_address;
     });
-    rollup_builder
+    let rollup = rollup_builder
         .start()
         .await
-        .expect("Impossible to start rollup")
+        .expect("Impossible to start rollup");
+
+    if wait_for_finalized_slot {
+        // Give rollup to process a couple finalized blocks before starting accepting transactions.
+        let mut finalized_slots_sub = rollup
+            .api_client
+            .subscribe_finalized_slots()
+            .await
+            .expect("failed to subscribe to finalized slots");
+
+        for _ in 0..FINALIZED_BLOCKS_AT_START {
+            let _ = finalized_slots_sub.next().await;
+        }
+    }
+
+    rollup
 }
 
 /// Helper for handling the dockerized hyperlane setup.
@@ -269,9 +295,6 @@ impl HyperlaneBuilder {
         } else {
             (None, None)
         };
-
-        // spawn a proxy between docker container and the rollup
-        tokio::spawn(rollup_proxy(rollup_port));
 
         // start all the hyperlane agents concurrently
         let has_relayer = self.relayer.is_some();
@@ -827,43 +850,22 @@ async fn exec_in_bash(container: &Container, cmd: impl AsRef<str>) -> ExecResult
     container.exec(bash_c).await.unwrap()
 }
 
-/// Very simple proxy that listens on the docker's network interface and forwards traffic
-/// between the rollup on localhost and the docker container
-async fn rollup_proxy(rollup_port: u16) {
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+pub async fn get_docker_gateway_ip() -> String {
     let bridge_info = docker_client_instance()
         .await
         .unwrap()
         .inspect_network::<String>("bridge", None)
         .await
         .unwrap();
-    let docker_gateway_ip = bridge_info
+    bridge_info
         .ipam
         .expect("no IPAM driver found")
         .config
         .expect("IPAM has no configuration")
         .into_iter()
         .find_map(|conf| conf.gateway)
-        .expect("No gateway config in IPAM");
-
-    // listen on the docker interface
-    let listener = TcpListener::bind(format!("{docker_gateway_ip}:{rollup_port}"))
-        .await
-        .unwrap();
-
-    loop {
-        let (mut docker_socket, _) = listener.accept().await.unwrap();
-        // connect to the rollup
-        let Ok(mut rollup_socket) = TcpStream::connect(format!("127.0.0.1:{rollup_port}")).await
-        else {
-            // rollup shut down
-            break;
-        };
-
-        // forward traffic between docker and rollup sockets
-        tokio::spawn(async move {
-            let _ = tokio::io::copy_bidirectional(&mut docker_socket, &mut rollup_socket).await;
-        });
-    }
+        .expect("No gateway config in IPAM")
 }
 
 // parses eth addr 0x(40 chars hex) into HexHash

@@ -34,11 +34,14 @@ mod preferred_sequencer_runtime;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_validator_announces_itself() {
+    sov_test_utils::initialize_logging();
     let dir = tempfile::tempdir().unwrap();
     let builder = HyperlaneBuilder::setup_image().await;
     let setup = generate_setup();
     let validator = setup.validators[0].clone();
-    let rollup = setup_rollup(dir.path().to_path_buf(), setup).await;
+    let rollup = setup_rollup(dir.path().to_path_buf(), setup, false).await;
+
+    let mut slot_subscription = rollup.api_client.subscribe_slots().await.unwrap();
 
     let mut hyperlane = builder
         .with_rollup_port(rollup.http_addr.port())
@@ -46,16 +49,10 @@ async fn test_validator_announces_itself() {
         .start()
         .await;
 
-    // wait for first finalized block
-    let mut slot_subscription = rollup.api_client.subscribe_slots().await.unwrap();
-    for _ in 0..DEFAULT_FINALIZATION_BLOCKS {
-        slot_subscription.next().await.unwrap().unwrap();
-    }
-
-    // look for `validator announce` event
-    for _ in 0..DEFAULT_FINALIZATION_BLOCKS * 10 {
+    // wait for the first finalized block
+    for i in 0..DEFAULT_FINALIZATION_BLOCKS * 30 {
         let events = next_slot_events(&rollup.api_client, &mut slot_subscription).await;
-
+        println!("ROUND {}, events: {:?}", i, events);
         if let Some(process_event) = find_event(&events, "Mailbox/ValidatorAnnouncement") {
             assert_eq!(
                 process_event["validator_announcement"]["address"],
@@ -84,7 +81,7 @@ async fn test_relayer_basic_dispatch_process() {
     let relayer = setup.relayer.clone();
     let prover = setup.prover.clone();
     let prover_addr = prover.user_info.address();
-    let rollup = setup_rollup(dir.path().to_path_buf(), setup).await;
+    let rollup = setup_rollup(dir.path().to_path_buf(), setup, true).await;
 
     let mut hyperlane = builder
         .with_rollup_port(rollup.http_addr.port())
@@ -154,7 +151,7 @@ async fn test_multisig_ism() {
     let prover = setup.prover.clone();
     let prover_addr = prover.user_info.address();
     let validators = setup.validators.clone();
-    let rollup = setup_rollup(dir.path().to_path_buf(), setup).await;
+    let rollup = setup_rollup(dir.path().to_path_buf(), setup, true).await;
 
     let mut hyperlane = builder
         .with_rollup_port(rollup.http_addr.port())
@@ -224,7 +221,7 @@ async fn test_process_message_from_evm_counterparty() {
     let relayer = setup.relayer.clone();
     let prover = setup.prover.clone();
     let prover_addr = prover.user_info.address();
-    let rollup = setup_rollup(dir.path().to_path_buf(), setup).await;
+    let rollup = setup_rollup(dir.path().to_path_buf(), setup, true).await;
 
     let mut hyperlane = builder
         .with_rollup_port(rollup.http_addr.port())
@@ -307,7 +304,7 @@ async fn test_dispatch_message_to_evm_counterparty() {
     let relayer = setup.relayer.clone();
     let prover = setup.prover.clone();
     let prover_addr = prover.user_info.address();
-    let rollup = setup_rollup(dir.path().to_path_buf(), setup).await;
+    let rollup = setup_rollup(dir.path().to_path_buf(), setup, true).await;
 
     let mut hyperlane = builder
         .with_rollup_port(rollup.http_addr.port())
@@ -383,7 +380,7 @@ async fn test_warp_transfer_back_and_forth_with_evm_counterparty(
     let relayer = setup.relayer.clone();
     let prover = setup.prover.clone();
     let prover_addr = prover.user_info.address();
-    let rollup = setup_rollup(dir.path().to_path_buf(), setup).await;
+    let rollup = setup_rollup(dir.path().to_path_buf(), setup, true).await;
 
     let mut hyperlane = builder
         .with_rollup_port(rollup.http_addr.port())
