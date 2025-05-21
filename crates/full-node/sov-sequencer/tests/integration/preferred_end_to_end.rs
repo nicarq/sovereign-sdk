@@ -616,9 +616,7 @@ async fn seq_back_pressure() {
 
     let tx = tx_set_value(&admin.private_key, 1, 9);
     client
-        .accept_tx(&api_types::AcceptTxBody {
-            body: BASE64_STANDARD.encode(&tx),
-        })
+        .send_raw_tx_to_sequencer_with_retry(&tx)
         .await
         .unwrap();
 }
@@ -643,9 +641,7 @@ async fn seq_many_invalid_txs() {
     let tx = tx_set_value(&admin.private_key, 100, 0);
 
     client
-        .accept_tx(&api_types::AcceptTxBody {
-            body: BASE64_STANDARD.encode(&tx),
-        })
+        .send_raw_tx_to_sequencer_with_retry(&tx)
         .await
         .unwrap();
 
@@ -655,12 +651,8 @@ async fn seq_many_invalid_txs() {
         let da_service = test_rollup.da_service.clone();
 
         let tx = tx_set_value(&admin.private_key, 0, i);
-        let tx = api_types::AcceptTxBody {
-            body: BASE64_STANDARD.encode(&tx),
-        };
-
         handles.push(tokio::spawn(async move {
-            let res = client.accept_tx(&tx).await;
+            let res = client.send_raw_tx_to_sequencer_with_retry(&tx).await;
             da_service.produce_block_now().await.unwrap();
             res
         }));
