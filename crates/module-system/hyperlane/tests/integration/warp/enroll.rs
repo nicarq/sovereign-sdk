@@ -1,5 +1,5 @@
 use sov_hyperlane_integration::warp::{Admin, TokenKind};
-use sov_hyperlane_integration::{Ism, Warp, WarpCallMessage, WarpEvent};
+use sov_hyperlane_integration::{HyperlaneAddress, Ism, Warp, WarpCallMessage, WarpEvent};
 use sov_modules_api::{HexString, TxEffect};
 use sov_test_utils::{AsUser, TransactionTestCase};
 
@@ -218,4 +218,118 @@ fn test_register_warp_route_duplicate_registrations_fail() {
             };
         }),
     });
+}
+
+#[test]
+fn test_warp_route_updates() {
+    let (mut runner, admin, relayer, ..) = setup();
+
+    let warp_route_id = register_basic_warp_route(&mut runner, &admin);
+
+    // Empty update
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::Update {
+            warp_route: warp_route_id,
+            admin: None,
+            ism: None,
+        }),
+        assert: Box::new(move |result, _| {
+            assert!(
+                result.tx_receipt.is_reverted(),
+                "Empty update should be reverted"
+            );
+        }),
+    });
+
+    // Update the admin
+    let relayer_addr = relayer.address();
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::Update {
+            warp_route: warp_route_id,
+            admin: Some(Admin::InsecureOwner(relayer_addr)),
+            ism: None,
+        }),
+        assert: Box::new(move |result, _| {
+            assert!(
+                result.events.iter().any(|event| matches!(
+                    event,
+                    TestRuntimeEvent::Warp(WarpEvent::RouteUpdated {
+                        route_id,
+                        updated_admin,
+                        updated_ism,
+                    }) if route_id == &warp_route_id
+                        && updated_admin == &Some(Admin::InsecureOwner(relayer_addr))
+                        && updated_ism.is_none()
+                )),
+                "Route updated event should be emitted"
+            );
+        }),
+    });
+
+    // Update the ism
+    runner.execute_transaction(TransactionTestCase {
+        input: relayer.create_plain_message::<RT, Warp<S>>(WarpCallMessage::Update {
+            warp_route: warp_route_id,
+            admin: None,
+            ism: Some(Ism::TrustedRelayer {
+                relayer: relayer_addr.to_sender(),
+            }),
+        }),
+        assert: Box::new(move |result, _| {
+            assert!(
+                result.events.iter().any(|event| matches!(
+                    event,
+                    TestRuntimeEvent::Warp(WarpEvent::RouteUpdated {
+                        route_id,
+                        updated_admin,
+                        updated_ism,
+                    }) if route_id == &warp_route_id
+                        && updated_admin.is_none()
+                        && updated_ism == &Some(Ism::TrustedRelayer { relayer: relayer_addr.to_sender() })
+                )),
+                "Route updated event should be emitted"
+            );
+        }),
+    });
+
+    // Update admin and ism
+    runner.execute_transaction(TransactionTestCase {
+        input: relayer.create_plain_message::<RT, Warp<S>>(WarpCallMessage::Update {
+            warp_route: warp_route_id,
+            admin: Some(Admin::None),
+            ism: Some(Ism::AlwaysTrust),
+        }),
+        assert: Box::new(move |result, _| {
+            assert!(
+                result.events.iter().any(|event| matches!(
+                    event,
+                    TestRuntimeEvent::Warp(WarpEvent::RouteUpdated {
+                        route_id,
+                        updated_admin,
+                        updated_ism,
+                    }) if route_id == &warp_route_id
+                        && updated_admin == &Some(Admin::None)
+                        && updated_ism == &Some(Ism::AlwaysTrust)
+                )),
+                "Route updated event should be emitted"
+            );
+        }),
+    });
+
+    // After setting admin to None, no one should be able to further update route
+    for owner in [admin, relayer] {
+        runner.execute_transaction(TransactionTestCase {
+            input: owner.create_plain_message::<RT, Warp<S>>(WarpCallMessage::Update {
+                warp_route: warp_route_id,
+                admin: Some(Admin::InsecureOwner(owner.address())),
+                ism: None,
+            }),
+            assert: Box::new(move |result, _| {
+                assert!(
+                    result.tx_receipt.is_reverted(),
+                    "Route update should be revereted because ownership was dropped"
+                );
+            }),
+        });
+    }
 }

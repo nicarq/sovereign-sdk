@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
 use sov_bank::event::Event as BankEvent;
@@ -57,16 +58,12 @@ fn do_inbound_transfer_success_with_scaled_amount(
         out.extend_from_slice(&remote_amount.0);
         out
     };
-    let domain: u32 = config_value!("HYPERLANE_BRIDGE_DOMAIN");
-    let message = Message {
-        version: MESSAGE_VERSION,
-        nonce: 0,
-        origin_domain: from_domain,
-        sender: from_router_address, // The sender doesn't matter for this test
-        dest_domain: domain,
-        recipient: warp_route_id,
-        body: message_body.into(),
-    };
+    let message = inbound_message(
+        from_domain,
+        from_router_address,
+        warp_route_id,
+        message_body,
+    );
 
     let to_address = <<S as Spec>::Address>::from_sender(to).unwrap();
     let balance_before = runner.query_state(|state| {
@@ -122,16 +119,12 @@ fn do_inbound_transfer_failure(
     expected_error: &'static str,
 ) {
     let message_body = Warp::<S>::pack_transfer_body(to, amount, &StoredTokenKind::Native).unwrap();
-    let domain: u32 = config_value!("HYPERLANE_BRIDGE_DOMAIN");
-    let message = Message {
-        version: MESSAGE_VERSION,
-        nonce: 0,
-        origin_domain: from_domain,
-        sender: from_router_address, // The sender doesn't matter for this test
-        dest_domain: domain,
-        recipient: warp_route_id,
-        body: message_body.into(),
-    };
+    let message = inbound_message(
+        from_domain,
+        from_router_address,
+        warp_route_id,
+        message_body,
+    );
 
     runner.execute_transaction(TransactionTestCase {
         input: admin.create_plain_message::<RT, Mailbox<S, Warp<S>>>(CallMessage::Process {
@@ -149,6 +142,25 @@ fn do_inbound_transfer_failure(
             _ => panic!("Transaction should be reverted"),
         }),
     });
+}
+
+fn inbound_message(
+    from_domain: u32,
+    from_router_address: HexHash,
+    warp_route_id: HexHash,
+    message_body: Vec<u8>,
+) -> Message {
+    static NONCE: AtomicU32 = AtomicU32::new(0);
+    let domain: u32 = config_value!("HYPERLANE_BRIDGE_DOMAIN");
+    Message {
+        version: MESSAGE_VERSION,
+        nonce: NONCE.fetch_add(1, Ordering::Relaxed),
+        origin_domain: from_domain,
+        sender: from_router_address,
+        dest_domain: domain,
+        recipient: warp_route_id,
+        body: message_body.into(),
+    }
 }
 
 fn do_outbound_transfer(
@@ -451,6 +463,79 @@ fn test_inbound_transfer_fails_if_ism_rejects() {
     );
 
     // Try the outbound tranfser using the correct relayer and ensure it succeeds
+    do_inbound_transfer_success(
+        &mut runner,
+        &admin,
+        CONFIGURED_DOMAIN,
+        CONFIGURED_REMOTE_ROUTER_ADDRESS,
+        warp_route_id,
+        other.address().to_sender(),
+        Amount(100),
+        config_gas_token_id(),
+    );
+}
+
+#[test]
+fn test_inbound_transfer_after_ism_update() {
+    let (mut runner, admin, other, relayer) = setup();
+
+    register_relayer_with_dummy_igp(&mut runner, &relayer, CONFIGURED_DOMAIN);
+
+    // Register warp route with always trust ISM
+    let warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
+
+    // Fund the warp route
+    do_outbound_transfer(
+        &mut runner,
+        &admin,
+        warp_route_id,
+        Amount(200),
+        relayer.address(),
+        encode_amount(Amount(200)),
+    );
+
+    // Inbound transfer should succeed
+    do_inbound_transfer_success(
+        &mut runner,
+        &admin,
+        CONFIGURED_DOMAIN,
+        CONFIGURED_REMOTE_ROUTER_ADDRESS,
+        warp_route_id,
+        other.address().to_sender(),
+        Amount(100),
+        config_gas_token_id(),
+    );
+
+    // Update the ISM to trust only admin as relayer .
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::Update {
+            warp_route: warp_route_id,
+            ism: Some(Ism::TrustedRelayer {
+                relayer: admin.address().to_sender(),
+            }),
+            admin: None,
+        }),
+        assert: Box::new(move |result, _| {
+            assert!(
+                result.tx_receipt.is_successful(),
+                "Route update should succeed"
+            );
+        }),
+    });
+
+    // Now inbound transfer submitted by untrusted relayer should fail
+    do_inbound_transfer_failure(
+        &mut runner,
+        &relayer, // wrong relayer
+        CONFIGURED_DOMAIN,
+        CONFIGURED_REMOTE_ROUTER_ADDRESS,
+        warp_route_id,
+        admin.address().to_sender(),
+        Amount(100),
+        "is trusted to relay messages for this ISM",
+    );
+
+    // But the one submitted by trusted relayer should work
     do_inbound_transfer_success(
         &mut runner,
         &admin,

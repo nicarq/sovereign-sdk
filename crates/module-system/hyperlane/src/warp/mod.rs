@@ -58,7 +58,7 @@ pub struct Warp<S: Spec> {
     UniversalWallet,
 )]
 pub enum CallMessage<S: Spec> {
-    /// Register a route with with the given token source and ISM.
+    /// Register a route with the given token source and ISM.
     Register {
         /// The authority that can modify the route, if any.
         admin: Admin<S>,
@@ -66,6 +66,15 @@ pub enum CallMessage<S: Spec> {
         token_source: TokenKind,
         /// The ISM for this route.
         ism: Ism,
+    },
+    /// Update an existing route with new admin or ISM.
+    Update {
+        /// The ID of the warp route on the local chain to update.
+        warp_route: WarpRouteId,
+        /// New authority that can modify the route.
+        admin: Option<Admin<S>>,
+        /// New ISM for this route.
+        ism: Option<Ism>,
     },
     /// Add a counterparty router on another chain. This router is trusted. A malicious remote router can steal funds.
     /// Each warp route can have at most one remote router for a given destination domain.
@@ -127,6 +136,15 @@ pub enum Event<S: Spec> {
         ism: Ism,
         /// The authority that can modify the route, if any.
         admin: Admin<S>,
+    },
+    /// A route was updated.
+    RouteUpdated {
+        /// The ID of the new route.
+        route_id: WarpRouteId,
+        /// New ISM for this route.
+        updated_ism: Option<Ism>,
+        /// New authority that can modify the route, if any.
+        updated_admin: Option<Admin<S>>,
     },
     /// A remote router was enrolled.
     RouterEnrolled {
@@ -191,6 +209,13 @@ where
             } => {
                 self.register(admin, token_source, ism, context, state)?;
             }
+            CallMessage::Update {
+                warp_route,
+                admin,
+                ism,
+            } => {
+                self.update(warp_route, admin, ism, context, state)?;
+            }
             CallMessage::EnrollRemoteRouter {
                 warp_route,
                 remote_domain,
@@ -250,9 +275,11 @@ impl<S: Spec> Warp<S>
 where
     S::Address: HyperlaneAddress,
 {
-    /// Create a new warp route. A warp route is a set of contracts on different chains representing a single underlying token such as ETH or SOL
+    /// Create a new warp route.
     ///
-    /// There may be many warp routes wrapping the same underlying asset, but each route only trusts other contracts that are enrolled by the route's admin.
+    /// A warp route is a set of contracts on different chains representing a single underlying token such as ETH or SOL.
+    /// There may be many warp routes wrapping the same underlying asset, but each route
+    /// only trusts other contracts that are enrolled by the route's admin.
     fn register(
         &mut self,
         admin: Admin<S>,
@@ -313,6 +340,64 @@ where
                 token_source: stored_token_kind,
                 ism,
                 admin,
+            },
+        );
+
+        Ok(())
+    }
+
+    /// Update an existing warp route.
+    ///
+    /// Can be used to transfer / drop ownership of a route or to change the ISM (e.g. changing
+    /// a list of trusted validators)
+    fn update(
+        &mut self,
+        route_id: WarpRouteId,
+        admin: Option<Admin<S>>,
+        ism: Option<Ism>,
+        context: &Context<S>,
+        state: &mut impl TxState<S>,
+    ) -> anyhow::Result<()> {
+        // Get the route that should be updated
+        let mut route = self
+            .warp_routes
+            .borrow_mut(&route_id, state)?
+            .ok_or_else(|| {
+                anyhow::anyhow!("Attepmted to change nonexistent warp route '{route_id}'")
+            })?;
+
+        anyhow::ensure!(
+            admin.is_some() || ism.is_some(),
+            "Update should contain new admin or ism"
+        );
+
+        // Check if the request is properly authorized
+        match &route.admin {
+            Admin::None => anyhow::bail!("Cannot update immutable route {}", route_id),
+            Admin::InsecureOwner(admin) => anyhow::ensure!(
+                admin == context.sender(),
+                "Cannot update route with authorization from {}. Route {} is owned by {}",
+                context.sender(),
+                route_id,
+                admin
+            ),
+        }
+
+        // Update the route
+        if let Some(admin) = admin.clone() {
+            route.admin = admin;
+        }
+        if let Some(ism) = ism.clone() {
+            route.ism = ism;
+        }
+        route.save(state)?;
+
+        self.emit_event(
+            state,
+            Event::RouteUpdated {
+                route_id,
+                updated_admin: admin,
+                updated_ism: ism,
             },
         );
 
