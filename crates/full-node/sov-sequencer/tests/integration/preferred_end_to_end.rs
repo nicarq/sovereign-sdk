@@ -489,7 +489,7 @@ async fn max_batch_size() {
 ///
 /// Since there are always new finalized blocks available, the sequencer will happily create new rollup blocks far in advance of the node, triggering the case we care about.
 #[tokio::test(flavor = "multi_thread")]
-async fn test_state_root_computation_when_blobs_are_delayed() {
+async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
     std::env::set_var("SOV_TEST_CONST_OVERRIDE_STATE_ROOT_DELAY_BLOCKS", "1");
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);

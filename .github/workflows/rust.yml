@@ -320,7 +320,7 @@ jobs:
   coverage:
     name: coverage
     runs-on:
-      - nscloud-ubuntu-22.04-amd64-8x32-with-cache
+      - nscloud-ubuntu-22.04-amd64-16x32-with-cache
       - nscloud-cache-tag-cache-coverage
       - nscloud-cache-size-100gb
     timeout-minutes: 90
