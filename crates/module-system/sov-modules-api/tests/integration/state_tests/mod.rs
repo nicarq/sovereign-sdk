@@ -3,6 +3,7 @@
 //! as it directly uses structs that should be hidden from the public API.
 
 mod archival;
+mod compute_state_update;
 mod namespaces;
 mod structs;
 

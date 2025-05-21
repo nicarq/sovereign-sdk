@@ -9,9 +9,8 @@ use derivative::Derivative;
 use jmt::KeyHash;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sha2::digest::typenum;
-use sha2::Digest;
 use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::reexports::digest::{typenum, Digest};
 #[cfg(feature = "native")]
 use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 
@@ -279,7 +278,9 @@ pub struct NodeLeaf {
 }
 
 impl NodeLeaf {
-    pub(crate) fn make_leaf<H: Digest<OutputSize = typenum::U32>>(value: &SlotValue) -> NodeLeaf {
+    // TODO: make it `pub(crate)` again after nomt integration is completed.
+    #[allow(missing_docs)]
+    pub fn make_leaf<H: Digest<OutputSize = typenum::U32>>(value: &SlotValue) -> NodeLeaf {
         let size = value.size();
         let val_hash: [u8; 32] = H::digest(value.value()).into();
         NodeLeaf { size, val_hash }

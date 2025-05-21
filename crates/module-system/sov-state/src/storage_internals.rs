@@ -7,7 +7,7 @@ use derivative::Derivative;
 use jmt::SimpleHasher;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
-use sha2::Digest;
+use sov_rollup_interface::reexports::digest::Digest;
 #[cfg(feature = "native")]
 use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 

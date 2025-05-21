@@ -28,14 +28,14 @@ sov-rollup-interface = { workspace = true }
 sov-db = { workspace = true, optional = true }
 hex = { workspace = true }
 jmt = { workspace = true }
-sha2 = { workspace = true }
-thiserror = { workspace = true }
+nomt = { workspace = true, optional = true }
 sov-metrics = { workspace = true, optional = true }
 sov-modules-macros = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
 test-strategy = { workspace = true }
+sha2 = { workspace = true }
 
 [features]
 arbitrary = [
@@ -48,10 +48,11 @@ arbitrary = [
 bench = ["sov-metrics", "sov-modules-macros/bench"]
 default = []
 native = [
-	"sov-db",
-	"sov-rollup-interface/native",
-	"sov-metrics?/native",
-	"sov-modules-macros?/native"
+    "sov-db",
+    "sov-rollup-interface/native",
+    "sov-metrics?/native",
+    "sov-modules-macros?/native",
+    "dep:nomt"
 ]
 
 test-utils = ["native"]
