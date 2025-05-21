@@ -29,6 +29,7 @@ use sov_blob_sender::{new_blob_id, BlobInternalId, BlobSender};
 use sov_blob_storage::{PreferredBatchData, PreferredProofData};
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::{BlobSelector, RollupHeight, TransactionAuthenticator};
+use sov_modules_api::macros::config_value;
 use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
@@ -1163,7 +1164,15 @@ fn next_visible_slot_number_increase<S: Spec>(
     }
 
     match delta.and_then(|delta| NonZero::new(delta.get().try_into().unwrap_or(u8::MAX))) {
-        Some(delta) => Ok(delta),
+        Some(delta) => {
+            let max_slots_to_advance = config_value!("MAX_VISIBLE_HEIGHT_INCREASE_PER_SLOT");
+            let min = std::cmp::min(
+                delta,
+                NonZero::new(max_slots_to_advance)
+                    .expect("MAX_VISIBLE_HEIGHT_INCREASE_PER_SLOT should be greater than 0"),
+            );
+            Ok(min)
+        }
         _ => Err(SequencerNotReadyDetails::WaitingOnDa {
             finalized_da_height: info.latest_finalized_slot_number.get(),
             needed_finalized_height: info
