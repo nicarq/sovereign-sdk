@@ -12,7 +12,6 @@ use std::boxed::Box;
 use std::marker::PhantomData;
 use std::num::NonZero;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -38,6 +37,7 @@ use sov_modules_api::{
     Spec, StateCheckpoint, StateUpdateInfo, SyncStatus, VersionReader, VisibleSlotNumber, *,
 };
 use sov_rest_utils::errors::database_error_500;
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
@@ -248,7 +248,6 @@ where
     da_sync_state: Arc<DaSyncState>,
     _runtime: PhantomData<Rt>,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
-    has_been_ready: AtomicBool,
     shutdown_notifier: Sender<()>,
     state_root_compute_task: StateRootBackgroundTaskState<S>,
     shutdown_receiver: watch::Receiver<()>,
@@ -466,27 +465,51 @@ where
         Ok(receipt)
     }
 
+    async fn lock_inner_once_theres_enough_finalized_slots(
+        &self,
+    ) -> Result<MutexGuard<Inner<S, Rt, Da>>, SequencerNotReadyDetails> {
+        let start = std::time::Instant::now();
+
+        while start.elapsed() < Duration::from_secs(10) {
+            let inner = self.lock_inner().await;
+
+            // We cannot accept transactions until the latest finalized slot number
+            // is AT LEAST 1. Meaning, as long as we're stuck at genesis, we can't
+            // accept any transactions.
+            //
+            // If we're still stuck at genesis, we'll wait a bit and try again.
+            //
+            // > Why not just respond with an error, and refuse transactions until
+            // > the node is ready?
+            // Because plenty of scripts, examples, and tests rely on the
+            // assumption that the sequencer is immediately ready to accept
+            // transactions. So, we cheat a little bit and wait it out, so API
+            // consumers never have to deal with such erros (that is, unless we
+            // timeout, which I'd expect will never happen if the node is
+            // healthy and indexing slots as intended).
+            if inner.latest_info.latest_finalized_slot_number == SlotNumber::GENESIS {
+                warn!("Accepting a transaction, but the node must progress beyond genesis first");
+
+                // Drop the lock and give `update_state` a chance to run while we sleep.
+                drop(inner);
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            } else {
+                return Ok(inner);
+            }
+        }
+
+        tracing::error!("Timed out while waiting for the node to progress beyond genesis. The sequencer can't accept transactions until that happens");
+
+        Err(SequencerNotReadyDetails::WaitingOnDa {
+            finalized_da_height: SlotNumber::GENESIS.get(),
+            needed_finalized_height: SlotNumber::new(1).get(),
+        })
+    }
+
     async fn lock_inner_if_ready(
         &self,
     ) -> Result<MutexGuard<Inner<S, Rt, Da>>, SequencerNotReadyDetails> {
-        let inner = self.lock_inner().await;
-
-        // On startup, we need to wait for enough finalized data to be available. In this case,
-        // we have to do a more expensive check where we check if we have a finalized slot number
-        // available.
-        if !self.has_been_ready.load(Ordering::Acquire) {
-            if inner.block_executor.has_in_progress_batch() {
-                return Ok(inner);
-            }
-
-            next_visible_slot_number_increase(
-                &inner.block_executor.checkpoint,
-                &inner.latest_info,
-                false,
-            )?;
-
-            self.has_been_ready.store(true, Ordering::Release);
-        }
+        let inner = self.lock_inner_once_theres_enough_finalized_slots().await?;
 
         if let Some(nb_of_blobs_in_flight) = inner.blob_sender_busy() {
             return Err(SequencerNotReadyDetails::WaitingOnBlobSender {
@@ -656,7 +679,6 @@ where
             _runtime: PhantomData,
             shutdown_notifier,
             config: config.clone(),
-            has_been_ready: AtomicBool::new(false),
             state_root_compute_task,
             shutdown_receiver: shutdown_receiver.clone(),
         });
