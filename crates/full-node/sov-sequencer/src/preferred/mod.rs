@@ -76,6 +76,7 @@ where
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     block_executor: RollupBlockExecutor<S, Rt>,
     batch_size_tracker: BatchSizeTracker,
+    shutdown_receiver: watch::Receiver<()>,
 }
 
 impl<S, Rt, Da> Inner<S, Rt, Da>
@@ -99,7 +100,7 @@ where
     async fn update_api_state(&self) {
         let checkpoint = self
             .block_executor
-            .checkpoint_ref()
+            .checkpoint
             .clone_with_empty_witness_dropping_temp_cache();
 
         self.checkpoint_sender.send(
@@ -122,9 +123,8 @@ where
             return Ok(Some(()));
         }
 
-        let checkpoint = self.block_executor.checkpoint_ref();
         let Ok(visible_increase) = next_visible_slot_number_increase(
-            self.block_executor.checkpoint_ref(),
+            &self.block_executor.checkpoint,
             &self.latest_info,
             leave_space_for_next_batch,
         ) else {
@@ -134,7 +134,9 @@ where
         debug!(visible_increase, "No in-progress batch, starting a new one");
 
         let node_state_root = self.node_root_hash().map_err(database_error_500)?;
-        let visible_slot_number_after_increase = checkpoint
+        let visible_slot_number_after_increase = self
+            .block_executor
+            .checkpoint
             .current_visible_slot_number()
             .advance(visible_increase.get().into());
 
@@ -155,12 +157,7 @@ where
             )
             .await;
         // If the node is shutting down, we may not be able to start the rollup block. In that case, just return early.
-        if self
-            .block_executor
-            .shutdown_receiver
-            .has_changed()
-            .unwrap_or(true)
-        {
+        if self.shutdown_receiver.has_changed().unwrap_or(true) {
             return Ok(None);
         }
 
@@ -169,15 +166,19 @@ where
 
     #[tracing::instrument(skip_all, level = "trace")]
     async fn produce_batch_if_possible(&mut self) -> anyhow::Result<Option<SubmitBatchReceipt>> {
-        let checkpoint = self.block_executor.checkpoint_ref();
-
         // Check if we have enough slots to create a new batch immediately after
         // this one. If we don't, let's not assemble a batch.
         //
         // TODO(@neysofu): this check is currently necessary but likely can be folded into
         // `try_to_create_and_start_batch_if_none_in_progress`... somehow. As of
         // right now, it's a hair too bug-prone.
-        if next_visible_slot_number_increase(checkpoint, &self.latest_info, true).is_err() {
+        if next_visible_slot_number_increase(
+            &self.block_executor.checkpoint,
+            &self.latest_info,
+            true,
+        )
+        .is_err()
+        {
             return Ok(None);
         }
 
@@ -190,18 +191,13 @@ where
         }
 
         // If the node is shutting down, we may not be able to terminate the batch. In that case, just return early.
-        if self
-            .block_executor
-            .shutdown_receiver
-            .has_changed()
-            .unwrap_or(true)
-        {
+        if self.shutdown_receiver.has_changed().unwrap_or(true) {
             return Ok(None);
         }
 
         let batch = self.db.terminate_batch().await?;
         self.batch_size_tracker = BatchSizeTracker::new(self.config.max_batch_size_bytes);
-        self.block_executor.end_rollup_block_if_in_progress().await;
+        self.block_executor.end_rollup_block().await;
 
         self.update_api_state().await;
 
@@ -484,7 +480,7 @@ where
             }
 
             next_visible_slot_number_increase(
-                inner.block_executor.checkpoint_ref(),
+                &inner.block_executor.checkpoint,
                 &inner.latest_info,
                 false,
             )?;
@@ -639,6 +635,7 @@ where
             checkpoint_sender,
             node_delta_watcher: NodeDeltaWatcher::new(config.max_allowed_node_distance_behind),
             config: config.clone(),
+            shutdown_receiver: shutdown_receiver.clone(),
             block_executor: RollupBlockExecutor::new(
                 latest_state_update.clone(),
                 Some(events_sender.clone()),
@@ -758,7 +755,7 @@ where
             .await?
             .is_none()
         {
-            panic!("No batch in progress, and no batch can be started. This is either because of (1) a bug, or (2) misuse of the `POST /sequencer/batches` endpoint. Please use automatic batch production exclusively, and report this bug if necessary. {:?} {:?}", inner.block_executor.checkpoint_ref(), inner.latest_info);
+            panic!("No batch in progress, and no batch can be started. This is either because of (1) a bug, or (2) misuse of the `POST /sequencer/batches` endpoint. Please use automatic batch production exclusively, and report this bug if necessary. {:?} {:?}", &inner.block_executor.checkpoint, inner.latest_info);
         }
 
         err_if_cant_fit_tx(&inner.batch_size_tracker, &baked_tx)?;

@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, VecDeque};
-use std::mem::replace;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -85,14 +84,16 @@ impl<S: Spec> RollupBlockExecutorError<S> {
 type StateRootReceiver<S> =
     oneshot::Receiver<(RollupHeight, <<S as Spec>::Storage as Storage>::Root)>;
 
-pub(crate) struct RollupBlockExecutor<S, Rt>
+pub struct RollupBlockExecutor<S, Rt>
 where
     S: Spec,
     Rt: Runtime<S>,
 {
+    pub checkpoint: StateCheckpoint<S>,
+    rollup_block_task_state: Option<BackgroundTaskState<S>>,
+
     next_event_number: u64,
     events_sender: Option<broadcast::Sender<SequencerEvent<Rt>>>,
-    state: InternalState<S>,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     // A sender notifying that this acceptor has successfully shut down. We give a handle to
     // each background task when it is spawned, ensuring that this channel remains open as long
@@ -101,7 +102,7 @@ where
     state_root_request_sender: tokio::sync::mpsc::Sender<StateRootComputeRequest<S>>,
     state_roots: BTreeMap<RollupHeight, <S::Storage as Storage>::Root>,
     state_root_responses: VecDeque<StateRootReceiver<S>>,
-    pub(super) shutdown_receiver: watch::Receiver<()>,
+    shutdown_receiver: watch::Receiver<()>,
     id: Uuid,
 }
 
@@ -119,14 +120,13 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         shutdown_receiver: watch::Receiver<()>,
     ) -> RollupBlockExecutor<S, Rt> {
         let mut rt = Rt::default();
-        let state = InternalState::Idle {
-            checkpoint: StateCheckpoint::new(info.storage.clone(), &rt.kernel()),
-        };
+        let checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
 
         RollupBlockExecutor {
+            checkpoint,
+            rollup_block_task_state: None,
             next_event_number: info.next_event_number,
             events_sender,
-            state,
             config,
             shutdown_notifier,
             state_root_request_sender,
@@ -138,19 +138,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     }
 
     pub fn has_in_progress_batch(&self) -> bool {
-        match &self.state {
-            InternalState::InProgressBatch { .. } => true,
-            InternalState::Idle { .. } => false,
-            InternalState::Placeholder => panic!("The sequencer contains an invalid internal state. This is a bug, please report it."),
-        }
-    }
-
-    pub fn checkpoint_ref(&self) -> &StateCheckpoint<S> {
-        match &self.state {
-            InternalState::Idle { checkpoint, .. }
-            | InternalState::InProgressBatch { checkpoint, .. } => checkpoint,
-            InternalState::Placeholder => panic!("The sequencer contains an invalid internal state. This is a bug, please report it."),
-        }
+        self.rollup_block_task_state.is_some()
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
@@ -158,17 +146,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
             return;
         }
-
-        assert!(
-            !matches!(self.state, InternalState::Placeholder),
-            "Can't `replace_state` with a placeholder state; this is a bug, please report it (other.state is {:?})",
-            other.state
-        );
-        assert!(
-            !matches!(other.state, InternalState::Placeholder),
-            "Can't `replace_state` with a placeholder state; this is a bug, please report it (self.state is {:?})",
-            self.state
-        );
 
         // The event numbers will mismatch during the very first state update,
         // which uses a placeholder state. That's expected, and we shouldn't
@@ -185,43 +162,28 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             other.id
         );
 
-        // Update our list of state roots from the other executor.
-        self.state_roots = other.state_roots;
-        self.state_root_responses = other.state_root_responses;
-
-        let current_state = replace(&mut self.state, InternalState::Placeholder);
-        if let InternalState::InProgressBatch { task_state, .. } = current_state {
+        if let Some(task_state) = self.rollup_block_task_state.take() {
             task_state.shutdown().abort();
         }
 
-        self.state = other.state;
+        self.checkpoint = other.checkpoint;
+        self.rollup_block_task_state = other.rollup_block_task_state;
         self.next_event_number = other.next_event_number;
+
+        // Update our list of state roots from the other executor.
+        self.state_roots = other.state_roots;
+        self.state_root_responses = other.state_root_responses;
     }
 
     /// Calls to this method must happen "between"
     /// [`Self::start_rollup_block`] and
-    /// [`Self::end_rollup_block_if_in_progress`].
+    /// [`Self::end_rollup_block`].
     #[tracing::instrument(skip_all, level = "trace")]
     pub async fn apply_tx_to_in_progress_batch(
         &mut self,
         baked_tx: &FullyBakedTx,
     ) -> Result<TxReceiptWithEvents<S, Rt>, RollupBlockExecutorError<S>> {
-        let InternalState::InProgressBatch {
-            mut checkpoint,
-            mut task_state,
-        } = replace(&mut self.state, InternalState::Placeholder)
-        else {
-            panic!("Accepting a transaction, yet there's no in-progress batch ({:?}). This is a bug in the sequencer, please report it.", self.state);
-        };
-
-        let result = self
-            .apply_tx_to_in_progress_batch_inner(baked_tx, &mut checkpoint, &mut task_state)
-            .await;
-
-        self.state = InternalState::InProgressBatch {
-            checkpoint,
-            task_state,
-        };
+        let result = self.apply_tx_to_in_progress_batch_inner(baked_tx).await;
 
         result.map(|r| {
             let events = self.process_tx_receipt(&r);
@@ -232,9 +194,11 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     async fn apply_tx_to_in_progress_batch_inner(
         &mut self,
         baked_tx: &FullyBakedTx,
-        checkpoint: &mut StateCheckpoint<S>,
-        task_state: &mut BackgroundTaskState<S>,
     ) -> Result<TransactionReceipt<S>, RollupBlockExecutorError<S>> {
+        let Some(task_state) = self.rollup_block_task_state.as_mut() else {
+            panic!("Accepting a transaction, yet there's no in-progress batch. This is a bug in the sequencer, please report it.");
+        };
+
         let call = Rt::Auth::decode_serialized_tx(baked_tx)?;
         let call = Rt::wrap_call(call);
 
@@ -258,7 +222,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             return Err(RollupBlockExecutorError::UnsuccessfulTransaction { receipt });
         }
 
-        checkpoint.apply_changes(change_set.0);
+        self.checkpoint.apply_changes(change_set.0);
 
         Ok(receipt)
     }
@@ -271,9 +235,9 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         node_state_root: &<S::Storage as Storage>::Root,
     ) -> anyhow::Result<bool> {
         assert!(
-            matches!(self.state, InternalState::Idle { .. }),
+            self.rollup_block_task_state.is_none(),
             "Replaying a preferred batch, but the state is invalid and doesn't allow it ({:?}). This is a bug, please report it.",
-            self.state
+            self.rollup_block_task_state
         );
 
         trace!(
@@ -336,7 +300,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         trace!("Done replaying txs");
 
         if !batch.is_in_progress {
-            self.end_rollup_block_if_in_progress().await;
+            self.end_rollup_block().await;
         } else {
             trace!("The batch is still in progress; will keep the background task running");
         }
@@ -354,66 +318,33 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         node_state_root: &<S::Storage as Storage>::Root,
         minimum_profit_per_tx: u128,
     ) {
+        assert!(
+            self.rollup_block_task_state.is_none(),
+            "Starting a rollup block, but there's already one in progress {:?}. This is a bug, please report it.",
+            self.rollup_block_task_state
+        );
+
         // If we've started shutting down, don't start a new block.
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
             tracing::info!("Shutdown receiver has changed. New block not started");
             return;
         }
-        self.start_rollup_block_inner(
-            sanity_check_visible_slot_number_after_increase,
-            visible_increase,
-            node_state_root,
-            minimum_profit_per_tx,
-        )
-        .await;
-
-        // If we've started shutting down since last time we checked, the assertion may not hold. In that case, we'll just return early.
-        if self.shutdown_receiver.has_changed().unwrap_or(true) {
-            return;
-        }
-
-        // Just a sanity check.
-        assert!(
-            matches!(self.state, InternalState::InProgressBatch { .. }),
-            "We just started a rollup block, but the state is not as expected ({:?}). This is a bug, please report it",
-            self.state,
-        );
-    }
-
-    #[tracing::instrument(skip_all, level = "trace")]
-    async fn start_rollup_block_inner(
-        &mut self,
-        sanity_check_visible_slot_number_after_increase: VisibleSlotNumber,
-        visible_increase: VisibleSlotNumberIncrease,
-        node_state_root: &<S::Storage as Storage>::Root,
-        minimum_profit_per_tx: u128,
-    ) {
-        let InternalState::Idle { mut checkpoint } =
-            replace(&mut self.state, InternalState::Placeholder)
-        else {
-            panic!(
-                "Unexpected sequencer state ({:?}), can't begin a new rollup block. This is a bug, please report it.",
-                self.state
-            );
-        };
 
         trace!(
-            ?checkpoint,
+            ?self.checkpoint,
             %visible_increase,
             "Beginning new rollup block and spawning background loop"
         );
 
-        self.populate_state_roots(&mut checkpoint, node_state_root)
-            .await;
+        self.populate_state_roots(node_state_root).await;
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
-            // TODO https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2898
-            self.state = InternalState::Idle { checkpoint };
             tracing::info!("Shutdown receiver has changed. New block not started");
             return;
         }
 
-        let old_visible_slot_number = checkpoint.current_visible_slot_number();
-        let next_visible_slot_number = checkpoint
+        let old_visible_slot_number = self.checkpoint.current_visible_slot_number();
+        let next_visible_slot_number = self
+            .checkpoint
             .current_visible_slot_number()
             .advance(visible_increase.get().into());
 
@@ -429,7 +360,9 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
         let handle = tokio::runtime::Handle::current().spawn_blocking({
             let ctx = RollupBlockTaskContext {
-                checkpoint: checkpoint.clone_with_empty_witness_dropping_temp_cache(),
+                checkpoint: self
+                    .checkpoint
+                    .clone_with_empty_witness_dropping_temp_cache(),
                 tx_receiver,
                 setup_sender,
                 old_visible_slot_number,
@@ -437,7 +370,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                 visible_increase,
                 result_sender,
                 shutdown_notifier: self.shutdown_notifier.clone(),
-                old_rollup_height: checkpoint.rollup_height_to_access(),
+                old_rollup_height: self.checkpoint.rollup_height_to_access(),
                 minimum_profit_per_tx,
                 admin_addresses: self.config.admin_addresses.clone().into(),
                 sequencer_rollup_address: self.config.rollup_address.clone(),
@@ -459,30 +392,16 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                 );
             trace!("Applied setup changes");
 
-            checkpoint.apply_changes(setup_changes);
-            checkpoint.advance_visible_slot_number(visible_increase);
+            self.checkpoint.apply_changes(setup_changes);
+            self.checkpoint
+                .advance_visible_slot_number(visible_increase);
         }
 
-        self.state = InternalState::InProgressBatch {
-            checkpoint,
-            task_state: BackgroundTaskState {
-                handle,
-                tx_sender,
-                result_receiver,
-            },
-        };
-    }
-
-    #[tracing::instrument(skip_all, level = "trace")]
-    pub(crate) async fn end_rollup_block_if_in_progress(&mut self) {
-        self.end_rollup_block_if_in_progress_inner().await;
-
-        // Just a sanity check.
-        assert!(
-            matches!(self.state, InternalState::Idle { .. }),
-            "Just ended a rollup block, but the state is not as expected ({:?}). This is a bug, please report it.",
-            self.state
-        );
+        self.rollup_block_task_state = Some(BackgroundTaskState {
+            handle,
+            tx_sender,
+            result_receiver,
+        });
     }
 
     fn process_tx_receipt(
@@ -519,24 +438,20 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
     /// Before starting a rollup block, we need to have stored any visible state roots that it might need in state.
     /// In the node, this is done automatically, but sometimes the sequencer can run too far ahead of the node and need to compute these roots itself.
-    async fn populate_state_roots(
-        &mut self,
-        checkpoint: &mut StateCheckpoint<S>,
-        node_state_root: &<S::Storage as Storage>::Root,
-    ) {
+    async fn populate_state_roots(&mut self, node_state_root: &<S::Storage as Storage>::Root) {
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
             return;
         }
         // If we don't have any state roots yet, insert the node's state root. That's our starting point.
         if self.state_roots.is_empty() {
             self.state_roots.insert(
-                checkpoint.rollup_height_to_access(),
+                self.checkpoint.rollup_height_to_access(),
                 node_state_root.clone(),
             );
         }
 
         // Compute the next visible root height that we need to fetch.
-        let next_rollup_height = checkpoint.rollup_height_to_access().saturating_add(1);
+        let next_rollup_height = self.checkpoint.rollup_height_to_access().saturating_add(1);
         let next_visible_root_height =
             next_rollup_height.saturating_sub(config_value!("STATE_ROOT_DELAY_BLOCKS"));
         tracing::trace!(
@@ -589,30 +504,22 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             let user_root = root.namespace_root(sov_state::ProvableNamespace::User);
             let mut runtime = Rt::default();
             let mut kernel = runtime.kernel();
-            let mut kernel_state = KernelStateAccessor::from_checkpoint(&kernel, checkpoint);
+            let mut kernel_state =
+                KernelStateAccessor::from_checkpoint(&kernel, &mut self.checkpoint);
             kernel.save_user_state_root(*height, user_root, &mut kernel_state);
         }
     }
 
-    async fn end_rollup_block_if_in_progress_inner(&mut self) {
+    #[tracing::instrument(skip_all, level = "trace")]
+    pub async fn end_rollup_block(&mut self) {
         trace!("Ending rollup block");
 
-        let (mut checkpoint, task_state) =
-            match replace(&mut self.state, InternalState::Placeholder) {
-                InternalState::InProgressBatch {
-                    checkpoint,
-                    task_state,
-                } => (checkpoint, task_state),
-                other => {
-                    // Restore previous state.
-                    self.state = other;
+        let task_state = self
+            .rollup_block_task_state
+            .take()
+            .expect("No in-progress rollup block, nothing to do. This is a bug, please report it");
 
-                    trace!("No in-progress rollup block, nothing to do");
-                    return;
-                }
-            };
-
-        let rollup_height = checkpoint.rollup_height_to_access();
+        let rollup_height = self.checkpoint.rollup_height_to_access();
         let (batch_receipts, changes, state_accesses, witness) =
             task_state.shutdown().await.expect(
                 "Transaction acceptor task failed unexpectedly! This is a bug, please report it.",
@@ -638,7 +545,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             .send(StateRootComputeRequest {
                 state_accesses,
                 witness,
-                storage: checkpoint.storage().clone(),
+                storage: self.checkpoint.storage().clone(),
                 rollup_height,
                 response_channel,
             })
@@ -648,31 +555,10 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             tracing::info!(executor_id = %self.id, "State root computation background task has shutdown. State root will not be computed.");
         }
 
-        checkpoint.apply_changes(changes);
-
-        self.state = InternalState::Idle { checkpoint };
+        self.checkpoint.apply_changes(changes);
 
         trace!("Successfully ended rollup block");
     }
-}
-
-#[derive(derive_more::Debug)]
-#[debug(bounds())]
-enum InternalState<S: Spec> {
-    /// Invalid state, used when we need to temporarily own the
-    /// [`StateCheckpoint`].
-    Placeholder,
-    /// The [`Sequencer`] is currently idle and is not processing
-    /// transactions for the next rollup block yet.
-    Idle { checkpoint: StateCheckpoint<S> },
-    /// The [`Sequencer`] is currently accepting transactions from the
-    /// preferred batch of a rollup block. Note that every rollup block
-    /// (under normal operations, not e.g. in recovery mode) has exactly one
-    /// preferred batch.
-    InProgressBatch {
-        checkpoint: StateCheckpoint<S>,
-        task_state: BackgroundTaskState<S>,
-    },
 }
 
 #[derive(Debug)]
