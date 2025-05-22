@@ -560,7 +560,7 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn seq_back_pressure() {
+async fn flaky_seq_back_pressure() {
     let (test_rollup, admin) = create_test_rollup(0, TEST_MAX_BATCH_SIZE).await;
 
     let Some(test_rollup) = test_rollup else {

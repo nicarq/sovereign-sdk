@@ -90,7 +90,9 @@ impl Client {
         let backoff = ExponentialBuilder::default()
             .with_factor(1.5)
             .with_min_delay(Duration::from_millis(200))
-            .with_max_times(100);
+            .with_max_times(30)
+            // With max delay of 15 seconds, the maximal total waiting time is going to be a little bit more than 5 minutes
+            .with_max_delay(Duration::from_secs(15));
         let tx = types::AcceptTxBody { body: tx_b64 };
         let client = self.clone();
         let fut = || async { client.accept_tx(&tx).await };
