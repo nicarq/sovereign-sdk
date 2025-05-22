@@ -421,7 +421,7 @@ async fn max_batch_size() {
             .unwrap_err();
 
         let error_str = resp.to_string();
-        assert!(error_str.contains("Transaction cannot be included in the batch."));
+        assert!(error_str.contains("Transaction cannot be included in the batch"));
     }
 
     sleep(Duration::from_millis(200)).await;

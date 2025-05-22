@@ -110,10 +110,8 @@ impl From<PreferredSequencerReadBatch> for WithCachedTxHashes<PreferredBatchData
 pub enum PreferredSequencerReadBlob {
     Batch(PreferredSequencerReadBatch),
     Proof {
-        #[allow(dead_code)] // TODO(@neysofu): use it to re-submit blobs upon sequencer restart.
         blob_id: BlobInternalId,
         sequence_number: SequenceNumber,
-        #[allow(dead_code)]
         data: Arc<[u8]>,
     },
 }

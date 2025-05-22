@@ -2,11 +2,9 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use axum::extract::ws::WebSocket;
-use axum::extract::{ws, Request, State, WebSocketUpgrade};
-use axum::http::StatusCode;
-use axum::middleware::Next;
-use axum::response::{IntoResponse, Response};
-use axum::{middleware, Json};
+use axum::extract::{ws, State, WebSocketUpgrade};
+use axum::response::IntoResponse;
+use axum::Json;
 use futures::{StreamExt, TryStreamExt};
 use serde_with::base64::Base64;
 use serde_with::serde_as;
@@ -14,8 +12,7 @@ use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::runtime::Runtime;
 use sov_modules_api::RawTx;
 use sov_rest_utils::{
-    errors, preconfigured_router_layers, serve_generic_ws_subscription, to_json_object, ApiResult,
-    ErrorObject, Path,
+    errors, preconfigured_router_layers, serve_generic_ws_subscription, ApiResult, Path,
 };
 use sov_rollup_interface::da::{DaBlobHash, DaSpec};
 use sov_rollup_interface::node::da::DaService;
@@ -23,8 +20,8 @@ use sov_rollup_interface::TxHash;
 use tokio::sync::watch::Receiver;
 use tokio_stream::wrappers::BroadcastStream;
 
-use crate::common::Sequencer;
-use crate::{SequencerNotReadyDetails, TxStatus};
+use crate::common::{error_not_fully_synced, Sequencer};
+use crate::TxStatus;
 
 /// Provides REST APIs for any [`Sequencer`]. See [`SequencerApis::rest_api_server`].
 #[derive(derivative::Derivative)]
@@ -41,36 +38,25 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
             sequencer: seq,
             shutdown_receiver,
         };
-        let routes_that_require_synced_node = axum::Router::new()
-            .route("/txs", axum::routing::post(Self::axum_accept_tx))
-            .with_state(state.clone())
-            .layer(middleware::from_fn_with_state(
-                state.clone(),
-                Self::ready_middleware,
-            ));
-        let routes_always_available = axum::Router::new()
-            .route("/ready", axum::routing::get(Self::axum_get_ready))
-            .route("/txs/:tx_hash", axum::routing::get(Self::axum_get_tx))
-            .route("/txs/:tx_hash/ws", axum::routing::get(Self::axum_get_tx_ws))
-            .route("/events/ws", axum::routing::get(Self::subscribe_to_events))
-            .with_state(state.clone());
 
-        preconfigured_router_layers(
-            axum::Router::new()
-                .nest("/sequencer", routes_that_require_synced_node)
-                .nest("/sequencer", routes_always_available),
-        )
-    }
+        let router = axum::Router::new()
+            .route("/sequencer/txs", axum::routing::post(Self::axum_accept_tx))
+            .route("/sequencer/ready", axum::routing::get(Self::axum_get_ready))
+            .route(
+                "/sequencer/txs/:tx_hash",
+                axum::routing::get(Self::axum_get_tx),
+            )
+            .route(
+                "/sequencer/txs/:tx_hash/ws",
+                axum::routing::get(Self::axum_get_tx_ws),
+            )
+            .route(
+                "/sequencer/events/ws",
+                axum::routing::get(Self::subscribe_to_events),
+            )
+            .with_state(state);
 
-    async fn ready_middleware(
-        State(state): State<Self>,
-        request: Request,
-        next: Next,
-    ) -> Result<Response, Response> {
-        match state.sequencer.is_ready().await {
-            Ok(()) => Ok(next.run(request).await),
-            Err(details) => Err(error_not_fully_synced(details).into_response()),
-        }
+        preconfigured_router_layers(router)
     }
 
     async fn send_initial_status_to_ws(
@@ -211,26 +197,6 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
                 .unwrap_or_else(|| futures::stream::empty().boxed());
             serve_generic_ws_subscription(socket, stream, state.shutdown_receiver.clone()).await;
         })
-    }
-}
-
-fn error_not_fully_synced(details: SequencerNotReadyDetails) -> ErrorObject {
-    let summary = match details {
-        SequencerNotReadyDetails::Syncing { .. } => "The node is not fully synced with the DA head",
-        SequencerNotReadyDetails::WaitingOnDa { .. } => {
-            "The sequencer is waiting for the DA to finalize more blocks"
-        }
-        SequencerNotReadyDetails::WaitingOnNode { .. } => {
-            "The sequencer is waiting for the node to process more blocks"
-        }
-        SequencerNotReadyDetails::WaitingOnBlobSender { .. } => {
-            "The sequencer is waiting for the blob sender to be ready"
-        }
-    };
-    ErrorObject {
-        status: StatusCode::SERVICE_UNAVAILABLE,
-        title: format!("{summary}; No new transactions can be accepted, try again later"),
-        details: to_json_object(details),
     }
 }
 

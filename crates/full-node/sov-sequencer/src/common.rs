@@ -16,7 +16,7 @@ use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::*;
 use sov_modules_stf_blueprint::{PreExecError, Runtime};
-use sov_rest_utils::json_obj;
+use sov_rest_utils::{json_obj, to_json_object};
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::{ItemOrHash, LedgerStateProvider, QueryMode};
 use sov_rollup_interface::node::{future_or_shutdown, DaSyncState, FutureOrShutdownOutput};
@@ -359,6 +359,26 @@ pub fn generic_accept_tx_error(details: impl std::fmt::Debug) -> ErrorObject {
         details: json_obj!({
             "message": format!("{:?}", details)
         }),
+    }
+}
+
+pub fn error_not_fully_synced(details: SequencerNotReadyDetails) -> ErrorObject {
+    let summary = match details {
+        SequencerNotReadyDetails::Syncing { .. } => "The node is not fully synced with the DA head",
+        SequencerNotReadyDetails::WaitingOnDa { .. } => {
+            "The sequencer is waiting for the DA to finalize more blocks"
+        }
+        SequencerNotReadyDetails::WaitingOnNode { .. } => {
+            "The sequencer is waiting for the node to process more blocks"
+        }
+        SequencerNotReadyDetails::WaitingOnBlobSender { .. } => {
+            "The sequencer is waiting for the blob sender to be ready"
+        }
+    };
+    ErrorObject {
+        status: StatusCode::SERVICE_UNAVAILABLE,
+        title: format!("{summary}; No new transactions can be accepted, try again later"),
+        details: to_json_object(details),
     }
 }
 

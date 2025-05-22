@@ -4,13 +4,15 @@ mod async_batch;
 mod batch_size_tracker;
 mod block_executor;
 mod db;
+mod node_delta_watcher;
+mod preferred_blob_sender;
 mod state_root_compute;
 
 use std::boxed::Box;
 use std::marker::PhantomData;
 use std::num::NonZero;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -19,30 +21,27 @@ use axum::http::StatusCode;
 use batch_size_tracker::BatchSizeTracker;
 use db::postgres::PostgresBackend;
 use db::rocksdb::RocksDbBackend;
-use db::{
-    PreferredSequencerDb, PreferredSequencerDbBackend, PreferredSequencerReadBatch,
-    PreferredSequencerReadBlob,
-};
+use db::{PreferredSequencerDb, PreferredSequencerDbBackend, PreferredSequencerReadBlob};
+use node_delta_watcher::NodeDeltaWatcher;
+use preferred_blob_sender::PreferredBlobSender;
 use schemars::JsonSchema;
 use serde_with::serde_as;
-use sov_blob_sender::{new_blob_id, BlobInternalId, BlobSender};
-use sov_blob_storage::{PreferredBatchData, PreferredProofData};
+use sov_blob_sender::{new_blob_id, BlobSender};
+use sov_blob_storage::PreferredBatchData;
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::{BlobSelector, RollupHeight, TransactionAuthenticator};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
-    ApiTxEffect, ChangeSet, FullyBakedTx, RejectReason, Runtime, RuntimeEventProcessor,
-    RuntimeEventResponse, Spec, StateCheckpoint, StateUpdateInfo, SyncStatus, TransactionReceipt,
-    TxChangeSet, VersionReader, VisibleSlotNumber, *,
+    ApiTxEffect, FullyBakedTx, RejectReason, Runtime, RuntimeEventProcessor, RuntimeEventResponse,
+    Spec, StateCheckpoint, StateUpdateInfo, SyncStatus, VersionReader, VisibleSlotNumber, *,
 };
-use sov_modules_stf_blueprint::BatchReceipt;
 use sov_rest_utils::errors::database_error_500;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
-use sov_state::{NativeStorage, StateAccesses, Storage};
+use sov_state::{NativeStorage, Storage};
 use state_root_compute::StateRootBackgroundTaskState;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::{broadcast, watch, Mutex, MutexGuard};
@@ -50,8 +49,8 @@ use tokio::task::JoinHandle;
 use tracing::{debug, error, trace, warn, Instrument};
 
 use crate::common::{
-    generic_accept_tx_error, loop_call_update_state, loop_send_tx_notifications, AcceptedTx,
-    Sequencer, TxStatusBlobSenderHooks, WithCachedTxHashes,
+    error_not_fully_synced, generic_accept_tx_error, loop_call_update_state,
+    loop_send_tx_notifications, AcceptedTx, Sequencer, TxStatusBlobSenderHooks, WithCachedTxHashes,
 };
 use crate::metrics::{track_in_progress_batch_size, PreferredSequencerUpdateStateMetrics};
 use crate::preferred::block_executor::{RollupBlockExecutor, RollupBlockExecutorError};
@@ -72,7 +71,8 @@ where
     db: PreferredSequencerDb<S, Rt>,
     latest_info: StateUpdateInfo<S::Storage>,
     checkpoint_sender: watch::Sender<StateCheckpoint<S>>,
-    blob_sender: BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>>,
+    blob_sender: PreferredBlobSender<Da>,
+    node_delta_watcher: NodeDeltaWatcher,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     block_executor: RollupBlockExecutor<S, Rt>,
     batch_size_tracker: BatchSizeTracker,
@@ -85,18 +85,25 @@ where
     Da: DaService<Spec = S::Da>,
 {
     fn blob_sender_busy(&self) -> Option<usize> {
-        let nb_of_blobs_in_flight = self.blob_sender.nb_of_concurrent_blob_submissions();
-        if nb_of_blobs_in_flight > self.config.max_concurrent_blobs {
-            return Some(nb_of_blobs_in_flight);
+        let num_current_in_flight = self.blob_sender.nb_of_concurrent_blob_submissions();
+
+        if num_current_in_flight > self.config.max_concurrent_blobs {
+            Some(num_current_in_flight)
+        } else {
+            None
         }
-        None
     }
 
     /// Syncs [`ApiState`]s with the latest [`StateCheckpoint`].
     #[tracing::instrument(skip_all, level = "trace")]
     async fn update_api_state(&self) {
+        let checkpoint = self
+            .block_executor
+            .checkpoint_ref()
+            .clone_with_empty_witness_dropping_temp_cache();
+
         self.checkpoint_sender.send(
-            self.block_executor.state().checkpoint_ref().clone_with_empty_witness_dropping_temp_cache()
+            checkpoint
         ).expect("sending the checkpoint should never fail because one receiver is always present; this is a bug, please report it");
     }
 
@@ -111,14 +118,13 @@ where
         &mut self,
         leave_space_for_next_batch: bool,
     ) -> Result<Option<()>, ErrorObject> {
-        let checkpoint = match &self.block_executor.state() {
-            InternalState::Idle { checkpoint, .. } => checkpoint,
-            InternalState::InProgressBatch { .. } => return Ok(Some(())),
-            InternalState::Placeholder => panic!("The sequencer contains an invalid internal state. This is a bug, please report it."),
-        };
+        if self.block_executor.has_in_progress_batch() {
+            return Ok(Some(()));
+        }
 
+        let checkpoint = self.block_executor.checkpoint_ref();
         let Ok(visible_increase) = next_visible_slot_number_increase(
-            checkpoint,
+            self.block_executor.checkpoint_ref(),
             &self.latest_info,
             leave_space_for_next_batch,
         ) else {
@@ -163,7 +169,7 @@ where
 
     #[tracing::instrument(skip_all, level = "trace")]
     async fn produce_batch_if_possible(&mut self) -> anyhow::Result<Option<SubmitBatchReceipt>> {
-        let checkpoint = self.block_executor.state().checkpoint_ref();
+        let checkpoint = self.block_executor.checkpoint_ref();
 
         // Check if we have enough slots to create a new batch immediately after
         // this one. If we don't, let's not assemble a batch.
@@ -205,7 +211,7 @@ where
             .hooks()
             .add_txs(batch.blob_id, tx_hashes.clone())
             .await;
-        self.publish_batch(batch).await?;
+        self.blob_sender.publish_batch(batch).await?;
 
         track_in_progress_batch_size(
             self.db
@@ -215,89 +221,6 @@ where
         );
 
         Ok(Some(SubmitBatchReceipt { tx_hashes }))
-    }
-
-    async fn publish_proof(
-        &mut self,
-        proof_data: Arc<[u8]>,
-        sequence_number: u64,
-        blob_id: BlobInternalId,
-    ) -> anyhow::Result<()> {
-        let blob = PreferredProofData {
-            sequence_number,
-            data: proof_data.to_vec(),
-        };
-        let blob_bytes = Arc::from(borsh::to_vec(&blob)?);
-
-        debug!(
-            sequence_number,
-            blob_id, "Dispatching proof blob for publishing"
-        );
-
-        self.blob_sender
-            .publish_proof_blob(blob_bytes, blob_id)
-            .await?;
-
-        Ok(())
-    }
-
-    async fn publish_batch(&mut self, batch: PreferredSequencerReadBatch) -> anyhow::Result<()> {
-        let serialized_batch = borsh::to_vec::<PreferredBatchData>(&PreferredBatchData {
-            sequence_number: batch.sequence_number,
-            visible_slots_to_advance: batch.visible_slots_to_advance,
-            data: batch.txs,
-        })?
-        .into();
-
-        self.blob_sender
-            .publish_batch_blob(serialized_batch, batch.blob_id)
-            .await?;
-
-        Ok(())
-    }
-
-    async fn publish_blobs(
-        &mut self,
-        completed_blobs: Vec<PreferredSequencerReadBlob>,
-    ) -> anyhow::Result<()> {
-        for blob in completed_blobs {
-            match blob {
-                PreferredSequencerReadBlob::Batch(batch) => {
-                    self.publish_batch(batch).await?;
-                }
-                PreferredSequencerReadBlob::Proof {
-                    data,
-                    sequence_number,
-                    blob_id,
-                } => {
-                    self.publish_proof(data, sequence_number, blob_id).await?;
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn err_if_cant_fit_tx(&self, tx: &FullyBakedTx) -> Result<(), ErrorObject> {
-        if !self.batch_size_tracker.can_fit_tx(tx.data.len()) {
-            return Err(ErrorObject {
-                status: StatusCode::SERVICE_UNAVAILABLE,
-                title: "Transaction cannot be included in the batch.".to_string(),
-                details: sov_rest_utils::json_obj!({
-                    "message": format!("The transaction is too large.
-                            Serialized transaction size: {}, 
-                            current batch size: {}, 
-                            and batch size limit: {}."
-                        ,
-                    BatchSizeTracker::serialized_tx_size(tx.data.len()),
-                    self.batch_size_tracker.current_batch_size,
-                    self.batch_size_tracker.max_batch_size,
-                )
-                }),
-            });
-        }
-
-        Ok(())
     }
 
     async fn trigger_batch_production(&mut self, da_sync_status: SyncStatus) -> anyhow::Result<()> {
@@ -312,80 +235,6 @@ where
         }
 
         Ok(())
-    }
-}
-
-#[derive(derive_more::Debug)]
-#[debug(bounds())]
-enum InternalState<S: Spec> {
-    /// Invalid state, used when we need to temporarily own the
-    /// [`StateCheckpoint`].
-    Placeholder,
-    /// The [`Sequencer`] is currently idle and is not processing
-    /// transactions for the next rollup block yet.
-    Idle { checkpoint: StateCheckpoint<S> },
-    /// The [`Sequencer`] is currently accepting transactions from the
-    /// preferred batch of a rollup block. Note that every rollup block
-    /// (under normal operations, not e.g. in recovery mode) has exactly one
-    /// preferred batch.
-    InProgressBatch {
-        checkpoint: StateCheckpoint<S>,
-        task_state: BackgroundTaskState<S>,
-    },
-}
-
-impl<S: Spec> InternalState<S> {
-    fn node(info: &StateUpdateInfo<S::Storage>, runtime: &mut impl Runtime<S>) -> Self {
-        let checkpoint = StateCheckpoint::new(info.storage.clone(), &runtime.kernel());
-
-        InternalState::Idle { checkpoint }
-    }
-
-    pub fn checkpoint_ref(&self) -> &StateCheckpoint<S> {
-        match self {
-            InternalState::Idle { checkpoint, .. }
-            | InternalState::InProgressBatch { checkpoint, .. } => checkpoint,
-            InternalState::Placeholder => panic!("The sequencer contains an invalid internal state. This is a bug, please report it."),
-        }
-    }
-}
-
-struct NodeDeltaWatcher {
-    sequencer_slot_number: AtomicU64,
-    node_slot_number: AtomicU64,
-    max_delta: u64,
-}
-
-impl NodeDeltaWatcher {
-    fn new(max_delta: u64) -> Self {
-        Self {
-            // The height fields are initialized by the
-            // `update_state()` call when first initializing the sequencer
-            sequencer_slot_number: 0.into(),
-            node_slot_number: 0.into(),
-            max_delta,
-        }
-    }
-
-    fn check_delta(&self) -> Result<(), SequencerNotReadyDetails> {
-        let node_slot_number = self.node_slot_number.load(Ordering::Acquire);
-        let sequencer_slot_number = self.sequencer_slot_number.load(Ordering::Acquire);
-
-        let delta = match sequencer_slot_number.checked_sub(node_slot_number) {
-            Some(diff) => diff,
-            None => return Ok(()),
-        };
-
-        if delta >= self.max_delta {
-            Err(SequencerNotReadyDetails::WaitingOnNode {
-                current_node_slot_number: node_slot_number,
-                current_sequencer_slot_number: sequencer_slot_number,
-                current_delta: delta,
-                max_allowed_delta: self.max_delta,
-            })
-        } else {
-            Ok(())
-        }
     }
 }
 
@@ -404,7 +253,6 @@ where
     _runtime: PhantomData<Rt>,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     has_been_ready: AtomicBool,
-    node_delta_watcher: NodeDeltaWatcher,
     shutdown_notifier: Sender<()>,
     state_root_compute_task: StateRootBackgroundTaskState<S>,
     shutdown_receiver: watch::Receiver<()>,
@@ -429,11 +277,11 @@ where
     async fn replay_soft_confirmations_on_top_of_node_state(
         &self,
         info: &StateUpdateInfo<S::Storage>,
+        is_visible_state_expected_to_match: bool,
     ) -> anyhow::Result<(MutexGuard<Inner<S, Rt, Da>>, SoftConfirmationsReplayReceipt)> {
         let batches_to_process = {
             // We gotta briefly lock to access the database, but release the lock ASAP.
             let mut inner = self.lock_inner().await;
-
             batches_to_process(&mut inner.db, info).await?
         };
 
@@ -461,10 +309,8 @@ where
         }
 
         // Now that we're not locking on the sequencer state anymore, we can replay all the batches.
-
         let mut executor = RollupBlockExecutor::<_, Rt>::new(
-            InternalState::node(info, &mut Rt::default()),
-            info.next_event_number,
+            info.clone(),
             None, // We don't re-send events when replaying batches in the background.
             self.config.clone(),
             self.shutdown_notifier.clone(),
@@ -519,11 +365,10 @@ where
             // It was started by accept_tx, lets add it to our state
             (_, Some(in_progress_batch)) => {
                 trace!("Replaying batch that was initialized while updating node state");
-                let batch = PreferredBatchToRestore {
+                let batch = PreferredBatchToReplay {
                     is_in_progress: true,
                     visible_slot_number_after_increase: in_progress_batch
                         .visible_slot_number_after_increase,
-                    blob_id: in_progress_batch.blob_id,
                     batch: in_progress_batch.into(),
                 };
                 let node_root = inner.node_root_hash()?;
@@ -544,7 +389,10 @@ where
         };
 
         trace!("Node state update complete, swapping new state into sequencer");
-        inner.block_executor.replace_state(executor, true).await;
+        inner
+            .block_executor
+            .replace_state(executor, is_visible_state_expected_to_match)
+            .await;
 
         Ok((
             inner,
@@ -558,6 +406,7 @@ where
     async fn replay_soft_confirmations_if_necessary(
         &self,
         info: StateUpdateInfo<S::Storage>,
+        is_visible_state_expected_to_match: bool,
     ) -> anyhow::Result<SoftConfirmationsReplayReceipt> {
         let is_necessary = !is_node_state_fresher_than_sequencer_state::<S, Rt>(
             self.api_state
@@ -568,12 +417,14 @@ where
         .await?;
 
         let (mut inner, receipt) = if is_necessary {
-            self.replay_soft_confirmations_on_top_of_node_state(&info)
-                .await?
+            self.replay_soft_confirmations_on_top_of_node_state(
+                &info,
+                is_visible_state_expected_to_match,
+            )
+            .await?
         } else {
             let executor = RollupBlockExecutor::<_, Rt>::new(
-                InternalState::node(&info, &mut Rt::default()),
-                info.next_event_number,
+                info.clone(),
                 None, // We don't re-send events when replaying batches in the background.
                 self.config.clone(),
                 self.shutdown_notifier.clone(),
@@ -603,6 +454,9 @@ where
             )
         };
 
+        inner.node_delta_watcher.node_slot_number = info.slot_number;
+        inner.node_delta_watcher.sequencer_slot_number = info.slot_number;
+
         inner.latest_info = info;
         inner.update_api_state().await;
         trace!("Sequencer state update completed successfully");
@@ -614,6 +468,58 @@ where
         }
 
         Ok(receipt)
+    }
+
+    async fn lock_inner_if_ready(
+        &self,
+    ) -> Result<MutexGuard<Inner<S, Rt, Da>>, SequencerNotReadyDetails> {
+        let inner = self.lock_inner().await;
+
+        // On startup, we need to wait for enough finalized data to be available. In this case,
+        // we have to do a more expensive check where we check if we have a finalized slot number
+        // available.
+        if !self.has_been_ready.load(Ordering::Acquire) {
+            if inner.block_executor.has_in_progress_batch() {
+                return Ok(inner);
+            }
+
+            next_visible_slot_number_increase(
+                inner.block_executor.checkpoint_ref(),
+                &inner.latest_info,
+                false,
+            )?;
+
+            self.has_been_ready.store(true, Ordering::Release);
+        }
+
+        if let Some(nb_of_blobs_in_flight) = inner.blob_sender_busy() {
+            return Err(SequencerNotReadyDetails::WaitingOnBlobSender {
+                max_concurrent_blobs: self.config.max_concurrent_blobs,
+                nb_of_blobs_in_flight,
+            });
+        }
+
+        inner.node_delta_watcher.check_delta()?;
+
+        let status = self.da_sync_state.status();
+
+        match status {
+            SyncStatus::Synced { .. } => Ok(inner),
+            SyncStatus::Syncing {
+                synced_da_height,
+                target_da_height,
+            } => {
+                let distance = status.distance();
+                if distance <= sov_blob_storage::config_deferred_slots_count() {
+                    Ok(inner)
+                } else {
+                    Err(SequencerNotReadyDetails::Syncing {
+                        target_da_height,
+                        synced_da_height,
+                    })
+                }
+            }
+        }
     }
 }
 
@@ -691,16 +597,30 @@ where
             };
         let completed_blobs = db_backend.read_completed_blobs().await?;
 
-        let (blob_sender, blob_sender_handle) = BlobSender::new(
-            da,
-            ledger_db.clone(),
-            storage_path,
-            true,
-            TxStatusBlobSenderHooks::new(tx_status_manager.clone()),
-            shutdown_receiver.clone(),
-        )
-        .await?;
-        handles.push(blob_sender_handle);
+        let blob_sender = {
+            let (inner, blob_sender_handle) = BlobSender::new(
+                da,
+                ledger_db.clone(),
+                storage_path,
+                true,
+                TxStatusBlobSenderHooks::new(tx_status_manager.clone()),
+                shutdown_receiver.clone(),
+            )
+            .await?;
+
+            handles.push(blob_sender_handle);
+
+            let mut blob_sender = PreferredBlobSender::from(inner);
+
+            // It's possible that sov-blob-sender's DB might miss some blob data at
+            // node startup due to:
+            //  1. Disk failure (the sequencer can use Postgres so it's durable).
+            //  2. DB corruption.
+            //  3. Node crash at an inconvenient time.
+            // Let's restore all missing blob data to make sure they land on the DA.
+            blob_sender.publish_blobs(completed_blobs).await?;
+            blob_sender
+        };
 
         let (state_root_compute_handle, state_root_compute_task) =
             StateRootBackgroundTaskState::create(
@@ -712,16 +632,15 @@ where
             );
         handles.push(state_root_compute_handle);
 
-        let mut inner = Inner {
+        let inner = Inner {
             db: PreferredSequencerDb::<S, Rt>::new(db_backend, &latest_state_update).await?,
             batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
             latest_info: latest_state_update.clone(),
             checkpoint_sender,
+            node_delta_watcher: NodeDeltaWatcher::new(config.max_allowed_node_distance_behind),
             config: config.clone(),
             block_executor: RollupBlockExecutor::new(
-                // Will be replaced by the first state update.
-                InternalState::Placeholder,
-                latest_state_update.next_event_number,
+                latest_state_update.clone(),
                 Some(events_sender.clone()),
                 config.clone(),
                 shutdown_notifier.clone(),
@@ -730,14 +649,6 @@ where
             ),
             blob_sender,
         };
-
-        // It's possible that sov-blob-sender's DB might miss some blob data at
-        // node startup due to:
-        //  1. Disk failure (the sequencer can use Postgres so it's durable).
-        //  2. DB corruption.
-        //  3. Node crash at an inconvenient time.
-        // Let's restore all missing blob data to make sure they land on the DA.
-        inner.publish_blobs(completed_blobs).await?;
 
         let seq = Arc::new(PreferredSequencer {
             inner: inner.into(),
@@ -749,12 +660,11 @@ where
             shutdown_notifier,
             config: config.clone(),
             has_been_ready: AtomicBool::new(false),
-            node_delta_watcher: NodeDeltaWatcher::new(config.max_allowed_node_distance_behind),
             state_root_compute_task,
             shutdown_receiver: shutdown_receiver.clone(),
         });
 
-        seq.update_state(latest_state_update.clone())
+        seq.replay_soft_confirmations_if_necessary(latest_state_update.clone(), false)
             .await
             .expect("Failed to initialize sequencer state from node");
 
@@ -783,55 +693,9 @@ where
     }
 
     async fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
-        // On startup, we need to wait for enough finalized data to be available. In this case,
-        // we have to do a more expensive check where we check if we have a finalized slot number
-        // available. Since this requires locking, we skip this check on the
-        // fast path after genesis.
-        if !self.has_been_ready.load(Ordering::Acquire) {
-            let inner = self.lock_inner().await;
-            match &inner.block_executor.state() {
-                InternalState::Idle { checkpoint, .. } => {
-                    next_visible_slot_number_increase(checkpoint, &inner.latest_info, false)?;
-                }
-                InternalState::Placeholder => {
-                    panic!("Sequencer is in placeholder state during readiness check. This is a bug, please report it.");
-                }
-                // If the sequencer has started a batch already, then it's ready.
-                InternalState::InProgressBatch { .. } => {}
-            };
-
-            self.has_been_ready.store(true, Ordering::Release);
-        }
-
-        let blob_sender_busy = { self.lock_inner().await.blob_sender_busy() };
-        if let Some(nb_of_blobs_in_flight) = blob_sender_busy {
-            return Err(SequencerNotReadyDetails::WaitingOnBlobSender {
-                max_concurrent_blobs: self.config.max_concurrent_blobs,
-                nb_of_blobs_in_flight,
-            });
-        }
-
-        self.node_delta_watcher.check_delta()?;
-
-        let status = self.da_sync_state.status();
-
-        match status {
-            SyncStatus::Synced { .. } => Ok(()),
-            SyncStatus::Syncing {
-                synced_da_height,
-                target_da_height,
-            } => {
-                let distance = status.distance();
-                if distance <= sov_blob_storage::config_deferred_slots_count() {
-                    Ok(())
-                } else {
-                    Err(SequencerNotReadyDetails::Syncing {
-                        target_da_height,
-                        synced_da_height,
-                    })
-                }
-            }
-        }
+        // We don't actually care about the `inner`, we just want to reuse the
+        // same logic.
+        self.lock_inner_if_ready().await.map(|_| ())
     }
 
     fn api_state(&self) -> ApiState<Self::Spec> {
@@ -841,23 +705,13 @@ where
     #[tracing::instrument(skip_all, level = "debug")]
     async fn update_state(&self, info: StateUpdateInfo<S::Storage>) -> anyhow::Result<()> {
         let timer_start = std::time::Instant::now();
-        let node_slot_num = info.slot_number.get();
-
-        self.node_delta_watcher
-            .node_slot_number
-            .store(info.slot_number.get(), Ordering::Release);
 
         let SoftConfirmationsReplayReceipt {
             inner_lock_start_time,
             mut metrics,
-        } = self.replay_soft_confirmations_if_necessary(info).await?;
-
-        // Currently the sequencers height increases alongside the node inside this function.
-        // In the future the sequencer might be able to produce rollup blocks
-        // independently in which case this height updating logic will need to be updated.
-        self.node_delta_watcher
-            .sequencer_slot_number
-            .store(node_slot_num, Ordering::Release);
+        } = self
+            .replay_soft_confirmations_if_necessary(info, true)
+            .await?;
 
         sov_metrics::track_metrics(|t| {
             metrics.duration = timer_start.elapsed();
@@ -895,16 +749,19 @@ where
         let tx_hash = Rt::Auth::compute_tx_hash(&baked_tx).map_err(generic_accept_tx_error)?;
         tracing::debug!(%tx_hash, "Executing accept_tx");
 
-        let mut inner = self.lock_inner().await;
+        let mut inner = self
+            .lock_inner_if_ready()
+            .await
+            .map_err(error_not_fully_synced)?;
         if inner
             .try_to_create_and_start_batch_if_none_in_progress(false)
             .await?
             .is_none()
         {
-            panic!("No batch in progress, and no batch can be started. This is either because of (1) a bug, or (2) misuse of the `POST /sequencer/batches` endpoint. Please use automatic batch production exclusively, and report this bug if necessary. {:?} {:?}", inner.block_executor.state(), inner.latest_info);
+            panic!("No batch in progress, and no batch can be started. This is either because of (1) a bug, or (2) misuse of the `POST /sequencer/batches` endpoint. Please use automatic batch production exclusively, and report this bug if necessary. {:?} {:?}", inner.block_executor.checkpoint_ref(), inner.latest_info);
         }
 
-        inner.err_if_cant_fit_tx(&baked_tx)?;
+        err_if_cant_fit_tx(&inner.batch_size_tracker, &baked_tx)?;
 
         let Inner {
             block_executor,
@@ -963,12 +820,10 @@ where
     }
 }
 
-struct PreferredBatchToRestore {
+struct PreferredBatchToReplay {
     is_in_progress: bool,
     visible_slot_number_after_increase: VisibleSlotNumber,
     batch: WithCachedTxHashes<PreferredBatchData>,
-    #[allow(dead_code)] // TODO(@neysofu): use it to re-submit blobs upon sequencer restart.
-    blob_id: BlobInternalId,
 }
 
 /// Configuration for [`PreferredSequencer`].
@@ -1026,32 +881,11 @@ where
             .await?;
 
         inner
+            .blob_sender
             .publish_proof(proof_data, sequence_number, blob_id)
             .await?;
 
         Ok(())
-    }
-}
-
-type BlockExecutionOutput<S> = (
-    Vec<BatchReceipt<S>>,
-    ChangeSet,
-    StateAccesses,
-    <<S as Spec>::Storage as Storage>::Witness,
-);
-
-#[derive(Debug)]
-struct BackgroundTaskState<S: Spec> {
-    handle: JoinHandle<BlockExecutionOutput<S>>,
-    tx_sender: mpsc::Sender<FullyBakedTx>,
-    result_receiver: mpsc::Receiver<Result<(TransactionReceipt<S>, TxChangeSet), RejectReason>>,
-}
-
-impl<S: Spec> BackgroundTaskState<S> {
-    fn shutdown(self) -> JoinHandle<BlockExecutionOutput<S>> {
-        // Must be dropped before the result receiver, or a deadlock happens.
-        drop(self.tx_sender);
-        self.handle
     }
 }
 
@@ -1090,7 +924,7 @@ where
 async fn batches_to_process<S, Rt>(
     db: &mut PreferredSequencerDb<S, Rt>,
     info: &StateUpdateInfo<S::Storage>,
-) -> anyhow::Result<Vec<PreferredBatchToRestore>>
+) -> anyhow::Result<Vec<PreferredBatchToReplay>>
 where
     S: Spec,
     Rt: Runtime<S>,
@@ -1115,10 +949,9 @@ where
     let mut batches: Vec<_> = blobs_to_apply
         .into_iter()
         .filter_map(|blob| match blob {
-            PreferredSequencerReadBlob::Batch(batch) => Some(PreferredBatchToRestore {
+            PreferredSequencerReadBlob::Batch(batch) => Some(PreferredBatchToReplay {
                 is_in_progress: false,
                 visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
-                blob_id: batch.blob_id,
                 batch: batch.into(),
             }),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2063): Process proofs.
@@ -1137,10 +970,9 @@ where
         .collect();
 
     if let Some(batch) = db.in_progress_batch_opt().cloned() {
-        batches.push(PreferredBatchToRestore {
+        batches.push(PreferredBatchToReplay {
             is_in_progress: true,
             visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
-            blob_id: batch.blob_id,
             batch: batch.into(),
         });
     }
@@ -1193,50 +1025,20 @@ fn accepts_preferred_batches<B: BlobSelector>(_blob_selector: B) -> bool {
     B::ACCEPTS_PREFERRED_BATCHES
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_check_node_delta() {
-        let mut tracker = NodeDeltaWatcher {
-            sequencer_slot_number: 10.into(),
-            node_slot_number: 5.into(),
-            max_delta: 5,
-        };
-        // delta equal to max delta
-        assert!(tracker.check_delta().is_err());
-        tracker.node_slot_number = 4.into();
-        // delta greater than max delta
-        assert!(tracker.check_delta().is_err());
-        // no delta
-        tracker.node_slot_number = 10.into();
-        assert!(tracker.check_delta().is_ok());
-        // node ahead
-        tracker.node_slot_number = 11.into();
-        assert!(tracker.check_delta().is_ok());
+fn err_if_cant_fit_tx(tracker: &BatchSizeTracker, tx: &FullyBakedTx) -> Result<(), ErrorObject> {
+    if !tracker.can_fit_tx(tx.data.len()) {
+        return Err(ErrorObject {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            title: "Transaction cannot be included in the batch due to batch size limitations"
+                .to_string(),
+            details: sov_rest_utils::json_obj!({
+                "message": "The transaction is too large.",
+                "serialized_tx_size": BatchSizeTracker::serialized_tx_size(tx.data.len()),
+                "current_batch_size": tracker.current_batch_size,
+                "max_batch_size": tracker.max_batch_size,
+            }),
+        });
     }
 
-    #[test]
-    fn test_check_node_delta_returned_fields() {
-        let tracker = NodeDeltaWatcher {
-            sequencer_slot_number: 10.into(),
-            node_slot_number: 2.into(),
-            max_delta: 5,
-        };
-        if let Err(SequencerNotReadyDetails::WaitingOnNode {
-            current_node_slot_number,
-            current_sequencer_slot_number,
-            current_delta,
-            max_allowed_delta,
-        }) = tracker.check_delta()
-        {
-            assert_eq!(current_node_slot_number, 2);
-            assert_eq!(current_sequencer_slot_number, 10);
-            assert_eq!(current_delta, 8);
-            assert_eq!(max_allowed_delta, 5);
-        } else {
-            panic!("expected WaitingOnNode error");
-        }
-    }
+    Ok(())
 }

@@ -13,7 +13,7 @@ use sov_modules_api::{
     call_message_repr, BlobDataWithId, ChangeSet, DaSpec, ExecutionContext, FullyBakedTx, Gas,
     GasSpec, HexString, KernelStateAccessor, NoOpControlFlow, RejectReason, Runtime,
     RuntimeEventProcessor, RuntimeEventResponse, SelectedBlob, Spec, StateCheckpoint,
-    TransactionReceipt, TxChangeSet, VersionReader, VisibleSlotNumber,
+    StateUpdateInfo, TransactionReceipt, TxChangeSet, VersionReader, VisibleSlotNumber,
 };
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rest_utils::{json_obj, ErrorObject};
@@ -21,14 +21,12 @@ use sov_state::{Namespace, StateAccesses, StateRoot, Storage};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::{broadcast, oneshot, watch};
+use tokio::task::JoinHandle;
 use tracing::{trace, warn};
 use uuid::Uuid;
 
 use super::state_root_compute::StateRootComputeRequest;
-use super::{
-    BackgroundTaskState, InternalState, PreferredBatchToRestore, PreferredSequencerConfig,
-    VisibleSlotNumberIncrease,
-};
+use super::{PreferredBatchToReplay, PreferredSequencerConfig, VisibleSlotNumberIncrease};
 use crate::common::generic_accept_tx_error;
 use crate::preferred::async_batch::MaybeAsyncBatch;
 use crate::{SequencerConfig, SequencerEvent};
@@ -37,6 +35,14 @@ type TxReceiptWithEvents<S, Rt> = (
     TransactionReceipt<S>,
     Vec<RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>,
 );
+
+type BlockExecutionOutput<S> = (
+    Vec<BatchReceipt<S>>,
+    ChangeSet,
+    StateAccesses,
+    <<S as Spec>::Storage as Storage>::Witness,
+);
+
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum RollupBlockExecutorError<S: Spec> {
     #[error(transparent)]
@@ -105,16 +111,20 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     const MAX_BUFFERED_TXS: usize = 1;
 
     pub fn new(
-        state: InternalState<S>,
-        next_event_number: u64,
+        info: StateUpdateInfo<S::Storage>,
         events_sender: Option<broadcast::Sender<SequencerEvent<Rt>>>,
         config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
         shutdown_notifier: Sender<()>,
         state_root_request_sender: tokio::sync::mpsc::Sender<StateRootComputeRequest<S>>,
         shutdown_receiver: watch::Receiver<()>,
     ) -> RollupBlockExecutor<S, Rt> {
+        let mut rt = Rt::default();
+        let state = InternalState::Idle {
+            checkpoint: StateCheckpoint::new(info.storage.clone(), &rt.kernel()),
+        };
+
         RollupBlockExecutor {
-            next_event_number,
+            next_event_number: info.next_event_number,
             events_sender,
             state,
             config,
@@ -127,26 +137,43 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         }
     }
 
-    pub fn state(&self) -> &InternalState<S> {
-        &self.state
+    pub fn has_in_progress_batch(&self) -> bool {
+        match &self.state {
+            InternalState::InProgressBatch { .. } => true,
+            InternalState::Idle { .. } => false,
+            InternalState::Placeholder => panic!("The sequencer contains an invalid internal state. This is a bug, please report it."),
+        }
+    }
+
+    pub fn checkpoint_ref(&self) -> &StateCheckpoint<S> {
+        match &self.state {
+            InternalState::Idle { checkpoint, .. }
+            | InternalState::InProgressBatch { checkpoint, .. } => checkpoint,
+            InternalState::Placeholder => panic!("The sequencer contains an invalid internal state. This is a bug, please report it."),
+        }
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
-    pub async fn replace_state(&mut self, other: Self, visible_state_is_expected_to_match: bool) {
+    pub async fn replace_state(&mut self, other: Self, is_visible_state_expected_to_match: bool) {
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
             return;
         }
 
         assert!(
+            !matches!(self.state, InternalState::Placeholder),
+            "Can't `replace_state` with a placeholder state; this is a bug, please report it (other.state is {:?})",
+            other.state
+        );
+        assert!(
             !matches!(other.state, InternalState::Placeholder),
-            "Can't replace with placeholder state; this is a bug, please report it (self.state is {:?})",
+            "Can't `replace_state` with a placeholder state; this is a bug, please report it (self.state is {:?})",
             self.state
         );
 
         // The event numbers will mismatch during the very first state update,
         // which uses a placeholder state. That's expected, and we shouldn't
         // panic.
-        if visible_state_is_expected_to_match && !matches!(self.state, InternalState::Placeholder) {
+        if is_visible_state_expected_to_match {
             assert_eq!(
                 self.next_event_number, other.next_event_number,
                 "Event numbers don't match after `update_state`; this is a bug, please report it"
@@ -240,7 +267,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     #[tracing::instrument(skip_all, level = "trace")]
     pub async fn replay_batch(
         &mut self,
-        batch: &PreferredBatchToRestore,
+        batch: &PreferredBatchToReplay,
         node_state_root: &<S::Storage as Storage>::Root,
     ) -> anyhow::Result<bool> {
         assert!(
@@ -626,6 +653,40 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         self.state = InternalState::Idle { checkpoint };
 
         trace!("Successfully ended rollup block");
+    }
+}
+
+#[derive(derive_more::Debug)]
+#[debug(bounds())]
+enum InternalState<S: Spec> {
+    /// Invalid state, used when we need to temporarily own the
+    /// [`StateCheckpoint`].
+    Placeholder,
+    /// The [`Sequencer`] is currently idle and is not processing
+    /// transactions for the next rollup block yet.
+    Idle { checkpoint: StateCheckpoint<S> },
+    /// The [`Sequencer`] is currently accepting transactions from the
+    /// preferred batch of a rollup block. Note that every rollup block
+    /// (under normal operations, not e.g. in recovery mode) has exactly one
+    /// preferred batch.
+    InProgressBatch {
+        checkpoint: StateCheckpoint<S>,
+        task_state: BackgroundTaskState<S>,
+    },
+}
+
+#[derive(Debug)]
+struct BackgroundTaskState<S: Spec> {
+    handle: JoinHandle<BlockExecutionOutput<S>>,
+    tx_sender: mpsc::Sender<FullyBakedTx>,
+    result_receiver: mpsc::Receiver<Result<(TransactionReceipt<S>, TxChangeSet), RejectReason>>,
+}
+
+impl<S: Spec> BackgroundTaskState<S> {
+    fn shutdown(self) -> JoinHandle<BlockExecutionOutput<S>> {
+        // Must be dropped before the result receiver, or a deadlock happens.
+        drop(self.tx_sender);
+        self.handle
     }
 }
 
