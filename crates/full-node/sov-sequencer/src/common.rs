@@ -63,6 +63,19 @@ pub trait Sequencer: Send + Sync + 'static {
         None
     }
 
+    /// Get a list of events by event numbers.
+    ///
+    /// This is only available if the [`Sequencer`] supports events streaming.
+    async fn list_events(
+        &self,
+        _event_numbers: &[u64],
+    ) -> Result<
+        Vec<RuntimeEventResponse<<Self::Rt as RuntimeEventProcessor>::RuntimeEvent>>,
+        anyhow::Error,
+    > {
+        Ok(vec![])
+    }
+
     /// Returns an [`ApiState`] subscribed to updates of the batch builder's state.
     fn api_state(&self) -> ApiState<Self::Spec>;
 

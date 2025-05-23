@@ -221,6 +221,11 @@ impl LedgerDb {
         *existing_reader = reader;
     }
 
+    /// Clones the underlying `DeltaReader` used by this `LedgerDb`.
+    pub fn clone_reader(&self) -> DeltaReader {
+        self.db.read().expect(DB_LOCK_POISONED).clone()
+    }
+
     /// Get the next slot, block, transaction, and event numbers.
     pub fn get_next_items_numbers(&self) -> anyhow::Result<ItemNumbers> {
         let db = self.db.read().expect(DB_LOCK_POISONED).clone();

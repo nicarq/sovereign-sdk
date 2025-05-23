@@ -10920,6 +10920,7 @@ dependencies = [
  "hex",
  "proptest",
  "proptest-derive 0.5.0",
+ "rockbound",
  "schemars",
  "serde",
  "serde_json",

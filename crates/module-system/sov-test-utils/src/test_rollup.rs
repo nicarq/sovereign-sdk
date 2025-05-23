@@ -205,7 +205,7 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
                 max_batch_size_bytes: TEST_MAX_BATCH_SIZE,
                 max_concurrent_blobs: TEST_MAX_CONCURRENT_BLOBS,
                 max_channel_size: 60,
-                max_infos_in_db: 100 + finalization_blocks as u64,
+                max_infos_in_db: 250 + finalization_blocks as u64,
                 automatic_batch_production: true,
                 sequencer_config: SequencerKindConfig::Preferred(Default::default()),
                 prover_address: TEST_DEFAULT_PROVER_ADDRESS.to_string(),
@@ -475,6 +475,7 @@ where
 
         let state_update_info = StateUpdateInfo {
             storage: storage.clone(),
+            ledger_reader: ledger_db.clone_reader(),
             next_event_number: 0,
             slot_number: SlotNumber::ONE,
             latest_finalized_slot_number: SlotNumber::ONE,

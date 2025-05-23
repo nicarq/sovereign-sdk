@@ -635,6 +635,7 @@ pub async fn query_state_update_info<S>(
 
     Ok(StateUpdateInfo {
         storage,
+        ledger_reader: ledger_db.clone_reader(),
         next_event_number,
         slot_number,
         latest_finalized_slot_number,

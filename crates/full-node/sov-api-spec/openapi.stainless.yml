@@ -76,6 +76,10 @@ resources:
           retrieve: get /sequencer/txs/{txHash}
         models:
           txInfo: TxInfo
+      events:
+        methods:
+          retrieve: get /sequencer/unstable/events/{eventOffset}
+          list: get /sequencer/unstable/events
   rollup:
     models:
       simulateExecutionResponse: SimulateExecutionResponse

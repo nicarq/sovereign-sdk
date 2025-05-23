@@ -41,7 +41,7 @@ use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
 pub use axum_extractors::{Path, Query};
 use futures::StreamExt;
-pub use pagination::{PageSelection, Pagination};
+pub use pagination::{PageSelection, PaginatedResponse, Pagination};
 use serde::Serialize;
 pub use sorting::{Sorting, SortingOrder};
 use tower_http::cors::CorsLayer;

@@ -323,6 +323,44 @@ paths:
                   - meta
         "404":
           $ref: "#/components/responses/ApiErrorResponse"
+  /sequencer/unstable/events/{eventOffset}:
+    get:
+      summary: |
+        Get a soft-confirmed event by event number.
+
+        Note that this endpoint is unstable and it may not always
+        work as expected, sometimes an event might be missing
+        that was already soft-confirmed.
+      operationId: sequencer_get_event
+      tags:
+        - Sequencer
+      parameters:
+        - $ref: "#/components/parameters/eventOffset"
+      responses:
+        "200":
+          $ref: "#/components/responses/LedgerEvent"
+        "404":
+          $ref: "#/components/responses/ApiErrorResponse"
+  /sequencer/unstable/events:
+    get:
+      summary: |
+        Get a list of soft-confirmed events.
+
+        Note that this endpoint is unstable and it may not always
+        work as expected, sometimes an event might be missing
+        that was already soft-confirmed.
+      operationId: sequencer_list_events
+      parameters:
+        - $ref: "#/components/parameters/pageType"
+        - $ref: "#/components/parameters/pageSize"
+        - $ref: "#/components/parameters/pageCursor"
+      tags:
+        - Sequencer
+      responses:
+        "200":
+          $ref: "#/components/responses/PaginatedLedgerEvents"
+        "404":
+          $ref: "#/components/responses/ApiErrorResponse"
   /rollup/base-fee-per-gas/latest:
     get:
       summary: Retrieve the latest base fee per gas
@@ -602,6 +640,28 @@ components:
                 type: array
                 items:
                   $ref: "#/components/schemas/LedgerEvent"
+              meta:
+                $ref: "#/components/schemas/AnyJsonValue"
+            required:
+              - data
+    PaginatedLedgerEvents:
+      description: Success
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: object
+                properties:
+                  next_cursor:
+                    type: string
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LedgerEvent"
+                required:
+                  - items
               meta:
                 $ref: "#/components/schemas/AnyJsonValue"
             required:

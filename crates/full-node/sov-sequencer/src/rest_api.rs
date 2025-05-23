@@ -10,9 +10,10 @@ use serde_with::base64::Base64;
 use serde_with::serde_as;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::runtime::Runtime;
-use sov_modules_api::RawTx;
+use sov_modules_api::{RawTx, RuntimeEventProcessor, RuntimeEventResponse};
 use sov_rest_utils::{
-    errors, preconfigured_router_layers, serve_generic_ws_subscription, ApiResult, Path,
+    errors, preconfigured_router_layers, serve_generic_ws_subscription, ApiResult, PageSelection,
+    PaginatedResponse, Pagination, Path, Query,
 };
 use sov_rollup_interface::da::{DaBlobHash, DaSpec};
 use sov_rollup_interface::node::da::DaService;
@@ -53,6 +54,14 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
             .route(
                 "/sequencer/events/ws",
                 axum::routing::get(Self::subscribe_to_events),
+            )
+            .route(
+                "/sequencer/unstable/events/:eventId",
+                axum::routing::get(Self::axum_get_event),
+            )
+            .route(
+                "/sequencer/unstable/events",
+                axum::routing::get(Self::axum_list_events),
             )
             .with_state(state);
 
@@ -179,7 +188,6 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
         }
         .into())
     }
-
     async fn subscribe_to_events(
         State(state): State<Self>,
         ws: WebSocketUpgrade,
@@ -197,6 +205,58 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
                 .unwrap_or_else(|| futures::stream::empty().boxed());
             serve_generic_ws_subscription(socket, stream, state.shutdown_receiver.clone()).await;
         })
+    }
+
+    async fn axum_get_event(
+        state: State<Self>,
+        Path(event_number): Path<u64>,
+    ) -> ApiResult<RuntimeEventResponse<<Seq::Rt as RuntimeEventProcessor>::RuntimeEvent>> {
+        let mut events = state
+            .sequencer
+            .list_events(&[event_number])
+            .await
+            .map_err(|_| errors::database_error_500("Unable to retrieve event").into_response())?;
+        if let Some(event) = events.pop() {
+            Ok(event.into())
+        } else {
+            Err(errors::not_found_404("Event", event_number))
+        }
+    }
+
+    async fn axum_list_events(
+        state: State<Self>,
+        pagination_opt: Option<Query<Pagination<String>>>,
+    ) -> ApiResult<
+        PaginatedResponse<
+            RuntimeEventResponse<<Seq::Rt as RuntimeEventProcessor>::RuntimeEvent>,
+            String,
+        >,
+    > {
+        let pagination = match pagination_opt {
+            Some(Query(pagination)) => pagination,
+            None => Default::default(),
+        };
+        let start = match pagination.selection {
+            PageSelection::Next { cursor } => cursor
+                .parse::<u64>()
+                .map_err(|e| errors::bad_request_400("Cursor was not valid u64", e))?,
+            PageSelection::First => 0,
+            PageSelection::Last => return Err(errors::not_implemented_501()),
+        };
+        let end = start
+            .checked_add(pagination.size as u64)
+            .unwrap_or(u64::MAX);
+        let nums = (start..=end).collect::<Vec<_>>();
+        let events =
+            state.sequencer.list_events(&nums).await.map_err(|_| {
+                errors::database_error_500("Unable to retrieve events").into_response()
+            })?;
+        let next_cursor = start + events.len() as u64;
+        let response = PaginatedResponse {
+            items: events,
+            next_cursor: Some(next_cursor.to_string()),
+        };
+        Ok(response.into())
     }
 }
 

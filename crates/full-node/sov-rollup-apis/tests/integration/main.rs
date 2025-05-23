@@ -6,6 +6,7 @@ use sov_modules_api::prelude::tokio::sync::watch;
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::StateUpdateInfo;
+use sov_test_utils::storage::SimpleLedgerStorageManager;
 use sov_test_utils::{generate_optimistic_runtime, TestUser};
 mod rest_api;
 use sov_modules_api::prelude::*;
@@ -60,8 +61,11 @@ impl TestData {
 
         let storage = runner.storage_manager().create_storage();
 
+        let mut ledger = SimpleLedgerStorageManager::new_any_path();
+
         let state_update_info = StateUpdateInfo {
             storage,
+            ledger_reader: ledger.create_ledger_storage(),
             next_event_number: 0,
             slot_number: SlotNumber::GENESIS,
             latest_finalized_slot_number: SlotNumber::GENESIS,
@@ -107,8 +111,6 @@ impl TestData {
     }
 
     /// Sends the current storage over the [`Self::storage_sender`] channel to update the [`Self::rollup_tx_router`].
-    /// Remove the dead code warning once <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1552> is fixed.
-    #[allow(dead_code)]
     pub fn send_storage(&self) {
         assert!(
             !self.storage_sender.is_closed(),
@@ -116,8 +118,10 @@ impl TestData {
         );
 
         let storage = self.runner.storage_manager().create_storage();
+        let mut ledger = SimpleLedgerStorageManager::new_any_path();
         let state_update_info = StateUpdateInfo {
             storage,
+            ledger_reader: ledger.create_ledger_storage(),
             next_event_number: 0,
             slot_number: SlotNumber::GENESIS,
             latest_finalized_slot_number: SlotNumber::GENESIS,

@@ -958,7 +958,7 @@ impl LedgerStateProvider for LedgerDb {
 impl LedgerDb {
     pub(crate) fn get_rpc_reader(&self) -> LedgerRpcReader {
         LedgerRpcReader {
-            db: self.db.read().expect(DB_LOCK_POISONED).clone(),
+            db: self.clone_reader(),
         }
     }
 }

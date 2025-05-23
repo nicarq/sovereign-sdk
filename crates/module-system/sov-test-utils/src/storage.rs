@@ -80,6 +80,12 @@ impl SimpleLedgerStorageManager {
         Self { db: Arc::new(db) }
     }
 
+    /// Initialize new instance at unspecified path.
+    pub fn new_any_path() -> Self {
+        let dir = tempfile::tempdir().unwrap();
+        Self::new(dir.path())
+    }
+
     /// Create new [`DeltaReader`] which has visibility only on persisted changes.
     pub fn create_ledger_storage(&mut self) -> DeltaReader {
         DeltaReader::new(self.db.clone(), Vec::new())

@@ -38,6 +38,7 @@ proptest-derive = { workspace = true, optional = true }
 schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+rockbound = { workspace = true, optional = true }
 sov-universal-wallet = { workspace = true, features = ["macros"] }
 sha2 = { workspace = true, optional = true }
 thiserror = { workspace = true }
@@ -61,13 +62,15 @@ native = [
     "sov-rollup-interface/native",
     "tracing",
     "tokio",
+    "rockbound"
 ]
 arbitrary = [
-    "dep:arbitrary",
-    "proptest",
-    "proptest-derive",
-    "sov-rollup-interface/arbitrary",
-    "sov-test-utils/arbitrary",
-    "dep:sha2",
+	"dep:arbitrary",
+	"proptest",
+	"proptest-derive",
+	"sov-rollup-interface/arbitrary",
+	"sov-test-utils/arbitrary",
+	"dep:sha2",
+	"rockbound/arbitrary"
 ]
 vec-compat = []

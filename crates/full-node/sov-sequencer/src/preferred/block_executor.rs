@@ -16,6 +16,7 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rest_utils::{json_obj, ErrorObject};
+use sov_rollup_interface::common::SlotNumber;
 use sov_state::{Namespace, StateAccesses, StateRoot, Storage};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::{self, Sender};
@@ -84,6 +85,8 @@ impl<S: Spec> RollupBlockExecutorError<S> {
 type StateRootReceiver<S> =
     oneshot::Receiver<(RollupHeight, <<S as Spec>::Storage as Storage>::Root)>;
 
+pub(crate) type EventCache<E> = Arc<tokio::sync::RwLock<BTreeMap<u64, (E, SlotNumber)>>>;
+
 pub struct RollupBlockExecutor<S, Rt>
 where
     S: Spec,
@@ -104,6 +107,7 @@ where
     state_root_responses: VecDeque<StateRootReceiver<S>>,
     shutdown_receiver: watch::Receiver<()>,
     id: Uuid,
+    cached_events: EventCache<RuntimeEventResponse<Rt::RuntimeEvent>>,
 }
 
 impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
@@ -118,6 +122,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         shutdown_notifier: Sender<()>,
         state_root_request_sender: tokio::sync::mpsc::Sender<StateRootComputeRequest<S>>,
         shutdown_receiver: watch::Receiver<()>,
+        cached_events: EventCache<RuntimeEventResponse<Rt::RuntimeEvent>>,
     ) -> RollupBlockExecutor<S, Rt> {
         let mut rt = Rt::default();
         let checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
@@ -134,6 +139,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             state_root_responses: Default::default(),
             id: Uuid::now_v7(),
             shutdown_receiver,
+            cached_events,
         }
     }
 
@@ -185,10 +191,15 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     ) -> Result<TxReceiptWithEvents<S, Rt>, RollupBlockExecutorError<S>> {
         let result = self.apply_tx_to_in_progress_batch_inner(baked_tx).await;
 
-        result.map(|r| {
-            let events = self.process_tx_receipt(&r);
-            (r, events)
-        })
+        let slot_num = self.checkpoint.current_visible_slot_number();
+
+        match result {
+            Ok(r) => {
+                let events = self.process_tx_receipt(&r, *slot_num).await;
+                Ok((r, events))
+            }
+            Err(e) => Err(e),
+        }
     }
 
     async fn apply_tx_to_in_progress_batch_inner(
@@ -404,9 +415,10 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         });
     }
 
-    fn process_tx_receipt(
+    async fn process_tx_receipt(
         &mut self,
         tx_receipt: &TransactionReceipt<S>,
+        current_slot_num: SlotNumber,
     ) -> Vec<RuntimeEventResponse<Rt::RuntimeEvent>> {
         let events = tx_receipt
             .events
@@ -423,6 +435,13 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         self.next_event_number += events.len() as u64;
 
         if let Some(sender) = &self.events_sender {
+            let mut cached_events = self.cached_events.write().await;
+            cached_events.extend(
+                events
+                    .iter()
+                    .cloned()
+                    .map(|event| (event.number, (event, current_slot_num))),
+            );
             for event in events.iter().cloned() {
                 sender
                     .send(SequencerEvent {
@@ -533,7 +552,11 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             }
 
             for tx_receipt in batch_receipt.tx_receipts {
-                self.process_tx_receipt(&tx_receipt);
+                self.process_tx_receipt(
+                    &tx_receipt,
+                    *self.checkpoint.current_visible_slot_number(),
+                )
+                .await;
             }
         }
 

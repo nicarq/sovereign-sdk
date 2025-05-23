@@ -9,6 +9,7 @@ mod preferred_blob_sender;
 mod state_root_compute;
 
 use std::boxed::Box;
+use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::num::NonZero;
 use std::path::Path;
@@ -39,6 +40,7 @@ use sov_modules_api::{
 use sov_rest_utils::errors::database_error_500;
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::da::DaService;
+use sov_rollup_interface::node::ledger_api::{EventIdentifier, LedgerStateProvider};
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
 use sov_state::{NativeStorage, Storage};
@@ -53,7 +55,7 @@ use crate::common::{
     loop_send_tx_notifications, AcceptedTx, Sequencer, TxStatusBlobSenderHooks, WithCachedTxHashes,
 };
 use crate::metrics::{track_in_progress_batch_size, PreferredSequencerUpdateStateMetrics};
-use crate::preferred::block_executor::{RollupBlockExecutor, RollupBlockExecutorError};
+use crate::preferred::block_executor::{EventCache, RollupBlockExecutor, RollupBlockExecutorError};
 use crate::{
     ProofBlobSender, SequencerConfig, SequencerEvent, SequencerNotReadyDetails, SubmitBatchReceipt,
     TxStatus, TxStatusManager,
@@ -251,6 +253,8 @@ where
     shutdown_notifier: Sender<()>,
     state_root_compute_task: StateRootBackgroundTaskState<S>,
     shutdown_receiver: watch::Receiver<()>,
+    ledger_db: LedgerDb,
+    cached_events: EventCache<RuntimeEventResponse<Rt::RuntimeEvent>>,
 }
 
 struct SoftConfirmationsReplayReceipt {
@@ -311,6 +315,7 @@ where
             self.shutdown_notifier.clone(),
             self.state_root_compute_task.request_sender.clone(),
             self.shutdown_receiver.clone(),
+            self.cached_events.clone(),
         );
 
         let node_state_root = tracing::trace_span!("root_hash")
@@ -425,6 +430,7 @@ where
                 self.shutdown_notifier.clone(),
                 self.state_root_compute_task.request_sender.clone(),
                 self.shutdown_receiver.clone(),
+                self.cached_events.clone(),
             );
 
             let metrics = PreferredSequencerUpdateStateMetrics {
@@ -651,6 +657,8 @@ where
             );
         handles.push(state_root_compute_handle);
 
+        let cached_events = Arc::new(tokio::sync::RwLock::new(BTreeMap::new()));
+
         let inner = Inner {
             db: PreferredSequencerDb::<S, Rt>::new(db_backend, &latest_state_update).await?,
             batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
@@ -666,6 +674,7 @@ where
                 shutdown_notifier.clone(),
                 state_root_compute_task.request_sender.clone(),
                 shutdown_receiver.clone(),
+                cached_events.clone(),
             ),
             blob_sender,
         };
@@ -681,6 +690,8 @@ where
             config: config.clone(),
             state_root_compute_task,
             shutdown_receiver: shutdown_receiver.clone(),
+            ledger_db: ledger_db.clone(),
+            cached_events,
         });
 
         seq.replay_soft_confirmations_if_necessary(latest_state_update.clone(), false)
@@ -711,6 +722,52 @@ where
         Ok((seq, handles))
     }
 
+    async fn list_events(
+        &self,
+        event_nums: &[u64],
+    ) -> Result<
+        Vec<RuntimeEventResponse<<Self::Rt as RuntimeEventProcessor>::RuntimeEvent>>,
+        anyhow::Error,
+    > {
+        trace!(events_len = event_nums.len(), "listing events");
+
+        let (mut events, missing_ids) = {
+            let mut events = vec![];
+            let mut cache_misses = vec![];
+            let cached_events = self.cached_events.read().await;
+
+            for event_num in event_nums {
+                let event = cached_events.get(event_num).cloned();
+                if let Some((event, _)) = event {
+                    events.push(event);
+                } else {
+                    cache_misses.push(EventIdentifier::Number(*event_num));
+                }
+            }
+            (events, cache_misses)
+        };
+
+        let ledger_events = self
+            .ledger_db
+            .get_events::<RuntimeEventResponse<Rt::RuntimeEvent>>(&missing_ids)
+            .await?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        debug!(
+            cache_hits = events.len(),
+            cache_misses = missing_ids.len(),
+            "retrieved sequencer events"
+        );
+
+        events.extend(ledger_events);
+
+        trace!(result_len = events.len(), "retrieved events");
+
+        Ok(events)
+    }
+
     async fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
         // We don't actually care about the `inner`, we just want to reuse the
         // same logic.
@@ -724,6 +781,8 @@ where
     #[tracing::instrument(skip_all, level = "debug")]
     async fn update_state(&self, info: StateUpdateInfo<S::Storage>) -> anyhow::Result<()> {
         let timer_start = std::time::Instant::now();
+
+        prune_events_cache(info.latest_finalized_slot_number, &self.cached_events).await;
 
         let SoftConfirmationsReplayReceipt {
             inner_lock_start_time,
@@ -1037,6 +1096,11 @@ fn next_visible_slot_number_increase<S: Spec>(
     }
 }
 
+async fn prune_events_cache<E>(finialized_slot: SlotNumber, cache: &EventCache<E>) {
+    let mut writer = cache.write().await;
+    writer.retain(|_, (_, slot_num)| *slot_num > finialized_slot);
+}
+
 /// A helper function to allow recovering an associated consant from an *instance* of a type
 /// when the type itself is unknown. This is useful when a function returns `impl Trait` and we
 /// want to get an associated item from that trait implementation.
@@ -1060,4 +1124,28 @@ fn err_if_cant_fit_tx(tracker: &BatchSizeTracker, tx: &FullyBakedTx) -> Result<(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_prune_events_cache() {
+        let cached_events = Arc::new(tokio::sync::RwLock::new(BTreeMap::new()));
+        {
+            let mut writer = cached_events.write().await;
+            writer.insert(1, ((), SlotNumber::new(1)));
+            writer.insert(2, ((), SlotNumber::new(2)));
+            writer.insert(3, ((), SlotNumber::new(3)));
+            writer.insert(4, ((), SlotNumber::new(4)));
+            writer.insert(5, ((), SlotNumber::new(5)));
+        }
+        prune_events_cache(SlotNumber::new(3), &cached_events).await;
+
+        let reader = cached_events.read().await;
+        assert_eq!(reader.len(), 2);
+        assert_eq!(reader.get(&4), Some(&((), SlotNumber::new(4))));
+        assert_eq!(reader.get(&5), Some(&((), SlotNumber::new(5))));
+    }
 }

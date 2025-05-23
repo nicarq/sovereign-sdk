@@ -148,6 +148,9 @@ pub struct StateUpdateInfo<StfState> {
     /// The storage following the state update.
     #[debug(skip)]
     pub storage: StfState,
+    #[debug(skip)]
+    /// The `DeltaReader` associated with the current `LedgerDb`.
+    pub ledger_reader: rockbound::cache::delta_reader::DeltaReader,
     /// What the next event number will be after the state update.
     pub next_event_number: u64,
     /// The slot number of the rollup following the state update.
