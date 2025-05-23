@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use sov_blob_sender::{BlobInternalId, BlobSender};
 use sov_blob_storage::{PreferredBatchData, PreferredProofData};
+use sov_db::ledger_db::LedgerDb;
 use sov_rollup_interface::node::da::DaService;
 use tracing::debug;
 
@@ -11,7 +12,7 @@ use crate::common::TxStatusBlobSenderHooks;
 /// Wrapper around [`BlobSender`] with preferred blob -specific logic.
 #[derive(derive_more::Deref, derive_more::From)]
 pub struct PreferredBlobSender<Da: DaService> {
-    inner: BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>>,
+    inner: BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>, LedgerDb>,
 }
 
 impl<Da: DaService> PreferredBlobSender<Da> {

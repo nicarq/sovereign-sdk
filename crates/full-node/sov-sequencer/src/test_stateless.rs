@@ -38,7 +38,8 @@ struct Inner<S: Spec> {
 #[derive(Clone)]
 pub struct TestStatelessSequencer<R, S: Spec, Da: DaService> {
     inner: Arc<Mutex<Inner<S>>>,
-    blob_sender: Arc<Mutex<BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>>>>,
+    #[allow(clippy::type_complexity)]
+    blob_sender: Arc<Mutex<BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>, LedgerDb>>>,
     tx_status_manager: TxStatusManager<S::Da>,
     _r: PhantomData<R>,
     state_sender: watch::Sender<StateCheckpoint<S>>,

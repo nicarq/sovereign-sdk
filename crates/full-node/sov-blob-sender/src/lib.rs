@@ -75,24 +75,25 @@ pub trait BlobSenderHooks: Send + Sync + 'static {
 }
 
 /// A reusable component that manages blob submission to the [`DaService`].
-pub struct BlobSender<Da: DaService, H> {
+pub struct BlobSender<Da: DaService, H, FM: FinalizationManager> {
     db: Arc<BlobSenderDb>,
     hooks: Arc<H>,
     in_flight_blobs: Arc<Mutex<HashMap<BlobInternalId, InFlightBlob<Da::Spec>>>>,
     shutdown_receiver: watch::Receiver<()>,
     da: Da,
-    ledger_db: LedgerDb,
+    finalization_manager: FM,
     nb_of_concurrent_blob_submissions: Arc<AtomicUsize>,
 }
 
-impl<Da, H> BlobSender<Da, H>
+impl<Da, H, FM> BlobSender<Da, H, FM>
 where
     Da: DaService,
     H: BlobSenderHooks<Da = Da::Spec>,
+    FM: FinalizationManager,
 {
     pub async fn new(
         da: Da,
-        ledger_db: LedgerDb,
+        finalization_manager: FM,
         storage_path: &Path,
         // TODO(@neysofu): all blobs are sent in parallel as of now.
         _parallel_submission: bool,
@@ -112,7 +113,7 @@ where
             in_flight_blobs: in_flight_blobs.clone(),
             shutdown_receiver: shutdown_receiver.clone(),
             da,
-            ledger_db,
+            finalization_manager,
             nb_of_concurrent_blob_submissions: Arc::new(AtomicUsize::new(0)),
         };
 
@@ -198,7 +199,7 @@ where
         let is_batch = matches!(blob, BlobToSend::Batch { .. });
         let task_state = TaskState {
             da: self.da.clone(),
-            ledger_db: self.ledger_db.clone(),
+            finalization_manager: self.finalization_manager.clone(),
             db: self.db.clone(),
             hooks: self.hooks.clone(),
             in_flight_blobs: self.in_flight_blobs.clone(),
@@ -320,16 +321,41 @@ type BlobReceiptFut<Da> = oneshot::Receiver<
     >,
 >;
 
-struct TaskState<Da: DaService> {
+#[async_trait]
+/// Decides if a given blob was finalized on the DA.
+pub trait FinalizationManager: Clone + Send + Sync + 'static {
+    async fn is_blob_finalized(&self, blob_hash: [u8; 32]) -> anyhow::Result<Option<bool>>;
+}
+
+#[async_trait]
+impl FinalizationManager for LedgerDb {
+    async fn is_blob_finalized(&self, blob_hash: [u8; 32]) -> anyhow::Result<Option<bool>> {
+        let Some(batch) = self
+            .get_batch_by_hash::<(), (), RuntimeEventResponse<IgnoreEvent>>(
+                &blob_hash,
+                QueryMode::Compact,
+            )
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let slot_number = batch.slot_number;
+        let latest_finalized_slot_number = self.get_latest_finalized_slot_number().await?;
+        Ok(Some(slot_number <= latest_finalized_slot_number))
+    }
+}
+
+struct TaskState<Da: DaService, FM: FinalizationManager> {
     da: Da,
-    ledger_db: LedgerDb,
+    finalization_manager: FM,
     db: Arc<BlobSenderDb>,
     hooks: Arc<dyn BlobSenderHooks<Da = Da::Spec>>,
     in_flight_blobs: Arc<Mutex<HashMap<BlobInternalId, InFlightBlob<Da::Spec>>>>,
     nb_of_concurrent_blob_submissions: Arc<AtomicUsize>,
 }
 
-impl<Da: DaService> TaskState<Da> {
+impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
     const RESUBMIT_INTERVAL: Duration = Duration::from_secs(20);
     const LEDGER_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -413,8 +439,10 @@ impl<Da: DaService> TaskState<Da> {
                             continue 'outer;
                         }
 
-                        let finality_status =
-                            self.is_blob_finalized(receipt.blob_hash.into()).await?;
+                        let finality_status: Option<bool> = self
+                            .finalization_manager
+                            .is_blob_finalized(receipt.blob_hash.into())
+                            .await?;
 
                         match finality_status {
                             Some(_) => {
@@ -455,8 +483,10 @@ impl<Da: DaService> TaskState<Da> {
                         .await?;
 
                     loop {
-                        let finality_status =
-                            self.is_blob_finalized(receipt.blob_hash.into()).await?;
+                        let finality_status = self
+                            .finalization_manager
+                            .is_blob_finalized(receipt.blob_hash.into())
+                            .await?;
 
                         match finality_status {
                             Some(false) => {
@@ -503,25 +533,6 @@ impl<Da: DaService> TaskState<Da> {
         trace!("Exiting blob submission task");
 
         Ok(())
-    }
-
-    async fn is_blob_finalized(&self, blob_hash: [u8; 32]) -> anyhow::Result<Option<bool>> {
-        let Some(batch) = self
-            .ledger_db
-            .get_batch_by_hash::<(), (), RuntimeEventResponse<IgnoreEvent>>(
-                &blob_hash,
-                QueryMode::Compact,
-            )
-            .await?
-        else {
-            return Ok(None);
-        };
-
-        let slot_number = batch.slot_number;
-        let latest_finalized_slot_number =
-            self.ledger_db.get_latest_finalized_slot_number().await?;
-
-        Ok(Some(slot_number <= latest_finalized_slot_number))
     }
 
     async fn send_blob(&self, blob: BlobToSend) -> anyhow::Result<(BlobReceiptFut<Da>, u64)> {

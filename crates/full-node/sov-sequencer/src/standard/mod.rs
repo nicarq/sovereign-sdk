@@ -45,7 +45,7 @@ where
     Da: DaService<Spec = S::Da>,
 {
     assembled_batch: Option<WithCachedTxHashes<Vec<FullyBakedTx>>>,
-    blob_sender: BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>>,
+    blob_sender: BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>, LedgerDb>,
     checkpoint: Option<StateCheckpoint<S>>,
     mempool: Mempool<Da::Spec>,
     phantom: PhantomData<Rt>, // TODO(@neysofu): remove this if possible.
