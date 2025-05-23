@@ -1,3 +1,6 @@
+# 2025-05-23
+- #2886 **BREAKING CHANGE** Renames the outdated `rollup_height` field to `slot_number`. This change modifies the `BatchResponse` struct and  introduces a breaking change for SDK clients.
+
 # 2025-05-16
 - #2886 Removes metadata lock from sov-metrics
 

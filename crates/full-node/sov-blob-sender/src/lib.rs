@@ -517,7 +517,7 @@ impl<Da: DaService> TaskState<Da> {
             return Ok(None);
         };
 
-        let slot_number = batch.rollup_height;
+        let slot_number = batch.slot_number;
         let latest_finalized_slot_number =
             self.ledger_db.get_latest_finalized_slot_number().await?;
 

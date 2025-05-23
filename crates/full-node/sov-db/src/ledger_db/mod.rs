@@ -243,11 +243,11 @@ impl LedgerDb {
     fn put_slot(
         &self,
         slot: &StoredSlot,
-        rollup_height: &SlotNumber,
+        slot_number: &SlotNumber,
         schema_batch: &mut SchemaBatch,
     ) -> anyhow::Result<()> {
-        schema_batch.put::<SlotByNumber>(rollup_height, slot)?;
-        schema_batch.put::<SlotByHash>(&slot.hash, rollup_height)
+        schema_batch.put::<SlotByNumber>(slot_number, slot)?;
+        schema_batch.put::<SlotByHash>(&slot.hash, slot_number)
     }
 
     fn put_batch(

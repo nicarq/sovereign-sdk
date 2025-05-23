@@ -461,7 +461,7 @@ impl LedgerRpcReader {
         E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         Ok(match mode {
-            QueryMode::Compact => batch.try_into()?,
+            QueryMode::Compact => batch.to_batch_response()?,
 
             QueryMode::Standard => {
                 let txs = self.get_tx_range(&batch.txs).await?;
@@ -471,7 +471,7 @@ impl LedgerRpcReader {
                         .collect(),
                 );
 
-                let mut batch_response: BatchResponse<B, T, E> = batch.try_into()?;
+                let mut batch_response: BatchResponse<B, T, E> = batch.to_batch_response()?;
                 batch_response.txs = tx_hashes;
                 batch_response
             }
@@ -483,7 +483,7 @@ impl LedgerRpcReader {
                     txs.push(ItemOrHash::Full(tx));
                 }
 
-                let mut batch_response: BatchResponse<B, T, E> = batch.try_into()?;
+                let mut batch_response: BatchResponse<B, T, E> = batch.to_batch_response()?;
                 batch_response.txs = Some(txs);
                 batch_response
             }

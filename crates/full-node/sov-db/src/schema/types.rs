@@ -102,15 +102,17 @@ pub struct StoredBatch {
     pub slot_number: SlotNumber,
 }
 
-impl<B: DeserializeOwned, T: TxReceiptContents, E> TryFrom<StoredBatch> for BatchResponse<B, T, E> {
-    type Error = anyhow::Error;
-    fn try_from(value: StoredBatch) -> Result<Self, Self::Error> {
-        Ok(Self {
-            hash: value.hash,
-            receipt: bincode::deserialize(&value.receipt.0)?,
-            tx_range: value.txs.start.into()..value.txs.end.into(),
+impl StoredBatch {
+    /// Converts [`StoredBatch`] to [`BatchResponse`]
+    pub fn to_batch_response<B: DeserializeOwned, T: TxReceiptContents, E>(
+        &self,
+    ) -> Result<BatchResponse<B, T, E>, anyhow::Error> {
+        Ok(BatchResponse {
+            hash: self.hash,
+            receipt: bincode::deserialize(&self.receipt.0)?,
+            tx_range: self.txs.start.into()..self.txs.end.into(),
             txs: None,
-            rollup_height: value.slot_number,
+            slot_number: self.slot_number,
         })
     }
 }

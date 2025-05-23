@@ -230,7 +230,7 @@ pub struct BatchResponse<B, Tx: TxReceiptContents, E> {
     /// information about the outcome of the batch.
     pub receipt: B,
     /// The rollup height this batch belongs to.
-    pub rollup_height: SlotNumber, // FIXME: rename to `slot_number` (API breaking change)
+    pub slot_number: SlotNumber,
 }
 
 /// The response to a JSON-RPC request for a particular transaction.

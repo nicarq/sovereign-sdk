@@ -880,7 +880,7 @@ impl<B, TxReceipt: TxReceiptContents, E> Batch<B, TxReceipt, E> {
             tx_range: batch.tx_range,
             receipt: batch.receipt,
             txs,
-            slot_number: batch.rollup_height,
+            slot_number: batch.slot_number,
         }
     }
 }
