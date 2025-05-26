@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use sov_mock_da::{MockAddress, MockBlock, MockDaService};
 use sov_mock_zkvm::MockZkvm;
+use sov_rollup_interface::node::da::DaService;
 
 use crate::helpers::hash_stf::HashStf;
 use crate::helpers::runner_init::{initialize_runner, InitVariant};
@@ -42,7 +43,10 @@ async fn init_and_restart_inner() {
         *runner.get_state_root()
     };
 
-    let init_variant_2 = InitVariant::Initialized(state_root_after_genesis);
+    let init_variant_2 = InitVariant::Initialized {
+        prev_state_root: state_root_after_genesis,
+        last_finalized_block_header: da_service.get_last_finalized_block_header().await.unwrap(),
+    };
 
     let state_root_2 = {
         let (runner_2, _) = initialize_runner(da_service, path, init_variant_2, 1, None).await;

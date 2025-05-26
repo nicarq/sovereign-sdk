@@ -11,8 +11,8 @@ use sov_db::schema::DeltaReader;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_metrics::MonitoringConfig;
 use sov_mock_da::{
-    BlockProducingConfig, MockAddress, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier,
-    MockFee, MockHash,
+    BlockProducingConfig, MockAddress, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec,
+    MockDaVerifier, MockFee, MockHash,
 };
 use sov_mock_zkvm::{MockZkvm, MockZkvmHost};
 use sov_modules_api::provable_height_tracker::InfiniteHeight;
@@ -152,7 +152,8 @@ impl ProofSender for MockProofSender {
 pub async fn bootstrap_state_update_info(
     storage_manager: &mut StorageManager,
 ) -> anyhow::Result<StateUpdateInfo<ProverStorage<S>>> {
-    let (stf_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
+    let genesis_block_header = MockBlockHeader::from_height(0);
+    let (stf_storage, ledger_state) = storage_manager.create_state_after(&genesis_block_header)?;
     let ledger_db = LedgerDb::with_reader(ledger_state)?;
 
     query_state_update_info(&ledger_db, stf_storage).await
@@ -188,7 +189,10 @@ pub async fn initialize_runner(
         .await
         .unwrap();
 
-    let (_, ledger_state) = storage_manager.create_bootstrap_state().unwrap();
+    let finalized_header = da_service.get_last_finalized_block_header().await.unwrap();
+    let (_, ledger_state) = storage_manager
+        .create_state_after(&finalized_header)
+        .unwrap();
     let ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
     let mut runner = StateTransitionRunner::new(
         rollup_config.runner.clone(),
@@ -272,7 +276,10 @@ pub enum InitVariant<
     Da: DaService,
 > {
     /// From give state root
-    Initialized(Stf::StateRoot),
+    Initialized {
+        prev_state_root: Stf::StateRoot,
+        last_finalized_block_header: <Da::Spec as DaSpec>::BlockHeader,
+    },
     /// From empty state root
     Genesis {
         /// Genesis block header should be finalized at an initialization moment.
@@ -305,8 +312,12 @@ where
         >,
     {
         let (prev_state_root, genesis_state_root) = match self {
-            InitVariant::Initialized(prev_state_root) => {
-                let (prover_storage, _ledger_state) = storage_manager.create_bootstrap_state()?;
+            InitVariant::Initialized {
+                prev_state_root,
+                last_finalized_block_header,
+            } => {
+                let (prover_storage, _ledger_state) =
+                    storage_manager.create_state_after(&last_finalized_block_header)?;
                 let genesis_state_root = prover_storage.get_root_hash(SlotNumber::GENESIS)?;
 
                 (prev_state_root, genesis_state_root)

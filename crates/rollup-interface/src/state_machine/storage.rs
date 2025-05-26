@@ -17,11 +17,6 @@ pub trait HierarchicalStorageManager<Da: DaSpec>: Send + Sync {
     /// Type which is produced by a ledger.
     type LedgerChangeSet;
 
-    /// Creates a state that is empty(for genesis) or with saved data after restart.
-    /// If a caller is not sure for which block it needs the storage for.
-    /// Returned storage cannot be saved back.
-    fn create_bootstrap_state(&mut self) -> anyhow::Result<(Self::StfState, Self::LedgerState)>;
-
     /// Creates a state that can be used for execution of given DA block,
     /// meaning that at will have access to previous state in same fork.
     fn create_state_for(

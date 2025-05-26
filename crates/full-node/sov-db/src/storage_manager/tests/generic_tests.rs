@@ -9,13 +9,17 @@ use std::time::Duration;
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::SchemaBatch;
 use sov_mock_da::{MockBlockHeader, MockDaSpec, MockHash};
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use tokio::time::Instant;
 
 use super::data_helpers::{
     get_expected_chain_values, materialize_ledger_changes, verify_ledger_storage,
 };
+use crate::ledger_db::LedgerDb;
+use crate::schema::types::{BatchNumber, StoredSlot};
 use crate::storage_manager::tests::arbitrary::{get_block_hash, ForkDescription, ForkMap};
 
 pub trait TestableStorage: Sized {
@@ -65,16 +69,19 @@ where
 {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = Sm::new(tmpdir.path());
+    // Chain starts from height 1
     let mut chain = Vec::with_capacity(to_height as usize);
 
     for height in 1..=to_height {
         // Bootstrap storage, check that finalized data has been written to the disk
         {
             let finalized_index = chain.len().saturating_sub(finality as usize);
+            let prev_header =
+                MockBlockHeader::from_height(finalized_index.saturating_sub(1) as u64);
             let expected_finalized_values = get_expected_chain_values(&chain[..finalized_index]);
 
             let (bootstrap_stf_storage, bootstrap_ledger_storage) =
-                storage_manager.create_bootstrap_state().unwrap();
+                storage_manager.create_state_after(&prev_header).unwrap();
 
             Sm::verify_stf_storage(&bootstrap_stf_storage, &expected_finalized_values[..]);
             verify_ledger_storage(&bootstrap_ledger_storage, &expected_finalized_values[..]);
@@ -266,10 +273,11 @@ where
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = Sm::new(tmpdir.path());
 
+    let genesis_header = MockBlockHeader::from_height(0);
     let da_header = MockBlockHeader::from_height(1);
     // Bootstrap storage
-    let _ = storage_manager.create_bootstrap_state().unwrap();
-    let _ = storage_manager.create_bootstrap_state().unwrap();
+    let _ = storage_manager.create_state_after(&genesis_header).unwrap();
+    let _ = storage_manager.create_state_after(&genesis_header).unwrap();
 
     // Normal storage
     let (stf_storage, _) = storage_manager.create_state_for(&da_header).unwrap();
@@ -369,24 +377,28 @@ where
 
     let _ = storage_manager.create_state_for(&da_header).unwrap();
 
-    // It should throw the error as changes for this block is not available.
-    let result = storage_manager.create_state_after(&da_header);
-    assert!(result.is_err());
-    let expected_message = format!("There is no snapshot available for the block {}. Use `create_bootstrap_storage` for getting storage from finalized data.", da_header.display());
-    assert_eq!(expected_message, result.unwrap_err().to_string());
+    let (stf_storage_after, ledger_after) = storage_manager.create_state_after(&da_header).unwrap();
+    Sm::verify_stf_storage(&stf_storage_after, &[]);
+    verify_ledger_storage(&ledger_after, &[]);
 
+    let stf_changes = stf_storage_after.materialize_from_block(&da_header);
+    // It still cannot see values, after it has changed.
+    let (stf_storage_after, ledger_after) = storage_manager.create_state_after(&da_header).unwrap();
+    let ledger_changes = materialize_ledger_changes(&da_header);
     storage_manager
-        .save_change_set(&da_header, Default::default(), SchemaBatch::new())
+        .save_change_set(&da_header, stf_changes, ledger_changes)
         .unwrap();
 
-    // Now storage "after" the block can be created, as there's a snapshot for this block.
-    let _ = storage_manager.create_state_after(&da_header).unwrap();
+    // It still cannot see values, after it has changed.
+    Sm::verify_stf_storage(&stf_storage_after, &[]);
+    verify_ledger_storage(&ledger_after, &[]);
+    // Dropping so finalization can happen.
+    drop(stf_storage_after);
     storage_manager.finalize(&da_header).unwrap();
-    assert!(storage_manager.is_empty());
-    // But not after it has been finalized.
-    let result = storage_manager.create_state_after(&da_header);
-    assert!(result.is_err());
-    assert_eq!(expected_message, result.unwrap_err().to_string());
+    let (stf_storage_after, ledger_after) = storage_manager.create_state_after(&da_header).unwrap();
+    let some_data = vec![(da_header.height(), da_header.hash())];
+    Sm::verify_stf_storage(&stf_storage_after, &some_data);
+    verify_ledger_storage(&ledger_after, &some_data);
 }
 
 pub fn finalize_only_last_block<Sm: TestableStorageManager>()
@@ -785,4 +797,76 @@ where
         let actual_value = stf_storage.get_value(&key);
         assert_eq!(actual_value, expected_value);
     }
+}
+
+pub async fn ledger_finalized_height_is_updated_on_start<Sm: TestableStorageManager>()
+where
+    <Sm as HierarchicalStorageManager<MockDaSpec>>::StfState: TestableStorage<ChangeSet = <Sm as HierarchicalStorageManager<MockDaSpec>>::StfChangeSet>
+        + Debug,
+    <Sm as HierarchicalStorageManager<MockDaSpec>>::StfChangeSet: Default,
+{
+    let tmpdir = tempfile::tempdir().unwrap();
+    let mut storage_manager = Sm::new(tmpdir.path());
+
+    let blocks = 10;
+    let finality = 5;
+
+    for height in 0..=blocks {
+        let da_header = MockBlockHeader::from_height(height);
+
+        let (stf_state, ledger_reader) = storage_manager.create_state_for(&da_header).unwrap();
+        drop(stf_state);
+
+        let ledger_db = LedgerDb::with_reader(ledger_reader).unwrap();
+
+        let slot_num = SlotNumber::new(height);
+
+        let mut ledger_change_set = SchemaBatch::new();
+
+        let slot_to_store = StoredSlot {
+            hash: da_header.hash().into(),
+            state_root: Default::default(),
+            extra_data: vec![].into(),
+            batches: BatchNumber(0)..BatchNumber(0),
+            timestamp: da_header.time(),
+        };
+
+        ledger_db
+            .put_slot(&slot_to_store, &slot_num, &mut ledger_change_set)
+            .unwrap();
+
+        if let Some(finalized_height) = height.checked_sub(finality) {
+            let finalized_slot_materialized = ledger_db
+                .materialize_latest_finalize_slot(SlotNumber::new(finalized_height))
+                .unwrap();
+            ledger_change_set.merge(finalized_slot_materialized);
+        }
+
+        storage_manager
+            .save_change_set(&da_header, Default::default(), ledger_change_set)
+            .unwrap();
+
+        if let Some(finalized_height) = height.checked_sub(finality) {
+            let finalized_header = MockBlockHeader::from_height(finalized_height);
+            storage_manager.finalize(&finalized_header).unwrap();
+        }
+    }
+
+    drop(storage_manager);
+
+    let mut storage_manager = Sm::new(tmpdir.path());
+    let last_finalized_block_header = MockBlockHeader::from_height(blocks.saturating_sub(finality));
+
+    let (_, ledger_reader) = storage_manager
+        .create_state_after(&last_finalized_block_header)
+        .unwrap();
+    let ledger_db = LedgerDb::with_reader(ledger_reader).unwrap();
+
+    let last_finalized_slot_from_ledger =
+        ledger_db.get_latest_finalized_slot_number().await.unwrap();
+
+    assert_eq!(
+        last_finalized_block_header.height(),
+        last_finalized_slot_from_ledger.get()
+    );
 }

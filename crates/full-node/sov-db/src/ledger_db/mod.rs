@@ -245,7 +245,7 @@ impl LedgerDb {
         })
     }
 
-    fn put_slot(
+    pub(crate) fn put_slot(
         &self,
         slot: &StoredSlot,
         slot_number: &SlotNumber,

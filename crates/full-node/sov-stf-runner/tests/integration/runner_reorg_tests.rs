@@ -13,7 +13,7 @@ use sov_modules_api::provable_height_tracker::InfiniteHeight;
 use sov_modules_api::{FullyBakedTx, StateTransitionFunction};
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::BlockHeaderTrait;
-use sov_rollup_interface::node::da::DaService;
+use sov_rollup_interface::node::da::{DaService, SlotData};
 use sov_rollup_interface::node::SyncStatus;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
@@ -129,14 +129,16 @@ async fn test_runner_with_background_da_service(
     sync_status_receiver.mark_unchanged();
 
     let genesis_params = vec![1, 2, 3, 4, 5];
+    let block = da_service.get_block_at(0).await?;
+    let genesis_header = block.header().clone();
     let init_variant: MockInitVariant = InitVariant::Genesis {
-        block: da_service.get_block_at(0).await?,
+        block,
         genesis_params,
     };
     let (prev_state_root, _genesis_state_root) =
         init_variant.initialize(&stf, &mut storage_manager).await?;
 
-    let (_, ledger_state) = storage_manager.create_bootstrap_state().unwrap();
+    let (_, ledger_state) = storage_manager.create_state_after(&genesis_header).unwrap();
     let ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
     let mut runner: HashStfRunner<StorableMockDaService> = StateTransitionRunner::new(
         rollup_config.runner.clone(),

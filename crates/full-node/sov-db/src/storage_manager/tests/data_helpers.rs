@@ -1,3 +1,4 @@
+#![allow(missing_docs)]
 //! To check that [`NativeStorageManager`] creates correct [`DeltaReader`]
 //! tests are writing data related to each block,
 //! so it can be validated by looking at what data reader can provide.

@@ -364,16 +364,21 @@ where
             tracing::trace!("Aggregated Proof is materialized into Ledger ChangeSet");
         }
 
+        let save_and_finalize_start = std::time::Instant::now();
         self.storage_manager
             .save_change_set(&block_header, stf_changes, ledger_change_set)?;
-
-        self.update_api_and_ledger_storage(&block_header).await?;
-
+        let save_time = save_and_finalize_start.elapsed();
         for finalized_transition in &finalized_transitions {
             self.storage_manager
                 .finalize(&finalized_transition.block_header)?;
         }
-        tracing::trace!("All finalized transitions are marked as finalized");
+        let save_and_finalize_time = save_and_finalize_start.elapsed();
+        tracing::trace!(
+            ?save_time,
+            ?save_and_finalize_time,
+            "All finalized transitions are marked as finalized"
+        );
+        self.update_api_and_ledger_storage(&block_header).await?;
 
         if let Some(stf_info_sender) = &mut self.stf_info_sender {
             // Notify `StateTransitionInfo` consumers that the data is saved in the Db.

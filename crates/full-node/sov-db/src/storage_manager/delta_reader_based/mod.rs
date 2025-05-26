@@ -59,6 +59,10 @@ impl<Da: DaSpec, S: InitializableNativeStorage> NativeStorageManager<Da, S> {
     /// Create new [`NativeStorageManager`] in a given path.
     pub fn new(path: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
         let db_group = DbGroup::new_write(path.as_ref().to_path_buf())?;
+
+        // Updating ledger at startup
+        db_group.update_ledger_finalized_height()?;
+
         Ok(Self {
             chain_forks: Default::default(),
             blocks_to_parent: Default::default(),
@@ -231,16 +235,6 @@ where
     type LedgerState = DeltaReader;
     type LedgerChangeSet = SchemaBatch;
 
-    fn create_bootstrap_state(&mut self) -> anyhow::Result<(Self::StfState, Self::LedgerState)> {
-        self.dbg_validate_internal_consistency();
-
-        // Create storage based on finalized data
-        let (stf_storage, ledger_storage) = self.db_group.create_storage(Vec::new())?;
-
-        self.dbg_validate_internal_consistency();
-        Ok((stf_storage, ledger_storage))
-    }
-
     fn create_state_for(
         &mut self,
         block_header: &Da::BlockHeader,
@@ -271,10 +265,12 @@ where
     ) -> anyhow::Result<(Self::StfState, Self::LedgerState)> {
         self.dbg_validate_internal_consistency();
 
-        if !self.snapshots.contains_key(&block_header.hash()) {
-            anyhow::bail!("There is no snapshot available for the block {}. Use `create_bootstrap_storage` for getting storage from finalized data.", block_header.display())
-        }
-        let state = self.create_state_up_to(block_header.hash())?;
+        let state = if !self.snapshots.contains_key(&block_header.hash()) {
+            tracing::trace!(block_header = %block_header.display(), "Creating new storage from finalized data as block header is not in the saved chain");
+            self.db_group.create_storage(Vec::new())?
+        } else {
+            self.create_state_up_to(block_header.hash())?
+        };
 
         self.dbg_validate_internal_consistency();
         Ok(state)

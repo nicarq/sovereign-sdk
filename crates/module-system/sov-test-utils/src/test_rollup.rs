@@ -463,7 +463,10 @@ where
         let blueprint: R = Default::default();
 
         let mut storage_manager = blueprint.create_storage_manager(&rollup_config)?;
-        let (storage, ledger_state) = storage_manager.create_bootstrap_state()?;
+        let finalized_header = secondary_da_service
+            .get_last_finalized_block_header()
+            .await?;
+        let (storage, ledger_state) = storage_manager.create_state_after(&finalized_header)?;
         let ledger_db = LedgerDb::with_reader(ledger_state)?;
 
         let (sync_status_sender, _) = watch::channel(SyncStatus::START);

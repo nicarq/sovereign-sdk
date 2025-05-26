@@ -1,3 +1,4 @@
+#![allow(missing_docs)]
 //! Helpers for property testing.
 
 use std::collections::{HashMap, VecDeque};

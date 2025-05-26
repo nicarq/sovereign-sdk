@@ -21,7 +21,7 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::common::SlotNumber;
-use sov_rollup_interface::node::da::DaService;
+use sov_rollup_interface::node::da::{DaService, SlotData};
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::ProvableHeightTracker;
@@ -272,10 +272,12 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             .await;
         let da_service_handle = da_service.take_background_join_handle().await;
         let da_service = Arc::new(da_service);
+        let current_finalized_header = da_service.get_last_finalized_block_header().await?;
 
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
 
-        let (prover_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
+        let (prover_storage, ledger_state) =
+            storage_manager.create_state_after(&current_finalized_header)?;
         let mut ledger_db = self.create_ledger_db(ledger_state)?;
 
         let prev_root = ledger_db
@@ -283,19 +285,14 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             .map(|(number, _)| prover_storage.get_root_hash(number))
             .transpose()?;
 
-        let is_genesis = prev_root.is_none();
-
-        info!(?prev_root, is_genesis, "Recovering the state root");
-
+        info!(
+            ?prev_root,
+            is_genesis = prev_root.is_none(),
+            "Recovering the state root"
+        );
         let native_stf = StfBlueprint::new();
-
-        let (prev_state_root, genesis_state_root) = match prev_root {
-            Some(prev_state_root) => {
-                let (prover_storage, _ledger_state) = storage_manager.create_bootstrap_state()?;
-                let genesis_state_root = prover_storage.get_root_hash(SlotNumber::GENESIS)?;
-
-                (prev_state_root, genesis_state_root)
-            }
+        let (prover_storage, prev_state_root, genesis_state_root) = match prev_root {
+            // Missing prev_root means need for initialization
             None => {
                 info!(
                     rollup_genesis_height = rollup_config.runner.genesis_height,
@@ -305,6 +302,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     .get_block_at(rollup_config.runner.genesis_height)
                     .await?;
 
+                let genesis_header = rollup_genesis_block.header().clone();
                 let genesis_state_root: <<Self::Spec as Spec>::Storage as Storage>::Root =
                     initialize_state::<_, _, _, Self::DaService, _>(
                         &native_stf,
@@ -314,24 +312,27 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     )
                     .await?;
 
-                (genesis_state_root.clone(), genesis_state_root)
+                // Re-create bootstrap storage, so it fetches the latest version after initialization.
+                // And can see the latest changes. Otherwise Sequencer won't be able to process any batches,
+                // because genesis data won't be visible to it.
+                let (prover_storage, ledger_state) =
+                    storage_manager.create_state_after(&genesis_header)?;
+                ledger_db.replace_reader(ledger_state);
+                // Clearing notifications that has been produced during genesis.
+                // Rollup is not running yet, so there are no subscribers.
+                ledger_db.send_notifications();
+                (
+                    prover_storage,
+                    genesis_state_root.clone(),
+                    genesis_state_root,
+                )
             }
-        };
-
-        let prover_storage = if is_genesis {
-            // Re-create bootstrap storage, so it fetches the latest version after initialization.
-            // And can see the latest changes. Otherwise Sequencer won't be able to process any batches,
-            // because genesis data won't be visible to it.
-            let (prover_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
-            ledger_db.replace_reader(ledger_state);
-
-            // Clearing notifications that has been produced during genesis.
-            // Rollup is not running yet, so there are no subscribers.
-            ledger_db.send_notifications();
-            prover_storage
-        } else {
-            // Just using previously created bootstrap storage, because it is initialized
-            prover_storage
+            // LedgerDb contains previous state root, initialization already has been done.
+            Some(prev_state_root) => {
+                let genesis_state_root = prover_storage.get_root_hash(SlotNumber::GENESIS)?;
+                // (prev_state_root, genesis_state_root)
+                (prover_storage, prev_state_root, genesis_state_root)
+            }
         };
 
         let state_update_info = query_state_update_info(&ledger_db, prover_storage).await?;

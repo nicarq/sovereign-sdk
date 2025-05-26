@@ -7,7 +7,7 @@ use sov_rollup_interface::reexports::digest;
 use crate::accessory_db::AccessoryDb;
 use crate::ledger_db::LedgerDb;
 use crate::state_db_nomt::{StateDb, StateOverlay};
-use crate::storage_manager::InitializableNativeNomtStorage;
+use crate::storage_manager::{update_ledger_finalized_height, InitializableNativeNomtStorage};
 
 pub(crate) struct DbGroup<H> {
     state: StateDb<H>,
@@ -63,20 +63,12 @@ impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> DbGroup
         let accessory_db = AccessoryDb::with_reader(accessory_reader)?;
         let ledger_reader = DeltaReader::new(self.ledger.clone(), ledger_snapshots);
 
-        // Information about the latest finalized slot is outdated. We know that
-        // only finalized slots are ever persisted to the ledger db, so let's
-        // make sure queries about finalized slots reflect that.
-        {
-            let ledger_db = LedgerDb::with_reader(ledger_reader.clone())?;
-
-            if let Some((slot_num, _slot)) = ledger_db.get_head_slot()? {
-                let ledger_changeset = ledger_db.materialize_latest_finalize_slot(slot_num)?;
-                self.ledger.write_schemas(&ledger_changeset)?;
-            }
-        }
-
         let storage = S::new(state_session, accessory_db);
         Ok((storage, ledger_reader))
+    }
+
+    pub(crate) fn update_ledger_finalized_height(&self) -> anyhow::Result<()> {
+        update_ledger_finalized_height(self.ledger.clone())
     }
 }
 

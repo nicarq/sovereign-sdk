@@ -92,6 +92,9 @@ where
     /// Create a new [` NomtStorageManager`].
     pub fn new(path: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
         let db_group = DbGroup::new(path.as_ref().to_path_buf())?;
+
+        db_group.update_ledger_finalized_height()?;
+
         Ok(Self {
             chain_forks: Default::default(),
             blocks_to_parent: Default::default(),
@@ -197,11 +200,6 @@ where
     type LedgerState = DeltaReader;
     type LedgerChangeSet = SchemaBatch;
 
-    fn create_bootstrap_state(&mut self) -> anyhow::Result<(Self::StfState, Self::LedgerState)> {
-        let (stf_storage, ledger_storage) = self.db_group.create_storage(&[])?;
-        Ok((stf_storage, ledger_storage))
-    }
-
     fn create_state_for(
         &mut self,
         block_header: &Da::BlockHeader,
@@ -229,9 +227,11 @@ where
         block_header: &Da::BlockHeader,
     ) -> anyhow::Result<(Self::StfState, Self::LedgerState)> {
         if !self.snapshots.contains_key(&block_header.hash()) {
-            anyhow::bail!("There is no snapshot available for the block {}. Use `create_bootstrap_storage` for getting storage from finalized data.", block_header.display())
+            tracing::trace!(block_header = %block_header.display(), "Creating new storage from finalized data as block header is not in the saved chain");
+            self.db_group.create_storage(&[])
+        } else {
+            self.create_state_up_to(block_header.hash())
         }
-        self.create_state_up_to(block_header.hash())
     }
 
     fn save_change_set(

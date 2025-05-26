@@ -10,8 +10,8 @@ use sov_db::storage_manager::{NativeChangeSet, NativeStorageManager};
 use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{
-    BlockProducingConfig, MockAddress, MockBlock, MockDaConfig, MockDaService, MockDaSpec, MockFee,
-    MockHash, PlannedFork, RandomizationBehaviour, RandomizationConfig,
+    BlockProducingConfig, MockAddress, MockBlock, MockBlockHeader, MockDaConfig, MockDaService,
+    MockDaSpec, MockFee, MockHash, PlannedFork, RandomizationBehaviour, RandomizationConfig,
 };
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::provable_height_tracker::InfiniteHeight;
@@ -1040,8 +1040,8 @@ where
     Da: DaService<Error = anyhow::Error, Spec = MockDaSpec>,
 {
     let (state_root, mut storage_manager) = setup_storage_manager(path).await?;
-
-    let (stf_state, ledger_state) = storage_manager.create_bootstrap_state()?;
+    let genesis_header = MockBlockHeader::from_height(0);
+    let (stf_state, ledger_state) = storage_manager.create_state_after(&genesis_header)?;
     let ledger_db = LedgerDb::with_reader(ledger_state)?;
     let update_info = query_state_update_info(&ledger_db, stf_state).await?;
 

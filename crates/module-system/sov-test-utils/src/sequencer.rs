@@ -114,7 +114,8 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
         let (_genesis_root, stf_state) = stf.init_chain(&Default::default(), stf_state, params);
         storage_manager.save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())?;
         storage_manager.finalize(&genesis_block.header)?;
-        let (stf_state, ledger_state) = storage_manager.create_bootstrap_state()?;
+        let (stf_state, ledger_state) =
+            storage_manager.create_state_after(genesis_block.header())?;
         let ledger_db = LedgerDb::with_reader(ledger_state)?;
 
         let (sync_status_sender, _) = watch::channel(SyncStatus::Syncing {

@@ -14,10 +14,11 @@ use crate::storage_manager::tests::arbitrary::ForkDescription;
 use crate::storage_manager::tests::data_helpers::{verify_accessory_db, H, VERSION};
 use crate::storage_manager::tests::generic_tests::{
     calls_on_empty, check_snapshots_ordering, create_state_after_not_saved_block,
-    double_create_storage, double_save_changes, finalize_only_last_block, linear_progression,
-    minimal_fork_bfs, parallel_forks_reading_while_finalization_is_happening,
-    removed_fork_data_view, several_jumping_forks, test_exploration, unknown_block_cannot_be_saved,
-    ExplorationMode, TestableStorage, TestableStorageManager,
+    double_create_storage, double_save_changes, finalize_only_last_block,
+    ledger_finalized_height_is_updated_on_start, linear_progression, minimal_fork_bfs,
+    parallel_forks_reading_while_finalization_is_happening, removed_fork_data_view,
+    several_jumping_forks, test_exploration, unknown_block_cannot_be_saved, ExplorationMode,
+    TestableStorage, TestableStorageManager,
 };
 use crate::test_utils::{build_data_to_materialize, TestNativeStorage};
 
@@ -254,4 +255,9 @@ fn test_fork_keeps_reference_to_snapshot_after_finalization() {
 #[test]
 fn test_snapshots_ordering() {
     check_snapshots_ordering::<Sm>();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_ledger_finalized_height_is_updated_on_start() {
+    ledger_finalized_height_is_updated_on_start::<Sm>().await;
 }
