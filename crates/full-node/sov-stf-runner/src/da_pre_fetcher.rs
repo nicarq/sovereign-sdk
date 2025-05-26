@@ -285,7 +285,6 @@ where
 #[cfg(test)]
 mod tests {
     use sov_mock_da::storable::service::StorableMockDaService;
-    use sov_mock_da::MockFee;
 
     use super::*;
 
@@ -294,10 +293,7 @@ mod tests {
         let da_service = StorableMockDaService::new_in_memory(Default::default(), 0).await;
         let blocks_number = 200;
         for i in 1..=blocks_number {
-            da_service
-                .send_transaction(&[i; 32], MockFee::zero())
-                .await
-                .await??;
+            da_service.send_transaction(&[i; 32]).await.await??;
         }
 
         let (sender, mut receiver) = tokio::sync::watch::channel(());

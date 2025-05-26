@@ -12,7 +12,7 @@ use sov_db::storage_manager::NativeStorageManager;
 use sov_metrics::MonitoringConfig;
 use sov_mock_da::{
     BlockProducingConfig, MockAddress, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec,
-    MockDaVerifier, MockFee, MockHash,
+    MockDaVerifier, MockHash,
 };
 use sov_mock_zkvm::{MockZkvm, MockZkvmHost};
 use sov_modules_api::provable_height_tracker::InfiniteHeight;
@@ -71,7 +71,7 @@ impl TestNode {
 
         let serialized_batch = borsh::to_vec(&batch)?;
         self.da
-            .send_transaction(&serialized_batch, MockFee::zero())
+            .send_transaction(&serialized_batch)
             .await
             .await?
             .map(|receipt| receipt.da_transaction_id)
@@ -82,7 +82,7 @@ impl TestNode {
         let batch = vec![FullyBakedTx { data: vec![] }];
         let serialized_batch = borsh::to_vec(&batch)?;
         self.da
-            .send_transaction(&serialized_batch, MockFee::zero())
+            .send_transaction(&serialized_batch)
             .await
             .await?
             .map(|receipt| receipt.da_transaction_id)
@@ -126,8 +126,7 @@ impl ProofSender for MockProofSender {
     ) -> anyhow::Result<()> {
         let serialized_blob = serialized_proof.raw_aggregated_proof;
 
-        let fee = self.da.estimate_fee(serialized_blob.len()).await?;
-        self.da.send_proof(&serialized_blob, fee).await.await??;
+        self.da.send_proof(&serialized_blob).await.await??;
 
         Ok(())
     }

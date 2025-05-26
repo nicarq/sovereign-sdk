@@ -1,3 +1,9 @@
+# 2025-05-24
+- #2921 Removes the `Fee` trait and associated fee estimation logic from `DaService` and its implementations (Celestia, Mock DA).
+  - `DaService::send_transaction()` and `DaService::send_proof()` methods no longer accept a `fee` parameter.
+  - DA fee calculation is now fully delegated to the respective DA layer nodes.
+  - **Action Required for Starter Rollups:** Consumers of `DaService` (e.g., starter rollups, custom adapters) must update calls to `send_transaction` and `send_proof` to remove the fee argument.
+
 # 2025-05-23
 - #2886 **BREAKING CHANGE** Renames the outdated `rollup_height` field to `slot_number`. This change modifies the `BatchResponse` struct and  introduces a breaking change for SDK clients.
 

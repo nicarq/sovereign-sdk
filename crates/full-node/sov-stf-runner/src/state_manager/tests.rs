@@ -11,7 +11,7 @@ use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{
     BlockProducingConfig, MockAddress, MockBlock, MockBlockHeader, MockDaConfig, MockDaService,
-    MockDaSpec, MockFee, MockHash, PlannedFork, RandomizationBehaviour, RandomizationConfig,
+    MockDaSpec, MockHash, PlannedFork, RandomizationBehaviour, RandomizationConfig,
 };
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::provable_height_tracker::InfiniteHeight;
@@ -111,10 +111,7 @@ async fn test_empty_state_manager_returns_last_finalized_height() -> anyhow::Res
 
     let finality = 1000;
     let da_service = MockDaService::new(SEQUENCER_ADDRESS).with_finality(finality);
-    da_service
-        .send_transaction(&[10; 10], MockFee::zero())
-        .await
-        .await??;
+    da_service.send_transaction(&[10; 10]).await.await??;
     let filtered_block = da_service.get_block_at(1).await?;
 
     process_continuous_transition(&mut state_manager, filtered_block, &da_service, finality)
@@ -149,7 +146,7 @@ async fn test_instant_finality() -> anyhow::Result<()> {
     let mut state_root = *state_manager.get_state_root();
     for height in 1..4 {
         da_service
-            .send_transaction(&[height as u8; 10], MockFee::zero())
+            .send_transaction(&[height as u8; 10])
             .await
             .await??;
         let filtered_block = da_service.get_block_at(height).await?;
@@ -209,10 +206,7 @@ async fn test_reorg_happened_correct_block_returned() -> anyhow::Result<()> {
     for da_height in 1..=fork_happens_at {
         // Not used anywhere, `process_normal_transition` relies on da header to produce changes.
         let blob_data = [da_height as u8; 10];
-        da_service
-            .send_transaction(&blob_data, MockFee::zero())
-            .await
-            .await??;
+        da_service.send_transaction(&blob_data).await.await??;
         let filtered_block = da_service.get_block_at(da_height).await?;
         if da_height < fork_happens_at {
             let block_hash = filtered_block.header().hash();
@@ -273,7 +267,7 @@ async fn test_save_last_finalized_larger_than_seen_latest_seen_transition() -> a
     // Fill some seen transitions without finalizing.
     for height in 1..chain_length {
         da_service
-            .send_transaction(&[height as u8; 10], MockFee::zero())
+            .send_transaction(&[height as u8; 10])
             .await
             .await??;
         let filtered_block = da_service.get_block_at(height).await?;
@@ -292,7 +286,7 @@ async fn test_save_last_finalized_larger_than_seen_latest_seen_transition() -> a
 
     // Here we are going to finalize all things between
     da_service
-        .send_transaction(&[chain_length as u8; 10], MockFee::zero())
+        .send_transaction(&[chain_length as u8; 10])
         .await
         .await??;
 
@@ -305,10 +299,7 @@ async fn test_save_last_finalized_larger_than_seen_latest_seen_transition() -> a
 
     let produce_between = (finality * 3) as u64;
     for _ in 0..produce_between {
-        da_service
-            .send_transaction(&[10; 10], MockFee::zero())
-            .await
-            .await??;
+        da_service.send_transaction(&[10; 10]).await.await??;
     }
 
     let last_finalized_height = da_service.get_last_finalized_block_header().await?.height();
@@ -381,10 +372,7 @@ async fn test_progressing_with_shuffle(
     // Blobs
     let blob_data = [10; 10];
     for _ in 0..batches {
-        da_service
-            .send_transaction(&blob_data, MockFee::zero())
-            .await
-            .await??;
+        da_service.send_transaction(&blob_data).await.await??;
     }
 
     if empty_padding == 0 && batches == 0 {
@@ -492,10 +480,7 @@ async fn test_progressing_with_shuffle(
 
         // New block should always be created with a batch
         if batches >= finality as usize {
-            da_service
-                .send_transaction(&blob_data, MockFee::zero())
-                .await
-                .await??;
+            da_service.send_transaction(&blob_data).await.await??;
         } else {
             let next_finalized_block = da_service
                 .get_block_at(last_finalized_header.height().saturating_add(1))
@@ -505,10 +490,7 @@ async fn test_progressing_with_shuffle(
                 non_finalized_batches.saturating_sub(next_finalized_block.batch_blobs.len());
             // We try to maintain number of non finalized batches closer to the original number.
             if non_finalized_batches < batches {
-                da_service
-                    .send_transaction(&blob_data, MockFee::zero())
-                    .await
-                    .await??;
+                da_service.send_transaction(&blob_data).await.await??;
                 non_finalized_batches += 1;
             } else {
                 da_service.produce_block_now().await?;
@@ -623,10 +605,7 @@ async fn test_with_frequent_periodic_batch_production() -> anyhow::Result<()> {
                         break;
                     }
                 };
-                spammer
-                    .send_transaction(&blob, MockFee::zero())
-                    .await
-                    .await??;
+                spammer.send_transaction(&blob).await.await??;
             }
             Ok(())
         });
@@ -737,10 +716,7 @@ async fn test_chain_progress_between_prepare_storage_and_save_changes(
             da_service.produce_n_blocks_now(empty_blobs).await?;
             for i in 0..batch_blobs {
                 let blob_data = [i as u8, i as u8];
-                da_service
-                    .send_transaction(&blob_data, MockFee::zero())
-                    .await
-                    .await??;
+                da_service.send_transaction(&blob_data).await.await??;
             }
             let head = da_service.get_head_block_header().await?;
             let head_height = head.height().saturating_sub(last_shuffled_height);
@@ -914,7 +890,7 @@ async fn test_change_in_finalized_header() {
 
     for height in 1..=chain_length {
         da_service
-            .send_transaction(&[height as u8; 10], MockFee::zero())
+            .send_transaction(&[height as u8; 10])
             .await
             .await
             .unwrap()
@@ -933,7 +909,7 @@ async fn test_change_in_finalized_header() {
     let da_service = MockDaService::new(SEQUENCER_ADDRESS).with_finality(finality);
     for height in 1..=chain_length {
         da_service
-            .send_transaction(&[(height * 10) as u8; 10], MockFee::zero())
+            .send_transaction(&[(height * 10) as u8; 10])
             .await
             .await
             .unwrap()
@@ -964,7 +940,7 @@ async fn test_state_manager_starts_from_non_finalized_height() -> anyhow::Result
     let da_service = MockDaService::new(SEQUENCER_ADDRESS).with_finality(finality);
     for height in 1..=chain_length {
         da_service
-            .send_transaction(&[(height * 10) as u8; 10], MockFee::zero())
+            .send_transaction(&[(height * 10) as u8; 10])
             .await
             .await??;
     }

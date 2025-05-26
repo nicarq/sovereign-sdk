@@ -4,8 +4,6 @@
 #[cfg(feature = "native")]
 mod config;
 #[cfg(feature = "native")]
-mod fee;
-#[cfg(feature = "native")]
 mod in_memory;
 #[cfg(feature = "native")]
 pub mod storable;
@@ -16,8 +14,6 @@ pub mod verifier;
 
 #[cfg(feature = "native")]
 pub use config::*;
-#[cfg(feature = "native")]
-pub use fee::*;
 #[cfg(feature = "native")]
 pub use in_memory::*;
 pub use types::*;

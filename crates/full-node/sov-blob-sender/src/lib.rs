@@ -12,7 +12,7 @@ use db::{BlobSenderDb, BlobToSend};
 use in_flight_blob::{track_num_of_in_flight_blobs, InFlightBlob, InFlightBlobInfo};
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::{DaSpec, EventModuleName, RuntimeEventResponse};
-use sov_rollup_interface::node::da::{DaService, Fee, SubmitBlobReceipt};
+use sov_rollup_interface::node::da::{DaService, SubmitBlobReceipt};
 use sov_rollup_interface::node::ledger_api::{LedgerStateProvider, QueryMode};
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
 use tokio::sync::{oneshot, watch, Mutex};
@@ -386,14 +386,14 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
 
             match blob_state {
                 BlobProcessingState::MustSubmit => {
-                    let (receipt_fut, gas_estimate) = self.send_blob(blob.clone()).await?;
+                    let receipt_fut = self.send_blob(blob.clone()).await?;
 
                     self.db.set_state(blob_id, &blob_state).await?;
 
                     tokio::select! {
                         receipt_res = receipt_fut => {
                             let receipt = receipt_res?.map_err(|err| anyhow::anyhow!("Failed to track blob submission: {err}"))?;
-                            blob_state = BlobProcessingState::Published { receipt, gas_estimate };
+                            blob_state = BlobProcessingState::Published { receipt };
                         }
                         _ = sleep(Self::RESUBMIT_INTERVAL) => {
                             // We successfully submitted the blob, but it wasn't
@@ -405,10 +405,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                         },
                     };
                 }
-                BlobProcessingState::Published {
-                    receipt,
-                    gas_estimate,
-                } => {
+                BlobProcessingState::Published { receipt } => {
                     self.hooks
                         .on_published_blob(
                             blob_id,
@@ -420,7 +417,6 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                         .set_state(
                             blob_id,
                             &BlobProcessingState::<Da::Spec>::Published {
-                                gas_estimate,
                                 receipt: receipt.clone(),
                             },
                         )
@@ -448,10 +444,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                             Some(_) => {
                                 // Never skip directly to `Finalized` state, or
                                 // we won't send out the notification.
-                                blob_state = BlobProcessingState::Processed {
-                                    receipt,
-                                    gas_estimate,
-                                };
+                                blob_state = BlobProcessingState::Processed { receipt };
                                 break;
                             }
                             None => {
@@ -460,10 +453,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                         }
                     }
                 }
-                BlobProcessingState::Processed {
-                    receipt,
-                    gas_estimate,
-                } => {
+                BlobProcessingState::Processed { receipt } => {
                     self.hooks
                         .on_processed_blob(
                             blob_id,
@@ -476,7 +466,6 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                         .set_state(
                             blob_id,
                             &BlobProcessingState::<Da::Spec>::Processed {
-                                gas_estimate,
                                 receipt: receipt.clone(),
                             },
                         )
@@ -494,10 +483,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                                 continue;
                             }
                             Some(true) => {
-                                blob_state = BlobProcessingState::Finalized {
-                                    receipt,
-                                    gas_estimate,
-                                };
+                                blob_state = BlobProcessingState::Finalized { receipt };
                                 break;
                             }
                             None => {
@@ -535,26 +521,15 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
         Ok(())
     }
 
-    async fn send_blob(&self, blob: BlobToSend) -> anyhow::Result<(BlobReceiptFut<Da>, u64)> {
-        let fee = self
-            .da
-            .estimate_fee(blob.data().len())
-            .await
-            .map_err(|da_err| anyhow::anyhow!("Failed to estimate fee: {da_err}"))?;
-
-        let gas_estimate = fee.gas_estimate();
-
+    async fn send_blob(&self, blob: BlobToSend) -> anyhow::Result<BlobReceiptFut<Da>> {
         trace!(
             blob_len = blob.data().len(),
-            gas_estimate,
             "Will attempt to publish blob to DA"
         );
 
         match blob {
-            BlobToSend::Batch { data } => {
-                Ok((self.da.send_transaction(&data, fee).await, gas_estimate))
-            }
-            BlobToSend::Proof { data } => Ok((self.da.send_proof(&data, fee).await, gas_estimate)),
+            BlobToSend::Batch { data } => Ok(self.da.send_transaction(&data).await),
+            BlobToSend::Proof { data } => Ok(self.da.send_proof(&data).await),
         }
     }
 }
@@ -570,18 +545,12 @@ struct BlobSubmissionRequest<Da: DaSpec> {
 enum BlobProcessingState<Da: DaSpec> {
     MustSubmit,
     Published {
-        #[serde(default)] // To avoid breaking changes in DB schema
-        gas_estimate: u64,
         receipt: SubmitBlobReceipt<Da::TransactionId>,
     },
     Processed {
-        #[serde(default)]
-        gas_estimate: u64,
         receipt: SubmitBlobReceipt<Da::TransactionId>,
     },
     Finalized {
-        #[serde(default)]
-        gas_estimate: u64,
         receipt: SubmitBlobReceipt<Da::TransactionId>,
     },
 }

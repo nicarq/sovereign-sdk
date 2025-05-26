@@ -2,12 +2,11 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use rand::prelude::SmallRng;
 use rand::{Rng, SeedableRng};
 use sov_mock_da::storable::service::StorableMockDaService;
-use sov_mock_da::{MockDaConfig, MockFee};
+use sov_mock_da::MockDaConfig;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
 
-const FEE: MockFee = MockFee::zero();
 const BLOCK_TIME_MS: u64 = 50;
 const READERS_COUNT: usize = 10;
 
@@ -131,7 +130,7 @@ fn bench_storable_mock_da_service(c: &mut Criterion) {
         b.to_async(&rt).iter(|| async {
             let _s = black_box(
                 da_service
-                    .send_transaction(&data, FEE)
+                    .send_transaction(&data)
                     .await
                     .await
                     .unwrap()
@@ -166,10 +165,7 @@ async fn spawn_send_transaction_task(
             FutureOrShutdownOutput::Output(_) => {
                 let size = rng.gen_range(1024..=30_000);
                 let batch_data = vec![200_u8; size];
-                let _s = da_service
-                    .send_transaction(&batch_data, FEE)
-                    .await
-                    .await??;
+                let _s = da_service.send_transaction(&batch_data).await.await??;
             }
         }
     }
@@ -190,7 +186,7 @@ async fn spawn_send_proof_task(
             FutureOrShutdownOutput::Output(_) => {
                 let size = rng.gen_range(1024..=30_000);
                 let proof_data = vec![200_u8; size];
-                let _s = da_service.send_proof(&proof_data, FEE).await.await??;
+                let _s = da_service.send_proof(&proof_data).await.await??;
             }
         }
     }

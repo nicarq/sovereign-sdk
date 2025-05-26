@@ -42,8 +42,7 @@ async fn check_blobs_roundtrip(
     let start = head_before.header.height();
 
     for blob in blobs {
-        let fee = da_service.estimate_fee(blob.len()).await?;
-        let receipt = da_service.send_transaction(blob, fee).await.await??;
+        let receipt = da_service.send_transaction(blob).await.await??;
         let bytes_hash = hash_bytes(blob);
         tracing::info!(
             "Sent blob of size {} bytes hash {} blob hash {}",

@@ -6,7 +6,7 @@ use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{
     BlockProducingConfig, MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig,
-    MockDaService, MockDaSpec, MockFee, PlannedFork, RandomizationBehaviour, RandomizationConfig,
+    MockDaService, MockDaSpec, PlannedFork, RandomizationBehaviour, RandomizationConfig,
 };
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::provable_height_tracker::InfiniteHeight;
@@ -69,9 +69,8 @@ async fn test_simple_reorg_case() {
 
     let da_service = Arc::new(da_service);
     for data in main_chain_blobs {
-        let fee = da_service.estimate_fee(data.len()).await.unwrap();
         da_service
-            .send_transaction(&data, fee)
+            .send_transaction(&data)
             .await
             .await
             .unwrap()
@@ -173,10 +172,7 @@ async fn test_runner_with_background_da_service(
         }];
 
         let serialized_batch = borsh::to_vec(&batch)?;
-        let _ = da_service
-            .send_transaction(&serialized_batch, MockFee::zero())
-            .await
-            .await?;
+        let _ = da_service.send_transaction(&serialized_batch).await.await?;
 
         sync_status_receiver.changed().await?;
 
@@ -268,26 +264,25 @@ async fn test_instant_finality_data_stored() -> anyhow::Result<()> {
     let da_service = Arc::new(MockDaService::new(sequencer_address).with_wait_attempts(2));
 
     let genesis_block = da_service.get_block_at(0).await?;
-    let fee = da_service.estimate_fee(4).await?;
 
     let serialized_blob_1 = batch(vec![1, 1, 1, 1]);
 
     da_service
-        .send_transaction(&serialized_blob_1, fee)
+        .send_transaction(&serialized_blob_1)
         .await
         .await??;
 
     let serialized_blob_2 = batch(vec![2, 2, 2, 2]);
 
     da_service
-        .send_transaction(&serialized_blob_2, fee)
+        .send_transaction(&serialized_blob_2)
         .await
         .await??;
 
     let serialized_blob_3 = batch(vec![3, 3, 3, 3]);
 
     da_service
-        .send_transaction(&serialized_blob_3, fee)
+        .send_transaction(&serialized_blob_3)
         .await
         .await??;
 

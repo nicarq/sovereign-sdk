@@ -6,17 +6,15 @@ use async_trait::async_trait;
 use backon::ExponentialBuilder;
 use celestia_rpc::prelude::*;
 use celestia_types::blob::Blob as JsonBlob;
-use celestia_types::consts::appconsts;
 use celestia_types::nmt::Namespace;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HeaderMap, HttpClient};
-use serde::{Deserialize, Serialize};
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::{DaProof, DaSpec, RelevantBlobs, RelevantProofs};
 use sov_rollup_interface::node::da::{
-    run_maybe_retryable_async_fn_with_retries, DaService, Fee, MaybeRetryable, SubmitBlobReceipt,
+    run_maybe_retryable_async_fn_with_retries, DaService, MaybeRetryable, SubmitBlobReceipt,
 };
 use tokio::sync::{oneshot, Mutex};
 use tokio::time::Instant;
@@ -25,7 +23,6 @@ use tracing::{debug, info, instrument, trace};
 
 pub use crate::config::CelestiaConfig;
 use crate::middleware::{TimingLayer, TimingMiddleware};
-use crate::shares::shares_needed_for_bytes;
 use crate::types::{
     FilteredCelestiaBlock, NamespaceBoundaryProof, NamespaceRelevantData, TmHash, APP_VERSION,
 };
@@ -35,38 +32,6 @@ use crate::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams};
 use crate::CelestiaHeader;
 
 type BoxError = anyhow::Error;
-
-// https://github.com/celestiaorg/celestia-app/blob/c90e61d5a2d0c0bd0e123df4ab416f6f0d141b7f/pkg/appconsts/initial_consts.go#L16-L18
-// `DefaultGasPerBlobByte`
-const DEFAULT_GAS_PER_BLOB_BYTE: usize = 8;
-
-// const DefaultTxSizeCostPerByte from cosmos-sdk
-// https://github.com/cosmos/cosmos-sdk/blob/d0f6cc6d405fbce4332b5654e60bd6514ee79649/x/auth/types/params.go#L11
-const DEFAULT_TX_SIZE_COST_PER_BYTE: usize = 10;
-
-// BytesPerBlobInfo is a rough estimation for the number of extra bytes in
-// information a blob adds to the size of the underlying transaction.
-// https://github.com/celestiaorg/celestia-app/blob/a92de7236e7568aa1e9032a29a68c64ef751ce0a/x/blob/types/payforblob.go#L41
-const BYTES_PER_BLOB_INFO: usize = 70;
-
-// https://github.com/celestiaorg/celestia-app/blob/a92de7236e7568aa1e9032a29a68c64ef751ce0a/x/blob/types/payforblob.go#L37
-const PFB_GAS_FIXED_COST: usize = 75_000;
-
-// Second part of summation from here:
-// https://github.com/celestiaorg/celestia-app/blob/a92de7236e7568aa1e9032a29a68c64ef751ce0a/x/blob/types/payforblob.go#L172
-// (txSizeCost * BytesPerBlobInfo * uint64(len(blobSizes))) + PFBGasFixedCost
-// where in our case:
-//  * txSizeCost = DEFAULT_TX_SIZE_COST_PER_BYTE;
-//  * BytesPerBlobInfo = BYTES_PER_BLOB_INFO
-//  * len(blobSizes) = 1;
-//  * PFBGasFixedCost = PFB_GAS_FIXED_COST;
-const DEFAULT_FIXED_COST_SINGLE_BLOB: usize =
-    (DEFAULT_TX_SIZE_COST_PER_BYTE * BYTES_PER_BLOB_INFO) + PFB_GAS_FIXED_COST;
-
-// TODO: set dynamically https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/391
-/// The gas price expressed in micro tia ("uTIA"). Note that this is in line with
-/// how Celestia packages expect fees to be denominated.
-const GAS_PRICE_UTIA: u64 = 1;
 
 type TimedHttpClient = HttpClient<TimingMiddleware<HttpBackend>>;
 
@@ -110,11 +75,10 @@ impl CelestiaService {
     async fn submit_blob_to_namespace(
         &self,
         blob: &[u8],
-        fee: CelestiaFee,
         namespace: Namespace,
     ) -> anyhow::Result<SubmitBlobReceipt<TmHash>> {
         let bytes = blob.len();
-        debug!(bytes, ?fee, ?namespace, "Sending raw data to Celestia");
+        debug!(bytes, ?namespace, "Sending raw data to Celestia");
 
         let blob = JsonBlob::new_with_signer(
             namespace,
@@ -124,17 +88,13 @@ impl CelestiaService {
         )?;
         info!(
             commitment = hex::encode(blob.commitment.hash()),
-            ?fee,
             bytes,
             data_bytes = blob.data.len(),
             "Submitting a blob"
         );
         let blob_hash = HexHash::new(*blob.commitment.hash());
 
-        let mut tx_config = celestia_rpc::TxConfig::default();
-        tx_config
-            .with_gas_price(fee.fee_per_gas as f64)
-            .with_gas(fee.gas_limit);
+        let tx_config = celestia_rpc::TxConfig::default();
 
         let tx_response = self
             .submit_client
@@ -193,40 +153,6 @@ impl CelestiaService {
             config.signer_address,
             Duration::from_millis(config.safe_lead_time_ms),
         )
-    }
-}
-
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
-/// The fee for submitting a transaction to Celestia.
-pub struct CelestiaFee {
-    /// The fee rate (in nano-tia per gas).
-    fee_per_gas: u64,
-    /// The gas limit for the transaction.
-    gas_limit: u64,
-}
-
-impl CelestiaFee {
-    pub(crate) fn estimated(blob_size: usize) -> Self {
-        CelestiaFee {
-            fee_per_gas: GAS_PRICE_UTIA,
-            gas_limit: get_gas_limit_for_bytes_as_in_golang(blob_size) as u64,
-        }
-    }
-}
-
-impl Fee for CelestiaFee {
-    type FeeRate = u64;
-
-    fn fee_rate(&self) -> Self::FeeRate {
-        self.fee_per_gas
-    }
-
-    fn set_fee_rate(&mut self, rate: Self::FeeRate) {
-        self.fee_per_gas = rate;
-    }
-
-    fn gas_estimate(&self) -> u64 {
-        self.gas_limit
     }
 }
 
@@ -306,10 +232,9 @@ impl CelestiaService {
     async fn send_transaction_inner(
         &self,
         blob: &[u8],
-        fee: CelestiaFee,
     ) -> Result<SubmitBlobReceipt<TmHash>, MaybeRetryable<anyhow::Error>> {
         debug!("Submitting batch of transactions to Celestia");
-        self.submit_blob_to_namespace(blob, fee, self.rollup_batch_namespace)
+        self.submit_blob_to_namespace(blob, self.rollup_batch_namespace)
             .await
             .map_err(MaybeRetryable::Transient)
     }
@@ -318,10 +243,9 @@ impl CelestiaService {
     async fn send_proof_inner(
         &self,
         aggregated_proof: &[u8],
-        fee: CelestiaFee,
     ) -> Result<SubmitBlobReceipt<TmHash>, MaybeRetryable<anyhow::Error>> {
         debug!("Submitting aggregated proof to Celestia");
-        self.submit_blob_to_namespace(aggregated_proof, fee, self.rollup_proof_namespace)
+        self.submit_blob_to_namespace(aggregated_proof, self.rollup_proof_namespace)
             .await
             .map_err(MaybeRetryable::Transient)
     }
@@ -360,7 +284,6 @@ impl DaService for CelestiaService {
     type Verifier = CelestiaVerifier;
     type FilteredBlock = FilteredCelestiaBlock;
     type Error = BoxError;
-    type Fee = CelestiaFee;
 
     #[instrument(skip(self))]
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
@@ -468,19 +391,16 @@ impl DaService for CelestiaService {
     async fn send_transaction(
         &self,
         blob: &[u8],
-        fee: Self::Fee,
     ) -> oneshot::Receiver<
         Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
     > {
         let (tx, rx) = oneshot::channel();
-
         let res = run_maybe_retryable_async_fn_with_retries(
             &self.backoff_policy,
-            || self.send_transaction_inner(blob, fee),
+            || self.send_transaction_inner(blob),
             "send_transaction",
         )
         .await;
-
         tx.send(res).unwrap();
         rx
     }
@@ -488,18 +408,16 @@ impl DaService for CelestiaService {
     async fn send_proof(
         &self,
         aggregated_proof: &[u8],
-        fee: Self::Fee,
     ) -> oneshot::Receiver<
         Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
     > {
         let (tx, rx) = oneshot::channel();
         let res = run_maybe_retryable_async_fn_with_retries(
             &self.backoff_policy,
-            || self.send_proof_inner(aggregated_proof, fee),
+            || self.send_proof_inner(aggregated_proof),
             "send_proof",
         )
         .await;
-
         tx.send(res).unwrap();
         rx
     }
@@ -513,48 +431,6 @@ impl DaService for CelestiaService {
         )
         .await
     }
-
-    #[instrument(err)]
-    async fn estimate_fee(&self, blob_size: usize) -> Result<Self::Fee, Self::Error> {
-        Ok(CelestiaFee::estimated(blob_size))
-    }
-}
-
-#[cfg(test)]
-pub fn raw_blob_from_data(
-    namespace: Namespace,
-    data: Vec<u8>,
-    signer: &CelestiaAddress,
-) -> anyhow::Result<celestia_types::blob::RawBlob> {
-    Ok(celestia_types::blob::RawBlob::from(
-        celestia_types::blob::Blob::new_with_signer(
-            namespace,
-            data,
-            signer.0.clone(),
-            APP_VERSION,
-        )?,
-    ))
-}
-
-// ------------------------------------------------------------------------
-// ------------------------------------------------------------------------
-// ------------------------------------------------------------------------
-
-//
-// func EstimateGas(blobSizes []uint32, gasPerByte uint32, txSizeCost uint64) uint64 {
-// 	return GasToConsume(blobSizes, gasPerByte) + (txSizeCost * BytesPerBlobInfo * uint64(len(blobSizes))) + PFBGasFixedCost
-// }
-fn get_gas_limit_for_bytes_as_in_golang(payload_size: usize) -> usize {
-    gas_to_consume_from_data(payload_size, DEFAULT_GAS_PER_BLOB_BYTE)
-        .saturating_add(DEFAULT_FIXED_COST_SINGLE_BLOB)
-}
-
-// Similar to GasToConsume
-fn gas_to_consume_from_data(bytes: usize, gas_per_byte: usize) -> usize {
-    let shares_needed = shares_needed_for_bytes(bytes);
-    shares_needed
-        .saturating_mul(appconsts::SHARE_SIZE)
-        .saturating_mul(gas_per_byte)
 }
 
 #[cfg(test)]
@@ -571,14 +447,11 @@ mod tests {
     use wiremock::matchers::{bearer_token, body_json, method, path};
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
-    use super::{
-        get_gas_limit_for_bytes_as_in_golang, raw_blob_from_data, shares_needed_for_bytes,
-    };
     use crate::config::default_request_timeout_seconds;
-    use crate::da_service::{CelestiaConfig, CelestiaFee, CelestiaService, GAS_PRICE_UTIA};
+    use crate::da_service::{CelestiaConfig, CelestiaService};
     use crate::test_helper::files::*;
-    use crate::test_helper::{ADDR_1, ADDR_2, ROLLUP_PARAMS_DEV};
-    use crate::types::{BlobWithSender, FilteredCelestiaBlock, APP_VERSION};
+    use crate::test_helper::{raw_blob_from_data, ADDR_1, ADDR_2, ROLLUP_PARAMS_DEV};
+    use crate::types::{BlobWithSender, FilteredCelestiaBlock};
     use crate::verifier::address::CelestiaAddress;
     use crate::verifier::{CelestiaVerifier, RollupParams};
 
@@ -628,19 +501,14 @@ mod tests {
         let (mock_server, config, da_service) = setup_test_service(None, rollup_params).await;
 
         let blob = vec![1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
-        let gas_limit = get_gas_limit_for_bytes_as_in_golang(blob.len());
 
         let raw_blob = raw_blob_from_data(
             rollup_params.rollup_batch_namespace,
             blob.clone(),
             &config.signer_address,
         );
-        let mut tx_config = celestia_rpc::TxConfig::default();
-        tx_config
-            .with_gas_price(GAS_PRICE_UTIA as f64)
-            .with_gas(gas_limit as u64);
+        let tx_config = celestia_rpc::TxConfig::default();
 
-        // TODO: Fee is hardcoded for now https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/382
         let expected_body = json!({
             "id": 0,
             "jsonrpc": "2.0",
@@ -683,15 +551,13 @@ mod tests {
             .up_to_n_times(1)
             .mount(&mock_server)
             .await;
-        let fee = CelestiaFee::estimated(blob.len());
-        da_service.send_transaction(&blob, fee).await.await??;
+        da_service.send_transaction(&blob).await.await??;
 
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_submit_blob_application_level_error() -> anyhow::Result<()> {
-        // Our calculation of gas is off and the gas limit exceeded, for example
         let (mock_server, _config, da_service) = setup_test_service(None, ROLLUP_PARAMS_DEV).await;
 
         let blob: Vec<u8> = vec![1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
@@ -718,12 +584,8 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let fee = CelestiaFee {
-            fee_per_gas: GAS_PRICE_UTIA,
-            gas_limit: 1,
-        };
         let error = da_service
-            .send_transaction(&blob, fee)
+            .send_transaction(&blob)
             .await
             .await?
             .unwrap_err()
@@ -750,9 +612,8 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let fee = CelestiaFee::estimated(blob.len());
         let error = da_service
-            .send_transaction(&blob, fee)
+            .send_transaction(&blob)
             .await
             .await?
             .unwrap_err()
@@ -789,7 +650,6 @@ mod tests {
             .set_body_json(response_json);
 
         let blob: Vec<u8> = vec![1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
-        let fee = CelestiaFee::estimated(blob.len());
 
         // Do not check API token or expected body here.
         // Only interested in behaviour on response
@@ -801,7 +661,7 @@ mod tests {
             .await;
 
         let error = da_service
-            .send_transaction(&blob, fee)
+            .send_transaction(&blob)
             .await
             .await?
             .unwrap_err()
@@ -1125,17 +985,13 @@ mod tests {
         let (mock_server, config, da_service) = setup_test_service(None, rollup_params).await;
 
         let zk_proof: Vec<u8> = vec![1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
-        let gas_limit = get_gas_limit_for_bytes_as_in_golang(zk_proof.len());
 
         let raw_blob = raw_blob_from_data(
             rollup_params.rollup_proof_namespace,
             zk_proof.clone(),
             &config.signer_address,
         );
-        let mut tx_config = celestia_rpc::TxConfig::default();
-        tx_config
-            .with_gas_price(GAS_PRICE_UTIA as f64)
-            .with_gas(gas_limit as u64);
+        let tx_config = celestia_rpc::TxConfig::default();
 
         let expected_body = json!({
             "id": 0,
@@ -1180,100 +1036,9 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let fee = CelestiaFee::estimated(zk_proof.len());
-        da_service.send_proof(&zk_proof, fee).await.await??;
+        da_service.send_proof(&zk_proof).await.await??;
 
         Ok(())
-    }
-
-    #[test]
-    fn test_gas_limit_for_gas_from_go() {
-        // On the left size of single blob in batch
-        // On the right is gas limit returned by
-        // [func DefaultEstimateGas(blobSizes []uint32) uint64]
-        // (https://github.com/celestiaorg/celestia-app/blob/c7bef58d058899de23d2cc9d47403c3898e21f53/x/blob/types/payforblob.go#L177)
-        // func TestGasLimitForSingleBlobs(t *testing.T) {
-        // 	for i := 1100; i <= 1300; i++ {
-        // 		blobSizes := []uint32{i}
-        // 		gasLimit := types.DefaultEstimateGas(blobSizes)
-        // 		fmt.Printf("(%d, %d),\n", i, gasLimit)
-        // 	}
-        // }
-        let test_cases = [
-            (1200, 87988),
-            (1201, 87988),
-            (1300, 87988),
-            (2000, 96180),
-            (3000, 104372),
-            (4000, 112564),
-            (5000, 120756),
-            (6000, 128948),
-            (7000, 137140),
-            (8000, 145332),
-            (9000, 153524),
-            (10000, 161716),
-            (11000, 169908),
-            (12000, 178100),
-            (13000, 186292),
-            (14000, 198580),
-            (15000, 206772),
-            (16000, 214964),
-            (17000, 223156),
-            (18000, 231348),
-            (19000, 239540),
-            (20000, 247732),
-            (21000, 255924),
-            (22000, 264116),
-            (23000, 272308),
-            (24000, 280500),
-            (25000, 288692),
-            (26000, 296884),
-            (27000, 309172),
-            (28000, 317364),
-            (29000, 325556),
-            (30000, 333748),
-        ];
-
-        for (bytes, expected_gas_limit) in test_cases {
-            let gas_limit = get_gas_limit_for_bytes_as_in_golang(bytes);
-            assert_eq!(expected_gas_limit, gas_limit);
-        }
-    }
-
-    #[test]
-    fn sanity_check_fee_with_current_testnet() {
-        // https://mocha.celenium.io/tx/7b8dd68a7a8542714dfbb1b655a381d71ce013b0fc406acc3a56b61a116e7253
-        // {
-        //   "id": 3068781,
-        //   "gas_wanted": 904440,
-        //   "gas_used": 395479,
-        //   "hash": "7b8dd68a7a8542714dfbb1b655a381d71ce013b0fc406acc3a56b61a116e7253",
-        //   "fee": "904440",
-        //   "time": "2024-04-01T11:38:39.407177Z",
-        // TX:
-        // {
-        //   "id": 3077971,
-        //   "type": "MsgPayForBlobs",
-        //   "data": {
-        //     "BlobSizes": [
-        //       38617
-        //     ],
-        // }
-
-        let blob_size = 38617;
-        let gas_wanted = 904440;
-        let gas_used = 395479;
-        let gas_used_upper_bound = (gas_wanted as f64 * 1.4) as usize;
-
-        let gas_limit = get_gas_limit_for_bytes_as_in_golang(blob_size);
-
-        assert!(gas_limit >= gas_used);
-        assert!(gas_limit <= gas_used_upper_bound);
-    }
-
-    #[test_strategy::proptest(cases = 10_000)]
-    fn get_gas_limit_for_bytes_does_not_panic_test(blob_size: usize) {
-        get_gas_limit_for_bytes_as_in_golang(blob_size);
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1330,43 +1095,6 @@ mod tests {
         }
 
         Ok(())
-    }
-
-    #[test]
-    #[ignore = "Disabled due to not having corresponding methods in lumina to test against."]
-    fn test_blob_size_from_payload() {
-        // This test checked [`shares_needed_for_bytes`] against actual shares generated by
-        // `Blob::new`
-        let sizes: Vec<usize> = (0..100)
-            .chain(400..700)
-            .chain(900..1200)
-            .chain(4800..5200)
-            .collect();
-        let namespace = Namespace::new_v0(b"test").unwrap();
-        let signer = CelestiaAddress::from_str(ADDR_1).unwrap();
-        for payload_size in sizes {
-            let payload = vec![255; payload_size];
-            let blob = celestia_types::Blob::new_with_signer(
-                namespace,
-                payload,
-                signer.0.clone(),
-                APP_VERSION,
-            )
-            .unwrap();
-            let shares_count = blob.shares_len();
-
-            let our_shares = shares_needed_for_bytes(payload_size);
-
-            assert_eq!(
-                shares_count, our_shares,
-                "Failed for payload_size {}",
-                payload_size
-            );
-        }
-
-        let extreme_case = shares_needed_for_bytes(usize::MAX);
-        // Doesn't make much sense, but it does not panic!
-        assert!(extreme_case > 1);
     }
 
     // This test is supposed to be run manually when celestia data format is updated.

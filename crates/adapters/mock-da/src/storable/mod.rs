@@ -22,7 +22,7 @@ mod tests {
 
     use crate::storable::layer::StorableMockDaLayer;
     use crate::storable::service::StorableMockDaService;
-    use crate::{BlockProducingConfig, MockAddress, MockDaConfig, MockFee};
+    use crate::{BlockProducingConfig, MockAddress, MockDaConfig};
 
     #[tokio::test(flavor = "multi_thread")]
     async fn manually_triggered_blocks_are_fetched_after_await() -> anyhow::Result<()> {
@@ -100,7 +100,6 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn manually_produce_blocks_from_different_sender_with_timestamp() -> anyhow::Result<()> {
         let tempdir = tempfile::tempdir()?;
-        let fee = MockFee::zero();
         let timestamp = Time::from_millis(100001);
 
         let da_layer = Arc::new(RwLock::new(
@@ -118,18 +117,9 @@ mod tests {
         let blob_0_1 = vec![0, 0];
         let blob_1_0 = vec![0, 0];
 
-        let _ = da_service_1
-            .send_transaction(&blob_0_0, fee)
-            .await
-            .await??;
-        let _ = da_service_2
-            .send_transaction(&blob_1_0, fee)
-            .await
-            .await??;
-        let _ = da_service_1
-            .send_transaction(&blob_0_1, fee)
-            .await
-            .await??;
+        let _ = da_service_1.send_transaction(&blob_0_0).await.await??;
+        let _ = da_service_2.send_transaction(&blob_1_0).await.await??;
+        let _ = da_service_1.send_transaction(&blob_0_1).await.await??;
 
         {
             let mut layer = da_layer.write().await;
@@ -234,7 +224,6 @@ mod tests {
     /// and then validates that correct data is available via `get_block_at`
     async fn test_chain_design(chain: ChainDesign) -> anyhow::Result<()> {
         let tempdir = tempfile::tempdir()?;
-        let fee = MockFee::zero();
         let da_layer = Arc::new(RwLock::new(
             StorableMockDaLayer::new_in_path(tempdir.path(), 0).await?,
         ));
@@ -251,13 +240,13 @@ mod tests {
                     BlobType::Batch => {
                         let batch_idx = batch_indexes.entry(*sender).or_insert(0);
                         let blob = sender.build_blob_data(*batch_idx);
-                        da_service.send_transaction(&blob, fee).await.await??;
+                        da_service.send_transaction(&blob).await.await??;
                         *batch_idx += 1;
                     }
                     BlobType::Proof => {
                         let proof_idx = proof_indexes.entry(*sender).or_insert(0);
                         let blob = sender.build_blob_data(*proof_idx);
-                        da_service.send_proof(&blob, fee).await.await??;
+                        da_service.send_proof(&blob).await.await??;
                         *proof_idx += 1;
                     }
                 }

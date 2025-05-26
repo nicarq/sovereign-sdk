@@ -55,24 +55,6 @@ macro_rules! impl_checked_math_primitive {
 impl_checked_math_primitive!(u8, u16, u32, u64, u128, usize);
 impl_checked_math_primitive!(i8, i16, i32, i64, i128, isize);
 
-/// The fee on a blockchain. This is usually expressed as a combination of a gas limit
-/// and a fee rate (tokens per gas).
-pub trait Fee: Copy + Send {
-    /// The price per unit of gas.
-    type FeeRate: CheckedMath + CheckedMath<u64> + Clone + Send + Sync;
-
-    /// Returns the price per unit of gas.
-    fn fee_rate(&self) -> Self::FeeRate;
-
-    /// Updates the price per unit of gas.
-    fn set_fee_rate(&mut self, rate: Self::FeeRate);
-
-    /// The amount of gas that the transaction is expected to consume.
-    /// Multiplying this quantity by the fee rate gives the total fee.
-    /// for the transaction
-    fn gas_estimate(&self) -> u64;
-}
-
 /// The [`MaybeRetryable`] enum can be returned from a fallible function to
 /// determine whether it can re-attempted or not.
 #[derive(Debug, thiserror::Error)]
@@ -143,9 +125,6 @@ pub trait DaService: Clone + Send + Sync + 'static {
 
     /// The error type for fallible methods.
     type Error: Debug + Send + Sync + Display;
-
-    /// The fee type for the DA layer.
-    type Fee: Fee;
 
     /// Subsequent calls of [`DaService::send_transaction`] guarantee that the
     /// transactions are published and land in the DA layer in the same order as
@@ -249,7 +228,6 @@ pub trait DaService: Clone + Send + Sync + 'static {
     async fn send_transaction(
         &self,
         blob: &[u8],
-        fee: Self::Fee,
     ) -> oneshot::Receiver<
         Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
     >;
@@ -259,16 +237,12 @@ pub trait DaService: Clone + Send + Sync + 'static {
     async fn send_proof(
         &self,
         aggregated_proof_data: &[u8],
-        fee: Self::Fee,
     ) -> oneshot::Receiver<
         Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
     >;
 
     /// Fetches all proofs at a specified block height.
     async fn get_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error>;
-
-    /// Estimates the appropriate fee for a blob with a given size
-    async fn estimate_fee(&self, blob_size: usize) -> Result<Self::Fee, Self::Error>;
 
     /// Returns a [`tokio::task::JoinHandle`] to the DA service background task,
     /// if it exists.

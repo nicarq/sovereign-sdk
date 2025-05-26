@@ -21,8 +21,7 @@ use crate::config::WAIT_ATTEMPT_PAUSE;
 use crate::storable::layer::{Randomizer, StorableMockDaLayer};
 use crate::{
     BlockProducingConfig, MockAddress, MockBlock, MockBlockHeader, MockDaConfig, MockDaSpec,
-    MockDaVerifier, MockFee, RandomizationBehaviour, RandomizationConfig,
-    DEFAULT_BLOCK_WAITING_TIME_MS,
+    MockDaVerifier, RandomizationBehaviour, RandomizationConfig, DEFAULT_BLOCK_WAITING_TIME_MS,
 };
 
 const DEFAULT_BLOCK_WAITING_TIME: Duration = Duration::from_secs(3600);
@@ -345,7 +344,6 @@ impl DaService for StorableMockDaService {
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
     type Error = anyhow::Error;
-    type Fee = MockFee;
 
     const GUARANTEES_TRANSACTION_ORDERING: bool = true;
 
@@ -434,7 +432,6 @@ impl DaService for StorableMockDaService {
     async fn send_transaction(
         &self,
         blob: &[u8],
-        _fee: Self::Fee,
     ) -> oneshot::Receiver<
         Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
     > {
@@ -479,7 +476,6 @@ impl DaService for StorableMockDaService {
     async fn send_proof(
         &self,
         aggregated_proof_data: &[u8],
-        _fee: Self::Fee,
     ) -> oneshot::Receiver<
         Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
     > {
@@ -528,10 +524,6 @@ impl DaService for StorableMockDaService {
             .into_iter()
             .map(|mut proof_blob| proof_blob.full_data().to_vec())
             .collect())
-    }
-
-    async fn estimate_fee(&self, _blob_size: usize) -> Result<Self::Fee, Self::Error> {
-        Ok(MockFee::zero())
     }
 
     async fn take_background_join_handle(&self) -> Option<JoinHandle<()>> {
@@ -614,14 +606,13 @@ mod tests {
             let this_da_layer = da_layer.clone();
             let this_block_producing = block_producing.clone();
             let address = MockAddress::new([idx as u8; 32]);
-            let fee = MockFee::zero();
             handlers.push(tokio::spawn(async move {
                 let da_service =
                     StorableMockDaService::new(address, this_da_layer, this_block_producing).await;
                 for (wait, blob) in this_service_blobs {
                     sleep(wait).await;
                     da_service
-                        .send_transaction(&blob, fee)
+                        .send_transaction(&blob)
                         .await
                         .await
                         .unwrap()
