@@ -28,6 +28,7 @@ sov-rollup-interface = { workspace = true }
 sov-db = { workspace = true, optional = true }
 hex = { workspace = true }
 jmt = { workspace = true }
+nomt-core = { workspace = true }
 nomt = { workspace = true, optional = true }
 sov-metrics = { workspace = true, optional = true }
 sov-modules-macros = { workspace = true, optional = true }

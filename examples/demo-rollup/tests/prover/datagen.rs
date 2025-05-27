@@ -4,12 +4,16 @@ use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService};
 use sov_modules_api::execution_mode::{Native, WitnessGeneration};
+use sov_risc0_adapter::Risc0CryptoSpec;
 use sov_rollup_interface::node::da::DaService;
+use sov_rollup_interface::zk::CryptoSpec;
+use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_utils::generators::bank::BankMessageGenerator;
 use sov_test_utils::generators::BlobBuildingCtx;
 use sov_test_utils::test_rollup::read_private_key;
 use sov_test_utils::MessageGenerator;
 
+type NativeStorage = ProverStorage<DefaultStorageSpec<<Risc0CryptoSpec as CryptoSpec>::Hasher>>;
 type S = sov_modules_api::configurable_spec::ConfigurableSpec<
     sov_mock_da::MockDaSpec,
     sov_risc0_adapter::Risc0,
@@ -17,6 +21,7 @@ type S = sov_modules_api::configurable_spec::ConfigurableSpec<
     sov_risc0_adapter::Risc0CryptoSpec,
     sov_address::MultiAddressEvm,
     WitnessGeneration,
+    NativeStorage,
 >;
 
 const DEFAULT_BLOCKS: u64 = 10;

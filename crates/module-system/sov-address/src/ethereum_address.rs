@@ -36,7 +36,9 @@ mod evm_spec_address_tests {
     use sov_modules_api::configurable_spec::ConfigurableSpec;
     use sov_modules_api::execution_mode::Native;
     use sov_modules_api::Spec;
-    use sov_test_utils::{MockDaSpec, MockZkvm, MockZkvmCryptoSpec};
+    use sov_test_utils::{
+        MockDaSpec, MockZkvm, MockZkvmCryptoSpec, ProverStorage, TestStorageSpec,
+    };
 
     use super::*;
     type S = ConfigurableSpec<
@@ -46,6 +48,7 @@ mod evm_spec_address_tests {
         MockZkvmCryptoSpec,
         MultiAddressEvm,
         Native,
+        ProverStorage<TestStorageSpec>,
     >;
 
     #[test]

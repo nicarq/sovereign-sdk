@@ -1,19 +1,9 @@
 mod jmt;
 mod nomt;
-
 use sov_state::{NodeLeaf, OrderedReadsAndWrites, SlotKey, SlotValue, StateAccesses, Storage};
 use sov_test_utils::TestHasher;
 
-pub trait ProverStorageLifeCycle {
-    type Storage: Storage;
-    fn create_new(&mut self) -> (Self::Storage, <Self::Storage as Storage>::Root);
-    fn save_and_commit(
-        &mut self,
-        storage: Self::Storage,
-        state_update: <Self::Storage as Storage>::StateUpdate,
-        new_root: <Self::Storage as Storage>::Root,
-    );
-}
+use crate::state_tests::ForklessStorageManager;
 
 #[derive(Debug)]
 pub struct TestCase {
@@ -139,17 +129,17 @@ pub fn run_test<SmProver, Verifier>(
     mut sm_prover: SmProver,
     verifier: Verifier,
 ) where
-    SmProver: ProverStorageLifeCycle,
+    SmProver: ForklessStorageManager,
     Verifier: Storage<
         Witness = <SmProver::Storage as Storage>::Witness,
         Root = <SmProver::Storage as Storage>::Root,
     >,
 {
     for state_accesses in test_case.rounds {
-        let (prover_storage, prev_root) = sm_prover.create_new();
+        let (prover_storage, prev_root) = sm_prover.create_storage_with_root();
         let (root, state_update) =
             compare_compute_state_update(prev_root, state_accesses, &prover_storage, &verifier);
-        sm_prover.save_and_commit(prover_storage, state_update, root);
+        sm_prover.commit_state_update(prover_storage, state_update, root);
     }
 }
 

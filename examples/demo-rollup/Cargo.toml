@@ -47,6 +47,7 @@ async-trait = { workspace = true }
 anyhow = { workspace = true }
 axum = { workspace = true, default-features = false }
 jsonrpsee = { workspace = true, features = ["http-client", "server", "ws-client"] }
+schemars = { workspace = true }
 serde = { workspace = true, default-features = false, features = ["alloc", "derive"] }
 serde_json = { workspace = true, default-features = false, features = ["alloc"] }
 hex = { workspace = true, optional = true }
@@ -55,6 +56,7 @@ tracing = { workspace = true }
 prometheus_exporter = "0.8.5"
 clap = { workspace = true, features = ["derive"] }
 secp256k1 = { workspace = true, features = ["global-context", "recovery"] }
+
 
 [dev-dependencies]
 sov-eth-client = { workspace = true }
@@ -106,6 +108,7 @@ sov-mock-zkvm = { workspace = true, features = ["native"] }
 sov-mock-da = { workspace = true, features = ["native"] }
 demo-stf = { workspace = true, features = ["native"] }
 sov-address = { workspace = true, features = ["evm"] }
+sov-state = { workspace = true, features = ["native"] }
 
 [features]
 default = []

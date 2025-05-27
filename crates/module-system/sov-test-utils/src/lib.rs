@@ -15,20 +15,22 @@ pub use sov_db::schema::SchemaBatch;
 pub use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_da::BlockProducingConfig;
 pub use sov_mock_zkvm::{MockZkvm, MockZkvmCryptoSpec};
+use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{
     PriorityFeeBips, Transaction, TransactionCallable, TxDetails, UnsignedTransaction,
 };
-use sov_modules_api::{Amount, BasicGasMeter, CryptoSpec, Gas, GasArray, Spec};
+use sov_modules_api::{Address, Amount, BasicGasMeter, CryptoSpec, Gas, GasArray, Spec};
 pub use sov_modules_api::{EncodeCall, TxProcessingError, TxReceiptContents};
 pub use sov_modules_rollup_blueprint::logging::initialize_logging;
 pub use sov_modules_stf_blueprint::get_gas_used;
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::execution_mode::{Native, Zk};
+use sov_state::nomt::prover_storage::NomtProverStorage;
 pub use sov_state::ProverStorage;
-use sov_state::{StateAccesses, Storage};
+use sov_state::{DefaultStorageSpec, StateAccesses, Storage};
 pub use {sov_bank, sov_paymaster, sov_rollup_apis, sov_universal_wallet};
 
 mod evm;
@@ -54,27 +56,39 @@ pub mod storage;
 /// Utilities that specify an interface for testing.
 pub mod interface;
 
+/// The default test crypto spec type.
+pub type TestCryptoSpec = MockZkvmCryptoSpec;
+/// The default hasher type. This is the hasher type
+/// ([`sov_rollup_interface::reexports::digest::Digest`]) defined by the
+/// [`TestCryptoSpec`].
+pub type TestHasher = <MockZkvmCryptoSpec as CryptoSpec>::Hasher;
+/// The default storage spec type. Uses a [`TestHasher`] for hashing.
+pub type TestStorageSpec = DefaultStorageSpec<TestHasher>;
 /// The default test spec. Uses a [`MockZkvm`] for both inner and outer vm verification.
-/// Uses [`sov_mock_zkvm::MockZkvmCryptoSpec`] for cryptographic primitives.
+/// Uses [`MockZkvmCryptoSpec`] for cryptographic primitives.
 pub type TestSpec = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
+/// The default test spec for NOMT. Uses a [`MockZkvm`] for both inner and outer vm verification.
+/// Uses [`MockZkvmCryptoSpec`] for cryptographic primitives.
+pub type TestNomtSpec = ConfigurableSpec<
+    MockDaSpec,
+    MockZkvm,
+    MockZkvm,
+    MockZkvmCryptoSpec,
+    Address,
+    Native,
+    NomtProverStorage<TestStorageSpec>,
+>;
 /// The default test spec for ZK. Uses a [`MockZkvm`] for both inner and outer vm verification.
 pub type ZkTestSpec = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Zk>;
 /// The default address type. This is the [`sov_modules_api::BasicAddress`] type defined by the [`TestSpec`].
 pub type TestAddress = <TestSpec as Spec>::Address;
-/// The default test crypto spec type. This is the [`CryptoSpec`] type defined by the [`TestSpec`].
-pub type TestCryptoSpec = <TestSpec as Spec>::CryptoSpec;
 /// The default private key type. This is the [`sov_rollup_interface::crypto::PrivateKey`] type defined by the [`TestSpec`].
 pub type TestPrivateKey = <TestCryptoSpec as CryptoSpec>::PrivateKey;
 /// The default public key type. This is the [`sov_rollup_interface::crypto::PublicKey`] type defined by the [`TestCryptoSpec`].
 pub type TestPublicKey = <TestCryptoSpec as CryptoSpec>::PublicKey;
 /// The default signature type. This is the [`sov_rollup_interface::crypto::Signature`] type defined by the [`TestCryptoSpec`].
 pub type TestSignature = <TestCryptoSpec as CryptoSpec>::Signature;
-/// The default hasher type. This is the hasher type
-/// ([`sov_rollup_interface::reexports::digest::Digest`]) defined by the
-/// [`TestCryptoSpec`].
-pub type TestHasher = <TestCryptoSpec as CryptoSpec>::Hasher;
-/// The default storage spec type. Uses a [`TestHasher`] for hashing.
-pub type TestStorageSpec = sov_state::DefaultStorageSpec<TestHasher>;
+
 /// The default STF blueprint type. Uses [`MockDaSpec`] for DA and [`sov_kernels::basic::BasicKernel`] for kernel.
 pub type TestStfBlueprint<RT, S> = StfBlueprint<S, RT>;
 /// The default [`sov_db::storage_manager::NativeStorageManager`], that can be used with [`ProverStorage`] and [`TestStorageSpec`].
@@ -271,14 +285,14 @@ where
 /// This function is equivalent to calling:
 /// `self.compute_state_update` & `self.materialize_changes`
 pub fn validate_and_materialize<ST: Storage>(
-    stotage: ST,
+    storage: ST,
     state_accesses: StateAccesses,
     witness: &ST::Witness,
     prev_state_root: ST::Root,
 ) -> anyhow::Result<(ST::Root, ST::ChangeSet)> {
     let (root_hash, node_batch) =
-        stotage.compute_state_update(state_accesses, witness, prev_state_root)?;
+        storage.compute_state_update(state_accesses, witness, prev_state_root)?;
 
-    let change_set = stotage.materialize_changes(node_batch);
+    let change_set = storage.materialize_changes(node_batch);
     Ok((root_hash, change_set))
 }

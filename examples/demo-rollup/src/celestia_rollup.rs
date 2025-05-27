@@ -10,7 +10,7 @@ use sov_db::storage_manager::NativeStorageManager;
 use sov_ethereum::{EthRpcConfig, GasPriceOracleConfig};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm, MockZkvmHost};
 use sov_modules_api::configurable_spec::ConfigurableSpec;
-use sov_modules_api::execution_mode::{ExecutionMode, Native};
+use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::{CryptoSpec, NodeEndpoints, Spec, SyncStatus, ZkVerifier};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
@@ -21,6 +21,7 @@ use sov_modules_rollup_blueprint::{
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::{Risc0, Risc0CryptoSpec};
 use sov_rollup_interface::da::DaVerifier;
+use sov_rollup_interface::execution_mode::WitnessGeneration;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_sequencer::{ProofBlobSender, Sequencer};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
@@ -35,15 +36,33 @@ pub struct CelestiaDemoRollup<M> {
     phantom: std::marker::PhantomData<M>,
 }
 
-type CelestiaRollupSpec<M> =
-    ConfigurableSpec<CelestiaSpec, Risc0, MockZkvm, Risc0CryptoSpec, MultiAddressEvm, M>;
+type NativeStorage = ProverStorage<DefaultStorageSpec<<Risc0CryptoSpec as CryptoSpec>::Hasher>>;
 
-impl<M: ExecutionMode> RollupBlueprint<M> for CelestiaDemoRollup<M>
+type CelestiaRollupSpec<M> = ConfigurableSpec<
+    CelestiaSpec,
+    Risc0,
+    MockZkvm,
+    Risc0CryptoSpec,
+    MultiAddressEvm,
+    M,
+    NativeStorage,
+>;
+
+impl RollupBlueprint<Native> for CelestiaDemoRollup<Native>
 where
-    CelestiaRollupSpec<M>: PluggableSpec,
-    <CelestiaRollupSpec<M> as Spec>::Address: FromVmAddress<EthereumAddress>,
+    CelestiaRollupSpec<Native>: PluggableSpec,
+    <CelestiaRollupSpec<Native> as Spec>::Address: FromVmAddress<EthereumAddress>,
 {
-    type Spec = CelestiaRollupSpec<M>;
+    type Spec = CelestiaRollupSpec<Native>;
+    type Runtime = Runtime<Self::Spec>;
+}
+
+impl RollupBlueprint<WitnessGeneration> for CelestiaDemoRollup<WitnessGeneration>
+where
+    CelestiaRollupSpec<WitnessGeneration>: PluggableSpec,
+    <CelestiaRollupSpec<WitnessGeneration> as Spec>::Address: FromVmAddress<EthereumAddress>,
+{
+    type Spec = CelestiaRollupSpec<Native>;
     type Runtime = Runtime<Self::Spec>;
 }
 
@@ -51,10 +70,7 @@ where
 impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
     type DaService = CelestiaService;
 
-    type StorageManager = NativeStorageManager<
-        CelestiaSpec,
-        ProverStorage<DefaultStorageSpec<<<Self::Spec as Spec>::CryptoSpec as CryptoSpec>::Hasher>>,
-    >;
+    type StorageManager = NativeStorageManager<CelestiaSpec, NativeStorage>;
 
     type ProverService = ParallelProverService<
         <Self::Spec as Spec>::Address,

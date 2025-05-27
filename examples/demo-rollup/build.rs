@@ -11,7 +11,8 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::schemars::schema_for;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::Address;
+use sov_modules_api::{Address, CryptoSpec};
+use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_universal_wallet::schema::{ChainData, Schema};
 
 type S = sov_modules_api::configurable_spec::ConfigurableSpec<
@@ -21,6 +22,7 @@ type S = sov_modules_api::configurable_spec::ConfigurableSpec<
     MockZkvmCryptoSpec,
     MultiAddressEvm,
     Native,
+    ProverStorage<DefaultStorageSpec<<MockZkvmCryptoSpec as CryptoSpec>::Hasher>>,
 >;
 
 fn try_set_commit_hash_env() {

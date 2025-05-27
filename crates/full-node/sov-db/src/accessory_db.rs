@@ -3,8 +3,8 @@ use rockbound::SchemaBatch;
 use sov_rollup_interface::common::SlotNumber;
 
 use crate::schema::tables::{ModuleAccessoryState, ACCESSORY_TABLES};
-use crate::schema::types::AccessoryKey;
-use crate::DbOptions;
+use crate::schema::types::{AccessoryKey, AccessoryStateValue};
+use crate::{ensure_version_is_correct, DbOptions};
 
 /// Specifies a particular version of the Accessory state.
 pub type Version = u64;
@@ -39,26 +39,18 @@ impl AccessoryDb {
         &self,
         key: &AccessoryKey,
         version: SlotNumber,
-    ) -> anyhow::Result<Option<Vec<u8>>> {
-        let found = self
-            .db
-            .get_prev::<ModuleAccessoryState>(&(key.to_vec(), version))?;
-        match found {
-            Some(((found_key, found_version), value)) => {
-                if &found_key == key {
-                    anyhow::ensure!(found_version <= version, "Bug! iterator isn't returning expected values. expected a version <= {version:} but found {found_version:}");
-                    Ok(value)
-                } else {
-                    Ok(None)
-                }
-            }
-            None => Ok(None),
-        }
+    ) -> anyhow::Result<AccessoryStateValue> {
+        ensure_version_is_correct(
+            key,
+            version,
+            self.db
+                .get_prev::<ModuleAccessoryState>(&(key.to_vec(), version))?,
+        )
     }
 
     /// Collects a sequence of key-value pairs into [`SchemaBatch`].
     pub fn materialize_values(
-        key_value_pairs: impl IntoIterator<Item = (Vec<u8>, Option<Vec<u8>>)>,
+        key_value_pairs: impl IntoIterator<Item = (AccessoryKey, AccessoryStateValue)>,
         version: SlotNumber,
     ) -> anyhow::Result<SchemaBatch> {
         let mut batch = SchemaBatch::default();

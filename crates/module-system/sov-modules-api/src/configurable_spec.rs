@@ -5,9 +5,9 @@ use sov_rollup_interface::crypto::CredentialId;
 use sov_rollup_interface::da::DaSpec;
 #[cfg(feature = "native")]
 use sov_rollup_interface::execution_mode::{Native, WitnessGeneration};
-use sov_rollup_interface::zk::{CryptoSpec as CryptoSpecT, Zkvm};
+use sov_rollup_interface::zk::Zkvm;
 use sov_rollup_interface::BasicAddress;
-use sov_state::{ArrayWitness, DefaultStorageSpec};
+use sov_state::ArrayWitness;
 
 use crate::higher_kinded_types::{Generic, HigherKindedHelper};
 use crate::{CryptoSpecExt, GasUnit, Spec};
@@ -19,28 +19,33 @@ use crate::{CryptoSpecExt, GasUnit, Spec};
     serde::Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize, schemars::JsonSchema,
 )]
 #[serde(bound = "")]
-pub struct ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode>(
-    PhantomData<(Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode)>,
+#[schemars(
+    rename = "ConfigurableSpec",
+    bound = "Da: ::schemars::JsonSchema, InnerZkvm: ::schemars::JsonSchema, OuterZkvm: ::schemars::JsonSchema, CryptoSpec: ::schemars::JsonSchema, Address: ::schemars::JsonSchema, Mode: ::schemars::JsonSchema"
+)]
+pub struct ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode, Storage>(
+    PhantomData<(Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode, Storage)>,
 );
 
-impl<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode> Default
-    for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode>
+impl<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode, Storage> Default
+    for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode, Storage>
 {
     fn default() -> Self {
         Self(PhantomData)
     }
 }
 
-impl<Da: DaSpec, InnerZkvm: Zkvm, OuterZkvm: Zkvm, CryptoSpec, Address, M> Generic
-    for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, M>
+impl<Da: DaSpec, InnerZkvm: Zkvm, OuterZkvm: Zkvm, CryptoSpec, Address, Mode, Storage> Generic
+    for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode, Storage>
 {
-    type With<K> = ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, K>;
+    type With<K> = ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, K, Storage>;
 }
 
-impl<Da: DaSpec, InnerZkvm: Zkvm, OuterZkvm: Zkvm, CryptoSpec, Address, M> HigherKindedHelper
-    for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, M>
+impl<Da: DaSpec, InnerZkvm: Zkvm, OuterZkvm: Zkvm, CryptoSpec, Address, Mode, Storage>
+    HigherKindedHelper
+    for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode, Storage>
 {
-    type Inner = M;
+    type Inner = Mode;
 }
 
 mod default_impls {
@@ -49,35 +54,35 @@ mod default_impls {
 
     use super::ConfigurableSpec;
 
-    impl<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode> Clone
-        for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode>
+    impl<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode, Storage> Clone
+        for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode, Storage>
     {
         fn clone(&self) -> Self {
             Self(PhantomData)
         }
     }
 
-    impl<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode> PartialEq<Self>
-        for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode>
+    impl<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode, Storage> PartialEq<Self>
+        for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode, Storage>
     {
         fn eq(&self, _other: &Self) -> bool {
             true
         }
     }
 
-    impl<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode> Eq
-        for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode>
+    impl<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode, Storage> Eq
+        for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode, Storage>
     {
     }
 
-    impl<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode> core::fmt::Debug
-        for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode>
+    impl<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode, Storage> core::fmt::Debug
+        for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Mode, Storage>
     {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
             write!(
                 f,
                 "ConfigurableSpec<{}>",
-                std::any::type_name::<(Da, InnerZkvm, OuterZkvm, Mode)>()
+                std::any::type_name::<(Da, InnerZkvm, OuterZkvm, Mode, Storage)>()
             )
         }
     }
@@ -90,16 +95,17 @@ impl<
         OuterZkvm: Zkvm,
         CryptoSpec: CryptoSpecExt,
         Address: BasicAddress,
-    > Spec for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, WitnessGeneration>
+        Storage: sov_state::Storage + sov_state::NativeStorage + Send + Sync + 'static,
+    > Spec
+    for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, WitnessGeneration, Storage>
 where
     Address: From<CredentialId>,
 {
     type Da = Da;
-    type Address = Address;
     type Gas = GasUnit<2>;
+    type Address = Address;
 
-    type Storage =
-        sov_state::ProverStorage<DefaultStorageSpec<<Self::CryptoSpec as CryptoSpecT>::Hasher>>;
+    type Storage = Storage;
 
     type InnerZkvm = InnerZkvm;
     type OuterZkvm = OuterZkvm;
@@ -116,18 +122,16 @@ impl<
         OuterZkvm: Zkvm,
         CryptoSpec: CryptoSpecExt,
         Address: BasicAddress,
-    > Spec for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Native>
+        Storage: sov_state::Storage + sov_state::NativeStorage + Send + Sync + 'static,
+    > Spec for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Native, Storage>
 where
     Address: From<CredentialId>,
 {
     type Da = Da;
-    type Address = Address;
     type Gas = GasUnit<2>;
+    type Address = Address;
 
-    // This TODO is for performance enhancement, not a security concern.
-    // TODO: Replace ProverStorage with an optimized impl!
-    type Storage =
-        sov_state::ProverStorage<DefaultStorageSpec<<Self::CryptoSpec as CryptoSpecT>::Hasher>>;
+    type Storage = Storage;
 
     type InnerZkvm = InnerZkvm;
     type OuterZkvm = OuterZkvm;
@@ -146,8 +150,17 @@ impl<
         OuterZkvm: Zkvm,
         CryptoSpec: CryptoSpecExt,
         Address: BasicAddress,
+        Storage: sov_state::Storage + Send + Sync + 'static,
     > Spec
-    for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, crate::execution_mode::Zk>
+    for ConfigurableSpec<
+        Da,
+        InnerZkvm,
+        OuterZkvm,
+        CryptoSpec,
+        Address,
+        crate::execution_mode::Zk,
+        Storage,
+    >
 where
     Address: From<CredentialId>,
 {
@@ -155,8 +168,7 @@ where
     type Address = Address;
     type Gas = GasUnit<2>;
 
-    type Storage =
-        sov_state::ZkStorage<DefaultStorageSpec<<Self::CryptoSpec as CryptoSpecT>::Hasher>>;
+    type Storage = Storage;
 
     type InnerZkvm = InnerZkvm;
     type OuterZkvm = OuterZkvm;

@@ -15,18 +15,25 @@ use sov_rollup_interface::reexports::digest;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 
 use crate::accessory_db::AccessoryDb;
+use crate::historical_state::HistoricalStateReader;
 use crate::state_db_nomt::{StateOverlay, StateSession};
 use crate::storage_manager::nomt_based::groups::{DbGroup, SnapshotGroup};
 
 #[allow(missing_docs)]
-pub struct NomtStateChangeSet {
-    pub user: nomt::FinishedSession,
-    pub kernel: nomt::FinishedSession,
+pub struct StateFinishedSession {
+    user: nomt::FinishedSession,
+    kernel: nomt::FinishedSession,
 }
 
-impl NomtStateChangeSet {
+impl StateFinishedSession {
+    /// Creates a new instance of [`StateFinishedSession`] from individual nomt sessions.
+    pub fn new(user: nomt::FinishedSession, kernel: nomt::FinishedSession) -> Self {
+        Self { user, kernel }
+    }
+
+    /// Converts it into [`StateOverlay`] which can be committed to disk or used in new sessions.
     pub(crate) fn into_state_overlay(self) -> StateOverlay {
-        let NomtStateChangeSet { user, kernel } = self;
+        let StateFinishedSession { user, kernel } = self;
         StateOverlay {
             user: user.into_overlay(),
             kernel: kernel.into_overlay(),
@@ -36,7 +43,8 @@ impl NomtStateChangeSet {
 
 #[allow(missing_docs)]
 pub struct NomtChangeSet {
-    pub state: NomtStateChangeSet,
+    pub state: StateFinishedSession,
+    pub historical_state: SchemaBatch,
     pub accessory: SchemaBatch,
 }
 
@@ -55,10 +63,11 @@ fn generate_empty_finished_session() -> nomt::FinishedSession {
 impl Default for NomtChangeSet {
     fn default() -> Self {
         Self {
-            state: NomtStateChangeSet {
+            state: StateFinishedSession {
                 user: generate_empty_finished_session(),
                 kernel: generate_empty_finished_session(),
             },
+            historical_state: Default::default(),
             accessory: Default::default(),
         }
     }
@@ -67,7 +76,11 @@ impl Default for NomtChangeSet {
 /// The only thing [`NomtStorageManager`] needs to know about the thing it builds.
 pub trait InitializableNativeNomtStorage<H>: Sized + Send + Sync {
     #[allow(missing_docs)]
-    fn new(state_db: StateSession<H>, accessory_db: AccessoryDb) -> Self;
+    fn new(
+        state_db: StateSession<H>,
+        historical_state: HistoricalStateReader,
+        accessory_db: AccessoryDb,
+    ) -> Self;
 }
 
 /// Implementation of [`HierarchicalStorageManager`] based on NOMT.
@@ -259,14 +272,16 @@ where
 
         let NomtChangeSet {
             state,
-            accessory: accessory_change_set,
+            historical_state,
+            accessory,
         } = stf_change_set;
 
         let state_overlay = state.into_state_overlay();
 
         let snapshot = SnapshotGroup {
             state: state_overlay,
-            accessory: Arc::new(accessory_change_set),
+            historical_state: Arc::new(historical_state),
+            accessory: Arc::new(accessory),
             ledger: Arc::new(ledger_change_set),
         };
 
@@ -275,6 +290,9 @@ where
         Ok(())
     }
 
+    /// **Warning**: There should be no active storages by the time this method is called.
+    /// From [NOMT documentation](https://github.com/thrumdev/nomt/blob/51a2a3559b2a3153244dda923daf7e38807a9427/nomt/src/lib.rs#L652):
+    /// This function will block until all ongoing sessions and commits have finished.
     fn finalize(&mut self, block_header: &Da::BlockHeader) -> anyhow::Result<()> {
         tracing::trace!(block_hash = %block_header.hash(), "Finalizing changes");
         self.finalize_by_hash_pair(block_header.prev_hash(), block_header.hash())

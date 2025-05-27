@@ -1314,6 +1314,7 @@ dependencies = [
  "alloy-primitives",
  "anyhow",
  "borsh",
+ "schemars",
  "serde",
  "sov-accounts",
  "sov-address",
@@ -2251,6 +2252,20 @@ dependencies = [
  "bytes",
  "serde",
  "sha2 0.10.8",
+]
+
+[[package]]
+name = "nomt-core"
+version = "1.0.0-preview"
+source = "git+https://github.com/thrumdev/nomt.git?rev=51a2a3559b2a3153244dda923daf7e38807a9427#51a2a3559b2a3153244dda923daf7e38807a9427"
+dependencies = [
+ "arrayvec",
+ "bitvec",
+ "borsh",
+ "digest 0.10.7",
+ "hex",
+ "ruint",
+ "serde",
 ]
 
 [[package]]
@@ -4082,6 +4097,7 @@ dependencies = [
  "derive_more 1.0.0",
  "hex",
  "jmt",
+ "nomt-core",
  "serde",
  "serde-big-array",
  "sov-metrics",

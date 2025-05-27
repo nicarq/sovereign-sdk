@@ -17,9 +17,9 @@
 //! - `(EventKey, TxNumber) -> EventNumber`
 //! - `EventNumber -> (EventKey, EventValue)`
 //!
-//! JMT Tables:
+//! JMT Tables, for each namespace:
 //! - `KeyHash -> Key`
-//! - `(Key, Version) -> JmtValue`
+//! - `(Key, Version) -> StateValue`
 //! - `NodeKey -> Node`
 //!
 //! Module Accessory State Table:
@@ -292,7 +292,7 @@ impl KeyEncoder<ModuleAccessoryState> for (AccessoryKey, SlotNumber) {
 
 impl SeekKeyEncoder<ModuleAccessoryState> for (AccessoryKey, SlotNumber) {
     fn encode_seek_key(&self) -> rockbound::schema::Result<Vec<u8>> {
-        <(Vec<u8>, SlotNumber) as KeyEncoder<ModuleAccessoryState>>::encode_key(self)
+        <(AccessoryKey, SlotNumber) as KeyEncoder<ModuleAccessoryState>>::encode_key(self)
     }
 }
 

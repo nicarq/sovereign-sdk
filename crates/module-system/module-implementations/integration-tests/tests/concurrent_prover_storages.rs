@@ -1,14 +1,40 @@
+use sov_modules_api::Spec;
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::{
-    ArrayWitness, Kernel, NativeStorage, OrderedReadsAndWrites, ProverStorage, SlotKey, SlotValue,
-    StateAccesses, StateUpdate, Storage, StorageRoot, User,
+    Kernel, NativeStorage, OrderedReadsAndWrites, SlotKey, SlotValue, StateAccesses, StateUpdate,
+    Storage, User,
 };
-use sov_test_utils::storage::{NativeChangeSet, SimpleStorageManager};
-use sov_test_utils::TestStorageSpec;
+use sov_test_utils::storage::{
+    ForklessStorageManager, NativeStorageManager, NomtStorageManager, NonCommitingStorageManager,
+    SimpleStorageManager,
+};
+use sov_test_utils::{TestNomtSpec, TestSpec};
 
 #[test]
+fn jmt_concurrent_prover_storages() {
+    let storage_manager = SimpleStorageManager::new();
+    concurrent_prover_storages::<TestSpec, _>(storage_manager, true);
+}
+
+#[test]
+fn jmt_concurrent_prover_in_memory_storages() {
+    let dir = tempfile::tempdir().unwrap();
+    let inner_storage_manager = NativeStorageManager::new(dir.path()).unwrap();
+    let storage_manager = NonCommitingStorageManager::new(dir, inner_storage_manager);
+    concurrent_prover_storages::<TestSpec, _>(storage_manager, true);
+}
+
+#[test]
+fn nomt_concurrent_prover_in_memory_storages() {
+    let dir = tempfile::tempdir().unwrap();
+    let inner_storage_manager = NomtStorageManager::new(dir.path()).unwrap();
+    let storage_manager = NonCommitingStorageManager::new(dir, inner_storage_manager);
+    // TODO: Enable root hashes assertion, after it is implemented
+    concurrent_prover_storages::<TestNomtSpec, _>(storage_manager, false);
+}
+
 /// # Description
-/// The test verifies that [`ProverStorage`] only returns data it has access to,
+/// The test verifies that [`NativeStorage`] only returns data it has access to,
 /// inclusive up to the latest version available when it was created.
 /// It should not be able to see data at `next_version` or any future version passed as a parameter.
 /// This test is important because of the leaky abstraction in `StorageManager`.
@@ -28,9 +54,13 @@ use sov_test_utils::TestStorageSpec;
 /// The test checks values in user, kernel, and accessory states.
 /// For user and kernel states, it also checks that `get_with_proof` data is consistent with what is expected from the normal `get` method.
 /// The test checks root hashes.
-fn concurrent_prover_storages() {
-    let mut storage_manager = SimpleStorageManager::<TestStorageSpec>::new();
-
+fn concurrent_prover_storages<S, Sm>(mut storage_manager: Sm, should_assert_root_hashes: bool)
+where
+    S: Spec,
+    Sm: ForklessStorageManager<Storage = S::Storage>,
+    S::Storage: NativeStorage,
+    <S::Storage as Storage>::Root: Copy,
+{
     let the_user_key = SlotKey::from_slice(b"user_key");
     let the_kernel_key = SlotKey::from_slice(b"kernel_key");
     let the_accessory_key = SlotKey::from_slice(b"accessory_key");
@@ -89,15 +119,15 @@ fn concurrent_prover_storages() {
     ];
 
     // Storage at version 1
-    let storage_1 = storage_manager.create_storage();
+    let (storage_1, genesis_root) = storage_manager.create_storage_with_root();
     let (root_1, change_set_1) = materialize_writes(
         storage_1,
         vec![(the_user_key.clone(), Some(user_value_1.clone()))],
         vec![(the_kernel_key.clone(), Some(kernel_value_1.clone()))],
         vec![(the_accessory_key.clone(), Some(accessory_value_1.clone()))],
-        <ProverStorage<TestStorageSpec> as Storage>::PRE_GENESIS_ROOT,
+        genesis_root,
     );
-    let storage_1 = storage_manager.create_storage();
+    let storage_1 = storage_manager.create_prover_storage();
     let assert_storage_1 = || {
         assert_values(
             &storage_1,
@@ -117,14 +147,15 @@ fn concurrent_prover_storages() {
             Vec::new(),
             ValueNamespace::Accessory,
         );
-        assert_root_hashes(&storage_1, Vec::new());
+        if should_assert_root_hashes {
+            assert_root_hashes(&storage_1, Vec::new());
+        }
     };
     assert_storage_1();
-    storage_manager.commit(change_set_1);
-    assert_storage_1();
+    storage_manager.commit_change_set(change_set_1, root_1);
 
     // Storage at version 2
-    let storage_2 = storage_manager.create_storage();
+    let storage_2 = storage_manager.create_prover_storage();
     let (root_2, change_set_2) = materialize_writes(
         storage_2,
         vec![(the_user_key.clone(), Some(user_value_2.clone()))],
@@ -132,7 +163,7 @@ fn concurrent_prover_storages() {
         vec![(the_accessory_key.clone(), Some(accessory_value_2.clone()))],
         root_1,
     );
-    let storage_2 = storage_manager.create_storage();
+    let storage_2 = storage_manager.create_prover_storage();
     let assert_storage_2 = || {
         assert_values(
             &storage_2,
@@ -152,16 +183,18 @@ fn concurrent_prover_storages() {
             expected_accessory_values_2.clone(),
             ValueNamespace::Accessory,
         );
-        assert_root_hashes(&storage_2, vec![root_1]);
+        if should_assert_root_hashes {
+            assert_root_hashes(&storage_2, vec![root_1]);
+        }
     };
     assert_storage_1();
     assert_storage_2();
-    storage_manager.commit(change_set_2);
+    storage_manager.commit_change_set(change_set_2, root_2);
     assert_storage_1();
     assert_storage_2();
 
     // Storage at version 3
-    let storage_3 = storage_manager.create_storage();
+    let storage_3 = storage_manager.create_prover_storage();
     let (root_3, change_set_3) = materialize_writes(
         storage_3,
         vec![(the_user_key.clone(), None)],
@@ -169,7 +202,7 @@ fn concurrent_prover_storages() {
         vec![(the_accessory_key.clone(), None)],
         root_2,
     );
-    let storage_3 = storage_manager.create_storage();
+    let storage_3 = storage_manager.create_prover_storage();
     let assert_storage_3 = || {
         assert_values(
             &storage_3,
@@ -189,18 +222,20 @@ fn concurrent_prover_storages() {
             expected_accessory_values_3.clone(),
             ValueNamespace::Accessory,
         );
-        assert_root_hashes(&storage_3, vec![root_1, root_2]);
+        if should_assert_root_hashes {
+            assert_root_hashes(&storage_3, vec![root_1, root_2]);
+        }
     };
     assert_storage_1();
     assert_storage_2();
     assert_storage_3();
-    storage_manager.commit(change_set_3);
+    storage_manager.commit_change_set(change_set_3, root_3);
     assert_storage_1();
     assert_storage_2();
     assert_storage_3();
 
     // Storage at version 4
-    let storage_4 = storage_manager.create_storage();
+    let storage_4 = storage_manager.create_prover_storage();
     let (root_4, change_set_4) = materialize_writes(
         storage_4,
         vec![(the_user_key.clone(), Some(user_value_4.clone()))],
@@ -208,7 +243,7 @@ fn concurrent_prover_storages() {
         vec![(the_accessory_key.clone(), Some(accessory_value_4.clone()))],
         root_3,
     );
-    let storage_4 = storage_manager.create_storage();
+    let storage_4 = storage_manager.create_prover_storage();
     let assert_storage_4 = || {
         assert_values(
             &storage_4,
@@ -228,19 +263,21 @@ fn concurrent_prover_storages() {
             expected_accessory_values_4.clone(),
             ValueNamespace::Accessory,
         );
-        assert_root_hashes(&storage_4, vec![root_1, root_2, root_3]);
+        if should_assert_root_hashes {
+            assert_root_hashes(&storage_4, vec![root_1, root_2, root_3]);
+        }
     };
     assert_storage_1();
     assert_storage_2();
     assert_storage_3();
     assert_storage_4();
-    storage_manager.commit(change_set_4);
+    storage_manager.commit_change_set(change_set_4, root_4);
     assert_storage_1();
     assert_storage_2();
     assert_storage_3();
     assert_storage_4();
     // Check that all previous values are available
-    let storage_5 = storage_manager.create_storage();
+    let storage_5 = storage_manager.create_prover_storage();
     assert_values(
         &storage_5,
         &the_user_key,
@@ -259,16 +296,18 @@ fn concurrent_prover_storages() {
         expected_accessory_values_5.clone(),
         ValueNamespace::Accessory,
     );
-    assert_root_hashes(&storage_5, vec![root_1, root_2, root_3, root_4]);
+    if should_assert_root_hashes {
+        assert_root_hashes(&storage_5, vec![root_1, root_2, root_3, root_4]);
+    }
 }
 
-fn materialize_writes(
-    storage: ProverStorage<TestStorageSpec>,
+fn materialize_writes<S: Storage>(
+    storage: S,
     user_writes: Vec<(SlotKey, Option<SlotValue>)>,
     kernel_writes: Vec<(SlotKey, Option<SlotValue>)>,
     accessory_writes: Vec<(SlotKey, Option<SlotValue>)>,
-    root: StorageRoot<TestStorageSpec>,
-) -> (StorageRoot<TestStorageSpec>, NativeChangeSet) {
+    prev_root: S::Root,
+) -> (S::Root, S::ChangeSet) {
     let state_accesses = StateAccesses {
         user: OrderedReadsAndWrites {
             ordered_writes: user_writes,
@@ -281,7 +320,7 @@ fn materialize_writes(
     };
 
     let (root, mut state_update) = storage
-        .compute_state_update(state_accesses, &ArrayWitness::default(), root)
+        .compute_state_update(state_accesses, &S::Witness::default(), prev_root)
         .unwrap();
 
     state_update.add_accessory_items(accessory_writes);
@@ -300,13 +339,13 @@ enum ValueNamespace {
 /// The first element in expected_values is supposed to be rollup_height == 0
 /// Last element checked against "last" version (None parameter)
 /// get_with_proof is also checked for User and Kernel namespaces.
-fn assert_values(
-    storage: &ProverStorage<TestStorageSpec>,
+fn assert_values<S: NativeStorage>(
+    storage: &S,
     key: &SlotKey,
     expected_values: Vec<Option<SlotValue>>,
     namespace: ValueNamespace,
 ) {
-    let witness_stub = ArrayWitness::default();
+    let witness_stub = S::Witness::default();
     let get_value = |version: Option<SlotNumber>| -> Option<SlotValue> {
         match namespace {
             ValueNamespace::StateKernel => {
@@ -368,10 +407,7 @@ fn assert_values(
     );
 }
 
-fn assert_root_hashes(
-    storage: &ProverStorage<TestStorageSpec>,
-    expected_root_hashes: Vec<StorageRoot<TestStorageSpec>>,
-) {
+fn assert_root_hashes<S: NativeStorage>(storage: &S, expected_root_hashes: Vec<S::Root>) {
     let next_version = expected_root_hashes.len() as u64;
     for (version, expected_root_hash) in expected_root_hashes.into_iter().enumerate() {
         assert_eq!(

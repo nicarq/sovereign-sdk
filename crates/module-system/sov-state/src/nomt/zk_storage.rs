@@ -1,8 +1,9 @@
 //! ZK Verifier part of the NOMT based Storage implementation
 use std::marker::PhantomData;
 
-use nomt::hasher::BinaryHasher;
-use nomt::proof::MultiProof;
+use nomt_core::hasher::BinaryHasher;
+use nomt_core::proof::MultiProof;
+use nomt_core::trie::{KeyPath, LeafData, Node, ValueHash};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::reexports::digest::Digest;
 
@@ -31,20 +32,22 @@ impl<S: MerkleProofSpec> NomtVerifierStorage<S> {
     fn compute_state_update_namespace(
         state_accesses: OrderedReadsAndWrites,
         array_witness: &S::Witness,
-        prev_root: nomt::trie::Node,
-    ) -> anyhow::Result<nomt::trie::Node> {
+        prev_root: Node,
+    ) -> anyhow::Result<Node> {
         let OrderedReadsAndWrites {
             ordered_reads: state_reads,
             ordered_writes: state_writes,
         } = state_accesses;
 
         let multi_proof: MultiProof = array_witness.get_hint();
-        let verified_multi_proof =
-            nomt::proof::verify_multi_proof::<BinaryHasher<S::Hasher>>(&multi_proof, prev_root)
-                .map_err(|e| anyhow::anyhow!("Failed to verify multi proof: {:?}", e))?;
+        let verified_multi_proof = nomt_core::proof::verify_multi_proof::<BinaryHasher<S::Hasher>>(
+            &multi_proof,
+            prev_root,
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to verify multi proof: {:?}", e))?;
 
         for (key, value) in state_reads {
-            let key_hash: nomt::trie::KeyPath = S::Hasher::digest(key.as_ref()).into();
+            let key_hash: KeyPath = S::Hasher::digest(key.as_ref()).into();
             match value {
                 None => {
                     if !verified_multi_proof
@@ -56,7 +59,7 @@ impl<S: MerkleProofSpec> NomtVerifierStorage<S> {
                 }
                 Some(node_leaf) => {
                     let value_hash = node_leaf.val_hash;
-                    let leaf = nomt::trie::LeafData {
+                    let leaf = LeafData {
                         key_path: key_hash,
                         value_hash,
                     };
@@ -78,12 +81,12 @@ impl<S: MerkleProofSpec> NomtVerifierStorage<S> {
                     value.map(|slot_value| S::Hasher::digest(slot_value.value()).into()),
                 )
             })
-            .collect::<Vec<(nomt::trie::KeyPath, Option<nomt::trie::ValueHash>)>>();
+            .collect::<Vec<(KeyPath, Option<ValueHash>)>>();
 
-        // Sort them by key hash, as required by [`nomt::proof::verify_multi_proof_update`]
+        // Sort them by key hash, as required by [`nomt_core::proof::verify_multi_proof_update`]
         updates.sort_by(|a, b| a.0.cmp(&b.0));
 
-        nomt::proof::verify_multi_proof_update::<BinaryHasher<S::Hasher>>(
+        nomt_core::proof::verify_multi_proof_update::<BinaryHasher<S::Hasher>>(
             &verified_multi_proof,
             updates,
         )
@@ -101,7 +104,7 @@ impl<S: MerkleProofSpec> Storage for NomtVerifierStorage<S> {
     type StateUpdate = ();
     type ChangeSet = ();
     const PRE_GENESIS_ROOT: Self::Root =
-        StorageRoot::new(nomt::trie::TERMINATOR, nomt::trie::TERMINATOR);
+        StorageRoot::new(nomt_core::trie::TERMINATOR, nomt_core::trie::TERMINATOR);
 
     fn put_in_witness(&self, _value: Option<SlotValue>, _witness: &Self::Witness) {}
 
@@ -155,5 +158,27 @@ impl<S: MerkleProofSpec> Storage for NomtVerifierStorage<S> {
         _proof: StorageProof<Self::Proof>,
     ) -> anyhow::Result<(SlotKey, Option<SlotValue>)> {
         unimplemented!("The NomtZkStorage does not support `open_proof` yet.");
+    }
+}
+
+#[cfg(feature = "test-utils")]
+// `NativeStorage`` is implemented for `ZkStorage` solely for testing purposes.
+// In some tests, we use both `ProverStorage`` and `ZkStorage`.
+// Due to feature unification, we must provide this implementation even though it is not used.
+impl<S: MerkleProofSpec> crate::storage::NativeStorage for NomtVerifierStorage<S> {
+    fn latest_version(&self) -> SlotNumber {
+        unimplemented!("Latest version is not available for NomtVerifierStorage.");
+    }
+
+    fn get_with_proof<N: crate::namespaces::ProvableCompileTimeNamespace>(
+        &self,
+        _key: SlotKey,
+        _version: Option<SlotNumber>,
+    ) -> anyhow::Result<StorageProof<Self::Proof>> {
+        unimplemented!("The NomtVerifierStorage should not be used to generate merkle proofs! The NativeStorage trait is only implemented to allow for the use of the NomtVerifierStorage in tests.");
+    }
+
+    fn get_root_hash(&self, _version: SlotNumber) -> anyhow::Result<Self::Root> {
+        unimplemented!("The NomtVerifierStorage should not be used to generate merkle proofs! The NativeStorage trait is only implemented to allow for the use of the NomtVerifierStorage in tests.");
     }
 }

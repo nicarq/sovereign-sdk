@@ -32,18 +32,23 @@ pub type H = sha2::Sha256;
 
 /// Simple container fo unlocking testing of NomtStorageManager without relying on sov-state.
 #[cfg(test)]
+#[allow(missing_docs)]
 pub struct TestNomtStorage {
-    #[allow(missing_docs)]
     pub state_session: crate::state_db_nomt::StateSession<H>,
-    #[allow(missing_docs)]
+    pub historical_state: crate::historical_state::HistoricalStateReader,
     pub accessory_db: AccessoryDb,
 }
 
 #[cfg(test)]
 impl crate::storage_manager::InitializableNativeNomtStorage<H> for TestNomtStorage {
-    fn new(state_db: crate::state_db_nomt::StateSession<H>, accessory_db: AccessoryDb) -> Self {
+    fn new(
+        state_db: crate::state_db_nomt::StateSession<H>,
+        historical_state: crate::historical_state::HistoricalStateReader,
+        accessory_db: AccessoryDb,
+    ) -> Self {
         TestNomtStorage {
             state_session: state_db,
+            historical_state,
             accessory_db,
         }
     }

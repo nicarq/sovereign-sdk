@@ -11,8 +11,9 @@ use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::{Amount, CryptoSpecExt, Spec, ZkVerifier, Zkvm};
 use sov_risc0_adapter::Risc0;
-use sov_rollup_interface::zk::ZkvmHost;
+use sov_rollup_interface::zk::{CryptoSpec, ZkvmHost};
 use sov_sp1_adapter::SP1;
+use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_modules::access_pattern::AccessPatternGenesisConfig;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::sov_paymaster::{
@@ -43,6 +44,9 @@ pub mod bench_runner;
 /// Benchmark transaction generator. Stores the transactions generated in benchmark files.
 pub mod bench_generator;
 
+type TestStorageSpec<Vm> =
+    DefaultStorageSpec<<<<Vm as Zkvm>::Verifier as ZkVerifier>::CryptoSpec as CryptoSpec>::Hasher>;
+
 /// [`ConfigurableSpec`] with [`MockDaSpec`] and a custom inner vm
 pub type BenchSpec<Vm> = ConfigurableSpec<
     MockDaSpec,
@@ -51,6 +55,7 @@ pub type BenchSpec<Vm> = ConfigurableSpec<
     <<Vm as Zkvm>::Verifier as ZkVerifier>::CryptoSpec,
     MultiAddressEvm,
     Native,
+    ProverStorage<TestStorageSpec<Vm>>,
 >;
 /// [`ConfigurableSpec`] with [`MockDaSpec`] and a [`Risc0`] inner vm
 pub type BenchRisc0Spec = BenchSpec<Risc0>;

@@ -18,6 +18,7 @@ serde = { workspace = true, features = ["alloc", "derive"] }
 alloy-chains = "=0.1.27"
 alloy-primitives = "=0.7.7"
 strum = { workspace = true, features = ["derive"] }
+schemars = { workspace = true }
 
 sov-accounts = { workspace = true }
 sov-address = { workspace = true, features = ["evm"] }

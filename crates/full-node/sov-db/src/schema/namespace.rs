@@ -13,9 +13,10 @@ use sov_rollup_interface::common::SlotNumber;
 /// Mapping table from key Hash to jmt key
 #[derive(Debug)]
 pub(crate) struct KeyHashToKey<N: Namespace>(std::marker::PhantomData<N>);
-/// Mapping table from node hash to jmt node
+/// In the case of jmt, it maps key hash to node value
+/// In other cases, such as nomt, it maps key to value and used for historical data.
 #[derive(Debug)]
-pub(crate) struct JmtValues<N: Namespace>(std::marker::PhantomData<N>);
+pub(crate) struct StateValues<N: Namespace>(std::marker::PhantomData<N>);
 /// Mapping table from (key, version) to jmt value
 #[derive(Debug)]
 pub(crate) struct JmtNodes<N: Namespace>(std::marker::PhantomData<N>);
@@ -30,15 +31,17 @@ pub trait Namespace: Sync + Send + Debug + Clone + Copy + 'static {
     /// Mapping table from node hash to jmt node. Static name used to define the table
     const JMT_NODES_TABLE_NAME: ColumnFamilyName;
 
-    /// Mapping table from (key, version) to jmt value. Static name used to define the table
-    const JMT_VALUES_TABLE_NAME: ColumnFamilyName;
+    /// Mapping table from (key, version) to state value.
+    /// Static name used to define the table.
+    /// In the case of jmt key is actually a hash of the actual key.
+    const STATE_VALUES_TABLE_NAME: ColumnFamilyName;
 
     /// Returns the table names for this namespace.
     fn get_table_names() -> [ColumnFamilyName; 3] {
         [
             Self::KEY_HASH_TO_KEY_TABLE_NAME,
             Self::JMT_NODES_TABLE_NAME,
-            Self::JMT_VALUES_TABLE_NAME,
+            Self::STATE_VALUES_TABLE_NAME,
         ]
     }
 }
@@ -52,8 +55,8 @@ impl<N: Namespace> Schema for KeyHashToKey<N> {
     type Value = SchemaKey;
 }
 
-impl<N: Namespace> Schema for JmtValues<N> {
-    const COLUMN_FAMILY_NAME: ColumnFamilyName = N::JMT_VALUES_TABLE_NAME;
+impl<N: Namespace> Schema for StateValues<N> {
+    const COLUMN_FAMILY_NAME: ColumnFamilyName = N::STATE_VALUES_TABLE_NAME;
 
     type Key = (SchemaKey, SlotNumber);
     type Value = Option<SchemaValue>;
@@ -125,7 +128,7 @@ impl<N: Namespace> ValueCodec<JmtNodes<N>> for Node {
     }
 }
 
-impl<T: Debug + PartialEq + AsRef<[u8]>, N: Namespace> KeyEncoder<JmtValues<N>>
+impl<T: Debug + PartialEq + AsRef<[u8]>, N: Namespace> KeyEncoder<StateValues<N>>
     for (T, SlotNumber)
 {
     fn encode_key(&self) -> Result<Vec<u8>, CodecError> {
@@ -139,15 +142,15 @@ impl<T: Debug + PartialEq + AsRef<[u8]>, N: Namespace> KeyEncoder<JmtValues<N>>
     }
 }
 
-impl<T: AsRef<[u8]> + PartialEq + Debug, N: Namespace> SeekKeyEncoder<JmtValues<N>>
+impl<T: AsRef<[u8]> + PartialEq + Debug, N: Namespace> SeekKeyEncoder<StateValues<N>>
     for (T, SlotNumber)
 {
     fn encode_seek_key(&self) -> Result<Vec<u8>, CodecError> {
-        <(T, SlotNumber) as KeyEncoder<JmtValues<N>>>::encode_key(self)
+        <(T, SlotNumber) as KeyEncoder<StateValues<N>>>::encode_key(self)
     }
 }
 
-impl<N: Namespace> KeyDecoder<JmtValues<N>> for (SchemaKey, SlotNumber) {
+impl<N: Namespace> KeyDecoder<StateValues<N>> for (SchemaKey, SlotNumber) {
     fn decode_key(data: &[u8]) -> Result<Self, CodecError> {
         let mut cursor = Cursor::new(data);
         let key = Vec::<u8>::deserialize_reader(&mut cursor)?;
@@ -156,7 +159,7 @@ impl<N: Namespace> KeyDecoder<JmtValues<N>> for (SchemaKey, SlotNumber) {
     }
 }
 
-impl<N: Namespace> ValueCodec<JmtValues<N>> for Option<SchemaValue> {
+impl<N: Namespace> ValueCodec<StateValues<N>> for Option<SchemaValue> {
     fn encode_value(&self) -> Result<Vec<u8>, CodecError> {
         borsh::to_vec(self).map_err(CodecError::from)
     }

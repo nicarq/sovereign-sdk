@@ -5,11 +5,13 @@ use sha2::Digest;
 use sov_mock_da::{MockDaSpec, MockHash};
 use sov_rollup_interface::common::SlotNumber;
 
-use super::{NomtChangeSet, NomtStateChangeSet, NomtStorageManager};
+use super::{NomtChangeSet, NomtStorageManager, StateFinishedSession};
 use crate::accessory_db::AccessoryDb;
+use crate::historical_state::HistoricalStateReader;
+use crate::namespaces::{KernelNamespace, UserNamespace};
 use crate::state_db_nomt::StateSession;
 use crate::storage_manager::tests::arbitrary::ForkDescription;
-use crate::storage_manager::tests::data_helpers::{verify_accessory_db, VERSION};
+use crate::storage_manager::tests::data_helpers::verify_accessory_db;
 use crate::storage_manager::tests::generic_tests::{
     calls_on_empty, check_snapshots_ordering, create_state_after_not_saved_block,
     double_create_storage, double_save_changes, finalize_only_last_block,
@@ -36,9 +38,10 @@ impl TestableStorage for TestNomtStorage {
         let TestNomtStorage {
             state_session:
                 StateSession {
-                    user_session,
-                    kernel_session,
+                    user: user_session,
+                    kernel: kernel_session,
                 },
+            historical_state: _,
             accessory_db: _,
         } = self;
 
@@ -58,27 +61,50 @@ impl TestableStorage for TestNomtStorage {
         let user_finished_session = user_session.finish(state_writes.clone()).unwrap();
         let kernel_finished_session = kernel_session.finish(state_writes.clone()).unwrap();
 
-        let accessory_change_set = AccessoryDb::materialize_values(
-            accessory_writes,
-            // We always use single version in tests to have more transparency on the data
-            SlotNumber::new_dangerous(VERSION),
+        let accessory_change_set =
+            AccessoryDb::materialize_values(accessory_writes.clone(), SlotNumber::GENESIS).unwrap();
+
+        let historical_change_set = HistoricalStateReader::materialize_values(
+            accessory_writes.clone(),
+            accessory_writes.clone(),
+            SlotNumber::GENESIS,
         )
         .unwrap();
 
         NomtChangeSet {
-            state: NomtStateChangeSet {
+            state: StateFinishedSession {
                 user: user_finished_session,
                 kernel: kernel_finished_session,
             },
+            historical_state: historical_change_set,
             accessory: accessory_change_set,
         }
     }
 
     fn get_value(&self, key: &[u8]) -> Option<Vec<u8>> {
+        let schema_key = key.to_vec();
         let key_path = KeyPath::from(sha2::Sha256::digest(key));
-        let kernel_value = self.state_session.kernel_session.read(key_path).unwrap();
-        let user_value = self.state_session.user_session.read(key_path).unwrap();
+        let kernel_value = self.state_session.kernel.read(key_path).unwrap();
+        let user_value = self.state_session.user.read(key_path).unwrap();
         assert_eq!(kernel_value, user_value);
+
+        let accessory_value = self
+            .accessory_db
+            .get_value_option(&schema_key, SlotNumber::GENESIS)
+            .unwrap();
+        assert_eq!(accessory_value, kernel_value);
+
+        let historical_value_user = self
+            .historical_state
+            .get_value_option_by_key::<UserNamespace>(SlotNumber::GENESIS, &schema_key)
+            .unwrap();
+        assert_eq!(historical_value_user, kernel_value);
+
+        let historical_value_kernel = self
+            .historical_state
+            .get_value_option_by_key::<KernelNamespace>(SlotNumber::GENESIS, &schema_key)
+            .unwrap();
+        assert_eq!(historical_value_kernel, kernel_value);
 
         kernel_value
     }
@@ -94,17 +120,9 @@ impl TestableStorageManager for Sm {
     fn verify_stf_storage(stf_storage: &Self::StfState, expected_values: &[(u64, MockHash)]) {
         for (expected_height, expected_hash) in expected_values {
             let key_path: KeyPath = sha2::Sha256::digest(expected_height.to_be_bytes()).into();
-            let actual_value = stf_storage
-                .state_session
-                .kernel_session
-                .read(key_path)
-                .unwrap();
+            let actual_value = stf_storage.state_session.kernel.read(key_path).unwrap();
             assert_eq!(actual_value, Some(expected_hash.0.to_vec()));
-            let user_value = stf_storage
-                .state_session
-                .user_session
-                .read(key_path)
-                .unwrap();
+            let user_value = stf_storage.state_session.user.read(key_path).unwrap();
             assert_eq!(actual_value, user_value);
         }
 

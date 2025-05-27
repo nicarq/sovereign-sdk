@@ -15,11 +15,23 @@ use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::Spec;
 use sov_modules_macros::config_value;
 use sov_risc0_adapter::{Risc0, Risc0CryptoSpec};
+use sov_rollup_interface::zk::CryptoSpec;
+use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_utils::{TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 
 use crate::test_helpers::CHAIN_HASH;
 
-type S = ConfigurableSpec<CelestiaSpec, Risc0, Risc0, Risc0CryptoSpec, MultiAddressEvm, Native>;
+type NativeStorage = ProverStorage<DefaultStorageSpec<<Risc0CryptoSpec as CryptoSpec>::Hasher>>;
+
+type S = ConfigurableSpec<
+    CelestiaSpec,
+    Risc0,
+    Risc0,
+    Risc0CryptoSpec,
+    MultiAddressEvm,
+    Native,
+    NativeStorage,
+>;
 
 fn generate_dynamic_random_vectors(len_range: Range<usize>) -> Vec<Vec<u8>> {
     let mut rng = rand::thread_rng();

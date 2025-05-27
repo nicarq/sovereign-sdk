@@ -26,6 +26,7 @@ use crate::event::Event;
     UniversalWallet,
 )]
 #[serde(rename_all = "snake_case")]
+#[schemars(bound = "S::Gas: ::schemars::JsonSchema", rename = "CallMessage")]
 #[strum_discriminants(derive(VariantArray, EnumIs))]
 pub enum CallMessage<S: Spec> {
     /// Single value to set.

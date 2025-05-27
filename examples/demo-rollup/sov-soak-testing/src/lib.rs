@@ -23,6 +23,7 @@ use sov_paymaster::{
 use sov_rollup_interface::execution_mode::Native;
 use sov_sequencer::preferred::PreferredSequencerConfig;
 use sov_sequencer::SequencerKindConfig;
+use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::genesis::zk::MinimalZkGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
@@ -63,15 +64,31 @@ generate_runtime! {
 pub type TestRT = TestRuntime<TestSpec>;
 pub type RollupBlueprint = RtAgnosticBlueprint<TestSpec, TestRT>;
 pub type TestRollupBuilder = RollupBuilder<RollupBlueprint, PathBuf>;
+pub type TestStorage =
+    ProverStorage<DefaultStorageSpec<<MockZkvmCryptoSpec as CryptoSpec>::Hasher>>;
 
 // Celestia
-pub type CelestiaRollupSpec =
-    ConfigurableSpec<CelestiaSpec, MockZkvm, MockZkvm, MockZkvmCryptoSpec, MultiAddressEvm, Native>;
+pub type CelestiaRollupSpec = ConfigurableSpec<
+    CelestiaSpec,
+    MockZkvm,
+    MockZkvm,
+    MockZkvmCryptoSpec,
+    MultiAddressEvm,
+    Native,
+    TestStorage,
+>;
 pub type DemoCelestiaRT = demo_stf::runtime::Runtime<CelestiaRollupSpec>;
 
 // Mock
-pub type MockDemoRollupSpec =
-    ConfigurableSpec<MockDaSpec, MockZkvm, MockZkvm, MockZkvmCryptoSpec, MultiAddressEvm, Native>;
+pub type MockDemoRollupSpec = ConfigurableSpec<
+    MockDaSpec,
+    MockZkvm,
+    MockZkvm,
+    MockZkvmCryptoSpec,
+    MultiAddressEvm,
+    Native,
+    TestStorage,
+>;
 pub type DemoMockRT = demo_stf::runtime::Runtime<MockDemoRollupSpec>;
 
 pub const BUFFER_SIZE: usize = 100_000;

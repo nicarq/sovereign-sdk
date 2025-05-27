@@ -16,7 +16,6 @@ use crate::schema::types::EventNumber;
 // Encoding/Decoding data.
 
 pub(crate) type H = sha2::Sha256;
-pub const VERSION: u64 = 0;
 
 fn decode_ledger_item(item: (EventNumber, StoredEvent)) -> (u64, MockHash) {
     let (event_number, stored_event) = item;
@@ -47,7 +46,7 @@ pub fn verify_accessory_db(accessory_db: &AccessoryDb, expected_values: &[(u64, 
     for (expected_height, expected_hash) in expected_values {
         let key = expected_height.to_be_bytes().to_vec();
         let actual_value = accessory_db
-            .get_value_option(&key, SlotNumber::new_dangerous(VERSION))
+            .get_value_option(&key, SlotNumber::GENESIS)
             .unwrap()
             .expect("Missing value in AccessoryDb");
         assert_eq!(expected_hash.0.to_vec(), actual_value);

@@ -7,6 +7,10 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+use rockbound::{SchemaKey, SchemaValue};
+
+/// Simpler version of `StateDb`, that stores key-values with versions for historical queries.
+pub mod historical_state;
 /// Implements a wrapper around RocksDB meant for storing rollup history ("the ledger").
 /// This wrapper implements helper traits for writing blocks to the ledger, and for
 /// serving historical data via RPC
@@ -53,5 +57,26 @@ impl DbOptions {
         let config = rocks_db_config::gen_rocksdb_options(&Default::default(), false);
         let db_path = path.as_ref().join(self.path_suffix);
         rockbound::DB::open(db_path, self.name, self.columns, &config)
+    }
+}
+
+pub(crate) fn ensure_version_is_correct(
+    key: &SchemaKey,
+    version: sov_rollup_interface::common::SlotNumber,
+    found: Option<(
+        (SchemaKey, sov_rollup_interface::common::SlotNumber),
+        Option<SchemaValue>,
+    )>,
+) -> anyhow::Result<Option<SchemaValue>> {
+    match found {
+        Some(((found_key, found_version), value)) => {
+            if &found_key == key {
+                anyhow::ensure!(found_version <= version, "Bug! iterator isn't returning expected values. expected a version <= {version:} but found {found_version:}");
+                Ok(value)
+            } else {
+                Ok(None)
+            }
+        }
+        None => Ok(None),
     }
 }

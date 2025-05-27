@@ -77,8 +77,9 @@ pub mod da {
     pub use sov_rollup_interface::da::{BlockHeaderTrait, Time};
 }
 
-/// Types releted to receipts.
+/// Types related to receipts.
 mod tx_receipt;
+
 use std::collections::{HashMap, HashSet};
 
 pub use batch::*;

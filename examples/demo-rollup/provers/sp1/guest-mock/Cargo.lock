@@ -1306,6 +1306,7 @@ dependencies = [
  "alloy-primitives",
  "anyhow",
  "borsh",
+ "schemars",
  "serde",
  "sov-accounts",
  "sov-address",
@@ -2758,6 +2759,20 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
+]
+
+[[package]]
+name = "nomt-core"
+version = "1.0.0-preview"
+source = "git+https://github.com/thrumdev/nomt.git?rev=51a2a3559b2a3153244dda923daf7e38807a9427#51a2a3559b2a3153244dda923daf7e38807a9427"
+dependencies = [
+ "arrayvec",
+ "bitvec",
+ "borsh",
+ "digest 0.10.7",
+ "hex",
+ "ruint",
+ "serde",
 ]
 
 [[package]]
@@ -4989,6 +5004,7 @@ dependencies = [
  "derive_more 1.0.0",
  "hex",
  "jmt",
+ "nomt-core",
  "serde",
  "serde-big-array",
  "sov-metrics",

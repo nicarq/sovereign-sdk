@@ -1,3 +1,35 @@
+# 2025-05-27
+- #2913 **BREAKING CHANGE** Add `Storage` generic parameter to `ConfigurableSpec`:
+  ```rust
+  use sov_state::{ProverStorage, ZkStorage};
+  // Previous spec definition: 
+  pub type MockRollupSpec<M> = ConfigurableSpec<MockDaSpec, Risc0, MockZkvm, Risc0CryptoSpec, MultiAddressEvm, M>;
+  
+  // Adding NativeStorage type
+  type NativeStorage = ProverStorage<DefaultStorageSpec<<Risc0CryptoSpec as CryptoSpec>::Hasher>>;
+  // New `ConfigurableSpec Definition 
+  pub type MockRollupSpec<M> = ConfigurableSpec<
+    MockDaSpec,
+    Risc0,
+    MockZkvm,
+    Risc0CryptoSpec,
+    MultiAddressEvm,
+    M,
+    NativeStorage,
+  >;
+  // And for ZKVM Guest:
+  type Storage = ZkStorage<DefaultStorageSpec<<Risc0CryptoSpec as CryptoSpec>::Hasher>>;
+  pub type MockZkSpec = ConfigurableSpec<
+    MockDaSpec,
+    Risc0,
+    MockZkvm,
+    Risc0CryptoSpec,
+    MultiAddressEvm,
+    Zk,
+    Storage,
+  >;
+  ```
+
 # 2025-05-24
 - #2921 Removes the `Fee` trait and associated fee estimation logic from `DaService` and its implementations (Celestia, Mock DA).
   - `DaService::send_transaction()` and `DaService::send_proof()` methods no longer accept a `fee` parameter.

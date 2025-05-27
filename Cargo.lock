@@ -2455,6 +2455,7 @@ dependencies = [
  "alloy-primitives",
  "anyhow",
  "borsh",
+ "schemars",
  "serde",
  "sov-accounts",
  "sov-address",
@@ -2497,6 +2498,7 @@ dependencies = [
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
+ "sov-state",
  "syn 2.0.98",
 ]
 
@@ -5636,7 +5638,7 @@ dependencies = [
 [[package]]
 name = "nomt"
 version = "1.0.0-preview"
-source = "git+https://github.com/citizen-stig/nomt.git?rev=2381a9ff5d636e2b58d0ebc01af1fba870a01f90#2381a9ff5d636e2b58d0ebc01af1fba870a01f90"
+source = "git+https://github.com/thrumdev/nomt.git?rev=51a2a3559b2a3153244dda923daf7e38807a9427#51a2a3559b2a3153244dda923daf7e38807a9427"
 dependencies = [
  "ahash",
  "anyhow",
@@ -5665,7 +5667,7 @@ dependencies = [
 [[package]]
 name = "nomt-core"
 version = "1.0.0-preview"
-source = "git+https://github.com/citizen-stig/nomt.git?rev=2381a9ff5d636e2b58d0ebc01af1fba870a01f90#2381a9ff5d636e2b58d0ebc01af1fba870a01f90"
+source = "git+https://github.com/thrumdev/nomt.git?rev=51a2a3559b2a3153244dda923daf7e38807a9427#51a2a3559b2a3153244dda923daf7e38807a9427"
 dependencies = [
  "arrayvec",
  "bitvec",
@@ -10236,6 +10238,7 @@ dependencies = [
  "reqwest 0.12.9",
  "reth-primitives",
  "risc0",
+ "schemars",
  "secp256k1",
  "serde",
  "serde_json",
@@ -11095,6 +11098,7 @@ dependencies = [
  "hex",
  "jmt",
  "nomt",
+ "nomt-core",
  "proptest",
  "proptest-derive 0.5.0",
  "serde",

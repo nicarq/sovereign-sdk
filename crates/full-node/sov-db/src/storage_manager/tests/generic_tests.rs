@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-#![allow(missing_docs)]
-
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::{Arc, Barrier};
@@ -433,7 +430,6 @@ where
 /// E, H, G, etc. are moved to a separate thread.
 /// They read data from each snapshot all the time,
 /// checking that data from each for is present.
-
 /// Validation:
 /// First test measures how much time on average it takes
 /// to do such validation single threaded without any concurrent readings

@@ -6,11 +6,19 @@ use sov_modules_api::sov_universal_wallet::schema::SchemaGenerator;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{RawTx, Spec};
 use sov_rollup_interface::execution_mode::Native;
-use sov_test_utils::{generate_runtime, MockDaSpec, MockZkvm, MockZkvmCryptoSpec};
+use sov_state::ProverStorage;
+use sov_test_utils::{generate_runtime, MockDaSpec, MockZkvm, MockZkvmCryptoSpec, TestStorageSpec};
 use sov_value_setter::ValueSetter;
 
-type EvmTestSpec =
-    ConfigurableSpec<MockDaSpec, MockZkvm, MockZkvm, MockZkvmCryptoSpec, MultiAddressEvm, Native>;
+type EvmTestSpec = ConfigurableSpec<
+    MockDaSpec,
+    MockZkvm,
+    MockZkvm,
+    MockZkvmCryptoSpec,
+    MultiAddressEvm,
+    Native,
+    ProverStorage<TestStorageSpec>,
+>;
 
 generate_runtime! {
     name: TestNonceRuntime,

@@ -6,7 +6,6 @@ use sov_rollup_interface::reexports::digest;
 pub struct StateDb<H> {
     user: Nomt<BinaryHasher<H>>,
     kernel: Nomt<BinaryHasher<H>>,
-    // TODO: Add a rocksdb for historical data. Will be done in follow up PR.
 }
 
 impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> StateDb<H> {
@@ -26,8 +25,9 @@ impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> StateDb
         Ok(Self { user, kernel })
     }
 
-    pub(crate) fn commit(&self, overlays: StateOverlay) -> anyhow::Result<()> {
-        let StateOverlay { user, kernel } = overlays;
+    /// Commit [`StateOverlay`] to disk.
+    pub(crate) fn commit(&self, overlay: StateOverlay) -> anyhow::Result<()> {
+        let StateOverlay { user, kernel } = overlay;
         // TODO: Fail of kernel commit will leave user data inconsistent.
         //   to be addressed in follow up: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2634
         user.commit(&self.user)?;
@@ -35,6 +35,17 @@ impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> StateDb
         Ok(())
     }
 
+    /// Commit [`crate::storage_manager::StateFinishedSession`] to disk.
+    #[cfg(feature = "test-utils")]
+    pub fn commit_change_set(
+        &self,
+        session: crate::storage_manager::StateFinishedSession,
+    ) -> anyhow::Result<()> {
+        let overlay = session.into_state_overlay();
+        self.commit(overlay)
+    }
+
+    /// Begin a new user and kernel session with a given list of overlays.
     pub(crate) fn begin_session(
         &self,
         overlays: Vec<&StateOverlay>,
@@ -46,9 +57,15 @@ impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> StateDb
         let kernel_session = Self::begin_single_session(&self.kernel, kernel_overlays)?;
 
         Ok(StateSession {
-            user_session,
-            kernel_session,
+            user: user_session,
+            kernel: kernel_session,
         })
+    }
+
+    /// Begin a new user and kernel session with only data that has been written to disk
+    #[cfg(feature = "test-utils")]
+    pub fn begin_session_from_committed(&self) -> anyhow::Result<StateSession<H>> {
+        self.begin_session(Vec::new())
     }
 
     fn begin_single_session<'a>(
@@ -66,25 +83,16 @@ impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> StateDb
 /// This is a session used by actual storages. It can rely on several overlays plus actual NOMT.
 pub struct StateSession<H> {
     #[allow(missing_docs)]
-    pub user_session: nomt::Session<BinaryHasher<H>>,
+    pub user: nomt::Session<BinaryHasher<H>>,
     #[allow(missing_docs)]
-    pub kernel_session: nomt::Session<BinaryHasher<H>>,
+    pub kernel: nomt::Session<BinaryHasher<H>>,
 }
 
+/// Combination of [`nomt::Overlay`] for user and kernel namespaces.
 pub(crate) struct StateOverlay {
     pub(crate) user: nomt::Overlay,
     pub(crate) kernel: nomt::Overlay,
 }
-
-// impl From<NomtStateChangeSet> for StateOverlay {
-// //     fn from(value: NomtStateChangeSet) -> Self {
-// //         let NomtStateChangeSet { user, kernel } = value;
-// //         Self {
-// //             user: user.into_overlay(),
-// //             kernel: kernel.into_overlay(),
-// //         }
-// //     }
-// // }
 
 /// All non-path-related options, tuned for optimal performance in sov-rollup
 pub(crate) fn sov_nomt_default_options() -> Options {

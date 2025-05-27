@@ -8,7 +8,6 @@ pub mod codec;
 pub mod config;
 mod event;
 pub mod namespaces;
-#[cfg(feature = "native")]
 pub mod nomt;
 #[cfg(feature = "native")]
 mod prover_storage;

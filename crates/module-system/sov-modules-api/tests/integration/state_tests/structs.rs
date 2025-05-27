@@ -196,22 +196,22 @@ pub fn test_state_thing<S: Spec<Storage = ProverStorage<StorageSpec>>, St: State
 
 #[test]
 fn test_state_value_set() {
-    test_state_thing::<S, StateValueSet>(&CONDITIONS[..]);
+    test_state_thing::<TestSpec, StateValueSet>(&CONDITIONS[..]);
 }
 
 #[test]
 fn test_state_vec_set() {
-    test_state_thing::<S, StateVecSet>(&CONDITIONS[..]);
+    test_state_thing::<TestSpec, StateVecSet>(&CONDITIONS[..]);
 }
 
 #[test]
 fn test_state_vec_push() {
-    test_state_thing::<S, StateVecPush>(&CONDITIONS[..]);
+    test_state_thing::<TestSpec, StateVecPush>(&CONDITIONS[..]);
 }
 
 #[test]
 fn test_state_vec_remove() {
-    test_state_thing::<S, StateVecRemove>(&CONDITIONS[..]);
+    test_state_thing::<TestSpec, StateVecRemove>(&CONDITIONS[..]);
 }
 
 #[test]
@@ -233,15 +233,16 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
                 kernel: Default::default(),
             },
             &ArrayWitness::default(),
-            <<S as Spec>::Storage as Storage>::PRE_GENESIS_ROOT,
+            <<TestSpec as Spec>::Storage as Storage>::PRE_GENESIS_ROOT,
         )
         .expect("Native jmt validation should succeed");
         storage_manager.commit(genesis_change_set);
         // Actual
-        let mut mock_kernel = MockKernel::<S>::default();
+        let mut mock_kernel = MockKernel::<TestSpec>::default();
         mock_kernel.increase_heights();
         let storage = storage_manager.create_storage();
-        let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &mock_kernel);
+        let mut state: StateCheckpoint<TestSpec> =
+            StateCheckpoint::new(storage.clone(), &mock_kernel);
         state_value.set(&11, &mut state)?;
         let _ = state_value.get(&mut state);
         state_value.set(&22, &mut state)?;
@@ -274,7 +275,7 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
 fn test_borrow_and_get_state_value() {
     let storage_manager = SimpleStorageManager::<StorageSpec>::new();
     let storage = storage_manager.create_storage();
-    let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S>::default());
+    let mut state = StateCheckpoint::<TestSpec>::new(storage, &MockKernel::<TestSpec>::default());
     let mut state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     let val = state_value.borrow(&mut state).unwrap_infallible();
@@ -298,7 +299,7 @@ fn test_borrow_and_get_state_value() {
 fn test_borrow_and_save_state_value() {
     let storage_manager = SimpleStorageManager::<StorageSpec>::new();
     let storage = storage_manager.create_storage();
-    let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S>::default());
+    let mut state = StateCheckpoint::<TestSpec>::new(storage, &MockKernel::<TestSpec>::default());
     let mut state_value = StateValue::<i32>::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     let val = state_value.borrow_mut(&mut state).unwrap_infallible();
@@ -337,7 +338,7 @@ fn test_borrow_and_save_state_value() {
 fn test_borrow_and_get_state_map() {
     let storage_manager = SimpleStorageManager::<StorageSpec>::new();
     let storage = storage_manager.create_storage();
-    let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S>::default());
+    let mut state = StateCheckpoint::<TestSpec>::new(storage, &MockKernel::<TestSpec>::default());
     let mut state_map = StateMap::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     let val = state_map.borrow(&0, &mut state).unwrap_infallible();
@@ -367,7 +368,7 @@ fn test_borrow_and_get_state_map() {
 fn test_borrow_and_save_state_map() {
     let storage_manager = SimpleStorageManager::<StorageSpec>::new();
     let storage = storage_manager.create_storage();
-    let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S>::default());
+    let mut state = StateCheckpoint::<TestSpec>::new(storage, &MockKernel::<TestSpec>::default());
     let mut state_map = StateMap::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     let val = state_map.borrow(&0, &mut state).unwrap_infallible();

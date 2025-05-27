@@ -10,7 +10,7 @@ use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm, MockZkvmHost};
 use sov_modules_api::configurable_spec::ConfigurableSpec;
-use sov_modules_api::execution_mode::{ExecutionMode, Native};
+use sov_modules_api::execution_mode::{Native, WitnessGeneration};
 use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::{CryptoSpec, NodeEndpoints, Spec, SyncStatus, ZkVerifier};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
@@ -32,16 +32,34 @@ pub struct MockDemoRollup<M> {
     phantom: std::marker::PhantomData<M>,
 }
 
-/// The default spec of the rollup
-pub type MockRollupSpec<M> =
-    ConfigurableSpec<MockDaSpec, Risc0, MockZkvm, Risc0CryptoSpec, MultiAddressEvm, M>;
+type NativeStorage = ProverStorage<DefaultStorageSpec<<Risc0CryptoSpec as CryptoSpec>::Hasher>>;
 
-impl<M: ExecutionMode> RollupBlueprint<M> for MockDemoRollup<M>
+/// The default spec of the rollup
+pub type MockRollupSpec<M> = ConfigurableSpec<
+    MockDaSpec,
+    Risc0,
+    MockZkvm,
+    Risc0CryptoSpec,
+    MultiAddressEvm,
+    M,
+    NativeStorage,
+>;
+
+impl RollupBlueprint<Native> for MockDemoRollup<Native>
 where
-    MockRollupSpec<M>: PluggableSpec,
-    <MockRollupSpec<M> as Spec>::Address: FromVmAddress<EthereumAddress>,
+    MockRollupSpec<Native>: PluggableSpec,
+    <MockRollupSpec<Native> as Spec>::Address: FromVmAddress<EthereumAddress>,
 {
-    type Spec = MockRollupSpec<M>;
+    type Spec = MockRollupSpec<Native>;
+    type Runtime = Runtime<Self::Spec>;
+}
+
+impl RollupBlueprint<WitnessGeneration> for MockDemoRollup<WitnessGeneration>
+where
+    MockRollupSpec<WitnessGeneration>: PluggableSpec,
+    <MockRollupSpec<WitnessGeneration> as Spec>::Address: FromVmAddress<EthereumAddress>,
+{
+    type Spec = MockRollupSpec<WitnessGeneration>;
     type Runtime = Runtime<Self::Spec>;
 }
 
@@ -49,10 +67,7 @@ where
 impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
     type DaService = StorableMockDaService;
 
-    type StorageManager = NativeStorageManager<
-        MockDaSpec,
-        ProverStorage<DefaultStorageSpec<<<Self::Spec as Spec>::CryptoSpec as CryptoSpec>::Hasher>>,
-    >;
+    type StorageManager = NativeStorageManager<MockDaSpec, NativeStorage>;
 
     type ProverService = ParallelProverService<
         <Self::Spec as Spec>::Address,

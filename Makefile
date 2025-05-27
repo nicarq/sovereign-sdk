@@ -33,6 +33,13 @@ build: ## Build the project
 clean: ## Cleans compiled
 	@cargo clean
 
+check-provers:   ## cargo check in non attached crates
+	@set -e; for dir in $(PROVER_DIRS); do \
+		echo "$$(date) Running cargo fmt + check in $$dir"; \
+		cargo +nightly fmt --all --check --quiet --manifest-path "$$dir/Cargo.toml"; \
+		cargo check --all-targets --all-features --manifest-path "$$dir/Cargo.toml"; \
+	done
+
 total-clean: clean
 total-clean:
 	$(MAKE) -C examples/demo-rollup clean;
@@ -149,7 +156,7 @@ coverage: ## Coverage in lcov format
 	SP1_PROVER=mock cargo llvm-cov nextest --locked --all-features --lcov --output-path lcov.info
 
 coverage-html: ## Coverage in HTML format
-	SP1_PROVER=mock cargo nextest llvm-cov --locked --all-features --html
+	SP1_PROVER=mock cargo llvm-cov nextest --locked --all-features --html
 
 dry-run-publish: 
 	yq '.[]' packages_to_publish.yml | xargs -I _ cargo publish --allow-dirty --dry-run -p _
@@ -170,4 +177,5 @@ mini-ci: ## Runs multiple checks that can most often fail CI as a single command
 	$(MAKE) test
 	$(MAKE) doctest
 	$(MAKE) docs-generate
+	$(MAKE) check-provers
 	cargo switcheroo set _backup

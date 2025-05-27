@@ -150,7 +150,7 @@ impl SlotKey {
     }
 }
 
-// We return `Vec<u8>`` here to be compatybile with the `JMT::put_value_set_with_proof` method.
+// We return `Vec<u8>` here to be compatible with the `JMT::put_value_set_with_proof` method.
 fn val_hash_and_size_inner(val_hash: [u8; 32], size: u32) -> Vec<u8> {
     let mut val_hash_and_size = Vec::with_capacity(40);
     let size_bytes = size.to_le_bytes();
@@ -286,7 +286,7 @@ impl NodeLeaf {
         NodeLeaf { size, val_hash }
     }
 
-    /// Combines the value hash with its size..
+    /// Combines the value hash with its size.
     pub(crate) fn combine_val_hash_and_size(&self) -> Vec<u8> {
         val_hash_and_size_inner(self.val_hash, self.size)
     }
@@ -297,7 +297,7 @@ impl NodeLeaf {
 )]
 #[cfg_attr(feature = "native", derive(UniversalWallet))]
 /// A proof that a particular storage key has a particular value, or is absent.
-// Note: This type intentionally does not derive `UniveralWallet` because the slotkey and slotvalue
+// Note: This type intentionally does not derive `UniversalWallet` because the slotkey and slotvalue
 // can't be displayed meaningfully without additional context
 pub struct StorageProof<P> {
     /// The key which is proven
@@ -397,7 +397,7 @@ pub trait Storage: Clone + core::fmt::Debug {
     /// Collections of all the writes that have been made on top of this instance of the storage;
     type ChangeSet: Send + Sync;
 
-    /// The rooot hash of storage *before* genesis, when it's completely empty.
+    /// The root hash of storage *before* genesis, when it's completely empty.
     const PRE_GENESIS_ROOT: Self::Root;
 
     /// Puts the value in the witness.

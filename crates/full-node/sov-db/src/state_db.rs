@@ -3,14 +3,14 @@ use std::fmt::Debug;
 
 use anyhow::{ensure, Context};
 use jmt::storage::{HasPreimage, NodeBatch, TreeReader};
-use jmt::{KeyHash, OwnedValue, Version};
+use jmt::{KeyHash, Version};
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::{SchemaBatch, SchemaKey};
 use sov_rollup_interface::common::SlotNumber;
 
 use crate::namespaces::{KernelNamespace, Namespace, UserNamespace};
-use crate::schema::namespace::{JmtNodes, JmtValues, KeyHashToKey};
-use crate::DbOptions;
+use crate::schema::namespace::{JmtNodes, KeyHashToKey, StateValues};
+use crate::{ensure_version_is_correct, DbOptions};
 
 /// Data that will be saved in the DB.
 #[derive(Default)]
@@ -18,7 +18,7 @@ pub struct StateTreeChanges {
     /// Node batch
     pub node_batch: NodeBatch,
     /// The original writes that will be stored in the DB.
-    pub original_write_values: BTreeMap<(u64, KeyHash), Option<OwnedValue>>,
+    pub original_write_values: BTreeMap<(u64, KeyHash), Option<jmt::OwnedValue>>,
 }
 
 /// A typed wrapper around the [`DeltaReader`] for materializing rollup state.
@@ -134,19 +134,11 @@ impl StateDb {
             // The future is not set.
             return Ok(None);
         }
-        let found = self.db.get_prev::<JmtValues<N>>(&(key, version))?;
-
-        match found {
-            Some(((found_key, found_version), value)) => {
-                if &found_key == key {
-                    anyhow::ensure!(found_version <= version, "Bug! iterator isn't returning expected values. expected a version <= {version:} but found {found_version:}");
-                    Ok(value)
-                } else {
-                    Ok(None)
-                }
-            }
-            None => Ok(None),
-        }
+        ensure_version_is_correct(
+            key,
+            version,
+            self.db.get_prev::<StateValues<N>>(&(key, version))?,
+        )
     }
 
     fn build_schema_batch_from_changes<N: Namespace>(
@@ -183,8 +175,8 @@ impl StateDb {
                         "Could not find preimage for key hash {key_hash:?}. Has `StateDb::put_preimage` been called for this key?"
                     ))?
             };
-            batch
-                .put::<JmtValues<N>>(&(key_preimage, SlotNumber::new_dangerous(*version)), value)?;
+            let key = (key_preimage, SlotNumber::new_dangerous(*version));
+            batch.put::<StateValues<N>>(&key, value)?;
         }
 
         Ok(batch)

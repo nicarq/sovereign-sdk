@@ -123,22 +123,6 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         merkle.get_root_hash(version.get())
     }
 
-    /// Return the root hash for a given namespace and version
-    pub fn get_root_hash_namespace(
-        &self,
-        namespace: ProvableNamespace,
-        version: SlotNumber,
-    ) -> anyhow::Result<jmt::RootHash> {
-        match namespace {
-            ProvableNamespace::User => {
-                self.get_root_hash_namespace_helper::<DBUserNamespace>(version)
-            }
-            ProvableNamespace::Kernel => {
-                self.get_root_hash_namespace_helper::<DBKernelNamespace>(version)
-            }
-        }
-    }
-
     pub(crate) fn compute_state_update_namespace<N: namespaces::Namespace>(
         &self,
         state_accesses: OrderedReadsAndWrites,
@@ -245,7 +229,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
                 .map(|(k, v_opt)| (k.key().to_vec(), v_opt.as_ref().map(|v| v.value().to_vec()))),
             next_version,
         )
-        .expect("accessory db write must succeed")
+        .expect("accessory db materialization must succeed")
     }
 
     // Caller must only use `Some(version)` from `get_version_to_use`.

@@ -1,79 +1,13 @@
-use nomt::hasher::BinaryHasher;
-use nomt::{Nomt, Options, SessionParams, WitnessMode};
-use sov_state::nomt::prover_storage::{NomtProverStorage, NomtStateUpdate};
 use sov_state::nomt::zk_storage::NomtVerifierStorage;
-use sov_state::{ArrayWitness, NodeLeaf, SlotKey, SlotValue, Storage, StorageRoot};
+use sov_state::{ArrayWitness, NodeLeaf, SlotKey, SlotValue, Storage};
+use sov_test_utils::storage::SimpleNomtStorageManager;
 use sov_test_utils::TestHasher;
 
-use crate::state_tests::compute_state_update::{run_test, ProverStorageLifeCycle, TestCase};
+use crate::state_tests::compute_state_update::{run_test, ForklessStorageManager, TestCase};
 use crate::state_tests::StorageSpec;
 
-struct NomtProtoStorageManager {
-    // Keep it here, so it is not deleted too early.
-    _dir: tempfile::TempDir,
-    user_nomt: Nomt<BinaryHasher<TestHasher>>,
-    kernel_nomt: Nomt<BinaryHasher<TestHasher>>,
-    root: StorageRoot<StorageSpec>,
-}
-
-impl NomtProtoStorageManager {
-    fn new() -> Self {
-        let dir = tempfile::tempdir().unwrap();
-        let user_nomt = {
-            let mut opts = Options::new();
-            opts.path(dir.path().join("user_nomt_db"));
-            opts.commit_concurrency(1);
-
-            Nomt::<BinaryHasher<TestHasher>>::open(opts).unwrap()
-        };
-        let kernel_nomt = {
-            let mut opts = Options::new();
-            opts.path(dir.path().join("kernel_nomt_db"));
-            opts.commit_concurrency(1);
-
-            Nomt::<BinaryHasher<TestHasher>>::open(opts).unwrap()
-        };
-
-        Self {
-            _dir: dir,
-            user_nomt,
-            kernel_nomt,
-            root: <NomtProverStorage<StorageSpec> as Storage>::PRE_GENESIS_ROOT,
-        }
-    }
-}
-
-impl ProverStorageLifeCycle for NomtProtoStorageManager {
-    type Storage = NomtProverStorage<StorageSpec>;
-
-    fn create_new(&mut self) -> (Self::Storage, <Self::Storage as Storage>::Root) {
-        let user_session = self
-            .user_nomt
-            .begin_session(SessionParams::default().witness_mode(WitnessMode::read_write()));
-        let kernel_session = self
-            .kernel_nomt
-            .begin_session(SessionParams::default().witness_mode(WitnessMode::read_write()));
-        (
-            NomtProverStorage::<StorageSpec>::new(user_session, kernel_session),
-            self.root,
-        )
-    }
-
-    fn save_and_commit(
-        &mut self,
-        _storage: Self::Storage,
-        state_update: <Self::Storage as Storage>::StateUpdate,
-        new_root: <Self::Storage as Storage>::Root,
-    ) {
-        let NomtStateUpdate { user, kernel, .. } = state_update;
-        user.commit(&self.user_nomt).unwrap();
-        kernel.commit(&self.kernel_nomt).unwrap();
-        self.root = new_root;
-    }
-}
-
 fn run_nomt_test(test_case: TestCase) {
-    let sm = NomtProtoStorageManager::new();
+    let sm = SimpleNomtStorageManager::new();
     run_test(test_case, sm, NomtVerifierStorage::<StorageSpec>::new());
 }
 
@@ -99,7 +33,8 @@ fn test_missing_reads() {
     let malformed_round = zk_test_case.rounds.get_mut(0).unwrap();
     malformed_round.kernel.ordered_reads.push((
         alien_key,
-        // Note: we are testing some value, because reading none value is similar as not reading at all, because absence will be proven correctly.
+        // Note: we are testing some value, because reading none value is similar as not reading at all,
+        // because absence will be proven correct.
         Some(NodeLeaf::make_leaf::<TestHasher>(&alien_value)),
     ));
 
@@ -155,14 +90,14 @@ fn test_modified_read_to_none() {
 ///  - we don't test extra or missing writes, because all writes originate from within ZKVM
 ///  - we don't test extra proof for reads, because zk guest only cares about reads it made.
 fn check_malicious_case(native_case: TestCase, zk_case: TestCase, expected_error: &str) {
-    let mut sm = NomtProtoStorageManager::new();
+    let mut sm = SimpleNomtStorageManager::new();
 
     for (native_state_accesses, zk_state_accesses) in native_case
         .rounds
         .into_iter()
         .zip(zk_case.rounds.into_iter())
     {
-        let (prover_storage, prev_state_root) = sm.create_new();
+        let (prover_storage, prev_state_root) = sm.create_storage_with_root();
 
         let witness = ArrayWitness::default();
 
@@ -177,7 +112,7 @@ fn check_malicious_case(native_case: TestCase, zk_case: TestCase, expected_error
                 // If the update is correct, do normal operations.
                 // This allows having a more sophisticated error case to be detected.
                 assert_eq!(native_root.as_ref(), zk_root.as_ref());
-                sm.save_and_commit(prover_storage, change_set, native_root);
+                sm.commit_state_update(prover_storage, change_set, native_root);
             }
             Err(err) => {
                 let error_message = err.to_string();

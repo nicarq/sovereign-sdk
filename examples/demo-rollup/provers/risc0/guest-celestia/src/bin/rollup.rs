@@ -11,15 +11,18 @@ use sov_celestia_adapter::verifier::{CelestiaSpec, CelestiaVerifier};
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::execution_mode::Zk;
+use sov_modules_api::CryptoSpec;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_risc0_adapter::guest::Risc0Guest;
 use sov_risc0_adapter::{Risc0, Risc0CryptoSpec};
 use sov_rollup_interface::da::DaVerifier;
-use sov_state::ZkStorage;
+use sov_state::{DefaultStorageSpec, ZkStorage};
 
 // The rollup stores its data in the namespace b"sov-test" on Celestia
 const ROLLUP_BATCH_NAMESPACE: Namespace = Namespace::const_v0(ROLLUP_BATCH_NAMESPACE_RAW);
 const ROLLUP_PROOF_NAMESPACE: Namespace = Namespace::const_v0(ROLLUP_PROOF_NAMESPACE_RAW);
+
+type Storage = ZkStorage<DefaultStorageSpec<<Risc0CryptoSpec as CryptoSpec>::Hasher>>;
 
 risc0_zkvm::guest::entry!(main);
 
@@ -27,7 +30,15 @@ pub fn main() {
     let guest = Risc0Guest::new();
     let storage = ZkStorage::new();
     let stf: StfBlueprint<
-        ConfigurableSpec<CelestiaSpec, Risc0, MockZkvm, Risc0CryptoSpec, MultiAddressEvm, Zk>,
+        ConfigurableSpec<
+            CelestiaSpec,
+            Risc0,
+            MockZkvm,
+            Risc0CryptoSpec,
+            MultiAddressEvm,
+            Zk,
+            Storage,
+        >,
         Runtime<_>,
     > = StfBlueprint::new();
 

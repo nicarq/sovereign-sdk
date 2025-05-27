@@ -11,7 +11,7 @@ use crate::namespaces::{KernelNamespace, Namespace, UserNamespace};
 use crate::state_db::StateDb;
 use crate::storage_manager::delta_reader_based::{NativeChangeSet, NativeStorageManager};
 use crate::storage_manager::tests::arbitrary::ForkDescription;
-use crate::storage_manager::tests::data_helpers::{verify_accessory_db, H, VERSION};
+use crate::storage_manager::tests::data_helpers::{verify_accessory_db, H};
 use crate::storage_manager::tests::generic_tests::{
     calls_on_empty, check_snapshots_ordering, create_state_after_not_saved_block,
     double_create_storage, double_save_changes, finalize_only_last_block,
@@ -43,10 +43,16 @@ impl TestableStorage for TestNativeStorage {
         let jmt_handler_user = self.state.get_jmt_handler::<UserNamespace>();
         let jmt_handler_kernel = self.state.get_jmt_handler::<KernelNamespace>();
 
-        let data_to_materialize_user =
-            build_data_to_materialize::<_, H>(&jmt_handler_user, VERSION, batch.clone());
-        let data_to_materialize_kernel =
-            build_data_to_materialize::<_, H>(&jmt_handler_kernel, VERSION, batch.clone());
+        let data_to_materialize_user = build_data_to_materialize::<_, H>(
+            &jmt_handler_user,
+            SlotNumber::GENESIS.get(),
+            batch.clone(),
+        );
+        let data_to_materialize_kernel = build_data_to_materialize::<_, H>(
+            &jmt_handler_kernel,
+            SlotNumber::GENESIS.get(),
+            batch.clone(),
+        );
 
         let state_change_set = self
             .state
@@ -58,8 +64,7 @@ impl TestableStorage for TestNativeStorage {
             .unwrap();
 
         let accessory_change_set =
-            AccessoryDb::materialize_values(accessory_batch, SlotNumber::new_dangerous(VERSION))
-                .unwrap();
+            AccessoryDb::materialize_values(accessory_batch, SlotNumber::GENESIS).unwrap();
 
         NativeChangeSet {
             state_change_set,
@@ -70,17 +75,11 @@ impl TestableStorage for TestNativeStorage {
     fn get_value(&self, key: &[u8]) -> Option<Vec<u8>> {
         let user_value = self
             .state
-            .get_value_option_by_key::<UserNamespace>(
-                SlotNumber::new_dangerous(VERSION),
-                &key.to_vec(),
-            )
+            .get_value_option_by_key::<UserNamespace>(SlotNumber::GENESIS, &key.to_vec())
             .unwrap();
         let kernel_value = self
             .state
-            .get_value_option_by_key::<KernelNamespace>(
-                SlotNumber::new_dangerous(VERSION),
-                &key.to_vec(),
-            )
+            .get_value_option_by_key::<KernelNamespace>(SlotNumber::GENESIS, &key.to_vec())
             .unwrap();
         assert_eq!(user_value, kernel_value);
         user_value
@@ -132,7 +131,7 @@ fn verify_state_db<N: Namespace>(state_db: &StateDb, expected_values: &[(u64, Mo
             .expect("Missing preimage");
         assert_eq!(&pre_image, &height_bytes);
         let value = state_db
-            .get_value_option_by_key::<N>(SlotNumber::new_dangerous(VERSION), &pre_image)
+            .get_value_option_by_key::<N>(SlotNumber::GENESIS, &pre_image)
             .expect("Failed to get value option from state db");
         assert_eq!(Some(expected_hash.0.to_vec()), value);
     }
