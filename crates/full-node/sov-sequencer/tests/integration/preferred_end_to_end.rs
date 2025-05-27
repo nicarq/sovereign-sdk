@@ -815,6 +815,7 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
     // on top of that new state. The replay will fail if the visible slot number was not correctly set.
     da_layer.write().await.produce_block().await.unwrap();
     let slot = slot_subscription.next().await.unwrap().unwrap();
+
     // Right here, we check that we really did receive an empty batch from the preferred sequencer.
     // This is a test of the test logic, not a test of the sequencer - it's perfectly valid to modify
     // the sequencer such that a batch is not produced here - but in that case we need to update this test.
@@ -832,6 +833,10 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
     tokio::time::sleep(Duration::from_millis(100)).await;
     da_layer.write().await.produce_block().await.unwrap();
     let next = slot_subscription.next().await.unwrap().unwrap();
+
+    // Add a delay to ensure that the sequencer has finished updating state on top of the new DA block. This ensures
+    // that the block is visible, which is needed because we're running archival queries.
+    tokio::time::sleep(Duration::from_millis(100)).await;
 
     assert_eq!(next.number, 5);
     assert_eq!(

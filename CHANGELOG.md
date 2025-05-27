@@ -31,10 +31,12 @@
   ```
 
 # 2025-05-24
+- #2919 increases the suggested value of `max_allowed_node_distance_behind` to 10.
 - #2921 Removes the `Fee` trait and associated fee estimation logic from `DaService` and its implementations (Celestia, Mock DA).
   - `DaService::send_transaction()` and `DaService::send_proof()` methods no longer accept a `fee` parameter.
   - DA fee calculation is now fully delegated to the respective DA layer nodes.
   - **Action Required for Starter Rollups:** Consumers of `DaService` (e.g., starter rollups, custom adapters) must update calls to `send_transaction` and `send_proof` to remove the fee argument.
+- #2919 increases the suggested value of `max_allowed_node_distance_behind` to 10.
 
 # 2025-05-23
 - #2886 **BREAKING CHANGE** Renames the outdated `rollup_height` field to `slot_number`. This change modifies the `BatchResponse` struct and  introduces a breaking change for SDK clients.
@@ -122,7 +124,7 @@ Additionally, the chain has will change.
 - #2607 Removes `sov-test-modules`, which was accidentally exposed via `sov-test-utils`.
 # 2025-03-17
 - #2612 adds checks inside the sequencer to prevent the node falling too many blocks behind. The threshold is configured by a field inside the rollup config file.
-    - The field is `[sequencer.max_allowed_node_distance_behind]`, a sensible default for this field is `5`.
+    - The field is `[sequencer.max_allowed_node_distance_behind]`, a sensible default for this field is `10`.
 
 # 2025-03-11
 - #2602 Wallet schema: correctly handle explicit enum discriminants when the `#[borsh(use-discriminant=true)]` attribute is specified. (Previously this would result in incorrect serialization in the wallet.) This is not a breaking change but will alter the chain hash due to schema modifications to support this.

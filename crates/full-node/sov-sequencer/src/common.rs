@@ -22,6 +22,7 @@ use sov_rollup_interface::node::ledger_api::{ItemOrHash, LedgerStateProvider, Qu
 use sov_rollup_interface::node::{future_or_shutdown, DaSyncState, FutureOrShutdownOutput};
 use tokio::sync::{broadcast, watch, Mutex, RwLock};
 use tokio::task::JoinHandle;
+use tokio::time::timeout;
 use tracing::{info, trace};
 
 use crate::{
@@ -223,7 +224,8 @@ type AuthRes<S, Rt, I> = (
 );
 
 /// Does something -anything- in a loop every time the [`StateUpdateReceiver`]
-/// receives a new value.
+/// receives a new value. A new trigger is generated with a timeout even if no
+/// value is received.
 ///
 /// Automagically handles shutdown and error checking for you.
 pub async fn react_to_state_updates<S, Fut>(
@@ -236,8 +238,13 @@ pub async fn react_to_state_updates<S, Fut>(
     Fut: Future<Output = anyhow::Result<()>>,
 {
     loop {
-        let fut = future_or_shutdown(state_update_receiver.changed(), &shutdown_receiver);
-        let FutureOrShutdownOutput::Output(changed) = fut.await else {
+        let changed_with_timeout = timeout(
+            std::time::Duration::from_secs(30),
+            state_update_receiver.changed(),
+        );
+
+        let fut = future_or_shutdown(changed_with_timeout, &shutdown_receiver);
+        let FutureOrShutdownOutput::Output(timeout_result) = fut.await else {
             info!(
                 task_name,
                 "Shutdown signal receiver, exiting sequencer background task"
@@ -245,15 +252,28 @@ pub async fn react_to_state_updates<S, Fut>(
             break;
         };
 
-        if let Err(error) = changed {
-            tracing::error!(%error, task_name, "Channel notification failed, exiting sequencer background task. This is a bug, please report it");
-            break;
-        }
+        match timeout_result {
+            Ok(changed_result) => {
+                // Handle actual state update notification
+                if let Err(error) = changed_result {
+                    tracing::error!(%error, task_name, "Channel notification failed, exiting sequencer background task. This is a bug, please report it");
+                    break;
+                }
 
-        let info = (*state_update_receiver.borrow()).clone();
-        if let Err(err) = closure(info).await {
-            tracing::error!(%err, task_name, "Error inside the sequencer background task's closure; this is a bug, please report it");
-            break;
+                let info = (*state_update_receiver.borrow()).clone();
+                if let Err(err) = closure(info).await {
+                    tracing::error!(%err, task_name, "Error inside the sequencer background task's closure; this is a bug, please report it");
+                    break;
+                }
+            }
+            Err(_) => {
+                // Timeout elapsed. Log a warning then continue waiting. TODO: handle excessive timeouts (#2938).
+                tracing::warn!(
+                    task_name,
+                    "Timeout waiting for state update notification, continuing to wait"
+                );
+                continue;
+            }
         }
     }
 }
@@ -380,9 +400,6 @@ pub fn error_not_fully_synced(details: SequencerNotReadyDetails) -> ErrorObject 
         SequencerNotReadyDetails::Syncing { .. } => "The node is not fully synced with the DA head",
         SequencerNotReadyDetails::WaitingOnDa { .. } => {
             "The sequencer is waiting for the DA to finalize more blocks"
-        }
-        SequencerNotReadyDetails::WaitingOnNode { .. } => {
-            "The sequencer is waiting for the node to process more blocks"
         }
         SequencerNotReadyDetails::WaitingOnBlobSender { .. } => {
             "The sequencer is waiting for the blob sender to be ready"

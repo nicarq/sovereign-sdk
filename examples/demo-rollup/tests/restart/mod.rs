@@ -146,6 +146,11 @@ async fn start_stop_empty(
             Level::WARN,
             "Received error updating target height, stopping background task".to_string()
         ),
+        // The node gets out of sync during the restart
+        (
+            Level::WARN,
+            "The sequencer must pause because the node is lagging behind. This might lead to a brief downtime for users. Cause is unknown.".to_string()
+        ),
     ];
 
     let mut recorded_errors_warnings =

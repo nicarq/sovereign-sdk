@@ -26,7 +26,9 @@ use sov_modules_api::{
     FullyBakedTx, KernelStateAccessor, Runtime, Spec, StateCheckpoint, StateUpdateInfo, TxHash,
     VisibleSlotNumber,
 };
+use tracing::info;
 
+use super::next_sequence_number_according_to_node;
 use crate::common::WithCachedTxHashes;
 use crate::metrics::track_sequence_number;
 
@@ -145,10 +147,7 @@ where
     S: Spec,
     Rt: Runtime<S>,
 {
-    pub async fn new(
-        backend: Box<dyn PreferredSequencerDbBackend>,
-        latest_state_info: &StateUpdateInfo<S::Storage>,
-    ) -> anyhow::Result<Self> {
+    pub async fn new(backend: Box<dyn PreferredSequencerDbBackend>) -> anyhow::Result<Self> {
         let completed_blobs = VecDeque::from(backend.read_completed_blobs().await?);
         let in_progress_batch = backend.read_in_progress_batch().await?;
 
@@ -161,41 +160,33 @@ where
             (None, None) => 0,
         };
 
-        let mut db = Self {
+        Ok(Self {
             backend,
             phantom: PhantomData,
             runtime: Default::default(),
             sequence_number_of_next_blob,
             completed_blobs,
             in_progress_batch,
-        };
-
-        db.sync_next_sequence_number(latest_state_info)?;
-
-        Ok(db)
+        })
     }
 
-    fn set_next_sequence_number(&mut self, sequence_number: SequenceNumber) {
+    pub fn next_sequence_number(&self) -> SequenceNumber {
+        self.sequence_number_of_next_blob
+    }
+
+    /// Under normal operations, the sequencer will determine the next
+    /// sequence number to use. When syncing, however, the DA (i.e. the node)
+    /// will determine the next sequence number to use.
+    pub fn overwrite_next_sequence_number(&mut self, sequence_number: SequenceNumber) {
+        info!(%sequence_number, "Overwriting next sequence number");
+
         self.sequence_number_of_next_blob = sequence_number;
         track_sequence_number(self.sequence_number_of_next_blob);
     }
 
-    fn sync_next_sequence_number(
-        &mut self,
-        latest_state_info: &StateUpdateInfo<S::Storage>,
-    ) -> anyhow::Result<()> {
-        // Under normal operations, the sequencer will determine the next
-        // sequence number to use. When a secondary preferred sequencer first
-        // syncs, however, the DA (i.e. the node) will determine the next
-        // sequence number to use.
-        let next_sequence_number_according_to_node =
-            next_sequence_number_according_to_node(latest_state_info, &mut self.runtime);
-        self.set_next_sequence_number(std::cmp::max(
-            next_sequence_number_according_to_node,
-            self.sequence_number_of_next_blob,
-        ));
-
-        Ok(())
+    pub fn increment_next_sequence_number(&mut self) {
+        self.sequence_number_of_next_blob += 1;
+        track_sequence_number(self.sequence_number_of_next_blob);
     }
 
     pub fn in_progress_batch_opt(&self) -> Option<&PreferredSequencerReadBatch> {
@@ -286,17 +277,13 @@ where
             txs: vec![],
             tx_hashes: vec![],
         });
-        self.set_next_sequence_number(sequence_number + 1);
+        self.increment_next_sequence_number();
 
         Ok(sequence_number)
     }
 
-    /// Synchronizes the database with the latest state information coming from
-    /// the node.
-    ///
-    /// Additionally, returns all known blobs that were not processed by the
-    /// node yet.
-    pub async fn sync_and_compute_subsequent_completed_blobs(
+    /// Returns all known blobs that were not processed by the node yet.
+    pub async fn subsequent_completed_blobs(
         &mut self,
         latest_state_info: &StateUpdateInfo<S::Storage>,
     ) -> anyhow::Result<Vec<PreferredSequencerReadBlob>> {
@@ -313,11 +300,6 @@ where
                 ),
             );
         });
-
-        self.set_next_sequence_number(std::cmp::max(
-            next_sequence_number_according_to_node,
-            self.sequence_number_of_next_blob,
-        ));
 
         // Now is as good a time as any to prune old blobs that are no longer needed.
         match latest_finalized_sequence_number(latest_state_info, &mut self.runtime) {
@@ -363,7 +345,7 @@ where
                 sequence_number,
                 data,
             });
-        self.set_next_sequence_number(sequence_number + 1);
+        self.increment_next_sequence_number();
 
         Ok(sequence_number)
     }
@@ -415,20 +397,6 @@ pub enum StoredBlob {
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
     },
-}
-
-fn next_sequence_number_according_to_node<S, Rt>(
-    latest_state_info: &StateUpdateInfo<S::Storage>,
-    runtime: &mut Rt,
-) -> SequenceNumber
-where
-    S: Spec,
-    Rt: Runtime<S>,
-{
-    let mut checkpoint = StateCheckpoint::new(latest_state_info.storage.clone(), &runtime.kernel());
-    let mut state = KernelStateAccessor::from_checkpoint(&runtime.kernel(), &mut checkpoint);
-
-    runtime.kernel().next_sequence_number(&mut state)
 }
 
 fn latest_finalized_sequence_number<S, Rt>(

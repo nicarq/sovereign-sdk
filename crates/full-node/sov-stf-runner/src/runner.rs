@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -187,8 +186,8 @@ where
         };
 
         let sync_state = Arc::new(DaSyncState {
-            synced_da_height: AtomicU64::new(da_height_processed),
-            target_da_height: AtomicU64::new(u64::MAX),
+            synced_da_height: da_height_processed.into(),
+            target_da_height: da_service.get_head_block_header().await?.height().into(),
             sync_status_sender,
         });
 

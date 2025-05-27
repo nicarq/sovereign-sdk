@@ -148,20 +148,11 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
-    pub async fn replace_state(&mut self, other: Self, is_visible_state_expected_to_match: bool) {
+    pub async fn replace_state(&mut self, other: Self) {
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
             return;
         }
 
-        // The event numbers will mismatch during the very first state update,
-        // which uses a placeholder state. That's expected, and we shouldn't
-        // panic.
-        if is_visible_state_expected_to_match {
-            assert_eq!(
-                self.next_event_number, other.next_event_number,
-                "Event numbers don't match after `update_state`; this is a bug, please report it"
-            );
-        }
         tracing::trace!(
             "Replacing state for executor {} with executor {}",
             self.id,
