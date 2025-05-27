@@ -451,7 +451,6 @@ where
             da,
             ledger_db.clone(),
             storage_path,
-            false,
             TxStatusBlobSenderHooks::new(txsm.clone()),
             shutdown_receiver.clone(),
         )

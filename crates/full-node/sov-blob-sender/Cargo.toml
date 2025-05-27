@@ -22,7 +22,7 @@ futures = { workspace = true }
 rockbound = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-sov-rollup-interface = { workspace = true }
+sov-rollup-interface = { workspace = true, features = ["native"]  }
 sov-metrics = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["native"] }
 sov-db = { workspace = true }

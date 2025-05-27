@@ -34,6 +34,9 @@ use tracing::{debug, error, info, trace};
 /// case of a crash at an inconvenient time.
 pub type BlobInternalId = u128;
 
+const RESUBMIT_INTERVAL: Duration = Duration::from_secs(20);
+const LEDGER_POLL_INTERVAL: Duration = Duration::from_secs(1);
+
 /// See [`BlobInternalId`].
 pub fn new_blob_id() -> BlobInternalId {
     uuid::Uuid::now_v7().as_u128()
@@ -83,6 +86,8 @@ pub struct BlobSender<Da: DaService, H, FM: FinalizationManager> {
     da: Da,
     finalization_manager: FM,
     nb_of_concurrent_blob_submissions: Arc<AtomicUsize>,
+    resubmit_interval: Duration,
+    ledger_pool_interval: Duration,
 }
 
 impl<Da, H, FM> BlobSender<Da, H, FM>
@@ -95,10 +100,29 @@ where
         da: Da,
         finalization_manager: FM,
         storage_path: &Path,
-        // TODO(@neysofu): all blobs are sent in parallel as of now.
-        _parallel_submission: bool,
         hooks: H,
         shutdown_receiver: watch::Receiver<()>,
+    ) -> anyhow::Result<(Self, JoinHandle<()>)> {
+        Self::new_with_task_intervals(
+            da,
+            finalization_manager,
+            storage_path,
+            hooks,
+            shutdown_receiver,
+            RESUBMIT_INTERVAL,
+            LEDGER_POLL_INTERVAL,
+        )
+        .await
+    }
+
+    pub async fn new_with_task_intervals(
+        da: Da,
+        finalization_manager: FM,
+        storage_path: &Path,
+        hooks: H,
+        shutdown_receiver: watch::Receiver<()>,
+        resubmit_interval: Duration,
+        ledger_pool_interval: Duration,
     ) -> anyhow::Result<(Self, JoinHandle<()>)> {
         let db = Arc::new(BlobSenderDb::new(storage_path).await?);
 
@@ -115,6 +139,8 @@ where
             da,
             finalization_manager,
             nb_of_concurrent_blob_submissions: Arc::new(AtomicUsize::new(0)),
+            resubmit_interval,
+            ledger_pool_interval,
         };
 
         let handle = Self::main_task(in_flight_blobs, shutdown_receiver).await;
@@ -204,6 +230,8 @@ where
             hooks: self.hooks.clone(),
             in_flight_blobs: self.in_flight_blobs.clone(),
             nb_of_concurrent_blob_submissions: self.nb_of_concurrent_blob_submissions.clone(),
+            resubmit_interval: self.resubmit_interval,
+            ledger_pool_interval: self.ledger_pool_interval,
         };
 
         let shutdown_receiver = self.shutdown_receiver.clone();
@@ -324,12 +352,20 @@ type BlobReceiptFut<Da> = oneshot::Receiver<
 #[async_trait]
 /// Decides if a given blob was finalized on the DA.
 pub trait FinalizationManager: Clone + Send + Sync + 'static {
-    async fn is_blob_finalized(&self, blob_hash: [u8; 32]) -> anyhow::Result<Option<bool>>;
+    async fn is_blob_finalized(
+        &self,
+        blob_hash: [u8; 32],
+        blob_id: BlobInternalId,
+    ) -> anyhow::Result<Option<bool>>;
 }
 
 #[async_trait]
 impl FinalizationManager for LedgerDb {
-    async fn is_blob_finalized(&self, blob_hash: [u8; 32]) -> anyhow::Result<Option<bool>> {
+    async fn is_blob_finalized(
+        &self,
+        blob_hash: [u8; 32],
+        _blob_id: BlobInternalId,
+    ) -> anyhow::Result<Option<bool>> {
         let Some(batch) = self
             .get_batch_by_hash::<(), (), RuntimeEventResponse<IgnoreEvent>>(
                 &blob_hash,
@@ -353,12 +389,11 @@ struct TaskState<Da: DaService, FM: FinalizationManager> {
     hooks: Arc<dyn BlobSenderHooks<Da = Da::Spec>>,
     in_flight_blobs: Arc<Mutex<HashMap<BlobInternalId, InFlightBlob<Da::Spec>>>>,
     nb_of_concurrent_blob_submissions: Arc<AtomicUsize>,
+    resubmit_interval: Duration,
+    ledger_pool_interval: Duration,
 }
 
 impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
-    const RESUBMIT_INTERVAL: Duration = Duration::from_secs(20);
-    const LEDGER_POLL_INTERVAL: Duration = Duration::from_secs(1);
-
     fn dec_nb_of_concurrent_blob_submissions(&self) {
         self.nb_of_concurrent_blob_submissions
             .fetch_sub(1, Ordering::Relaxed);
@@ -395,7 +430,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                             let receipt = receipt_res?.map_err(|err| anyhow::anyhow!("Failed to track blob submission: {err}"))?;
                             blob_state = BlobProcessingState::Published { receipt };
                         }
-                        _ = sleep(Self::RESUBMIT_INTERVAL) => {
+                        _ = sleep(self.resubmit_interval) => {
                             // We successfully submitted the blob, but it wasn't
                             // published despite waiting for quite some time.
                             // Possibly the fee was too low. Let's try again.
@@ -424,11 +459,11 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
 
                     let timer = SystemTime::now();
                     loop {
-                        if timer.elapsed()? > Self::RESUBMIT_INTERVAL {
+                        if timer.elapsed()? > self.resubmit_interval {
                             debug!(
                                 blob_id,
                                 blob_hash = %receipt.blob_hash,
-                                resubmit_interval_secs = %Self::RESUBMIT_INTERVAL.as_secs(),
+                                resubmit_interval_secs = %self.resubmit_interval.as_secs(),
                                 "Published blob was not processed by the rollup node despite waiting for quite some time. Re-submitting"
                             );
                             blob_state = BlobProcessingState::MustSubmit;
@@ -437,7 +472,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
 
                         let finality_status: Option<bool> = self
                             .finalization_manager
-                            .is_blob_finalized(receipt.blob_hash.into())
+                            .is_blob_finalized(receipt.blob_hash.into(), blob_id)
                             .await?;
 
                         match finality_status {
@@ -474,12 +509,12 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                     loop {
                         let finality_status = self
                             .finalization_manager
-                            .is_blob_finalized(receipt.blob_hash.into())
+                            .is_blob_finalized(receipt.blob_hash.into(), blob_id)
                             .await?;
 
                         match finality_status {
                             Some(false) => {
-                                sleep(Self::LEDGER_POLL_INTERVAL).await;
+                                sleep(self.ledger_pool_interval).await;
                                 continue;
                             }
                             Some(true) => {
