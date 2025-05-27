@@ -10955,6 +10955,7 @@ dependencies = [
  "hex",
  "jsonrpsee",
  "mini-moka",
+ "num_cpus",
  "openapiv3",
  "proptest",
  "proptest-derive 0.5.0",

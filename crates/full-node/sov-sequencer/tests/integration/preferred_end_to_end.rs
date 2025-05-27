@@ -129,7 +129,14 @@ async fn new_test_rollup(
     const FINALIZATION_BLOCKS: u32 = 3;
     let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
 
-    let builder_res = RollupBuilder::<TestBlueprint>::new(
+    // We skip all docker (i.e. postgres) tests on our dev server due to firewall false positives
+    // bricking the machine.
+    // The dev machine has 96 threads, which we detect to disable postgres. Currently no dev or CI
+    // setup uses a machine of exactly this size, though if this ever changes this will cause
+    // false positives.
+    const DEV_SERVER_CPUS: usize = 96;
+
+    let mut builder_res = RollupBuilder::<TestBlueprint>::new(
         GenesisSource::CustomParams(genesis_params),
         block_producing_config,
         FINALIZATION_BLOCKS,
@@ -142,7 +149,12 @@ async fn new_test_rollup(
     })
     .set_da_config(|c| c.sender_address = sequencer_addr)
     .with_preferred_seq_min_profit_per_tx(minimum_profit_per_tx);
-    // .with_postgres_sequencer().await TODO: enable this once port scanning issue on build server is fixed
+
+    if num_cpus::get() != DEV_SERVER_CPUS {
+        builder_res = builder_res.with_postgres_sequencer().await.unwrap();
+    } else {
+        tracing::warn!("Running tests with postgres disabled in the sequencer! Detected machine with {DEV_SERVER_CPUS} threads, assuming we are running on the dev server.");
+    }
 
     match Result::<_, anyhow::Error>::Ok(builder_res) {
         Ok(builder) => Some(builder.start().await.unwrap()),

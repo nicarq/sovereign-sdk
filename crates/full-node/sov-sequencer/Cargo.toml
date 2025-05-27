@@ -53,6 +53,7 @@ utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 openapiv3 = { workspace = true }
 
 [dev-dependencies]
+num_cpus = { workspace = true }
 rand = { workspace = true }
 proptest = { workspace = true }
 proptest-derive = { workspace = true }
