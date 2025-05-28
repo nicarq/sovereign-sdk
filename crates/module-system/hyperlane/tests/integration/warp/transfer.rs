@@ -10,7 +10,7 @@ use sov_hyperlane_integration::{
 };
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{HexHash, HexString, Spec, TxEffect};
+use sov_modules_api::{HexHash, HexString, SafeVec, Spec, TxEffect};
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{AsUser, TestUser, TransactionTestCase};
 
@@ -647,6 +647,7 @@ fn register_synthetic_route(
             admin: Admin::InsecureOwner(admin.address()),
             token_source,
             ism,
+            remote_routers: SafeVec::new(),
         }),
         assert: Box::new(move |result, _| {
             assert!(

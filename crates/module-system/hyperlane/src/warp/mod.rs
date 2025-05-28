@@ -11,10 +11,11 @@ use sov_modules_api::digest::Digest;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{
     Amount, Context, CryptoSpec, Error, EventEmitter, HexHash, HexString, Module, ModuleId,
-    ModuleInfo, ModuleRestApi, Spec, StateMap, TxState,
+    ModuleInfo, ModuleRestApi, SafeVec, Spec, StateMap, TxState,
 };
 
 use crate::ism::Ism;
+use crate::types::Domain;
 use crate::{HyperlaneAddress, Mailbox, Recipient};
 
 mod types;
@@ -66,6 +67,8 @@ pub enum CallMessage<S: Spec> {
         token_source: TokenKind,
         /// The ISM for this route.
         ism: Ism,
+        /// Remote routers to enroll on route registration.
+        remote_routers: SafeVec<(Domain, HexHash), 64>,
     },
     /// Update an existing route with new admin or ISM.
     Update {
@@ -82,7 +85,7 @@ pub enum CallMessage<S: Spec> {
         /// The ID of the warp route on the local chain.
         warp_route: WarpRouteId,
         /// The domain of the remote chain.
-        remote_domain: u32,
+        remote_domain: Domain,
         /// The router address on the remote chain.
         remote_router_address: HexHash,
     },
@@ -91,14 +94,14 @@ pub enum CallMessage<S: Spec> {
         /// The ID of the warp route on the local chain.
         warp_route: WarpRouteId,
         /// The domain of the remote chain.
-        remote_domain: u32,
+        remote_domain: Domain,
     },
     /// Transfer a token from the local chain to the remote chain.
     TransferRemote {
         /// The route to use for the transfer.
         warp_route: WarpRouteId,
         /// The domain of the destination chain.
-        destination_domain: u32,
+        destination_domain: Domain,
         /// The recipient on the destination chain.
         recipient: HexHash,
         /// The amount to transfer.
@@ -151,7 +154,7 @@ pub enum Event<S: Spec> {
         /// The ID of the warp route on the local chain.
         route_id: WarpRouteId,
         /// The domain of the remote chain.
-        domain: u32,
+        domain: Domain,
         /// The address of the remote router.
         router: HexHash,
     },
@@ -160,14 +163,14 @@ pub enum Event<S: Spec> {
         /// The ID of the warp route on the local chain.
         route_id: WarpRouteId,
         /// The domain of the remote chain.
-        domain: u32,
+        domain: Domain,
     },
     /// A token was transferred to the remote chain.
     TokenTransferredRemote {
         /// The ID of the warp route.
         route_id: WarpRouteId,
         /// The domain of the remote chain.
-        to_domain: u32,
+        to_domain: Domain,
         /// The recipient on the remote chain, in hyperlane address format.
         recipient: HexHash,
         /// The amount transferred, in *remote* token units.
@@ -178,7 +181,7 @@ pub enum Event<S: Spec> {
         /// The ID of the warp route.
         route_id: WarpRouteId,
         /// The domain of the remote chain.
-        from_domain: u32,
+        from_domain: Domain,
         /// The recipient on the local chain, in hyperlane address format.
         recipient: HexHash,
         /// The amount transferred, in *local* token units.
@@ -206,8 +209,9 @@ where
                 admin,
                 token_source,
                 ism,
+                remote_routers,
             } => {
-                self.register(admin, token_source, ism, context, state)?;
+                self.register(admin, token_source, ism, remote_routers, context, state)?;
             }
             CallMessage::Update {
                 warp_route,
@@ -285,6 +289,7 @@ where
         admin: Admin<S>,
         token_source: TokenKind,
         ism: Ism,
+        remote_routers: SafeVec<(Domain, HexHash), 64>,
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
@@ -342,6 +347,10 @@ where
                 admin,
             },
         );
+
+        for (domain, router_address) in remote_routers {
+            self.enroll_remote_router_unchecked(route_id, domain, router_address, state)?;
+        }
 
         Ok(())
     }
@@ -449,6 +458,18 @@ where
             ),
         }
 
+        self.enroll_remote_router_unchecked(warp_route, remote_domain, remote_router_address, state)
+    }
+
+    /// Enrolls remote router for domain without checking if warp route exists or if request is
+    /// authorized.
+    fn enroll_remote_router_unchecked(
+        &mut self,
+        warp_route: WarpRouteId,
+        remote_domain: u32,
+        remote_router_address: HexHash,
+        state: &mut impl TxState<S>,
+    ) -> anyhow::Result<()> {
         let router_key = RouterKey {
             route_id: warp_route,
             remote_domain,

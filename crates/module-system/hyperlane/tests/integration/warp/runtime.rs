@@ -8,7 +8,7 @@ use sov_hyperlane_integration::{
     HyperlaneAddress, InterchainGasPaymaster, InterchainGasPaymasterCallMessage, Ism,
     Mailbox as RawMailbox, MerkleTreeHook, Warp, WarpCallMessage, WarpEvent,
 };
-use sov_modules_api::{HexHash, HexString, Spec};
+use sov_modules_api::{HexHash, HexString, SafeVec, Spec};
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_runtime, AsUser, TestSpec, TestUser, TransactionTestCase};
@@ -120,6 +120,7 @@ pub fn register_warp_route_with_ism_and_token_source(
             admin: Admin::InsecureOwner(user.address()),
             token_source,
             ism,
+            remote_routers: SafeVec::new(),
         }),
         assert: Box::new(move |result, _| {
             assert!(

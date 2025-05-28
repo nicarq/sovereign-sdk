@@ -1,6 +1,6 @@
 use sov_hyperlane_integration::warp::{Admin, TokenKind};
 use sov_hyperlane_integration::{HyperlaneAddress, Ism, Warp, WarpCallMessage, WarpEvent};
-use sov_modules_api::{HexString, TxEffect};
+use sov_modules_api::{HexString, SafeVec, TxEffect};
 use sov_test_utils::{AsUser, TransactionTestCase};
 
 use super::runtime::*;
@@ -203,6 +203,7 @@ fn test_register_warp_route_duplicate_registrations_fail() {
             admin: Admin::InsecureOwner(admin.address()),
             token_source: TokenKind::Native,
             ism: Ism::AlwaysTrust,
+            remote_routers: SafeVec::new(),
         }),
         assert: Box::new(move |result, _| {
             match result.tx_receipt {
@@ -211,6 +212,79 @@ fn test_register_warp_route_duplicate_registrations_fail() {
                         .reason
                         .to_string()
                         .contains("already registered by sender"),
+                    "Transaction should be reverted with the correct error but reverted with: {}",
+                    reason.reason
+                ),
+                _ => panic!("Transaction should be reverted"),
+            };
+        }),
+    });
+}
+
+#[test]
+fn test_enroll_remote_routers_on_registration() {
+    let (mut runner, admin, ..) = setup();
+
+    let routers = [(1, [1; 32].into()), (2, [2; 32].into())];
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::Register {
+            token_source: TokenKind::Native,
+            admin: Admin::None,
+            ism: Ism::AlwaysTrust,
+            remote_routers: routers.as_ref().try_into().unwrap(),
+        }),
+        assert: Box::new(move |result, _| {
+            assert!(
+                result.tx_receipt.is_successful(),
+                "Transaction should be successful"
+            );
+            let warp_route_id = result
+                .events
+                .iter()
+                .find_map(|event| {
+                    if let TestRuntimeEvent::Warp(WarpEvent::RouteRegistered { route_id, .. }) =
+                        event
+                    {
+                        Some(route_id)
+                    } else {
+                        None
+                    }
+                })
+                .expect("Route registered event should be emitted");
+
+            for (expected_domain, expected_router) in routers {
+                assert!(
+                    result.events.iter().any(|event| matches!(
+                        event,
+                        TestRuntimeEvent::Warp(WarpEvent::RouterEnrolled { route_id, domain, router })
+                        if route_id == warp_route_id
+                            && domain == &expected_domain
+                            && router == &expected_router
+                    )),
+                    "Router enrolled event for domain {} should be emitted",
+                    expected_domain
+                );
+            }
+        }),
+    });
+}
+
+#[test]
+fn test_enroll_remote_routers_on_registration_fails_on_duplicates() {
+    let (mut runner, admin, ..) = setup();
+
+    let routers = [(1, [1; 32].into()), (1, [2; 32].into())];
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::Register {
+            token_source: TokenKind::Native,
+            admin: Admin::None,
+            ism: Ism::AlwaysTrust,
+            remote_routers: routers.as_ref().try_into().unwrap(),
+        }),
+        assert: Box::new(move |result, _| {
+            match result.tx_receipt {
+                TxEffect::Reverted(reason) => assert!(
+                    reason.reason.to_string().contains("already enrolled"),
                     "Transaction should be reverted with the correct error but reverted with: {}",
                     reason.reason
                 ),

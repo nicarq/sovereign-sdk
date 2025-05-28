@@ -21,7 +21,9 @@ use sov_hyperlane_integration::{
     test_recipient, CallMessage, HyperlaneAddress, InterchainGasPaymasterCallMessage, Ism,
 };
 use sov_modules_api::macros::config_value;
-use sov_modules_api::{CryptoSpec, DispatchCall, HexHash, HexString, RawTx, Runtime, Spec};
+use sov_modules_api::{
+    CryptoSpec, DispatchCall, HexHash, HexString, RawTx, Runtime, SafeVec, Spec,
+};
 use sov_test_utils::{default_test_signed_transaction, TestSpec, TestUser};
 use tokio::time::sleep;
 use tokio_stream::StreamExt;
@@ -419,6 +421,7 @@ async fn test_warp_transfer_back_and_forth_with_evm_counterparty(
             remote_decimals: 18,
         },
         ism: Ism::AlwaysTrust,
+        remote_routers: SafeVec::new(),
     });
     let register_tx = encode_call(relayer.private_key(), &register_call);
     submit_tx(&rollup.api_client, register_tx).await;
