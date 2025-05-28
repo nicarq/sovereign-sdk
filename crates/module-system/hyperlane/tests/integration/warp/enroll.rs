@@ -1,13 +1,22 @@
+use serde::{Deserialize, Serialize};
 use sov_hyperlane_integration::warp::{Admin, TokenKind};
 use sov_hyperlane_integration::{HyperlaneAddress, Ism, Warp, WarpCallMessage, WarpEvent};
-use sov_modules_api::{HexString, SafeVec, TxEffect};
+use sov_modules_api::{HexHash, HexString, SafeVec, TxEffect};
+use sov_test_utils::runtime::ApiPath;
 use sov_test_utils::{AsUser, TransactionTestCase};
 
 use super::runtime::*;
 
-#[test]
-fn test_enroll_remote_router() {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RemoteRouter {
+    domain: u32,
+    address: HexHash,
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_enroll_remote_router() {
     let (mut runner, admin, ..) = setup();
+    let client = runner.setup_rest_api_server().await;
 
     let warp_route_id = register_basic_warp_route(&mut runner, &admin);
     runner.execute_transaction(TransactionTestCase {
@@ -34,13 +43,35 @@ fn test_enroll_remote_router() {
             );
         }),
     });
+
+    let api_response = runner
+        .query_api_unwrap_data::<Vec<RemoteRouter>>(
+            &ApiPath::query_module("warp")
+                .with_custom_api_path(&format!("route/{}/routers", warp_route_id)),
+            &client,
+        )
+        .await;
+    assert_eq!(api_response.len(), 1);
+    assert_eq!(api_response[0].domain, CONFIGURED_DOMAIN);
+    assert_eq!(api_response[0].address, CONFIGURED_REMOTE_ROUTER_ADDRESS);
 }
 
-#[test]
-fn test_unenroll_remote_router() {
+#[tokio::test(flavor = "multi_thread")]
+async fn test_unenroll_remote_router() {
     let (mut runner, admin, ..) = setup();
+    let client = runner.setup_rest_api_server().await;
 
     let warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
+    let api_response = runner
+        .query_api_unwrap_data::<Vec<RemoteRouter>>(
+            &ApiPath::query_module("warp")
+                .with_custom_api_path(&format!("route/{}/routers", warp_route_id)),
+            &client,
+        )
+        .await;
+    assert_eq!(api_response.len(), 1);
+    assert_eq!(api_response[0].domain, CONFIGURED_DOMAIN);
+    assert_eq!(api_response[0].address, CONFIGURED_REMOTE_ROUTER_ADDRESS);
     runner.execute_transaction(TransactionTestCase {
         input: admin.create_plain_message::<RT, Warp<S>>(WarpCallMessage::UnEnrollRemoteRouter {
             warp_route: warp_route_id,
@@ -63,6 +94,14 @@ fn test_unenroll_remote_router() {
             );
         }),
     });
+    let api_response = runner
+        .query_api_unwrap_data::<Vec<RemoteRouter>>(
+            &ApiPath::query_module("warp")
+                .with_custom_api_path(&format!("route/{}/routers", warp_route_id)),
+            &client,
+        )
+        .await;
+    assert_eq!(api_response.len(), 0);
 }
 
 #[test]
@@ -79,7 +118,7 @@ fn test_unenroll_remote_router_fails_if_domain_not_enrolled() {
         assert: Box::new(move |result, _| {
             match result.tx_receipt {
                 TxEffect::Reverted(reason) => assert!(
-                    reason.reason.to_string().contains("does not exist"),
+                    reason.reason.to_string().contains("not enrolled"),
                     "Transaction should be reverted with the correct error but reverted with: {}",
                     reason.reason
                 ),

@@ -234,6 +234,8 @@ pub struct WarpRouteInstance<S: Spec> {
     pub admin: Admin<S>,
     /// The ISM for this route.
     pub ism: Ism,
+    /// The destination domains that are enrolled in this route.
+    pub enrolled_destinations: Vec<u32>,
 }
 
 #[derive(

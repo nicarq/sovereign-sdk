@@ -18,6 +18,8 @@ use crate::ism::Ism;
 use crate::types::Domain;
 use crate::{HyperlaneAddress, Mailbox, Recipient};
 
+#[cfg(feature = "native")]
+mod api;
 mod types;
 
 pub use types::*;
@@ -328,15 +330,12 @@ where
             TokenKind::Native => StoredTokenKind::Native,
         };
 
-        self.warp_routes.set(
-            &route_id,
-            &WarpRouteInstance {
-                token_source: stored_token_kind.clone(),
-                admin: admin.clone(),
-                ism: ism.clone(),
-            },
-            state,
-        )?;
+        let mut warp_route_instance = WarpRouteInstance {
+            token_source: stored_token_kind.clone(),
+            admin: admin.clone(),
+            ism: ism.clone(),
+            enrolled_destinations: vec![],
+        };
 
         self.emit_event(
             state,
@@ -349,8 +348,16 @@ where
         );
 
         for (domain, router_address) in remote_routers {
-            self.enroll_remote_router_unchecked(route_id, domain, router_address, state)?;
+            self.enroll_remote_router_unchecked(
+                route_id,
+                domain,
+                router_address,
+                &mut warp_route_instance,
+                state,
+            )?;
         }
+        self.warp_routes
+            .set(&route_id, &warp_route_instance, state)?;
 
         Ok(())
     }
@@ -444,13 +451,13 @@ where
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
-        let Some(warp_route_instance) = self.warp_routes.get(&warp_route, state)? else {
+        let Some(mut warp_route_instance) = self.warp_routes.get(&warp_route, state)? else {
             anyhow::bail!("Warp route {} not found", warp_route);
         };
-        match warp_route_instance.admin {
+        match &warp_route_instance.admin {
             Admin::None => anyhow::bail!("Cannot enroll router. Route {} is immutable", warp_route),
             Admin::InsecureOwner(admin) => anyhow::ensure!(
-                &admin == context.sender(),
+                admin == context.sender(),
                 "Cannot enroll router with authorization from {}. Route {} is owned by {}",
                 context.sender(),
                 warp_route,
@@ -458,7 +465,16 @@ where
             ),
         }
 
-        self.enroll_remote_router_unchecked(warp_route, remote_domain, remote_router_address, state)
+        self.enroll_remote_router_unchecked(
+            warp_route,
+            remote_domain,
+            remote_router_address,
+            &mut warp_route_instance,
+            state,
+        )?;
+        self.warp_routes
+            .set(&warp_route, &warp_route_instance, state)?;
+        Ok(())
     }
 
     /// Enrolls remote router for domain without checking if warp route exists or if request is
@@ -468,6 +484,7 @@ where
         warp_route: WarpRouteId,
         remote_domain: u32,
         remote_router_address: HexHash,
+        warp_route_instance: &mut WarpRouteInstance<S>,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
         let router_key = RouterKey {
@@ -484,6 +501,10 @@ where
             &RemoteRouterAddress(remote_router_address),
             state,
         )?;
+        warp_route_instance
+            .enrolled_destinations
+            .push(remote_domain);
+
         self.emit_event(
             state,
             Event::RouterEnrolled {
@@ -503,21 +524,36 @@ where
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
-        let Some(warp_route_instance) = self.warp_routes.get(&warp_route, state)? else {
+        let Some(mut warp_route_instance) = self.warp_routes.get(&warp_route, state)? else {
             anyhow::bail!("Warp route {} not found", warp_route);
         };
-        match warp_route_instance.admin {
+        match &warp_route_instance.admin {
             Admin::None => {
                 anyhow::bail!("Cannot unenroll router. Route {} is immutable", warp_route)
             }
             Admin::InsecureOwner(admin) => anyhow::ensure!(
-                &admin == context.sender(),
+                admin == context.sender(),
                 "Cannot unenroll router with authorization from {}. Route {} is owned by {}",
                 context.sender(),
                 warp_route,
                 admin
             ),
         }
+
+        let route_position = warp_route_instance
+            .enrolled_destinations
+            .iter()
+            .position(|d| *d == remote_domain)
+            .ok_or(anyhow::anyhow!(
+                "Domain {} not enrolled in route {}",
+                remote_domain,
+                warp_route,
+            ))?;
+        warp_route_instance
+            .enrolled_destinations
+            .remove(route_position);
+        self.warp_routes
+            .set(&warp_route, &warp_route_instance, state)?;
 
         let router_key = RouterKey {
             route_id: warp_route,
