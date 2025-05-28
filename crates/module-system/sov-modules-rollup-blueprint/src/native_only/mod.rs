@@ -185,6 +185,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         ledger_db: &LedgerDb,
         da_service: &Self::DaService,
         shutdown_receiver: watch::Receiver<()>,
+        shutdown_sender: tokio::sync::watch::Sender<()>,
     ) -> anyhow::Result<SequencerCreationReceipt<Self::Spec>> {
         match &rollup_config.sequencer.sequencer_kind_config {
             SequencerKindConfig::Standard(seq_config) => {
@@ -196,7 +197,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                         &rollup_config.storage.path,
                         &rollup_config.sequencer.with_seq_config(seq_config.clone()),
                         ledger_db.clone(),
-                        shutdown_receiver.clone(),
+                        shutdown_sender,
                     )
                     .await?;
 
@@ -224,7 +225,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                         &rollup_config.storage.path,
                         &rollup_config.sequencer.with_seq_config(seq_config.clone()),
                         ledger_db.clone(),
-                        shutdown_receiver.clone(),
+                        shutdown_sender.clone(),
                     )
                     .await?;
 
@@ -387,6 +388,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                 &ledger_db,
                 &da_service,
                 main_shutdown_receiver.clone(),
+                main_shutdown_sender.clone(),
             )
             .await?;
 

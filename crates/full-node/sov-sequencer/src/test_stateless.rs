@@ -51,6 +51,69 @@ where
     S: Spec,
     Da: DaService<Spec = S::Da>,
 {
+    #[allow(missing_docs)]
+    pub async fn create(
+        da: Da,
+        state_update_receiver: StateUpdateReceiver<<S as Spec>::Storage>,
+        _da_sync_state: Arc<DaSyncState>,
+        storage_path: &Path,
+        _config: &SequencerConfig<<S as Spec>::Da, <S as Spec>::Address, ()>,
+        ledger_db: LedgerDb,
+        shutdown_sender: watch::Sender<()>,
+    ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
+        let shutdown_receiver = shutdown_sender.subscribe();
+        let mut runtime = R::default();
+        let storage = state_update_receiver.borrow().storage.clone();
+        let inner = Mutex::new(Inner {
+            storage: storage.clone(),
+            mempool: vec![],
+        });
+        let (state_sender, _rec) = watch::channel(StateCheckpoint::new(storage, &runtime.kernel()));
+        let tx_status_manager = TxStatusManager::default();
+
+        let seq = Arc::new(Self {
+            inner: inner.into(),
+            blob_sender: Arc::new(Mutex::new(
+                BlobSender::new(
+                    da,
+                    ledger_db.clone(),
+                    storage_path,
+                    TxStatusBlobSenderHooks::new(tx_status_manager.clone()),
+                    shutdown_sender,
+                )
+                .await?
+                .0,
+            )),
+            tx_status_manager,
+            _r: Default::default(),
+            state_sender,
+        });
+
+        let mut handles = vec![];
+        handles.push(tokio::spawn({
+            loop_call_update_state(
+                seq.clone(),
+                state_update_receiver.clone(),
+                shutdown_receiver.clone(),
+            )
+        }));
+        handles.push(tokio::spawn({
+            let ledger_db = ledger_db.clone();
+            let seq = seq.clone();
+            async move {
+                loop_send_tx_notifications::<S, R>(
+                    state_update_receiver,
+                    shutdown_receiver,
+                    &ledger_db,
+                    seq.tx_status_manager(),
+                )
+                .await;
+            }
+        }));
+
+        Ok((seq, handles))
+    }
+
     async fn accept_encoded_tx(&self, tx: FullyBakedTx) -> AcceptedTx<EmptyConfirmation> {
         let mut inner = self.inner.lock().await;
         let tx_hash = self.get_tx_hash(&tx, inner.storage.clone());
@@ -106,7 +169,6 @@ where
     Da: DaService<Spec = S::Da>,
 {
     type Confirmation = EmptyConfirmation;
-    type Config = ();
     type Spec = S;
     type Rt = R;
     type Da = Da;
@@ -136,71 +198,6 @@ where
 
     fn tx_status_manager(&self) -> &TxStatusManager<<Self::Spec as Spec>::Da> {
         &self.tx_status_manager
-    }
-
-    async fn create(
-        da: Self::Da,
-        state_update_receiver: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
-        _da_sync_state: Arc<DaSyncState>,
-        storage_path: &Path,
-        _config: &SequencerConfig<
-            <Self::Spec as Spec>::Da,
-            <Self::Spec as Spec>::Address,
-            Self::Config,
-        >,
-        ledger_db: LedgerDb,
-        shutdown_receiver: watch::Receiver<()>,
-    ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
-        let mut runtime = R::default();
-        let storage = state_update_receiver.borrow().storage.clone();
-        let inner = Mutex::new(Inner {
-            storage: storage.clone(),
-            mempool: vec![],
-        });
-        let (state_sender, _rec) = watch::channel(StateCheckpoint::new(storage, &runtime.kernel()));
-        let tx_status_manager = TxStatusManager::default();
-
-        let seq = Arc::new(Self {
-            inner: inner.into(),
-            blob_sender: Arc::new(Mutex::new(
-                BlobSender::new(
-                    da,
-                    ledger_db.clone(),
-                    storage_path,
-                    TxStatusBlobSenderHooks::new(tx_status_manager.clone()),
-                    shutdown_receiver.clone(),
-                )
-                .await?
-                .0,
-            )),
-            tx_status_manager,
-            _r: Default::default(),
-            state_sender,
-        });
-
-        let mut handles = vec![];
-        handles.push(tokio::spawn({
-            loop_call_update_state(
-                seq.clone(),
-                state_update_receiver.clone(),
-                shutdown_receiver.clone(),
-            )
-        }));
-        handles.push(tokio::spawn({
-            let ledger_db = ledger_db.clone();
-            let seq = seq.clone();
-            async move {
-                loop_send_tx_notifications::<S, R>(
-                    state_update_receiver,
-                    shutdown_receiver,
-                    &ledger_db,
-                    seq.tx_status_manager(),
-                )
-                .await;
-            }
-        }));
-
-        Ok((seq, handles))
     }
 
     async fn update_state(

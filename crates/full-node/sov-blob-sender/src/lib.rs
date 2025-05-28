@@ -83,6 +83,7 @@ pub struct BlobSender<Da: DaService, H, FM: FinalizationManager> {
     hooks: Arc<H>,
     in_flight_blobs: Arc<Mutex<HashMap<BlobInternalId, InFlightBlob<Da::Spec>>>>,
     shutdown_receiver: watch::Receiver<()>,
+    _shutdown_sender: watch::Sender<()>,
     da: Da,
     finalization_manager: FM,
     nb_of_concurrent_blob_submissions: Arc<AtomicUsize>,
@@ -101,14 +102,14 @@ where
         finalization_manager: FM,
         storage_path: &Path,
         hooks: H,
-        shutdown_receiver: watch::Receiver<()>,
+        shutdown_sender: watch::Sender<()>,
     ) -> anyhow::Result<(Self, JoinHandle<()>)> {
         Self::new_with_task_intervals(
             da,
             finalization_manager,
             storage_path,
             hooks,
-            shutdown_receiver,
+            shutdown_sender,
             RESUBMIT_INTERVAL,
             LEDGER_POLL_INTERVAL,
         )
@@ -120,10 +121,11 @@ where
         finalization_manager: FM,
         storage_path: &Path,
         hooks: H,
-        shutdown_receiver: watch::Receiver<()>,
+        shutdown_sender: watch::Sender<()>,
         resubmit_interval: Duration,
         ledger_pool_interval: Duration,
     ) -> anyhow::Result<(Self, JoinHandle<()>)> {
+        let shutdown_receiver = shutdown_sender.subscribe();
         let db = Arc::new(BlobSenderDb::new(storage_path).await?);
 
         let all_blobs = db.get_all::<Da::Spec>().await?;
@@ -136,6 +138,7 @@ where
             hooks,
             in_flight_blobs: in_flight_blobs.clone(),
             shutdown_receiver: shutdown_receiver.clone(),
+            _shutdown_sender: shutdown_sender.clone(),
             da,
             finalization_manager,
             nb_of_concurrent_blob_submissions: Arc::new(AtomicUsize::new(0)),

@@ -28,7 +28,7 @@ use sov_rollup_interface::zk::ZkvmHost;
 use sov_rollup_interface::StateUpdateInfo;
 use sov_sequencer::preferred::PreferredSequencerConfig;
 use sov_sequencer::test_stateless::TestStatelessSequencer;
-use sov_sequencer::{Sequencer, SequencerApis, SequencerConfig, SequencerKindConfig};
+use sov_sequencer::{SequencerApis, SequencerConfig, SequencerKindConfig};
 pub use sov_stf_runner::processes::RollupProverConfig;
 use sov_stf_runner::{
     HttpServerConfig, MonitoringConfig, ProofManagerConfig, RollupConfig, RunnerConfig,
@@ -356,7 +356,7 @@ where
                     let (client, sender) = Self::start_secondary_sequencer(
                         da_service.another_on_the_same_layer(addr).await,
                         rollup_config.clone(),
-                        shutdown_sender.subscribe(),
+                        shutdown_sender.clone(),
                     )
                     .await?;
                     (Some(client), Some(sender))
@@ -455,11 +455,12 @@ where
     async fn start_secondary_sequencer(
         secondary_da_service: StorableMockDaService,
         rollup_config: RollupConfig<<R::Spec as Spec>::Address, R::DaService>,
-        mut shutdown_receiver: tokio::sync::watch::Receiver<()>,
+        shutdown_sender: tokio::sync::watch::Sender<()>,
     ) -> anyhow::Result<(
         sov_api_spec::client::Client,
         watch::Sender<StateUpdateInfo<<R::Spec as Spec>::Storage>>,
     )> {
+        let mut shutdown_receiver = shutdown_sender.subscribe();
         let blueprint: R = Default::default();
 
         let mut storage_manager = blueprint.create_storage_manager(&rollup_config)?;
@@ -493,7 +494,7 @@ where
                 &rollup_config.storage.path,
                 &rollup_config.sequencer.with_seq_config(()),
                 ledger_db,
-                shutdown_receiver.clone(),
+                shutdown_sender,
             )
             .await?;
 

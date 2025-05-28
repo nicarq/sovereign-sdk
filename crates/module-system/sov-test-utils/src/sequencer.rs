@@ -17,7 +17,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::StateUpdateInfo;
 use sov_sequencer::standard::{StdSequencer, StdSequencerConfig};
 pub use sov_sequencer::test_stateless::TestStatelessSequencer;
-use sov_sequencer::{Sequencer, SequencerApis, SequencerConfig};
+use sov_sequencer::{SequencerApis, SequencerConfig};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_stf_runner::query_state_update_info;
 use sov_value_setter::ValueSetterConfig;
@@ -31,21 +31,21 @@ use crate::{
     TEST_MAX_CONCURRENT_BLOBS,
 };
 
-/// A `struct` that contains a [`Sequencer`] and a copy of its running Axum
+/// A `struct` that contains a sequencer and a copy of its running Axum
 /// server, for use in tests. See [`TestSequencerSetup::new`] and
 /// [`TestSequencerSetup::with_real_sequencer`].
 pub struct TestSequencerSetup<Rt: Runtime<TestSpec>> {
     _dir: TempDir,
     /// The [`SequencerConfig`] used in this test.
     pub config: SequencerConfig<MockDaSpec, <TestSpec as Spec>::Address, StdSequencerConfig>,
-    /// The DA service used by the [`Sequencer`].
+    /// The DA service used by the sequencer.
     pub da_service: StorableMockDaService,
-    /// What was passed to [`Sequencer::create`].
+    /// What was passed to Sequencer::create.
     pub state_update_receiver: watch::Receiver<StateUpdateInfo<<TestSpec as Spec>::Storage>>,
     // Keep a reference to the state update sender used to create the sequencer
     // so it doesn't go out of scope and close the channel immediately.
     _state_update_sender: watch::Sender<StateUpdateInfo<<TestSpec as Spec>::Storage>>,
-    /// The [`Sequencer`] used in the test.
+    /// The sequencer used in the test.
     pub sequencer: Arc<StdSequencer<TestSpec, Rt, StorableMockDaService>>,
     /// The admin private key used to create an external user account for transaction handling.
     pub admin_private_key: TestPrivateKey,
@@ -159,7 +159,7 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
             dir.path(),
             &config,
             ledger_db,
-            shutdown_receiver.clone(),
+            shutdown_sender.clone(),
         )
         .await?;
 
@@ -193,10 +193,10 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
         })
     }
 
-    /// Instantiates a new [`Sequencer`] with a [`TestOptimisticRuntime`] and an empty
+    /// Instantiates a new sequencer with a [`TestOptimisticRuntime`] and an empty
     /// [`StorableMockDaService`].
     ///
-    /// The RPC and Axum servers for the newly generated [`Sequencer`] are created
+    /// The RPC and Axum servers for the newly generated sequencer are created
     /// on the fly, and their handles are stored inside a [`TestSequencerSetup`].
     /// This results in the automatic shutdown of the servers when the
     /// [`TestSequencerSetup`] is dropped.
@@ -249,7 +249,7 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
     }
 
     /// Creates a new [`TestSequencerSetup`]. Instantiates a new [`TestOptimisticRuntime`], [`NativeStorageManager`], executes genesis
-    /// and then builds a new [`StdSequencer`] to instantiate a [`Sequencer`]. Instantiates an Axum server in a separate thread.
+    /// and then builds a new [`StdSequencer`]. Instantiates an Axum server in a separate thread.
     pub async fn with_real_sequencer() -> anyhow::Result<Self> {
         Self::with_real_sequencer_and_mempool_max_txs_count(NonZero::new(usize::MAX).unwrap()).await
     }

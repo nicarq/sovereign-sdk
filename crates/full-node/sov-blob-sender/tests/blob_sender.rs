@@ -88,7 +88,7 @@ async fn create_da() -> (StorableMockDaService, TempDir) {
 
 async fn create_blob_sender(
     da: StorableMockDaService,
-    shutdown_receiver: watch::Receiver<()>,
+    shutdown_sender: watch::Sender<()>,
 ) -> BlobSender<StorableMockDaService, TestHooks, TestFinalizationManager<StorableMockDaService>> {
     let finalization_manager = TestFinalizationManager {
         da: da.clone(),
@@ -104,7 +104,7 @@ async fn create_blob_sender(
         finalization_manager,
         storage_path.path(),
         hooks,
-        shutdown_receiver,
+        shutdown_sender,
         Duration::from_millis(20000),
         Duration::from_millis(1000),
     )
@@ -115,9 +115,9 @@ async fn create_blob_sender(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn blob_sender_posts_data_to_da() -> anyhow::Result<()> {
-    let (_sender, shutdown_receiver) = watch::channel(());
+    let (shutdown_sender, _shutdown_receiver) = watch::channel(());
     let (da, _da_dir) = create_da().await;
-    let mut blob_sender = create_blob_sender(da.clone(), shutdown_receiver).await;
+    let mut blob_sender = create_blob_sender(da.clone(), shutdown_sender).await;
 
     let data_1 = {
         let blob_id = 11u8;

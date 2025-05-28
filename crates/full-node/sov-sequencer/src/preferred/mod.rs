@@ -263,6 +263,167 @@ where
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
+    /// At the time of writing, the [`PreferredSequencer`] doesn't use
+    /// the [`TxStatusManager`].
+    ///
+    /// The [`Sequencer`] itself already updates the
+    /// [`TxStatusManager`] after all operations, so we'd only need it if we
+    /// ever "drop" previously-accepted transactions. The whole point of the
+    /// [`PreferredSequencer`] is that we *don't* do that.
+    pub async fn create(
+        da: Da,
+        state_update_receiver: StateUpdateReceiver<S::Storage>,
+        da_sync_state: Arc<DaSyncState>,
+        storage_path: &Path,
+        config: &SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
+        ledger_db: LedgerDb,
+        shutdown_sender: watch::Sender<()>,
+    ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
+        let shutdown_receiver = shutdown_sender.subscribe();
+        let latest_state_update = state_update_receiver.borrow().clone();
+        debug!(
+            ?latest_state_update,
+            "Instantiating the preferred sequencer"
+        );
+
+        let mut runtime: Rt = Default::default();
+        let tx_status_manager = TxStatusManager::default();
+
+        assert!(
+            accepts_preferred_batches(runtime.blob_selector()),
+            "Attempting to use preferred sequencer with an incompatible rollup. Set your sequencer config to `standard` in your rollup's config.toml file or change your kernel to be compatible with soft confirmations."
+        );
+
+        let (checkpoint_sender, checkpoint_receiver) = watch::channel(StateCheckpoint::new(
+            latest_state_update.storage.clone(),
+            &runtime.kernel(),
+        ));
+        let api_state = ApiState::build(
+            Arc::new(()),
+            checkpoint_receiver,
+            runtime.kernel_with_slot_mapping(),
+            None,
+        );
+
+        let (shutdown_notifier, mut shutdown_rx) = mpsc::channel(1);
+        let mut handles = vec![tokio::task::spawn(async move {
+            // This task blocks until we receive a notification that all
+            // background tasks have been shut down.
+            let _ = shutdown_rx.recv().await;
+        })];
+
+        let (events_sender, _) =
+            broadcast::channel(config.sequencer_kind_config.events_channel_size);
+
+        let db_backend: Box<dyn PreferredSequencerDbBackend> =
+            if let Some(postgres_connection_string) =
+                &config.sequencer_kind_config.postgres_connection_string
+            {
+                Box::new(PostgresBackend::connect(postgres_connection_string).await?)
+            } else {
+                Box::new(RocksDbBackend::new(storage_path).await?)
+            };
+        let completed_blobs = db_backend.read_completed_blobs().await?;
+
+        let blob_sender = {
+            let (inner, blob_sender_handle) = BlobSender::new(
+                da,
+                ledger_db.clone(),
+                storage_path,
+                TxStatusBlobSenderHooks::new(tx_status_manager.clone()),
+                shutdown_sender,
+            )
+            .await?;
+
+            handles.push(blob_sender_handle);
+
+            let mut blob_sender = PreferredBlobSender::from(inner);
+
+            // It's possible that sov-blob-sender's DB might miss some blob data at
+            // node startup due to:
+            //  1. Disk failure (the sequencer can use Postgres so it's durable).
+            //  2. DB corruption.
+            //  3. Node crash at an inconvenient time.
+            // Let's restore all missing blob data to make sure they land on the DA.
+            blob_sender.publish_blobs(completed_blobs).await?;
+            blob_sender
+        };
+
+        let (state_root_compute_handle, state_root_compute_task) =
+            StateRootBackgroundTaskState::create(
+                shutdown_notifier.clone(),
+                shutdown_receiver.clone(),
+                !config
+                    .sequencer_kind_config
+                    .disable_state_root_consistency_checks,
+            );
+        handles.push(state_root_compute_handle);
+
+        let cached_events = Arc::new(tokio::sync::RwLock::new(BTreeMap::new()));
+
+        let inner = Inner {
+            db: PreferredSequencerDb::<S, Rt>::new(db_backend).await?,
+            latest_info: latest_state_update.clone(),
+            checkpoint_sender,
+            config: config.clone(),
+            shutdown_receiver: shutdown_receiver.clone(),
+            blob_sender,
+            executor: RollupBlockExecutor::new(
+                latest_state_update.clone(),
+                Some(events_sender.clone()),
+                config.clone(),
+                shutdown_notifier.clone(),
+                state_root_compute_task.request_sender.clone(),
+                shutdown_receiver.clone(),
+                cached_events.clone(),
+            ),
+            batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
+            is_ready: Ok(()),
+        };
+
+        let seq = Arc::new(PreferredSequencer {
+            inner: inner.into(),
+            tx_status_manager: tx_status_manager.clone(),
+            events_sender,
+            da_sync_state,
+            api_state,
+            _runtime: PhantomData,
+            shutdown_notifier,
+            config: config.clone(),
+            state_root_compute_task,
+            shutdown_receiver: shutdown_receiver.clone(),
+            ledger_db: ledger_db.clone(),
+            cached_events,
+        });
+
+        seq.update_state(latest_state_update.clone())
+            .await
+            .expect("Failed to initialize sequencer state from node");
+
+        handles.push(tokio::spawn({
+            loop_call_update_state(
+                seq.clone(),
+                state_update_receiver.clone(),
+                shutdown_receiver.clone(),
+            )
+        }));
+        handles.push(tokio::spawn({
+            let ledger_db = ledger_db.clone();
+            let seq = seq.clone();
+            async move {
+                loop_send_tx_notifications::<S, Rt>(
+                    state_update_receiver,
+                    shutdown_receiver,
+                    &ledger_db,
+                    seq.tx_status_manager(),
+                )
+                .await;
+            }
+        }));
+
+        Ok((seq, handles))
+    }
+
     #[tracing::instrument(skip_all, level = "debug")]
     async fn lock_inner(&self) -> MutexGuard<Inner<S, Rt, Da>> {
         self.inner.lock().await
@@ -456,170 +617,9 @@ where
     Da: DaService<Spec = S::Da>,
 {
     type Confirmation = Confirmation<S, Rt>;
-    type Config = PreferredSequencerConfig;
     type Spec = S;
     type Rt = Rt;
     type Da = Da;
-
-    /// At the time of writing, the [`PreferredSequencer`] doesn't use
-    /// the [`TxStatusManager`].
-    ///
-    /// The [`Sequencer`] itself already updates the
-    /// [`TxStatusManager`] after all operations, so we'd only need it if we
-    /// ever "drop" previously-accepted transactions. The whole point of the
-    /// [`PreferredSequencer`] is that we *don't* do that.
-    async fn create(
-        da: Da,
-        state_update_receiver: StateUpdateReceiver<S::Storage>,
-        da_sync_state: Arc<DaSyncState>,
-        storage_path: &Path,
-        config: &SequencerConfig<S::Da, S::Address, Self::Config>,
-        ledger_db: LedgerDb,
-        shutdown_receiver: watch::Receiver<()>,
-    ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
-        let latest_state_update = state_update_receiver.borrow().clone();
-        debug!(
-            ?latest_state_update,
-            "Instantiating the preferred sequencer"
-        );
-
-        let mut runtime: Rt = Default::default();
-        let tx_status_manager = TxStatusManager::default();
-
-        assert!(
-            accepts_preferred_batches(runtime.blob_selector()),
-            "Attempting to use preferred sequencer with an incompatible rollup. Set your sequencer config to `standard` in your rollup's config.toml file or change your kernel to be compatible with soft confirmations."
-        );
-
-        let (checkpoint_sender, checkpoint_receiver) = watch::channel(StateCheckpoint::new(
-            latest_state_update.storage.clone(),
-            &runtime.kernel(),
-        ));
-        let api_state = ApiState::build(
-            Arc::new(()),
-            checkpoint_receiver,
-            runtime.kernel_with_slot_mapping(),
-            None,
-        );
-
-        let (shutdown_notifier, mut shutdown_rx) = mpsc::channel(1);
-        let mut handles = vec![tokio::task::spawn(async move {
-            // This task blocks until we receive a notification that all
-            // background tasks have been shut down.
-            let _ = shutdown_rx.recv().await;
-        })];
-
-        let (events_sender, _) =
-            broadcast::channel(config.sequencer_kind_config.events_channel_size);
-
-        let db_backend: Box<dyn PreferredSequencerDbBackend> =
-            if let Some(postgres_connection_string) =
-                &config.sequencer_kind_config.postgres_connection_string
-            {
-                Box::new(PostgresBackend::connect(postgres_connection_string).await?)
-            } else {
-                Box::new(RocksDbBackend::new(storage_path).await?)
-            };
-        let completed_blobs = db_backend.read_completed_blobs().await?;
-
-        let blob_sender = {
-            let (inner, blob_sender_handle) = BlobSender::new(
-                da,
-                ledger_db.clone(),
-                storage_path,
-                TxStatusBlobSenderHooks::new(tx_status_manager.clone()),
-                shutdown_receiver.clone(),
-            )
-            .await?;
-
-            handles.push(blob_sender_handle);
-
-            let mut blob_sender = PreferredBlobSender::from(inner);
-
-            // It's possible that sov-blob-sender's DB might miss some blob data at
-            // node startup due to:
-            //  1. Disk failure (the sequencer can use Postgres so it's durable).
-            //  2. DB corruption.
-            //  3. Node crash at an inconvenient time.
-            // Let's restore all missing blob data to make sure they land on the DA.
-            blob_sender.publish_blobs(completed_blobs).await?;
-            blob_sender
-        };
-
-        let (state_root_compute_handle, state_root_compute_task) =
-            StateRootBackgroundTaskState::create(
-                shutdown_notifier.clone(),
-                shutdown_receiver.clone(),
-                !config
-                    .sequencer_kind_config
-                    .disable_state_root_consistency_checks,
-            );
-        handles.push(state_root_compute_handle);
-
-        let cached_events = Arc::new(tokio::sync::RwLock::new(BTreeMap::new()));
-
-        let inner = Inner {
-            db: PreferredSequencerDb::<S, Rt>::new(db_backend).await?,
-            latest_info: latest_state_update.clone(),
-            checkpoint_sender,
-            config: config.clone(),
-            shutdown_receiver: shutdown_receiver.clone(),
-            blob_sender,
-            executor: RollupBlockExecutor::new(
-                latest_state_update.clone(),
-                Some(events_sender.clone()),
-                config.clone(),
-                shutdown_notifier.clone(),
-                state_root_compute_task.request_sender.clone(),
-                shutdown_receiver.clone(),
-                cached_events.clone(),
-            ),
-            batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
-            is_ready: Ok(()),
-        };
-
-        let seq = Arc::new(PreferredSequencer {
-            inner: inner.into(),
-            tx_status_manager: tx_status_manager.clone(),
-            events_sender,
-            da_sync_state,
-            api_state,
-            _runtime: PhantomData,
-            shutdown_notifier,
-            config: config.clone(),
-            state_root_compute_task,
-            shutdown_receiver: shutdown_receiver.clone(),
-            ledger_db: ledger_db.clone(),
-            cached_events,
-        });
-
-        seq.update_state(latest_state_update.clone())
-            .await
-            .expect("Failed to initialize sequencer state from node");
-
-        handles.push(tokio::spawn({
-            loop_call_update_state(
-                seq.clone(),
-                state_update_receiver.clone(),
-                shutdown_receiver.clone(),
-            )
-        }));
-        handles.push(tokio::spawn({
-            let ledger_db = ledger_db.clone();
-            let seq = seq.clone();
-            async move {
-                loop_send_tx_notifications::<S, Rt>(
-                    state_update_receiver,
-                    shutdown_receiver,
-                    &ledger_db,
-                    seq.tx_status_manager(),
-                )
-                .await;
-            }
-        }));
-
-        Ok((seq, handles))
-    }
 
     async fn list_events(
         &self,

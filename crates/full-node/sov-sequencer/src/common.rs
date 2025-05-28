@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::future::Future;
-use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -19,15 +18,12 @@ use sov_modules_stf_blueprint::{PreExecError, Runtime};
 use sov_rest_utils::{json_obj, to_json_object};
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::{ItemOrHash, LedgerStateProvider, QueryMode};
-use sov_rollup_interface::node::{future_or_shutdown, DaSyncState, FutureOrShutdownOutput};
+use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
 use tokio::sync::{broadcast, watch, Mutex, RwLock};
-use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use tracing::{info, trace};
 
-use crate::{
-    SequencerConfig, SequencerEvent, SequencerNotReadyDetails, TxHash, TxStatus, TxStatusManager,
-};
+use crate::{SequencerEvent, SequencerNotReadyDetails, TxHash, TxStatus, TxStatusManager};
 
 /// The [`Sequencer`] trait is responsible for accepting transactions and
 /// assembling them into batches.
@@ -35,29 +31,12 @@ use crate::{
 pub trait Sequencer: Send + Sync + 'static {
     /// What data is returned to clients when a transaction is accepted.
     type Confirmation: serde::Serialize + Send + Sync + 'static;
-    /// Arbitrary configuration value(s) fed to [`Sequencer::create`].
-    type Config: Clone + Debug + Send + Sync + 'static;
     /// The rollup spec.
     type Spec: Spec;
     /// The rollup's [`Runtime`].
     type Rt: Runtime<Self::Spec>;
     /// The [`DaService`] used by the node (and sequencer).
     type Da: DaService<Spec = <Self::Spec as Spec>::Da>;
-
-    /// Creates a new [`Sequencer`].
-    async fn create(
-        da: Self::Da,
-        state_update_receiver: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
-        da_sync_state: Arc<DaSyncState>,
-        storage_path: &Path,
-        config: &SequencerConfig<
-            <Self::Spec as Spec>::Da,
-            <Self::Spec as Spec>::Address,
-            Self::Config,
-        >,
-        ledger_db: LedgerDb,
-        shutdown_receiver: watch::Receiver<()>,
-    ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)>;
 
     /// Only available if the [`Sequencer`] supports events streaming.
     async fn subscribe_events(&self) -> Option<broadcast::Receiver<SequencerEvent<Self::Rt>>> {
@@ -104,8 +83,6 @@ pub trait Sequencer: Send + Sync + 'static {
         tx: FullyBakedTx,
     ) -> Result<AcceptedTx<Self::Confirmation>, ErrorObject>;
 
-    /// The [`TxStatusManager`] originally passed to [`Sequencer::create`].
-    ///
     /// Can be used to query and update the status of transactions.
     fn tx_status_manager(&self) -> &TxStatusManager<<Self::Spec as Spec>::Da>;
 }

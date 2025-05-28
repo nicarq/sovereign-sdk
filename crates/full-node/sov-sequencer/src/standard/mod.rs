@@ -102,6 +102,95 @@ where
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
+    /// Creates `StdSequencer`
+    pub async fn create(
+        da: Da,
+        state_update_receiver: StateUpdateReceiver<S::Storage>,
+        _da_sync_state: Arc<DaSyncState>,
+        storage_path: &Path,
+        config: &SequencerConfig<S::Da, S::Address, StdSequencerConfig>,
+        ledger_db: LedgerDb,
+        shutdown_sender: watch::Sender<()>,
+    ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
+        let shutdown_receiver = shutdown_sender.subscribe();
+        let mut runtime = Rt::default();
+        let kernel_with_slot_mapping = runtime.kernel_with_slot_mapping();
+
+        let latest_state_update = state_update_receiver.borrow().clone();
+        let checkpoint =
+            StateCheckpoint::new(latest_state_update.storage.clone(), &runtime.kernel());
+        let (checkpoint_sender, checkpoint_receiver) = watch::channel(checkpoint);
+
+        let api_state = ApiState::build(
+            Arc::new(()),
+            checkpoint_receiver,
+            kernel_with_slot_mapping,
+            None,
+        );
+
+        let txsm = TxStatusManager::default();
+        let checkpoint =
+            StateCheckpoint::new(latest_state_update.storage.clone(), &runtime.kernel());
+
+        let (blob_sender, blob_sender_handle) = BlobSender::new(
+            da,
+            ledger_db.clone(),
+            storage_path,
+            TxStatusBlobSenderHooks::new(txsm.clone()),
+            shutdown_sender,
+        )
+        .await?;
+
+        let mut handles: Vec<JoinHandle<()>> = vec![];
+        handles.push(blob_sender_handle);
+
+        let inner = Inner {
+            blob_sender,
+            checkpoint: Some(checkpoint),
+            assembled_batch: None,
+            phantom: PhantomData,
+            mempool: Mempool::new(
+                txsm.clone(),
+                config
+                    .sequencer_kind_config
+                    .mempool_max_txs_count
+                    .unwrap_or(default_mempool_max_txs_count()),
+            )?,
+        };
+
+        let seq = Arc::new(StdSequencer {
+            inner: inner.into(),
+            txsm,
+            api_state,
+            runtime: Rt::default(),
+            checkpoint_sender,
+            config: config.clone(),
+        });
+
+        handles.push(tokio::spawn({
+            loop_call_update_state(
+                seq.clone(),
+                state_update_receiver.clone(),
+                shutdown_receiver.clone(),
+            )
+        }));
+        handles.push(tokio::spawn({
+            let ledger_db = ledger_db.clone();
+            let seq = seq.clone();
+            async move {
+                loop_send_tx_notifications::<S, Rt>(
+                    state_update_receiver,
+                    shutdown_receiver,
+                    &ledger_db,
+                    seq.tx_status_manager(),
+                )
+                .await;
+            }
+        }));
+
+        Ok((seq, handles))
+    }
+
     /// Returns [`None`] if the transaction does not fit inside the batch.
     #[allow(clippy::type_complexity)]
     fn try_add_tx_to_batch(
@@ -413,98 +502,9 @@ where
     // part of transaction confirmations. In the future, it might return
     // authentication gas usage information.
     type Confirmation = EmptyConfirmation;
-    type Config = StdSequencerConfig;
     type Spec = S;
     type Rt = Rt;
     type Da = Da;
-
-    async fn create(
-        da: Da,
-        state_update_receiver: StateUpdateReceiver<S::Storage>,
-        _da_sync_state: Arc<DaSyncState>,
-        storage_path: &Path,
-        config: &SequencerConfig<S::Da, S::Address, Self::Config>,
-        ledger_db: LedgerDb,
-
-        shutdown_receiver: watch::Receiver<()>,
-    ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
-        let mut runtime = Rt::default();
-        let kernel_with_slot_mapping = runtime.kernel_with_slot_mapping();
-
-        let latest_state_update = state_update_receiver.borrow().clone();
-        let checkpoint =
-            StateCheckpoint::new(latest_state_update.storage.clone(), &runtime.kernel());
-        let (checkpoint_sender, checkpoint_receiver) = watch::channel(checkpoint);
-
-        let api_state = ApiState::build(
-            Arc::new(()),
-            checkpoint_receiver,
-            kernel_with_slot_mapping,
-            None,
-        );
-
-        let txsm = TxStatusManager::default();
-        let checkpoint =
-            StateCheckpoint::new(latest_state_update.storage.clone(), &runtime.kernel());
-
-        let (blob_sender, blob_sender_handle) = BlobSender::new(
-            da,
-            ledger_db.clone(),
-            storage_path,
-            TxStatusBlobSenderHooks::new(txsm.clone()),
-            shutdown_receiver.clone(),
-        )
-        .await?;
-
-        let mut handles: Vec<JoinHandle<()>> = vec![];
-        handles.push(blob_sender_handle);
-
-        let inner = Inner {
-            blob_sender,
-            checkpoint: Some(checkpoint),
-            assembled_batch: None,
-            phantom: PhantomData,
-            mempool: Mempool::new(
-                txsm.clone(),
-                config
-                    .sequencer_kind_config
-                    .mempool_max_txs_count
-                    .unwrap_or(default_mempool_max_txs_count()),
-            )?,
-        };
-
-        let seq = Arc::new(StdSequencer {
-            inner: inner.into(),
-            txsm,
-            api_state,
-            runtime: Rt::default(),
-            checkpoint_sender,
-            config: config.clone(),
-        });
-
-        handles.push(tokio::spawn({
-            loop_call_update_state(
-                seq.clone(),
-                state_update_receiver.clone(),
-                shutdown_receiver.clone(),
-            )
-        }));
-        handles.push(tokio::spawn({
-            let ledger_db = ledger_db.clone();
-            let seq = seq.clone();
-            async move {
-                loop_send_tx_notifications::<S, Rt>(
-                    state_update_receiver,
-                    shutdown_receiver,
-                    &ledger_db,
-                    seq.tx_status_manager(),
-                )
-                .await;
-            }
-        }));
-
-        Ok((seq, handles))
-    }
 
     async fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
         // The non-preferred batch builder is always ready to accept
