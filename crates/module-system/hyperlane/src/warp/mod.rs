@@ -10,10 +10,11 @@ use sov_bank::{config_gas_token_id, Bank, Coins, IntoPayable, TokenId};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{
-    Amount, Context, CryptoSpec, Error, EventEmitter, HexHash, HexString, Module, ModuleId,
-    ModuleInfo, ModuleRestApi, SafeVec, Spec, StateMap, TxState,
+    Amount, Context, CryptoSpec, Error, EventEmitter, GasMeter, HexHash, HexString, Module,
+    ModuleId, ModuleInfo, ModuleRestApi, SafeVec, Spec, StateMap, TxState,
 };
 
+use crate::crypto::charge_gas_for_hashing;
 use crate::ism::Ism;
 use crate::types::Domain;
 use crate::{HyperlaneAddress, Mailbox, Recipient};
@@ -267,14 +268,27 @@ where
 
 /// Generate a warp route ID from the deployer and token source. Note that only the token ID and kind are included in the hash,
 /// so the same ID will be generated even if the deployer changes the decimals or scale of the token.
-fn generate_route_id<S: Spec>(token_source: &TokenKind, deployer: &S::Address) -> WarpRouteId {
-    // TODO: Charge for hashing
+fn generate_route_id<S: Spec>(
+    token_source: &TokenKind,
+    deployer: &S::Address,
+    gas_meter: &mut impl GasMeter<Spec = S>,
+) -> anyhow::Result<WarpRouteId> {
     let mut hasher = <S::CryptoSpec as CryptoSpec>::Hasher::new();
     let (token_id, token_kind) = token_source.id_and_kind();
-    hasher.update(borsh::to_vec(&token_id).expect("Serialization to vec is infallible"));
-    hasher.update(borsh::to_vec(&token_kind).expect("Serialization to vec is infallible"));
-    hasher.update(borsh::to_vec(&deployer).expect("Serialization to vec is infallible"));
-    hasher.finalize().into()
+
+    let token_id_bytes = borsh::to_vec(&token_id).expect("Serialization to vec is infallible");
+    let token_kind_bytes = borsh::to_vec(&token_kind).expect("Serialization to vec is infallible");
+    let deployer_bytes = borsh::to_vec(&deployer).expect("Serialization to vec is infallible");
+
+    charge_gas_for_hashing(
+        token_id_bytes.len() + token_kind_bytes.len() + deployer_bytes.len(),
+        gas_meter,
+    )?;
+
+    hasher.update(token_id_bytes);
+    hasher.update(token_kind_bytes);
+    hasher.update(deployer_bytes);
+    Ok(hasher.finalize().into())
 }
 
 impl<S: Spec> Warp<S>
@@ -295,7 +309,7 @@ where
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
-        let route_id = generate_route_id::<S>(&token_source, context.sender());
+        let route_id = generate_route_id::<S>(&token_source, context.sender(), state)?;
         // Each deployer can only have one route per token source
         if self.warp_routes.get(&route_id, state)?.is_some() {
             let (token_id, token_kind) = token_source.id_and_kind();

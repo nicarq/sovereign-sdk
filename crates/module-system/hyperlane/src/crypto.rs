@@ -259,12 +259,14 @@ impl AnnouncementHash {
     }
 }
 
-fn charge_gas_for_hashing<S: Spec>(
+pub(crate) fn charge_gas_for_hashing<S: Spec>(
     bytes_to_hash: usize,
     gas_meter: &mut impl GasMeter<Spec = S>,
 ) -> Result<()> {
     let gas_multiplier = <<<S as GasSpec>::Gas as GasArray>::Scalar>::try_from(bytes_to_hash)
         .context("Overflow creating scalar from amount of bytes to hash")?;
+
+    gas_meter.charge_gas(&<S as GasSpec>::gas_to_charge_hash_update())?;
     gas_meter.charge_gas(
         &<S as GasSpec>::gas_to_charge_per_byte_hash_update()
             .checked_scalar_product(gas_multiplier)
