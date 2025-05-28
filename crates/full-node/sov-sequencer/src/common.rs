@@ -177,7 +177,7 @@ impl<Da: DaSpec> BlobSenderHooks for TxStatusBlobSenderHooks<Da> {
         &self,
         blob_id: BlobInternalId,
         _blob_hash: [u8; 32],
-        _da_tx_id: <Self::Da as DaSpec>::TransactionId,
+        _da_tx_id: &<Self::Da as DaSpec>::TransactionId,
     ) {
         self.tx_hashes_by_blob_id.write().await.remove(&blob_id);
     }

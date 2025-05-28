@@ -584,6 +584,14 @@ where
         std::env::remove_var("SOV_TEST_PAUSE_SEQUENCER_UPDATE_STATE");
     }
 
+    /// Waits for the rollup to shutdown.
+    pub async fn wait_for_rollup_to_shutdown(self) {
+        self.rollup_task
+            .await
+            .expect("Can't join rollup task")
+            .unwrap();
+    }
+
     /// Shuts down the rollup and waits for all background tasks to finish.
     pub async fn shutdown(self) -> anyhow::Result<()> {
         if let Err(error) = self.shutdown_sender.send(()) {

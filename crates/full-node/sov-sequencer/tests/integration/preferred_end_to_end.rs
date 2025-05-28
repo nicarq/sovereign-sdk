@@ -33,7 +33,7 @@ use sov_test_utils::{
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use test_strategy::Arbitrary;
-use tokio::time::sleep;
+use tokio::time::{sleep, timeout};
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
 
@@ -569,6 +569,51 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
         .unwrap();
     sleep(Duration::from_millis(200)).await;
     test_rollup.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn rollup_shuts_down_if_blob_sender_fails() {
+    let (test_rollup, admin) = create_test_rollup(0, TEST_MAX_BATCH_SIZE).await;
+
+    let Some(test_rollup) = test_rollup else {
+        return;
+    };
+
+    let nb_of_blocks = 5;
+    let mut slot_subscription = test_rollup.api_client.subscribe_slots().await.unwrap();
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(nb_of_blocks)
+        .await
+        .unwrap();
+
+    for _ in 0..nb_of_blocks {
+        slot_subscription.next().await.unwrap().unwrap();
+    }
+
+    let client = test_rollup.api_client.clone();
+    let tx = tx_set_value(&admin.private_key, 0, 9);
+
+    client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx),
+        })
+        .await
+        .unwrap();
+
+    test_rollup.da_service.set_fail_send_blob();
+
+    for _ in 0..2 {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        slot_subscription.next().await.unwrap().unwrap();
+    }
+
+    timeout(
+        Duration::from_secs(1),
+        test_rollup.wait_for_rollup_to_shutdown(),
+    )
+    .await
+    .unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]

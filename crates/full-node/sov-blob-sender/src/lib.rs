@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, SystemTime, SystemTimeError};
 
 use async_trait::async_trait;
 use db::{BlobSenderDb, BlobToSend};
@@ -72,7 +72,7 @@ pub trait BlobSenderHooks: Send + Sync + 'static {
         &self,
         _blob_id: BlobInternalId,
         _blob_hash: [u8; 32],
-        _da_tx_id: <Self::Da as DaSpec>::TransactionId,
+        _da_tx_id: &<Self::Da as DaSpec>::TransactionId,
     ) {
     }
 }
@@ -83,7 +83,7 @@ pub struct BlobSender<Da: DaService, H, FM: FinalizationManager> {
     hooks: Arc<H>,
     in_flight_blobs: Arc<Mutex<HashMap<BlobInternalId, InFlightBlob<Da::Spec>>>>,
     shutdown_receiver: watch::Receiver<()>,
-    _shutdown_sender: watch::Sender<()>,
+    shutdown_sender: watch::Sender<()>,
     da: Da,
     finalization_manager: FM,
     nb_of_concurrent_blob_submissions: Arc<AtomicUsize>,
@@ -138,7 +138,7 @@ where
             hooks,
             in_flight_blobs: in_flight_blobs.clone(),
             shutdown_receiver: shutdown_receiver.clone(),
-            _shutdown_sender: shutdown_sender.clone(),
+            shutdown_sender,
             da,
             finalization_manager,
             nb_of_concurrent_blob_submissions: Arc::new(AtomicUsize::new(0)),
@@ -226,6 +226,7 @@ where
         self.db.push(blob.clone(), blob_id).await?;
 
         let is_batch = matches!(blob, BlobToSend::Batch { .. });
+
         let task_state = TaskState {
             da: self.da.clone(),
             finalization_manager: self.finalization_manager.clone(),
@@ -235,6 +236,7 @@ where
             nb_of_concurrent_blob_submissions: self.nb_of_concurrent_blob_submissions.clone(),
             resubmit_interval: self.resubmit_interval,
             ledger_pool_interval: self.ledger_pool_interval,
+            shutdown_sender: self.shutdown_sender.clone(),
         };
 
         let shutdown_receiver = self.shutdown_receiver.clone();
@@ -254,10 +256,7 @@ where
                 let res = future_or_shutdown(fut, &shutdown_receiver).await;
 
                 match res {
-                    FutureOrShutdownOutput::Output(Ok(())) | FutureOrShutdownOutput::Shutdown => {}
-                    FutureOrShutdownOutput::Output(Err(err)) => {
-                        error!(%err, %blob_id, "Error while submitting blob; this is either a bug or a database issue");
-                    }
+                    FutureOrShutdownOutput::Output(()) | FutureOrShutdownOutput::Shutdown => {}
                 }
                 state.dec_nb_of_concurrent_blob_submissions();
             }
@@ -394,6 +393,7 @@ struct TaskState<Da: DaService, FM: FinalizationManager> {
     nb_of_concurrent_blob_submissions: Arc<AtomicUsize>,
     resubmit_interval: Duration,
     ledger_pool_interval: Duration,
+    shutdown_sender: watch::Sender<()>,
 }
 
 impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
@@ -402,48 +402,118 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
             .fetch_sub(1, Ordering::Relaxed);
     }
 
+    async fn remove_blob_or_err(&self, blob_id: BlobInternalId) -> anyhow::Result<()> {
+        let res = self.db.remove(blob_id).await;
+        if let Err(err) = &res {
+            tracing::error!("BlobSender: unable to remove blob with id {blob_id}, error: {err}");
+        }
+        res
+    }
+
+    async fn save_blob_state_or_shutdown(
+        &self,
+        blob_id: BlobInternalId,
+        state: &BlobProcessingState<Da::Spec>,
+    ) -> anyhow::Result<()> {
+        let res = self.db.set_state(blob_id, state).await;
+        if let Err(err) = &res {
+            tracing::error!(
+                "BlobSender: unable to save blob state: {state:?}, error: {err}, blob_id: {blob_id}. Shutting down."
+            );
+            let _ = self.shutdown_sender.send(());
+        }
+        res
+    }
+
+    async fn is_blob_finalized_or_shutdown(
+        &self,
+        blob_hash: [u8; 32],
+        blob_id: BlobInternalId,
+        state: &BlobProcessingState<Da::Spec>,
+    ) -> anyhow::Result<Option<bool>> {
+        let is_finalized = self
+            .finalization_manager
+            .is_blob_finalized(blob_hash, blob_id)
+            .await;
+
+        if let Err(err) = &is_finalized {
+            tracing::error!(
+                "BlobSender: unable to check if blob is finalized: {state:?}, error: {err}, blob_id: {blob_id}. Shutting down."
+            );
+            let _ = self.shutdown_sender.send(());
+        }
+
+        is_finalized
+    }
+
+    async fn elapsed_or_shutdown(&self, timer: SystemTime) -> Result<Duration, SystemTimeError> {
+        let res = timer.elapsed();
+
+        if res.is_err() {
+            tracing::error!(
+                "BlobSender: unable to get elapsed time for blob submission, timer: {timer:?}, error: {:?}",
+                res
+            );
+            let _ = self.shutdown_sender.send(());
+        }
+
+        res
+    }
+
     #[tracing::instrument(skip(self, blob), level = "debug")]
     async fn manage_blob_submission_inside_task(
         &self,
         blob: BlobToSend,
         blob_id: BlobInternalId,
         latest_known_processing_state: BlobProcessingState<Da::Spec>,
-    ) -> anyhow::Result<()> {
+    ) {
         let mut blob_state = latest_known_processing_state;
 
         'outer: loop {
             trace!(?blob_state, ?blob_id, "Tracking blob submission state");
-
             let blob_state_clone = blob_state.clone();
-
             {
                 if let Some(b) = self.in_flight_blobs.lock().await.get_mut(&blob_id) {
                     b.info.last_known_state = blob_state_clone.clone();
                 }
             }
 
-            match blob_state {
+            match &blob_state {
                 BlobProcessingState::MustSubmit => {
-                    let receipt_fut = self.send_blob(blob.clone()).await?;
+                    if self
+                        .save_blob_state_or_shutdown(blob_id, &blob_state)
+                        .await
+                        .is_err()
+                    {
+                        // If we can't save the state, we shut down.
+                        return;
+                    }
 
-                    self.db.set_state(blob_id, &blob_state).await?;
+                    let receipt_fut = self.send_blob(blob.clone()).await;
 
-                    tokio::select! {
-                        receipt_res = receipt_fut => {
-                            let receipt = receipt_res?.map_err(|err| anyhow::anyhow!("Failed to track blob submission: {err}"))?;
+                    match receipt_fut.await {
+                        Ok(Ok(receipt)) => {
                             blob_state = BlobProcessingState::Published { receipt };
                         }
-                        _ = sleep(self.resubmit_interval) => {
-                            // We successfully submitted the blob, but it wasn't
-                            // published despite waiting for quite some time.
-                            // Possibly the fee was too low. Let's try again.
-
-                            trace!(?blob_state, "Blob submission timed out, retrying");
-                            blob_state = BlobProcessingState::MustSubmit;
-                        },
-                    };
+                        err => {
+                            tracing::error!(
+                                "BlobSender: unable to send blob: {blob_state:?}, error: {err:?}, blob_id: {blob_id}. Shutting down."
+                            );
+                            let _ = self.shutdown_sender.send(());
+                            return;
+                        }
+                    }
                 }
                 BlobProcessingState::Published { receipt } => {
+                    if self
+                        .save_blob_state_or_shutdown(blob_id, &blob_state)
+                        .await
+                        .is_err()
+                    {
+                        // If we can't save the state, we shut down.
+                        return;
+                    }
+
                     self.hooks
                         .on_published_blob(
                             blob_id,
@@ -451,18 +521,15 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                             receipt.da_transaction_id.clone(),
                         )
                         .await;
-                    self.db
-                        .set_state(
-                            blob_id,
-                            &BlobProcessingState::<Da::Spec>::Published {
-                                receipt: receipt.clone(),
-                            },
-                        )
-                        .await?;
 
                     let timer = SystemTime::now();
                     loop {
-                        if timer.elapsed()? > self.resubmit_interval {
+                        let Ok(ellapsed) = self.elapsed_or_shutdown(timer).await else {
+                            // If we can't get the elapsed time, we shut down.
+                            return;
+                        };
+
+                        if ellapsed > self.resubmit_interval {
                             debug!(
                                 blob_id,
                                 blob_hash = %receipt.blob_hash,
@@ -473,25 +540,43 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                             continue 'outer;
                         }
 
-                        let finality_status: Option<bool> = self
-                            .finalization_manager
-                            .is_blob_finalized(receipt.blob_hash.into(), blob_id)
-                            .await?;
+                        let finality_status = self
+                            .is_blob_finalized_or_shutdown(
+                                receipt.blob_hash.into(),
+                                blob_id,
+                                &blob_state,
+                            )
+                            .await;
 
                         match finality_status {
-                            Some(_) => {
+                            Ok(Some(_)) => {
                                 // Never skip directly to `Finalized` state, or
                                 // we won't send out the notification.
-                                blob_state = BlobProcessingState::Processed { receipt };
+                                blob_state = BlobProcessingState::Processed {
+                                    receipt: receipt.clone(),
+                                };
                                 break;
                             }
-                            None => {
+                            Ok(None) => {
                                 sleep(Duration::from_secs(1)).await;
+                            }
+                            Err(_) => {
+                                // Shutdown and return
+                                return;
                             }
                         }
                     }
                 }
                 BlobProcessingState::Processed { receipt } => {
+                    if self
+                        .save_blob_state_or_shutdown(blob_id, &blob_state)
+                        .await
+                        .is_err()
+                    {
+                        // If we can't save the state, we shut down.
+                        return;
+                    }
+
                     self.hooks
                         .on_processed_blob(
                             blob_id,
@@ -500,31 +585,27 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                         )
                         .await;
 
-                    self.db
-                        .set_state(
-                            blob_id,
-                            &BlobProcessingState::<Da::Spec>::Processed {
-                                receipt: receipt.clone(),
-                            },
-                        )
-                        .await?;
-
                     loop {
                         let finality_status = self
-                            .finalization_manager
-                            .is_blob_finalized(receipt.blob_hash.into(), blob_id)
-                            .await?;
+                            .is_blob_finalized_or_shutdown(
+                                receipt.blob_hash.into(),
+                                blob_id,
+                                &blob_state,
+                            )
+                            .await;
 
                         match finality_status {
-                            Some(false) => {
+                            Ok(Some(false)) => {
                                 sleep(self.ledger_pool_interval).await;
                                 continue;
                             }
-                            Some(true) => {
-                                blob_state = BlobProcessingState::Finalized { receipt };
+                            Ok(Some(true)) => {
+                                blob_state = BlobProcessingState::Finalized {
+                                    receipt: receipt.clone(),
+                                };
                                 break;
                             }
-                            None => {
+                            Ok(None) => {
                                 debug!(
                                     blob_id,
                                     blob_hash = %receipt.blob_hash,
@@ -532,6 +613,10 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                                 );
                                 blob_state = BlobProcessingState::MustSubmit;
                                 break;
+                            }
+                            Err(_) => {
+                                // Shutdown and return
+                                return;
                             }
                         }
                     }
@@ -544,30 +629,27 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                         .on_finalized_blob(
                             blob_id,
                             receipt.blob_hash.into(),
-                            receipt.da_transaction_id,
+                            &receipt.da_transaction_id,
                         )
                         .await;
-                    self.db.remove(blob_id).await?;
 
+                    // We won't shut down the rollup in case of this error, but we will log the error.
+                    let _ = self.remove_blob_or_err(blob_id).await;
                     break;
                 }
             }
         }
-
-        trace!("Exiting blob submission task");
-
-        Ok(())
     }
 
-    async fn send_blob(&self, blob: BlobToSend) -> anyhow::Result<BlobReceiptFut<Da>> {
+    async fn send_blob(&self, blob: BlobToSend) -> BlobReceiptFut<Da> {
         trace!(
             blob_len = blob.data().len(),
             "Will attempt to publish blob to DA"
         );
 
         match blob {
-            BlobToSend::Batch { data } => Ok(self.da.send_transaction(&data).await),
-            BlobToSend::Proof { data } => Ok(self.da.send_proof(&data).await),
+            BlobToSend::Batch { data } => self.da.send_transaction(&data).await,
+            BlobToSend::Proof { data } => self.da.send_proof(&data).await,
         }
     }
 }

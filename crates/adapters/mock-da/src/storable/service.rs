@@ -1,5 +1,6 @@
 //! Data Availability service is a controller of [`StorableMockDaLayer`].
 use core::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -107,6 +108,7 @@ pub struct StorableMockDaService {
     head_block: watch::Receiver<MockBlockHeader>,
     block_producer_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     block_producing_pauser: Arc<Mutex<Option<watch::Sender<()>>>>,
+    send_transaction_success: Arc<AtomicBool>,
 }
 
 impl StorableMockDaService {
@@ -131,7 +133,18 @@ impl StorableMockDaService {
             head_block,
             block_producer_handle: Arc::new(Mutex::new(block_producer_handle)),
             block_producing_pauser: Arc::new(Mutex::new(None)),
+            send_transaction_success: Arc::new(AtomicBool::new(true)),
         }
+    }
+    /// The `send_transaction` method will fail to post blobs to the DA.
+    pub fn set_fail_send_blob(&self) {
+        self.send_transaction_success
+            .store(false, Ordering::Relaxed);
+    }
+
+    /// The `send_transaction` method will start posting blobs to the DA.
+    pub fn set_success_send_blob(&self) {
+        self.send_transaction_success.store(true, Ordering::Relaxed);
     }
 
     /// Suspend blob submission in the mock DA.
@@ -435,6 +448,15 @@ impl DaService for StorableMockDaService {
     ) -> oneshot::Receiver<
         Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
     > {
+        let (tx, rx) = oneshot::channel();
+        if !self.send_transaction_success.load(Ordering::Relaxed) {
+            tx.send(Err(anyhow::anyhow!(
+                "StorableMockDaService::send_transaction failed"
+            )))
+            .unwrap();
+            return rx;
+        }
+
         let block_producing_pauser = {
             let pauser = self.block_producing_pauser.lock().await;
             pauser.clone()
@@ -445,7 +467,6 @@ impl DaService for StorableMockDaService {
             rec.changed().await.unwrap();
         }
 
-        let (tx, rx) = oneshot::channel();
         let should_produce_block = match &self.block_producing {
             BlockProducingConfig::OnBatchSubmit { .. }
             | BlockProducingConfig::OnAnySubmit { .. } => true,
