@@ -1,8 +1,7 @@
 //! Cryptographic primitves / helpers used in hyperlane
 
 use anyhow::{ensure, Context, Result};
-use secp256k1::ecdsa::{RecoverableSignature, RecoveryId};
-use secp256k1::PublicKey;
+use k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
 use sha3::{Digest, Keccak256};
 use sov_modules_api::digest::FixedOutput;
 use sov_modules_api::{GasArray, GasMeter, GasSpec, HexHash, HexString, Spec};
@@ -54,27 +53,32 @@ pub fn decode_signature(bytes: &[u8]) -> Result<RecoverableSignature> {
         recovery_id -= 27;
     }
     if recovery_id > 1 {
-        Err(secp256k1::Error::InvalidRecoveryId)?;
+        Err(anyhow::anyhow!("Invalid recovery id {}", recovery_id))?;
     }
-    Ok(RecoverableSignature::from_compact(
-        &bytes[..64],
-        RecoveryId::from_i32(recovery_id.into())?,
-    )?)
+    Ok(RecoverableSignature {
+        // Safety: We've already checked that the bytes are 64 bytes long
+        signature: Signature::from_bytes(bytes[..64].into())?,
+        recovery_id: RecoveryId::from_byte(recovery_id)
+            .expect("Recovery id was just checked to be valid but is now invalid"),
+    })
+}
+
+/// A signature and recovery id
+pub struct RecoverableSignature {
+    signature: Signature,
+    recovery_id: RecoveryId,
 }
 
 /// A 64 byte uncompressed ECDSA public key.
 pub struct EcdsaPubKeyBytes(pub [u8; 64]);
 
-impl From<PublicKey> for EcdsaPubKeyBytes {
-    fn from(value: PublicKey) -> Self {
-        let pubkey_bytes: [u8; 65] = value.serialize_uncompressed();
+impl From<VerifyingKey> for EcdsaPubKeyBytes {
+    fn from(value: VerifyingKey) -> Self {
         // The first byte is the compression flag, which we don't care about.
         // https://stackoverflow.com/questions/66383584/how-to-extract-uncompressed-public-key-from-secp256k1
-        EcdsaPubKeyBytes(
-            pubkey_bytes[1..]
-                .try_into()
-                .expect("Uncompressed public key has 64 bytes after the first byte"),
-        )
+        let encoded = value.to_encoded_point(false);
+        let bytes = &encoded.as_bytes()[1..];
+        EcdsaPubKeyBytes(bytes.try_into().unwrap())
     }
 }
 
@@ -86,8 +90,11 @@ pub fn ec_recover<S: Spec>(
 ) -> Result<EcdsaPubKeyBytes> {
     gas_meter.charge_gas(&<S as GasSpec>::fixed_gas_to_charge_per_signature_verification())?;
 
-    let message = secp256k1::Message::from_digest(digest.into());
-    let public_key = signature.recover(&message).context("Invalid signature")?;
+    let public_key = VerifyingKey::recover_from_prehash(
+        &digest.into(),
+        &signature.signature,
+        signature.recovery_id,
+    )?;
     Ok(public_key.into())
 }
 

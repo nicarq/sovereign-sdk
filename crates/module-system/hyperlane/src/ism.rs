@@ -5,13 +5,13 @@ use std::collections::HashSet;
 use anyhow::{Context as _, Result};
 use borsh::{BorshDeserialize, BorshSerialize};
 use schemars::JsonSchema;
-use secp256k1::ecdsa::RecoverableSignature;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{Context, GasMeter, HexHash, HexString, SafeVec, Spec};
 
 use crate::crypto::{
     compute_hash_for_signatures, decode_signature, ec_recover, eth_address_from_public_key,
+    RecoverableSignature,
 };
 use crate::types::Message;
 use crate::{EthAddress, HyperlaneAddress};

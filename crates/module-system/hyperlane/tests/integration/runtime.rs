@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use secp256k1::rand::rngs::OsRng;
 use secp256k1::{Message, Secp256k1, SecretKey};
+use sha3::Keccak256;
 use sov_bank::Amount;
-use sov_hyperlane_integration::crypto::eth_address_from_public_key;
 use sov_hyperlane_integration::igp::ExchangeRateAndGasPrice;
 use sov_hyperlane_integration::test_recipient::{
     CallMessage as RecipientCallMessage, TestRecipient,
@@ -155,10 +155,22 @@ pub fn set_default_ism(runner: &mut TestRunner<RT, S>, user: &TestUser<S>, ism: 
     });
 }
 
+fn eth_address_from_secp_public_key(pub_key: secp256k1::PublicKey) -> EthAddress {
+    use sha3::Digest;
+    let pubkey_bytes: [u8; 65] = pub_key.serialize_uncompressed();
+    // The first byte is the compression flag, which we don't care about.
+    // https://stackoverflow.com/questions/66383584/how-to-extract-uncompressed-public-key-from-secp256k1
+    let bytes = &pubkey_bytes[1..];
+
+    let hash: [u8; 32] = Keccak256::digest(bytes).into();
+    // truncate first 12 bytes
+    HexString(hash[12..].try_into().expect("Must be exactly 20 bytes"))
+}
+
 pub fn random_validator() -> (SecretKey, EthAddress) {
     let secp = Secp256k1::new();
     let (secret_key, public_key) = secp.generate_keypair(&mut OsRng);
-    let address = eth_address_from_public_key(public_key, &mut unlimited_gas_meter()).unwrap();
+    let address = eth_address_from_secp_public_key(public_key);
     (secret_key, address)
 }
 

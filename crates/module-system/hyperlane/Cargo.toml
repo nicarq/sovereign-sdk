@@ -24,6 +24,7 @@ sov-sequencer = { workspace = true }
 sov-state = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }
 sov-value-setter = { workspace = true, features = ["native"] }
+secp256k1 = { workspace = true }
 
 base64 = { workspace = true }
 futures = { workspace = true }
@@ -49,7 +50,7 @@ proptest-derive = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
 derive_more = { workspace = true }
 schemars = { workspace = true }
-secp256k1 = { workspace = true }
+k256 = { workspace = true }
 serde = { workspace = true }
 serde_yaml = { workspace = true }
 sha3 = { workspace = true }
