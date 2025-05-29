@@ -8,6 +8,7 @@ use std::fmt::Debug;
 
 use anyhow::Error;
 use crypto::{SP1PublicKey, SP1Signature};
+use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::zk::{CodeCommitment, CryptoSpec, ZkVerifier};
@@ -53,7 +54,7 @@ impl CodeCommitment for SP1MethodId {
 }
 
 /// The cryptographic primitives provided by SP1.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Copy, JsonSchema)]
 pub struct SP1CryptoSpec;
 
 impl CryptoSpec for SP1CryptoSpec {

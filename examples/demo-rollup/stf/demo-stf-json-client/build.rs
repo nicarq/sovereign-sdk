@@ -1,19 +1,16 @@
 use demo_stf::runtime::Runtime;
 use sov_address::MultiAddressEvm;
 use sov_mock_da::MockDaSpec;
-use sov_mock_zkvm::{MockZkvm, MockZkvmCryptoSpec};
+use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::HasRestApi;
-use sov_state::{DefaultStorageSpec, ProverStorage};
 
 type S = sov_modules_api::configurable_spec::ConfigurableSpec<
     MockDaSpec,
     MockZkvm,
     MockZkvm,
-    MockZkvmCryptoSpec,
     MultiAddressEvm,
     Native,
-    ProverStorage<DefaultStorageSpec<<MockZkvmCryptoSpec as sov_modules_api::CryptoSpec>::Hasher>>,
 >;
 
 fn main() {

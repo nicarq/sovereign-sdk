@@ -11,11 +11,8 @@ use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::execution_mode::Zk;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_sp1_adapter::guest::SP1Guest;
-use sov_sp1_adapter::{SP1CryptoSpec, SP1};
-use sov_state::{DefaultStorageSpec, ZkStorage};
-
-type Storage =
-    ZkStorage<DefaultStorageSpec<<SP1CryptoSpec as sov_modules_api::CryptoSpec>::Hasher>>;
+use sov_sp1_adapter::SP1;
+use sov_state::ZkStorage;
 
 #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 pub fn main() {
@@ -23,7 +20,7 @@ pub fn main() {
     let storage = ZkStorage::new();
 
     let stf: StfBlueprint<
-        ConfigurableSpec<MockDaSpec, SP1, MockZkvm, SP1CryptoSpec, MultiAddressEvm, Zk, Storage>,
+        ConfigurableSpec<MockDaSpec, SP1, MockZkvm, MultiAddressEvm, Zk>,
         Runtime<_>,
     > = StfBlueprint::new();
 

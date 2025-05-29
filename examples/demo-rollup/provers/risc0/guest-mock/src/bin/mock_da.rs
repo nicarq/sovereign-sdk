@@ -6,15 +6,12 @@ use sov_mock_da::{MockDaSpec, MockDaVerifier};
 pub use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::execution_mode::Zk;
-use sov_modules_api::CryptoSpec;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_risc0_adapter::guest::Risc0Guest;
-use sov_risc0_adapter::{Risc0, Risc0CryptoSpec};
-use sov_state::{DefaultStorageSpec, ZkStorage};
+use sov_risc0_adapter::Risc0;
+use sov_state::ZkStorage;
 
 risc0_zkvm::guest::entry!(main);
-
-type Storage = ZkStorage<DefaultStorageSpec<<Risc0CryptoSpec as CryptoSpec>::Hasher>>;
 
 #[cfg_attr(feature = "bench", sov_modules_api::cycle_tracker)]
 fn cycles_per_block() {
@@ -22,15 +19,7 @@ fn cycles_per_block() {
     let storage = ZkStorage::new();
 
     let stf: StfBlueprint<
-        ConfigurableSpec<
-            MockDaSpec,
-            Risc0,
-            MockZkvm,
-            Risc0CryptoSpec,
-            MultiAddressEvm,
-            Zk,
-            Storage,
-        >,
+        ConfigurableSpec<MockDaSpec, Risc0, MockZkvm, MultiAddressEvm, Zk>,
         Runtime<_>,
     > = StfBlueprint::new();
 

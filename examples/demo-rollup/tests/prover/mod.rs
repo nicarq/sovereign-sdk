@@ -12,15 +12,15 @@ use sov_modules_api::execution_mode::WitnessGeneration;
 use sov_modules_api::{OperatingMode, SlotData, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_risc0_adapter::host::Risc0Host;
-use sov_risc0_adapter::{Risc0, Risc0CryptoSpec};
+use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::{
-    CryptoSpec, StateTransitionWitness, StateTransitionWitnessWithAddress, ZkvmHost,
+    StateTransitionWitness, StateTransitionWitnessWithAddress, ZkvmHost,
 };
-use sov_state::{DefaultStorageSpec, ProverStorage};
+use sov_state::ProverStorage;
 use sov_test_utils::generators::BlobBuildingCtx;
 use sov_test_utils::TestStorageSpec;
 use tempfile::TempDir;
@@ -28,16 +28,13 @@ use tempfile::TempDir;
 use crate::prover::datagen::get_blocks_from_da;
 use crate::test_helpers::test_genesis_paths;
 
-type NativeStorage = ProverStorage<DefaultStorageSpec<<Risc0CryptoSpec as CryptoSpec>::Hasher>>;
-
 type DefaultSpec = sov_modules_api::configurable_spec::ConfigurableSpec<
     sov_mock_da::MockDaSpec,
     sov_risc0_adapter::Risc0,
     sov_mock_zkvm::MockZkvm,
-    sov_mock_zkvm::MockZkvmCryptoSpec,
     sov_address::MultiAddressEvm,
     WitnessGeneration,
-    NativeStorage,
+    sov_mock_zkvm::MockZkvmCryptoSpec,
 >;
 
 mod datagen;

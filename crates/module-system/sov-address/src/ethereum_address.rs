@@ -36,20 +36,10 @@ mod evm_spec_address_tests {
     use sov_modules_api::configurable_spec::ConfigurableSpec;
     use sov_modules_api::execution_mode::Native;
     use sov_modules_api::Spec;
-    use sov_test_utils::{
-        MockDaSpec, MockZkvm, MockZkvmCryptoSpec, ProverStorage, TestStorageSpec,
-    };
+    use sov_test_utils::{MockDaSpec, MockZkvm};
 
     use super::*;
-    type S = ConfigurableSpec<
-        MockDaSpec,
-        MockZkvm,
-        MockZkvm,
-        MockZkvmCryptoSpec,
-        MultiAddressEvm,
-        Native,
-        ProverStorage<TestStorageSpec>,
-    >;
+    type S = ConfigurableSpec<MockDaSpec, MockZkvm, MockZkvm, MultiAddressEvm, Native>;
 
     #[test]
     fn test_serde_json_multi_address_evm_vm() {

@@ -73,9 +73,9 @@ pub type TestNomtSpec = ConfigurableSpec<
     MockDaSpec,
     MockZkvm,
     MockZkvm,
-    MockZkvmCryptoSpec,
     Address,
     Native,
+    MockZkvmCryptoSpec,
     NomtProverStorage<TestStorageSpec>,
 >;
 /// The default test spec for ZK. Uses a [`MockZkvm`] for both inner and outer vm verification.

@@ -9,6 +9,7 @@ use risc0_zkvm::sha::Digest;
 use risc0_zkvm::Journal;
 #[cfg(not(target_os = "zkvm"))]
 use risc0_zkvm::Receipt;
+use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 #[cfg(not(target_os = "zkvm"))]
@@ -82,7 +83,7 @@ pub enum Risc0MethodIdError {
 }
 
 /// The cryptographic primitives provided by the Risc0.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Copy, JsonSchema)]
 pub struct Risc0CryptoSpec;
 
 impl CryptoSpec for Risc0CryptoSpec {
