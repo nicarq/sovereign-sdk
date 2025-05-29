@@ -6,11 +6,10 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 use sov_modules_api::rest::HasRestApi;
 use sov_modules_api::{
-    Context, DaSpec, Error, GenesisState, HexHash, HexString, Module, ModuleId, ModuleInfo,
-    ModuleRestApi, Spec, StateMap, StateReader, StateValue, TxState,
+    Base58Address, Context, DaSpec, Error, GenesisState, HexHash, HexString, Module, ModuleId,
+    ModuleInfo, ModuleRestApi, Spec, StateMap, StateReader, StateValue, TxState,
 };
 use sov_state::User;
-
 #[cfg(feature = "native")]
 mod api;
 mod call;
@@ -228,6 +227,17 @@ impl HyperlaneAddress for sov_modules_api::Address {
         Ok(Self::new(address.try_into().expect(
             "Infallible conversion failed; this is a bug, please report it",
         )))
+    }
+}
+
+impl HyperlaneAddress for Base58Address {
+    /// Convert the address to a Hyperlane sender address.
+    fn to_sender(&self) -> HexHash {
+        HexString(self.0)
+    }
+    /// Convert a Hyperlane sender address back to the original..
+    fn from_sender(recipient: HexHash) -> anyhow::Result<Self> {
+        Ok(Self(recipient.0))
     }
 }
 

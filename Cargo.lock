@@ -10620,6 +10620,7 @@ dependencies = [
  "bech32 0.11.0",
  "bincode",
  "borsh",
+ "bs58",
  "clap",
  "derivative",
  "derive_more 1.0.0",

@@ -434,15 +434,146 @@ impl<'a> Arbitrary<'a> for Address {
 
 impl BasicAddress for Address {}
 
+/// An address displayed in the Solana style base-58 encoding.
+#[derive(
+    Default,
+    Ord,
+    PartialOrd,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    BorshDeserialize,
+    BorshSerialize,
+    sov_rollup_interface::sov_universal_wallet::UniversalWallet,
+)]
+#[cfg_attr(
+    feature = "arbitrary",
+    derive(proptest_derive::Arbitrary, arbitrary::Arbitrary)
+)]
+/// A solana-style base-58 encoded address. Note that this is *not* simply an alternative
+/// encoding of the [`Address`] type; this type usually corresponds to a 32-byte public key,
+/// while the [`Address`] is always 28 bytes and may be a hash of a public key.
+pub struct Base58Address(#[sov_wallet(display(base58))] pub [u8; 32]);
+
+impl From<CredentialId> for Base58Address {
+    fn from(credential_id: CredentialId) -> Self {
+        Self(credential_id.0 .0)
+    }
+}
+
+impl schemars::JsonSchema for Base58Address {
+    fn schema_name() -> String {
+        "Address".to_string()
+    }
+
+    fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        serde_json::from_value(serde_json::json!({
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9]{36,44}$",
+            "description": "Address",
+        }))
+        .unwrap()
+    }
+}
+
+impl TryFrom<&[u8]> for Base58Address {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if value.len() != 32 {
+            anyhow::bail!(
+                "Invalid base58 address. Addresses are 32 bytes but only {} bytes could be decoded",
+                value.len()
+            );
+        }
+        let mut key = [0u8; 32];
+        key.copy_from_slice(value);
+        Ok(Self(key))
+    }
+}
+
+impl From<[u8; 32]> for Base58Address {
+    fn from(value: [u8; 32]) -> Self {
+        Self(value)
+    }
+}
+
+impl AsRef<[u8]> for Base58Address {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl std::fmt::Display for Base58Address {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&bs58::encode(&self.0).into_string())?;
+        Ok(())
+    }
+}
+
+impl std::str::FromStr for Base58Address {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut output = [0u8; 32];
+        let bytes_decoded = bs58::decode(s).onto(&mut output)?;
+        if bytes_decoded != 32 {
+            anyhow::bail!(
+                "Invalid base58 address. Addresses are 32 bytes but only {} bytes could be decoded",
+                bytes_decoded
+            );
+        }
+        Ok(Self(output))
+    }
+}
+
+impl serde::Serialize for Base58Address {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&self.to_string())
+        } else {
+            serde::Serialize::serialize(&self.0, serializer)
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Base58Address {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        if deserializer.is_human_readable() {
+            let s = <String as serde::Deserialize<'_>>::deserialize(deserializer)?;
+            s.parse().map_err(serde::de::Error::custom)
+        } else {
+            let bytes = <[u8; 32] as serde::Deserialize<'_>>::deserialize(deserializer)?;
+            Ok(Self(bytes))
+        }
+    }
+}
+
+impl std::fmt::Debug for Base58Address {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Use the Display implementation which already does base58 encoding
+        write!(f, "{}", self)
+    }
+}
+
+impl BasicAddress for Base58Address {}
+
 #[cfg(test)]
 mod test {
 
     use core::str::FromStr;
 
     use sha2::Sha256;
+    use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
     use sov_mock_zkvm::crypto::Ed25519PublicKey;
-    use sov_modules_api::PublicKey;
-    use sov_rollup_interface::crypto::PublicKeyHex;
+    use sov_modules_api::{CryptoSpec, PublicKey, Spec};
+    use sov_rollup_interface::crypto::{PrivateKey, PublicKeyHex};
+    use sov_test_utils::TestSpec;
     use sov_universal_wallet::schema::Schema;
 
     use super::*;
@@ -505,6 +636,54 @@ mod test {
 
         assert_eq!(sov_address, expected_addr);
     }
+
+    #[test]
+    // Test that the address to public key conversion works for a random public key.
+    fn test_base58address_from_pubkey() {
+        let pubkey = Ed25519PrivateKey::generate().pub_key();
+        let cred_id: CredentialId =
+            pubkey.credential_id::<<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher>();
+        let _ = Base58Address::from(cred_id);
+    }
+
+    #[test]
+    // Test that the address generation is consistent with the solana cli
+    fn test_address_solana_cli() {
+        let solana_public_key = [
+            65, 154, 197, 230, 155, 220, 64, 141, 12, 209, 61, 81, 49, 173, 123, 230, 198, 48, 17,
+            224, 77, 164, 122, 104, 33, 207, 95, 103, 145, 165, 243, 34,
+        ];
+        let address = Base58Address(solana_public_key);
+        assert_eq!(
+            address.to_string(),
+            "5R6PBUczUyxzjoCxBnrHMtGDtuJcuP11K52NzBZFiEgq"
+        );
+    }
+
+    #[test]
+    // Test that address generation direct from public key vs credential id is consistent, i.e. credential id no longer hashes the pubkey
+    fn test_base58_address_credential_id_no_hashing_pubkey() {
+        let pubkey = Ed25519PrivateKey::generate().pub_key();
+        let cred_id: CredentialId =
+            pubkey.credential_id::<<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher>();
+        let address = Base58Address::from(cred_id);
+        let address2 = Base58Address::from(*pubkey.bytes());
+        assert_eq!(address.to_string(), address2.to_string());
+    }
+
+    #[test]
+    fn test_base58_address_serde() {
+        let address = Base58Address([0; 32]);
+
+        let serialized = serde_json::to_string(&address).unwrap();
+        assert_eq!(serialized, "\"11111111111111111111111111111111\"");
+        let deserialized: Base58Address = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(address, deserialized);
+
+        let serialized = bincode::serialize(&address).unwrap();
+        let deserialized: Base58Address = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(address, deserialized);
+    }
 }
 
 #[cfg(all(test, feature = "arbitrary"))]
@@ -518,6 +697,11 @@ mod arbitrary_tests {
     proptest! {
         #[test]
         fn json_schema_is_valid(item in any::<Address>()) {
+            validate_schema(&item).unwrap();
+        }
+
+        #[test]
+        fn json_schema_is_valid_base58(item in any::<Base58Address>()) {
             validate_schema(&item).unwrap();
         }
     }
