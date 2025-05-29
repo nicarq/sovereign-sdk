@@ -39,6 +39,7 @@ use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, Image, ImageExt};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
+use tokio::time::timeout;
 use tracing::debug;
 
 use crate::{
@@ -92,6 +93,7 @@ pub struct RollupBuilderConfig<S: Spec, StoragePath = Arc<tempfile::TempDir>> {
     pub axum_port: u16,
     pub max_batch_size_bytes: usize,
     pub max_concurrent_blobs: usize,
+    pub blob_processing_timeout_secs: u64,
 }
 
 /// A one-stop shop for building entire rollups and starting them in the
@@ -218,6 +220,7 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
                 telegraf_address: MonitoringConfig::standard().telegraf_address,
                 axum_host: "127.0.0.1".to_string(),
                 axum_port: 0,
+                blob_processing_timeout_secs: 60,
             },
             with_secondary_sequencer: None,
         }
@@ -442,6 +445,7 @@ where
                 sequencer_kind_config: self.config.sequencer_config.clone(),
                 max_batch_size_bytes: self.config.max_batch_size_bytes,
                 max_concurrent_blobs: self.config.max_concurrent_blobs,
+                blob_processing_timeout_secs: self.config.blob_processing_timeout_secs,
             },
 
             monitoring: MonitoringConfig {
@@ -585,10 +589,11 @@ where
     }
 
     /// Waits for the rollup to shutdown.
-    pub async fn wait_for_rollup_to_shutdown(self) {
-        self.rollup_task
+    pub async fn wait_for_rollup_to_shutdown(self, t: tokio::time::Duration) {
+        timeout(t, self.rollup_task)
             .await
-            .expect("Can't join rollup task")
+            .unwrap()
+            .unwrap()
             .unwrap();
     }
 

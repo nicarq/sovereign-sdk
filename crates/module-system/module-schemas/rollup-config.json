@@ -570,6 +570,7 @@
         }
       ],
       "required": [
+        "blob_processing_timeout_secs",
         "da_address",
         "max_allowed_node_distance_behind",
         "max_batch_size_bytes",
@@ -588,6 +589,12 @@
           "description": "When enabled, submitted transactions are periodically assembled into batches and automatically posted to the DA layer. When disabled, the batch production endpoint has to be called explicitly.",
           "default": true,
           "type": "boolean"
+        },
+        "blob_processing_timeout_secs": {
+          "description": "Maximum time in seconds to wait for a blob to be processed.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
         },
         "da_address": {
           "description": "DA address of the sequencer.",

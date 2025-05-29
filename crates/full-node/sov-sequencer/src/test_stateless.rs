@@ -18,6 +18,7 @@ use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::{StateUpdateInfo, TxHash};
 use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
+use tokio::time::Duration;
 
 use crate::common::{
     loop_call_update_state, loop_send_tx_notifications, AcceptedTx, EmptyConfirmation, Sequencer,
@@ -57,7 +58,7 @@ where
         state_update_receiver: StateUpdateReceiver<<S as Spec>::Storage>,
         _da_sync_state: Arc<DaSyncState>,
         storage_path: &Path,
-        _config: &SequencerConfig<<S as Spec>::Da, <S as Spec>::Address, ()>,
+        config: &SequencerConfig<<S as Spec>::Da, <S as Spec>::Address, ()>,
         ledger_db: LedgerDb,
         shutdown_sender: watch::Sender<()>,
     ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
@@ -80,6 +81,7 @@ where
                     storage_path,
                     TxStatusBlobSenderHooks::new(tx_status_manager.clone()),
                     shutdown_sender,
+                    Duration::from_secs(config.blob_processing_timeout_secs),
                 )
                 .await?
                 .0,

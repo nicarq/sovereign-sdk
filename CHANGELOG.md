@@ -1,3 +1,5 @@
+# 2025-05-29
+- #2945 **BREAKING CHANGE** Adds `blob_processing_timeout_secs` filed in the rollup config.
 # 2025-05-27
 - #2913 **BREAKING CHANGE** Add `Storage` generic parameter to `ConfigurableSpec`:
   ```rust

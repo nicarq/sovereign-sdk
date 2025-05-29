@@ -48,6 +48,7 @@ max_number_of_transitions_in_db = 100
 max_number_of_transitions_in_memory = 30
 
 [sequencer]
+blob_processing_timeout_secs = 60
 max_batch_size_bytes = 1048576
 max_concurrent_blobs = 128
 max_allowed_node_distance_behind = 10

@@ -26,6 +26,7 @@ use sov_rollup_interface::node::DaSyncState;
 use thiserror::Error;
 use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
+use tokio::time::Duration;
 use tracing::{debug, error, trace, warn};
 
 use self::mempool::{Mempool, MempoolCursor, MempoolTx};
@@ -138,6 +139,7 @@ where
             storage_path,
             TxStatusBlobSenderHooks::new(txsm.clone()),
             shutdown_sender,
+            Duration::from_secs(config.blob_processing_timeout_secs),
         )
         .await?;
 

@@ -60,6 +60,8 @@ pub struct SequencerConfig<Da: DaSpec, Address, Sc = SequencerKindConfig> {
     pub max_batch_size_bytes: usize,
     /// Maximum number of blobs sent in parallel.
     pub max_concurrent_blobs: usize,
+    /// Maximum time in seconds to wait for a blob to be processed.
+    pub blob_processing_timeout_secs: u64,
 }
 
 fn default_automatic_batch_production() -> bool {
@@ -79,6 +81,7 @@ impl<Da: DaSpec, Addr: Clone, BbConfig> SequencerConfig<Da, Addr, BbConfig> {
             max_batch_size_bytes: self.max_batch_size_bytes,
             max_concurrent_blobs: self.max_concurrent_blobs,
             sequencer_kind_config: seq_config,
+            blob_processing_timeout_secs: self.blob_processing_timeout_secs,
         }
     }
 }

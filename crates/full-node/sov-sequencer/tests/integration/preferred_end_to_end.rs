@@ -33,7 +33,7 @@ use sov_test_utils::{
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use test_strategy::Arbitrary;
-use tokio::time::{sleep, timeout};
+use tokio::time::sleep;
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
 
@@ -57,6 +57,8 @@ fn tempdir_inside_codebase_dir() -> Arc<tempfile::TempDir> {
 }
 
 type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
+
+use sov_test_utils::TEST_BLOB_PROCESSING_TIMEOUT;
 
 const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnBatchSubmit {
     block_wait_timeout_ms: None,
@@ -125,6 +127,7 @@ async fn new_test_rollup(
     max_batch_size_bytes: usize,
     block_producing_config: BlockProducingConfig,
     rollup_prover_config: Option<RollupProverConfig<MockZkvm>>,
+    blob_processing_timeout_secs: u64,
 ) -> Option<TestRollup<TestBlueprint>> {
     const FINALIZATION_BLOCKS: u32 = 3;
     let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
@@ -146,6 +149,7 @@ async fn new_test_rollup(
         c.automatic_batch_production = automatic_batch_production;
         c.storage = dir;
         c.max_batch_size_bytes = max_batch_size_bytes;
+        c.blob_processing_timeout_secs = blob_processing_timeout_secs;
     })
     .set_da_config(|c| c.sender_address = sequencer_addr)
     .with_preferred_seq_min_profit_per_tx(minimum_profit_per_tx);
@@ -173,6 +177,7 @@ async fn new_test_rollup(
 async fn create_test_rollup(
     minimum_profit_per_tx: u128,
     max_batch_size: usize,
+    blob_processing_timeout_secs: u64,
 ) -> (Option<TestRollup<TestBlueprint>>, TestUser<TestSpec>) {
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
@@ -203,6 +208,7 @@ async fn create_test_rollup(
             max_batch_size,
             BlockProducingConfig::Manual,
             None,
+            blob_processing_timeout_secs,
         )
         .await,
         admin,
@@ -246,7 +252,8 @@ struct TestState {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn txs_below_min_fee_are_rejected() {
-    let (test_rollup, admin) = create_test_rollup(1, TEST_MAX_BATCH_SIZE).await;
+    let (test_rollup, admin) =
+        create_test_rollup(1, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -323,6 +330,7 @@ async fn seq_out_of_gas() {
         TEST_MAX_BATCH_SIZE,
         BlockProducingConfig::Manual,
         None,
+        60,
     )
     .await
     else {
@@ -406,7 +414,8 @@ async fn seq_out_of_gas() {
 #[tokio::test(flavor = "multi_thread")]
 async fn max_batch_size() {
     let max_batch_size = 1024;
-    let (test_rollup, admin) = create_test_rollup(0, max_batch_size).await;
+    let (test_rollup, admin) =
+        create_test_rollup(0, max_batch_size, TEST_BLOB_PROCESSING_TIMEOUT).await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -533,6 +542,7 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
             block_wait_timeout_ms: None,
         },
         None,
+        60,
     )
     .await
     else {
@@ -573,7 +583,8 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn rollup_shuts_down_if_blob_sender_fails() {
-    let (test_rollup, admin) = create_test_rollup(0, TEST_MAX_BATCH_SIZE).await;
+    let (test_rollup, admin) =
+        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -608,17 +619,40 @@ async fn rollup_shuts_down_if_blob_sender_fails() {
         slot_subscription.next().await.unwrap().unwrap();
     }
 
-    timeout(
-        Duration::from_secs(1),
-        test_rollup.wait_for_rollup_to_shutdown(),
-    )
-    .await
-    .unwrap();
+    test_rollup
+        .wait_for_rollup_to_shutdown(Duration::from_secs(1))
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn rollup_shuts_down_if_blob_processing_timeouts() {
+    let (test_rollup, _) = create_test_rollup(0, TEST_MAX_BATCH_SIZE, 1).await;
+
+    let Some(test_rollup) = test_rollup else {
+        return;
+    };
+
+    let nb_of_blocks = 5;
+    let mut slot_subscription = test_rollup.api_client.subscribe_slots().await.unwrap();
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(nb_of_blocks)
+        .await
+        .unwrap();
+
+    for _ in 0..nb_of_blocks {
+        slot_subscription.next().await.unwrap().unwrap();
+    }
+
+    test_rollup
+        .wait_for_rollup_to_shutdown(Duration::from_secs(2))
+        .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_seq_back_pressure() {
-    let (test_rollup, admin) = create_test_rollup(0, TEST_MAX_BATCH_SIZE).await;
+    let (test_rollup, admin) =
+        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -680,7 +714,8 @@ async fn flaky_seq_back_pressure() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn seq_many_invalid_txs() {
-    let (test_rollup, admin) = create_test_rollup(0, TEST_MAX_BATCH_SIZE).await;
+    let (test_rollup, admin) =
+        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -896,7 +931,8 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn events_are_returned_in_tx_response() {
-    let (test_rollup, admin) = create_test_rollup(0, TEST_MAX_BATCH_SIZE).await;
+    let (test_rollup, admin) =
+        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -1232,7 +1268,8 @@ async fn batch_production_and_accept_tx() {
 // when the sender address is not configured as an admin in the sequencer config.
 #[tokio::test(flavor = "multi_thread")]
 async fn not_sequencer_safe_txs_are_restricted() {
-    let (test_rollup, admin) = create_test_rollup(0, TEST_MAX_BATCH_SIZE).await;
+    let (test_rollup, admin) =
+        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -1480,6 +1517,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
         TEST_MAX_BATCH_SIZE,
         DEFAULT_BLOCK_PRODUCING_CONFIG,
         Some(RollupProverConfig::Skip),
+        60,
     )
     .await
     else {

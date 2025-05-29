@@ -188,6 +188,7 @@ mod tests {
             max_number_of_transitions_in_db = 1025
             max_number_of_transitions_in_memory = 768
             [sequencer]
+            blob_processing_timeout_secs = 60
             max_batch_size_bytes = 1048576
             max_concurrent_blobs = 16
             max_allowed_node_distance_behind = 5
