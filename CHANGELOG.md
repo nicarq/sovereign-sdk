@@ -1,5 +1,9 @@
 # 2025-05-29
 - #2945 **BREAKING CHANGE** Adds `blob_processing_timeout_secs` filed in the rollup config.
+- #2943 Adds **Configurable Transaction Processing Delays in Sequencer:** 
+  - The `Runtime` trait in `sov-modules-api` now includes a `get_transaction_delay_ms(&self, call: &Self::Decodable) -> u64` method. Rollup developers can override this method to inspect the transaction and return a desired delay in milliseconds. The default implementation returns 0 (no delay).
+  - This feature enables rollups to implement fine-grained control over transaction processing order and timing, potentially mitigating front-running or allowing for strategic ordering based on transaction type without complex pre-execution logic.
+
 # 2025-05-27
 - #2913 **BREAKING CHANGE** Add `Storage` generic parameter to `ConfigurableSpec`:
   ```rust

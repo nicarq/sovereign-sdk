@@ -10,7 +10,12 @@ macro_rules! generate_runtime_without_capabilities {
         kernel_type: $kernel_type:ty,
         auth_type: $auth:ty,
         auth_call_wrapper: $auth_wrapper:expr
-        // optional final comma
+        // Optional: A wrapper expression for custom transaction delay logic.
+        // Expected signature for the expression (e.g., a closure or function path):
+        // `fn(&Self, &::sov_modules_api::FullyBakedTx) -> u64`
+        // If not provided, defaults to 0ms delay (via Runtime trait default).
+        $(, transaction_delay_ms_wrapper: $transaction_delay_ms_wrapper_expr:expr)?
+        // optional final comma for the entire argument block
         $(,)?
     ) => {
         /// Generated test runtime implementation using the testing framework.
@@ -165,6 +170,14 @@ macro_rules! generate_runtime_without_capabilities {
                     Self::Decodable::SequencerRegistry($crate::runtime::sov_sequencer_registry::CallMessage::Register {..})
                 )
             }
+
+            // Conditionally generate get_transaction_delay_ms if the wrapper is provided.
+            // If not provided, the default from the Runtime trait (returning 0) will be used.
+            $(
+                fn get_transaction_delay_ms(&self, call: &Self::Decodable) -> u64 {
+                    ($transaction_delay_ms_wrapper_expr)(call)
+                }
+            )?
         }
 
 
@@ -204,6 +217,7 @@ macro_rules! generate_runtime {
         kernel_type: $kernel_type:ty,
         auth_type: $auth:ty,
         auth_call_wrapper: $auth_wrapper:expr
+        $(, transaction_delay_ms_wrapper: $transaction_delay_ms_wrapper_expr:expr)?
         // optional final comma
         $(,)?
     ) => {
@@ -216,6 +230,7 @@ macro_rules! generate_runtime {
             kernel_type: $kernel_type,
             auth_type: $auth,
             auth_call_wrapper: $auth_wrapper
+            $(, transaction_delay_ms_wrapper: $transaction_delay_ms_wrapper_expr)?
         }
 
         impl<S> ::sov_modules_api::capabilities::HasCapabilities<S> for $id<S>
@@ -229,7 +244,7 @@ macro_rules! generate_runtime {
                 ::sov_modules_api::capabilities::Guard::new(
                     $crate::runtime::StandardProvenRollupCapabilities {
                         bank: &mut self.bank,
-                        gas_payer: &mut self. $payer_name,
+                        gas_payer: &mut self.$payer_name,
                         sequencer_registry: &mut self.sequencer_registry,
                         accounts: &mut self.accounts,
                         uniqueness: &mut self.uniqueness,
@@ -250,6 +265,7 @@ macro_rules! generate_runtime {
         kernel_type: $kernel_type:ty,
         auth_type: $auth:ty,
         auth_call_wrapper: $auth_wrapper:expr
+        $(, transaction_delay_ms_wrapper: $transaction_delay_ms_wrapper_expr:expr)?
         // optional final comma
         $(,)?
     ) => {
@@ -261,7 +277,8 @@ macro_rules! generate_runtime {
             runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds)*],
             kernel_type: $kernel_type,
             auth_type: $auth,
-            auth_call_wrapper: $auth_wrapper,
+            auth_call_wrapper: $auth_wrapper
+            $(, transaction_delay_ms_wrapper: $transaction_delay_ms_wrapper_expr)?
         }
 
         impl<S> ::sov_modules_api::capabilities::HasCapabilities<S> for $id<S>
@@ -275,7 +292,7 @@ macro_rules! generate_runtime {
                 ::sov_modules_api::capabilities::Guard::new(
                     $crate::runtime::StandardProvenRollupCapabilities {
                         bank: &mut self.bank,
-                        gas_payer: (),
+                        gas_payer: (), // No gas_enforcer, so gas_payer is a unit tuple
                         sequencer_registry: &mut self.sequencer_registry,
                         accounts: &mut self.accounts,
                         uniqueness: &mut self.uniqueness,
@@ -293,9 +310,14 @@ macro_rules! generate_runtime {
 /// and [`SequencerRegistry`](sov_sequencer_registry::SequencerRegistry) modules in addition to any provided as arguments. The runtime implements a basic kernel.
 #[macro_export]
 macro_rules! generate_optimistic_runtime {
-    ($id:ident <= $($module_name:ident : $module_ty:path),*) => {
+    (
+        $id:ident <=
+        $($module_name:ident : $module_ty:path),*
+    ) => {
         $crate::generate_optimistic_runtime_with_kernel! {
-            $id <= kernel_type: $crate::runtime::BasicKernel<'a, S>, $($module_name : $module_ty),*
+            $id <=
+            kernel_type: $crate::runtime::BasicKernel<'a, S>,
+            modules: [$($module_name : $module_ty),*],
         }
     };
 }
@@ -304,7 +326,13 @@ macro_rules! generate_optimistic_runtime {
 /// and [`SequencerRegistry`](sov_sequencer_registry::SequencerRegistry) modules in addition to any provided as arguments. The runtime implements a custom kernel.
 #[macro_export]
 macro_rules! generate_optimistic_runtime_with_kernel {
-    ($id:ident <= kernel_type: $kernel_ty:ty, $($module_name:ident : $module_ty:path),*) => {
+    (
+        $id:ident <=
+        kernel_type: $kernel_ty:ty,
+        modules: [$($module_name:ident : $module_ty:path),*],
+        $(transaction_delay_ms_wrapper: $transaction_delay_ms_wrapper_expr:expr)?
+        $(,)? // Optional trailing comma for the module list or wrapper
+    ) => {
         $crate::generate_runtime! {
             name: $id,
             modules: [$($module_name : $module_ty),*],
@@ -313,7 +341,8 @@ macro_rules! generate_optimistic_runtime_with_kernel {
             runtime_trait_impl_bounds: [],
             kernel_type: $kernel_ty,
             auth_type: sov_modules_api::capabilities::RollupAuthenticator<S, Self>,
-            auth_call_wrapper: |auth_data| auth_data,
+            auth_call_wrapper: |auth_data| auth_data
+            $(, transaction_delay_ms_wrapper: $transaction_delay_ms_wrapper_expr)?
         }
     };
 }

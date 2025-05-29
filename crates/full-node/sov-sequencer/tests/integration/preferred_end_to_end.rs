@@ -42,13 +42,18 @@ use crate::utils::{
     ModuleWithVersionedStateAccessInSlotHook,
 };
 
+const DELAYED_TX_DELAY_MS: u64 = 500;
+
 generate_optimistic_runtime_with_kernel!(
     TestRuntime <=
     kernel_type: sov_kernels::soft_confirmations::SoftConfirmationsKernel<'a, S>,
-    value_setter: ValueSetter<S>,
-    hooks_count: HooksCount<S>,
-    paymaster: Paymaster<S>,
-    slot_hook_checker: ModuleWithVersionedStateAccessInSlotHook<S>
+    modules: [value_setter: ValueSetter<S>, hooks_count: HooksCount<S>, paymaster: Paymaster<S>, slot_hook_checker: ModuleWithVersionedStateAccessInSlotHook<S>],
+    transaction_delay_ms_wrapper: |call: &Self::Decodable| {
+        match call {
+            Self::Decodable::HooksCount(sov_test_modules::hooks_count::CallMessage::DelayedCallMsg { .. }) => DELAYED_TX_DELAY_MS,
+            _ => 0,
+        }
+    }
 );
 
 // This allows for easily setting file sharing when using Docker Desktop.
@@ -958,6 +963,49 @@ async fn events_are_returned_in_tx_response() {
     assert_eq!(response.data.events.len(), 1);
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn delayed_tx_is_processed_after_delay() {
+    let (test_rollup, admin) =
+        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
+
+    let Some(test_rollup) = test_rollup else {
+        return;
+    };
+
+    // Produce a few blocks to DA blocks to make sure there's a finalized slot after genesis.
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(5)
+        .await
+        .unwrap();
+    sleep(Duration::from_millis(200)).await;
+
+    let client = test_rollup.api_client.clone();
+
+    let delayed_tx = tx_delayed_call(&admin.private_key, 0);
+    let regular_tx = tx_set_value(&admin.private_key, 0, 7);
+
+    let binding = api_types::AcceptTxBody {
+        body: BASE64_STANDARD.encode(&delayed_tx),
+    };
+    let delayed_tx_future = client.accept_tx(&binding);
+
+    // Sleep to ensure that the tx would surely be processed if it were not delayed.
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    let binding = api_types::AcceptTxBody {
+        body: BASE64_STANDARD.encode(&regular_tx),
+    };
+    let regular_tx_future = client.accept_tx(&binding);
+
+    tokio::select! {
+        _ = regular_tx_future => {},
+        _ = delayed_tx_future => {
+            panic!("Delayed tx was processed before the regular tx");
+        },
+    };
+}
+
 /// Ensure that we use the correct visible slot number when replaying transactions after a call to `update_state` in the sequencer.
 /// The key thing that this test does is to execute the same transaction 3 times - once in the sequencer via `accept_tx`, once via `update_state`
 /// and once in the node. Everything else is implementation details.
@@ -1782,6 +1830,13 @@ fn tx_set_value_with_gas(
     encode_call_with_fee(key, nonce, &msg, max_fee)
 }
 
+fn tx_delayed_call(key: &Ed25519PrivateKey, nonce: u64) -> RawTx {
+    let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::HooksCount(
+        sov_test_modules::hooks_count::CallMessage::DelayedCallMsg {},
+    );
+    encode_call(key, nonce, &msg)
+}
+
 fn tx_set_many_values(key: &Ed25519PrivateKey, nonce: u64, values_to_set: Vec<u8>) -> RawTx {
     let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
         sov_value_setter::CallMessage::SetManyValues(values_to_set),
@@ -1862,6 +1917,7 @@ mod tests_with_basic_kernel {
     generate_optimistic_runtime_with_kernel!(
         RtWithBasicKernel <=
         kernel_type: sov_kernels::basic::BasicKernel<'a, S>,
+        modules: [],
     );
 
     #[tokio::test(flavor = "multi_thread")]

@@ -82,6 +82,7 @@ impl<S: Spec> Module for HooksCount<S> {
             CallMessage::AssertStateRoot {
                 expected_state_root,
             } => Ok(self.assert_state_root(expected_state_root, context, state)?),
+            CallMessage::DelayedCallMsg => Ok(()),
         }
     }
 }

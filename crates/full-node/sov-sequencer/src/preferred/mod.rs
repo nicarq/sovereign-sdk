@@ -864,6 +864,29 @@ where
         let tx_hash = Rt::Auth::compute_tx_hash(&baked_tx).map_err(generic_accept_tx_error)?;
         tracing::debug!(%tx_hash, "Executing accept_tx");
 
+        // Check if this transaction has a configured delay
+        let runtime = Rt::default();
+        let call = match Rt::Auth::decode_serialized_tx(&baked_tx) {
+            Ok(call) => call,
+            Err(_) => {
+                return Err(ErrorObject {
+                    status: StatusCode::BAD_REQUEST,
+                    title: "Unable to decode transaction".to_string(),
+                    details: sov_rest_utils::json_obj!({
+                        "message": "Unable to decode transaction".to_string(),
+                    }),
+                });
+            }
+        };
+        let call = Rt::wrap_call(call);
+        let delay_ms = runtime.get_transaction_delay_ms(&call);
+
+        if delay_ms > 0 {
+            tracing::debug!(%tx_hash, delay_ms, "Delaying transaction processing");
+            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+            tracing::debug!(%tx_hash, "Transaction delay completed, proceeding with processing");
+        }
+
         let mut inner = self
             .lock_inner_if_ready()
             .await

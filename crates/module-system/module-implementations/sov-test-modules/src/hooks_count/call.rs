@@ -36,6 +36,8 @@ pub enum CallMessage {
         /// The expected state root.
         expected_state_root: Vec<u8>,
     },
+    /// A call message that will be delayed.
+    DelayedCallMsg,
 }
 
 impl<S: Spec> HooksCount<S> {

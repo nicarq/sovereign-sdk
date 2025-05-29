@@ -151,6 +151,14 @@ where
             )
         )
     }
+
+    #[cfg(feature = "native")]
+    fn get_transaction_delay_ms(&self, call: &Self::Decodable) -> u64 {
+        match call {
+            Self::Decodable::ValueSetter(sov_value_setter::CallMessage::SetValue { .. }) => 100,
+            _ => 0,
+        }
+    }
 }
 
 impl<S: Spec> HasCapabilities<S> for Runtime<S>

@@ -7,7 +7,7 @@ use sov_test_utils::generate_optimistic_runtime_with_kernel;
 
 use crate::kernel_interactions::{HighLevelOptimisticGenesisConfig, TestRunner, S};
 
-generate_optimistic_runtime_with_kernel!(TestGasPriceRuntime <= kernel_type: sov_kernels::soft_confirmations::SoftConfirmationsKernel<'a, S>,);
+generate_optimistic_runtime_with_kernel!(TestGasPriceRuntime <= kernel_type: sov_kernels::soft_confirmations::SoftConfirmationsKernel<'a, S>, modules: [],);
 
 type RT = TestGasPriceRuntime<S>;
 

@@ -82,6 +82,16 @@ pub trait Runtime<S: Spec>:
     /// This is a low level security mechanism. Your runtime SHOULD only allow
     /// `sov_sequencer_registry::CallMessage::Register` transactions here.
     fn allow_unregistered_tx(call: &Self::Decodable) -> bool;
+
+    /// Gets the processing delay in milliseconds for a given transaction.
+    /// Returns 0 if no delay is configured.
+    ///
+    /// Runtimes can override this method to provide custom delay logic
+    /// based on the transaction content. The delay will be applied before
+    /// transaction processing begins.
+    fn get_transaction_delay_ms(&self, _call: &Self::Decodable) -> u64 {
+        0
+    }
 }
 
 #[cfg(feature = "native")]

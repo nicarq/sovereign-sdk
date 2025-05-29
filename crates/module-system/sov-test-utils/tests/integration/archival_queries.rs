@@ -9,7 +9,7 @@ use sov_test_utils::runtime::{TestRunner, ValueSetter};
 use sov_test_utils::{generate_optimistic_runtime_with_kernel, TestSpec};
 
 generate_optimistic_runtime_with_kernel!(
-    TestRuntimeWithSoftConfirmations <= kernel_type: SoftConfirmationsKernel<'a, S>,
+    TestRuntimeWithSoftConfirmations <= kernel_type: SoftConfirmationsKernel<'a, S>, modules: [],
 );
 
 pub type S = TestSpec;
