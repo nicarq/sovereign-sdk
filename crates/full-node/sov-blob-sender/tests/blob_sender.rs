@@ -11,6 +11,7 @@ use sov_rollup_interface::da::BlobReaderTrait;
 use sov_rollup_interface::node::da::DaService;
 use tempfile::TempDir;
 use tokio::sync::{watch, RwLock};
+use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
 struct TestHooks {}
@@ -73,51 +74,13 @@ where
     }
 }
 
-async fn create_da() -> (StorableMockDaService, TempDir) {
-    let da_dir = tempfile::tempdir().unwrap();
-    let da_layer = Arc::new(RwLock::new(
-        StorableMockDaLayer::new_in_path(da_dir.path(), 0)
-            .await
-            .unwrap(),
-    ));
-    (
-        StorableMockDaService::new_manual_producing(MockAddress::new([0; 32]), da_layer).await,
-        da_dir,
-    )
-}
-
-async fn create_blob_sender(
-    da: StorableMockDaService,
-    shutdown_sender: watch::Sender<()>,
-) -> BlobSender<StorableMockDaService, TestHooks, TestFinalizationManager<StorableMockDaService>> {
-    let finalization_manager = TestFinalizationManager {
-        da: da.clone(),
-        start_da_height: 0,
-    };
-
-    let storage_path = tempfile::tempdir().unwrap();
-
-    let hooks = TestHooks {};
-
-    let (blob_sender, _handle) = BlobSender::new_with_task_intervals(
-        da,
-        finalization_manager,
-        storage_path.path(),
-        hooks,
-        shutdown_sender,
-        Duration::from_millis(20000),
-        Duration::from_millis(1000),
-    )
-    .await
-    .unwrap();
-    blob_sender
-}
-
 #[tokio::test(flavor = "multi_thread")]
 async fn blob_sender_posts_data_to_da() -> anyhow::Result<()> {
+    let da_dir = tempfile::tempdir().unwrap();
     let (shutdown_sender, _shutdown_receiver) = watch::channel(());
-    let (da, _da_dir) = create_da().await;
-    let mut blob_sender = create_blob_sender(da.clone(), shutdown_sender).await;
+    let da = create_da(&da_dir).await;
+    let storage_dir = tempfile::tempdir().unwrap();
+    let (mut blob_sender, _) = create_blob_sender(&storage_dir, da.clone(), shutdown_sender).await;
 
     let data_1 = {
         let blob_id = 11u8;
@@ -152,6 +115,88 @@ async fn blob_sender_posts_data_to_da() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn blob_sender_resubmits_blobs_in_progress_after_restart() -> anyhow::Result<()> {
+    let da_dir = tempfile::tempdir().unwrap();
+    let (shutdown_sender, _shutdown_receiver) = watch::channel(());
+    let da = create_da(&da_dir).await;
+    let storage_dir = tempfile::tempdir().unwrap();
+
+    // Send blob to the DA and shutdown blob sender.
+    {
+        let (mut blob_sender, handle) =
+            create_blob_sender(&storage_dir, da.clone(), shutdown_sender.clone()).await;
+
+        let _ = {
+            let blob_id = 11u8;
+            let data = Arc::new([blob_id, 2, 3, 4, 5]);
+            blob_sender
+                .publish_batch_blob(data.clone(), blob_id as BlobInternalId)
+                .await?;
+            data
+        };
+        shutdown_sender.send(()).unwrap();
+        handle.await.unwrap();
+    }
+
+    // After retart the blob sender, should resubmit the blob that was in progress.
+
+    {
+        let (blob_sender, _) =
+            create_blob_sender(&storage_dir, da.clone(), shutdown_sender.clone()).await;
+        let submissions = blob_sender.nb_of_concurrent_blob_submissions();
+        assert_eq!(submissions, 1);
+
+        sleep(Duration::from_secs(1)).await;
+        da.produce_block_now().await?;
+        // We have to wait a littele bit for the async task in blob sender.
+        sleep(Duration::from_secs(1)).await;
+
+        let submissions = blob_sender.nb_of_concurrent_blob_submissions();
+        assert_eq!(submissions, 0);
+    }
+
+    Ok(())
+}
+
+async fn create_da(da_dir: &TempDir) -> StorableMockDaService {
+    let da_layer = Arc::new(RwLock::new(
+        StorableMockDaLayer::new_in_path(da_dir.path(), 0)
+            .await
+            .unwrap(),
+    ));
+    StorableMockDaService::new_manual_producing(MockAddress::new([0; 32]), da_layer).await
+}
+
+async fn create_blob_sender(
+    storage_dir: &TempDir,
+    da: StorableMockDaService,
+    shutdown_sender: watch::Sender<()>,
+) -> (
+    BlobSender<StorableMockDaService, TestHooks, TestFinalizationManager<StorableMockDaService>>,
+    JoinHandle<()>,
+) {
+    let finalization_manager = TestFinalizationManager {
+        da: da.clone(),
+        start_da_height: 0,
+    };
+
+    let hooks = TestHooks {};
+
+    let (blob_sender, handle) = BlobSender::new_with_task_intervals(
+        da,
+        finalization_manager,
+        storage_dir.path(),
+        hooks,
+        shutdown_sender,
+        Duration::from_millis(20000),
+        Duration::from_millis(1000),
+    )
+    .await
+    .unwrap();
+    (blob_sender, handle)
 }
 
 async fn data_at<Da: DaService>(da: &Da, height: u64) -> Vec<Vec<u8>> {
