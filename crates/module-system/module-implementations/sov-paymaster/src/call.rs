@@ -564,14 +564,33 @@ impl<S: Spec> Paymaster<S> {
 
             SequencerSetUpdate::Update(sequencer_update_list) => {
                 let to_remove = sequencer_update_list.to_remove.unwrap_or_default();
-                for address in &to_remove {
-                    if self.sequencer_to_payer.remove(address, state)?.is_some() {
-                        self.emit_event(
-                            state,
-                            Event::<S>::RemovedPayerForSequencer {
-                                sequencer: context.sequencer_da_address().clone(),
-                                payer: payer.clone(),
-                            },
+                for seq_address_to_remove in &to_remove {
+                    // Only remove the sequencer address if it is currently mapped to this payer
+                    if let Some(current_payer) = self
+                        .sequencer_to_payer
+                        .remove(seq_address_to_remove, state)?
+                    {
+                        if current_payer == *payer {
+                            self.emit_event(
+                                state,
+                                Event::<S>::RemovedPayerForSequencer {
+                                    sequencer: seq_address_to_remove.clone(),
+                                    payer: payer.clone(),
+                                },
+                            );
+                        } else {
+                            bail!(
+                                "Cannot remove sequencer {} from payer {}: sequencer is currently mapped to payer {}",
+                                seq_address_to_remove,
+                                payer,
+                                current_payer
+                            );
+                        }
+                    } else {
+                        bail!(
+                            "Cannot remove sequencer {} from payer {}: sequencer is not currently mapped to any payer",
+                            seq_address_to_remove,
+                            payer
                         );
                     }
                 }

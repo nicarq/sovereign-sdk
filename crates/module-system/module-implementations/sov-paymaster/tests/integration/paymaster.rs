@@ -758,3 +758,163 @@ fn test_granular_policies() {
         runner.do_value_setter_tx(&setup.user_2, TxOutcome::Skipped);
     }
 }
+
+// Test vulnerability fix: payer cannot remove sequencers that don't belong to them
+#[test]
+fn test_cannot_remove_sequencer_belonging_to_different_payer() {
+    let setup = setup(TEST_DEFAULT_USER_BALANCE);
+    let mut runner = TestRunner::new_with_genesis(
+        setup.genesis_config.into_genesis_params(),
+        PaymasterRuntime::default(),
+    );
+
+    // Register a second payer (user) that authorizes all sequencers
+    let user_address = setup.user.address();
+    runner.execute_transaction(TransactionTestCase {
+        input: setup.user.create_plain_message::<RT, Paymaster<S>>(
+            PaymasterCallMessage::RegisterPaymaster {
+                policy: PaymasterPolicyInitializer {
+                    default_payee_policy: PayeePolicy::Allow {
+                        max_fee: None,
+                        gas_limit: None,
+                        max_gas_price: None,
+                        transaction_limit: None,
+                    },
+                    payees: SafeVec::new(),
+                    authorized_sequencers: sov_paymaster::AuthorizedSequencers::Some(
+                        SafeVec::try_from(vec![setup.sequencer.da_address]).unwrap(),
+                    ),
+                    authorized_updaters: [setup.user.address()].as_ref().try_into().unwrap(),
+                },
+            },
+        ),
+        assert: Box::new(move |result, _state| {
+            assert!(result.tx_receipt.is_successful());
+            // This should set the user as the payer for the sequencer
+            assert_eq!(
+                result.events.last().unwrap(),
+                &PaymasterRuntimeEvent::Paymaster(PaymasterEvent::SetPayerForSequencer {
+                    sequencer: setup.sequencer.da_address,
+                    payer: user_address
+                })
+            );
+        }),
+    });
+
+    // Now the original payer tries to remove the sequencer that is now mapped to the user
+    // This should fail with an appropriate error message
+    let original_payer_address = setup.payer.address();
+    runner.execute_transaction(TransactionTestCase {
+        input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
+            PaymasterCallMessage::UpdatePolicy {
+                payer: original_payer_address,
+                update: PolicyUpdate::default().update_allowed_sequencers(
+                    AllowedSequencerUpdate::remove(setup.sequencer.da_address),
+                ),
+            },
+        ),
+        assert: Box::new(move |result, _state| {
+            if let TxEffect::Reverted(reverted) = result.tx_receipt {
+                let reason = reverted.reason.to_string();
+                assert!(reason.contains("Cannot remove sequencer"));
+                assert!(reason.contains("sequencer is currently mapped to payer"));
+                assert!(reason.contains(&user_address.to_string()));
+            } else {
+                panic!("Transaction should have reverted with proper error message")
+            };
+        }),
+    });
+
+    // Verify that the sequencer is still mapped to the user, not the original payer
+    runner.execute_transaction(TransactionTestCase {
+        input: setup.user.create_plain_message::<RT, ValueSetter<S>>(
+            ValueSetterCallMessage::SetValue {
+                value: 99,
+                gas: None,
+            },
+        ),
+        assert: Box::new(move |result, state| {
+            assert!(result.tx_receipt.is_successful());
+            // Verify the mapping is still correct
+            let payer_for_sequencer = Paymaster::<S>::default()
+                .sequencer_to_payer
+                .get(&setup.sequencer.da_address, state)
+                .unwrap();
+            assert_eq!(payer_for_sequencer, Some(user_address));
+        }),
+    });
+}
+
+// Test that legitimate removal still works: payer can remove sequencer that belongs to them
+#[test]
+fn test_can_remove_own_sequencer() {
+    let setup = setup(Amount::ZERO);
+    let mut runner = TestRunner::new_with_genesis(
+        setup.genesis_config.into_genesis_params(),
+        PaymasterRuntime::default(),
+    );
+
+    // Capture addresses before moving into closures
+    let payer_address = setup.payer.address();
+
+    // Verify initial state: sequencer is mapped to the payer
+    runner.execute_transaction(TransactionTestCase {
+        input: setup.user.create_plain_message::<RT, ValueSetter<S>>(
+            ValueSetterCallMessage::SetValue {
+                value: 99,
+                gas: None,
+            },
+        ),
+        assert: Box::new(move |result, state| {
+            assert!(result.tx_receipt.is_successful());
+            // Verify the mapping exists
+            let payer_for_sequencer = Paymaster::<S>::default()
+                .sequencer_to_payer
+                .get(&setup.sequencer.da_address, state)
+                .unwrap();
+            assert_eq!(payer_for_sequencer, Some(payer_address));
+        }),
+    });
+
+    // Now the payer legitimately removes their own sequencer
+    runner.execute_transaction(TransactionTestCase {
+        input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
+            PaymasterCallMessage::UpdatePolicy {
+                payer: payer_address,
+                update: PolicyUpdate::default().update_allowed_sequencers(
+                    AllowedSequencerUpdate::remove(setup.sequencer.da_address),
+                ),
+            },
+        ),
+        assert: Box::new(move |result, _state| {
+            assert!(result.tx_receipt.is_successful());
+            assert_eq!(
+                result.events.last().unwrap(),
+                &PaymasterRuntimeEvent::Paymaster(PaymasterEvent::RemovedPayerForSequencer {
+                    sequencer: setup.sequencer.da_address,
+                    payer: payer_address
+                })
+            );
+        }),
+    });
+
+    // Verify that the sequencer is no longer mapped to any payer
+    runner.execute_transaction(TransactionTestCase {
+        input: setup.user.create_plain_message::<RT, ValueSetter<S>>(
+            ValueSetterCallMessage::SetValue {
+                value: 99,
+                gas: None,
+            },
+        ),
+        assert: Box::new(move |result, state| {
+            // Transaction should be skipped since no payer is available
+            assert!(result.tx_receipt.is_skipped());
+            // Verify the mapping is removed
+            let payer_for_sequencer = Paymaster::<S>::default()
+                .sequencer_to_payer
+                .get(&setup.sequencer.da_address, state)
+                .unwrap();
+            assert_eq!(payer_for_sequencer, None);
+        }),
+    });
+}
