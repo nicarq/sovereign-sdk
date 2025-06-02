@@ -145,7 +145,7 @@ fn to_nomt_accesses<S: MerkleProofSpec>(
         ordered_writes,
     } = sov_accesses;
 
-    // First, put all the reads into merged accesses, so later we can distingiush `Write` from `ReadThenWrite`
+    // First, put all the reads into merged accesses, so later we can distinguish `Write` from `ReadThenWrite`
     for (key, read_node_leaf) in ordered_reads {
         // Reads are warmed up during normal `get/get_leaf`
         let key_hash: nomt::trie::KeyPath = S::Hasher::digest(key.as_ref()).into();
@@ -226,14 +226,15 @@ impl<S: MerkleProofSpec> InitializableNativeNomtStorage<S::Hasher> for NomtProve
 }
 
 #[allow(missing_docs)]
-pub struct NomtStateUpdate {
+pub struct NomtStateUpdate<S: MerkleProofSpec> {
     user: FinishedSession,
     kernel: FinishedSession,
     accessory: OrderedReadsAndWrites,
     state_accesses: StateAccesses,
+    next_root_hash: StorageRoot<S>,
 }
 
-impl StateUpdate for NomtStateUpdate {
+impl<S: MerkleProofSpec> StateUpdate for NomtStateUpdate<S> {
     fn add_accessory_item(&mut self, key: SlotKey, value: Option<SlotValue>) {
         self.accessory.ordered_writes.push((key, value));
     }
@@ -249,7 +250,7 @@ impl<S: MerkleProofSpec> Storage for NomtProverStorage<S> {
     type Proof = ();
     type Root = StorageRoot<S>;
     // These 2 are effectively the same thing, `StateUpdate` is not materialized, `ChangeSet` is materialized.
-    type StateUpdate = NomtStateUpdate;
+    type StateUpdate = NomtStateUpdate<S>;
     type ChangeSet = NomtChangeSet;
     const PRE_GENESIS_ROOT: Self::Root =
         StorageRoot::new(nomt::trie::TERMINATOR, nomt::trie::TERMINATOR);
@@ -344,15 +345,16 @@ impl<S: MerkleProofSpec> Storage for NomtProverStorage<S> {
 
         let user_root = user_finished_session.root();
         let kernel_root = kernel_finished_session.root();
+        let root = StorageRoot::new(user_root.into_inner(), kernel_root.into_inner());
 
         let state_update = NomtStateUpdate {
             user: user_finished_session,
             kernel: kernel_finished_session,
             accessory: Default::default(),
             state_accesses,
+            next_root_hash: root,
         };
 
-        let root = StorageRoot::new(user_root.into_inner(), kernel_root.into_inner());
         Ok((root, state_update))
     }
 
@@ -367,6 +369,7 @@ impl<S: MerkleProofSpec> Storage for NomtProverStorage<S> {
             accessory: accessory_writes,
             user,
             kernel,
+            next_root_hash,
         } = state_update;
         let user_to_materialize = user_versioned.ordered_writes.into_iter().map(|(k, v)| {
             // TODO: Clone now, figure out how to optimize later
@@ -379,6 +382,7 @@ impl<S: MerkleProofSpec> Storage for NomtProverStorage<S> {
         let historical_schema_batch = HistoricalStateReader::materialize_values(
             user_to_materialize,
             kernel_to_materialize,
+            borsh::to_vec(&next_root_hash).expect("Failed to serialize root hash"),
             next_version,
         )
         .expect("historical state db materialization must succeed");
@@ -443,28 +447,20 @@ impl<S: MerkleProofSpec> NativeStorage for NomtProverStorage<S> {
     }
 
     fn get_root_hash(&self, version: SlotNumber) -> anyhow::Result<Self::Root> {
-        // TODO: Support for historical root hash
-        let _version_to_use = match self.get_version_to_use(Some(version)) {
+        let version_to_use = match self.get_version_to_use(Some(version)) {
             None => {
-                // Mimic error from jmt.
-                // TODO: Address this in the future.
+                // Mimic error from jmt, historical reasons.
                 anyhow::bail!("Root node not found for version {}.", version)
             }
             Some(v) => v,
         };
-        let state_session_lock = self
-            .state_session
-            .lock()
-            .expect("Failed to acquire lock on state session");
-        let state_session = state_session_lock
-            .as_ref()
-            .expect("Session is None, Storage is not usable anymore");
-        let kernel_root = state_session.kernel.prev_root();
-        let user_root = state_session.user.prev_root();
-        drop(state_session_lock);
-        Ok(StorageRoot::new(
-            user_root.into_inner(),
-            kernel_root.into_inner(),
-        ))
+        let raw_root = self
+            .historical_state
+            .get_serialized_root_hash(version_to_use)?
+            .context(format!(
+                "Root hash not found for version {}.",
+                version_to_use
+            ))?;
+        Ok(borsh::from_slice(&raw_root).expect("Failed to deserialize root hash"))
     }
 }

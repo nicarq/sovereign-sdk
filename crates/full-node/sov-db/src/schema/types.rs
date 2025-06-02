@@ -265,3 +265,4 @@ u64_wrapper!(TxNumber);
 u64_wrapper!(EventNumber);
 u64_wrapper!(ProofUniqueId);
 u64_wrapper!(StfInfoUniqueId);
+u64_wrapper!(StateRootHashId);

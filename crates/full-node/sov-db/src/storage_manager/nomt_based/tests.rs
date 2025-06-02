@@ -67,6 +67,8 @@ impl TestableStorage for TestNomtStorage {
         let historical_change_set = HistoricalStateReader::materialize_values(
             accessory_writes.clone(),
             accessory_writes.clone(),
+            // Not used at the moment,
+            items.len().to_be_bytes().to_vec(),
             SlotNumber::GENESIS,
         )
         .unwrap();

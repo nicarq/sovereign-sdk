@@ -30,15 +30,15 @@ use borsh::BorshDeserialize;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use jmt::Version;
 use rockbound::schema::{ColumnFamilyName, KeyDecoder, KeyEncoder, ValueCodec};
-use rockbound::{CodecError, SeekKeyEncoder};
+use rockbound::{CodecError, SchemaValue, SeekKeyEncoder};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::stf::{EventKey, StoredEvent};
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber,
-    LatestFinalizedSlotSingleton, ProofUniqueId, StfInfoUniqueId, StoredBatch, StoredSlot,
-    StoredStfInfo, StoredTransaction, TxNumber,
+    LatestFinalizedSlotSingleton, ProofUniqueId, StateRootHashId, StfInfoUniqueId, StoredBatch,
+    StoredSlot, StoredStfInfo, StoredTransaction, TxNumber,
 };
 
 /* Other tables used by the Rollup */
@@ -269,6 +269,10 @@ define_table_with_seek_key_codec!(
 define_table_with_seek_key_codec!(
     /// The STF Info metadata.
     (StfInfoMetadata) StfInfoUniqueId => SlotNumber
+);
+
+define_table_with_seek_key_codec!(
+    (StateRootHashes) (SlotNumber, StateRootHashId) => SchemaValue
 );
 
 define_table_without_codec!(

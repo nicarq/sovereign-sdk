@@ -6,7 +6,11 @@ use sov_rollup_interface::common::SlotNumber;
 
 use crate::namespaces::{KernelNamespace, Namespace, UserNamespace};
 use crate::schema::namespace::StateValues;
+use crate::schema::tables::StateRootHashes;
+use crate::schema::types::StateRootHashId;
 use crate::{ensure_version_is_correct, DbOptions};
+
+const STATE_ROOT_HASH_SINGLETON: StateRootHashId = StateRootHashId(0);
 
 /// A typed wrapper around the [`DeltaReader`] for reading materializing historical rollup state.
 #[derive(Debug, Clone)]
@@ -34,11 +38,10 @@ impl HistoricalStateReader {
 
     /// Get the next version from the database snapshot
     fn next_version_from(reader: &DeltaReader) -> anyhow::Result<SlotNumber> {
-        // Kernel updates required to always be non-empty, thus always have an higher or equal version comparing to userspace
-        let kernel_last_key_value = reader.get_largest::<StateValues<KernelNamespace>>()?;
-        let kernel_largest_version = kernel_last_key_value.map(|((_key, version), _)| version);
+        let last_root_hash = reader.get_largest::<StateRootHashes>()?;
+        let last_root_hash_version = last_root_hash.map(|((version, _key), _)| version);
 
-        Ok(match kernel_largest_version {
+        Ok(match last_root_hash_version {
             None => SlotNumber::GENESIS,
             Some(existing_version) => existing_version
                 .checked_add(1)
@@ -54,6 +57,7 @@ impl HistoricalStateReader {
             columns: UserNamespace::get_table_names()
                 .into_iter()
                 .chain(KernelNamespace::get_table_names())
+                .chain(vec![StateRootHashes::table_name()])
                 .collect(),
         }
     }
@@ -87,10 +91,21 @@ impl HistoricalStateReader {
         )
     }
 
+    /// Get the serialized root hash for a given version.
+    pub fn get_serialized_root_hash(
+        &self,
+        version: SlotNumber,
+    ) -> anyhow::Result<Option<SchemaValue>> {
+        let key = (version, STATE_ROOT_HASH_SINGLETON);
+        let value = self.db.get_prev::<StateRootHashes>(&key)?;
+        Ok(value.map(|(_, value)| value))
+    }
+
     /// Collects a sequence of key-value pairs into [`SchemaBatch`].
     pub fn materialize_values(
         user_changes: impl IntoIterator<Item = (SchemaKey, Option<SchemaValue>)>,
         kernel_changes: impl IntoIterator<Item = (SchemaKey, Option<SchemaValue>)>,
+        root_hash: SchemaValue,
         version: SlotNumber,
     ) -> anyhow::Result<SchemaBatch> {
         let mut batch = SchemaBatch::default();
@@ -111,6 +126,53 @@ impl HistoricalStateReader {
                 "User namespace got updated without kernel namespace, but always should be."
             );
         }
+
+        batch.put::<StateRootHashes>(&(version, STATE_ROOT_HASH_SINGLETON), &root_hash)?;
         Ok(batch)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+
+    #[test]
+    fn verify_last_version_bumper_properly() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let rocksdb = Arc::new(
+            HistoricalStateReader::get_rockbound_options()
+                .default_setup_db_in_path(tempdir.path())
+                .unwrap(),
+        );
+
+        let key1 = b"AAA";
+        let key2 = b"BBB";
+
+        let writes = vec![
+            vec![(key2.to_vec(), Some(vec![1, 1, 1]))],
+            vec![(key1.to_vec(), Some(vec![2, 2, 2]))],
+            vec![(key1.to_vec(), Some(vec![3, 3, 3]))],
+            vec![(key1.to_vec(), Some(vec![4, 4, 4]))],
+        ];
+        for (idx, kernel_writes) in writes.into_iter().enumerate() {
+            let reader = DeltaReader::new(rocksdb.clone(), Vec::new());
+            let historical_state = HistoricalStateReader::with_delta_reader(reader).unwrap();
+            let slot_number = SlotNumber::new(idx as u64);
+            assert_eq!(slot_number.checked_sub(1), historical_state.last_version());
+            assert_eq!(slot_number, historical_state.get_next_version());
+
+            let root_hash = idx.to_be_bytes().to_vec();
+
+            let changes = HistoricalStateReader::materialize_values(
+                vec![],
+                kernel_writes,
+                root_hash,
+                slot_number,
+            )
+            .unwrap();
+            rocksdb.write_schemas(&changes).unwrap();
+        }
     }
 }
