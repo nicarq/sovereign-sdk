@@ -8,7 +8,7 @@ use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::optimistic::Attestation;
 use sov_rollup_interface::zk::{CryptoSpec, StateTransitionPublicData, Zkvm};
 use sov_rollup_interface::BasicAddress;
-use sov_state::{Storage, StorageProof, Witness};
+use sov_state::{Storage, StorageProof};
 
 use crate::gas::Gas;
 use crate::higher_kinded_types::Generic;
@@ -80,9 +80,6 @@ pub trait Spec:
 
     /// The cryptographic primitives used by the rollup.
     type CryptoSpec: CryptoSpecExt;
-
-    /// A structure containing the non-deterministic inputs from the prover to the zk-circuit
-    type Witness: Witness;
 }
 
 /// A helper trait which is blanket implemented for all `CryptoSpec` types that

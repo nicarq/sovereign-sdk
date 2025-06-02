@@ -3,7 +3,7 @@ use sov_rollup_interface::da::DaSpec;
 #[cfg(feature = "native")]
 use sov_rollup_interface::execution_mode::{Native, WitnessGeneration};
 use sov_rollup_interface::zk::{CryptoSpec, ZkVerifier, Zkvm};
-use sov_state::{ArrayWitness, DefaultStorageSpec};
+use sov_state::DefaultStorageSpec;
 
 use crate::higher_kinded_types::{Generic, HigherKindedHelper};
 use crate::{Address, GasUnit, Spec};
@@ -92,8 +92,6 @@ where
     type OuterZkvm = OuterZkvm;
 
     type CryptoSpec = <InnerZkvm::Verifier as ZkVerifier>::CryptoSpec;
-
-    type Witness = ArrayWitness;
 }
 
 #[cfg(feature = "native")]
@@ -115,10 +113,6 @@ where
     type OuterZkvm = OuterZkvm;
 
     type CryptoSpec = <InnerZkvm::Verifier as ZkVerifier>::CryptoSpec;
-
-    // This TODO is for performance enhancement, not a security concern.
-    // TODO: Replace Array witness with an empty struct
-    type Witness = ArrayWitness;
 }
 
 #[cfg(any(not(feature = "native"), feature = "test-utils"))]
@@ -138,6 +132,4 @@ where
     type OuterZkvm = OuterZkvm;
 
     type CryptoSpec = <InnerZkvm::Verifier as ZkVerifier>::CryptoSpec;
-
-    type Witness = ArrayWitness;
 }
