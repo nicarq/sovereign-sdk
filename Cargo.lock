@@ -10216,6 +10216,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "base64 0.22.1",
  "borsh",
  "clap",
  "const-rollup-config",

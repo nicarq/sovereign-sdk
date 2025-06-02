@@ -80,6 +80,7 @@ reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "ea25df7e
 futures = "0.3"
 demo-stf-json-client = { path = "./stf/demo-stf-json-client", default-features = false }
 
+base64 = { workspace = true }
 hex = "0.4.3"
 sha2 = "0.10.8"
 tempfile = "3.12"

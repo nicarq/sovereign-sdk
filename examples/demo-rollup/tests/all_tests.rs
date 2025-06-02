@@ -5,5 +5,6 @@ mod forced_sequencer_registration;
 mod prover;
 mod rest_api;
 mod restart;
+mod resync;
 mod test_helpers;
 mod wallet;
