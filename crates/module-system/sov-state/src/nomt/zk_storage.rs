@@ -58,7 +58,8 @@ impl<S: MerkleProofSpec> NomtVerifierStorage<S> {
                     }
                 }
                 Some(node_leaf) => {
-                    let value_hash = node_leaf.val_hash;
+                    let authenticated_write = node_leaf.combine_val_hash_and_size();
+                    let value_hash = S::Hasher::digest(&authenticated_write).into();
                     let leaf = LeafData {
                         key_path: key_hash,
                         value_hash,
@@ -78,7 +79,11 @@ impl<S: MerkleProofSpec> NomtVerifierStorage<S> {
             .map(|(key, value)| {
                 (
                     S::Hasher::digest(key.as_ref()).into(),
-                    value.map(|slot_value| S::Hasher::digest(slot_value.value()).into()),
+                    value.map(|slot_value| {
+                        // Authenticated write is hash of a combination of size and orignal value hash.
+                        S::Hasher::digest(slot_value.combine_val_hash_and_size::<S::Hasher>())
+                            .into()
+                    }),
                 )
             })
             .collect::<Vec<(KeyPath, Option<ValueHash>)>>();

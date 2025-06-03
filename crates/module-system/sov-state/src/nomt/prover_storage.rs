@@ -104,7 +104,7 @@ where
         let version = self.get_version_to_use(version)?;
         match N::NAMESPACE {
             Namespace::User => {
-                let mut historical_value = self
+                let historical_value = self
                     .historical_state
                     .get_value_option_by_key::<UserNamespace>(version, key.as_ref())
                     .expect("Underlying user I/O failed");
@@ -115,15 +115,16 @@ where
                         .expect("Failed to build user session");
                     let key_path = S::Hasher::digest(key.as_ref()).into();
                     let nomt_value = nomt_session.read(key_path).unwrap();
-                    // assert_eq!(nomt_user_value, user_value);
-                    // Rebinding values, because of https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/2952
-                    historical_value = nomt_value;
+                    let historical_value_hash = historical_value.as_ref().map(|v| {
+                        SlotValue::from(v.to_vec()).combine_val_hash_and_size::<S::Hasher>()
+                    });
+                    assert_eq!(nomt_value, historical_value_hash);
                 }
 
                 historical_value
             }
             Namespace::Kernel => {
-                let mut historical_value = self
+                let historical_value = self
                     .historical_state
                     .get_value_option_by_key::<KernelNamespace>(version, key.as_ref())
                     .expect("Underlying user I/O failed");
@@ -134,9 +135,10 @@ where
                         .expect("Failed to build kernel session");
                     let key_path = S::Hasher::digest(key.as_ref()).into();
                     let nomt_value = nomt_session.read(key_path).unwrap();
-                    // assert_eq!(nomt_user_value, user_value);
-                    // Rebinding values, because of https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/2952
-                    historical_value = nomt_value;
+                    let historical_value_hash = historical_value.as_ref().map(|v| {
+                        SlotValue::from(v.to_vec()).combine_val_hash_and_size::<S::Hasher>()
+                    });
+                    assert_eq!(nomt_value, historical_value_hash);
                 }
 
                 historical_value
@@ -182,27 +184,29 @@ fn to_nomt_accesses<S: MerkleProofSpec>(
     }
 
     // Writes
-    for (key, write_val) in ordered_writes {
+    for (key, original_write) in ordered_writes {
         let key_hash: nomt::trie::KeyPath = S::Hasher::digest(key.as_ref()).into();
         session.warm_up(key_hash);
 
-        let write_value = write_val.as_ref().map(|v| v.value().to_vec());
+        let authenticated_write = original_write
+            .as_ref()
+            .map(|v| v.combine_val_hash_and_size::<S::Hasher>());
 
         match merged_accesses.entry(key_hash) {
             Entry::Vacant(vacant) => {
                 // Also warming up all writes. `ReadThenWrite` has been warmed up during reads collection.
                 session.warm_up(key_hash);
-                vacant.insert(nomt::KeyReadWrite::Write(write_value));
+                vacant.insert(nomt::KeyReadWrite::Write(authenticated_write));
             }
             Entry::Occupied(occupied) => match occupied.remove() {
                 nomt::KeyReadWrite::Read(read_value) => {
                     merged_accesses.insert(
                         key_hash,
-                        nomt::KeyReadWrite::ReadThenWrite(read_value, write_value),
+                        nomt::KeyReadWrite::ReadThenWrite(read_value, authenticated_write),
                     );
                 }
                 _ => {
-                    anyhow::bail!("Duplicate key write in kernel state: {:?}", key_hash);
+                    anyhow::bail!("Duplicate key write in state: {:?}", key_hash);
                 }
             },
         }
