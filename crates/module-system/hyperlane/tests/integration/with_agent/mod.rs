@@ -1,3 +1,22 @@
+//! End to end tests for hyperlane implementation that utilize real relayer, validators and evm devnet.
+//!
+//! The docker setup uses a single container which provides all the needed tools.
+//! It comes from <https://github.com/eigerco/hyperlane-monorepo/blob/main/hyperlane.Dockerfile>.
+//!
+//! To build it:
+//! ```bash
+//! git clone https://github.com/eigerco/hyperlane-monorepo
+//! cd hyperlane-monorepo
+//! ./build.sh
+//! ```
+//!
+//! Tests will always fetch the latest shipped image. To run tests with locally built image:
+//! ```bash
+//! export CUSTOM_HLP_DOCKER_IMAGE=hyperlane
+//! ```
+//!
+//! For more information about the setup, check the [`HyperlaneBuilder`].
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
