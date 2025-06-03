@@ -29,25 +29,28 @@ impl InitializableNativeStorage for TestNativeStorage {
 
 #[cfg(test)]
 pub type H = sha2::Sha256;
+#[cfg(test)]
+/// Default slot hash for tests.
+pub type SlotHash = sov_mock_da::MockHash;
 
 /// Simple container fo unlocking testing of NomtStorageManager without relying on sov-state.
 #[cfg(test)]
 #[allow(missing_docs)]
 pub struct TestNomtStorage {
-    pub state_session: crate::state_db_nomt::StateSession<H>,
+    pub state_session_builder: crate::state_db_nomt::NomtSessionBuilder<H, SlotHash>,
     pub historical_state: crate::historical_state::HistoricalStateReader,
     pub accessory_db: AccessoryDb,
 }
 
 #[cfg(test)]
-impl crate::storage_manager::InitializableNativeNomtStorage<H> for TestNomtStorage {
+impl crate::storage_manager::InitializableNativeNomtStorage<H, SlotHash> for TestNomtStorage {
     fn new(
-        state_db: crate::state_db_nomt::StateSession<H>,
+        state_session_builder: crate::state_db_nomt::NomtSessionBuilder<H, SlotHash>,
         historical_state: crate::historical_state::HistoricalStateReader,
         accessory_db: AccessoryDb,
     ) -> Self {
         TestNomtStorage {
-            state_session: state_db,
+            state_session_builder,
             historical_state,
             accessory_db,
         }

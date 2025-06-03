@@ -11113,6 +11113,7 @@ dependencies = [
  "sov-modules-macros",
  "sov-rollup-interface",
  "test-strategy",
+ "tracing",
 ]
 
 [[package]]

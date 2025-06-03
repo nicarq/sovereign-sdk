@@ -203,7 +203,7 @@ fn test_several_jumping_forks() {
 
 #[test]
 fn test_removed_fork_view() {
-    removed_fork_data_view::<Sm>(true);
+    removed_fork_data_view::<Sm>();
 }
 
 // This test is similar to `removed_fork_data_view`,

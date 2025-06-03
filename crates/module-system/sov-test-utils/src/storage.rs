@@ -7,6 +7,7 @@ use sov_db::accessory_db::AccessoryDb;
 use sov_db::historical_state::HistoricalStateReader;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::state_db::StateDb;
+use sov_db::state_db_nomt::get_session_builder_from_committed;
 pub use sov_db::storage_manager::{
     NativeChangeSet, NativeStorageManager, NomtChangeSet, NomtStorageManager,
 };
@@ -19,7 +20,7 @@ use sov_state::{
 };
 use tempfile::TempDir;
 
-use crate::TestStorageSpec;
+use crate::{TestSlotHash, TestStorageSpec};
 
 /// Implementation of [`HierarchicalStorageManager`] that provides [`ProverStorage`]
 /// and commits changes directly to the underlying database.
@@ -118,7 +119,7 @@ impl SimpleLedgerStorageManager {
         Self { db: Arc::new(db) }
     }
 
-    /// Initialize new instance at unspecified path.
+    /// Initialize a new instance at an unspecified path.
     pub fn new_any_path() -> Self {
         let dir = tempfile::tempdir().unwrap();
         Self::new(dir.path())
@@ -129,7 +130,7 @@ impl SimpleLedgerStorageManager {
         DeltaReader::new(self.db.clone(), Vec::new())
     }
 
-    /// Write changes directly to underlying db
+    /// Write changes directly to the underlying db
     pub fn commit(&mut self, ledger_change_set: SchemaBatch) {
         self.db.write_schemas(&ledger_change_set).unwrap();
     }
@@ -140,7 +141,7 @@ impl SimpleLedgerStorageManager {
 pub struct SimpleNomtStorageManager<S: MerkleProofSpec> {
     // Holds ownership of [`Tempdir`] so it is not removed prematurely
     _dir: TempDir,
-    state: sov_db::state_db_nomt::StateDb<S::Hasher>,
+    state: Arc<sov_db::state_db_nomt::NomtStateDb<S::Hasher>>,
     historical_state: Arc<rockbound::DB>,
     accessory: Arc<rockbound::DB>,
     root: StorageRoot<S>,
@@ -150,7 +151,7 @@ impl<S: MerkleProofSpec> SimpleNomtStorageManager<S> {
     /// Initialize a new instance of [`SimpleNomtStorageManager`] in a temporary directory.
     pub fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
-        let state_db = sov_db::state_db_nomt::StateDb::new(dir.path())
+        let state_db = sov_db::state_db_nomt::NomtStateDb::new(dir.path())
             .expect("Failed to initialize StateDb for NOMT");
         let historical_state_rocksdb = HistoricalStateReader::get_rockbound_options()
             .default_setup_db_in_path(dir.path())
@@ -161,19 +162,16 @@ impl<S: MerkleProofSpec> SimpleNomtStorageManager<S> {
 
         Self {
             _dir: dir,
-            state: state_db,
+            state: Arc::new(state_db),
             historical_state: Arc::new(historical_state_rocksdb),
             accessory: Arc::new(accessory_rocksdb),
-            root: <NomtProverStorage<S> as Storage>::PRE_GENESIS_ROOT,
+            root: <NomtProverStorage<S, TestSlotHash> as Storage>::PRE_GENESIS_ROOT,
         }
     }
 
     /// Create a new [`NomtProverStorage`] that has a view only on data written to disc.
-    pub fn create_storage(&self) -> NomtProverStorage<S> {
-        let state_session = self
-            .state
-            .begin_session_from_committed()
-            .expect("Failed to begin state session");
+    pub fn create_storage(&self) -> NomtProverStorage<S, TestSlotHash> {
+        let state_session_builder = get_session_builder_from_committed(self.state.clone());
         let historical_state_reader = HistoricalStateReader::with_delta_reader(DeltaReader::new(
             self.historical_state.clone(),
             Vec::new(),
@@ -183,7 +181,7 @@ impl<S: MerkleProofSpec> SimpleNomtStorageManager<S> {
             AccessoryDb::with_reader(DeltaReader::new(self.accessory.clone(), Vec::new()))
                 .expect("Failed to create accessory db");
 
-        NomtProverStorage::new(state_session, historical_state_reader, accessory_db)
+        NomtProverStorage::create(state_session_builder, historical_state_reader, accessory_db)
     }
 
     /// Commit [`NomtChangeSet`] to disk.
@@ -262,7 +260,7 @@ impl ForklessStorageManager for SimpleStorageManager<TestStorageSpec> {
 }
 
 impl ForklessStorageManager for SimpleNomtStorageManager<TestStorageSpec> {
-    type Storage = NomtProverStorage<TestStorageSpec>;
+    type Storage = NomtProverStorage<TestStorageSpec, TestSlotHash>;
 
     fn current_root(&self) -> <Self::Storage as Storage>::Root {
         self.root

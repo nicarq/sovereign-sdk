@@ -27,6 +27,7 @@ pub use sov_modules_rollup_blueprint::logging::initialize_logging;
 pub use sov_modules_stf_blueprint::get_gas_used;
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::execution_mode::{Native, Zk};
 use sov_state::nomt::prover_storage::NomtProverStorage;
 pub use sov_state::ProverStorage;
@@ -67,6 +68,8 @@ pub type TestStorageSpec = DefaultStorageSpec<TestHasher>;
 /// The default test spec. Uses a [`MockZkvm`] for both inner and outer vm verification.
 /// Uses [`MockZkvmCryptoSpec`] for cryptographic primitives.
 pub type TestSpec = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
+/// Shortcut to [`sov_mock_da::MockHash`];
+pub type TestSlotHash = <MockDaSpec as DaSpec>::SlotHash;
 /// The default test spec for NOMT. Uses a [`MockZkvm`] for both inner and outer vm verification.
 /// Uses [`MockZkvmCryptoSpec`] for cryptographic primitives.
 pub type TestNomtSpec = ConfigurableSpec<
@@ -76,7 +79,7 @@ pub type TestNomtSpec = ConfigurableSpec<
     Address,
     Native,
     MockZkvmCryptoSpec,
-    NomtProverStorage<TestStorageSpec>,
+    NomtProverStorage<TestStorageSpec, TestSlotHash>,
 >;
 /// The default test spec for ZK. Uses a [`MockZkvm`] for both inner and outer vm verification.
 pub type ZkTestSpec = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Zk>;

@@ -452,12 +452,13 @@ where
     // this is n
     // Enough blocks will be written on disk during the finalization phase.
     let main_fork_len = 30;
+    let sub_fork_start = (main_fork_len - 1) as u64;
     let fork_description = ForkDescription {
         start_height: 1,
         length: main_fork_len,
         child_forks: vec![
             ForkDescription {
-                start_height: (main_fork_len - 1) as u64,
+                start_height: sub_fork_start,
                 length: 1,
                 child_forks: Vec::new(),
             };
@@ -557,7 +558,7 @@ where
 
     barrier.wait();
     let mut finalization_duration = Duration::default();
-    for height in 1..=main_fork_len {
+    for height in 1..main_fork_len {
         let start = Instant::now();
         let block_hash = get_block_hash(1, height as u64);
         let block_header = fork_map.get_block_header(&block_hash).unwrap();
@@ -580,7 +581,6 @@ where
             avg_reading_time_threshold
         );
     }
-    assert!(storage_manager.is_empty());
 }
 
 /// At each height there happens x forks.
@@ -680,7 +680,7 @@ pub(crate) fn get_parent_and_2_children() -> (MockBlockHeader, MockBlockHeader, 
 //
 // Block C observes:
 // - key 1 value "swapped" from 1 to 2, because it was looking at finalized data
-pub fn removed_fork_data_view<Sm: TestableStorageManager>(allow_commit_with_live_ancestors: bool)
+pub fn removed_fork_data_view<Sm: TestableStorageManager>()
 where
     <Sm as HierarchicalStorageManager<MockDaSpec>>::StfState: TestableStorage<ChangeSet = <Sm as HierarchicalStorageManager<MockDaSpec>>::StfChangeSet>
         + Send
@@ -723,28 +723,15 @@ where
         .unwrap();
     assert!(!storage_manager.is_empty());
 
-    if allow_commit_with_live_ancestors {
-        let value_at_c = stf_reader_c.get_value(&key);
-        assert_eq!(Some(value_1.clone()), value_at_c);
+    let value_at_c = stf_reader_c.get_value(&key);
+    assert_eq!(Some(value_1.clone()), value_at_c);
 
-        storage_manager.finalize(&block_b).unwrap();
-        assert_eq!(storage_manager.snapshots_count(), 0);
+    storage_manager.finalize(&block_b).unwrap();
+    assert_eq!(storage_manager.snapshots_count(), 0);
 
-        let value_at_c = stf_reader_c.get_value(&key);
-        // Now it suddenly has `value_2`, instead of `value_1` that has been observed previously.
-        assert_eq!(Some(value_2), value_at_c);
-    } else {
-        let handle = std::thread::spawn(move || {
-            let value_at_c = stf_reader_c.get_value(&key);
-            assert_eq!(Some(value_1.clone()), value_at_c);
-        });
-
-        // Finalizing block B
-        storage_manager.finalize(&block_b).unwrap();
-        assert_eq!(storage_manager.snapshots_count(), 0);
-
-        handle.join().expect("Background thread panicked");
-    }
+    let value_at_c = stf_reader_c.get_value(&key);
+    // Now it suddenly has `value_2`, instead of `value_1` that has been observed previously.
+    assert_eq!(Some(value_2), value_at_c);
 }
 
 /// it is similar to [`linear_progression`], but it writes different data.

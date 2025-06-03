@@ -9,7 +9,6 @@ use super::{NomtChangeSet, NomtStorageManager, StateFinishedSession};
 use crate::accessory_db::AccessoryDb;
 use crate::historical_state::HistoricalStateReader;
 use crate::namespaces::{KernelNamespace, UserNamespace};
-use crate::state_db_nomt::StateSession;
 use crate::storage_manager::tests::arbitrary::ForkDescription;
 use crate::storage_manager::tests::data_helpers::verify_accessory_db;
 use crate::storage_manager::tests::generic_tests::{
@@ -36,14 +35,13 @@ impl TestableStorage for TestNomtStorage {
 
     fn materialize_from_key_values(self, items: &[(Vec<u8>, Option<Vec<u8>>)]) -> Self::ChangeSet {
         let TestNomtStorage {
-            state_session:
-                StateSession {
-                    user: user_session,
-                    kernel: kernel_session,
-                },
+            state_session_builder,
             historical_state: _,
             accessory_db: _,
         } = self;
+
+        let user_session = state_session_builder.begin_user_session().unwrap();
+        let kernel_session = state_session_builder.begin_kernel_session().unwrap();
 
         let mut state_writes = Vec::with_capacity(items.len());
         let mut accessory_writes = Vec::with_capacity(items.len());
@@ -86,8 +84,14 @@ impl TestableStorage for TestNomtStorage {
     fn get_value(&self, key: &[u8]) -> Option<Vec<u8>> {
         let schema_key = key.to_vec();
         let key_path = KeyPath::from(sha2::Sha256::digest(key));
-        let kernel_value = self.state_session.kernel.read(key_path).unwrap();
-        let user_value = self.state_session.user.read(key_path).unwrap();
+        let kernel_value = {
+            let kernel_session = self.state_session_builder.begin_kernel_session().unwrap();
+            kernel_session.read(key_path).unwrap()
+        };
+        let user_value = {
+            let user_session = self.state_session_builder.begin_user_session().unwrap();
+            user_session.read(key_path).unwrap()
+        };
         assert_eq!(kernel_value, user_value);
 
         let accessory_value = self
@@ -121,13 +125,13 @@ impl TestableStorageManager for Sm {
 
     fn verify_stf_storage(stf_storage: &Self::StfState, expected_values: &[(u64, MockHash)]) {
         for (expected_height, expected_hash) in expected_values {
-            let key_path: KeyPath = sha2::Sha256::digest(expected_height.to_be_bytes()).into();
-            let actual_value = stf_storage.state_session.kernel.read(key_path).unwrap();
-            assert_eq!(actual_value, Some(expected_hash.0.to_vec()));
-            let user_value = stf_storage.state_session.user.read(key_path).unwrap();
-            assert_eq!(actual_value, user_value);
+            let key = expected_height.to_be_bytes().to_vec();
+            let actual_value = stf_storage.get_value(&key);
+            let expected_value = Some(expected_hash.0.to_vec());
+            assert_eq!(actual_value, expected_value);
         }
 
+        // TODO: Verify historical state too!
         verify_accessory_db(&stf_storage.accessory_db, expected_values);
     }
 
@@ -211,7 +215,7 @@ fn test_several_jumping_forks() {
 
 #[test]
 fn test_removed_fork_view() {
-    removed_fork_data_view::<Sm>(false);
+    removed_fork_data_view::<Sm>();
 }
 
 #[test]

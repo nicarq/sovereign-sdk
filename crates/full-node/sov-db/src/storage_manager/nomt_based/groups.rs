@@ -1,4 +1,6 @@
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::marker::PhantomData;
+use std::sync::{Arc, RwLock};
 
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::SchemaBatch;
@@ -7,40 +9,50 @@ use sov_rollup_interface::reexports::digest;
 use crate::accessory_db::AccessoryDb;
 use crate::historical_state::HistoricalStateReader;
 use crate::ledger_db::LedgerDb;
-use crate::state_db_nomt::{StateDb, StateOverlay};
+use crate::state_db_nomt::{NomtSessionBuilder, NomtStateDb, StateOverlay};
 use crate::storage_manager::{update_ledger_finalized_height, InitializableNativeNomtStorage};
 
-pub(crate) struct DbGroup<H> {
-    state: StateDb<H>,
+pub(crate) struct DbGroup<H, K> {
+    state: Arc<NomtStateDb<H>>,
     historical_state: Arc<rockbound::DB>,
     accessory: Arc<rockbound::DB>,
     ledger: Arc<rockbound::DB>,
+    phantom_ref: PhantomData<K>,
 }
 
-impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> DbGroup<H> {
+impl<H, K> DbGroup<H, K>
+where
+    H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync,
+    K: Eq + std::hash::Hash + Clone,
+{
     pub(crate) fn new(path: std::path::PathBuf) -> anyhow::Result<Self> {
-        let state_db = StateDb::<H>::new(&path)?;
+        let state_db = NomtStateDb::<H>::new(&path)?;
         let historical_state =
             HistoricalStateReader::get_rockbound_options().default_setup_db_in_path(&path)?;
         let accessory_rocksdb =
             AccessoryDb::get_rockbound_options().default_setup_db_in_path(&path)?;
         let ledger_rocksdb = LedgerDb::get_rockbound_options().default_setup_db_in_path(&path)?;
         Ok(Self {
-            state: state_db,
+            state: Arc::new(state_db),
             historical_state: Arc::new(historical_state),
             accessory: Arc::new(accessory_rocksdb),
             ledger: Arc::new(ledger_rocksdb),
+            phantom_ref: Default::default(),
         })
     }
 
-    pub(crate) fn commit(&mut self, snapshot: SnapshotGroup) -> anyhow::Result<()> {
-        let SnapshotGroup {
-            state,
-            historical_state,
-            accessory,
-            ledger,
-        } = snapshot;
+    pub(crate) fn commit(&mut self, group: CommitGroup) -> anyhow::Result<()> {
+        let CommitGroup {
+            nomt: state,
+            rockbound:
+                SnapshotGroup {
+                    historical_state,
+                    accessory,
+                    ledger,
+                },
+        } = group;
 
+        // Note: failure handling and data recovery will be implemented later.
         self.state.commit(state)?;
         self.accessory.write_schemas(&accessory)?;
         // Ledger goes last, as its data is used during the start.
@@ -52,34 +64,41 @@ impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> DbGroup
         Ok(())
     }
 
-    pub(crate) fn create_storage<S: InitializableNativeNomtStorage<H>>(
+    pub(crate) fn create_storage<S: InitializableNativeNomtStorage<H, K>>(
         &self,
-        rev_snapshots: &[&SnapshotGroup],
+        // Snapshot refs are in reveresed chronological order.
+        relevant_snapshot_refs: Vec<K>,
+        rockbound_snapshots: &HashMap<K, SnapshotGroup>,
+        nomt_snapshots: Arc<RwLock<HashMap<K, StateOverlay>>>,
     ) -> anyhow::Result<(S, DeltaReader)> {
-        let mut historical_state_snapshots = Vec::with_capacity(rev_snapshots.len());
-        let mut accessory_snapshots = Vec::with_capacity(rev_snapshots.len());
-        let mut ledger_snapshots = Vec::with_capacity(rev_snapshots.len());
-        let mut state_overlays = Vec::with_capacity(rev_snapshots.len());
+        let mut historical_state_snapshots = Vec::with_capacity(relevant_snapshot_refs.len());
+        let mut accessory_snapshots = Vec::with_capacity(relevant_snapshot_refs.len());
+        let mut ledger_snapshots = Vec::with_capacity(relevant_snapshot_refs.len());
 
-        for snapshot in rev_snapshots {
+        // rockbound-based readers expect snapshots in chronological order,
+        // so we iterate in reverse of the passed parameter
+        // (in normal chronological order).
+        for snapshot_ref in relevant_snapshot_refs.iter().rev() {
+            let snapshot = rockbound_snapshots.get(snapshot_ref).unwrap();
             historical_state_snapshots.push(snapshot.historical_state.clone());
             accessory_snapshots.push(snapshot.accessory.clone());
             ledger_snapshots.push(snapshot.ledger.clone());
-            state_overlays.push(&snapshot.state);
         }
 
+        // NOMT-based readers expect snapshots in reversed chronological order,
+        // the same as it was passed to the function.
+        let state_session_builder =
+            NomtSessionBuilder::new(self.state.clone(), relevant_snapshot_refs, nomt_snapshots);
         let historical_state_reader =
             DeltaReader::new(self.historical_state.clone(), historical_state_snapshots);
         let historical_state_mapper =
             HistoricalStateReader::with_delta_reader(historical_state_reader)?;
 
-        let state_session = self.state.begin_session(state_overlays)?;
-
         let accessory_reader = DeltaReader::new(self.accessory.clone(), accessory_snapshots);
         let accessory_db = AccessoryDb::with_reader(accessory_reader)?;
         let ledger_reader = DeltaReader::new(self.ledger.clone(), ledger_snapshots);
 
-        let storage = S::new(state_session, historical_state_mapper, accessory_db);
+        let storage = S::new(state_session_builder, historical_state_mapper, accessory_db);
         Ok((storage, ledger_reader))
     }
 
@@ -89,8 +108,14 @@ impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> DbGroup
 }
 
 pub(crate) struct SnapshotGroup {
-    pub(crate) state: StateOverlay,
     pub(crate) historical_state: Arc<SchemaBatch>,
     pub(crate) accessory: Arc<SchemaBatch>,
     pub(crate) ledger: Arc<SchemaBatch>,
+}
+
+pub(crate) struct CommitGroup {
+    // State
+    pub(crate) nomt: StateOverlay,
+    // The rest.
+    pub(crate) rockbound: SnapshotGroup,
 }

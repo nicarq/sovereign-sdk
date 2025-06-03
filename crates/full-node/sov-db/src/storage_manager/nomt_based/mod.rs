@@ -6,7 +6,7 @@ mod tests;
 
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::SchemaBatch;
@@ -16,8 +16,8 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 
 use crate::accessory_db::AccessoryDb;
 use crate::historical_state::HistoricalStateReader;
-use crate::state_db_nomt::{StateOverlay, StateSession};
-use crate::storage_manager::nomt_based::groups::{DbGroup, SnapshotGroup};
+use crate::state_db_nomt::{NomtSessionBuilder, StateOverlay};
+use crate::storage_manager::nomt_based::groups::{CommitGroup, DbGroup, SnapshotGroup};
 
 #[allow(missing_docs)]
 pub struct StateFinishedSession {
@@ -74,24 +74,30 @@ impl Default for NomtChangeSet {
 }
 
 /// The only thing [`NomtStorageManager`] needs to know about the thing it builds.
-pub trait InitializableNativeNomtStorage<H>: Sized + Send + Sync {
+pub trait InitializableNativeNomtStorage<H, K>: Sized + Send + Sync
+where
+    K: Clone,
+{
     #[allow(missing_docs)]
     fn new(
-        state_db: StateSession<H>,
+        state_db: NomtSessionBuilder<H, K>,
         historical_state: HistoricalStateReader,
         accessory_db: AccessoryDb,
     ) -> Self;
 }
 
 /// Implementation of [`HierarchicalStorageManager`] based on NOMT.
-pub struct NomtStorageManager<Da: DaSpec, H, S: InitializableNativeNomtStorage<H>> {
+pub struct NomtStorageManager<Da: DaSpec, H, S: InitializableNativeNomtStorage<H, Da::SlotHash>> {
     // L1 forks representation
     // Chain: prev_block -> child_blocks
     chain_forks: HashMap<Da::SlotHash, Vec<Da::SlotHash>>,
     // Reverse: child_block -> parent
     blocks_to_parent: HashMap<Da::SlotHash, Da::SlotHash>,
-    snapshots: HashMap<Da::SlotHash, SnapshotGroup>,
-    db_group: DbGroup<H>,
+
+    rockbound_snapshots: HashMap<Da::SlotHash, SnapshotGroup>,
+    nomt_snapshots: Arc<RwLock<HashMap<Da::SlotHash, StateOverlay>>>,
+
+    db_group: DbGroup<H, Da::SlotHash>,
 
     _phantom_s: PhantomData<S>,
 }
@@ -100,7 +106,7 @@ impl<Da, H, S> NomtStorageManager<Da, H, S>
 where
     Da: DaSpec,
     H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync,
-    S: InitializableNativeNomtStorage<H>,
+    S: InitializableNativeNomtStorage<H, Da::SlotHash>,
 {
     /// Create a new [` NomtStorageManager`].
     pub fn new(path: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
@@ -111,7 +117,8 @@ where
         Ok(Self {
             chain_forks: Default::default(),
             blocks_to_parent: Default::default(),
-            snapshots: Default::default(),
+            rockbound_snapshots: Default::default(),
+            nomt_snapshots: Arc::new(Default::default()),
             db_group,
             _phantom_s: Default::default(),
         })
@@ -119,81 +126,54 @@ where
 
     // build a storage up to the given block_hash (inclusive).
     fn create_state_up_to(&self, block_hash: Da::SlotHash) -> anyhow::Result<(S, DeltaReader)> {
-        // Snapshots are in reversed order
-        let mut rev_snapshots = Vec::new();
+        tracing::trace!(%block_hash, "Creating storage up to block hash");
+        // References are in reversed chronological order,
+        // starting from tip of the chain going back to last finalized header
 
-        let mut current_hash = block_hash;
-        while let Some(snapshot) = self.snapshots.get(&current_hash) {
-            rev_snapshots.push(snapshot);
-            match self.blocks_to_parent.get(&current_hash) {
-                None => {
-                    break;
-                }
-                Some(parent_hash) => {
-                    current_hash = parent_hash.clone();
+        let mut rev_references = Vec::new();
+
+        let mut current_hash = block_hash.clone();
+
+        {
+            while self.rockbound_snapshots.contains_key(&current_hash) {
+                rev_references.push(current_hash.clone());
+                match self.blocks_to_parent.get(&current_hash) {
+                    None => {
+                        break;
+                    }
+                    Some(parent_hash) => {
+                        current_hash = parent_hash.clone();
+                    }
                 }
             }
         }
 
-        self.db_group.create_storage(&rev_snapshots)
-    }
+        tracing::trace!(?rev_references, %block_hash, "Collected hashes storage up to block hash");
 
-    fn finalize_by_hash_pair(
-        &mut self,
-        prev_block_hash: Da::SlotHash,
-        current_block_hash: Da::SlotHash,
-    ) -> anyhow::Result<()> {
-        tracing::trace!(
-            %prev_block_hash,
-            %current_block_hash,
-            "Finalizing block by pair of hashes"
-        );
-        if let Some(grand_parent) = self.blocks_to_parent.remove(&prev_block_hash) {
-            self.finalize_by_hash_pair(grand_parent, prev_block_hash.clone())?;
-        }
-        let snapshot = self.snapshots.remove(&current_block_hash).ok_or_else(|| {
-            anyhow::anyhow!(
-                "No changes has been previously saved for block header prev_hash={} next_hash={}",
-                prev_block_hash,
-                current_block_hash,
-            )
-        })?;
-
-        self.db_group.commit(snapshot)?;
-
-        self.blocks_to_parent.remove(&current_block_hash);
-
-        // All siblings of the current snapshot
-        let mut to_discard: Vec<_> = self
-            .chain_forks
-            .remove(&prev_block_hash)
-            .expect("Inconsistent chain_forks")
-            .into_iter()
-            .filter(|bh| bh != &current_block_hash)
-            .collect();
-
-        while let Some(block_hash) = to_discard.pop() {
-            let child_block_hashes = self.chain_forks.remove(&block_hash).unwrap_or_default();
-            self.blocks_to_parent
-                .remove(&block_hash)
-                .expect("Chain map inconsistency in `blocks_to_parent`");
-            if self.snapshots.remove(&block_hash).is_some() {
-                tracing::trace!(%block_hash, "Discarding snapshot");
-            }
-            to_discard.extend(child_block_hashes);
-        }
-
-        Ok(())
+        self.db_group.create_storage(
+            rev_references,
+            &self.rockbound_snapshots,
+            self.nomt_snapshots.clone(),
+        )
     }
 
     #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
-        self.snapshots.is_empty() && self.blocks_to_parent.is_empty() && self.chain_forks.is_empty()
+        self.rockbound_snapshots.is_empty()
+            && self.blocks_to_parent.is_empty()
+            && self.chain_forks.is_empty()
+            // Lock at the end, so should be trigger last in case of non-empty.
+            && self.nomt_snapshots.read().unwrap().is_empty()
     }
 
     #[cfg(test)]
     pub(crate) fn snapshots_count(&self) -> usize {
-        self.snapshots.len()
+        let nomt_snapshots_count = {
+            let nomt_snapshots = self.nomt_snapshots.read().unwrap();
+            nomt_snapshots.len()
+        };
+        assert_eq!(nomt_snapshots_count, self.rockbound_snapshots.len());
+        nomt_snapshots_count
     }
 
     #[cfg(test)]
@@ -206,7 +186,7 @@ impl<Da, H, S> HierarchicalStorageManager<Da> for NomtStorageManager<Da, H, S>
 where
     Da: DaSpec,
     H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync,
-    S: InitializableNativeNomtStorage<H>,
+    S: InitializableNativeNomtStorage<H, Da::SlotHash>,
 {
     type StfState = S;
     type StfChangeSet = NomtChangeSet;
@@ -239,9 +219,13 @@ where
         &mut self,
         block_header: &Da::BlockHeader,
     ) -> anyhow::Result<(Self::StfState, Self::LedgerState)> {
-        if !self.snapshots.contains_key(&block_header.hash()) {
-            tracing::trace!(block_header = %block_header.display(), "Creating new storage from finalized data as block header is not in the saved chain");
-            self.db_group.create_storage(&[])
+        if !self.rockbound_snapshots.contains_key(&block_header.hash()) {
+            tracing::debug!(block_header = %block_header.display(), "Creating new storage from finalized data as block header is not in the saved chain");
+            self.db_group.create_storage(
+                Vec::new(),
+                &self.rockbound_snapshots,
+                self.nomt_snapshots.clone(),
+            )
         } else {
             self.create_state_up_to(block_header.hash())
         }
@@ -263,7 +247,7 @@ where
         }
 
         let block_hash = block_header.hash();
-        if self.snapshots.contains_key(&block_hash) {
+        if self.rockbound_snapshots.contains_key(&block_hash) {
             anyhow::bail!(
                 "Attempt to save changes for the same block {} twice. Probably a bug.",
                 block_header.display()
@@ -278,14 +262,20 @@ where
 
         let state_overlay = state.into_state_overlay();
 
-        let snapshot = SnapshotGroup {
-            state: state_overlay,
+        let rockbound_snapshot = SnapshotGroup {
             historical_state: Arc::new(historical_state),
             accessory: Arc::new(accessory),
             ledger: Arc::new(ledger_change_set),
         };
 
-        self.snapshots.insert(block_hash, snapshot);
+        // Deliberately keep lock till the end of the method to maintain internal consistency.
+        let mut nomt_snapshots = self
+            .nomt_snapshots
+            .write()
+            .expect("Failed to lock snapshots");
+        nomt_snapshots.insert(block_hash.clone(), state_overlay);
+        self.rockbound_snapshots
+            .insert(block_hash, rockbound_snapshot);
 
         Ok(())
     }
@@ -295,6 +285,128 @@ where
     /// This function will block until all ongoing sessions and commits have finished.
     fn finalize(&mut self, block_header: &Da::BlockHeader) -> anyhow::Result<()> {
         tracing::trace!(block_hash = %block_header.hash(), "Finalizing changes");
-        self.finalize_by_hash_pair(block_header.prev_hash(), block_header.hash())
+
+        tracing::trace!(block_hash = %block_header.hash(), "Finalizing changes");
+
+        if !self.rockbound_snapshots.contains_key(&block_header.hash()) {
+            anyhow::bail!(
+                "No changes has been previously saved for block header prev_hash={} next_hash={}",
+                block_header.prev_hash(),
+                block_header.hash(),
+            );
+        }
+
+        // --- Step 1: Collect block hashes to be finalized and discarded ---
+        let mut finalization_segments: Vec<(Da::SlotHash, Da::SlotHash)> = Vec::new(); // (parent, child_to_keep)
+        let mut all_discard_hashes_set: std::collections::HashSet<Da::SlotHash> =
+            std::collections::HashSet::new();
+
+        // 1a. Collect finalization segments (parent, child_to_keep), ordered from oldest to newest
+        {
+            let mut current_child_hash = block_header.hash();
+            let mut current_parent_hash = block_header.prev_hash();
+            loop {
+                finalization_segments
+                    .push((current_parent_hash.clone(), current_child_hash.clone()));
+                if let Some(grand_parent_hash) = self.blocks_to_parent.get(&current_parent_hash) {
+                    current_child_hash = current_parent_hash;
+                    current_parent_hash = grand_parent_hash.clone();
+                } else {
+                    // current_parent_hash is the oldest parent in the chain we're finalizing
+                    break;
+                }
+            }
+            // TODO: Maybe not reverse here, but just iterate in reverse order.
+            finalization_segments.reverse();
+        }
+        tracing::trace!(?finalization_segments, "Collected finalization segments");
+
+        // 1b. Collect all block hashes to be discarded
+        {
+            let mut discard_queue: std::collections::VecDeque<Da::SlotHash> =
+                std::collections::VecDeque::new();
+
+            // Seed the discard_queue with initial siblings to discard
+            for (parent_hash, child_to_keep_hash) in &finalization_segments {
+                if let Some(children) = self.chain_forks.get(parent_hash) {
+                    for sibling_hash in children {
+                        // Avoid re-queueing if already processed or queued
+                        if sibling_hash != child_to_keep_hash
+                            && !all_discard_hashes_set.contains(sibling_hash)
+                        {
+                            discard_queue.push_back(sibling_hash.clone());
+                        }
+                    }
+                }
+            }
+
+            while let Some(block_to_discard) = discard_queue.pop_front() {
+                if all_discard_hashes_set.insert(block_to_discard.clone()) {
+                    // Process only if newly added
+                    if let Some(children_of_discarded) = self.chain_forks.get(&block_to_discard) {
+                        for child in children_of_discarded {
+                            if !all_discard_hashes_set.contains(child) {
+                                // Avoid re-queueing
+                                discard_queue.push_back(child.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        tracing::trace!(
+            ?all_discard_hashes_set,
+            "Collected all hashes to be discarded"
+        );
+
+        // --- Step 2: Apply changes.
+        {
+            let mut nomt_snapshots_guard = self
+                .nomt_snapshots
+                .write()
+                .expect("Failed to lock nomt_snapshots for finalization");
+
+            // Helper to remove snapshot data from both hashmaps
+            let mut remove_snapshot_payloads_fn =
+                |block_hash: &Da::SlotHash| -> Option<CommitGroup> {
+                    let nomt_snapshot = nomt_snapshots_guard.remove(block_hash);
+                    let rockbound_snapshot = self.rockbound_snapshots.remove(block_hash);
+                    match (nomt_snapshot, rockbound_snapshot) {
+                        (Some(nomt), Some(rockbound)) => Some(CommitGroup { rockbound, nomt }),
+                        (None, None) => None,
+                        _ => panic!(
+                            "Inconsistent storage manager state: discrepancy between rockbound and nomt snapshots for block hash {}",
+                            block_hash
+                        ),
+                    }
+                };
+            // 2a. Process finalized blocks
+            for (parent_hash, child_hash_to_keep) in &finalization_segments {
+                tracing::trace!(%parent_hash, %child_hash_to_keep, "Finalizing segment");
+                if let Some(snapshot_to_commit) = remove_snapshot_payloads_fn(child_hash_to_keep) {
+                    self.db_group.commit(snapshot_to_commit)?;
+                } else {
+                    // This block was expected to have a snapshot
+                    return Err(anyhow::anyhow!(
+                        "Snapshot for block to be finalized {} (child of {}) not found during finalization",
+                        child_hash_to_keep, parent_hash
+                    ));
+                }
+                self.blocks_to_parent.remove(parent_hash);
+                self.blocks_to_parent.remove(child_hash_to_keep);
+                self.chain_forks.remove(parent_hash);
+            }
+            // 2b. Process discarded blocks
+            for discarded_hash in &all_discard_hashes_set {
+                tracing::trace!(%discarded_hash, "Discarding block artifacts");
+                remove_snapshot_payloads_fn(discarded_hash);
+
+                self.blocks_to_parent.remove(discarded_hash);
+                self.chain_forks.remove(discarded_hash);
+            }
+        }
+        tracing::info!(finalized_block_hash = %block_header.hash(), "Finalization complete");
+
+        Ok(())
     }
 }
