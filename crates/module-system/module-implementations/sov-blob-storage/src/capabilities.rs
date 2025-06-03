@@ -328,7 +328,7 @@ impl<S: Spec> BlobStorage<S> {
         }
 
         // The virtual height increase is either 1 (if the delta is 0) or 2.
-        let gas_price_for_new_block = self.get_new_gas_price(delta.max(1) + 1, state);
+        let gas_price_for_new_block = self.get_new_gas_price(delta.min(2), state);
         self.retrieve_stored_blobs_and_add_to_selection(
             slots_needed_from_storage,
             &gas_price_for_new_block,
