@@ -14,7 +14,7 @@ use std::num::NonZero;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use axum::http::StatusCode;
@@ -252,11 +252,6 @@ where
     cached_events: EventCache<RuntimeEventResponse<Rt::RuntimeEvent>>,
 }
 
-struct SoftConfirmationsReplayReceipt {
-    inner_lock_start_time: std::time::Instant,
-    metrics: PreferredSequencerUpdateStateMetrics,
-}
-
 impl<S, Rt, Da> PreferredSequencer<S, Rt, Da>
 where
     S: Spec,
@@ -434,7 +429,8 @@ where
         &self,
         info: &StateUpdateInfo<S::Storage>,
         batches_to_replay: Vec<PreferredBatchToReplay>,
-    ) -> anyhow::Result<(MutexGuard<Inner<S, Rt, Da>>, SoftConfirmationsReplayReceipt)> {
+        timer_start: Instant,
+    ) -> anyhow::Result<()> {
         let batches_count = batches_to_replay.len() as u64;
         let transactions_count = batches_to_replay
             .iter()
@@ -531,82 +527,63 @@ where
             _ => trace!("No new transaction or batch state while updating node state"),
         }
 
+        trace!("Node state update complete, swapping new state into sequencer");
+        inner.executor.replace_state(executor).await;
+
+        inner.is_ready = Ok(());
+
+        inner.latest_info = info.clone();
+        let checkpoint = inner
+            .executor
+            .checkpoint
+            .clone_with_empty_witness_dropping_temp_cache();
+        inner.update_api_state(checkpoint).await;
+
         let metrics = PreferredSequencerUpdateStateMetrics {
-            duration: Duration::ZERO,
-            lock_duration: Duration::ZERO,
+            duration: timer_start.elapsed(),
+            lock_duration: inner_lock_start_time.elapsed(),
             batches_count,
             transactions_count,
             in_progress_batch: in_progress_batch_exists,
         };
 
-        trace!("Node state update complete, swapping new state into sequencer");
-        inner.executor.replace_state(executor).await;
+        sov_metrics::track_metrics(|t| {
+            t.submit(metrics);
+        });
 
-        Ok((
-            inner,
-            SoftConfirmationsReplayReceipt {
-                inner_lock_start_time,
-                metrics,
-            },
-        ))
-    }
-
-    async fn lock_inner_once_theres_enough_finalized_slots(
-        &self,
-    ) -> Result<MutexGuard<Inner<S, Rt, Da>>, SequencerNotReadyDetails> {
-        let start = std::time::Instant::now();
-
-        while start.elapsed() < Duration::from_secs(10) {
-            let inner = self.lock_inner().await;
-
-            // We cannot accept transactions until the latest finalized slot number
-            // is AT LEAST 1. Meaning, as long as we're stuck at genesis, we can't
-            // accept any transactions.
-            //
-            // If we're still stuck at genesis, we'll wait a bit and try again.
-            //
-            // > Why not just respond with an error, and refuse transactions until
-            // > the node is ready?
-            // Because plenty of scripts, examples, and tests rely on the
-            // assumption that the sequencer is immediately ready to accept
-            // transactions. So, we cheat a little bit and wait it out, so API
-            // consumers never have to deal with such erros (that is, unless we
-            // timeout, which I'd expect will never happen if the node is
-            // healthy and indexing slots as intended).
-            if inner.latest_info.latest_finalized_slot_number == SlotNumber::GENESIS {
-                warn!("Accepting a transaction, but the node must progress beyond genesis first");
-
-                // Drop the lock and give `update_state` a chance to run while we sleep.
-                drop(inner);
-                tokio::time::sleep(Duration::from_secs(1)).await;
-            } else {
-                return Ok(inner);
-            }
+        if !self.shutdown_receiver.has_changed().unwrap_or(true) {
+            inner.trigger_batch_production().await?;
         }
 
-        tracing::error!("Timed out while waiting for the node to progress beyond genesis. The sequencer can't accept transactions until that happens");
-
-        Err(SequencerNotReadyDetails::WaitingOnDa {
-            finalized_slot_number: SlotNumber::GENESIS,
-            needed_finalized_slot_number: SlotNumber::new(1),
-        })
+        Ok(())
     }
 
-    async fn lock_inner_if_ready(
-        &self,
-    ) -> Result<MutexGuard<Inner<S, Rt, Da>>, SequencerNotReadyDetails> {
-        let inner = self.lock_inner_once_theres_enough_finalized_slots().await?;
+    async fn check_readiness(
+        inner: &Inner<S, Rt, Da>,
+        max_concurrent_blobs: usize,
+    ) -> Result<(), SequencerNotReadyDetails> {
+        //let inner = self.lock_inner().await;
+
+        // We cannot accept transactions until the latest finalized slot number
+        // is AT LEAST 1. Meaning, as long as we're stuck at genesis, we can't
+        // accept any transactions.
+        if inner.latest_info.latest_finalized_slot_number == SlotNumber::GENESIS {
+            tracing::error!("Timed out while waiting for the node to progress beyond genesis. The sequencer can't accept transactions until that happens");
+            return Err(SequencerNotReadyDetails::WaitingOnDa {
+                finalized_slot_number: SlotNumber::GENESIS,
+                needed_finalized_slot_number: SlotNumber::new(1),
+            });
+        }
 
         if let Some(nb_of_blobs_in_flight) = inner.blob_sender_busy() {
             return Err(SequencerNotReadyDetails::WaitingOnBlobSender {
-                max_concurrent_blobs: self.config.max_concurrent_blobs,
+                max_concurrent_blobs,
                 nb_of_blobs_in_flight,
             });
         }
 
         inner.is_ready.as_ref().map_err(|details| details.clone())?;
-
-        Ok(inner)
+        Ok(())
     }
 }
 
@@ -671,7 +648,10 @@ where
     async fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
         // We don't actually care about the `inner`, we just want to reuse the
         // same logic.
-        self.lock_inner_if_ready().await.map(|_| ())
+        let inner = self.inner.lock().await;
+        Self::check_readiness(&inner, self.config.max_concurrent_blobs)
+            .await
+            .map(|_| ())
     }
 
     fn api_state(&self) -> ApiState<Self::Spec> {
@@ -803,34 +783,12 @@ where
             // `update_state` call during sequencer execution with no unusual
             // conditions.
             (false, false, false, _) => {
-                let (mut inner, receipt) = self
-                    .replay_soft_confirmations_on_top_of_node_state(&info, batches_to_replay)
-                    .await?;
-
-                inner.is_ready = Ok(());
-
-                let SoftConfirmationsReplayReceipt {
-                    inner_lock_start_time,
-                    mut metrics,
-                } = receipt;
-
-                inner.latest_info = info.clone();
-                let checkpoint = inner
-                    .executor
-                    .checkpoint
-                    .clone_with_empty_witness_dropping_temp_cache();
-                inner.update_api_state(checkpoint).await;
-
-                sov_metrics::track_metrics(|t| {
-                    metrics.duration = timer_start.elapsed();
-                    metrics.lock_duration = inner_lock_start_time.elapsed();
-
-                    t.submit(metrics);
-                });
-
-                if !self.shutdown_receiver.has_changed().unwrap_or(true) {
-                    inner.trigger_batch_production().await?;
-                }
+                self.replay_soft_confirmations_on_top_of_node_state(
+                    &info,
+                    batches_to_replay,
+                    timer_start,
+                )
+                .await?;
             }
         }
 
@@ -887,8 +845,8 @@ where
             tracing::debug!(%tx_hash, "Transaction delay completed, proceeding with processing");
         }
 
-        let mut inner = self
-            .lock_inner_if_ready()
+        let mut inner = self.lock_inner().await;
+        Self::check_readiness(&inner, self.config.max_concurrent_blobs)
             .await
             .map_err(error_not_fully_synced)?;
 
