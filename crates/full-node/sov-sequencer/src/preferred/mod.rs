@@ -915,7 +915,13 @@ where
         let apply_tx_res = executor.apply_tx_to_in_progress_batch(&baked_tx).await;
 
         let (receipt, events) = match apply_tx_res {
-            Ok(res) => res,
+            Ok(res) => {
+                assert_eq!(
+                    tx_hash, res.0.tx_hash,
+                    "The executor returned a different tx hash than expected"
+                );
+                res
+            }
             Err(err) => {
                 tracing::debug!(%tx_hash, %err, "Transaction was dropped by the sequencer");
                 return Err(RollupBlockExecutorError::into_http_error(err));
