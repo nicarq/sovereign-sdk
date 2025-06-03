@@ -464,7 +464,8 @@ where
                         // SAFETY: We've already charged this gas amount, so it can't overflow at this point.
                         // If we're penalizing the preferred sequencer, we need to account for that in the authorizing the next transaction.
                         sequencer_bond_per_tx = SequencerBondForTx::Preferred(
-                            sequencer_bond
+                            sequencer_bond_per_tx
+                                .amount()
                                 .saturating_sub(gas_used.checked_value(gas_price).unwrap()),
                         );
                     }
