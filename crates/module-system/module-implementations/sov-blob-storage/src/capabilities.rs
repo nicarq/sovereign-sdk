@@ -450,7 +450,6 @@ impl<S: Spec> BlobStorage<S> {
                 let max_slots_to_advance = state
                     .true_slot_number()
                     .saturating_sub(state.visible_slot_number().get())
-                    .saturating_add(1)
                     .get()
                     .try_into()
                     .unwrap_or(max_slots_to_advance)

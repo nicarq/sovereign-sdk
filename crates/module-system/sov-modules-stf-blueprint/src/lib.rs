@@ -484,6 +484,7 @@ where
             let visible_slot_number = kernel_with_partially_stale_heights
                 .visible_slot_number()
                 .advance(blob_selector_output.visible_slot_number_increase);
+            assert!(visible_slot_number.as_true() <= kernel_with_partially_stale_heights.true_slot_number(), "Visible slot number must be less than or equal to the true slot number. This is a bug, please report it.");
 
             // "Increment rollup height" updates the rollup state to reflect the new rollup block and visible slot numbers and modifies the accessor's cached heights.
             runtime.chain_state().increment_rollup_height(
