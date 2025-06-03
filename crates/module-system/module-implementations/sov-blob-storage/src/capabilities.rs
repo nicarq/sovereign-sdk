@@ -301,12 +301,11 @@ impl<S: Spec> BlobStorage<S> {
 
         // First, decide how many slots worth of stored blobs we need. It could be 0, 1, or 2.
         let (slots_needed_from_storage, current_orderred_blobs) = match delta {
-            // If the visible slot has caught up to the current slot, we don't need any stored blobs.
-            // In this case, we act like a normal "based" rollup
-            0 => return self.select_blobs_as_based_sequencer_inner(current_blobs, state),
+            0 => panic!("Visible slot is the same as the true slot. Since true slot was already incremented this slot in .synchronize_chain() and visible slot is yet to be updated, this is a bug, please report it."),
 
-            // If the visible slot is only trailing by one, we process one stored slot (to catch up) and
-            // then process the new blobs from this slot
+            // If the visible slot is only trailing by one, we don't need to process any stored blobs.
+            // We just need to process the new blobs from this slot. (We still return 1 slots_needed_from_storage, 
+            // but since there is no stored blobs for the true_slot, this should be a no-op)
             1 => {
                 let blobs = self.select_blobs_as_based_sequencer_inner(current_blobs, state);
                 (1, Some(blobs))
@@ -491,7 +490,7 @@ impl<S: Spec> BlobStorage<S> {
         // 5. Select the non-preferred blobs from storage
         let gas_price_for_new_block = self.get_new_gas_price(visible_height_increase as u64, state);
         // TODO: If we start dropping blobs on the *second* slot in this loop, the preferred sequencer is doing some sneaky censorship
-        // Tthe attack is not economically feasible (analysis available upon request).
+        // The attack is not economically feasible (analysis available upon request).
         // by increasing the visible slot number too quickly, causing blobs to be dropped. We should consider slashing in this case.
         self.retrieve_stored_blobs_and_add_to_selection(
             visible_height_increase as u64,
