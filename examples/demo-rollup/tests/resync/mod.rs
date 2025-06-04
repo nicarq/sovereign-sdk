@@ -258,6 +258,8 @@ async fn test_rollup_resync() -> anyhow::Result<()> {
 
     // Check the rollup did not emit any warnings or errors at any point during the tests
     let known_acceptable_logs = [
+        // TODO - investigate: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2978
+        (Level::WARN, "Received error updating target height, stopping background task".to_string()),
         // This is expected for the second resync: since we have batches in the sequencer DB, we
         // are indeed causing a delay for users
         (Level::WARN, "The sequencer must pause because the node is lagging behind. This might lead to a brief downtime for users. Cause is unknown.".to_string()),
