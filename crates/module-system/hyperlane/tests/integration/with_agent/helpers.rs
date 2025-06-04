@@ -465,6 +465,9 @@ impl Hyperlane {
         let stdout = String::from_utf8_lossy(&stdout);
         if res.exit_code().await.unwrap().unwrap() != 0 {
             println!("hyperlane warp apply stdout: {stdout}");
+            let stderr = res.stderr_to_vec().await.unwrap();
+            let stderr = String::from_utf8_lossy(&stderr);
+            println!("hyperlane warp apply stderr: {stderr}");
             panic!("hyperlane deployment on evm chain failed");
         }
 
