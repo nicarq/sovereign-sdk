@@ -14,8 +14,13 @@ mod mock_rollup;
 pub use mock_rollup::*;
 
 mod celestia_rollup;
-
 pub use celestia_rollup::*;
+
+mod celestia_nomt_rollup;
+pub use celestia_nomt_rollup::*;
+
+mod mock_nomt_rollup;
+pub use mock_nomt_rollup::*;
 
 mod zk;
 pub use zk::*;

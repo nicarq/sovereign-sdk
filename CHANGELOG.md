@@ -6,8 +6,9 @@
 - #2953 Added additional testing for reliable rollup resyncing with fresh nodes. No functional or breaking changes.
 
 # 2025-05-29
+- #2955 Adds new variant do the demo-rollup: MockDa rollup based NOMT storage.
 - #2945 **BREAKING CHANGE** Adds `blob_processing_timeout_secs` filed in the rollup config.
-= #2946 **BREAKING CHANGE** Changes the order of the generics on `ConfigurableSpec` and adds associated type defaults for `Storage` and `CryptoSpec`. 
+- #2946 **BREAKING CHANGE** Changes the order of the generics on `ConfigurableSpec` and adds associated type defaults for `Storage` and `CryptoSpec`. 
 
 ```rust
 pub type MockRollupSpec<M> = ConfigurableSpec<
