@@ -47,6 +47,7 @@ use state_root_compute::StateRootBackgroundTaskState;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::{broadcast, watch, Mutex, MutexGuard};
 use tokio::task::JoinHandle;
+use tokio::time::sleep;
 use tracing::{debug, error, info, trace, warn, Instrument};
 
 use crate::common::{
@@ -178,6 +179,7 @@ where
         }
 
         if self.blob_sender_busy().is_some() {
+            warn!("The blob sender is busy, skipping batch production.");
             return Ok(());
         }
 
@@ -196,6 +198,7 @@ where
 
         // If the node is shutting down, we may not be able to terminate the batch. In that case, just return early.
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            info!("The sequencer is shutting down. Exiting trigger_batch_production.");
             return Ok(());
         }
 
@@ -250,6 +253,7 @@ where
     shutdown_receiver: watch::Receiver<()>,
     ledger_db: LedgerDb,
     cached_events: EventCache<RuntimeEventResponse<Rt::RuntimeEvent>>,
+    shutdown_sender: watch::Sender<()>,
 }
 
 impl<S, Rt, Da> PreferredSequencer<S, Rt, Da>
@@ -326,7 +330,7 @@ where
                 ledger_db.clone(),
                 storage_path,
                 TxStatusBlobSenderHooks::new(tx_status_manager.clone()),
-                shutdown_sender,
+                shutdown_sender.clone(),
                 Duration::from_secs(config.blob_processing_timeout_secs),
             )
             .await?;
@@ -390,6 +394,7 @@ where
             shutdown_receiver: shutdown_receiver.clone(),
             ledger_db: ledger_db.clone(),
             cached_events,
+            shutdown_sender,
         });
 
         seq.update_state(latest_state_update.clone())
@@ -473,8 +478,11 @@ where
 
         async {
             for batch in batches_to_replay {
-                executor.replay_batch(&batch, &node_state_root).await?;
+                executor
+                    .replay_batch(&batch, &node_state_root, &self.shutdown_sender)
+                    .await?;
                 if self.shutdown_receiver.has_changed().unwrap_or(true) {
+                    info!("The sequencer is shutting down. Exiting replay_soft_confirmations_on_top_of_node_state.");
                     return Ok(());
                 }
             }
@@ -520,7 +528,10 @@ where
                 };
                 let node_root = inner.node_root_hash()?;
 
-                if executor.replay_batch(&batch, &node_root).await? {
+                if executor
+                    .replay_batch(&batch, &node_root, &self.shutdown_sender)
+                    .await?
+                {
                     inner.db.pop_tx_from_in_progress_batch().await?;
                 }
             }
@@ -749,7 +760,7 @@ where
                     "Recovery mode due to deferred slots count threshold, {:?}",
                     any_batches_to_replay
                 );
-                std::process::exit(1);
+                exit_rollup(&self.shutdown_sender).await;
             }
             // The node is lagging behind the chain tip. Pause the sequencer (if
             // it wasn't already paused), and wait for the node to catch up.
@@ -810,13 +821,8 @@ where
         baked_tx: FullyBakedTx,
     ) -> Result<AcceptedTx<Self::Confirmation>, ErrorObject> {
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
-            return Err(ErrorObject {
-                status: StatusCode::SERVICE_UNAVAILABLE,
-                title: "The sequencer is shutting down".to_string(),
-                details: sov_rest_utils::json_obj!({
-                    "message": "The sequencer is shutting down. Transactions cannot be accepted at this time".to_string(),
-                }),
-            });
+            tracing::info!("The sequencer is shutting down. Cannot accept transactions");
+            return Err(shut_down_error());
         }
 
         let tx_hash = Rt::Auth::compute_tx_hash(&baked_tx).map_err(generic_accept_tx_error)?;
@@ -853,6 +859,11 @@ where
         inner
             .try_to_create_and_start_batch_if_none_in_progress(false)
             .await?;
+
+        if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            tracing::info!("The sequencer is shutting down. Cannot accept transactions");
+            return Err(shut_down_error());
+        }
 
         if !inner.executor.has_in_progress_batch() {
             panic!(
@@ -928,6 +939,17 @@ where
         // way that facilitates random access to tx status information. That
         // means the sequencer only relies on the cache. FIXME(@neysofu).
         Ok(TxStatus::Unknown)
+    }
+}
+
+fn shut_down_error() -> ErrorObject {
+    tracing::info!("The sequencer is shutting down. Cannot accept transactions");
+    ErrorObject {
+        status: StatusCode::SERVICE_UNAVAILABLE,
+        title: "The sequencer is shutting down".to_string(),
+        details: sov_rest_utils::json_obj!({
+            "message": "The sequencer is shutting down. Transactions cannot be accepted at this time".to_string(),
+        }),
     }
 }
 
@@ -1152,6 +1174,18 @@ fn err_if_cant_fit_tx(tracker: &BatchSizeTracker, tx: &FullyBakedTx) -> Result<(
     }
 
     Ok(())
+}
+
+async fn exit_rollup(shutdown_sender: &watch::Sender<()>) {
+    // In the Kubernetes environment, logs are sometimes lost during shutdown.
+    // This delay ensures logs have time to be flushed before the application exits.
+    tracing::info!("Shuting down the rollup");
+    if shutdown_sender.send(()).is_err() {
+        tracing::error!("Failed to send shutdown signal");
+    }
+    sleep(Duration::from_secs(5)).await;
+    tracing::info!("Calling std::process::exit(1).");
+    std::process::exit(1);
 }
 
 #[cfg(test)]

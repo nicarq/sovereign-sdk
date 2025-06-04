@@ -29,6 +29,7 @@ use super::state_root_compute::StateRootComputeRequest;
 use super::{PreferredBatchToReplay, PreferredSequencerConfig, VisibleSlotNumberIncrease};
 use crate::common::generic_accept_tx_error;
 use crate::preferred::async_batch::MaybeAsyncBatch;
+use crate::preferred::exit_rollup;
 use crate::{SequencerConfig, SequencerEvent};
 
 type TxReceiptWithEvents<S, Rt> = (
@@ -150,10 +151,11 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     #[tracing::instrument(skip_all, level = "trace")]
     pub async fn replace_state(&mut self, other: Self) {
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            tracing::info!("The sequencer is shutting down. Exiting replace_state");
             return;
         }
 
-        tracing::trace!(
+        tracing::info!(
             "Replacing state for executor {} with executor {}",
             self.id,
             other.id
@@ -235,6 +237,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         &mut self,
         batch: &PreferredBatchToReplay,
         node_state_root: &<S::Storage as Storage>::Root,
+        shutdown_sender: &watch::Sender<()>,
     ) -> anyhow::Result<bool> {
         assert!(
             self.rollup_block_task_state.is_none(),
@@ -266,6 +269,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         .await;
 
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            tracing::info!("The sequencer is shutting down. Exiting replay_batch");
             return Ok(false);
         }
         trace!("Replaying txs");
@@ -287,7 +291,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             if let Err(err) = self.apply_tx_to_in_progress_batch(tx).await {
                 if Some(tx_hash) == last_tx_hash && batch.is_in_progress {
                     warn!(%tx_hash, "The very last transaction failed to be applied, this is likelythe result of a hard node crash. We'll remove it from the database and continue normal operations.");
-
                     return Ok(true);
                 }
 
@@ -295,7 +298,8 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                     "Transaction was soft-confirmed but failed to be re-applied; this is a bug, please report it {:?}",
                     err
                 );
-                std::process::exit(1);
+
+                exit_rollup(shutdown_sender).await;
             }
         }
 
@@ -328,7 +332,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
         // If we've started shutting down, don't start a new block.
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
-            tracing::info!("Shutdown receiver has changed. New block not started");
+            tracing::info!("The sequencer is shutting down. Exiting start_rollup_block");
             return;
         }
 
@@ -340,7 +344,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
         self.populate_state_roots(node_state_root).await;
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
-            tracing::info!("Shutdown receiver has changed. New block not started");
+            tracing::info!("The sequencer is shutting down. Exiting start_rollup_block");
             return;
         }
 
@@ -450,6 +454,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     /// In the node, this is done automatically, but sometimes the sequencer can run too far ahead of the node and need to compute these roots itself.
     async fn populate_state_roots(&mut self, node_state_root: &<S::Storage as Storage>::Root) {
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            tracing::info!("The sequencer is shutting down. Exiting populate_state_roots");
             return;
         }
         // If we don't have any state roots yet, insert the node's state root. That's our starting point.
