@@ -12,10 +12,11 @@ use sov_mock_da::{BlockProducingConfig, MockDaSpec};
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::configurable_spec::ConfigurableSpec;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::arbitrary::{self, Unstructured};
 use sov_modules_api::prelude::tracing;
 use sov_modules_api::transaction::TxDetails;
-use sov_modules_api::{Amount, CryptoSpec, DispatchCall, EncodeCall, Runtime, Spec};
+use sov_modules_api::{Amount, CryptoSpec, DispatchCall, EncodeCall, PrivateKey, Runtime, Spec};
 use sov_paymaster::{
     PayeePolicy, PayerGenesisConfig, Paymaster, PaymasterConfig, PaymasterPolicyInitializer,
     SafeVec,
@@ -275,12 +276,13 @@ pub async fn run_generator_task<R: Runtime<S> + EncodeCall<Bank<S>> + Clone, S: 
     let u = &mut Unstructured::new(&random_bytes[..]);
     let bank_harness = BankHarness::new(BankMessageGenerator::<S>::new(
         Distribution::with_equiprobable_values(vec![Transfer]),
-        Percent::one_hundred(),
+        Percent::fifty(),
     ));
     let modules: Vec<BasicModuleRef<S, R>> = vec![Arc::new(bank_harness.clone())];
     let modules = Distribution::with_equiprobable_values(modules);
     let mut generator: TestGenerator<R, S> = setup_harness(worker_id);
 
+    let past_transaction_generations = config_value!("PAST_TRANSACTION_GENERATIONS") + 1;
     let worker_start = std::time::Instant::now();
     let mut total_txns = 0;
     while !*rx.borrow() {
@@ -297,7 +299,10 @@ pub async fn run_generator_task<R: Runtime<S> + EncodeCall<Bank<S>> + Clone, S: 
 
         let mut txns = vec![];
         for _ in 0..txn_count {
-            let validity = Distribution::with_equiprobable_values(vec![MessageValidity::Valid]);
+            let validity = Distribution::with_equiprobable_values(vec![
+                MessageValidity::Valid,
+                MessageValidity::Invalid,
+            ]);
             let validity = validity.select_value(u)?;
             let msg = generator.generate(&modules, *validity);
             let tx = plain_tx_with_default_details::<R, S>(&msg);
@@ -311,14 +316,53 @@ pub async fn run_generator_task<R: Runtime<S> + EncodeCall<Bank<S>> + Clone, S: 
                     panic!("The method `plain_tx_with_default_details` should return a plain transaction!");
                 };
 
+                let pub_key = key.clone().pub_key();
+                let nonce = nonces.get(&pub_key).unwrap_or(&0);
+
+                // If message is invalid, create a future nonce and send it to the sequencer
+                // The sequencer should reject the transaction as invalid, and more importantly, the sequencer should not update the nonce for the given account.
+                if *validity == MessageValidity::Invalid {
+                    let mut future_nonce = HashMap::from([(pub_key, nonce + 1000)]);
+                    let invalid_tx = TransactionType::<R, S>::sign(
+                        message.clone(),
+                        key.clone(),
+                        &R::CHAIN_HASH,
+                        details.clone(),
+                        &mut future_nonce,
+                    );
+                    txns.push((invalid_tx, true));
+                    continue;
+                }
+
+                // Create an outdated but valid transaction (using the valid transaction that was just generated)
+                if *nonce != 0 && *nonce % past_transaction_generations == 0 {
+                    let mut outdated_nonce =
+                        HashMap::from([(pub_key, nonce - past_transaction_generations)]);
+                    let outdated_tx = TransactionType::<R, S>::sign(
+                        message.clone(),
+                        key.clone(),
+                        &R::CHAIN_HASH,
+                        details.clone(),
+                        &mut outdated_nonce,
+                    );
+                    txns.push((outdated_tx, true));
+                }
+
                 TransactionType::<R, S>::sign(message, key, &R::CHAIN_HASH, details, &mut nonces)
             };
-            txns.push(signed_tx);
+            txns.push((signed_tx, false));
         }
 
         let start = std::time::Instant::now();
-        for tx in &txns {
-            client.send_tx_to_sequencer_with_retry(tx).await?;
+        for (tx, is_invalid) in &txns {
+            if *is_invalid {
+                client
+                    .send_tx_to_sequencer(tx)
+                    .await
+                    .expect_err("Outdated transaction should have failed");
+            } else {
+                client.send_tx_to_sequencer_with_retry(tx).await?;
+            }
             total_txns += 1;
         }
         let elapsed = start.elapsed();
