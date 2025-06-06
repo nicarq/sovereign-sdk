@@ -22,7 +22,7 @@ use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::{broadcast, oneshot, watch};
 use tokio::task::JoinHandle;
-use tracing::{trace, warn};
+use tracing::trace;
 use uuid::Uuid;
 
 use super::state_root_compute::StateRootComputeRequest;
@@ -270,8 +270,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         }
         trace!("Replaying txs");
 
-        let last_tx_hash = batch.batch.tx_hashes.last();
-
         for (tx, tx_hash) in batch
             .batch
             .inner
@@ -285,11 +283,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             );
 
             if let Err(err) = self.apply_tx_to_in_progress_batch(tx).await {
-                if Some(tx_hash) == last_tx_hash && batch.is_in_progress {
-                    warn!(%tx_hash, error = %err, "The very last transaction failed to be applied, this is likely the result of a hard node crash. We'll remove it from the database and continue normal operations.");
-                    return Ok(true);
-                }
-
                 tracing::error!(
                     error = %err,
                     %tx_hash,
