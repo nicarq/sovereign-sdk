@@ -1,6 +1,7 @@
 # 2025-06-04
 - #2981 Disable state root background checks. This change **should not be** adopted by Sovereign SDK customers. 
 - #2979 Internal CI improvements
+- #2990 Internal change in demo-rollup tests, related to updates in logging.
 
 # 2025-05-30
 - #2953 Added additional testing for reliable rollup resyncing with fresh nodes. No functional or breaking changes.

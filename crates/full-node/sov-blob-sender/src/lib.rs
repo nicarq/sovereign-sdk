@@ -335,7 +335,7 @@ where
 
                 for (_, b) in blobs.into_iter() {
                     if let Err(err) = b.handle.await {
-                        error!(%err, "Error in a blob sender background task");
+                        error!(%err, blob_info = ?b.info, "Error in a blob sender background task.");
                     }
                 }
 
@@ -406,7 +406,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
     async fn remove_blob_or_err(&self, blob_id: BlobInternalId) -> anyhow::Result<()> {
         let res = self.db.remove(blob_id).await;
         if let Err(err) = &res {
-            tracing::error!("BlobSender: unable to remove blob with id {blob_id}, error: {err}");
+            tracing::error!(error = %err, ?blob_id, "BlobSender: unable to remove blob.");
         }
         res
     }

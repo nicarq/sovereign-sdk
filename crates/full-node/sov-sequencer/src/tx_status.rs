@@ -132,7 +132,10 @@ impl<Da: DaSpec> TxStatusManager<Da> {
                 if let Err(error) = entry.get().send(status) {
                     // Failing to send a notification is symptomatic of a bigger issue, but
                     // we don't want to e.g. fail the whole batch submission because of it.
-                    error!(%error, "Failed to send tx status update over channel; this is a bug, please report it");
+                    error!(
+                        %error,
+                        %tx_hash,
+                        "Failed to send tx status update over channel; this is a bug, please report it");
                     // We shouldn't try to send notifications for this tx again.
                     entry.remove();
                 }

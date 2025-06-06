@@ -406,7 +406,7 @@ where
                 self.chain_forks.remove(discarded_hash);
             }
         }
-        tracing::info!(finalized_block_hash = %block_header.hash(), "Finalization complete");
+        tracing::trace!(finalized_block_hash = %block_header.hash(), "Finalization complete");
 
         Ok(())
     }

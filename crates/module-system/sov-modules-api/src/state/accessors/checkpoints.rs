@@ -134,9 +134,11 @@ impl<S: Spec> StateCheckpoint<S> {
     ) {
         let (cache_log, accessory_delta, witness, storage) = self.delta.freeze();
 
+        let _span = tracing::debug_span!("compute_state_root", scope = "node").entered();
         let (root, update) = storage
             .compute_state_update(cache_log, &witness, prev_state_root)
             .expect("state update computation must succeed");
+        tracing::trace!(%root, "computed state root");
         (root, update, accessory_delta, witness, storage)
     }
 

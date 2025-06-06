@@ -168,7 +168,7 @@ impl TestState {
                         tx.hash.parse().expect("Impossible to parse tx_hash!");
 
                     if !self.txs_to_wait.remove(&parsed_hash) {
-                        tracing::warn!("Tx {} wasn't in the wait list", parsed_hash);
+                        tracing::warn!(tx_hash = %parsed_hash,"Tx wasn't in the wait list");
                     }
                     tracing::info!("Tx {} result: {:?}", parsed_hash, tx.receipt.result);
                     last_tx_statuses.push((parsed_hash, TxStatus::Processed));
@@ -294,7 +294,7 @@ async fn test_stream_of_transactions(
         tracing::info!("Set of transactions sent, waiting for finalized header");
         match da_finalized_headers.next().await.transpose()? {
             None => {
-                tracing::warn!("No finalized header received, how");
+                tracing::warn!("No finalized header received, problem with node");
                 da_finalized_headers = rollup.da_service.subscribe_finalized_header().await?;
             }
             Some(header) => {

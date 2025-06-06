@@ -552,7 +552,7 @@ where
                 }
                 Ok(None) => {}
                 Err(e) => {
-                    warn!(%e, "Couldn't produce a batch at this time (possibly due to imminent shutdown), continuing");
+                    warn!(error = %e, %slot_number, "Couldn't produce a batch at this time (possibly due to imminent shutdown), continuing");
                 }
             }
         }

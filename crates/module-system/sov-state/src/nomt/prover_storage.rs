@@ -222,6 +222,11 @@ fn compute_state_update_namespace<S: MerkleProofSpec>(
     accesses: &OrderedReadsAndWrites,
     witness: &S::Witness,
 ) -> anyhow::Result<FinishedSession> {
+    tracing::trace!(
+        reads = accesses.ordered_reads.len(),
+        writes = accesses.ordered_writes.len(),
+        "compute state update"
+    );
     let nomt_accesses = to_nomt_accesses::<S>(&session, accesses)?;
     let mut finished = session.finish(nomt_accesses)?;
     let nomt_witness = finished.take_witness().expect("Witness cannot be missing");
@@ -344,6 +349,7 @@ where
         witness: &Self::Witness,
         prev_state_root: Self::Root,
     ) -> anyhow::Result<(Self::Root, Self::StateUpdate)> {
+        tracing::trace!(%prev_state_root, "NomtProverStorage, computing state update");
         // User
         let user_session = self.state_session_builder.begin_user_session()?;
         let prev_user_root = prev_state_root.namespace_root(ProvableNamespace::User);
@@ -365,7 +371,7 @@ where
             let _span =
                 tracing::debug_span!("compute_state_update", namespace = "kernel").entered();
             compute_state_update_namespace::<S>(kernel_session, &state_accesses.kernel, witness)
-                .context("user state")?
+                .context("kernel state")?
         };
         assert_eq!(
             kernel_finished_session.prev_root().as_ref(),
@@ -390,6 +396,7 @@ where
 
     fn materialize_changes(self, state_update: Self::StateUpdate) -> Self::ChangeSet {
         let next_version = self.historical_state.get_next_version();
+        tracing::trace!(%next_version, "NomtProverStorage, materializing changes");
         let NomtStateUpdate {
             state_accesses:
                 StateAccesses {

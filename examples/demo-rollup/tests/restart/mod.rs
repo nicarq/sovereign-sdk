@@ -128,15 +128,10 @@ async fn start_stop_empty(
     }
 
     let known = [
-        // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1878 for ZK:
+        // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1878:
         (
             Level::ERROR,
-            "Invalid proof outcome, Invalid(ProverPenalized(\"Prover penalized\"))".to_string(),
-        ),
-        // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1878 for Optimistic
-        (
-            Level::ERROR,
-            "Invalid proof outcome, Invalid(PreconditionNotMet(\"Transition invariant isn't respected\"))".to_string(),
+            "Invalid proof outcome".to_string(),
         ),
         (
             Level::ERROR,

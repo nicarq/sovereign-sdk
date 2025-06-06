@@ -121,7 +121,7 @@ async fn compute_state_root<S: Spec>(
     let handle = tokio::runtime::Handle::current().spawn_blocking(move ||{
 		tracing::trace!(%rollup_height, "Computing sequencer state root for height");
 		let (root, _) =
-		tracing::span!(tracing::Level::DEBUG,  "sequencer_compute_state_update")
+		tracing::span!(tracing::Level::DEBUG,  "compute_state_update", scope = "sequencer")
 			.in_scope(|| {
 				storage
 					.compute_state_update(state_accesses, &witness, prev_root)

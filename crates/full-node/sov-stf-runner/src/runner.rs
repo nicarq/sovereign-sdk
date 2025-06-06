@@ -606,7 +606,10 @@ where
                     tracing::info!("Not aggregated proof, probably running in a different mode. Will be fixed in the future.");
                 }
                 _ => {
-                    tracing::error!("Invalid proof outcome, {:?}", receipt.outcome);
+                    tracing::error!(
+                        outcome = ?receipt.outcome,
+                        blob_hash = hex::encode(receipt.blob_hash),
+                        "Invalid proof outcome");
                 }
             }
         }

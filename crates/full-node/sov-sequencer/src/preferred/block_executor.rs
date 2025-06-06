@@ -155,11 +155,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             return;
         }
 
-        tracing::info!(
-            "Replacing state for executor {} with executor {}",
-            self.id,
-            other.id
-        );
+        tracing::debug!(old = %self.id, new = %other.id, "Replacing state for block executor");
 
         if let Some(task_state) = self.rollup_block_task_state.take() {
             task_state.shutdown().abort();
@@ -290,13 +286,14 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
             if let Err(err) = self.apply_tx_to_in_progress_batch(tx).await {
                 if Some(tx_hash) == last_tx_hash && batch.is_in_progress {
-                    warn!(%tx_hash, "The very last transaction failed to be applied, this is likelythe result of a hard node crash. We'll remove it from the database and continue normal operations.");
+                    warn!(%tx_hash, error = %err, "The very last transaction failed to be applied, this is likely the result of a hard node crash. We'll remove it from the database and continue normal operations.");
                     return Ok(true);
                 }
 
                 tracing::error!(
-                    "Transaction was soft-confirmed but failed to be re-applied; this is a bug, please report it {:?}",
-                    err
+                    error = %err,
+                    %tx_hash,
+                    "Transaction was soft-confirmed but failed to be re-applied; this is a bug, please report it",
                 );
 
                 exit_rollup(shutdown_sender).await;
@@ -467,31 +464,32 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
         // Compute the next visible root height that we need to fetch.
         let next_rollup_height = self.checkpoint.rollup_height_to_access().saturating_add(1);
-        let next_visible_root_height =
+        let next_visible_rollup_height =
             next_rollup_height.saturating_sub(config_value!("STATE_ROOT_DELAY_BLOCKS"));
-        tracing::trace!(
-            "Fetching state root for height: {} if necessary",
-            next_visible_root_height
-        );
 
         // If we don't have the next visible root locally, fetch it from the background task.
         // Note: The request will *always* be the next one in our inbound queue if we take this branch.
         // If this block is the first one computed using the RollupBlockExecutor, then the root we need is just the one from the node,
         // so we *don't* take this branch.
         // Otherwise, the request will already have been sent during the previous iteration of `end_rollup_block`, so we can just await it here.
-        if next_visible_root_height
+        let is_necessary_to_fetch = next_visible_rollup_height
             > *self
                 .state_roots
                 .keys()
                 .max()
-                .unwrap_or(&RollupHeight::GENESIS)
-        {
+                .unwrap_or(&RollupHeight::GENESIS);
+        tracing::trace!(
+            height= %next_visible_rollup_height,
+            "Fetching state root for height, if necessary",
+        );
+        if is_necessary_to_fetch {
             tracing::trace!(
-                "Fetching state root for height: {}",
-                next_visible_root_height
+                fetching_height = %next_visible_rollup_height,
+                ?is_necessary_to_fetch,
+                "Fetching state root for height",
             );
             let (received_height, next_visible_root) = match self.state_root_responses.pop_front().unwrap_or_else(||
-                    panic!("Executor {} Needed response for state root for height {} before sending request. This is a bug in the `RollupBlockExecutor`, please report it.", self.id, next_visible_root_height))
+                    panic!("Executor {} Needed response for state root for height {} before sending request. This is a bug in the `RollupBlockExecutor`, please report it.", self.id, next_visible_rollup_height))
             .await {
                 Ok((received_height, next_visible_root)) => {
                    (received_height, next_visible_root)
@@ -502,17 +500,20 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                 }
             };
             // Sanity check: the height we received should match the height we need.
-            if received_height != next_visible_root_height {
-                tracing::error!("Received height ({}) did not equal expected height for assertion {}. This is a bug in the RollupBlockExecutor, please report it.", received_height, next_visible_root_height);
-                panic!("Received height ({}) did not equal expected height for assertion {}. This is a bug in the RollupBlockExecutor, please report it.", received_height, next_visible_root_height);
+            if received_height != next_visible_rollup_height {
+                tracing::error!(
+                    received_height = %received_height,
+                    next_visible_root_height = %next_visible_rollup_height,
+                    "Received height did not equal expected height for assertion . This is a bug in the RollupBlockExecutor, please report it.");
+                panic!("Received height ({}) did not equal expected height for assertion {}. This is a bug in the RollupBlockExecutor, please report it.", received_height, next_visible_rollup_height);
             }
             tracing::trace!(
                 "Received state root for height {} : {}",
-                next_visible_root_height,
+                next_visible_rollup_height,
                 HexString(next_visible_root.namespace_root(sov_state::ProvableNamespace::User))
             );
             self.state_roots
-                .insert(next_visible_root_height, next_visible_root);
+                .insert(next_visible_rollup_height, next_visible_root);
         }
         // take all roots greater than self.started_from
         for (height, root) in self.state_roots.iter() {

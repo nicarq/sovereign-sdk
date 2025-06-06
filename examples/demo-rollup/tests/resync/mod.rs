@@ -268,7 +268,7 @@ async fn test_rollup_resync() -> anyhow::Result<()> {
         // causes the sequencer to resubmit proof blobs for earlier slots, which are no longer
         // valid. This is likely related to https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1878
         // (sending already-submitted proofs at a later height).
-        (Level::ERROR, "Invalid proof outcome, Invalid(ProverPenalized(\"Prover penalized\"))".to_string()),
+        (Level::ERROR, "Invalid proof outcome".to_string()),
     ];
     let mut recorded_errors_warnings =
         HashSet::<(Level, String)>::from_iter(records.lock().unwrap().clone().iter().cloned());

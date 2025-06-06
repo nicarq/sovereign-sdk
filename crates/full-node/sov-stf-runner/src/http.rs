@@ -201,7 +201,7 @@ async fn handle_socket_read(
                         }
                     }
                     Err(error) => {
-                        tracing::error!("Error while processing RPC request: {}", error);
+                        tracing::error!(%error, "Error while processing RPC request");
                     }
                 }
             }
@@ -285,7 +285,7 @@ mod tests {
                                 }
                                 tracing::info!("Completed sending all notifications");
                             }
-                            Err(e) => tracing::error!("Failed to accept subscription: {}", e),
+                            Err(e) => tracing::error!(error = %e, "Failed to accept subscription"),
                         }
 
                         Ok(())
