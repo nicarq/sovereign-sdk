@@ -653,16 +653,6 @@ async fn start_relayer(
     private_key: PrivateKey,
     relay_evm: bool,
 ) -> ExecResult {
-    let private_key = json!({ "private_key": private_key });
-    let private_key = serde_json::to_string(&private_key).unwrap();
-    let relayer_key_file = "/relayer-key.json";
-
-    exec_in_bash(
-        container,
-        format!("echo '{private_key}' > {relayer_key_file}"),
-    )
-    .await;
-
     let relay_chains = if relay_evm {
         "sovtest,ethtest"
     } else {
@@ -670,15 +660,17 @@ async fn start_relayer(
     };
 
     let cmd = ExecCommand::new([
-        // env vars for the validator
-        "env",
-        // location of the key for validator
-        format!("TOKEN_KEY_FILE={relayer_key_file}").as_str(),
         // relayer command
         "relayer",
         // database locations
         "--db",
         "/relayer-db",
+        // signer for the rollup
+        "--chains.sovtest.signer.key",
+        format!("0x{}", private_key.as_hex()).as_str(),
+        // signer for the counterparty
+        "--chains.ethtest.signer.key",
+        ANVIL_ACCOUNTS[0].1,
         // chains to relay
         "--relayChains",
         relay_chains,
@@ -707,25 +699,15 @@ async fn start_validator(
         0
     };
 
-    let private_key = json!({ "private_key": private_key });
-    let private_key = serde_json::to_string(&private_key).unwrap();
-
-    let val_key_file = format!("/validator{val_id}-key.json");
     let val_db_path = format!("/validator{val_id}/db");
     let val_sigs_path = format!("/validator{val_id}/signatures");
     let val_eth_key = ANVIL_ACCOUNTS[val_id + 1].1;
 
-    // upload the key to container
-    exec_in_bash(container, format!("echo '{private_key}' > {val_key_file}")).await;
     // make directories for db and signatures
     let mkdir_cmd = ExecCommand::new(["mkdir", "-p", val_db_path.as_str(), val_sigs_path.as_str()]);
     container.exec(mkdir_cmd).await.unwrap();
 
     let cmd = ExecCommand::new([
-        // env vars for the validator
-        "env",
-        // location of the key for validator
-        format!("TOKEN_KEY_FILE={val_key_file}").as_str(),
         // validator command
         "validator",
         // save signatures on local fs
@@ -740,13 +722,12 @@ async fn start_validator(
         // a chain of which messages are going to be signed
         "--originChainName",
         "sovtest",
-        // an eth key for the validator, reported by anvil
+        // key for the checkpoints signatures
         "--validator.key",
         val_eth_key,
-        "--defaultSigner.type",
-        "hexKey",
-        "--defaultSigner.key",
-        val_eth_key,
+        // signer for the rollup
+        "--chains.sovtest.signer.key",
+        format!("0x{}", private_key.as_hex()).as_str(),
         // port for metrics
         "--metrics-port",
         metrics_port.to_string().as_str(),
