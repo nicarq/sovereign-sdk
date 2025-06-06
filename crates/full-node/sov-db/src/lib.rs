@@ -31,6 +31,8 @@ pub mod accessory_db;
 /// Define namespaces at the database level
 pub mod namespaces;
 
+/// Implements commit flag logic for state_db_nomt.
+pub(crate) mod commit_flag;
 /// Implements a wrapper around [NOMT](https://github.com/thrumdev/nomt) meant for storing rollup state.
 pub mod state_db_nomt;
 pub mod storage_manager;

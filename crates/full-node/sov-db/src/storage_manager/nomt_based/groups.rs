@@ -105,6 +105,46 @@ where
     pub(crate) fn update_ledger_finalized_height(&self) -> anyhow::Result<()> {
         update_ledger_finalized_height(self.ledger.clone())
     }
+
+    pub(crate) fn verify_commited_root_hashes(&self) -> anyhow::Result<()> {
+        let historical_state_delta_reader =
+            DeltaReader::new(self.historical_state.clone(), Vec::new());
+        let historical_state_reader =
+            HistoricalStateReader::with_delta_reader(historical_state_delta_reader)?;
+
+        let nomt_root_hashes = self.state.get_root_hashes();
+
+        match historical_state_reader.last_version() {
+            None => {
+                let is_kernel_empty = nomt_root_hashes.kernel.is_empty();
+                let is_user_empty = nomt_root_hashes.user.is_empty();
+                if !is_kernel_empty || !is_user_empty {
+                    return Err(anyhow::anyhow!(
+                        "Historical state is empty, but nomt state is not: is kernel empty={} is user empty={}",
+                        is_kernel_empty,
+                        is_user_empty,
+                    ));
+                }
+            }
+            Some(latest_version) => {
+                let Some(state_root_rocksdb) =
+                    historical_state_reader.get_serialized_root_hash(latest_version)?
+                else {
+                    anyhow::bail!("Missing root hash for version {}", latest_version);
+                };
+
+                if !nomt_root_hashes.included_in_raw(&state_root_rocksdb) {
+                    anyhow::bail!(
+                        "Nomt state root hashes {:?} is not included in historical state {}",
+                        nomt_root_hashes,
+                        hex::encode(state_root_rocksdb)
+                    );
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 pub(crate) struct SnapshotGroup {

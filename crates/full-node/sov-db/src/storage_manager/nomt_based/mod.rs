@@ -113,6 +113,7 @@ where
         let db_group = DbGroup::new(path.as_ref().to_path_buf())?;
 
         db_group.update_ledger_finalized_height()?;
+        db_group.verify_commited_root_hashes()?;
 
         Ok(Self {
             chain_forks: Default::default(),

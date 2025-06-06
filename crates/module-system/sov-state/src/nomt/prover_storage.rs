@@ -108,13 +108,14 @@ where
                     .historical_state
                     .get_value_option_by_key::<UserNamespace>(version, key.as_ref())
                     .expect("Underlying user I/O failed");
-                if cfg!(debug_assertions) && version == self.latest_version() {
+                if version == self.latest_version() {
+                    let key_path = S::Hasher::digest(key.as_ref()).into();
                     let nomt_session = self
                         .state_session_builder
                         .begin_user_session()
                         .expect("Failed to build user session");
-                    let key_path = S::Hasher::digest(key.as_ref()).into();
                     let nomt_value = nomt_session.read(key_path).unwrap();
+                    drop(nomt_session);
                     let historical_value_hash = historical_value.as_ref().map(|v| {
                         SlotValue::from(v.to_vec()).combine_val_hash_and_size::<S::Hasher>()
                     });
@@ -128,13 +129,14 @@ where
                     .historical_state
                     .get_value_option_by_key::<KernelNamespace>(version, key.as_ref())
                     .expect("Underlying user I/O failed");
-                if cfg!(debug_assertions) && version == self.latest_version() {
+                if version == self.latest_version() {
+                    let key_path = S::Hasher::digest(key.as_ref()).into();
                     let nomt_session = self
                         .state_session_builder
                         .begin_kernel_session()
                         .expect("Failed to build kernel session");
-                    let key_path = S::Hasher::digest(key.as_ref()).into();
                     let nomt_value = nomt_session.read(key_path).unwrap();
+                    drop(nomt_session);
                     let historical_value_hash = historical_value.as_ref().map(|v| {
                         SlotValue::from(v.to_vec()).combine_val_hash_and_size::<S::Hasher>()
                     });
@@ -467,7 +469,6 @@ where
             }
         };
 
-        // self.read_value::<N>(&key, Some(version_to_use));
         Ok(StorageProof {
             key,
             value,
@@ -492,6 +493,22 @@ where
                 "Root hash not found for version {}.",
                 version_to_use
             ))?;
-        Ok(borsh::from_slice(&raw_root).expect("Failed to deserialize root hash"))
+        let storage_root_historical =
+            borsh::from_slice(&raw_root).expect("Failed to deserialize root hash");
+        if version_to_use == self.latest_version() {
+            let user_session = self.state_session_builder.begin_user_session()?;
+            let user_root = user_session.prev_root();
+            drop(user_session);
+            let kernel_session = self.state_session_builder.begin_kernel_session()?;
+            let kernel_root = kernel_session.prev_root();
+            drop(kernel_session);
+            let prev_root_nomt = StorageRoot::new(user_root.into_inner(), kernel_root.into_inner());
+            assert_eq!(
+                storage_root_historical, prev_root_nomt,
+                "Root hash mismatch between historical and nomt databases"
+            );
+        }
+
+        Ok(storage_root_historical)
     }
 }
