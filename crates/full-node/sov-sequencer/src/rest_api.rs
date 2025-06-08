@@ -175,10 +175,13 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
             Seq::Spec,
         >>::encode_with_standard_auth(raw_tx);
 
-        let tx_with_hash = state
-            .sequencer
-            .accept_tx(baked_tx)
+        let tx_with_hash = tokio::spawn(async move { state.sequencer.accept_tx(baked_tx).await })
             .await
+            .map_err(|_| {
+                sov_rest_utils::errors::internal_server_error_response_500(
+                    "An internal error occurred while processing the transaction",
+                )
+            })?
             .map_err(IntoResponse::into_response)?;
 
         Ok(TxInfoWithConfirmation {
