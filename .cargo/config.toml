@@ -1,6 +1,7 @@
 [build]
-# See <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1196>.
-incremental = false
+# See <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1196>: it might break.
+# But right now it seems to work.
+incremental = true
 
 [alias]
 switcheroo = "run --manifest-path scripts/switcheroo/Cargo.toml --"
