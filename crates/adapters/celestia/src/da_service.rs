@@ -7,6 +7,7 @@ use backon::ExponentialBuilder;
 use celestia_rpc::prelude::*;
 use celestia_types::blob::Blob as JsonBlob;
 use celestia_types::nmt::Namespace;
+use celestia_types::state::Address;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use jsonrpsee::http_client::transport::HttpBackend;
@@ -24,10 +25,11 @@ use tracing::{debug, info, instrument, trace};
 pub use crate::config::CelestiaConfig;
 use crate::middleware::{TimingLayer, TimingMiddleware};
 use crate::types::{
-    FilteredCelestiaBlock, NamespaceBoundaryProof, NamespaceRelevantData, TmHash, APP_VERSION,
+    BlobWithSender, FilteredCelestiaBlock, NamespaceBoundaryProof, NamespaceRelevantData, TmHash,
+    APP_VERSION,
 };
 use crate::verifier::address::CelestiaAddress;
-use crate::verifier::proofs::{self};
+use crate::verifier::proofs::{self, BlobProof};
 use crate::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams};
 use crate::CelestiaHeader;
 
@@ -146,11 +148,36 @@ impl CelestiaService {
         }
         .expect("Client initialization is valid");
 
+        let fetched_address = client
+            .state_account_address()
+            .await
+            .expect("Failed to query state.AccountAddress to retrieve signer address");
+
+        let fetched_signer = match fetched_address {
+            Address::AccAddress(acc) => CelestiaAddress(acc),
+            Address::ValAddress(addr) => {
+                panic!("Need account address, got validator: {}", addr);
+            }
+            Address::ConsAddress(addr) => {
+                panic!("Need account address, got consensus node: {}", addr);
+            }
+        };
+        tracing::debug!(address = %fetched_signer, "Fetched signer.");
+
+        if let Some(config_signer_address) = config.signer_address {
+            if config_signer_address != fetched_signer {
+                panic!(
+                    "Signer address in in config {} does not match signer address fetched from node {}",
+                    config_signer_address, fetched_signer
+                );
+            }
+        }
+
         Self::with_client(
             client,
             chain_params.rollup_batch_namespace,
             chain_params.rollup_proof_namespace,
-            config.signer_address,
+            fetched_signer,
             Duration::from_millis(config.safe_lead_time_ms),
         )
     }
@@ -338,12 +365,7 @@ impl DaService for CelestiaService {
         &self,
         block: &Self::FilteredBlock,
     ) -> RelevantBlobs<<Self::Spec as DaSpec>::BlobTransaction> {
-        let proof_blobs = block.rollup_proof_data.get_blobs_with_sender();
-        let batch_blobs = block.rollup_batch_data.get_blobs_with_sender();
-        RelevantBlobs {
-            proof_blobs,
-            batch_blobs,
-        }
+        extract_relevant_blobs(block)
     }
 
     async fn get_extraction_proof(
@@ -354,38 +376,7 @@ impl DaService for CelestiaService {
         <Self::Spec as DaSpec>::InclusionMultiProof,
         <Self::Spec as DaSpec>::CompletenessProof,
     > {
-        let batch = {
-            let inclusion_proof = proofs::new_inclusion_proof(
-                &block.header,
-                &block.rollup_batch_data,
-                &blobs.batch_blobs,
-            );
-
-            DaProof {
-                inclusion_proof,
-                completeness_proof: NamespaceBoundaryProof::from_namespace_data(
-                    &block.rollup_batch_data,
-                ),
-            }
-        };
-
-        let proof = {
-            // Note: The second call to new_inclusion_proof merklizes and parse the executable transactions namespace again.
-            let inclusion_proof = proofs::new_inclusion_proof(
-                &block.header,
-                &block.rollup_proof_data,
-                &blobs.proof_blobs,
-            );
-
-            DaProof {
-                inclusion_proof,
-                completeness_proof: NamespaceBoundaryProof::from_namespace_data(
-                    &block.rollup_proof_data,
-                ),
-            }
-        };
-
-        RelevantProofs { proof, batch }
+        get_extraction_proof(block, blobs)
     }
 
     async fn send_transaction(
@@ -433,6 +424,55 @@ impl DaService for CelestiaService {
     }
 }
 
+pub(crate) fn extract_relevant_blobs(
+    block: &FilteredCelestiaBlock,
+) -> RelevantBlobs<BlobWithSender> {
+    let proof_blobs = block.rollup_proof_data.get_blobs_with_sender();
+    let batch_blobs = block.rollup_batch_data.get_blobs_with_sender();
+    RelevantBlobs {
+        proof_blobs,
+        batch_blobs,
+    }
+}
+
+pub(crate) fn get_extraction_proof(
+    block: &FilteredCelestiaBlock,
+    blobs: &RelevantBlobs<BlobWithSender>,
+) -> RelevantProofs<Vec<BlobProof>, Option<NamespaceBoundaryProof>> {
+    let batch = {
+        let inclusion_proof = proofs::new_inclusion_proof(
+            &block.header,
+            &block.rollup_batch_data,
+            &blobs.batch_blobs,
+        );
+
+        DaProof {
+            inclusion_proof,
+            completeness_proof: NamespaceBoundaryProof::from_namespace_data(
+                &block.rollup_batch_data,
+            ),
+        }
+    };
+
+    let proof = {
+        // Note: The second call to new_inclusion_proof merklizes and parse the executable transactions namespace again.
+        let inclusion_proof = proofs::new_inclusion_proof(
+            &block.header,
+            &block.rollup_proof_data,
+            &blobs.proof_blobs,
+        );
+
+        DaProof {
+            inclusion_proof,
+            completeness_proof: NamespaceBoundaryProof::from_namespace_data(
+                &block.rollup_proof_data,
+            ),
+        }
+    };
+
+    RelevantProofs { proof, batch }
+}
+
 #[cfg(test)]
 mod tests {
     use std::num::NonZero;
@@ -441,19 +481,42 @@ mod tests {
 
     use anyhow::Context;
     use celestia_types::nmt::Namespace;
-    use serde_json::json;
+    use serde_json::{json, Value};
     use sov_rollup_interface::da::{DaVerifier, RelevantBlobs};
     use sov_rollup_interface::node::da::DaService;
-    use wiremock::matchers::{bearer_token, body_json, method, path};
-    use wiremock::{Mock, MockServer, Request, ResponseTemplate};
+    use wiremock::matchers::{bearer_token, body_partial_json, method, path};
+    use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 
     use crate::config::default_request_timeout_seconds;
-    use crate::da_service::{CelestiaConfig, CelestiaService};
+    use crate::da_service::{
+        extract_relevant_blobs, get_extraction_proof, CelestiaConfig, CelestiaService,
+    };
     use crate::test_helper::files::*;
     use crate::test_helper::{raw_blob_from_data, ADDR_1, ADDR_2, ROLLUP_PARAMS_DEV};
     use crate::types::{BlobWithSender, FilteredCelestiaBlock};
     use crate::verifier::address::CelestiaAddress;
     use crate::verifier::{CelestiaVerifier, RollupParams};
+
+    struct RpcIdEchoResponder {
+        response_result: Value,
+    }
+
+    impl Respond for RpcIdEchoResponder {
+        fn respond(&self, request: &Request) -> ResponseTemplate {
+            let request_body_json: Result<Value, _> = serde_json::from_slice(&request.body);
+
+            let response_id = match request_body_json {
+                Ok(json_value) => json_value.get("id").cloned().unwrap_or(Value::Null),
+                Err(_) => Value::Null,
+            };
+
+            ResponseTemplate::new(200).set_body_json(json!({
+                "id": response_id,
+                "jsonrpc": "2.0",
+                "result": self.response_result
+            }))
+        }
+    }
 
     async fn setup_test_service(
         timeout_sec: Option<u64>,
@@ -470,6 +533,19 @@ mod tests {
         // Start a background HTTP server on a random local port
         let mock_server = MockServer::start().await;
 
+        let address = CelestiaAddress::from_str(ADDR_1).unwrap();
+
+        Mock::given(method("POST"))
+            .and(path("/"))
+            .and(body_partial_json(json!({
+                "method": "state.AccountAddress"
+            })))
+            .respond_with(RpcIdEchoResponder {
+                response_result: json!(address.to_string()),
+            })
+            .mount(&mock_server)
+            .await;
+
         let timeout_sec = timeout_sec
             .map(|t| NonZero::new(t).unwrap())
             .unwrap_or_else(default_request_timeout_seconds);
@@ -479,7 +555,7 @@ mod tests {
             max_celestia_response_body_size: NonZero::new(120_000).unwrap(),
             celestia_rpc_timeout_seconds: timeout_sec,
             safe_lead_time_ms: 0,
-            signer_address: CelestiaAddress::from_str(ADDR_1).unwrap(),
+            signer_address: Some(address),
         };
 
         let da_service = CelestiaService::new(config.clone(), params).await;
@@ -505,32 +581,25 @@ mod tests {
         let raw_blob = raw_blob_from_data(
             rollup_params.rollup_batch_namespace,
             blob.clone(),
-            &config.signer_address,
+            config.signer_address.as_ref().unwrap(),
         );
         let tx_config = celestia_rpc::TxConfig::default();
 
-        let expected_body = json!({
-            "id": 0,
-            "jsonrpc": "2.0",
-            "method": "state.SubmitPayForBlob",
-            "params": [
-                [raw_blob?],
-                tx_config
-            ]
-        });
+        let expected_tx_hash = "05D9016060072AA71B007A6CFB1B895623192D6616D513017964C3BFCD047282";
         Mock::given(method("POST"))
             .and(path("/"))
             .and(bearer_token(config.celestia_rpc_auth_token))
-            .and(body_json(&expected_body))
-            .respond_with(|req: &Request| {
-                let request: BasicJsonRpcRequest = serde_json::from_slice(&req.body).unwrap();
-                // Empty strings is what was observed with actual celestia 0.12.0
-                let response_json = json!({
-                    "jsonrpc": "2.0",
-                    "id": request.id,
-                    "result": {
+            .and(body_partial_json(json!({
+                "method": "state.SubmitPayForBlob",
+                "params": [
+                    [raw_blob?],
+                    tx_config
+                ]
+            })))
+            .respond_with(RpcIdEchoResponder {
+                response_result: json!({
                         "height": 30497,
-                        "txhash": "05D9016060072AA71B007A6CFB1B895623192D6616D513017964C3BFCD047282",
+                        "txhash": expected_tx_hash,
                         "codespace": "",
                         "code": 0,
                         "data": "12260A242F636F736D6F732E62616E6B2E763162657461312E4D736753656E64526573706F6E7365",
@@ -541,18 +610,17 @@ mod tests {
                         "gas_used": 69085,
                         "timestamp": "",
                         "events": [],
-                    }
-                });
-
-                ResponseTemplate::new(200)
-                    .append_header("Content-Type", "application/json")
-                    .set_body_json(response_json)
+                    })
             })
             .up_to_n_times(1)
             .mount(&mock_server)
             .await;
-        da_service.send_transaction(&blob).await.await??;
 
+        let response = da_service.send_transaction(&blob).await.await??;
+        assert_eq!(
+            response.da_transaction_id.to_string(),
+            format!("0x{}", expected_tx_hash)
+        );
         Ok(())
     }
 
@@ -696,10 +764,8 @@ mod tests {
         ];
 
         for (block, rollup_params, signers) in blocks {
-            let (_, _, da_service) = setup_test_service(None, rollup_params).await;
-
             let mut signers = signers.into_iter();
-            let mut relevant_blobs = da_service.extract_relevant_blobs(&block);
+            let mut relevant_blobs = extract_relevant_blobs(&block);
 
             // Reading all blobs and proofs, so proof is built for the full data.
             {
@@ -720,9 +786,7 @@ mod tests {
                 }
             }
 
-            let relevant_proofs = da_service
-                .get_extraction_proof(&block, &relevant_blobs)
-                .await;
+            let relevant_proofs = get_extraction_proof(&block, &relevant_blobs);
 
             let verifier = CelestiaVerifier::new(rollup_params);
 
@@ -989,31 +1053,23 @@ mod tests {
         let raw_blob = raw_blob_from_data(
             rollup_params.rollup_proof_namespace,
             zk_proof.clone(),
-            &config.signer_address,
+            config.signer_address.as_ref().unwrap(),
         );
         let tx_config = celestia_rpc::TxConfig::default();
-
-        let expected_body = json!({
-            "id": 0,
-            "jsonrpc": "2.0",
-            "method": "state.SubmitPayForBlob",
-            "params": [
-                [raw_blob?],
-                tx_config
-            ]
-        });
 
         Mock::given(method("POST"))
             .and(path("/"))
             .and(bearer_token(config.celestia_rpc_auth_token))
-            .and(body_json(&expected_body))
-            .respond_with(|req: &Request| {
-                let request: BasicJsonRpcRequest = serde_json::from_slice(&req.body).unwrap();
-                let response_json = json!({
-                    "jsonrpc": "2.0",
-                    "id": request.id,
-                    "result": {
-                        "height": 30497,
+            .and(body_partial_json(json!({
+                "method": "state.SubmitPayForBlob",
+                "params": [
+                    [raw_blob?],
+                    tx_config
+                ]
+            })))
+            .respond_with(RpcIdEchoResponder {
+                response_result: json!({
+                      "height": 30497,
                         "txhash": "05D9016060072AA71B007A6CFB1B895623192D6616D513017964C3BFCD047282",
                         "codespace": "",
                         "code": 0,
@@ -1025,13 +1081,7 @@ mod tests {
                         "gas_used": 69085,
                         "timestamp": "",
                         "events": [],
-                     }
-                });
-
-                ResponseTemplate::new(200)
-                    .append_header("Content-Type", "application/json")
-                    .set_body_json(response_json)
-            })
+                })})
             .up_to_n_times(1)
             .mount(&mock_server)
             .await;

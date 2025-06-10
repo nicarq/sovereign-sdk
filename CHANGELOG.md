@@ -1,3 +1,7 @@
+# 2025-06-08
+- #2982 Removes `signer_address` from `[da]` section for celestia demo rollup, as this information can be fetched from the node.
+  Users still can set this address for the self-check of the configuration.
+
 # 2025-06-04
 - #2981 Disable state root background checks. This change **should not be** adopted by Sovereign SDK customers. 
 - #2979 Internal CI improvements

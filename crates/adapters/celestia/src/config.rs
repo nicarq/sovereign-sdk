@@ -23,7 +23,9 @@ pub struct CelestiaConfig {
     #[serde(default = "default_safe_lead_time_ms")]
     pub safe_lead_time_ms: u64,
     /// The sequencer address that will be used as the signer for the blobs.
-    pub signer_address: CelestiaAddress,
+    /// CelestiaService fetches the signer address from the Celestia RPC server.
+    /// Set it only to ensure that target node runs with correct credentials.
+    pub signer_address: Option<CelestiaAddress>,
 }
 
 fn default_safe_lead_time_ms() -> u64 {

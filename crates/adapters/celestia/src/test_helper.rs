@@ -788,43 +788,16 @@ pub(crate) mod files {
 }
 
 pub(crate) mod serialization {
-    use std::num::NonZero;
-    use std::str::FromStr;
 
     use sov_rollup_interface::da::{RelevantBlobs, RelevantProofs};
-    use sov_rollup_interface::node::da::DaService;
 
-    use super::*;
+    use crate::da_service::{extract_relevant_blobs, get_extraction_proof};
     use crate::types::{BlobWithSender, FilteredCelestiaBlock, NamespaceBoundaryProof};
-    use crate::verifier::address::CelestiaAddress;
     use crate::verifier::proofs::BlobProof;
-    use crate::verifier::RollupParams;
-    use crate::{CelestiaConfig, CelestiaService};
 
     type CelestiaRelevantProofs = RelevantProofs<Vec<BlobProof>, Option<NamespaceBoundaryProof>>;
 
-    pub(crate) async fn get_test_da_service(port: u16) -> CelestiaService {
-        CelestiaService::new(
-            CelestiaConfig {
-                celestia_rpc_auth_token: "TEST".to_string(),
-                celestia_rpc_address: format!("http://127.0.0.1:{}", port),
-                max_celestia_response_body_size: NonZero::new(100_000).unwrap(),
-                celestia_rpc_timeout_seconds: NonZero::new(10).unwrap(),
-                signer_address: CelestiaAddress::from_str(ADDR_1).unwrap(),
-                safe_lead_time_ms: 500,
-            },
-            RollupParams {
-                rollup_batch_namespace: ROLLUP_BATCH_NAMESPACE,
-                rollup_proof_namespace: ROLLUP_PROOF_NAMESPACE,
-            },
-        )
-        .await
-    }
-
-    pub(crate) async fn test_block_serialization(
-        da_service: &CelestiaService,
-        block: FilteredCelestiaBlock,
-    ) {
+    pub(crate) async fn test_block_serialization(block: FilteredCelestiaBlock) {
         // Block itself
         let serialized_bincode_block =
             bincode::serialize(&block).expect("block bincode serialization failed");
@@ -841,7 +814,7 @@ pub(crate) mod serialization {
         assert_eq!(block, deserialized_risc0_block);
 
         // Relevant blobs
-        let relevant_blobs = da_service.extract_relevant_blobs(&block);
+        let relevant_blobs = extract_relevant_blobs(&block);
 
         let serialized_bincode_relevant_blobs = bincode::serialize(&relevant_blobs)
             .expect("relevant blobs bincode serialization failed");
@@ -873,9 +846,7 @@ pub(crate) mod serialization {
         );
 
         // Extraction proof
-        let extraction_proof = da_service
-            .get_extraction_proof(&block, &relevant_blobs)
-            .await;
+        let extraction_proof = get_extraction_proof(&block, &relevant_blobs);
 
         let serialized_bincode_extraction_proof = bincode::serialize(&extraction_proof)
             .expect("extraction proof bincode serialization failed");
