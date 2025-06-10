@@ -97,15 +97,6 @@ impl<S: Spec> StateRootCacheEntry<S> {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum StateRootComputeError {
-    #[error("State roots computations were requested out of order. This is a bug in the rollup block executor. Last known height: {last_known_height}, requested height: {requested_height}")]
-    MissingPreviousRoots {
-        last_known_height: RollupHeight,
-        requested_height: RollupHeight,
-    },
-}
-
 pub(super) struct StateRootBackgroundTaskState<S: Spec> {
     pub request_sender: mpsc::Sender<StateRootComputeRequest<S>>,
 }
@@ -173,20 +164,6 @@ impl<S: Spec> StateRootBackgroundTaskState<S> {
                         break;
                     }
                 };
-
-                // Sanity check: New requests should always be submitted in order (i.e. we should never request block 10 before block 9)
-                if cached_results
-                    .last_key_value()
-                    .is_some_and(|(last_key, _)| rollup_height > last_key.saturating_add(1))
-                {
-                    tracing::error!("State root computation requested for height {}, but intermediate state roots are not available. This is a bug, please report it.", rollup_height);
-                    // Usually, we delegate error handling to the receiver - but the receiver was dropped panic to ensure the error is noticed.
-                    tracing::error!(err=%StateRootComputeError::MissingPreviousRoots {
-                        last_known_height: cached_results.last_key_value().map(|(k, _)| *k).unwrap_or(RollupHeight::GENESIS),
-                        requested_height: rollup_height,
-                    }, "State root computation returned an error");
-                    panic!("Uncaught state-root mismatch. See logs for details");
-                }
 
                 // If the entry is in cache, check that the state root is consistent and return early
                 if let Some(cached_entry) = cached_results.get(&rollup_height) {
