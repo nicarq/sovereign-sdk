@@ -5609,9 +5609,9 @@ version = "0.3.0"
 
 [[package]]
 name = "nmt-rs"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e408e823bdc9b4bb525a61b44e846239833a8f9bd86c03a43e4ca314a5497582"
+checksum = "ea9966aeb09926d411a18ed4037897a8c2095d90e0bc66eb19b6dc4d8dbd01a5"
 dependencies = [
  "borsh",
  "bytes",
