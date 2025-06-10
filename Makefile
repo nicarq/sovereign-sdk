@@ -28,7 +28,7 @@ help: ## Display this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 build: ## Build the project
-	SKIP_GUEST_BUILD=sp1 cargo build
+	@cargo build
 
 clean: ## Cleans compiled
 	@cargo clean
@@ -51,16 +51,16 @@ total-clean:
 	rm -rf "examples/demo-rollup/tests/evm/uniswap/node_modules"
 
 test:  ## Runs test suite using next test
-	SKIP_GUEST_BUILD=sp1 cargo nextest run --no-fail-fast --status-level skip --all-features
+	@cargo nextest run --no-fail-fast --status-level skip --all-features
 
 test-all: ## Runs test suite using nextest, across the whole workspace
 	cargo switcheroo save _backup
 	cargo switcheroo disable
-	SKIP_GUEST_BUILD=sp1 $(MAKE) test
+	$(MAKE) test
 	cargo switcheroo set _backup
 
 test-default-features:  ## Runs test suite using default features
-	SKIP_GUEST_BUILD=sp1 cargo nextest run --no-fail-fast --status-level skip
+	@cargo nextest run --no-fail-fast --status-level skip
 
 install-dev-tools:  ## Installs all necessary cargo helpers
 install-dev-tools: install-risc0-toolchain install-sp1-toolchain
@@ -98,7 +98,7 @@ install-sp1-toolchain:  ## install SP1 toolchain
 lint:  ## cargo fmt, check and clippy.
 	## fmt first, because it's the cheapest
 	cargo +nightly fmt --all --check
-	SKIP_GUEST_BUILD=sp1 cargo check --all-targets --all-features
+	cargo check --all-targets --all-features
 	## Invokes Zepter multiple times because fixes sometimes unveal more underlying issues.
 	zepter
 	zepter
@@ -108,7 +108,7 @@ lint:  ## cargo fmt, check and clippy.
 	else \
 		echo "cargo-dylint not found, skipping dylint check"; \
 	fi
-	$(MAKE) SKIP_GUEST_BUILD=sp1 clippy
+	$(MAKE) clippy
 
 lint-all: ## cargo fmt, check and clippy, across the whole workspace
 	cargo switcheroo save _backup

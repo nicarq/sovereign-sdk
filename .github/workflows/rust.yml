@@ -157,7 +157,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - run: cargo bench --no-run
         env:
-          SKIP_GUEST_BUILD: "sp1"
           SOV_BENCH_BLOCKS: 1
           SOV_BENCH_TXNS_PER_BLOCK: 10
           SOV_BENCH_NUM_PUB_KEYS: 100
@@ -180,7 +179,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: rollup bench check
         env:
-          SKIP_GUEST_BUILD: "sp1"
           SOV_BENCH_BLOCKS: 10
           SOV_BENCH_TXNS_PER_BLOCK: 10000
           SOV_BENCH_NUM_PUB_KEYS: 100
