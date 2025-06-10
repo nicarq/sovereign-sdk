@@ -4,6 +4,34 @@ info:
   title: Sov-bank custom endpoints
   version: 0.1.0
 paths:
+  /tokens/gas_token:
+    get:
+      summary: Get the id of the native gas token of the rollup
+      operationId: "bank_gas_token_id"
+      tags: [Bank]
+      responses:
+        '200':
+          $ref: '#/components/responses/TokenIdResponse'
+        '404':
+          # Referring type from `runtime-base.yaml`
+          $ref: '#/components/responses/StateNotFound'
+  /tokens/gas_token/balances/{address}:
+    get:
+      summary: Fetch the current balance of the native gas token for a given user
+      operationId: "bank_gas_token_get_user_balance"
+      tags: [Bank]
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Address'
+      responses:
+        '200':
+          $ref: '#/components/responses/CoinsResponse'
+        '404':
+          # Referring type from `runtime-base.yaml`
+          $ref: '#/components/responses/StateNotFound'
   /tokens/{token_id}/total-supply:
     get:
       summary: Get the total supply of a specific token
@@ -63,7 +91,7 @@ paths:
           description: The address of the deployer of the token
       responses:
         '200':
-          $ref: '#/components/responses/CoinsResponse'
+          $ref: '#/components/responses/TokenIdResponse'
         '404':
           # Referring type from `runtime-base.yaml`
           $ref: '#/components/responses/StateNotFound'
@@ -101,3 +129,17 @@ components:
                 $ref: '#/components/schemas/Meta'
               data:
                 $ref: '#/components/schemas/Coins'
+    TokenIdResponse:
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              meta:
+                $ref: '#/components/schemas/Meta'
+              data:
+                type: object
+                properties:
+                  token_id:
+                    $ref: '#/components/schemas/TokenId'

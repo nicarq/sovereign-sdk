@@ -8,7 +8,7 @@ use sov_modules_api::rest::utils::{errors, ApiResult, Path, Query};
 use sov_modules_api::rest::{ApiState, HasCustomRestApi};
 use sov_modules_api::{ApiStateAccessor, Spec};
 
-use crate::{get_token_id, Amount, Bank, Coins, TokenId};
+use crate::{config_gas_token_id, get_token_id, Amount, Bank, Coins, TokenId};
 
 /// Structure returned by the `balance_of` method.
 #[derive(Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize, Clone)]
@@ -64,6 +64,21 @@ impl<S: Spec> Bank<S> {
 
 /// Axum routes.
 impl<S: Spec> Bank<S> {
+    async fn route_gas_token() -> ApiResult<types::TokenIdResponse> {
+        Ok(types::TokenIdResponse {
+            token_id: config_gas_token_id(),
+        }
+        .into())
+    }
+
+    async fn route_gas_token_balance(
+        state: ApiState<S, Self>,
+        accessor: ApiStateAccessor<S>,
+        Path(user_address): Path<S::Address>,
+    ) -> ApiResult<Coins> {
+        Self::route_balance(state, accessor, Path((config_gas_token_id(), user_address))).await
+    }
+
     async fn route_balance(
         state: ApiState<S, Self>,
         mut accessor: ApiStateAccessor<S>,
@@ -117,6 +132,11 @@ impl<S: Spec> HasCustomRestApi for Bank<S> {
 
     fn custom_rest_api(&self, state: ApiState<S>) -> axum::Router<()> {
         axum::Router::new()
+            .route("/tokens/gas_token", get(Self::route_gas_token))
+            .route(
+                "/tokens/gas_token/balances/:address",
+                get(Self::route_gas_token_balance),
+            )
             .route(
                 "/tokens/:tokenId/balances/:address",
                 get(Self::route_balance),

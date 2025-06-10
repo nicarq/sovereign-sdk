@@ -1,3 +1,6 @@
+# 2025-06-10
+- #3014 Adds `/modules/bank/tokens/gas_token` and `/modules/bank/tokens/gas_token/balances/{address}` endpoints to enable fetching the gas token id and gas token balances using the REST API endpoints.
+
 # 2025-06-08
 - #2982 Removes `signer_address` from `[da]` section for celestia demo rollup, as this information can be fetched from the node.
   Users still can set this address for the self-check of the configuration.
