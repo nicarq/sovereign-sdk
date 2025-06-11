@@ -16,7 +16,6 @@ const NUM_STATE_ROOT_COMPUTE_REQUESTS: usize = 50;
 
 pub(crate) struct StateRootComputeRequest<S: Spec> {
     pub state_accesses: StateAccesses,
-    pub witness: <S::Storage as Storage>::Witness,
     pub storage: S::Storage,
     pub rollup_height: RollupHeight,
     pub response_channel: oneshot::Sender<(RollupHeight, <S::Storage as Storage>::Root)>,
@@ -39,18 +38,15 @@ impl<S: Spec> StateRootCacheEntry<S> {
     async fn assert_consistency(
         &self,
         state_accesses: StateAccesses,
-        witness: <S::Storage as Storage>::Witness,
         storage: S::Storage,
         rollup_height: RollupHeight,
     ) -> (RollupHeight, <S::Storage as Storage>::Root) {
+        let new_writes = state_accesses.user.ordered_writes.clone();
         let prev_root = storage
             .get_root_hash(storage.latest_version())
             .expect("Failed to get root hash");
-
-        let new_writes = state_accesses.user.ordered_writes.clone();
         let new_root =
-            compute_state_root::<S>(state_accesses, witness, storage, rollup_height, prev_root)
-                .await;
+            compute_state_root::<S>(state_accesses, storage, rollup_height, prev_root).await;
         if user_roots_match(&self.root, &new_root) {
             return (rollup_height, new_root);
         }
@@ -103,7 +99,6 @@ pub(super) struct StateRootBackgroundTaskState<S: Spec> {
 
 async fn compute_state_root<S: Spec>(
     state_accesses: StateAccesses,
-    witness: <S::Storage as Storage>::Witness,
     storage: S::Storage,
     rollup_height: RollupHeight,
     prev_root: <S::Storage as Storage>::Root,
@@ -115,7 +110,7 @@ async fn compute_state_root<S: Spec>(
 		tracing::span!(tracing::Level::DEBUG,  "compute_state_update", scope = "sequencer")
 			.in_scope(|| {
 				storage
-					.compute_state_update(state_accesses, &witness, prev_root)
+					.compute_state_update(state_accesses, &Default::default(), prev_root)
 					.unwrap_or_else(|_| {
 								tracing::error!(
 						rollup_height = %rollup_height,
@@ -145,10 +140,10 @@ impl<S: Spec> StateRootBackgroundTaskState<S> {
                 // Wait for a new request, or shutdown.
                 let StateRootComputeRequest::<S> {
                     state_accesses,
-                    witness,
                     storage,
                     rollup_height,
                     response_channel,
+                    ..
                 } = match future_or_shutdown(request_receiver.recv(), &shutdown_receiver).await {
                     FutureOrShutdownOutput::Output(Some(request)) => request,
                     FutureOrShutdownOutput::Shutdown => {
@@ -170,7 +165,7 @@ impl<S: Spec> StateRootBackgroundTaskState<S> {
                     // If we're checking that the state roots are equal, we have some work to do.
                     let result = if check_state_roots {
                         cached_entry
-                            .assert_consistency(state_accesses, witness, storage, rollup_height)
+                            .assert_consistency(state_accesses, storage, rollup_height)
                             .await
                     } else {
                         (rollup_height, cached_entry.root.clone())
@@ -204,7 +199,6 @@ impl<S: Spec> StateRootBackgroundTaskState<S> {
                     .expect("Failed to get root hash");
                 let root = compute_state_root::<S>(
                     state_accesses,
-                    witness,
                     storage,
                     rollup_height,
                     prev_root.clone(),

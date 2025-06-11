@@ -37,12 +37,7 @@ type TxReceiptWithEvents<S, Rt> = (
     Vec<RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>,
 );
 
-type BlockExecutionOutput<S> = (
-    Vec<BatchReceipt<S>>,
-    ChangeSet,
-    StateAccesses,
-    <<S as Spec>::Storage as Storage>::Witness,
-);
+type BlockExecutionOutput<S> = (Vec<BatchReceipt<S>>, ChangeSet, StateAccesses);
 
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum RollupBlockExecutorError<S: Spec> {
@@ -529,10 +524,9 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             .expect("No in-progress rollup block, nothing to do. This is a bug, please report it");
 
         let rollup_height = self.checkpoint.rollup_height_to_access();
-        let (batch_receipts, changes, state_accesses, witness) =
-            task_state.shutdown().await.expect(
-                "Transaction acceptor task failed unexpectedly! This is a bug, please report it.",
-            );
+        let (batch_receipts, changes, state_accesses) = task_state.shutdown().await.expect(
+            "Transaction acceptor task failed unexpectedly! This is a bug, please report it.",
+        );
 
         for batch_receipt in batch_receipts {
             // We already increment the event number for our own transactions
@@ -557,7 +551,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             .state_root_request_sender
             .send(StateRootComputeRequest {
                 state_accesses,
-                witness,
                 storage: self.checkpoint.storage().clone(),
                 rollup_height,
                 response_channel,
@@ -609,14 +602,7 @@ struct RollupBlockTaskContext<S: Spec> {
     sequencer_da_address: <S::Da as DaSpec>::Address,
 }
 
-fn rollup_block_task_body<S, Rt>(
-    ctx: RollupBlockTaskContext<S>,
-) -> (
-    Vec<BatchReceipt<S>>,
-    ChangeSet,
-    StateAccesses,
-    <S::Storage as Storage>::Witness,
-)
+fn rollup_block_task_body<S, Rt>(ctx: RollupBlockTaskContext<S>) -> BlockExecutionOutput<S>
 where
     S: Spec,
     Rt: Runtime<S>,
@@ -722,7 +708,7 @@ where
     );
 
     let mut changes = checkpoint.changes();
-    let (accessory_delta, state_accesses, witness) =
+    let (accessory_delta, state_accesses, _witness) =
         stf.materialize_accessory_state(&mut Default::default(), checkpoint);
 
     changes.changes.extend(
@@ -733,7 +719,7 @@ where
     );
     drop(shutdown_notifier);
 
-    (batch_receipts, changes, state_accesses, witness)
+    (batch_receipts, changes, state_accesses)
 }
 
 fn reject_reason_to_error(
