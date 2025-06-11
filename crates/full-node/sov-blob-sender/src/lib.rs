@@ -12,6 +12,7 @@ use db::{BlobSenderDb, BlobToSend};
 use in_flight_blob::{track_num_of_in_flight_blobs, InFlightBlob, InFlightBlobInfo};
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::{DaSpec, EventModuleName, RuntimeEventResponse};
+use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::node::da::{DaService, SubmitBlobReceipt};
 use sov_rollup_interface::node::ledger_api::{LedgerStateProvider, QueryMode};
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
@@ -450,7 +451,10 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
             Ok(elapsed) => elapsed,
             Err(err) => {
                 tracing::error!(
-                    "BlobSender: unable to get elapsed time for blob submission, timer: {start_time:?}, error: {err:?}, blob_hash: {blob_hash:#?}. Shutting down.",
+                    blob_hash = %HexHash::new(blob_hash),
+                    error = ?err,
+                    timer = ?start_time,
+                    "BlobSender: unable to get elapsed time for blob submission. Shutting down.",
                 );
                 return true;
             }
@@ -458,8 +462,11 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
 
         if elapsed > self.blob_processing_timeout {
             tracing::error!(
-                "BlobSender: elapsed time for blob submission exceeded the resubmit interval, timer: {start_time:?}, blob_processing_timeout: {:?}, elapsed: {elapsed:?}, blob_hash: {blob_hash:#?}",
-                self.blob_processing_timeout
+                blob_hash = %HexHash::new(blob_hash),
+                timer = ?start_time,
+                blob_processing_timeout = ?self.blob_processing_timeout,
+                ?elapsed,
+                "BlobSender: elapsed time for blob submission exceeded the resubmit interval.",
             );
             return true;
         }

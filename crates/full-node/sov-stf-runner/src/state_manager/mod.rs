@@ -385,16 +385,26 @@ where
             let max_provable_slot_number = self
                 .max_provable_slot_number_tracker
                 .max_provable_slot_number();
+            tracing::trace!(
+                ?max_provable_slot_number,
+                "Going to notify stf_info_sender about max provable slot"
+            );
             stf_info_sender
                 .notify(max_provable_slot_number, &self.ledger_db)
                 .await?;
+            tracing::trace!(
+                "State transition info receiver has been notified about max provable slot number"
+            );
         }
 
         self.state_root = new_state_root;
         // API storage and Ledger have all data from this iteration,
         // now it is safe to submit notifications.
+        tracing::trace!("Sending ledger notifications");
         self.ledger_db.send_notifications();
-        tracing::trace!("Notifications sent, state manager is completed its task");
+        tracing::trace!(
+            "Ledger notifications have been sent, state manager has completed its task"
+        );
 
         Ok(())
     }

@@ -251,8 +251,16 @@ where
         // So we always notify up to the `write_rollup_height`, even if the `max_provable_slot_number` is higher.
         let height_to_notify = std::cmp::min(max_provable_slot_number, write_rollup_height);
 
-        for height in next_height_to_send.range_inclusive(height_to_notify) {
+        let range_to_notify = next_height_to_send.range_inclusive(height_to_notify);
+        tracing::trace!(
+            start_height = ?next_height_to_send,
+            end_height = ?height_to_notify,
+            "Heights that are going to be scheduling for proving/attesting."
+        );
+        for height in range_to_notify {
+            tracing::trace!(%height, "Requesting for proving/attesting");
             self.notifier.send(height).await?;
+            tracing::trace!(%height, "Notified about stf info height for proving/attesting");
         }
 
         if height_to_notify >= next_height_to_send {
@@ -368,7 +376,9 @@ where
         &mut self,
     ) -> anyhow::Result<Option<StateTransitionInfo<StateRoot, Witness, Da>>> {
         if let Some(slot_number) = self.receiver.recv().await {
+            tracing::trace!(%slot_number, "Read next stf info");
             let next_height_to_receive = self.next_height_to_receive();
+            tracing::trace!(%next_height_to_receive, %slot_number, "Next height to receive");
 
             // We need to ensure that the rollup height received is greater than the next expected height to
             // ensure we don't see the same height multiple times.
