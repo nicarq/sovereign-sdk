@@ -83,6 +83,7 @@ where
         state_db: NomtSessionBuilder<H, K>,
         historical_state: HistoricalStateReader,
         accessory_db: AccessoryDb,
+        use_strict_mode: bool,
     ) -> Self;
 }
 
@@ -126,7 +127,11 @@ where
     }
 
     // build a storage up to the given block_hash (inclusive).
-    fn create_state_up_to(&self, block_hash: Da::SlotHash) -> anyhow::Result<(S, DeltaReader)> {
+    fn create_state_up_to(
+        &self,
+        block_hash: Da::SlotHash,
+        use_strict_mode: bool,
+    ) -> anyhow::Result<(S, DeltaReader)> {
         tracing::trace!(%block_hash, "Creating storage up to block hash");
         // References are in reversed chronological order,
         // starting from tip of the chain going back to last finalized header
@@ -155,6 +160,7 @@ where
             rev_references,
             &self.rockbound_snapshots,
             self.nomt_snapshots.clone(),
+            use_strict_mode,
         )
     }
 
@@ -211,7 +217,10 @@ where
             e.insert(prev_hash);
         }
 
-        let state = self.create_state_up_to(block_header.prev_hash())?;
+        // Storage created "for" a block implies node context,
+        // and we expect a change set from this storage to be saved.
+        // That's why it is created in a strict mode.
+        let state = self.create_state_up_to(block_header.prev_hash(), true)?;
 
         Ok(state)
     }
@@ -220,15 +229,19 @@ where
         &mut self,
         block_header: &Da::BlockHeader,
     ) -> anyhow::Result<(Self::StfState, Self::LedgerState)> {
+        // Storage created "after" a block is usually used outside of node context,
+        // So strict mode is not needed.
+        let use_strict_mode = false;
         if !self.rockbound_snapshots.contains_key(&block_header.hash()) {
             tracing::debug!(block_header = %block_header.display(), "Creating new storage from finalized data as block header is not in the saved chain");
             self.db_group.create_storage(
                 Vec::new(),
                 &self.rockbound_snapshots,
                 self.nomt_snapshots.clone(),
+                use_strict_mode,
             )
         } else {
-            self.create_state_up_to(block_header.hash())
+            self.create_state_up_to(block_header.hash(), use_strict_mode)
         }
     }
 

@@ -30,6 +30,7 @@ impl HistoricalStateReader {
     /// Create a new instance of [`HistoricalStateReader`] from a given [`DeltaReader`].
     pub fn with_delta_reader(reader: DeltaReader) -> anyhow::Result<Self> {
         let next_version = Self::next_version_from(&reader)?;
+        tracing::trace!(?next_version, "Initialized historical state reader");
         Ok(Self {
             db: reader,
             next_version,

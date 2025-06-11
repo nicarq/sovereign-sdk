@@ -48,6 +48,7 @@ impl crate::storage_manager::InitializableNativeNomtStorage<H, SlotHash> for Tes
         state_session_builder: crate::state_db_nomt::NomtSessionBuilder<H, SlotHash>,
         historical_state: crate::historical_state::HistoricalStateReader,
         accessory_db: AccessoryDb,
+        _use_strict_mode: bool,
     ) -> Self {
         TestNomtStorage {
             state_session_builder,

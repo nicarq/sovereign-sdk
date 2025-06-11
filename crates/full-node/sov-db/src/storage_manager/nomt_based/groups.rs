@@ -70,6 +70,7 @@ where
         relevant_snapshot_refs: Vec<K>,
         rockbound_snapshots: &HashMap<K, SnapshotGroup>,
         nomt_snapshots: Arc<RwLock<HashMap<K, StateOverlay>>>,
+        use_strict_mode: bool,
     ) -> anyhow::Result<(S, DeltaReader)> {
         let mut historical_state_snapshots = Vec::with_capacity(relevant_snapshot_refs.len());
         let mut accessory_snapshots = Vec::with_capacity(relevant_snapshot_refs.len());
@@ -98,7 +99,12 @@ where
         let accessory_db = AccessoryDb::with_reader(accessory_reader)?;
         let ledger_reader = DeltaReader::new(self.ledger.clone(), ledger_snapshots);
 
-        let storage = S::new(state_session_builder, historical_state_mapper, accessory_db);
+        let storage = S::new(
+            state_session_builder,
+            historical_state_mapper,
+            accessory_db,
+            use_strict_mode,
+        );
         Ok((storage, ledger_reader))
     }
 

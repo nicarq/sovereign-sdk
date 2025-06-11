@@ -6,14 +6,14 @@ use sov_state::{
 };
 use sov_test_utils::storage::{
     ForklessStorageManager, NativeStorageManager, NomtStorageManager, NonCommitingStorageManager,
-    SimpleStorageManager,
+    SimpleNomtStorageManager, SimpleStorageManager,
 };
 use sov_test_utils::{TestNomtSpec, TestSpec};
 
 #[test]
 fn jmt_concurrent_prover_storages() {
     let storage_manager = SimpleStorageManager::new();
-    concurrent_prover_storages::<TestSpec, _>(storage_manager, true);
+    concurrent_prover_storages::<TestSpec, _>(storage_manager);
 }
 
 #[test]
@@ -21,7 +21,14 @@ fn jmt_concurrent_prover_in_memory_storages() {
     let dir = tempfile::tempdir().unwrap();
     let inner_storage_manager = NativeStorageManager::new(dir.path()).unwrap();
     let storage_manager = NonCommitingStorageManager::new(dir, inner_storage_manager);
-    concurrent_prover_storages::<TestSpec, _>(storage_manager, true);
+    concurrent_prover_storages::<TestSpec, _>(storage_manager);
+}
+
+#[test]
+fn nomt_concurrent_prover_storages() {
+    let mut storage_manager = SimpleNomtStorageManager::new();
+    storage_manager.set_strict_mode(false);
+    concurrent_prover_storages::<TestNomtSpec, _>(storage_manager);
 }
 
 #[test]
@@ -29,8 +36,36 @@ fn nomt_concurrent_prover_in_memory_storages() {
     let dir = tempfile::tempdir().unwrap();
     let inner_storage_manager = NomtStorageManager::new(dir.path()).unwrap();
     let storage_manager = NonCommitingStorageManager::new(dir, inner_storage_manager);
-    // TODO: Enable root hashes assertion, after it is implemented
-    concurrent_prover_storages::<TestNomtSpec, _>(storage_manager, false);
+    concurrent_prover_storages::<TestNomtSpec, _>(storage_manager);
+}
+
+#[test]
+fn jmt_node_sequencer_concurrent_state_update() {
+    let storage_manager = SimpleStorageManager::new();
+    node_sequencer_compute_state_update_concurrency::<TestSpec, _>(storage_manager);
+}
+
+#[test]
+fn jmt_node_sequencer_concurrent_state_update_in_memory() {
+    let dir = tempfile::tempdir().unwrap();
+    let inner_storage_manager = NativeStorageManager::new(dir.path()).unwrap();
+    let storage_manager = NonCommitingStorageManager::new(dir, inner_storage_manager);
+    node_sequencer_compute_state_update_concurrency::<TestSpec, _>(storage_manager);
+}
+
+#[test]
+fn nomt_node_sequencer_concurrent_state_update() {
+    let mut storage_manager = SimpleNomtStorageManager::new();
+    storage_manager.set_strict_mode(false);
+    node_sequencer_compute_state_update_concurrency::<TestNomtSpec, _>(storage_manager);
+}
+
+#[test]
+fn nomt_node_sequencer_concurrent_state_update_in_memory() {
+    let dir = tempfile::tempdir().unwrap();
+    let inner_storage_manager = NomtStorageManager::new(dir.path()).unwrap();
+    let storage_manager = NonCommitingStorageManager::new(dir, inner_storage_manager);
+    node_sequencer_compute_state_update_concurrency::<TestNomtSpec, _>(storage_manager);
 }
 
 /// # Description
@@ -38,7 +73,7 @@ fn nomt_concurrent_prover_in_memory_storages() {
 /// inclusive up to the latest version available when it was created.
 /// It should not be able to see data at `next_version` or any future version passed as a parameter.
 /// This test is important because of the leaky abstraction in `StorageManager`.
-/// Data with a newer version can be written to the RocksDB,
+/// Data with a newer version can be written to the RocksDB/NOMT,
 /// while an instance of `ProverStorage` in the HTTP API hasn't been updated.
 /// The HTTP API must serve consistent data during the request/response lifecycle,
 /// even if data in RocksDB is being updated.
@@ -54,7 +89,7 @@ fn nomt_concurrent_prover_in_memory_storages() {
 /// The test checks values in user, kernel, and accessory states.
 /// For user and kernel states, it also checks that `get_with_proof` data is consistent with what is expected from the normal `get` method.
 /// The test checks root hashes.
-fn concurrent_prover_storages<S, Sm>(mut storage_manager: Sm, should_assert_root_hashes: bool)
+fn concurrent_prover_storages<S, Sm>(mut storage_manager: Sm)
 where
     S: Spec,
     Sm: ForklessStorageManager<Storage = S::Storage>,
@@ -67,14 +102,17 @@ where
 
     let user_value_1 = SlotValue::from("user_value1");
     let user_value_2 = SlotValue::from("user_value2");
+    // user_value_3 is None
     let user_value_4 = SlotValue::from("user_value4");
 
     let kernel_value_1 = SlotValue::from("kernel_value1");
     let kernel_value_2 = SlotValue::from("kernel_value2");
+    // kernel_value_3 is None
     let kernel_value_4 = SlotValue::from("kernel_value4");
 
     let accessory_value_1 = SlotValue::from("accessory_value1");
     let accessory_value_2 = SlotValue::from("accessory_value2");
+    // accessory_value_3 is None
     let accessory_value_4 = SlotValue::from("accessory_value4");
 
     let expected_user_values_2 = vec![Some(user_value_1.clone())];
@@ -129,6 +167,11 @@ where
     );
     let storage_1 = storage_manager.create_prover_storage();
     let assert_storage_1 = || {
+        let version = storage_1.latest_version();
+        assert_eq!(version.get(), 0);
+        let _span =
+            tracing::debug_span!("asserting", storage = "1", version = %version.get()).entered();
+        tracing::info!("assert start");
         assert_values(
             &storage_1,
             &the_user_key,
@@ -147,12 +190,12 @@ where
             Vec::new(),
             ValueNamespace::Accessory,
         );
-        if should_assert_root_hashes {
-            assert_root_hashes(&storage_1, Vec::new());
-        }
+        assert_root_hashes(&storage_1, Vec::new());
+        tracing::info!("assert done");
     };
     assert_storage_1();
     storage_manager.commit_change_set(change_set_1, root_1);
+    tracing::info!("commited storage 1");
 
     // Storage at version 2
     let storage_2 = storage_manager.create_prover_storage();
@@ -165,6 +208,11 @@ where
     );
     let storage_2 = storage_manager.create_prover_storage();
     let assert_storage_2 = || {
+        let version = storage_2.latest_version();
+        assert_eq!(version.get(), 0);
+        let _span =
+            tracing::debug_span!("asserting", storage = "2", version = %version.get()).entered();
+        tracing::info!("assert start");
         assert_values(
             &storage_2,
             &the_user_key,
@@ -183,13 +231,13 @@ where
             expected_accessory_values_2.clone(),
             ValueNamespace::Accessory,
         );
-        if should_assert_root_hashes {
-            assert_root_hashes(&storage_2, vec![root_1]);
-        }
+        assert_root_hashes(&storage_2, vec![root_1]);
+        tracing::info!("assert done");
     };
     assert_storage_1();
     assert_storage_2();
     storage_manager.commit_change_set(change_set_2, root_2);
+    tracing::info!("commited storage 2");
     assert_storage_1();
     assert_storage_2();
 
@@ -204,6 +252,11 @@ where
     );
     let storage_3 = storage_manager.create_prover_storage();
     let assert_storage_3 = || {
+        let version = storage_3.latest_version();
+        assert_eq!(version.get(), 1);
+        let _span =
+            tracing::debug_span!("asserting", storage = "3", version = %version.get()).entered();
+        tracing::info!("assert start");
         assert_values(
             &storage_3,
             &the_user_key,
@@ -222,14 +275,14 @@ where
             expected_accessory_values_3.clone(),
             ValueNamespace::Accessory,
         );
-        if should_assert_root_hashes {
-            assert_root_hashes(&storage_3, vec![root_1, root_2]);
-        }
+        assert_root_hashes(&storage_3, vec![root_1, root_2]);
+        tracing::info!("assert done");
     };
     assert_storage_1();
     assert_storage_2();
     assert_storage_3();
     storage_manager.commit_change_set(change_set_3, root_3);
+    tracing::info!("commited storage 3");
     assert_storage_1();
     assert_storage_2();
     assert_storage_3();
@@ -245,6 +298,11 @@ where
     );
     let storage_4 = storage_manager.create_prover_storage();
     let assert_storage_4 = || {
+        let version = storage_4.latest_version();
+        assert_eq!(version.get(), 2);
+        let _span =
+            tracing::debug_span!("asserting", storage = "4", version = %version.get()).entered();
+        tracing::info!("assert start");
         assert_values(
             &storage_4,
             &the_user_key,
@@ -263,15 +321,15 @@ where
             expected_accessory_values_4.clone(),
             ValueNamespace::Accessory,
         );
-        if should_assert_root_hashes {
-            assert_root_hashes(&storage_4, vec![root_1, root_2, root_3]);
-        }
+        assert_root_hashes(&storage_4, vec![root_1, root_2, root_3]);
+        tracing::info!("assert done");
     };
     assert_storage_1();
     assert_storage_2();
     assert_storage_3();
     assert_storage_4();
     storage_manager.commit_change_set(change_set_4, root_4);
+    tracing::info!("commited storage 4");
     assert_storage_1();
     assert_storage_2();
     assert_storage_3();
@@ -296,9 +354,90 @@ where
         expected_accessory_values_5.clone(),
         ValueNamespace::Accessory,
     );
-    if should_assert_root_hashes {
-        assert_root_hashes(&storage_5, vec![root_1, root_2, root_3, root_4]);
-    }
+    assert_root_hashes(&storage_5, vec![root_1, root_2, root_3, root_4]);
+}
+
+/// Both node and sequencer use compute_state_update.
+/// Both rely on the storage to do that.
+/// This test emulates a situation
+/// when a change set from the node is committed after a sequencer called `storage.get_root_hash()`
+/// but before it called `storage.compute_state_update`
+fn node_sequencer_compute_state_update_concurrency<S, Sm>(mut storage_manager: Sm)
+where
+    S: Spec,
+    Sm: ForklessStorageManager<Storage = S::Storage>,
+    S::Storage: NativeStorage,
+    <S::Storage as Storage>::Root: Copy,
+{
+    tracing::info!("START");
+    let the_user_key = SlotKey::from_slice(b"user_key");
+    let the_kernel_key = SlotKey::from_slice(b"kernel_key");
+    let the_accessory_key = SlotKey::from_slice(b"accessory_key");
+
+    let user_value_1 = SlotValue::from("user_value1");
+    let user_value_2 = SlotValue::from("user_value2");
+    let user_value_3 = SlotValue::from("user_value3");
+
+    let kernel_value_1 = SlotValue::from("kernel_value1");
+    let kernel_value_2 = SlotValue::from("kernel_value2");
+    let kernel_value_3 = SlotValue::from("kernel_value3");
+
+    let accessory_value_1 = SlotValue::from("accessory_value1");
+    let accessory_value_2 = SlotValue::from("accessory_value2");
+
+    // Prefill data
+    let (storage_1, genesis_root) = storage_manager.create_storage_with_root();
+    let (root_1, change_set_1) = materialize_writes(
+        storage_1,
+        vec![(the_user_key.clone(), Some(user_value_1.clone()))],
+        vec![(the_kernel_key.clone(), Some(kernel_value_1.clone()))],
+        vec![(the_accessory_key.clone(), Some(accessory_value_1.clone()))],
+        genesis_root,
+    );
+    storage_manager.commit_change_set(change_set_1, root_1);
+
+    // Thread A
+    let node_storage = storage_manager.create_prover_storage();
+    // Thread A
+    let (root_2, change_set_2) = materialize_writes(
+        node_storage,
+        vec![(the_user_key.clone(), Some(user_value_2.clone()))],
+        vec![(the_kernel_key.clone(), Some(kernel_value_2.clone()))],
+        vec![(the_accessory_key.clone(), Some(accessory_value_2.clone()))],
+        root_1,
+    );
+    // Thread B
+    let sequencer_storage = storage_manager.create_prover_storage();
+    // Thread B
+    let sequencer_root_hash = sequencer_storage
+        .get_root_hash(sequencer_storage.latest_version())
+        .unwrap();
+    // Thread B
+    let sequencer_state_accesses = StateAccesses {
+        user: OrderedReadsAndWrites {
+            ordered_writes: vec![(the_user_key.clone(), Some(user_value_3.clone()))],
+            ..Default::default()
+        },
+        kernel: OrderedReadsAndWrites {
+            ordered_writes: vec![(the_kernel_key.clone(), Some(kernel_value_3.clone()))],
+            ..Default::default()
+        },
+    };
+
+    // Thread A
+    storage_manager.commit_change_set(change_set_2, root_2);
+
+    // Thread B
+    let (sequencer_root, _) = sequencer_storage
+        .compute_state_update(
+            sequencer_state_accesses,
+            &<S::Storage as Storage>::Witness::default(),
+            sequencer_root_hash,
+        )
+        .unwrap();
+
+    // In reality, this kind of equality is going to be enforced by the sequencer state root checks.
+    assert_ne!(sequencer_root, root_2);
 }
 
 fn materialize_writes<S: Storage>(

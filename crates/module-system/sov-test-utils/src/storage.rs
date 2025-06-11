@@ -145,6 +145,7 @@ pub struct SimpleNomtStorageManager<S: MerkleProofSpec> {
     historical_state: Arc<rockbound::DB>,
     accessory: Arc<rockbound::DB>,
     root: StorageRoot<S>,
+    is_strict_mode: bool,
 }
 
 impl<S: MerkleProofSpec> SimpleNomtStorageManager<S> {
@@ -166,7 +167,13 @@ impl<S: MerkleProofSpec> SimpleNomtStorageManager<S> {
             historical_state: Arc::new(historical_state_rocksdb),
             accessory: Arc::new(accessory_rocksdb),
             root: <NomtProverStorage<S, TestSlotHash> as Storage>::PRE_GENESIS_ROOT,
+            is_strict_mode: true,
         }
+    }
+
+    /// Change in which mode storage is going to be created.
+    pub fn set_strict_mode(&mut self, use_strict_mode: bool) {
+        self.is_strict_mode = use_strict_mode;
     }
 
     /// Create a new [`NomtProverStorage`] that has a view only on data written to disc.
@@ -181,7 +188,12 @@ impl<S: MerkleProofSpec> SimpleNomtStorageManager<S> {
             AccessoryDb::with_reader(DeltaReader::new(self.accessory.clone(), Vec::new()))
                 .expect("Failed to create accessory db");
 
-        NomtProverStorage::create(state_session_builder, historical_state_reader, accessory_db)
+        NomtProverStorage::create(
+            state_session_builder,
+            historical_state_reader,
+            accessory_db,
+            self.is_strict_mode,
+        )
     }
 
     /// Commit [`NomtChangeSet`] to disk.

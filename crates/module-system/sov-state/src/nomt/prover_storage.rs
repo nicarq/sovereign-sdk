@@ -37,6 +37,9 @@ where
     state_session_builder: NomtSessionBuilder<S::Hasher, K>,
     historical_state: HistoricalStateReader,
     accessory: AccessoryDb,
+    /// If set to true, consistency between NOMT and rocksdb will be checked, in some cases.
+    /// Please check [`NomtProverStorage::should_check_dbs_sync`] for more details.
+    is_strict_mode: bool,
 }
 
 impl<S: MerkleProofSpec, K> core::fmt::Debug for NomtProverStorage<S, K>
@@ -53,21 +56,31 @@ where
     K: Clone,
 {
     /// Create the new instance of [`NomtProverStorage`] with the given sessions.
+    /// If `strict_mode` is set to true, consistency between NOMT and rocksdb will be checked, in some cases.
+    // Please check [`NomtProverStorage::should_check_dbs_sync`] for more details.
     pub fn create(
         state_session_builder: NomtSessionBuilder<S::Hasher, K>,
         historical_state: HistoricalStateReader,
         accessory: AccessoryDb,
+        use_strict_mode: bool,
     ) -> Self {
         Self {
             state_session_builder,
             historical_state,
             accessory,
+            is_strict_mode: use_strict_mode,
         }
     }
     /// Utility method for checking if storage is empty.
     /// Does not guarantee 100% that it actually is.
     pub fn is_empty(&self) -> bool {
         self.historical_state.get_next_version() == SlotNumber::GENESIS
+    }
+
+    /// Allows changing strict mode for the existing storage.
+    #[cfg(feature = "test-utils")]
+    pub fn change_strict_mode(&mut self, use_strict_mode: bool) {
+        self.is_strict_mode = use_strict_mode;
     }
 
     fn get_version_to_use(&self, version: Option<SlotNumber>) -> Option<SlotNumber> {
@@ -96,20 +109,40 @@ impl<S: MerkleProofSpec, K> NomtProverStorage<S, K>
 where
     K: Clone + Eq + std::hash::Hash,
 {
+    /// Indicates if data consistency check between NOMT and rocksdb should be performed.
+    /// The check only happens if `strict_mode` is enabled, the storage is past the genesis version and
+    /// the version to use is the latest known to this storage.
+    /// Strict mode implies that `latest_version()` is the **total latest** version,
+    /// not the latest known to this storage.
+    fn should_check_dbs_sync(&self, version_to_use: SlotNumber) -> bool {
+        self.is_strict_mode
+            // latest version can be equal to genesis in 2 cases: pre-genesis and at genesis.
+            // Since genesis is a special case and not covered by normal stf transition,
+            // we exclude this case for simpler testing.
+            && version_to_use > SlotNumber::GENESIS
+            && version_to_use == self.latest_version()
+    }
+
     fn read_value<N: CompileTimeNamespace>(
         &self,
         key: &SlotKey,
         version: Option<SlotNumber>,
     ) -> Option<SlotValue> {
-        let version = self.get_version_to_use(version)?;
+        let resolved_version = self.get_version_to_use(version)?;
+        let _span = tracing::debug_span!("version", %resolved_version, passed = ?version).entered();
         match N::NAMESPACE {
             Namespace::User => {
                 let historical_value = self
                     .historical_state
-                    .get_value_option_by_key::<UserNamespace>(version, key.as_ref())
+                    .get_value_option_by_key::<UserNamespace>(resolved_version, key.as_ref())
                     .expect("Underlying user I/O failed");
-                if version == self.latest_version() {
+                if self.should_check_dbs_sync(resolved_version) {
                     let key_path = S::Hasher::digest(key.as_ref()).into();
+                    tracing::trace!(
+                        %key,
+                        key_path = hex::encode(key_path),
+                        "Reading from user namespace",
+                    );
                     let nomt_session = self
                         .state_session_builder
                         .begin_user_session()
@@ -127,10 +160,15 @@ where
             Namespace::Kernel => {
                 let historical_value = self
                     .historical_state
-                    .get_value_option_by_key::<KernelNamespace>(version, key.as_ref())
+                    .get_value_option_by_key::<KernelNamespace>(resolved_version, key.as_ref())
                     .expect("Underlying user I/O failed");
-                if version == self.latest_version() {
+                if self.should_check_dbs_sync(resolved_version) {
                     let key_path = S::Hasher::digest(key.as_ref()).into();
+                    tracing::trace!(
+                        %key,
+                        key_path = hex::encode(key_path),
+                        "Reading from kernel namespace",
+                    );
                     let nomt_session = self
                         .state_session_builder
                         .begin_kernel_session()
@@ -147,7 +185,7 @@ where
             }
             Namespace::Accessory => self
                 .accessory
-                .get_value_option(key.as_ref(), version)
+                .get_value_option(key.as_ref(), resolved_version)
                 .expect("Unable to read from AccessoryDb"),
         }
         .map(Into::into)
@@ -193,6 +231,16 @@ fn to_nomt_accesses<S: MerkleProofSpec>(
         let authenticated_write = original_write
             .as_ref()
             .map(|v| v.combine_val_hash_and_size::<S::Hasher>());
+
+        tracing::trace!(
+            %key,
+            key_path = hex::encode(key_hash),
+            original_write = ?original_write
+                .as_ref()
+                .map(|v| String::from_utf8_lossy(v.value())),
+            authenticated_write = ?authenticated_write.as_ref().map(hex::encode),
+            "state update write",
+        );
 
         match merged_accesses.entry(key_hash) {
             Entry::Vacant(vacant) => {
@@ -256,8 +304,9 @@ where
         state_db: NomtSessionBuilder<S::Hasher, K>,
         historical_state: HistoricalStateReader,
         accessory_db: AccessoryDb,
+        use_strict_mode: bool,
     ) -> Self {
-        Self::create(state_db, historical_state, accessory_db)
+        Self::create(state_db, historical_state, accessory_db, use_strict_mode)
     }
 }
 
@@ -358,11 +407,13 @@ where
             compute_state_update_namespace::<S>(user_session, &state_accesses.user, witness)
                 .context("user state")?
         };
-        assert_eq!(
-            user_finished_session.prev_root().as_ref(),
-            &prev_user_root,
-            "User state root is not equal to the previous state root"
-        );
+        if self.is_strict_mode {
+            assert_eq!(
+                user_finished_session.prev_root().as_ref(),
+                &prev_user_root,
+                "User state root is not equal to the previous state root"
+            );
+        }
 
         // Kernel
         let kernel_session = self.state_session_builder.begin_kernel_session()?;
@@ -373,11 +424,13 @@ where
             compute_state_update_namespace::<S>(kernel_session, &state_accesses.kernel, witness)
                 .context("kernel state")?
         };
-        assert_eq!(
-            kernel_finished_session.prev_root().as_ref(),
-            &prev_kernel_root,
-            "Kernel state root is not equal to the previous state root"
-        );
+        if self.is_strict_mode {
+            assert_eq!(
+                kernel_finished_session.prev_root().as_ref(),
+                &prev_kernel_root,
+                "Kernel state root is not equal to the previous state root"
+            );
+        }
 
         let user_root = user_finished_session.root();
         let kernel_root = kernel_finished_session.root();
@@ -502,7 +555,7 @@ where
             ))?;
         let storage_root_historical =
             borsh::from_slice(&raw_root).expect("Failed to deserialize root hash");
-        if version_to_use == self.latest_version() {
+        if self.should_check_dbs_sync(version_to_use) {
             let user_session = self.state_session_builder.begin_user_session()?;
             let user_root = user_session.prev_root();
             drop(user_session);
