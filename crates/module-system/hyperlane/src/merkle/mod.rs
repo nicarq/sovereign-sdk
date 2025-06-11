@@ -1,6 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_bank::Amount;
+#[cfg(feature = "native")]
 use sov_modules_api::prelude::tracing::{self, instrument};
 use sov_modules_api::{
     BorrowedMut, Context, DaSpec, Error, EventEmitter, GenesisState, HexHash, HexString, Module,
@@ -100,7 +101,7 @@ impl<S: Spec> PostDispatchHook<S> for MerkleTreeHook<S> {
     }
 
     // compare to https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/ff0d4af74ecc586ef0c036e37fa4cf9c2ba5050e/solidity/contracts/hooks/MerkleTreeHook.sol#L63
-    #[instrument(skip(self, _context, state))]
+    #[cfg_attr(feature = "native", instrument(skip(self, _context, state)))]
     fn post_dispatch(
         &mut self,
         message_id: &HexHash,

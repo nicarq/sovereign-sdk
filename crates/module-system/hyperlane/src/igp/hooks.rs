@@ -1,5 +1,6 @@
 use anyhow::{anyhow, bail, Context as _, Result};
 use sov_bank::{Amount, IntoPayable};
+#[cfg(feature = "native")]
 use sov_modules_api::prelude::tracing;
 use sov_modules_api::{Context, EventEmitter, HexHash, HexString, Spec, TxState};
 
@@ -30,7 +31,7 @@ impl<S: Spec> PostDispatchHook<S> for InterchainGasPaymaster<S> {
 
     /// Process message, calculate gas required and validate against sent gas. On success pay to
     /// relayer. Emits `Gas payment` event.
-    #[tracing::instrument(skip(self, context, state))]
+    #[cfg_attr(feature = "native", tracing::instrument(skip(self, context, state)))]
     fn post_dispatch(
         &mut self,
         message_id: &HexHash,
