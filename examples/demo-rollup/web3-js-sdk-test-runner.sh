@@ -50,9 +50,8 @@ cd web3-js-sdk
 
 pnpm install
 pnpm build
-echo "Enabling rollup integration tests"
-sed -i.bak 's/it\.todo/it/g' packages/integration-tests/src/tests/rollup.integration-test.ts
-pnpm vitest packages/integration-tests/src/tests/ --passWithNoTests=false || {
+
+pnpm exec vitest --project integration --exclude apps/** --passWithNoTests=false || {
     echo "=== Demo Rollup output ==="
     cat ../demo_rollup_log.log
     exit 1

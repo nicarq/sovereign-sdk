@@ -273,7 +273,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - run: make test-default-features
 
-
   nextest_all_features:
     name: nextest_all_features
     runs-on:
@@ -596,7 +595,7 @@ jobs:
         with:
           repository: "Sovereign-Labs/sovereign-sdk-web3-js"
           path: "examples/demo-rollup/web3-js-sdk"
-          ref: "4a45af3a80a8b74954f3cf2f9fd730e086a22628"
+          ref: "ca58c0d11bd81016d19042dfd49adf02b820b5ea"
           ssh-key: |
             ${{ secrets.SOV_SDK_WEB3_JS_ACCESS_TOKEN }}
       - name: Run web3-js SDK tests against demo-rollup
