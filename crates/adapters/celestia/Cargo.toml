@@ -24,7 +24,7 @@ celestia-rpc = { version = "0.10.0", default-features = false, optional = true }
 celestia-types = { version = "0.11.0", default-features = false }
 tendermint = { version = "0.40.1", default-features = false }
 tendermint-proto = { version = "0.40.1" }
-nmt-rs = { version = "0.2.3", features = ["serde", "borsh"] }
+nmt-rs = { workspace = true, features = ["serde", "borsh"] }
 
 # Convenience
 anyhow = { workspace = true }
