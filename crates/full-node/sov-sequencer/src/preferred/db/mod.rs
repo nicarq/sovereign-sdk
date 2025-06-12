@@ -94,14 +94,14 @@ pub struct PreferredSequencerReadBatch {
     pub tx_hashes: Vec<TxHash>,
 }
 
-impl From<PreferredSequencerReadBatch> for WithCachedTxHashes<PreferredBatchData> {
-    fn from(batch: PreferredSequencerReadBatch) -> Self {
+impl PreferredSequencerReadBatch {
+    pub(crate) fn into_with_cached_tx_hashes(self) -> WithCachedTxHashes<PreferredBatchData> {
         WithCachedTxHashes {
-            tx_hashes: batch.tx_hashes.into(),
+            tx_hashes: self.tx_hashes.into(),
             inner: PreferredBatchData {
-                sequence_number: batch.sequence_number,
-                visible_slots_to_advance: batch.visible_slots_to_advance,
-                data: batch.txs,
+                sequence_number: self.sequence_number,
+                visible_slots_to_advance: self.visible_slots_to_advance,
+                data: self.txs,
             },
         }
     }

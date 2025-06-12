@@ -524,7 +524,7 @@ where
                     is_in_progress: true,
                     visible_slot_number_after_increase: in_progress_batch
                         .visible_slot_number_after_increase,
-                    batch: in_progress_batch.into(),
+                    batch: in_progress_batch.into_with_cached_tx_hashes(),
                 };
                 let node_root = inner.node_root_hash()?;
 
@@ -1070,7 +1070,7 @@ where
             PreferredSequencerReadBlob::Batch(batch) => Some(PreferredBatchToReplay {
                 is_in_progress: false,
                 visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
-                batch: batch.into(),
+                batch: batch.into_with_cached_tx_hashes(),
             }),
             // TODO(https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2063): Process proofs.
             // Note: once we start processing proofs in addition to batches,
@@ -1091,7 +1091,7 @@ where
         batches.push(PreferredBatchToReplay {
             is_in_progress: true,
             visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
-            batch: batch.into(),
+            batch: batch.into_with_cached_tx_hashes(),
         });
     }
 
