@@ -259,6 +259,9 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
                     },
                 ))
             }
+            CallMessageDiscriminants::Panic => {
+                unimplemented!("Panic is not supported in the transaction generator");
+            }
         }
     }
 
@@ -318,6 +321,9 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
                     sender: account.private_key,
                     outcome: MessageOutcome::Reverted,
                 })
+            }
+            CallMessageDiscriminants::Panic => {
+                unimplemented!("Panic is not supported in the transaction generator");
             }
         }
     }

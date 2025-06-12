@@ -1,4 +1,4 @@
-pub const CHAIN_HASH: [u8; 32] = [252, 225, 218, 69, 210, 191, 94, 218, 212, 200, 46, 182, 119, 118, 238, 200, 103, 203, 46, 12, 6, 78, 86, 211, 13, 205, 194, 202, 162, 106, 30, 41];
+pub const CHAIN_HASH: [u8; 32] = [57, 92, 87, 108, 156, 17, 207, 144, 96, 84, 43, 167, 107, 213, 160, 37, 152, 61, 120, 192, 35, 37, 1, 172, 59, 84, 218, 152, 54, 178, 92, 161];
 
 #[allow(dead_code)]
 pub const SCHEMA_JSON: &str = r#"{
@@ -863,6 +863,12 @@ pub const SCHEMA_JSON: &str = r#"{
             "value": {
               "ByIndex": 39
             }
+          },
+          {
+            "name": "Panic",
+            "discriminant": 3,
+            "template": null,
+            "value": null
           }
         ],
         "hide_tag": false
@@ -2970,6 +2976,9 @@ pub const SCHEMA_JSON: &str = r#"{
         },
         {
           "name": "assert_visible_slot_number"
+        },
+        {
+          "name": "panic"
         }
       ]
     },

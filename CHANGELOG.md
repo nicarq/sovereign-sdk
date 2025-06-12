@@ -1,3 +1,6 @@
+# 2025-06-11
+- #3006 Adds graceful shutdown handling when the rollup block executor encounters a panic. Instead of crashing unexpectedly, the sequencer now properly shuts down and rejects new transactions when the executor task fails.
+
 # 2025-06-10
 - #3015 bumps the `blob_processing_timeout_secs` in demo-rollup to allow more time for proof generation in the readme tests.
 

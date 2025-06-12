@@ -79,6 +79,13 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Trigger a panic.",
+      "type": "string",
+      "enum": [
+        "panic"
+      ]
     }
   ],
   "definitions": {

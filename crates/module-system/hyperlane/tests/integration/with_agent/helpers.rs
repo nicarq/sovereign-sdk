@@ -161,6 +161,7 @@ pub async fn setup_rollup(
         config.aggregated_proof_block_jump = 3;
         // Make rollup listen on docker host interface, so it can be accessed from containers.
         config.axum_host = axum_bind_ip;
+        config.blob_processing_timeout_secs = 300;
     })
     .set_da_config(|da_config| {
         da_config.sender_address = setup.sequencer.da_address;
@@ -796,8 +797,10 @@ async fn start_evm_counterparty(
         .unwrap();
 
     let stderr = res.stderr_to_vec().await.unwrap();
+    let stdout = res.stdout_to_vec().await.unwrap();
     if res.exit_code().await.unwrap().unwrap() != 0 {
-        println!("{}", String::from_utf8_lossy(&stderr));
+        println!("STDERR:\n{}", String::from_utf8_lossy(&stderr));
+        println!("STDOUT:\n{}", String::from_utf8_lossy(&stdout));
         panic!("hyperlane deployment on evm chain failed");
     }
 

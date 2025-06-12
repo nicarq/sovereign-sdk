@@ -49,6 +49,8 @@ pub(crate) enum RollupBlockExecutorError<S: Spec> {
     Rejected { reason: RejectReason, call: String },
     #[error("The transaction execution was unsuccessful")]
     UnsuccessfulTransaction { receipt: TransactionReceipt<S> },
+    #[error("The rollup block executor task failed unexpectedly")]
+    UnexpectedFailure,
 }
 
 impl<S: Spec> RollupBlockExecutorError<S> {
@@ -74,6 +76,13 @@ impl<S: Spec> RollupBlockExecutorError<S> {
             RollupBlockExecutorError::UnsuccessfulTransaction { receipt } => {
                 generic_accept_tx_error(receipt)
             }
+            RollupBlockExecutorError::UnexpectedFailure => ErrorObject {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                title: "Internal Server Error".to_string(),
+                details: json_obj!({
+                    "message": "The sequencer is shutting down due to an internal error. Your transaction was not accepted.",
+                }),
+            },
         }
     }
 }
@@ -102,6 +111,7 @@ where
     state_roots: BTreeMap<RollupHeight, <S::Storage as Storage>::Root>,
     state_root_responses: VecDeque<StateRootReceiver<S>>,
     shutdown_receiver: watch::Receiver<()>,
+    shutdown_sender: watch::Sender<()>,
     id: Uuid,
     cached_events: EventCache<RuntimeEventResponse<Rt::RuntimeEvent>>,
 }
@@ -118,6 +128,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         shutdown_notifier: Sender<()>,
         state_root_request_sender: tokio::sync::mpsc::Sender<StateRootComputeRequest<S>>,
         shutdown_receiver: watch::Receiver<()>,
+        shutdown_sender: watch::Sender<()>,
         cached_events: EventCache<RuntimeEventResponse<Rt::RuntimeEvent>>,
     ) -> RollupBlockExecutor<S, Rt> {
         let mut rt = Rt::default();
@@ -135,6 +146,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             state_root_responses: Default::default(),
             id: Uuid::now_v7(),
             shutdown_receiver,
+            shutdown_sender,
             cached_events,
         }
     }
@@ -201,11 +213,11 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             return Err(RollupBlockExecutorError::Overloaded);
         }
 
-        let result = task_state
-            .result_receiver
-            .recv()
-            .await
-            .expect("The background task failed unexpectedly");
+        let Some(result) = task_state.result_receiver.recv().await else {
+            tracing::error!("The rollup block executor task failed unexpectedly. Gracefully shutting down the sequencer.");
+            let _ = self.shutdown_sender.send(()); // We don't care if this fails, because that would mean the sequencer is already shutting down - which is exactly what we want.
+            return Err(RollupBlockExecutorError::UnexpectedFailure);
+        };
 
         let (receipt, change_set) =
             result.map_err(|reason| RollupBlockExecutorError::Rejected {
@@ -228,7 +240,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         &mut self,
         batch: &PreferredBatchToReplay,
         node_state_root: &<S::Storage as Storage>::Root,
-        shutdown_sender: &watch::Sender<()>,
     ) -> anyhow::Result<bool> {
         assert!(
             self.rollup_block_task_state.is_none(),
@@ -284,7 +295,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                     "Transaction was soft-confirmed but failed to be re-applied; this is a bug, please report it",
                 );
 
-                exit_rollup(shutdown_sender).await;
+                exit_rollup(&self.shutdown_sender).await;
             }
         }
 

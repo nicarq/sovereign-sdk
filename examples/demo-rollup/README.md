@@ -121,7 +121,7 @@ this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
 $ sleep 5
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0xa7a3b515cad44fab4aebb597817b4d2fa85c183ce49b2ae0fdcc1fb8f4a35e6f/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0x897406b59fe76a5e08dcc1261842df99ea3971539d2829845e8c7abaf89f2c80/events | jq
 {
   "data": [
     {
@@ -156,7 +156,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0xa7a3b515cad44fab4aebb597817b4d2fa
         "type": "moduleRef",
         "name": "Bank"
       },
-      "tx_hash": "0xa7a3b515cad44fab4aebb597817b4d2fa85c183ce49b2ae0fdcc1fb8f4a35e6f"
+      "tx_hash": "0x897406b59fe76a5e08dcc1261842df99ea3971539d2829845e8c7abaf89f2c80"
     }
   ],
   "meta": {}
@@ -331,7 +331,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0xfce1da45d2bf5edad4c82eb67776eec867cb2e0c064e56d30dcdc2caa26a1e29",
+  "chain_hash": "0x395c576c9c11cf9060542ba76bd5a025983d78c0232501ac3b54da9836b25ca1",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": "100000000",

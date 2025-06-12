@@ -860,6 +860,12 @@
             "value": {
               "ByIndex": 39
             }
+          },
+          {
+            "name": "Panic",
+            "discriminant": 3,
+            "template": null,
+            "value": null
           }
         ],
         "hide_tag": false
@@ -2967,6 +2973,9 @@
         },
         {
           "name": "assert_visible_slot_number"
+        },
+        {
+          "name": "panic"
         }
       ]
     },

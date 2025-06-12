@@ -46,6 +46,8 @@ pub enum CallMessage<S: Spec> {
         /// The expected visible slot number.
         expected_visible_slot_number: u64,
     },
+    /// Trigger a panic.
+    Panic,
 }
 
 /// Example of a custom error.

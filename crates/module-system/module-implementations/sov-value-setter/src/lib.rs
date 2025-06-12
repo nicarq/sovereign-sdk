@@ -94,6 +94,9 @@ impl<S: Spec> Module for ValueSetter<S> {
             } => {
                 Ok(self.assert_visible_slot_number(expected_visible_slot_number, context, state)?)
             }
+            CallMessage::Panic => {
+                panic!("sov_value_setter: Panic requested by user sending a panic message");
+            }
         };
         state_wrapped.commit();
         res

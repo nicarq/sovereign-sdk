@@ -375,6 +375,7 @@ where
                 shutdown_notifier.clone(),
                 state_root_compute_task.request_sender.clone(),
                 shutdown_receiver.clone(),
+                shutdown_sender.clone(),
                 cached_events.clone(),
             ),
             batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
@@ -467,6 +468,7 @@ where
             self.shutdown_notifier.clone(),
             self.state_root_compute_task.request_sender.clone(),
             self.shutdown_receiver.clone(),
+            self.shutdown_sender.clone(),
             self.cached_events.clone(),
         );
 
@@ -479,7 +481,7 @@ where
         async {
             for batch in batches_to_replay {
                 executor
-                    .replay_batch(&batch, &node_state_root, &self.shutdown_sender)
+                    .replay_batch(&batch, &node_state_root)
                     .await?;
                 if self.shutdown_receiver.has_changed().unwrap_or(true) {
                     info!("The sequencer is shutting down. Exiting replay_soft_confirmations_on_top_of_node_state.");
@@ -528,10 +530,7 @@ where
                 };
                 let node_root = inner.node_root_hash()?;
 
-                if executor
-                    .replay_batch(&batch, &node_root, &self.shutdown_sender)
-                    .await?
-                {
+                if executor.replay_batch(&batch, &node_root).await? {
                     inner.db.pop_tx_from_in_progress_batch().await?;
                 }
             }
@@ -1179,7 +1178,7 @@ fn err_if_cant_fit_tx(tracker: &BatchSizeTracker, tx: &FullyBakedTx) -> Result<(
 async fn exit_rollup(shutdown_sender: &watch::Sender<()>) {
     // In the Kubernetes environment, logs are sometimes lost during shutdown.
     // This delay ensures logs have time to be flushed before the application exits.
-    tracing::info!("Shuting down the rollup");
+    tracing::info!("Shutting down the rollup");
     if shutdown_sender.send(()).is_err() {
         tracing::error!("Failed to send shutdown signal");
     }

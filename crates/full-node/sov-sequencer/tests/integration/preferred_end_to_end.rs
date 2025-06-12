@@ -655,6 +655,50 @@ async fn rollup_shuts_down_if_blob_processing_timeouts() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn rollup_shuts_down_if_panic_is_triggered() {
+    let (test_rollup, admin) = create_test_rollup(0, TEST_MAX_BATCH_SIZE, 60).await;
+
+    let Some(test_rollup) = test_rollup else {
+        return;
+    };
+
+    let nb_of_blocks = 5;
+    let mut slot_subscription = test_rollup.api_client.subscribe_slots().await.unwrap();
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(nb_of_blocks)
+        .await
+        .unwrap();
+
+    for _ in 0..nb_of_blocks {
+        slot_subscription.next().await.unwrap().unwrap();
+    }
+
+    let client = test_rollup.api_client.clone();
+    sleep(Duration::from_millis(500)).await;
+
+    // Send a test transaction to make sure everything is working.
+    let tx = tx_set_value(&admin.private_key, 0, 9);
+    client
+        .send_raw_tx_to_sequencer_with_retry(&tx)
+        .await
+        .unwrap();
+
+    // Cause a panic in the sequencer.
+    let tx = tx_panic(&admin.private_key, 1);
+    client.send_raw_tx_to_sequencer(&tx).await.unwrap_err();
+
+    // Ensure that the sequencer rejects subsequent transactions.
+    let tx = tx_set_value(&admin.private_key, 2, 5);
+    client.send_raw_tx_to_sequencer(&tx).await.unwrap_err();
+
+    // Ensure that the sequencer shuts down promptly
+    test_rollup
+        .wait_for_rollup_to_shutdown(Duration::from_secs(2))
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn flaky_seq_back_pressure() {
     let (test_rollup, admin) =
         create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
@@ -1840,6 +1884,13 @@ fn tx_delayed_call(key: &Ed25519PrivateKey, nonce: u64) -> RawTx {
 fn tx_set_many_values(key: &Ed25519PrivateKey, nonce: u64, values_to_set: Vec<u8>) -> RawTx {
     let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
         sov_value_setter::CallMessage::SetManyValues(values_to_set),
+    );
+    encode_call(key, nonce, &msg)
+}
+
+fn tx_panic(key: &Ed25519PrivateKey, nonce: u64) -> RawTx {
+    let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
+        sov_value_setter::CallMessage::Panic,
     );
     encode_call(key, nonce, &msg)
 }

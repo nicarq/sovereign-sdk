@@ -73,6 +73,14 @@ impl Client {
         self.accept_tx(&types::AcceptTxBody { body: tx_b64 }).await
     }
 
+    pub async fn send_raw_tx_to_sequencer(
+        &self,
+        tx: &RawTx,
+    ) -> Result<ResponseValue<AcceptTxResponse>, Error<types::AcceptTxResponse>> {
+        let tx_b64 = BASE64_STANDARD.encode(tx);
+        self.accept_tx(&types::AcceptTxBody { body: tx_b64 }).await
+    }
+
     pub async fn send_tx_to_sequencer_with_retry<Tx: BorshSerialize>(
         &self,
         tx: &Tx,

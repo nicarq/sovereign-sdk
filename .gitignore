@@ -38,3 +38,6 @@ build
 runtime_call.json
 zk_vm.csv
 constants_output.csv
+
+# Temporary test data files
+examples/demo-rollup/tests/resync/data/.tmp*
