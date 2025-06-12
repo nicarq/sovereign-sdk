@@ -112,7 +112,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     const MAX_BUFFERED_TXS: usize = 1;
 
     pub fn new(
-        info: StateUpdateInfo<S::Storage>,
+        info: &StateUpdateInfo<S::Storage>,
         events_sender: Option<broadcast::Sender<SequencerEvent<Rt>>>,
         config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
         shutdown_notifier: Sender<()>,

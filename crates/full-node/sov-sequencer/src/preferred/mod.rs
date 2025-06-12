@@ -369,7 +369,7 @@ where
             shutdown_receiver: shutdown_receiver.clone(),
             blob_sender,
             executor: RollupBlockExecutor::new(
-                latest_state_update.clone(),
+                &latest_state_update,
                 Some(events_sender.clone()),
                 config.clone(),
                 shutdown_notifier.clone(),
@@ -432,7 +432,7 @@ where
 
     async fn replay_soft_confirmations_on_top_of_node_state(
         &self,
-        info: &StateUpdateInfo<S::Storage>,
+        info: StateUpdateInfo<S::Storage>,
         batches_to_replay: Vec<PreferredBatchToReplay>,
         timer_start: Instant,
     ) -> anyhow::Result<()> {
@@ -461,7 +461,7 @@ where
 
         // Now that we're not locking on the sequencer state anymore, we can replay all the batches.
         let mut executor = RollupBlockExecutor::<_, Rt>::new(
-            info.clone(),
+            &info,
             None, // We don't re-send events when replaying batches in the background.
             self.config.clone(),
             self.shutdown_notifier.clone(),
@@ -543,7 +543,7 @@ where
 
         inner.is_ready = Ok(());
 
-        inner.latest_info = info.clone();
+        inner.latest_info = info;
         let checkpoint = inner
             .executor
             .checkpoint
@@ -747,9 +747,9 @@ where
                 // timeout instead of receiving an error. TODO: improve devex (#2937).
                 tokio::time::sleep(Duration::from_secs(10)).await;
 
-                inner.latest_info = info.clone();
                 // We update the API state, so users can query node state as it syncs.
                 let checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
+                inner.latest_info = info;
                 inner.update_api_state(checkpoint).await;
             }
             // We are either dangerously close to hitting the
@@ -785,9 +785,9 @@ where
                         .overwrite_next_sequence_number(next_sequence_number_according_to_node);
                 }
 
-                inner.latest_info = info.clone();
                 // We update the API state, so users can query node state as it syncs.
                 let checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
+                inner.latest_info = info;
                 inner.update_api_state(checkpoint).await;
             }
             // This is by far the most common scenario, i.e. a nominal
@@ -795,7 +795,7 @@ where
             // conditions.
             (false, false, false, _) => {
                 self.replay_soft_confirmations_on_top_of_node_state(
-                    &info,
+                    info,
                     batches_to_replay,
                     timer_start,
                 )
