@@ -42,11 +42,7 @@ impl<S: Spec> StateRootCacheEntry<S> {
         rollup_height: RollupHeight,
     ) -> (RollupHeight, <S::Storage as Storage>::Root) {
         let new_writes = state_accesses.user.ordered_writes.clone();
-        let prev_root = storage
-            .get_root_hash(storage.latest_version())
-            .expect("Failed to get root hash");
-        let new_root =
-            compute_state_root::<S>(state_accesses, storage, rollup_height, prev_root).await;
+        let new_root = compute_state_root::<S>(state_accesses, storage, rollup_height).await;
         if user_roots_match(&self.root, &new_root) {
             return (rollup_height, new_root);
         }
@@ -101,26 +97,25 @@ async fn compute_state_root<S: Spec>(
     state_accesses: StateAccesses,
     storage: S::Storage,
     rollup_height: RollupHeight,
-    prev_root: <S::Storage as Storage>::Root,
 ) -> <S::Storage as Storage>::Root {
     // TODO: avoid blocking the runtime here
     let handle = tokio::runtime::Handle::current().spawn_blocking(move ||{
-		tracing::trace!(%rollup_height, "Computing sequencer state root for height");
-		let (root, _) =
-		tracing::span!(tracing::Level::DEBUG,  "compute_state_update", scope = "sequencer")
-			.in_scope(|| {
-				storage
-					.compute_state_update(state_accesses, &Default::default(), prev_root)
-					.unwrap_or_else(|_| {
-								tracing::error!(
-						rollup_height = %rollup_height,
-						"failed to compute valid state update. This is a bug, please report it"
-					);
-					panic!("Failed to compute valid state for height {} in sequencer. This is a bug, please report it", rollup_height);
-				})
-			});
-		root
-		});
+        tracing::trace!(%rollup_height, "Computing sequencer state root for height");
+        let (root, _) =
+        tracing::span!(tracing::Level::DEBUG,  "compute_state_update", scope = "sequencer")
+            .in_scope(|| {
+                let prev_root = storage
+                    .get_root_hash(storage.latest_version())
+                    .expect("Failed to get root hash");
+                storage
+                    .compute_state_update(state_accesses, &Default::default(), prev_root)
+                    .unwrap_or_else(|error| {
+                        tracing::error!(%rollup_height, %error, "failed to compute valid state update. This is a bug, please report it");
+                        panic!("Failed to compute valid state for height {} in sequencer. This is a bug, please report it", rollup_height);
+                })
+            });
+        root
+        });
     handle.await.unwrap()
 }
 
@@ -194,19 +189,10 @@ impl<S: Spec> StateRootBackgroundTaskState<S> {
                 };
 
                 // Compute the new root
-                let prev_root = storage
-                    .get_root_hash(storage.latest_version())
-                    .expect("Failed to get root hash");
-                let root = compute_state_root::<S>(
-                    state_accesses,
-                    storage,
-                    rollup_height,
-                    prev_root.clone(),
-                )
-                .await;
+                let root = compute_state_root::<S>(state_accesses, storage, rollup_height).await;
 
                 // Add the new entry to the cache
-                tracing::trace!(%rollup_height, %prev_root, %root, "Adding new state root to cache");
+                tracing::trace!(%rollup_height, %root, "Adding new state root to cache");
                 cached_results.insert(
                     rollup_height,
                     StateRootCacheEntry {
