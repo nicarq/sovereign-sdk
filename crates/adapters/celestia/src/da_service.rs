@@ -78,7 +78,7 @@ impl CelestiaService {
         &self,
         blob: &[u8],
         namespace: Namespace,
-    ) -> anyhow::Result<SubmitBlobReceipt<TmHash>> {
+    ) -> Result<SubmitBlobReceipt<TmHash>, jsonrpsee::core::client::Error> {
         let bytes = blob.len();
         debug!(bytes, ?namespace, "Sending raw data to Celestia");
 
@@ -87,7 +87,8 @@ impl CelestiaService {
             blob.to_vec(),
             self.signer_address.0.clone(),
             APP_VERSION,
-        )?;
+        )
+        .expect("Bug in CelestiaAdapter");
         info!(
             commitment = hex::encode(blob.commitment.hash()),
             bytes,
@@ -162,7 +163,7 @@ impl CelestiaService {
                 panic!("Need account address, got consensus node: {}", addr);
             }
         };
-        tracing::debug!(address = %fetched_signer, "Fetched signer.");
+        debug!(address = %fetched_signer, "Fetched signer.");
 
         if let Some(config_signer_address) = config.signer_address {
             if config_signer_address != fetched_signer {
@@ -195,7 +196,7 @@ impl CelestiaService {
         let extended_header = client
             .header_get_by_height(height)
             .await
-            .map_err(|e| MaybeRetryable::Transient(e.into()))?;
+            .map_err(into_transient_with_context)?;
 
         Ok(extended_header.into())
     }
@@ -211,7 +212,7 @@ impl CelestiaService {
         let header = client
             .header_get_by_height(height)
             .await
-            .map_err(|e| MaybeRetryable::Transient(e.into()))?;
+            .map_err(into_transient_with_context)?;
         trace!(%header, height, time_ms = start_get_block.elapsed().as_millis(), "Got the block header");
 
         let data_futures_all = Instant::now();
@@ -224,7 +225,7 @@ impl CelestiaService {
 
         let (batch_rows, proof_rows) =
             tokio::try_join!(rollup_batch_rows_future, rollup_proof_rows_future,)
-                .map_err(|e| MaybeRetryable::Transient(e.into()))?;
+                .map_err(into_transient_with_context)?;
         trace!(
             time_ms = data_futures_all.elapsed().as_millis(),
             "All data futures are resolved"
@@ -251,7 +252,7 @@ impl CelestiaService {
             .read_client
             .header_network_head()
             .await
-            .map_err(|e| MaybeRetryable::Transient(e.into()))?;
+            .map_err(into_transient_with_context)?;
         Ok(CelestiaHeader::from(header))
     }
 
@@ -263,7 +264,7 @@ impl CelestiaService {
         debug!("Submitting batch of transactions to Celestia");
         self.submit_blob_to_namespace(blob, self.rollup_batch_namespace)
             .await
-            .map_err(MaybeRetryable::Transient)
+            .map_err(into_transient_with_context)
     }
 
     #[instrument(skip(self, aggregated_proof), err)]
@@ -274,7 +275,7 @@ impl CelestiaService {
         debug!("Submitting aggregated proof to Celestia");
         self.submit_blob_to_namespace(aggregated_proof, self.rollup_proof_namespace)
             .await
-            .map_err(MaybeRetryable::Transient)
+            .map_err(into_transient_with_context)
     }
 
     async fn get_proofs_at_inner(
@@ -284,7 +285,7 @@ impl CelestiaService {
         self.read_client
             .blob_get_all(height, &[self.rollup_proof_namespace])
             .await
-            .map_err(|e| MaybeRetryable::Transient(e.into()))
+            .map_err(into_transient_with_context)
             .map(|blobs| match blobs {
                 Some(blobs) => blobs.into_iter().map(|blob| blob.data).collect(),
                 None => vec![],
@@ -302,6 +303,14 @@ impl CelestiaService {
             .map(|res| res.map(CelestiaHeader::from).map_err(|e| e.into()))
             .boxed())
     }
+}
+
+fn into_transient_with_context(
+    error: jsonrpsee::core::ClientError,
+) -> MaybeRetryable<anyhow::Error> {
+    tracing::info!("ORIGINAL ERROR: {}", error);
+    let error = anyhow::anyhow!("Celestia RPC node returned an error: {:?}", error);
+    MaybeRetryable::Transient(error)
 }
 
 #[async_trait]
@@ -687,7 +696,10 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        assert_eq!("Request rejected `500`", error);
+        assert_eq!(
+            "Celestia RPC node returned an error: Transport(Rejected { status_code: 500 })",
+            error
+        );
         Ok(())
     }
 
@@ -735,7 +747,11 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        assert!(error.contains("Request timeout"));
+        assert!(
+            error.contains("RequestTimeout"),
+            "Error: {} does not contain 'Request timeout'",
+            error
+        );
         Ok(())
     }
 
