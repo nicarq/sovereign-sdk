@@ -12,6 +12,7 @@ pub use error::*;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHashTrait, CountedBufReader};
+use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 
 use crate::shares::BlobIterator;
 use crate::verifier::address::CelestiaAddress;
@@ -22,6 +23,16 @@ pub(crate) const SUPPORTED_SHARE_VERSION: u8 = 1;
 
 #[derive(Debug, PartialEq, PartialOrd, Ord, Clone, Eq, Hash, Serialize, Deserialize)]
 pub struct TmHash(pub tendermint::Hash);
+
+// Schema type for TmHash to enable UniversalWallet support
+#[derive(UniversalWallet)]
+#[allow(dead_code)]
+#[doc(hidden)]
+pub struct TmHashSchema(#[sov_wallet(display(hex))] [u8; 32]);
+
+impl sov_rollup_interface::sov_universal_wallet::schema::OverrideSchema for TmHash {
+    type Output = TmHashSchema;
+}
 
 impl BorshSerialize for TmHash {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {

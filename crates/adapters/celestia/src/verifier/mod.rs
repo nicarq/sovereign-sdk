@@ -43,6 +43,7 @@ pub struct CelestiaVerifier {
     Clone,
     BorshDeserialize,
     BorshSerialize,
+    schemars::JsonSchema,
 )]
 pub struct CelestiaSpec;
 
