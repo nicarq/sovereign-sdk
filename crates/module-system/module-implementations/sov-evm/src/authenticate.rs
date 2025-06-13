@@ -183,8 +183,7 @@ where
                         &tx.data,
                         &Rt::CHAIN_HASH,
                         state,
-                    )
-                    .unwrap();
+                    )?;
 
                 Ok((
                     tx_and_raw_hash,
