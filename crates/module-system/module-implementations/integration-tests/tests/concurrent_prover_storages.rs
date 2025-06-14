@@ -409,9 +409,7 @@ where
     // Thread B
     let sequencer_storage = storage_manager.create_prover_storage();
     // Thread B
-    let sequencer_root_hash = sequencer_storage
-        .get_root_hash(sequencer_storage.latest_version())
-        .unwrap();
+    let sequencer_root_hash = sequencer_storage.get_latest_root_hash().unwrap();
     // Thread B
     let sequencer_state_accesses = StateAccesses {
         user: OrderedReadsAndWrites {

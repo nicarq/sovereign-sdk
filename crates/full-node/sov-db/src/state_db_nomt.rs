@@ -25,6 +25,7 @@ impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> NomtSta
             let mut opts = sov_nomt_default_options();
             opts.rollback(true);
             opts.max_rollback_log_len(1);
+            opts.hashtable_buckets(256_000);
             opts.path(db_path.join("kernel_nomt_db"));
             Nomt::<BinaryHasher<H>>::open(opts)?
         };
@@ -66,6 +67,12 @@ impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> NomtSta
 
         let user = {
             let mut opts = sov_nomt_default_options();
+            // TODO: This is going to be exposed in config parameters: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2634
+            opts.hashtable_buckets(if cfg!(debug_assertions) {
+                1_000_000
+            } else {
+                15_000_000
+            });
             opts.path(db_path.join("user_nomt_db"));
             Nomt::<BinaryHasher<H>>::open(opts)?
         };
@@ -322,6 +329,7 @@ pub(crate) fn sov_nomt_default_options() -> Options {
     // Draft values, needs to be benchmarked on the target system type.
     opts.commit_concurrency(2);
     opts.prepopulate_page_cache(true);
+    opts.metrics(true);
     opts
 }
 

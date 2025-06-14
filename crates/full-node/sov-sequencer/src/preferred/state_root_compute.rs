@@ -105,7 +105,7 @@ async fn compute_state_root<S: Spec>(
         tracing::span!(tracing::Level::DEBUG,  "compute_state_update", scope = "sequencer")
             .in_scope(|| {
                 let prev_root = storage
-                    .get_root_hash(storage.latest_version())
+                    .get_latest_root_hash()
                     .expect("Failed to get root hash");
                 storage
                     .compute_state_update(state_accesses, &Default::default(), prev_root)
