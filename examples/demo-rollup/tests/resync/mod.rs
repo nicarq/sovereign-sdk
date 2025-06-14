@@ -1,5 +1,6 @@
 //! Tests for shutdown/restart cases.
 use std::collections::HashSet;
+use std::env;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -14,6 +15,7 @@ use sov_api_spec::types::{SyncStatus, TxStatus};
 use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::{OperatingMode, RawTx, Runtime, TxHash};
+use sov_modules_rollup_blueprint::logging::default_rust_log_value;
 use sov_risc0_adapter::crypto::private_key::Risc0PrivateKey;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{read_private_key, RollupBuilder, TestRollup};
@@ -22,7 +24,7 @@ use sov_value_setter::CallMessage;
 use tempfile::TempDir;
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::prelude::*;
-use tracing_subscriber::{registry, Layer};
+use tracing_subscriber::{registry, EnvFilter, Layer};
 
 use crate::test_helpers::{test_genesis_source, DemoRollupSpec};
 
@@ -33,6 +35,29 @@ const ROLLUP_SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_s
 
 struct LogCollector {
     records: Arc<Mutex<Vec<(Level, String)>>>,
+}
+
+fn initialize_logging_for_resync(records: Arc<Mutex<Vec<(Level, String)>>>, with_stdout: bool) {
+    let collector = LogCollector { records };
+    let subscriber = registry().with(collector);
+    let prev_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        tracing_panic::panic_hook(panic_info);
+        prev_hook(panic_info);
+    }));
+    if with_stdout {
+        let env_filter =
+            env::var("RUST_LOG").unwrap_or_else(|_| default_rust_log_value().to_string());
+
+        let get_env_filter = || EnvFilter::from_str(&env_filter).unwrap();
+        let layer = tracing_subscriber::fmt::layer()
+            .with_filter(get_env_filter())
+            .boxed();
+
+        subscriber.with(layer).init();
+    } else {
+        subscriber.init();
+    }
 }
 
 impl<S> Layer<S> for LogCollector
@@ -204,14 +229,14 @@ async fn test_generate_mockda_dataset_for_resync() -> anyhow::Result<()> {
 }
 
 /// The actual resync test, using a pre-generated mock_da database.
+///
+/// Imporant Note: This test may fail if you've made any changes that could modify the chain hash,
+/// including adding/removing call message variants to any module in demo-rollup. Remove
+/// `test/resync/data` and run `test_generate_mockda_dataset_for_resync` to update the data.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_rollup_resync() -> anyhow::Result<()> {
     let records = Arc::new(Mutex::new(Vec::new()));
-    let collector = LogCollector {
-        records: records.clone(),
-    };
-    let subscriber = registry().with(collector);
-    subscriber.init();
+    initialize_logging_for_resync(records.clone(), false); // Set to true to see logs
 
     let rollup_storage_path = Arc::new(TempDir::new_in("tests/resync/data/")?);
 

@@ -1,3 +1,6 @@
+# 2025-06-13
+- #3035 Improves logging during resync testing
+
 # 2025-06-11
 - #3006 Adds graceful shutdown handling when the rollup block executor encounters a panic. Instead of crashing unexpectedly, the sequencer now properly shuts down and rejects new transactions when the executor task fails.
 
