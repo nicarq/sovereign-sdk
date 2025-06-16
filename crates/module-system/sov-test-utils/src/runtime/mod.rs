@@ -39,7 +39,7 @@ use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 pub use sov_sequencer_registry::{self, SequencerConfig, SequencerRegistry};
-use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
+use sov_state::{DefaultStorageSpec, ProverStorage, Storage, StorageProof};
 pub use sov_uniqueness::Uniqueness;
 pub use sov_value_setter::{
     CallMessage as ValueSetterCallMessage, Event as ValueSetterEvent, ValueSetter,
@@ -114,7 +114,19 @@ impl RelevantBlobInfo {
 
 /// Defines a slot receipt. A slot receipt is a list of [`BatchReceipt`]s and a block header.
 pub struct SlotReceipt<S: Spec> {
-    batch_receipts: Vec<BatchReceipt<S>>,
+    #[allow(missing_docs)]
+    pub batch_receipts: Vec<BatchReceipt<S>>,
+    #[allow(missing_docs, clippy::type_complexity)]
+    pub proof_receipts: Vec<
+        ProofReceipt<
+            S::Address,
+            S::Da,
+            <S::Storage as Storage>::Root,
+            StorageProof<<S::Storage as Storage>::Proof>,
+        >,
+    >,
+    #[allow(missing_docs)]
+    pub state_root: <S::Storage as Storage>::Root,
 }
 
 impl<S: Spec> SlotReceipt<S> {
@@ -651,37 +663,42 @@ where
     pub fn execute<T: Into<SlotInput<RT, S>>>(
         &mut self,
         input: T,
-    ) -> (TestApplySlotOutput<RT, S>, RelevantBlobInfo) {
+    ) -> (SlotReceipt<S>, RelevantBlobInfo) {
         let (result, blob_info, nonces) = self.simulate::<T>(input);
-        self.commit_apply_slot_output(&result, nonces);
+        let (result, slot_receipt) = split_apply_slot_output::<S, RT>(result);
 
-        (result, blob_info)
+        self.commit_apply_slot_output(result, nonces);
+
+        (slot_receipt, blob_info)
     }
 
     /// Executes the provided input as sequencer.
     pub fn execute_as_sequencer<T: Into<SlotInput<RT, S>>>(
         &mut self,
         input: T,
-    ) -> (TestApplySlotOutput<RT, S>, RelevantBlobInfo) {
+    ) -> (SlotReceipt<S>, RelevantBlobInfo) {
         let (result, blob_info, nonces) = self.simulate_with_control_flow::<T, _>(
             input,
             ExecutionContext::Sequencer,
             SeqControlFlow,
         );
-        self.commit_apply_slot_output(&result, nonces);
-        (result, blob_info)
+        let (result, slot_receipt) = split_apply_slot_output::<S, RT>(result);
+        self.commit_apply_slot_output(result, nonces);
+        (slot_receipt, blob_info)
     }
 
     fn commit_apply_slot_output(
         &mut self,
-        output: &TestApplySlotOutput<RT, S>,
+        output: TestApplySlotOutput<RT, S>,
         nonces: NoncesMap<S>,
     ) {
-        self.storage_manager.commit(output.change_set.clone());
+        self.storage_manager.commit(output.change_set);
         self.synchronize_storage_channel();
         self.state_root = output.state_root;
         self.slot_receipts.push(SlotReceipt {
             batch_receipts: output.batch_receipts.clone(),
+            proof_receipts: output.proof_receipts.clone(),
+            state_root: output.state_root,
         });
         self.nonces = nonces;
     }
@@ -704,7 +721,7 @@ where
                 blobs.as_iters(),
                 ExecutionContext::Node,
             );
-            self.commit_apply_slot_output(&result, self.nonces.clone());
+            self.commit_apply_slot_output(result, self.nonces.clone());
         }
         self
     }
@@ -821,6 +838,24 @@ where
 
         self
     }
+}
+
+// Extracts batch and proof receipts from apply slot output.
+// Note: taking original errors is done to prevent loss of context of errors. This brake tests.
+fn split_apply_slot_output<S: Spec, RT: Runtime<S>>(
+    mut result: TestApplySlotOutput<RT, S>,
+) -> (TestApplySlotOutput<RT, S>, SlotReceipt<S>) {
+    let original_batch_receipts = std::mem::take(&mut result.batch_receipts);
+    let original_proof_receipts = std::mem::take(&mut result.proof_receipts);
+    result.batch_receipts = original_batch_receipts.clone();
+    result.proof_receipts = original_proof_receipts.clone();
+    let slot_receipt = SlotReceipt {
+        batch_receipts: original_batch_receipts,
+        proof_receipts: original_proof_receipts,
+        state_root: result.state_root.clone(),
+    };
+
+    (result, slot_receipt)
 }
 
 impl<RT, S> TestRunner<RT, S>

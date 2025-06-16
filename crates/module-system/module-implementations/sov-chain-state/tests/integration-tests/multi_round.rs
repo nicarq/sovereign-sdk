@@ -2,11 +2,11 @@ use sov_chain_state::ChainState;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{ApiStateAccessor, Gas, GasArray, Spec};
 use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
-use sov_test_utils::runtime::TestApplySlotOutput;
+use sov_test_utils::runtime::SlotReceipt;
 use sov_test_utils::{get_gas_used, AsUser, BatchType, TestUser};
 use sov_value_setter::ValueSetter;
 
-use crate::{setup, TestChainStateRuntime, RT, S};
+use crate::{setup, RT, S};
 
 const NUM_ROUNDS: u64 = 4;
 const NUM_TXS_PER_ROUND: usize = 10;
@@ -39,7 +39,7 @@ fn check_chain_state_update(
         // Kernel working set
         &mut ApiStateAccessor<S>,
         // The immediate result of the apply slot function
-        TestApplySlotOutput<TestChainStateRuntime<S>, S>,
+        SlotReceipt<S>,
     ),
 ) {
     let (admin, mut runner) = setup();
