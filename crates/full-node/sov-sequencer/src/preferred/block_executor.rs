@@ -45,9 +45,9 @@ pub(crate) enum RollupBlockExecutorError<S: Spec> {
     DecodeCall(#[from] FatalError),
     #[error("The sequencer is temporarily overloaded. Try again in a few seconds")]
     Overloaded,
-    #[error("The transaction was rejected")]
+    #[error("The transaction was rejected: {reason:?} call {call}")]
     Rejected { reason: RejectReason, call: String },
-    #[error("The transaction execution was unsuccessful")]
+    #[error("The transaction execution was unsuccessful {receipt:?}")]
     UnsuccessfulTransaction { receipt: TransactionReceipt<S> },
     #[error("The rollup block executor task failed unexpectedly")]
     UnexpectedFailure,
