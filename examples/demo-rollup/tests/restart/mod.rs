@@ -134,10 +134,6 @@ async fn start_stop_empty(
             "Invalid proof outcome".to_string(),
         ),
         (
-            Level::ERROR,
-            "Error inside the sequencer background task's closure; this is a bug, please report it".to_string(),
-        ),
-        (
             Level::WARN,
             "Received error updating target height, stopping background task".to_string()
         ),
@@ -332,11 +328,6 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
     let known = [
         // Error because of ledger subscription
         (Level::WARN, "WebSocket error".to_string()),
-        (
-            Level::ERROR,
-            "Error inside the sequencer background task's closure; this is a bug, please report it"
-                .to_string(),
-        ),
         (
             Level::WARN,
             "Received error updating target height, stopping background task".to_string(),
