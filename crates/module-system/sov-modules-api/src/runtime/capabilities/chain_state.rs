@@ -7,7 +7,7 @@ use sov_state::{Kernel, Storage, User};
 use super::RollupHeight;
 #[cfg(feature = "native")]
 use crate::AccessoryStateReaderAndWriter;
-use crate::{Gas, KernelStateAccessor, Spec, StateReader, VersionReader};
+use crate::{Gas, KernelStateAccessor, OperatingMode, Spec, StateReader, VersionReader};
 
 /// Capabilities allowing the kernel to update and access the DA layer state.
 ///
@@ -89,6 +89,16 @@ pub trait ChainState {
         rollup_height: RollupHeight,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
     ) -> Option<<<Self::Spec as Spec>::Storage as Storage>::Root>;
+
+    /// The operating mode of the rollup.
+    fn operating_mode<
+        Reader: VersionReader
+            + StateReader<User, Error = Infallible>
+            + StateReader<Kernel, Error = Infallible>,
+    >(
+        &self,
+        state: &mut Reader,
+    ) -> OperatingMode;
 
     /// Returns the visible root hash accessible at the requested rollup height using the accessory state.
     ///

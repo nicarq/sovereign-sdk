@@ -1,5 +1,5 @@
 use sov_modules_api::capabilities::{
-    AuthenticationError, GasEnforcer, SequencerAuthorization, TransactionAuthenticator,
+    AuthenticationError, ChainState, GasEnforcer, SequencerAuthorization, TransactionAuthenticator,
     TransactionAuthorizer,
 };
 use sov_modules_api::transaction::TransactionConsumption;
@@ -35,6 +35,7 @@ pub fn process_tx_and_reward_prover<S, R, I, C>(
     sequencer_rollup_address: S::Address,
     #[allow(unused_variables)] execution_context: ExecutionContext,
     injected_control_flow: &C,
+    operating_mode: OperatingMode,
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
     TxScratchpad<S, I>,
@@ -66,6 +67,7 @@ where
         sequencer_da_address,
         sequencer_rollup_address,
         injected_control_flow,
+        operating_mode,
     );
 
     #[cfg(feature = "native")]
@@ -127,6 +129,7 @@ fn process_tx_and_reward_prover_inner<S, R, I, C>(
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     sequencer_rollup_address: S::Address,
     injected_control_flow: &C,
+    operating_mode: OperatingMode,
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
     TxScratchpad<S, I>,
@@ -252,9 +255,11 @@ where
         &mut scratchpad,
     );
 
-    runtime
-        .gas_enforcer()
-        .reward_prover(&transaction_consumption.base_fee_value(), &mut scratchpad);
+    runtime.gas_enforcer().reward_prover(
+        &transaction_consumption.base_fee_value(),
+        operating_mode,
+        &mut scratchpad,
+    );
 
     (Ok(apply_tx), scratchpad, pre_exec_gas_meter)
 }
@@ -329,6 +334,8 @@ where
         .sequencer_authorization()
         .is_preferred_sequencer(sequencer_da_address, &mut checkpoint);
 
+    let operating_mode = runtime.chain_state().operating_mode(&mut checkpoint);
+
     trace!("Verifying & executing transactions");
 
     // Cost of the authentication for the entire batch.
@@ -364,6 +371,7 @@ where
     let initial_slot_gas_used = slot_gas_meter.total_gas_used();
 
     checkpoint.commit_revertable_storage_cache();
+
     let mut clean_scratchpad = checkpoint.to_tx_scratchpad();
 
     for (idx, (raw_tx, injected_control_flow)) in batch_with_id.enumerate() {
@@ -386,6 +394,7 @@ where
             sequencer_bond_per_tx,
             idx,
             &injected_control_flow,
+            operating_mode,
         );
 
         let provisional_outcome = match outcome {
@@ -552,11 +561,17 @@ fn penalize_sequencer<S: Spec, RT: Runtime<S>, I: StateProvider<S>>(
     runtime: &mut RT,
     auth_cost: Amount,
     sequencer_address: &S::Address,
+    operating_mode: OperatingMode,
     tx_scratchpad: &mut TxScratchpad<S, I>,
 ) {
     runtime
         .gas_enforcer()
-        .reward_prover_from_sequencer_balance(auth_cost, sequencer_address, tx_scratchpad)
+        .reward_prover_from_sequencer_balance(
+            auth_cost,
+            sequencer_address,
+            operating_mode,
+            tx_scratchpad,
+        )
         // We ensure that the sequencer bond is at least `max_tx_check_value` so this should never fail.
         .expect("Sequencer should have enough funds to pay for the pre-execution checks");
 }
@@ -576,6 +591,7 @@ fn auth_and_process_tx_and_incentivize_sequencer<S, RT, I, C>(
     sequencer_bond: SequencerBondForTx,
     idx: usize,
     injected_control_flow: &C,
+    operating_mode: OperatingMode,
 ) -> AuthAndProcessOutput<S, I>
 where
     S: Spec,
@@ -656,6 +672,7 @@ where
                         runtime,
                         funds_used_for_authentication,
                         &sequencer_rollup_address,
+                        operating_mode,
                         &mut scratchpad,
                     );
 
@@ -673,6 +690,7 @@ where
                         runtime,
                         funds_used_for_authentication,
                         &sequencer_rollup_address,
+                        operating_mode,
                         &mut scratchpad,
                     );
 
@@ -710,6 +728,7 @@ where
         sequencer_rollup_address.clone(),
         execution_context,
         injected_control_flow,
+        operating_mode,
     );
 
     span.exit();
@@ -722,6 +741,7 @@ where
                 runtime,
                 pre_exec_gas_meter.gas_info().gas_value,
                 &sequencer_rollup_address,
+                operating_mode,
                 &mut scratchpad,
             );
 

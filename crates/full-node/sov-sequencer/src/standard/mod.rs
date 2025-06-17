@@ -206,6 +206,10 @@ where
         let tx = mempool_tx.tx.clone();
         let mut runtime = Rt::default();
 
+        let operating_mode = runtime
+            .chain_state()
+            .operating_mode(&mut ctx.state_checkpoint);
+
         // To fill a batch as big as possible, we only check if valid
         // tx can fit in the batch.
         let tx_len = tx.data.len();
@@ -257,6 +261,7 @@ where
             self.config.rollup_address.clone(),
             ExecutionContext::Sequencer,
             &NoOpControlFlow,
+            operating_mode,
         );
 
         match res {

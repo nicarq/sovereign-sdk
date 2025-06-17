@@ -188,6 +188,17 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for SoftConfirmation
     ) -> Option<<S::Storage as Storage>::Root> {
         self.chain_state.genesis_root(state)
     }
+
+    fn operating_mode<
+        Reader: VersionReader
+            + StateReader<User, Error = Infallible>
+            + StateReader<Kernel, Error = Infallible>,
+    >(
+        &self,
+        state: &mut Reader,
+    ) -> sov_modules_api::OperatingMode {
+        self.chain_state.operating_mode(state).unwrap_infallible()
+    }
 }
 
 /// These methods are used in the tests to access the internal state of the kernel.

@@ -31,8 +31,8 @@ use sov_sequencer::{ProofBlobSender, Sequencer, SequencerApis, SequencerKindConf
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
 use sov_stf_runner::processes::{
-    start_op_workflow_in_background, start_zk_workflow_in_background, ProverService,
-    RollupProverConfig,
+    start_op_workflow_in_background, start_operator_workflow_in_background,
+    start_zk_workflow_in_background, ProverService, RollupProverConfig,
 };
 use sov_stf_runner::{
     initialize_state, query_state_update_info, CorsConfiguration, RollupConfig,
@@ -432,6 +432,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     )
                     .await?
                 }
+                OperatingMode::Operator => start_operator_workflow_in_background().await,
             };
 
             background_handles.push(workflow_task_handle);

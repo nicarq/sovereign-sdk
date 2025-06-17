@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use sov_modules_api::capabilities::{GasEnforcer, ProofProcessor};
+use sov_modules_api::capabilities::{ChainState, GasEnforcer, ProofProcessor};
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
@@ -153,9 +153,13 @@ where
                 &mut scratchpad,
             );
 
-            runtime
-                .gas_enforcer()
-                .reward_prover(&transaction_consumption.base_fee_value(), &mut scratchpad);
+            let operating_mode = runtime.chain_state().operating_mode(&mut scratchpad);
+
+            runtime.gas_enforcer().reward_prover(
+                &transaction_consumption.base_fee_value(),
+                operating_mode,
+                &mut scratchpad,
+            );
 
             let sequencer_reward = Rewards {
                 accumulated_reward: transaction_consumption.priority_fee().0,

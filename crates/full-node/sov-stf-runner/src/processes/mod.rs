@@ -62,3 +62,8 @@ where
     .post_attestation_to_da_in_background()
     .await)
 }
+
+/// Starts the operator workflow in the background.
+pub async fn start_operator_workflow_in_background() -> JoinHandle<()> {
+    todo!("Operator mode not implemented yet")
+}

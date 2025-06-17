@@ -23,6 +23,8 @@ pub enum OperatingMode {
     Optimistic,
     /// The rollup is currently executing in zk mode.
     Zk,
+    /// The rollup is currently executing in operator mode.
+    Operator,
 }
 
 #[cfg(feature = "native")]

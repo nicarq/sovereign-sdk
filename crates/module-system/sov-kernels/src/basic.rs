@@ -197,4 +197,15 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, 
         self.chain_state
             .visible_hash_with_accessory_state(rollup_height, state)
     }
+
+    fn operating_mode<
+        Reader: VersionReader
+            + StateReader<User, Error = Infallible>
+            + StateReader<Kernel, Error = Infallible>,
+    >(
+        &self,
+        state: &mut Reader,
+    ) -> sov_modules_api::OperatingMode {
+        self.chain_state.operating_mode(state).unwrap_infallible()
+    }
 }

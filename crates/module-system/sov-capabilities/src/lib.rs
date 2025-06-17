@@ -15,8 +15,8 @@ use sov_modules_api::transaction::{
 };
 use sov_modules_api::{
     AggregatedProofPublicData, Amount, Context, DaSpec, Gas, GetGasPrice, InfallibleStateAccessor,
-    InvalidProofError, ModuleInfo, Rewards, SovAttestation, SovStateTransitionPublicData, Spec,
-    StateAccessor, StateReader, StateWriter, Storage, TxState,
+    InvalidProofError, ModuleInfo, OperatingMode, Rewards, SovAttestation,
+    SovStateTransitionPublicData, Spec, StateAccessor, StateReader, StateWriter, Storage, TxState,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
@@ -39,20 +39,13 @@ pub struct StandardProvenRollupCapabilities<'a, S: Spec, GasPayer = ()> {
 impl<'a, S: Spec, T> StandardProvenRollupCapabilities<'a, S, T> {
     fn get_prover_token_holder(
         &'a self,
-        state: &mut impl InfallibleStateAccessor,
+        oprating_mode: OperatingMode,
+        _state: &mut impl InfallibleStateAccessor,
     ) -> TokenHolderRef<'a, S> {
-        let reward_prover_incentives = self.prover_incentives.should_reward_fees(state);
-        let reward_attester_incentives = self.attester_incentives.should_reward_fees(state);
-
-        assert!(
-            reward_prover_incentives ^ reward_attester_incentives,
-            "Exactly one of prover or attester incentives should be rewarded"
-        );
-
-        let rewarded_module = if reward_prover_incentives {
-            self.prover_incentives.id().to_payable()
-        } else {
-            self.attester_incentives.id().to_payable()
+        let rewarded_module = match oprating_mode {
+            OperatingMode::Zk => self.prover_incentives.id().to_payable(),
+            OperatingMode::Optimistic => self.attester_incentives.id().to_payable(),
+            OperatingMode::Operator => todo!("Operator mode not implemented yet"),
         };
 
         rewarded_module
@@ -139,9 +132,10 @@ where
     fn reward_prover(
         &mut self,
         prover_rewards: &ProverReward,
+        oprating_mode: OperatingMode,
         state: &mut impl InfallibleStateAccessor,
     ) {
-        let rewarded_module = self.get_prover_token_holder(state);
+        let rewarded_module = self.get_prover_token_holder(oprating_mode, state);
 
         self.bank
             .transfer_from(
@@ -180,9 +174,10 @@ where
         &mut self,
         amount: Amount,
         _sequencer: &S::Address,
+        oprating_mode: OperatingMode,
         state: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<()> {
-        let rewarded_prover_module = self.get_prover_token_holder(state);
+        let rewarded_prover_module = self.get_prover_token_holder(oprating_mode, state);
         // Transfer the penalty from the sequencer bank to the sequencer
         self.bank.transfer_from(
             self.bank.id.clone().to_payable(),

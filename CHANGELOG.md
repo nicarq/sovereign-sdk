@@ -1,3 +1,6 @@
+# 2025-06-17
+- #3054 Adds `OperatingMode::Operator` to the rollup. This is NOT a breaking change for the consumers of the sdk.
+
 # 2025-06-13
 - #3035 Improves logging during resync testing
 

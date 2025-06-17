@@ -1,6 +1,6 @@
 use sov_modules_api::capabilities::{
-    BatchFromUnregisteredSequencer, GasEnforcer, SequencerRemuneration, TransactionAuthenticator,
-    TransactionAuthorizer, UnregisteredAuthenticationError,
+    BatchFromUnregisteredSequencer, ChainState, GasEnforcer, SequencerRemuneration,
+    TransactionAuthenticator, TransactionAuthorizer, UnregisteredAuthenticationError,
 };
 use sov_modules_api::*;
 use tracing::{debug, warn};
@@ -124,9 +124,12 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
         &mut scratchpad,
     );
 
-    runtime
-        .gas_enforcer()
-        .reward_prover(&transaction_consumption.base_fee_value(), &mut scratchpad);
+    let operating_mode = runtime.chain_state().operating_mode(&mut scratchpad);
+    runtime.gas_enforcer().reward_prover(
+        &transaction_consumption.base_fee_value(),
+        operating_mode,
+        &mut scratchpad,
+    );
 
     let mut checkpoint = scratchpad.commit();
     let sequencer_reward = transaction_consumption.priority_fee();
