@@ -159,7 +159,10 @@ where
     let (genesis_config, roles) = setup(num_senders, inner_code_commitment);
 
     (
-        TestRunner::new_with_genesis(genesis_config.into_genesis_params(), Default::default()),
+        TestRunner::<_, _>::new_with_genesis(
+            genesis_config.into_genesis_params(),
+            Default::default(),
+        ),
         roles,
     )
 }

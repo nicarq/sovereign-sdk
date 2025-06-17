@@ -6,6 +6,7 @@
 
 # 2025-06-10
 - #3015 bumps the `blob_processing_timeout_secs` in demo-rollup to allow more time for proof generation in the readme tests.
+- #2971 internal in sov-soak-tests
 
 # 2025-06-10
 - #3014 Adds `/modules/bank/tokens/gas_token` and `/modules/bank/tokens/gas_token/balances/{address}` endpoints to enable fetching the gas token id and gas token balances using the REST API endpoints.

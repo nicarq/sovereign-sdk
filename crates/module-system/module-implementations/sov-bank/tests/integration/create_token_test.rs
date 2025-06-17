@@ -378,5 +378,5 @@ fn overflow_max_supply_genesis_should_panic() {
 
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
 
-    TestRunner::new_with_genesis(genesis.into_genesis_params(), RT::default());
+    TestRunner::<_, _>::new_with_genesis(genesis.into_genesis_params(), RT::default());
 }

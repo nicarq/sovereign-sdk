@@ -22,7 +22,7 @@ fn test_example_module() {
     // Run genesis registering the attester and sequencer we've generated.
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into(), ExampleModuleConfig {});
 
-    let mut runner = TestRunner::new_with_genesis(
+    let mut runner = TestRunner::<_, _>::new_with_genesis(
         genesis.into_genesis_params(),
         ExampleModuleRuntime::default(),
     );

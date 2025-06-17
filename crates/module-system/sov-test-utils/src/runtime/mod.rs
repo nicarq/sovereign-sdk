@@ -39,7 +39,7 @@ use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 pub use sov_sequencer_registry::{self, SequencerConfig, SequencerRegistry};
-use sov_state::{DefaultStorageSpec, ProverStorage, Storage, StorageProof};
+use sov_state::{DefaultStorageSpec, Storage, StorageProof};
 pub use sov_uniqueness::Uniqueness;
 pub use sov_value_setter::{
     CallMessage as ValueSetterCallMessage, Event as ValueSetterEvent, ValueSetter,
@@ -51,7 +51,7 @@ pub use {
     sov_value_setter,
 };
 
-use crate::storage::SimpleStorageManager;
+use crate::storage::{ForklessStorageManager, SimpleStorageManager};
 use crate::{
     generate_optimistic_runtime, validate_and_materialize, Arc, BatchAssertContext, BatchReceipt,
     BatchTestCase, BatchType, ProofAssertContext, ProofTestCase, SequencerInfo, SlotInput,
@@ -69,8 +69,6 @@ pub mod genesis;
 /// Traits used to define interfaces for the runtime.
 pub mod traits;
 use traits::MinimalGenesis;
-
-type DefaultSpecWithHasher<S> = DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>;
 
 type NoncesMap<S> = HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>;
 
@@ -161,12 +159,18 @@ pub struct RunnerConfig<Da: DaSpec> {
 }
 
 /// Stateful test runner that can be used to run and accumulate slot results for a given runtime.
-pub struct TestRunner<RT: Runtime<S>, S: Spec> {
+pub struct TestRunner<
+    RT: Runtime<S>,
+    S: Spec,
+    Sm: ForklessStorageManager = SimpleStorageManager<
+        DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
+    >,
+> {
     stf: StfBlueprint<S, RT>,
     nonces: HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
     slot_receipts: Vec<SlotReceipt<S>>,
     state_root: <S::Storage as Storage>::Root,
-    storage_manager: SimpleStorageManager<DefaultSpecWithHasher<S>>,
+    storage_manager: Sm,
     /// A channel to send the storage over. This should be subscribed to the same channel as [`Self::checkpoint_receiver`].
     checkpoint_sender: watch::Sender<StateCheckpoint<S>>,
     /// The corresponding receiving end of the channel.
@@ -176,7 +180,7 @@ pub struct TestRunner<RT: Runtime<S>, S: Spec> {
     pub config: RunnerConfig<S::Da>,
 }
 
-impl<RT: Runtime<S>, S: Spec> Drop for TestRunner<RT, S> {
+impl<RT: Runtime<S>, S: Spec, Sm: ForklessStorageManager> Drop for TestRunner<RT, S, Sm> {
     fn drop(&mut self) {
         self.axum_server.shutdown();
     }
@@ -256,10 +260,13 @@ impl ApiPath {
     }
 }
 
-impl<RT, S> TestRunner<RT, S>
+impl<RT, S, Sm> TestRunner<RT, S, Sm>
 where
     RT: Runtime<S> + MinimalGenesis<S>,
-    S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>, Da = MockDaSpec>,
+    Sm: ForklessStorageManager,
+    S: Spec<Storage = Sm::Storage, Da = MockDaSpec>,
+    <S::Storage as Storage>::ChangeSet: Clone,
+    <S::Storage as Storage>::Root: Clone,
 {
     /// Returns the runtime of the test runner.
     pub fn runtime(&self) -> &RT {
@@ -267,7 +274,7 @@ where
     }
 
     /// Returns a reference to the storage manager of the test runner.
-    pub fn storage_manager(&self) -> &SimpleStorageManager<DefaultSpecWithHasher<S>> {
+    pub fn storage_manager(&self) -> &Sm {
         &self.storage_manager
     }
 
@@ -328,7 +335,7 @@ where
 
     /// Returns the state of the rollup at the visible height.
     fn visible_state(&self) -> ApiStateAccessor<S> {
-        let stf_state = self.storage_manager.create_storage();
+        let stf_state = self.storage_manager.create_prover_storage();
         let mut runtime = RT::default();
         let kernel = runtime.kernel();
 
@@ -349,7 +356,7 @@ where
 
     /// Returns the state of the rollup at the most recent version of the rollup.
     fn state_at_true_height(&self) -> ApiStateAccessor<S> {
-        let stf_state = self.storage_manager.create_storage();
+        let stf_state = self.storage_manager.create_prover_storage();
         let mut runtime = RT::default();
         let kernel = runtime.kernel();
 
@@ -412,7 +419,7 @@ where
     /// TODO(@theochap): A temporary solution until `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1192` is resolved.
     /// Updates the state of the rollup by committing the changes of the given closure.
     pub fn __apply_to_state(&mut self, query: impl FnOnce(&mut StateCheckpoint<S>)) {
-        let stf_state = self.storage_manager.create_storage();
+        let stf_state = self.storage_manager.create_prover_storage();
 
         let mut runtime = RT::default();
 
@@ -434,16 +441,18 @@ where
         let (reads_writes, _, witness) = state.freeze();
 
         let (new_state_root, change_set) =
-            validate_and_materialize(stf_state, reads_writes, &witness, self.state_root).unwrap();
+            validate_and_materialize(stf_state, reads_writes, &witness, self.state_root.clone())
+                .unwrap();
 
-        self.storage_manager.commit(change_set);
+        self.storage_manager
+            .commit_change_set(change_set, new_state_root.clone());
         self.state_root = new_state_root;
         self.synchronize_storage_channel();
     }
 
     /// Sends the current storage over the [`Self::checkpoint_sender`].
     fn synchronize_storage_channel(&mut self) {
-        let storage = self.storage_manager.create_storage();
+        let storage = self.storage_manager.create_prover_storage();
         self.checkpoint_sender
             .send(StateCheckpoint::new(storage, &RT::default().kernel()))
             .expect("Failed to send storage, the storage channel is closed. This is a bug. Please report it.");
@@ -458,13 +467,13 @@ where
         let stf = StfBlueprint::<S, RT>::new();
 
         // ----- Setup and run genesis ---------
-        let mut storage_manager = SimpleStorageManager::new();
+        let mut storage_manager = Sm::new_in_tempdir();
 
         let sequencer_da_address =
             <RT as MinimalGenesis<S>>::sequencer_registry_config(&genesis_config.runtime)
                 .seq_da_address;
 
-        let stf_state = storage_manager.create_storage();
+        let stf_state = storage_manager.create_prover_storage();
 
         let (sender, receiver) = watch::channel(StateCheckpoint::new(
             stf_state.clone(),
@@ -474,7 +483,7 @@ where
         let (state_root, change_set) =
             stf.init_chain(&Default::default(), stf_state, genesis_config);
 
-        storage_manager.commit(change_set);
+        storage_manager.commit_change_set(change_set, state_root.clone());
 
         // ----- End genesis ---------
 
@@ -613,7 +622,7 @@ where
         cf: CF,
     ) -> (TestApplySlotOutput<RT, S>, RelevantBlobInfo, NoncesMap<S>) {
         let block_header = self.next_header();
-        let stf_state = self.storage_manager.create_storage();
+        let stf_state = self.storage_manager.create_prover_storage();
         let slot_input: SlotInput<RT, S> = input.into();
         let sequencer = self.config.sequencer_da_address;
         let mut nonces = self.nonces.clone();
@@ -692,9 +701,10 @@ where
         output: TestApplySlotOutput<RT, S>,
         nonces: NoncesMap<S>,
     ) {
-        self.storage_manager.commit(output.change_set);
+        self.storage_manager
+            .commit_change_set(output.change_set, output.state_root.clone());
         self.synchronize_storage_channel();
-        self.state_root = output.state_root;
+        self.state_root = output.state_root.clone();
         self.slot_receipts.push(SlotReceipt {
             batch_receipts: output.batch_receipts.clone(),
             proof_receipts: output.proof_receipts.clone(),
@@ -708,7 +718,7 @@ where
     pub fn advance_slots(&mut self, slots_to_advance: usize) -> &mut Self {
         for _ in 0..slots_to_advance {
             let block_header = self.next_header();
-            let stf_state = self.storage_manager.create_storage();
+            let stf_state = self.storage_manager.create_prover_storage();
             let mut blobs = RelevantBlobs {
                 proof_blobs: vec![],
                 batch_blobs: vec![],
@@ -858,10 +868,12 @@ fn split_apply_slot_output<S: Spec, RT: Runtime<S>>(
     (result, slot_receipt)
 }
 
-impl<RT, S> TestRunner<RT, S>
+impl<RT, S, Sm> TestRunner<RT, S, Sm>
 where
     RT: Runtime<S> + MinimalGenesis<S> + HasRestApi<S>,
-    S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>, Da = MockDaSpec>,
+    S: Spec<Da = MockDaSpec>,
+    <S::Storage as Storage>::ChangeSet: Clone,
+    Sm: ForklessStorageManager<Storage = S::Storage>,
 {
     /// Sets up a REST-api server for frameworks whose runtime that implements [`HasRestApi`].
     /// Returns a client to use to query the server.

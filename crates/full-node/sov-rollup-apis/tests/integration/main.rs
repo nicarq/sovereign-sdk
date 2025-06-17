@@ -57,7 +57,8 @@ impl TestData {
         // Run genesis registering the attester and sequencer we've generated.
         let genesis_config = GenesisConfig::from_minimal_config(genesis_config.into());
 
-        let runner = TestRunner::new_with_genesis(genesis_config.into_genesis_params(), runtime);
+        let runner =
+            TestRunner::<_, _>::new_with_genesis(genesis_config.into_genesis_params(), runtime);
 
         let storage = runner.storage_manager().create_storage();
 

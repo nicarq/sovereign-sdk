@@ -212,7 +212,8 @@ fn test_rollup_height() {
 
     let runtime = TestRuntime::default();
 
-    let mut runner = TestRunner::new_with_genesis(genesis_config.into_genesis_params(), runtime);
+    let mut runner =
+        TestRunner::<_, _>::new_with_genesis(genesis_config.into_genesis_params(), runtime);
     assert_eq!(runner.true_slot_number().get(), 0);
 
     runner.advance_slots(2);
@@ -311,7 +312,7 @@ fn test_define_token_with_state() {
         },
     );
 
-    let runner = TestRunner::new_with_genesis(
+    let runner = TestRunner::<_, _>::new_with_genesis(
         genesis_config.into_genesis_params(),
         TestOptimisticRuntime::<TestSpec>::default(),
     );
@@ -409,7 +410,7 @@ fn test_define_token_with_mint() {
         },
     );
 
-    let mut runner = TestRunner::new_with_genesis(
+    let mut runner = TestRunner::<_, _>::new_with_genesis(
         genesis_config.into_genesis_params(),
         TestOptimisticRuntime::<TestSpec>::default(),
     );

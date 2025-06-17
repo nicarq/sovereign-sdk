@@ -301,8 +301,10 @@ mod tests {
         );
 
         let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
-        let mut runner =
-            TestRunner::new_with_genesis(genesis.into_genesis_params(), TestRuntime::default());
+        let mut runner = TestRunner::<_, _>::new_with_genesis(
+            genesis.into_genesis_params(),
+            TestRuntime::default(),
+        );
 
         runner.advance_slots(1).query_visible_state(|state| {
             let bank = crate::runtime::Bank::<S>::default();

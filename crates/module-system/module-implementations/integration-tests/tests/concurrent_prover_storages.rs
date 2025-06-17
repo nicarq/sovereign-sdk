@@ -1,3 +1,4 @@
+use sov_mock_da::MockDaSpec;
 use sov_modules_api::Spec;
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::{
@@ -8,7 +9,7 @@ use sov_test_utils::storage::{
     ForklessStorageManager, NativeStorageManager, NomtStorageManager, NonCommitingStorageManager,
     SimpleNomtStorageManager, SimpleStorageManager,
 };
-use sov_test_utils::{TestNomtSpec, TestSpec};
+use sov_test_utils::{TestHasher, TestNomtSpec, TestSpec};
 
 #[test]
 fn jmt_concurrent_prover_storages() {
@@ -18,9 +19,8 @@ fn jmt_concurrent_prover_storages() {
 
 #[test]
 fn jmt_concurrent_prover_in_memory_storages() {
-    let dir = tempfile::tempdir().unwrap();
-    let inner_storage_manager = NativeStorageManager::new(dir.path()).unwrap();
-    let storage_manager = NonCommitingStorageManager::new(dir, inner_storage_manager);
+    let storage_manager =
+        NonCommitingStorageManager::<NativeStorageManager<MockDaSpec, _>, _>::new();
     concurrent_prover_storages::<TestSpec, _>(storage_manager);
 }
 
@@ -33,9 +33,8 @@ fn nomt_concurrent_prover_storages() {
 
 #[test]
 fn nomt_concurrent_prover_in_memory_storages() {
-    let dir = tempfile::tempdir().unwrap();
-    let inner_storage_manager = NomtStorageManager::new(dir.path()).unwrap();
-    let storage_manager = NonCommitingStorageManager::new(dir, inner_storage_manager);
+    let storage_manager =
+        NonCommitingStorageManager::<NomtStorageManager<MockDaSpec, TestHasher, _>, _>::new();
     concurrent_prover_storages::<TestNomtSpec, _>(storage_manager);
 }
 
@@ -47,9 +46,8 @@ fn jmt_node_sequencer_concurrent_state_update() {
 
 #[test]
 fn jmt_node_sequencer_concurrent_state_update_in_memory() {
-    let dir = tempfile::tempdir().unwrap();
-    let inner_storage_manager = NativeStorageManager::new(dir.path()).unwrap();
-    let storage_manager = NonCommitingStorageManager::new(dir, inner_storage_manager);
+    let storage_manager =
+        NonCommitingStorageManager::<NativeStorageManager<MockDaSpec, _>, _>::new();
     node_sequencer_compute_state_update_concurrency::<TestSpec, _>(storage_manager);
 }
 
@@ -62,9 +60,8 @@ fn nomt_node_sequencer_concurrent_state_update() {
 
 #[test]
 fn nomt_node_sequencer_concurrent_state_update_in_memory() {
-    let dir = tempfile::tempdir().unwrap();
-    let inner_storage_manager = NomtStorageManager::new(dir.path()).unwrap();
-    let storage_manager = NonCommitingStorageManager::new(dir, inner_storage_manager);
+    let storage_manager =
+        NonCommitingStorageManager::<NomtStorageManager<MockDaSpec, TestHasher, _>, _>::new();
     node_sequencer_compute_state_update_concurrency::<TestNomtSpec, _>(storage_manager);
 }
 

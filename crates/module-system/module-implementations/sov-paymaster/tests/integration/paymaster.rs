@@ -134,7 +134,7 @@ fn test_registering_new_payer() {
 #[test]
 fn test_setting_payer_for_sequencer() {
     let setup = setup(TEST_DEFAULT_USER_BALANCE);
-    let mut runner = TestRunner::new_with_genesis(
+    let mut runner = TestRunner::<_, _>::new_with_genesis(
         setup.genesis_config.into_genesis_params(),
         PaymasterRuntime::default(),
     );
@@ -410,7 +410,7 @@ fn test_updates_using_alternate_address() {
         .authorized_updaters
         .try_push(user_address)
         .unwrap();
-    let mut runner = TestRunner::new_with_genesis(
+    let mut runner = TestRunner::<_, _>::new_with_genesis(
         setup.genesis_config.into_genesis_params(),
         PaymasterRuntime::default(),
     );
@@ -763,7 +763,7 @@ fn test_granular_policies() {
 #[test]
 fn test_cannot_remove_sequencer_belonging_to_different_payer() {
     let setup = setup(TEST_DEFAULT_USER_BALANCE);
-    let mut runner = TestRunner::new_with_genesis(
+    let mut runner = TestRunner::<RT, S>::new_with_genesis(
         setup.genesis_config.into_genesis_params(),
         PaymasterRuntime::default(),
     );
@@ -849,7 +849,7 @@ fn test_cannot_remove_sequencer_belonging_to_different_payer() {
 #[test]
 fn test_can_remove_own_sequencer() {
     let setup = setup(Amount::ZERO);
-    let mut runner = TestRunner::new_with_genesis(
+    let mut runner = TestRunner::<_, _>::new_with_genesis(
         setup.genesis_config.into_genesis_params(),
         PaymasterRuntime::default(),
     );
