@@ -105,6 +105,15 @@ impl SlotNumber {
         self.0.checked_sub(rhs.0).unwrap()
     }
 
+    /// Calculates the difference between two [`SlotNumber`]s as a [`u64`].
+    ///
+    /// # Return
+    ///
+    /// Returns `None` if the result would have underflowed.
+    pub fn saturating_delta(&self, rhs: Self) -> u64 {
+        self.0.saturating_sub(rhs.0)
+    }
+
     /// See [`u64::saturating_add`].
     pub fn saturating_add(&self, rhs: u64) -> Self {
         Self(self.0.saturating_add(rhs))

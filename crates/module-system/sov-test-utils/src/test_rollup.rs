@@ -236,6 +236,23 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
         self
     }
 
+    /// See [`PreferredSequencerConfig::recovery_strategy`].
+    pub fn with_preferred_seq_recovery_strategy(
+        mut self,
+        recovery_strategy: sov_sequencer::preferred::RecoveryStrategy,
+    ) -> Self {
+        if let SequencerKindConfig::Preferred(ref mut config) = &mut self.config.sequencer_config {
+            config.recovery_strategy = recovery_strategy;
+        } else {
+            self.config.sequencer_config =
+                SequencerKindConfig::Preferred(PreferredSequencerConfig {
+                    recovery_strategy,
+                    ..Default::default()
+                });
+        }
+        self
+    }
+
     /// See [`RollupBuilderConfig::rollup_prover_config`].
     pub fn with_zkvm_host_args(
         mut self,

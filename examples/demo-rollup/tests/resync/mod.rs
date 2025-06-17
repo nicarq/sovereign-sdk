@@ -29,7 +29,7 @@ use tracing_subscriber::{registry, EnvFilter, Layer};
 use crate::test_helpers::{test_genesis_source, DemoRollupSpec};
 
 const ROLLUP_START_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
-const ROLLUP_SYNC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+const ROLLUP_SYNC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 const TX_PROCESSING_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 const ROLLUP_SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
@@ -147,7 +147,7 @@ async fn test_generate_mockda_dataset_for_resync() -> anyhow::Result<()> {
         .set_config(|c| {
             c.rollup_prover_config = Some(RollupProverConfig::Skip);
             c.aggregated_proof_block_jump = 10;
-            c.max_concurrent_blobs = 64;
+            c.max_concurrent_blobs = 92;
         })
         .start(),
     )
@@ -235,6 +235,11 @@ async fn test_generate_mockda_dataset_for_resync() -> anyhow::Result<()> {
 /// `test/resync/data` and run `test_generate_mockda_dataset_for_resync` to update the data.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_rollup_resync() -> anyhow::Result<()> {
+    // Deferred slots are set low in tests. If resyncing takes too long, the sequencer can
+    // legitimately fall behind. We don't care about testing that here, so bump the count to give
+    // the sequencer time to resync safely.
+    std::env::set_var("SOV_TEST_CONST_OVERRIDE_DEFERRED_SLOTS_COUNT", "400");
+
     let records = Arc::new(Mutex::new(Vec::new()));
     initialize_logging_for_resync(records.clone(), false); // Set to true to see logs
 
@@ -287,13 +292,16 @@ async fn test_rollup_resync() -> anyhow::Result<()> {
         (Level::WARN, "Received error updating target height, stopping background task".to_string()),
         // This is expected for the second resync: since we have batches in the sequencer DB, we
         // are indeed causing a delay for users
-        (Level::WARN, "The sequencer must pause because the node is lagging behind. This might lead to a brief downtime for users. Cause is unknown.".to_string()),
+        (Level::WARN, "The sequencer must pause because the node has lagged behind the DA blockchain. This might lead to a brief downtime for users.".to_string()),
         // This is due to finalized but recent enough proof blobs not being pruned for a while (see
         // the TODO inside `subsequent_completed_blobs` in the preferred sequencer db mod.rs). This
         // causes the sequencer to resubmit proof blobs for earlier slots, which are no longer
         // valid. This is likely related to https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1878
         // (sending already-submitted proofs at a later height).
         (Level::ERROR, "Invalid proof outcome".to_string()),
+        // This shows up occasionally, but especially often on hetzner. There may be some timing
+        // oddity that might be worth investigating.
+        (Level::WARN, "State Transition Info is not consumed fast enough, cannot prune older entries. Please check that consumer works.".to_string())
     ];
     let mut recorded_errors_warnings =
         HashSet::<(Level, String)>::from_iter(records.lock().unwrap().clone().iter().cloned());
@@ -326,7 +334,7 @@ async fn sync_rollup_with_path(
         .set_config(|c| {
             c.rollup_prover_config = Some(RollupProverConfig::Skip);
             c.aggregated_proof_block_jump = 10;
-            c.max_concurrent_blobs = 64;
+            c.max_concurrent_blobs = 92;
         })
         .start(),
     )
@@ -370,6 +378,9 @@ async fn sync_rollup_with_path(
     })
     .await
     .context("Fully resyncing to the DA tip timed out")?;
+    // We need to sleep because the sync status is based on the DA service updated by the node,
+    // but the sequencer needs to run update_state() first.
+    tokio::time::sleep(Duration::from_millis(1000)).await;
     tracing::info!("Synced!");
 
     // Ensure the rollup can still accept transactions

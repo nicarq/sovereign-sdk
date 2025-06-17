@@ -28,7 +28,7 @@ use sov_modules_api::{
 };
 use tracing::info;
 
-use super::next_sequence_number_according_to_node;
+use super::get_next_sequence_number_according_to_node;
 use crate::common::WithCachedTxHashes;
 use crate::metrics::track_sequence_number;
 
@@ -288,7 +288,7 @@ where
         latest_state_info: &StateUpdateInfo<S::Storage>,
     ) -> anyhow::Result<Vec<PreferredSequencerReadBlob>> {
         let next_sequence_number_according_to_node =
-            next_sequence_number_according_to_node(latest_state_info, &mut self.runtime);
+            get_next_sequence_number_according_to_node(latest_state_info, &mut self.runtime);
 
         sov_metrics::track_metrics(|tracker| {
             tracker.submit_inline(

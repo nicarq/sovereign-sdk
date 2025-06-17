@@ -65,6 +65,7 @@ type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
 
 use sov_test_utils::TEST_BLOB_PROCESSING_TIMEOUT;
 
+const MAX_CONCURRENT_BLOBS: usize = 32;
 const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnBatchSubmit {
     block_wait_timeout_ms: None,
 };
@@ -155,9 +156,11 @@ async fn new_test_rollup(
         c.storage = dir;
         c.max_batch_size_bytes = max_batch_size_bytes;
         c.blob_processing_timeout_secs = blob_processing_timeout_secs;
+        c.max_concurrent_blobs = MAX_CONCURRENT_BLOBS;
     })
     .set_da_config(|c| c.sender_address = sequencer_addr)
-    .with_preferred_seq_min_profit_per_tx(minimum_profit_per_tx);
+    .with_preferred_seq_min_profit_per_tx(minimum_profit_per_tx)
+    .with_preferred_seq_recovery_strategy(sov_sequencer::preferred::RecoveryStrategy::TryToSave);
 
     if num_cpus::get() != DEV_SERVER_CPUS {
         builder_res = builder_res.with_postgres_sequencer().await.unwrap();
@@ -288,6 +291,153 @@ async fn txs_below_min_fee_are_rejected() {
         "Full error message does not contain expect part: {}",
         err_message
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn seq_behind_deferred_slots_count() {
+    std::env::set_var("SOV_TEST_CONST_OVERRIDE_DEFERRED_SLOTS_COUNT", "25");
+    let (test_rollup, admin) =
+        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
+    let Some(test_rollup) = test_rollup else {
+        return;
+    };
+    let client = test_rollup.api_client.clone();
+    // Sleep for the rollup to start up
+    sleep(Duration::from_millis(500)).await;
+
+    // Finalise some blocks
+    for _ in 0..8 {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        sleep(Duration::from_millis(50)).await; // give chance for update_state to run
+    }
+
+    // Sanity check tx that the rollup works
+    let tx_update_one = tx_set_value(&admin.private_key, 0, 8);
+    client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx_update_one),
+        })
+        .await
+        .unwrap();
+
+    tracing::info!("Producing DA blocks for inclusion sanity check tx inclusion");
+    for _ in 0..10 {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        sleep(Duration::from_millis(50)).await; // give chance for update_state to run
+    }
+
+    // Pause sequencer update_state and run some blocks so deferred_slots_count is reached
+    test_rollup.pause_preferred_batches().await;
+    tracing::info!("Preferred sequencer batch production paused.");
+
+    // Preferred sequencer should accept the transaction (and keep it as an in-progress batch since
+    // we've stopped update_state and thus aren't producing batches)
+    const UPDATE_TWO_VALUE: u64 = 19;
+    let tx_update_two = tx_set_value(&admin.private_key, 0, UPDATE_TWO_VALUE);
+    client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx_update_two),
+        })
+        .await
+        .unwrap();
+
+    tracing::info!(
+        "Producing subsequent DA blocks while sequencer is paused, to exceet deferred_slots_count"
+    );
+    for _ in 0..30 {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        sleep(Duration::from_millis(50)).await; // have the node process them
+    }
+
+    tracing::info!("Resuming preferred sequencer batch production.");
+    test_rollup.resume_preferred_batches().await;
+    // Produce two blocks that will trigger update_state() and cause the sequencer to go into
+    // recovery
+    // A single block is usually enough but was very rarely flaky. Producing two blocks fixes that
+    // and doesn't hurt
+    for _ in 0..2 {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        sleep(Duration::from_millis(100)).await;
+    }
+
+    // Create transaction that should fail: sequencer should not accept transactions while in
+    // recovery.
+    // We use set_many_values so we don't overwrite the value from set_value earlier, so we can
+    // check that both had an effect by querying the separate state items.
+    const UPDATE_VEC_VALUE: u8 = 12;
+    let tx_update_vec = tx_set_many_values(&admin.private_key, 2, vec![UPDATE_VEC_VALUE]);
+    tracing::info!("Trying to send transaction during recovery - expecing rejection");
+    client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx_update_vec),
+        })
+        .await
+        .unwrap_err();
+
+    // Give time for the sequencer to catch up its visible state number
+    tracing::info!("Producing DA blocks to let the sequencer resync.");
+    for _ in 0..30 {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        sleep(Duration::from_millis(50)).await; // have the node and sequencer process them
+    }
+
+    // Submit the same transaction to the now-working sequencer
+    // This transaction will be soft-confirmed. The assertion should pass at this stage.
+    client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx_update_vec),
+        })
+        .await
+        .unwrap();
+
+    tracing::info!("Producing final run of blocks to include the last tx and confirm the rollup is running normally");
+    for _ in 0..10 {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        sleep(Duration::from_millis(50)).await; // have the node process them
+    }
+
+    // Assert that the earlier transactions sent just before the sequencer went into recovery was
+    // flushed and processed by the node
+    #[derive(Debug, serde::Deserialize)]
+    struct ValueResponse {
+        value: u32,
+    }
+    let response = test_rollup
+        .client
+        .query_rest_endpoint::<ResponseObject<ValueResponse>>("/modules/value-setter/state/value")
+        .await
+        .unwrap();
+    let actual_value = response.data.unwrap().value;
+    assert_eq!(
+        actual_value, UPDATE_TWO_VALUE as u32,
+        "Expected value to be {}, but got {}",
+        UPDATE_TWO_VALUE, actual_value
+    );
+
+    // Assert that the transaction sent after the sequencer exited recovery was processed (i.e.
+    // that the rollup is now functional)
+    #[derive(Debug, serde::Deserialize)]
+    struct IdxResponse {
+        #[allow(unused)]
+        index: u64,
+        value: Option<u8>,
+    }
+    let many_values_response = test_rollup
+        .client
+        .query_rest_endpoint::<ResponseObject<IdxResponse>>(
+            "/modules/value-setter/state/many-values/items/0",
+        )
+        .await
+        .unwrap();
+    let actual_many_value = many_values_response.data.unwrap().value.unwrap();
+    assert_eq!(
+        actual_many_value, 12u8,
+        "Expected many_values[0] to be 12, but got {}",
+        actual_many_value
+    );
+
+    tracing::info!("All asserts successful, shutting down rollup");
+    test_rollup.shutdown().await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -728,7 +878,7 @@ async fn flaky_seq_back_pressure() {
     // Pause block submission and produce some pending blocks.
     {
         test_rollup.da_service.set_blob_submission_pause().await;
-        for _ in 0..sov_test_utils::TEST_MAX_CONCURRENT_BLOBS + 3 {
+        for _ in 0..MAX_CONCURRENT_BLOBS + 8 {
             test_rollup.da_service.produce_block_now().await.unwrap();
             sleep(Duration::from_millis(800)).await;
         }
@@ -748,7 +898,7 @@ async fn flaky_seq_back_pressure() {
         test_rollup.da_service.resume_blob_submission().await;
     }
 
-    for _ in 0..5 {
+    for _ in 0..10 {
         test_rollup.da_service.produce_block_now().await.unwrap();
         sleep(Duration::from_millis(800)).await;
     }
@@ -1489,11 +1639,15 @@ async fn flaky_batch_production_with_immediate_finalization() {
         TestingAction::AcceptTxs { count: 1 },
         TestingAction::AcceptTxs { count: 50 },
         TestingAction::Restart,
+        // Restarting is consistently slow in this test because of the big batches, so sleep extra
+        TestingAction::Sleep { duration_ms: 1000 },
         TestingAction::AcceptTx,
         TestingAction::Sleep { duration_ms: 50 },
         TestingAction::Restart,
+        TestingAction::Sleep { duration_ms: 1000 },
         TestingAction::AcceptTxs { count: 50 },
         TestingAction::Restart,
+        TestingAction::Sleep { duration_ms: 1000 },
         TestingAction::AcceptTx,
         TestingAction::AcceptTx,
         TestingAction::AcceptTx,
@@ -1706,7 +1860,12 @@ async fn run_action_against_test_rollup(
             sleep(Duration::from_millis(duration_ms)).await;
         }
         TestingAction::Restart => {
-            return test_rollup.restart().await;
+            // This is a more complex action, as the sequencer cannot accept transactions on
+            // startup until a StateUpdateInfo from the node has been processed.
+            let test_rollup = test_rollup.restart().await?;
+            test_rollup.da_service.produce_block_now().await.unwrap();
+            sleep(Duration::from_millis(500)).await;
+            return Ok(test_rollup);
         }
         TestingAction::TryAcceptBadTx { invalid_reason } => {
             let tx = match invalid_reason {

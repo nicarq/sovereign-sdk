@@ -307,6 +307,9 @@
     "PreferredSequencerConfig": {
       "description": "Configuration for [`PreferredSequencer`].",
       "type": "object",
+      "required": [
+        "recovery_strategy"
+      ],
       "properties": {
         "disable_state_root_consistency_checks": {
           "description": "When enabled, the sequencer will skip some expensive consistency checks on the state root. This means that bugs in the implementation are less likely to be detected but may improve performance and allows the sequencer to continue operating in case of known bugs.",
@@ -333,6 +336,14 @@
           "type": [
             "string",
             "null"
+          ]
+        },
+        "recovery_strategy": {
+          "description": "Strategy for handling recovery scenarios in the preferred sequencer.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/RecoveryStrategy"
+            }
           ]
         }
       }
@@ -497,6 +508,25 @@
           "minimum": 0.0
         }
       }
+    },
+    "RecoveryStrategy": {
+      "description": "Strategy for handling the scenario where the preferred sequencer finds itself close to or past deferred_slots_count in the past, i.e. risking its soft confirmations being invalidated due to the possibility of a non-preferred (deferred) batch having been included.",
+      "oneOf": [
+        {
+          "description": "Do not attempt recovery, shutdown the sequencer instead. The user may attempt to resume operation either by swapping to TryToSave, or deleting everything from the preferred sequencer database (cancelling ALL pending soft confirmations!).",
+          "type": "string",
+          "enum": [
+            "None"
+          ]
+        },
+        {
+          "description": "Attempt to recover by flushing batches and catching up with the chain. Triggers a bit more conservatively to attempt to preserve soft confirmations (but if the sequencer was offline, this will likely make no difference). If some soft confirmations have indeed been invalidated, the sequencer will be penalized for every invalid batch!",
+          "type": "string",
+          "enum": [
+            "TryToSave"
+          ]
+        }
+      ]
     },
     "RunnerConfig": {
       "description": "Configuration for StateTransitionRunner.",

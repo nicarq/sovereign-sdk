@@ -1,5 +1,8 @@
 # 2025-06-17
 - #3054 Adds `OperatingMode::Operator` to the rollup. This is NOT a breaking change for the consumers of the sdk.
+- #3039 Implement a recovery mechanism in case the preferred sequencer goes down for long enough to invalidate soft-confirmations (i.e. `DEFERRED_SLOTS_COUNT` has passed, allowing deferred blobs to be included).
+    * **BREAKING CHANGE**: New config option `sequencer.preferred.recovery_strategy`, with valid values `None` and `TryToSave`.
+    * If the preferred sequencer detects that the visible slot number has gone past `DEFERRED_SLOTS_COUNT`, `None` will simply shut down the rollup; operators may then launch it again after either modifying the config option or wiping the contents of the preferred sequencer's database. `TryToSave` will instead immediately publish any pending soft-confirmations and cease accepting new transactions; this will save any soft-confirmations that are still valid, but the sequencer will be penalized for any that revert.
 
 # 2025-06-13
 - #3035 Improves logging during resync testing
@@ -11,7 +14,6 @@
 - #3015 bumps the `blob_processing_timeout_secs` in demo-rollup to allow more time for proof generation in the readme tests.
 - #2971 internal in sov-soak-tests
 
-# 2025-06-10
 - #3014 Adds `/modules/bank/tokens/gas_token` and `/modules/bank/tokens/gas_token/balances/{address}` endpoints to enable fetching the gas token id and gas token balances using the REST API endpoints.
 - #3000 Bumps the number of in-memory state transition infos to accommodate for the recent slow-down in zk proving in CI.
 

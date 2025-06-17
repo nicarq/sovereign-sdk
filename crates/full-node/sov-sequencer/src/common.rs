@@ -19,6 +19,7 @@ use sov_rest_utils::{json_obj, to_json_object};
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::{ItemOrHash, LedgerStateProvider, QueryMode};
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
+use thiserror::Error;
 use tokio::sync::{broadcast, watch, Mutex, RwLock};
 use tokio::time::timeout;
 use tracing::{info, trace};
@@ -200,6 +201,52 @@ type AuthRes<S, Rt, I> = (
     >,
 );
 
+/// Error types for state update polling
+#[derive(Debug, Clone, Error, derive_more::Display)]
+pub enum StateUpdateError {
+    /// Shutdown was requested
+    Shutdown,
+}
+
+/// Polls for the next state update, handling shutdown, timeout, and debug flags
+pub async fn poll_state_update<S: Spec>(
+    state_update_receiver: &mut StateUpdateReceiver<S::Storage>,
+    shutdown_receiver: &watch::Receiver<()>,
+    task_name: &'static str,
+) -> Result<StateUpdateInfo<S::Storage>, StateUpdateError> {
+    loop {
+        let changed_with_timeout = timeout(
+            std::time::Duration::from_secs(30),
+            state_update_receiver.changed(),
+        );
+
+        let fut = future_or_shutdown(changed_with_timeout, shutdown_receiver);
+        let FutureOrShutdownOutput::Output(timeout_result) = fut.await else {
+            return Err(StateUpdateError::Shutdown);
+        };
+
+        match timeout_result {
+            Ok(changed_result) => {
+                if changed_result.is_err() {
+                    tracing::error!("State update sender was dropped. The sequencer can no longer receive state updates - shutting it down. This is a bug, please report it.");
+                    return Err(StateUpdateError::Shutdown);
+                }
+
+                let info = (*state_update_receiver.borrow()).clone();
+
+                return Ok(info);
+            }
+            Err(_) => {
+                // Timeout elapsed. Log a warning then continue waiting. TODO: handle excessive timeouts (#2938).
+                tracing::warn!(
+                    task_name,
+                    "Timeout waiting for state update notification, continuing to wait"
+                );
+            }
+        }
+    }
+}
+
 /// Does something -anything- in a loop every time the [`StateUpdateReceiver`]
 /// receives a new value. A new trigger is generated with a timeout even if no
 /// value is received.
@@ -215,41 +262,22 @@ pub async fn react_to_state_updates<S, Fut>(
     Fut: Future<Output = anyhow::Result<()>>,
 {
     loop {
-        let changed_with_timeout = timeout(
-            std::time::Duration::from_secs(30),
-            state_update_receiver.changed(),
-        );
+        let poll_result =
+            poll_state_update::<S>(&mut state_update_receiver, &shutdown_receiver, task_name).await;
 
-        let fut = future_or_shutdown(changed_with_timeout, &shutdown_receiver);
-        let FutureOrShutdownOutput::Output(timeout_result) = fut.await else {
-            info!(
-                task_name,
-                "Shutdown signal receiver, exiting sequencer background task"
-            );
-            break;
-        };
-
-        match timeout_result {
-            Ok(changed_result) => {
-                // Handle actual state update notification
-                if let Err(error) = changed_result {
-                    tracing::error!(%error, task_name, "Channel notification failed, exiting sequencer background task. This is a bug, please report it");
-                    break;
-                }
-
-                let info = (*state_update_receiver.borrow()).clone();
+        match poll_result {
+            Ok(info) => {
                 if let Err(err) = closure(info).await {
                     tracing::error!(%err, task_name, "Error inside the sequencer background task's closure; this is a bug, please report it");
                     break;
                 }
             }
-            Err(_) => {
-                // Timeout elapsed. Log a warning then continue waiting. TODO: handle excessive timeouts (#2938).
-                tracing::warn!(
+            Err(StateUpdateError::Shutdown) => {
+                info!(
                     task_name,
-                    "Timeout waiting for state update notification, continuing to wait"
+                    "Shutdown signal received, exiting sequencer background task"
                 );
-                continue;
+                break;
             }
         }
     }
@@ -374,12 +402,27 @@ pub fn generic_accept_tx_error(details: impl std::fmt::Debug) -> ErrorObject {
 
 pub fn error_not_fully_synced(details: SequencerNotReadyDetails) -> ErrorObject {
     let summary = match details {
-        SequencerNotReadyDetails::Syncing { .. } => "The node is not fully synced with the DA head",
+        SequencerNotReadyDetails::Syncing { .. } => "The node fell out of sync with the DA head, the sequencer is waiting to catch up. There may also be a small delay after the node has finished syncing.",
         SequencerNotReadyDetails::WaitingOnDa { .. } => {
             "The sequencer is waiting for the DA to finalize more blocks"
         }
         SequencerNotReadyDetails::WaitingOnBlobSender { .. } => {
             "The sequencer is waiting for the blob sender to be ready"
+        }
+        SequencerNotReadyDetails::PreferredSequencerRecovering => {
+            // We have to manually construct the error because `PreferredSequencerRecovering` is not an object, so `to_json_object` panics
+            return ErrorObject {
+                status: StatusCode::SERVICE_UNAVAILABLE,
+                title: "The preferred sequencer is recovering from downtime and cannot provide soft-confirmations at this time; No new transactions can be accepted, try again later".to_string(),
+                details: Default::default(),
+            };
+        }
+        SequencerNotReadyDetails::Startup => {
+            return ErrorObject {
+                status: StatusCode::SERVICE_UNAVAILABLE,
+                title: "The sequencer is still initializing and is not yet ready to accept transactions.".to_string(),
+                details: Default::default(),
+            };
         }
     };
     ErrorObject {

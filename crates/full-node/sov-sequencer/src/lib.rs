@@ -38,6 +38,8 @@ pub struct SubmitBatchReceipt {
 #[derive(Debug, Clone, serde::Serialize)]
 #[allow(missing_docs)]
 pub enum SequencerNotReadyDetails {
+    /// The sequencer is still initializing and is not yet ready to accept transactions.
+    Startup,
     /// The node is catching up to the chain tip.
     Syncing {
         target_da_height: u64,
@@ -53,6 +55,9 @@ pub enum SequencerNotReadyDetails {
         max_concurrent_blobs: usize,
         nb_of_blobs_in_flight: usize,
     },
+    /// The sequencer is a preferred sequencer and dropped too far out of sync, and is currently
+    /// attempting to recover.
+    PreferredSequencerRecovering,
 }
 
 /// See [`crate::common::Sequencer::subscribe_events`].
