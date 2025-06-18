@@ -1,4 +1,5 @@
 # 2025-06-17
+- #3055 Integrates `OperatorIncentives` in `demo-rollup`.
 - #3054 Adds `OperatingMode::Operator` to the rollup. This is NOT a breaking change for the consumers of the sdk.
 - #3039 Implement a recovery mechanism in case the preferred sequencer goes down for long enough to invalidate soft-confirmations (i.e. `DEFERRED_SLOTS_COUNT` has passed, allowing deferred blobs to be included).
     * **BREAKING CHANGE**: New config option `sequencer.preferred.recovery_strategy`, with valid values `None` and `TryToSave`.

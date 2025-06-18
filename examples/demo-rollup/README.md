@@ -121,7 +121,7 @@ this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
 $ sleep 5
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0x897406b59fe76a5e08dcc1261842df99ea3971539d2829845e8c7abaf89f2c80/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0x28636334f2687c252d6b00253d31a2da8a64c7c6253136cc373ffc319b757bf8/events | jq
 {
   "data": [
     {
@@ -156,7 +156,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0x897406b59fe76a5e08dcc1261842df99e
         "type": "moduleRef",
         "name": "Bank"
       },
-      "tx_hash": "0x897406b59fe76a5e08dcc1261842df99ea3971539d2829845e8c7abaf89f2c80"
+      "tx_hash": "0x28636334f2687c252d6b00253d31a2da8a64c7c6253136cc373ffc319b757bf8"
     }
   ],
   "meta": {}
@@ -300,6 +300,7 @@ Commands:
   bank                 A subcommand for the `Bank` module
   sequencer-registry   A subcommand for the `SequencerRegistry` module
   value-setter         A subcommand for the `ValueSetter` module
+  operator-incentives  A subcommand for the `OperatorIncentives` module
   attester-incentives  A subcommand for the `AttesterIncentives` module
   prover-incentives    A subcommand for the `ProverIncentives` module
   accounts             A subcommand for the `Accounts` module
@@ -331,7 +332,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0x395c576c9c11cf9060542ba76bd5a025983d78c0232501ac3b54da9836b25ca1",
+  "chain_hash": "0xb4f2fc7d24b183468da764f7a492dce752484aca0e1b2c4577fde709aabcaade",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": "100000000",

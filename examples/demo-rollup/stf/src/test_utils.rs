@@ -48,6 +48,7 @@ where
             uniqueness: minimal_config.uniqueness,
             chain_state: minimal_config.chain_state,
             blob_storage: minimal_config.blob_storage,
+            operator_incentives: minimal_config.operator_incentives,
             prover_incentives: minimal_config.prover_incentives,
             attester_incentives: minimal_config.attester_incentives,
             evm: evm_config,

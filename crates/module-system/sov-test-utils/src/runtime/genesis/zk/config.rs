@@ -3,6 +3,7 @@ use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::Bank;
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::{Amount, CodeCommitmentFor, Gas, GasArray, GasSpec, Genesis, Spec};
+use sov_operator_incentives::OperatorIncentives;
 use sov_prover_incentives::ProverIncentives;
 use sov_rollup_interface::common::SlotNumber;
 use sov_sequencer_registry::SequencerRegistry;
@@ -10,7 +11,8 @@ use sov_uniqueness::Uniqueness;
 
 use crate::interface::AsUser;
 use crate::runtime::{
-    BankConfig, BlobStorage, ChainState, ChainStateConfig, ProverIncentivesConfig, SequencerConfig,
+    BankConfig, BlobStorage, ChainState, ChainStateConfig, OperatorIncentivesConfig,
+    ProverIncentivesConfig, SequencerConfig,
 };
 use crate::{
     TestProver, TestSequencer, TestSpec, TestUser, TEST_DEFAULT_USER_BALANCE,
@@ -21,6 +23,8 @@ use crate::{
 pub struct MinimalZkGenesisConfig<S: Spec> {
     /// The sequencer registry config.
     pub sequencer_registry: <SequencerRegistry<S> as Genesis>::Config,
+    /// The operator incentives config.
+    pub operator_incentives: <OperatorIncentives<S> as Genesis>::Config,
     /// The prover incentives config.
     pub prover_incentives: <ProverIncentives<S> as Genesis>::Config,
     /// The attester incentives config.
@@ -181,6 +185,9 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
                 seq_da_address: initial_sequencer.da_address.clone(),
                 seq_bond: initial_sequencer.bond,
                 is_preferred_sequencer: true,
+            },
+            operator_incentives: OperatorIncentivesConfig {
+                reward_address: initial_sequencer.as_user().address().clone(),
             },
             prover_incentives: ProverIncentivesConfig {
                 minimum_bond: default_user_stake.clone(),

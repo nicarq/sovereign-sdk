@@ -14,6 +14,7 @@ pub use sov_chain_state::ChainStateConfig;
 pub use sov_evm::EvmConfig;
 use sov_modules_api::prelude::*;
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
+use sov_operator_incentives::OperatorIncentivesConfig;
 use sov_paymaster::PaymasterConfig;
 use sov_prover_incentives::ProverIncentivesConfig;
 pub use sov_sequencer_registry::SequencerConfig;
@@ -35,6 +36,8 @@ pub struct GenesisPaths {
     pub value_setter_genesis_path: PathBuf,
     /// Accounts genesis path.
     pub accounts_genesis_path: PathBuf,
+    /// Operator Incentives genesis path.
+    pub operator_incentives_genesis_path: PathBuf,
     /// Attester Incentives genesis path.
     pub attester_incentives_genesis_path: PathBuf,
     /// Prover Incentives genesis path.
@@ -61,6 +64,7 @@ impl GenesisPaths {
             sequencer_genesis_path: dir.as_ref().join("sequencer_registry.json"),
             value_setter_genesis_path: dir.as_ref().join("value_setter.json"),
             accounts_genesis_path: dir.as_ref().join("accounts.json"),
+            operator_incentives_genesis_path: dir.as_ref().join("operator_incentives.json"),
             prover_incentives_genesis_path: dir.as_ref().join("prover_incentives.json"),
             attester_incentives_genesis_path: dir.as_ref().join("attester_incentives.json"),
             evm_genesis_path: dir.as_ref().join("evm.json"),
@@ -86,6 +90,9 @@ where
 
     let value_setter_config: ValueSetterConfig<S> =
         read_genesis_json(&genesis_paths.value_setter_genesis_path)?;
+
+    let operator_incentives_config: OperatorIncentivesConfig<S> =
+        read_genesis_json(&genesis_paths.operator_incentives_genesis_path)?;
 
     let attester_incentives_config: AttesterIncentivesConfig<S> =
         read_genesis_json(&genesis_paths.attester_incentives_genesis_path)?;
@@ -113,6 +120,7 @@ where
         bank_config,
         sequencer_registry_config,
         value_setter_config,
+        operator_incentives_config,
         attester_incentives_config,
         prover_incentives_config,
         accounts_config,

@@ -39,6 +39,7 @@ members = [
     "crates/module-system/module-implementations/sov-blob-storage",
     "crates/module-system/module-implementations/sov-evm",
     "crates/module-system/module-implementations/sov-paymaster",
+    "crates/module-system/module-implementations/sov-operator-incentives",
     "crates/module-system/module-implementations/sov-prover-incentives",
     "crates/module-system/module-implementations/sov-attester-incentives",
     "crates/module-system/module-implementations/sov-sequencer-registry",
@@ -117,6 +118,7 @@ sov-mock-zkvm = { path = "crates/adapters/mock-zkvm", default-features = false, 
 sov-bank = { path = "crates/module-system/module-implementations/sov-bank", default-features = false, version = "0.3" }
 sov-sequencer-registry = { path = "crates/module-system/module-implementations/sov-sequencer-registry", default-features = false, version = "0.3" }
 sov-node-client = { path = "crates/utils/sov-node-client", default-features = false, version = "0.3" }
+sov-operator-incentives = { path = "crates/module-system/module-implementations/sov-operator-incentives", default-features = false, version = "0.3" }
 sov-prover-incentives = { path = "crates/module-system/module-implementations/sov-prover-incentives", default-features = false, version = "0.3" }
 sov-value-setter = { path = "crates/module-system/module-implementations/sov-value-setter", default-features = false, version = "0.3" }
 sov-test-modules = { path = "crates/module-system/module-implementations/sov-test-modules", default-features = false, version = "0.3" }

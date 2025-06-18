@@ -33,6 +33,7 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::{get_gas_used, StfBlueprint};
 pub use sov_modules_stf_blueprint::{GenesisParams, Runtime};
+pub use sov_operator_incentives::{OperatorIncentives, OperatorIncentivesConfig};
 pub use sov_paymaster::Paymaster;
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::common::SlotNumber;

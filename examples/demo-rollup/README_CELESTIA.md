@@ -274,6 +274,7 @@ Commands:
   bank                 A subcommand for the `Bank` module
   sequencer-registry   A subcommand for the `SequencerRegistry` module
   value-setter         A subcommand for the `ValueSetter` module
+  operator-incentives  A subcommand for the `OperatorIncentives` module
   attester-incentives  A subcommand for the `AttesterIncentives` module
   prover-incentives    A subcommand for the `ProverIncentives` module
   accounts             A subcommand for the `Accounts` module
@@ -305,7 +306,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0x395c576c9c11cf9060542ba76bd5a025983d78c0232501ac3b54da9836b25ca1",
+  "chain_hash": "0xb4f2fc7d24b183468da764f7a492dce752484aca0e1b2c4577fde709aabcaade",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": "100000000",

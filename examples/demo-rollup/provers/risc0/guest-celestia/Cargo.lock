@@ -1327,6 +1327,7 @@ dependencies = [
  "sov-kernels",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
+ "sov-operator-incentives",
  "sov-paymaster",
  "sov-prover-incentives",
  "sov-rollup-interface",
@@ -3988,6 +3989,23 @@ dependencies = [
  "schemars",
  "serde",
  "sov-metrics",
+ "sov-modules-api",
+ "sov-rollup-interface",
+ "sov-state",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "sov-operator-incentives"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "derive_more 1.0.0",
+ "schemars",
+ "serde",
+ "sov-bank",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",

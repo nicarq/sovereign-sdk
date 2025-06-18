@@ -62,6 +62,8 @@ where
     pub sequencer_registry: sov_sequencer_registry::SequencerRegistry<S>,
     /// The Value Setter module.
     pub value_setter: sov_value_setter::ValueSetter<S>,
+    /// The Operator Incentives module.
+    pub operator_incentives: sov_operator_incentives::OperatorIncentives<S>,
     /// The Attester Incentives module.
     pub attester_incentives: sov_attester_incentives::AttesterIncentives<S>,
     /// The Prover Incentives module.

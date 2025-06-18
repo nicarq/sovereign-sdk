@@ -32,6 +32,7 @@ sov-modules-api = { workspace = true }
 sov-modules-stf-blueprint = { workspace = true }
 sov-uniqueness = { workspace = true }
 sov-paymaster = { workspace = true }
+sov-operator-incentives = { workspace = true }
 sov-prover-incentives = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-sequencer-registry = { workspace = true }
@@ -56,6 +57,7 @@ native = [
     "sov-modules-api/native",
     "sov-modules-stf-blueprint/native",
     "sov-uniqueness/native",
+    "sov-operator-incentives/native",
     "sov-prover-incentives/native",
     "sov-rollup-interface/native",
     "sov-sequencer-registry/native",
