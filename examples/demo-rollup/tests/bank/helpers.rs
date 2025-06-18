@@ -226,7 +226,7 @@ pub(crate) async fn send_tx_and_wait_for_status(
         .client
         .subscribe_to_tx_status_updates(tx_hash.parse()?)
         .await
-        .context("Failed to subscribe to aggregated proof")?;
+        .context("Failed to subscribe to tx status")?;
 
     let mut c = 0;
     while let Some(Ok(info)) = tx_subscription.next().await {
