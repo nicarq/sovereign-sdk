@@ -1,3 +1,6 @@
+# 2025-06-18
+- #3061 Fixes an issue where the sequencer DB could become unreadable due to triggering a pathological case in RocksDB range deletions.
+
 # 2025-06-17
 - #3055 Integrates `OperatorIncentives` in `demo-rollup`.
 - #3054 Adds `OperatingMode::Operator` to the rollup. This is NOT a breaking change for the consumers of the sdk.

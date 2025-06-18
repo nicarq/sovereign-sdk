@@ -299,10 +299,14 @@ async fn test_rollup_resync() -> anyhow::Result<()> {
         // valid. This is likely related to https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1878
         // (sending already-submitted proofs at a later height).
         (Level::ERROR, "Invalid proof outcome".to_string()),
+        // On resync, we expect to see this log because we re-process old state in the node and then try 
+        // to prune the equivalent state from the sequencer. It doesnt' exist and that's fine.
+        (Level::WARN, "Skipping pruning of sequence number because it's already been pruned".to_string()),
         // This shows up occasionally, but especially often on hetzner. There may be some timing
         // oddity that might be worth investigating.
         (Level::WARN, "State Transition Info is not consumed fast enough, cannot prune older entries. Please check that consumer works.".to_string())
     ];
+
     let mut recorded_errors_warnings =
         HashSet::<(Level, String)>::from_iter(records.lock().unwrap().clone().iter().cloned());
     recorded_errors_warnings.retain(|e| !known_acceptable_logs.contains(e));

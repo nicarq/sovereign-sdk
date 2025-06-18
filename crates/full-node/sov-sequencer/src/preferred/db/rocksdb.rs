@@ -16,6 +16,11 @@ use super::{
 #[derive(Debug)]
 pub struct RocksDbBackend {
     db: Arc<rockbound::DB>,
+    // Overlapping range deletes are a RocksDB antipattern and can cause *massive* memory blowup on compaction/memtable flush.
+    // We remember which ranges we've pruned so far to avoid overlapping deletes.
+    //
+    // https://github.com/facebook/rocksdb/wiki/DeleteRange-Implementation
+    first_unpruned_sequence_number: SequenceNumber,
 }
 
 #[async_trait]
@@ -138,16 +143,28 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
         //
         // Alternatively, a cross-column-family atomic delete would also work.
 
+        // Avoid overlapping range deletes.
+        if prune_up_to_including < self.first_unpruned_sequence_number {
+            tracing::warn!(
+                sequence_number = %prune_up_to_including,
+                "Skipping pruning of sequence number because it's already been pruned",
+            );
+            return Ok(());
+        }
+
         self.db.delete_range::<tables::CompletedBlobs>(
-            &SequenceNumber::MIN,
+            &self.first_unpruned_sequence_number,
             // The upper bound is exclusive.
             &prune_up_to_including.saturating_add(1),
         )?;
 
         self.db.delete_range::<tables::BatchContents>(
-            &(SequenceNumber::MIN, u64::MIN),
+            &(self.first_unpruned_sequence_number, u64::MIN),
             &(prune_up_to_including, u64::MAX),
         )?;
+        self.first_unpruned_sequence_number = prune_up_to_including.checked_add(1).expect(
+            "Sequence number overflow. This should be unreachable in the next few billion years",
+        );
 
         Ok(())
     }
@@ -186,7 +203,32 @@ impl RocksDbBackend {
             &gen_rocksdb_options(&Default::default(), false),
         )?);
 
-        Ok(Self { db })
+        // There's an edge case where we might have an in-progress batch but no completed blobs. In that case,
+        // we'll use zero instead of the lowest sequencer number - but a single overlapping range delete is no big deal
+        // so we're fine with that.
+        let mut iter = db.iter::<tables::CompletedBlobs>()?;
+        iter.seek(&SequenceNumber::MIN)?;
+        let first_unpruned_sequence_number = iter
+            .next()
+            .transpose()?
+            .map(|item| item.key)
+            .unwrap_or(SequenceNumber::MIN);
+        // Explicitly drop the iterator to avoid a borrow checker error.
+        // Rustc tries to drop it at the end of the scope, and then complains that `db`
+        // is borrowed when we move it into `Self`.
+        drop(iter);
+
+        Ok(Self {
+            db,
+            first_unpruned_sequence_number,
+        })
+    }
+
+    #[cfg(test)]
+    pub fn trigger_compaction(&self) {
+        self.db
+            .trigger_compaction::<tables::BatchContents>()
+            .expect("Compaction failed");
     }
 
     async fn read_blob(
@@ -256,4 +298,79 @@ mod tables {
     define_table_with_seek_key_codec!(
         (BatchContents) (SequenceNumber, u64) => (TxHash, FullyBakedTx)
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use sov_modules_api::HexString;
+    use tempfile::TempDir;
+
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_overlapping_range_deletion_pathology() {
+        run_rocksdb_test(2000).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_sequencer_rocksdb_db_performance_can_run_1k_batches_in_1_minute() {
+        let handle = tokio::task::spawn(run_rocksdb_test(10000));
+
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(60), handle)
+            .await
+            .expect("Creating 10000 batches should take less than 1 minute; you may need to check your filesystem performance!");
+    }
+
+    async fn run_rocksdb_test(iters: u64) {
+        let dir = TempDir::new().unwrap();
+        let mut db = RocksDbBackend::new(dir.path()).await.unwrap();
+
+        // Trigger `iters` batches of 10 txs. Ensure that performance stays reasonable
+        for batch in 0u64..iters {
+            db.begin_rollup_block(
+                SequenceNumber::from(batch),
+                BlobInternalId::from(batch),
+                VisibleSlotNumber::new_dangerous(batch),
+                NonZero::new(1).unwrap(),
+            )
+            .await
+            .unwrap();
+
+            let mut txs = vec![];
+            let mut tx_hashes = vec![];
+            for i in 0..10 {
+                let tx = FullyBakedTx {
+                    data: vec![i as u8; 200],
+                };
+                let tx_hash = HexString([i as u8; 32]);
+                db.add_tx(SequenceNumber::from(batch), i, tx.clone(), tx_hash)
+                    .await
+                    .unwrap();
+                txs.push(tx);
+                tx_hashes.push(tx_hash);
+            }
+
+            let completed_batch = PreferredSequencerReadBatch {
+                sequence_number: SequenceNumber::from(batch),
+                visible_slot_number_after_increase: VisibleSlotNumber::new_dangerous(batch),
+                visible_slots_to_advance: NonZero::new(1).unwrap(),
+                txs,
+                tx_hashes,
+                blob_id: BlobInternalId::from(batch),
+            };
+            db.end_rollup_block(&completed_batch).await.unwrap();
+
+            if batch > 1 {
+                db.prune(SequenceNumber::from(batch)).await.unwrap();
+            }
+        }
+
+        // This should trigger the pathology
+        let task = tokio::task::spawn_blocking(move || {
+            db.trigger_compaction(); // Should OOM or take forever
+        });
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(1), task)
+            .await
+            .expect("Compaction should take less than 1 second");
+    }
 }
