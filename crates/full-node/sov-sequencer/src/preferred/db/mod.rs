@@ -244,10 +244,11 @@ where
             self.in_progress_batch.is_none(),
             "There's already an in-progress batch; this is a bug, please report it"
         );
-        debug_assert!(
-            matches!(self.backend.read_in_progress_batch().await, Ok(None)),
-            "Cached in-progress batch state (None) didn't match backend db state (Some)"
-        );
+
+        self.debug_assert_in_progress_batch(
+            "Cached in-progress batch state (None) didn't match backend db state",
+        )
+        .await;
 
         let blob_id = new_blob_id();
         let sequence_number = self.sequence_number_of_next_blob;
@@ -356,10 +357,11 @@ where
         };
 
         self.backend.end_rollup_block(in_progress_batch).await?;
-        debug_assert!(
-            matches!(self.backend.read_in_progress_batch().await, Ok(None)),
-            "Backend didn't remove in-progress batch from database when ending rollup block"
-        );
+
+        self.debug_assert_in_progress_batch(
+            "Backend didn't remove in-progress batch from database when ending rollup block",
+        )
+        .await;
         let batch = self
             .in_progress_batch
             .take()
@@ -383,6 +385,17 @@ where
         }
 
         Ok(())
+    }
+
+    async fn debug_assert_in_progress_batch(&self, msg: &str) {
+        if cfg!(debug_assertions) {
+            match self.backend.read_in_progress_batch().await {
+                Ok(None) => {}
+                other => {
+                    panic!("{msg}: {other:?}");
+                }
+            }
+        }
     }
 }
 
