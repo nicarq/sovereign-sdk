@@ -61,10 +61,10 @@ fn setup(
 
     for _ in 0..nb_of_users {
         genesis_config
-            .additional_accounts
+            .additional_accounts_mut()
             .push(TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE));
     }
-    let admin = genesis_config.additional_accounts[0].address();
+    let admin = genesis_config.additional_accounts()[0].address();
 
     let genesis = GenesisConfig::from_minimal_config(
         genesis_config.clone().into(),
@@ -78,7 +78,7 @@ fn setup(
 
     (
         runner,
-        genesis_config.additional_accounts,
+        genesis_config.additional_accounts().clone(),
         sequencer_account,
     )
 }

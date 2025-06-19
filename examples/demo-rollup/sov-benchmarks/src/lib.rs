@@ -94,12 +94,12 @@ where
     let sequencer = TestPreferredSequencer::new(genesis_config.initial_sequencer.clone());
     let prover = genesis_config.initial_prover.clone();
 
-    let payer = genesis_config.additional_accounts[0].clone();
-    let admin_account = genesis_config.additional_accounts[1].clone();
-    let extra_account = genesis_config.additional_accounts[2].clone();
+    let payer = genesis_config.additional_accounts()[0].clone();
+    let admin_account = genesis_config.additional_accounts()[1].clone();
+    let extra_account = genesis_config.additional_accounts()[2].clone();
 
     let senders = (0..num_senders)
-        .map(|i| genesis_config.additional_accounts[i as usize + 3].clone())
+        .map(|i| genesis_config.additional_accounts()[i as usize + 3].clone())
         .collect::<Vec<_>>();
 
     let genesis = GenesisConfig::from_minimal_config(

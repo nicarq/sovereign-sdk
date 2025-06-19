@@ -80,7 +80,7 @@ async fn test_thin_direct_same_transactions() {
         .height;
     let mut slots = test_rollup.api_client.subscribe_slots().await.unwrap();
 
-    let user = genesis_config.additional_accounts.first().unwrap();
+    let user = genesis_config.additional_accounts().first().unwrap();
     // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/947
     //    Ideally we want to test multiple transactions, but this bug prevents it
     // let all_txs = generate_txs(user, 10);

@@ -82,7 +82,7 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
         let genesis_config =
             HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
 
-        let admin = genesis_config.additional_accounts[0].clone();
+        let admin = genesis_config.additional_accounts()[0].clone();
 
         let value_setter_config = ValueSetterConfig {
             admin: admin.address(),

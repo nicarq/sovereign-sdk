@@ -62,12 +62,12 @@ fn setup_genesis(additional_accounts: usize) -> (HighLevelZkGenesisConfig<S>, Ge
 
     let sequencer = high_level_genesis_config.initial_sequencer.clone();
     let payer = high_level_genesis_config
-        .additional_accounts
+        .additional_accounts()
         .first()
         .unwrap()
         .clone();
     let admin = high_level_genesis_config
-        .additional_accounts
+        .additional_accounts()
         .get(1)
         .unwrap()
         .clone();
@@ -250,7 +250,7 @@ async fn test_stream_of_transactions(
 
     let mut harness = TestState::new(
         &rollup.client.client,
-        &high_level_config.additional_accounts,
+        high_level_config.additional_accounts(),
     )
     .await;
     let rand_bytes = get_random_bytes(1_000_000, 42);

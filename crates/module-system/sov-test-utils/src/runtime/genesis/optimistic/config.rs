@@ -1,20 +1,19 @@
 use std::collections::HashSet;
 
-use sov_accounts::{AccountConfig, AccountData, Accounts};
-use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
-use sov_bank::{Bank, BankConfig, TokenConfig};
+use sov_accounts::{AccountConfig, AccountData};
+use sov_attester_incentives::AttesterIncentivesConfig;
+use sov_bank::{BankConfig, TokenConfig};
 use sov_modules_api::{
-    Amount, CodeCommitmentFor, DaSpec, Gas, GasArray, GasSpec, Genesis, Spec, ZkVerifier, Zkvm,
+    Amount, CodeCommitmentFor, DaSpec, Gas, GasArray, GasSpec, Spec, ZkVerifier, Zkvm,
 };
-use sov_operator_incentives::{OperatorIncentives, OperatorIncentivesConfig};
-use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
+use sov_operator_incentives::OperatorIncentivesConfig;
+use sov_prover_incentives::ProverIncentivesConfig;
 use sov_rollup_interface::common::SlotNumber;
-use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
-use sov_uniqueness::Uniqueness;
+use sov_sequencer_registry::SequencerConfig;
 
 use crate::interface::AsUser;
-use crate::runtime::genesis::TestTokenName;
-use crate::runtime::{BlobStorage, ChainState, ChainStateConfig};
+use crate::runtime::genesis::{BasicGenesisConfig, HighLevelBasicConfig, TestTokenName};
+use crate::runtime::ChainStateConfig;
 use crate::{
     TestAttester, TestChallenger, TestSequencer, TestUser, UserTokenInfo,
     TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE, TEST_GAS_TOKEN_NAME,
@@ -23,24 +22,8 @@ use crate::{
 
 /// A genesis config for a minimal optimistic runtime
 pub struct MinimalOptimisticGenesisConfig<S: Spec> {
-    /// The sequencer registry config.
-    pub sequencer_registry: <SequencerRegistry<S> as Genesis>::Config,
-    /// The operator incentives config.
-    pub operator_incentives: <OperatorIncentives<S> as Genesis>::Config,
-    /// The attester incentives config.
-    pub attester_incentives: <AttesterIncentives<S> as Genesis>::Config,
-    /// The prover incentives config.
-    pub prover_incentives: <ProverIncentives<S> as Genesis>::Config,
-    /// The bank config.
-    pub bank: <Bank<S> as Genesis>::Config,
-    /// The accounts config.
-    pub accounts: <Accounts<S> as Genesis>::Config,
-    /// The uniqueness config.
-    pub uniqueness: <Uniqueness<S> as Genesis>::Config,
-    /// The chain state config.
-    pub chain_state: <ChainState<S> as Genesis>::Config,
-    /// The blob storage config.
-    pub blob_storage: <BlobStorage<S> as Genesis>::Config,
+    /// Basic genesis config.
+    pub config: BasicGenesisConfig<S>,
 }
 
 /// A convenient high-level representation of an optimistic genesis config. This config
@@ -57,14 +40,22 @@ pub struct HighLevelOptimisticGenesisConfig<S: Spec> {
     pub initial_challenger: TestChallenger<S>,
     /// The initial sequencer.
     pub initial_sequencer: TestSequencer<S>,
-    /// Additional accounts to be added to the genesis state.
-    pub additional_accounts: Vec<TestUser<S>>,
-    /// The name of the gas token.
-    pub gas_token_name: String,
-    /// The inner code commitment.
-    pub inner_code_commitment: CodeCommitmentFor<S::InnerZkvm>,
-    /// The outer code commitment.
-    pub outer_code_commitment: CodeCommitmentFor<S::OuterZkvm>,
+    high_level_basic: HighLevelBasicConfig<S>,
+}
+
+#[allow(missing_docs)]
+impl<S: Spec> HighLevelOptimisticGenesisConfig<S> {
+    pub fn additional_accounts(&self) -> &Vec<TestUser<S>> {
+        &self.high_level_basic.additional_accounts
+    }
+
+    pub fn additional_accounts_mut(&mut self) -> &mut Vec<TestUser<S>> {
+        &mut self.high_level_basic.additional_accounts
+    }
+
+    pub fn gas_token_name(&self) -> &str {
+        &self.high_level_basic.gas_token_name
+    }
 }
 
 impl<S: Spec> HighLevelOptimisticGenesisConfig<S> {
@@ -78,20 +69,24 @@ impl<S: Spec> HighLevelOptimisticGenesisConfig<S> {
         inner_code_commitment: CodeCommitmentFor<S::InnerZkvm>,
         outer_code_commitment: CodeCommitmentFor<S::OuterZkvm>,
     ) -> Self {
-        Self {
-            initial_attester,
-            initial_challenger,
-            initial_sequencer,
+        let high_level_basic = HighLevelBasicConfig {
             additional_accounts,
             gas_token_name: TEST_GAS_TOKEN_NAME.to_string(),
             inner_code_commitment,
             outer_code_commitment,
+        };
+
+        Self {
+            initial_attester,
+            initial_challenger,
+            initial_sequencer,
+            high_level_basic,
         }
     }
 
     /// Returns the list of accounts that have a balance for the given token. The account vector is cloned.
     pub fn get_accounts_for_token(&self, token_name: &TestTokenName) -> Vec<TestUser<S>> {
-        self.additional_accounts
+        self.additional_accounts()
             .clone()
             .into_iter()
             .filter(|user| user.token_balance(token_name).is_some())
@@ -103,7 +98,7 @@ impl<S: Spec> HighLevelOptimisticGenesisConfig<S> {
     pub fn token_names(&self) -> Vec<TestTokenName> {
         let mut token_names = HashSet::<&TestTokenName>::new();
 
-        self.additional_accounts.iter().for_each(|user| {
+        self.additional_accounts().iter().for_each(|user| {
             user.token_balances.iter().for_each(|token_info| {
                 token_names.insert(&token_info.token_name);
             });
@@ -182,7 +177,8 @@ where
     /// This is a convenience function for [`Self::add_accounts`]
     pub fn add_accounts_with_balance(mut self, num_accounts: usize, balance: Amount) -> Self {
         for _ in 0..num_accounts {
-            self.additional_accounts
+            self.high_level_basic
+                .additional_accounts
                 .push(TestUser::<S>::generate(balance));
         }
 
@@ -228,7 +224,9 @@ where
 
     /// Adds additional accounts to the genesis config.
     pub fn add_accounts(mut self, mut additional_accounts: Vec<TestUser<S>>) -> Self {
-        self.additional_accounts.append(&mut additional_accounts);
+        self.high_level_basic
+            .additional_accounts
+            .append(&mut additional_accounts);
         self
     }
 }
@@ -239,10 +237,10 @@ impl<S: Spec> From<HighLevelOptimisticGenesisConfig<S>> for MinimalOptimisticGen
             high_level.initial_attester,
             high_level.initial_challenger,
             high_level.initial_sequencer,
-            high_level.additional_accounts.as_slice(),
-            high_level.gas_token_name,
-            high_level.inner_code_commitment,
-            high_level.outer_code_commitment,
+            &high_level.high_level_basic.additional_accounts,
+            high_level.high_level_basic.gas_token_name,
+            high_level.high_level_basic.inner_code_commitment,
+            high_level.high_level_basic.outer_code_commitment,
         )
     }
 }
@@ -303,123 +301,125 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
     ) -> Self {
         let prover_placeholder = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
         Self {
-            sequencer_registry: SequencerConfig {
-                seq_rollup_address: initial_sequencer.as_user().address().clone(),
-                seq_da_address: initial_sequencer.da_address.clone(),
-                seq_bond: initial_sequencer.bond,
-                is_preferred_sequencer: true,
-            },
-            operator_incentives: OperatorIncentivesConfig {
-                reward_address: initial_attester.as_user().address().clone(),
-            },
-            attester_incentives: AttesterIncentivesConfig {
-                minimum_attester_bond: S::Gas::from(TEST_DEFAULT_USER_STAKE),
-                minimum_challenger_bond: S::Gas::from(TEST_DEFAULT_USER_STAKE),
-                initial_attesters: vec![(
-                    initial_attester.as_user().address().clone(),
-                    initial_attester.bond,
-                )],
-                rollup_finality_period: SlotNumber::new(TEST_ROLLUP_FINALITY_PERIOD),
-                maximum_attested_height: TEST_MAX_ATTESTED_HEIGHT,
-                light_client_finalized_height: TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
-            },
-            // unused in optimistic mode
-            prover_incentives: ProverIncentivesConfig {
-                minimum_bond: S::Gas::from(TEST_DEFAULT_USER_STAKE),
-                proving_penalty: {
-                    let mut user_stake = S::Gas::from(TEST_DEFAULT_USER_STAKE);
-                    user_stake.scalar_division(2);
-                    user_stake
+            config: BasicGenesisConfig {
+                sequencer_registry: SequencerConfig {
+                    seq_rollup_address: initial_sequencer.as_user().address().clone(),
+                    seq_da_address: initial_sequencer.da_address.clone(),
+                    seq_bond: initial_sequencer.bond,
+                    is_preferred_sequencer: true,
                 },
-                initial_provers: vec![(
-                    prover_placeholder.address().clone(),
-                    prover_placeholder.balance(),
-                )],
-            },
-            bank: BankConfig {
-                gas_token_config: sov_bank::GasTokenConfig {
-                    token_name: gas_token_name,
-                    token_decimals: None,
-                    supply_cap: None,
-                    address_and_balances: {
-                        let mut additional_accounts_vec: Vec<_> = additional_accounts
-                            .iter()
-                            .map(|user| (user.address(), user.balance()))
-                            .collect();
+                operator_incentives: OperatorIncentivesConfig {
+                    reward_address: initial_attester.as_user().address().clone(),
+                },
+                attester_incentives: AttesterIncentivesConfig {
+                    minimum_attester_bond: S::Gas::from(TEST_DEFAULT_USER_STAKE),
+                    minimum_challenger_bond: S::Gas::from(TEST_DEFAULT_USER_STAKE),
+                    initial_attesters: vec![(
+                        initial_attester.as_user().address().clone(),
+                        initial_attester.bond,
+                    )],
+                    rollup_finality_period: SlotNumber::new(TEST_ROLLUP_FINALITY_PERIOD),
+                    maximum_attested_height: TEST_MAX_ATTESTED_HEIGHT,
+                    light_client_finalized_height: TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
+                },
+                // unused in optimistic mode
+                prover_incentives: ProverIncentivesConfig {
+                    minimum_bond: S::Gas::from(TEST_DEFAULT_USER_STAKE),
+                    proving_penalty: {
+                        let mut user_stake = S::Gas::from(TEST_DEFAULT_USER_STAKE);
+                        user_stake.scalar_division(2);
+                        user_stake
+                    },
+                    initial_provers: vec![(
+                        prover_placeholder.address().clone(),
+                        prover_placeholder.balance(),
+                    )],
+                },
+                bank: BankConfig {
+                    gas_token_config: sov_bank::GasTokenConfig {
+                        token_name: gas_token_name,
+                        token_decimals: None,
+                        supply_cap: None,
+                        address_and_balances: {
+                            let mut additional_accounts_vec: Vec<_> = additional_accounts
+                                .iter()
+                                .map(|user| (user.address(), user.balance()))
+                                .collect();
 
-                        additional_accounts_vec
-                            .push((prover_placeholder.address(), prover_placeholder.balance()));
+                            additional_accounts_vec
+                                .push((prover_placeholder.address(), prover_placeholder.balance()));
 
-                        let sequencer = initial_sequencer.as_user();
-                        let attester = initial_attester.as_user();
+                            let sequencer = initial_sequencer.as_user();
+                            let attester = initial_attester.as_user();
 
-                        if sequencer.address() == attester.address() {
-                            assert_eq!(sequencer.available_gas_balance, attester.available_gas_balance, "Sequencer and prover balances should be equal if they are the same user");
+                            if sequencer.address() == attester.address() {
+                                assert_eq!(sequencer.available_gas_balance, attester.available_gas_balance, "Sequencer and prover balances should be equal if they are the same user");
 
-                            additional_accounts_vec.append(&mut vec![(
-                                sequencer.address(),
-                                initial_sequencer
-                                    .bond
-                                    .checked_add(initial_attester.bond)
-                                    .unwrap()
-                                    .checked_add(sequencer.available_gas_balance)
-                                    .unwrap(),
-                            )]);
-                        } else {
-                            // We need to add the bond to the initial balance because genesis deduces the bond from the bank balance.
-                            additional_accounts_vec.append(&mut vec![
-                                (
-                                    initial_sequencer.as_user().address(),
+                                additional_accounts_vec.append(&mut vec![(
+                                    sequencer.address(),
                                     initial_sequencer
                                         .bond
-                                        .checked_add(
-                                            initial_sequencer.as_user().available_gas_balance,
-                                        )
+                                        .checked_add(initial_attester.bond)
+                                        .unwrap()
+                                        .checked_add(sequencer.available_gas_balance)
                                         .unwrap(),
-                                ),
-                                (
-                                    initial_attester.as_user().address(),
-                                    initial_attester
-                                        .bond
-                                        .checked_add(
-                                            initial_attester.as_user().available_gas_balance,
-                                        )
-                                        .unwrap(),
-                                ),
-                                (
-                                    initial_challenger.as_user().address(),
-                                    initial_challenger.as_user().available_gas_balance,
-                                ),
-                            ]);
-                        }
+                                )]);
+                            } else {
+                                // We need to add the bond to the initial balance because genesis deduces the bond from the bank balance.
+                                additional_accounts_vec.append(&mut vec![
+                                    (
+                                        initial_sequencer.as_user().address(),
+                                        initial_sequencer
+                                            .bond
+                                            .checked_add(
+                                                initial_sequencer.as_user().available_gas_balance,
+                                            )
+                                            .unwrap(),
+                                    ),
+                                    (
+                                        initial_attester.as_user().address(),
+                                        initial_attester
+                                            .bond
+                                            .checked_add(
+                                                initial_attester.as_user().available_gas_balance,
+                                            )
+                                            .unwrap(),
+                                    ),
+                                    (
+                                        initial_challenger.as_user().address(),
+                                        initial_challenger.as_user().available_gas_balance,
+                                    ),
+                                ]);
+                            }
 
-                        additional_accounts_vec
+                            additional_accounts_vec
+                        },
+                        admins: vec![],
                     },
-                    admins: vec![],
+                    tokens: Self::parse_token_configs(additional_accounts),
                 },
-                tokens: Self::parse_token_configs(additional_accounts),
-            },
-            accounts: AccountConfig {
-                accounts: {
-                    additional_accounts
-                        .iter()
-                        .filter_map(|user| {
-                            user.custom_credential_id.map(|credential_id| AccountData {
-                                credential_id,
-                                address: user.address(),
+                accounts: AccountConfig {
+                    accounts: {
+                        additional_accounts
+                            .iter()
+                            .filter_map(|user| {
+                                user.custom_credential_id.map(|credential_id| AccountData {
+                                    credential_id,
+                                    address: user.address(),
+                                })
                             })
-                        })
-                        .collect()
+                            .collect()
+                    },
                 },
-            },
-            uniqueness: (),
-            blob_storage: (),
-            chain_state: ChainStateConfig {
-                current_time: Default::default(),
-                genesis_da_height: 0,
-                operating_mode: sov_modules_api::OperatingMode::Optimistic,
-                inner_code_commitment,
-                outer_code_commitment,
+                uniqueness: (),
+                blob_storage: (),
+                chain_state: ChainStateConfig {
+                    current_time: Default::default(),
+                    genesis_da_height: 0,
+                    operating_mode: sov_modules_api::OperatingMode::Optimistic,
+                    inner_code_commitment,
+                    outer_code_commitment,
+                },
             },
         }
     }

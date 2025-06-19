@@ -189,7 +189,7 @@ async fn create_test_rollup(
 ) -> (Option<TestRollup<TestBlueprint>>, TestUser<TestSpec>) {
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
-    let admin = genesis_config.additional_accounts[0].clone();
+    let admin = genesis_config.additional_accounts()[0].clone();
 
     let rt_genesis_config =
         <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
@@ -456,10 +456,10 @@ async fn seq_out_of_gas() {
     let max_amount_limit = initial_gas_limit.value(&gas_price);
 
     // Set very high initial balance for the admin.
-    genesis_config.additional_accounts[0].available_gas_balance =
+    genesis_config.additional_accounts_mut()[0].available_gas_balance =
         max_amount_limit.checked_mul(Amount::new(10)).unwrap();
 
-    let admin = genesis_config.additional_accounts[0].clone();
+    let admin = genesis_config.additional_accounts()[0].clone();
 
     let rt_genesis_config =
         <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
@@ -669,7 +669,7 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
     std::env::set_var("SOV_TEST_CONST_OVERRIDE_STATE_ROOT_DELAY_BLOCKS", "1");
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
-    let admin = genesis_config.additional_accounts[0].clone();
+    let admin = genesis_config.additional_accounts()[0].clone();
 
     let rt_genesis_config =
         <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
@@ -1047,7 +1047,7 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
     const FINALIZATION_BLOCKS: u32 = 0;
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
-    let admin = genesis_config.additional_accounts[0].clone();
+    let admin = genesis_config.additional_accounts()[0].clone();
 
     let rt_genesis_config =
         <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
@@ -1258,7 +1258,7 @@ async fn visible_hashes_match_across_node_and_sequencer() {
     const FINALIZATION_BLOCKS: u32 = 0;
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
-    let admin = genesis_config.additional_accounts[0].clone();
+    let admin = genesis_config.additional_accounts()[0].clone();
 
     let rt_genesis_config =
         <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
@@ -1405,7 +1405,7 @@ async fn flaky_test_hooks_state_is_visible() {
     const FINALIZATION_BLOCKS: u32 = 3;
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
-    let admin = genesis_config.additional_accounts[0].clone();
+    let admin = genesis_config.additional_accounts()[0].clone();
 
     let rt_genesis_config =
         <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
@@ -1764,7 +1764,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
         .checked_mul(Amount::new(100))
         .unwrap();
 
-    let admin = genesis_config.additional_accounts[0].clone();
+    let admin = genesis_config.additional_accounts()[0].clone();
 
     let rt_genesis_config =
         <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(

@@ -112,9 +112,9 @@ pub fn generate_setup() -> Setup {
     let genesis_config =
         HighLevelZkGenesisConfig::generate_with_additional_accounts(ANVIL_ACCOUNTS.len());
 
-    let relayer = genesis_config.additional_accounts[0].clone();
+    let relayer = genesis_config.additional_accounts()[0].clone();
     let validators = (1..ANVIL_ACCOUNTS.len())
-        .map(|n| genesis_config.additional_accounts[n].clone())
+        .map(|n| genesis_config.additional_accounts()[n].clone())
         .collect();
     let sequencer = genesis_config.initial_sequencer.clone();
     let prover = genesis_config.initial_prover.clone();

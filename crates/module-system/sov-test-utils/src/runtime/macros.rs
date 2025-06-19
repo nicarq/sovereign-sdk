@@ -75,15 +75,15 @@ macro_rules! generate_runtime_without_capabilities {
                 $($module_name: <$module_ty as ::sov_modules_api::Genesis>::Config),*
             ) -> Self {
                 Self {
-                    sequencer_registry: minimal_config.sequencer_registry,
-                    bank: minimal_config.bank,
-                    accounts: minimal_config.accounts,
-                    uniqueness: minimal_config.uniqueness,
-                    chain_state: minimal_config.chain_state,
-                    blob_storage: minimal_config.blob_storage,
-                    operator_incentives : minimal_config.operator_incentives,
-                    prover_incentives: minimal_config.prover_incentives,
-                    attester_incentives: minimal_config.attester_incentives,
+                    sequencer_registry: minimal_config.config.sequencer_registry,
+                    bank: minimal_config.config.bank,
+                    accounts: minimal_config.config.accounts,
+                    uniqueness: minimal_config.config.uniqueness,
+                    chain_state: minimal_config.config.chain_state,
+                    blob_storage: minimal_config.config.blob_storage,
+                    operator_incentives : minimal_config.config.operator_incentives,
+                    prover_incentives: minimal_config.config.prover_incentives,
+                    attester_incentives: minimal_config.config.attester_incentives,
                     $(
                         $module_name,
                     )*

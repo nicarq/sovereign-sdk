@@ -316,9 +316,13 @@ fn setup_roles_and_config(user_balance: Amount) -> Setup {
 
     let sequencer = genesis_config.initial_sequencer.clone();
     let attester = genesis_config.initial_attester.clone();
-    let payer = genesis_config.additional_accounts.first().unwrap().clone();
-    let admin = genesis_config.additional_accounts.get(1).unwrap().clone();
-    let user = genesis_config.additional_accounts.get(2).unwrap().clone();
+    let payer = genesis_config
+        .additional_accounts()
+        .first()
+        .unwrap()
+        .clone();
+    let admin = genesis_config.additional_accounts().get(1).unwrap().clone();
+    let user = genesis_config.additional_accounts().get(2).unwrap().clone();
     let genesis_config = GenesisConfig::from_minimal_config(
         genesis_config.into(),
         PaymasterConfig {

@@ -1,5 +1,11 @@
 
 # 2025-06-19
+- #3070 This PR introduces breaking changes to the testing framework.
+Access to genesis fields now requires calling the appropriate accessor methods. For examle before:
+ `genesis_config.additional_accounts[0].clone();` now:
+`genesis_config.additional_accounts()[0].clone();`
+
+# 2025-06-19
 - #3063 Add e2e tests for `OperatingMode::Operator`
 
 # 2025-06-18

@@ -26,9 +26,9 @@ fn setup() -> (TestData<S>, TestRunner<RT, S>) {
         TestUser::generate_with_default_balance(),
     ]);
 
-    let user_1 = genesis_config.additional_accounts[0].clone();
-    let user_2 = genesis_config.additional_accounts[1].clone();
-    let user_3 = genesis_config.additional_accounts[2].clone();
+    let user_1 = genesis_config.additional_accounts()[0].clone();
+    let user_2 = genesis_config.additional_accounts()[1].clone();
+    let user_3 = genesis_config.additional_accounts()[2].clone();
 
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
 

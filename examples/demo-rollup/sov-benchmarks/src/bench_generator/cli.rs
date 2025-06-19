@@ -212,9 +212,13 @@ impl BenchCLICustomArgs {
             .available_gas_balance = quarter_max;
 
         let sequencer = genesis_config.initial_sequencer.clone();
-        let payer = genesis_config.additional_accounts.first().unwrap().clone();
+        let payer = genesis_config
+            .additional_accounts()
+            .first()
+            .unwrap()
+            .clone();
 
-        let mut admin = genesis_config.additional_accounts.get(1).unwrap().clone();
+        let mut admin = genesis_config.additional_accounts().get(1).unwrap().clone();
         admin.private_key = value_setter_admin;
 
         let genesis_config = GenesisConfig::from_minimal_config(

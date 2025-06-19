@@ -37,7 +37,11 @@ fn setup_dynamic_gas_update_tests() -> (TestData<S>, TestRunner<TestChainStateRu
             is_minter: true,
         })]);
 
-    let user = genesis_config.additional_accounts.first().unwrap().clone();
+    let user = genesis_config
+        .additional_accounts()
+        .first()
+        .unwrap()
+        .clone();
 
     let genesis = GenesisConfig::from_minimal_config(
         genesis_config.into(),

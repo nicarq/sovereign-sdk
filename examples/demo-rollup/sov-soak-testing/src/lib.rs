@@ -191,11 +191,13 @@ pub fn setup_roles_and_config() -> Setup {
             .checked_mul(Amount::new(10))
             .unwrap(),
     );
-    genesis_config.additional_accounts.push(paymaster.clone());
+    genesis_config
+        .additional_accounts_mut()
+        .push(paymaster.clone());
 
     let users: Vec<TestUser<TestSpec>> = vec![TestUser::generate_with_default_balance(); 20];
 
-    genesis_config.additional_accounts.extend(users);
+    genesis_config.additional_accounts_mut().extend(users);
     let genesis_config = GenesisConfig::from_minimal_config(
         genesis_config.into(),
         PaymasterConfig {
