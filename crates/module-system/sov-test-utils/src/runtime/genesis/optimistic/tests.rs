@@ -148,6 +148,9 @@ fn create_test_rt_genesis_config<S: Spec>(
             seq_bond,
             is_preferred_sequencer: true,
         },
+        operator_incentives: sov_operator_incentives::OperatorIncentivesConfig {
+            reward_address: prover_placeholder.address(),
+        },
         attester_incentives: AttesterIncentivesConfig {
             minimum_attester_bond: user_stake.clone(),
             minimum_challenger_bond: user_stake.clone(),

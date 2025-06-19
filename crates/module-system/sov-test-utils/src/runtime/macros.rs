@@ -47,6 +47,8 @@ macro_rules! generate_runtime_without_capabilities {
             pub chain_state: $crate::runtime::ChainState<S>,
             /// The blob storage module.
             pub blob_storage: $crate::runtime::BlobStorage<S>,
+            /// The operator incentives module.
+            pub operator_incentives: $crate::runtime::OperatorIncentives<S>,
             /// The prover incentives module.
             pub prover_incentives: $crate::runtime::ProverIncentives<S>,
             $(
@@ -79,6 +81,7 @@ macro_rules! generate_runtime_without_capabilities {
                     uniqueness: minimal_config.uniqueness,
                     chain_state: minimal_config.chain_state,
                     blob_storage: minimal_config.blob_storage,
+                    operator_incentives : minimal_config.operator_incentives,
                     prover_incentives: minimal_config.prover_incentives,
                     attester_incentives: minimal_config.attester_incentives,
                     $(
@@ -248,6 +251,7 @@ macro_rules! generate_runtime {
                         sequencer_registry: &mut self.sequencer_registry,
                         accounts: &mut self.accounts,
                         uniqueness: &mut self.uniqueness,
+                        operator_incentives: &mut self.operator_incentives,
                         prover_incentives: &mut self.prover_incentives,
                         attester_incentives: &mut self.attester_incentives,
                     }
@@ -296,6 +300,7 @@ macro_rules! generate_runtime {
                         sequencer_registry: &mut self.sequencer_registry,
                         accounts: &mut self.accounts,
                         uniqueness: &mut self.uniqueness,
+                        operator_incentives: &mut self.operator_incentives,
                         prover_incentives: &mut self.prover_incentives,
                         attester_incentives: &mut self.attester_incentives,
                     }

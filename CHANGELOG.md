@@ -1,3 +1,7 @@
+
+# 2025-06-19
+- #3063 Add e2e tests for `OperatingMode::Operator`
+
 # 2025-06-18
 - #3061 Fixes an issue where the sequencer DB could become unreadable due to triggering a pathological case in RocksDB range deletions.
 

@@ -175,6 +175,7 @@ where
             sequencer_registry: &mut self.sequencer_registry,
             accounts: &mut self.accounts,
             uniqueness: &mut self.uniqueness,
+            operator_incentives: &mut self.operator_incentives,
             prover_incentives: &mut self.prover_incentives,
             attester_incentives: &mut self.attester_incentives,
         })

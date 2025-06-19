@@ -130,6 +130,7 @@ pub(crate) async fn assert_balance(
                 rollup_height, user_address, token_id, assert_amount
             )
         })?;
+
     if assert_amount != actual_amount.0 {
         anyhow::bail!(
             "Unexpected amount at rollup_height {:?}. expected={} actual={}",

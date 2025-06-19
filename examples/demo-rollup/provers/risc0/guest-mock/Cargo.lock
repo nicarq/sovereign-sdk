@@ -3164,6 +3164,7 @@ dependencies = [
  "sov-attester-incentives",
  "sov-bank",
  "sov-modules-api",
+ "sov-operator-incentives",
  "sov-paymaster",
  "sov-prover-incentives",
  "sov-rollup-interface",

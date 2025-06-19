@@ -6,6 +6,7 @@ use sov_bank::{Bank, BankConfig, TokenConfig};
 use sov_modules_api::{
     Amount, CodeCommitmentFor, DaSpec, Gas, GasArray, GasSpec, Genesis, Spec, ZkVerifier, Zkvm,
 };
+use sov_operator_incentives::{OperatorIncentives, OperatorIncentivesConfig};
 use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::common::SlotNumber;
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
@@ -24,6 +25,8 @@ use crate::{
 pub struct MinimalOptimisticGenesisConfig<S: Spec> {
     /// The sequencer registry config.
     pub sequencer_registry: <SequencerRegistry<S> as Genesis>::Config,
+    /// The operator incentives config.
+    pub operator_incentives: <OperatorIncentives<S> as Genesis>::Config,
     /// The attester incentives config.
     pub attester_incentives: <AttesterIncentives<S> as Genesis>::Config,
     /// The prover incentives config.
@@ -305,6 +308,9 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
                 seq_da_address: initial_sequencer.da_address.clone(),
                 seq_bond: initial_sequencer.bond,
                 is_preferred_sequencer: true,
+            },
+            operator_incentives: OperatorIncentivesConfig {
+                reward_address: initial_attester.as_user().address().clone(),
             },
             attester_incentives: AttesterIncentivesConfig {
                 minimum_attester_bond: S::Gas::from(TEST_DEFAULT_USER_STAKE),

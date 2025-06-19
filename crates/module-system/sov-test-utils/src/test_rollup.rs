@@ -213,9 +213,7 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
                 prover_address: TEST_DEFAULT_PROVER_ADDRESS.to_string(),
                 sequencer_address: TEST_DEFAULT_SEQUENCER_ADDRESS.to_string(),
                 aggregated_proof_block_jump: 1,
-                rollup_prover_config: Some(get_appropriate_rollup_prover_config::<R::Spec>(
-                    Default::default(),
-                )),
+                rollup_prover_config: None,
                 storage: storage_path,
                 telegraf_address: MonitoringConfig::standard().telegraf_address,
                 axum_host: "127.0.0.1".to_string(),
@@ -261,6 +259,12 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
         self.config.rollup_prover_config = Some(get_appropriate_rollup_prover_config::<R::Spec>(
             zkvm_host_args,
         ));
+
+        self.disable_state_root_consistency_checks()
+    }
+
+    /// Disable the state root consistency checks.
+    pub fn disable_state_root_consistency_checks(mut self) -> Self {
         if let SequencerKindConfig::Preferred(ref mut config) = &mut self.config.sequencer_config {
             config.disable_state_root_consistency_checks = true;
         }

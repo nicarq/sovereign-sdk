@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 #[cfg(feature = "native")]
 use sov_attester_incentives::BondingProofServiceImpl;
-use sov_bank::utils::TokenHolderRef;
+use sov_bank::utils::TokenHolder;
 use sov_bank::{config_gas_token_id, Coins, IntoPayable, Payable};
 #[cfg(feature = "native")]
 use sov_modules_api::capabilities::HasKernel;
@@ -32,6 +32,7 @@ pub struct StandardProvenRollupCapabilities<'a, S: Spec, GasPayer = ()> {
     pub sequencer_registry: &'a mut SequencerRegistry<S>,
     pub accounts: &'a mut sov_accounts::Accounts<S>,
     pub uniqueness: &'a mut sov_uniqueness::Uniqueness<S>,
+    pub operator_incentives: &'a mut sov_operator_incentives::OperatorIncentives<S>,
     pub prover_incentives: &'a mut sov_prover_incentives::ProverIncentives<S>,
     pub attester_incentives: &'a mut sov_attester_incentives::AttesterIncentives<S>,
 }
@@ -40,12 +41,15 @@ impl<'a, S: Spec, T> StandardProvenRollupCapabilities<'a, S, T> {
     fn get_prover_token_holder(
         &'a self,
         oprating_mode: OperatingMode,
-        _state: &mut impl InfallibleStateAccessor,
-    ) -> TokenHolderRef<'a, S> {
+        state: &mut impl InfallibleStateAccessor,
+    ) -> TokenHolder<S> {
         let rewarded_module = match oprating_mode {
-            OperatingMode::Zk => self.prover_incentives.id().to_payable(),
-            OperatingMode::Optimistic => self.attester_incentives.id().to_payable(),
-            OperatingMode::Operator => todo!("Operator mode not implemented yet"),
+            OperatingMode::Zk => self.prover_incentives.id().to_payable().into(),
+            OperatingMode::Optimistic => self.attester_incentives.id().to_payable().into(),
+            OperatingMode::Operator => {
+                let addr = self.operator_incentives.reward_address(state);
+                TokenHolder::User(addr)
+            }
         };
 
         rewarded_module

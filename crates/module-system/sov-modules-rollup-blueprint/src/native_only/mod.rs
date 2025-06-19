@@ -432,7 +432,9 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     )
                     .await?
                 }
-                OperatingMode::Operator => start_operator_workflow_in_background().await,
+                OperatingMode::Operator => {
+                    start_operator_workflow_in_background(secondary_shutdown_receiver).await
+                }
             };
 
             background_handles.push(workflow_task_handle);
