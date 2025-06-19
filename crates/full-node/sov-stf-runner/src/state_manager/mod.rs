@@ -335,7 +335,7 @@ where
         );
         let last_finalized_slot_update = self
             .ledger_db
-            .materialize_latest_finalize_slot(last_finalized_slot_number)?;
+            .materialize_latest_finalize_slot(slot_number, last_finalized_slot_number)?;
 
         ledger_change_set.merge(last_finalized_slot_update);
         tracing::trace!(
@@ -359,7 +359,7 @@ where
         for aggregated_proof in aggregated_proofs {
             let this_height_data = self
                 .ledger_db
-                .materialize_aggregated_proof(aggregated_proof)?;
+                .materialize_aggregated_proof(slot_number, aggregated_proof)?;
             ledger_change_set.merge(this_height_data);
             tracing::trace!("Aggregated Proof is materialized into Ledger ChangeSet");
         }
@@ -398,13 +398,6 @@ where
         }
 
         self.state_root = new_state_root;
-        // API storage and Ledger have all data from this iteration,
-        // now it is safe to submit notifications.
-        tracing::trace!("Sending ledger notifications");
-        self.ledger_db.send_notifications();
-        tracing::trace!(
-            "Ledger notifications have been sent, state manager has completed its task"
-        );
 
         Ok(())
     }

@@ -1002,7 +1002,8 @@ async fn setup_storage_manager(
     let data_to_commit: SlotCommit<_, TestBatchReceiptContents, TestTxReceiptContents> =
         SlotCommit::new(genesis_block);
     let mut ledger_change_set = ledger_db.materialize_slot(data_to_commit, state_root.as_ref())?;
-    let finalized_slot_changes = ledger_db.materialize_latest_finalize_slot(SlotNumber::GENESIS)?;
+    let finalized_slot_changes =
+        ledger_db.materialize_latest_finalize_slot(SlotNumber::GENESIS, SlotNumber::GENESIS)?;
     ledger_change_set.merge(finalized_slot_changes);
 
     storage_manager.save_change_set(&genesis_header, change_set, ledger_change_set)?;

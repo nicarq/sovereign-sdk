@@ -302,6 +302,10 @@ where
     state_root_compute_task: StateRootBackgroundTaskState<S>,
     shutdown_receiver: watch::Receiver<()>,
     ledger_db: LedgerDb,
+    // This ledgerdb is used specifically for REST API and websocket subscriptions.
+    // The sequencer controls when it is updated to solve inconsistency issues,
+    // See [`LedgerDb::with_shared_notifications`] for more details.
+    api_ledger_db: LedgerDb,
     cached_events: EventCache<RuntimeEventResponse<Rt::RuntimeEvent>>,
     shutdown_sender: watch::Sender<()>,
 }
@@ -326,6 +330,7 @@ where
         storage_path: &Path,
         config: &SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
         ledger_db: LedgerDb,
+        api_ledger_db: LedgerDb,
         shutdown_sender: watch::Sender<()>,
     ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
         let shutdown_receiver = shutdown_sender.subscribe();
@@ -445,6 +450,7 @@ where
             state_root_compute_task,
             shutdown_receiver: shutdown_receiver.clone(),
             ledger_db: ledger_db.clone(),
+            api_ledger_db,
             cached_events,
             shutdown_sender,
         });
@@ -596,12 +602,13 @@ where
 
         inner.is_ready = Ok(());
 
-        inner.latest_info = info;
+        inner.latest_info = info.clone();
         let checkpoint = inner
             .executor
             .checkpoint
             .clone_with_empty_witness_dropping_temp_cache();
         inner.update_api_state(checkpoint).await;
+        self.update_api_ledger(&info);
 
         let metrics = PreferredSequencerUpdateStateMetrics {
             duration: timer_start.elapsed(),
@@ -809,6 +816,7 @@ where
                 inner
                     .force_overwrite_state(info.clone(), executor_from_info)
                     .await?;
+                self.update_api_ledger(&info);
             }
         }
 
@@ -859,6 +867,13 @@ where
             / 10
     }
 
+    fn update_api_ledger(&self, info: &StateUpdateInfo<S::Storage>) {
+        self.api_ledger_db
+            .replace_reader(info.ledger_reader.clone());
+        self.api_ledger_db
+            .send_notifications_for_slot(info.slot_number);
+    }
+
     async fn wait_for_node_resync(
         &self,
         state_update_receiver: &mut StateUpdateReceiver<S::Storage>,
@@ -892,6 +907,7 @@ where
             // We update the API state, so users can query node state as it syncs.
             let checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
             inner.update_api_state(checkpoint).await;
+            self.update_api_ledger(&info);
 
             // Exit after processing if we're synced
             if is_synced {
@@ -1082,6 +1098,7 @@ where
             .await?;
         }
     }
+
     Ok(())
 }
 

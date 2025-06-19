@@ -183,6 +183,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         da_sync_state: Arc<DaSyncState>,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         ledger_db: &LedgerDb,
+        api_ledger_db: &LedgerDb,
         da_service: &Self::DaService,
         shutdown_receiver: watch::Receiver<()>,
         shutdown_sender: tokio::sync::watch::Sender<()>,
@@ -197,6 +198,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                         &rollup_config.storage.path,
                         &rollup_config.sequencer.with_seq_config(seq_config.clone()),
                         ledger_db.clone(),
+                        api_ledger_db.clone(),
                         shutdown_sender,
                     )
                     .await?;
@@ -213,9 +215,9 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     endpoints,
                     background_handles,
                     proof_sender: sequencer,
+                    api_ledger_db: api_ledger_db.clone(),
                 })
             }
-
             SequencerKindConfig::Preferred(seq_config) => {
                 let (sequencer, background_handles) =
                     PreferredSequencer::<Self::Spec, Self::Runtime, Self::DaService>::create(
@@ -225,6 +227,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                         &rollup_config.storage.path,
                         &rollup_config.sequencer.with_seq_config(seq_config.clone()),
                         ledger_db.clone(),
+                        api_ledger_db.clone(),
                         shutdown_sender.clone(),
                     )
                     .await?;
@@ -241,6 +244,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     endpoints,
                     background_handles,
                     proof_sender: sequencer,
+                    api_ledger_db: api_ledger_db.clone(),
                 })
             }
         }
@@ -279,7 +283,15 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
 
         let (prover_storage, ledger_state) =
             storage_manager.create_state_after(&current_finalized_header)?;
-        let mut ledger_db = self.create_ledger_db(ledger_state)?;
+        let ledger_db = self.create_ledger_db(ledger_state.clone())?;
+        // Create separate API LedgerDb that will be used to provide strong consistency for REST
+        // API. The updating of the underlying ledger reader will be delayed until other components
+        // have completed their processing.
+        //
+        // `ledger_db` will accumulate notifications by executing normally which will be
+        // published by `api_ledger_db` at a time when the results are consistent with the
+        // REST APIs view of the ledger.
+        let api_ledger_db = LedgerDb::with_shared_notifications(&ledger_db);
 
         let prev_root = ledger_db
             .get_head_slot()?
@@ -318,7 +330,8 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                 // because genesis data won't be visible to it.
                 let (prover_storage, ledger_state) =
                     storage_manager.create_state_after(&genesis_header)?;
-                ledger_db.replace_reader(ledger_state);
+                ledger_db.replace_reader(ledger_state.clone());
+                api_ledger_db.replace_reader(ledger_state);
                 // Clearing notifications that has been produced during genesis.
                 // Rollup is not running yet, so there are no subscribers.
                 ledger_db.send_notifications();
@@ -386,6 +399,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                 runner.da_sync_state(),
                 &rollup_config,
                 &ledger_db,
+                &api_ledger_db,
                 &da_service,
                 main_shutdown_receiver.clone(),
                 main_shutdown_sender.clone(),
@@ -445,7 +459,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                 state_update_receiver,
                 sync_status_receiver,
                 main_shutdown_receiver.clone(),
-                &ledger_db,
+                &api_ledger_db,
                 &sequencer,
                 &da_service,
                 &rollup_config,
@@ -614,6 +628,8 @@ pub struct SequencerCreationReceipt<S: Spec> {
     ///
     /// See [`crate::proof_sender::SovApiProofSender::new`].
     pub proof_sender: Arc<dyn ProofBlobSender>,
+    /// The API LedgerDb that the sequencer will update for REST API consistency
+    pub api_ledger_db: LedgerDb,
     #[allow(missing_docs)]
     pub endpoints: NodeEndpoints,
     #[allow(missing_docs)]

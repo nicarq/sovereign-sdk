@@ -736,6 +736,33 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
     test_rollup.shutdown().await.unwrap();
 }
 
+// The sequencer controls emitting ledger slots over websocket
+// this test ensures it correctly publishes all the expected slots
+#[tokio::test(flavor = "multi_thread")]
+async fn test_rollup_emits_all_slot_notifications() {
+    let (test_rollup, _) = create_test_rollup(0, TEST_MAX_BATCH_SIZE, 1).await;
+
+    let Some(test_rollup) = test_rollup else {
+        return;
+    };
+
+    let nb_of_blocks = 10;
+    let mut slot_subscription = test_rollup.api_client.subscribe_slots().await.unwrap();
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(nb_of_blocks)
+        .await
+        .unwrap();
+
+    for _ in 0..nb_of_blocks {
+        slot_subscription.next().await.unwrap().unwrap();
+    }
+
+    test_rollup
+        .wait_for_rollup_to_shutdown(Duration::from_secs(2))
+        .await;
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn rollup_shuts_down_if_blob_sender_fails() {
     let (test_rollup, admin) =

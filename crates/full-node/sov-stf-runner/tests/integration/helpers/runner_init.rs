@@ -27,7 +27,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_rollup_interface::zk::Zkvm;
 use sov_sequencer::standard::StdSequencerConfig;
-use sov_sequencer::{SequencerConfig, SequencerKindConfig};
+use sov_sequencer::{react_to_state_updates, SequencerConfig, SequencerKindConfig};
 use sov_state::{DefaultStorageSpec, NativeStorage, ProverStorage};
 use sov_stf_runner::processes::{
     start_zk_workflow_in_background, ParallelProverService, RollupProverConfigDiscriminants,
@@ -37,11 +37,11 @@ use sov_stf_runner::{
     RunnerConfig, StateTransitionRunner, StorageConfig,
 };
 use sov_test_utils::{
-    TEST_BLOB_PROCESSING_TIMEOUT, TEST_MAX_BATCH_SIZE, TEST_MAX_CONCURRENT_BLOBS,
+    TestSpec, TEST_BLOB_PROCESSING_TIMEOUT, TEST_MAX_BATCH_SIZE, TEST_MAX_CONCURRENT_BLOBS,
 };
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::watch;
-use tokio::task::JoinHandle;
+use tokio::task::JoinSet;
 
 use crate::helpers::hash_stf::HashStf;
 
@@ -58,7 +58,7 @@ pub struct TestNode {
     da: Arc<MockDaService>,
     inner_vm: MockZkvmHost,
     _outer_vm: MockZkvmHost,
-    prover_handle: Option<JoinHandle<()>>,
+    tasks: JoinSet<()>,
     // Just to remove warnings from logs
     _sync_status_receiver: watch::Receiver<SyncStatus>,
     shutdown_sender: watch::Sender<()>,
@@ -109,10 +109,8 @@ impl TestNode {
     }
 
     pub async fn stop(self) {
-        if let Some(handle) = self.prover_handle {
-            handle.abort();
-        }
         self.shutdown_sender.send(()).unwrap();
+        let _ = self.tasks.join_all().await;
     }
 }
 
@@ -175,7 +173,7 @@ pub async fn initialize_runner(
     let rollup_config = rollup_config(&da_service, path, aggregated_proof_block_jump);
     let mut storage_manager: StorageManager = NativeStorageManager::new(path).unwrap();
 
-    let (state_update_sender, _state_update_recv) = watch::channel(
+    let (state_update_sender, state_update_recv) = watch::channel(
         bootstrap_state_update_info(&mut storage_manager)
             .await
             .unwrap(),
@@ -195,6 +193,26 @@ pub async fn initialize_runner(
         .create_state_after(&finalized_header)
         .unwrap();
     let ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
+
+    let mut tasks = JoinSet::new();
+
+    tasks.spawn({
+        let ledger_updates = ledger_db.clone();
+        react_to_state_updates::<TestSpec, _>(
+            state_update_recv,
+            shutdown_receiver.clone(),
+            "ledger_updates",
+            move |info| {
+                let ledger_updates = ledger_updates.clone();
+                async move {
+                    ledger_updates.replace_reader(info.ledger_reader);
+                    ledger_updates.send_notifications_for_slot(info.slot_number);
+                    Ok(())
+                }
+            },
+        )
+    });
+
     let mut runner = StateTransitionRunner::new(
         rollup_config.runner.clone(),
         if nb_of_prover_threads.is_some() {
@@ -216,7 +234,7 @@ pub async fn initialize_runner(
     .await
     .unwrap();
 
-    let handle = if let Some(stf_info_receiver) = runner.take_stf_info_receiver() {
+    if let Some(stf_info_receiver) = runner.take_stf_info_receiver() {
         let prover_service =
             ParallelProverService::<_, _, _, MockDaService, MockZkvm, MockZkvm>::new(
                 inner_vm.clone(),
@@ -227,7 +245,6 @@ pub async fn initialize_runner(
                 Default::default(),
                 MockAddress::new([0u8; 32]),
             );
-
         let handle = start_zk_workflow_in_background::<_>(
             prover_service,
             rollup_config.proof_manager.aggregated_proof_block_jump,
@@ -240,11 +257,10 @@ pub async fn initialize_runner(
         )
         .await
         .unwrap();
-
-        Some(handle)
-    } else {
-        None
-    };
+        tasks.spawn(async move {
+            let _ = handle.await;
+        });
+    }
 
     let proof_posted_in_da_sub = da_service.subscribe_proof_posted();
     let agg_proof_saved_in_db_sub: std::pin::Pin<
@@ -259,7 +275,7 @@ pub async fn initialize_runner(
             da: da_service,
             inner_vm,
             _outer_vm: outer_vm,
-            prover_handle: handle,
+            tasks,
             shutdown_sender,
             _sync_status_receiver,
         },

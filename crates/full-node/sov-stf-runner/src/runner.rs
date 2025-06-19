@@ -107,7 +107,8 @@ where
     let mut ledger_change_set =
         ledger_db.materialize_slot(data_to_commit, genesis_state_root.as_ref())?;
 
-    let finalized_slot_changes = ledger_db.materialize_latest_finalize_slot(SlotNumber::GENESIS)?;
+    let finalized_slot_changes =
+        ledger_db.materialize_latest_finalize_slot(SlotNumber::GENESIS, SlotNumber::GENESIS)?;
 
     ledger_change_set.merge(finalized_slot_changes);
     storage_manager.save_change_set(&block_header, initialized_storage, ledger_change_set)?;

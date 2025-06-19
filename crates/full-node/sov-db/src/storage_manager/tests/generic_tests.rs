@@ -820,7 +820,7 @@ where
 
         if let Some(finalized_height) = height.checked_sub(finality) {
             let finalized_slot_materialized = ledger_db
-                .materialize_latest_finalize_slot(SlotNumber::new(finalized_height))
+                .materialize_latest_finalize_slot(slot_num, SlotNumber::new(finalized_height))
                 .unwrap();
             ledger_change_set.merge(finalized_slot_materialized);
         }

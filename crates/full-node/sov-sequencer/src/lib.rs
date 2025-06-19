@@ -15,7 +15,7 @@ pub mod test_stateless;
 use std::sync::Arc;
 
 use axum::async_trait;
-pub use common::Sequencer;
+pub use common::{react_to_state_updates, Sequencer};
 pub use config::{SequencerConfig, SequencerKindConfig};
 pub use rest_api::SequencerApis;
 use serde::Serialize;
