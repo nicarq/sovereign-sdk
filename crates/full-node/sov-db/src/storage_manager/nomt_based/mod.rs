@@ -17,7 +17,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use crate::accessory_db::AccessoryDb;
 use crate::historical_state::HistoricalStateReader;
 use crate::state_db_nomt::{NomtSessionBuilder, StateOverlay};
-use crate::storage_manager::nomt_based::groups::{CommitGroup, DbGroup, SnapshotGroup};
+use crate::storage_manager::nomt_based::groups::{CommitGroup, DbGroup, PrunerJob, SnapshotGroup};
 
 #[allow(missing_docs)]
 pub struct StateFinishedSession {
@@ -100,6 +100,10 @@ pub struct NomtStorageManager<Da: DaSpec, H, S: InitializableNativeNomtStorage<H
 
     db_group: DbGroup<H, Da::SlotHash>,
 
+    // If pruner is running.
+    pruner: Option<PrunerJob>,
+    last_pruner_run_at_height: Option<u64>,
+
     _phantom_s: PhantomData<S>,
 }
 
@@ -122,6 +126,8 @@ where
             rockbound_snapshots: Default::default(),
             nomt_snapshots: Arc::new(Default::default()),
             db_group,
+            pruner: None,
+            last_pruner_run_at_height: None,
             _phantom_s: Default::default(),
         })
     }
@@ -420,6 +426,31 @@ where
             }
         }
         tracing::trace!(finalized_block_hash = %block_header.hash(), "Finalization complete");
+
+        let is_pruner_ready = self
+            .pruner
+            .as_ref()
+            .map(|p| p.is_finished())
+            .unwrap_or(false);
+        if is_pruner_ready {
+            // UNWRAP: Checked above.
+            let pruner = std::mem::take(&mut self.pruner).unwrap();
+            let prune_group = pruner.join()?;
+            self.db_group.commit_pruning(prune_group)?;
+            self.last_pruner_run_at_height = Some(block_header.height());
+        }
+
+        let should_run_pruner = self.pruner.is_none()
+            && self
+                .last_pruner_run_at_height
+                .map(|last_run_at_height| {
+                    block_header.height().saturating_sub(last_run_at_height) > 100
+                })
+                .unwrap_or(true);
+        if should_run_pruner {
+            let pruner = self.db_group.start_pruner(20);
+            self.pruner = Some(pruner);
+        }
 
         Ok(())
     }

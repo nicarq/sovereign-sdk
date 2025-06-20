@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::{Arc, RwLock};
+use std::thread::JoinHandle;
 
+use anyhow::Context;
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::SchemaBatch;
 use sov_rollup_interface::reexports::digest;
@@ -9,6 +11,10 @@ use sov_rollup_interface::reexports::digest;
 use crate::accessory_db::AccessoryDb;
 use crate::historical_state::HistoricalStateReader;
 use crate::ledger_db::LedgerDb;
+use crate::namespaces::{KernelNamespace, UserNamespace};
+use crate::pruner::Pruner;
+use crate::schema::namespace::StateValues;
+use crate::schema::tables::ModuleAccessoryState;
 use crate::state_db_nomt::{NomtSessionBuilder, NomtStateDb, StateOverlay};
 use crate::storage_manager::{update_ledger_finalized_height, InitializableNativeNomtStorage};
 
@@ -64,6 +70,14 @@ where
         Ok(())
     }
 
+    // Flush pruning schema batches to disk.
+    pub(crate) fn commit_pruning(&mut self, group: PruneGroup) -> anyhow::Result<()> {
+        self.historical_state
+            .write_schemas(&group.historical_state)?;
+        self.accessory.write_schemas(&group.accessory)?;
+        Ok(())
+    }
+
     pub(crate) fn create_storage<S: InitializableNativeNomtStorage<H, K>>(
         &self,
         // Snapshot refs are in reveresed chronological order.
@@ -110,6 +124,32 @@ where
 
     pub(crate) fn update_ledger_finalized_height(&self) -> anyhow::Result<()> {
         update_ledger_finalized_height(self.ledger.clone())
+    }
+
+    pub(crate) fn start_pruner(&self, versions_to_keep: usize) -> PrunerJob {
+        tracing::info!(versions_to_keep, "Starting pruner task");
+        let state_pruner = Pruner::new(self.historical_state.clone());
+        let accessory_pruner = Pruner::new(self.accessory.clone());
+
+        // Spawn historical state pruner thread
+        let historical_state = std::thread::spawn(move || -> anyhow::Result<SchemaBatch> {
+            let mut kernel_prune_batch = state_pruner
+                .collect_pruning_batch::<StateValues<KernelNamespace>>(versions_to_keep as u64)?;
+            let user_prune_batch = state_pruner
+                .collect_pruning_batch::<StateValues<UserNamespace>>(versions_to_keep as u64)?;
+            kernel_prune_batch.merge(user_prune_batch);
+            Ok(kernel_prune_batch)
+        });
+
+        // Spawn accessory pruner thread
+        let accessory_state = std::thread::spawn(move || -> anyhow::Result<SchemaBatch> {
+            accessory_pruner.collect_pruning_batch::<ModuleAccessoryState>(versions_to_keep as u64)
+        });
+
+        PrunerJob {
+            historical_state,
+            accessory_state,
+        }
     }
 
     pub(crate) fn verify_commited_root_hashes(&self) -> anyhow::Result<()> {
@@ -159,9 +199,42 @@ pub(crate) struct SnapshotGroup {
     pub(crate) ledger: Arc<SchemaBatch>,
 }
 
+pub(crate) struct PruneGroup {
+    historical_state: SchemaBatch,
+    accessory: SchemaBatch,
+}
+
 pub(crate) struct CommitGroup {
     // State
     pub(crate) nomt: StateOverlay,
     // The rest.
     pub(crate) rockbound: SnapshotGroup,
+}
+
+// Collection of 2 handles to pruner threads for each database.
+pub(crate) struct PrunerJob {
+    historical_state: JoinHandle<anyhow::Result<SchemaBatch>>,
+    accessory_state: JoinHandle<anyhow::Result<SchemaBatch>>,
+}
+
+impl PrunerJob {
+    pub(crate) fn is_finished(&self) -> bool {
+        self.historical_state.is_finished() && self.accessory_state.is_finished()
+    }
+
+    pub(crate) fn join(self) -> anyhow::Result<PruneGroup> {
+        let historical_state = self
+            .historical_state
+            .join()
+            .map_err(|e| anyhow::anyhow!("Historical state pruner panicked: {:?}", e))?;
+        let accessory_state = self
+            .accessory_state
+            .join()
+            .map_err(|e| anyhow::anyhow!("Accessory state pruner panicked: {:?}", e))?;
+        tracing::info!("Pruner task has completed");
+        Ok(PruneGroup {
+            historical_state: historical_state.context("historical state")?,
+            accessory: accessory_state.context("accessory state")?,
+        })
+    }
 }
