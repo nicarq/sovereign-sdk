@@ -309,7 +309,7 @@ async fn check_runner(
     init_variant: MockInitVariant,
     expected_state_root: StorageRoot<S>,
 ) {
-    let (mut runner, _test_node) =
+    let (mut runner, test_node) =
         initialize_runner(da_service, tmpdir.path(), init_variant, 1, None).await;
     let before = *runner.get_state_root();
     let end = runner.run_in_process().await;
@@ -319,6 +319,7 @@ async fn check_runner(
 
     assert_ne!(before, after);
     assert_eq!(expected_state_root, after);
+    test_node.stop().await;
 }
 
 fn get_saved_root_hash(
