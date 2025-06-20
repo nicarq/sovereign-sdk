@@ -1,14 +1,12 @@
 use sov_accounts::AccountConfig;
 use sov_attester_incentives::AttesterIncentivesConfig;
-use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::{Amount, CodeCommitmentFor, Gas, GasArray, GasSpec, Spec};
+use sov_mock_da::MockDaSpec;
+use sov_modules_api::{Amount, CodeCommitmentFor, GasArray, Spec};
 use sov_rollup_interface::common::SlotNumber;
 
 use crate::interface::AsUser;
-use crate::runtime::genesis::{BasicGenesisConfig, HighLevelBasicConfig};
-use crate::runtime::{
-    BankConfig, ChainStateConfig, OperatorIncentivesConfig, ProverIncentivesConfig, SequencerConfig,
-};
+use crate::runtime::genesis::{generate_config_details, BasicGenesisConfig, HighLevelBasicConfig};
+use crate::runtime::{OperatorIncentivesConfig, ProverIncentivesConfig, SequencerConfig};
 use crate::{
     TestProver, TestSequencer, TestSpec, TestUser, TEST_DEFAULT_USER_BALANCE,
     TEST_DEFAULT_USER_STAKE, TEST_GAS_TOKEN_NAME,
@@ -73,32 +71,15 @@ impl<S: Spec> HighLevelZkGenesisConfig<S> {
     where
         S: Spec<Da = MockDaSpec>,
     {
-        // Generate with default stake * 2 because the user will be staked as a sequencer and a
-        // prover.
-        let default_user_stake_value =
-            <S as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE).value(&S::initial_base_fee_per_gas());
+        let (user_stake_value, prover_sequencer, sequencer, additional_accounts) =
+            generate_config_details(num_accounts);
 
-        let prover_sequencer = TestUser::generate(
-            default_user_stake_value
-                .saturating_mul(Amount::new(2))
-                .saturating_add(TEST_DEFAULT_USER_BALANCE),
-        );
-        let sequencer = TestSequencer {
-            user_info: prover_sequencer.clone(),
-            da_address: MockAddress::from([172; 32]),
-            bond: default_user_stake_value,
-        };
         let prover = TestProver {
             // By default we generate the prover as the same user as the sequencer
             // because provers must be registered sequencers.
             user_info: prover_sequencer,
-            bond: default_user_stake_value,
+            bond: user_stake_value,
         };
-        let mut additional_accounts = Vec::with_capacity(num_accounts);
-
-        for _ in 0..num_accounts {
-            additional_accounts.push(TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE));
-        }
 
         Self::with_defaults(
             prover,
@@ -112,11 +93,8 @@ impl<S: Spec> HighLevelZkGenesisConfig<S> {
     /// Generates a new high-level genesis config with a given number of additional accounts with random addresses and given balance.
     ///
     pub fn add_accounts_with_balance(mut self, num_accounts: usize, balance: Amount) -> Self {
-        for _ in 0..num_accounts {
-            self.high_level_basic
-                .additional_accounts
-                .push(TestUser::<S>::generate(balance));
-        }
+        self.high_level_basic
+            .add_accounts_with_balance(num_accounts, balance);
 
         self
     }
@@ -163,7 +141,7 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
         inner_code_commitment: CodeCommitmentFor<S::InnerZkvm>,
         outer_code_commitment: CodeCommitmentFor<S::OuterZkvm>,
     ) -> Self {
-        let attester_placeholder = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
+        let placeholder = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
         let default_user_stake = S::Gas::from(TEST_DEFAULT_USER_STAKE);
         Self {
             config: BasicGenesisConfig {
@@ -174,7 +152,16 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
                     is_preferred_sequencer: true,
                 },
                 operator_incentives: OperatorIncentivesConfig {
-                    reward_address: initial_sequencer.as_user().address().clone(),
+                    reward_address: initial_prover.as_user().address().clone(),
+                },
+                // unused in zk mode
+                attester_incentives: AttesterIncentivesConfig {
+                    minimum_attester_bond: default_user_stake.clone(),
+                    minimum_challenger_bond: default_user_stake.clone(),
+                    initial_attesters: vec![(placeholder.address().clone(), placeholder.balance())],
+                    rollup_finality_period: SlotNumber::GENESIS,
+                    maximum_attested_height: SlotNumber::GENESIS,
+                    light_client_finalized_height: SlotNumber::GENESIS,
                 },
                 prover_incentives: ProverIncentivesConfig {
                     minimum_bond: default_user_stake.clone(),
@@ -188,86 +175,24 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
                         initial_prover.bond,
                     )],
                 },
-                // unused in zk mode
-                attester_incentives: AttesterIncentivesConfig {
-                    minimum_attester_bond: default_user_stake.clone(),
-                    minimum_challenger_bond: default_user_stake.clone(),
-                    initial_attesters: vec![(
-                        attester_placeholder.address().clone(),
-                        attester_placeholder.balance(),
-                    )],
-                    rollup_finality_period: SlotNumber::GENESIS,
-                    maximum_attested_height: SlotNumber::GENESIS,
-                    light_client_finalized_height: SlotNumber::GENESIS,
-                },
-                bank: BankConfig {
-                    gas_token_config: sov_bank::GasTokenConfig {
-                        token_name: gas_token_name,
-                        token_decimals: None,
-                        supply_cap: None,
-                        address_and_balances: {
-                            let mut additional_accounts_vec: Vec<_> = additional_accounts
-                                .iter()
-                                .map(|user| (user.address(), user.balance()))
-                                .collect();
-                            additional_accounts_vec.push((
-                                attester_placeholder.address(),
-                                attester_placeholder.balance(),
-                            ));
-                            let sequencer = initial_sequencer.as_user();
-                            let prover = initial_prover.as_user();
-                            if sequencer.address() == prover.address() {
-                                assert_eq!(sequencer.available_gas_balance, prover.available_gas_balance, "Sequencer and prover balances should be equal if they are the same user");
-                                // same user, combine the bonds and balances
-                                additional_accounts_vec.append(&mut vec![(
-                                    sequencer.address(),
-                                    initial_sequencer
-                                        .bond
-                                        .checked_add(initial_prover.bond)
-                                        .unwrap()
-                                        .checked_add(sequencer.available_gas_balance)
-                                        .unwrap(),
-                                )]);
-                            } else {
-                                // different users, add separate entries
-                                additional_accounts_vec.append(&mut vec![
-                                    (
-                                        initial_sequencer.as_user().address(),
-                                        initial_sequencer
-                                            .bond
-                                            .checked_add(
-                                                initial_sequencer.as_user().available_gas_balance,
-                                            )
-                                            .unwrap(),
-                                    ),
-                                    (
-                                        initial_prover.as_user().address(),
-                                        initial_prover
-                                            .bond
-                                            .checked_add(
-                                                initial_prover.as_user().available_gas_balance,
-                                            )
-                                            .unwrap(),
-                                    ),
-                                ]);
-                            }
 
-                            additional_accounts_vec
-                        },
-                        admins: vec![],
-                    },
-                    tokens: vec![],
-                },
+                bank: BasicGenesisConfig::bank(
+                    initial_prover.as_user(),
+                    initial_prover.bond,
+                    None,
+                    &initial_sequencer,
+                    additional_accounts,
+                    gas_token_name,
+                    placeholder,
+                ),
                 accounts: AccountConfig { accounts: vec![] },
                 uniqueness: (),
                 blob_storage: (),
-                chain_state: ChainStateConfig {
-                    current_time: Default::default(),
-                    genesis_da_height: 0,
-                    operating_mode: sov_modules_api::OperatingMode::Zk,
+                chain_state: BasicGenesisConfig::chain_state(
+                    sov_modules_api::OperatingMode::Zk,
                     inner_code_commitment,
                     outer_code_commitment,
-                },
+                ),
             },
         }
     }
