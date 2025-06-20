@@ -382,6 +382,36 @@ macro_rules! generate_zk_runtime_with_kernel {
     };
 }
 
+/// Generates an operator runtime containing the [`Bank`](sov_bank::Bank), [`OperatorIncentives`](sov_operator_incentives::OperatorIncentives),
+/// and [`SequencerRegistry`](sov_sequencer_registry::SequencerRegistry) modules in addition to any provided as arguments. The runtime implements a basic kernel.
+#[macro_export]
+macro_rules! generate_operator_runtime {
+    ($id:ident <= $($module_name:ident : $module_ty:path),*) => {
+        $crate::generate_operator_runtime_with_kernel! {
+            kernel_type: $crate::runtime::BasicKernel<'a, S>,
+            $id <= $($module_name : $module_ty),*
+        }
+    };
+}
+
+/// Generates an operator runtime containing the [`Bank`](sov_bank::Bank), [`OperatorIncentives`](sov_operator_incentives::OperatorIncentives),
+/// and [`SequencerRegistry`](sov_sequencer_registry::SequencerRegistry) modules in addition to any provided as arguments. The runtime implements a custom kernel.
+#[macro_export]
+macro_rules! generate_operator_runtime_with_kernel {
+    (kernel_type: $kernel_ty:ty, $id:ident <= $($module_name:ident : $module_ty:path),*) => {
+        $crate::generate_runtime! {
+            name: $id,
+            modules: [$($module_name : $module_ty),*],
+            operating_mode: sov_modules_api::runtime::OperatingMode::Operator,
+            minimal_genesis_config_type: $crate::runtime::genesis::operator::MinimalOperatorGenesisConfig<S>,
+            runtime_trait_impl_bounds: [],
+            kernel_type: $kernel_ty,
+            auth_type: sov_modules_api::capabilities::RollupAuthenticator<S, Self>,
+            auth_call_wrapper: |auth_data| auth_data,
+        }
+    };
+}
+
 /// Assert that a pattern matches the expected value.
 /// This should be replaced by `std` version when it is stabilized: `<https://github.com/rust-lang/rust/issues/82775>`
 #[macro_export]

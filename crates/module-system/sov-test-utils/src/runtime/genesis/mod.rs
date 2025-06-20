@@ -25,6 +25,9 @@ pub mod optimistic;
 /// Utilities for testing a runtime in the ZK execution context.
 pub mod zk;
 
+/// Utilities for testing a runtime in the operator context.
+pub mod operator;
+
 /// A wrapper around a string that can be used to easily identify a test token.
 #[derive(Debug, Eq, Hash, Clone, PartialEq, derive_more::Display)]
 #[display("TestToken({})", self.0)]
