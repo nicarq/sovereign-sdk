@@ -457,9 +457,11 @@ where
                 return Ok(true);
             }
             // If it is not last finalized, but finalized in the past
-            let past_finalized_block = da_service.get_block_at(block_header.height()).await?;
+            let past_finalized_block = da_service
+                .get_block_header_at(block_header.height())
+                .await?;
 
-            if block_header.hash() == past_finalized_block.header().hash() {
+            if block_header.hash() == past_finalized_block.hash() {
                 tracing::trace!("Passed block header has been finalized in the past => no reorg");
                 return Ok(false);
             }
@@ -763,6 +765,8 @@ where
         <Da::Spec as DaSpec>::BlockHeader,
         Vec<StateOnBlock<Da::Spec, StateRoot>>,
     )> {
+        // DaService call # 1
+        let mut da_service_calls = 1;
         let last_finalized_header = da_service.get_last_finalized_block_header().await?;
         let earliest_seen_transition = self
             .get_earliest_seen_height()
@@ -778,10 +782,11 @@ where
 
         let last_seen_finalized_header = if last_finalized_header.height() > highest_seen_transition
         {
+            // DaService call # 2
+            da_service_calls += 1;
             da_service
-                .get_block_at(highest_seen_transition)
+                .get_block_header_at(highest_seen_transition)
                 .await?
-                .header()
                 .clone()
         } else {
             last_finalized_header.clone()
@@ -863,7 +868,9 @@ where
             "Going to extract finalized transitions from previously seen transitions"
         );
         for height in range {
-            let finalized_at_that_height = da_service.get_block_at(height).await?;
+            // DaService call # 3 + n
+            let finalized_at_that_height = da_service.get_block_header_at(height).await?;
+            da_service_calls += 1;
 
             tracing::trace!(height, "Going to extract finalized transitions from height");
             let blocks_on_height = self
@@ -880,7 +887,7 @@ where
                     .state_on_block
                     .remove(&block_hash)
                     .expect("Should be there");
-                if block_hash == finalized_at_that_height.header().hash() {
+                if block_hash == finalized_at_that_height.hash() {
                     assert!(
                         !pushed_for_this_height,
                         "Should be only one finalized transition per height"
@@ -897,6 +904,7 @@ where
         finalized_transitions.reverse();
         tracing::trace!(
             finalized_transitions = finalized_transitions.len(),
+            ?da_service_calls,
             "Completed check for finalized transitions"
         );
         Ok((last_finalized_header, finalized_transitions))
