@@ -80,3 +80,10 @@ name = "native_storage_manager"
 path = "benches/native_storage_manager.rs"
 harness = false
 required-features = ["test-utils"]
+
+
+[[bench]]
+name = "pruner"
+path = "benches/pruner_bench.rs"
+harness = false
+required-features = ["test-utils"]

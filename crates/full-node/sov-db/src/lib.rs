@@ -33,6 +33,8 @@ pub mod namespaces;
 
 /// Implements commit flag logic for state_db_nomt.
 pub(crate) mod commit_flag;
+/// Implements state pruning functionality for removing old versions of keys.
+pub mod pruner;
 /// Implements a wrapper around [NOMT](https://github.com/thrumdev/nomt) meant for storing rollup state.
 pub mod state_db_nomt;
 pub mod storage_manager;
