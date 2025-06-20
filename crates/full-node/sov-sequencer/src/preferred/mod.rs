@@ -828,12 +828,19 @@ where
     }
 
     fn raw_max_deferred_slots_delay(&self) -> u64 {
-        // Subtract one because node always force-increments visible slot number once it reaches
-        // deferred_slots_count, so the delta will always be 1 below it during update_state
         // TODO: there should be a DA config for added slack to account for DA inclusion delay here as well
         sov_blob_storage::config_deferred_slots_count()
+            // Subtract one because node always force-increments visible slot number once it reaches
+            // deferred_slots_count, so the delta will always be 1 below it during update_state
             .checked_sub(1)
             .expect("config_deferred_slots_count cannot be less than 1")
+            // Subtract the max node delay because we know the node could be up to this far behind
+            // (if it was further, we'd have triggered a resync). So the slot_number we will see
+            // might be up to this far behind what it would be at the DA tip
+            .checked_sub(self.config.max_allowed_node_distance_behind)
+            .expect(
+                "config_deferred_slots_count cannot be lower than max_allowed_node_distance_behind",
+            )
     }
 
     /// How far to catch back up if we need to recover/fast-forward due to being too close to (or
@@ -1028,10 +1035,9 @@ where
     // `update_state`. That's no good.
     let node_checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
     let current_visible_slot_number = node_checkpoint.current_visible_slot_number().as_true();
-    let da_tip_height = seq.da_sync_state.target_da_height.load(Ordering::Relaxed);
-    let condition_too_close_to_deferred_slots_count_for_comfort = SlotNumber::new(da_tip_height)
-        .delta(current_visible_slot_number)
-        > seq.slot_count_delta_acceptable_lower_bound();
+    let condition_too_close_to_deferred_slots_count_for_comfort =
+        info.slot_number.delta(current_visible_slot_number)
+            > seq.slot_count_delta_acceptable_lower_bound();
 
     // Resuming operations while the node is
     // lagging can cause issues e.g. during failover or after sequencer DB
