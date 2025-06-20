@@ -470,6 +470,10 @@ pub trait NativeStorage: Storage {
     /// Returns an error if storage is empty or the requests version is not yet available.
     fn get_root_hash(&self, version: SlotNumber) -> anyhow::Result<Self::Root>;
 
+    /// Get the *global* root hash of the tree at the requested version.
+    /// Requested version won't be checked against latest version of this instance of the storage.
+    fn get_root_hash_unbound(&self, version: SlotNumber) -> anyhow::Result<Self::Root>;
+
     /// Get a root hash at the latest version
     fn get_latest_root_hash(&self) -> anyhow::Result<Self::Root> {
         self.get_root_hash(self.latest_version())

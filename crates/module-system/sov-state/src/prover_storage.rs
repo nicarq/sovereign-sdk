@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 
+use anyhow::Context;
 use jmt::{JellyfishMerkleTree, KeyHash};
 use sov_db::accessory_db::AccessoryDb;
 use sov_db::namespaces;
@@ -465,9 +466,16 @@ impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
             }
             Some(v) => v,
         };
-        let user_root = self.get_root_hash_namespace_helper::<DBUserNamespace>(version_to_use)?;
-        let kernel_root =
-            self.get_root_hash_namespace_helper::<DBKernelNamespace>(version_to_use)?;
+        self.get_root_hash_unbound(version_to_use)
+    }
+
+    fn get_root_hash_unbound(&self, version: SlotNumber) -> anyhow::Result<Self::Root> {
+        let user_root = self
+            .get_root_hash_namespace_helper::<DBUserNamespace>(version)
+            .context("user namespace")?;
+        let kernel_root = self
+            .get_root_hash_namespace_helper::<DBKernelNamespace>(version)
+            .context("kernel namespace")?;
 
         Ok(StorageRoot::<S>::new(user_root.0, kernel_root.0))
     }

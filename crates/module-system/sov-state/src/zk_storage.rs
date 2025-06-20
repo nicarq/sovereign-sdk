@@ -221,7 +221,11 @@ impl<S: MerkleProofSpec> crate::storage::NativeStorage for ZkStorage<S> {
         unimplemented!("The ZkStorage should not be used to generate merkle proofs! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
     }
 
-    fn get_root_hash(&self, _version: SlotNumber) -> anyhow::Result<Self::Root> {
-        unimplemented!("The ZkStorage should not be used to generate merkle proofs! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
+    fn get_root_hash(&self, version: SlotNumber) -> anyhow::Result<Self::Root> {
+        self.get_root_hash_unbound(version)
+    }
+
+    fn get_root_hash_unbound(&self, _version: SlotNumber) -> anyhow::Result<Self::Root> {
+        unimplemented!("The ZkStorage should not be used to get root hash! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
     }
 }

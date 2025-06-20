@@ -555,15 +555,22 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             }
         }
 
-        tracing::trace!(executor_id = %self.id, "Sending state root computation to background task at height {}", rollup_height);
+        trace!(
+            executor_id = %self.id,
+            %rollup_height,
+            user_writes = %state_accesses.user.ordered_writes.len(),
+            kernel_writes = %state_accesses.kernel.ordered_writes.len(),
+            "Sending state root computation request to background task");
         let (response_channel, response_receiver) = oneshot::channel();
         self.state_root_responses.push_back(response_receiver);
+
         if self
             .state_root_request_sender
             .send(StateRootComputeRequest {
                 state_accesses,
                 storage: self.checkpoint.storage().clone(),
                 rollup_height,
+                max_slot_number: self.checkpoint.max_allowed_slot_number_to_access(),
                 response_channel,
             })
             .await
@@ -574,7 +581,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
         self.checkpoint.apply_changes(changes);
 
-        trace!("Successfully ended rollup block");
+        trace!(%rollup_height, "Successfully ended rollup block");
     }
 }
 

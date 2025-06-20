@@ -14,7 +14,7 @@ use sov_db::state_db_nomt::NomtSessionBuilder;
 use sov_db::storage_manager::{
     InitializableNativeNomtStorage, NomtChangeSet, StateFinishedSession,
 };
-use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::common::{HexHash, SlotNumber};
 use sov_rollup_interface::reexports::digest::Digest;
 
 use crate::storage::ReadType;
@@ -399,35 +399,50 @@ where
         prev_state_root: Self::Root,
     ) -> anyhow::Result<(Self::Root, Self::StateUpdate)> {
         tracing::trace!(%prev_state_root, "NomtProverStorage, computing state update");
+
         // User
         let user_session = self.state_session_builder.begin_user_session()?;
-        let prev_user_root = prev_state_root.namespace_root(ProvableNamespace::User);
+        let current_prev_user_root = user_session.prev_root().into_inner();
+        let passed_prev_user_root = prev_state_root.namespace_root(ProvableNamespace::User);
+        if current_prev_user_root != passed_prev_user_root {
+            anyhow::bail!("stale storage, passed prev_state_root for user namespace {} does not match the current prev_state_root {}",
+                HexHash::new(passed_prev_user_root),
+                HexHash::new(current_prev_user_root)
+            );
+        }
         let user_finished_session = {
             let _span = tracing::debug_span!("compute_state_update", namespace = "user").entered();
             compute_state_update_namespace::<S>(user_session, &state_accesses.user, witness)
                 .context("user state")?
         };
-        if self.is_strict_mode {
-            assert_eq!(
-                user_finished_session.prev_root().as_ref(),
-                &prev_user_root,
-                "User state root is not equal to the previous state root"
-            );
-        }
+        // Extra self-check, that finished session has the same previous root hash as passed prev_state_root
+        assert_eq!(
+            user_finished_session.prev_root().as_ref(),
+            &current_prev_user_root,
+            "User state root is not equal to the previous state root"
+        );
 
         // Kernel
         let kernel_session = self.state_session_builder.begin_kernel_session()?;
-        let prev_kernel_root = prev_state_root.namespace_root(ProvableNamespace::Kernel);
+        let current_prev_kernel_root = kernel_session.prev_root().into_inner();
+        let passed_prev_kernel_root = prev_state_root.namespace_root(ProvableNamespace::Kernel);
+        if self.is_strict_mode {
+            assert_eq!(
+                current_prev_kernel_root, passed_prev_kernel_root,
+                "Passed kernel state root is not equal to the previous state root"
+            );
+        }
         let kernel_finished_session = {
             let _span =
                 tracing::debug_span!("compute_state_update", namespace = "kernel").entered();
             compute_state_update_namespace::<S>(kernel_session, &state_accesses.kernel, witness)
                 .context("kernel state")?
         };
+        // Additional self-check that finished session has the same previous root hash as passed prev_state_root.
         if self.is_strict_mode {
             assert_eq!(
                 kernel_finished_session.prev_root().as_ref(),
-                &prev_kernel_root,
+                &passed_prev_kernel_root,
                 "Kernel state root is not equal to the previous state root"
             );
         }
@@ -546,15 +561,7 @@ where
             }
             Some(v) => v,
         };
-        let raw_root = self
-            .historical_state
-            .get_serialized_root_hash(version_to_use)?
-            .context(format!(
-                "Root hash not found for version {}.",
-                version_to_use
-            ))?;
-        let storage_root_historical =
-            borsh::from_slice(&raw_root).expect("Failed to deserialize root hash");
+        let storage_root_historical = self.get_root_hash_unbound(version_to_use)?;
         if self.should_check_dbs_sync(version_to_use) {
             let user_session = self.state_session_builder.begin_user_session()?;
             let user_root = user_session.prev_root();
@@ -569,6 +576,16 @@ where
             );
         }
 
+        Ok(storage_root_historical)
+    }
+
+    fn get_root_hash_unbound(&self, version: SlotNumber) -> anyhow::Result<Self::Root> {
+        let raw_root = self
+            .historical_state
+            .get_serialized_root_hash(version)?
+            .context(format!("Root hash not found for version {}.", version))?;
+        let storage_root_historical =
+            borsh::from_slice(&raw_root).expect("Failed to deserialize root hash");
         Ok(storage_root_historical)
     }
 }

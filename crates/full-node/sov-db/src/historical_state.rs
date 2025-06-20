@@ -176,4 +176,87 @@ mod tests {
             rocksdb.write_schemas(&changes).unwrap();
         }
     }
+
+    #[test]
+    fn test_no_bound_on_passed_version() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let db_path = tempdir.path();
+        let rocksdb = Arc::new(
+            HistoricalStateReader::get_rockbound_options()
+                .default_setup_db_in_path(db_path)
+                .unwrap(),
+        );
+
+        // Create two independent readers on the same database.
+        let reader1 = HistoricalStateReader::with_delta_reader(DeltaReader::new(
+            rocksdb.clone(),
+            Default::default(),
+        ))
+        .unwrap();
+        let reader2 = HistoricalStateReader::with_delta_reader(DeltaReader::new(
+            rocksdb.clone(),
+            Default::default(),
+        ))
+        .unwrap();
+
+        // --- First set of changes (version 0) ---
+        let version0 = SlotNumber::new(0);
+        assert_eq!(reader1.get_next_version(), version0);
+        assert_eq!(reader2.get_next_version(), version0);
+        let root_hash0 = vec![1; 32];
+        let changes0 = HistoricalStateReader::materialize_values(
+            vec![],
+            vec![(b"key1".to_vec(), Some(b"value1".to_vec()))],
+            root_hash0.clone(),
+            version0,
+        )
+        .unwrap();
+        rocksdb.write_schemas(&changes0).unwrap();
+        assert_eq!(reader1.get_next_version(), version0);
+        assert_eq!(reader2.get_next_version(), version0);
+
+        // Both readers should see the new latest version and be able to query the root hash.
+        assert_eq!(
+            reader1.get_serialized_root_hash(version0).unwrap(),
+            Some(root_hash0.clone())
+        );
+        assert_eq!(
+            reader2.get_serialized_root_hash(version0).unwrap(),
+            Some(root_hash0.clone())
+        );
+
+        // --- Second set of changes (version 1) ---
+        let version1 = SlotNumber::new(1);
+        let root_hash1 = vec![2; 32];
+        let changes1 = HistoricalStateReader::materialize_values(
+            vec![],
+            vec![(b"key2".to_vec(), Some(b"value2".to_vec()))],
+            root_hash1.clone(),
+            version1,
+        )
+        .unwrap();
+        rocksdb.write_schemas(&changes1).unwrap();
+        assert_eq!(reader1.get_next_version(), version0);
+        assert_eq!(reader2.get_next_version(), version0);
+
+        // Both readers should again see the and be able to query the new root hash.
+        assert_eq!(
+            reader1.get_serialized_root_hash(version1).unwrap(),
+            Some(root_hash1.clone())
+        );
+        assert_eq!(
+            reader2.get_serialized_root_hash(version1).unwrap(),
+            Some(root_hash1.clone())
+        );
+
+        // They should also still be able to query the old root hash.
+        assert_eq!(
+            reader1.get_serialized_root_hash(version0).unwrap(),
+            Some(root_hash0.clone())
+        );
+        assert_eq!(
+            reader2.get_serialized_root_hash(version0).unwrap(),
+            Some(root_hash0)
+        );
+    }
 }
