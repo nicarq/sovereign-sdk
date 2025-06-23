@@ -530,6 +530,7 @@ where
         let aggregated_proofs =
             Self::collect_aggregated_proofs(slot_result.proof_receipts.into_iter());
 
+        let processing_changes_start = std::time::Instant::now();
         self.state_manager
             .process_stf_changes(
                 &self.da_service,
@@ -572,6 +573,7 @@ where
                 stf_transition_time: stf_execution_start.elapsed(),
                 extract_blobs_time: da_extraction_time,
                 extraction_proof_time: get_relevant_proofs_time,
+                processing_changes_time: processing_changes_start.elapsed(),
             };
             metrics.track_runner_metrics(point);
         });

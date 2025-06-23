@@ -10,6 +10,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{DeltaReader, SchemaBatch};
+use sov_metrics::RunnerProcessStfChangesMetrics;
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::da::{DaService, SlotData};
@@ -261,6 +262,7 @@ where
         slot_commit: SlotCommit<S, B, T>,
         aggregated_proofs: Vec<SerializedAggregatedProof>,
     ) -> anyhow::Result<()> {
+        let start = std::time::Instant::now();
         if !self.is_initialized {
             anyhow::bail!(
                 "StateManager wasn't initialized. Please call `.startup()` method before using"
@@ -276,11 +278,12 @@ where
                 block_header.display()
             );
         }
+        let aggregated_proofs_count = aggregated_proofs.len();
         tracing::debug!(
             %slot_number,
             current_state_root = hex::encode(self.get_state_root().as_ref()),
             next_state_root = hex::encode(new_state_root.as_ref()),
-            aggregated_proofs = aggregated_proofs.len(),
+            aggregated_proofs = aggregated_proofs_count,
             "Saving changes after applying slot"
         );
 
@@ -311,13 +314,18 @@ where
             .insert(block_header.hash());
         // ----
 
+        let processing_finalized_transitions_start = std::time::Instant::now();
         let (last_finalized_header, finalized_transitions) =
             self.process_finalized_state_transitions(da_service).await?;
+        let processing_finalized_transitions_time =
+            processing_finalized_transitions_start.elapsed();
         tracing::trace!(
             finalized_transitions = finalized_transitions.len(),
+            time = ?processing_finalized_transitions_time,
             "Processed finalized transitions"
         );
 
+        let ledger_materialization_start = std::time::Instant::now();
         let mut ledger_change_set = self
             .ledger_db
             .materialize_slot(slot_commit, new_state_root.as_ref())?;
@@ -363,23 +371,27 @@ where
             ledger_change_set.merge(this_height_data);
             tracing::trace!("Aggregated Proof is materialized into Ledger ChangeSet");
         }
+        let ledger_materialization_time = ledger_materialization_start.elapsed();
+        tracing::trace!(time = ?ledger_materialization_time, "Materialized all LegerDb changes");
 
-        let save_and_finalize_start = std::time::Instant::now();
+        let save_start = std::time::Instant::now();
         self.storage_manager
             .save_change_set(&block_header, stf_changes, ledger_change_set)?;
-        let save_time = save_and_finalize_start.elapsed();
+        let save_time = save_start.elapsed();
+        let finalize_start = std::time::Instant::now();
         for finalized_transition in &finalized_transitions {
             self.storage_manager
                 .finalize(&finalized_transition.block_header)?;
         }
-        let save_and_finalize_time = save_and_finalize_start.elapsed();
+        let commit_time = finalize_start.elapsed();
         tracing::trace!(
             ?save_time,
-            ?save_and_finalize_time,
+            ?commit_time,
             "All finalized transitions are marked as finalized"
         );
-        self.update_api_and_ledger_storage(&block_header).await?;
+        let updating_api_time = self.update_api_and_ledger_storage(&block_header).await?;
 
+        let sending_to_prover_start = std::time::Instant::now();
         if let Some(stf_info_sender) = &mut self.stf_info_sender {
             // Notify `StateTransitionInfo` consumers that the data is saved in the Db.
             let max_provable_slot_number = self
@@ -393,11 +405,30 @@ where
                 .notify(max_provable_slot_number, &self.ledger_db)
                 .await?;
             tracing::trace!(
+                ?max_provable_slot_number,
                 "State transition info receiver has been notified about max provable slot number"
             );
         }
+        let sending_to_prover_time = sending_to_prover_start.elapsed();
 
         self.state_root = new_state_root;
+        sov_metrics::track_metrics(|tracker| {
+            tracker.submit(RunnerProcessStfChangesMetrics {
+                da_height: block_header.height(),
+                aggregated_proofs_count,
+                finalized_transitions_count: finalized_transitions.len(),
+                total_time: start.elapsed(),
+                processing_finalized_transitions_time,
+                ledger_changes_materializing_time: ledger_materialization_time,
+                saving_to_storage_time: save_time,
+                committing_storage_time: commit_time,
+                updating_api_storage_time: updating_api_time,
+                sending_stf_info_time_to_prover_time: sending_to_prover_time,
+            });
+        });
+        tracing::trace!(
+            time = ?start.elapsed(),
+            "StateManager has processed STF changes");
 
         Ok(())
     }
@@ -910,17 +941,22 @@ where
         Ok((last_finalized_header, finalized_transitions))
     }
 
+    // Returns updating time
     async fn update_api_and_ledger_storage(
         &mut self,
         block_header: &<<Da as DaService>::Spec as DaSpec>::BlockHeader,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<std::time::Duration> {
         let start = std::time::Instant::now();
-        tracing::trace!(after_block = %block_header.display(), "Updating Ledger and API storage");
+        tracing::trace!(after_block = %block_header.display(), "Sending new Ledger and API storages");
         let (api_storage, ledger_state) = self.storage_manager.create_state_after(block_header)?;
 
         self.update_channels(api_storage, ledger_state).await?;
-        tracing::trace!(time = ?start.elapsed(), "Ledger and API storages are updated");
-        Ok(())
+        let updating_time = start.elapsed();
+        tracing::trace!(
+            after_block = %block_header.display(),
+            time = ?
+            "Ledger and API storages have been sent");
+        Ok(updating_time)
     }
 
     fn get_slot_number(&self) -> anyhow::Result<SlotNumber> {

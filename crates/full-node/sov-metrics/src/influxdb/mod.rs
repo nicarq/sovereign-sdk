@@ -15,8 +15,9 @@ pub use config::{MonitoringConfig, TelegrafSocketConfig};
 pub use gas_constant_estimation::{GasConstantTracker, GAS_CONSTANTS};
 pub use tracker::{
     init_metrics_tracker, timestamp, BatchMetrics, BatchOutcome, HttpMetrics, RunnerMetrics,
-    SlotProcessingMetrics, TransactionEffect, TransactionProcessingMetrics,
-    UserSpaceSlotProcessingMetrics, ZkCircuit, ZkProvingTime, ZkVmExecutionChunk,
+    RunnerProcessStfChangesMetrics, SlotProcessingMetrics, TransactionEffect,
+    TransactionProcessingMetrics, UserSpaceSlotProcessingMetrics, ZkCircuit, ZkProvingTime,
+    ZkVmExecutionChunk,
 };
 
 pub(crate) type SerializableMetric = Box<dyn Metric>;
@@ -130,6 +131,7 @@ mod tests {
             stf_transition_time: std::time::Duration::from_millis(1003),
             extract_blobs_time: std::time::Duration::from_millis(1004),
             extraction_proof_time: std::time::Duration::from_millis(1005),
+            processing_changes_time: std::time::Duration::from_millis(1006),
         });
         let finish = timestamp();
 
