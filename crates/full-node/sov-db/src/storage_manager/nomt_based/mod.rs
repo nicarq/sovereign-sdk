@@ -16,6 +16,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 
 use crate::accessory_db::AccessoryDb;
 use crate::historical_state::HistoricalStateReader;
+use crate::metrics::nomt::StorageManagerFinalizationMetric;
 use crate::state_db_nomt::{NomtSessionBuilder, StateOverlay};
 use crate::storage_manager::nomt_based::groups::{CommitGroup, DbGroup, PrunerJob, SnapshotGroup};
 
@@ -304,8 +305,7 @@ where
     /// From [NOMT documentation](https://github.com/thrumdev/nomt/blob/51a2a3559b2a3153244dda923daf7e38807a9427/nomt/src/lib.rs#L652):
     /// This function will block until all ongoing sessions and commits have finished.
     fn finalize(&mut self, block_header: &Da::BlockHeader) -> anyhow::Result<()> {
-        tracing::trace!(block_hash = %block_header.hash(), "Finalizing changes");
-
+        let start_prep = std::time::Instant::now();
         tracing::trace!(block_hash = %block_header.hash(), "Finalizing changes");
 
         if !self.rockbound_snapshots.contains_key(&block_header.hash()) {
@@ -374,11 +374,13 @@ where
                 }
             }
         }
+        let preparation_time = start_prep.elapsed();
         tracing::trace!(
             ?all_discard_hashes_set,
             "Collected all hashes to be discarded"
         );
 
+        let apply_start = std::time::Instant::now();
         // --- Step 2: Apply changes.
         {
             let mut nomt_snapshots_guard = self
@@ -425,18 +427,26 @@ where
                 self.chain_forks.remove(discarded_hash);
             }
         }
-        tracing::trace!(finalized_block_hash = %block_header.hash(), "Finalization complete");
+        let apply_time = apply_start.elapsed();
+        tracing::trace!(
+            finalized_block_hash = %block_header.hash(),
+            ?preparation_time,
+            ?apply_time,
+            "Finalization complete");
 
         let is_pruner_ready = self
             .pruner
             .as_ref()
             .map(|p| p.is_finished())
             .unwrap_or(false);
+        let mut pruning_commit_time = None;
         if is_pruner_ready {
             // UNWRAP: Checked above.
             let pruner = std::mem::take(&mut self.pruner).unwrap();
             let prune_group = pruner.join()?;
+            let start = std::time::Instant::now();
             self.db_group.commit_pruning(prune_group)?;
+            pruning_commit_time = Some(start.elapsed());
             self.last_pruner_run_at_height = Some(block_header.height());
         }
 
@@ -452,6 +462,14 @@ where
             self.pruner = Some(pruner);
         }
 
+        sov_metrics::track_metrics(|tracker| {
+            tracker.submit(StorageManagerFinalizationMetric {
+                da_height: block_header.height(),
+                preparation_time,
+                commit_time: apply_time,
+                pruning_commit_time,
+            });
+        });
         Ok(())
     }
 }

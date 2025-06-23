@@ -4,6 +4,7 @@ use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::{SchemaBatch, SchemaKey, SchemaValue};
 use sov_rollup_interface::common::SlotNumber;
 
+use crate::metrics::StateMaterializationMetrics;
 use crate::namespaces::{KernelNamespace, Namespace, UserNamespace};
 use crate::schema::namespace::StateValues;
 use crate::schema::tables::StateRootHashes;
@@ -112,13 +113,18 @@ impl HistoricalStateReader {
         let mut batch = SchemaBatch::default();
         let mut has_kernel_been_updated = false;
         let mut has_user_been_updated = false;
+        let mut metric = StateMaterializationMetrics::new(version.get());
 
         // We always .put and not .delete to keep archival data.
         for (key, value) in kernel_changes {
+            metric.inc_kernel_items();
+            metric.track_key_value_size(&key, &value);
             batch.put::<StateValues<KernelNamespace>>(&(key, version), &value)?;
             has_kernel_been_updated = true;
         }
         for (key, value) in user_changes {
+            metric.inc_user_items();
+            metric.track_key_value_size(&key, &value);
             batch.put::<StateValues<UserNamespace>>(&(key, version), &value)?;
             has_user_been_updated = true;
         }
@@ -129,6 +135,11 @@ impl HistoricalStateReader {
         }
 
         batch.put::<StateRootHashes>(&(version, STATE_ROOT_HASH_SINGLETON), &root_hash)?;
+
+        sov_metrics::track_metrics(|tracker| {
+            tracker.submit(metric);
+        });
+
         Ok(batch)
     }
 }

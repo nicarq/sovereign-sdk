@@ -4,6 +4,7 @@ use rockbound::schema::{KeyCodec, Schema};
 use rockbound::{SchemaBatch, SchemaIterator, SchemaKey, SeekKeyEncoder, DB};
 use sov_rollup_interface::common::SlotNumber;
 
+use crate::metrics::nomt::PrunerMetric;
 use crate::schema::tables::ModuleAccessoryState;
 
 type VersionedSchemaKey = (SchemaKey, SlotNumber);
@@ -25,6 +26,9 @@ impl Pruner {
         T: Schema<Key = VersionedSchemaKey>,
         VersionedSchemaKey: SeekKeyEncoder<T> + KeyCodec<T>,
     {
+        let start = std::time::Instant::now();
+        let mut keys_inspected = 0;
+        let mut keys_to_prune = 0;
         let mut pruning_batch = SchemaBatch::new();
         if keep_versions == 0 {
             return Err(anyhow::anyhow!("keep_versions must be at least 1"));
@@ -34,16 +38,27 @@ impl Pruner {
 
         // For each unique base key, find versions to prune
         for base_key in unique_base_keys {
+            keys_inspected += 1;
             let base_key = base_key?;
             if let Some((oldest_version, last_prunable_version)) =
                 self.get_prunable_version_for_base_key::<T>(&base_key, keep_versions)?
             {
+                keys_to_prune += 1;
                 pruning_batch.delete_range::<T>(
                     &(base_key.clone(), oldest_version),
                     &(base_key, last_prunable_version),
                 )?;
             }
         }
+        let pruning_time = start.elapsed();
+        sov_metrics::track_metrics(|tracker| {
+            tracker.submit(PrunerMetric {
+                db: self.db.name(),
+                keys_inspected,
+                keys_to_prune,
+                time: pruning_time,
+            });
+        });
 
         Ok(pruning_batch)
     }

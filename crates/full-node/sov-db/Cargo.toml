@@ -18,6 +18,7 @@ jmt = { workspace = true }
 rockbound = { workspace = true }
 sov-rollup-interface = { workspace = true, features = ["native"] }
 nomt = { workspace = true }
+sov-metrics = { workspace = true, features = ["native"] }
 
 # External
 anyhow = { workspace = true, default-features = true }

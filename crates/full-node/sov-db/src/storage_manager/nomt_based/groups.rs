@@ -67,6 +67,9 @@ where
         // Historical data is committed the last, as in case of failure, it can be synced from the normal state,
         // as it duplicates the last written data to `self.state`.
         self.historical_state.write_schemas(&historical_state)?;
+
+        self.state.send_metrics();
+
         Ok(())
     }
 

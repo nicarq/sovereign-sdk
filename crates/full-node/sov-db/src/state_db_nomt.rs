@@ -7,6 +7,10 @@ use nomt::{Nomt, Options, SessionParams, WitnessMode};
 use sov_rollup_interface::reexports::digest;
 
 use super::commit_flag::{CommitFlag, CommitStatus};
+use crate::metrics::nomt::{NomtBeginSessionMetric, NomtDbMetric};
+
+const KERNEL: &str = "kernel_state";
+const USER: &str = "user_state";
 
 /// Contains all the most recent rollup data.
 pub struct NomtStateDb<H> {
@@ -158,6 +162,19 @@ impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> NomtSta
             kernel: self.kernel.root(),
         }
     }
+
+    pub(crate) fn send_metrics(&self) {
+        // Currently not usable externally, until: https://github.com/thrumdev/nomt/pull/917
+        // let metrics = self.user.metrics();
+        let ht_utilization_user = self.user.hash_table_utilization();
+        check_occupancy_rate(USER, &ht_utilization_user);
+        let ht_utilization_kernel = self.user.hash_table_utilization();
+        check_occupancy_rate(KERNEL, &ht_utilization_kernel);
+        sov_metrics::track_metrics(|tracker| {
+            tracker.submit(NomtDbMetric::new(USER, ht_utilization_user));
+            tracker.submit(NomtDbMetric::new(KERNEL, ht_utilization_kernel));
+        });
+    }
 }
 
 #[derive(Debug)]
@@ -228,7 +245,6 @@ impl<H, K> NomtSessionBuilder<H, K> {
     ///  * `state_db` - Reference to [`NomtStateDb`].
     ///  * `relevant_snapshot_refs`: In revered chronological order, as [`nomt::SessionParams::overlay`] expects
     ///  * `all_snapshots`. Should be the same structure that is used by a storage manager
-    #[allow(dead_code)]
     pub(crate) fn new(
         state_db: Arc<NomtStateDb<H>>,
         relevant_snapshot_refs: Vec<K>,
@@ -253,6 +269,7 @@ where
     /// **Commiting storage will be blocked until all built sessions are deallocated.**
     #[tracing::instrument(skip(self))]
     pub fn begin_user_session(&self) -> anyhow::Result<nomt::Session<BinaryHasher<H>>> {
+        let start = std::time::Instant::now();
         let params = {
             let mut overlays = Vec::with_capacity(self.relevant_snapshot_refs.len());
             let snapshots = self.all_snapshots.read().expect("Snapshots lock poisoned");
@@ -275,7 +292,17 @@ where
                 })?
                 .witness_mode(WitnessMode::read_write())
         };
-        Ok(self.state_db.user.begin_session(params))
+        let session = self.state_db.user.begin_session(params);
+        let init_time = start.elapsed();
+        let overlays = self.relevant_snapshot_refs.len();
+        sov_metrics::track_metrics(|tracker| {
+            tracker.submit(NomtBeginSessionMetric {
+                db: USER,
+                overlays,
+                init_time,
+            });
+        });
+        Ok(session)
     }
 
     /// Build [`nomt::Session`] for [`crate::namespaces::KernelNamespace`].
@@ -284,6 +311,7 @@ where
     /// **Commiting storage will be blocked until all built sessions are deallocated.**
     #[tracing::instrument(skip(self))]
     pub fn begin_kernel_session(&self) -> anyhow::Result<nomt::Session<BinaryHasher<H>>> {
+        let start = std::time::Instant::now();
         let params = {
             let mut overlays = Vec::with_capacity(self.relevant_snapshot_refs.len());
             let snapshots = self.all_snapshots.read().expect("Snapshots lock poisoned");
@@ -306,7 +334,17 @@ where
                 })?
                 .witness_mode(WitnessMode::read_write())
         };
-        Ok(self.state_db.kernel.begin_session(params))
+        let session = self.state_db.kernel.begin_session(params);
+        let init_time = start.elapsed();
+        let overlays = self.relevant_snapshot_refs.len();
+        sov_metrics::track_metrics(|tracker| {
+            tracker.submit(NomtBeginSessionMetric {
+                db: KERNEL,
+                overlays,
+                init_time,
+            });
+        });
+        Ok(session)
     }
 }
 
@@ -328,9 +366,18 @@ pub(crate) fn sov_nomt_default_options() -> Options {
     let mut opts = Options::new();
     // Draft values, needs to be benchmarked on the target system type.
     opts.commit_concurrency(2);
-    opts.prepopulate_page_cache(true);
     opts.metrics(true);
+    opts.prepopulate_page_cache(true);
     opts
+}
+
+fn check_occupancy_rate(db: &'static str, ht_utilization: &nomt::HashTableUtilization) {
+    if ht_utilization.occupancy_rate() > 0.9 {
+        tracing::warn!(
+                %db,
+                rate = ht_utilization.occupancy_rate(),
+                "Occupancy rate for NOMT hashtable is too high. Please update buckets size and resync database");
+    }
 }
 
 #[cfg(test)]

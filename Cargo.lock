@@ -8782,7 +8782,7 @@ dependencies = [
 [[package]]
 name = "rockbound"
 version = "1.0.0"
-source = "git+https://github.com/sovereign-labs/rockbound?rev=8a9ca9e2859e168117f230c0a51c517319c74284#8a9ca9e2859e168117f230c0a51c517319c74284"
+source = "git+https://github.com/sovereign-labs/rockbound?rev=dfd0624c32f5fb363c2190e9d911605663f7d693#dfd0624c32f5fb363c2190e9d911605663f7d693"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8790,7 +8790,7 @@ dependencies = [
  "proptest",
  "proptest-derive 0.5.0",
  "rocksdb",
- "thiserror 1.0.64",
+ "thiserror 2.0.11",
  "tokio",
  "tracing",
 ]
@@ -10198,6 +10198,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sov-db",
+ "sov-metrics",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-rollup-interface",
