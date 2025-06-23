@@ -16,7 +16,6 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::anyhow;
 use async_trait::async_trait;
 use axum::http::StatusCode;
 use batch_size_tracker::BatchSizeTracker;
@@ -657,6 +656,15 @@ where
         Ok(())
     }
 
+    fn current_visible_slot_number_according_to_node(
+        &self,
+        info: &StateUpdateInfo<S::Storage>,
+    ) -> SlotNumber {
+        let mut rt = Rt::default();
+        let node_checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
+        node_checkpoint.current_visible_slot_number().as_true()
+    }
+
     async fn trigger_recovery(&self, info: &StateUpdateInfo<S::Storage>) -> anyhow::Result<()> {
         let mut inner = self.lock_inner().await;
         inner.is_ready = Err(SequencerNotReadyDetails::PreferredSequencerRecovering);
@@ -668,19 +676,19 @@ where
                     // Flush our batches to try to save them if we can
                     warn!(num_batches_to_replay = batches_to_replay.len(), "TryToSave recovery strategy has been configured. The currently pending soft confirmations will be flushed to the node. This may save some of the transactions, but if any are no longer valid, the sequencer will be penalised.");
                     self.flush_pending_batches_for_recovery(&mut inner, info)
-                        .await
+                        .await?;
                 }
                 RecoveryStrategy::None => {
                     // Shut down
                     error!(RECOVERY_ERROR_MESSAGE_ON_NONE_STRATEGY);
                     exit_rollup(&self.shutdown_sender).await;
-                    Err(anyhow!("Unreachable"))
                 }
             }
         } else {
             warn!("Recovery: sequencer will now fast-forward the visible slot number, and resume normal operations when ready. There were no pending soft confirmations, so users will not be affected except for the downtime.");
-            Ok(())
         }
+        info!(?info, current_visible_slot_number = %self.current_visible_slot_number_according_to_node(info), "Beginning sequencer recovery");
+        Ok(())
     }
 
     async fn flush_pending_batches_for_recovery(
@@ -719,19 +727,15 @@ where
     /// Returns a range to allow hysteresis during catchup. The first (lower) value will be the
     /// minimum to be considered successfully recovered, the second (upper) value will be the
     /// target.
-    fn catchup_batches_to_send(
-        &self,
-        info: &StateUpdateInfo<S::Storage>,
-        rt: &mut Rt,
-    ) -> (u64, u64) {
-        let node_checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
-        let current_visible_slot_number = node_checkpoint.current_visible_slot_number().as_true();
+    fn catchup_batches_to_send(&self, info: &StateUpdateInfo<S::Storage>) -> (u64, u64) {
+        let current_visible_slot_number = self.current_visible_slot_number_according_to_node(info);
         let raw_catchup_delta = info
             .latest_finalized_slot_number
             .saturating_delta(current_visible_slot_number);
         let increase_per_batch = config_value!("MAX_VISIBLE_HEIGHT_INCREASE_PER_SLOT");
 
         let (maximum_delta, minimum_delta) = self.slot_count_delta_acceptable_upper_bound_range();
+        tracing::debug!(deferred_slots_count = self.raw_max_deferred_slots_delay(), maximum_delta, minimum_delta, current_catchup_delta = raw_catchup_delta, %current_visible_slot_number, increase_per_batch, "Calculating amount of batches to send");
         (
             raw_catchup_delta
                 .saturating_sub(maximum_delta)
@@ -749,16 +753,19 @@ where
         mut info: StateUpdateInfo<S::Storage>,
     ) -> anyhow::Result<()> {
         let mut rt = Rt::default();
-
         self.trigger_recovery(&info).await?;
 
         loop {
-            let (min_batches_to_send, max_batches_to_send) =
-                self.catchup_batches_to_send(&info, &mut rt);
+            let (min_batches_to_send, max_batches_to_send) = self.catchup_batches_to_send(&info);
             if min_batches_to_send == 0 {
+                tracing::info!(
+                    min_batches_to_send,
+                    max_batches_to_send,
+                    "Recovery: no need to send any more batches!"
+                );
                 break;
             }
-            tracing::info!(max_batches_to_send, min_batches_to_send, "Recovery: sending max_batches_to_send empty catchup batches to bump the visible_slot_number");
+            tracing::info!(min_batches_to_send, max_batches_to_send, "Recovery: sending max_batches_to_send empty catchup batches to bump the visible_slot_number");
 
             // 1. Dump our catchup batches once every DA block to fast-forward the
             //    visible_slot_number
@@ -802,6 +809,7 @@ where
                     "Recovery: waiting for the node to process sequencer's catchup batches..."
                 );
                 if next_sequence_number_according_to_node >= target_sequence_number {
+                    tracing::info!("Node sequence number caught up to our recovery batches. The sequencer may have finished recovery, or we may need to send another round of batches if catching up this far took too long");
                     break;
                 }
 
@@ -1033,8 +1041,7 @@ where
     // Once we're this close to `deferred_slots_count`, we risk crossing the
     // `deferred_slots_count` threshold before the next call to
     // `update_state`. That's no good.
-    let node_checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
-    let current_visible_slot_number = node_checkpoint.current_visible_slot_number().as_true();
+    let current_visible_slot_number = seq.current_visible_slot_number_according_to_node(&info);
     let condition_too_close_to_deferred_slots_count_for_comfort =
         info.slot_number.delta(current_visible_slot_number)
             > seq.slot_count_delta_acceptable_lower_bound();
