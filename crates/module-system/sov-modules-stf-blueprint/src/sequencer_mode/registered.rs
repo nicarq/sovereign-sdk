@@ -399,7 +399,7 @@ where
 
         let provisional_outcome = match outcome {
             AuthAndProcessOutcome::IllegalSequencer { reason } => {
-                tracing::warn!("Transaction could not be attempted due to sequencer error. If this error persists, check that your sequencer has sufficient funds. Error: {}", reason);
+                tracing::warn!(%reason, "Transaction could not be attempted due to sequencer error. If this error persists, check that your sequencer has sufficient funds");
                 ProvisionalSequencerOutcome::out_of_funds(
                     // SAFETY: `gas_used` is either Zero or comes from `BasicGasMeter`, which ensures overflow protection.
                     gas_used
