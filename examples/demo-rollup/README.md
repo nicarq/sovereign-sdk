@@ -95,7 +95,7 @@ $ export SOV_PROVER_MODE=execute
 ```
 
 ```sh,test-ci,bashtestmd:long-running,bashtestmd:wait-until=rest_address
-$ cargo run
+$ cargo run --release
 ```
 
 Leave it running while you proceed with the rest of the demo.

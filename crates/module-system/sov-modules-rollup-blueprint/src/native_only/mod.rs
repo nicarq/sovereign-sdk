@@ -33,6 +33,7 @@ use sov_state::Storage;
 use sov_stf_runner::processes::{
     start_op_workflow_in_background, start_operator_workflow_in_background,
     start_zk_workflow_in_background, ProverService, RollupProverConfig,
+    RollupProverConfigDiscriminants,
 };
 use sov_stf_runner::{
     initialize_state, query_state_update_info, CorsConfiguration, RollupConfig,
@@ -271,6 +272,13 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         let operating_mode =
             <Self::Runtime as RuntimeTrait<Self::Spec>>::operating_mode(&genesis_params.runtime);
         info!(?operating_mode, "Instantiating a new rollup");
+
+        if let (OperatingMode::Operator, Some(prover_config)) =
+            (operating_mode, prover_config.clone())
+        {
+            let prover_config: RollupProverConfigDiscriminants = prover_config.into();
+            panic!("The operating mode is set to `{operating_mode:?}` and prover config is set to `{prover_config:?}`. This is not supported");
+        }
 
         let da_service = self
             .create_da_service(&rollup_config, secondary_shutdown_receiver.clone())

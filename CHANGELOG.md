@@ -1,4 +1,5 @@
-
+# 2025-06-24 
+- #3083 Changes celestia rollup configuration in /demo-rollup to Operator mode. 
 # 2025-06-19
 - #3070 This PR introduces breaking changes to the testing framework.
 Access to genesis fields now requires calling the appropriate accessor methods. For examle before:
