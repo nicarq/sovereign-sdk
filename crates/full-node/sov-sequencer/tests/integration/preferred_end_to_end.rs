@@ -740,7 +740,8 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
 // this test ensures it correctly publishes all the expected slots
 #[tokio::test(flavor = "multi_thread")]
 async fn test_rollup_emits_all_slot_notifications() {
-    let (test_rollup, _) = create_test_rollup(0, TEST_MAX_BATCH_SIZE, 1).await;
+    let (test_rollup, _) =
+        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -758,9 +759,7 @@ async fn test_rollup_emits_all_slot_notifications() {
         slot_subscription.next().await.unwrap().unwrap();
     }
 
-    test_rollup
-        .wait_for_rollup_to_shutdown(Duration::from_secs(2))
-        .await;
+    test_rollup.shutdown().await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
