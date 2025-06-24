@@ -157,12 +157,7 @@ impl<R: Runtime<S>, S: Spec> TestGenerator<R, S> {
 }
 
 // Setup generation with the given params
-pub fn setup_harness<
-    R: Runtime<S> + EncodeCall<Bank<S>> + EncodeCall<ValueSetter<S>> + Clone,
-    S: Spec,
->(
-    rng_salt: u128,
-) -> TestGenerator<R, S> {
+pub fn setup_harness<R: Runtime<S> + Clone, S: Spec>(rng_salt: u128) -> TestGenerator<R, S> {
     let factory = BasicCallMessageFactory::<S, R>::new();
     let state: State<S, BasicTag> = State::new();
 
@@ -277,9 +272,8 @@ pub async fn setup_rollup(
         .expect("Impossible to start rollup")
 }
 
-/// Runs the transaction generator - currently only using the Bank harness.
 /// The passed client is responsible for handling timeouts (otherwise calls can block).
-pub async fn run_generator_task<
+pub async fn run_generator_task_for_bank_and_value_setter<
     R: Runtime<S> + EncodeCall<Bank<S>> + EncodeCall<ValueSetter<S>> + Clone,
     S: Spec,
 >(
@@ -288,11 +282,6 @@ pub async fn run_generator_task<
     worker_id: u128,
     num_workers: u32,
 ) -> anyhow::Result<()> {
-    let mut nonces: HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64> =
-        Default::default();
-
-    let random_bytes = get_random_bytes(100_000_000, worker_id);
-    let u = &mut Unstructured::new(&random_bytes[..]);
     let bank_harness = BankHarness::new(BankMessageGenerator::<S>::new(
         Distribution::with_equiprobable_values(vec![Transfer]),
         Percent::fifty(),
@@ -318,9 +307,41 @@ pub async fn run_generator_task<
         Arc::new(bank_harness.clone()),
         Arc::new(value_setter_harness.clone()),
     ];
-    let modules = Distribution::with_equiprobable_values(modules);
-    let mut generator: TestGenerator<R, S> = setup_harness(worker_id);
 
+    prepare_and_send_txs(modules, client, rx, worker_id, num_workers).await
+}
+
+/// The passed client is responsible for handling timeouts (otherwise calls can block).
+pub async fn run_generator_task_for_bank<R: Runtime<S> + EncodeCall<Bank<S>> + Clone, S: Spec>(
+    client: sov_api_spec::Client,
+    rx: Receiver<bool>,
+    worker_id: u128,
+    num_workers: u32,
+) -> anyhow::Result<()> {
+    let bank_harness = BankHarness::new(BankMessageGenerator::<S>::new(
+        Distribution::with_equiprobable_values(vec![Transfer]),
+        Percent::fifty(),
+    ));
+
+    let modules: Vec<BasicModuleRef<S, R>> = vec![Arc::new(bank_harness.clone())];
+    prepare_and_send_txs(modules, client, rx, worker_id, num_workers).await
+}
+
+async fn prepare_and_send_txs<R: Runtime<S> + Clone, S: Spec>(
+    modules: Vec<BasicModuleRef<S, R>>,
+    client: sov_api_spec::Client,
+    rx: Receiver<bool>,
+    worker_id: u128,
+    num_workers: u32,
+) -> anyhow::Result<()> {
+    let mut nonces: HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64> =
+        Default::default();
+
+    let modules = Distribution::with_equiprobable_values(modules);
+    let random_bytes = get_random_bytes(100_000_000, worker_id);
+    let u = &mut Unstructured::new(&random_bytes[..]);
+
+    let mut generator: TestGenerator<R, S> = setup_harness::<R, _>(worker_id);
     let past_transaction_generations = config_value!("PAST_TRANSACTION_GENERATIONS") + 1;
     let worker_start = std::time::Instant::now();
     let mut total_txns = 0;
@@ -407,5 +428,6 @@ pub async fn run_generator_task<
         let elapsed = start.elapsed();
         tracing::debug!(id = %worker_id, "Sent {} transactions in {}ms. Current throughput: {:.2} txs per second. Running throughput: {:.2} txs per second", txns.len(), elapsed.as_millis(), (txns.len() * num_workers as usize) as f64 / elapsed.as_secs_f64(), (total_txns * num_workers as usize) as f64 / worker_start.elapsed().as_secs_f64());
     }
+
     Ok(())
 }

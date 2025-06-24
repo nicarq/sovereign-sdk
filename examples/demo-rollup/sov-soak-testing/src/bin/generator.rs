@@ -3,7 +3,8 @@ use std::time::Duration;
 use clap::Parser;
 use sov_modules_api::prelude::tracing;
 use sov_soak_testing::{
-    run_generator_task, CelestiaRollupSpec, DemoCelestiaRT, DemoMockRT, MockDemoRollupSpec, TestRT,
+    run_generator_task_for_bank_and_value_setter, CelestiaRollupSpec, DemoCelestiaRT, DemoMockRT,
+    MockDemoRollupSpec, TestRT,
 };
 use sov_test_utils::TestSpec;
 use tokio::signal::unix::SignalKind;
@@ -48,10 +49,16 @@ async fn worker_task(
 ) -> anyhow::Result<()> {
     let result = match runtime {
         SelectedRuntime::Test => {
-            run_generator_task::<TestRT, TestSpec>(client, rx, worker_id, num_workers).await
+            run_generator_task_for_bank_and_value_setter::<TestRT, TestSpec>(
+                client,
+                rx,
+                worker_id,
+                num_workers,
+            )
+            .await
         }
         SelectedRuntime::DemoCelestia => {
-            run_generator_task::<DemoCelestiaRT, CelestiaRollupSpec>(
+            run_generator_task_for_bank_and_value_setter::<DemoCelestiaRT, CelestiaRollupSpec>(
                 client,
                 rx,
                 worker_id,
@@ -60,8 +67,13 @@ async fn worker_task(
             .await
         }
         SelectedRuntime::DemoMock => {
-            run_generator_task::<DemoMockRT, MockDemoRollupSpec>(client, rx, worker_id, num_workers)
-                .await
+            run_generator_task_for_bank_and_value_setter::<DemoMockRT, MockDemoRollupSpec>(
+                client,
+                rx,
+                worker_id,
+                num_workers,
+            )
+            .await
         }
     };
 
