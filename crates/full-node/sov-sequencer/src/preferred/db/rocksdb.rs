@@ -145,10 +145,13 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
 
         // Avoid overlapping range deletes.
         if prune_up_to_including < self.first_unpruned_sequence_number {
-            tracing::warn!(
-                sequence_number = %prune_up_to_including,
-                "Skipping pruning of sequence number because it's already been pruned",
-            );
+            // Warn if we skipped pruning because the sequence number went down. If it merely stayed the same, this is expected behavior so skip the warning.
+            if prune_up_to_including != self.first_unpruned_sequence_number.checked_sub(1).expect("Sequence number underflow. This is unreachable because we've just checked that prune_up_to_including < self.first_unpruned_sequence_number") {
+                tracing::warn!(
+                    sequence_number = %prune_up_to_including,
+                    "Skipping pruning of sequence number because it's already been pruned",
+                );
+            }
             return Ok(());
         }
 
