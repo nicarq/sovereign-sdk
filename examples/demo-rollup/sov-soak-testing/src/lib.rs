@@ -37,9 +37,16 @@ use sov_transaction_generator::generators::bank::BankMessageGenerator;
 use sov_transaction_generator::generators::basic::{
     BasicCallMessageFactory, BasicChangeLogEntry, BasicModuleRef, BasicTag,
 };
+use sov_transaction_generator::generators::value_setter::{
+    ValueSetterHarness, ValueSetterMessageGenerator,
+};
 use sov_transaction_generator::interface::rng_utils::{get_random_bytes, randomize_buffer};
 use sov_transaction_generator::interface::MessageValidity;
 use sov_transaction_generator::{Distribution, GeneratedMessage, Percent, State};
+use sov_value_setter::CallMessageDiscriminants::{
+    ReadAndSetHeavyState, ReadAndSetManyIndividualValues, RunCPUHeavyOperation,
+};
+use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use tokio::sync::watch::Receiver;
 
 pub const DEFAULT_BLOCK_TIME_MS: u64 = 200;
@@ -51,7 +58,7 @@ pub const DEFAULT_FINALIZATION_BLOCKS: u32 = 5;
 
 generate_runtime! {
     name: TestRuntime,
-    modules: [paymaster: Paymaster<S>],
+    modules: [paymaster: Paymaster<S>, value_setter: ValueSetter<S>],
     operating_mode: sov_modules_api::runtime::OperatingMode::Zk,
     minimal_genesis_config_type: MinimalZkGenesisConfig<S>,
     gas_enforcer: paymaster: Paymaster<S>,
@@ -150,7 +157,10 @@ impl<R: Runtime<S>, S: Spec> TestGenerator<R, S> {
 }
 
 // Setup generation with the given params
-pub fn setup_harness<R: Runtime<S> + EncodeCall<Bank<S>> + Clone, S: Spec>(
+pub fn setup_harness<
+    R: Runtime<S> + EncodeCall<Bank<S>> + EncodeCall<ValueSetter<S>> + Clone,
+    S: Spec,
+>(
     rng_salt: u128,
 ) -> TestGenerator<R, S> {
     let factory = BasicCallMessageFactory::<S, R>::new();
@@ -220,6 +230,10 @@ pub fn setup_roles_and_config() -> Setup {
             .try_into()
             .unwrap(),
         },
+        ValueSetterConfig {
+            admin: paymaster.address(), // This is likely not the admin but it doesn't matter for this test
+                                        // since we dont utilize SetValue or SetManyValues messages
+        },
     );
     Setup {
         paymaster,
@@ -265,7 +279,10 @@ pub async fn setup_rollup(
 
 /// Runs the transaction generator - currently only using the Bank harness.
 /// The passed client is responsible for handling timeouts (otherwise calls can block).
-pub async fn run_generator_task<R: Runtime<S> + EncodeCall<Bank<S>> + Clone, S: Spec>(
+pub async fn run_generator_task<
+    R: Runtime<S> + EncodeCall<Bank<S>> + EncodeCall<ValueSetter<S>> + Clone,
+    S: Spec,
+>(
     client: sov_api_spec::Client,
     rx: Receiver<bool>,
     worker_id: u128,
@@ -280,7 +297,27 @@ pub async fn run_generator_task<R: Runtime<S> + EncodeCall<Bank<S>> + Clone, S: 
         Distribution::with_equiprobable_values(vec![Transfer]),
         Percent::fifty(),
     ));
-    let modules: Vec<BasicModuleRef<S, R>> = vec![Arc::new(bank_harness.clone())];
+    // Value setter admin or maximum_vec_length is not used in this test since we dont utilize SetValue or SetManyValues messages
+    let value_setter_admin = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
+    let value_setter_harness = ValueSetterHarness::new(ValueSetterMessageGenerator::new(
+        Distribution::with_equiprobable_values(vec![
+            ReadAndSetManyIndividualValues,
+            ReadAndSetHeavyState,
+            RunCPUHeavyOperation,
+        ]),
+        sov_transaction_generator::generators::value_setter::ValueSetterGeneratorOptions {
+            maximum_vec_length: 10,
+            min_and_max_number_of_individual_state_operations: (1, 10000),
+            min_and_max_number_of_new_values_for_heavy_state: (100, 1000),
+            min_and_max_number_of_iterations_for_cpu_heavy_operation: (1000, 5000),
+            max_heavy_state_size: 1_000_000,
+        },
+        value_setter_admin,
+    ));
+    let modules: Vec<BasicModuleRef<S, R>> = vec![
+        Arc::new(bank_harness.clone()),
+        Arc::new(value_setter_harness.clone()),
+    ];
     let modules = Distribution::with_equiprobable_values(modules);
     let mut generator: TestGenerator<R, S> = setup_harness(worker_id);
 
@@ -301,9 +338,9 @@ pub async fn run_generator_task<R: Runtime<S> + EncodeCall<Bank<S>> + Clone, S: 
 
         let mut txns = vec![];
         for _ in 0..txn_count {
-            let validity = Distribution::with_equiprobable_values(vec![
-                MessageValidity::Valid,
-                MessageValidity::Invalid,
+            let validity = Distribution::with_values(vec![
+                (20, MessageValidity::Valid),
+                (1, MessageValidity::Invalid),
             ]);
             let validity = validity.select_value(u)?;
             let msg = generator.generate(&modules, *validity);

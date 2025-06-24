@@ -29,6 +29,7 @@ Access to genesis fields now requires calling the appropriate accessor methods. 
 - #2971 internal in sov-soak-tests
 
 - #3014 Adds `/modules/bank/tokens/gas_token` and `/modules/bank/tokens/gas_token/balances/{address}` endpoints to enable fetching the gas token id and gas token balances using the REST API endpoints.
+- #3009 Add new transaction types to the value setter module that will enable us to load test the framework more comprehensively.
 - #3000 Bumps the number of in-memory state transition infos to accommodate for the recent slow-down in zk proving in CI.
 
 # 2025-06-08

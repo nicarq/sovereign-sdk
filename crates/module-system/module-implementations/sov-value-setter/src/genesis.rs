@@ -2,7 +2,7 @@ use anyhow::Result;
 use schemars::JsonSchema;
 use sov_modules_api::{GenesisState, Spec};
 
-use super::ValueSetter;
+use super::{ValueSetter, VERY_LARGE_VEC_LENGTH};
 
 /// Initial configuration for sov-value-setter module.
 #[derive(Clone, serde::Serialize, serde::Deserialize, Debug, PartialEq, JsonSchema)]
@@ -20,6 +20,8 @@ impl<S: Spec> ValueSetter<S> {
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
         self.admin.set(&admin_config.admin, state)?;
+        self.very_large_vec
+            .set_all(vec![0u64; VERY_LARGE_VEC_LENGTH as usize], state)?;
         self.begin_rollup_block_hook_count.set(&0, state)?;
         self.end_rollup_block_hook_count.set(&0, state)?;
         self.finalize_hook_count.set(&0, state)?;

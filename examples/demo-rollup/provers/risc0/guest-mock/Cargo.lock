@@ -3568,9 +3568,12 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "rand",
+ "rand_chacha",
  "schemars",
  "serde",
  "sov-modules-api",
+ "sov-rollup-interface",
  "sov-state",
  "strum",
  "thiserror",

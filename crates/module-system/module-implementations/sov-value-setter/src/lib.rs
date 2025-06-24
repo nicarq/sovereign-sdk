@@ -13,6 +13,9 @@ use sov_modules_api::{
     ModuleRestApi, Spec, StateValue, StateVec, TxState,
 };
 
+/// Maximum length for the very large vector used in testing.
+pub const VERY_LARGE_VEC_LENGTH: u64 = 1000;
+
 /// A new module:
 /// - Must derive `ModuleInfo`
 /// - Must contain `[id]` field
@@ -31,6 +34,14 @@ pub struct ValueSetter<S: Spec> {
     /// Some more values kept in state.
     #[state]
     pub many_values: StateVec<u8>,
+
+    /// A very large vector kept in state initialized with a large number of values.
+    #[state]
+    pub very_large_vec: StateVec<u64>,
+
+    /// A heavy state kept in state initialized with a large number of values.
+    #[state]
+    pub heavy_state: StateValue<Vec<u64>>,
 
     /// The number of times the `begin_slot` hook has been called.
     #[state]
@@ -93,6 +104,29 @@ impl<S: Spec> Module for ValueSetter<S> {
                 expected_visible_slot_number,
             } => {
                 Ok(self.assert_visible_slot_number(expected_visible_slot_number, context, state)?)
+            }
+            CallMessage::ReadAndSetManyIndividualValues {
+                number_of_operations,
+                salt,
+            } => Ok(self.read_and_set_many_individual_values(
+                number_of_operations,
+                salt,
+                context,
+                state,
+            )?),
+            CallMessage::ReadAndSetHeavyState {
+                number_of_new_values,
+                max_heavy_state_size,
+                salt,
+            } => Ok(self.read_and_set_heavy_state(
+                number_of_new_values,
+                max_heavy_state_size,
+                salt,
+                context,
+                state,
+            )?),
+            CallMessage::RunCPUHeavyOperation { iterations } => {
+                Ok(self.run_cpu_heavy_operation(iterations, context, state)?)
             }
             CallMessage::Panic => {
                 panic!("sov_value_setter: Panic requested by user sending a panic message");

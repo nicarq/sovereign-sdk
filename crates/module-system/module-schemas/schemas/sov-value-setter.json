@@ -81,6 +81,99 @@
       "additionalProperties": false
     },
     {
+      "description": "Read and set many individual values.",
+      "type": "object",
+      "required": [
+        "read_and_set_many_individual_values"
+      ],
+      "properties": {
+        "read_and_set_many_individual_values": {
+          "type": "object",
+          "required": [
+            "number_of_operations",
+            "salt"
+          ],
+          "properties": {
+            "number_of_operations": {
+              "description": "The number of values to read and set.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "salt": {
+              "description": "The salt.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Read and set entries in a large vector stored as a `StateValue`",
+      "type": "object",
+      "required": [
+        "read_and_set_heavy_state"
+      ],
+      "properties": {
+        "read_and_set_heavy_state": {
+          "type": "object",
+          "required": [
+            "max_heavy_state_size",
+            "number_of_new_values",
+            "salt"
+          ],
+          "properties": {
+            "max_heavy_state_size": {
+              "description": "The max size of the heavy state.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "number_of_new_values": {
+              "description": "The number of new values to read and set.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "salt": {
+              "description": "The salt.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Run CPU heavy operation. Each iteration computes a hash with the Spec::Hasher.",
+      "type": "object",
+      "required": [
+        "run_c_p_u_heavy_operation"
+      ],
+      "properties": {
+        "run_c_p_u_heavy_operation": {
+          "type": "object",
+          "required": [
+            "iterations"
+          ],
+          "properties": {
+            "iterations": {
+              "description": "The number of iterations.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "Trigger a panic.",
       "type": "string",
       "enum": [

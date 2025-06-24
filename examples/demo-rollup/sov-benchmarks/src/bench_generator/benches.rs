@@ -40,7 +40,13 @@ pub fn combined_bank_value_setter(
                         ValueSetterDiscriminants::SetValue,
                         ValueSetterDiscriminants::SetManyValues,
                     ]),
-                    params.max_value_setter_vec_len,
+                    sov_transaction_generator::generators::value_setter::ValueSetterGeneratorOptions {
+                        maximum_vec_length: params.max_value_setter_vec_len,
+                        min_and_max_number_of_individual_state_operations: (0, 0),
+                        min_and_max_number_of_new_values_for_heavy_state: (0, 0),
+                        min_and_max_number_of_iterations_for_cpu_heavy_operation: (0, 0),
+                        max_heavy_state_size: 0,
+                    },
                     value_setter_admin.clone(),
                 )));
             params.new_benchmark_with_params(
@@ -51,12 +57,7 @@ pub fn combined_bank_value_setter(
                     bank_bench_module,
                     value_setter_bench_module,
                 ]),
-                Distribution::with_equiprobable_values(vec![
-                    MessageValidity::Valid,
-                    // TODO(@theochap) - reactivate once we have a way to send invalid transactions
-                    // to DA through sequencers.
-                    // MessageValidity::Invalid,
-                ]),
+                Distribution::with_equiprobable_values(vec![MessageValidity::Valid]),
                 value_setter_admin.clone(),
             )
         },
@@ -78,7 +79,13 @@ pub fn combined_bank_value_setter(
                         ValueSetterDiscriminants::SetValue,
                         ValueSetterDiscriminants::SetManyValues,
                     ]),
-                    params.max_value_setter_vec_len,
+                    sov_transaction_generator::generators::value_setter::ValueSetterGeneratorOptions {
+                        maximum_vec_length: params.max_value_setter_vec_len,
+                        min_and_max_number_of_individual_state_operations: (0, 0),
+                        min_and_max_number_of_new_values_for_heavy_state: (0, 0),
+                        min_and_max_number_of_iterations_for_cpu_heavy_operation: (0, 0),
+                        max_heavy_state_size: 0,
+                    },
                     value_setter_admin.clone(),
                 )));
 
@@ -90,12 +97,7 @@ pub fn combined_bank_value_setter(
                     bank_bench_module,
                     value_setter_bench_module,
                 ]),
-                Distribution::with_equiprobable_values(vec![
-                    MessageValidity::Valid,
-                    // TODO(@theochap) - reactivate once we have a way to send invalid transactions
-                    // to DA through sequencers.
-                    // MessageValidity::Invalid,
-                ]),
+                Distribution::with_equiprobable_values(vec![MessageValidity::Valid]),
                 value_setter_admin.clone(),
             )
         },
@@ -188,7 +190,13 @@ pub fn value_setter_benches(
                     Distribution::with_equiprobable_values(vec![
                         ValueSetterDiscriminants::SetValue,
                     ]),
-                    params.max_value_setter_vec_len,
+                    sov_transaction_generator::generators::value_setter::ValueSetterGeneratorOptions {
+                        maximum_vec_length: params.max_value_setter_vec_len,
+                        min_and_max_number_of_individual_state_operations: (0, 0),
+                        min_and_max_number_of_new_values_for_heavy_state: (0, 0),
+                        min_and_max_number_of_iterations_for_cpu_heavy_operation: (0, 0),
+                        max_heavy_state_size: 0,
+                    },
                     value_setter_admin.clone(),
                 )));
 
@@ -197,12 +205,7 @@ pub fn value_setter_benches(
                 slots,
                 seed,
                 Distribution::with_equiprobable_values(vec![bench_module]),
-                Distribution::with_equiprobable_values(vec![
-                    MessageValidity::Valid,
-                    // TODO(@theochap) - reactivate once we have a way to send invalid transactions
-                    // to DA through sequencers.
-                    // MessageValidity::Invalid,
-                ]),
+                Distribution::with_equiprobable_values(vec![MessageValidity::Valid]),
                 value_setter_admin.clone(),
             )
         },
@@ -213,7 +216,13 @@ pub fn value_setter_benches(
                         ValueSetterDiscriminants::SetValue,
                         ValueSetterDiscriminants::SetManyValues,
                     ]),
-                    params.max_value_setter_vec_len,
+                    sov_transaction_generator::generators::value_setter::ValueSetterGeneratorOptions {
+                        maximum_vec_length: params.max_value_setter_vec_len,
+                        min_and_max_number_of_individual_state_operations: (0, 0),
+                        min_and_max_number_of_new_values_for_heavy_state: (0, 0),
+                        min_and_max_number_of_iterations_for_cpu_heavy_operation: (0, 0),
+                        max_heavy_state_size: 0,
+                    },
                     value_setter_admin.clone(),
                 )));
             params.new_benchmark_with_params(
@@ -221,12 +230,7 @@ pub fn value_setter_benches(
                 slots,
                 seed,
                 Distribution::with_equiprobable_values(vec![bench_module]),
-                Distribution::with_equiprobable_values(vec![
-                    MessageValidity::Valid,
-                    // TODO(@theochap) - reactivate once we have a way to send invalid transactions
-                    // to DA through sequencers.
-                    // MessageValidity::Invalid,
-                ]),
+                Distribution::with_equiprobable_values(vec![MessageValidity::Valid]),
                 value_setter_admin.clone(),
             )
         },

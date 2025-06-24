@@ -113,7 +113,7 @@ $ make test-create-token
 Once a batch is submitted the output should also contain the transaction hashes that have been submitted. For example -
 
 ```text
-Your batch was submitted to the sequencer for publication. reponse=SubmitBatchReceipt { blob_hash: Hash("0x679c7d07df9f90b8eaeee2408ee38d24d2d1bacb67c9b856b914a5529fb029db"), da_transaction_id: Variant1([153, 190, 36, 139, 186, 161, 57, 37, 28, 223, 224, 41, 213, 206, 45, 122, 14, 218, 95, 189, 54, 56, 72, 142, 132, 66, 146, 182, 221, 233, 20, 232]), tx_hashes: [TxHash("0x4a1bc76016310255de59e6b8f5410369b1df211213a8bc2c95505afc112bdfa3")] }
+Your batch was submitted to the sequencer for publication. reponse=SubmitBatchReceipt { blob_hash: Hash("0x679c7d07df9f90b8eaeee2408ee38d24d2d1bacb67c9b856b914a5529fb029db"), da_transaction_id: Variant1([153, 190, 36, 139, 186, 161, 57, 37, 28, 223, 224, 41, 213, 206, 45, 122, 14, 218, 95, 189, 54, 56, 72, 142, 132, 66, 146, 182, 221, 233, 20, 232]), tx_hashes: [TxHash("0x705eb6d1e1ea4d93e704851aba739a25530d0d89aab37092a7049b059eb527bd")] }
 ```
 
 The transaction hash can be used to query the REST API endpoint to fetch events belonging to the transaction, which should in
@@ -121,7 +121,7 @@ this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
 $ sleep 5
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0x28636334f2687c252d6b00253d31a2da8a64c7c6253136cc373ffc319b757bf8/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0x705eb6d1e1ea4d93e704851aba739a25530d0d89aab37092a7049b059eb527bd/events | jq
 {
   "data": [
     {
@@ -156,7 +156,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0x28636334f2687c252d6b00253d31a2da8
         "type": "moduleRef",
         "name": "Bank"
       },
-      "tx_hash": "0x28636334f2687c252d6b00253d31a2da8a64c7c6253136cc373ffc319b757bf8"
+      "tx_hash": "0x705eb6d1e1ea4d93e704851aba739a25530d0d89aab37092a7049b059eb527bd"
     }
   ],
   "meta": {}
@@ -332,7 +332,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0xb4f2fc7d24b183468da764f7a492dce752484aca0e1b2c4577fde709aabcaade",
+  "chain_hash": "0x92a11b91071c4be925cfa9d43bf3fc046908307be8658b245a3f5a468784d9c7",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": "100000000",
