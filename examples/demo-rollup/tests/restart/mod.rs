@@ -1,5 +1,7 @@
 //! Tests for shutdown/restart cases.
 use std::collections::HashSet;
+use std::env;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Context;
@@ -10,21 +12,45 @@ use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::OperatingMode;
+use sov_modules_rollup_blueprint::logging::default_rust_log_value;
 use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_sequencer::SequencerKindConfig;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
-use sov_test_utils::{TEST_DEFAULT_MOCK_DA_ON_ANY_SUBMIT, TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING};
+use sov_test_utils::TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING;
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::prelude::*;
-use tracing_subscriber::{registry, Layer};
+use tracing_subscriber::{registry, EnvFilter, Layer};
 
 use crate::test_helpers::test_genesis_source;
 
 const ROLLUP_START_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 const ROLLUP_SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 const FULL_TEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
+
+fn initialize_logging_for_restart(records: Arc<Mutex<Vec<(Level, String)>>>, with_stdout: bool) {
+    let collector = LogCollector { records };
+    let subscriber = registry().with(collector);
+    let prev_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        tracing_panic::panic_hook(panic_info);
+        prev_hook(panic_info);
+    }));
+    if with_stdout {
+        let env_filter =
+            env::var("RUST_LOG").unwrap_or_else(|_| default_rust_log_value().to_string());
+
+        let get_env_filter = || EnvFilter::from_str(&env_filter).unwrap();
+        let layer = tracing_subscriber::fmt::layer()
+            .with_filter(get_env_filter())
+            .boxed();
+
+        subscriber.with(layer).init();
+    } else {
+        subscriber.init();
+    }
+}
 
 struct LogCollector {
     records: Arc<Mutex<Vec<(Level, String)>>>,
@@ -197,11 +223,7 @@ async fn flaky_test_start_stop_optimistic_non_instant_finality() -> anyhow::Resu
 #[tokio::test(flavor = "multi_thread")]
 async fn test_start_prover_manual() -> anyhow::Result<()> {
     let records = Arc::new(Mutex::new(Vec::new()));
-    let collector = LogCollector {
-        records: records.clone(),
-    };
-    let subscriber = registry().with(collector);
-    subscriber.init();
+    initialize_logging_for_restart(records.clone(), false); // Enable stdout logging. Set to false to disable.
 
     let rollup_storage_dir = Arc::new(tempfile::tempdir()?);
     let finalization_blocks = 0;
@@ -212,7 +234,9 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
 
     let rollup_builder = RollupBuilder::<MockDemoRollup<Native>>::new(
         test_genesis_source(OperatingMode::Zk),
-        TEST_DEFAULT_MOCK_DA_ON_ANY_SUBMIT,
+        BlockProducingConfig::Periodic {
+            block_time_ms: 1000,
+        },
         finalization_blocks,
     )
     .with_zkvm_host_args(mock_da_risc0_host_args())

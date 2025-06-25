@@ -6,6 +6,7 @@ mod block_executor;
 mod db;
 mod preferred_blob_sender;
 mod state_root_compute;
+mod update_state;
 
 use std::boxed::Box;
 use std::collections::BTreeMap;
@@ -14,7 +15,7 @@ use std::num::NonZero;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use axum::http::StatusCode;
@@ -51,20 +52,27 @@ use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::{broadcast, watch, Mutex, MutexGuard};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
-use tracing::{debug, error, info, trace, warn, Instrument};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::common::{
     error_not_fully_synced, generic_accept_tx_error, loop_send_tx_notifications, poll_state_update,
     AcceptedTx, Sequencer, StateUpdateError, TxStatusBlobSenderHooks, WithCachedTxHashes,
 };
-use crate::metrics::{track_in_progress_batch_size, PreferredSequencerUpdateStateMetrics};
+use crate::metrics::track_in_progress_batch_size;
 use crate::preferred::block_executor::{EventCache, RollupBlockExecutor, RollupBlockExecutorError};
+use crate::preferred::db::{latest_finalized_sequence_number, DbEvent};
 use crate::{
     ProofBlobSender, SequencerConfig, SequencerEvent, SequencerNotReadyDetails, TxStatus,
     TxStatusManager,
 };
 
 type VisibleSlotNumberIncrease = NonZero<u8>;
+
+/// These two constants are used to calculate the comfortable gas limit.
+/// Currently, this is 95% of the initial gas limit. After the comfortable limit is reached,
+/// the sequencer will close and publish the current batch.
+const COMFORTABLE_GAS_LIMIT_MULTIPLIER: u64 = 19;
+const COMFORTABLE_GAS_LIMIT_DIVISOR: u64 = 20;
 
 // Big infodump for the user that wouldmake the code hard to read if it were inline.
 const RECOVERY_ERROR_MESSAGE_ON_NONE_STRATEGY: &str = "The preferred sequencer is too far behind, and the visible slot number has lagged more than the allowed deferred slots count. This means some non-preferred batches may have been included by the node, if there were any. If this happened, already provided soft confirmations may now no longer be valid. Because the recovery_strategy config was set to None, we are not attempting recovery at this point. You should either: a) delete everything from the preferred_sequencer database (thus annulling all currently pending soft confirmations), which will allow you to restart the sequencer fresh; or b) set the recovery_strategy config value to TryToSave, in which case all pending batches will be flushed to be executed on a best-effort basis. The latter may save some soft-confirmations if they have not been invalidated yet. However, IF a non-preferred batch has been included, AND some soft-confirmations have been invalidated by it, this will cause the sequencer to be penalised for every invalid batch; ensure your sequencer bond is sufficient to cover any penalties to be able to continue operating uninterrupted.";
@@ -99,7 +107,6 @@ where
     blob_sender: PreferredBlobSender<Da>,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     shutdown_receiver: watch::Receiver<()>,
-
     executor: RollupBlockExecutor<S, Rt>,
     batch_size_tracker: BatchSizeTracker,
     is_ready: Result<(), SequencerNotReadyDetails>,
@@ -135,26 +142,45 @@ where
             .get_root_hash(self.latest_info.slot_number)
     }
 
+    /// Create a new batch, if possible. Errors here are expected, because it's not always possible to create a new batch due to transient DA issues.
+    /// We can only create a new batch if we have a finalized slot available to use as our `visible_slot_number_after_increase`.
     #[tracing::instrument(skip_all, level = "trace")]
     async fn try_to_create_and_start_batch_if_none_in_progress(
         &mut self,
         leave_space_for_next_batch: bool,
-    ) -> Result<(), ErrorObject> {
+    ) -> Result<(), BatchCreationError> {
         if self.executor.has_in_progress_batch() {
             return Ok(());
         }
 
-        let Ok(visible_increase) = next_visible_slot_number_increase(
+        if self.blob_sender_busy().is_some() {
+            warn!("The blob sender is busy, no batch could be started at this time.");
+            return Err(BatchCreationError::BlobSenderBusy);
+        }
+
+        let visible_increase = match next_visible_slot_number_increase(
             &self.executor.checkpoint,
             &self.latest_info,
             leave_space_for_next_batch,
-        ) else {
-            return Ok(());
+            self.config
+                .sequencer_kind_config
+                .ideal_lag_behind_finalized_slot,
+        ) {
+            Ok(visible_increase) => visible_increase,
+            Err(e) => {
+                warn!(
+                    "A batch was requested but the sequencer is not ready to produce one: {:?}",
+                    e
+                );
+                // TODO: Clear out any transactions that have already been sent to the sequencer.
+                return Ok(());
+            }
         };
 
         debug!(visible_increase, "No in-progress batch, starting a new one");
-
-        let node_state_root = self.node_root_hash().map_err(database_error_500)?;
+        let node_state_root = self
+            .node_root_hash()
+            .map_err(BatchCreationError::DatabaseError)?;
         let visible_slot_number_after_increase = self
             .executor
             .checkpoint
@@ -167,7 +193,10 @@ where
         self.db
             .start_batch(visible_slot_number_after_increase, visible_increase)
             .await
-            .map_err(database_error_500)?;
+            .map_err(|e| {
+                tracing::error!("Failed to start batch: {:?}", e);
+                BatchCreationError::DatabaseError(e)
+            })?;
 
         let min_profit_per_tx = self.config.sequencer_kind_config.minimum_profit_per_tx;
         self.executor
@@ -183,7 +212,7 @@ where
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
-    async fn trigger_batch_production(&mut self) -> anyhow::Result<()> {
+    async fn trigger_batch_production_if_convenient(&mut self) -> anyhow::Result<()> {
         if !self.config.automatic_batch_production {
             warn!("Skipping batch production due to settings");
             return Ok(());
@@ -195,23 +224,36 @@ where
         // TODO(@neysofu): this check is currently necessary but likely can be folded into
         // `try_to_create_and_start_batch_if_none_in_progress`... somehow. As of
         // right now, it's a hair too bug-prone.
-        if next_visible_slot_number_increase(&self.executor.checkpoint, &self.latest_info, true)
-            .is_err()
-        {
+        let Ok(next_visible_slot_number_increase) = next_visible_slot_number_increase(
+            &self.executor.checkpoint,
+            &self.latest_info,
+            true,
+            self.config
+                .sequencer_kind_config
+                .ideal_lag_behind_finalized_slot,
+        ) else {
+            return Ok(());
+        };
+
+        // The next visible slot number increase will be greater than 1 if and only if we're more than target lag behind the finalized slot.
+        // If we're not at least that far behind, we should prefer to leave the current batch open as long as possible - it will be closed
+        // automatically once it gets full.
+        //
+        // Here, we're explicitly trading the freshness of the updated state for the ability to produce batches on a more reliable cadence.
+        // This is a good trade off
+        if next_visible_slot_number_increase.get() <= 1 {
             return Ok(());
         }
 
-        if self.blob_sender_busy().is_some() {
-            warn!("The blob sender is busy, skipping batch production.");
-            return Ok(());
-        }
-
-        // If there's no in-progress batch, we open a new one and immediately
-        // close it. This will result in an empty batch, which has the sole
-        // purpose of increasing the visible slot number.
-        self.try_to_create_and_start_batch_if_none_in_progress(true)
+        if let Err(e) = self
+            .try_to_create_and_start_batch_if_none_in_progress(true)
             .await
-            .map_err(|_| anyhow::anyhow!("Unable to start a new batch; this is likely a database issue or a bug, please report it"))?;
+        {
+            tracing::debug!(
+                error = %e,
+                "Unable to start new batch after successful state update."
+            );
+        }
 
         // We were unable to open a new batch (likely due to a lack of finalized
         // slots), so we're done.
@@ -221,10 +263,30 @@ where
 
         // If the node is shutting down, we may not be able to terminate the batch. In that case, just return early.
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
-            info!("The sequencer is shutting down. Exiting trigger_batch_production.");
+            info!(
+                "The sequencer is shutting down. Exiting trigger_batch_production_if_convenient."
+            );
             return Ok(());
         }
 
+        self.close_and_publish_current_batch().await
+    }
+
+    /// Closes the current batch
+    #[cfg(feature = "test-utils")]
+    pub async fn force_close_current_batch(&mut self) -> anyhow::Result<()> {
+        self.close_and_publish_current_batch().await
+    }
+
+    /// Closes the current batch.
+    ///
+    /// This should be called only when...
+    /// 1. There's no more capacity to accept txs in the current batch.
+    /// 2. We're absolutely sure we want to close the batch early even though we don't need to.
+    ///
+    /// Case 2 only happens when we've just finished updating the state *and* we have more than our ideal number of finalized slots available.
+    #[tracing::instrument(skip_all, level = "trace")]
+    async fn close_and_publish_current_batch(&mut self) -> anyhow::Result<()> {
         // Terminate the batch.
         let batch = self.terminate_batch().await?;
         self.batch_size_tracker = BatchSizeTracker::new(self.config.max_batch_size_bytes);
@@ -252,6 +314,40 @@ where
                 .unwrap_or(0),
         );
 
+        Ok(())
+    }
+
+    async fn prune_sequencer_db(&mut self) -> anyhow::Result<()> {
+        let latest_state_info = &self.latest_info;
+        let mut runtime = Rt::default();
+        let next_sequence_number_according_to_node =
+            get_next_sequence_number_according_to_node(latest_state_info, &mut runtime);
+
+        sov_metrics::track_metrics(|tracker| {
+            tracker.submit_inline(
+                "sov_rollup_sequence_number_delta",
+                format!(
+                    "delta={}i",
+                    (self.db.next_sequence_number() as i64)
+                        - (next_sequence_number_according_to_node as i64)
+                ),
+            );
+        });
+
+        match latest_finalized_sequence_number(latest_state_info, &mut runtime) {
+            Some(num) => {
+                // TODO(@neysofu): somehow, if we prune too close to the latest
+                // finalized sequence number, we get panics due to missing blobs
+                // and inconsistent state. There is clearly something wrong with
+                // the pruning height calculation height.
+                if let Some(num) = num.checked_sub(100) {
+                    self.db.prune(num).await?;
+                }
+            }
+            None => {
+                // Nothing to prune because there's no sequence number history.
+            }
+        }
         Ok(())
     }
 
@@ -418,7 +514,7 @@ where
 
         let inner = Inner {
             db: PreferredSequencerDb::<S, Rt>::new(db_backend).await?,
-            latest_info: latest_state_update.clone(),
+            latest_info: latest_state_update.clone(), // TODO: Bundle this with the executor
             checkpoint_sender,
             config: config.clone(),
             shutdown_receiver: shutdown_receiver.clone(),
@@ -497,135 +593,6 @@ where
             self.shutdown_sender.clone(),
             self.cached_events.clone(),
         )
-    }
-
-    async fn replay_soft_confirmations_on_top_of_node_state(
-        &self,
-        info: StateUpdateInfo<S::Storage>,
-        batches_to_replay: Vec<PreferredBatchToReplay>,
-        timer_start: Instant,
-    ) -> anyhow::Result<()> {
-        let batches_count = batches_to_replay.len() as u64;
-        let transactions_count = batches_to_replay
-            .iter()
-            .map(|b| b.batch.inner.data.len() as u64)
-            .sum::<u64>();
-
-        if tracing::enabled!(tracing::Level::TRACE) {
-            let batch_details_to_log = batches_to_replay
-                .iter()
-                .map(|batch| {
-                    (
-                        batch.batch.inner.sequence_number,
-                        batch.batch.inner.visible_slots_to_advance,
-                        batch.batch.inner.data.len(),
-                    )
-                })
-                .collect::<Vec<_>>();
-            trace!(
-                ?batch_details_to_log,
-                "Prepared batches to apply to the state"
-            );
-        }
-
-        // Now that we're not locking on the sequencer state anymore, we can replay all the batches.
-        let mut executor = self.create_new_executor_for_replay(&info);
-
-        let node_state_root = tracing::trace_span!("root_hash")
-            .in_scope(|| info.storage.get_root_hash(info.slot_number))?;
-        let last_batch = batches_to_replay.last();
-        let last_replayed_batch_in_progress = last_batch.map(|batch| batch.is_in_progress);
-        let latest_batch_txs_len = last_batch.map(|batch| batch.batch.tx_hashes.len());
-
-        async {
-            for batch in batches_to_replay {
-                executor
-                    .replay_batch(&batch, &node_state_root)
-                    .await?;
-                if self.shutdown_receiver.has_changed().unwrap_or(true) {
-                    info!("The sequencer is shutting down. Exiting replay_soft_confirmations_on_top_of_node_state.");
-                    return Ok(());
-                }
-            }
-            Ok::<(), anyhow::Error>(())
-        }
-        .instrument(tracing::debug_span!("process_batches"))
-        .await?;
-
-        // We stop accepting new txns in accept_tx for a short time while we catch up
-        let mut inner = self.lock_inner().await;
-        let inner_lock_start_time = std::time::Instant::now();
-
-        let current_in_progress_batch = inner.db.in_progress_batch_opt().cloned();
-
-        let in_progress_batch_exists = current_in_progress_batch.is_some();
-
-        // Currently it's not possible for `accept_tx` to end a batch, this will likely
-        // change in the future when it can close batches due to gas, stake, batch sizes, etc.
-        // When that happens we'll also need to handle the case where `accept_tx` closes the batch.
-        match (last_replayed_batch_in_progress, current_in_progress_batch) {
-            // We have an in-progress batch, see if there's any new additions
-            // since we've replayed the batches on the nodes state
-            (Some(true), Some(batch)) => {
-                let prev_txs_len =
-                    latest_batch_txs_len.expect("In progress check was Some but txs len was None");
-                let new_txs = batch.txs[prev_txs_len..].to_vec();
-
-                trace!(new_txs = new_txs.len(), "Applying any new transactions have been added to in-progress batch while updating node state");
-
-                for tx in new_txs {
-                    let _ = executor.apply_tx_to_in_progress_batch(&tx).await;
-                }
-            }
-            // There wasn't an in-progress batch previously but there is one now
-            // It was started by accept_tx, lets add it to our state
-            (_, Some(in_progress_batch)) => {
-                trace!("Replaying batch that was initialized while updating node state");
-                let batch = PreferredBatchToReplay {
-                    is_in_progress: true,
-                    visible_slot_number_after_increase: in_progress_batch
-                        .visible_slot_number_after_increase,
-                    batch: in_progress_batch.into_with_cached_tx_hashes(),
-                };
-                let node_root = inner.node_root_hash()?;
-
-                if executor.replay_batch(&batch, &node_root).await? {
-                    inner.db.pop_tx_from_in_progress_batch().await?;
-                }
-            }
-            _ => trace!("No new transaction or batch state while updating node state"),
-        }
-
-        trace!("Node state update complete, swapping new state into sequencer");
-        inner.executor.replace_state(executor).await;
-
-        inner.is_ready = Ok(());
-
-        inner.latest_info = info.clone();
-        let checkpoint = inner
-            .executor
-            .checkpoint
-            .clone_with_empty_witness_dropping_temp_cache();
-        inner.update_api_state(checkpoint).await;
-        self.update_api_ledger(&info);
-
-        let metrics = PreferredSequencerUpdateStateMetrics {
-            duration: timer_start.elapsed(),
-            lock_duration: inner_lock_start_time.elapsed(),
-            batches_count,
-            transactions_count,
-            in_progress_batch: in_progress_batch_exists,
-        };
-
-        sov_metrics::track_metrics(|t| {
-            t.submit(metrics);
-        });
-
-        if !self.shutdown_receiver.has_changed().unwrap_or(true) {
-            inner.trigger_batch_production().await?;
-        }
-
-        Ok(())
     }
 
     async fn check_readiness(
@@ -708,17 +675,11 @@ where
         }
 
         // 2. Flush all batches to the BlobSender
-        let blobs_to_flush = match inner.db.subsequent_completed_blobs(info).await {
-            Ok(b) => b,
-            Err(err) => {
-                // TODO: this can only throw an error because subsequent_completed_blobs()
-                // automatically does pruning, which can throw database errors.
-                // Here we don't really care about pruning, we want to save our pending blobs no
-                // matter what, so really that should be refactored.
-                error!(%err, "Unable to fetch the pending batches during recovery. This makes it impossible to attempt saving the soft-confirmations.");
-                return Err(err);
-            }
-        };
+        let next_sequence_number_according_to_node =
+            get_next_sequence_number_according_to_node(info, &mut Rt::default());
+        let blobs_to_flush = inner
+            .db
+            .all_completed_blobs_greater_than_or_equal_to(next_sequence_number_according_to_node);
         inner.blob_sender.publish_blobs(blobs_to_flush).await?;
 
         Ok(())
@@ -789,7 +750,7 @@ where
                 // This is mostly fine, mainly the API state will be out of date until we've
                 // finished sending our batches.
                 // Adding parallel state update handling is not worth the complexity right now.
-                inner.trigger_batch_production().await?;
+                inner.trigger_batch_production_if_convenient().await?;
             }
 
             // 2. Wait for node to catch up to our sequence number
@@ -1052,13 +1013,15 @@ where
     let condition_node_is_lagging = distance > seq.config.max_allowed_node_distance_behind;
 
     // Are there ANY soft confirmations to replay at all?
-    let condition_are_there_any_batches_to_replay = !batches_to_replay.is_empty();
+    // Note that this information could become outdated by the time we use it! It should be treated as a best guess because
+    // the sequencer is *not* locked and `accept_tx` is allowed to start batches at any point.
+    let condition_are_there_known_batches_to_replay = !batches_to_replay.is_empty();
 
     tracing::debug!(
         condition_nodes_sequence_number_is_fresher,
         condition_too_close_to_deferred_slots_count_for_comfort,
         condition_node_is_lagging,
-        condition_are_there_any_batches_to_replay,
+        condition_are_there_known_batches_to_replay,
         "Choosing the state update code path"
     );
 
@@ -1066,7 +1029,7 @@ where
         condition_nodes_sequence_number_is_fresher,
         condition_too_close_to_deferred_slots_count_for_comfort,
         condition_node_is_lagging,
-        condition_are_there_any_batches_to_replay,
+        condition_are_there_known_batches_to_replay,
     ) {
         // Something has gone terribly wrong, and I don't see a way for us
         // to meaningfully recover without nuking the sequencer DB.
@@ -1103,12 +1066,8 @@ where
         // `update_state` call during sequencer execution with no unusual
         // conditions.
         (false, false, false, _) => {
-            seq.replay_soft_confirmations_on_top_of_node_state(
-                info,
-                batches_to_replay,
-                timer_start,
-            )
-            .await?;
+            seq.replay_soft_confirmations_on_top_of_node_state(info, timer_start)
+                .await?;
         }
     }
 
@@ -1186,6 +1145,12 @@ where
         self.api_state.clone()
     }
 
+    #[cfg(feature = "test-utils")]
+    async fn force_close_current_batch(&self) -> anyhow::Result<()> {
+        let mut inner = self.lock_inner().await;
+        inner.force_close_current_batch().await
+    }
+
     fn tx_status_manager(&self) -> &TxStatusManager<<Self::Spec as Spec>::Da> {
         &self.tx_status_manager
     }
@@ -1242,9 +1207,25 @@ where
             .await
             .map_err(error_not_fully_synced)?;
 
-        inner
+        match inner
             .try_to_create_and_start_batch_if_none_in_progress(false)
-            .await?;
+            .await
+        {
+            Ok(()) => {}
+            Err(BatchCreationError::BlobSenderBusy) => {
+                return Err(error_not_fully_synced(
+                    SequencerNotReadyDetails::WaitingOnBlobSender {
+                        max_concurrent_blobs: self.config.max_concurrent_blobs,
+                        nb_of_blobs_in_flight: inner
+                            .blob_sender
+                            .nb_of_concurrent_blob_submissions(),
+                    },
+                ));
+            }
+            Err(BatchCreationError::DatabaseError(e)) => {
+                return Err(database_error_500(e));
+            }
+        }
 
         if self.shutdown_receiver.has_changed().unwrap_or(true) {
             tracing::info!("The sequencer is shutting down. Cannot accept transactions");
@@ -1269,7 +1250,7 @@ where
 
         let apply_tx_res = executor.apply_tx_to_in_progress_batch(&baked_tx).await;
 
-        let (receipt, events) = match apply_tx_res {
+        let (receipt, events, remaining_slot_gas) = match apply_tx_res {
             Ok(res) => {
                 assert_eq!(
                     tx_hash, res.0.tx_hash,
@@ -1304,6 +1285,21 @@ where
                     .clone_with_empty_witness_dropping_temp_cache(),
             )
             .await;
+
+        // Check if we're close to the gas limit and close the batch if we are.
+        let mut comfortable_gas_limit = <S as GasSpec>::initial_gas_limit();
+        comfortable_gas_limit
+            .scalar_division(COMFORTABLE_GAS_LIMIT_DIVISOR)
+            .checked_scalar_product(COMFORTABLE_GAS_LIMIT_MULTIPLIER)
+            .expect("Cannot overflow after dividing by 20 and multiplying by 19");
+        let close_to_gas_limit = remaining_slot_gas.dim_is_less_or_eq(&comfortable_gas_limit);
+        if close_to_gas_limit {
+            tracing::debug!(%comfortable_gas_limit, %remaining_slot_gas, "Closing and publishing current batch because we're close to the gas limit");
+            // We can't do anything about errors here, so we just log them. They won't interfere with acceptance of *this* tx, so we return success for it.
+            if let Err(error) = inner.close_and_publish_current_batch().await {
+                tracing::error!(%error, "Error closing and publishing current batch; the batch is now more full than we would like - this may cause future transactions to be rejected.");
+            }
+        }
 
         Ok(AcceptedTx {
             tx: baked_tx,
@@ -1367,6 +1363,13 @@ pub struct PreferredSequencerConfig {
     /// but may improve performance and allows the sequencer to continue operating in case of known bugs.
     #[serde(default)]
     pub disable_state_root_consistency_checks: bool,
+    /// The ideal lag behind the finalized slot number.
+    #[serde(default = "default_ideal_lag_behind_finalized_slot")]
+    pub ideal_lag_behind_finalized_slot: u64,
+    #[serde(default = "default_db_event_channel_size")]
+    /// The number of events that can be buffered in the database event channel while `update_state` is running.
+    /// This value needs to be increased at higher TPS to avoid blocking the sequencer.
+    pub db_event_channel_size: usize,
     /// Strategy for handling recovery scenarios in the preferred sequencer.
     pub recovery_strategy: RecoveryStrategy,
 }
@@ -1378,12 +1381,25 @@ impl Default for PreferredSequencerConfig {
             events_channel_size: default_events_channel_size(),
             postgres_connection_string: None,
             disable_state_root_consistency_checks: false,
+            ideal_lag_behind_finalized_slot: default_ideal_lag_behind_finalized_slot(),
             recovery_strategy: RecoveryStrategy::None,
+            db_event_channel_size: default_db_event_channel_size(),
         }
     }
 }
 
+/// The ideal buffer of finalized slots that the sequencer should maintain. The larger this number,
+/// the longer forced transactions will take to be included but the more the sequencer is able to buffer
+/// instability on the DA layer.
+pub const fn default_ideal_lag_behind_finalized_slot() -> u64 {
+    10
+}
+
 fn default_events_channel_size() -> usize {
+    10_000
+}
+
+fn default_db_event_channel_size() -> usize {
     10_000
 }
 
@@ -1429,22 +1445,15 @@ where
 }
 
 #[tracing::instrument(skip_all, level = "trace")]
-async fn batches_to_replay<S, Rt>(
+async fn completed_batches_to_replay<S, Rt>(
     db: &mut PreferredSequencerDb<S, Rt>,
-    info: &StateUpdateInfo<S::Storage>,
+    sequence_number: SequenceNumber,
 ) -> anyhow::Result<Vec<PreferredBatchToReplay>>
 where
     S: Spec,
     Rt: Runtime<S>,
 {
-    let blobs_to_apply = match db.subsequent_completed_blobs(info).await {
-        Ok(b) => b,
-        Err(err) => {
-            error!(%err, "Database error while re-applying state changes. This is a critical error. Database integrity is intact, but the sequencer may momentarily provide outdated state and break soft-confirmations.");
-            return Err(err);
-        }
-    };
-
+    let blobs_to_apply = db.all_completed_blobs_greater_than_or_equal_to(sequence_number);
     let first_sequence_number = blobs_to_apply.first().map(|b| b.sequence_number());
 
     trace!(
@@ -1454,7 +1463,7 @@ where
         "Extracted blobs to apply from database"
     );
 
-    let mut batches: Vec<_> = blobs_to_apply
+    let batches: Vec<_> = blobs_to_apply
         .into_iter()
         .filter_map(|blob| match blob {
             PreferredSequencerReadBlob::Batch(batch) => Some(PreferredBatchToReplay {
@@ -1476,6 +1485,21 @@ where
             }
         })
         .collect();
+
+    Ok(batches)
+}
+
+#[tracing::instrument(skip_all, level = "trace")]
+async fn batches_to_replay<S, Rt>(
+    db: &mut PreferredSequencerDb<S, Rt>,
+    info: &StateUpdateInfo<S::Storage>,
+) -> anyhow::Result<Vec<PreferredBatchToReplay>>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
+    let sequence_number = get_next_sequence_number_according_to_node(info, &mut Rt::default());
+    let mut batches = completed_batches_to_replay(db, sequence_number).await?;
 
     if let Some(batch) = db.in_progress_batch_opt().cloned() {
         batches.push(PreferredBatchToReplay {
@@ -1506,18 +1530,40 @@ fn next_visible_slot_number_increase<S: Spec>(
     checkpoint: &StateCheckpoint<S>,
     info: &StateUpdateInfo<S::Storage>,
     leave_space_for_next_batch: bool,
+    ideal_lag_behind_finalized_slot: u64,
 ) -> Result<NonZero<u8>, SequencerNotReadyDetails> {
     trace!(?checkpoint, ?info, %leave_space_for_next_batch, "Calculating next visible slot number");
 
-    let mut delta = info
-        .latest_finalized_slot_number
-        .checked_sub(checkpoint.current_visible_slot_number().get());
+    next_visible_slot_number_increase_inner(
+        checkpoint.current_visible_slot_number(),
+        info.latest_finalized_slot_number,
+        leave_space_for_next_batch,
+        ideal_lag_behind_finalized_slot,
+    )
+}
+
+fn next_visible_slot_number_increase_inner(
+    current_visible_slot_number: VisibleSlotNumber,
+    latest_finalized_slot_number: SlotNumber,
+    leave_space_for_next_batch: bool,
+    ideal_lag_behind_finalized_slot: u64,
+) -> Result<NonZero<u8>, SequencerNotReadyDetails> {
+    let mut delta = latest_finalized_slot_number.checked_sub(current_visible_slot_number.get());
 
     if leave_space_for_next_batch {
         delta = delta.and_then(|x| x.checked_sub(1));
     }
 
-    match delta.and_then(|delta| NonZero::new(delta.get().try_into().unwrap_or(u8::MAX))) {
+    // Suppose delta = 10 and ideal_lag_behind_finalized_slot = 10. Then
+    let delta_to_use = delta.map(|delta| {
+        if delta.get() <= ideal_lag_behind_finalized_slot {
+            delta.min(SlotNumber::ONE)
+        } else {
+            delta.saturating_sub(ideal_lag_behind_finalized_slot)
+        }
+    });
+
+    match delta_to_use.and_then(|delta| NonZero::new(delta.get().try_into().unwrap_or(u8::MAX))) {
         Some(delta) => {
             let max_slots_to_advance = config_value!("MAX_VISIBLE_HEIGHT_INCREASE_PER_SLOT");
             let min = std::cmp::min(
@@ -1528,8 +1574,8 @@ fn next_visible_slot_number_increase<S: Spec>(
             Ok(min)
         }
         _ => Err(SequencerNotReadyDetails::WaitingOnDa {
-            finalized_slot_number: info.latest_finalized_slot_number,
-            needed_finalized_slot_number: info.latest_finalized_slot_number.checked_add(1).expect(
+            finalized_slot_number: latest_finalized_slot_number,
+            needed_finalized_slot_number: latest_finalized_slot_number.checked_add(1).expect(
                 "Slot number overflow! This should be unreachable in the next few billion years",
             ),
         }),
@@ -1578,6 +1624,17 @@ async fn exit_rollup(shutdown_sender: &watch::Sender<()>) {
     std::process::exit(1);
 }
 
+/// An error that can occur when trying to create a new batch.
+#[derive(Debug, thiserror::Error)]
+pub enum BatchCreationError {
+    /// The blob sender is applying backpressure due to difficulty landing blob on DA
+    #[error("The blob sender is busy. Cannot create a new batch.")]
+    BlobSenderBusy,
+    /// An internal database error occurred.
+    #[error("Internal database error; batch could not be created. Error: {0}")]
+    DatabaseError(anyhow::Error),
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1599,5 +1656,152 @@ mod tests {
         assert_eq!(reader.len(), 2);
         assert_eq!(reader.get(&4), Some(&((), SlotNumber::new(4))));
         assert_eq!(reader.get(&5), Some(&((), SlotNumber::new(5))));
+    }
+
+    #[test]
+    fn test_next_visible_slot_number_increase() {
+        struct TestCase<'a> {
+            current_visible: u64,
+            latest_finalized: u64,
+            leave_space: bool,
+            ideal_lag: u64,
+            expected: Option<u8>,
+            description: &'a str,
+        }
+
+        fn run_test(case: &TestCase) {
+            let result = next_visible_slot_number_increase_inner(
+                VisibleSlotNumber::new_dangerous(case.current_visible),
+                SlotNumber::new(case.latest_finalized),
+                case.leave_space,
+                case.ideal_lag,
+            );
+
+            let expected_result = case.expected.map(|val| NonZero::new(val).unwrap());
+
+            assert_eq!(
+                result.ok(),
+                expected_result,
+                "Test failed: {}. Input: current_visible={}, latest_finalized={}, leave_space={}, ideal_lag={}",
+                case.description,
+                case.current_visible,
+                case.latest_finalized,
+                case.leave_space,
+                case.ideal_lag,
+            );
+        }
+
+        let max_slots_to_advance = config_value!("MAX_VISIBLE_HEIGHT_INCREASE_PER_SLOT");
+
+        let test_cases = &[
+            TestCase {
+                description: "Lag < ideal, not reserving extra space",
+                current_visible: 1,
+                latest_finalized: 10,
+                leave_space: false,
+                ideal_lag: 10,
+                expected: Some(1),
+            },
+            TestCase {
+                description: "Lag < ideal, reserving extra space",
+                current_visible: 1,
+                latest_finalized: 10,
+                leave_space: true,
+                ideal_lag: 10,
+                expected: Some(1),
+            },
+            TestCase {
+                description: "No lag, reserving extra space, should fail",
+                current_visible: 1,
+                latest_finalized: 1,
+                leave_space: true,
+                ideal_lag: 10,
+                expected: None,
+            },
+            TestCase {
+                description: "Lag of 1, reserving extra space, should fail",
+                current_visible: 1,
+                latest_finalized: 2,
+                leave_space: true,
+                ideal_lag: 10,
+                expected: None,
+            },
+            TestCase {
+                description: "Lag of 2, reserving extra space, should advance by 1",
+                current_visible: 1,
+                latest_finalized: 3,
+                leave_space: true,
+                ideal_lag: 10,
+                expected: Some(1),
+            },
+            TestCase {
+                description: "No lag, not reserving extra space, should fail",
+                current_visible: 1,
+                latest_finalized: 1,
+                leave_space: false,
+                ideal_lag: 10,
+                expected: None,
+            },
+            TestCase {
+                description: "Lag of 1, not reserving extra space, should advance by 1",
+                current_visible: 1,
+                latest_finalized: 2,
+                leave_space: false,
+                ideal_lag: 10,
+                expected: Some(1),
+            },
+            TestCase {
+                description: "Lag == ideal, reserving extra space, should advance by 1",
+                current_visible: 1,
+                latest_finalized: 13,
+                leave_space: true,
+                ideal_lag: 12,
+                expected: Some(1),
+            },
+            TestCase {
+                description: "Lag > ideal, not reserving extra space",
+                current_visible: 1,
+                latest_finalized: 13,
+                leave_space: false,
+                ideal_lag: 10,
+                expected: Some(2),
+            },
+            TestCase {
+                description: "Lag > ideal, reserving extra space",
+                current_visible: 1,
+                latest_finalized: 17,
+                leave_space: true,
+                ideal_lag: 10,
+                expected: Some(5),
+            },
+            TestCase {
+                description: "Lag > ideal, not reserving extra space",
+                current_visible: 1,
+                latest_finalized: 17,
+                leave_space: false,
+                ideal_lag: 10,
+                expected: Some(6),
+            },
+            TestCase {
+                description: "Large lag, reserving extra space, should be capped",
+                current_visible: 10,
+                latest_finalized: 1_000_000,
+                leave_space: true,
+                ideal_lag: 10,
+                expected: Some(max_slots_to_advance),
+            },
+            TestCase {
+                description: "Large lag, not reserving extra space, should be capped",
+                current_visible: 10,
+                latest_finalized: 1_000_000,
+                leave_space: false,
+                ideal_lag: 10,
+                expected: Some(max_slots_to_advance),
+            },
+        ];
+
+        for case in test_cases {
+            run_test(case);
+        }
     }
 }

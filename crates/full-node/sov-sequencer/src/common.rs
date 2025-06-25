@@ -86,6 +86,11 @@ pub trait Sequencer: Send + Sync + 'static {
 
     /// Can be used to query and update the status of transactions.
     fn tx_status_manager(&self) -> &TxStatusManager<<Self::Spec as Spec>::Da>;
+
+    /// Closes the current batch.
+    async fn force_close_current_batch(&self) -> anyhow::Result<()> {
+        anyhow::bail!("Not implemented")
+    }
 }
 
 /// A transaction that has been accepted by the batch builder.

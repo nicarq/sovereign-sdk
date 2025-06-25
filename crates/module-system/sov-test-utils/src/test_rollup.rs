@@ -68,6 +68,7 @@ pub enum GenesisSource<S: Spec, R: Runtime<S>> {
 #[derive(Clone)]
 pub struct RollupBuilderConfig<S: Spec, StoragePath = Arc<tempfile::TempDir>> {
     pub automatic_batch_production: bool,
+    pub max_allowed_node_distance_behind: u64,
     pub sequencer_config: SequencerKindConfig,
     pub prover_address: String,
     pub sequencer_address: String,
@@ -204,6 +205,7 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
             da_config,
             postgres_container_opt: None,
             config: RollupBuilderConfig {
+                max_allowed_node_distance_behind: 10,
                 max_batch_size_bytes: TEST_MAX_BATCH_SIZE,
                 max_concurrent_blobs: TEST_MAX_CONCURRENT_BLOBS,
                 max_channel_size: 60,
@@ -456,7 +458,7 @@ where
             },
             sequencer: SequencerConfig {
                 automatic_batch_production: self.config.automatic_batch_production,
-                max_allowed_node_distance_behind: 10,
+                max_allowed_node_distance_behind: self.config.max_allowed_node_distance_behind,
                 // Set ttl to zero to disable for testing. This prevents nondeterminism.
                 dropped_tx_ttl_secs: 0,
                 da_address: self.da_config.sender_address,
@@ -629,6 +631,14 @@ where
             handle.await.expect("Can't join other handles");
         }
 
+        Ok(())
+    }
+
+    /// Force closes the current batch.
+    pub async fn force_close_batch(&self) -> anyhow::Result<()> {
+        self.client
+            .http_post("/sequencer/test-utils/force-close-batch")
+            .await?;
         Ok(())
     }
 

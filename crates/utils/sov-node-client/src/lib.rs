@@ -302,6 +302,12 @@ impl NodeClient {
         Ok(self.http_client.get(url).send().await?.text().await?)
     }
 
+    /// HTTP POST to the given endpoint, returning plain text.
+    pub async fn http_post(&self, url: &str) -> anyhow::Result<String> {
+        let url = format!("{}{}", self.base_url, url);
+        Ok(self.http_client.post(url).send().await?.text().await?)
+    }
+
     /// Requests if given DA address is allowed sequencer.
     /// Returns balance as well.
     pub async fn sequencer_rollup_address<S: sov_modules_api::Spec, Da: DaSpec>(

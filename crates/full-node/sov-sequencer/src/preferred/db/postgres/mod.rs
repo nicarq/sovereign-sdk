@@ -124,24 +124,6 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         Ok(())
     }
 
-    async fn pop_tx(
-        &mut self,
-        sequence_number_of_in_progress_batch: SequenceNumber,
-        tx_idx_within_batch: u64,
-    ) -> anyhow::Result<()> {
-        let result = sqlx::query::<Postgres>(
-            "DELETE FROM txs WHERE sequence_number = $1 AND batch_index = $2",
-        )
-        .bind(i64::try_from(sequence_number_of_in_progress_batch)?)
-        .bind(i64::try_from(tx_idx_within_batch)?)
-        .execute(&self.pool)
-        .await?;
-
-        assert_eq!(result.rows_affected(), 1, "Sanity check failed. Popping tx but no rows were affected. This is a bug, please report it.");
-
-        Ok(())
-    }
-
     async fn end_rollup_block(
         &mut self,
         cached: &super::PreferredSequencerReadBatch,

@@ -1024,6 +1024,8 @@ impl<S: Spec> InjectedControlFlow<S> for SeqControlFlow {
         &self,
         provisional_outcome: ProvisionalSequencerOutcome<S>,
         dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S>>,
+        _slot_gas_meter_before_tx: &SlotGasMeter<S>,
+        _gas_used: &<S as Spec>::Gas,
     ) -> (StateCheckpoint<S>, TxControlFlow<TransactionReceipt<S>>) {
         let ProvisionalSequencerOutcome {
             execution_status, ..

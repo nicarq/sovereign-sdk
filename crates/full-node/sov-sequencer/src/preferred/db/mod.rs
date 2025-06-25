@@ -26,9 +26,11 @@ use sov_modules_api::{
     FullyBakedTx, KernelStateAccessor, Runtime, Spec, StateCheckpoint, StateUpdateInfo, TxHash,
     VisibleSlotNumber,
 };
+use tokio::sync::mpsc;
 use tracing::info;
+#[cfg(test)]
+mod tests;
 
-use super::get_next_sequence_number_according_to_node;
 use crate::common::WithCachedTxHashes;
 use crate::metrics::track_sequence_number;
 
@@ -51,12 +53,6 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         tx_idx_within_batch: u64,
         tx: FullyBakedTx,
         hash: TxHash,
-    ) -> anyhow::Result<()>;
-
-    async fn pop_tx(
-        &mut self,
-        sequence_number_of_in_progress_batch: SequenceNumber,
-        tx_idx_within_batch: u64,
     ) -> anyhow::Result<()>;
 
     async fn end_rollup_block(
@@ -129,6 +125,18 @@ impl PreferredSequencerReadBlob {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum DbEvent {
+    TxAccepted(FullyBakedTx, TxHash),
+    BatchStarted {
+        sequence_number: SequenceNumber,
+        visible_slot_number_after_increase: VisibleSlotNumber,
+        visible_slots_to_advance: NonZero<u8>,
+    },
+    BatchClosed(SequenceNumber),
+    ProofBlobAccepted(SequenceNumber),
+}
+
 pub struct PreferredSequencerDb<S, Rt>
 where
     S: Spec,
@@ -136,10 +144,11 @@ where
 {
     backend: Box<dyn PreferredSequencerDbBackend>,
     phantom: PhantomData<S>,
-    runtime: Rt,
     sequence_number_of_next_blob: SequenceNumber,
     completed_blobs: VecDeque<PreferredSequencerReadBlob>,
     in_progress_batch: Option<PreferredSequencerReadBatch>,
+    event_stream: Option<mpsc::Sender<DbEvent>>,
+    phantom_runtime: PhantomData<Rt>,
 }
 
 impl<S, Rt> PreferredSequencerDb<S, Rt>
@@ -163,10 +172,11 @@ where
         Ok(Self {
             backend,
             phantom: PhantomData,
-            runtime: Default::default(),
             sequence_number_of_next_blob,
             completed_blobs,
             in_progress_batch,
+            event_stream: None,
+            phantom_runtime: PhantomData,
         })
     }
 
@@ -208,31 +218,42 @@ where
             )
             .await?;
 
-        batch.txs.push(tx);
+        batch.txs.push(tx.clone());
         batch.tx_hashes.push(hash);
+
+        // If there are no receivers, we don't send the tx. This is as it should be.
+        self.send_event_if_necessary(DbEvent::TxAccepted(tx, hash))
+            .await;
 
         Ok(())
     }
 
-    pub async fn pop_tx_from_in_progress_batch(&mut self) -> anyhow::Result<()> {
-        let Some(batch) = self.in_progress_batch.as_mut() else {
-            panic!("No in-progress batch; this is a bug, please report it");
+    async fn send_event_if_necessary(&mut self, event: DbEvent) {
+        let Some(open_stream) = &self.event_stream else {
+            return;
         };
 
-        let tx_idx_within_batch = batch
-            .txs
-            .len()
-            .checked_sub(1)
-            .expect("Popping tx but list of txs is empty. This is a bug, please report it");
-
-        self.backend
-            .pop_tx(batch.sequence_number, tx_idx_within_batch as u64)
-            .await?;
-
-        batch.txs.pop().unwrap();
-        batch.tx_hashes.pop().unwrap();
-
-        Ok(())
+        match open_stream.try_send(event) {
+            Ok(()) => {}
+            Err(mpsc::error::TrySendError::Full(event)) => {
+                // If the operation would block, print a warning before blocking.
+                tracing::warn!("DbEvent stream is full, accepting txs is temporarily blocked; this means that `update_state` is taking too long to catch up causing the channel to become full. Consider bumping the db event channel size.");
+                let res = open_stream.send(event).await;
+                // If the receiver was dropped, we don't need to send events anymore.
+                tracing::info!(
+                    max_capacity = open_stream.max_capacity(),
+                    remaining_capacity = open_stream.capacity(),
+                    "The event stream is no longer full. accepting txs is unblocked"
+                );
+                if res.is_err() {
+                    self.event_stream = None;
+                }
+            }
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                // If the receiver was dropped, we don't need to send events anymore.
+                self.event_stream = None;
+            }
+        }
     }
 
     pub async fn start_batch(
@@ -280,53 +301,28 @@ where
         });
         self.increment_next_sequence_number();
 
+        self.send_event_if_necessary(DbEvent::BatchStarted {
+            sequence_number,
+            visible_slot_number_after_increase,
+            visible_slots_to_advance,
+        })
+        .await;
+
         Ok(sequence_number)
     }
 
-    /// Returns all known blobs that were not processed by the node yet.
-    pub async fn subsequent_completed_blobs(
-        &mut self,
-        latest_state_info: &StateUpdateInfo<S::Storage>,
-    ) -> anyhow::Result<Vec<PreferredSequencerReadBlob>> {
-        let next_sequence_number_according_to_node =
-            get_next_sequence_number_according_to_node(latest_state_info, &mut self.runtime);
-
-        sov_metrics::track_metrics(|tracker| {
-            tracker.submit_inline(
-                "sov_rollup_sequence_number_delta",
-                format!(
-                    "delta={}i",
-                    (self.sequence_number_of_next_blob as i64)
-                        - (next_sequence_number_according_to_node as i64)
-                ),
-            );
-        });
-
-        // Now is as good a time as any to prune old blobs that are no longer needed.
-        match latest_finalized_sequence_number(latest_state_info, &mut self.runtime) {
-            Some(num) => {
-                // TODO(@neysofu): somehow, if we prune too close to the latest
-                // finalized sequence number, we get panics due to missing blobs
-                // and inconsistent state. There is clearly something wrong with
-                // the pruning height calculation height.
-                if let Some(num) = num.checked_sub(100) {
-                    self.prune(num).await?;
-                }
-            }
-            None => {
-                // Nothing to prune because there's no sequence number history.
-            }
-        }
-
-        Ok(self
-            .completed_blobs
+    pub fn all_completed_blobs_greater_than_or_equal_to(
+        &self,
+        sequence_number: SequenceNumber,
+    ) -> Vec<PreferredSequencerReadBlob> {
+        self.completed_blobs
             .iter()
             .filter(|b| {
                 // Pruning invariants say it MAY remove older blobs, but we don't know for sure.
-                b.sequence_number() >= next_sequence_number_according_to_node
+                b.sequence_number() >= sequence_number
             })
             .cloned()
-            .collect())
+            .collect()
     }
 
     pub async fn insert_proof_blob(
@@ -347,6 +343,8 @@ where
                 data,
             });
         self.increment_next_sequence_number();
+        self.send_event_if_necessary(DbEvent::ProofBlobAccepted(sequence_number))
+            .await;
 
         Ok(sequence_number)
     }
@@ -362,17 +360,25 @@ where
             "Backend didn't remove in-progress batch from database when ending rollup block",
         )
         .await;
+        let sequence_number = in_progress_batch.sequence_number;
         let batch = self
             .in_progress_batch
             .take()
             .expect("No in-progress batch; this is a bug, please report it");
+
         self.completed_blobs
             .push_back(PreferredSequencerReadBlob::Batch(batch.clone()));
+
+        self.send_event_if_necessary(DbEvent::BatchClosed(sequence_number))
+            .await;
 
         Ok(batch)
     }
 
-    async fn prune(&mut self, prune_up_to_including: SequenceNumber) -> anyhow::Result<()> {
+    pub(super) async fn prune(
+        &mut self,
+        prune_up_to_including: SequenceNumber,
+    ) -> anyhow::Result<()> {
         self.backend.prune(prune_up_to_including).await?;
 
         // We could also do binary search, but this seems fast enough.
@@ -385,6 +391,17 @@ where
         }
 
         Ok(())
+    }
+
+    pub fn subscribe_to_events(&mut self, limit: usize) -> mpsc::Receiver<DbEvent> {
+        assert!(self.event_stream.is_none(), "Attempted to subscribe to sequencer events while a subscription is already open. This is a bug, please report it.");
+        let (tx, rx) = mpsc::channel(limit);
+        self.event_stream = Some(tx);
+        rx
+    }
+
+    pub fn unsubscribe_from_events(&mut self) {
+        self.event_stream = None;
     }
 
     async fn debug_assert_in_progress_batch(&self, msg: &str) {
@@ -412,7 +429,7 @@ pub enum StoredBlob {
     },
 }
 
-fn latest_finalized_sequence_number<S, Rt>(
+pub(crate) fn latest_finalized_sequence_number<S, Rt>(
     latest_state_info: &StateUpdateInfo<S::Storage>,
     runtime: &mut Rt,
 ) -> Option<SequenceNumber>

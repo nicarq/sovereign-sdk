@@ -1,8 +1,11 @@
+
 # 2025-06-25
 - #3095 SOAK: inject MessageValidity as an argument to `run_generator_task_for_xx`
+
 # 2025-06-24 
 - #3083 Changes celestia rollup configuration in /demo-rollup to Operator mode. 
 # 2025-06-19
+- #2999 Reworks the sequencer's logic for opening/closing batches. Now the sequencer attempts to keep a few finalized slots in reserve rather than making them visible as quickly as possible. The number of such slots is configured by `ideal_lag_behind_finalized_slot` in the preferred sequencer config.
 - #3070 This PR introduces breaking changes to the testing framework.
 Access to genesis fields now requires calling the appropriate accessor methods. For examle before:
  `genesis_config.additional_accounts[0].clone();` now:

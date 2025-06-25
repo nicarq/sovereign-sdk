@@ -311,6 +311,13 @@
         "recovery_strategy"
       ],
       "properties": {
+        "db_event_channel_size": {
+          "description": "The number of events that can be buffered in the database event channel while `update_state` is running. This value needs to be increased at higher TPS to avoid blocking the sequencer.",
+          "default": 10000,
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
         "disable_state_root_consistency_checks": {
           "description": "When enabled, the sequencer will skip some expensive consistency checks on the state root. This means that bugs in the implementation are less likely to be detected but may improve performance and allows the sequencer to continue operating in case of known bugs.",
           "default": false,
@@ -321,6 +328,13 @@
           "default": 10000,
           "type": "integer",
           "format": "uint",
+          "minimum": 0.0
+        },
+        "ideal_lag_behind_finalized_slot": {
+          "description": "The ideal lag behind the finalized slot number.",
+          "default": 10,
+          "type": "integer",
+          "format": "uint64",
           "minimum": 0.0
         },
         "minimum_profit_per_tx": {

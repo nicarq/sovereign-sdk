@@ -2,9 +2,10 @@ use std::sync::Arc;
 
 use sov_modules_api::state::TxScratchpad;
 use sov_modules_api::{
-    ChangeSet, Context, DispatchCall, FullyBakedTx, IncrementalBatch, InjectedControlFlow,
-    IterableBatchWithId, MaybeExecuted, NoOpControlFlow, ProvisionalSequencerOutcome, Runtime,
-    TransactionReceipt, TxChangeSet, TxControlFlow,
+    ChangeSet, Context, DispatchCall, FullyBakedTx, GasArray, IncrementalBatch,
+    InjectedControlFlow, IterableBatchWithId, MaybeExecuted, NoOpControlFlow,
+    ProvisionalSequencerOutcome, Runtime, SlotGasMeter, TransactionReceipt, TxChangeSet,
+    TxControlFlow,
 };
 use tokio::runtime::Handle;
 use tokio::sync::mpsc::error::TrySendError;
@@ -35,7 +36,7 @@ impl<S: Spec> MaybeAsyncBatch<S> {
     pub fn new_async(
         txs_receiver: Receiver<FullyBakedTx>,
         setup_sender: oneshot::Sender<ChangeSet>,
-        result_channel: Sender<Result<(TransactionReceipt<S>, TxChangeSet), RejectReason>>,
+        result_channel: Sender<Result<ExecutedTxResponse<S>, RejectReason>>,
         tx_profit_threshold: u128,
         sequencer_admins: Arc<Vec<S::Address>>,
         address: S::Address,
@@ -70,13 +71,22 @@ impl<S: Spec> InjectedControlFlow<S> for MaybeAsyncBatchControlFlow<S> {
         &self,
         provisional_outcome: ProvisionalSequencerOutcome<S>,
         dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S>>,
+        slot_gas_meter_before_tx: &SlotGasMeter<S>,
+        gas_used: &<S as Spec>::Gas,
     ) -> (StateCheckpoint<S>, TxControlFlow<TransactionReceipt<S>>) {
         match self {
-            Self::Async(responder) => responder.post_tx(provisional_outcome, dirty_scratchpad),
+            Self::Async(responder) => responder.post_tx(
+                provisional_outcome,
+                dirty_scratchpad,
+                slot_gas_meter_before_tx,
+                gas_used,
+            ),
             Self::Sync => <NoOpControlFlow as sov_modules_api::InjectedControlFlow<S>>::post_tx(
                 &NoOpControlFlow,
                 provisional_outcome,
                 dirty_scratchpad,
+                slot_gas_meter_before_tx,
+                gas_used,
             ),
         }
     }
@@ -99,18 +109,26 @@ impl<S: Spec> InjectedControlFlow<S> for MaybeAsyncBatchControlFlow<S> {
     }
 }
 
+/// The response from the sequencer to a submitted tx that was actually executed. Note that this
+/// transaction may not have been successful!
+pub(crate) struct ExecutedTxResponse<S: Spec> {
+    pub receipt: TransactionReceipt<S>,
+    pub tx_changes: TxChangeSet,
+    pub remaining_slot_gas: <S as Spec>::Gas,
+}
+
 /// The channel responsible for notifying an async tx submitter of the txs result
 #[derive(Debug, derivative::Derivative)]
 #[derivative(Clone)]
 pub struct AsyncBatchResponder<S: Spec> {
     #[derivative(Clone(bound = ""))]
-    result_channel: Sender<Result<(TransactionReceipt<S>, TxChangeSet), RejectReason>>,
+    result_channel: Sender<Result<ExecutedTxResponse<S>, RejectReason>>,
     admins: Arc<Vec<S::Address>>,
     tx_profit_threshold: u128,
 }
 
 impl<S: Spec> AsyncBatchResponder<S> {
-    fn send_item(&self, item: Result<(TransactionReceipt<S>, TxChangeSet), RejectReason>) {
+    fn send_item(&self, item: Result<ExecutedTxResponse<S>, RejectReason>) {
         // Try a simple non-blocking send first, then fall back to blocking the runtime if that fails
         if let Err(TrySendError::Full(item)) = self.result_channel.try_send(item) {
             let _ = Handle::current().block_on(async move { self.result_channel.send(item).await });
@@ -143,6 +161,8 @@ impl<S: Spec> AsyncBatchResponder<S> {
         &self,
         provisional_outcome: ProvisionalSequencerOutcome<S>,
         dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S>>,
+        slot_gas_meter_before_tx: &SlotGasMeter<S>,
+        gas_used: &<S as Spec>::Gas,
     ) -> (StateCheckpoint<S>, TxControlFlow<TransactionReceipt<S>>) {
         let ProvisionalSequencerOutcome {
             reward,
@@ -155,7 +175,15 @@ impl<S: Spec> AsyncBatchResponder<S> {
         };
 
         if !receipt.receipt.is_successful() {
-            self.send_item(Ok((receipt, dirty_scratchpad.tx_changes())));
+            let response = ExecutedTxResponse {
+                receipt: receipt.clone(),
+                tx_changes: dirty_scratchpad.tx_changes(),
+                remaining_slot_gas: slot_gas_meter_before_tx
+                    .remaining_preferred_slot_gas()
+                    .clone(), // Since we ignore this tx, the remaining gas limit is unchanged
+            };
+
+            self.send_item(Ok(response));
             return (dirty_scratchpad.revert(), TxControlFlow::IgnoreTx);
         }
 
@@ -167,7 +195,20 @@ impl<S: Spec> AsyncBatchResponder<S> {
             return (dirty_scratchpad.revert(), TxControlFlow::IgnoreTx);
         }
 
-        self.send_item(Ok((receipt.clone(), dirty_scratchpad.tx_changes())));
+        let remaining_slot_gas = slot_gas_meter_before_tx
+            .remaining_preferred_slot_gas()
+            .clone()
+            .checked_sub(gas_used)
+            // SAFETY: We always enforce that the gas used is less than the remaining slot gas limit
+            .expect("Impossible happened: SlotGasMeter underflow when charging gas.");
+
+        let response = ExecutedTxResponse {
+            receipt: receipt.clone(),
+            tx_changes: dirty_scratchpad.tx_changes(),
+            remaining_slot_gas,
+        };
+
+        self.send_item(Ok(response));
         (
             dirty_scratchpad.commit(),
             TxControlFlow::ContinueProcessing(receipt),

@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
 use crate::{
-    Amount, Context, DispatchCall, Gas, Runtime, Spec, StateCheckpoint, TransactionReceipt,
-    TxScratchpad,
+    Amount, Context, DispatchCall, Gas, Runtime, SlotGasMeter, Spec, StateCheckpoint,
+    TransactionReceipt, TxScratchpad,
 };
 
 /// `FullyBakedTx` represents a serialized signed rollup transaction that has been encoded with
@@ -252,23 +252,51 @@ pub struct ProvisionalSequencerOutcome<S: Spec> {
     pub execution_status: MaybeExecuted<S>,
 }
 
+/// The reason a transaction was rejected by the sequencer due to insufficient funds.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, thiserror::Error)]
+pub enum OutOfFundsReason<S: Spec> {
+    /// The gas calculation overflowed.
+    #[error("Overflow: Unable to calculate gas value for max_tx_check_costs")]
+    TxGasOverflow,
+    /// The sequencer doesn't have sufficient bond to cover the cost of checking the transaction - either because the gas price is very high
+    /// of the sequencer bond is too low.
+    #[error("The sequencer did not have sufficient funds to cover tx authentication checks, sequencer bond is {sequencer_bond}, but the cost of checking the transaction is {max_tx_check_value}")]
+    SequencerBondTooLow {
+        #[allow(missing_docs)]
+        sequencer_bond: Amount,
+        #[allow(missing_docs)]
+        max_tx_check_value: Amount,
+    },
+    /// The slot gas limit has been exhausted.
+    #[error("The slot gas limit has been exhausted, max_tx_check_gas is {max_tx_check_gas}, remaining_slot_gas is {remaining_slot_gas}")]
+    SlotGasLimitExhausted {
+        #[allow(missing_docs)]
+        max_tx_check_gas: <S as Spec>::Gas,
+        #[allow(missing_docs)]
+        remaining_slot_gas: <S as Spec>::Gas,
+    },
+    /// The sequencer ran out of gas.
+    #[error("The sequencer did not have sufficient funds to cover tx authentication: {0}")]
+    SequencerOutOfGasForAuthentication(String),
+}
+
 /// A transaction that may or may not have been executed
 pub enum MaybeExecuted<S: Spec> {
     /// The execution result from the tx
     Executed(TransactionReceipt<S>),
     /// The transactions wasn't executed because the sequencer ran out of funds
-    SequencerOutOfFunds,
+    SequencerOutOfFunds(OutOfFundsReason<S>),
 }
 
 impl<S: Spec> ProvisionalSequencerOutcome<S> {
     /// A convenient constructor for provisionally penalizing the sequencer and indicating
     /// that the sequencer has run out of funds.
     #[must_use]
-    pub fn out_of_funds(penalty: Amount) -> Self {
+    pub fn out_of_funds(penalty: Amount, reason: OutOfFundsReason<S>) -> Self {
         Self {
             reward: Amount::ZERO,
             penalty,
-            execution_status: MaybeExecuted::SequencerOutOfFunds,
+            execution_status: MaybeExecuted::SequencerOutOfFunds(reason),
         }
     }
 
@@ -307,6 +335,8 @@ pub trait InjectedControlFlow<S: Spec> {
         &self,
         provisional_outcome: ProvisionalSequencerOutcome<S>,
         dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S>>,
+        slot_gas_meter_before_tx: &SlotGasMeter<S>,
+        gas_used: &<S as Spec>::Gas,
     ) -> (StateCheckpoint<S>, TxControlFlow<TransactionReceipt<S>>);
 }
 
@@ -341,13 +371,15 @@ impl<S: Spec> InjectedControlFlow<S> for NoOpControlFlow {
         &self,
         provisional_outcome: ProvisionalSequencerOutcome<S>,
         dirty_scratchpad: TxScratchpad<S, StateCheckpoint<S>>,
+        _slot_gas_meter_before_tx: &SlotGasMeter<S>,
+        _gas_used: &<S as Spec>::Gas,
     ) -> (StateCheckpoint<S>, TxControlFlow<TransactionReceipt<S>>) {
         match provisional_outcome.execution_status {
             MaybeExecuted::Executed(receipt) => (
                 dirty_scratchpad.commit(),
                 TxControlFlow::ContinueProcessing(receipt),
             ),
-            MaybeExecuted::SequencerOutOfFunds => {
+            MaybeExecuted::SequencerOutOfFunds(_) => {
                 (dirty_scratchpad.commit(), TxControlFlow::IgnoreTx)
             }
         }

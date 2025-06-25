@@ -132,7 +132,6 @@ pub trait PerBlockCache {
     fn put_cached<T: 'static + Send + Sync + BorshSerializedSize>(&mut self, value: T);
     /// Deletes a value from the cache.
     fn delete_cached<T: 'static + Send + Sync>(&mut self);
-
     /// Adds all writes from another cache to this one.
     fn update_cache_with(&mut self, other: TempCache);
 }

@@ -12,7 +12,7 @@ use sov_modules_api::{
     call_message_repr, BlobDataWithId, ChangeSet, DaSpec, ExecutionContext, FullyBakedTx, Gas,
     GasSpec, HexString, KernelStateAccessor, NoOpControlFlow, RejectReason, Runtime,
     RuntimeEventProcessor, RuntimeEventResponse, SelectedBlob, Spec, StateCheckpoint,
-    StateUpdateInfo, TransactionReceipt, TxChangeSet, VersionReader, VisibleSlotNumber,
+    StateUpdateInfo, TransactionReceipt, TxHash, VersionReader, VisibleSlotNumber,
 };
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rest_utils::{json_obj, ErrorObject};
@@ -28,13 +28,14 @@ use uuid::Uuid;
 use super::state_root_compute::StateRootComputeRequest;
 use super::{PreferredBatchToReplay, PreferredSequencerConfig, VisibleSlotNumberIncrease};
 use crate::common::generic_accept_tx_error;
-use crate::preferred::async_batch::MaybeAsyncBatch;
+use crate::preferred::async_batch::{ExecutedTxResponse, MaybeAsyncBatch};
 use crate::preferred::exit_rollup;
 use crate::{SequencerConfig, SequencerEvent};
 
 type TxReceiptWithEvents<S, Rt> = (
     TransactionReceipt<S>,
     Vec<RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>,
+    <S as Spec>::Gas,
 );
 
 type BlockExecutionOutput<S> = (Vec<BatchReceipt<S>>, ChangeSet, StateAccesses);
@@ -190,9 +191,9 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         let slot_num = self.checkpoint.current_visible_slot_number();
 
         match result {
-            Ok(r) => {
-                let events = self.process_tx_receipt(&r, *slot_num).await;
-                Ok((r, events))
+            Ok((receipt, remaining_slot_gas)) => {
+                let events = self.process_tx_receipt(&receipt, *slot_num).await;
+                Ok((receipt, events, remaining_slot_gas))
             }
             Err(e) => Err(e),
         }
@@ -201,7 +202,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     async fn apply_tx_to_in_progress_batch_inner(
         &mut self,
         baked_tx: &FullyBakedTx,
-    ) -> Result<TransactionReceipt<S>, RollupBlockExecutorError<S>> {
+    ) -> Result<(TransactionReceipt<S>, <S as Spec>::Gas), RollupBlockExecutorError<S>> {
         let Some(task_state) = self.rollup_block_task_state.as_mut() else {
             panic!("Accepting a transaction, yet there's no in-progress batch. This is a bug in the sequencer, please report it.");
         };
@@ -219,19 +220,22 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             return Err(RollupBlockExecutorError::UnexpectedFailure);
         };
 
-        let (receipt, change_set) =
-            result.map_err(|reason| RollupBlockExecutorError::Rejected {
-                reason,
-                call: call_message_repr::<Rt>(&call),
-            })?;
+        let ExecutedTxResponse {
+            receipt,
+            tx_changes,
+            remaining_slot_gas,
+        } = result.map_err(|reason| RollupBlockExecutorError::Rejected {
+            reason,
+            call: call_message_repr::<Rt>(&call),
+        })?;
 
         if !receipt.receipt.is_successful() {
             return Err(RollupBlockExecutorError::UnsuccessfulTransaction { receipt });
         }
 
-        self.checkpoint.apply_changes(change_set.0);
+        self.checkpoint.apply_changes(tx_changes.0);
 
-        Ok(receipt)
+        Ok((receipt, remaining_slot_gas))
     }
 
     /// Returns true if [`super::db::PreferredSequencerDb::pop_tx`] ought to be called.
@@ -240,21 +244,63 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         &mut self,
         batch: &PreferredBatchToReplay,
         node_state_root: &<S::Storage as Storage>::Root,
-    ) -> anyhow::Result<bool> {
+    ) -> anyhow::Result<()> {
+        self.start_rollup_block_for_replay(
+            batch.visible_slot_number_after_increase,
+            batch.batch.inner.visible_slots_to_advance,
+            node_state_root,
+            batch.batch.inner.data.len(),
+        )
+        .await;
+
+        if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            tracing::info!("The sequencer is shutting down. Exiting replay_batch");
+            return Ok(());
+        }
+
+        for (tx, tx_hash) in batch
+            .batch
+            .inner
+            .data
+            .iter()
+            .zip(batch.batch.tx_hashes.iter())
+        {
+            self.replay_tx(*tx_hash, tx).await;
+        }
+
+        trace!("Done replaying txs");
+
+        if !batch.is_in_progress {
+            self.end_rollup_block().await;
+        } else {
+            trace!("The batch is still in progress; will keep the background task running");
+        }
+
+        Ok(())
+    }
+
+    /// A wrapper function for starting batches for replay which makes a few additional safety checks
+    /// and does some logging that wouldn't be carried out in the normal case.
+    pub(crate) async fn start_rollup_block_for_replay(
+        &mut self,
+        sanity_check_visible_slot_number_after_increase: VisibleSlotNumber,
+        visible_increase: VisibleSlotNumberIncrease,
+        // We pass the node state root explicitly because retrieving it is
+        // fallible, so it's convenient to front-load the error-checking.
+        node_state_root: &<S::Storage as Storage>::Root,
+        num_txs: usize,
+    ) {
         assert!(
             self.rollup_block_task_state.is_none(),
             "Replaying a preferred batch, but the state is invalid and doesn't allow it ({:?}). This is a bug, please report it.",
             self.rollup_block_task_state
         );
 
-        trace!(
-            num_txs = batch.batch.inner.data.len(),
-            "Re-applying batch state changes"
-        );
+        trace!(num_txs, visible_slot_number_after_increase = %sanity_check_visible_slot_number_after_increase, %node_state_root, "Re-applying batch state changes");
 
         self.start_rollup_block(
-            batch.visible_slot_number_after_increase,
-            batch.batch.inner.visible_slots_to_advance,
+            sanity_check_visible_slot_number_after_increase,
+            visible_increase,
             node_state_root,
             // When replaying batches, we wish to be deterministic and not
             // filter out previously-accepted transactions simply because
@@ -270,44 +316,27 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         )
         .await;
 
-        if self.shutdown_receiver.has_changed().unwrap_or(true) {
-            tracing::info!("The sequencer is shutting down. Exiting replay_batch");
-            return Ok(false);
-        }
         trace!("Replaying txs");
+    }
 
-        for (tx, tx_hash) in batch
-            .batch
-            .inner
-            .data
-            .iter()
-            .zip(batch.batch.tx_hashes.iter())
-        {
-            trace!(
+    /// A helper function for replaying a transaction that has already been soft-confirmed, logging any errors and exiting.
+    /// This differs from `apply_tx_to_in_progress_batch` in that it doesn't return a receipt and
+    /// shuts down the rollup on error.
+    pub(crate) async fn replay_tx(&mut self, tx_hash: TxHash, tx: &FullyBakedTx) {
+        trace!(
+            %tx_hash,
+            "Re-applying state changes for the soft-confirmed transaction"
+        );
+
+        if let Err(err) = self.apply_tx_to_in_progress_batch(tx).await {
+            tracing::error!(
+                error = %err,
                 %tx_hash,
-                "Re-applying state changes for the soft-confirmed transaction"
+                "Transaction was soft-confirmed but failed to be re-applied; this is a bug, please report it",
             );
 
-            if let Err(err) = self.apply_tx_to_in_progress_batch(tx).await {
-                tracing::error!(
-                    error = %err,
-                    %tx_hash,
-                    "Transaction was soft-confirmed but failed to be re-applied; this is a bug, please report it",
-                );
-
-                exit_rollup(&self.shutdown_sender).await;
-            }
+            exit_rollup(&self.shutdown_sender).await;
         }
-
-        trace!("Done replaying txs");
-
-        if !batch.is_in_progress {
-            self.end_rollup_block().await;
-        } else {
-            trace!("The batch is still in progress; will keep the background task running");
-        }
-
-        Ok(false)
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
@@ -589,7 +618,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 struct BackgroundTaskState<S: Spec> {
     handle: JoinHandle<BlockExecutionOutput<S>>,
     tx_sender: mpsc::Sender<FullyBakedTx>,
-    result_receiver: mpsc::Receiver<Result<(TransactionReceipt<S>, TxChangeSet), RejectReason>>,
+    result_receiver: mpsc::Receiver<Result<ExecutedTxResponse<S>, RejectReason>>,
 }
 
 impl<S: Spec> BackgroundTaskState<S> {
@@ -610,7 +639,7 @@ struct RollupBlockTaskContext<S: Spec> {
     // --------
     tx_receiver: mpsc::Receiver<FullyBakedTx>,
     setup_sender: oneshot::Sender<ChangeSet>,
-    result_sender: mpsc::Sender<Result<(TransactionReceipt<S>, TxChangeSet), RejectReason>>,
+    result_sender: mpsc::Sender<Result<ExecutedTxResponse<S>, RejectReason>>,
     shutdown_notifier: mpsc::Sender<()>,
     // Config values
     // --------

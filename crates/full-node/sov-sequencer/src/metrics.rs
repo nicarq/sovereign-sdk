@@ -47,3 +47,25 @@ impl Metric for PreferredSequencerUpdateStateMetrics {
         )
     }
 }
+
+#[derive(Debug)]
+pub struct PreferredSequencerPruneMetrics {
+    pub duration_ms: u64,
+    pub lock_duration_ms: u64,
+}
+
+impl Metric for PreferredSequencerPruneMetrics {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_preferred_sequencer_prune"
+    }
+
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(
+            buffer,
+            "{} duration_ms={},lock_duration_ms={}",
+            self.measurement_name(),
+            self.duration_ms,
+            self.lock_duration_ms
+        )
+    }
+}

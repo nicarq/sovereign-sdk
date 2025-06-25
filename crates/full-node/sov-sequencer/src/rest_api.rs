@@ -62,10 +62,15 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
             .route(
                 "/sequencer/unstable/events",
                 axum::routing::get(Self::axum_list_events),
-            )
-            .with_state(state);
+            );
 
-        preconfigured_router_layers(router)
+        #[cfg(feature = "test-utils")]
+        let router = router.route(
+            "/sequencer/test-utils/force-close-batch",
+            axum::routing::post(Self::axum_force_close_batch),
+        );
+
+        preconfigured_router_layers(router).with_state(state)
     }
 
     async fn send_initial_status_to_ws(
@@ -224,6 +229,16 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
         } else {
             Err(errors::not_found_404("Event", event_number))
         }
+    }
+
+    #[cfg(feature = "test-utils")]
+    async fn axum_force_close_batch(state: State<Self>) -> ApiResult<()> {
+        state
+            .sequencer
+            .force_close_current_batch()
+            .await
+            .map_err(|e| errors::bad_request_400("Could not force close batch", e))?;
+        Ok(().into())
     }
 
     async fn axum_list_events(
