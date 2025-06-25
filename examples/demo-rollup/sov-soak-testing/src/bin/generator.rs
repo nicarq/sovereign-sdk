@@ -7,6 +7,7 @@ use sov_soak_testing::{
     MockDemoRollupSpec, TestRT,
 };
 use sov_test_utils::TestSpec;
+use sov_transaction_generator::{Distribution, MessageValidity};
 use tokio::signal::unix::SignalKind;
 use tokio::sync::watch::Receiver;
 use tokio::task::JoinSet;
@@ -47,6 +48,11 @@ async fn worker_task(
     num_workers: u32,
     runtime: SelectedRuntime,
 ) -> anyhow::Result<()> {
+    let validity = Distribution::with_values(vec![
+        (20, MessageValidity::Valid),
+        (1, MessageValidity::Invalid),
+    ]);
+
     let result = match runtime {
         SelectedRuntime::Test => {
             run_generator_task_for_bank_and_value_setter::<TestRT, TestSpec>(
@@ -54,6 +60,7 @@ async fn worker_task(
                 rx,
                 worker_id,
                 num_workers,
+                validity,
             )
             .await
         }
@@ -63,6 +70,7 @@ async fn worker_task(
                 rx,
                 worker_id,
                 num_workers,
+                validity,
             )
             .await
         }
@@ -72,6 +80,7 @@ async fn worker_task(
                 rx,
                 worker_id,
                 num_workers,
+                validity,
             )
             .await
         }

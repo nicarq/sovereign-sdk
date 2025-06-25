@@ -1,3 +1,5 @@
+# 2025-06-25
+- #3095 SOAK: inject MessageValidity as an argument to `run_generator_task_for_xx`
 # 2025-06-24 
 - #3083 Changes celestia rollup configuration in /demo-rollup to Operator mode. 
 # 2025-06-19

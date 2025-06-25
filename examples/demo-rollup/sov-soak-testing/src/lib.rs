@@ -281,6 +281,7 @@ pub async fn run_generator_task_for_bank_and_value_setter<
     rx: Receiver<bool>,
     worker_id: u128,
     num_workers: u32,
+    validity: Distribution<MessageValidity>,
 ) -> anyhow::Result<()> {
     let bank_harness = BankHarness::new(BankMessageGenerator::<S>::new(
         Distribution::with_equiprobable_values(vec![Transfer]),
@@ -308,7 +309,7 @@ pub async fn run_generator_task_for_bank_and_value_setter<
         Arc::new(value_setter_harness.clone()),
     ];
 
-    prepare_and_send_txs(modules, client, rx, worker_id, num_workers).await
+    prepare_and_send_txs(modules, client, rx, worker_id, num_workers, validity).await
 }
 
 /// The passed client is responsible for handling timeouts (otherwise calls can block).
@@ -317,6 +318,7 @@ pub async fn run_generator_task_for_bank<R: Runtime<S> + EncodeCall<Bank<S>> + C
     rx: Receiver<bool>,
     worker_id: u128,
     num_workers: u32,
+    validity: Distribution<MessageValidity>,
 ) -> anyhow::Result<()> {
     let bank_harness = BankHarness::new(BankMessageGenerator::<S>::new(
         Distribution::with_equiprobable_values(vec![Transfer]),
@@ -324,7 +326,7 @@ pub async fn run_generator_task_for_bank<R: Runtime<S> + EncodeCall<Bank<S>> + C
     ));
 
     let modules: Vec<BasicModuleRef<S, R>> = vec![Arc::new(bank_harness.clone())];
-    prepare_and_send_txs(modules, client, rx, worker_id, num_workers).await
+    prepare_and_send_txs(modules, client, rx, worker_id, num_workers, validity).await
 }
 
 async fn prepare_and_send_txs<R: Runtime<S> + Clone, S: Spec>(
@@ -333,6 +335,7 @@ async fn prepare_and_send_txs<R: Runtime<S> + Clone, S: Spec>(
     rx: Receiver<bool>,
     worker_id: u128,
     num_workers: u32,
+    validity: Distribution<MessageValidity>,
 ) -> anyhow::Result<()> {
     let mut nonces: HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64> =
         Default::default();
@@ -345,6 +348,7 @@ async fn prepare_and_send_txs<R: Runtime<S> + Clone, S: Spec>(
     let past_transaction_generations = config_value!("PAST_TRANSACTION_GENERATIONS") + 1;
     let worker_start = std::time::Instant::now();
     let mut total_txns = 0;
+
     while !*rx.borrow() {
         let txn_count = {
             // rng must fall out of scope before awaiting anything so this fn is Send
@@ -359,10 +363,6 @@ async fn prepare_and_send_txs<R: Runtime<S> + Clone, S: Spec>(
 
         let mut txns = vec![];
         for _ in 0..txn_count {
-            let validity = Distribution::with_values(vec![
-                (20, MessageValidity::Valid),
-                (1, MessageValidity::Invalid),
-            ]);
             let validity = validity.select_value(u)?;
             let msg = generator.generate(&modules, *validity);
             let tx = plain_tx_with_default_details::<R, S>(&msg);
