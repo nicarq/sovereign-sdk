@@ -417,7 +417,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             trace!("Applying setup changes...");
             let setup_changes = setup_receiver
                 .await
-                .with_context(|| "Setup must finish successfully")
+                .context("Setup must finish successfully")
                 .expect(
                     "The sequencer can't recover from this error; this is a bug, please report it",
                 );
@@ -517,7 +517,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                 "Fetching state root for height",
             );
             let (received_height, next_visible_root) = match self.state_root_responses.pop_front().unwrap_or_else(||
-                    panic!("Executor {} Needed response for state root for height {} before sending request. This is a bug in the `RollupBlockExecutor`, please report it.", self.id, next_visible_rollup_height))
+                    panic!("Executor {} needed response for state root for height {} before sending request. This is a bug in the `RollupBlockExecutor`, please report it.", self.id, next_visible_rollup_height))
             .await {
                 Ok((received_height, next_visible_root)) => {
                    (received_height, next_visible_root)
@@ -532,7 +532,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                 tracing::error!(
                     received_height = %received_height,
                     next_visible_root_height = %next_visible_rollup_height,
-                    "Received height did not equal expected height for assertion . This is a bug in the RollupBlockExecutor, please report it.");
+                    "Received height did not equal expected height for assertion. This is a bug in the RollupBlockExecutor, please report it.");
                 panic!("Received height ({}) did not equal expected height for assertion {}. This is a bug in the RollupBlockExecutor, please report it.", received_height, next_visible_rollup_height);
             }
             tracing::trace!(

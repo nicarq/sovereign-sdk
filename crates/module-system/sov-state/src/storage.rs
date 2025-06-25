@@ -44,6 +44,25 @@ pub struct SlotKey {
     display_fn: Option<ArcFormatFn>,
 }
 
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for SlotKey {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        const MIN_LEN: usize = 10;
+        const MAX_LEN: usize = 512;
+        // Will include some non alhpanumeric characters, but that's fine.
+        const ASCII_SELECTED: std::ops::RangeInclusive<u8> = b'0'..=b'z';
+
+        let len = u.int_in_range(MIN_LEN..=MAX_LEN)?;
+
+        let key: arbitrary::Result<Vec<u8>> =
+            std::iter::repeat_with(|| u.int_in_range(ASCII_SELECTED.clone()))
+                .take(len)
+                .collect();
+
+        Ok(SlotKey::from(key?))
+    }
+}
+
 // Manually implement PartialOrd to satisfy clippy
 impl PartialOrd for SlotKey {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -183,6 +202,17 @@ impl From<Vec<u8>> for SlotValue {
         Self {
             value: Arc::new(value),
         }
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a> arbitrary::Arbitrary<'a> for SlotValue {
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        const MIN_LEN: usize = 32;
+        const MAX_LEN: usize = 1024;
+        let len = u.int_in_range(MIN_LEN..=MAX_LEN)?;
+        let value = u.bytes(len)?.to_vec();
+        Ok(SlotValue::from(value))
     }
 }
 

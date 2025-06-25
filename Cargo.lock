@@ -10968,6 +10968,7 @@ name = "sov-sequencer"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "arbitrary",
  "async-trait",
  "axum",
  "base64 0.22.1",

@@ -134,6 +134,11 @@ impl HistoricalStateReader {
             );
         }
 
+        tracing::trace!(
+            %version,
+            root_hash = %hex::encode(&root_hash),
+            "Materialized root hash"
+        );
         batch.put::<StateRootHashes>(&(version, STATE_ROOT_HASH_SINGLETON), &root_hash)?;
 
         sov_metrics::track_metrics(|tracker| {

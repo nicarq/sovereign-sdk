@@ -6,7 +6,7 @@ use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::{Spec, Storage};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
-use sov_state::{NativeStorage, SlotValue, StateAccesses, StateRoot};
+use sov_state::{NativeStorage, SlotKey, SlotValue, StateAccesses, StateRoot};
 use tokio::sync::{mpsc, oneshot, watch};
 
 /// The memory limit for old write sets that we keep around. These old sets are useful because they tell us what keys have been changed.
@@ -56,47 +56,36 @@ impl<S: Spec> StateRootCacheEntry<S> {
             %slot_number,
             initial_root = %self.root,
             new_root = %new_root,
-            description = %Self::describe_mismatch(&new_writes, &self.writes),
-            "User state root has changed. This is a bug.");
+            "User state root has changed. This is a bug. Write mismatch fill follow");
+        Self::describe_mismatch(&new_writes, &self.writes);
 
         panic!("User state root has changed at rollup_height={rollup_height} and slot_number={slot_number}. This is a bug.");
     }
 
     fn describe_mismatch(
-        new_write_set: &Vec<(sov_state::SlotKey, Option<SlotValue>)>,
-        old_write_set: &Option<Vec<(sov_state::SlotKey, Option<SlotValue>)>>,
-    ) -> String {
-        use std::fmt::Write;
+        new_write_set: &Vec<(SlotKey, Option<SlotValue>)>,
+        old_write_set: &Option<Vec<(SlotKey, Option<SlotValue>)>>,
+    ) {
         let Some(old_write_set) = old_write_set else {
-            return String::new();
+            tracing::error!("No old write set to describe mismatch against. This is a bug.");
+            return;
         };
-        let mut description = String::new();
-        description.push_str("New writes:\n");
-        for (key, value) in new_write_set {
-            if description.len() > 100_000 {
-                description.push_str("...\n");
-                break;
-            }
-            let _ = description.write_fmt(format_args!(
-                "{} => {}\n",
-                key,
-                SlotValue::debug_show(value.as_ref())
-            ));
-        }
-        description.push_str("Old writes:\n");
-        for (key, value) in old_write_set {
-            if description.len() > 200_000 {
-                description.push_str("...\n");
-                break;
-            }
-            let _ = description.write_fmt(format_args!(
-                "{} => {}\n",
-                key,
-                SlotValue::debug_show(value.as_ref())
-            ));
-        }
+        let old_write_set: std::collections::HashMap<SlotKey, Option<SlotValue>> =
+            old_write_set.iter().cloned().collect();
 
-        description
+        for (new_key, new_value) in new_write_set {
+            if let Some(old_value) = old_write_set.get(new_key) {
+                if old_value != new_value {
+                    tracing::error!(
+                        slot_key = %new_key,
+                        new_value = %SlotValue::debug_show(new_value.as_ref()),
+                        old_value = %SlotValue::debug_show(old_value.as_ref()),
+                        "Mismatch between old and new write");
+                }
+            } else {
+                tracing::error!(slot_key = %new_key, "New key not found in old write set");
+            }
+        }
     }
 }
 
@@ -209,7 +198,7 @@ impl<S: Spec> StateRootBackgroundTaskState<S> {
 
                 // If the entry wasn't in the cache, we'll need to add it. Check if we should save the write set.
                 let writes = &state_accesses.user.ordered_writes;
-                tracing::trace!(%rollup_height, user_space_writes = writes.len(), "New state root");
+                tracing::trace!(%rollup_height, user_space_writes = writes.len(), "going to compute state root for the new cache entry");
                 let (writes_to_save, size) = if check_state_roots {
                     let mut size = 0;
                     for (key, value) in writes {
@@ -245,7 +234,7 @@ impl<S: Spec> StateRootBackgroundTaskState<S> {
                         size,
                     },
                 );
-                tracing::trace!(%rollup_height, %root, %size, "Added new state root to cache");
+                tracing::trace!(%rollup_height, %root, %size, slot_number = %max_slot_number, "Added new state root to cache");
                 cached_results_size += size;
 
                 // Prune the cache if necessary
@@ -280,11 +269,18 @@ impl<S: Spec> StateRootBackgroundTaskState<S> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use arbitrary::{Arbitrary, Unstructured};
+    use rand::rngs::StdRng;
+    use rand::{RngCore, SeedableRng};
+    use sov_db::storage_manager::NomtStorageManager;
     use sov_state::{OrderedReadsAndWrites, SlotKey};
     use sov_test_utils::storage::{
-        ForklessStorageManager, SimpleNomtStorageManager, SimpleStorageManager,
+        CommitingStorageManager, ForklessStorageManager, SimpleNomtStorageManager,
+        SimpleStorageManager,
     };
-    use sov_test_utils::{TestNomtSpec, TestSpec, TestStorageSpec};
+    use sov_test_utils::{MockDaSpec, TestHasher, TestNomtSpec, TestSpec, TestStorageSpec};
     use tokio::task::JoinHandle;
 
     use super::*;
@@ -351,7 +347,7 @@ mod tests {
         JoinHandle<()>,
         watch::Sender<()>,
     ) {
-        let (shutdown_notifier, _shutdown_rx) = mpsc::channel(1);
+        let (shutdown_notifier, _shutdown_rx) = mpsc::channel(10);
         let (shutdown_sender, mut shutdown_receiver) = watch::channel(());
         shutdown_receiver.mark_unchanged();
 
@@ -518,5 +514,200 @@ mod tests {
 
         shutdown_sender.send(()).unwrap();
         handle.await.unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_jmt_state_compute_competing_storages_repro() {
+        let storage_manager = SimpleStorageManager::<TestStorageSpec>::new();
+        test_compute_competing_storages::<TestSpec, _>(storage_manager).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "known bug"]
+    async fn test_nomt_state_compute_competing_storages_repro() {
+        let storage_manager = SimpleNomtStorageManager::<TestStorageSpec>::new();
+        test_compute_competing_storages::<TestNomtSpec, _>(storage_manager).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "known bug"]
+    async fn test_nomt_state_compute_competing_storages_repro_vw() {
+        let storage_manager = SimpleNomtStorageManager::<TestStorageSpec>::new();
+        test_compute_competing_storages::<TestNomtSpec, _>(storage_manager).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "known bug"]
+    async fn test_nomt_state_compute_competing_storages_repro_with_real_storage_manager() {
+        let storage_manager =
+            CommitingStorageManager::<NomtStorageManager<MockDaSpec, TestHasher, _>, _>::new();
+        test_compute_competing_storages::<TestNomtSpec, _>(storage_manager).await;
+    }
+
+    /// Test is an isolated scenario of sequencer and node interaction, where only 2 pieces are real:
+    /// 1. Storage.
+    /// 2. Background task for computing state update
+    ///
+    /// Scenario:
+    ///    The test generates a number of batches, where each batch contains state writes in both namespaces.
+    ///    The background task then re-executes each batch multiple times:
+    ///    first individually, and then as part of larger batches where writes from consecutive batches are merged together.
+    ///
+    /// This tests the consistency of state root computation when the same logical state changes
+    /// are applied in different batch configurations, which can happen when a sequencer runs ahead
+    /// of the node's committed state or the node runs ahead.
+    async fn test_compute_competing_storages<S, Sm>(mut storage_manager: Sm)
+    where
+        S: Spec,
+        Sm: ForklessStorageManager<Storage = S::Storage>,
+        S::Storage: NativeStorage,
+        <S::Storage as Storage>::Root: Copy,
+    {
+        genesis::<S, Sm>(&mut storage_manager);
+        let (task, handle, shutdown_sender) = start_background_task::<S>();
+        const BLOCKS: usize = 100;
+        const SEQ_AHEAD_BY: usize = 3;
+
+        let mut receivers = Vec::new();
+
+        // First, build some "batches", which just writes only StateAccesses.
+        let batches = generate_test_batches(BLOCKS);
+
+        // Then emulate sequencer and node, where the sequencer constantly running forward for several batches
+        for seq_idx in 0..BLOCKS {
+            let start = seq_idx.saturating_sub(SEQ_AHEAD_BY);
+            let end = seq_idx;
+
+            let mut cumulative_user_writes: HashMap<SlotKey, Option<SlotValue>> = HashMap::new();
+            let mut cumulative_kernel_writes: HashMap<SlotKey, Option<SlotValue>> = HashMap::new();
+            tracing::info!("-------");
+            for idx in start..=end {
+                let StateAccesses { user, kernel } = batches.get(idx).unwrap().clone();
+                tracing::info!("idx: {}", idx);
+
+                for (user_key, user_value) in user.ordered_writes {
+                    cumulative_user_writes.insert(user_key, user_value);
+                }
+                for (kernel_key, kernel_value) in kernel.ordered_writes {
+                    cumulative_kernel_writes.insert(kernel_key, kernel_value);
+                }
+
+                let sequencer_storage = storage_manager.create_prover_storage();
+                let rollup_height = RollupHeight::new(idx as u64 + 1);
+                let slot_number = SlotNumber::new(idx as u64 + 1);
+
+                let cumulative_accesses = state_accesses_from_cumulative_writes(
+                    &cumulative_user_writes,
+                    &cumulative_kernel_writes,
+                );
+
+                let (response_channel, response_receiver) = oneshot::channel();
+                task.request_sender
+                    .send(StateRootComputeRequest {
+                        state_accesses: cumulative_accesses,
+                        storage: sequencer_storage.clone(),
+                        rollup_height,
+                        max_slot_number: slot_number,
+                        response_channel,
+                    })
+                    .await
+                    .unwrap();
+
+                receivers.push(response_receiver);
+            }
+
+            if let Some(idx_for_node) = seq_idx.checked_sub(SEQ_AHEAD_BY) {
+                let _span = tracing::debug_span!(
+                    "compute_state_update",
+                    scope = "node-like",
+                    rollup_height = idx_for_node + 1,
+                    slot_number = idx_for_node + 1
+                )
+                .entered();
+                let node_storage = storage_manager.create_prover_storage();
+                let prev_root = node_storage
+                    .get_root_hash(node_storage.latest_version())
+                    .unwrap();
+                let node_batch = batches.get(idx_for_node).unwrap().clone();
+                let (node_new_root, changes) = node_storage
+                    .compute_state_update(node_batch, &Default::default(), prev_root)
+                    .unwrap();
+                tracing::info!(
+                    root_hash = %node_new_root,
+                    rollup_height= idx_for_node + 1,
+                    "commiting state update"
+                );
+                storage_manager.commit_state_update(node_storage, changes, node_new_root);
+            }
+        }
+
+        let mut results = BTreeMap::<RollupHeight, <S::Storage as Storage>::Root>::new();
+        for receiver in receivers {
+            let (height, root_hash) = receiver.await.unwrap();
+            if let Some(previous) = results.insert(height, root_hash) {
+                assert_eq!(previous, root_hash);
+            };
+        }
+
+        let received_keys = results.keys().cloned().collect::<Vec<_>>();
+        let expected_keys = (0..BLOCKS)
+            .map(|i| RollupHeight::new(i as u64 + 1))
+            .collect::<Vec<_>>();
+        assert_eq!(received_keys, expected_keys);
+
+        shutdown_sender.send(()).unwrap();
+        handle.await.unwrap();
+    }
+
+    fn generate_test_batches(number: usize) -> Vec<StateAccesses> {
+        let mut batches = Vec::with_capacity(number);
+        let mut rng_seed = [11u8; 32];
+        for _ in 0..number {
+            let rng = &mut StdRng::from_seed(rng_seed);
+            let mut unstructured_seed = [0u8; 500_000];
+            rng.fill_bytes(&mut unstructured_seed);
+            let mut u = Unstructured::new(&unstructured_seed);
+
+            let batch = StateAccesses::arbitrary(&mut u).unwrap();
+            batches.push(batch);
+
+            rng_seed = unstructured_seed[0..32].try_into().unwrap();
+        }
+
+        batches
+    }
+
+    fn state_accesses_from_cumulative_writes(
+        cumulative_user_writes: &HashMap<SlotKey, Option<SlotValue>>,
+        cumulative_kernel_writes: &HashMap<SlotKey, Option<SlotValue>>,
+    ) -> StateAccesses {
+        let mut cumulative_accesses = StateAccesses {
+            user: OrderedReadsAndWrites {
+                ordered_reads: Vec::new(),
+                ordered_writes: cumulative_user_writes
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect(),
+            },
+            kernel: OrderedReadsAndWrites {
+                ordered_reads: Vec::new(),
+                ordered_writes: cumulative_kernel_writes
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect(),
+            },
+        };
+
+        // Sort them for better readability.
+        cumulative_accesses
+            .user
+            .ordered_writes
+            .sort_by_key(|(k, _v)| k.clone());
+        cumulative_accesses
+            .kernel
+            .ordered_writes
+            .sort_by_key(|(k, _v)| k.clone());
+
+        cumulative_accesses
     }
 }
