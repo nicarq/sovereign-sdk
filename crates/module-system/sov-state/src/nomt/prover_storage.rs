@@ -398,58 +398,72 @@ where
         witness: &Self::Witness,
         prev_state_root: Self::Root,
     ) -> anyhow::Result<(Self::Root, Self::StateUpdate)> {
-        tracing::trace!(%prev_state_root, "NomtProverStorage, computing state update");
-
-        // User
+        let next_version = self.historical_state.get_next_version();
+        tracing::trace!(%prev_state_root, %next_version, "NomtProverStorage, computing state update");
+        // Open 2 sessions close to each other
         let user_session = self.state_session_builder.begin_user_session()?;
-        let current_prev_user_root = user_session.prev_root().into_inner();
+        let kernel_session = self.state_session_builder.begin_kernel_session()?;
+
         let passed_prev_user_root = prev_state_root.namespace_root(ProvableNamespace::User);
-        if current_prev_user_root != passed_prev_user_root {
-            anyhow::bail!("stale storage, passed prev_state_root for user namespace {} does not match the current prev_state_root {}",
-                HexHash::new(passed_prev_user_root),
-                HexHash::new(current_prev_user_root)
-            );
+        let passed_prev_kernel_root = prev_state_root.namespace_root(ProvableNamespace::Kernel);
+
+        let current_prev_user_root = user_session.prev_root().into_inner();
+        let current_prev_kernel_root = kernel_session.prev_root().into_inner();
+
+        // Check staleness, pre-computation:
+        {
+            if current_prev_user_root != passed_prev_user_root {
+                anyhow::bail!("stale storage on next_version={}, passed prev_state_root for user namespace {} does not match the current prev_state_root {}",
+                    next_version,
+                    HexHash::new(passed_prev_user_root),
+                    HexHash::new(current_prev_user_root)
+                );
+            }
+
+            // Kernel namespace is more likely to be stale, but won't affect user-space and background check.
+            if current_prev_kernel_root != passed_prev_kernel_root {
+                tracing::debug!("stale kernel namespace in pre-check detected, this is expected");
+            }
         }
+
         let user_finished_session = {
             let _span = tracing::debug_span!("compute_state_update", namespace = "user").entered();
             compute_state_update_namespace::<S>(user_session, &state_accesses.user, witness)
                 .context("user state")?
         };
-        // Extra self-check, that finished session has the same previous root hash as passed prev_state_root
-        assert_eq!(
-            user_finished_session.prev_root().as_ref(),
-            &current_prev_user_root,
-            "User state root is not equal to the previous state root"
-        );
-
-        // Kernel
-        let kernel_session = self.state_session_builder.begin_kernel_session()?;
-        let current_prev_kernel_root = kernel_session.prev_root().into_inner();
-        let passed_prev_kernel_root = prev_state_root.namespace_root(ProvableNamespace::Kernel);
-        if self.is_strict_mode {
-            assert_eq!(
-                current_prev_kernel_root, passed_prev_kernel_root,
-                "Passed kernel state root is not equal to the previous state root"
-            );
-        }
         let kernel_finished_session = {
             let _span =
                 tracing::debug_span!("compute_state_update", namespace = "kernel").entered();
             compute_state_update_namespace::<S>(kernel_session, &state_accesses.kernel, witness)
                 .context("kernel state")?
         };
-        // Additional self-check that finished session has the same previous root hash as passed prev_state_root.
-        if self.is_strict_mode {
-            assert_eq!(
-                kernel_finished_session.prev_root().as_ref(),
-                &passed_prev_kernel_root,
-                "Kernel state root is not equal to the previous state root"
-            );
+
+        // Additional self-check that the finished session has the same previous root hash as passed prev_state_root.
+        let kernel_finished_session_prev_root = kernel_finished_session.prev_root().into_inner();
+        let user_finished_session_prev_root = user_finished_session.prev_root().into_inner();
+
+        // Check staleness, post-computation. This should check if storage became stale during the computation.
+        {
+            if passed_prev_user_root != user_finished_session_prev_root {
+                let next_version = self.historical_state.get_next_version();
+                anyhow::bail!("stale storage on next_version={}, passed prev_state_root for user namespace {} does not match the current prev_state_root {}",
+                    next_version,
+                    HexHash::new(passed_prev_user_root),
+                    HexHash::new(current_prev_user_root)
+                );
+            }
+
+            // Kernel namespace is more likely to be stale, but won't affect user-space and background check.
+            if kernel_finished_session_prev_root != passed_prev_kernel_root {
+                tracing::debug!("stale kernel namespace in post-check detected, this is expected");
+            }
         }
 
         let user_root = user_finished_session.root();
         let kernel_root = kernel_finished_session.root();
         let root = StorageRoot::new(user_root.into_inner(), kernel_root.into_inner());
+
+        tracing::debug!(state_root = %root, %next_version, "computed next state root");
 
         let state_update = NomtStateUpdate {
             user: user_finished_session,

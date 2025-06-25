@@ -51,8 +51,15 @@ impl<S: Spec> StateRootCacheEntry<S> {
             return (rollup_height, new_root);
         }
 
-        tracing::error!(%rollup_height, initial_root = %self.root, new_root = %new_root, description = %Self::describe_mismatch(&new_writes, &self.writes), "State root computation has changed. This is a bug.");
-        panic!("State root computation has changed. This is a bug.");
+        tracing::error!(
+            %rollup_height,
+            %slot_number,
+            initial_root = %self.root,
+            new_root = %new_root,
+            description = %Self::describe_mismatch(&new_writes, &self.writes),
+            "User state root has changed. This is a bug.");
+
+        panic!("User state root has changed at rollup_height={rollup_height} and slot_number={slot_number}. This is a bug.");
     }
 
     fn describe_mismatch(
@@ -104,12 +111,11 @@ async fn compute_state_root<S: Spec>(
     slot_number: SlotNumber,
 ) -> <S::Storage as Storage>::Root {
     let handle = tokio::runtime::Handle::current().spawn_blocking(move || {
-        tracing::trace!(%rollup_height, "Computing sequencer state root for height");
         tracing::span!(tracing::Level::DEBUG, "compute_state_update", scope = "sequencer", %rollup_height, %slot_number)
             .in_scope(|| {
                 let prev_root = storage
                     .get_latest_root_hash()
-                    .expect("Failed to get root hash");
+                    .expect("Failed to get prev root hash");
                 let compute_result = storage
                     .compute_state_update(state_accesses, &Default::default(), prev_root);
                 match compute_result {
@@ -118,20 +124,24 @@ async fn compute_state_root<S: Spec>(
                         // TODO: Use better error matching when sov-state uses this error. See issues:
                         //    * https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2634
                         //    * https://github.com/Sovereign-Labs/sovereign-sdk/issues/473
-                        if error.to_string().contains("stale") {
-                            tracing::trace!(
+                        let error_string = error.to_string();
+                        if error_string.contains("stale") {
+                            tracing::info!(
                                 %slot_number,
                                 %rollup_height,
-                                "Stale storage detected, going to fetch unbound root hash");
+                                error = %error_string,
+                                "Stale storage detected, going to fetch unbound root hash. This is expected.");
                             storage.get_root_hash_unbound(slot_number).unwrap_or_else(|error| {
-                                tracing::error!(%rollup_height, %error, "Slot number {} was detected to be stale during state root computation, but the corresponding state root could not be found in storage. This is a bug, please report it", slot_number);
-                                panic!("Failed to fetch target root hash at slot number = {} after staled attempted to compute state update: {}. This is a bug, please report it",
-                                       slot_number, error
-                                );
+                                tracing::error!(
+                                    %rollup_height, 
+                                    %slot_number, 
+                                    %error, 
+                                    "Detected to be stale during state root computation, but the corresponding state root could not be found in storage. This is a bug, please report it");
+                                panic!("Failed to fetch target root hash at slot number = {} after staled attempted to compute state update: {}. This is a bug, please report it", slot_number, error);
                             })
                         } else {
-                            tracing::error!(%rollup_height, %error, "failed to compute valid state update. This is a bug, please report it");
-                            panic!("Failed to compute valid state for height {} in sequencer. This is a bug, please report it", rollup_height);
+                            tracing::error!(%rollup_height, %slot_number, %error, "failed to compute valid state update. This is a bug, please report it");
+                            panic!("Failed to compute valid state for height {} and slot number {} in sequencer. This is a bug, please report it", rollup_height, slot_number);
                         }
                     }
                 }
@@ -197,7 +207,7 @@ impl<S: Spec> StateRootBackgroundTaskState<S> {
                     continue;
                 }
 
-                // If the entry wasn't in cache, we'll need to add it. Check if we should save the write set.
+                // If the entry wasn't in the cache, we'll need to add it. Check if we should save the write set.
                 let writes = &state_accesses.user.ordered_writes;
                 tracing::trace!(%rollup_height, user_space_writes = writes.len(), "New state root");
                 let (writes_to_save, size) = if check_state_roots {
