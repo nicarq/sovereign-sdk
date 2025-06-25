@@ -299,10 +299,9 @@ where
         .await;
 
         // Publish the batch.
-        let tx_hashes: Arc<[TxHash]> = batch.tx_hashes.clone().into();
         self.blob_sender
             .hooks()
-            .add_txs(batch.blob_id, tx_hashes.clone())
+            .add_txs(batch.blob_id, batch.tx_hashes.clone())
             .await;
         self.blob_sender.publish_batch(batch).await?;
 
@@ -1502,6 +1501,7 @@ where
     let mut batches = completed_batches_to_replay(db, sequence_number).await?;
 
     if let Some(batch) = db.in_progress_batch_opt().cloned() {
+        let batch: PreferredSequencerReadBatch = batch.into();
         batches.push(PreferredBatchToReplay {
             is_in_progress: true,
             visible_slot_number_after_increase: batch.visible_slot_number_after_increase,

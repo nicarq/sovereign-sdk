@@ -222,7 +222,7 @@ impl<S: Spec> IncrementalBatch<S> for MaybeAsyncBatch<S> {
     fn known_remaining_txs(&self) -> Option<usize> {
         match self {
             MaybeAsyncBatch::Async { .. } => None,
-            MaybeAsyncBatch::Sync { batch } => Some(batch.batch.len()),
+            MaybeAsyncBatch::Sync { batch } => Some(batch.remaining()),
         }
     }
 

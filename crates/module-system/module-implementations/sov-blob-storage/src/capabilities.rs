@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use borsh::BorshDeserialize;
 use sov_bank::derived_holder::DerivedHolder;
 use sov_bank::IntoPayable;
@@ -829,7 +831,7 @@ impl<S: Spec> BlobStorage<S> {
         )?;
         self.validate_blob(
             idx,
-            BlobData::Batch((batch, sequencer.address)).with_id(blob.hash().into()),
+            BlobData::Batch((Arc::new(batch), sequencer.address)).with_id(blob.hash().into()),
             blob.sender(),
             sequencer.balance,
             gas_price_for_new_block,
@@ -1196,7 +1198,7 @@ mod tests {
         let inner = match blob_type {
             BlobType::Batch => PreferredBlobData::Batch(PreferredBatchData {
                 sequence_number,
-                data: vec![],
+                data: vec![].into(),
                 visible_slots_to_advance: NonZeroU8::new(1).unwrap(),
             }),
             BlobType::Proof => PreferredBlobData::Proof(PreferredProofData {

@@ -7,7 +7,8 @@ use sov_state::{NativeStorage, Storage};
 use crate::metrics::{PreferredSequencerPruneMetrics, PreferredSequencerUpdateStateMetrics};
 use crate::preferred::{
     completed_batches_to_replay, get_next_sequence_number_according_to_node, DbEvent,
-    PreferredBatchToReplay, PreferredSequencer, RollupBlockExecutor, StateUpdateInfo,
+    PreferredBatchToReplay, PreferredSequencer, PreferredSequencerReadBatch, RollupBlockExecutor,
+    StateUpdateInfo,
 };
 
 impl<S, Rt, Da> PreferredSequencer<S, Rt, Da>
@@ -104,6 +105,7 @@ where
             batches_count += 1;
             transactions_count += batch.txs.len();
             batch_is_in_progress = true;
+            let batch: PreferredSequencerReadBatch = batch.into();
             let in_progress_batch = PreferredBatchToReplay {
                 is_in_progress: true,
                 visible_slot_number_after_increase: batch.visible_slot_number_after_increase,

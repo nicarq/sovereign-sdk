@@ -55,14 +55,11 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         hash: TxHash,
     ) -> anyhow::Result<()>;
 
-    async fn end_rollup_block(
-        &mut self,
-        cached: &PreferredSequencerReadBatch,
-    ) -> anyhow::Result<()>;
+    async fn end_rollup_block(&mut self, cached: &InProgressBatch) -> anyhow::Result<()>;
 
     async fn read_completed_blobs(&self) -> anyhow::Result<Vec<PreferredSequencerReadBlob>>;
 
-    async fn read_in_progress_batch(&self) -> anyhow::Result<Option<PreferredSequencerReadBatch>>;
+    async fn read_in_progress_batch(&self) -> anyhow::Result<Option<InProgressBatch>>;
 
     async fn add_proof_blob(
         &mut self,
@@ -81,19 +78,34 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
 
 /// See [`PreferredSequencerReadBlob::Batch`].
 #[derive(Debug, Clone)]
-pub struct PreferredSequencerReadBatch {
+pub struct PreferredSequencerReadBatch<Txs = Arc<Vec<FullyBakedTx>>, TxHashes = Arc<Vec<TxHash>>> {
     pub sequence_number: SequenceNumber,
     pub visible_slot_number_after_increase: VisibleSlotNumber,
     pub visible_slots_to_advance: NonZero<u8>,
     pub blob_id: BlobInternalId,
-    pub txs: Vec<FullyBakedTx>,
-    pub tx_hashes: Vec<TxHash>,
+    pub txs: Txs,
+    pub tx_hashes: TxHashes,
+}
+
+pub type InProgressBatch = PreferredSequencerReadBatch<Vec<FullyBakedTx>, Vec<TxHash>>;
+
+impl From<InProgressBatch> for PreferredSequencerReadBatch {
+    fn from(batch: InProgressBatch) -> Self {
+        PreferredSequencerReadBatch {
+            sequence_number: batch.sequence_number,
+            visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
+            visible_slots_to_advance: batch.visible_slots_to_advance,
+            blob_id: batch.blob_id,
+            txs: Arc::new(batch.txs),
+            tx_hashes: batch.tx_hashes.into(),
+        }
+    }
 }
 
 impl PreferredSequencerReadBatch {
     pub(crate) fn into_with_cached_tx_hashes(self) -> WithCachedTxHashes<PreferredBatchData> {
         WithCachedTxHashes {
-            tx_hashes: self.tx_hashes.into(),
+            tx_hashes: self.tx_hashes.clone(),
             inner: PreferredBatchData {
                 sequence_number: self.sequence_number,
                 visible_slots_to_advance: self.visible_slots_to_advance,
@@ -105,8 +117,8 @@ impl PreferredSequencerReadBatch {
 
 /// See [`PreferredSequencerDbBackend::read_completed_blobs`].
 #[derive(Debug, Clone)]
-pub enum PreferredSequencerReadBlob {
-    Batch(PreferredSequencerReadBatch),
+pub enum PreferredSequencerReadBlob<Inner = PreferredSequencerReadBatch> {
+    Batch(Inner),
     Proof {
         blob_id: BlobInternalId,
         sequence_number: SequenceNumber,
@@ -146,7 +158,7 @@ where
     phantom: PhantomData<S>,
     sequence_number_of_next_blob: SequenceNumber,
     completed_blobs: VecDeque<PreferredSequencerReadBlob>,
-    in_progress_batch: Option<PreferredSequencerReadBatch>,
+    in_progress_batch: Option<InProgressBatch>,
     event_stream: Option<mpsc::Sender<DbEvent>>,
     phantom_runtime: PhantomData<Rt>,
 }
@@ -199,7 +211,7 @@ where
         track_sequence_number(self.sequence_number_of_next_blob);
     }
 
-    pub fn in_progress_batch_opt(&self) -> Option<&PreferredSequencerReadBatch> {
+    pub fn in_progress_batch_opt(&self) -> Option<&InProgressBatch> {
         self.in_progress_batch.as_ref()
     }
 
@@ -361,10 +373,11 @@ where
         )
         .await;
         let sequence_number = in_progress_batch.sequence_number;
-        let batch = self
+        let batch: PreferredSequencerReadBatch = self
             .in_progress_batch
             .take()
-            .expect("No in-progress batch; this is a bug, please report it");
+            .expect("No in-progress batch; this is a bug, please report it")
+            .into();
 
         self.completed_blobs
             .push_back(PreferredSequencerReadBlob::Batch(batch.clone()));

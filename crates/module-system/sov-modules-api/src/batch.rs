@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
@@ -124,7 +126,7 @@ impl SequencerBondForTx {
 #[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 pub struct BatchWithId<S: Spec> {
     /// Batch of transactions.
-    pub batch: Vec<FullyBakedTx>,
+    pub batch: Arc<Vec<FullyBakedTx>>,
     /// The ID of the batch, carried over from the DA layer. This is the hash of the blob which contained the batch.
     pub id: [u8; 32],
     /// The address of the sequencer that submitted the batch.
@@ -133,7 +135,7 @@ pub struct BatchWithId<S: Spec> {
 
 impl<S: Spec> BatchWithId<S> {
     /// Construct a new batch with the given ID.
-    pub fn new(batch: Vec<FullyBakedTx>, id: [u8; 32], sequencer_address: S::Address) -> Self {
+    pub fn new(batch: Arc<Vec<FullyBakedTx>>, id: [u8; 32], sequencer_address: S::Address) -> Self {
         Self {
             batch,
             id,
@@ -152,7 +154,7 @@ impl<S: Spec> BatchWithId<S> {
 #[serde(rename_all = "snake_case")]
 pub enum BlobData<S: Spec> {
     /// Batch of transactions.
-    Batch((Vec<FullyBakedTx>, S::Address)),
+    Batch((Arc<Vec<FullyBakedTx>>, S::Address)),
     /// Emergency Registration
     EmergencyRegistration(RawTx),
     /// Aggregated proof posted on the DA.
@@ -395,7 +397,8 @@ pub struct NoOpControlFlow;
 
 pub struct IterableBatchWithId<S: Spec, CF: InjectedControlFlow<S>> {
     /// Batch of transactions.
-    pub batch: std::vec::IntoIter<FullyBakedTx>,
+    batch: Arc<Vec<FullyBakedTx>>,
+    offset: usize,
     /// The ID of the batch, carried over from the DA layer. This is the hash of the blob which contained the batch.
     pub id: [u8; 32],
     /// The address of the sequencer that submitted the batch.
@@ -405,10 +408,18 @@ pub struct IterableBatchWithId<S: Spec, CF: InjectedControlFlow<S>> {
 }
 
 impl<S: Spec, CF: InjectedControlFlow<S>> IterableBatchWithId<S, CF> {
+    /// Remaining transactions in the batch.
+    pub fn remaining(&self) -> usize {
+        self.batch.len().saturating_sub(self.offset)
+    }
+}
+
+impl<S: Spec, CF: InjectedControlFlow<S>> IterableBatchWithId<S, CF> {
     /// Create a new `IterableBatchWithId` from a `BatchWithId`.
     pub fn new(batch_with_id: BatchWithId<S>, cf: CF) -> Self {
         Self {
-            batch: batch_with_id.batch.into_iter(),
+            batch: batch_with_id.batch,
+            offset: 0,
             id: batch_with_id.id,
             sequencer_address: batch_with_id.sequencer_address,
             cf,
@@ -417,10 +428,17 @@ impl<S: Spec, CF: InjectedControlFlow<S>> IterableBatchWithId<S, CF> {
 }
 
 impl<S: Spec, CF: InjectedControlFlow<S> + Clone> Iterator for IterableBatchWithId<S, CF> {
+    // TODO: Consider skipping this clone by adding a lifetime parameter
     type Item = (FullyBakedTx, CF);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.batch.next().map(|tx| (tx, self.cf.clone()))
+        let tx = self.batch.get(self.offset).cloned();
+        if let Some(tx) = tx {
+            self.offset += 1;
+            Some((tx, self.cf.clone()))
+        } else {
+            None
+        }
     }
 }
 
@@ -464,7 +482,7 @@ pub enum RejectReason {
 
 impl<S: Spec> BlobData<S> {
     /// Batch variant constructor.
-    pub fn new_batch(txs: Vec<FullyBakedTx>, sequencer_address: S::Address) -> Self {
+    pub fn new_batch(txs: Arc<Vec<FullyBakedTx>>, sequencer_address: S::Address) -> Self {
         BlobData::Batch((txs, sequencer_address))
     }
 
@@ -556,4 +574,27 @@ pub struct BatchSequencerReceipt<S: Spec> {
     pub gas_used: S::Gas,
     /// The sequencer outcome for this batch.
     pub outcome: BatchSequencerOutcome,
+}
+
+#[test]
+fn test_iterable_batch_with_id_remaining() {
+    use sov_mock_da::MockDaSpec;
+    use sov_mock_zkvm::MockZkvm;
+
+    use crate::default_spec::DefaultSpec;
+    use crate::execution_mode::Native;
+    type TestSpec = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
+
+    let batch = Arc::new(vec![FullyBakedTx::new(vec![]), FullyBakedTx::new(vec![])]);
+    let batch_with_id = BatchWithId::<TestSpec>::new(batch, [0; 32], [0; 28].into());
+    let mut batch_with_id = IterableBatchWithId::new(batch_with_id, NoOpControlFlow);
+    assert_eq!(batch_with_id.remaining(), 2);
+    batch_with_id.next();
+    assert_eq!(batch_with_id.remaining(), 1);
+    assert!(batch_with_id.next().is_some());
+    assert_eq!(batch_with_id.remaining(), 0);
+    assert!(batch_with_id.next().is_none());
+    assert_eq!(batch_with_id.remaining(), 0);
+    assert!(batch_with_id.next().is_none());
+    assert_eq!(batch_with_id.remaining(), 0);
 }

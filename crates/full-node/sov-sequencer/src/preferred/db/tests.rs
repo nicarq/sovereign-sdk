@@ -15,7 +15,7 @@ impl PreferredSequencerDbBackend for MockDbBackend {
         Ok(vec![])
     }
 
-    async fn read_in_progress_batch(&self) -> anyhow::Result<Option<PreferredSequencerReadBatch>> {
+    async fn read_in_progress_batch(&self) -> anyhow::Result<Option<InProgressBatch>> {
         Ok(None)
     }
 
@@ -41,7 +41,7 @@ impl PreferredSequencerDbBackend for MockDbBackend {
 
     async fn end_rollup_block(
         &mut self,
-        _in_progress_batch: &PreferredSequencerReadBatch,
+        _in_progress_batch: &InProgressBatch,
     ) -> anyhow::Result<()> {
         Ok(())
     }

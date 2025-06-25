@@ -120,13 +120,13 @@ impl<C> AcceptedTx<C> {
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct WithCachedTxHashes<I> {
     pub inner: I,
-    pub tx_hashes: Arc<[TxHash]>,
+    pub tx_hashes: Arc<Vec<TxHash>>,
 }
 
 /// Sends [`TxStatusManager`] notifications upon blob status changes.
 pub struct TxStatusBlobSenderHooks<Da: DaSpec> {
     txsm: TxStatusManager<Da>,
-    tx_hashes_by_blob_id: RwLock<HashMap<BlobInternalId, Arc<[TxHash]>>>,
+    tx_hashes_by_blob_id: RwLock<HashMap<BlobInternalId, Arc<Vec<TxHash>>>>,
 }
 
 impl<Da: DaSpec> TxStatusBlobSenderHooks<Da> {
@@ -137,7 +137,7 @@ impl<Da: DaSpec> TxStatusBlobSenderHooks<Da> {
         }
     }
 
-    pub async fn add_txs(&self, blob_id: BlobInternalId, tx_hashes: Arc<[TxHash]>) {
+    pub async fn add_txs(&self, blob_id: BlobInternalId, tx_hashes: Arc<Vec<TxHash>>) {
         self.tx_hashes_by_blob_id
             .write()
             .await

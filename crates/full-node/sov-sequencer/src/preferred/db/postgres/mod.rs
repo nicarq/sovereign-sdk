@@ -8,10 +8,8 @@ use sov_modules_api::{FullyBakedTx, TxHash};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use sqlx::Postgres;
 
-use super::{
-    PreferredSequencerDbBackend, PreferredSequencerReadBatch, PreferredSequencerReadBlob,
-    StoredBlob,
-};
+use super::{PreferredSequencerDbBackend, PreferredSequencerReadBlob, StoredBlob};
+use crate::preferred::db::InProgressBatch;
 
 pub struct PostgresBackend {
     pool: PgPool,
@@ -28,11 +26,11 @@ impl PostgresBackend {
         Ok(Self { pool })
     }
 
-    async fn read_blob(
+    async fn read_blob<Inner: From<InProgressBatch>>(
         &self,
         sequence_number: SequenceNumber,
         stored_blob: StoredBlob,
-    ) -> anyhow::Result<PreferredSequencerReadBlob> {
+    ) -> anyhow::Result<PreferredSequencerReadBlob<Inner>> {
         match stored_blob {
             StoredBlob::Batch {
                 visible_slot_number_after_increase,
@@ -58,14 +56,15 @@ impl PostgresBackend {
                 let txs = txs.into_iter().map(FullyBakedTx::new).collect::<Vec<_>>();
 
                 Ok(PreferredSequencerReadBlob::Batch(
-                    PreferredSequencerReadBatch {
+                    InProgressBatch {
                         sequence_number,
                         visible_slot_number_after_increase,
                         visible_slots_to_advance,
                         txs,
                         tx_hashes,
                         blob_id,
-                    },
+                    }
+                    .into(),
                 ))
             }
             StoredBlob::Proof { data, blob_id } => Ok(PreferredSequencerReadBlob::Proof {
@@ -124,10 +123,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         Ok(())
     }
 
-    async fn end_rollup_block(
-        &mut self,
-        cached: &super::PreferredSequencerReadBatch,
-    ) -> anyhow::Result<()> {
+    async fn end_rollup_block(&mut self, cached: &super::InProgressBatch) -> anyhow::Result<()> {
         let mut tx = self.pool.begin().await?;
 
         sqlx::query::<Postgres>("DELETE FROM in_progress_batch")
@@ -201,9 +197,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         Ok(blobs)
     }
 
-    async fn read_in_progress_batch(
-        &self,
-    ) -> anyhow::Result<Option<super::PreferredSequencerReadBatch>> {
+    async fn read_in_progress_batch(&self) -> anyhow::Result<Option<InProgressBatch>> {
         let Some((sequence_number, stored_blob_serialized)): Option<(i64, Vec<u8>)> =
             sqlx::query_as::<Postgres, _>(
                 "SELECT sequence_number, borsh_value FROM in_progress_batch",

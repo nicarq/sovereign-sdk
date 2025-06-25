@@ -168,7 +168,7 @@ mod tests {
     fn create_blob(size: usize) -> ValidatedBlob<S, BatchWithId<S>> {
         ValidatedBlob::new(
             BlobDataWithId::Batch(BatchWithId::new(
-                vec![FullyBakedTx::new(vec![0; size])],
+                vec![FullyBakedTx::new(vec![0; size])].into(),
                 [0; 32],
                 [0; 28].into(),
             )),
@@ -192,7 +192,11 @@ mod tests {
             for (i, b) in txs.into_iter().enumerate() {
                 let addr = [i as u8; 32].into();
                 let b = ValidatedBlob::new(
-                    BlobDataWithId::Batch(BatchWithId::new(b, [0; 32], [i as u8; 28].into())),
+                    BlobDataWithId::Batch(BatchWithId::new(
+                        b.into(),
+                        [0; 32],
+                        [i as u8; 28].into(),
+                    )),
                     addr,
                     Escrow::None,
                 );

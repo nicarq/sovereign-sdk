@@ -586,7 +586,7 @@ where
                             sequence_number,
                         } => borsh::to_vec(&PreferredBatchData {
                             sequence_number,
-                            data: raw_txns,
+                            data: raw_txns.into(),
                             visible_slots_to_advance: NonZero::new(slots_to_advance).unwrap(),
                         })
                         .unwrap(),

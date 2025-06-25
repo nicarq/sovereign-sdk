@@ -48,15 +48,15 @@ mod tests {
 
     fn batch_size_calculation_inner(tx_sizes: Vec<usize>) {
         let batch_size = {
-            let mut batch = PreferredBatchData {
+            let txs = tx_sizes
+                .iter()
+                .map(|tx_size| FullyBakedTx::new(vec![0; *tx_size]))
+                .collect::<Vec<_>>();
+            let batch = PreferredBatchData {
                 sequence_number: 1,
                 visible_slots_to_advance: NonZero::new(1).unwrap(),
-                data: vec![],
+                data: txs.into(),
             };
-
-            for tx_size in &tx_sizes {
-                batch.data.push(FullyBakedTx::new(vec![0; *tx_size]));
-            }
 
             borsh::to_vec(&batch).unwrap().len()
         };
