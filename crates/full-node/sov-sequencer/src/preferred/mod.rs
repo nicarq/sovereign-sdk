@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::num::NonZero;
 use std::path::Path;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -40,7 +40,7 @@ use sov_modules_api::{
     ApiTxEffect, FullyBakedTx, RejectReason, Runtime, RuntimeEventProcessor, RuntimeEventResponse,
     Spec, StateCheckpoint, StateUpdateInfo, VersionReader, VisibleSlotNumber, *,
 };
-use sov_rest_utils::errors::database_error_500;
+use sov_rest_utils::errors::{database_error_500, sequencer_overloaded_503};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::{EventIdentifier, LedgerStateProvider};
@@ -174,8 +174,7 @@ where
                     "A batch was requested but the sequencer is not ready to produce one: {:?}",
                     e
                 );
-                // TODO: Clear out any transactions that have already been sent to the sequencer.
-                return Ok(());
+                return Err(BatchCreationError::NoFinalizedSlotAvailable);
             }
         };
 
@@ -404,6 +403,8 @@ where
     api_ledger_db: LedgerDb,
     cached_events: EventCache<RuntimeEventResponse<Rt::RuntimeEvent>>,
     shutdown_sender: watch::Sender<()>,
+    // Used to track which txs need to be ignored after the sequencer had downtime (in the sense of giving out 503s)
+    tx_queue_id: AtomicU64,
 }
 
 impl<S, Rt, Da> PreferredSequencer<S, Rt, Da>
@@ -549,6 +550,7 @@ where
             api_ledger_db,
             cached_events,
             shutdown_sender,
+            tx_queue_id: AtomicU64::new(0),
         });
 
         handles.push(tokio::spawn({
@@ -1221,6 +1223,7 @@ where
             tracing::info!("The sequencer is shutting down. Cannot accept transactions");
             return Err(shut_down_error());
         }
+        let original_tx_queue_id = self.tx_queue_id.load(Ordering::Acquire);
 
         let tx_hash = Rt::Auth::compute_tx_hash(&baked_tx).map_err(generic_accept_tx_error)?;
         tracing::debug!(%tx_hash, "Executing accept_tx");
@@ -1249,27 +1252,41 @@ where
         }
 
         let mut inner = self.lock_inner().await;
+        let new_tx_queue_id = self.tx_queue_id.load(Ordering::Acquire);
+        if new_tx_queue_id != original_tx_queue_id {
+            tracing::debug!(%tx_hash, "Transaction was queued before downtime. Dropping.");
+            return Err(sequencer_overloaded_503());
+        }
+
         Self::check_readiness(&inner, self.config.max_concurrent_blobs)
             .await
             .map_err(error_not_fully_synced)?;
 
-        match inner
+        if let Err(e) = inner
             .try_to_create_and_start_batch_if_none_in_progress(false)
             .await
         {
-            Ok(()) => {}
-            Err(BatchCreationError::BlobSenderBusy) => {
-                return Err(error_not_fully_synced(
-                    SequencerNotReadyDetails::WaitingOnBlobSender {
-                        max_concurrent_blobs: self.config.max_concurrent_blobs,
-                        nb_of_blobs_in_flight: inner
-                            .blob_sender
-                            .nb_of_concurrent_blob_submissions(),
-                    },
-                ));
-            }
-            Err(BatchCreationError::DatabaseError(e)) => {
-                return Err(database_error_500(e));
+            // On all errors, we treat the sequencer as having had downtime and clear out the transaction queue.
+            // Note that we'll increment the queue ID once per rejected tx. This is totally fine - we have 2**64 ids to play with
+            // and atomic increments are very cheap relative to the cost of executing the tx
+            self.tx_queue_id.fetch_add(1, Ordering::AcqRel);
+            match e {
+                BatchCreationError::NoFinalizedSlotAvailable => {
+                    return Err(sequencer_overloaded_503());
+                }
+                BatchCreationError::BlobSenderBusy => {
+                    return Err(error_not_fully_synced(
+                        SequencerNotReadyDetails::WaitingOnBlobSender {
+                            max_concurrent_blobs: self.config.max_concurrent_blobs,
+                            nb_of_blobs_in_flight: inner
+                                .blob_sender
+                                .nb_of_concurrent_blob_submissions(),
+                        },
+                    ));
+                }
+                BatchCreationError::DatabaseError(e) => {
+                    return Err(database_error_500(e));
+                }
             }
         }
 
@@ -1676,6 +1693,9 @@ pub enum BatchCreationError {
     /// An internal database error occurred.
     #[error("Internal database error; batch could not be created. Error: {0}")]
     DatabaseError(anyhow::Error),
+    /// The sequencer was not able to start a batch because it has consumed its whole buffer of finalized slots.
+    #[error("The sequencer is temporarily overloaded. Try again in a few seconds")]
+    NoFinalizedSlotAvailable,
 }
 
 #[cfg(test)]

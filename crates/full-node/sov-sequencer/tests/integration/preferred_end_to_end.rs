@@ -1517,6 +1517,142 @@ async fn delayed_tx_is_processed_after_delay() {
     };
 }
 
+/// This test checks our "nuke the queue" functionality, which ensures fairness when the sequencer has downtime.
+///
+/// Recall that some transaction types have a "speedbump" where their handlers sleep for a short period of time
+/// before entering the execution queue. If the sequencer has downtime during that sleep, these transactions need
+/// to be rejected for safety - otherwise, they might "time travel" and be executed before other transactions that
+/// arrived earlier - since those transactions were rejected during the downtime. This test covers that functionality.
+///
+/// This test works by...
+/// - Sending a tx that has to go through the speedbump
+/// - Intentionally sending enough transactions to cause downtime while that delayed tx is waiting on the speedbump
+/// - Producing blocks so that the sequencer recovers from the downtime
+/// - Ensuring that the delayed tx still fails with a 503
+#[tokio::test(flavor = "multi_thread")]
+async fn txs_that_enter_before_downtime_are_dropped() {
+    use futures::future::Either;
+    let (test_rollup, admin) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        1000, // Set a small batch time limit to ensure that the sequencer will be overloaded after the first tx.
+    )
+    .await;
+
+    let Some(test_rollup) = test_rollup else {
+        return;
+    };
+
+    // Produce a the exact minimum number of blocks to ensure that the sequencer has a finalized slot.
+    // If we change the finalized slot in the test framework, this number will need to be updated.
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(4)
+        .await
+        .unwrap();
+    sleep(Duration::from_millis(200)).await;
+
+    let client = test_rollup.api_client.clone();
+
+    let first_tx = tx_set_value_and_sleep(&admin.private_key, 0, 0, 1200);
+    let delayed_tx = tx_delayed_call(&admin.private_key, 1);
+    let third_tx = tx_set_value(&admin.private_key, 1, 8);
+    let fourth_tx = tx_set_value(&admin.private_key, 2, 9);
+
+    // Submit the first tx. This should succeed. This verifies that our initialization works fine *and* causes the sequencer to be close out its current batch.
+    client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&first_tx),
+        })
+        .await
+        .unwrap();
+
+    // Produce a new block that includes this first tx. It will take 1200 ms to get processed, so start soon.
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(1)
+        .await
+        .unwrap();
+    // Wait until the new batch is almost processed
+    sleep(Duration::from_millis(1100)).await;
+
+    // Send off the delayed tx. It should arrive at the seqeuncer immediately and begin sleeping.
+    let delayed_tx_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            let response = client
+                .accept_tx(&api_types::AcceptTxBody {
+                    body: BASE64_STANDARD.encode(&delayed_tx),
+                })
+                .await
+                .unwrap_err()
+                .to_string();
+            assert!(
+                response.contains("The sequencer is temporarily overloaded"),
+                "Expected error to contain 'The sequencer is temporarily overloaded', got: {}",
+                response
+            );
+        }
+    });
+    // Sleep to ensure that the delayed tx arrives before this one.
+    // The third tx to be sent (second to be processed because of the speedbump) should be rejected since the batch is full.
+    // This is the "downtime" that we're testing for.
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let third_tx_response = client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&third_tx),
+        })
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(
+        third_tx_response.contains("The sequencer is temporarily overloaded"),
+        "Expected error to contain 'The sequencer is temporarily overloaded', got: {}",
+        third_tx_response
+    );
+    // Produce blocks to ensure that the sequencer has room to process the following txs
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(3)
+        .await
+        .unwrap();
+    // Sleep until these new blocks can be processed
+    tokio::time::sleep(Duration::from_millis(220)).await;
+
+    // Send a fourth tx. It should succeed *before* the speedbumped tx is processed.
+    let fourth_tx_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .accept_tx(&api_types::AcceptTxBody {
+                    body: BASE64_STANDARD.encode(&fourth_tx),
+                })
+                .await
+                .unwrap()
+        }
+    });
+    // Check that the 4th tx was processed successfully before the delayed tx, and that the delayed tx task didn't panic (i.e. that its assertion of receiving 503 passed)
+    let result = futures::future::select(delayed_tx_handle, fourth_tx_handle).await;
+    match result {
+        Either::Left(_) => {
+            panic!("Delayed tx was processed before the regular tx. This is just a timing issue, but we fail to be extra safe");
+        }
+        Either::Right((fourth_tx_result, delayed_tx_handle)) => {
+            delayed_tx_handle.await.unwrap();
+            fourth_tx_result.unwrap();
+        }
+    }
+
+    // Send a delayed tx to ensure that it's processed as expected. This rules out unforunate errors like a bug in our handling of this tx type.
+    client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(tx_delayed_call(&admin.private_key, 3)),
+        })
+        .await
+        .unwrap();
+}
+
 /// Ensure that we use the correct visible slot number when replaying transactions after a call to `update_state` in the sequencer.
 /// The key thing that this test does is to execute the same transaction 3 times - once in the sequencer via `accept_tx`, once via `update_state`
 /// and once in the node. Everything else is implementation details.
