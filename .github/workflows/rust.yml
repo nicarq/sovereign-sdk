@@ -263,6 +263,7 @@ jobs:
       RISC0_DEV_MODE: "true"
       SP1_PROVER: "mock"
       RUST_BACKTRACE: 1
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
@@ -295,6 +296,8 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - run: make test
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   doctests:
     name: doctests
@@ -347,6 +350,8 @@ jobs:
         run: cargo generate-lockfile
       - name: cargo llvm-cov
         run: make coverage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
         with:
