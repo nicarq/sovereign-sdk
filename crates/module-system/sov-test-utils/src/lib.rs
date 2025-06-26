@@ -107,6 +107,9 @@ pub const TEST_MAX_BATCH_SIZE: usize = 1024 * 1024;
 /// I a blob is not processed within this time, it will shut down the sequencer.
 pub const TEST_BLOB_PROCESSING_TIMEOUT: u64 = 60;
 
+/// TODO
+pub const MAX_CONCURRENT_BLOBS: usize = 32;
+
 /// The maximum number of concurrent blobs.
 pub const TEST_MAX_CONCURRENT_BLOBS: usize = 16;
 

@@ -15,7 +15,6 @@ use sov_api_spec::Client;
 use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
-use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Amount, DispatchCall, Gas, GasArray, GasPrice, GasUnit, RawTx, Runtime};
 use sov_modules_stf_blueprint::GenesisParams;
@@ -25,14 +24,12 @@ use sov_rest_utils::ResponseObject;
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
 use sov_sequencer::preferred::default_ideal_lag_behind_finalized_slot;
-use sov_sequencer::SequencerKindConfig;
 use sov_test_modules::hooks_count::HooksCount;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, RollupProverConfig, TestRollup};
 use sov_test_utils::{
-    default_test_signed_transaction, default_test_tx_details,
-    generate_optimistic_runtime_with_kernel, test_signed_transaction, RtAgnosticBlueprint,
-    TestSpec, TestUser, TEST_MAX_BATCH_SIZE,
+    default_test_signed_transaction, generate_optimistic_runtime_with_kernel, RtAgnosticBlueprint,
+    TestSpec, TestUser, MAX_CONCURRENT_BLOBS, TEST_MAX_BATCH_SIZE,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use test_strategy::Arbitrary;
@@ -41,10 +38,10 @@ use tokio_stream::StreamExt;
 use tracing::{debug, info};
 
 use crate::utils::{
-    generate_paymaster_tx, generate_txs, pause_update_state,
-    ModuleWithVersionedStateAccessInSlotHook,
+    generate_paymaster_tx, generate_txs, new_test_rollup, pause_update_state,
+    tx_set_value_with_gas, ModuleWithVersionedStateAccessInSlotHook,
+    MAX_BATCH_EXECUTION_TIME_MILLIS,
 };
-
 const DELAYED_TX_DELAY_MS: u64 = 500;
 
 generate_optimistic_runtime_with_kernel!(
@@ -67,9 +64,7 @@ fn tempdir_inside_codebase_dir() -> Arc<tempfile::TempDir> {
 type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
 
 use sov_test_utils::TEST_BLOB_PROCESSING_TIMEOUT;
-const MAX_BATCH_EXECUTION_TIME_MILLIS: u64 = 1_000 * 60 * 5; // Allow batches to take up to 5 minutes by default.
 
-const MAX_CONCURRENT_BLOBS: usize = 32;
 const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnBatchSubmit {
     block_wait_timeout_ms: None,
 };
@@ -129,69 +124,6 @@ enum InvalidGeneration {
     TooOld,
 }
 
-async fn new_test_rollup(
-    dir: Arc<tempfile::TempDir>,
-    genesis_params: GenesisParams<<TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig>,
-    minimum_profit_per_tx: u128,
-    automatic_batch_production: bool,
-    max_batch_size_bytes: usize,
-    block_producing_config: BlockProducingConfig,
-    rollup_prover_config: Option<RollupProverConfig<MockZkvm>>,
-    blob_processing_timeout_secs: u64,
-    max_batch_execution_time_millis: u64,
-) -> Option<TestRollup<TestBlueprint>> {
-    const FINALIZATION_BLOCKS: u32 = 3;
-    let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
-
-    // We skip all docker (i.e. postgres) tests on our dev server due to firewall false positives
-    // bricking the machine.
-    // The dev machine has 96 threads, which we detect to disable postgres. Currently no dev or CI
-    // setup uses a machine of exactly this size, though if this ever changes this will cause
-    // false positives.
-    const DEV_SERVER_CPUS: usize = 96;
-
-    let mut builder_res = RollupBuilder::<TestBlueprint>::new(
-        GenesisSource::CustomParams(genesis_params),
-        block_producing_config,
-        FINALIZATION_BLOCKS,
-    )
-    .set_config(|c| {
-        c.rollup_prover_config = rollup_prover_config;
-        c.automatic_batch_production = automatic_batch_production;
-        c.storage = dir;
-        c.max_batch_size_bytes = max_batch_size_bytes;
-        c.blob_processing_timeout_secs = blob_processing_timeout_secs;
-        if let SequencerKindConfig::Preferred(preferred_sequencer_config) = &mut c.sequencer_config
-        {
-            preferred_sequencer_config.batch_execution_time_limit_millis =
-                max_batch_execution_time_millis;
-        }
-        c.max_concurrent_blobs = MAX_CONCURRENT_BLOBS;
-    })
-    .set_da_config(|c| c.sender_address = sequencer_addr)
-    .with_preferred_seq_min_profit_per_tx(minimum_profit_per_tx)
-    .with_preferred_seq_recovery_strategy(sov_sequencer::preferred::RecoveryStrategy::TryToSave);
-
-    if num_cpus::get() != DEV_SERVER_CPUS {
-        builder_res = builder_res.with_postgres_sequencer().await.unwrap();
-    } else {
-        tracing::warn!("Running tests with postgres disabled in the sequencer! Detected machine with {DEV_SERVER_CPUS} threads, assuming we are running on the dev server.");
-    }
-
-    match Result::<_, anyhow::Error>::Ok(builder_res) {
-        Ok(builder) => Some(builder.start().await.unwrap()),
-        Err(e) => {
-            if std::env::var("SOV_TEST_SKIP_DOCKER") == Ok("1".to_string()) {
-                None
-            } else {
-                eprintln!("Error starting rollup builder: {:?}", e);
-                eprintln!("To skip docker based tests run with the env var SOV_TEST_SKIP_DOCKER=1");
-                panic!("Unable to proceed without docker");
-            }
-        }
-    }
-}
-
 async fn create_test_rollup(
     minimum_profit_per_tx: u128,
     max_batch_size: usize,
@@ -212,6 +144,7 @@ async fn create_test_rollup(
             PaymasterConfig::default(),
             (),
         );
+
     let genesis_params = GenesisParams {
         runtime: rt_genesis_config.clone(),
     };
@@ -219,8 +152,9 @@ async fn create_test_rollup(
     let dir = tempdir_inside_codebase_dir();
 
     (
-        new_test_rollup(
+        new_test_rollup::<TestRuntime<TestSpec>>(
             dir.clone(),
+            genesis_params.runtime.sequencer_registry.seq_da_address,
             genesis_params,
             minimum_profit_per_tx,
             true,
@@ -355,8 +289,9 @@ async fn sequencer_filled_up_block() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup(
+    let Some(test_rollup) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
+        genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
         0,
         true,
@@ -390,7 +325,7 @@ async fn sequencer_filled_up_block() {
 
         // Produce a transaction that uses 90% of the slot gas limit.
         // This should be accepted.
-        let tx = tx_set_value_with_gas(
+        let tx = tx_set_value_with_gas::<TestRuntime<TestSpec>>(
             &admin.private_key,
             0,
             7,
@@ -409,7 +344,7 @@ async fn sequencer_filled_up_block() {
         // This should fail with Out of Gas because...
         //  - the sequencer is below its 95% gas usage threshold so no new batch will have been started.
         //  - there's not nearly enough slot gas limit left to cover this tx
-        let tx_2 = tx_set_value_with_gas(
+        let tx_2 = tx_set_value_with_gas::<TestRuntime<TestSpec>>(
             &admin.private_key,
             1,
             7,
@@ -433,7 +368,7 @@ async fn sequencer_filled_up_block() {
         // Produce a third transaction that uses 5% of the gas limit.
         // This should be accepted and will cause the sequencer to close out its current batch since usage should now pass 95%.
         let small_gas_amount = gas_limit.clone().scalar_division(20).clone();
-        let tx_3 = tx_set_value_with_gas(
+        let tx_3 = tx_set_value_with_gas::<TestRuntime<TestSpec>>(
             &admin.private_key,
             1,
             7,
@@ -449,7 +384,7 @@ async fn sequencer_filled_up_block() {
 
         // Produce another huge transaction
         // This should be accepted because the sequencer starts a new batch.
-        let tx_4 = tx_set_value_with_gas(
+        let tx_4 = tx_set_value_with_gas::<TestRuntime<TestSpec>>(
             &admin.private_key,
             1,
             7,
@@ -662,8 +597,9 @@ async fn seq_out_of_gas_for_pre_checks() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup(
+    let Some(test_rollup) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
+        genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
         0,
         true,
@@ -694,7 +630,7 @@ async fn seq_out_of_gas_for_pre_checks() {
     {
         let gas_to_charge = gas_limit.checked_sub(&max_exec_gas_per_tx).unwrap();
 
-        let tx = tx_set_value_with_gas(
+        let tx = tx_set_value_with_gas::<TestRuntime<TestSpec>>(
             &admin.private_key,
             0,
             7,
@@ -981,8 +917,9 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup(
+    let Some(test_rollup) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
+        genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
         0,
         true,
@@ -2140,8 +2077,9 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup(
+    let Some(test_rollup) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
+        genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
         0,
         false,
@@ -2393,30 +2331,13 @@ async fn query_set_value_helper(
 }
 
 fn tx_set_value(key: &Ed25519PrivateKey, nonce: u64, value_to_set: u64) -> RawTx {
-    tx_set_value_with_gas(
+    tx_set_value_with_gas::<TestRuntime<TestSpec>>(
         key,
         nonce,
         value_to_set,
         None,
         sov_test_utils::TEST_DEFAULT_MAX_FEE,
     )
-}
-
-fn tx_set_value_with_gas(
-    key: &Ed25519PrivateKey,
-    nonce: u64,
-    value_to_set: u64,
-    gas: Option<GasUnit<2>>,
-    max_fee: Amount,
-) -> RawTx {
-    let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
-        sov_value_setter::CallMessage::SetValue {
-            value: value_to_set as u32,
-            gas,
-        },
-    );
-
-    encode_call_with_fee(key, nonce, &msg, max_fee)
 }
 
 fn tx_delayed_call(key: &Ed25519PrivateKey, nonce: u64) -> RawTx {
@@ -2493,25 +2414,6 @@ fn encode_call(
         call_message,
         nonce,
         &<TestRuntime<TestSpec> as Runtime<TestSpec>>::CHAIN_HASH,
-    );
-
-    RawTx::new(borsh::to_vec(&tx).unwrap())
-}
-
-fn encode_call_with_fee(
-    key: &Ed25519PrivateKey,
-    nonce: u64,
-    call_message: &<TestRuntime<TestSpec> as DispatchCall>::Decodable,
-    max_fee: Amount,
-) -> RawTx {
-    let mut tx_details = default_test_tx_details();
-    tx_details.max_fee = max_fee;
-    let tx = test_signed_transaction::<TestRuntime<TestSpec>, TestSpec>(
-        key,
-        call_message,
-        nonce,
-        &<TestRuntime<TestSpec> as Runtime<TestSpec>>::CHAIN_HASH,
-        tx_details,
     );
 
     RawTx::new(borsh::to_vec(&tx).unwrap())
