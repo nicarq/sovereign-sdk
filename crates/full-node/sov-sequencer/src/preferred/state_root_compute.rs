@@ -45,10 +45,19 @@ impl<S: Spec> StateRootCacheEntry<S> {
         slot_number: SlotNumber,
     ) -> (RollupHeight, <S::Storage as Storage>::Root) {
         let new_writes = state_accesses.user.ordered_writes.clone();
+        // Optimistically compute new root hash
         let new_root =
-            compute_state_root::<S>(state_accesses, storage, rollup_height, slot_number).await;
+            compute_state_root::<S>(state_accesses, storage.clone(), rollup_height, slot_number)
+                .await;
         if user_roots_match(&self.root, &new_root) {
             return (rollup_height, new_root);
+        }
+        tracing::debug!("User roots don't match, verify if storage became stale");
+        // Another possible case is that storage became stale while computing the state root took place.
+        if let Some(fetched_root) = fetch_root_hash_if_stale::<S>(&storage, slot_number) {
+            if user_roots_match(&self.root, &fetched_root) {
+                return (rollup_height, fetched_root);
+            }
         }
 
         tracing::error!(
@@ -93,6 +102,29 @@ pub(super) struct StateRootBackgroundTaskState<S: Spec> {
     pub request_sender: mpsc::Sender<StateRootComputeRequest<S>>,
 }
 
+// If storage has not reached the passed slot number, it will return None.
+// If storage is stale on this slot number, it will fetch the existing root hash for the passed slot number.
+fn fetch_root_hash_if_stale<S: Spec>(
+    storage: &S::Storage,
+    slot_number: SlotNumber,
+) -> Option<<S::Storage as Storage>::Root> {
+    let latest_unbound = storage.latest_version_unbound();
+    tracing::trace!(%latest_unbound, %slot_number, "Latest unbound slot number");
+    // If the latest version is equal, it means this state root has already been computed.
+    if latest_unbound >= slot_number {
+        tracing::debug!(
+            %latest_unbound,
+            %slot_number,
+            "Latest unbound slot number is greater than passed slot number, fetching root hash for passed slot number");
+        let root = storage
+            .get_root_hash_unbound(slot_number)
+            .expect("Failed to get root hash");
+        Some(root)
+    } else {
+        None
+    }
+}
+
 async fn compute_state_root<S: Spec>(
     state_accesses: StateAccesses,
     storage: S::Storage,
@@ -105,35 +137,15 @@ async fn compute_state_root<S: Spec>(
                 let prev_root = storage
                     .get_latest_root_hash()
                     .expect("Failed to get prev root hash");
-                let compute_result = storage
-                    .compute_state_update(state_accesses, &Default::default(), prev_root);
-                match compute_result {
-                    Ok((root, _state_update)) => root,
-                    Err(error) => {
-                        // TODO: Use better error matching when sov-state uses this error. See issues:
-                        //    * https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2634
-                        //    * https://github.com/Sovereign-Labs/sovereign-sdk/issues/473
-                        let error_string = error.to_string();
-                        if error_string.contains("stale") {
-                            tracing::info!(
-                                %slot_number,
-                                %rollup_height,
-                                error = %error_string,
-                                "Stale storage detected, going to fetch unbound root hash. This is expected.");
-                            storage.get_root_hash_unbound(slot_number).unwrap_or_else(|error| {
-                                tracing::error!(
-                                    %rollup_height, 
-                                    %slot_number, 
-                                    %error, 
-                                    "Detected to be stale during state root computation, but the corresponding state root could not be found in storage. This is a bug, please report it");
-                                panic!("Failed to fetch target root hash at slot number = {} after staled attempted to compute state update: {}. This is a bug, please report it", slot_number, error);
-                            })
-                        } else {
-                            tracing::error!(%rollup_height, %slot_number, %error, "failed to compute valid state update. This is a bug, please report it");
-                            panic!("Failed to compute valid state for height {} and slot number {} in sequencer. This is a bug, please report it", rollup_height, slot_number);
-                        }
-                    }
+
+                // First, check if storage is stale from the point of view of the caller.
+                if let Some(root) = fetch_root_hash_if_stale::<S>(&storage, slot_number) {
+                    return root;
                 }
+
+                storage
+                    .compute_state_update(state_accesses, &Default::default(), prev_root)
+                    .expect("Failed to compute state update").0
             })
     });
     handle.await.unwrap()
@@ -277,8 +289,8 @@ mod tests {
     use sov_db::storage_manager::NomtStorageManager;
     use sov_state::{OrderedReadsAndWrites, SlotKey};
     use sov_test_utils::storage::{
-        CommitingStorageManager, ForklessStorageManager, SimpleNomtStorageManager,
-        SimpleStorageManager,
+        CommitingStorageManager, ForklessStorageManager, NonCommitingStorageManager,
+        SimpleNomtStorageManager, SimpleStorageManager,
     };
     use sov_test_utils::{MockDaSpec, TestHasher, TestNomtSpec, TestSpec, TestStorageSpec};
     use tokio::task::JoinHandle;
@@ -523,24 +535,24 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore = "known bug"]
     async fn test_nomt_state_compute_competing_storages_repro() {
-        let storage_manager = SimpleNomtStorageManager::<TestStorageSpec>::new();
+        let mut storage_manager = SimpleNomtStorageManager::<TestStorageSpec>::new();
+        storage_manager.set_strict_mode(false);
         test_compute_competing_storages::<TestNomtSpec, _>(storage_manager).await;
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore = "known bug"]
-    async fn test_nomt_state_compute_competing_storages_repro_vw() {
-        let storage_manager = SimpleNomtStorageManager::<TestStorageSpec>::new();
-        test_compute_competing_storages::<TestNomtSpec, _>(storage_manager).await;
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    #[ignore = "known bug"]
-    async fn test_nomt_state_compute_competing_storages_repro_with_real_storage_manager() {
+    async fn test_nomt_state_compute_competing_storages_repro_real_storage_manager() {
         let storage_manager =
             CommitingStorageManager::<NomtStorageManager<MockDaSpec, TestHasher, _>, _>::new();
+        test_compute_competing_storages::<TestNomtSpec, _>(storage_manager).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "Fails because of https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/3030"]
+    async fn test_nomt_state_compute_competing_storages_repro_real_storage_manager_non_commiting() {
+        let storage_manager =
+            NonCommitingStorageManager::<NomtStorageManager<MockDaSpec, TestHasher, _>, _>::new();
         test_compute_competing_storages::<TestNomtSpec, _>(storage_manager).await;
     }
 
@@ -592,7 +604,7 @@ mod tests {
                     cumulative_kernel_writes.insert(kernel_key, kernel_value);
                 }
 
-                let sequencer_storage = storage_manager.create_prover_storage();
+                let sequencer_storage = storage_manager.create_api_storage();
                 let rollup_height = RollupHeight::new(idx as u64 + 1);
                 let slot_number = SlotNumber::new(idx as u64 + 1);
 
@@ -645,7 +657,11 @@ mod tests {
         for receiver in receivers {
             let (height, root_hash) = receiver.await.unwrap();
             if let Some(previous) = results.insert(height, root_hash) {
-                assert_eq!(previous, root_hash);
+                assert!(
+                    user_roots_match(&previous, &root_hash),
+                    "Received different user roots for the same height {}",
+                    height
+                );
             };
         }
 

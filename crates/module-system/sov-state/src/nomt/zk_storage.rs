@@ -175,6 +175,10 @@ impl<S: MerkleProofSpec> crate::storage::NativeStorage for NomtVerifierStorage<S
         unimplemented!("Latest version is not available for NomtVerifierStorage.");
     }
 
+    fn latest_version_unbound(&self) -> SlotNumber {
+        unimplemented!("Latest unbound version is not available for NomtVerifierStorage.");
+    }
+
     fn get_with_proof<N: crate::namespaces::ProvableCompileTimeNamespace>(
         &self,
         _key: SlotKey,

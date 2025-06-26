@@ -484,8 +484,11 @@ impl From<&str> for SlotValue {
 /// A [`Storage`] that is suitable for use in native execution environments
 /// (outside of the zkVM).
 pub trait NativeStorage: Storage {
-    /// Gets the latest version available in the storage.
+    /// Gets the latest version available in the current instance storage.
     fn latest_version(&self) -> SlotNumber;
+
+    /// Gets the latest version that can be committed from any other instance of the storage.
+    fn latest_version_unbound(&self) -> SlotNumber;
 
     /// Returns the value corresponding to the key or None if the key is absent and a proof to
     /// get the value.

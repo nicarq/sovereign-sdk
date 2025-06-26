@@ -238,6 +238,11 @@ pub trait ForklessStorageManager {
         (self.create_prover_storage(), self.current_root())
     }
     fn create_prover_storage(&self) -> Self::Storage;
+
+    fn create_api_storage(&self) -> Self::Storage {
+        self.create_prover_storage()
+    }
+
     fn commit_state_update(
         &mut self,
         storage: Self::Storage,
@@ -398,6 +403,16 @@ where
         prover_storage
     }
 
+    fn create_api_storage(&self) -> Self::Storage {
+        let (prover_storage, _) = self
+            .storage_manager
+            .lock()
+            .unwrap()
+            .create_state_after(&self.last_block)
+            .expect("Failed to create storage");
+        prover_storage
+    }
+
     fn commit_change_set(
         &mut self,
         change_set: <Self::Storage as Storage>::ChangeSet,
@@ -480,6 +495,16 @@ where
             .lock()
             .unwrap()
             .create_state_for(&self.last_block)
+            .expect("Failed to create storage");
+        prover_storage
+    }
+
+    fn create_api_storage(&self) -> Self::Storage {
+        let (prover_storage, _) = self
+            .storage_manager
+            .lock()
+            .unwrap()
+            .create_state_after(&self.last_block)
             .expect("Failed to create storage");
         prover_storage
     }

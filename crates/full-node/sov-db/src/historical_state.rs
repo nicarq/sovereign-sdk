@@ -38,10 +38,16 @@ impl HistoricalStateReader {
         })
     }
 
-    /// Get the next version from the database snapshot
-    fn next_version_from(reader: &DeltaReader) -> anyhow::Result<SlotNumber> {
+    fn last_version_from_reader(reader: &DeltaReader) -> anyhow::Result<Option<SlotNumber>> {
         let last_root_hash = reader.get_largest::<StateRootHashes>()?;
         let last_root_hash_version = last_root_hash.map(|((version, _key), _)| version);
+
+        Ok(last_root_hash_version)
+    }
+
+    /// Get the next version from the database snapshot
+    fn next_version_from(reader: &DeltaReader) -> anyhow::Result<SlotNumber> {
+        let last_root_hash_version = Self::last_version_from_reader(reader)?;
 
         Ok(match last_root_hash_version {
             None => SlotNumber::GENESIS,
@@ -72,6 +78,12 @@ impl HistoricalStateReader {
     /// The last version used for writes.
     pub fn last_version(&self) -> Option<SlotNumber> {
         self.next_version.checked_sub(1)
+    }
+
+    /// The last version committed to the database.
+    /// Can differ from [`Self::last_version`] in case if a newer version has been written to the underlying database.
+    pub fn last_version_unbound(&self) -> anyhow::Result<SlotNumber> {
+        Self::last_version_from_reader(&self.db).map(|v| v.unwrap_or(SlotNumber::GENESIS))
     }
 
     /// Get an optional value from the database, given a version and a key hash.
@@ -156,7 +168,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn verify_last_version_bumper_properly() {
+    fn verify_last_version_bumped_properly() {
         let tempdir = tempfile::tempdir().unwrap();
         let rocksdb = Arc::new(
             HistoricalStateReader::get_rockbound_options()
@@ -219,6 +231,7 @@ mod tests {
         let version0 = SlotNumber::new(0);
         assert_eq!(reader1.get_next_version(), version0);
         assert_eq!(reader2.get_next_version(), version0);
+
         let root_hash0 = vec![1; 32];
         let changes0 = HistoricalStateReader::materialize_values(
             vec![],
@@ -274,5 +287,70 @@ mod tests {
             reader2.get_serialized_root_hash(version0).unwrap(),
             Some(root_hash0)
         );
+    }
+
+    #[test]
+    fn test_unbound_last_version() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let rocksdb = Arc::new(
+            HistoricalStateReader::get_rockbound_options()
+                .default_setup_db_in_path(tempdir.path())
+                .unwrap(),
+        );
+
+        let reader1 = HistoricalStateReader::with_delta_reader(DeltaReader::new(
+            rocksdb.clone(),
+            Default::default(),
+        ))
+        .unwrap();
+        let reader2 = HistoricalStateReader::with_delta_reader(DeltaReader::new(
+            rocksdb.clone(),
+            Default::default(),
+        ))
+        .unwrap();
+
+        // Initially, both should see no last version
+        assert_eq!(reader1.last_version(), None);
+        assert_eq!(reader2.last_version(), None);
+        assert_eq!(reader1.last_version_unbound().unwrap(), SlotNumber::GENESIS);
+        assert_eq!(reader2.last_version_unbound().unwrap(), SlotNumber::GENESIS);
+
+        // Reader1 materializes data at version 0
+        let version0 = SlotNumber::new(0);
+        let changes0 = HistoricalStateReader::materialize_values(
+            vec![],
+            vec![(b"key1".to_vec(), Some(b"value1".to_vec()))],
+            vec![1; 32],
+            version0,
+        )
+        .unwrap();
+        rocksdb.write_schemas(&changes0).unwrap();
+
+        // Reader1's bound version stays the same, but unbound sees the update
+        assert_eq!(reader1.last_version(), None);
+        assert_eq!(reader1.last_version_unbound().unwrap(), SlotNumber::GENESIS);
+
+        // Reader2 also sees the update through unbound, but not through bound
+        assert_eq!(reader2.last_version(), None);
+        assert_eq!(reader2.last_version_unbound().unwrap(), SlotNumber::GENESIS);
+
+        // Reader2 materializes data at version 1
+        let version1 = SlotNumber::new(1);
+        let changes1 = HistoricalStateReader::materialize_values(
+            vec![],
+            vec![(b"key2".to_vec(), Some(b"value2".to_vec()))],
+            vec![2; 32],
+            version1,
+        )
+        .unwrap();
+        rocksdb.write_schemas(&changes1).unwrap();
+
+        // Both readers see the latest version through unbound
+        assert_eq!(reader1.last_version_unbound().unwrap(), version1);
+        assert_eq!(reader2.last_version_unbound().unwrap(), version1);
+
+        // But their bound versions remain unchanged
+        assert_eq!(reader1.last_version(), None);
+        assert_eq!(reader2.last_version(), None);
     }
 }

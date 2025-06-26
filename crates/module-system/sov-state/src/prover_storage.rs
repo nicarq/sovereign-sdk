@@ -433,6 +433,13 @@ impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
         self.db.get_next_version().saturating_sub(1)
     }
 
+    fn latest_version_unbound(&self) -> SlotNumber {
+        // Always return the bound latest version,
+        // because detecting an unbound version is error-prone due to kernel/user state split and versions.
+        // And JMT works fine with its view of the data.
+        self.latest_version()
+    }
+
     fn get_with_proof<N: ProvableCompileTimeNamespace>(
         &self,
         key: SlotKey,

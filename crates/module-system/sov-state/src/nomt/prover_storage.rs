@@ -14,15 +14,14 @@ use sov_db::state_db_nomt::NomtSessionBuilder;
 use sov_db::storage_manager::{
     InitializableNativeNomtStorage, NomtChangeSet, StateFinishedSession,
 };
-use sov_rollup_interface::common::{HexHash, SlotNumber};
+use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::reexports::digest::Digest;
 
 use crate::storage::ReadType;
 use crate::{
     Accessory, CompileTimeNamespace, MerkleProofSpec, Namespace, NativeStorage, NodeLeaf,
     NodeLeafAndMaybeValue, OrderedReadsAndWrites, ProvableCompileTimeNamespace, ProvableNamespace,
-    SlotKey, SlotValue, StateAccesses, StateRoot, StateUpdate, Storage, StorageProof, StorageRoot,
-    Witness,
+    SlotKey, SlotValue, StateAccesses, StateUpdate, Storage, StorageProof, StorageRoot, Witness,
 };
 
 type NomtSession<H> = nomt::Session<BinaryHasher<H>>;
@@ -404,26 +403,17 @@ where
         let user_session = self.state_session_builder.begin_user_session()?;
         let kernel_session = self.state_session_builder.begin_kernel_session()?;
 
-        let passed_prev_user_root = prev_state_root.namespace_root(ProvableNamespace::User);
-        let passed_prev_kernel_root = prev_state_root.namespace_root(ProvableNamespace::Kernel);
-
         let current_prev_user_root = user_session.prev_root().into_inner();
         let current_prev_kernel_root = kernel_session.prev_root().into_inner();
+        let current_prev_root = StorageRoot::new(current_prev_user_root, current_prev_kernel_root);
 
         // Check staleness, pre-computation:
-        {
-            if current_prev_user_root != passed_prev_user_root {
-                anyhow::bail!("stale storage on next_version={}, passed prev_state_root for user namespace {} does not match the current prev_state_root {}",
-                    next_version,
-                    HexHash::new(passed_prev_user_root),
-                    HexHash::new(current_prev_user_root)
-                );
-            }
-
-            // Kernel namespace is more likely to be stale, but won't affect user-space and background check.
-            if current_prev_kernel_root != passed_prev_kernel_root {
-                tracing::debug!("stale kernel namespace in pre-check detected, this is expected");
-            }
+        if self.is_strict_mode && current_prev_root != prev_state_root {
+            anyhow::bail!("stale storage on next_version={}, passed prev_state_root {} does not match the current prev_state_root {}",
+                next_version,
+                prev_state_root,
+                current_prev_root
+            );
         }
 
         let user_finished_session = {
@@ -441,22 +431,18 @@ where
         // Additional self-check that the finished session has the same previous root hash as passed prev_state_root.
         let kernel_finished_session_prev_root = kernel_finished_session.prev_root().into_inner();
         let user_finished_session_prev_root = user_finished_session.prev_root().into_inner();
+        let finished_session_prev_root = StorageRoot::new(
+            user_finished_session_prev_root,
+            kernel_finished_session_prev_root,
+        );
 
         // Check staleness, post-computation. This should check if storage became stale during the computation.
-        {
-            if passed_prev_user_root != user_finished_session_prev_root {
-                let next_version = self.historical_state.get_next_version();
-                anyhow::bail!("stale storage on next_version={}, passed prev_state_root for user namespace {} does not match the current prev_state_root {}",
-                    next_version,
-                    HexHash::new(passed_prev_user_root),
-                    HexHash::new(current_prev_user_root)
-                );
-            }
-
-            // Kernel namespace is more likely to be stale, but won't affect user-space and background check.
-            if kernel_finished_session_prev_root != passed_prev_kernel_root {
-                tracing::debug!("stale kernel namespace in post-check detected, this is expected");
-            }
+        if self.is_strict_mode && prev_state_root != finished_session_prev_root {
+            anyhow::bail!("stale storage on next_version={}, passed prev_state_root {} does not match the current prev_state_root {}",
+                next_version,
+                prev_state_root,
+                current_prev_root
+            );
         }
 
         let user_root = user_finished_session.root();
@@ -534,6 +520,12 @@ where
 {
     fn latest_version(&self) -> SlotNumber {
         self.historical_state.get_next_version().saturating_sub(1)
+    }
+
+    fn latest_version_unbound(&self) -> SlotNumber {
+        self.historical_state
+            .last_version_unbound()
+            .expect("Issue with underlying database")
     }
 
     fn get_with_proof<N: ProvableCompileTimeNamespace>(

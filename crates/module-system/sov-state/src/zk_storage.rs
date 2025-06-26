@@ -213,6 +213,10 @@ impl<S: MerkleProofSpec> crate::storage::NativeStorage for ZkStorage<S> {
         unimplemented!("Latest version is not available for ZkStorage");
     }
 
+    fn latest_version_unbound(&self) -> SlotNumber {
+        unimplemented!("Latest unbound version is not available for ZkStorage");
+    }
+
     fn get_with_proof<N: crate::namespaces::ProvableCompileTimeNamespace>(
         &self,
         _key: SlotKey,

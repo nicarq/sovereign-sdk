@@ -41,28 +41,28 @@ fn nomt_concurrent_prover_in_memory_storages() {
 #[test]
 fn jmt_node_sequencer_concurrent_state_update() {
     let storage_manager = SimpleStorageManager::new();
-    node_sequencer_compute_state_update_concurrency::<TestSpec, _>(storage_manager, true);
+    node_sequencer_compute_state_update_concurrency::<TestSpec, _>(storage_manager);
 }
 
 #[test]
 fn jmt_node_sequencer_concurrent_state_update_in_memory() {
     let storage_manager =
         NonCommitingStorageManager::<NativeStorageManager<MockDaSpec, _>, _>::new();
-    node_sequencer_compute_state_update_concurrency::<TestSpec, _>(storage_manager, true);
+    node_sequencer_compute_state_update_concurrency::<TestSpec, _>(storage_manager);
 }
 
 #[test]
 fn nomt_node_sequencer_concurrent_state_update() {
     let mut storage_manager = SimpleNomtStorageManager::new();
     storage_manager.set_strict_mode(false);
-    node_sequencer_compute_state_update_concurrency::<TestNomtSpec, _>(storage_manager, false);
+    node_sequencer_compute_state_update_concurrency::<TestNomtSpec, _>(storage_manager);
 }
 
 #[test]
 fn nomt_node_sequencer_concurrent_state_update_in_memory() {
     let storage_manager =
         NonCommitingStorageManager::<NomtStorageManager<MockDaSpec, TestHasher, _>, _>::new();
-    node_sequencer_compute_state_update_concurrency::<TestNomtSpec, _>(storage_manager, true);
+    node_sequencer_compute_state_update_concurrency::<TestNomtSpec, _>(storage_manager);
 }
 
 /// # Description
@@ -359,10 +359,8 @@ where
 /// This test emulates a situation
 /// when a change set from the node is committed after a sequencer called `storage.get_root_hash()`
 /// but before it called `storage.compute_state_update`
-fn node_sequencer_compute_state_update_concurrency<S, Sm>(
-    mut storage_manager: Sm,
-    allows_concurrent_compute_state_update: bool,
-) where
+fn node_sequencer_compute_state_update_concurrency<S, Sm>(mut storage_manager: Sm)
+where
     S: Spec,
     Sm: ForklessStorageManager<Storage = S::Storage>,
     S::Storage: NativeStorage,
@@ -430,22 +428,10 @@ fn node_sequencer_compute_state_update_concurrency<S, Sm>(
         &<S::Storage as Storage>::Witness::default(),
         sequencer_root_hash,
     );
-    if allows_concurrent_compute_state_update {
-        let (sequencer_root, _) = result.unwrap();
+    let (sequencer_root, _) = result.unwrap();
 
-        // In reality, this kind of equality is going to be enforced by the sequencer state root checks.
-        assert_ne!(sequencer_root, root_2);
-    } else {
-        let error = result.err().expect("compute_state_update should fail if it does not allow compute state update on stale data");
-        let error_string = error.to_string();
-        let expected_pattern = "stale storage";
-        assert!(
-            error_string.contains(expected_pattern),
-            "Pattern '{}' not found in {}",
-            expected_pattern,
-            error_string,
-        );
-    }
+    // In reality, this kind of equality is going to be enforced by the sequencer state root checks.
+    assert_ne!(sequencer_root, root_2);
 }
 
 fn materialize_writes<S: Storage>(
