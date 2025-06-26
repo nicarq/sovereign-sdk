@@ -29,7 +29,7 @@ impl Metric for NomtDbMetric {
         // DB as tag, rest as fields
         write!(
             buffer,
-            "{},db={}, ht_capacity={},ht_occupied={}",
+            "{},db={} ht_capacity={},ht_occupied={}",
             self.measurement_name(),
             self.db,
             self.hash_table_capacity,
@@ -54,7 +54,7 @@ impl Metric for NomtBeginSessionMetric {
         // DB as tag, rest as fields
         write!(
             buffer,
-            "{},db={}, overlays={},init_time_us={}",
+            "{},db={} overlays={},init_time_us={}",
             self.measurement_name(),
             self.db,
             self.overlays,
