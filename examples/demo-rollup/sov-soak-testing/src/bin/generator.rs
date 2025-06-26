@@ -39,6 +39,42 @@ struct Args {
     /// The salt to use for RNG. Use this value if you're restarting the generator and want to ensure that the generated
     /// transactions don't overlap with the previous run.
     salt: u32,
+
+    #[arg(short, long, default_value = "ValidityProfile::Buzzy")]
+    /// The distribution of valid/invalid transactions to generate.
+    validity_profile: ValidityProfile,
+}
+
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+pub enum ValidityProfile {
+    /// Only valid transactions
+    Clean,
+    /// 5% of invalid transactions
+    Buzzy,
+    /// 50/50
+    Half,
+    /// 90% of invalid transactions
+    Spammy,
+}
+
+impl ValidityProfile {
+    fn get_validity(&self) -> Distribution<MessageValidity> {
+        match self {
+            ValidityProfile::Clean => Distribution::with_values(vec![(1, MessageValidity::Valid)]),
+            ValidityProfile::Buzzy => Distribution::with_values(vec![
+                (20, MessageValidity::Valid),
+                (1, MessageValidity::Invalid),
+            ]),
+            ValidityProfile::Half => Distribution::with_values(vec![
+                (50, MessageValidity::Valid),
+                (50, MessageValidity::Invalid),
+            ]),
+            ValidityProfile::Spammy => Distribution::with_values(vec![
+                (10, MessageValidity::Valid),
+                (90, MessageValidity::Invalid),
+            ]),
+        }
+    }
 }
 
 async fn worker_task(
@@ -47,11 +83,9 @@ async fn worker_task(
     worker_id: u128,
     num_workers: u32,
     runtime: SelectedRuntime,
+    validity_profile: ValidityProfile,
 ) -> anyhow::Result<()> {
-    let validity = Distribution::with_values(vec![
-        (20, MessageValidity::Valid),
-        (1, MessageValidity::Invalid),
-    ]);
+    let validity = validity_profile.get_validity();
 
     let result = match runtime {
         SelectedRuntime::Test => {
@@ -113,6 +147,7 @@ async fn main() -> Result<(), anyhow::Error> {
             (i + args.salt) as u128,
             args.num_workers,
             args.runtime,
+            args.validity_profile,
         ));
     }
 
