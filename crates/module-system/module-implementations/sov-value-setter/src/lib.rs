@@ -99,6 +99,10 @@ impl<S: Spec> Module for ValueSetter<S> {
                 value: new_value,
                 gas,
             } => Ok(self.set_value(new_value, gas, context, state)?),
+            CallMessage::SetValueAndSleep {
+                value: new_value,
+                sleep_millis,
+            } => Ok(self.set_value_and_sleep(new_value, sleep_millis, context, state)?),
             CallMessage::SetManyValues(many) => Ok(self.set_values(many, context, state)?),
             CallMessage::AssertVisibleSlotNumber {
                 expected_visible_slot_number,

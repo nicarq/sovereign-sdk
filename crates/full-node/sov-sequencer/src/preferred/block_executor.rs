@@ -32,11 +32,16 @@ use crate::preferred::async_batch::{ExecutedTxResponse, MaybeAsyncBatch};
 use crate::preferred::exit_rollup;
 use crate::{SequencerConfig, SequencerEvent};
 
-type TxReceiptWithEvents<S, Rt> = (
-    TransactionReceipt<S>,
-    Vec<RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>,
-    <S as Spec>::Gas,
-);
+pub(crate) struct TxReceiptWithEvents<S, Rt>
+where
+    S: Spec,
+    Rt: Runtime<S> + RuntimeEventProcessor,
+{
+    pub receipt: TransactionReceipt<S>,
+    pub events: Vec<RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>,
+    pub remaining_slot_gas: <S as Spec>::Gas,
+    pub execution_time_micros: u64,
+}
 
 type BlockExecutionOutput<S> = (Vec<BatchReceipt<S>>, ChangeSet, StateAccesses);
 
@@ -191,9 +196,14 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         let slot_num = self.checkpoint.current_visible_slot_number();
 
         match result {
-            Ok((receipt, remaining_slot_gas)) => {
+            Ok((receipt, remaining_slot_gas, execution_time_micros)) => {
                 let events = self.process_tx_receipt(&receipt, *slot_num).await;
-                Ok((receipt, events, remaining_slot_gas))
+                Ok(TxReceiptWithEvents {
+                    receipt,
+                    events,
+                    remaining_slot_gas,
+                    execution_time_micros,
+                })
             }
             Err(e) => Err(e),
         }
@@ -202,7 +212,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     async fn apply_tx_to_in_progress_batch_inner(
         &mut self,
         baked_tx: &FullyBakedTx,
-    ) -> Result<(TransactionReceipt<S>, <S as Spec>::Gas), RollupBlockExecutorError<S>> {
+    ) -> Result<(TransactionReceipt<S>, <S as Spec>::Gas, u64), RollupBlockExecutorError<S>> {
         let Some(task_state) = self.rollup_block_task_state.as_mut() else {
             panic!("Accepting a transaction, yet there's no in-progress batch. This is a bug in the sequencer, please report it.");
         };
@@ -224,6 +234,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             receipt,
             tx_changes,
             remaining_slot_gas,
+            execution_time_micros,
         } = result.map_err(|reason| RollupBlockExecutorError::Rejected {
             reason,
             call: call_message_repr::<Rt>(&call),
@@ -235,7 +246,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
         self.checkpoint.apply_changes(tx_changes.0);
 
-        Ok((receipt, remaining_slot_gas))
+        Ok((receipt, remaining_slot_gas, execution_time_micros))
     }
 
     /// Returns true if [`super::db::PreferredSequencerDb::pop_tx`] ought to be called.

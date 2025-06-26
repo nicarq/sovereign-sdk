@@ -59,7 +59,9 @@ use crate::common::{
     AcceptedTx, Sequencer, StateUpdateError, TxStatusBlobSenderHooks, WithCachedTxHashes,
 };
 use crate::metrics::track_in_progress_batch_size;
-use crate::preferred::block_executor::{EventCache, RollupBlockExecutor, RollupBlockExecutorError};
+use crate::preferred::block_executor::{
+    EventCache, RollupBlockExecutor, RollupBlockExecutorError, TxReceiptWithEvents,
+};
 use crate::preferred::db::{latest_finalized_sequence_number, DbEvent};
 use crate::{
     ProofBlobSender, SequencerConfig, SequencerEvent, SequencerNotReadyDetails, TxStatus,
@@ -925,6 +927,51 @@ where
         self.wait_for_node_resync(state_update_receiver, shutdown_receiver, 1, current_info)
             .await
     }
+
+    /// Closes the current batch if it is nearly full (by gas limit) or has reached the target batch execution time.
+    async fn close_batch_if_nearly_full(
+        &self,
+        inner: &mut Inner<S, Rt, Da>,
+        remaining_slot_gas: &<S as GasSpec>::Gas,
+    ) {
+        // Check if we're close to the gas limit and close the batch if we are.
+        let mut comfortable_gas_limit = <S as GasSpec>::initial_gas_limit();
+        comfortable_gas_limit
+            .scalar_division(COMFORTABLE_GAS_LIMIT_DIVISOR)
+            .checked_scalar_product(COMFORTABLE_GAS_LIMIT_MULTIPLIER)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Cannot overflow after dividing by {} and multiplying by {}",
+                    COMFORTABLE_GAS_LIMIT_DIVISOR, COMFORTABLE_GAS_LIMIT_MULTIPLIER,
+                )
+            });
+        let close_to_gas_limit = remaining_slot_gas.dim_is_less_or_eq(&comfortable_gas_limit);
+        if close_to_gas_limit {
+            tracing::debug!(%comfortable_gas_limit, %remaining_slot_gas, "Closing and publishing current batch because we're close to the gas limit");
+            // We can't do anything about errors here, so we just log them. They won't interfere with acceptance of *this* tx, so we return success for it.
+            if let Err(error) = inner.close_and_publish_current_batch().await {
+                tracing::error!(%error, "Error closing and publishing current batch; the batch is now more full than we would like - this may cause future transactions to be rejected.");
+            }
+        }
+
+        // Here we need to mutliply by 1000 to convert from millis to micros.
+        let batch_execution_time_limit_micros = self
+            .config
+            .sequencer_kind_config
+            .batch_execution_time_limit_millis
+            * 1000;
+        let current_batch_execution_time_micros =
+            inner.batch_size_tracker.batch_execution_time_micros;
+        if current_batch_execution_time_micros > batch_execution_time_limit_micros {
+            tracing::debug!(%batch_execution_time_limit_micros, %current_batch_execution_time_micros, "Closing and publishing current batch because we've reached the batch execution time cap");
+            // We can't do anything about errors here, so we just log them. They won't interfere with acceptance of *this* tx, so we return success for it.
+            if let Err(error) = inner.close_and_publish_current_batch().await {
+                tracing::error!(%error, "Error closing and publishing current batch; the batch is now more full than we would like - this may cause future transactions to be rejected.");
+            }
+        } else {
+            tracing::trace!(%batch_execution_time_limit_micros, %current_batch_execution_time_micros, "Batch execution time is within comfortable range, not closing batch");
+        }
+    }
 }
 
 async fn update_state_task<S, Rt, Da>(
@@ -1249,10 +1296,15 @@ where
 
         let apply_tx_res = executor.apply_tx_to_in_progress_batch(&baked_tx).await;
 
-        let (receipt, events, remaining_slot_gas) = match apply_tx_res {
+        let TxReceiptWithEvents {
+            receipt,
+            events,
+            remaining_slot_gas,
+            execution_time_micros,
+        } = match apply_tx_res {
             Ok(res) => {
                 assert_eq!(
-                    tx_hash, res.0.tx_hash,
+                    tx_hash, res.receipt.tx_hash,
                     "The executor returned a different tx hash than expected"
                 );
                 res
@@ -1267,7 +1319,7 @@ where
             .await
             .map_err(database_error_500)?;
 
-        batch_size_tracker.add_tx(baked_tx.data.len());
+        batch_size_tracker.add_tx(baked_tx.data.len(), execution_time_micros);
         tracing::debug!(%tx_hash, "Transaction was accepted by the sequencer");
 
         track_in_progress_batch_size(
@@ -1285,20 +1337,8 @@ where
             )
             .await;
 
-        // Check if we're close to the gas limit and close the batch if we are.
-        let mut comfortable_gas_limit = <S as GasSpec>::initial_gas_limit();
-        comfortable_gas_limit
-            .scalar_division(COMFORTABLE_GAS_LIMIT_DIVISOR)
-            .checked_scalar_product(COMFORTABLE_GAS_LIMIT_MULTIPLIER)
-            .expect("Cannot overflow after dividing by 20 and multiplying by 19");
-        let close_to_gas_limit = remaining_slot_gas.dim_is_less_or_eq(&comfortable_gas_limit);
-        if close_to_gas_limit {
-            tracing::debug!(%comfortable_gas_limit, %remaining_slot_gas, "Closing and publishing current batch because we're close to the gas limit");
-            // We can't do anything about errors here, so we just log them. They won't interfere with acceptance of *this* tx, so we return success for it.
-            if let Err(error) = inner.close_and_publish_current_batch().await {
-                tracing::error!(%error, "Error closing and publishing current batch; the batch is now more full than we would like - this may cause future transactions to be rejected.");
-            }
-        }
+        self.close_batch_if_nearly_full(&mut inner, &remaining_slot_gas)
+            .await;
 
         Ok(AcceptedTx {
             tx: baked_tx,
@@ -1371,6 +1411,8 @@ pub struct PreferredSequencerConfig {
     pub db_event_channel_size: usize,
     /// Strategy for handling recovery scenarios in the preferred sequencer.
     pub recovery_strategy: RecoveryStrategy,
+    /// Target time in milliseconds to spend executing all the txs in a single batch. Batches will be closed when they exceed this value.
+    pub batch_execution_time_limit_millis: u64,
 }
 
 impl Default for PreferredSequencerConfig {
@@ -1383,6 +1425,7 @@ impl Default for PreferredSequencerConfig {
             ideal_lag_behind_finalized_slot: default_ideal_lag_behind_finalized_slot(),
             recovery_strategy: RecoveryStrategy::None,
             db_event_channel_size: default_db_event_channel_size(),
+            batch_execution_time_limit_millis: 6_000, // 6 seconds
         }
     }
 }
@@ -1595,7 +1638,7 @@ fn accepts_preferred_batches<B: BlobSelector>(_blob_selector: B) -> bool {
 }
 
 fn err_if_cant_fit_tx(tracker: &BatchSizeTracker, tx: &FullyBakedTx) -> Result<(), ErrorObject> {
-    if !tracker.can_fit_tx(tx.data.len()) {
+    if !tracker.can_fit_tx_bytes(tx.data.len()) {
         return Err(ErrorObject {
             status: StatusCode::SERVICE_UNAVAILABLE,
             title: "Transaction cannot be included in the batch due to batch size limitations"

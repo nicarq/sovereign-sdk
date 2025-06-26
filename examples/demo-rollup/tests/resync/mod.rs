@@ -38,7 +38,7 @@ struct LogCollector {
 }
 
 fn initialize_logging_for_resync(records: Arc<Mutex<Vec<(Level, String)>>>, with_stdout: bool) {
-    let collector = LogCollector { records };
+    let collector = LogCollector { records }.with_filter(EnvFilter::from_str("info").unwrap());
     let subscriber = registry().with(collector);
     let prev_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
@@ -178,6 +178,7 @@ async fn test_generate_mockda_dataset_for_resync() -> anyhow::Result<()> {
                     })
                     .await
                     .unwrap();
+                test_rollup.force_close_batch().await.unwrap();
             }
         }
         if current_slot_number >= DA_SLOTS_TO_GENERATE + FINALIZATION_SLOTS as u64 {

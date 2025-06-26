@@ -308,9 +308,16 @@
       "description": "Configuration for [`PreferredSequencer`].",
       "type": "object",
       "required": [
+        "batch_execution_time_limit_millis",
         "recovery_strategy"
       ],
       "properties": {
+        "batch_execution_time_limit_millis": {
+          "description": "Target time in milliseconds to spend executing all the txs in a single batch. Batches will be closed when they exceed this value.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
         "db_event_channel_size": {
           "description": "The number of events that can be buffered in the database event channel while `update_state` is running. This value needs to be increased at higher TPS to avoid blocking the sequencer.",
           "default": 10000,

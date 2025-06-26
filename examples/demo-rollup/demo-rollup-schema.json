@@ -95,7 +95,7 @@
             "display_name": "details",
             "silent": false,
             "value": {
-              "ByIndex": 112
+              "ByIndex": 113
             },
             "doc": ""
           }
@@ -179,7 +179,7 @@
             "discriminant": 3,
             "template": null,
             "value": {
-              "ByIndex": 43
+              "ByIndex": 44
             }
           },
           {
@@ -187,7 +187,7 @@
             "discriminant": 4,
             "template": null,
             "value": {
-              "ByIndex": 45
+              "ByIndex": 46
             }
           },
           {
@@ -195,7 +195,7 @@
             "discriminant": 5,
             "template": null,
             "value": {
-              "ByIndex": 50
+              "ByIndex": 51
             }
           },
           {
@@ -203,7 +203,7 @@
             "discriminant": 6,
             "template": null,
             "value": {
-              "ByIndex": 54
+              "ByIndex": 55
             }
           },
           {
@@ -211,7 +211,7 @@
             "discriminant": 7,
             "template": null,
             "value": {
-              "ByIndex": 59
+              "ByIndex": 60
             }
           },
           {
@@ -219,7 +219,7 @@
             "discriminant": 8,
             "template": null,
             "value": {
-              "ByIndex": 60
+              "ByIndex": 61
             }
           },
           {
@@ -227,7 +227,7 @@
             "discriminant": 9,
             "template": null,
             "value": {
-              "ByIndex": 61
+              "ByIndex": 62
             }
           },
           {
@@ -235,7 +235,7 @@
             "discriminant": 10,
             "template": null,
             "value": {
-              "ByIndex": 62
+              "ByIndex": 63
             }
           },
           {
@@ -243,7 +243,7 @@
             "discriminant": 11,
             "template": null,
             "value": {
-              "ByIndex": 88
+              "ByIndex": 89
             }
           },
           {
@@ -251,7 +251,7 @@
             "discriminant": 12,
             "template": null,
             "value": {
-              "ByIndex": 91
+              "ByIndex": 92
             }
           }
         ],
@@ -894,8 +894,16 @@
             }
           },
           {
-            "name": "Panic",
+            "name": "SetValueAndSleep",
             "discriminant": 6,
+            "template": null,
+            "value": {
+              "ByIndex": 43
+            }
+          },
+          {
+            "name": "Panic",
+            "discriminant": 7,
             "template": null,
             "value": null
           }
@@ -1115,13 +1123,48 @@
       }
     },
     {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_CallMessage_SetValueAndSleep",
+        "template": null,
+        "peekable": false,
+        "fields": [
+          {
+            "display_name": "value",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u32",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "sleep_millis",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
       "Tuple": {
         "template": null,
         "peekable": false,
         "fields": [
           {
             "value": {
-              "ByIndex": 44
+              "ByIndex": 45
             },
             "silent": false,
             "doc": ""
@@ -1143,7 +1186,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 46
+              "ByIndex": 47
             },
             "silent": false,
             "doc": ""
@@ -1160,7 +1203,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 47
+              "ByIndex": 48
             }
           },
           {
@@ -1180,7 +1223,7 @@
             "discriminant": 3,
             "template": null,
             "value": {
-              "ByIndex": 48
+              "ByIndex": 49
             }
           },
           {
@@ -1194,7 +1237,7 @@
             "discriminant": 5,
             "template": null,
             "value": {
-              "ByIndex": 49
+              "ByIndex": 50
             }
           }
         ],
@@ -1253,7 +1296,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 51
+              "ByIndex": 52
             },
             "silent": false,
             "doc": ""
@@ -1270,7 +1313,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 52
+              "ByIndex": 53
             }
           },
           {
@@ -1278,7 +1321,7 @@
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 53
+              "ByIndex": 54
             }
           },
           {
@@ -1328,7 +1371,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 55
+              "ByIndex": 56
             },
             "silent": false,
             "doc": ""
@@ -1345,7 +1388,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 56
+              "ByIndex": 57
             }
           }
         ],
@@ -1359,7 +1402,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 57
+              "ByIndex": 58
             },
             "silent": false,
             "doc": ""
@@ -1374,7 +1417,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 58
+              "ByIndex": 59
             },
             "silent": false,
             "doc": ""
@@ -1409,7 +1452,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 44
+              "ByIndex": 45
             },
             "silent": false,
             "doc": ""
@@ -1424,7 +1467,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 44
+              "ByIndex": 45
             },
             "silent": false,
             "doc": ""
@@ -1439,7 +1482,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 44
+              "ByIndex": 45
             },
             "silent": false,
             "doc": ""
@@ -1454,7 +1497,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 63
+              "ByIndex": 64
             },
             "silent": false,
             "doc": ""
@@ -1471,7 +1514,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 64
+              "ByIndex": 65
             }
           },
           {
@@ -1479,7 +1522,7 @@
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 77
+              "ByIndex": 78
             }
           },
           {
@@ -1487,7 +1530,7 @@
             "discriminant": 2,
             "template": null,
             "value": {
-              "ByIndex": 78
+              "ByIndex": 79
             }
           }
         ],
@@ -1504,7 +1547,7 @@
             "display_name": "policy",
             "silent": false,
             "value": {
-              "ByIndex": 65
+              "ByIndex": 66
             },
             "doc": ""
           }
@@ -1521,7 +1564,7 @@
             "display_name": "default_payee_policy",
             "silent": false,
             "value": {
-              "ByIndex": 66
+              "ByIndex": 67
             },
             "doc": ""
           },
@@ -1529,7 +1572,7 @@
             "display_name": "payees",
             "silent": false,
             "value": {
-              "ByIndex": 72
+              "ByIndex": 73
             },
             "doc": ""
           },
@@ -1545,7 +1588,7 @@
             "display_name": "authorized_sequencers",
             "silent": false,
             "value": {
-              "ByIndex": 74
+              "ByIndex": 75
             },
             "doc": ""
           }
@@ -1561,7 +1604,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 67
+              "ByIndex": 68
             }
           },
           {
@@ -1600,7 +1643,7 @@
             "display_name": "max_gas_price",
             "silent": false,
             "value": {
-              "ByIndex": 68
+              "ByIndex": 69
             },
             "doc": ""
           },
@@ -1608,7 +1651,7 @@
             "display_name": "transaction_limit",
             "silent": false,
             "value": {
-              "ByIndex": 71
+              "ByIndex": 72
             },
             "doc": ""
           }
@@ -1618,7 +1661,7 @@
     {
       "Option": {
         "value": {
-          "ByIndex": 69
+          "ByIndex": 70
         }
       }
     },
@@ -1632,7 +1675,7 @@
             "display_name": "value",
             "silent": false,
             "value": {
-              "ByIndex": 70
+              "ByIndex": 71
             },
             "doc": ""
           }
@@ -1662,7 +1705,7 @@
     {
       "Vec": {
         "value": {
-          "ByIndex": 73
+          "ByIndex": 74
         }
       }
     },
@@ -1680,7 +1723,7 @@
           },
           {
             "value": {
-              "ByIndex": 66
+              "ByIndex": 67
             },
             "silent": false,
             "doc": ""
@@ -1703,7 +1746,7 @@
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 75
+              "ByIndex": 76
             }
           }
         ],
@@ -1717,7 +1760,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 76
+              "ByIndex": 77
             },
             "silent": false,
             "doc": ""
@@ -1767,7 +1810,7 @@
             "display_name": "update",
             "silent": false,
             "value": {
-              "ByIndex": 79
+              "ByIndex": 80
             },
             "doc": ""
           }
@@ -1784,7 +1827,7 @@
             "display_name": "sequencer_update",
             "silent": false,
             "value": {
-              "ByIndex": 80
+              "ByIndex": 81
             },
             "doc": ""
           },
@@ -1792,7 +1835,7 @@
             "display_name": "updaters_to_add",
             "silent": false,
             "value": {
-              "ByIndex": 85
+              "ByIndex": 86
             },
             "doc": ""
           },
@@ -1800,7 +1843,7 @@
             "display_name": "updaters_to_remove",
             "silent": false,
             "value": {
-              "ByIndex": 85
+              "ByIndex": 86
             },
             "doc": ""
           },
@@ -1808,7 +1851,7 @@
             "display_name": "payee_policies_to_set",
             "silent": false,
             "value": {
-              "ByIndex": 86
+              "ByIndex": 87
             },
             "doc": ""
           },
@@ -1816,7 +1859,7 @@
             "display_name": "payee_policies_to_delete",
             "silent": false,
             "value": {
-              "ByIndex": 85
+              "ByIndex": 86
             },
             "doc": ""
           },
@@ -1824,7 +1867,7 @@
             "display_name": "default_policy",
             "silent": false,
             "value": {
-              "ByIndex": 87
+              "ByIndex": 88
             },
             "doc": ""
           }
@@ -1834,7 +1877,7 @@
     {
       "Option": {
         "value": {
-          "ByIndex": 81
+          "ByIndex": 82
         }
       }
     },
@@ -1853,7 +1896,7 @@
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 82
+              "ByIndex": 83
             }
           }
         ],
@@ -1867,7 +1910,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 83
+              "ByIndex": 84
             },
             "silent": false,
             "doc": ""
@@ -1885,7 +1928,7 @@
             "display_name": "to_add",
             "silent": false,
             "value": {
-              "ByIndex": 84
+              "ByIndex": 85
             },
             "doc": ""
           },
@@ -1893,7 +1936,7 @@
             "display_name": "to_remove",
             "silent": false,
             "value": {
-              "ByIndex": 84
+              "ByIndex": 85
             },
             "doc": ""
           }
@@ -1903,7 +1946,7 @@
     {
       "Option": {
         "value": {
-          "ByIndex": 76
+          "ByIndex": 77
         }
       }
     },
@@ -1917,14 +1960,14 @@
     {
       "Option": {
         "value": {
-          "ByIndex": 72
+          "ByIndex": 73
         }
       }
     },
     {
       "Option": {
         "value": {
-          "ByIndex": 66
+          "ByIndex": 67
         }
       }
     },
@@ -1935,7 +1978,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 89
+              "ByIndex": 90
             },
             "silent": false,
             "doc": ""
@@ -1953,7 +1996,7 @@
             "display_name": "rlp",
             "silent": false,
             "value": {
-              "ByIndex": 90
+              "ByIndex": 91
             },
             "doc": ""
           }
@@ -1988,7 +2031,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 92
+              "ByIndex": 93
             },
             "silent": false,
             "doc": ""
@@ -2005,7 +2048,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 93
+              "ByIndex": 94
             }
           },
           {
@@ -2013,7 +2056,7 @@
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 94
+              "ByIndex": 95
             }
           },
           {
@@ -2021,7 +2064,7 @@
             "discriminant": 2,
             "template": null,
             "value": {
-              "ByIndex": 96
+              "ByIndex": 97
             }
           },
           {
@@ -2029,7 +2072,7 @@
             "discriminant": 3,
             "template": null,
             "value": {
-              "ByIndex": 97
+              "ByIndex": 98
             }
           },
           {
@@ -2037,7 +2080,7 @@
             "discriminant": 4,
             "template": null,
             "value": {
-              "ByIndex": 98
+              "ByIndex": 99
             }
           },
           {
@@ -2045,7 +2088,7 @@
             "discriminant": 5,
             "template": null,
             "value": {
-              "ByIndex": 99
+              "ByIndex": 100
             }
           },
           {
@@ -2059,7 +2102,7 @@
             "discriminant": 7,
             "template": null,
             "value": {
-              "ByIndex": 100
+              "ByIndex": 101
             }
           },
           {
@@ -2067,7 +2110,7 @@
             "discriminant": 8,
             "template": null,
             "value": {
-              "ByIndex": 101
+              "ByIndex": 102
             }
           },
           {
@@ -2081,7 +2124,7 @@
             "discriminant": 10,
             "template": null,
             "value": {
-              "ByIndex": 102
+              "ByIndex": 103
             }
           },
           {
@@ -2089,7 +2132,7 @@
             "discriminant": 11,
             "template": null,
             "value": {
-              "ByIndex": 103
+              "ByIndex": 104
             }
           },
           {
@@ -2097,7 +2140,7 @@
             "discriminant": 12,
             "template": null,
             "value": {
-              "ByIndex": 104
+              "ByIndex": 105
             }
           },
           {
@@ -2105,7 +2148,7 @@
             "discriminant": 13,
             "template": null,
             "value": {
-              "ByIndex": 111
+              "ByIndex": 112
             }
           }
         ],
@@ -2183,7 +2226,7 @@
             "display_name": "content",
             "silent": false,
             "value": {
-              "ByIndex": 95
+              "ByIndex": 96
             },
             "doc": ""
           }
@@ -2441,7 +2484,7 @@
             "display_name": "pre",
             "silent": false,
             "value": {
-              "ByIndex": 105
+              "ByIndex": 106
             },
             "doc": ""
           },
@@ -2449,7 +2492,7 @@
             "display_name": "post",
             "silent": false,
             "value": {
-              "ByIndex": 105
+              "ByIndex": 106
             },
             "doc": ""
           }
@@ -2459,14 +2502,14 @@
     {
       "Option": {
         "value": {
-          "ByIndex": 106
+          "ByIndex": 107
         }
       }
     },
     {
       "Vec": {
         "value": {
-          "ByIndex": 107
+          "ByIndex": 108
         }
       }
     },
@@ -2479,7 +2522,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 108
+              "ByIndex": 109
             }
           },
           {
@@ -2487,7 +2530,7 @@
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 109
+              "ByIndex": 110
             }
           },
           {
@@ -2495,7 +2538,7 @@
             "discriminant": 2,
             "template": null,
             "value": {
-              "ByIndex": 110
+              "ByIndex": 111
             }
           }
         ],
@@ -2647,7 +2690,7 @@
             "display_name": "max_priority_fee_bips",
             "silent": false,
             "value": {
-              "ByIndex": 113
+              "ByIndex": 114
             },
             "doc": ""
           },
@@ -2734,7 +2777,7 @@
             "display_name": "details",
             "silent": false,
             "value": {
-              "ByIndex": 112
+              "ByIndex": 113
             },
             "doc": ""
           }
@@ -2744,7 +2787,7 @@
   ],
   "root_type_indices": [
     0,
-    114,
+    115,
     6,
     14
   ],
@@ -3139,6 +3182,9 @@
           "name": "run_cpu_heavy_operation"
         },
         {
+          "name": "set_value_and_sleep"
+        },
+        {
           "name": "panic"
         }
       ]
@@ -3208,6 +3254,17 @@
       "fields_or_variants": [
         {
           "name": "iterations"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_SetValueAndSleep",
+      "fields_or_variants": [
+        {
+          "name": "value"
+        },
+        {
+          "name": "sleep_millis"
         }
       ]
     },

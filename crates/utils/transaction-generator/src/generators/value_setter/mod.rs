@@ -245,6 +245,18 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
                     },
                 ))
             }
+            CallMessageDiscriminants::SetValueAndSleep => {
+                // Don't generate a sleep time, just set the value. We'd rather use real load than sleeps for soak testing.
+                let value = u32::arbitrary(u)?;
+
+                Ok(GeneratedMessage::new(
+                    CallMessage::SetValue { value, gas: None },
+                    self.admin_key.clone(),
+                    MessageOutcome::Successful {
+                        changes: vec![ValueSetterChangeLogEntry::ValueUpdated { new_value: value }],
+                    },
+                ))
+            }
             CallMessageDiscriminants::SetManyValues => {
                 let length = u.int_in_range(0..=self.options.maximum_vec_length)?;
                 let mut values = Vec::with_capacity(length);

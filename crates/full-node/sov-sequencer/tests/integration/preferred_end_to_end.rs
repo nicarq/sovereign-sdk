@@ -11,6 +11,7 @@ use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
 use futures::future;
 use sov_api_spec::types::{self as api_types, TxReceiptResult};
+use sov_api_spec::Client;
 use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
@@ -24,6 +25,7 @@ use sov_rest_utils::ResponseObject;
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
 use sov_sequencer::preferred::default_ideal_lag_behind_finalized_slot;
+use sov_sequencer::SequencerKindConfig;
 use sov_test_modules::hooks_count::HooksCount;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, RollupProverConfig, TestRollup};
@@ -65,6 +67,7 @@ fn tempdir_inside_codebase_dir() -> Arc<tempfile::TempDir> {
 type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
 
 use sov_test_utils::TEST_BLOB_PROCESSING_TIMEOUT;
+const MAX_BATCH_EXECUTION_TIME_MILLIS: u64 = 1_000 * 60 * 5; // Allow batches to take up to 5 minutes by default.
 
 const MAX_CONCURRENT_BLOBS: usize = 32;
 const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnBatchSubmit {
@@ -135,6 +138,7 @@ async fn new_test_rollup(
     block_producing_config: BlockProducingConfig,
     rollup_prover_config: Option<RollupProverConfig<MockZkvm>>,
     blob_processing_timeout_secs: u64,
+    max_batch_execution_time_millis: u64,
 ) -> Option<TestRollup<TestBlueprint>> {
     const FINALIZATION_BLOCKS: u32 = 3;
     let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
@@ -157,6 +161,11 @@ async fn new_test_rollup(
         c.storage = dir;
         c.max_batch_size_bytes = max_batch_size_bytes;
         c.blob_processing_timeout_secs = blob_processing_timeout_secs;
+        if let SequencerKindConfig::Preferred(preferred_sequencer_config) = &mut c.sequencer_config
+        {
+            preferred_sequencer_config.batch_execution_time_limit_millis =
+                max_batch_execution_time_millis;
+        }
         c.max_concurrent_blobs = MAX_CONCURRENT_BLOBS;
     })
     .set_da_config(|c| c.sender_address = sequencer_addr)
@@ -187,6 +196,7 @@ async fn create_test_rollup(
     minimum_profit_per_tx: u128,
     max_batch_size: usize,
     blob_processing_timeout_secs: u64,
+    max_batch_execution_time_millis: u64,
 ) -> (Option<TestRollup<TestBlueprint>>, TestUser<TestSpec>) {
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
@@ -218,6 +228,7 @@ async fn create_test_rollup(
             BlockProducingConfig::Manual,
             None,
             blob_processing_timeout_secs,
+            max_batch_execution_time_millis,
         )
         .await,
         admin,
@@ -261,8 +272,13 @@ struct TestState {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn txs_below_min_fee_are_rejected() {
-    let (test_rollup, admin) =
-        create_test_rollup(1, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
+    let (test_rollup, admin) = create_test_rollup(
+        1,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
+    )
+    .await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -348,6 +364,7 @@ async fn sequencer_filled_up_block() {
         BlockProducingConfig::Manual,
         None,
         60,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
     )
     .await
     else {
@@ -451,8 +468,13 @@ async fn sequencer_filled_up_block() {
 #[tokio::test(flavor = "multi_thread")]
 async fn seq_behind_deferred_slots_count() {
     std::env::set_var("SOV_TEST_CONST_OVERRIDE_DEFERRED_SLOTS_COUNT", "40");
-    let (test_rollup, admin) =
-        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
+    let (test_rollup, admin) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
+    )
+    .await;
     let Some(test_rollup) = test_rollup else {
         return;
     };
@@ -649,6 +671,7 @@ async fn seq_out_of_gas_for_pre_checks() {
         BlockProducingConfig::Manual,
         None,
         60,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
     )
     .await
     else {
@@ -714,8 +737,13 @@ async fn seq_out_of_gas_for_pre_checks() {
 #[tokio::test(flavor = "multi_thread")]
 async fn max_batch_size() {
     let max_batch_size = 1024;
-    let (test_rollup, admin) =
-        create_test_rollup(0, max_batch_size, TEST_BLOB_PROCESSING_TIMEOUT).await;
+    let (test_rollup, admin) = create_test_rollup(
+        0,
+        max_batch_size,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
+    )
+    .await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -797,6 +825,133 @@ async fn max_batch_size() {
     }
 }
 
+/// This test checks that the sequencer closes its current batch when the tx execution time exceeds its target.
+#[tokio::test(flavor = "multi_thread")]
+async fn max_batch_execution_time() {
+    let (test_rollup, admin) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        1000, // Timeout the batch after 1 second of execution time.
+    )
+    .await;
+
+    let Some(test_rollup) = test_rollup else {
+        return;
+    };
+
+    let mut slot_subscription = test_rollup.api_client.subscribe_slots().await.unwrap();
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(5)
+        .await
+        .unwrap();
+    for _ in 0..5 {
+        let _ = slot_subscription.next().await.unwrap().unwrap();
+    }
+    tokio::time::sleep(Duration::from_millis(10)).await; // Ensure that the slots have propagated to the sequencer
+
+    let client = test_rollup.api_client.clone();
+
+    // A helper function to get the next block and assert that it has the expected number of batches.
+    // Because it's async, we pass a clone of the client to avoid borrow checking headaches.
+    let get_next_block = |rollup_client: Client, should_have_batch: bool| {
+        let da_service = test_rollup.da_service.clone();
+        async move {
+            tokio::time::sleep(Duration::from_millis(100)).await; // Ensure the batch has time to close, if applciable
+            let mut slot_subscription = rollup_client
+                .subscribe_slots_with_children(IncludeChildren::new(true))
+                .await
+                .unwrap();
+            da_service.produce_block_now().await.unwrap();
+            let slot = slot_subscription.next().await.unwrap().unwrap();
+            let expected_batches = if should_have_batch { 1 } else { 0 };
+            assert_eq!(
+                slot.batches.len(),
+                expected_batches,
+                "Expected {} batches, but got {} in slot number {}.",
+                expected_batches,
+                slot.batches.len(),
+                slot.number
+            );
+        }
+    };
+
+    {
+        // For now, the first tx should be accepted. Since its execution time exceeds our target of 1000 ms, the batch should be closed now;
+        let tx = tx_set_value_and_sleep(&admin.private_key, 0, 1, 1200);
+        tracing::info!("Submitting first tx");
+        let _ = client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+
+        tracing::info!("Tx received, fetching next block");
+        // The fist batch should have been closed
+        get_next_block(client.clone(), true).await;
+
+        // The second tx isn't big enough to fill the batch, so it should still be open afterwards
+        tracing::info!("Submitting second tx");
+        let tx = tx_set_value_and_sleep(&admin.private_key, 0, 2, 500);
+        let _ = client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+        tracing::info!("Tx received, fetching next block");
+        // The second batch wasn't full - it should still be open
+        get_next_block(client.clone(), false).await;
+
+        // The next tx will put our executoin time over 1000ms causing the batch to be closed
+        let tx = tx_set_value_and_sleep(&admin.private_key, 1, 3, 600);
+        let _ = client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+        // The second batch should be full now.
+        get_next_block(client.clone(), true).await;
+
+        // This next transaction shouldn't trigger batch production
+        let tx = tx_set_value_and_sleep(&admin.private_key, 1, 4, 500);
+        let _ = client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+        get_next_block(client.clone(), false).await;
+
+        // Sleep for 500 ms. This should *not* trigger batch production since only block execution time counts.
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        // Send a tx that takes 400 ms. This should not trigger batch production since our running total is only 900 ms
+        let tx = tx_set_value_and_sleep(&admin.private_key, 2, 5, 400);
+        let _ = client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+        get_next_block(client.clone(), false).await;
+
+        // The fifth transaction should fill the batch and trigger batch production
+        let tx = tx_set_value_and_sleep(&admin.private_key, 3, 5, 160);
+        let _ = client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+        get_next_block(client.clone(), true).await;
+    }
+
+    test_rollup.shutdown().await.unwrap();
+}
+
 /// Test that the sequencer can compute state roots for itself to avoid panics.
 ///
 /// This test works by causing the node to fall far behind the sequencer in processsing rollup blocks.
@@ -837,6 +992,7 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
         },
         None,
         60,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
     )
     .await
     else {
@@ -879,8 +1035,13 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
 // this test ensures it correctly publishes all the expected slots
 #[tokio::test(flavor = "multi_thread")]
 async fn test_rollup_emits_all_slot_notifications() {
-    let (test_rollup, _) =
-        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
+    let (test_rollup, _) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
+    )
+    .await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -905,8 +1066,13 @@ async fn test_rollup_emits_all_slot_notifications() {
 #[tokio::test(flavor = "multi_thread")]
 async fn rollup_shuts_down_if_blob_sender_fails() {
     sov_test_utils::initialize_logging();
-    let (test_rollup, admin) =
-        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
+    let (test_rollup, admin) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
+    )
+    .await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -948,7 +1114,8 @@ async fn rollup_shuts_down_if_blob_sender_fails() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn rollup_shuts_down_if_blob_processing_timeouts() {
-    let (test_rollup, admin) = create_test_rollup(0, TEST_MAX_BATCH_SIZE, 1).await;
+    let (test_rollup, admin) =
+        create_test_rollup(0, TEST_MAX_BATCH_SIZE, 1, MAX_BATCH_EXECUTION_TIME_MILLIS).await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -986,7 +1153,8 @@ async fn rollup_shuts_down_if_blob_processing_timeouts() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn rollup_shuts_down_if_panic_is_triggered() {
-    let (test_rollup, admin) = create_test_rollup(0, TEST_MAX_BATCH_SIZE, 60).await;
+    let (test_rollup, admin) =
+        create_test_rollup(0, TEST_MAX_BATCH_SIZE, 60, MAX_BATCH_EXECUTION_TIME_MILLIS).await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -1030,8 +1198,13 @@ async fn rollup_shuts_down_if_panic_is_triggered() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_seq_back_pressure() {
-    let (test_rollup, admin) =
-        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
+    let (test_rollup, admin) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
+    )
+    .await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -1102,8 +1275,13 @@ async fn flaky_seq_back_pressure() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn seq_many_invalid_txs() {
-    let (test_rollup, admin) =
-        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
+    let (test_rollup, admin) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
+    )
+    .await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -1322,8 +1500,13 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn events_are_returned_in_tx_response() {
-    let (test_rollup, admin) =
-        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
+    let (test_rollup, admin) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
+    )
+    .await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -1351,8 +1534,13 @@ async fn events_are_returned_in_tx_response() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn delayed_tx_is_processed_after_delay() {
-    let (test_rollup, admin) =
-        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
+    let (test_rollup, admin) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
+    )
+    .await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -1702,8 +1890,13 @@ async fn batch_production_and_accept_tx() {
 // when the sender address is not configured as an admin in the sequencer config.
 #[tokio::test(flavor = "multi_thread")]
 async fn not_sequencer_safe_txs_are_restricted() {
-    let (test_rollup, admin) =
-        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
+    let (test_rollup, admin) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
+    )
+    .await;
 
     let Some(test_rollup) = test_rollup else {
         return;
@@ -1956,6 +2149,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
         DEFAULT_BLOCK_PRODUCING_CONFIG,
         Some(RollupProverConfig::Skip),
         60,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
     )
     .await
     else {
@@ -2235,6 +2429,21 @@ fn tx_delayed_call(key: &Ed25519PrivateKey, nonce: u64) -> RawTx {
 fn tx_set_many_values(key: &Ed25519PrivateKey, nonce: u64, values_to_set: Vec<u8>) -> RawTx {
     let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
         sov_value_setter::CallMessage::SetManyValues(values_to_set),
+    );
+    encode_call(key, nonce, &msg)
+}
+
+fn tx_set_value_and_sleep(
+    key: &Ed25519PrivateKey,
+    nonce: u64,
+    value_to_set: u64,
+    sleep_millis: u64,
+) -> RawTx {
+    let msg = <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
+        sov_value_setter::CallMessage::SetValueAndSleep {
+            value: value_to_set as u32,
+            sleep_millis,
+        },
     );
     encode_call(key, nonce, &msg)
 }
