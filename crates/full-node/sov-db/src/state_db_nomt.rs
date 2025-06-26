@@ -164,15 +164,11 @@ impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> NomtSta
     }
 
     pub(crate) fn send_metrics(&self) {
-        // Currently not usable externally, until: https://github.com/thrumdev/nomt/pull/917
-        // let metrics = self.user.metrics();
-        let ht_utilization_user = self.user.hash_table_utilization();
-        check_occupancy_rate(USER, &ht_utilization_user);
-        let ht_utilization_kernel = self.user.hash_table_utilization();
-        check_occupancy_rate(KERNEL, &ht_utilization_kernel);
+        let user_metrics = NomtDbMetric::new(USER, &self.user);
+        let kernel_metrics = NomtDbMetric::new(KERNEL, &self.kernel);
         sov_metrics::track_metrics(|tracker| {
-            tracker.submit(NomtDbMetric::new(USER, ht_utilization_user));
-            tracker.submit(NomtDbMetric::new(KERNEL, ht_utilization_kernel));
+            tracker.submit(user_metrics);
+            tracker.submit(kernel_metrics);
         });
     }
 }
@@ -369,15 +365,6 @@ pub(crate) fn sov_nomt_default_options() -> Options {
     opts.metrics(true);
     opts.prepopulate_page_cache(true);
     opts
-}
-
-fn check_occupancy_rate(db: &'static str, ht_utilization: &nomt::HashTableUtilization) {
-    if ht_utilization.occupancy_rate() > 0.9 {
-        tracing::warn!(
-                %db,
-                rate = ht_utilization.occupancy_rate(),
-                "Occupancy rate for NOMT hashtable is too high. Please update buckets size and resync database");
-    }
 }
 
 #[cfg(test)]

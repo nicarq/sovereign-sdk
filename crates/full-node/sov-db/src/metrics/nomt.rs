@@ -1,21 +1,42 @@
 use std::io::Write;
 
-use nomt::HashTableUtilization;
+use nomt::hasher::BinaryHasher;
+use nomt::Nomt;
 use sov_metrics::Metric;
+use sov_rollup_interface::reexports::digest;
 
 #[derive(Debug)]
 pub struct NomtDbMetric {
     pub db: &'static str,
     pub hash_table_capacity: usize,
     pub hash_table_occupied: usize,
+    pub page_requests: u64,
+    pub page_cache_misses: u64,
+    pub avg_page_fetch_time_ns: Option<u64>,
+    pub avg_value_fetch_time_ns: Option<u64>,
 }
 
 impl NomtDbMetric {
-    pub fn new(db: &'static str, hash_table_utilization: HashTableUtilization) -> Self {
+    pub fn new<H>(db: &'static str, nomt: &Nomt<BinaryHasher<H>>) -> Self
+    where
+        H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync,
+    {
+        let hash_table_utilization = nomt.hash_table_utilization();
+        if hash_table_utilization.occupancy_rate() > 0.9 {
+            tracing::warn!(
+                %db,
+                rate = hash_table_utilization.occupancy_rate(),
+                "Occupancy rate for NOMT hashtable is too high. Please update buckets size and resync database");
+        }
+        let metrics = nomt.metrics();
         Self {
             db,
             hash_table_capacity: hash_table_utilization.capacity,
             hash_table_occupied: hash_table_utilization.occupied,
+            page_requests: metrics.get_page_requests(),
+            page_cache_misses: metrics.get_page_cache_misses(),
+            avg_page_fetch_time_ns: metrics.get_page_fetch_time(),
+            avg_value_fetch_time_ns: metrics.get_value_fetch_time(),
         }
     }
 }
@@ -29,12 +50,22 @@ impl Metric for NomtDbMetric {
         // DB as tag, rest as fields
         write!(
             buffer,
-            "{},db={} ht_capacity={},ht_occupied={}",
+            "{},db={} ht_capacity={},ht_occupied={},page_requests={},page_cache_misses={}",
             self.measurement_name(),
             self.db,
             self.hash_table_capacity,
             self.hash_table_occupied,
-        )
+            self.page_requests,
+            self.page_cache_misses,
+        )?;
+        if let Some(avg_page_fetch_time) = &self.avg_page_fetch_time_ns {
+            write!(buffer, ",avg_page_fetch_time_ns={}", avg_page_fetch_time)?;
+        }
+        if let Some(avg_value_fetch_time) = &self.avg_value_fetch_time_ns {
+            write!(buffer, ",avg_value_fetch_time_ns={}", avg_value_fetch_time)?;
+        }
+
+        Ok(())
     }
 }
 

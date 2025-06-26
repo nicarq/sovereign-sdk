@@ -2765,7 +2765,7 @@ dependencies = [
 [[package]]
 name = "nomt-core"
 version = "1.0.0-preview"
-source = "git+https://github.com/thrumdev/nomt.git?rev=7f6db113d7bb081e27c4d5bf57df20943280b0f9#7f6db113d7bb081e27c4d5bf57df20943280b0f9"
+source = "git+https://github.com/thrumdev/nomt.git?rev=ff4491440d401f32e18fe91041c4344b2bacb068#ff4491440d401f32e18fe91041c4344b2bacb068"
 dependencies = [
  "arrayvec",
  "bitvec",
