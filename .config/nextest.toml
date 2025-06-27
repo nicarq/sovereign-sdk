@@ -10,3 +10,9 @@ slow-timeout = { period = "60s", terminate-after = 7 }                  # Termin
 filter = 'package(sov-hyperlane-integration) & test(/with_agent::/)'
 priority = 90                                                        # try to run it first, so it doesn't add up at the end
 threads-required = 3
+
+[[profile.default.overrides]]
+filter = 'not test(heavy_)'
+
+[profile.ci]
+default-filter = 'all()'

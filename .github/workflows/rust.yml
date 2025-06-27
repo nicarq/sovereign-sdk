@@ -295,7 +295,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      - run: make test
+      - run: make test-all
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
