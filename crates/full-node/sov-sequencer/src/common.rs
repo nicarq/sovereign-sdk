@@ -31,7 +31,7 @@ use crate::{SequencerEvent, SequencerNotReadyDetails, TxHash, TxStatus, TxStatus
 #[async_trait]
 pub trait Sequencer: Send + Sync + 'static {
     /// What data is returned to clients when a transaction is accepted.
-    type Confirmation: serde::Serialize + Send + Sync + 'static;
+    type Confirmation: Clone + serde::Serialize + Send + Sync + 'static;
     /// The rollup spec.
     type Spec: Spec;
     /// The rollup's [`Runtime`].
@@ -41,6 +41,13 @@ pub trait Sequencer: Send + Sync + 'static {
 
     /// Only available if the [`Sequencer`] supports events streaming.
     async fn subscribe_events(&self) -> Option<broadcast::Receiver<SequencerEvent<Self::Rt>>> {
+        None
+    }
+
+    /// Only available if the [`Sequencer`] supports transactions streaming.
+    async fn subscribe_transactions(
+        &self,
+    ) -> Option<broadcast::Receiver<AcceptedTx<Self::Confirmation>>> {
         None
     }
 

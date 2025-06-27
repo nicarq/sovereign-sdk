@@ -56,6 +56,10 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
                 axum::routing::get(Self::subscribe_to_events),
             )
             .route(
+                "/sequencer/txs/ws",
+                axum::routing::get(Self::subscribe_to_transactions),
+            )
+            .route(
                 "/sequencer/unstable/events/:eventId",
                 axum::routing::get(Self::axum_get_event),
             )
@@ -204,6 +208,25 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
             let stream = state
                 .sequencer
                 .subscribe_events()
+                .await
+                .map(|receiver| {
+                    BroadcastStream::new(receiver)
+                        .map_err(|err| anyhow::anyhow!("Error creating broadcast stream: {err}"))
+                        .boxed()
+                })
+                .unwrap_or_else(|| futures::stream::empty().boxed());
+            serve_generic_ws_subscription(socket, stream, state.shutdown_receiver.clone()).await;
+        })
+    }
+
+    async fn subscribe_to_transactions(
+        State(state): State<Self>,
+        ws: WebSocketUpgrade,
+    ) -> impl IntoResponse {
+        ws.on_upgrade(|socket| async move {
+            let stream = state
+                .sequencer
+                .subscribe_transactions()
                 .await
                 .map(|receiver| {
                     BroadcastStream::new(receiver)

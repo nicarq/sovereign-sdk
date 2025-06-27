@@ -389,6 +389,7 @@ where
     inner: Mutex<Inner<S, Rt, Da>>,
     tx_status_manager: TxStatusManager<S::Da>,
     events_sender: broadcast::Sender<SequencerEvent<Rt>>,
+    transactions_sender: broadcast::Sender<AcceptedTx<Confirmation<S, Rt>>>,
     api_state: ApiState<S>,
     da_sync_state: Arc<DaSyncState>,
     _runtime: PhantomData<Rt>,
@@ -466,6 +467,9 @@ where
         let (events_sender, _) =
             broadcast::channel(config.sequencer_kind_config.events_channel_size);
 
+        let (transactions_sender, _) =
+            broadcast::channel(config.sequencer_kind_config.events_channel_size);
+
         let db_backend: Box<dyn PreferredSequencerDbBackend> =
             if let Some(postgres_connection_string) =
                 &config.sequencer_kind_config.postgres_connection_string
@@ -524,6 +528,7 @@ where
             executor: RollupBlockExecutor::new(
                 &latest_state_update,
                 Some(events_sender.clone()),
+                Some(transactions_sender.clone()),
                 config.clone(),
                 shutdown_notifier.clone(),
                 state_root_compute_task.request_sender.clone(),
@@ -539,6 +544,7 @@ where
             inner: inner.into(),
             tx_status_manager: tx_status_manager.clone(),
             events_sender,
+            transactions_sender,
             da_sync_state,
             api_state,
             _runtime: PhantomData,
@@ -588,7 +594,8 @@ where
     ) -> RollupBlockExecutor<S, Rt> {
         RollupBlockExecutor::<_, Rt>::new(
             info,
-            None, // We don't send events during replay or recovery
+            None, // we don't send events during replay or recovery
+            None, // we don't send transactions during replay or recovery
             self.config.clone(),
             self.shutdown_notifier.clone(),
             self.state_root_compute_task.request_sender.clone(),
@@ -1207,6 +1214,12 @@ where
         Some(self.events_sender.subscribe())
     }
 
+    async fn subscribe_transactions(
+        &self,
+    ) -> Option<broadcast::Receiver<AcceptedTx<Self::Confirmation>>> {
+        Some(self.transactions_sender.subscribe())
+    }
+
     async fn update_state(
         &self,
         _update_info: StateUpdateInfo<<Self::Spec as Spec>::Storage>,
@@ -1335,6 +1348,17 @@ where
         db.insert_tx(baked_tx.clone(), tx_hash)
             .await
             .map_err(database_error_500)?;
+
+        self.transactions_sender
+            .send(AcceptedTx {
+                tx: baked_tx.clone(),
+                tx_hash,
+                confirmation: Confirmation {
+                    events: events.clone(),
+                    receipt: receipt.receipt.clone().into(),
+                },
+            })
+            .ok();
 
         batch_size_tracker.add_tx(baked_tx.data.len(), execution_time_micros);
         tracing::debug!(%tx_hash, "Transaction was accepted by the sequencer");
@@ -1492,7 +1516,8 @@ where
 struct TxBody(#[serde_as(as = "serde_with::base64::Base64")] Vec<u8>);
 
 /// Transaction confirmation data of [`PreferredSequencer`].
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(derivative::Derivative, serde::Serialize, serde::Deserialize)]
+#[derivative(Clone(bound = ""), Debug)]
 #[serde(bound = "S: Spec, Rt: Runtime<S>")]
 pub struct Confirmation<S, Rt>
 where

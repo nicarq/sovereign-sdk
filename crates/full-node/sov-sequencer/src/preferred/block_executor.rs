@@ -26,8 +26,10 @@ use tracing::trace;
 use uuid::Uuid;
 
 use super::state_root_compute::StateRootComputeRequest;
-use super::{PreferredBatchToReplay, PreferredSequencerConfig, VisibleSlotNumberIncrease};
-use crate::common::generic_accept_tx_error;
+use super::{
+    Confirmation, PreferredBatchToReplay, PreferredSequencerConfig, VisibleSlotNumberIncrease,
+};
+use crate::common::{generic_accept_tx_error, AcceptedTx};
 use crate::preferred::async_batch::{ExecutedTxResponse, MaybeAsyncBatch};
 use crate::preferred::exit_rollup;
 use crate::{SequencerConfig, SequencerEvent};
@@ -108,6 +110,7 @@ where
 
     next_event_number: u64,
     events_sender: Option<broadcast::Sender<SequencerEvent<Rt>>>,
+    transactions_sender: Option<broadcast::Sender<AcceptedTx<Confirmation<S, Rt>>>>,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     // A sender notifying that this acceptor has successfully shut down. We give a handle to
     // each background task when it is spawned, ensuring that this channel remains open as long
@@ -130,6 +133,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     pub fn new(
         info: &StateUpdateInfo<S::Storage>,
         events_sender: Option<broadcast::Sender<SequencerEvent<Rt>>>,
+        transactions_sender: Option<broadcast::Sender<AcceptedTx<Confirmation<S, Rt>>>>,
         config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
         shutdown_notifier: Sender<()>,
         state_root_request_sender: tokio::sync::mpsc::Sender<StateRootComputeRequest<S>>,
@@ -145,6 +149,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             rollup_block_task_state: None,
             next_event_number: info.next_event_number,
             events_sender,
+            transactions_sender,
             config,
             shutdown_notifier,
             state_root_request_sender,
@@ -197,7 +202,9 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
         match result {
             Ok((receipt, remaining_slot_gas, execution_time_micros)) => {
-                let events = self.process_tx_receipt(&receipt, *slot_num).await;
+                let events = self
+                    .process_tx_receipt_and_emit_events(&receipt, *slot_num)
+                    .await;
                 Ok(TxReceiptWithEvents {
                     receipt,
                     events,
@@ -446,7 +453,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         });
     }
 
-    async fn process_tx_receipt(
+    async fn process_tx_receipt_and_emit_events(
         &mut self,
         tx_receipt: &TransactionReceipt<S>,
         current_slot_num: SlotNumber,
@@ -465,6 +472,10 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
         self.next_event_number += events.len() as u64;
 
+        // TODO: Remove this logic once we get confirmation that separate events endpoints are not needed.
+        // As 1) we're making indexing transaction oriented, and transaction include events
+        // and 2) we send events too early here. The db.tx write might fail later, and this transaction
+        // as well as the events might be lost.
         if let Some(sender) = &self.events_sender {
             let mut cached_events = self.cached_events.write().await;
             cached_events.extend(
@@ -587,11 +598,26 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             }
 
             for tx_receipt in batch_receipt.tx_receipts {
-                self.process_tx_receipt(
-                    &tx_receipt,
-                    *self.checkpoint.current_visible_slot_number(),
-                )
-                .await;
+                let events = self
+                    .process_tx_receipt_and_emit_events(
+                        &tx_receipt,
+                        *self.checkpoint.current_visible_slot_number(),
+                    )
+                    .await;
+
+                // Emit non-preferred sequencer transactions.
+                if let Some(sender) = &self.transactions_sender {
+                    sender
+                        .send(AcceptedTx {
+                            tx: FullyBakedTx { data: vec![0; 10] },
+                            tx_hash: tx_receipt.tx_hash,
+                            confirmation: Confirmation {
+                                events,
+                                receipt: tx_receipt.receipt.clone().into(),
+                            },
+                        })
+                        .ok();
+                }
             }
         }
 
