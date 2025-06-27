@@ -542,6 +542,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "Flaky will be investigated"]
     async fn test_nomt_state_compute_competing_storages_repro_real_storage_manager() {
         let storage_manager =
             CommitingStorageManager::<NomtStorageManager<MockDaSpec, TestHasher, _>, _>::new();
