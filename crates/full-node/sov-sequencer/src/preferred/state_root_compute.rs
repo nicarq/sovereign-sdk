@@ -229,13 +229,21 @@ impl<S: Spec> StateRootBackgroundTaskState<S> {
                 };
 
                 // Compute the new root
-                let root = compute_state_root::<S>(
+                let mut root = compute_state_root::<S>(
                     state_accesses,
-                    storage,
+                    storage.clone(),
                     rollup_height,
                     max_slot_number,
                 )
                 .await;
+                // Verify, that storage didn't become obsolete while computing state root.
+                // If so, use historical state root from the node as canonical one.
+                if let Some(fetched_root) = fetch_root_hash_if_stale::<S>(&storage, max_slot_number)
+                {
+                    if !user_roots_match(&root, &fetched_root) {
+                        root = fetched_root;
+                    }
+                }
 
                 // Add the new entry to the cache
                 cached_results.insert(
@@ -531,22 +539,28 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_jmt_state_compute_competing_storages_repro() {
         let storage_manager = SimpleStorageManager::<TestStorageSpec>::new();
-        test_compute_competing_storages::<TestSpec, _>(storage_manager).await;
+        test_compute_competing_storages::<TestSpec, _>(storage_manager, 3).await;
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_nomt_state_compute_competing_storages_repro() {
         let mut storage_manager = SimpleNomtStorageManager::<TestStorageSpec>::new();
         storage_manager.set_strict_mode(false);
-        test_compute_competing_storages::<TestNomtSpec, _>(storage_manager).await;
+        test_compute_competing_storages::<TestNomtSpec, _>(storage_manager, 3).await;
+
+        let mut storage_manager = SimpleNomtStorageManager::<TestStorageSpec>::new();
+        storage_manager.set_strict_mode(false);
+        test_compute_competing_storages::<TestNomtSpec, _>(storage_manager, 0).await;
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore = "Flaky will be investigated"]
     async fn test_nomt_state_compute_competing_storages_repro_real_storage_manager() {
         let storage_manager =
             CommitingStorageManager::<NomtStorageManager<MockDaSpec, TestHasher, _>, _>::new();
-        test_compute_competing_storages::<TestNomtSpec, _>(storage_manager).await;
+        test_compute_competing_storages::<TestNomtSpec, _>(storage_manager, 3).await;
+        let storage_manager =
+            CommitingStorageManager::<NomtStorageManager<MockDaSpec, TestHasher, _>, _>::new();
+        test_compute_competing_storages::<TestNomtSpec, _>(storage_manager, 0).await;
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -554,7 +568,7 @@ mod tests {
     async fn test_nomt_state_compute_competing_storages_repro_real_storage_manager_non_commiting() {
         let storage_manager =
             NonCommitingStorageManager::<NomtStorageManager<MockDaSpec, TestHasher, _>, _>::new();
-        test_compute_competing_storages::<TestNomtSpec, _>(storage_manager).await;
+        test_compute_competing_storages::<TestNomtSpec, _>(storage_manager, 3).await;
     }
 
     /// Test is an isolated scenario of sequencer and node interaction, where only 2 pieces are real:
@@ -569,7 +583,7 @@ mod tests {
     /// This tests the consistency of state root computation when the same logical state changes
     /// are applied in different batch configurations, which can happen when a sequencer runs ahead
     /// of the node's committed state or the node runs ahead.
-    async fn test_compute_competing_storages<S, Sm>(mut storage_manager: Sm)
+    async fn test_compute_competing_storages<S, Sm>(mut storage_manager: Sm, seq_ahead_by: usize)
     where
         S: Spec,
         Sm: ForklessStorageManager<Storage = S::Storage>,
@@ -579,45 +593,57 @@ mod tests {
         genesis::<S, Sm>(&mut storage_manager);
         let (task, handle, shutdown_sender) = start_background_task::<S>();
         const BLOCKS: usize = 100;
-        const SEQ_AHEAD_BY: usize = 3;
 
         let mut receivers = Vec::new();
 
         // First, build some "batches", which just writes only StateAccesses.
         let batches = generate_test_batches(BLOCKS);
+        let mut canonical_root_hashes = Vec::with_capacity(BLOCKS);
 
         // Then emulate sequencer and node, where the sequencer constantly running forward for several batches
         for seq_idx in 0..BLOCKS {
-            let start = seq_idx.saturating_sub(SEQ_AHEAD_BY);
+            let start = seq_idx.saturating_sub(seq_ahead_by);
             let end = seq_idx;
 
-            let mut cumulative_user_writes: HashMap<SlotKey, Option<SlotValue>> = HashMap::new();
-            let mut cumulative_kernel_writes: HashMap<SlotKey, Option<SlotValue>> = HashMap::new();
+            let range = start..=end;
+            let cumulative_accesses = cumulative_accesses_between_batches(&batches[range.clone()]);
+
             tracing::info!("-------");
-            for idx in start..=end {
-                let StateAccesses { user, kernel } = batches.get(idx).unwrap().clone();
-                tracing::info!("idx: {}", idx);
-
-                for (user_key, user_value) in user.ordered_writes {
-                    cumulative_user_writes.insert(user_key, user_value);
-                }
-                for (kernel_key, kernel_value) in kernel.ordered_writes {
-                    cumulative_kernel_writes.insert(kernel_key, kernel_value);
-                }
-
-                let sequencer_storage = storage_manager.create_api_storage();
+            for (idx, cumulative_batch) in range.zip(cumulative_accesses.into_iter()) {
                 let rollup_height = RollupHeight::new(idx as u64 + 1);
                 let slot_number = SlotNumber::new(idx as u64 + 1);
+                tracing::info!(%rollup_height, "sequencer iteration");
 
-                let cumulative_accesses = state_accesses_from_cumulative_writes(
-                    &cumulative_user_writes,
-                    &cumulative_kernel_writes,
-                );
-
+                let sequencer_storage = storage_manager.create_api_storage();
                 let (response_channel, response_receiver) = oneshot::channel();
+
+                if seq_ahead_by == 0 && idx == start {
+                    let _span = tracing::debug_span!(
+                        "compute_state_update",
+                        scope = "node-like",
+                        rollup_height = %rollup_height,
+                        slot_number = %slot_number,
+                    )
+                    .entered();
+                    let node_storage = storage_manager.create_prover_storage();
+                    let prev_root = node_storage
+                        .get_root_hash(node_storage.latest_version())
+                        .unwrap();
+                    let node_batch = batches.get(idx).unwrap().clone();
+                    let (node_new_root, changes) = node_storage
+                        .compute_state_update(node_batch, &Default::default(), prev_root)
+                        .unwrap();
+                    tracing::info!(
+                        root_hash = %node_new_root,
+                        %rollup_height,
+                        "commiting state update"
+                    );
+                    canonical_root_hashes.push(node_new_root);
+                    storage_manager.commit_state_update(node_storage, changes, node_new_root);
+                }
                 task.request_sender
                     .send(StateRootComputeRequest {
-                        state_accesses: cumulative_accesses,
+                        state_accesses: cumulative_batch,
                         storage: sequencer_storage.clone(),
                         rollup_height,
                         max_slot_number: slot_number,
@@ -629,28 +655,31 @@ mod tests {
                 receivers.push(response_receiver);
             }
 
-            if let Some(idx_for_node) = seq_idx.checked_sub(SEQ_AHEAD_BY) {
-                let _span = tracing::debug_span!(
-                    "compute_state_update",
-                    scope = "node-like",
-                    rollup_height = idx_for_node + 1,
-                    slot_number = idx_for_node + 1
-                )
-                .entered();
-                let node_storage = storage_manager.create_prover_storage();
-                let prev_root = node_storage
-                    .get_root_hash(node_storage.latest_version())
-                    .unwrap();
-                let node_batch = batches.get(idx_for_node).unwrap().clone();
-                let (node_new_root, changes) = node_storage
-                    .compute_state_update(node_batch, &Default::default(), prev_root)
-                    .unwrap();
-                tracing::info!(
-                    root_hash = %node_new_root,
-                    rollup_height= idx_for_node + 1,
-                    "commiting state update"
-                );
-                storage_manager.commit_state_update(node_storage, changes, node_new_root);
+            if seq_ahead_by > 0 {
+                if let Some(idx_for_node) = seq_idx.checked_sub(seq_ahead_by) {
+                    let _span = tracing::debug_span!(
+                        "compute_state_update",
+                        scope = "node-like",
+                        rollup_height = idx_for_node + 1,
+                        slot_number = idx_for_node + 1
+                    )
+                    .entered();
+                    let node_storage = storage_manager.create_prover_storage();
+                    let prev_root = node_storage
+                        .get_root_hash(node_storage.latest_version())
+                        .unwrap();
+                    let node_batch = batches.get(idx_for_node).unwrap().clone();
+                    let (node_new_root, changes) = node_storage
+                        .compute_state_update(node_batch, &Default::default(), prev_root)
+                        .unwrap();
+                    tracing::info!(
+                        root_hash = %node_new_root,
+                        rollup_height= idx_for_node + 1,
+                        "commiting state update"
+                    );
+                    canonical_root_hashes.push(node_new_root);
+                    storage_manager.commit_state_update(node_storage, changes, node_new_root);
+                }
             }
         }
 
@@ -672,6 +701,16 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(received_keys, expected_keys);
 
+        for ((rollup_height, received_root_hash), canoncial_root_hash) in
+            results.iter().zip(canonical_root_hashes.iter())
+        {
+            assert!(
+                user_roots_match(received_root_hash, canoncial_root_hash),
+                "Received different user roots for the same height {}",
+                rollup_height
+            );
+        }
+
         shutdown_sender.send(()).unwrap();
         handle.await.unwrap();
     }
@@ -692,6 +731,35 @@ mod tests {
         }
 
         batches
+    }
+
+    /// Assembles separate batches into cumulative state accesses.
+    /// Let's say batches have accesses A, B, C.
+    /// Resulting vector will have, A, A+B, A+B+C.
+    /// In the case of identical keys, keys from last accesses are used.
+    fn cumulative_accesses_between_batches(batches: &[StateAccesses]) -> Vec<StateAccesses> {
+        let mut cumulative_user_writes: HashMap<SlotKey, Option<SlotValue>> = HashMap::new();
+        let mut cumulative_kernel_writes: HashMap<SlotKey, Option<SlotValue>> = HashMap::new();
+
+        let mut result = Vec::new();
+
+        for batch in batches {
+            let StateAccesses { user, kernel } = batch.clone();
+            for (user_key, user_value) in user.ordered_writes {
+                cumulative_user_writes.insert(user_key, user_value);
+            }
+            for (kernel_key, kernel_value) in kernel.ordered_writes {
+                cumulative_kernel_writes.insert(kernel_key, kernel_value);
+            }
+
+            let cumulative_accesses = state_accesses_from_cumulative_writes(
+                &cumulative_user_writes,
+                &cumulative_kernel_writes,
+            );
+            result.push(cumulative_accesses);
+        }
+
+        result
     }
 
     fn state_accesses_from_cumulative_writes(
