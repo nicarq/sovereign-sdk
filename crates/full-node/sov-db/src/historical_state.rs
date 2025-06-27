@@ -25,7 +25,7 @@ pub struct HistoricalStateReader {
 }
 
 impl HistoricalStateReader {
-    const DB_PATH_SUFFIX: &'static str = "historical-state";
+    const DB_PATH_SUFFIX: &'static str = "historical_state";
     const DB_NAME: &'static str = "historical-state-db";
 
     /// Create a new instance of [`HistoricalStateReader`] from a given [`DeltaReader`].
