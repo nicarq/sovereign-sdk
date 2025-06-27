@@ -37,6 +37,7 @@ tokio-stream = { workspace = true }
 hex = { workspace = true }
 tracing = { workspace = true }
 rand = { workspace = true, optional = true }
+schemars = { workspace = true }
 uuid = { workspace = true, features = ["std", "v7"] }
 
 [dev-dependencies]

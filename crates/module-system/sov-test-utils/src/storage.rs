@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::SchemaBatch;
 use sov_db::accessory_db::AccessoryDb;
+use sov_db::config::RollupDbConfig;
 use sov_db::historical_state::HistoricalStateReader;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::state_db::StateDb;
@@ -155,7 +156,8 @@ impl<S: MerkleProofSpec> SimpleNomtStorageManager<S> {
     /// Initialize a new instance of [`SimpleNomtStorageManager`] in a temporary directory.
     pub fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
-        let state_db = sov_db::state_db_nomt::NomtStateDb::new(dir.path())
+        let config = RollupDbConfig::default_in_path(dir.path().to_path_buf());
+        let state_db = sov_db::state_db_nomt::NomtStateDb::new(config)
             .expect("Failed to initialize StateDb for NOMT");
         let historical_state_rocksdb = HistoricalStateReader::get_rockbound_options()
             .default_setup_db_in_path(dir.path())
@@ -328,7 +330,8 @@ where
     S: InitializableNativeNomtStorage<H, Da::SlotHash>,
 {
     fn new_in_path(path: impl AsRef<Path>) -> Self {
-        Self::new(path.as_ref()).unwrap()
+        let config = RollupDbConfig::default_in_path(path.as_ref().to_path_buf());
+        Self::new(config).unwrap()
     }
 }
 

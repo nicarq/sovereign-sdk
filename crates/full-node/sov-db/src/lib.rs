@@ -33,6 +33,8 @@ pub mod namespaces;
 
 /// Implements commit flag logic for state_db_nomt.
 pub(crate) mod commit_flag;
+/// Configuration for `sov-db`
+pub mod config;
 pub(crate) mod metrics;
 /// Implements state pruning functionality for removing old versions of keys.
 pub mod pruner;

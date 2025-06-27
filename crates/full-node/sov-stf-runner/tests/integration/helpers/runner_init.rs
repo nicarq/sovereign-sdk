@@ -6,6 +6,7 @@ use futures::stream::BoxStream;
 use futures::{Stream, StreamExt};
 use rockbound::SchemaBatch;
 use sha2::Sha256;
+use sov_db::config::RollupDbConfig;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::DeltaReader;
 use sov_db::storage_manager::NativeStorageManager;
@@ -34,7 +35,7 @@ use sov_stf_runner::processes::{
 };
 use sov_stf_runner::{
     initialize_state, query_state_update_info, HttpServerConfig, ProofManagerConfig, RollupConfig,
-    RunnerConfig, StateTransitionRunner, StorageConfig,
+    RunnerConfig, StateTransitionRunner,
 };
 use sov_test_utils::{
     TestSpec, TEST_BLOB_PROCESSING_TIMEOUT, TEST_MAX_BATCH_SIZE, TEST_MAX_CONCURRENT_BLOBS,
@@ -376,9 +377,7 @@ pub fn rollup_config_with_da<Da: DaService<Config = MockDaConfig>>(
     aggregated_proof_block_jump: usize,
 ) -> RollupConfig<MockAddress, Da> {
     RollupConfig {
-        storage: StorageConfig {
-            path: path.to_path_buf(),
-        },
+        storage: RollupDbConfig::default_in_path(path.to_path_buf()),
         runner: RunnerConfig {
             genesis_height: 0,
             da_polling_interval_ms: get_da_polling_interval_ms(&da_config),

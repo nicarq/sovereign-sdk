@@ -3,10 +3,11 @@ use std::sync::{Arc, RwLock};
 
 use anyhow::Context;
 use nomt::hasher::BinaryHasher;
-use nomt::{Nomt, Options, SessionParams, WitnessMode};
+use nomt::{Nomt, SessionParams, WitnessMode};
 use sov_rollup_interface::reexports::digest;
 
 use super::commit_flag::{CommitFlag, CommitStatus};
+use crate::config::RollupDbConfig;
 use crate::metrics::nomt::{NomtBeginSessionMetric, NomtDbMetric};
 
 const KERNEL: &str = "kernel_state";
@@ -21,16 +22,13 @@ pub struct NomtStateDb<H> {
 
 impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> NomtStateDb<H> {
     /// Initialize a new [` NomtStateDb `] in the given path.
-    pub fn new(path: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
-        let db_path = path.as_ref();
-        let commit_flag = CommitFlag::new(db_path);
+    pub fn new(config: RollupDbConfig) -> anyhow::Result<Self> {
+        let commit_flag = CommitFlag::new(&config.path);
+
+        tracing::debug!(options = ?config, "Opening NOMT");
 
         let kernel = {
-            let mut opts = sov_nomt_default_options();
-            opts.rollback(true);
-            opts.max_rollback_log_len(1);
-            opts.hashtable_buckets(256_000);
-            opts.path(db_path.join("kernel_nomt_db"));
+            let opts = config.get_kernel_options();
             Nomt::<BinaryHasher<H>>::open(opts)?
         };
 
@@ -70,14 +68,7 @@ impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> NomtSta
         }
 
         let user = {
-            let mut opts = sov_nomt_default_options();
-            // TODO: This is going to be exposed in config parameters: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2634
-            opts.hashtable_buckets(if cfg!(debug_assertions) {
-                1_000_000
-            } else {
-                15_000_000
-            });
-            opts.path(db_path.join("user_nomt_db"));
+            let opts = config.get_user_options();
             Nomt::<BinaryHasher<H>>::open(opts)?
         };
 
@@ -239,7 +230,7 @@ impl<H, K: Clone> Clone for NomtSessionBuilder<H, K> {
 impl<H, K> NomtSessionBuilder<H, K> {
     /// Parameters:
     ///  * `state_db` - Reference to [`NomtStateDb`].
-    ///  * `relevant_snapshot_refs`: In revered chronological order, as [`nomt::SessionParams::overlay`] expects
+    ///  * `relevant_snapshot_refs`: In revered chronological order, as [`SessionParams::overlay`] expects
     ///  * `all_snapshots`. Should be the same structure that is used by a storage manager
     pub(crate) fn new(
         state_db: Arc<NomtStateDb<H>>,
@@ -357,16 +348,6 @@ where
     NomtSessionBuilder::new(state_db, Vec::new(), empty_snapshots)
 }
 
-/// All non-path-related options, tuned for optimal performance in sov-rollup
-pub(crate) fn sov_nomt_default_options() -> Options {
-    let mut opts = Options::new();
-    // Draft values, needs to be benchmarked on the target system type.
-    opts.commit_concurrency(2);
-    opts.metrics(true);
-    opts.prepopulate_page_cache(true);
-    opts
-}
-
 #[cfg(test)]
 mod tests {
     use nomt::trie::KeyPath;
@@ -385,7 +366,8 @@ mod tests {
     #[test]
     fn test_session_can_be_built_while_finalized() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let state_db = Arc::new(NomtStateDb::<H>::new(temp_dir.path()).unwrap());
+        let config = RollupDbConfig::default_in_path(temp_dir.path().to_path_buf());
+        let state_db = Arc::new(NomtStateDb::<H>::new(config).unwrap());
 
         // First produce some overlays with data
         let all_overlays: HashMap<u64, StateOverlay> = HashMap::new();
@@ -488,7 +470,8 @@ mod tests {
             nomt::KeyReadWrite::Write(Some(value_3.clone())),
         )];
 
-        let state_db = Arc::new(NomtStateDb::<H>::new(temp_dir.path()).unwrap());
+        let config = RollupDbConfig::default_in_path(temp_dir.path().to_path_buf());
+        let state_db = Arc::new(NomtStateDb::<H>::new(config).unwrap());
 
         let all_overlays: HashMap<u64, StateOverlay> = HashMap::new();
         let all_overlays = Arc::new(RwLock::new(all_overlays));
@@ -562,7 +545,8 @@ mod tests {
 
         // Reopen the state db.
         drop(state_db);
-        let state_db = Arc::new(NomtStateDb::<H>::new(temp_dir.path()).unwrap());
+        let config = RollupDbConfig::default_in_path(temp_dir.path().to_path_buf());
+        let state_db = Arc::new(NomtStateDb::<H>::new(config).unwrap());
 
         let builder =
             NomtSessionBuilder::<H, u64>::new(state_db.clone(), Vec::new(), all_overlays.clone());

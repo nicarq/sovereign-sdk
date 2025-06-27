@@ -10,6 +10,7 @@ use anyhow::Context;
 use derivative::Derivative;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_cli::NodeClient;
+use sov_db::config::RollupDbConfig;
 use sov_db::ledger_db::LedgerDb;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig, MockDaSpec};
@@ -32,7 +33,6 @@ use sov_sequencer::{SequencerApis, SequencerConfig, SequencerKindConfig};
 pub use sov_stf_runner::processes::RollupProverConfig;
 use sov_stf_runner::{
     HttpServerConfig, MonitoringConfig, ProofManagerConfig, RollupConfig, RunnerConfig,
-    StorageConfig,
 };
 use testcontainers::core::{Mount, WaitFor};
 use testcontainers::runners::AsyncRunner;
@@ -439,9 +439,7 @@ where
 
     fn rollup_config(&self) -> RollupConfig<<R::Spec as Spec>::Address, R::DaService> {
         RollupConfig {
-            storage: StorageConfig {
-                path: self.config.storage.as_path().to_path_buf(),
-            },
+            storage: RollupDbConfig::default_in_path(self.config.storage.as_path().to_path_buf()),
             runner: RunnerConfig {
                 genesis_height: 0,
                 da_polling_interval_ms: 30,

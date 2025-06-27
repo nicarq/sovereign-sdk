@@ -9,6 +9,7 @@ use rockbound::SchemaBatch;
 use sov_rollup_interface::reexports::digest;
 
 use crate::accessory_db::AccessoryDb;
+use crate::config::RollupDbConfig;
 use crate::historical_state::HistoricalStateReader;
 use crate::ledger_db::LedgerDb;
 use crate::namespaces::{KernelNamespace, UserNamespace};
@@ -31,8 +32,9 @@ where
     H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync,
     K: Eq + std::hash::Hash + Clone,
 {
-    pub(crate) fn new(path: std::path::PathBuf) -> anyhow::Result<Self> {
-        let state_db = NomtStateDb::<H>::new(&path)?;
+    pub(crate) fn new(config: RollupDbConfig) -> anyhow::Result<Self> {
+        let path = config.path.clone();
+        let state_db = NomtStateDb::<H>::new(config)?;
         let historical_state =
             HistoricalStateReader::get_rockbound_options().default_setup_db_in_path(&path)?;
         let accessory_rocksdb =

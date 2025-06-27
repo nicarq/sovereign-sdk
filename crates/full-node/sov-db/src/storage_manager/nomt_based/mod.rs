@@ -15,6 +15,7 @@ use sov_rollup_interface::reexports::digest;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 
 use crate::accessory_db::AccessoryDb;
+use crate::config::RollupDbConfig;
 use crate::historical_state::HistoricalStateReader;
 use crate::metrics::nomt::StorageManagerFinalizationMetric;
 use crate::state_db_nomt::{NomtSessionBuilder, StateOverlay};
@@ -53,7 +54,7 @@ pub struct NomtChangeSet {
 fn generate_empty_finished_session() -> nomt::FinishedSession {
     let dir = tempfile::tempdir().unwrap();
 
-    let mut opts = crate::state_db_nomt::sov_nomt_default_options();
+    let mut opts = nomt::Options::new();
     opts.path(dir.path());
     let nomt = nomt::Nomt::<nomt::hasher::BinaryHasher<sha2::Sha256>>::open(opts).unwrap();
     let params = nomt::SessionParams::default().witness_mode(nomt::WitnessMode::read_write());
@@ -115,8 +116,8 @@ where
     S: InitializableNativeNomtStorage<H, Da::SlotHash>,
 {
     /// Create a new [` NomtStorageManager`].
-    pub fn new(path: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
-        let db_group = DbGroup::new(path.as_ref().to_path_buf())?;
+    pub fn new(config: RollupDbConfig) -> anyhow::Result<Self> {
+        let db_group = DbGroup::new(config)?;
 
         db_group.update_ledger_finalized_height()?;
         db_group.verify_commited_root_hashes()?;

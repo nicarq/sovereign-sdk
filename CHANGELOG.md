@@ -1,6 +1,7 @@
 # 2025-06-26
 - #3106 **BREAKING CHANGE** adds a *required* batch_execution_time_limit_millis configuration to the preferred sequencer. The sequencer 
 will not allow batches to continue growing once they reach this limit, even if that means causing downtime.
+- #3110 Swaps `StorageConfig` with `RollupDbConfig`. Change should be transparent for rollup struct.
 - #3112 adds validity distribution parameter to sov-soak generator
 
 # 2025-06-25

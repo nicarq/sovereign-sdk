@@ -10194,6 +10194,7 @@ dependencies = [
  "proptest-derive 0.5.0",
  "rand",
  "rockbound",
+ "schemars",
  "serde",
  "serde_json",
  "sha2 0.10.8",
