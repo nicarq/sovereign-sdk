@@ -11022,6 +11022,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tracing",
+ "tracing-subscriber 0.3.18",
  "utoipa-swagger-ui",
  "uuid 1.10.0",
 ]

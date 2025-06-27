@@ -2,7 +2,7 @@
 use std::collections::HashSet;
 use std::env;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use anyhow::Context;
 use futures::StreamExt;
@@ -17,9 +17,10 @@ use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_sequencer::SequencerKindConfig;
 use sov_stf_runner::processes::RollupProverConfig;
+use sov_test_utils::logging::LogCollector;
 use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
 use sov_test_utils::TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING;
-use tracing::{Event, Level, Subscriber};
+use tracing::Level;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{registry, EnvFilter, Layer};
 
@@ -29,8 +30,7 @@ const ROLLUP_START_TIMEOUT: std::time::Duration = std::time::Duration::from_secs
 const ROLLUP_SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 const FULL_TEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
 
-fn initialize_logging_for_restart(records: Arc<Mutex<Vec<(Level, String)>>>, with_stdout: bool) {
-    let collector = LogCollector { records };
+fn initialize_logging_for_restart(collector: LogCollector, with_stdout: bool) {
     let subscriber = registry().with(collector);
     let prev_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
@@ -52,37 +52,6 @@ fn initialize_logging_for_restart(records: Arc<Mutex<Vec<(Level, String)>>>, wit
     }
 }
 
-struct LogCollector {
-    records: Arc<Mutex<Vec<(Level, String)>>>,
-}
-
-impl<S> Layer<S> for LogCollector
-where
-    S: Subscriber,
-{
-    fn on_event(&self, event: &Event<'_>, _ctx: tracing_subscriber::layer::Context<'_, S>) {
-        let level = *event.metadata().level();
-
-        if level <= Level::WARN {
-            let mut message = String::new();
-            let mut visitor = MessageVisitor(&mut message);
-            event.record(&mut visitor);
-
-            self.records.lock().unwrap().push((level, message));
-        }
-    }
-}
-
-struct MessageVisitor<'a>(&'a mut String);
-
-impl<'a> tracing::field::Visit for MessageVisitor<'a> {
-    fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
-        if field.name() == "message" {
-            self.0.push_str(&format!("{:?}", value));
-        }
-    }
-}
-
 /// Starts a TestNode, lets it run for some time and then shuts it down.
 /// Repeats that several times.
 /// Rollup and MockDa data are preserved between restarts.
@@ -91,11 +60,8 @@ async fn start_stop_empty(
     finalization_blocks: u32,
     rollup_prover_config: RollupProverConfig<Risc0>,
 ) -> anyhow::Result<()> {
-    let records = Arc::new(Mutex::new(Vec::new()));
-    let collector = LogCollector {
-        records: records.clone(),
-    };
-    let subscriber = registry().with(collector);
+    let collector = LogCollector::new(Level::WARN);
+    let subscriber = registry().with(collector.clone());
     subscriber.init();
 
     let rollup_storage_dir = Arc::new(tempfile::tempdir()?);
@@ -172,7 +138,7 @@ async fn start_stop_empty(
     ];
 
     let mut recorded_errors_warnings =
-        HashSet::<(Level, String)>::from_iter(records.lock().unwrap().clone().iter().cloned());
+        HashSet::<(Level, String)>::from_iter(collector.records().iter().cloned());
     recorded_errors_warnings.retain(|e| !known.contains(e));
     // We could've checked `.is_empty`, but in case of failure, we will see errors immediately.
     assert_eq!(HashSet::<(Level, String)>::new(), recorded_errors_warnings);
@@ -222,8 +188,8 @@ async fn flaky_test_start_stop_optimistic_non_instant_finality() -> anyhow::Resu
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_start_prover_manual() -> anyhow::Result<()> {
-    let records = Arc::new(Mutex::new(Vec::new()));
-    initialize_logging_for_restart(records.clone(), false); // Enable stdout logging. Set to false to disable.
+    let collector = LogCollector::new(Level::WARN);
+    initialize_logging_for_restart(collector.clone(), false); // Enable stdout logging. Set to false to disable.
 
     let rollup_storage_dir = Arc::new(tempfile::tempdir()?);
     let finalization_blocks = 0;
@@ -349,7 +315,7 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
     }
 
     let mut recorded_errors_warnings =
-        HashSet::<(Level, String)>::from_iter(records.lock().unwrap().clone().iter().cloned());
+        HashSet::<(Level, String)>::from_iter(collector.records().iter().cloned());
     let known = [
         // Error because of ledger subscription
         (Level::WARN, "WebSocket error".to_string()),

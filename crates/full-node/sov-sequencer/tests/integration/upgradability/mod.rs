@@ -1,13 +1,15 @@
-use std::sync::Arc;
-use std::time::Duration;
+#![allow(dead_code)]
 
-use base64::prelude::BASE64_STANDARD;
-use base64::Engine as _;
-use sov_api_spec::types::{self as api_types};
+use std::sync::Arc;
+
+use futures::StreamExt;
 use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
+use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::{RawTx, Runtime};
+use sov_node_client::NodeClient;
+use sov_test_utils::logging::LogCollector;
 use sov_test_utils::runtime::genesis::operator::HighLevelOperatorGenesisConfig;
 use sov_test_utils::runtime::GenesisParams;
 use sov_test_utils::test_rollup::TestRollup;
@@ -16,45 +18,84 @@ use sov_test_utils::{
     TEST_BLOB_PROCESSING_TIMEOUT, TEST_MAX_BATCH_SIZE,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
-use tokio::time::sleep;
+use tracing::Level;
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::registry;
 
 use crate::utils::{new_test_rollup, tx_set_value_with_gas, MAX_BATCH_EXECUTION_TIME_MILLIS};
+
 generate_operator_runtime_with_kernel!(kernel_type: SoftConfirmationsKernel<'a, S>, TestRuntime <= value_setter: ValueSetter<S>);
 type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn tests_sequencer_stop() {
-    let (test_rollup, admin) =
-        create_test_rollup(0, TEST_MAX_BATCH_SIZE, TEST_BLOB_PROCESSING_TIMEOUT).await;
+async fn tests_sequencer_stops_if_stop_at_height_too_small() {
+    let collector = LogCollector::new(Level::ERROR);
+    let subscriber = registry().with(collector.clone());
+    subscriber.init();
 
-    let Some(test_rollup) = test_rollup else {
-        return;
+    let stop_at_height = RollupHeight::new(3);
+
+    let (test_rollup, _) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        Some(stop_at_height),
+    )
+    .await;
+
+    let test_rollup = test_rollup.unwrap();
+    let mut slot_subscription = test_rollup.client.client.subscribe_slots().await.unwrap();
+
+    for _ in 0..30 {
+        slot_subscription.next().await;
+    }
+
+    let client = test_rollup.client.clone();
+    let slot_height = get_height(client).await;
+
+    // Assert the condition that triggers an early return.
+    assert!(stop_at_height.get() < slot_height);
+
+    let Err(err) = test_rollup.restart().await else {
+        panic!("The rollup should have stopped")
     };
 
-    test_rollup
-        .da_service
-        .produce_n_blocks_now(5)
-        .await
-        .unwrap();
-    sleep(Duration::from_millis(200)).await;
+    let mut recods = collector.records();
+    assert_eq!(recods.len(), 1);
 
-    let client = test_rollup.api_client.clone();
-    let tx = tx_set_value(&admin.private_key, 0, 7);
+    let (_, log) = recods.remove(0);
+    assert!(log.contains("The requested stop_height"));
+    assert!(err.to_string().contains("The requested stop_height"));
+}
 
-    let response = client
-        .accept_tx(&api_types::AcceptTxBody {
-            body: BASE64_STANDARD.encode(&tx),
-        })
-        .await
-        .unwrap();
+use serde::Deserialize;
 
-    assert_eq!(response.data.events.len(), 1);
+#[derive(Deserialize, Debug)]
+struct CurrentHeights {
+    data: Data,
+    meta: Meta,
+}
+
+#[derive(Deserialize, Debug)]
+struct Data {
+    value: (u64, u64),
+}
+
+#[derive(Deserialize, Debug)]
+struct Meta {}
+
+async fn get_height(client: NodeClient) -> u64 {
+    let url = "/modules/chain-state/state/current-heights".to_string();
+    let response = client.http_get(&url).await.unwrap();
+    let heights: CurrentHeights = serde_json::from_str(&response).unwrap();
+    heights.data.value.0
 }
 
 async fn create_test_rollup(
     minimum_profit_per_tx: u128,
     max_batch_size: usize,
     blob_processing_timeout_secs: u64,
+    stop_at_rollup_height: Option<RollupHeight>,
 ) -> (Option<TestRollup<TestBlueprint>>, TestUser<TestSpec>) {
     let reward_address = TestAddress::new([17; 28]);
     let genesis_config =
@@ -86,10 +127,11 @@ async fn create_test_rollup(
             minimum_profit_per_tx,
             true,
             max_batch_size,
-            BlockProducingConfig::Manual,
+            BlockProducingConfig::Periodic { block_time_ms: 200 },
             None,
             blob_processing_timeout_secs,
             MAX_BATCH_EXECUTION_TIME_MILLIS,
+            stop_at_rollup_height,
         )
         .await,
         admin,

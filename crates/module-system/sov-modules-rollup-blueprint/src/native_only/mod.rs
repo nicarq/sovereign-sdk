@@ -12,7 +12,7 @@ use async_trait::async_trait;
 pub use endpoints::*;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::{DeltaReader, SchemaBatch};
-use sov_modules_api::capabilities::{HasCapabilities, ProofProcessor};
+use sov_modules_api::capabilities::{HasCapabilities, ProofProcessor, RollupHeight};
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::provable_height_tracker::MaximumProvableHeight;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
@@ -154,14 +154,20 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         runtime_genesis_paths: &<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisInput,
         rollup_config: RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         prover_config: Option<RollupProverConfig<<Self::Spec as Spec>::InnerZkvm>>,
+        stop_at_rollup_height: Option<RollupHeight>,
     ) -> anyhow::Result<Rollup<Self, M>>
     where
         <Self::Spec as Spec>::Storage: NativeStorage,
     {
         let genesis_params = self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
 
-        self.create_new_rollup_with_genesis_params(genesis_params, rollup_config, prover_config)
-            .await
+        self.create_new_rollup_with_genesis_params(
+            genesis_params,
+            rollup_config,
+            prover_config,
+            stop_at_rollup_height,
+        )
+        .await
     }
 
     /// Injects additional HTTP APIs for the sequencer.
@@ -188,6 +194,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         da_service: &Self::DaService,
         shutdown_receiver: watch::Receiver<()>,
         shutdown_sender: tokio::sync::watch::Sender<()>,
+        stop_at_rollup_height: Option<RollupHeight>,
     ) -> anyhow::Result<SequencerCreationReceipt<Self::Spec>> {
         match &rollup_config.sequencer.sequencer_kind_config {
             SequencerKindConfig::Standard(seq_config) => {
@@ -230,6 +237,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                         ledger_db.clone(),
                         api_ledger_db.clone(),
                         shutdown_sender.clone(),
+                        stop_at_rollup_height,
                     )
                     .await?;
 
@@ -259,6 +267,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         genesis_params: GenesisParams<<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisConfig>,
         rollup_config: RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         prover_config: Option<RollupProverConfig<<Self::Spec as Spec>::InnerZkvm>>,
+        stop_at_rollup_height: Option<RollupHeight>,
     ) -> anyhow::Result<Rollup<Self, M>>
     where
         <Self::Spec as Spec>::Storage: NativeStorage,
@@ -411,6 +420,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                 &da_service,
                 main_shutdown_receiver.clone(),
                 main_shutdown_sender.clone(),
+                stop_at_rollup_height,
             )
             .await?;
 

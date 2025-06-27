@@ -6,7 +6,7 @@ use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaService};
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::capabilities::TransactionAuthenticator;
+use sov_modules_api::capabilities::{RollupHeight, TransactionAuthenticator};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::prelude::*;
 use sov_modules_api::rest::HasRestApi;
@@ -33,8 +33,8 @@ use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::{
     default_test_signed_transaction, default_test_tx_details, test_signed_transaction, EncodeCall,
     MessageGenerator, RtAgnosticBlueprint, TestPrivateKey, TestSpec, TransactionType,
-    MAX_CONCURRENT_BLOBS, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE,
-    TEST_DEFAULT_MAX_PRIORITY_FEE,
+    TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
+    TEST_MAX_CONCURRENT_BLOBS,
 };
 use sov_value_setter::ValueSetter;
 
@@ -227,6 +227,7 @@ pub async fn new_test_rollup<RT: Runtime<TestSpec> + HasRestApi<TestSpec>>(
     rollup_prover_config: Option<RollupProverConfig<MockZkvm>>,
     blob_processing_timeout_secs: u64,
     max_batch_execution_time_millis: u64,
+    stop_at_rollup_height: Option<RollupHeight>,
 ) -> Option<TestRollup<RtAgnosticBlueprint<TestSpec, RT>>> {
     const FINALIZATION_BLOCKS: u32 = 3;
 
@@ -248,12 +249,13 @@ pub async fn new_test_rollup<RT: Runtime<TestSpec> + HasRestApi<TestSpec>>(
         c.storage = dir;
         c.max_batch_size_bytes = max_batch_size_bytes;
         c.blob_processing_timeout_secs = blob_processing_timeout_secs;
+        c.stop_at_rollup_height = stop_at_rollup_height;
         if let SequencerKindConfig::Preferred(preferred_sequencer_config) = &mut c.sequencer_config
         {
             preferred_sequencer_config.batch_execution_time_limit_millis =
                 max_batch_execution_time_millis;
         }
-        c.max_concurrent_blobs = MAX_CONCURRENT_BLOBS;
+        c.max_concurrent_blobs = TEST_MAX_CONCURRENT_BLOBS;
     })
     .set_da_config(|c| c.sender_address = seq_da_address)
     .with_preferred_seq_min_profit_per_tx(minimum_profit_per_tx)

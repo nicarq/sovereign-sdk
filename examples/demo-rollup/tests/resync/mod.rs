@@ -2,7 +2,7 @@
 use std::collections::HashSet;
 use std::env;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{bail, Context};
@@ -18,11 +18,12 @@ use sov_modules_api::{OperatingMode, RawTx, Runtime, TxHash};
 use sov_modules_rollup_blueprint::logging::default_rust_log_value;
 use sov_risc0_adapter::crypto::private_key::Risc0PrivateKey;
 use sov_stf_runner::processes::RollupProverConfig;
+use sov_test_utils::logging::LogCollector;
 use sov_test_utils::test_rollup::{read_private_key, RollupBuilder, TestRollup};
 use sov_test_utils::{default_test_signed_transaction, TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING};
 use sov_value_setter::CallMessage;
 use tempfile::TempDir;
-use tracing::{Event, Level, Subscriber};
+use tracing::Level;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{registry, EnvFilter, Layer};
 
@@ -33,12 +34,7 @@ const ROLLUP_SYNC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(
 const TX_PROCESSING_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 const ROLLUP_SHUTDOWN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
-struct LogCollector {
-    records: Arc<Mutex<Vec<(Level, String)>>>,
-}
-
-fn initialize_logging_for_resync(records: Arc<Mutex<Vec<(Level, String)>>>, with_stdout: bool) {
-    let collector = LogCollector { records }.with_filter(EnvFilter::from_str("info").unwrap());
+fn initialize_logging_for_resync(collector: LogCollector, with_stdout: bool) {
     let subscriber = registry().with(collector);
     let prev_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
@@ -57,31 +53,6 @@ fn initialize_logging_for_resync(records: Arc<Mutex<Vec<(Level, String)>>>, with
         subscriber.with(layer).init();
     } else {
         subscriber.init();
-    }
-}
-
-impl<S> Layer<S> for LogCollector
-where
-    S: Subscriber,
-{
-    fn on_event(&self, event: &Event<'_>, _ctx: tracing_subscriber::layer::Context<'_, S>) {
-        let level = *event.metadata().level();
-        if level <= Level::WARN {
-            let mut message = String::new();
-            let mut visitor = MessageVisitor(&mut message);
-            event.record(&mut visitor);
-            self.records.lock().unwrap().push((level, message));
-        }
-    }
-}
-
-struct MessageVisitor<'a>(&'a mut String);
-
-impl<'a> tracing::field::Visit for MessageVisitor<'a> {
-    fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
-        if field.name() == "message" {
-            self.0.push_str(&format!("{:?}", value));
-        }
     }
 }
 
@@ -241,8 +212,8 @@ async fn test_rollup_resync() -> anyhow::Result<()> {
     // the sequencer time to resync safely.
     std::env::set_var("SOV_TEST_CONST_OVERRIDE_DEFERRED_SLOTS_COUNT", "400");
 
-    let records = Arc::new(Mutex::new(Vec::new()));
-    initialize_logging_for_resync(records.clone(), false); // Set to true to see logs
+    let collector = LogCollector::new(Level::WARN);
+    initialize_logging_for_resync(collector.clone(), false); // Set to true to see logs
 
     let rollup_storage_path = Arc::new(TempDir::new_in("tests/resync/data/")?);
 
@@ -309,7 +280,7 @@ async fn test_rollup_resync() -> anyhow::Result<()> {
     ];
 
     let mut recorded_errors_warnings =
-        HashSet::<(Level, String)>::from_iter(records.lock().unwrap().clone().iter().cloned());
+        HashSet::<(Level, String)>::from_iter(collector.records().iter().cloned());
     recorded_errors_warnings.retain(|e| !known_acceptable_logs.contains(e));
     // We could've checked `.is_empty`, but in case of failure, we will see errors immediately.
     assert_eq!(HashSet::<(Level, String)>::new(), recorded_errors_warnings);

@@ -32,7 +32,7 @@ use serde_with::serde_as;
 use sov_blob_sender::{new_blob_id, BlobSender};
 use sov_blob_storage::{PreferredBatchData, SequenceNumber};
 use sov_db::ledger_db::LedgerDb;
-use sov_modules_api::capabilities::{BlobSelector, TransactionAuthenticator};
+use sov_modules_api::capabilities::{BlobSelector, RollupHeight, TransactionAuthenticator};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::rest::utils::ErrorObject;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
@@ -406,6 +406,7 @@ where
     shutdown_sender: watch::Sender<()>,
     // Used to track which txs need to be ignored after the sequencer had downtime (in the sense of giving out 503s)
     tx_queue_id: AtomicU64,
+    _stop_at_rollup_height: Option<RollupHeight>,
 }
 
 impl<S, Rt, Da> PreferredSequencer<S, Rt, Da>
@@ -430,6 +431,7 @@ where
         ledger_db: LedgerDb,
         api_ledger_db: LedgerDb,
         shutdown_sender: watch::Sender<()>,
+        stop_at_rollup_height: Option<RollupHeight>,
     ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
         let shutdown_receiver = shutdown_sender.subscribe();
         let latest_state_update = state_update_receiver.borrow().clone();
@@ -540,6 +542,18 @@ where
             is_ready: Err(SequencerNotReadyDetails::Startup),
         };
 
+        if let Some(stop_height) = stop_at_rollup_height {
+            let rollup_height_to_access = inner.executor.checkpoint.rollup_height_to_access();
+            if stop_height < rollup_height_to_access {
+                tracing::error!(
+                    stop_height = stop_height.get(),
+                    rollup_height_to_access = rollup_height_to_access.get(),
+                    "The requested stop_height is lower than rollup_height_to_access, exiting"
+                );
+                anyhow::bail!("The requested stop_height: {stop_height} is lower than the current rollup_height_to_access: {rollup_height_to_access}, exiting");
+            }
+        }
+
         let seq = Arc::new(PreferredSequencer {
             inner: inner.into(),
             tx_status_manager: tx_status_manager.clone(),
@@ -557,6 +571,7 @@ where
             cached_events,
             shutdown_sender,
             tx_queue_id: AtomicU64::new(0),
+            _stop_at_rollup_height: stop_at_rollup_height,
         });
 
         handles.push(tokio::spawn({
@@ -969,8 +984,10 @@ where
             .sequencer_kind_config
             .batch_execution_time_limit_millis
             * 1000;
+
         let current_batch_execution_time_micros =
             inner.batch_size_tracker.batch_execution_time_micros;
+
         if current_batch_execution_time_micros > batch_execution_time_limit_micros {
             tracing::debug!(%batch_execution_time_limit_micros, %current_batch_execution_time_micros, "Closing and publishing current batch because we've reached the batch execution time cap");
             // We can't do anything about errors here, so we just log them. They won't interfere with acceptance of *this* tx, so we return success for it.

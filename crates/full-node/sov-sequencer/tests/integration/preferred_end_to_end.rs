@@ -30,7 +30,7 @@ use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConf
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, RollupProverConfig, TestRollup};
 use sov_test_utils::{
     default_test_signed_transaction, generate_optimistic_runtime_with_kernel, RtAgnosticBlueprint,
-    TestSpec, TestUser, MAX_CONCURRENT_BLOBS, TEST_MAX_BATCH_SIZE,
+    TestSpec, TestUser, TEST_MAX_BATCH_SIZE, TEST_MAX_CONCURRENT_BLOBS,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use test_strategy::Arbitrary;
@@ -164,6 +164,7 @@ async fn create_test_rollup(
             None,
             blob_processing_timeout_secs,
             max_batch_execution_time_millis,
+            None,
         )
         .await,
         admin,
@@ -301,6 +302,7 @@ async fn sequencer_filled_up_block() {
         None,
         60,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
+        None,
     )
     .await
     else {
@@ -609,6 +611,7 @@ async fn seq_out_of_gas_for_pre_checks() {
         None,
         60,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
+        None,
     )
     .await
     else {
@@ -931,6 +934,7 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
         None,
         60,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
+        None,
     )
     .await
     else {
@@ -1173,7 +1177,7 @@ async fn flaky_seq_back_pressure() {
         // When we produce a batch, it catches us up to the ideal lag - so we end up producing one batch every 2 blocks.
         // after default_ideal_lag_behind_finalized_slot
         let num_blocks_needed =
-            default_ideal_lag_behind_finalized_slot() + (MAX_CONCURRENT_BLOBS as u64 * 2);
+            default_ideal_lag_behind_finalized_slot() + (TEST_MAX_CONCURRENT_BLOBS as u64 * 2);
         for _ in 0..num_blocks_needed + 8 {
             // Add a little cushion to reduce flakiness
             test_rollup.da_service.produce_block_now().await.unwrap();
@@ -1866,6 +1870,7 @@ async fn heavy_blob_submission_long_delay() {
         None,
         blob_processing_timeout_secs,
         400, // Set the batch time limit to twice the block time
+        None,
     )
     .await;
 
@@ -2329,6 +2334,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
         Some(RollupProverConfig::Skip),
         60,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
+        None,
     )
     .await
     else {

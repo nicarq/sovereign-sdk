@@ -35,7 +35,11 @@ use sov_state::{DefaultStorageSpec, StateAccesses, Storage};
 pub use {sov_bank, sov_paymaster, sov_rollup_apis, sov_universal_wallet};
 
 mod evm;
+
 mod rt_agnostic_blueprint;
+
+/// Utilities for recording logs.
+pub mod logging;
 
 /// End-to-end rollup node testing utilities.
 pub mod test_rollup;
@@ -104,11 +108,8 @@ pub type TestStorageManager =
 /// The maximum batch size that the preferred sequencer can create.
 pub const TEST_MAX_BATCH_SIZE: usize = 1024 * 1024;
 
-/// I a blob is not processed within this time, it will shut down the sequencer.
+/// If a blob is not processed within this time, it will shut down the sequencer.
 pub const TEST_BLOB_PROCESSING_TIMEOUT: u64 = 60;
-
-/// TODO
-pub const MAX_CONCURRENT_BLOBS: usize = 32;
 
 /// The maximum number of concurrent blobs.
 pub const TEST_MAX_CONCURRENT_BLOBS: usize = 16;

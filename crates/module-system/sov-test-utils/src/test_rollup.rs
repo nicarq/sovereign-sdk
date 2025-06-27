@@ -14,6 +14,7 @@ use sov_db::config::RollupDbConfig;
 use sov_db::ledger_db::LedgerDb;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig, MockDaSpec};
+use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::prelude::axum;
 use sov_modules_api::prelude::axum::extract::Request;
@@ -95,6 +96,7 @@ pub struct RollupBuilderConfig<S: Spec, StoragePath = Arc<tempfile::TempDir>> {
     pub max_batch_size_bytes: usize,
     pub max_concurrent_blobs: usize,
     pub blob_processing_timeout_secs: u64,
+    pub stop_at_rollup_height: Option<RollupHeight>,
 }
 
 /// A one-stop shop for building entire rollups and starting them in the
@@ -221,6 +223,7 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
                 axum_host: "127.0.0.1".to_string(),
                 axum_port: 0,
                 blob_processing_timeout_secs: 60,
+                stop_at_rollup_height: None,
             },
             with_secondary_sequencer: None,
         }
@@ -351,6 +354,7 @@ where
                         genesis_paths,
                         rollup_config.clone(),
                         self.config.rollup_prover_config.clone(),
+                        self.config.stop_at_rollup_height,
                     )
                     .await?
             }
@@ -360,6 +364,7 @@ where
                         genesis_params.clone(),
                         rollup_config.clone(),
                         self.config.rollup_prover_config.clone(),
+                        self.config.stop_at_rollup_height,
                     )
                     .await?
             }
@@ -624,17 +629,20 @@ where
     }
 
     /// Shuts down the rollup and waits for all background tasks to finish.
-    pub async fn shutdown(self) -> anyhow::Result<()> {
+    pub async fn shutdown(self) -> anyhow::Result<RollupBuilder<R, StoragePath>> {
         if let Err(error) = self.shutdown_sender.send(()) {
             tracing::info!(%error, "shutdown triggered elsewhere, this is probably OK");
         }
-        self.rollup_task.await.expect("Can't join rollup task")?;
+        self.rollup_task
+            .await
+            .expect("Can't join rollup task")
+            .unwrap();
 
         for handle in self.other_handles {
             handle.await.expect("Can't join other handles");
         }
 
-        Ok(())
+        Ok(self.builder)
     }
 
     /// Force closes the current batch.
@@ -647,16 +655,7 @@ where
 
     /// Restarts the rollup.
     pub async fn restart(self) -> anyhow::Result<Self> {
-        if let Err(error) = self.shutdown_sender.send(()) {
-            tracing::info!(%error, "shutdown triggered elsewhere, this is probably OK");
-        }
-        self.rollup_task.await.expect("Can't join rollup task")?;
-        for handle in self.other_handles {
-            handle.await.expect("Can't join other handles");
-        }
-
-        let TestRollup { builder, .. } = self;
-
+        let builder = self.shutdown().await?;
         builder.start().await
     }
 }

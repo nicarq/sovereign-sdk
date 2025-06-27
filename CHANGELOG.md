@@ -1,3 +1,6 @@
+# 2025-06-27
+- #3120 Adds optional `stop_at_rollup_height` flag to the rollup. This is not a breaking change.
+
 # 2025-06-26
 - #3106 **BREAKING CHANGE** adds a *required* batch_execution_time_limit_millis configuration to the preferred sequencer. The sequencer 
 will not allow batches to continue growing once they reach this limit, even if that means causing downtime.
