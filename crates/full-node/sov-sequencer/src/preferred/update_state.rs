@@ -54,7 +54,7 @@ where
             None, // We don't re-send events when replaying batches in the background.
             None, // We don't re-send transactions when replaying batches in the background.
             self.config.clone(),
-            self.shutdown_notifier.clone(),
+            self.block_executors_shutdown_notifier.clone(),
             self.state_root_compute_task.request_sender.clone(),
             self.shutdown_receiver.clone(),
             self.shutdown_sender.clone(),

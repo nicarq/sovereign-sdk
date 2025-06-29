@@ -394,7 +394,7 @@ where
     da_sync_state: Arc<DaSyncState>,
     _runtime: PhantomData<Rt>,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
-    shutdown_notifier: Sender<()>,
+    block_executors_shutdown_notifier: Sender<()>,
     state_root_compute_task: StateRootBackgroundTaskState<S>,
     shutdown_receiver: watch::Receiver<()>,
     ledger_db: LedgerDb,
@@ -459,13 +459,7 @@ where
             None,
         );
 
-        let (shutdown_notifier, mut shutdown_rx) = mpsc::channel(1);
-        let mut handles = vec![tokio::task::spawn(async move {
-            // This task blocks until we receive a notification that all
-            // background tasks have been shut down.
-            let _ = shutdown_rx.recv().await;
-        })];
-
+        let (block_executors_shutdown_notifier, block_executors_shutdown_rx) = mpsc::channel(1);
         let (events_sender, _) =
             broadcast::channel(config.sequencer_kind_config.events_channel_size);
 
@@ -482,6 +476,7 @@ where
             };
         let completed_blobs = db_backend.read_completed_blobs().await?;
 
+        let mut handles = vec![];
         let blob_sender = {
             let (inner, blob_sender_handle) = BlobSender::new(
                 da,
@@ -510,8 +505,7 @@ where
 
         let (state_root_compute_handle, state_root_compute_task) =
             StateRootBackgroundTaskState::create(
-                shutdown_notifier.clone(),
-                shutdown_receiver.clone(),
+                block_executors_shutdown_rx,
                 !config
                     .sequencer_kind_config
                     .disable_state_root_consistency_checks,
@@ -532,7 +526,7 @@ where
                 Some(events_sender.clone()),
                 Some(transactions_sender.clone()),
                 config.clone(),
-                shutdown_notifier.clone(),
+                block_executors_shutdown_notifier.clone(),
                 state_root_compute_task.request_sender.clone(),
                 shutdown_receiver.clone(),
                 shutdown_sender.clone(),
@@ -562,7 +556,7 @@ where
             da_sync_state,
             api_state,
             _runtime: PhantomData,
-            shutdown_notifier,
+            block_executors_shutdown_notifier,
             config: config.clone(),
             state_root_compute_task,
             shutdown_receiver: shutdown_receiver.clone(),
@@ -612,7 +606,7 @@ where
             None, // we don't send events during replay or recovery
             None, // we don't send transactions during replay or recovery
             self.config.clone(),
-            self.shutdown_notifier.clone(),
+            self.block_executors_shutdown_notifier.clone(),
             self.state_root_compute_task.request_sender.clone(),
             self.shutdown_receiver.clone(),
             self.shutdown_sender.clone(),

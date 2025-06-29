@@ -5,9 +5,8 @@ use std::collections::BTreeMap;
 use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::{Spec, Storage};
 use sov_rollup_interface::common::SlotNumber;
-use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
 use sov_state::{NativeStorage, SlotKey, SlotValue, StateAccesses, StateRoot};
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{mpsc, oneshot};
 
 /// The memory limit for old write sets that we keep around. These old sets are useful because they tell us what keys have been changed.
 /// Which lets us output a much handier error message when the state root computation changes.
@@ -153,8 +152,7 @@ async fn compute_state_root<S: Spec>(
 
 impl<S: Spec> StateRootBackgroundTaskState<S> {
     pub(super) fn create(
-        shutdown_notifier: mpsc::Sender<()>,
-        shutdown_receiver: watch::Receiver<()>,
+        mut block_excutors_shutdown_receiver: mpsc::Receiver<()>,
         check_state_roots: bool,
     ) -> (tokio::task::JoinHandle<()>, StateRootBackgroundTaskState<S>) {
         tracing::info!("Starting sequencer state root computation background task");
@@ -164,6 +162,25 @@ impl<S: Spec> StateRootBackgroundTaskState<S> {
         let mut cached_results_size = 0;
         let handle = tokio::spawn(async move {
             loop {
+                let request = tokio::select! {
+                    maybe_request = request_receiver.recv() => {
+                        match maybe_request {
+                            Some(request) => request,
+                            None => {
+                                tracing::info!(
+                                    "All state root compute request senders were dropped, shutting down sequencer state root computation loop",
+                                );
+                                break;
+                            }
+                        }
+                    }
+                   _ = block_excutors_shutdown_receiver.recv() => {
+                        tracing::info!(
+                            "Sequencer state root background task shutdown in response to signal",
+                        );
+                        break;
+                   }
+                };
                 // Wait for a new request, or shutdown.
                 let StateRootComputeRequest::<S> {
                     state_accesses,
@@ -172,21 +189,7 @@ impl<S: Spec> StateRootBackgroundTaskState<S> {
                     max_slot_number,
                     response_channel,
                     ..
-                } = match future_or_shutdown(request_receiver.recv(), &shutdown_receiver).await {
-                    FutureOrShutdownOutput::Output(Some(request)) => request,
-                    FutureOrShutdownOutput::Shutdown => {
-                        tracing::info!(
-                            "Sequencer state root background task shutdown in response to signal",
-                        );
-                        break;
-                    }
-                    FutureOrShutdownOutput::Output(None) => {
-                        tracing::info!(
-                            "All state root compute request senders were dropped, shutting down sequencer state root computation loop",
-                        );
-                        break;
-                    }
-                };
+                } = request;
 
                 // If the entry is in cache, check that the state root is consistent and return early
                 if let Some(cached_entry) = cached_results.get(&rollup_height) {
@@ -261,7 +264,6 @@ impl<S: Spec> StateRootBackgroundTaskState<S> {
                 Self::prune_cache(&mut cached_results, &mut cached_results_size);
                 let _ = response_channel.send((rollup_height, root.clone()));
             }
-            drop(shutdown_notifier);
             tracing::info!(%cached_results_size, "State root background task shutdown");
         });
 
@@ -365,17 +367,11 @@ mod tests {
     fn start_background_task<S: Spec>() -> (
         StateRootBackgroundTaskState<S>,
         JoinHandle<()>,
-        watch::Sender<()>,
+        mpsc::Sender<()>,
     ) {
-        let (shutdown_notifier, _shutdown_rx) = mpsc::channel(10);
-        let (shutdown_sender, mut shutdown_receiver) = watch::channel(());
-        shutdown_receiver.mark_unchanged();
+        let (shutdown_sender, shutdown_receiver) = mpsc::channel(1);
 
-        let (handle, task) = StateRootBackgroundTaskState::<S>::create(
-            shutdown_notifier.clone(),
-            shutdown_receiver.clone(),
-            true,
-        );
+        let (handle, task) = StateRootBackgroundTaskState::<S>::create(shutdown_receiver, true);
 
         (task, handle, shutdown_sender)
     }
@@ -427,7 +423,7 @@ mod tests {
         )
         .await;
 
-        shutdown_sender.send(()).unwrap();
+        shutdown_sender.try_send(()).unwrap();
         handle.await.unwrap();
         received_root
     }
@@ -532,7 +528,7 @@ mod tests {
         assert_eq!(node_new_root, received_root_1);
         assert_eq!(received_root_1, received_root_2);
 
-        shutdown_sender.send(()).unwrap();
+        shutdown_sender.try_send(()).unwrap();
         handle.await.unwrap();
     }
 
@@ -711,7 +707,7 @@ mod tests {
             );
         }
 
-        shutdown_sender.send(()).unwrap();
+        shutdown_sender.try_send(()).unwrap();
         handle.await.unwrap();
     }
 

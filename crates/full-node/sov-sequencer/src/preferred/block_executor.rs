@@ -373,12 +373,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             self.rollup_block_task_state
         );
 
-        // If we've started shutting down, don't start a new block.
-        if self.shutdown_receiver.has_changed().unwrap_or(true) {
-            tracing::info!("The sequencer is shutting down. Exiting start_rollup_block");
-            return;
-        }
-
         trace!(
             ?self.checkpoint,
             %visible_increase,
@@ -386,10 +380,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         );
 
         self.populate_state_roots(node_state_root).await;
-        if self.shutdown_receiver.has_changed().unwrap_or(true) {
-            tracing::info!("The sequencer is shutting down. Exiting start_rollup_block");
-            return;
-        }
 
         let old_visible_slot_number = self.checkpoint.current_visible_slot_number();
         let next_visible_slot_number = self
@@ -500,10 +490,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     /// Before starting a rollup block, we need to have stored any visible state roots that it might need in state.
     /// In the node, this is done automatically, but sometimes the sequencer can run too far ahead of the node and need to compute these roots itself.
     async fn populate_state_roots(&mut self, node_state_root: &<S::Storage as Storage>::Root) {
-        if self.shutdown_receiver.has_changed().unwrap_or(true) {
-            tracing::info!("The sequencer is shutting down. Exiting populate_state_roots");
-            return;
-        }
         // If we don't have any state roots yet, insert the node's state root. That's our starting point.
         if self.state_roots.is_empty() {
             self.state_roots.insert(
