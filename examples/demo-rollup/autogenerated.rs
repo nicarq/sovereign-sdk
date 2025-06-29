@@ -1,4 +1,4 @@
-pub const CHAIN_HASH: [u8; 32] = [74, 92, 14, 245, 188, 149, 131, 111, 201, 45, 105, 128, 1, 59, 162, 194, 188, 241, 120, 43, 100, 246, 65, 125, 165, 228, 116, 220, 93, 11, 219, 228];
+pub const CHAIN_HASH: [u8; 32] = [246, 197, 81, 15, 238, 153, 126, 160, 23, 129, 124, 220, 145, 65, 84, 135, 55, 169, 248, 160, 139, 207, 15, 64, 226, 148, 72, 225, 240, 196, 75, 115];
 
 #[allow(dead_code)]
 pub const SCHEMA_JSON: &str = r#"{
@@ -98,7 +98,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "details",
             "silent": false,
             "value": {
-              "ByIndex": 113
+              "ByIndex": 115
             },
             "doc": ""
           }
@@ -190,7 +190,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 4,
             "template": null,
             "value": {
-              "ByIndex": 46
+              "ByIndex": 47
             }
           },
           {
@@ -198,7 +198,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 5,
             "template": null,
             "value": {
-              "ByIndex": 51
+              "ByIndex": 52
             }
           },
           {
@@ -206,7 +206,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 6,
             "template": null,
             "value": {
-              "ByIndex": 55
+              "ByIndex": 56
             }
           },
           {
@@ -214,7 +214,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 7,
             "template": null,
             "value": {
-              "ByIndex": 60
+              "ByIndex": 61
             }
           },
           {
@@ -222,7 +222,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 8,
             "template": null,
             "value": {
-              "ByIndex": 61
+              "ByIndex": 63
             }
           },
           {
@@ -230,7 +230,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 9,
             "template": null,
             "value": {
-              "ByIndex": 62
+              "ByIndex": 64
             }
           },
           {
@@ -238,7 +238,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 10,
             "template": null,
             "value": {
-              "ByIndex": 63
+              "ByIndex": 65
             }
           },
           {
@@ -246,7 +246,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 11,
             "template": null,
             "value": {
-              "ByIndex": 89
+              "ByIndex": 91
             }
           },
           {
@@ -254,7 +254,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 12,
             "template": null,
             "value": {
-              "ByIndex": 92
+              "ByIndex": 94
             }
           }
         ],
@@ -1177,9 +1177,35 @@ pub const SCHEMA_JSON: &str = r#"{
     },
     {
       "Enum": {
-        "type_name": "NotInstantiable",
-        "variants": [],
+        "type_name": "CallMessage",
+        "variants": [
+          {
+            "name": "UpdateRewardAddress",
+            "discriminant": 0,
+            "template": null,
+            "value": {
+              "ByIndex": 46
+            }
+          }
+        ],
         "hide_tag": false
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_CallMessage_UpdateRewardAddress",
+        "template": null,
+        "peekable": false,
+        "fields": [
+          {
+            "display_name": "new_reward_address",
+            "silent": false,
+            "value": {
+              "ByIndex": 12
+            },
+            "doc": ""
+          }
+        ]
       }
     },
     {
@@ -1189,7 +1215,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 47
+              "ByIndex": 48
             },
             "silent": false,
             "doc": ""
@@ -1206,7 +1232,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 48
+              "ByIndex": 49
             }
           },
           {
@@ -1226,7 +1252,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 3,
             "template": null,
             "value": {
-              "ByIndex": 49
+              "ByIndex": 50
             }
           },
           {
@@ -1240,7 +1266,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 5,
             "template": null,
             "value": {
-              "ByIndex": 50
+              "ByIndex": 51
             }
           }
         ],
@@ -1299,7 +1325,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 52
+              "ByIndex": 53
             },
             "silent": false,
             "doc": ""
@@ -1316,7 +1342,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 53
+              "ByIndex": 54
             }
           },
           {
@@ -1324,7 +1350,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 54
+              "ByIndex": 55
             }
           },
           {
@@ -1374,7 +1400,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 56
+              "ByIndex": 57
             },
             "silent": false,
             "doc": ""
@@ -1391,7 +1417,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 57
+              "ByIndex": 58
             }
           }
         ],
@@ -1405,7 +1431,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 58
+              "ByIndex": 59
             },
             "silent": false,
             "doc": ""
@@ -1420,7 +1446,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 59
+              "ByIndex": 60
             },
             "silent": false,
             "doc": ""
@@ -1455,7 +1481,29 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 45
+              "ByIndex": 62
+            },
+            "silent": false,
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Enum": {
+        "type_name": "NotInstantiable",
+        "variants": [],
+        "hide_tag": false
+      }
+    },
+    {
+      "Tuple": {
+        "template": null,
+        "peekable": false,
+        "fields": [
+          {
+            "value": {
+              "ByIndex": 62
             },
             "silent": false,
             "doc": ""
@@ -1470,7 +1518,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 45
+              "ByIndex": 62
             },
             "silent": false,
             "doc": ""
@@ -1485,22 +1533,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 45
-            },
-            "silent": false,
-            "doc": ""
-          }
-        ]
-      }
-    },
-    {
-      "Tuple": {
-        "template": null,
-        "peekable": false,
-        "fields": [
-          {
-            "value": {
-              "ByIndex": 64
+              "ByIndex": 66
             },
             "silent": false,
             "doc": ""
@@ -1517,7 +1550,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 65
+              "ByIndex": 67
             }
           },
           {
@@ -1525,7 +1558,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 78
+              "ByIndex": 80
             }
           },
           {
@@ -1533,7 +1566,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 2,
             "template": null,
             "value": {
-              "ByIndex": 79
+              "ByIndex": 81
             }
           }
         ],
@@ -1550,7 +1583,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "policy",
             "silent": false,
             "value": {
-              "ByIndex": 66
+              "ByIndex": 68
             },
             "doc": ""
           }
@@ -1567,7 +1600,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "default_payee_policy",
             "silent": false,
             "value": {
-              "ByIndex": 67
+              "ByIndex": 69
             },
             "doc": ""
           },
@@ -1575,7 +1608,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "payees",
             "silent": false,
             "value": {
-              "ByIndex": 73
+              "ByIndex": 75
             },
             "doc": ""
           },
@@ -1591,7 +1624,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "authorized_sequencers",
             "silent": false,
             "value": {
-              "ByIndex": 75
+              "ByIndex": 77
             },
             "doc": ""
           }
@@ -1607,7 +1640,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 68
+              "ByIndex": 70
             }
           },
           {
@@ -1646,7 +1679,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "max_gas_price",
             "silent": false,
             "value": {
-              "ByIndex": 69
+              "ByIndex": 71
             },
             "doc": ""
           },
@@ -1654,7 +1687,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "transaction_limit",
             "silent": false,
             "value": {
-              "ByIndex": 72
+              "ByIndex": 74
             },
             "doc": ""
           }
@@ -1664,7 +1697,7 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Option": {
         "value": {
-          "ByIndex": 70
+          "ByIndex": 72
         }
       }
     },
@@ -1678,7 +1711,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "value",
             "silent": false,
             "value": {
-              "ByIndex": 71
+              "ByIndex": 73
             },
             "doc": ""
           }
@@ -1708,7 +1741,7 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Vec": {
         "value": {
-          "ByIndex": 74
+          "ByIndex": 76
         }
       }
     },
@@ -1726,7 +1759,7 @@ pub const SCHEMA_JSON: &str = r#"{
           },
           {
             "value": {
-              "ByIndex": 67
+              "ByIndex": 69
             },
             "silent": false,
             "doc": ""
@@ -1749,7 +1782,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 76
+              "ByIndex": 78
             }
           }
         ],
@@ -1763,7 +1796,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 77
+              "ByIndex": 79
             },
             "silent": false,
             "doc": ""
@@ -1813,7 +1846,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "update",
             "silent": false,
             "value": {
-              "ByIndex": 80
+              "ByIndex": 82
             },
             "doc": ""
           }
@@ -1830,7 +1863,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "sequencer_update",
             "silent": false,
             "value": {
-              "ByIndex": 81
+              "ByIndex": 83
             },
             "doc": ""
           },
@@ -1838,7 +1871,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "updaters_to_add",
             "silent": false,
             "value": {
-              "ByIndex": 86
+              "ByIndex": 88
             },
             "doc": ""
           },
@@ -1846,7 +1879,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "updaters_to_remove",
             "silent": false,
             "value": {
-              "ByIndex": 86
+              "ByIndex": 88
             },
             "doc": ""
           },
@@ -1854,7 +1887,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "payee_policies_to_set",
             "silent": false,
             "value": {
-              "ByIndex": 87
+              "ByIndex": 89
             },
             "doc": ""
           },
@@ -1862,7 +1895,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "payee_policies_to_delete",
             "silent": false,
             "value": {
-              "ByIndex": 86
+              "ByIndex": 88
             },
             "doc": ""
           },
@@ -1870,7 +1903,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "default_policy",
             "silent": false,
             "value": {
-              "ByIndex": 88
+              "ByIndex": 90
             },
             "doc": ""
           }
@@ -1880,7 +1913,7 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Option": {
         "value": {
-          "ByIndex": 82
+          "ByIndex": 84
         }
       }
     },
@@ -1899,7 +1932,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 83
+              "ByIndex": 85
             }
           }
         ],
@@ -1913,7 +1946,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 84
+              "ByIndex": 86
             },
             "silent": false,
             "doc": ""
@@ -1931,7 +1964,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "to_add",
             "silent": false,
             "value": {
-              "ByIndex": 85
+              "ByIndex": 87
             },
             "doc": ""
           },
@@ -1939,7 +1972,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "to_remove",
             "silent": false,
             "value": {
-              "ByIndex": 85
+              "ByIndex": 87
             },
             "doc": ""
           }
@@ -1949,7 +1982,7 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Option": {
         "value": {
-          "ByIndex": 77
+          "ByIndex": 79
         }
       }
     },
@@ -1963,14 +1996,14 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Option": {
         "value": {
-          "ByIndex": 73
+          "ByIndex": 75
         }
       }
     },
     {
       "Option": {
         "value": {
-          "ByIndex": 67
+          "ByIndex": 69
         }
       }
     },
@@ -1981,7 +2014,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 90
+              "ByIndex": 92
             },
             "silent": false,
             "doc": ""
@@ -1999,7 +2032,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "rlp",
             "silent": false,
             "value": {
-              "ByIndex": 91
+              "ByIndex": 93
             },
             "doc": ""
           }
@@ -2034,7 +2067,7 @@ pub const SCHEMA_JSON: &str = r#"{
         "fields": [
           {
             "value": {
-              "ByIndex": 93
+              "ByIndex": 95
             },
             "silent": false,
             "doc": ""
@@ -2051,7 +2084,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 94
+              "ByIndex": 96
             }
           },
           {
@@ -2059,7 +2092,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 95
+              "ByIndex": 97
             }
           },
           {
@@ -2067,7 +2100,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 2,
             "template": null,
             "value": {
-              "ByIndex": 97
+              "ByIndex": 99
             }
           },
           {
@@ -2075,7 +2108,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 3,
             "template": null,
             "value": {
-              "ByIndex": 98
+              "ByIndex": 100
             }
           },
           {
@@ -2083,7 +2116,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 4,
             "template": null,
             "value": {
-              "ByIndex": 99
+              "ByIndex": 101
             }
           },
           {
@@ -2091,7 +2124,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 5,
             "template": null,
             "value": {
-              "ByIndex": 100
+              "ByIndex": 102
             }
           },
           {
@@ -2105,7 +2138,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 7,
             "template": null,
             "value": {
-              "ByIndex": 101
+              "ByIndex": 103
             }
           },
           {
@@ -2113,7 +2146,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 8,
             "template": null,
             "value": {
-              "ByIndex": 102
+              "ByIndex": 104
             }
           },
           {
@@ -2127,7 +2160,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 10,
             "template": null,
             "value": {
-              "ByIndex": 103
+              "ByIndex": 105
             }
           },
           {
@@ -2135,7 +2168,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 11,
             "template": null,
             "value": {
-              "ByIndex": 104
+              "ByIndex": 106
             }
           },
           {
@@ -2143,7 +2176,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 12,
             "template": null,
             "value": {
-              "ByIndex": 105
+              "ByIndex": 107
             }
           },
           {
@@ -2151,7 +2184,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 13,
             "template": null,
             "value": {
-              "ByIndex": 112
+              "ByIndex": 114
             }
           }
         ],
@@ -2229,7 +2262,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "content",
             "silent": false,
             "value": {
-              "ByIndex": 96
+              "ByIndex": 98
             },
             "doc": ""
           }
@@ -2487,7 +2520,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "pre",
             "silent": false,
             "value": {
-              "ByIndex": 106
+              "ByIndex": 108
             },
             "doc": ""
           },
@@ -2495,7 +2528,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "post",
             "silent": false,
             "value": {
-              "ByIndex": 106
+              "ByIndex": 108
             },
             "doc": ""
           }
@@ -2505,14 +2538,14 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "Option": {
         "value": {
-          "ByIndex": 107
+          "ByIndex": 109
         }
       }
     },
     {
       "Vec": {
         "value": {
-          "ByIndex": 108
+          "ByIndex": 110
         }
       }
     },
@@ -2525,7 +2558,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 109
+              "ByIndex": 111
             }
           },
           {
@@ -2533,7 +2566,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 110
+              "ByIndex": 112
             }
           },
           {
@@ -2541,7 +2574,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "discriminant": 2,
             "template": null,
             "value": {
-              "ByIndex": 111
+              "ByIndex": 113
             }
           }
         ],
@@ -2693,7 +2726,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "max_priority_fee_bips",
             "silent": false,
             "value": {
-              "ByIndex": 114
+              "ByIndex": 116
             },
             "doc": ""
           },
@@ -2780,7 +2813,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "display_name": "details",
             "silent": false,
             "value": {
-              "ByIndex": 113
+              "ByIndex": 115
             },
             "doc": ""
           }
@@ -2790,7 +2823,7 @@ pub const SCHEMA_JSON: &str = r#"{
   ],
   "root_type_indices": [
     0,
-    115,
+    117,
     6,
     14
   ],
@@ -3276,8 +3309,20 @@ pub const SCHEMA_JSON: &str = r#"{
       "fields_or_variants": []
     },
     {
-      "name": "NotInstantiable",
-      "fields_or_variants": []
+      "name": "CallMessage",
+      "fields_or_variants": [
+        {
+          "name": "update_reward_address"
+        }
+      ]
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_UpdateRewardAddress",
+      "fields_or_variants": [
+        {
+          "name": "new_reward_address"
+        }
+      ]
     },
     {
       "name": "",
@@ -3370,6 +3415,10 @@ pub const SCHEMA_JSON: &str = r#"{
     },
     {
       "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "NotInstantiable",
       "fields_or_variants": []
     },
     {

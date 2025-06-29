@@ -24,7 +24,7 @@ pub struct MinimalOperatorGenesisConfig<S: Spec> {
 #[derive(Debug, Clone)]
 pub struct HighLevelOperatorGenesisConfig<S: Spec> {
     /// The base fee goes to this address.
-    pub reward_address: S::Address,
+    pub reward_user: TestUser<S>,
     /// The initial sequencer.
     pub initial_sequencer: TestSequencer<S>,
     high_level_basic: HighLevelBasicConfig<S>,
@@ -34,7 +34,7 @@ impl<S: Spec> HighLevelOperatorGenesisConfig<S> {
     /// Creates a new high-level genesis config with the given reward address and sequencer using
     /// the default gas token name.
     pub fn with_defaults(
-        reward_address: S::Address,
+        reward_user: TestUser<S>,
         initial_sequencer: TestSequencer<S>,
         additional_accounts: Vec<TestUser<S>>,
         inner_code_commitment: CodeCommitmentFor<S::InnerZkvm>,
@@ -48,7 +48,7 @@ impl<S: Spec> HighLevelOperatorGenesisConfig<S> {
         };
 
         Self {
-            reward_address,
+            reward_user,
             initial_sequencer,
             high_level_basic,
         }
@@ -72,15 +72,17 @@ where
     /// Generate new high-level genesis config.
     pub fn generate_with_additional_accounts(
         num_accounts: usize,
-        reward_address: S::Address,
+        reward_user: TestUser<S>,
     ) -> Self {
-        let (_, _, sequencer, additional_accounts) = generate_config_details(num_accounts);
+        let (_, _, sequencer, mut additional_accounts) = generate_config_details(num_accounts);
+
+        additional_accounts.push(reward_user.clone());
 
         let inner_code_commitment = Default::default();
         let outer_code_commitment = Default::default();
 
         Self::with_defaults(
-            reward_address,
+            reward_user,
             sequencer,
             additional_accounts,
             inner_code_commitment,
@@ -89,8 +91,8 @@ where
     }
 
     /// Generates a new high-level genesis config.
-    pub fn generate(reward_address: S::Address) -> Self {
-        Self::generate_with_additional_accounts(0, reward_address)
+    pub fn generate(reward_user: TestUser<S>) -> Self {
+        Self::generate_with_additional_accounts(0, reward_user)
     }
 }
 
@@ -98,7 +100,7 @@ impl<S: Spec> From<HighLevelOperatorGenesisConfig<S>> for MinimalOperatorGenesis
     /// Creates a new [`HighLevelOperatorGenesisConfig`] from the given arguments.
     fn from(high_level: HighLevelOperatorGenesisConfig<S>) -> Self {
         Self::from_args(
-            high_level.reward_address,
+            high_level.reward_user,
             high_level.initial_sequencer,
             &high_level.high_level_basic.additional_accounts,
             high_level.high_level_basic.gas_token_name,
@@ -111,7 +113,7 @@ impl<S: Spec> From<HighLevelOperatorGenesisConfig<S>> for MinimalOperatorGenesis
 impl<S: Spec> MinimalOperatorGenesisConfig<S> {
     /// Creates a new [`MinimalOperatorGenesisConfig`] from the given arguments.
     pub fn from_args(
-        reward_address: S::Address,
+        reward_user: TestUser<S>,
         initial_sequencer: TestSequencer<S>,
         additional_accounts: &[TestUser<S>],
         gas_token_name: String,
@@ -124,7 +126,9 @@ impl<S: Spec> MinimalOperatorGenesisConfig<S> {
         Self {
             config: BasicGenesisConfig {
                 sequencer_registry: BasicGenesisConfig::sequencer_registry(&initial_sequencer),
-                operator_incentives: BasicGenesisConfig::operator_incentives(reward_address),
+                operator_incentives: BasicGenesisConfig::operator_incentives(
+                    reward_user.address().clone(),
+                ),
 
                 // unused in operator mode
                 attester_incentives: AttesterIncentivesConfig {

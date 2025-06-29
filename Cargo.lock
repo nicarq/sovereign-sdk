@@ -10787,10 +10787,11 @@ dependencies = [
  "derive_more 1.0.0",
  "schemars",
  "serde",
- "sov-bank",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
+ "sov-test-utils",
+ "strum",
  "thiserror 1.0.64",
  "tracing",
 ]

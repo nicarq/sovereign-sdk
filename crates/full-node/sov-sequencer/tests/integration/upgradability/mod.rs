@@ -14,8 +14,8 @@ use sov_test_utils::runtime::genesis::operator::HighLevelOperatorGenesisConfig;
 use sov_test_utils::runtime::GenesisParams;
 use sov_test_utils::test_rollup::TestRollup;
 use sov_test_utils::{
-    generate_operator_runtime_with_kernel, RtAgnosticBlueprint, TestAddress, TestSpec, TestUser,
-    TEST_BLOB_PROCESSING_TIMEOUT, TEST_MAX_BATCH_SIZE,
+    generate_operator_runtime_with_kernel, RtAgnosticBlueprint, TestSpec, TestUser,
+    TEST_BLOB_PROCESSING_TIMEOUT, TEST_DEFAULT_USER_BALANCE, TEST_MAX_BATCH_SIZE,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use tracing::Level;
@@ -97,11 +97,12 @@ async fn create_test_rollup(
     blob_processing_timeout_secs: u64,
     stop_at_rollup_height: Option<RollupHeight>,
 ) -> (Option<TestRollup<TestBlueprint>>, TestUser<TestSpec>) {
-    let reward_address = TestAddress::new([17; 28]);
+    let reward_user = TestUser::<TestSpec>::generate(TEST_DEFAULT_USER_BALANCE);
+
     let genesis_config =
         HighLevelOperatorGenesisConfig::<TestSpec>::generate_with_additional_accounts(
             2,
-            reward_address,
+            reward_user,
         );
 
     let admin = genesis_config.additional_accounts()[0].clone();

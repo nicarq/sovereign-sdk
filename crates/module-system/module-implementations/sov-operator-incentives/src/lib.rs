@@ -2,8 +2,10 @@ mod genesis;
 pub use genesis::OperatorIncentivesConfig;
 use sov_modules_api::{
     Context, DaSpec, Error, GenesisState, InfallibleStateAccessor, ModuleId, ModuleInfo,
-    ModuleRestApi, NotInstantiable, Spec, StateValue, TxState,
+    ModuleRestApi, Spec, StateValue, TxState,
 };
+mod call;
+pub use call::CallMessage;
 
 /// The OperatorIncentives module is responsible for managing incentives in cases where a rollup is secured by an authority.
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
@@ -23,7 +25,7 @@ impl<S: Spec> sov_modules_api::Module for OperatorIncentives<S> {
 
     type Config = OperatorIncentivesConfig<S>;
 
-    type CallMessage = NotInstantiable;
+    type CallMessage = call::CallMessage<S>;
 
     type Event = ();
 
@@ -38,11 +40,15 @@ impl<S: Spec> sov_modules_api::Module for OperatorIncentives<S> {
 
     fn call(
         &mut self,
-        _msg: Self::CallMessage,
-        _context: &Context<Self::Spec>,
-        _state: &mut impl TxState<S>,
+        msg: Self::CallMessage,
+        context: &Context<Self::Spec>,
+        state: &mut impl TxState<S>,
     ) -> Result<(), Error> {
-        unimplemented!("OperatorIncentives module does not support call messages")
+        match msg {
+            CallMessage::UpdateRewardAddress { new_reward_address } => {
+                Ok(self.update_address(new_reward_address, context, state)?)
+            }
+        }
     }
 }
 

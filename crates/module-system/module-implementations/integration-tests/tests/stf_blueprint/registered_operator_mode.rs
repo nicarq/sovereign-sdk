@@ -4,7 +4,9 @@ use sov_modules_api::{BlobReaderTrait, Gas, GasArray, GasSpec, Rewards};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::genesis::operator::HighLevelOperatorGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::{generate_operator_runtime, TestAddress, TestSequencer, TestUser};
+use sov_test_utils::{
+    generate_operator_runtime, TestAddress, TestSequencer, TestUser, TEST_DEFAULT_USER_BALANCE,
+};
 use sov_value_setter::ValueSetter;
 
 use crate::stf_blueprint::helpers::create_blob;
@@ -16,7 +18,7 @@ type S = sov_test_utils::TestSpec;
 
 #[allow(clippy::type_complexity)]
 fn setup(
-    reward_address: TestAddress,
+    reward_user: TestUser<S>,
     nb_of_users: usize,
 ) -> (
     TestRunner<IntegTestRuntime<S>, S>,
@@ -25,7 +27,7 @@ fn setup(
 ) {
     let genesis_config = HighLevelOperatorGenesisConfig::<S>::generate_with_additional_accounts(
         nb_of_users,
-        reward_address,
+        reward_user,
     );
 
     let admin = genesis_config.additional_accounts()[0].address();
@@ -49,8 +51,9 @@ fn setup(
 
 fn check_txs(tx_statuses: Vec<TxStatus>) {
     let priority_fee_bips = PriorityFeeBips::from_percentage(0);
-    let reward_address = TestAddress::new([17; 28]);
-    let (mut runner, users, sequencer_account) = setup(reward_address, 2);
+    let reward_user = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
+    let reward_address = reward_user.address();
+    let (mut runner, users, sequencer_account) = setup(reward_user, 2);
 
     let admin_account = &users[0];
     let not_admin_account = &users[1];
@@ -59,8 +62,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>) {
         .query_visible_state(|state| get_seq_bond(&sequencer_account.da_address, state))
         .unwrap();
 
-    let start_reward_address_balance = get_balance(reward_address, &runner);
-    assert!(start_reward_address_balance.is_none());
+    let start_reward_address_balance = get_balance(reward_address, &runner).unwrap();
 
     let mock_blob = create_blob(
         &tx_statuses,
@@ -110,10 +112,14 @@ fn check_txs(tx_statuses: Vec<TxStatus>) {
 
     // In the operator mode only the pre-set address gets all the rewards.
     let end_reward_address_balance = get_balance(reward_address, &runner).unwrap();
-    assert!(end_reward_address_balance > 0);
+    assert!(end_reward_address_balance > start_reward_address_balance);
     assert_eq!(
         end_reward_address_balance,
-        gas_value_charged_to_user.checked_add(seq_penalty).unwrap()
+        gas_value_charged_to_user
+            .checked_add(seq_penalty)
+            .unwrap()
+            .checked_add(start_reward_address_balance)
+            .unwrap()
     );
 
     assert_eq!(
