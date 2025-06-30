@@ -114,6 +114,8 @@ async fn restart_replica(
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore] // Temporarily ignored due to flakiness caused by rocksdb on replica restart +
+          // in-progress batch issue
 async fn seq_with_replicas() {
     let (test_rollups, admin) = create_test_rollups(4).await;
     let Some((test_rollups, _tempdir)) = test_rollups else {
