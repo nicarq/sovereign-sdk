@@ -337,6 +337,13 @@
           "format": "uint",
           "minimum": 0.0
         },
+        "failover_threshold_secs": {
+          "description": "Time in seconds after which a replica will attempt to become the master if no heartbeat is received. Only used in replica mode for failover scenarios.",
+          "default": 2,
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
         "ideal_lag_behind_finalized_slot": {
           "description": "The ideal lag behind the finalized slot number.",
           "default": 10,
