@@ -1,8 +1,12 @@
 #![allow(dead_code)]
 
 use std::sync::Arc;
+use std::time::Duration;
 
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use futures::StreamExt;
+use sov_api_spec::types::{self as api_types};
 use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
@@ -44,17 +48,27 @@ async fn tests_sequencer_stops_if_stop_at_height_too_small() {
     .await;
 
     let test_rollup = test_rollup.unwrap();
+
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(5)
+        .await
+        .unwrap();
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
     let mut slot_subscription = test_rollup.client.client.subscribe_slots().await.unwrap();
 
-    for _ in 0..30 {
+    for _ in 0..20 {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
         slot_subscription.next().await;
     }
 
     let client = test_rollup.client.clone();
-    let slot_height = get_height(client).await;
+    let slot_height = get_height(&client).await;
 
     // Assert the condition that triggers an early return.
-    assert!(stop_at_height.get() < slot_height);
+    assert!(stop_at_height < slot_height);
 
     let Err(err) = test_rollup.restart().await else {
         panic!("The rollup should have stopped")
@@ -66,6 +80,79 @@ async fn tests_sequencer_stops_if_stop_at_height_too_small() {
     let (_, log) = recods.remove(0);
     assert!(log.contains("The requested stop_height"));
     assert!(err.to_string().contains("The requested stop_height"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn tests_sequencer_does_not_accept_tx_after_stop() {
+    let stop_at_height = RollupHeight::new(15);
+
+    let (test_rollup, admin) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        Some(stop_at_height),
+    )
+    .await;
+
+    let expected_error = format!(
+        "The preferred sequencer has reached the stop height {} and is no longer accepting transactions.",
+        stop_at_height.get()
+    );
+
+    let test_rollup = test_rollup.unwrap();
+
+    let client = test_rollup.client.clone();
+
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(10)
+        .await
+        .unwrap();
+
+    let api_client = test_rollup.api_client.clone();
+
+    let mut nonce = 0;
+    let mut current_height = get_height(&client).await;
+
+    let mut slot_subscription = test_rollup.client.client.subscribe_slots().await.unwrap();
+    while current_height.get() < stop_at_height.get() + 10 {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        slot_subscription.next().await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        current_height = get_height(&client).await;
+
+        let tx_update_one = tx_set_value(&admin.private_key, nonce, 8);
+        let res = api_client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx_update_one),
+            })
+            .await;
+
+        nonce += 1;
+
+        // All transactions should be accepted until the stop height is reached.
+        if current_height <= stop_at_height {
+            match res {
+                Ok(_) => (),
+                Err(err) => panic!("Unexpected error: {:?}", err),
+            }
+        }
+
+        // After the stop height, the sequencer should not accept any transactions.
+        if current_height > stop_at_height {
+            let err = res.unwrap_err();
+
+            match err {
+                sov_api_spec::Error::InvalidResponsePayload(bytes, _) => {
+                    let err_str = String::from_utf8_lossy(&bytes);
+                    assert!(err_str.contains(&expected_error));
+                }
+                _ => panic!("Unexpected error: {:?}", err),
+            }
+        }
+    }
+
+    let _ = test_rollup.shutdown().await;
 }
 
 use serde::Deserialize;
@@ -84,11 +171,11 @@ struct Data {
 #[derive(Deserialize, Debug)]
 struct Meta {}
 
-async fn get_height(client: NodeClient) -> u64 {
+async fn get_height(client: &NodeClient) -> RollupHeight {
     let url = "/modules/chain-state/state/current-heights".to_string();
     let response = client.http_get(&url).await.unwrap();
     let heights: CurrentHeights = serde_json::from_str(&response).unwrap();
-    heights.data.value.0
+    RollupHeight::new(heights.data.value.0)
 }
 
 async fn create_test_rollup(
@@ -128,7 +215,7 @@ async fn create_test_rollup(
             minimum_profit_per_tx,
             true,
             max_batch_size,
-            BlockProducingConfig::Periodic { block_time_ms: 200 },
+            BlockProducingConfig::Manual,
             None,
             blob_processing_timeout_secs,
             1,

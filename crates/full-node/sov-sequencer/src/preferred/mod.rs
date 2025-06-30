@@ -147,6 +147,10 @@ where
             .get_root_hash(self.latest_info.slot_number)
     }
 
+    fn current_height(&self) -> RollupHeight {
+        self.executor.checkpoint.rollup_height_to_access()
+    }
+
     /// Create a new batch, if possible. Errors here are expected, because it's not always possible to create a new batch due to transient DA issues.
     /// We can only create a new batch if we have a finalized slot available to use as our `visible_slot_number_after_increase`.
     #[tracing::instrument(skip_all, level = "trace")]
@@ -446,7 +450,7 @@ where
     shutdown_sender: watch::Sender<()>,
     // Used to track which txs need to be ignored after the sequencer had downtime (in the sense of giving out 503s)
     tx_queue_id: AtomicU64,
-    _stop_at_rollup_height: Option<RollupHeight>,
+    stop_at_rollup_height: Option<RollupHeight>,
 }
 
 impl<S, Rt, Da> PreferredSequencer<S, Rt, Da>
@@ -614,7 +618,7 @@ where
             cached_events,
             shutdown_sender,
             tx_queue_id: AtomicU64::new(0),
-            _stop_at_rollup_height: stop_at_rollup_height,
+            stop_at_rollup_height,
         });
 
         // Launch replica sync task only for replicas
@@ -682,9 +686,8 @@ where
     async fn check_readiness(
         inner: &Inner<S, Rt, Da>,
         max_concurrent_blobs: usize,
+        height_to_stop_at: Option<RollupHeight>,
     ) -> Result<(), SequencerNotReadyDetails> {
-        //let inner = self.lock_inner().await;
-
         // We cannot accept transactions until the latest finalized slot number
         // is AT LEAST 1. Meaning, as long as we're stuck at genesis, we can't
         // accept any transactions.
@@ -701,6 +704,16 @@ where
                 max_concurrent_blobs,
                 nb_of_blobs_in_flight,
             });
+        }
+
+        if let Some(height_to_stop_at) = height_to_stop_at {
+            let current_height = inner.current_height();
+            if current_height > height_to_stop_at {
+                return Err(SequencerNotReadyDetails::PreferredSequencerAtStopHeight {
+                    current_height,
+                    height_to_stop_at,
+                });
+            }
         }
 
         inner.is_ready.as_ref().map_err(|details| details.clone())?;
@@ -1290,9 +1303,13 @@ where
         // We don't actually care about the `inner`, we just want to reuse the
         // same logic.
         let inner = self.inner.lock().await;
-        Self::check_readiness(&inner, self.config.max_concurrent_blobs)
-            .await
-            .map(|_| ())
+        Self::check_readiness(
+            &inner,
+            self.config.max_concurrent_blobs,
+            self.stop_at_rollup_height,
+        )
+        .await
+        .map(|_| ())
     }
 
     fn api_state(&self) -> ApiState<Self::Spec> {
@@ -1370,9 +1387,13 @@ where
             return Err(sequencer_overloaded_503());
         }
 
-        Self::check_readiness(&inner, self.config.max_concurrent_blobs)
-            .await
-            .map_err(error_not_fully_synced)?;
+        Self::check_readiness(
+            &inner,
+            self.config.max_concurrent_blobs,
+            self.stop_at_rollup_height,
+        )
+        .await
+        .map_err(error_not_fully_synced)?;
 
         if let Err(e) = inner
             .try_to_create_and_start_batch_if_none_in_progress(false)

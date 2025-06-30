@@ -436,6 +436,17 @@ pub fn error_not_fully_synced(details: SequencerNotReadyDetails) -> ErrorObject 
                 details: Default::default(),
             };
         }
+        SequencerNotReadyDetails::PreferredSequencerAtStopHeight{
+            height_to_stop_at,
+            current_height,
+
+        } => {
+            return ErrorObject {
+                status: StatusCode::SERVICE_UNAVAILABLE,
+                title: format!("The preferred sequencer has reached the stop height {height_to_stop_at} and is no longer accepting transactions. Current height: {current_height}").to_string(),
+                details: Default::default(),
+            };
+        }
         SequencerNotReadyDetails::ReplicaMode => {
             return ErrorObject {
                 status: StatusCode::SERVICE_UNAVAILABLE,
