@@ -1173,11 +1173,8 @@ async fn flaky_seq_back_pressure() {
     // Pause block submission and produce some pending blocks.
     {
         test_rollup.da_service.set_blob_submission_pause().await;
-        // We produce empty batches only when we're our current visible slot number lags the true slot by at least 2 more than the ideal.
-        // When we produce a batch, it catches us up to the ideal lag - so we end up producing one batch every 2 blocks.
-        // after default_ideal_lag_behind_finalized_slot
         let num_blocks_needed =
-            default_ideal_lag_behind_finalized_slot() + (TEST_MAX_CONCURRENT_BLOBS as u64 * 2);
+            default_ideal_lag_behind_finalized_slot() + TEST_MAX_CONCURRENT_BLOBS as u64;
         for _ in 0..num_blocks_needed + 8 {
             // Add a little cushion to reduce flakiness
             test_rollup.da_service.produce_block_now().await.unwrap();
@@ -1295,7 +1292,7 @@ async fn query_historical_values() {
     }));
     let tx_builder = |key| tx_set_value(&key, 0, 7);
     let assertions = |test_rollup| async move {
-        query_set_value(&test_rollup, Some(2), 7).await.unwrap();
+        query_set_value(&test_rollup, Some(4), 7).await.unwrap();
         query_set_value(&test_rollup, Some(0), 0).await.unwrap();
         query_set_value_by_slot_number(
             &test_rollup,
@@ -1390,8 +1387,6 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
     // to keep the visible_slot_number within 2 of the DA slot number.
     da_layer.write().await.produce_block().await.unwrap();
     slot_subscription.next().await.unwrap().unwrap();
-    da_layer.write().await.produce_block().await.unwrap();
-    slot_subscription.next().await.unwrap().unwrap();
     // Wait for the node to process the empty blocks. This ensures that the sequencer has time to produce an empty batch.
     // Right here (invisibly) the preferred sequencer will produce its empty batch and send it to DA
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -1416,7 +1411,7 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
     // Right here, we check that we really did receive an empty batch from the preferred sequencer.
     // This is a test of the test logic, not a test of the sequencer - it's perfectly valid to modify
     // the sequencer such that a batch is not produced here - but in that case we need to update this test.
-    assert_eq!(slot.number, 4 + default_ideal_lag_behind_finalized_slot());
+    assert_eq!(slot.number, 3 + default_ideal_lag_behind_finalized_slot());
     assert_eq!(slot.batches.len(), 1);
     assert_eq!(slot.batches[0].txs.len(), 0);
 
@@ -1425,6 +1420,8 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Ensure that the sequencer has time to see the updated state and submit its batch containing the transaction to DA.
+    da_layer.write().await.produce_block().await.unwrap();
+    let _ = slot_subscription.next().await.unwrap().unwrap();
     da_layer.write().await.produce_block().await.unwrap();
     let next = slot_subscription.next().await.unwrap().unwrap();
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -1672,7 +1669,7 @@ async fn txs_that_enter_before_downtime_are_dropped() {
 ///     gets processed correctly by the node.
 #[tokio::test(flavor = "multi_thread")]
 async fn replay_uses_correct_visible_slot_number() {
-    let tx_builder = |key| tx_assert_visible_slot_number(&key, 0, 3);
+    let tx_builder = |key| tx_assert_visible_slot_number(&key, 0, 4);
     do_manual_block_production_test(tx_builder, |_| async {}, 22223).await;
 }
 

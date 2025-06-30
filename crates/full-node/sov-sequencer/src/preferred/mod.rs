@@ -219,30 +219,14 @@ where
             return Ok(());
         }
 
-        // Check if we have enough slots to create a new batch immediately after
-        // this one. If we don't, let's not assemble a batch.
-        //
-        // TODO(@neysofu): this check is currently necessary but likely can be folded into
-        // `try_to_create_and_start_batch_if_none_in_progress`... somehow. As of
-        // right now, it's a hair too bug-prone.
-        let Ok(next_visible_slot_number_increase) = next_visible_slot_number_increase(
-            &self.executor.checkpoint,
-            &self.latest_info,
-            true,
+        // If we're lagging less than the ideal amount, it's not convenient to create a new batch so return early
+        if is_lagging_less_than_ideal_amount(
+            self.executor.checkpoint.current_visible_slot_number(),
+            self.latest_info.latest_finalized_slot_number,
             self.config
                 .sequencer_kind_config
                 .ideal_lag_behind_finalized_slot,
-        ) else {
-            return Ok(());
-        };
-
-        // The next visible slot number increase will be greater than 1 if and only if we're more than target lag behind the finalized slot.
-        // If we're not at least that far behind, we should prefer to leave the current batch open as long as possible - it will be closed
-        // automatically once it gets full.
-        //
-        // Here, we're explicitly trading the freshness of the updated state for the ability to produce batches on a more reliable cadence.
-        // This is a good trade off
-        if next_visible_slot_number_increase.get() <= 1 {
+        ) {
             return Ok(());
         }
 
@@ -1620,6 +1604,16 @@ where
     let mut state = KernelStateAccessor::from_checkpoint(&runtime.kernel(), &mut checkpoint);
 
     runtime.kernel().next_sequence_number(&mut state)
+}
+
+fn is_lagging_less_than_ideal_amount(
+    current_visible_slot_number: VisibleSlotNumber,
+    latest_finalized_slot_number: SlotNumber,
+    ideal_lag_behind_finalized_slot: u64,
+) -> bool {
+    latest_finalized_slot_number
+        .checked_sub(current_visible_slot_number.get())
+        .is_some_and(|delta| delta.get() < ideal_lag_behind_finalized_slot)
 }
 
 fn next_visible_slot_number_increase<S: Spec>(
