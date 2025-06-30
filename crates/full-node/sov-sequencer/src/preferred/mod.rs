@@ -58,8 +58,8 @@ use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::{broadcast, watch};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
-use tracing::{debug, error, info, trace};
 use transaction_subscriptions::TransactionCache;
+use uuid::Uuid;
 
 use crate::common::{
     error_not_fully_synced, generic_accept_tx_error, loop_send_tx_notifications, poll_state_update,
@@ -117,6 +117,8 @@ where
     config: SequencerConfig<S::Address, PreferredSequencerConfig>,
     da_address: <S::Da as DaSpec>::Address,
     block_executors_shutdown_notifier: Sender<()>,
+    /// Unique node identifier used for leader election in replica failover scenarios
+    node_id: Uuid,
     state_root_compute_task: StateRootBackgroundTaskState<S>,
     shutdown_receiver: watch::Receiver<()>,
     transaction_cache: TransactionCache<S, Rt>,
@@ -314,6 +316,7 @@ where
             _runtime: PhantomData,
             block_executors_shutdown_notifier,
             config: config.clone(),
+            node_id: Uuid::now_v7(),
             state_root_compute_task,
             shutdown_receiver: shutdown_receiver.clone(),
             api_ledger_db,
@@ -1047,6 +1050,10 @@ pub struct PreferredSequencerConfig {
     /// It will sync from the master sequencer's database but remain read-only.
     #[serde(default)]
     pub is_replica: bool,
+    /// Time in seconds after which a replica will attempt to become the master if no heartbeat is received.
+    /// Only used in replica mode for failover scenarios.
+    #[serde(default = "default_failover_threshold_secs")]
+    pub failover_threshold_secs: u64,
 }
 
 impl Default for PreferredSequencerConfig {
@@ -1061,6 +1068,7 @@ impl Default for PreferredSequencerConfig {
             is_replica: false,
             db_event_channel_size: default_db_event_channel_size(),
             batch_execution_time_limit_millis: 6_000, // 6 seconds
+            failover_threshold_secs: default_failover_threshold_secs(),
         }
     }
 }
@@ -1078,6 +1086,12 @@ fn default_events_channel_size() -> usize {
 
 fn default_db_event_channel_size() -> usize {
     10_000
+}
+
+/// Default failover threshold in seconds for replica promotion.
+/// Defaulting to 2 seconds provides a reasonable balance between fast failover and avoiding false positives.
+pub const fn default_failover_threshold_secs() -> u64 {
+    2
 }
 
 #[async_trait]

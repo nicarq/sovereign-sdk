@@ -2,7 +2,7 @@ use std::num::NonZero;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use anyhow::anyhow;
 use futures::stream::FuturesOrdered;
@@ -15,6 +15,7 @@ use sqlx::{PgPool, Row};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, trace, warn};
+use uuid::Uuid;
 
 use super::db::StoredBlob;
 use crate::preferred::{exit_rollup, DbEvent, PreferredSequencer};
@@ -51,6 +52,34 @@ struct EventsNotificationPayload {
     sequence_number: u64,
     event_type: EventType,
     index_in_batch: Option<u64>, // Only present for transaction events
+}
+
+/// Structure representing leader election notification payload from PostgreSQL NOTIFY
+#[derive(Debug)]
+struct LeaderNotificationPayload {
+    node_id: Uuid,
+    last_updated_timestamp: f64, // Unix timestamp from EXTRACT(EPOCH FROM timestamp)
+}
+
+impl LeaderNotificationPayload {
+    fn parse_csv(payload: &str) -> anyhow::Result<Self> {
+        let parts: Vec<&str> = payload.split(',').collect();
+        if parts.len() != 2 {
+            return Err(anyhow!(
+                "Invalid leader notification CSV format: expected 2 fields, got {}",
+                parts.len()
+            ));
+        }
+
+        Ok(LeaderNotificationPayload {
+            node_id: parts[0]
+                .parse()
+                .map_err(|e| anyhow!("Invalid node_id '{}': {}", parts[0], e))?,
+            last_updated_timestamp: parts[1]
+                .parse()
+                .map_err(|e| anyhow!("Invalid timestamp '{}': {}", parts[1], e))?,
+        })
+    }
 }
 
 impl EventsNotificationPayload {
@@ -147,14 +176,29 @@ async fn replica_sync_task_inner<S, Rt, Da>(
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
-    assert!(
-        sequencer.config.sequencer_kind_config.is_replica,
-        "Master sequencer trying to spawn replica task, this should not be possible"
-    );
+    let is_replica = sequencer.config.sequencer_kind_config.is_replica;
+    
+    if is_replica {
+        info!("Starting replica sync task for a replica sequencer");
+    } else {
+        info!("Starting replica sync task for a master sequencer (heartbeat mode)");
+    }
 
-    info!("Starting replica sync task for a replica sequencer");
+    // Ensure we're running postgres, else leader election is not supported
+    let has_postgres = sequencer
+        .config
+        .sequencer_kind_config
+        .postgres_connection_string
+        .is_some();
 
-    // Ensure we're running postgres, else replicas are not supported
+    if !has_postgres {
+        if is_replica {
+            warn!("Replicas are not supported on the rocksdb backend. Configure a postgres database that will be shared between all sequencers, and provide the `sequencer.preferred.postgres_connection_string` config value.");
+        } else {
+            warn!("Leader election requires PostgreSQL. Configure postgres_connection_string to enable leader election heartbeat.");
+        }
+        return;
+    }
     let Some(connection_string) = sequencer
         .config
         .sequencer_kind_config
@@ -179,48 +223,68 @@ async fn replica_sync_task_inner<S, Rt, Da>(
         }
     };
 
-    let mut latest_received_event_id = latest_loaded_event_id;
-
-    // Create a dedicated listener for PostgreSQL LISTEN/NOTIFY
+    // Create dedicated listeners for PostgreSQL LISTEN/NOTIFY
     let mut listener = match PgListener::connect(connection_string).await {
         Ok(listener) => listener,
         Err(e) => {
-            error!("Failed to create PostgreSQL listener: {e:?}. Replica shutting down.");
+            error!("Failed to create PostgreSQL listener: {e:?}. Sequencer shutting down.");
             exit_rollup(&sequencer.shutdown_sender).await;
             return;
         }
     };
 
-    if let Err(e) = listener.listen("events_changes").await {
-        error!("Failed to listen on events_changes channel: {e:?}. Replica shutting down.");
+    // Always listen to leader election changes
+    if let Err(e) = listener.listen("leader_changes").await {
+        error!("Failed to listen on leader_changes channel: {e:?}. Sequencer shutting down.");
         exit_rollup(&sequencer.shutdown_sender).await;
         return;
     }
 
-    debug!("Replica sync task: Successfully connected and listening for PostgreSQL notifications on 'events_changes' channel");
+    // Replicas also need to listen to events_changes for syncing
+    if is_replica {
+        if let Err(e) = listener.listen("events_changes").await {
+            error!("Failed to listen on events_changes channel: {e:?}. Replica shutting down.");
+            exit_rollup(&sequencer.shutdown_sender).await;
+            return;
+        }
+    }
 
-    // Use concurrent event processing for better throughput
-    if let Err(e) = concurrent_event_processing_loop(
+    debug!("Successfully connected and listening for PostgreSQL notifications");
+
+    // Masters should claim initial leadership on startup
+    if !is_replica {
+        if let Err(e) = send_heartbeat(&query_pool, sequencer.node_id).await {
+            warn!("Failed to claim initial leadership: {e:?}");
+        } else {
+            info!("Claimed initial leadership with node ID: {}", sequencer.node_id);
+        }
+    }
+
+    // Use unified event processing loop for both master and replica modes
+    let mut latest_received_event_id = latest_loaded_event_id;
+    if let Err(e) = unified_event_processing_loop(
         sequencer.clone(),
         &mut listener,
         &query_pool,
         &mut latest_received_event_id,
         &mut shutdown_receiver,
+        is_replica,
     )
     .await
     {
-        error!("Concurrent event processing failed: {e:?}. Replica shutting down.");
+        error!("Event processing failed: {e:?}. Sequencer shutting down.");
         exit_rollup(&sequencer.shutdown_sender).await;
     }
 }
 
-/// Concurrent event processing loop that handles notifications with parallel DB queries
-async fn concurrent_event_processing_loop<S, Rt, Da>(
+/// Unified event processing loop that handles both master heartbeat and replica sync
+async fn unified_event_processing_loop<S, Rt, Da>(
     sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
     listener: &mut PgListener,
     query_pool: &PgPool,
     latest_received_event_id: &mut Option<u64>,
     shutdown_receiver: &mut watch::Receiver<()>,
+    initial_is_replica: bool,
 ) -> anyhow::Result<()>
 where
     S: Spec,
@@ -238,39 +302,98 @@ where
     // in the case of a backfill. (In case the replica is too slow, we're in trouble anyway.)
     const MAX_CONCURRENT: usize = 1000;
     let mut pending_events: FuturesOrdered<PendingEventFuture> = FuturesOrdered::new();
+    
+    // Track current role state
+    let mut are_we_master = !initial_is_replica;
+    let mut last_heartbeat_time = SystemTime::now();
+    
+    // Heartbeat interval for masters (every 0.5s)
+    let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
+    heartbeat_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    
+    // Failover threshold from config
+    let failover_threshold = Duration::from_secs(sequencer.config.sequencer_kind_config.failover_threshold_secs);
+    
+    info!("Starting unified processing loop - role: {}", if are_we_master { "master" } else { "replica" });
 
     loop {
         tokio::select! {
-            // Only poll listener if we have capacity
+            // Master heartbeat timer (only active if we're currently the master)
+            _ = heartbeat_interval.tick(), if are_we_master => {
+                if let Err(e) = send_heartbeat(query_pool, sequencer.node_id).await {
+                    error!("Failed to send heartbeat: {e:?}");
+                    // Continue trying, but this could indicate we're no longer master
+                }
+            },
+            
+            // PostgreSQL notifications (both leader changes and events)
             notification_result = listener.recv(), if pending_events.len() < MAX_CONCURRENT => {
                 match notification_result {
                     Ok(notification) => {
-                        trace!("Replica sync: received PostgreSQL notification: {:?}", notification);
+                        trace!("Received PostgreSQL notification: {:?}", notification);
+                        
+                        match notification.channel() {
+                            "leader_changes" => {
+                                // Handle leader election notifications
+                                let payload = notification.payload();
+                                match LeaderNotificationPayload::parse_csv(payload) {
+                                    Ok(leader_info) => {
+                                        if leader_info.node_id == sequencer.node_id {
+                                            // This is our own heartbeat
+                                            if !are_we_master {
+                                                info!("Replica promoted to master!");
+                                                are_we_master = true;
+                                            }
+                                        } else {
+                                            // Another node is master
+                                            if are_we_master {
+                                                warn!("Another node took over as master: {}", leader_info.node_id);
+                                                are_we_master = false;
+                                            }
+                                            last_heartbeat_time = SystemTime::UNIX_EPOCH + Duration::from_secs_f64(leader_info.last_updated_timestamp);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        warn!("Failed to parse leader notification: {e:?}");
+                                    }
+                                }
+                            },
+                            "events_changes" => {
+                                // Handle database sync events (only for replicas)
+                                if !are_we_master {
+                                    let payload = notification.payload();
+                                    match EventsNotificationPayload::parse_csv(payload) {
+                                        Ok(parsed_notification) => {
+                                            // Check for gaps and add backfill if needed
+                                            if detect_gap(*latest_received_event_id, parsed_notification.event_id).is_some() {
+                                                let backfill_future = create_backfill_future(
+                                                    sequencer.clone(),
+                                                    query_pool,
+                                                    *latest_received_event_id,
+                                                    parsed_notification.event_id,
+                                                );
+                                                pending_events.push_back(backfill_future);
+                                            }
 
-                        let payload = notification.payload();
-                        let parsed_notification = EventsNotificationPayload::parse_csv(payload)
-                            .map_err(|e| anyhow!("Failed to parse CSV notification payload: {e}"))?;
+                                            *latest_received_event_id = Some(parsed_notification.event_id);
 
-                        // Check for gaps and add backfill if needed
-                        if detect_gap(*latest_received_event_id, parsed_notification.event_id).is_some() {
-                            let backfill_future = create_backfill_future(
-                                sequencer.clone(),
-                                query_pool,
-                                *latest_received_event_id,
-                                parsed_notification.event_id,
-                            );
-                            pending_events.push_back(backfill_future);
+                                            // Create future for current notification
+                                            let event_future = create_event_future(parsed_notification, query_pool);
+                                            pending_events.push_back(event_future);
+                                        }
+                                        Err(e) => {
+                                            warn!("Failed to parse events notification: {e:?}");
+                                        }
+                                    }
+                                }
+                            },
+                            _ => {
+                                debug!("Received notification on unknown channel: {}", notification.channel());
+                            }
                         }
-
-                        *latest_received_event_id = Some(parsed_notification.event_id);
-
-                        // Create future for current notification
-                        let event_future = create_event_future(parsed_notification, query_pool);
-                        pending_events.push_back(event_future);
-
                     }
                     Err(e) => {
-                        error!("Error in replica receiving PostgreSQL notification: {e:?}. Replica will sleep then retry.");
+                        error!("Error receiving PostgreSQL notification: {e:?}. Will sleep then retry.");
                         tokio::time::sleep(Duration::from_secs(1)).await;
                     }
                 }
@@ -288,14 +411,92 @@ where
                 }
             },
 
+            // Failover timeout check (only for replicas)
+            _ = tokio::time::sleep(Duration::from_secs(1)), if !are_we_master => {
+                let time_since_last_heartbeat = SystemTime::now()
+                    .duration_since(last_heartbeat_time)
+                    .unwrap_or(Duration::MAX);
+                
+                if time_since_last_heartbeat > failover_threshold {
+                    info!("Master heartbeat timeout detected ({:?} > {:?}). Attempting takeover...", 
+                          time_since_last_heartbeat, failover_threshold);
+                    
+                    match attempt_leadership_takeover(query_pool, sequencer.node_id, failover_threshold).await {
+                        Ok(true) => {
+                            info!("Successfully took over as master!");
+                            are_we_master = true;
+                        }
+                        Ok(false) => {
+                            debug!("Another replica beat us to takeover or master recovered");
+                        }
+                        Err(e) => {
+                            warn!("Failed to attempt takeover: {e:?}");
+                        }
+                    }
+                }
+            },
+
             _ = shutdown_receiver.changed() => {
-                info!("Shutdown signal received, stopping concurrent event processing");
+                info!("Shutdown signal received, stopping event processing");
                 break;
             }
         }
     }
 
     Ok(())
+}
+
+/// Send a heartbeat to maintain leadership
+async fn send_heartbeat(query_pool: &PgPool, node_id: Uuid) -> anyhow::Result<()> {
+    sqlx::query(
+        "INSERT INTO sequencer_leader (node_id, last_updated) 
+         VALUES ($1, NOW()) 
+         ON CONFLICT (singleton) DO UPDATE SET 
+             node_id = EXCLUDED.node_id, 
+             last_updated = EXCLUDED.last_updated"
+    )
+    .bind(node_id)
+    .execute(query_pool)
+    .await?;
+    
+    debug!("Heartbeat sent for node {}", node_id);
+    Ok(())
+}
+
+/// Attempt to take over leadership atomically
+async fn attempt_leadership_takeover(
+    query_pool: &PgPool, 
+    node_id: Uuid, 
+    failover_threshold: Duration
+) -> anyhow::Result<bool> {
+    let threshold_seconds = failover_threshold.as_secs() as i64;
+    
+    // Atomic takeover: only succeed if the current leader's heartbeat is old enough
+    let result = sqlx::query(
+        "INSERT INTO sequencer_leader (node_id, last_updated) 
+         VALUES ($1, NOW()) 
+         ON CONFLICT (singleton) DO UPDATE SET 
+             node_id = EXCLUDED.node_id, 
+             last_updated = EXCLUDED.last_updated 
+         WHERE sequencer_leader.last_updated < NOW() - INTERVAL '1 second' * $2"
+    )
+    .bind(node_id)
+    .bind(threshold_seconds)
+    .execute(query_pool)
+    .await?;
+    
+    // Check if our update actually succeeded by verifying we're the current leader
+    if result.rows_affected() > 0 {
+        let current_leader: Option<Uuid> = sqlx::query_scalar(
+            "SELECT node_id FROM sequencer_leader WHERE singleton = 1"
+        )
+        .fetch_optional(query_pool)
+        .await?;
+        
+        Ok(current_leader == Some(node_id))
+    } else {
+        Ok(false)
+    }
 }
 
 /// Detects if there's a gap between the last processed event and the current event
