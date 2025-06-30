@@ -24,6 +24,10 @@ use sov_paymaster::{
 use sov_rollup_interface::execution_mode::Native;
 use sov_sequencer::preferred::PreferredSequencerConfig;
 use sov_sequencer::SequencerKindConfig;
+use sov_synthetic_load::CallMessageDiscriminants::{
+    ReadAndSetHeavyState, ReadAndSetManyIndividualValues, RunCPUHeavyOperation,
+};
+use sov_synthetic_load::SyntheticLoad;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::genesis::zk::MinimalZkGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
@@ -37,16 +41,12 @@ use sov_transaction_generator::generators::bank::BankMessageGenerator;
 use sov_transaction_generator::generators::basic::{
     BasicCallMessageFactory, BasicChangeLogEntry, BasicModuleRef, BasicTag,
 };
-use sov_transaction_generator::generators::value_setter::{
-    ValueSetterHarness, ValueSetterMessageGenerator,
+use sov_transaction_generator::generators::synthetic_load::{
+    SyntheticLoadHarness, SyntheticLoadMessageGenerator,
 };
 use sov_transaction_generator::interface::rng_utils::{get_random_bytes, randomize_buffer};
 use sov_transaction_generator::interface::MessageValidity;
 use sov_transaction_generator::{Distribution, GeneratedMessage, Percent, State};
-use sov_value_setter::CallMessageDiscriminants::{
-    ReadAndSetHeavyState, ReadAndSetManyIndividualValues, RunCPUHeavyOperation,
-};
-use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use tokio::sync::watch::Receiver;
 
 pub const DEFAULT_BLOCK_TIME_MS: u64 = 200;
@@ -58,7 +58,7 @@ pub const DEFAULT_FINALIZATION_BLOCKS: u32 = 5;
 
 generate_runtime! {
     name: TestRuntime,
-    modules: [paymaster: Paymaster<S>, value_setter: ValueSetter<S>],
+    modules: [paymaster: Paymaster<S>, synthetic_load: SyntheticLoad<S>],
     operating_mode: sov_modules_api::runtime::OperatingMode::Zk,
     minimal_genesis_config_type: MinimalZkGenesisConfig<S>,
     gas_enforcer: paymaster: Paymaster<S>,
@@ -103,11 +103,11 @@ pub fn plain_tx_with_default_details<R: Runtime<S>, S: Spec>(
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
 pub enum TxType {
-    /// Only ValueSetter transactions - includes many heavy txs
-    ValueSetter,
-    /// Only Bank transactions
+    /// Only [`SyntheticLoad`] transactions - includes many heavy txs
+    SyntheticLoad,
+    /// Only [`Bank`] transactions
     Bank,
-    /// Mixed ValueSetter and Bank transactions
+    /// Mixed [`SyntheticLoad`] and [`Bank`] transactions
     Mixed,
 }
 
@@ -235,10 +235,7 @@ pub fn setup_roles_and_config() -> Setup {
             .try_into()
             .unwrap(),
         },
-        ValueSetterConfig {
-            admin: paymaster.address(), // This is likely not the admin but it doesn't matter for this test
-                                        // since we dont utilize SetValue or SetManyValues messages
-        },
+        (),
     );
     Setup {
         paymaster,
@@ -283,8 +280,8 @@ pub async fn setup_rollup(
 }
 
 /// The passed client is responsible for handling timeouts (otherwise calls can block).
-pub async fn run_generator_task_for_bank_and_value_setter<
-    R: Runtime<S> + EncodeCall<Bank<S>> + EncodeCall<ValueSetter<S>> + Clone,
+pub async fn run_generator_task_for_bank_and_synthetic_load<
+    R: Runtime<S> + EncodeCall<Bank<S>> + EncodeCall<SyntheticLoad<S>> + Clone,
     S: Spec,
 >(
     client: sov_api_spec::Client,
@@ -298,29 +295,28 @@ pub async fn run_generator_task_for_bank_and_value_setter<
         Distribution::with_equiprobable_values(vec![Transfer]),
         Percent::fifty(),
     ));
-    // Value setter admin or maximum_vec_length is not used in this test since we dont utilize SetValue or SetManyValues messages
-    let value_setter_admin = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
-    let value_setter_harness = ValueSetterHarness::new(ValueSetterMessageGenerator::new(
+    let synthetic_load_admin = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
+    let synthetic_load_harness = SyntheticLoadHarness::new(SyntheticLoadMessageGenerator::new(
         Distribution::with_equiprobable_values(vec![
             ReadAndSetManyIndividualValues,
             ReadAndSetHeavyState,
             RunCPUHeavyOperation,
         ]),
-        sov_transaction_generator::generators::value_setter::ValueSetterGeneratorOptions {
+        sov_transaction_generator::generators::synthetic_load::SyntheticLoadGeneratorOptions {
             maximum_vec_length: 10,
             min_and_max_number_of_individual_state_operations: (1, 10000),
             min_and_max_number_of_new_values_for_heavy_state: (100, 1000),
             min_and_max_number_of_iterations_for_cpu_heavy_operation: (1000, 5000),
             max_heavy_state_size: 1_000_000,
         },
-        value_setter_admin,
+        synthetic_load_admin,
     ));
     let modules: Vec<BasicModuleRef<S, R>> = match tx_type {
-        TxType::ValueSetter => vec![Arc::new(value_setter_harness.clone())],
+        TxType::SyntheticLoad => vec![Arc::new(synthetic_load_harness.clone())],
         TxType::Bank => vec![Arc::new(bank_harness.clone())],
         TxType::Mixed => vec![
             Arc::new(bank_harness.clone()),
-            Arc::new(value_setter_harness.clone()),
+            Arc::new(synthetic_load_harness.clone()),
         ],
     };
 

@@ -110,10 +110,16 @@ $ sleep 5
 $ make test-create-token
 ```
 
-Once a batch is submitted the output should also contain the transaction hashes that have been submitted. For example -
+Once a batch is submitted, the output should also contain the transaction hashes that have been submitted. For example -
 
 ```text
-Your batch was submitted to the sequencer for publication. reponse=SubmitBatchReceipt { blob_hash: Hash("0x679c7d07df9f90b8eaeee2408ee38d24d2d1bacb67c9b856b914a5529fb029db"), da_transaction_id: Variant1([153, 190, 36, 139, 186, 161, 57, 37, 28, 223, 224, 41, 213, 206, 45, 122, 14, 218, 95, 189, 54, 56, 72, 142, 132, 66, 146, 182, 221, 233, 20, 232]), tx_hashes: [TxHash("0x15c06941e494ce4647c7a182dba314a7ba5148bd5c1357193d33cf6052825ef5")] }
+2025-06-29T19:32:39.786604Z  INFO sov_cli::workflows::node: Executing node workflow
+2025-06-29T19:32:39.823949Z DEBUG sov_node_client: Queried nonce url="http://127.0.0.1:12346/modules/nonces/state/nonces/items/0xf8ad2437a279e1c8932c07358c91dc4fe34864a98c6c25f298e2a0199c1509ff" nonce=0
+2025-06-29T19:32:39.824189Z  INFO sov_cli::workflows::node: Submitting tx index=0 tx_hash=0x35646bb7c01c3c69201d57152c6b78046cab9aed08668629a4d8998028872c50
+2025-06-29T19:32:39.824203Z  INFO sov_node_client: Calling `publish_batch` sequencer endpoint txs_included=1
+2025-06-29T19:32:39.826676Z  INFO sov_node_client: Submitted tx hash="0x35646bb7c01c3c69201d57152c6b78046cab9aed08668629a4d8998028872c50"
+2025-06-29T19:32:39.826700Z  INFO sov_node_client: Going to wait for batch to be processed max_waiting_time=300s
+2025-06-29T19:32:48.303757Z  INFO sov_node_client: Rollup has processed the submitted batch!
 ```
 
 The transaction hash can be used to query the REST API endpoint to fetch events belonging to the transaction, which should in
@@ -121,7 +127,7 @@ this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
 $ sleep 5
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0x15c06941e494ce4647c7a182dba314a7ba5148bd5c1357193d33cf6052825ef5/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0x35646bb7c01c3c69201d57152c6b78046cab9aed08668629a4d8998028872c50/events | jq
 {
   "data": [
     {
@@ -156,7 +162,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0x15c06941e494ce4647c7a182dba314a7b
         "type": "moduleRef",
         "name": "Bank"
       },
-      "tx_hash": "0x15c06941e494ce4647c7a182dba314a7ba5148bd5c1357193d33cf6052825ef5"
+      "tx_hash": "0x35646bb7c01c3c69201d57152c6b78046cab9aed08668629a4d8998028872c50"
     }
   ],
   "meta": {}
@@ -299,7 +305,6 @@ Usage: sov-cli transactions import from-file <COMMAND>
 Commands:
   bank                 A subcommand for the `Bank` module
   sequencer-registry   A subcommand for the `SequencerRegistry` module
-  value-setter         A subcommand for the `ValueSetter` module
   operator-incentives  A subcommand for the `OperatorIncentives` module
   attester-incentives  A subcommand for the `AttesterIncentives` module
   prover-incentives    A subcommand for the `ProverIncentives` module
@@ -309,6 +314,7 @@ Commands:
   blob-storage         A subcommand for the `BlobStorage` module
   paymaster            A subcommand for the `Paymaster` module
   access-pattern       A subcommand for the `AccessPattern` module
+  synthetic-load       A subcommand for the `SyntheticLoad` module
   help                 Print this message or the help of the given subcommand(s)
 
 Options:
@@ -332,7 +338,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0xf6c5510fee997ea017817cdc9141548737a9f8a08bcf0f40e29448e1f0c44b73",
+  "chain_hash": "0x672f49a623e325540b52fe25a255a584f4cdf8e2b0c5c1fca13eab8a92c610ed",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": "100000000",

@@ -18,7 +18,7 @@ use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::sov_paymaster::{
     self, PayeePolicy, PayerGenesisConfig, PaymasterPolicyInitializer, SafeVec,
 };
-use sov_test_utils::runtime::{TestRunner, ValueSetterConfig};
+use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::{
     MockDaSpec, MockZkvm, RtAgnosticBlueprint, TestPreferredSequencer, TestProver, TestUser,
@@ -127,9 +127,6 @@ where
             .as_ref()
             .try_into()
             .unwrap(),
-        },
-        ValueSetterConfig {
-            admin: admin_account.address(),
         },
         AccessPatternGenesisConfig {
             admin: admin_account.address(),

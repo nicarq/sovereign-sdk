@@ -3,7 +3,7 @@ use std::time::Duration;
 use clap::Parser;
 use sov_modules_api::prelude::tracing;
 use sov_soak_testing::{
-    run_generator_task_for_bank_and_value_setter, CelestiaRollupSpec, DemoCelestiaRT, DemoMockRT,
+    run_generator_task_for_bank_and_synthetic_load, CelestiaRollupSpec, DemoCelestiaRT, DemoMockRT,
     MockDemoRollupSpec, TestRT, TxType,
 };
 use sov_test_utils::TestSpec;
@@ -94,7 +94,7 @@ async fn worker_task(
 
     let result = match runtime {
         SelectedRuntime::Test => {
-            run_generator_task_for_bank_and_value_setter::<TestRT, TestSpec>(
+            run_generator_task_for_bank_and_synthetic_load::<TestRT, TestSpec>(
                 client,
                 rx,
                 worker_id,
@@ -105,7 +105,7 @@ async fn worker_task(
             .await
         }
         SelectedRuntime::DemoCelestia => {
-            run_generator_task_for_bank_and_value_setter::<DemoCelestiaRT, CelestiaRollupSpec>(
+            run_generator_task_for_bank_and_synthetic_load::<DemoCelestiaRT, CelestiaRollupSpec>(
                 client,
                 rx,
                 worker_id,
@@ -116,7 +116,7 @@ async fn worker_task(
             .await
         }
         SelectedRuntime::DemoMock => {
-            run_generator_task_for_bank_and_value_setter::<DemoMockRT, MockDemoRollupSpec>(
+            run_generator_task_for_bank_and_synthetic_load::<DemoMockRT, MockDemoRollupSpec>(
                 client,
                 rx,
                 worker_id,

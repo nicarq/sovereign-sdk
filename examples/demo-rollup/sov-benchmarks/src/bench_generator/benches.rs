@@ -4,108 +4,19 @@ use std::sync::Arc;
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_test_modules::access_pattern::AccessPatternDiscriminants;
 use sov_test_utils::runtime::sov_bank::CallMessageDiscriminants as BankDiscriminants;
-use sov_test_utils::runtime::sov_value_setter::CallMessageDiscriminants as ValueSetterDiscriminants;
 use sov_transaction_generator::generators::access_pattern::{
     AccessPatternHarness, AccessPatternMessageGenerator,
 };
 use sov_transaction_generator::generators::bank::harness_interface::BankHarness;
 use sov_transaction_generator::generators::bank::BankMessageGenerator;
 use sov_transaction_generator::generators::basic::BasicModuleRef;
-use sov_transaction_generator::generators::value_setter::{
-    ValueSetterHarness, ValueSetterMessageGenerator,
-};
 use sov_transaction_generator::{Distribution, MessageValidity, Percent};
 
 use super::cli::BenchCLICustomArgs;
 use super::{Benchmark, RT, S};
 
-/// A basic benchmark that tries to emulate variable behaviors from transaction execution.
-pub fn combined_bank_value_setter(
-    params: &BenchCLICustomArgs,
-    slots: u64,
-    seed: u128,
-) -> Vec<Benchmark<S>> {
-    let value_setter_admin = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
-
-    vec![
-        {
-            let bank_bench_module: BasicModuleRef<S, RT> =
-                Arc::new(BankHarness::new(BankMessageGenerator::new(
-                    Distribution::with_equiprobable_values(vec![BankDiscriminants::Transfer]),
-                    Percent::fifty(),
-                )));
-            let value_setter_bench_module: BasicModuleRef<S, RT> =
-                Arc::new(ValueSetterHarness::new(ValueSetterMessageGenerator::new(
-                    Distribution::with_equiprobable_values(vec![
-                        ValueSetterDiscriminants::SetValue,
-                        ValueSetterDiscriminants::SetManyValues,
-                    ]),
-                    sov_transaction_generator::generators::value_setter::ValueSetterGeneratorOptions {
-                        maximum_vec_length: params.max_value_setter_vec_len,
-                        min_and_max_number_of_individual_state_operations: (0, 0),
-                        min_and_max_number_of_new_values_for_heavy_state: (0, 0),
-                        min_and_max_number_of_iterations_for_cpu_heavy_operation: (0, 0),
-                        max_heavy_state_size: 0,
-                    },
-                    value_setter_admin.clone(),
-                )));
-            params.new_benchmark_with_params(
-                "mix_bank_transfers_value_setter".to_string(),
-                slots,
-                seed,
-                Distribution::with_equiprobable_values(vec![
-                    bank_bench_module,
-                    value_setter_bench_module,
-                ]),
-                Distribution::with_equiprobable_values(vec![MessageValidity::Valid]),
-                value_setter_admin.clone(),
-            )
-        },
-        {
-            let bank_bench_module: BasicModuleRef<S, RT> =
-                Arc::new(BankHarness::new(BankMessageGenerator::new(
-                    Distribution::with_equiprobable_values(vec![
-                        BankDiscriminants::Transfer,
-                        BankDiscriminants::CreateToken,
-                        BankDiscriminants::Mint,
-                        BankDiscriminants::Burn,
-                        BankDiscriminants::Freeze,
-                    ]),
-                    Percent::fifty(),
-                )));
-            let value_setter_bench_module: BasicModuleRef<S, RT> =
-                Arc::new(ValueSetterHarness::new(ValueSetterMessageGenerator::new(
-                    Distribution::with_equiprobable_values(vec![
-                        ValueSetterDiscriminants::SetValue,
-                        ValueSetterDiscriminants::SetManyValues,
-                    ]),
-                    sov_transaction_generator::generators::value_setter::ValueSetterGeneratorOptions {
-                        maximum_vec_length: params.max_value_setter_vec_len,
-                        min_and_max_number_of_individual_state_operations: (0, 0),
-                        min_and_max_number_of_new_values_for_heavy_state: (0, 0),
-                        min_and_max_number_of_iterations_for_cpu_heavy_operation: (0, 0),
-                        max_heavy_state_size: 0,
-                    },
-                    value_setter_admin.clone(),
-                )));
-
-            params.new_benchmark_with_params(
-                "complete_bank_value_setter".to_string(),
-                slots,
-                seed,
-                Distribution::with_equiprobable_values(vec![
-                    bank_bench_module,
-                    value_setter_bench_module,
-                ]),
-                Distribution::with_equiprobable_values(vec![MessageValidity::Valid]),
-                value_setter_admin.clone(),
-            )
-        },
-    ]
-}
-
 pub fn bank_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec<Benchmark<S>> {
-    let value_setter_admin = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
+    let admin = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
     vec![
         {
             let bench_module: BasicModuleRef<S, RT> =
@@ -124,7 +35,7 @@ pub fn bank_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec<
                     // to DA through sequencers.
                     // MessageValidity::Invalid,
                 ]),
-                value_setter_admin.clone(),
+                admin.clone(),
             )
         },
         {
@@ -144,7 +55,7 @@ pub fn bank_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec<
                     // to DA through sequencers.
                     // MessageValidity::Invalid,
                 ]),
-                value_setter_admin.clone(),
+                admin.clone(),
             )
         },
         {
@@ -171,67 +82,7 @@ pub fn bank_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec<
                     // to DA through sequencers.
                     // MessageValidity::Invalid,
                 ]),
-                value_setter_admin.clone(),
-            )
-        },
-    ]
-}
-
-pub fn value_setter_benches(
-    params: &BenchCLICustomArgs,
-    slots: u64,
-    seed: u128,
-) -> Vec<Benchmark<S>> {
-    let value_setter_admin = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
-    vec![
-        {
-            let bench_module: BasicModuleRef<S, RT> =
-                Arc::new(ValueSetterHarness::new(ValueSetterMessageGenerator::new(
-                    Distribution::with_equiprobable_values(vec![
-                        ValueSetterDiscriminants::SetValue,
-                    ]),
-                    sov_transaction_generator::generators::value_setter::ValueSetterGeneratorOptions {
-                        maximum_vec_length: params.max_value_setter_vec_len,
-                        min_and_max_number_of_individual_state_operations: (0, 0),
-                        min_and_max_number_of_new_values_for_heavy_state: (0, 0),
-                        min_and_max_number_of_iterations_for_cpu_heavy_operation: (0, 0),
-                        max_heavy_state_size: 0,
-                    },
-                    value_setter_admin.clone(),
-                )));
-
-            params.new_benchmark_with_params(
-                "value_setter_set_value".to_string(),
-                slots,
-                seed,
-                Distribution::with_equiprobable_values(vec![bench_module]),
-                Distribution::with_equiprobable_values(vec![MessageValidity::Valid]),
-                value_setter_admin.clone(),
-            )
-        },
-        {
-            let bench_module: BasicModuleRef<S, RT> =
-                Arc::new(ValueSetterHarness::new(ValueSetterMessageGenerator::new(
-                    Distribution::with_equiprobable_values(vec![
-                        ValueSetterDiscriminants::SetValue,
-                        ValueSetterDiscriminants::SetManyValues,
-                    ]),
-                    sov_transaction_generator::generators::value_setter::ValueSetterGeneratorOptions {
-                        maximum_vec_length: params.max_value_setter_vec_len,
-                        min_and_max_number_of_individual_state_operations: (0, 0),
-                        min_and_max_number_of_new_values_for_heavy_state: (0, 0),
-                        min_and_max_number_of_iterations_for_cpu_heavy_operation: (0, 0),
-                        max_heavy_state_size: 0,
-                    },
-                    value_setter_admin.clone(),
-                )));
-            params.new_benchmark_with_params(
-                "value_setter_messages".to_string(),
-                slots,
-                seed,
-                Distribution::with_equiprobable_values(vec![bench_module]),
-                Distribution::with_equiprobable_values(vec![MessageValidity::Valid]),
-                value_setter_admin.clone(),
+                admin.clone(),
             )
         },
     ]
@@ -242,7 +93,7 @@ pub fn storage_access_benches(
     slots: u64,
     seed: u128,
 ) -> Vec<Benchmark<S>> {
-    let value_setter_admin = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
+    let admin = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
     vec![
         {
             let bench_module: BasicModuleRef<S, RT> = Arc::new(AccessPatternHarness::new(
@@ -255,7 +106,7 @@ pub fn storage_access_benches(
                     params.pattern_maximum_write_begin_index,
                     params.pattern_maximum_write_size,
                     params.pattern_maximum_hooks_ops,
-                    value_setter_admin.clone(),
+                    admin.clone(),
                 ),
             ));
 
@@ -270,7 +121,7 @@ pub fn storage_access_benches(
                     // to DA through sequencers.
                     // MessageValidity::Invalid,
                 ]),
-                value_setter_admin.clone(),
+                admin.clone(),
             )
         },
         {
@@ -285,7 +136,7 @@ pub fn storage_access_benches(
                     params.pattern_maximum_write_begin_index,
                     params.pattern_maximum_write_size,
                     params.pattern_maximum_hooks_ops,
-                    value_setter_admin.clone(),
+                    admin.clone(),
                 ),
             ));
 
@@ -300,7 +151,7 @@ pub fn storage_access_benches(
                     // to DA through sequencers.
                     // MessageValidity::Invalid,
                 ]),
-                value_setter_admin.clone(),
+                admin.clone(),
             )
         },
         {
@@ -317,7 +168,7 @@ pub fn storage_access_benches(
                     params.pattern_maximum_write_begin_index,
                     params.pattern_maximum_write_size,
                     params.pattern_maximum_hooks_ops,
-                    value_setter_admin.clone(),
+                    admin.clone(),
                 ),
             ));
 
@@ -332,7 +183,7 @@ pub fn storage_access_benches(
                     // to DA through sequencers.
                     // MessageValidity::Invalid,
                 ]),
-                value_setter_admin.clone(),
+                admin.clone(),
             )
         },
         {
@@ -350,7 +201,7 @@ pub fn storage_access_benches(
                     params.pattern_maximum_write_begin_index,
                     params.pattern_maximum_write_size,
                     params.pattern_maximum_hooks_ops,
-                    value_setter_admin.clone(),
+                    admin.clone(),
                 ),
             ));
 
@@ -365,14 +216,14 @@ pub fn storage_access_benches(
                     // to DA through sequencers.
                     // MessageValidity::Invalid,
                 ]),
-                value_setter_admin.clone(),
+                admin.clone(),
             )
         },
     ]
 }
 
 pub fn ops_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec<Benchmark<S>> {
-    let value_setter_admin = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
+    let admin = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
     vec![
         {
             let bench_module: BasicModuleRef<S, RT> = Arc::new(AccessPatternHarness::new(
@@ -385,7 +236,7 @@ pub fn ops_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec<B
                     params.pattern_maximum_write_begin_index,
                     params.pattern_maximum_write_size,
                     params.pattern_maximum_hooks_ops,
-                    value_setter_admin.clone(),
+                    admin.clone(),
                 ),
             ));
 
@@ -400,7 +251,7 @@ pub fn ops_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec<B
                     // to DA through sequencers.
                     // MessageValidity::Invalid,
                 ]),
-                value_setter_admin.clone(),
+                admin.clone(),
             )
         },
         {
@@ -415,7 +266,7 @@ pub fn ops_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec<B
                     params.pattern_maximum_write_begin_index,
                     params.pattern_maximum_write_size,
                     params.pattern_maximum_hooks_ops,
-                    value_setter_admin.clone(),
+                    admin.clone(),
                 ),
             ));
 
@@ -430,7 +281,7 @@ pub fn ops_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec<B
                     // to DA through sequencers.
                     // MessageValidity::Invalid,
                 ]),
-                value_setter_admin.clone(),
+                admin.clone(),
             )
         },
         {
@@ -445,7 +296,7 @@ pub fn ops_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec<B
                     params.pattern_maximum_write_begin_index,
                     params.pattern_maximum_write_size,
                     params.pattern_maximum_hooks_ops,
-                    value_setter_admin.clone(),
+                    admin.clone(),
                 ),
             ));
 
@@ -460,7 +311,7 @@ pub fn ops_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec<B
                     // to DA through sequencers.
                     // MessageValidity::Invalid,
                 ]),
-                value_setter_admin.clone(),
+                admin.clone(),
             )
         },
         {
@@ -480,7 +331,7 @@ pub fn ops_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec<B
                     params.pattern_maximum_write_begin_index,
                     params.pattern_maximum_write_size,
                     params.pattern_maximum_hooks_ops,
-                    value_setter_admin.clone(),
+                    admin.clone(),
                 ),
             ));
 
@@ -495,7 +346,7 @@ pub fn ops_benches(params: &BenchCLICustomArgs, slots: u64, seed: u128) -> Vec<B
                     // to DA through sequencers.
                     // MessageValidity::Invalid,
                 ]),
-                value_setter_admin.clone(),
+                admin.clone(),
             )
         },
     ]
@@ -609,16 +460,8 @@ pub fn all_benches(
 ) -> HashMap<String, Vec<Benchmark<S>>> {
     HashMap::from([
         (
-            "combined_bank_value_setter".to_string(),
-            combined_bank_value_setter(params, slots, seed),
-        ),
-        (
             "bank_benches".to_string(),
             bank_benches(params, slots, seed),
-        ),
-        (
-            "value_setter_benches".to_string(),
-            value_setter_benches(params, slots, seed),
         ),
         (
             "storage_access_benches".to_string(),

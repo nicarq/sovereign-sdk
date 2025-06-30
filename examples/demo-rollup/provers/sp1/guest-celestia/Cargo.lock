@@ -1456,8 +1456,6 @@ dependencies = [
 name = "demo-stf"
 version = "0.3.0"
 dependencies = [
- "alloy-chains",
- "alloy-primitives",
  "anyhow",
  "borsh",
  "schemars",
@@ -1479,9 +1477,9 @@ dependencies = [
  "sov-rollup-interface",
  "sov-sequencer-registry",
  "sov-state",
+ "sov-synthetic-load",
  "sov-test-modules",
  "sov-uniqueness",
- "sov-value-setter",
  "strum",
 ]
 
@@ -5416,6 +5414,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-synthetic-load"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "rand",
+ "rand_chacha",
+ "schemars",
+ "serde",
+ "sov-modules-api",
+ "sov-rollup-interface",
+ "sov-state",
+ "strum",
+]
+
+[[package]]
 name = "sov-test-modules"
 version = "0.3.0"
 dependencies = [
@@ -5485,23 +5499,6 @@ dependencies = [
  "proc-macro2",
  "sov-universal-wallet-macro-helpers",
  "syn 2.0.87",
-]
-
-[[package]]
-name = "sov-value-setter"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh",
- "rand",
- "rand_chacha",
- "schemars",
- "serde",
- "sov-modules-api",
- "sov-rollup-interface",
- "sov-state",
- "strum",
- "thiserror",
 ]
 
 [[package]]

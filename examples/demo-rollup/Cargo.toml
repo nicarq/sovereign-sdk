@@ -47,25 +47,25 @@ async-trait = { workspace = true }
 anyhow = { workspace = true }
 axum = { workspace = true, default-features = false }
 jsonrpsee = { workspace = true, features = [
-	"http-client",
-	"server",
-	"ws-client",
+    "http-client",
+    "server",
+    "ws-client",
 ] }
 schemars = { workspace = true }
 serde = { workspace = true, default-features = false, features = [
-	"alloc",
-	"derive",
+    "alloc",
+    "derive",
 ] }
 serde_json = { workspace = true, default-features = false, features = [
-	"alloc",
+    "alloc",
 ] }
 hex = { workspace = true, optional = true }
 tokio = { workspace = true, features = [
-	"rt-multi-thread",
-	"sync",
-	"time",
-	"macros",
-	"tracing",
+    "rt-multi-thread",
+    "sync",
+    "time",
+    "macros",
+    "tracing",
 ] }
 tracing = { workspace = true }
 prometheus_exporter = "0.8.5"
@@ -81,9 +81,9 @@ sov-celestia-adapter = { workspace = true, features = ["native", "arbitrary"] }
 sov-mock-zkvm = { workspace = true, features = ["native", "arbitrary"] }
 sov-rollup-interface = { workspace = true, features = ["arbitrary"] }
 sov-modules-api = { workspace = true, features = [
-	"native",
-	"arbitrary",
-	"test-utils",
+    "native",
+    "arbitrary",
+    "test-utils",
 ] }
 sov-mock-da = { workspace = true, features = ["arbitrary"] }
 sov-bank = { workspace = true, features = ["native"] }
@@ -94,7 +94,7 @@ sov-modules-macros = { workspace = true }
 sov-test-utils = { workspace = true }
 sov-chain-state = { workspace = true }
 sov-blob-storage = { workspace = true }
-sov-value-setter = { workspace = true, features = ["native"] }
+sov-synthetic-load = { workspace = true, features = ["native"] }
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "ea25df7ed3b02c951c1d6ed49cee1ba40728f3f9", default-features = false }
 futures = "0.3"
 demo-stf-json-client = { path = "./stf/demo-stf-json-client", default-features = false }
@@ -117,7 +117,7 @@ ethers-signers = { version = "=2.0.14", default-features = false }
 ethers-middleware = { version = "=2.0.14", default-features = false }
 
 reqwest = { version = "0.12", features = [
-	"rustls-tls",
+    "rustls-tls",
 ], default-features = false }
 prettytable-rs = "0.10"
 criterion = "0.5.1"

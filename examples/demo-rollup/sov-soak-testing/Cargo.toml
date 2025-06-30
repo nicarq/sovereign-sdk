@@ -20,8 +20,8 @@ serde = { version = "1.0.208", default-features = false, features = [
 ] }
 anyhow = { workspace = true }
 derivative = { version = "2.2", features = ["use_core"] }
-strum = { version = "0.26.3", features = ["derive"] }
-rand = "0.8"
+strum = { workspace = true, features = ["derive"] }
+rand = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 reqwest = { workspace = true }
 
@@ -53,6 +53,7 @@ sov-state = { path = "../../../crates/module-system/sov-state", features = [
 ] }
 # modules
 sov-value-setter = { path = "../../../crates/module-system/module-implementations/sov-value-setter" }
+sov-synthetic-load = { path = "../../../crates/module-system/module-implementations/sov-synthetic-load" }
 sov-bank = { path = "../../../crates/module-system/module-implementations/sov-bank/", features = [
     "native",
     "arbitrary",

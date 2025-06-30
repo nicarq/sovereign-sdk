@@ -9,7 +9,7 @@ use sov_modules_api::prelude::arbitrary::Arbitrary;
 use sov_modules_api::prelude::axum::async_trait;
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_value_setter::{CallMessage, CallMessageDiscriminants};
-use strum::{EnumDiscriminants, VariantArray};
+use strum::EnumDiscriminants;
 
 use crate::interface::{
     CallMessageGenerator, Distribution, GeneratedMessage, MessageValidity, Percent, Taggable,
@@ -22,10 +22,6 @@ mod http;
 mod harness_interface;
 
 pub use harness_interface::*;
-
-/// The call message discriminants used by the `Bank` module
-pub const MESSAGES: &[sov_value_setter::CallMessageDiscriminants] =
-    sov_value_setter::CallMessageDiscriminants::VARIANTS;
 
 /// The state of a value setter account
 #[derive(Debug, Clone)]
@@ -273,52 +269,6 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
                             new_values: values,
                         }],
                     },
-                ))
-            }
-            CallMessageDiscriminants::ReadAndSetManyIndividualValues => {
-                let (min_number_of_operations, max_number_of_operations) = self
-                    .options
-                    .min_and_max_number_of_individual_state_operations;
-                let number_of_operations =
-                    u.int_in_range(min_number_of_operations..=max_number_of_operations)?;
-
-                Ok(GeneratedMessage::new(
-                    CallMessage::ReadAndSetManyIndividualValues {
-                        number_of_operations,
-                        salt: u64::arbitrary(u)?,
-                    },
-                    self.admin_key.clone(),
-                    MessageOutcome::Successful { changes: vec![] },
-                ))
-            }
-            CallMessageDiscriminants::ReadAndSetHeavyState => {
-                let (min_number_of_new_values, max_number_of_new_values) = self
-                    .options
-                    .min_and_max_number_of_new_values_for_heavy_state;
-                let number_of_new_values =
-                    u.int_in_range(min_number_of_new_values..=max_number_of_new_values)?;
-
-                Ok(GeneratedMessage::new(
-                    CallMessage::ReadAndSetHeavyState {
-                        number_of_new_values,
-                        max_heavy_state_size: self.options.max_heavy_state_size,
-                        salt: u64::arbitrary(u)?,
-                    },
-                    self.admin_key.clone(),
-                    MessageOutcome::Successful { changes: vec![] },
-                ))
-            }
-            CallMessageDiscriminants::RunCPUHeavyOperation => {
-                let (min_number_of_iterations, max_number_of_iterations) = self
-                    .options
-                    .min_and_max_number_of_iterations_for_cpu_heavy_operation;
-                let iterations =
-                    u.int_in_range(min_number_of_iterations..=max_number_of_iterations)?;
-
-                Ok(GeneratedMessage::new(
-                    CallMessage::RunCPUHeavyOperation { iterations },
-                    self.admin_key.clone(),
-                    MessageOutcome::Successful { changes: vec![] },
                 ))
             }
             CallMessageDiscriminants::AssertVisibleSlotNumber => {

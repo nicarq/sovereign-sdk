@@ -254,7 +254,6 @@ Usage: sov-cli transactions import from-file <COMMAND>
 Commands:
   bank                 A subcommand for the `Bank` module
   sequencer-registry   A subcommand for the `SequencerRegistry` module
-  value-setter         A subcommand for the `ValueSetter` module
   operator-incentives  A subcommand for the `OperatorIncentives` module
   attester-incentives  A subcommand for the `AttesterIncentives` module
   prover-incentives    A subcommand for the `ProverIncentives` module
@@ -264,6 +263,7 @@ Commands:
   blob-storage         A subcommand for the `BlobStorage` module
   paymaster            A subcommand for the `Paymaster` module
   access-pattern       A subcommand for the `AccessPattern` module
+  synthetic-load       A subcommand for the `SyntheticLoad` module
   help                 Print this message or the help of the given subcommand(s)
 
 Options:
@@ -287,7 +287,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0xf6c5510fee997ea017817cdc9141548737a9f8a08bcf0f40e29448e1f0c44b73",
+  "chain_hash": "0x672f49a623e325540b52fe25a255a584f4cdf8e2b0c5c1fca13eab8a92c610ed",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": "100000000",

@@ -60,8 +60,6 @@ where
     pub bank: sov_bank::Bank<S>,
     /// The Sequencer Registry module.
     pub sequencer_registry: sov_sequencer_registry::SequencerRegistry<S>,
-    /// The Value Setter module.
-    pub value_setter: sov_value_setter::ValueSetter<S>,
     /// The Operator Incentives module.
     pub operator_incentives: sov_operator_incentives::OperatorIncentives<S>,
     /// The Attester Incentives module.
@@ -83,6 +81,8 @@ where
     pub evm: sov_evm::Evm<S>,
     /// A module used in benchmarks to generate a wide range of transaction access patterns.
     pub access_pattern: sov_test_modules::access_pattern::AccessPattern<S>,
+    /// A module for synthetic load testing and state operations.
+    pub synthetic_load: sov_synthetic_load::SyntheticLoad<S>,
 }
 
 impl<S> sov_modules_stf_blueprint::Runtime<S> for Runtime<S>
@@ -157,7 +157,9 @@ where
     #[cfg(feature = "native")]
     fn get_transaction_delay_ms(&self, call: &Self::Decodable) -> u64 {
         match call {
-            Self::Decodable::ValueSetter(sov_value_setter::CallMessage::SetValue { .. }) => 100,
+            Self::Decodable::SyntheticLoad(
+                sov_synthetic_load::CallMessage::RunCPUHeavyOperation { .. },
+            ) => 100,
             _ => 0,
         }
     }
