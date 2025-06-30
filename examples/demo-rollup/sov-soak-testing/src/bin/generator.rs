@@ -4,7 +4,7 @@ use clap::Parser;
 use sov_modules_api::prelude::tracing;
 use sov_soak_testing::{
     run_generator_task_for_bank_and_value_setter, CelestiaRollupSpec, DemoCelestiaRT, DemoMockRT,
-    MockDemoRollupSpec, TestRT,
+    MockDemoRollupSpec, TestRT, TxType,
 };
 use sov_test_utils::TestSpec;
 use sov_transaction_generator::{Distribution, MessageValidity};
@@ -32,7 +32,7 @@ struct Args {
     /// The number of workers to spawn - this controls the number of concurrent transactions. Defaults to 5.
     num_workers: u32,
 
-    #[arg(short, long, default_value = "Runtime::Test")]
+    #[arg(short, long, default_value = "test")]
     runtime: SelectedRuntime,
 
     #[arg(short, long, default_value = "0")]
@@ -40,9 +40,13 @@ struct Args {
     /// transactions don't overlap with the previous run.
     salt: u32,
 
-    #[arg(short, long, default_value = "ValidityProfile::Buzzy")]
+    #[arg(short, long, default_value = "buzzy")]
     /// The distribution of valid/invalid transactions to generate.
     validity_profile: ValidityProfile,
+
+    #[arg(short, long, default_value = "mixed")]
+    /// The distribution of valid/invalid transactions to generate.
+    tx_type: TxType,
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
@@ -84,6 +88,7 @@ async fn worker_task(
     num_workers: u32,
     runtime: SelectedRuntime,
     validity_profile: ValidityProfile,
+    tx_type: TxType,
 ) -> anyhow::Result<()> {
     let validity = validity_profile.get_validity();
 
@@ -95,6 +100,7 @@ async fn worker_task(
                 worker_id,
                 num_workers,
                 validity,
+                tx_type,
             )
             .await
         }
@@ -105,6 +111,7 @@ async fn worker_task(
                 worker_id,
                 num_workers,
                 validity,
+                tx_type,
             )
             .await
         }
@@ -115,6 +122,7 @@ async fn worker_task(
                 worker_id,
                 num_workers,
                 validity,
+                tx_type,
             )
             .await
         }
@@ -148,6 +156,7 @@ async fn main() -> Result<(), anyhow::Error> {
             args.num_workers,
             args.runtime,
             args.validity_profile,
+            args.tx_type,
         ));
     }
 

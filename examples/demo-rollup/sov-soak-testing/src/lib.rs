@@ -101,6 +101,16 @@ pub fn plain_tx_with_default_details<R: Runtime<S>, S: Spec>(
     }
 }
 
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+pub enum TxType {
+    /// Only ValueSetter transactions - includes many heavy txs
+    ValueSetter,
+    /// Only Bank transactions
+    Bank,
+    /// Mixed ValueSetter and Bank transactions
+    Mixed,
+}
+
 pub struct TestGenerator<R: Runtime<S>, S: Spec> {
     generator: BasicCallMessageFactory<S, R>,
     state: State<S, BasicTag>,
@@ -282,6 +292,7 @@ pub async fn run_generator_task_for_bank_and_value_setter<
     worker_id: u128,
     num_workers: u32,
     validity: Distribution<MessageValidity>,
+    tx_type: TxType,
 ) -> anyhow::Result<()> {
     let bank_harness = BankHarness::new(BankMessageGenerator::<S>::new(
         Distribution::with_equiprobable_values(vec![Transfer]),
@@ -304,10 +315,14 @@ pub async fn run_generator_task_for_bank_and_value_setter<
         },
         value_setter_admin,
     ));
-    let modules: Vec<BasicModuleRef<S, R>> = vec![
-        Arc::new(bank_harness.clone()),
-        Arc::new(value_setter_harness.clone()),
-    ];
+    let modules: Vec<BasicModuleRef<S, R>> = match tx_type {
+        TxType::ValueSetter => vec![Arc::new(value_setter_harness.clone())],
+        TxType::Bank => vec![Arc::new(bank_harness.clone())],
+        TxType::Mixed => vec![
+            Arc::new(bank_harness.clone()),
+            Arc::new(value_setter_harness.clone()),
+        ],
+    };
 
     prepare_and_send_txs(modules, client, rx, worker_id, num_workers, validity).await
 }
