@@ -40,7 +40,7 @@ use tracing::{debug, info};
 
 use crate::utils::{
     generate_paymaster_tx, generate_txs, new_test_rollup, pause_update_state,
-    tx_set_value_with_gas, ModuleWithVersionedStateAccessInSlotHook,
+    tempdir_inside_codebase_dir, tx_set_value_with_gas, ModuleWithVersionedStateAccessInSlotHook,
     MAX_BATCH_EXECUTION_TIME_MILLIS,
 };
 const DELAYED_TX_DELAY_MS: u64 = 500;
@@ -57,12 +57,7 @@ generate_optimistic_runtime_with_kernel!(
     }
 );
 
-// This allows for easily setting file sharing when using Docker Desktop.
-fn tempdir_inside_codebase_dir() -> Arc<tempfile::TempDir> {
-    Arc::new(tempfile::tempdir_in(std::env!("CARGO_TARGET_TMPDIR")).unwrap())
-}
-
-type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
+pub(crate) type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
 
 use sov_test_utils::TEST_BLOB_PROCESSING_TIMEOUT;
 
@@ -73,7 +68,7 @@ const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfi
 /// All the interesting "things" that can happen during sequencer operations, and to
 /// which the sequencer ought to know how to respond.
 #[derive(Debug, Clone, Arbitrary)]
-enum TestingAction {
+pub(crate) enum TestingAction {
     /// Never generated automatically because tests would slow down wayyy too
     /// much. Useful for debugging.
     #[weight(0)]
@@ -120,7 +115,7 @@ enum TestingAction {
 
 /// An invalid nonce.
 #[derive(Debug, Clone, Arbitrary)]
-enum InvalidGeneration {
+pub(crate) enum InvalidGeneration {
     DuplicateTransaction,
     TooOld,
 }
@@ -163,20 +158,33 @@ async fn create_test_rollup(
             BlockProducingConfig::Manual,
             None,
             blob_processing_timeout_secs,
+            1,
             max_batch_execution_time_millis,
             None,
         )
-        .await,
+        .await
+        .map(|(v, _d)| v.into_iter().next().unwrap()),
         admin,
     )
 }
 
-#[derive(Debug, Default)]
-struct TestState {
+#[derive(Debug)]
+pub(crate) struct TestState {
     value_by_slot_number: HashMap<SlotNumber, u64>,
     _current_slot_number: SlotNumber,
     next_generation: u64,
     current_value: u64,
+}
+
+impl Default for TestState {
+    fn default() -> Self {
+        Self {
+            value_by_slot_number: Default::default(),
+            _current_slot_number: Default::default(),
+            next_generation: 10, // initialize to a higher generation so that "invalid generation" actions are always possible
+            current_value: Default::default(),
+        }
+    }
 }
 
 // FIXME(@neysofu): this test is not broken due to correctness bugs in the
@@ -291,7 +299,7 @@ async fn sequencer_filled_up_block() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup::<TestRuntime<TestSpec>>(
+    let Some((test_rollups, _)) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
@@ -301,6 +309,7 @@ async fn sequencer_filled_up_block() {
         BlockProducingConfig::Manual,
         None,
         60,
+        1,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
         None,
     )
@@ -309,6 +318,7 @@ async fn sequencer_filled_up_block() {
         // Docker issues, don't fail the test and just return early.
         return;
     };
+    let test_rollup = test_rollups.into_iter().next().unwrap();
 
     test_rollup
         .da_service
@@ -600,7 +610,7 @@ async fn seq_out_of_gas_for_pre_checks() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup::<TestRuntime<TestSpec>>(
+    let Some((test_rollups, _)) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
@@ -610,6 +620,7 @@ async fn seq_out_of_gas_for_pre_checks() {
         BlockProducingConfig::Manual,
         None,
         60,
+        1,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
         None,
     )
@@ -618,6 +629,7 @@ async fn seq_out_of_gas_for_pre_checks() {
         // Docker issues, don't fail the test and just return early.
         return;
     };
+    let test_rollup = test_rollups.into_iter().next().unwrap();
 
     test_rollup
         .da_service
@@ -710,7 +722,11 @@ async fn max_batch_size() {
             .unwrap_err();
 
         let error_str = resp.to_string();
-        assert!(error_str.contains("Transaction cannot be included in the batch"));
+        assert!(
+            error_str.contains("Transaction cannot be included in the batch"),
+            "actual error: {}",
+            error_str
+        );
     }
 
     sleep(Duration::from_millis(200)).await;
@@ -921,7 +937,7 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup::<TestRuntime<TestSpec>>(
+    let Some((test_rollups, _)) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
@@ -933,6 +949,7 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
         },
         None,
         60,
+        1,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
         None,
     )
@@ -941,6 +958,7 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
         // Docker issues, don't fail the test and just return early.
         return;
     };
+    let test_rollup = test_rollups.into_iter().next().unwrap();
 
     // Produce a few blocks to DA blocks to make sure there's a finalized slot after genesis.
     test_rollup
@@ -1856,7 +1874,7 @@ async fn heavy_blob_submission_long_delay() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let test_rollup = new_test_rollup::<TestRuntime<TestSpec>>(
+    let Some((test_rollups, _)) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
@@ -1866,14 +1884,16 @@ async fn heavy_blob_submission_long_delay() {
         BlockProducingConfig::Periodic { block_time_ms: 200 },
         None,
         blob_processing_timeout_secs,
+        1,
         400, // Set the batch time limit to twice the block time
         None,
     )
-    .await;
-
-    let Some(test_rollup) = test_rollup else {
+    .await
+    else {
+        // Docker issues, don't fail the test and just return early.
         return;
     };
+    let test_rollup = test_rollups.into_iter().next().unwrap();
 
     test_rollup.da_service.set_delay_blobs_by(30).await;
 
@@ -2320,7 +2340,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some(test_rollup) = new_test_rollup::<TestRuntime<TestSpec>>(
+    let Some((test_rollups, _)) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
@@ -2330,15 +2350,25 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
         DEFAULT_BLOCK_PRODUCING_CONFIG,
         Some(RollupProverConfig::Skip),
         60,
+        1,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
         None,
     )
     .await
     else {
         // Docker issues, don't fail the test and just return early.
-        return;
+        return Default::default();
     };
+    let test_rollup = test_rollups.into_iter().next().unwrap();
 
+    let (test_rollup, test_state) = setup_test_rollup_with_initial_state(test_rollup, &admin).await;
+    run_actions_against_test_rollup(actions, test_rollup, &admin, test_state).await;
+}
+
+pub(crate) async fn setup_test_rollup_with_initial_state(
+    test_rollup: TestRollup<TestBlueprint>,
+    admin: &TestUser<TestSpec>,
+) -> (TestRollup<TestBlueprint>, TestState) {
     test_rollup
         .da_service
         .produce_n_blocks_now(10)
@@ -2351,10 +2381,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
 
     let client = test_rollup.api_client.clone();
 
-    let mut test_state = TestState {
-        next_generation: 10, // initialize to a higher generation so that "invalid generation" actions are always possible
-        ..Default::default()
-    };
+    let mut test_state = TestState::default();
 
     {
         let txs = generate_txs(admin.private_key.clone()).clone();
@@ -2385,6 +2412,15 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
         test_state.next_generation += 1;
     }
 
+    (test_rollup, test_state)
+}
+
+pub(crate) async fn run_actions_against_test_rollup(
+    actions: Vec<TestingAction>,
+    test_rollup: TestRollup<TestBlueprint>,
+    admin: &TestUser<TestSpec>,
+    mut test_state: TestState,
+) -> (TestRollup<TestBlueprint>, TestState) {
     let mut test_rollup = Some(test_rollup);
 
     for (i, action) in actions.iter().enumerate() {
@@ -2406,10 +2442,10 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
         }
     }
 
-    test_rollup.take().unwrap().shutdown().await.unwrap();
+    (test_rollup.unwrap(), test_state)
 }
 
-async fn run_action_against_test_rollup(
+pub(crate) async fn run_action_against_test_rollup(
     test_rollup: TestRollup<TestBlueprint>,
     key: &Ed25519PrivateKey,
     action: TestingAction,
@@ -2446,7 +2482,6 @@ async fn run_action_against_test_rollup(
                     let bad_generation = test_state.next_generation
                         - 1
                         - config_value!("PAST_TRANSACTION_GENERATIONS");
-                    println!("Generating generation {bad_generation} for reason::TooOld");
                     tx_set_value(key, bad_generation, test_state.current_value + 1)
                 }
             };

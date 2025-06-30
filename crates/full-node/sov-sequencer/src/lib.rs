@@ -58,6 +58,8 @@ pub enum SequencerNotReadyDetails {
     /// The sequencer is a preferred sequencer and dropped too far out of sync, and is currently
     /// attempting to recover.
     PreferredSequencerRecovering,
+    /// The sequencer is running in replica mode and cannot accept transactions.
+    ReplicaMode,
 }
 
 /// See [`crate::common::Sequencer::subscribe_events`].

@@ -11,10 +11,6 @@ struct MockDbBackend {}
 
 #[async_trait]
 impl PreferredSequencerDbBackend for MockDbBackend {
-    async fn read_completed_blobs(&self) -> anyhow::Result<Vec<PreferredSequencerReadBlob>> {
-        Ok(vec![])
-    }
-
     async fn read_in_progress_batch(&self) -> anyhow::Result<Option<InProgressBatch>> {
         Ok(None)
     }
@@ -58,11 +54,15 @@ impl PreferredSequencerDbBackend for MockDbBackend {
     async fn prune(&mut self, _prune_up_to_including: SequenceNumber) -> anyhow::Result<()> {
         Ok(())
     }
+
+    async fn current_data(&self) -> anyhow::Result<DbSnapshotData> {
+        Ok(DbSnapshotData::default())
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_event_stream() {
-    let mut db = PreferredSequencerDb::<S, RT>::new(Box::new(MockDbBackend {}))
+    let (mut db, _) = PreferredSequencerDb::<S, RT>::new(Box::new(MockDbBackend {}), false)
         .await
         .unwrap();
 

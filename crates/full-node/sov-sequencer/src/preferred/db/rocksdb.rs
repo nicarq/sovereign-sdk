@@ -8,7 +8,7 @@ use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
 use sov_modules_api::{FullyBakedTx, TxHash, VisibleSlotNumber};
 
-use super::{PreferredSequencerDbBackend, PreferredSequencerReadBlob, StoredBlob};
+use super::{DbSnapshotData, PreferredSequencerDbBackend, PreferredSequencerReadBlob, StoredBlob};
 use crate::preferred::db::InProgressBatch;
 
 #[derive(Debug)]
@@ -23,23 +23,6 @@ pub struct RocksDbBackend {
 
 #[async_trait]
 impl PreferredSequencerDbBackend for RocksDbBackend {
-    #[tracing::instrument(skip_all, level = "trace")]
-    async fn read_completed_blobs(&self) -> anyhow::Result<Vec<PreferredSequencerReadBlob>> {
-        let mut blobs = vec![];
-
-        // Iteration might be slow, but getters are only called during
-        // sequencer initialization so it's okay.
-        for item_res in self.db.iter::<tables::CompletedBlobs>()? {
-            let item = item_res?;
-            let sequence_number = item.key;
-            let stored_blob = item.value;
-
-            blobs.push(self.read_blob(sequence_number, stored_blob).await?);
-        }
-
-        Ok(blobs)
-    }
-
     #[tracing::instrument(skip_all, level = "trace")]
     async fn read_in_progress_batch(&self) -> anyhow::Result<Option<InProgressBatch>> {
         let Some((sequence_number, stored_blob)) =
@@ -172,6 +155,17 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
             .await?;
         Ok(())
     }
+
+    async fn current_data(&self) -> anyhow::Result<DbSnapshotData> {
+        // RocksDB doesn't need atomicity, and doesn't track event_ids
+        let completed_blobs = self.read_completed_blobs().await?;
+        let in_progress_batch = self.read_in_progress_batch().await?;
+        Ok(DbSnapshotData {
+            completed_blobs,
+            in_progress_batch,
+            latest_event_id: None,
+        })
+    }
 }
 
 impl RocksDbBackend {
@@ -210,6 +204,23 @@ impl RocksDbBackend {
             db,
             first_unpruned_sequence_number,
         })
+    }
+
+    #[tracing::instrument(skip_all, level = "trace")]
+    async fn read_completed_blobs(&self) -> anyhow::Result<Vec<PreferredSequencerReadBlob>> {
+        let mut blobs = vec![];
+
+        // Iteration might be slow, but getters are only called during
+        // sequencer initialization so it's okay.
+        for item_res in self.db.iter::<tables::CompletedBlobs>()? {
+            let item = item_res?;
+            let sequence_number = item.key;
+            let stored_blob = item.value;
+
+            blobs.push(self.read_blob(sequence_number, stored_blob).await?);
+        }
+
+        Ok(blobs)
     }
 
     #[cfg(test)]

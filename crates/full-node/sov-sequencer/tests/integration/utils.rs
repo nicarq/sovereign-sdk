@@ -226,9 +226,13 @@ pub async fn new_test_rollup<RT: Runtime<TestSpec> + HasRestApi<TestSpec>>(
     block_producing_config: BlockProducingConfig,
     rollup_prover_config: Option<RollupProverConfig<MockZkvm>>,
     blob_processing_timeout_secs: u64,
+    num_replicas: u64,
     max_batch_execution_time_millis: u64,
     stop_at_rollup_height: Option<RollupHeight>,
-) -> Option<TestRollup<RtAgnosticBlueprint<TestSpec, RT>>> {
+) -> Option<(
+    Vec<TestRollup<RtAgnosticBlueprint<TestSpec, RT>>>,
+    Option<tempfile::TempDir>,
+)> {
     const FINALIZATION_BLOCKS: u32 = 3;
 
     // We skip all docker (i.e. postgres) tests on our dev server due to firewall false positives
@@ -238,7 +242,7 @@ pub async fn new_test_rollup<RT: Runtime<TestSpec> + HasRestApi<TestSpec>>(
     // false positives.
     const DEV_SERVER_CPUS: usize = 96;
 
-    let mut builder_res = RollupBuilder::<RtAgnosticBlueprint<TestSpec, RT>>::new(
+    let builder = RollupBuilder::<RtAgnosticBlueprint<TestSpec, RT>>::new(
         GenesisSource::CustomParams(genesis_params),
         block_producing_config,
         FINALIZATION_BLOCKS,
@@ -261,14 +265,29 @@ pub async fn new_test_rollup<RT: Runtime<TestSpec> + HasRestApi<TestSpec>>(
     .with_preferred_seq_min_profit_per_tx(minimum_profit_per_tx)
     .with_preferred_seq_recovery_strategy(sov_sequencer::preferred::RecoveryStrategy::TryToSave);
 
-    if num_cpus::get() != DEV_SERVER_CPUS {
-        builder_res = builder_res.with_postgres_sequencer().await.unwrap();
+    let builder_res = if num_cpus::get() != DEV_SERVER_CPUS {
+        builder.with_postgres_sequencer().await
     } else {
         tracing::warn!("Running tests with postgres disabled in the sequencer! Detected machine with {DEV_SERVER_CPUS} threads, assuming we are running on the dev server.");
-    }
+        if num_replicas > 1 {
+            tracing::warn!(
+                "Replica test cannot run, postgres is disabled due to detecting the dev server"
+            );
+            return None;
+        } else {
+            Ok(builder)
+        }
+    };
 
-    match Result::<_, anyhow::Error>::Ok(builder_res) {
-        Ok(builder) => Some(builder.start().await.unwrap()),
+    match builder_res {
+        Ok(builder) => match num_replicas {
+            0 => panic!("At least one node needs to be started"),
+            1 => Some((vec![builder.start().await.unwrap()], None)),
+            2.. => {
+                let (rollups, tempdir) = builder.start_with_replicas(num_replicas).await.unwrap();
+                Some((rollups, Some(tempdir)))
+            }
+        },
         Err(e) => {
             if std::env::var("SOV_TEST_SKIP_DOCKER") == Ok("1".to_string()) {
                 None
@@ -315,4 +334,9 @@ pub fn tx_set_value_with_gas<RT: Runtime<TestSpec> + EncodeCall<ValueSetter<Test
     );
 
     encode_call_with_fee::<RT>(key, nonce, &msg, max_fee)
+}
+
+// This allows for easily setting file sharing when using Docker Desktop.
+pub fn tempdir_inside_codebase_dir() -> Arc<tempfile::TempDir> {
+    Arc::new(tempfile::tempdir_in(std::env!("CARGO_TARGET_TMPDIR")).unwrap())
 }

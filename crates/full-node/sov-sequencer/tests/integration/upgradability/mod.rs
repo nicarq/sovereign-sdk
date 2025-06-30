@@ -131,10 +131,12 @@ async fn create_test_rollup(
             BlockProducingConfig::Periodic { block_time_ms: 200 },
             None,
             blob_processing_timeout_secs,
+            1,
             MAX_BATCH_EXECUTION_TIME_MILLIS,
             stop_at_rollup_height,
         )
-        .await,
+        .await
+        .map(|(v, _d)| v.into_iter().next().unwrap()),
         admin,
     )
 }

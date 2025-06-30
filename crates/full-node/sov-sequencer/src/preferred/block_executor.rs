@@ -340,20 +340,35 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     /// A helper function for replaying a transaction that has already been soft-confirmed, logging any errors and exiting.
     /// This differs from `apply_tx_to_in_progress_batch` in that it doesn't return a receipt and
     /// shuts down the rollup on error.
-    pub(crate) async fn replay_tx(&mut self, tx_hash: TxHash, tx: &FullyBakedTx) {
+    pub(crate) async fn replay_tx(&mut self, tx_hash: TxHash, tx: &FullyBakedTx) -> u64 {
         trace!(
             %tx_hash,
             "Re-applying state changes for the soft-confirmed transaction"
         );
 
-        if let Err(err) = self.apply_tx_to_in_progress_batch(tx).await {
-            tracing::error!(
-                error = %err,
-                %tx_hash,
-                "Transaction was soft-confirmed but failed to be re-applied; this is a bug, please report it",
-            );
+        match self.apply_tx_to_in_progress_batch(tx).await {
+            Ok(receipt) => {
+                if tx_hash != receipt.receipt.tx_hash {
+                    tracing::error!(
+                        expected_hash = %tx_hash,
+                        executor_output_hash = %receipt.receipt.tx_hash,
+                        "The executor returned a different tx hash than expected"
+                    );
+                    exit_rollup(&self.shutdown_sender).await;
+                    unreachable!()
+                }
+                receipt.execution_time_micros
+            }
+            Err(err) => {
+                tracing::error!(
+                    error = %err,
+                    %tx_hash,
+                    "Transaction was soft-confirmed but failed to be re-applied; this is a bug, please report it",
+                );
 
-            exit_rollup(&self.shutdown_sender).await;
+                exit_rollup(&self.shutdown_sender).await;
+                unreachable!()
+            }
         }
     }
 
@@ -704,11 +719,13 @@ where
     let mut kernel = rt.kernel();
     let mut accessor: KernelStateAccessor<'_, S> =
         KernelStateAccessor::from_checkpoint(&kernel, &mut checkpoint);
+
     kernel.increment_rollup_height(&mut accessor, next_visible_slot_number);
 
+    let target_rollup_height = old_rollup_height.saturating_add(1);
     let next_root = kernel
-        .visible_hash_for(old_rollup_height.saturating_add(1), &mut accessor)
-        .ok_or_else(|| format!("Can't get visible hash for {old_rollup_height} + 1"))
+        .visible_hash_for(target_rollup_height, &mut accessor)
+        .ok_or_else(|| format!("Can't get visible hash for {}", target_rollup_height))
         .unwrap();
     // Now that we've incremented the rollup height, we can get the next gas price. Do that and use it to compute the amount of funds that we should
     // reserve for the preferred sequencer.

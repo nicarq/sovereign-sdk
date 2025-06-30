@@ -12,6 +12,7 @@ use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_cli::NodeClient;
 use sov_db::config::RollupDbConfig;
 use sov_db::ledger_db::LedgerDb;
+use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig, MockDaSpec};
 use sov_modules_api::capabilities::RollupHeight;
@@ -38,7 +39,7 @@ use sov_stf_runner::{
 use testcontainers::core::{Mount, WaitFor};
 use testcontainers::runners::AsyncRunner;
 use testcontainers::{ContainerAsync, Image, ImageExt};
-use tokio::sync::watch;
+use tokio::sync::{watch, RwLock};
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use tracing::debug;
@@ -552,6 +553,110 @@ where
             sov_api_spec::client::Client::new(&format!("http://127.0.0.1:{}", actual_port));
 
         Ok((client, sender))
+    }
+}
+
+impl<R> RollupBuilder<R, Arc<tempfile::TempDir>>
+where
+    R: FullNodeBlueprint<Native, DaService = StorableMockDaService> + Default + 'static,
+    R::Spec: Spec<Da = MockDaSpec>,
+{
+    /// Creates multiple [`TestRollup`] instances with shared database infrastructure.
+    /// The first rollup acts as master, subsequent ones as replicas.
+    /// All instances share the same MockDA sqlite and postgres database.
+    ///
+    /// # Requirements
+    /// - Must be called after `.with_postgres_sequencer()` to set up shared postgres; skipped in
+    ///   contexts that skip postgres tests (i.e. the dev server)
+    /// - Only works with a TempDir currently
+    ///
+    /// # Example
+    /// ```ignore
+    /// let rollups = RollupBuilder::new(genesis, config)
+    ///     .with_postgres_sequencer().await?
+    ///     .start_with_replicas(3).await?; // 1 master + 2 replicas
+    /// ```
+    pub async fn start_with_replicas(
+        self,
+        num_replicas: u64,
+    ) -> anyhow::Result<(
+        Vec<TestRollup<R, Arc<tempfile::TempDir>>>,
+        tempfile::TempDir,
+    )> {
+        if num_replicas == 0 {
+            anyhow::bail!("num_replicas must be at least 1 (master + replicas)");
+        }
+
+        // Validate configuration requirements
+        let SequencerKindConfig::Preferred(ref preferred_config) = self.config.sequencer_config
+        else {
+            panic!("Replicas can only be used with Preferred sequencer configuration. Use RollupBuilder::with_preferred_sequencer() first.");
+        };
+
+        if preferred_config.postgres_connection_string.is_none() {
+            panic!("Replicas require shared postgres database. Call .with_postgres_sequencer().await? before .start_with_replicas()");
+        }
+
+        // Create base temp directory for shared infrastructure
+        let base_temp_dir = tempfile::tempdir()?;
+        let base_path = base_temp_dir.path();
+
+        // Create shared MockDA sqlite file in base directory
+        let shared_da_connection = format!(
+            "sqlite://{}?mode=rwc",
+            base_path.join("shared_mock_da.sqlite").to_string_lossy()
+        );
+        let da_layer = Arc::new(RwLock::new(
+            StorableMockDaLayer::new_from_connection(
+                &shared_da_connection,
+                self.da_config.finalization_blocks,
+            )
+            .await?,
+        ));
+
+        let mut rollups = Vec::new();
+
+        for i in 0..num_replicas {
+            // Create instance-specific storage directory
+            let instance_dir = base_path.join(format!("instance_{}", i));
+            std::fs::create_dir_all(&instance_dir)?;
+
+            // Clone builder configuration for this instance
+            let mut instance_builder = RollupBuilder {
+                genesis: self.genesis.clone(),
+                da_config: MockDaConfig {
+                    connection_string: shared_da_connection.clone(),
+                    da_layer: Some(da_layer.clone()),
+                    ..self.da_config.clone()
+                },
+                config: RollupBuilderConfig {
+                    storage: Arc::new(
+                        tempfile::Builder::new()
+                            .keep(true)
+                            .tempdir_in(&instance_dir)?,
+                    ),
+                    // axum_port: 0, // Auto-assign port for each instance // We probably don't need this since it should already normally always be 0
+                    ..self.config.clone()
+                },
+                postgres_container_opt: self.postgres_container_opt.clone(),
+                with_secondary_sequencer: None, // No secondary sequencer support in replica mode
+            };
+
+            // Set replica mode for non-master instances
+            if i > 0 {
+                if let SequencerKindConfig::Preferred(ref mut preferred_config) =
+                    instance_builder.config.sequencer_config
+                {
+                    preferred_config.is_replica = true;
+                }
+            }
+
+            // Start this instance
+            let rollup = instance_builder.start().await?;
+            rollups.push(rollup);
+        }
+
+        Ok((rollups, base_temp_dir))
     }
 }
 

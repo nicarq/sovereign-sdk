@@ -136,7 +136,7 @@ where
                 &node_state_root,
                 &mut batch_is_in_progress,
             )
-            .await;
+            .await?;
         }
 
         let mut inner = self.lock_inner().await;
@@ -156,7 +156,7 @@ where
                 &node_state_root,
                 &mut batch_is_in_progress,
             )
-            .await;
+            .await?;
         }
 
         // The executor is now caught up. Swap it in
@@ -219,7 +219,7 @@ where
         transactions_count: &mut usize,
         node_state_root: &<S::Storage as Storage>::Root,
         batch_is_in_progress: &mut bool,
-    ) {
+    ) -> anyhow::Result<()> {
         match event {
             DbEvent::TxAccepted(tx, hash) => {
                 executor.replay_tx(hash, &tx).await;
@@ -254,5 +254,6 @@ where
                 tracing::trace!("Proof blob accepted");
             }
         }
+        Ok(())
     }
 }

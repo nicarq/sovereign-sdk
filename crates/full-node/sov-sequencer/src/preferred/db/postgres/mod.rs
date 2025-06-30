@@ -6,9 +6,9 @@ use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
 use sov_modules_api::{FullyBakedTx, TxHash};
 use sqlx::postgres::{PgPool, PgPoolOptions};
-use sqlx::Postgres;
+use sqlx::{PgConnection, Postgres};
 
-use super::{PreferredSequencerDbBackend, PreferredSequencerReadBlob, StoredBlob};
+use super::{DbSnapshotData, PreferredSequencerDbBackend, PreferredSequencerReadBlob, StoredBlob};
 use crate::preferred::db::InProgressBatch;
 
 pub struct PostgresBackend {
@@ -30,6 +30,7 @@ impl PostgresBackend {
         &self,
         sequence_number: SequenceNumber,
         stored_blob: StoredBlob,
+        connection: &mut PgConnection,
     ) -> anyhow::Result<PreferredSequencerReadBlob<Inner>> {
         match stored_blob {
             StoredBlob::Batch {
@@ -38,10 +39,10 @@ impl PostgresBackend {
                 blob_id,
             } => {
                 let tx_rows: Vec<(Vec<u8>, Vec<u8>)> = sqlx::query_as::<Postgres, _>(
-                    "SELECT hash, data FROM txs WHERE sequence_number = $1 ORDER BY batch_index",
+                    "SELECT hash, data FROM events WHERE sequence_number = $1 AND event_type = 'transaction' ORDER BY index_in_batch",
                 )
                 .bind(i64::try_from(sequence_number)?)
-                .fetch_all(&self.pool)
+                .fetch_all(connection)
                 .await?;
 
                 let (tx_hashes, txs): (Vec<_>, Vec<_>) = tx_rows.into_iter().unzip();
@@ -74,6 +75,34 @@ impl PostgresBackend {
             }),
         }
     }
+
+    async fn read_in_progress_batch_with_connection(
+        &self,
+        connection: &mut PgConnection,
+    ) -> anyhow::Result<Option<InProgressBatch>> {
+        let Some((sequence_number, stored_blob_serialized)): Option<(i64, Vec<u8>)> =
+            sqlx::query_as::<Postgres, _>(
+                "SELECT sequence_number, borsh_value FROM in_progress_batch",
+            )
+            .fetch_optional(&mut *connection)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let sequence_number = SequenceNumber::try_from(sequence_number)?;
+        let stored_blob = borsh::from_slice(&stored_blob_serialized)?;
+
+        match self
+            .read_blob(sequence_number, stored_blob, connection)
+            .await?
+        {
+            PreferredSequencerReadBlob::Batch(batch) => Ok(Some(batch)),
+            PreferredSequencerReadBlob::Proof { .. } => panic!(
+                "Expected a batch blob, but got a proof blob. This is a bug, please report it"
+            ),
+        }
+    }
 }
 
 #[async_trait]
@@ -85,18 +114,22 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         visible_slot_number_after_increase: sov_modules_api::VisibleSlotNumber,
         visible_slots_to_advance: NonZero<u8>,
     ) -> anyhow::Result<()> {
-        sqlx::query::<Postgres>(
-            "INSERT INTO in_progress_batch (sequence_number, borsh_value) VALUES ($1, $2)",
+        let blob_data = borsh::to_vec(&StoredBlob::Batch {
+            blob_id,
+            visible_slot_number_after_increase,
+            visible_slots_to_advance,
+        })?;
+
+        // Compound CTE statement to avoid multiple roundtrips
+        sqlx::query(
+            "WITH batch_insert AS (
+                INSERT INTO in_progress_batch (sequence_number, borsh_value) VALUES ($1, $2)
+             )
+             INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
+             SELECT $1, 'batch_start', NULL, NULL, $2",
         )
         .bind(i64::try_from(sequence_number)?)
-        .bind::<&[u8]>(
-            borsh::to_vec(&StoredBlob::Batch {
-                blob_id,
-                visible_slot_number_after_increase,
-                visible_slots_to_advance,
-            })?
-            .as_ref(),
-        )
+        .bind::<&[u8]>(blob_data.as_ref())
         .execute(&self.pool)
         .await?;
 
@@ -111,7 +144,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         hash: TxHash,
     ) -> anyhow::Result<()> {
         sqlx::query::<Postgres>(
-            "INSERT INTO txs (sequence_number, batch_index, hash, data) VALUES ($1, $2, $3, $4)",
+            "INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) VALUES ($1, 'transaction', $2, $3, $4)",
         )
         .bind(i64::try_from(sequence_number)?)
         .bind(i64::try_from(tx_index_within_batch)?)
@@ -124,44 +157,51 @@ impl PreferredSequencerDbBackend for PostgresBackend {
     }
 
     async fn end_rollup_block(&mut self, cached: &super::InProgressBatch) -> anyhow::Result<()> {
-        let mut tx = self.pool.begin().await?;
+        let blob_data = borsh::to_vec(&StoredBlob::Batch {
+            blob_id: cached.blob_id,
+            visible_slots_to_advance: cached.visible_slots_to_advance,
+            visible_slot_number_after_increase: cached.visible_slot_number_after_increase,
+        })?;
 
-        sqlx::query::<Postgres>("DELETE FROM in_progress_batch")
-            .execute(&mut *tx)
-            .await?;
+        // Compound CTE statement to avoid multiple roundtrips
+        let result = sqlx::query(
+            "WITH batch_delete AS (
+                DELETE FROM in_progress_batch
+                RETURNING 1
+             )
+             INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
+             SELECT $1, 'batch_end', NULL, NULL, $2
+             FROM batch_delete",
+        )
+        .bind(i64::try_from(cached.sequence_number)?)
+        .bind::<&[u8]>(blob_data.as_ref())
+        .execute(&self.pool)
+        .await?;
 
-        sqlx::query::<Postgres>("INSERT INTO blobs (sequence_number, borsh_value) VALUES ($1, $2)")
-            .bind(i64::try_from(cached.sequence_number)?)
-            .bind::<&[u8]>(
-                borsh::to_vec(&StoredBlob::Batch {
-                    blob_id: cached.blob_id,
-                    visible_slots_to_advance: cached.visible_slots_to_advance,
-                    visible_slot_number_after_increase: cached.visible_slot_number_after_increase,
-                })?
-                .as_ref(),
-            )
-            .execute(&mut *tx)
-            .await?;
-        tx.commit().await?;
+        if result.rows_affected() == 0 {
+            return Err(anyhow::anyhow!("No in-progress batch found to end"));
+        }
 
         Ok(())
     }
 
     async fn prune(&mut self, up_to_including: SequenceNumber) -> anyhow::Result<()> {
-        let mut tx = self.pool.begin().await?;
-
-        sqlx::query::<Postgres>(r#"DELETE FROM blobs WHERE sequence_number <= $1"#)
-            .bind(i64::try_from(up_to_including)?)
-            .execute(&mut *tx)
-            .await?;
-        sqlx::query::<Postgres>(r#"DELETE FROM txs WHERE sequence_number <= $1"#)
-            .bind(i64::try_from(up_to_including)?)
-            .execute(&mut *tx)
-            .await?;
-
-        tx.commit().await?;
+        // Compound CTE statement to avoid multiple roundtrips
+        sqlx::query(
+            "WITH blobs_deleted AS (
+                DELETE FROM proof_blobs WHERE sequence_number <= $1
+             )
+             DELETE FROM events WHERE sequence_number <= $1",
+        )
+        .bind(i64::try_from(up_to_including)?)
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
+    }
+    async fn read_in_progress_batch(&self) -> anyhow::Result<Option<InProgressBatch>> {
+        let mut conn = self.pool.acquire().await?;
+        self.read_in_progress_batch_with_connection(&mut conn).await
     }
 
     async fn add_proof_blob(
@@ -170,52 +210,57 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
     ) -> anyhow::Result<()> {
-        sqlx::query::<Postgres>("INSERT INTO blobs (sequence_number, borsh_value) VALUES ($1, $2)")
-            .bind(i64::try_from(sequence_number)?)
-            .bind::<&[u8]>(borsh::to_vec(&StoredBlob::Proof { data, blob_id })?.as_ref())
-            .execute(&self.pool)
-            .await?;
+        let blob_data = borsh::to_vec(&StoredBlob::Proof { data, blob_id })?;
+
+        // Compound CTE statement to avoid multiple roundtrips
+        sqlx::query(
+            "WITH blob_insert AS (
+                INSERT INTO proof_blobs (sequence_number, borsh_value) VALUES ($1, $2)
+             )
+             INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
+             SELECT $1, 'new_proof', NULL, NULL, NULL",
+        )
+        .bind(i64::try_from(sequence_number)?)
+        .bind::<&[u8]>(blob_data.as_ref())
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }
 
-    async fn read_completed_blobs(&self) -> anyhow::Result<Vec<PreferredSequencerReadBlob>> {
-        let stored_blobs: Vec<(i64, Vec<u8>)> = sqlx::query_as::<Postgres, _>(
-            "SELECT sequence_number, borsh_value FROM blobs ORDER BY sequence_number",
+    async fn current_data(&self) -> anyhow::Result<DbSnapshotData> {
+        let mut tx = self.pool.begin().await?;
+
+        let latest_event_id: Option<u64> =
+            sqlx::query_scalar::<_, Option<i64>>("SELECT MAX(event_id) FROM events")
+                .fetch_one(&mut *tx)
+                .await?
+                .map(|id| id as u64);
+
+        let completed_blobs_metadata: Vec<(i64, Vec<u8>)> = sqlx::query_as::<Postgres, _>(
+            "SELECT sequence_number, data FROM events WHERE event_type = 'batch_end' ORDER BY sequence_number",
         )
-        .fetch_all(&self.pool)
+        .fetch_all(&mut *tx)
         .await?;
 
-        let mut blobs = vec![];
-        for (sequence_number, stored_blob_serialized) in stored_blobs {
+        // Fill out completed blobs with transaction data
+        let mut completed_blobs = Vec::new();
+        for (sequence_number, stored_blob_serialized) in completed_blobs_metadata {
             let sequence_number = SequenceNumber::try_from(sequence_number)?;
             let stored_blob = borsh::from_slice(&stored_blob_serialized)?;
-
-            blobs.push(self.read_blob(sequence_number, stored_blob).await?);
+            completed_blobs.push(
+                self.read_blob(sequence_number, stored_blob, &mut tx)
+                    .await?,
+            );
         }
 
-        Ok(blobs)
-    }
+        let in_progress_batch = self.read_in_progress_batch_with_connection(&mut tx).await?;
 
-    async fn read_in_progress_batch(&self) -> anyhow::Result<Option<InProgressBatch>> {
-        let Some((sequence_number, stored_blob_serialized)): Option<(i64, Vec<u8>)> =
-            sqlx::query_as::<Postgres, _>(
-                "SELECT sequence_number, borsh_value FROM in_progress_batch",
-            )
-            .fetch_optional(&self.pool)
-            .await?
-        else {
-            return Ok(None);
-        };
-
-        let sequence_number = SequenceNumber::try_from(sequence_number)?;
-        let stored_blob = borsh::from_slice(&stored_blob_serialized)?;
-
-        match self.read_blob(sequence_number, stored_blob).await? {
-            PreferredSequencerReadBlob::Batch(batch) => Ok(Some(batch)),
-            PreferredSequencerReadBlob::Proof { .. } => panic!(
-                "Expected a batch blob, but got a proof blob. This is a bug, please report it"
-            ),
-        }
+        tx.commit().await?;
+        Ok(DbSnapshotData {
+            completed_blobs,
+            in_progress_batch,
+            latest_event_id,
+        })
     }
 }

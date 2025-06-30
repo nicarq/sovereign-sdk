@@ -5,6 +5,7 @@ mod batch_size_tracker;
 mod block_executor;
 mod db;
 mod preferred_blob_sender;
+mod replica_sync_task;
 mod state_root_compute;
 mod update_state;
 
@@ -17,6 +18,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use axum::http::StatusCode;
 use batch_size_tracker::BatchSizeTracker;
@@ -27,6 +29,7 @@ use db::{
     PreferredSequencerReadBlob,
 };
 use preferred_blob_sender::PreferredBlobSender;
+use replica_sync_task::spawn_replica_sync_task;
 use schemars::JsonSchema;
 use serde_with::serde_as;
 use sov_blob_sender::{new_blob_id, BlobSender};
@@ -188,6 +191,7 @@ where
             .current_visible_slot_number()
             .advance(visible_increase.get().into());
 
+        // DB operations handled by replica-aware db implementation
         // If the database operation fails here it's okay because we still
         // haven't touched the background task nor modified `self`, so
         // everything will be left in a valid state.
@@ -204,6 +208,58 @@ where
             .start_rollup_block(
                 visible_slot_number_after_increase,
                 visible_increase,
+                &node_state_root,
+                min_profit_per_tx,
+            )
+            .await;
+
+        Ok(())
+    }
+
+    /// Creates and starts a batch for replicas using the exact visible slot parameters from the master
+    #[tracing::instrument(skip_all, level = "trace")]
+    pub(crate) async fn try_start_batch_with_parameters_from_master(
+        &mut self,
+        visible_slot_number_after_increase: VisibleSlotNumber,
+        visible_slots_to_advance: NonZero<u8>,
+    ) -> anyhow::Result<()> {
+        if self.executor.has_in_progress_batch() {
+            return Ok(());
+        }
+
+        // Calculate the correct visible_slots_to_advance for this replica based on its current state
+        let current_visible_slot_number = self.executor.checkpoint.current_visible_slot_number();
+        let replica_visible_slots_to_advance = visible_slot_number_after_increase.as_true()
+            .checked_sub(current_visible_slot_number.as_true().get())
+            .and_then(|diff| NonZero::new(diff.get().try_into().unwrap()))
+            .ok_or_else(|| {
+                error!(
+                    current_visible_slot_number = %current_visible_slot_number,
+                    target_visible_slot_number = %visible_slot_number_after_increase,
+                    "Cannot calculate visible slots to advance for replica: target is not greater than current"
+                );
+                anyhow!("Invalid visible slot number progression for replica".to_string())
+            })?;
+
+        assert_eq!(
+            visible_slots_to_advance,
+            replica_visible_slots_to_advance,
+            "Sanity check failed: replica visible_slots_to_advance calculation different from master."
+        );
+
+        let node_state_root = self.node_root_hash()?;
+        self.db
+            .start_batch(
+                visible_slot_number_after_increase,
+                replica_visible_slots_to_advance,
+            )
+            .await?;
+
+        let min_profit_per_tx = self.config.sequencer_kind_config.minimum_profit_per_tx;
+        self.executor
+            .start_rollup_block(
+                visible_slot_number_after_increase,
+                replica_visible_slots_to_advance,
                 &node_state_root,
                 min_profit_per_tx,
             )
@@ -458,9 +514,13 @@ where
             } else {
                 Box::new(RocksDbBackend::new(storage_path).await?)
             };
-        let completed_blobs = db_backend.read_completed_blobs().await?;
+        let (db, latest_event_id) =
+            PreferredSequencerDb::<S, Rt>::new(db_backend, config.sequencer_kind_config.is_replica)
+                .await?;
 
         let mut handles = vec![];
+
+        let completed_blobs = db.all_completed_blobs();
         let blob_sender = {
             let (inner, blob_sender_handle) = BlobSender::new(
                 da,
@@ -474,7 +534,8 @@ where
 
             handles.push(blob_sender_handle);
 
-            let mut blob_sender = PreferredBlobSender::from(inner);
+            let mut blob_sender =
+                PreferredBlobSender::from((inner, config.sequencer_kind_config.is_replica));
 
             // It's possible that sov-blob-sender's DB might miss some blob data at
             // node startup due to:
@@ -499,7 +560,7 @@ where
         let cached_events = Arc::new(tokio::sync::RwLock::new(BTreeMap::new()));
 
         let inner = Inner {
-            db: PreferredSequencerDb::<S, Rt>::new(db_backend).await?,
+            db,
             latest_info: latest_state_update.clone(), // TODO: Bundle this with the executor
             checkpoint_sender,
             config: config.clone(),
@@ -517,7 +578,11 @@ where
                 cached_events.clone(),
             ),
             batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
-            is_ready: Err(SequencerNotReadyDetails::Startup),
+            is_ready: if config.sequencer_kind_config.is_replica {
+                Err(SequencerNotReadyDetails::ReplicaMode)
+            } else {
+                Err(SequencerNotReadyDetails::Startup)
+            },
         };
 
         if let Some(stop_height) = stop_at_rollup_height {
@@ -552,6 +617,21 @@ where
             _stop_at_rollup_height: stop_at_rollup_height,
         });
 
+        // Launch replica sync task only for replicas
+        // This will block until the currently stored batches in the DB are replayed onto the
+        // state, then yield when it switches to processing postgres events live.
+        // This is necessary to prevent conflicts with the update_state task.
+        if config.sequencer_kind_config.is_replica {
+            handles.push(
+                spawn_replica_sync_task(
+                    seq.clone(),
+                    shutdown_receiver.clone(),
+                    latest_state_update.clone(),
+                    latest_event_id,
+                )
+                .await,
+            );
+        }
         handles.push(tokio::spawn({
             update_state_task(
                 seq.clone(),
@@ -562,10 +642,11 @@ where
         handles.push(tokio::spawn({
             let ledger_db = ledger_db.clone();
             let seq = seq.clone();
+            let shutdown_rx = shutdown_receiver.clone();
             async move {
                 loop_send_tx_notifications::<S, Rt>(
                     state_update_receiver,
-                    shutdown_receiver,
+                    shutdown_rx,
                     &ledger_db,
                     seq.tx_status_manager(),
                 )
@@ -577,7 +658,7 @@ where
     }
 
     #[tracing::instrument(skip_all, level = "debug")]
-    async fn lock_inner(&self) -> MutexGuard<Inner<S, Rt, Da>> {
+    pub(crate) async fn lock_inner(&self) -> MutexGuard<Inner<S, Rt, Da>> {
         self.inner.lock().await
     }
 
@@ -716,6 +797,25 @@ where
         shutdown_receiver: &watch::Receiver<()>,
         mut info: StateUpdateInfo<S::Storage>,
     ) -> anyhow::Result<()> {
+        if self.is_replica().await? {
+            // Replicas don't run recovery. We let the main sequencer run catchup. If we fail-over
+            // midway, update_state() will automatically re-trigger recovery on this instance if
+            // necessary - if the previous master already recovered enough then we'll just continue
+            // operating.
+            //
+            // TODO: we do need to overwrite our state with the node's. Since recovery is expected
+            // to be very rare, and if it does happen that means the rollup has already had
+            // downtime and will already have had lost soft-confirmations, for now we'll require
+            // the user to manually reset replicas.
+            // To implement this properly we'd need to make sure we're 100% synced with the master
+            // on exactly when to stop overwriting from the node and start applying new
+            // transactions again. Probably by watching the `txs` table, so shouldn't be hard, but
+            // not trivial enough to implement it on the spot.
+            error!("We have encountered recovery conditions, but this is a replica sequencer. Recovery is currently unsupported for replicas. Please run a single master instance of the sequencer to restore the rollup to normal functionality. Wait for the rollup to be fully recovered, and then restart any replicas.");
+            exit_rollup(&self.shutdown_sender).await;
+            unreachable!();
+        }
+
         let mut rt = Rt::default();
         self.trigger_recovery(&info).await?;
 
@@ -928,6 +1028,10 @@ where
     ) -> anyhow::Result<()> {
         self.wait_for_node_resync(state_update_receiver, shutdown_receiver, 1, current_info)
             .await
+    }
+
+    async fn is_replica(&self) -> anyhow::Result<bool> {
+        Ok(self.config.sequencer_kind_config.is_replica)
     }
 
     /// Closes the current batch if it is nearly full (by gas limit) or has reached the target batch execution time.
@@ -1411,7 +1515,7 @@ fn shut_down_error() -> ErrorObject {
 }
 
 #[derive(Debug)]
-struct PreferredBatchToReplay {
+pub(crate) struct PreferredBatchToReplay {
     is_in_progress: bool,
     visible_slot_number_after_increase: VisibleSlotNumber,
     batch: WithCachedTxHashes<PreferredBatchData>,
@@ -1449,6 +1553,10 @@ pub struct PreferredSequencerConfig {
     pub recovery_strategy: RecoveryStrategy,
     /// Target time in milliseconds to spend executing all the txs in a single batch. Batches will be closed when they exceed this value.
     pub batch_execution_time_limit_millis: u64,
+    /// When enabled, the sequencer runs in replica mode and cannot accept transactions.
+    /// It will sync from the master sequencer's database but remain read-only.
+    #[serde(default)]
+    pub is_replica: bool,
 }
 
 impl Default for PreferredSequencerConfig {
@@ -1460,6 +1568,7 @@ impl Default for PreferredSequencerConfig {
             disable_state_root_consistency_checks: false,
             ideal_lag_behind_finalized_slot: default_ideal_lag_behind_finalized_slot(),
             recovery_strategy: RecoveryStrategy::None,
+            is_replica: false,
             db_event_channel_size: default_db_event_channel_size(),
             batch_execution_time_limit_millis: 6_000, // 6 seconds
         }

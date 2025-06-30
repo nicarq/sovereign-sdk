@@ -57,9 +57,12 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
 
     async fn end_rollup_block(&mut self, cached: &InProgressBatch) -> anyhow::Result<()>;
 
-    async fn read_completed_blobs(&self) -> anyhow::Result<Vec<PreferredSequencerReadBlob>>;
-
     async fn read_in_progress_batch(&self) -> anyhow::Result<Option<InProgressBatch>>;
+
+    /// Reads completed blobs, in-progress batch, and latest event_id.
+    /// Bundling this as a single function allows the Postgres backend to do this atomically, which
+    /// is necessary to support replica initialization in the presence of concurrent writes.
+    async fn current_data(&self) -> anyhow::Result<DbSnapshotData>;
 
     async fn add_proof_blob(
         &mut self,
@@ -74,6 +77,15 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
     /// This method exists because the sequencer has no use for data that is
     /// already finalized.
     async fn prune(&mut self, up_to_including: SequenceNumber) -> anyhow::Result<()>;
+}
+
+/// The return type of `PreferredSequencerDbBackend::current_data()`.
+/// Primarily used to populate in-memory caches on initialization.
+#[derive(Debug, Default, Clone)]
+pub struct DbSnapshotData {
+    pub completed_blobs: Vec<PreferredSequencerReadBlob>,
+    pub in_progress_batch: Option<InProgressBatch>,
+    pub latest_event_id: Option<u64>,
 }
 
 /// See [`PreferredSequencerReadBlob::Batch`].
@@ -159,6 +171,7 @@ where
     sequence_number_of_next_blob: SequenceNumber,
     completed_blobs: VecDeque<PreferredSequencerReadBlob>,
     in_progress_batch: Option<InProgressBatch>,
+    is_replica: bool,
     event_stream: Option<mpsc::Sender<DbEvent>>,
     phantom_runtime: PhantomData<Rt>,
 }
@@ -168,9 +181,18 @@ where
     S: Spec,
     Rt: Runtime<S>,
 {
-    pub async fn new(backend: Box<dyn PreferredSequencerDbBackend>) -> anyhow::Result<Self> {
-        let completed_blobs = VecDeque::from(backend.read_completed_blobs().await?);
-        let in_progress_batch = backend.read_in_progress_batch().await?;
+    /// Returns the constructed PreferredSequencerDb, and the latest EventID observed during
+    /// construction, for backends that allow atomic initialization (i.e. postgres).
+    pub async fn new(
+        backend: Box<dyn PreferredSequencerDbBackend>,
+        is_replica: bool,
+    ) -> anyhow::Result<(Self, Option<u64>)> {
+        let DbSnapshotData {
+            completed_blobs,
+            in_progress_batch,
+            latest_event_id,
+        } = backend.current_data().await?;
+        let completed_blobs = VecDeque::from(completed_blobs);
 
         let sequence_number_of_next_blob = match (completed_blobs.back(), &in_progress_batch) {
             (Some(blob), None) => blob.sequence_number() + 1,
@@ -181,15 +203,19 @@ where
             (None, None) => 0,
         };
 
-        Ok(Self {
-            backend,
-            phantom: PhantomData,
-            sequence_number_of_next_blob,
-            completed_blobs,
-            in_progress_batch,
-            event_stream: None,
-            phantom_runtime: PhantomData,
-        })
+        Ok((
+            Self {
+                backend,
+                phantom: PhantomData,
+                sequence_number_of_next_blob,
+                completed_blobs,
+                in_progress_batch,
+                is_replica,
+                event_stream: None,
+                phantom_runtime: PhantomData,
+            },
+            latest_event_id,
+        ))
     }
 
     pub fn next_sequence_number(&self) -> SequenceNumber {
@@ -221,14 +247,16 @@ where
             panic!("No in-progress batch; this is a bug, please report it");
         };
 
-        self.backend
-            .add_tx(
-                batch.sequence_number,
-                batch.txs.len() as u64,
-                tx.clone(),
-                hash,
-            )
-            .await?;
+        if !self.is_replica {
+            self.backend
+                .add_tx(
+                    batch.sequence_number,
+                    batch.txs.len() as u64,
+                    tx.clone(),
+                    hash,
+                )
+                .await?;
+        }
 
         batch.txs.push(tx.clone());
         batch.tx_hashes.push(hash);
@@ -278,10 +306,12 @@ where
             "There's already an in-progress batch; this is a bug, please report it"
         );
 
-        self.debug_assert_in_progress_batch(
-            "Cached in-progress batch state (None) didn't match backend db state",
-        )
-        .await;
+        if !self.is_replica {
+            self.debug_assert_in_progress_batch(
+                "Cached in-progress batch state (None) didn't match backend db state",
+            )
+            .await;
+        }
 
         let blob_id = new_blob_id();
         let sequence_number = self.sequence_number_of_next_blob;
@@ -294,14 +324,16 @@ where
             "Storing new rollup block"
         );
 
-        self.backend
-            .begin_rollup_block(
-                sequence_number,
-                blob_id,
-                visible_slot_number_after_increase,
-                visible_slots_to_advance,
-            )
-            .await?;
+        if !self.is_replica {
+            self.backend
+                .begin_rollup_block(
+                    sequence_number,
+                    blob_id,
+                    visible_slot_number_after_increase,
+                    visible_slots_to_advance,
+                )
+                .await?;
+        }
 
         self.in_progress_batch = Some(PreferredSequencerReadBatch {
             sequence_number,
@@ -321,6 +353,10 @@ where
         .await;
 
         Ok(sequence_number)
+    }
+
+    pub fn all_completed_blobs(&self) -> Vec<PreferredSequencerReadBlob> {
+        self.completed_blobs.clone().into()
     }
 
     pub fn all_completed_blobs_greater_than_or_equal_to(
@@ -344,9 +380,11 @@ where
     ) -> anyhow::Result<SequenceNumber> {
         let sequence_number = self.sequence_number_of_next_blob;
 
-        self.backend
-            .add_proof_blob(sequence_number, blob_id, data.clone())
-            .await?;
+        if !self.is_replica {
+            self.backend
+                .add_proof_blob(sequence_number, blob_id, data.clone())
+                .await?;
+        }
 
         self.completed_blobs
             .push_back(PreferredSequencerReadBlob::Proof {
@@ -366,12 +404,14 @@ where
             panic!("No in-progress batch; this is a bug, please report it");
         };
 
-        self.backend.end_rollup_block(in_progress_batch).await?;
+        if !self.is_replica {
+            self.backend.end_rollup_block(in_progress_batch).await?;
+            self.debug_assert_in_progress_batch(
+                "Backend didn't remove in-progress batch from database when ending rollup block",
+            )
+            .await;
+        }
 
-        self.debug_assert_in_progress_batch(
-            "Backend didn't remove in-progress batch from database when ending rollup block",
-        )
-        .await;
         let sequence_number = in_progress_batch.sequence_number;
         let batch: PreferredSequencerReadBatch = self
             .in_progress_batch
@@ -392,7 +432,9 @@ where
         &mut self,
         prune_up_to_including: SequenceNumber,
     ) -> anyhow::Result<()> {
-        self.backend.prune(prune_up_to_including).await?;
+        if !self.is_replica {
+            self.backend.prune(prune_up_to_including).await?;
+        }
 
         // We could also do binary search, but this seems fast enough.
         while let Some(blob) = self.completed_blobs.front() {

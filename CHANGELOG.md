@@ -1,3 +1,7 @@
+# 2025-06-29
+- #3126 **BREAKING CHANGE** for running rollups: changes the format of the preferred sequencer PostgreSQL database. Any running rollups configured to run postgres in the sequencer will need to have the sequencer halted and the database wiped before restart. If there are pending soft-confirmations, they will be lost when the database is wiped.
+This PR adds initial support for state replication across multiple sequencers sharing the same PostgreSQL database, as the initial stage of implementing failover. For those wishing to test the replication functionality, there is a temporary config value to launch sequencers in replica mode; be aware that this config value will be removed without warning in a subsequent PR once failover is implemented.
+
 # 2025-06-27
 - #3120 Adds optional `stop_at_rollup_height` flag to the rollup. This is not a breaking change.
 
