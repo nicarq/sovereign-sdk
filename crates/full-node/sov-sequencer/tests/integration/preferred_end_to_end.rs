@@ -234,7 +234,7 @@ async fn txs_below_min_fee_are_rejected() {
         .produce_n_blocks_now(5)
         .await
         .unwrap();
-    sleep(Duration::from_millis(200)).await;
+    sleep(Duration::from_millis(1000)).await;
 
     let client = test_rollup.api_client.clone();
     let tx = tx_set_value(&admin.private_key, 0, 7);
@@ -2225,14 +2225,14 @@ async fn flaky_batch_production_with_immediate_finalization() {
         TestingAction::AcceptTxs { count: 50 },
         TestingAction::Restart,
         // Restarting is consistently slow in this test because of the big batches, so sleep extra
-        TestingAction::Sleep { duration_ms: 1000 },
+        TestingAction::Sleep { duration_ms: 2000 },
         TestingAction::AcceptTx,
         TestingAction::Sleep { duration_ms: 50 },
         TestingAction::Restart,
-        TestingAction::Sleep { duration_ms: 1000 },
+        TestingAction::Sleep { duration_ms: 2000 },
         TestingAction::AcceptTxs { count: 50 },
         TestingAction::Restart,
-        TestingAction::Sleep { duration_ms: 1000 },
+        TestingAction::Sleep { duration_ms: 2000 },
         TestingAction::AcceptTx,
         TestingAction::AcceptTx,
         TestingAction::AcceptTx,

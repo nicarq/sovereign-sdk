@@ -241,7 +241,7 @@ where
         self.in_progress_batch.as_ref()
     }
 
-    #[tracing::instrument(skip_all, level = "trace")]
+    #[tracing::instrument(skip_all, level = "info")]
     pub async fn insert_tx(&mut self, tx: FullyBakedTx, hash: TxHash) -> anyhow::Result<()> {
         let Some(batch) = self.in_progress_batch.as_mut() else {
             panic!("No in-progress batch; this is a bug, please report it");
@@ -296,6 +296,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip_all, level = "info")]
     pub async fn start_batch(
         &mut self,
         visible_slot_number_after_increase: VisibleSlotNumber,
@@ -373,6 +374,7 @@ where
             .collect()
     }
 
+    #[tracing::instrument(skip_all, level = "info")]
     pub async fn insert_proof_blob(
         &mut self,
         blob_id: BlobInternalId,
@@ -399,6 +401,7 @@ where
         Ok(sequence_number)
     }
 
+    #[tracing::instrument(skip_all, level = "info")]
     pub async fn terminate_batch(&mut self) -> anyhow::Result<PreferredSequencerReadBatch> {
         let Some(in_progress_batch) = self.in_progress_batch.as_ref() else {
             panic!("No in-progress batch; this is a bug, please report it");
@@ -428,6 +431,7 @@ where
         Ok(batch)
     }
 
+    #[tracing::instrument(skip_all, level = "info")]
     pub(super) async fn prune(
         &mut self,
         prune_up_to_including: SequenceNumber,
