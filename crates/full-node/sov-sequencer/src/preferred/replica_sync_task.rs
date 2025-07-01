@@ -182,28 +182,13 @@ async fn replica_sync_task_inner<S, Rt, Da>(
         info!("Starting replica sync task for a master sequencer (heartbeat mode)");
     }
 
-    // Ensure we're running postgres, else leader election is not supported
-    let has_postgres = sequencer
-        .config
-        .sequencer_kind_config
-        .postgres_connection_string
-        .is_some();
-
-    if !has_postgres {
-        if is_replica {
-            warn!("Replicas are not supported on the rocksdb backend. Configure a postgres database that will be shared between all sequencers, and provide the `sequencer.preferred.postgres_connection_string` config value.");
-        } else {
-            warn!("Leader election requires PostgreSQL. Configure postgres_connection_string to enable leader election heartbeat.");
-        }
-        return;
-    }
     let Some(connection_string) = sequencer
         .config
         .sequencer_kind_config
         .postgres_connection_string
         .as_ref()
     else {
-        warn!("Replicas are not supported on the rocksdb backend. Configure a postgres database that will be shared between all sequencers, and provide the `sequencer.preferred.postgres_connection_string` config value.");
+        info!("Replication is not supported on the rocksdb backend.");
         return;
     };
 
@@ -403,14 +388,7 @@ where
             // Always process completions in FIFO order
             Some(completed_result) = pending_events.next() => {
                 // println!("Processing DbEvent from completed_result: {completed_result:?}");
-                match completed_result? {
-                    CompletedEvent::Event(db_event) => {
-                        process_db_event(sequencer.clone(), db_event, query_pool).await?;
-                    }
-                    CompletedEvent::Backfill => {
-                        trace!("Backfill completed up to event_id");
-                    }
-                }
+                process_completed_event(sequencer.clone(), completed_result?, query_pool).await?;
             },
 
             // Failover timeout check (only for replicas)
@@ -585,9 +563,9 @@ where
 }
 
 /// Processes a completed DB event
-async fn process_db_event<S, Rt, Da>(
+async fn process_completed_event<S, Rt, Da>(
     sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
-    db_event: DbEvent,
+    event: CompletedEvent,
     query_pool: &PgPool,
 ) -> anyhow::Result<()>
 where
@@ -595,23 +573,31 @@ where
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
-    match db_event {
-        DbEvent::TxAccepted(baked_tx, tx_hash) => do_new_tx(sequencer, tx_hash, baked_tx).await,
-        DbEvent::BatchClosed(_) => do_batch_end(sequencer).await,
-        DbEvent::BatchStarted {
-            sequence_number: _,
-            visible_slot_number_after_increase,
-            visible_slots_to_advance,
-        } => {
-            do_batch_start(
-                sequencer,
-                visible_slot_number_after_increase,
-                visible_slots_to_advance,
-            )
-            .await
+    match event {
+        CompletedEvent::Event(db_event) => {
+            match db_event {
+                DbEvent::TxAccepted(baked_tx, tx_hash) => do_new_tx(sequencer, tx_hash, baked_tx).await,
+                DbEvent::BatchClosed(_) => do_batch_end(sequencer).await,
+                DbEvent::BatchStarted {
+                    sequence_number: _,
+                    visible_slot_number_after_increase,
+                    visible_slots_to_advance,
+                } => {
+                    do_batch_start(
+                        sequencer,
+                        visible_slot_number_after_increase,
+                        visible_slots_to_advance,
+                    )
+                        .await
+                }
+                DbEvent::ProofBlobAccepted(sequence_number) => {
+                    do_proof_blob(sequencer, sequence_number, query_pool).await
+                }
+            }
         }
-        DbEvent::ProofBlobAccepted(sequence_number) => {
-            do_proof_blob(sequencer, sequence_number, query_pool).await
+        CompletedEvent::Backfill => {
+            debug!("Backfill completed up to event_id");
+            Ok(())
         }
         DbEvent::Flushed(_) => Ok(()),
     }
