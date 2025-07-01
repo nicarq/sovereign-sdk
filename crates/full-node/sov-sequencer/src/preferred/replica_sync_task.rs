@@ -219,7 +219,7 @@ where
         mut shutdown_receiver: watch::Receiver<()>,
         latest_loaded_event_id: Option<u64>,
     ) -> anyhow::Result<()> {
-        let is_replica = sequencer.config.sequencer_kind_config.is_replica;
+        let is_replica = sequencer.is_replica().await?;
 
         if is_replica {
             info!("Starting replica sync task for a replica sequencer");
@@ -395,12 +395,14 @@ where
                     if !self.are_we_master {
                         info!("Replica promoted to master!");
                         self.are_we_master = true;
+                        self.sequencer.set_replica_status(false);
                     }
                 } else {
                     // Another node is master
                     if self.are_we_master {
                         warn!("Another node took over as master: {}", leader_info.node_id);
                         self.are_we_master = false;
+                        self.sequencer.set_replica_status(true);
                     }
                     self.last_heartbeat_time = SystemTime::UNIX_EPOCH
                         + Duration::from_secs_f64(leader_info.last_updated_timestamp);
@@ -472,6 +474,7 @@ where
                 Ok(true) => {
                     info!("Successfully took over as master!");
                     self.are_we_master = true;
+                    self.sequencer.set_replica_status(false);
                 }
                 Ok(false) => {
                     debug!("Another replica beat us to takeover or master recovered");

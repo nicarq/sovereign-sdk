@@ -17,7 +17,7 @@ use std::marker::PhantomData;
 use std::num::NonZero;
 use std::path::Path;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -119,6 +119,8 @@ where
     block_executors_shutdown_notifier: Sender<()>,
     /// Unique node identifier used for leader election in replica failover scenarios
     node_id: Uuid,
+    /// Current replica status - can be dynamically changed during failover
+    is_replica: AtomicBool,
     state_root_compute_task: StateRootBackgroundTaskState<S>,
     shutdown_receiver: watch::Receiver<()>,
     transaction_cache: TransactionCache<S, Rt>,
@@ -320,6 +322,7 @@ where
             block_executors_shutdown_notifier,
             config: config.clone(),
             node_id,
+            is_replica: AtomicBool::new(config.sequencer_kind_config.is_replica),
             state_root_compute_task,
             shutdown_receiver: shutdown_receiver.clone(),
             api_ledger_db,
@@ -586,6 +589,7 @@ where
     }
 }
 
+<<<<<<< HEAD
 pub(crate) fn slot_count_delta_acceptable_lower_bound(
     max_allowed_node_distance_behind: u64,
 ) -> u64 {
@@ -602,6 +606,56 @@ pub(crate) fn slot_count_delta_acceptable_lower_bound(
         .expect(OVERFLOW_ERROR_STR)
         / 10
 }
+=======
+    async fn is_replica(&self) -> anyhow::Result<bool> {
+        Ok(self.is_replica.load(Ordering::Acquire))
+    }
+
+    /// Update the replica status (used during failover)
+    pub fn set_replica_status(&self, is_replica: bool) {
+        self.is_replica.store(is_replica, Ordering::Release);
+    }
+
+    /// Closes the current batch if it is nearly full (by gas limit) or has reached the target batch execution time.
+    async fn close_batch_if_nearly_full(
+        &self,
+        inner: &mut Inner<S, Rt>,
+        remaining_slot_gas: &<S as GasSpec>::Gas,
+    ) {
+        // Check if we're close to the gas limit and close the batch if we are.
+        let mut comfortable_gas_limit = <S as GasSpec>::initial_gas_limit();
+        comfortable_gas_limit
+            .scalar_division(COMFORTABLE_GAS_LIMIT_DIVISOR)
+            .checked_scalar_product(COMFORTABLE_GAS_LIMIT_MULTIPLIER)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Cannot overflow after dividing by {COMFORTABLE_GAS_LIMIT_DIVISOR} and multiplying by {COMFORTABLE_GAS_LIMIT_MULTIPLIER}",
+                )
+            });
+        let close_to_gas_limit = remaining_slot_gas.dim_is_less_or_eq(&comfortable_gas_limit);
+        if close_to_gas_limit {
+            tracing::debug!(%comfortable_gas_limit, %remaining_slot_gas, "Closing and publishing current batch because we're close to the gas limit");
+            inner.close_current_batch().await;
+        }
+
+        // Here we need to mutliply by 1000 to convert from millis to micros.
+        let batch_execution_time_limit_micros = self
+            .config
+            .sequencer_kind_config
+            .batch_execution_time_limit_millis
+            * 1000;
+
+        let current_batch_execution_time_micros =
+            inner.batch_size_tracker.batch_execution_time_micros;
+
+        if current_batch_execution_time_micros > batch_execution_time_limit_micros {
+            tracing::debug!(%batch_execution_time_limit_micros, %current_batch_execution_time_micros, "Closing and publishing current batch because we've reached the batch execution time cap");
+            inner.close_current_batch().await;
+        } else {
+            tracing::trace!(%batch_execution_time_limit_micros, %current_batch_execution_time_micros, "Batch execution time is within comfortable range, not closing batch");
+        }
+    }
+>>>>>>> store is_replica
 
 fn raw_max_deferred_slots_delay(max_allowed_node_distance_behind: u64) -> u64 {
     // TODO: there should be a DA config for added slack to account for DA inclusion delay here as well
