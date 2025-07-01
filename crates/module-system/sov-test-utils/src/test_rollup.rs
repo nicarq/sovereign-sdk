@@ -623,7 +623,7 @@ where
             std::fs::create_dir_all(&instance_dir)?;
 
             // Clone builder configuration for this instance
-            let mut instance_builder = RollupBuilder {
+            let instance_builder = RollupBuilder {
                 genesis: self.genesis.clone(),
                 da_config: MockDaConfig {
                     connection_string: shared_da_connection.clone(),
@@ -637,15 +637,6 @@ where
                 postgres_container_opt: self.postgres_container_opt.clone(),
                 with_secondary_sequencer: None, // No secondary sequencer support in replica mode
             };
-
-            // Set replica mode for non-master instances
-            if i > 0 {
-                if let SequencerKindConfig::Preferred(ref mut preferred_config) =
-                    instance_builder.config.sequencer_config
-                {
-                    preferred_config.is_master = false;
-                }
-            }
 
             // Start this instance
             let rollup = instance_builder.start().await?;

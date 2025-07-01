@@ -130,6 +130,8 @@ where
         StateCheckpoint<S>,
         oneshot::Sender<AcceptedTx<Confirmation<S, Rt>>>,
     ),
+    /// Update the master status for both blob sender and database
+    UpdateMasterStatus(bool),
     /// Update the API state to the given checkpoint without closing the current batch etc. Used during recovery
     ForceUpdateApiState(StateCheckpoint<S>),
     /// Prune the database up to the given sequence number.

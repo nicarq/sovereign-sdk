@@ -258,6 +258,10 @@ where
             ExecutorEvent::SubscribeToEvents(sender) => {
                 self.db.subscribe_to_events(sender);
             }
+            ExecutorEvent::UpdateMasterStatus(is_master) => {
+                self.blob_sender.set_is_master(is_master);
+                self.db.set_is_master(is_master);
+            }
         }
         Ok(())
     }

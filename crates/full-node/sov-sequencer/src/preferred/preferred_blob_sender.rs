@@ -18,6 +18,10 @@ pub struct PreferredBlobSender<Da: DaService> {
 }
 
 impl<Da: DaService> PreferredBlobSender<Da> {
+    /// Update the master status of this blob sender
+    pub fn set_is_master(&mut self, is_master: bool) {
+        self.is_master = is_master;
+    }
     pub async fn publish_proof(
         &mut self,
         proof_data: Arc<[u8]>,
