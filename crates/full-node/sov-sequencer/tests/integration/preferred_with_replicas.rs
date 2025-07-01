@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use sov_mock_da::BlockProducingConfig;
@@ -9,6 +10,7 @@ use sov_test_utils::test_rollup::TestRollup;
 use sov_test_utils::{TestSpec, TestUser, TEST_BLOB_PROCESSING_TIMEOUT, TEST_MAX_BATCH_SIZE};
 use sov_value_setter::ValueSetterConfig;
 
+#[allow(unused_imports)]
 use crate::preferred_end_to_end::{
     run_action_against_test_rollup, run_actions_against_test_rollup,
     setup_test_rollup_with_initial_state, InvalidGeneration, TestBlueprint, TestRuntime, TestState,
@@ -19,7 +21,8 @@ use crate::utils::{new_test_rollup, tempdir_inside_codebase_dir, MAX_BATCH_EXECU
 async fn create_test_rollups(
     num_replicas: u64,
 ) -> (
-    Option<(Vec<TestRollup<TestBlueprint>>, Option<tempfile::TempDir>)>,
+    Option<Vec<TestRollup<TestBlueprint>>>,
+    Arc<tempfile::TempDir>,
     TestUser<TestSpec>,
 ) {
     let genesis_config =
@@ -59,6 +62,7 @@ async fn create_test_rollups(
             None,
         )
         .await,
+        dir,
         admin,
     )
 }
@@ -77,7 +81,7 @@ async fn test_actions_against_replicas(
         run_actions_against_test_rollup(actions, master, &admin.clone(), state).await;
 
     // Ensure replicas have processed the database changes
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
 
     // Verify state synchronization across all replicas
     for replica_opt in &mut replicas {
@@ -114,11 +118,9 @@ async fn restart_replica(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore] // Temporarily ignored due to flakiness caused by rocksdb on replica restart +
-          // in-progress batch issue
 async fn seq_with_replicas() {
-    let (test_rollups, admin) = create_test_rollups(4).await;
-    let Some((test_rollups, _tempdir)) = test_rollups else {
+    let (test_rollups, _tempdir, admin) = create_test_rollups(4).await;
+    let Some(test_rollups) = test_rollups else {
         return;
     };
     let mut test_rollups = test_rollups.into_iter();
@@ -138,18 +140,18 @@ async fn seq_with_replicas() {
         TestingAction::NewDaSlot,
         TestingAction::Sleep { duration_ms: 100 },
     ];
-    let (master, replicas, state) =
+    let (master, replicas, mut state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
 
-    // let replicas = restart_replica(&admin, replicas, &mut state, 0).await;
+    let replicas = restart_replica(&admin, replicas, &mut state, 0).await;
 
     let actions = vec![
         TestingAction::AcceptTxs { count: 10 },
         TestingAction::NewDaSlot,
-        TestingAction::Sleep { duration_ms: 100 },
         TestingAction::TryAcceptBadTx {
             invalid_reason: InvalidGeneration::DuplicateTransaction,
         },
+        TestingAction::Sleep { duration_ms: 100 },
         TestingAction::NewDaSlot,
         TestingAction::Sleep { duration_ms: 100 },
         TestingAction::NewDaSlot,
@@ -159,12 +161,7 @@ async fn seq_with_replicas() {
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
 
     let replicas = restart_replica(&admin, replicas, &mut state, 1).await;
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    // For some reason, restarting a second replica immediately causes the test to hang.
-    // This happens in the `test_rollup.shutdown()` call. As such it's almost certainly an artifact
-    // of the TestRollup setup.
-    // TODO: investigate.
-    // let replicas = restart_replica(&admin, replicas, &mut state, 1).await;
+    let replicas = restart_replica(&admin, replicas, &mut state, 2).await;
 
     let (master, replicas, state) = test_actions_against_replicas(
         &admin,

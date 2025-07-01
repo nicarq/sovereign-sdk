@@ -194,7 +194,9 @@ where
             let start_prune = std::time::Instant::now();
             let mut inner = self.lock_inner().await;
             let time_to_lock = start_prune.elapsed();
-            inner.trigger_batch_production_if_convenient().await?;
+            if !self.is_replica().await? {
+                inner.trigger_batch_production_if_convenient().await?;
+            }
             inner.prune_sequencer_db().await?;
             drop(inner);
             let prune_duration = start_prune.elapsed();

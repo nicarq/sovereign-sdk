@@ -163,7 +163,7 @@ async fn create_test_rollup(
             None,
         )
         .await
-        .map(|(v, _d)| v.into_iter().next().unwrap()),
+        .map(|v| v.into_iter().next().unwrap()),
         admin,
     )
 }
@@ -299,7 +299,7 @@ async fn sequencer_filled_up_block() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some((test_rollups, _)) = new_test_rollup::<TestRuntime<TestSpec>>(
+    let Some(test_rollups) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
@@ -610,7 +610,7 @@ async fn seq_out_of_gas_for_pre_checks() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some((test_rollups, _)) = new_test_rollup::<TestRuntime<TestSpec>>(
+    let Some(test_rollups) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
@@ -937,7 +937,7 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some((test_rollups, _)) = new_test_rollup::<TestRuntime<TestSpec>>(
+    let Some(test_rollups) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
@@ -1874,7 +1874,7 @@ async fn heavy_blob_submission_long_delay() {
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some((test_rollups, _)) = new_test_rollup::<TestRuntime<TestSpec>>(
+    let Some(test_rollups) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
@@ -2340,7 +2340,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
 
     let dir = tempdir_inside_codebase_dir();
 
-    let Some((test_rollups, _)) = new_test_rollup::<TestRuntime<TestSpec>>(
+    let Some(test_rollups) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,

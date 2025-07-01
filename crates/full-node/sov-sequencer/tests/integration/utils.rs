@@ -229,10 +229,7 @@ pub async fn new_test_rollup<RT: Runtime<TestSpec> + HasRestApi<TestSpec>>(
     num_replicas: u64,
     max_batch_execution_time_millis: u64,
     stop_at_rollup_height: Option<RollupHeight>,
-) -> Option<(
-    Vec<TestRollup<RtAgnosticBlueprint<TestSpec, RT>>>,
-    Option<tempfile::TempDir>,
-)> {
+) -> Option<Vec<TestRollup<RtAgnosticBlueprint<TestSpec, RT>>>> {
     const FINALIZATION_BLOCKS: u32 = 3;
 
     // We skip all docker (i.e. postgres) tests on our dev server due to firewall false positives
@@ -282,11 +279,8 @@ pub async fn new_test_rollup<RT: Runtime<TestSpec> + HasRestApi<TestSpec>>(
     match builder_res {
         Ok(builder) => match num_replicas {
             0 => panic!("At least one node needs to be started"),
-            1 => Some((vec![builder.start().await.unwrap()], None)),
-            2.. => {
-                let (rollups, tempdir) = builder.start_with_replicas(num_replicas).await.unwrap();
-                Some((rollups, Some(tempdir)))
-            }
+            1 => Some(vec![builder.start().await.unwrap()]),
+            2.. => Some(builder.start_with_replicas(num_replicas).await.unwrap()),
         },
         Err(e) => {
             if std::env::var("SOV_TEST_SKIP_DOCKER") == Ok("1".to_string()) {

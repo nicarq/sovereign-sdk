@@ -579,10 +579,7 @@ where
     pub async fn start_with_replicas(
         self,
         num_replicas: u64,
-    ) -> anyhow::Result<(
-        Vec<TestRollup<R, Arc<tempfile::TempDir>>>,
-        tempfile::TempDir,
-    )> {
+    ) -> anyhow::Result<Vec<TestRollup<R, Arc<tempfile::TempDir>>>> {
         if num_replicas == 0 {
             anyhow::bail!("num_replicas must be at least 1 (master + replicas)");
         }
@@ -598,8 +595,13 @@ where
         }
 
         // Create base temp directory for shared infrastructure
-        let base_temp_dir = tempfile::tempdir()?;
-        let base_path = base_temp_dir.path();
+        let base_path = self.config.storage.as_path();
+        std::fs::create_dir_all(base_path).with_context(|| {
+            format!(
+                "Failed to create storage directory: {}",
+                base_path.display()
+            )
+        })?;
 
         // Create shared MockDA sqlite file in base directory
         let shared_da_connection = format!(
@@ -630,12 +632,7 @@ where
                     ..self.da_config.clone()
                 },
                 config: RollupBuilderConfig {
-                    storage: Arc::new(
-                        tempfile::Builder::new()
-                            .keep(true)
-                            .tempdir_in(&instance_dir)?,
-                    ),
-                    // axum_port: 0, // Auto-assign port for each instance // We probably don't need this since it should already normally always be 0
+                    storage: Arc::new(tempfile::Builder::new().tempdir_in(&instance_dir)?),
                     ..self.config.clone()
                 },
                 postgres_container_opt: self.postgres_container_opt.clone(),
@@ -656,7 +653,7 @@ where
             rollups.push(rollup);
         }
 
-        Ok((rollups, base_temp_dir))
+        Ok(rollups)
     }
 }
 
@@ -761,6 +758,7 @@ where
     /// Restarts the rollup.
     pub async fn restart(self) -> anyhow::Result<Self> {
         let builder = self.shutdown().await?;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         builder.start().await
     }
 }

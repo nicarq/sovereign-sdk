@@ -223,7 +223,7 @@ async fn create_test_rollup(
             stop_at_rollup_height,
         )
         .await
-        .map(|(v, _d)| v.into_iter().next().unwrap()),
+        .map(|v| v.into_iter().next().unwrap()),
         admin,
     )
 }
