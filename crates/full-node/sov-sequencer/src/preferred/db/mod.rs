@@ -26,13 +26,14 @@ use sov_modules_api::{
     FullyBakedTx, KernelStateAccessor, Runtime, Spec, StateCheckpoint, StateUpdateInfo, TxHash,
     VisibleSlotNumber,
 };
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tracing::info;
 #[cfg(test)]
 mod tests;
 
 use crate::common::WithCachedTxHashes;
 use crate::metrics::track_sequence_number;
+use crate::preferred::exit_rollup;
 
 #[async_trait]
 pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
@@ -173,6 +174,7 @@ where
     in_progress_batch: Option<InProgressBatch>,
     is_replica: bool,
     event_stream: Option<mpsc::Sender<DbEvent>>,
+    shutdown_sender: watch::Sender<()>,
     phantom_runtime: PhantomData<Rt>,
 }
 
@@ -185,6 +187,7 @@ where
     /// construction, for backends that allow atomic initialization (i.e. postgres).
     pub async fn new(
         backend: Box<dyn PreferredSequencerDbBackend>,
+        shutdown_sender: watch::Sender<()>,
         is_replica: bool,
     ) -> anyhow::Result<(Self, Option<u64>)> {
         let DbSnapshotData {
@@ -212,6 +215,7 @@ where
                 in_progress_batch,
                 is_replica,
                 event_stream: None,
+                shutdown_sender,
                 phantom_runtime: PhantomData,
             },
             latest_event_id,
@@ -244,7 +248,9 @@ where
     #[tracing::instrument(skip_all, level = "info")]
     pub async fn insert_tx(&mut self, tx: FullyBakedTx, hash: TxHash) -> anyhow::Result<()> {
         let Some(batch) = self.in_progress_batch.as_mut() else {
-            panic!("No in-progress batch; this is a bug, please report it");
+            tracing::error!("No in-progress batch; this is a bug, please report it");
+            exit_rollup(&self.shutdown_sender).await;
+            unreachable!();
         };
 
         if !self.is_replica {
@@ -302,10 +308,12 @@ where
         visible_slot_number_after_increase: VisibleSlotNumber,
         visible_slots_to_advance: NonZero<u8>,
     ) -> anyhow::Result<SequenceNumber> {
-        assert!(
-            self.in_progress_batch.is_none(),
-            "There's already an in-progress batch; this is a bug, please report it"
-        );
+        if self.in_progress_batch.is_some() {
+            tracing::error!(
+                "There's already an in-progress batch; this is a bug, please report it"
+            );
+            exit_rollup(&self.shutdown_sender).await;
+        };
 
         if !self.is_replica {
             self.debug_assert_in_progress_batch(
@@ -404,7 +412,9 @@ where
     #[tracing::instrument(skip_all, level = "info")]
     pub async fn terminate_batch(&mut self) -> anyhow::Result<PreferredSequencerReadBatch> {
         let Some(in_progress_batch) = self.in_progress_batch.as_ref() else {
-            panic!("No in-progress batch; this is a bug, please report it");
+            tracing::error!("No in-progress batch; this is a bug, please report it");
+            exit_rollup(&self.shutdown_sender).await;
+            unreachable!();
         };
 
         if !self.is_replica {
@@ -416,11 +426,13 @@ where
         }
 
         let sequence_number = in_progress_batch.sequence_number;
-        let batch: PreferredSequencerReadBatch = self
-            .in_progress_batch
-            .take()
-            .expect("No in-progress batch; this is a bug, please report it")
-            .into();
+        let Some(batch) = self.in_progress_batch.take() else {
+            tracing::error!("No in-progress batch; this is a bug, please report it");
+            exit_rollup(&self.shutdown_sender).await;
+            unreachable!();
+        };
+
+        let batch: PreferredSequencerReadBatch = batch.into();
 
         self.completed_blobs
             .push_back(PreferredSequencerReadBlob::Batch(batch.clone()));
@@ -452,8 +464,11 @@ where
         Ok(())
     }
 
-    pub fn subscribe_to_events(&mut self, limit: usize) -> mpsc::Receiver<DbEvent> {
-        assert!(self.event_stream.is_none(), "Attempted to subscribe to sequencer events while a subscription is already open. This is a bug, please report it.");
+    pub async fn subscribe_to_events(&mut self, limit: usize) -> mpsc::Receiver<DbEvent> {
+        if self.event_stream.is_some() {
+            tracing::error!("Attempted to subscribe to sequencer events while a subscription is already open. This is a bug, please report it.");
+            exit_rollup(&self.shutdown_sender).await;
+        }
         let (tx, rx) = mpsc::channel(limit);
         self.event_stream = Some(tx);
         rx
@@ -468,7 +483,8 @@ where
             match self.backend.read_in_progress_batch().await {
                 Ok(None) => {}
                 other => {
-                    panic!("{msg}: {other:?}");
+                    tracing::error!("{msg}: {other:?}");
+                    exit_rollup(&self.shutdown_sender).await;
                 }
             }
         }

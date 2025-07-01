@@ -518,9 +518,12 @@ where
             } else {
                 Box::new(RocksDbBackend::new(storage_path).await?)
             };
-        let (db, latest_event_id) =
-            PreferredSequencerDb::<S, Rt>::new(db_backend, config.sequencer_kind_config.is_replica)
-                .await?;
+        let (db, latest_event_id) = PreferredSequencerDb::<S, Rt>::new(
+            db_backend,
+            shutdown_sender.clone(),
+            config.sequencer_kind_config.is_replica,
+        )
+        .await?;
 
         let mut handles = vec![];
 
@@ -1832,7 +1835,7 @@ fn err_if_cant_fit_tx(tracker: &BatchSizeTracker, tx: &FullyBakedTx) -> Result<(
     Ok(())
 }
 
-async fn exit_rollup(shutdown_sender: &watch::Sender<()>) {
+pub(crate) async fn exit_rollup(shutdown_sender: &watch::Sender<()>) {
     // In the Kubernetes environment, logs are sometimes lost during shutdown.
     // This delay ensures logs have time to be flushed before the application exits.
     tracing::info!("Shutting down the rollup");

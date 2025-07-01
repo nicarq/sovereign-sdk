@@ -62,11 +62,13 @@ impl PreferredSequencerDbBackend for MockDbBackend {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_event_stream() {
-    let (mut db, _) = PreferredSequencerDb::<S, RT>::new(Box::new(MockDbBackend {}), false)
-        .await
-        .unwrap();
+    let (shutdown_sender, _) = tokio::sync::watch::channel(());
+    let (mut db, _) =
+        PreferredSequencerDb::<S, RT>::new(Box::new(MockDbBackend {}), shutdown_sender, false)
+            .await
+            .unwrap();
 
-    let mut event_stream = db.subscribe_to_events(100);
+    let mut event_stream = db.subscribe_to_events(100).await;
 
     db.start_batch(VisibleSlotNumber::ONE, NonZero::new(1).unwrap())
         .await

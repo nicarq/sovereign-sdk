@@ -75,7 +75,8 @@ where
             if completed_batches.is_empty() {
                 let subscription = inner
                     .db
-                    .subscribe_to_events(self.config.sequencer_kind_config.db_event_channel_size);
+                    .subscribe_to_events(self.config.sequencer_kind_config.db_event_channel_size)
+                    .await;
                 let in_progress_batch = inner.db.in_progress_batch_opt().cloned();
                 total_lock_duration += lock_start.elapsed();
                 break (in_progress_batch, subscription);
