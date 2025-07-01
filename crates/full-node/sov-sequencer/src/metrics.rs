@@ -69,3 +69,25 @@ impl Metric for PreferredSequencerPruneMetrics {
         )
     }
 }
+
+#[derive(Debug, Default)]
+pub struct PreferredSequencerExecutorEventSendingMetrics {
+    pub blocked_for_us: u64,
+    pub queue_depth: usize,
+}
+
+impl Metric for PreferredSequencerExecutorEventSendingMetrics {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_preferred_sequencer_executor_event_sending"
+    }
+
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(
+            buffer,
+            "{} blocked_for_us={},queue_depth={}",
+            self.measurement_name(),
+            self.blocked_for_us,
+            self.queue_depth,
+        )
+    }
+}

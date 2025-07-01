@@ -3,12 +3,13 @@ use std::time::Instant;
 use sov_modules_api::{Runtime, Spec};
 use sov_rollup_interface::node::da::DaService;
 use sov_state::{NativeStorage, Storage};
+use tokio::sync::mpsc;
+use uuid::Uuid;
 
 use crate::metrics::{PreferredSequencerPruneMetrics, PreferredSequencerUpdateStateMetrics};
 use crate::preferred::{
-    completed_batches_to_replay, get_next_sequence_number_according_to_node, DbEvent,
-    PreferredBatchToReplay, PreferredSequencer, PreferredSequencerReadBatch, RollupBlockExecutor,
-    StateUpdateInfo,
+    get_next_sequence_number_according_to_node, DbEvent, ExecutorEvent, PreferredBatchToReplay,
+    PreferredSequencer, RollupBlockExecutor, StateUpdateInfo,
 };
 
 impl<S, Rt, Da> PreferredSequencer<S, Rt, Da>
@@ -66,18 +67,27 @@ where
 
         // Repeatedly fetch all completed batches from the database that haven't yet been played on this sequencer and replay them
         let (in_progress_batch, mut db_event_subscription) = loop {
-            let mut inner = self.lock_inner().await;
+            let inner = self.lock_inner().await;
             let lock_start = std::time::Instant::now();
-            let completed_batches =
-                completed_batches_to_replay(&mut inner.db, next_sequence_number).await?;
+            // Because we just sent our own message while holding the lock, we know that it will be the last message in the db channel.
+            // So, the response we receive is a completely up-to-date picture of the DB.
+            let completed_batches = self
+                .completed_batches_to_replay(&inner, next_sequence_number, false)
+                .await?;
 
             // Once we've caught up to the in-progress batch, we're done.
+            let (db_events_sender, subscription) =
+                mpsc::channel(self.config.sequencer_kind_config.db_event_channel_size);
             if completed_batches.is_empty() {
-                let subscription = inner
-                    .db
-                    .subscribe_to_events(self.config.sequencer_kind_config.db_event_channel_size)
+                inner
+                    .executor_events_sender
+                    .send(ExecutorEvent::SubscribeToEvents(db_events_sender))
                     .await;
-                let in_progress_batch = inner.db.in_progress_batch_opt().cloned();
+
+                let in_progress_batch = inner
+                    .executor_events_sender
+                    .fetch_in_progress_batch()
+                    .await?;
                 total_lock_duration += lock_start.elapsed();
                 break (in_progress_batch, subscription);
             }
@@ -107,7 +117,6 @@ where
             batches_count += 1;
             transactions_count += batch.txs.len();
             batch_is_in_progress = true;
-            let batch: PreferredSequencerReadBatch = batch.into();
             let in_progress_batch = PreferredBatchToReplay {
                 is_in_progress: true,
                 visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
@@ -144,10 +153,34 @@ where
         let inner_lock_start_time = std::time::Instant::now();
         // Some events might come in while we're waiting to grab the lock.
         // Replay them.
-        while let Ok(event) = db_event_subscription.try_recv() {
+
+        // We need to wait until the events have been flushed from the DB so we can replay them.
+        // To be extra extra safe, we assign a unique ID to the flush;.
+        let flush_id = Uuid::now_v7();
+        inner
+            .executor_events_sender
+            .send(ExecutorEvent::Flush(flush_id))
+            .await;
+
+        loop {
+            let event = db_event_subscription.recv().await;
             if self.shutdown_receiver.has_changed().unwrap_or(true) {
                 tracing::info!("The sequencer is shutting down. Exiting replay_batch");
                 return Ok(());
+            }
+            let Some(event) = event else {
+                tracing::error!("DB event subscription closed while update state held the lock. This is a bug, please report it. Shutting down.");
+                self.shutdown_sender.send(()).unwrap();
+                return Err(anyhow::anyhow!("DB event subscription closed while update state held the lock. This is a bug, please report it"));
+            };
+            if let DbEvent::Flushed(id) = event {
+                if id == flush_id {
+                    break;
+                } else {
+                    tracing::error!("Another process flushed the DB while update state held the lock. This is a bug, please report it. Shutting down.");
+                    self.shutdown_sender.send(()).unwrap();
+                    return Err(anyhow::anyhow!("Another process flushed the DB while update state held the lock. This is a bug, please report it"));
+                }
             }
             Self::do_next_event(
                 &mut executor,
@@ -168,9 +201,12 @@ where
             .executor
             .checkpoint
             .clone_with_empty_witness_dropping_temp_cache();
-        inner.update_api_state(checkpoint).await;
+        inner
+            .executor_events_sender
+            .send(ExecutorEvent::ForceUpdateApiState(checkpoint))
+            .await;
+        drop(db_event_subscription);
         self.update_api_ledger(&inner.latest_info);
-        inner.db.unsubscribe_from_events();
         drop(inner); // Release the lock and allow transactions to progress while we handle metrics
 
         total_lock_duration += inner_lock_start_time.elapsed();
@@ -195,9 +231,9 @@ where
             let mut inner = self.lock_inner().await;
             let time_to_lock = start_prune.elapsed();
             if !self.is_replica().await? {
-                inner.trigger_batch_production_if_convenient().await?;
+                inner.trigger_batch_production_if_convenient().await;
             }
-            inner.prune_sequencer_db().await?;
+            inner.prune_sequencer_db().await;
             drop(inner);
             let prune_duration = start_prune.elapsed();
             let lock_duration = prune_duration - time_to_lock;
@@ -224,6 +260,9 @@ where
         batch_is_in_progress: &mut bool,
     ) -> anyhow::Result<()> {
         match event {
+            DbEvent::Flushed(id) => {
+                tracing::trace!(%id, "Flushed");
+            }
             DbEvent::TxAccepted(tx, hash) => {
                 executor.replay_tx(hash, &tx).await;
                 *transactions_count += 1;

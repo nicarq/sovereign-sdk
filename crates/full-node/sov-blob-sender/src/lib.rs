@@ -164,6 +164,11 @@ where
             .load(Ordering::Relaxed)
     }
 
+    /// Returns a handle to the (atomic) number of blob submissions currently in flight.
+    pub fn nb_of_in_flight_blobs_handle(&self) -> Arc<AtomicUsize> {
+        self.nb_of_concurrent_blob_submissions.clone()
+    }
+
     fn inc_nb_of_concurrent_blob_submissions(&self) {
         self.nb_of_concurrent_blob_submissions
             .fetch_add(1, Ordering::Relaxed);

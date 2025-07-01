@@ -27,12 +27,11 @@ use sov_modules_api::{
     VisibleSlotNumber,
 };
 use tokio::sync::{mpsc, watch};
-use tracing::info;
+use uuid::Uuid;
 #[cfg(test)]
 mod tests;
 
 use crate::common::WithCachedTxHashes;
-use crate::metrics::track_sequence_number;
 use crate::preferred::exit_rollup;
 
 #[async_trait]
@@ -160,6 +159,7 @@ pub(super) enum DbEvent {
     },
     BatchClosed(SequenceNumber),
     ProofBlobAccepted(SequenceNumber),
+    Flushed(Uuid),
 }
 
 pub struct PreferredSequencerDb<S, Rt>
@@ -169,7 +169,6 @@ where
 {
     backend: Box<dyn PreferredSequencerDbBackend>,
     phantom: PhantomData<S>,
-    sequence_number_of_next_blob: SequenceNumber,
     completed_blobs: VecDeque<PreferredSequencerReadBlob>,
     in_progress_batch: Option<InProgressBatch>,
     is_replica: bool,
@@ -189,7 +188,7 @@ where
         backend: Box<dyn PreferredSequencerDbBackend>,
         shutdown_sender: watch::Sender<()>,
         is_replica: bool,
-    ) -> anyhow::Result<(Self, Option<u64>)> {
+    ) -> anyhow::Result<(Self, Option<u64>, SequenceNumber)> {
         let DbSnapshotData {
             completed_blobs,
             in_progress_batch,
@@ -210,7 +209,6 @@ where
             Self {
                 backend,
                 phantom: PhantomData,
-                sequence_number_of_next_blob,
                 completed_blobs,
                 in_progress_batch,
                 is_replica,
@@ -219,26 +217,8 @@ where
                 phantom_runtime: PhantomData,
             },
             latest_event_id,
+            sequence_number_of_next_blob,
         ))
-    }
-
-    pub fn next_sequence_number(&self) -> SequenceNumber {
-        self.sequence_number_of_next_blob
-    }
-
-    /// Under normal operations, the sequencer will determine the next
-    /// sequence number to use. When syncing, however, the DA (i.e. the node)
-    /// will determine the next sequence number to use.
-    pub fn overwrite_next_sequence_number(&mut self, sequence_number: SequenceNumber) {
-        info!(%sequence_number, "Overwriting next sequence number");
-
-        self.sequence_number_of_next_blob = sequence_number;
-        track_sequence_number(self.sequence_number_of_next_blob);
-    }
-
-    pub fn increment_next_sequence_number(&mut self) {
-        self.sequence_number_of_next_blob += 1;
-        track_sequence_number(self.sequence_number_of_next_blob);
     }
 
     pub fn in_progress_batch_opt(&self) -> Option<&InProgressBatch> {
@@ -307,6 +287,7 @@ where
         &mut self,
         visible_slot_number_after_increase: VisibleSlotNumber,
         visible_slots_to_advance: NonZero<u8>,
+        sequence_number: SequenceNumber,
     ) -> anyhow::Result<SequenceNumber> {
         if self.in_progress_batch.is_some() {
             tracing::error!(
@@ -323,7 +304,6 @@ where
         }
 
         let blob_id = new_blob_id();
-        let sequence_number = self.sequence_number_of_next_blob;
 
         tracing::debug!(
             sequence_number,
@@ -352,7 +332,6 @@ where
             txs: vec![],
             tx_hashes: vec![],
         });
-        self.increment_next_sequence_number();
 
         self.send_event_if_necessary(DbEvent::BatchStarted {
             sequence_number,
@@ -387,9 +366,8 @@ where
         &mut self,
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
+        sequence_number: SequenceNumber,
     ) -> anyhow::Result<SequenceNumber> {
-        let sequence_number = self.sequence_number_of_next_blob;
-
         if !self.is_replica {
             self.backend
                 .add_proof_blob(sequence_number, blob_id, data.clone())
@@ -402,7 +380,6 @@ where
                 sequence_number,
                 data,
             });
-        self.increment_next_sequence_number();
         self.send_event_if_necessary(DbEvent::ProofBlobAccepted(sequence_number))
             .await;
 
@@ -464,18 +441,8 @@ where
         Ok(())
     }
 
-    pub async fn subscribe_to_events(&mut self, limit: usize) -> mpsc::Receiver<DbEvent> {
-        if self.event_stream.is_some() {
-            tracing::error!("Attempted to subscribe to sequencer events while a subscription is already open. This is a bug, please report it.");
-            exit_rollup(&self.shutdown_sender).await;
-        }
-        let (tx, rx) = mpsc::channel(limit);
-        self.event_stream = Some(tx);
-        rx
-    }
-
-    pub fn unsubscribe_from_events(&mut self) {
-        self.event_stream = None;
+    pub fn subscribe_to_events(&mut self, sender: mpsc::Sender<DbEvent>) {
+        self.event_stream = Some(sender);
     }
 
     async fn debug_assert_in_progress_batch(&self, msg: &str) {
@@ -488,6 +455,10 @@ where
                 }
             }
         }
+    }
+
+    pub async fn flush(&mut self, id: Uuid) {
+        self.send_event_if_necessary(DbEvent::Flushed(id)).await;
     }
 }
 

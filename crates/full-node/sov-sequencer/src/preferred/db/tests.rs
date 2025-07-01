@@ -63,14 +63,15 @@ impl PreferredSequencerDbBackend for MockDbBackend {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_event_stream() {
     let (shutdown_sender, _) = tokio::sync::watch::channel(());
-    let (mut db, _) =
+    let (mut db, _, _) =
         PreferredSequencerDb::<S, RT>::new(Box::new(MockDbBackend {}), shutdown_sender, false)
             .await
             .unwrap();
 
-    let mut event_stream = db.subscribe_to_events(100).await;
+    let (sender, mut event_stream) = mpsc::channel(100);
+    db.subscribe_to_events(sender);
 
-    db.start_batch(VisibleSlotNumber::ONE, NonZero::new(1).unwrap())
+    db.start_batch(VisibleSlotNumber::ONE, NonZero::new(1).unwrap(), 0)
         .await
         .unwrap();
     db.insert_tx(FullyBakedTx::new(vec![1u8; 100]), TxHash::new([0u8; 32]))
@@ -79,7 +80,9 @@ async fn test_event_stream() {
     db.insert_tx(FullyBakedTx::new(vec![2u8; 100]), TxHash::new([1u8; 32]))
         .await
         .unwrap();
-    db.insert_proof_blob(0, Arc::new([3u8; 100])).await.unwrap();
+    db.insert_proof_blob(0, Arc::new([3u8; 100]), 1)
+        .await
+        .unwrap();
     db.terminate_batch().await.unwrap();
 
     assert_eq!(

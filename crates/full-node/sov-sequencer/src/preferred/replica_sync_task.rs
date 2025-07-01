@@ -17,7 +17,7 @@ use tokio::task::JoinHandle;
 use tracing::{debug, error, info, trace, warn};
 
 use super::db::StoredBlob;
-use crate::preferred::{exit_rollup, DbEvent, PreferredSequencer};
+use crate::preferred::{exit_rollup, DbEvent, ExecutorEvent, PreferredSequencer};
 use crate::ProofBlobSender;
 
 /// Event type enum for type-safe parsing
@@ -408,6 +408,7 @@ where
         DbEvent::ProofBlobAccepted(sequence_number) => {
             do_proof_blob(sequencer, sequence_number, query_pool).await
         }
+        DbEvent::Flushed(_) => Ok(()),
     }
 }
 
@@ -467,7 +468,7 @@ where
     Da: DaService<Spec = S::Da>,
 {
     let mut inner = sequencer.lock_inner().await;
-    inner.close_and_publish_current_batch().await?;
+    inner.close_current_batch().await;
 
     Ok(())
 }
@@ -490,16 +491,21 @@ where
     inner
         .batch_size_tracker
         .add_tx(baked_tx.data.len(), execution_time_micros);
-    inner.db.insert_tx(baked_tx, tx_hash).await?;
     inner
-        .update_api_state(
+        .executor_events_sender
+        .send(ExecutorEvent::InsertTxWithoutConfirmation(
+            baked_tx, tx_hash,
+        ))
+        .await;
+    inner
+        .executor_events_sender
+        .send(ExecutorEvent::ForceUpdateApiState(
             inner
                 .executor
                 .checkpoint
                 .clone_with_empty_witness_dropping_temp_cache(),
-        )
+        ))
         .await;
-
     Ok(())
 }
 
