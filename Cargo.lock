@@ -10324,6 +10324,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite 0.23.1",
  "tracing",
+ "uuid 1.10.0",
 ]
 
 [[package]]
