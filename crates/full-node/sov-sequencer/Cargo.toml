@@ -51,6 +51,7 @@ tokio-stream = { workspace = true }
 uuid = { workspace = true, features = ["std", "v7"] }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
 openapiv3 = { workspace = true }
+backon = { workspace = true }
 
 [dev-dependencies]
 tracing-subscriber = { workspace = true }
