@@ -17,7 +17,8 @@ use crate::preferred::db::{BatchToStore, InProgressBatch};
 
 pub struct PostgresBackend {
     pool: PgPool,
-<<<<<<< HEAD
+    /// Node ID for master verification during write operations
+    node_id: Uuid,
     backoff_policy: ExponentialBuilder,
 }
 
@@ -49,7 +50,7 @@ macro_rules! run_with_retries {
 }
 
 impl PostgresBackend {
-    pub async fn connect(connection_string: &str) -> anyhow::Result<Self> {
+    pub async fn connect(connection_string: &str, node_id: Uuid) -> anyhow::Result<Self> {
         // This backoff policy should usually terminate in a second.
         // Running the numbers... We do 8 retries, doubling the sleep each time that yields 256ms max delay and an average delay of ~50ms
         // So total runtime is ~400 ms of sleeping. If we also account for 50ms latency on each roundtrip, we get about 800ms total time
@@ -59,15 +60,6 @@ impl PostgresBackend {
             .with_max_delay(Duration::from_millis(500))
             .with_factor(2.0)
             .with_max_times(8);
-=======
-    /// Node ID for master verification during write operations
-    node_id: Uuid,
-}
-
-impl PostgresBackend {
-    pub async fn connect(connection_string: &str, node_id: Uuid) -> anyhow::Result<Self> {
-        let pool = PgPoolOptions::default().connect(connection_string).await?;
->>>>>>> 76c4ad83d (test passing - added guard to postgres write queries)
 
         let pool = run_with_retries!(
             &backoff_policy,
@@ -75,7 +67,6 @@ impl PostgresBackend {
             "postgres_db_backend_connect"
         )?;
 
-<<<<<<< HEAD
         run_with_retries!(
             &backoff_policy,
             sqlx::migrate!("src/preferred/db/postgres/migrations").run(&pool),
@@ -84,11 +75,9 @@ impl PostgresBackend {
 
         Ok(Self {
             pool,
+            node_id,
             backoff_policy,
         })
-=======
-        Ok(Self { pool, node_id })
->>>>>>> 76c4ad83d (test passing - added guard to postgres write queries)
     }
 
     async fn read_blob<Inner: From<InProgressBatch>>(
@@ -368,10 +357,12 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         )?;
 
         let (is_master, operations_completed) = row;
-        
+
         match (is_master, operations_completed) {
             (false, _) => Err(anyhow::anyhow!("Not current master")),
-            (true, 0) => Err(anyhow::anyhow!("No in-progress batch found to end - data inconsistency")),
+            (true, 0) => Err(anyhow::anyhow!(
+                "No in-progress batch found to end - data inconsistency"
+            )),
             (true, 1) => Ok(()),
             (true, n) => Err(anyhow::anyhow!("Unexpected operations count: {}", n)),
         }
@@ -438,7 +429,9 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         )?;
         
         if result.rows_affected() == 0 {
-            return Err(anyhow::anyhow!("Failed to add proof blob: not current master"));
+            return Err(anyhow::anyhow!(
+                "Failed to add proof blob: not current master"
+            ));
         }
 
         Ok(())

@@ -1800,6 +1800,7 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
             BlockProducingConfig::Manual, // Use manual block production to be sure that the changes are happening in the sequencer only, not the node.
 =======
     let Some(test_rollups) = new_test_rollup::<TestRuntime<TestSpec>>(
+<<<<<<< HEAD
             dir.clone(),
             genesis_params.runtime.sequencer_registry.seq_da_address,
             genesis_params,
@@ -1814,6 +1815,21 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
             1,
             MAX_BATCH_EXECUTION_TIME_MILLIS,
             None,
+=======
+        dir.clone(),
+        genesis_params.runtime.sequencer_registry.seq_da_address,
+        genesis_params,
+        FINALIZATION_BLOCKS,
+        0,
+        true,
+        TEST_MAX_BATCH_SIZE,
+        BlockProducingConfig::Manual,
+        None,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        1,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
+        None,
+>>>>>>> simplify event loop even more
     )
     .await
     else {

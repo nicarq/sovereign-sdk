@@ -161,7 +161,6 @@ async fn seq_with_replicas() {
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
     println!("Second test action done");
 
-
     let replicas = restart_replica(&admin, replicas, &mut state, 0).await;
 
     let actions = vec![
