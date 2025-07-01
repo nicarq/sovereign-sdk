@@ -293,10 +293,14 @@ where
             query_pool,
             latest_received_event_id: latest_loaded_event_id,
             are_we_master: is_master,
-            last_heartbeat_time: SystemTime::now(),
+            // Initialize to a time in the past to allow immediate takeover on startup
+            last_heartbeat_time: SystemTime::now() - failover_threshold - Duration::from_secs(1),
             heartbeat_interval,
             failover_threshold,
         };
+
+        // Always attempt takeover once on startup to check if we should become master
+        task.tick_takeover().await;
 
         task.run(&mut listener, &mut shutdown_receiver).await
     }
@@ -404,14 +408,14 @@ where
                     if !self.are_we_master {
                         info!("Replica promoted to master!");
                         self.are_we_master = true;
-                        self.sequencer.set_replica_status(false);
+                        self.sequencer.set_is_master(true).await;
                     }
                 } else {
                     // Another node is master
                     if self.are_we_master {
                         warn!("Another node took over as master: {}", leader_info.node_id);
                         self.are_we_master = false;
-                        self.sequencer.set_replica_status(true);
+                        self.sequencer.set_is_master(false).await;
                     }
                     self.last_heartbeat_time = SystemTime::UNIX_EPOCH
                         + Duration::from_secs_f64(leader_info.last_updated_timestamp);
@@ -482,11 +486,13 @@ where
             {
                 Ok(true) => {
                     info!("Successfully took over as master!");
+                    println!("Successfully took over as master!");
                     self.are_we_master = true;
-                    self.sequencer.set_replica_status(false);
+                    self.sequencer.set_is_master(true).await;
                 }
                 Ok(false) => {
                     debug!("Another replica beat us to takeover or master recovered");
+                    println!("Another replica beat us to takeover or master recovered");
                 }
                 Err(e) => {
                     warn!("Failed to attempt takeover: {e:?}");

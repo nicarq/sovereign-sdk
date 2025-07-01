@@ -237,6 +237,7 @@ impl PreferredSequencerCache {
         self.in_progress_batch.as_ref()
     }
 
+<<<<<<< HEAD
     pub fn all_completed_blobs(&self) -> Vec<PreferredSequencerReadBlob> {
         self.completed_blobs.clone().into()
     }
@@ -256,6 +257,15 @@ impl PreferredSequencerCache {
     }
 
     pub async fn insert_tx(&mut self, tx: FullyBakedTx, hash: TxHash) {
+=======
+    /// Update the master/replica status of this database
+    pub fn set_is_master(&mut self, is_master: bool) {
+        self.is_replica = !is_master;
+    }
+
+    #[tracing::instrument(skip_all, level = "info")]
+    pub async fn insert_tx(&mut self, tx: FullyBakedTx, hash: TxHash) -> anyhow::Result<()> {
+>>>>>>> is_master failover logic works and tested
         let Some(batch) = self.in_progress_batch.as_mut() else {
             tracing::error!("No in-progress batch; this is a bug, please report it");
             exit_rollup(&self.shutdown_sender).await;

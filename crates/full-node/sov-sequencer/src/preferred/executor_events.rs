@@ -317,7 +317,19 @@ where
     /// Publish a proof blob.
     PublishProofBlob(BlobInternalId, Arc<[u8]>, SequenceNumber),
     /// Insert an accepted transaction into the database and send out the confirmation
+<<<<<<< HEAD
     AcceptedTx(AcceptedTxEventContents<S, Rt>),
+=======
+    AcceptedTx(
+        TxHash,
+        FullyBakedTx,
+        Confirmation<S, Rt>,
+        StateCheckpoint<S>,
+        oneshot::Sender<AcceptedTx<Confirmation<S, Rt>>>,
+    ),
+    /// Update the master status for both blob sender and database
+    UpdateMasterStatus(bool),
+>>>>>>> is_master failover logic works and tested
     /// Update the API state to the given checkpoint without closing the current batch etc. Used during recovery
     ForceUpdateApiState(StateCheckpoint<S>),
     /// Prune the database up to the given sequence number.

@@ -214,6 +214,10 @@ where
                     .await;
                 let _ = oneshot_sender.send(());
             }
+            ExecutorEvent::UpdateMasterStatus(is_master) => {
+                self.blob_sender.set_is_master(is_master);
+                self.db.set_is_master(is_master);
+            }
         }
         let queue_size_after = event_queue.len();
         let batch_size = queue_size_before - queue_size_after;

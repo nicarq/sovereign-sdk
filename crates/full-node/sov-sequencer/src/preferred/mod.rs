@@ -217,7 +217,7 @@ where
         let (db, latest_event_id, next_sequence_number) = PreferredSequencerDb::<S, Rt>::new(
             db_backend,
             shutdown_sender.clone(),
-            config.sequencer_kind_config.is_master,
+            false, // Always start as replica initially
         )
         .await?;
 >>>>>>> Add APIS and rename is_replica to is_master
@@ -256,8 +256,7 @@ where
             PreferredBlobSender::from((inner_blob_sender, config.sequencer_kind_config.is_replica))
 =======
 
-            let mut blob_sender =
-                PreferredBlobSender::from((inner, config.sequencer_kind_config.is_master));
+            let mut blob_sender = PreferredBlobSender::from((inner, false)); // Always start as replica initially
 
             // It's possible that sov-blob-sender's DB might miss some blob data at
             // node startup due to:
@@ -327,11 +326,7 @@ where
         handles.push(synchronized_state_task);
 =======
             batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
-            is_ready: if config.sequencer_kind_config.is_master {
-                Err(SequencerNotReadyDetails::Startup)
-            } else {
-                Err(SequencerNotReadyDetails::ReplicaMode)
-            },
+            is_ready: Err(SequencerNotReadyDetails::ReplicaMode), // Always start in replica mode
         };
 >>>>>>> Add APIS and rename is_replica to is_master
 
@@ -357,7 +352,7 @@ where
             block_executors_shutdown_notifier,
             config: config.clone(),
             node_id,
-            is_master: AtomicBool::new(config.sequencer_kind_config.is_master),
+            is_master: AtomicBool::new(false), // Always start as replica, let failover logic determine master status
             state_root_compute_task,
             shutdown_receiver: shutdown_receiver.clone(),
             api_ledger_db,
@@ -672,8 +667,16 @@ pub(crate) fn slot_count_delta_acceptable_lower_bound(
 =======
 >>>>>>> Add APIS and rename is_replica to is_master
     /// Update the replica status (used during failover)
-    pub fn set_replica_status(&self, is_master: bool) {
+    pub async fn set_is_master(&self, is_master: bool) {
+        println!("  Setting is_master to {is_master}");
         self.is_master.store(is_master, Ordering::Release);
+
+        // Update blob sender and database master status via executor events
+        let inner = self.lock_inner().await;
+        inner
+            .executor_events_sender
+            .send(ExecutorEvent::UpdateMasterStatus(is_master))
+            .await;
     }
 
     /// Closes the current batch if it is nearly full (by gas limit) or has reached the target batch execution time.
@@ -1169,10 +1172,6 @@ pub struct PreferredSequencerConfig {
     pub recovery_strategy: RecoveryStrategy,
     /// Target time in milliseconds to spend executing all the txs in a single batch. Batches will be closed when they exceed this value.
     pub batch_execution_time_limit_millis: u64,
-    /// When enabled, the sequencer runs in replica mode and cannot accept transactions.
-    /// It will sync from the master sequencer's database but remain read-only.
-    #[serde(default)]
-    pub is_master: bool,
     /// Time in seconds after which a replica will attempt to become the master if no heartbeat is received.
     /// Only used in replica mode for failover scenarios.
     #[serde(default = "default_failover_threshold_secs")]
@@ -1188,7 +1187,6 @@ impl Default for PreferredSequencerConfig {
             disable_state_root_consistency_checks: false,
             ideal_lag_behind_finalized_slot: default_ideal_lag_behind_finalized_slot(),
             recovery_strategy: RecoveryStrategy::None,
-            is_master: true,
             db_event_channel_size: default_db_event_channel_size(),
             batch_execution_time_limit_millis: 6_000, // 6 seconds
             failover_threshold_secs: default_failover_threshold_secs(),

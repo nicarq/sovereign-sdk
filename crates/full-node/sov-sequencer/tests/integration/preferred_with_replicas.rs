@@ -131,6 +131,146 @@ async fn restart_replica(
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn test_failover_is_master_mechanism() {
+    let (test_rollups, _tempdir, admin) = create_test_rollups(4).await;
+    let Some(test_rollups) = test_rollups else {
+        return;
+    };
+    let mut test_rollups = test_rollups.into_iter();
+
+    let mut master = test_rollups.next().unwrap();
+    let mut replicas: Vec<_> = test_rollups.collect();
+
+    // Initial setup with state
+    let (master_with_state, _state) = setup_test_rollup_with_initial_state(master, &admin).await;
+    master = master_with_state;
+
+    for iteration in 1..=5 {
+        println!("\n=== Failover iteration {} ===", iteration);
+
+        // Verify current master status
+        assert!(
+            master
+                .api_client
+                .is_master()
+                .await
+                .unwrap()
+                .into_inner()
+                .data,
+            "Master should be is_master=true at start of iteration {}",
+            iteration
+        );
+
+        // Verify replicas are not master
+        for (i, replica) in replicas.iter().enumerate() {
+            assert!(
+                !replica
+                    .api_client
+                    .is_master()
+                    .await
+                    .unwrap()
+                    .into_inner()
+                    .data,
+                "Replica {} should be is_master=false at start of iteration {}",
+                i,
+                iteration
+            );
+        }
+
+        // Shutdown current master and get builder for restart
+        println!("Shutting down current master...");
+        let master_builder = master.shutdown().await.unwrap();
+
+        // Wait for failover to occur
+        tokio::time::sleep(Duration::from_secs(3)).await;
+
+        // Find which replica became the new master
+        println!("Waited 3 seconds, searching for new master...");
+        let mut new_master_idx = None;
+        let mut master_count = 0;
+
+        for (i, replica) in replicas.iter().enumerate() {
+            let is_master = replica
+                .api_client
+                .is_master()
+                .await
+                .unwrap()
+                .into_inner()
+                .data;
+            if is_master {
+                new_master_idx = Some(i);
+                master_count += 1;
+                println!("Replica {} is now master", i);
+            }
+        }
+
+        // Exactly one replica should be master
+        assert_eq!(
+            master_count, 1,
+            "Exactly one replica should be master after failover in iteration {}",
+            iteration
+        );
+        let new_master_idx = new_master_idx.expect("No new master found");
+
+        // Restart the old master as a replica
+        println!("Restarting old master as replica...");
+        let old_master = master_builder.start().await.unwrap();
+
+        // Verify old master is now a replica
+        assert!(
+            !old_master
+                .api_client
+                .is_master()
+                .await
+                .unwrap()
+                .into_inner()
+                .data,
+            "Restarted master should be is_master=false in iteration {}",
+            iteration
+        );
+
+        // Move new master out of replicas array
+        master = replicas.remove(new_master_idx);
+        replicas.push(old_master);
+
+        println!("Failover iteration {} completed", iteration);
+    }
+
+    // Final verification
+    assert!(
+        master
+            .api_client
+            .is_master()
+            .await
+            .unwrap()
+            .into_inner()
+            .data,
+        "Final master should be is_master=true"
+    );
+
+    for (i, replica) in replicas.iter().enumerate() {
+        assert!(
+            !replica
+                .api_client
+                .is_master()
+                .await
+                .unwrap()
+                .into_inner()
+                .data,
+            "Final replica {} should be is_master=false",
+            i
+        );
+    }
+
+    // Cleanup
+    println!("\nShutting down all nodes...");
+    for replica in replicas {
+        replica.shutdown().await.unwrap();
+    }
+    master.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn seq_with_replicas() {
     let (test_rollups, _tempdir, admin) = create_test_rollups(4).await;
     let Some(test_rollups) = test_rollups else {
