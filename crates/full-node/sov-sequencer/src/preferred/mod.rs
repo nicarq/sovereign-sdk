@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::num::NonZero;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -456,6 +456,8 @@ where
     block_executors_shutdown_notifier: Sender<()>,
     /// Unique node identifier used for leader election in replica failover scenarios
     node_id: Uuid,
+    /// Current replica status - can be dynamically changed during failover
+    is_replica: AtomicBool,
     state_root_compute_task: StateRootBackgroundTaskState<S>,
     shutdown_receiver: watch::Receiver<()>,
     ledger_db: LedgerDb,
@@ -650,6 +652,7 @@ where
             block_executors_shutdown_notifier,
             config: config.clone(),
             node_id,
+            is_replica: AtomicBool::new(config.sequencer_kind_config.is_replica),
             state_root_compute_task,
             shutdown_receiver: shutdown_receiver.clone(),
             ledger_db: ledger_db.clone(),
@@ -1046,7 +1049,12 @@ where
     }
 
     async fn is_replica(&self) -> anyhow::Result<bool> {
-        Ok(self.config.sequencer_kind_config.is_replica)
+        Ok(self.is_replica.load(Ordering::Acquire))
+    }
+
+    /// Update the replica status (used during failover)
+    pub fn set_replica_status(&self, is_replica: bool) {
+        self.is_replica.store(is_replica, Ordering::Release);
     }
 
     /// Closes the current batch if it is nearly full (by gas limit) or has reached the target batch execution time.
