@@ -10870,6 +10870,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-revenue-share"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "schemars",
+ "serde",
+ "sov-bank",
+ "sov-modules-api",
+ "sov-modules-stf-blueprint",
+ "sov-revenue-share",
+ "sov-test-utils",
+ "strum",
+ "thiserror 1.0.64",
+]
+
+[[package]]
 name = "sov-risc0-adapter"
 version = "0.3.0"
 dependencies = [
