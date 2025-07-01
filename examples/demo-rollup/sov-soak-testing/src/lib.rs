@@ -111,6 +111,37 @@ pub enum TxType {
     Mixed,
 }
 
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+pub enum ValidityProfile {
+    /// Only valid transactions
+    Clean,
+    /// 5% of invalid transactions
+    Buzzy,
+    /// 50/50
+    Half,
+    /// 90% of invalid transactions
+    Spammy,
+}
+
+impl ValidityProfile {
+    pub fn get_validity(&self) -> Distribution<MessageValidity> {
+        match self {
+            ValidityProfile::Clean => Distribution::with_values(vec![(1, MessageValidity::Valid)]),
+            ValidityProfile::Buzzy => Distribution::with_values(vec![
+                (20, MessageValidity::Valid),
+                (1, MessageValidity::Invalid),
+            ]),
+            ValidityProfile::Half => Distribution::with_values(vec![
+                (50, MessageValidity::Valid),
+                (50, MessageValidity::Invalid),
+            ]),
+            ValidityProfile::Spammy => Distribution::with_values(vec![
+                (10, MessageValidity::Valid),
+                (90, MessageValidity::Invalid),
+            ]),
+        }
+    }
+}
 pub struct TestGenerator<R: Runtime<S>, S: Spec> {
     generator: BasicCallMessageFactory<S, R>,
     state: State<S, BasicTag>,

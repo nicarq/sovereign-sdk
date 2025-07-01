@@ -4,10 +4,9 @@ use clap::Parser;
 use sov_modules_api::prelude::tracing;
 use sov_soak_testing::{
     run_generator_task_for_bank_and_synthetic_load, CelestiaRollupSpec, DemoCelestiaRT, DemoMockRT,
-    MockDemoRollupSpec, TestRT, TxType,
+    MockDemoRollupSpec, TestRT, TxType, ValidityProfile,
 };
 use sov_test_utils::TestSpec;
-use sov_transaction_generator::{Distribution, MessageValidity};
 use tokio::signal::unix::SignalKind;
 use tokio::sync::watch::Receiver;
 use tokio::task::JoinSet;
@@ -47,38 +46,6 @@ struct Args {
     #[arg(short, long, default_value = "mixed")]
     /// The distribution of token transfers vs. synthetic load transactions to generate.
     tx_type: TxType,
-}
-
-#[derive(Clone, Copy, Debug, clap::ValueEnum)]
-pub enum ValidityProfile {
-    /// Only valid transactions
-    Clean,
-    /// 5% of invalid transactions
-    Buzzy,
-    /// 50/50
-    Half,
-    /// 90% of invalid transactions
-    Spammy,
-}
-
-impl ValidityProfile {
-    fn get_validity(&self) -> Distribution<MessageValidity> {
-        match self {
-            ValidityProfile::Clean => Distribution::with_values(vec![(1, MessageValidity::Valid)]),
-            ValidityProfile::Buzzy => Distribution::with_values(vec![
-                (20, MessageValidity::Valid),
-                (1, MessageValidity::Invalid),
-            ]),
-            ValidityProfile::Half => Distribution::with_values(vec![
-                (50, MessageValidity::Valid),
-                (50, MessageValidity::Invalid),
-            ]),
-            ValidityProfile::Spammy => Distribution::with_values(vec![
-                (10, MessageValidity::Valid),
-                (90, MessageValidity::Invalid),
-            ]),
-        }
-    }
 }
 
 async fn worker_task(
