@@ -15,6 +15,7 @@ allow = [
     "BSD-3-Clause",
     "OpenSSL",
     "Apache-2.0 WITH LLVM-exception",
+    "LicenseRef-Sovereign-Labs-Community-Software-License",
     "Zlib",
     "BSL-1.0", # Relevant discussion: <https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/985#issuecomment-2242712349>.
 ]
@@ -33,6 +34,56 @@ name = "halo2"
 expression = "LicenseRef-Proprietary"
 license-files = [{ path = "COPYING", hash = 0x106164e0 }]
 
+# Sovereign SDK packages use a custom community license
+[[licenses.clarify]]
+name = "sov-blob-sender"
+expression = "LicenseRef-Sovereign-Labs-Community-Software-License"
+license-files = []
+
+[[licenses.clarify]]
+name = "sov-blob-storage"
+expression = "LicenseRef-Sovereign-Labs-Community-Software-License"
+license-files = []
+
+[[licenses.clarify]]
+name = "sov-db"
+expression = "LicenseRef-Sovereign-Labs-Community-Software-License"
+license-files = []
+
+[[licenses.clarify]]
+name = "sov-kernels"
+expression = "LicenseRef-Sovereign-Labs-Community-Software-License"
+license-files = []
+
+[[licenses.clarify]]
+name = "sov-modules-rollup-blueprint"
+expression = "LicenseRef-Sovereign-Labs-Community-Software-License"
+license-files = []
+
+[[licenses.clarify]]
+name = "sov-modules-stf-blueprint"
+expression = "LicenseRef-Sovereign-Labs-Community-Software-License"
+license-files = []
+
+[[licenses.clarify]]
+name = "sov-paymaster"
+expression = "LicenseRef-Sovereign-Labs-Community-Software-License"
+license-files = []
+
+[[licenses.clarify]]
+name = "sov-sequencer"
+expression = "LicenseRef-Sovereign-Labs-Community-Software-License"
+license-files = []
+
+[[licenses.clarify]]
+name = "sov-state"
+expression = "LicenseRef-Sovereign-Labs-Community-Software-License"
+license-files = []
+
+[[licenses.clarify]]
+name = "sov-uniqueness"
+expression = "LicenseRef-Sovereign-Labs-Community-Software-License"
+license-files = []
 
 [[licenses.exceptions]]
 allow = ["LGPL-3.0"]
