@@ -153,6 +153,7 @@ async fn create_test_rollup(
             dir.clone(),
             genesis_params.runtime.sequencer_registry.seq_da_address,
             genesis_params,
+            3,
             minimum_profit_per_tx,
             true,
             max_batch_size,
@@ -303,6 +304,7 @@ async fn sequencer_filled_up_block() {
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
+        3,
         0,
         true,
         TEST_MAX_BATCH_SIZE,
@@ -611,6 +613,7 @@ async fn seq_out_of_gas_for_pre_checks() {
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
+        3,
         0,
         true,
         TEST_MAX_BATCH_SIZE,
@@ -937,6 +940,7 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
+        3,
         0,
         true,
         TEST_MAX_BATCH_SIZE,
@@ -1332,13 +1336,12 @@ async fn query_historical_values() {
             "Panicked during assertions"
         );
     };
-    do_manual_block_production_test(tx_builder, assertions, 22222).await;
+    do_manual_block_production_test(tx_builder, assertions).await;
 }
 
 async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
     tx_builder: impl Fn(Ed25519PrivateKey) -> RawTx,
     assertions: impl FnOnce(TestRollup<TestBlueprint>) -> Fut,
-    port: u16,
 ) {
     const FINALIZATION_BLOCKS: u32 = 0;
     let genesis_config =
@@ -1361,31 +1364,28 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
 
     let dir = Arc::new(tempfile::tempdir().unwrap());
 
-    let da_layer = Arc::new(tokio::sync::RwLock::new(
-        StorableMockDaLayer::new_in_memory(FINALIZATION_BLOCKS)
-            .await
-            .unwrap(),
-    ));
-    let test_rollup = {
-        let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
-        RollupBuilder::<TestBlueprint>::new(
-            GenesisSource::CustomParams(genesis_params),
-            BlockProducingConfig::Manual, // Use manual block production to be sure that the changes are happening in the sequencer only, not the node.
+    let Some(test_rollups) = new_test_rollup::<TestRuntime<TestSpec>>(
+            dir.clone(),
+            genesis_params.runtime.sequencer_registry.seq_da_address,
+            genesis_params,
             FINALIZATION_BLOCKS,
-        )
-        .set_config(|c| {
-            c.rollup_prover_config = None;
-            c.storage = dir;
-            c.axum_port = port;
-        })
-        .set_da_config(|c| {
-            c.sender_address = sequencer_addr;
-            c.da_layer = Some(da_layer.clone());
-        })
-        .start()
-        .await
-        .unwrap()
+            0,
+            true,
+            TEST_MAX_BATCH_SIZE,
+            BlockProducingConfig::Manual,
+            None,
+            TEST_BLOB_PROCESSING_TIMEOUT,
+            1,
+            MAX_BATCH_EXECUTION_TIME_MILLIS,
+            None,
+    )
+    .await
+    else {
+        // Docker issues, don't fail the test and just return early.
+        return;
     };
+    let test_rollup = test_rollups.into_iter().next().unwrap();
+
     let mut slot_subscription = test_rollup
         .api_client
         .subscribe_slots_with_children(IncludeChildren::new(true))
@@ -1393,12 +1393,12 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
         .unwrap();
     // Produce enough empty blocks that we hit our target lag behind finalized slot.
     for _ in 0..=default_ideal_lag_behind_finalized_slot() {
-        da_layer.write().await.produce_block().await.unwrap();
+        test_rollup.da_service.produce_block_now().await.unwrap();
         slot_subscription.next().await.unwrap().unwrap();
     }
     // First, produce two empty blocks. After the second one, the preferred sequencer will produce an empty batch in an attempt
     // to keep the visible_slot_number within 2 of the DA slot number.
-    da_layer.write().await.produce_block().await.unwrap();
+    test_rollup.da_service.produce_block_now().await.unwrap();
     slot_subscription.next().await.unwrap().unwrap();
     // Wait for the node to process the empty blocks. This ensures that the sequencer has time to produce an empty batch.
     // Right here (invisibly) the preferred sequencer will produce its empty batch and send it to DA
@@ -1418,7 +1418,7 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
 
     // Produce a block. This places the (invisibly produced) empty preferred batch on DA, triggering the sequencer to replay the soft-confirmed transaction
     // on top of that new state. The replay will fail if the visible slot number was not correctly set.
-    da_layer.write().await.produce_block().await.unwrap();
+    test_rollup.da_service.produce_block_now().await.unwrap();
     let slot = slot_subscription.next().await.unwrap().unwrap();
 
     // Right here, we check that we really did receive an empty batch from the preferred sequencer.
@@ -1433,9 +1433,9 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Ensure that the sequencer has time to see the updated state and submit its batch containing the transaction to DA.
-    da_layer.write().await.produce_block().await.unwrap();
+    test_rollup.da_service.produce_block_now().await.unwrap();
     let _ = slot_subscription.next().await.unwrap().unwrap();
-    da_layer.write().await.produce_block().await.unwrap();
+    test_rollup.da_service.produce_block_now().await.unwrap();
     let next = slot_subscription.next().await.unwrap().unwrap();
     tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -1681,7 +1681,7 @@ async fn txs_that_enter_before_downtime_are_dropped() {
 #[tokio::test(flavor = "multi_thread")]
 async fn replay_uses_correct_visible_slot_number() {
     let tx_builder = |key| tx_assert_visible_slot_number(&key, 0, 4);
-    do_manual_block_production_test(tx_builder, |_| async {}, 22223).await;
+    do_manual_block_production_test(tx_builder, |_| async {}).await;
 }
 
 /// This test checks that the visible hash of the rollup block is the same in the node and the sequencer.
@@ -1871,6 +1871,7 @@ async fn heavy_blob_submission_long_delay() {
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
+        3,
         0,
         true,
         max_batch_size,
@@ -2335,6 +2336,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
+        3,
         0,
         false,
         TEST_MAX_BATCH_SIZE,

@@ -221,6 +221,7 @@ pub async fn new_test_rollup<RT: Runtime<TestSpec> + HasRestApi<TestSpec>>(
     dir: Arc<tempfile::TempDir>,
     seq_da_address: MockAddress,
     genesis_params: GenesisParams<<RT as Runtime<TestSpec>>::GenesisConfig>,
+    finalization_blocks: u32,
     minimum_profit_per_tx: u128,
     automatic_batch_production: bool,
     max_batch_size_bytes: usize,
@@ -231,8 +232,6 @@ pub async fn new_test_rollup<RT: Runtime<TestSpec> + HasRestApi<TestSpec>>(
     max_batch_execution_time_millis: u64,
     stop_at_rollup_height: Option<RollupHeight>,
 ) -> Option<Vec<TestRollup<RtAgnosticBlueprint<TestSpec, RT>>>> {
-    const FINALIZATION_BLOCKS: u32 = 3;
-
     // We skip all docker (i.e. postgres) tests on our dev server due to firewall false positives
     // bricking the machine.
     // The dev machine has 96 threads, which we detect to disable postgres. Currently no dev or CI
@@ -243,7 +242,7 @@ pub async fn new_test_rollup<RT: Runtime<TestSpec> + HasRestApi<TestSpec>>(
     let builder = RollupBuilder::<RtAgnosticBlueprint<TestSpec, RT>>::new(
         GenesisSource::CustomParams(genesis_params),
         block_producing_config,
-        FINALIZATION_BLOCKS,
+        finalization_blocks,
     )
     .set_config(|c| {
         c.rollup_prover_config = rollup_prover_config;

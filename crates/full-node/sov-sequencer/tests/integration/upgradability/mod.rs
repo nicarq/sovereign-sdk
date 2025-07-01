@@ -278,6 +278,7 @@ async fn create_test_rollup(
             dir.clone(),
             genesis_params.runtime.sequencer_registry.seq_da_address,
             genesis_params,
+            3,
             minimum_profit_per_tx,
             true,
             max_batch_size,

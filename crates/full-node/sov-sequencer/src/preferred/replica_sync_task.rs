@@ -330,7 +330,7 @@ where
                 match notification_result {
                     Ok(notification) => {
                         trace!("Node {} received PostgreSQL notification: {:?}", sequencer.node_id, notification);
-                        println!("Node {} received PostgreSQL notification: {:?}", sequencer.node_id, notification);
+                        // println!("Node {} received PostgreSQL notification: {:?}", sequencer.node_id, notification);
                         
                         match notification.channel() {
                             "leader_changes" => {
