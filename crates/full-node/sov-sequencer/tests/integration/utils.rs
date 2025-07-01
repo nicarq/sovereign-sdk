@@ -221,6 +221,7 @@ pub async fn new_test_rollup<RT: Runtime<TestSpec> + HasRestApi<TestSpec>>(
     dir: Arc<tempfile::TempDir>,
     seq_da_address: MockAddress,
     genesis_params: GenesisParams<<RT as Runtime<TestSpec>>::GenesisConfig>,
+    finalization_blocks: u32,
     minimum_profit_per_tx: u128,
     automatic_batch_production: bool,
     max_batch_size_bytes: usize,

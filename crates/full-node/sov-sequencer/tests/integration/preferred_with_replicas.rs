@@ -57,6 +57,7 @@ async fn create_test_rollups(
                 .sequencer_config
                 .seq_da_address,
             genesis_params,
+            3,
             0,
             true,
             TEST_MAX_BATCH_SIZE,

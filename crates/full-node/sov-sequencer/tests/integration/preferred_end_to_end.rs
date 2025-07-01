@@ -233,6 +233,7 @@ async fn create_test_rollup(
                 .sequencer_config
                 .seq_da_address,
             genesis_params,
+            3,
             minimum_profit_per_tx,
             true,
             max_batch_size,
@@ -384,6 +385,7 @@ async fn sequencer_filled_up_block() {
             .sequencer_config
             .seq_da_address,
         genesis_params,
+        3,
         0,
         true,
         TEST_MAX_BATCH_SIZE,
@@ -837,6 +839,7 @@ async fn seq_out_of_gas_for_pre_checks() {
             .sequencer_config
             .seq_da_address,
         genesis_params,
+        3,
         0,
         true,
         TEST_MAX_BATCH_SIZE,
@@ -1352,6 +1355,7 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
             .sequencer_config
             .seq_da_address,
         genesis_params,
+        3,
         0,
         true,
         TEST_MAX_BATCH_SIZE,
@@ -1750,13 +1754,12 @@ async fn query_historical_values() {
             "Panicked during assertions"
         );
     };
-    do_manual_block_production_test(tx_builder, assertions, 22222).await;
+    do_manual_block_production_test(tx_builder, assertions).await;
 }
 
 async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
     tx_builder: impl Fn(Ed25519PrivateKey) -> RawTx,
     assertions: impl FnOnce(TestRollup<TestBlueprint>) -> Fut,
-    port: u16,
 ) {
     const FINALIZATION_BLOCKS: u32 = 0;
     let genesis_config =
@@ -1779,6 +1782,7 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
 
     let dir = Arc::new(tempfile::tempdir().unwrap());
 
+<<<<<<< HEAD
     let da_layer = Arc::new(tokio::sync::RwLock::new(
         StorableMockDaLayer::new_in_memory(FINALIZATION_BLOCKS)
             .await
@@ -1794,21 +1798,29 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
         RollupBuilder::<TestBlueprint>::new(
             GenesisSource::CustomParams(genesis_params),
             BlockProducingConfig::Manual, // Use manual block production to be sure that the changes are happening in the sequencer only, not the node.
+=======
+    let Some(test_rollups) = new_test_rollup::<TestRuntime<TestSpec>>(
+            dir.clone(),
+            genesis_params.runtime.sequencer_registry.seq_da_address,
+            genesis_params,
+>>>>>>> test passing - added guard to postgres write queries
             FINALIZATION_BLOCKS,
-        )
-        .set_config(|c| {
-            c.rollup_prover_config = None;
-            c.storage = dir;
-            c.axum_port = port;
-        })
-        .set_da_config(|c| {
-            c.sender_address = sequencer_addr;
-            c.da_layer = Some(da_layer.clone());
-        })
-        .start()
-        .await
-        .unwrap()
+            0,
+            true,
+            TEST_MAX_BATCH_SIZE,
+            BlockProducingConfig::Manual,
+            None,
+            TEST_BLOB_PROCESSING_TIMEOUT,
+            1,
+            MAX_BATCH_EXECUTION_TIME_MILLIS,
+            None,
+    )
+    .await
+    else {
+        // Docker issues, don't fail the test and just return early.
+        return;
     };
+<<<<<<< HEAD
     let mut da_layer = DaLayerWithSubscription::new(&test_rollup).await;
     // Produce some empty blocks to make sure we have a finalized slot.
     da_layer.produce_and_wait_for_n_slots(5).await;
@@ -1817,15 +1829,35 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
     // at the time we submit the transaction - if we change the sequencer logic, this number may need to be updated.
     let tx = tx_set_value(&admin.private_key, 0, 0);
     test_rollup
+=======
+    let test_rollup = test_rollups.into_iter().next().unwrap();
+
+    let mut slot_subscription = test_rollup
+>>>>>>> test passing - added guard to postgres write queries
         .api_client
         .accept_tx(&api_types::AcceptTxBody {
             body: BASE64_STANDARD.encode(&tx),
         })
         .await
         .unwrap();
+<<<<<<< HEAD
     test_rollup.force_close_batch().await.unwrap();
     sleep(Duration::from_millis(200)).await; // Sleep to make sure the batch is published before we produce a block. If this gets flaky, we'll need to add a blob_sender subscription.
     da_layer.produce_and_wait_for_slot().await;
+=======
+    // Produce enough empty blocks that we hit our target lag behind finalized slot.
+    for _ in 0..=default_ideal_lag_behind_finalized_slot() {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        slot_subscription.next().await.unwrap().unwrap();
+    }
+    // First, produce two empty blocks. After the second one, the preferred sequencer will produce an empty batch in an attempt
+    // to keep the visible_slot_number within 2 of the DA slot number.
+    test_rollup.da_service.produce_block_now().await.unwrap();
+    slot_subscription.next().await.unwrap().unwrap();
+    // Wait for the node to process the empty blocks. This ensures that the sequencer has time to produce an empty batch.
+    // Right here (invisibly) the preferred sequencer will produce its empty batch and send it to DA
+    tokio::time::sleep(Duration::from_millis(100)).await;
+>>>>>>> test passing - added guard to postgres write queries
 
     // Note: The exact number height asserted here is not important, as long as it's correct
     // at the time we submit the transaction - if we change the sequencer logic, this number may need to be updated.
@@ -1838,18 +1870,40 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
         .await
         .unwrap();
 
+<<<<<<< HEAD
     // Produce a block. Make sure that it's empty, meaning that the preferred sequencer still has the previous tx in memory and will replay it.
     // as part of update_state
     let slot = da_layer.produce_and_wait_for_slot().await;
     assert_eq!(slot.number, 7);
     assert_eq!(slot.batches.len(), 0);
+=======
+    // Produce a block. This places the (invisibly produced) empty preferred batch on DA, triggering the sequencer to replay the soft-confirmed transaction
+    // on top of that new state. The replay will fail if the visible slot number was not correctly set.
+    test_rollup.da_service.produce_block_now().await.unwrap();
+    let slot = slot_subscription.next().await.unwrap().unwrap();
+
+    // Right here, we check that we really did receive an empty batch from the preferred sequencer.
+    // This is a test of the test logic, not a test of the sequencer - it's perfectly valid to modify
+    // the sequencer such that a batch is not produced here - but in that case we need to update this test.
+    assert_eq!(slot.number, 3 + default_ideal_lag_behind_finalized_slot());
+    assert_eq!(slot.batches.len(), 1);
+    assert_eq!(slot.batches[0].txs.len(), 0);
+>>>>>>> test passing - added guard to postgres write queries
 
     // Close the batch and submit to DA
     test_rollup.force_close_batch().await.unwrap();
     tokio::time::sleep(Duration::from_millis(200)).await; // Sleep to make sure the batch is published before we produce a block. If this gets flaky, we'll need to add a blob_sender subscription.
 
     // Ensure that the sequencer has time to see the updated state and submit its batch containing the transaction to DA.
+<<<<<<< HEAD
     let next = da_layer.produce_and_wait_for_slot().await;
+=======
+    test_rollup.da_service.produce_block_now().await.unwrap();
+    let _ = slot_subscription.next().await.unwrap().unwrap();
+    test_rollup.da_service.produce_block_now().await.unwrap();
+    let next = slot_subscription.next().await.unwrap().unwrap();
+    tokio::time::sleep(Duration::from_millis(100)).await;
+>>>>>>> test passing - added guard to postgres write queries
 
     assert_eq!(next.number, 8);
     assert_eq!(
@@ -2083,8 +2137,13 @@ async fn flaky_txs_that_enter_before_downtime_are_dropped() {
 /// and once in the node. Everything else is implementation details.
 #[tokio::test(flavor = "multi_thread")]
 async fn replay_uses_correct_visible_slot_number() {
+<<<<<<< HEAD
     let tx_builder = |key| tx_assert_visible_slot_number(&key, 0, 2);
     do_manual_block_production_test(tx_builder, |_| async {}, 22223).await;
+=======
+    let tx_builder = |key| tx_assert_visible_slot_number(&key, 0, 4);
+    do_manual_block_production_test(tx_builder, |_| async {}).await;
+>>>>>>> test passing - added guard to postgres write queries
 }
 
 /// This test checks that the visible hash of the rollup block is the same in the node and the sequencer.
@@ -2280,6 +2339,7 @@ async fn heavy_blob_submission_long_delay() {
             .sequencer_config
             .seq_da_address,
         genesis_params,
+        3,
         0,
         true,
         max_batch_size,
@@ -2751,6 +2811,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
             .sequencer_config
             .seq_da_address,
         genesis_params,
+        3,
         0,
         false,
         TEST_MAX_BATCH_SIZE,

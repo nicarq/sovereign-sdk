@@ -192,11 +192,14 @@ where
         let (blobs_sender_channel, _) =
             broadcast::channel(config.sequencer_kind_config.events_channel_size);
 
+        // Generate node ID early so it can be used for database backend creation
+        let node_id = Uuid::now_v7();
+
         let db_backend: Box<dyn PreferredSequencerDbBackend> =
             if let Some(postgres_connection_string) =
                 &config.sequencer_kind_config.postgres_connection_string
             {
-                Box::new(PostgresBackend::connect(postgres_connection_string).await?)
+                Box::new(PostgresBackend::connect(postgres_connection_string, node_id).await?)
             } else {
                 Box::new(RocksDbBackend::new(storage_path).await?)
             };
@@ -316,7 +319,7 @@ where
             _runtime: PhantomData,
             block_executors_shutdown_notifier,
             config: config.clone(),
-            node_id: Uuid::now_v7(),
+            node_id,
             state_root_compute_task,
             shutdown_receiver: shutdown_receiver.clone(),
             api_ledger_db,

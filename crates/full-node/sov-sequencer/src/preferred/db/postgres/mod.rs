@@ -2,6 +2,7 @@ use std::num::NonZero;
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::anyhow;
 use axum::async_trait;
 use backon::{BackoffBuilder, ExponentialBuilder};
 use sov_blob_sender::BlobInternalId;
@@ -9,12 +10,14 @@ use sov_blob_storage::SequenceNumber;
 use sov_modules_api::{FullyBakedTx, TxHash};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use sqlx::{PgConnection, Postgres};
+use uuid::Uuid;
 
 use super::{DbSnapshotData, PreferredSequencerDbBackend, PreferredSequencerReadBlob, StoredBlob};
 use crate::preferred::db::{BatchToStore, InProgressBatch};
 
 pub struct PostgresBackend {
     pool: PgPool,
+<<<<<<< HEAD
     backoff_policy: ExponentialBuilder,
 }
 
@@ -56,6 +59,15 @@ impl PostgresBackend {
             .with_max_delay(Duration::from_millis(500))
             .with_factor(2.0)
             .with_max_times(8);
+=======
+    /// Node ID for master verification during write operations
+    node_id: Uuid,
+}
+
+impl PostgresBackend {
+    pub async fn connect(connection_string: &str, node_id: Uuid) -> anyhow::Result<Self> {
+        let pool = PgPoolOptions::default().connect(connection_string).await?;
+>>>>>>> 76c4ad83d (test passing - added guard to postgres write queries)
 
         let pool = run_with_retries!(
             &backoff_policy,
@@ -63,6 +75,7 @@ impl PostgresBackend {
             "postgres_db_backend_connect"
         )?;
 
+<<<<<<< HEAD
         run_with_retries!(
             &backoff_policy,
             sqlx::migrate!("src/preferred/db/postgres/migrations").run(&pool),
@@ -73,6 +86,9 @@ impl PostgresBackend {
             pool,
             backoff_policy,
         })
+=======
+        Ok(Self { pool, node_id })
+>>>>>>> 76c4ad83d (test passing - added guard to postgres write queries)
     }
 
     async fn read_blob<Inner: From<InProgressBatch>>(
@@ -230,17 +246,27 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         run_with_retries!(
             &self.backoff_policy,
             sqlx::query(
-                "WITH batch_insert AS (
-                    INSERT INTO in_progress_batch (sequence_number, borsh_value) VALUES ($1, $2)
+                "WITH master_check AS (
+                    SELECT 1 FROM sequencer_leader 
+                    WHERE singleton = 1 AND node_id = $3
+                ),
+                batch_insert AS (
+                    INSERT INTO in_progress_batch (sequence_number, borsh_value) 
+                    SELECT $1, $2 FROM master_check
                 )
-             INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
-             SELECT $1, 'batch_start', NULL, NULL, $2",
+                INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
+                SELECT $1, 'batch_start', NULL, NULL, $2 FROM master_check",
             )
             .bind(i64::try_from(sequence_number)?)
             .bind::<&[u8]>(blob_data.as_ref())
+            .bind(self.node_id)
             .execute(&self.pool),
             "postgres_db_backend_begin_rollup_block"
         )?;
+        
+        if result.rows_affected() == 0 {
+            return Err(anyhow!("Failed to begin rollup block: not current master"));
+        }
 
         Ok(())
     }
@@ -285,15 +311,23 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         run_with_retries!(
             &self.backoff_policy,
             sqlx::query::<Postgres>(
-                "INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) VALUES ($1, 'transaction', $2, $3, $4)",
+                "INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
+                SELECT $1, 'transaction', $2, $3, $4 
+                FROM sequencer_leader 
+                WHERE singleton = 1 AND node_id = $5",
             )
             .bind(i64::try_from(sequence_number)?)
             .bind(i64::try_from(tx_index_within_batch)?)
             .bind::<&[u8]>(hash.as_ref())
             .bind(&tx.data)
+            .bind(self.node_id)
             .execute(&self.pool),
             "postgres_db_backend_add_tx"
         )?;
+        
+        if result.rows_affected() == 0 {
+            return Err(anyhow!("Failed to add transaction: not current master"));
+        }
 
         Ok(())
     }
@@ -307,25 +341,40 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         let result = run_with_retries!(
             &self.backoff_policy,
             sqlx::query(
-                "WITH batch_delete AS (
+                "WITH master_check AS (
+                    SELECT CASE WHEN node_id = $3 THEN true ELSE false END as is_master
+                    FROM sequencer_leader WHERE singleton = 1
+                ),
+                batch_delete AS (
                     DELETE FROM in_progress_batch
-                RETURNING 1
-            )
-            INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
-            SELECT $1, 'batch_end', NULL, NULL, $2
-            FROM batch_delete",
+                    WHERE (SELECT is_master FROM master_check) = true
+                    RETURNING 1
+                ),
+                event_insert AS (
+                    INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
+                    SELECT $1, 'batch_end', NULL, NULL, $2
+                    FROM batch_delete
+                    RETURNING 1
+                )
+                SELECT 
+                (SELECT is_master FROM master_check) as master_status,
+                (SELECT COUNT(*) FROM event_insert) as operations_completed",
             )
             .bind(i64::try_from(sequence_number)?)
             .bind::<&[u8]>(blob_data.as_ref())
+            .bind(self.node_id)
             .execute(&self.pool),
             "postgres_db_backend_end_rollup_block"
         )?;
 
-        if result.rows_affected() == 0 {
-            return Err(anyhow::anyhow!("No in-progress batch found to end"));
+        let (is_master, operations_completed) = row;
+        
+        match (is_master, operations_completed) {
+            (false, _) => Err(anyhow::anyhow!("Not current master")),
+            (true, 0) => Err(anyhow::anyhow!("No in-progress batch found to end - data inconsistency")),
+            (true, 1) => Ok(()),
+            (true, n) => Err(anyhow::anyhow!("Unexpected operations count: {}", n)),
         }
-
-        Ok(())
     }
 
     async fn prune(&mut self, up_to_including: SequenceNumber) -> anyhow::Result<()> {
@@ -333,12 +382,19 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         run_with_retries!(
             &self.backoff_policy,
             sqlx::query(
-                "WITH blobs_deleted AS (
-                    DELETE FROM proof_blobs WHERE sequence_number <= $1
-             )
-             DELETE FROM events WHERE sequence_number <= $1",
+                "WITH master_check AS (
+                    SELECT 1 FROM sequencer_leader 
+                    WHERE singleton = 1 AND node_id = $2
+                ),
+                blobs_deleted AS (
+                    DELETE FROM proof_blobs 
+                    WHERE sequence_number <= $1 AND EXISTS (SELECT 1 FROM master_check)
+                )
+                DELETE FROM events 
+                WHERE sequence_number <= $1 AND EXISTS (SELECT 1 FROM master_check)",
             )
             .bind(i64::try_from(up_to_including)?)
+            .bind(self.node_id)
             .execute(&self.pool),
             "postgres_db_backend_prune"
         )?;
@@ -363,17 +419,27 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         run_with_retries!(
             &self.backoff_policy,
             sqlx::query(
-                "WITH blob_insert AS (
-                    INSERT INTO proof_blobs (sequence_number, borsh_value) VALUES ($1, $2)
-             )
-             INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
-             SELECT $1, 'new_proof', NULL, NULL, NULL",
+                "WITH master_check AS (
+                    SELECT 1 FROM sequencer_leader 
+                    WHERE singleton = 1 AND node_id = $3
+                ),
+                blob_insert AS (
+                    INSERT INTO proof_blobs (sequence_number, borsh_value) 
+                    SELECT $1, $2 FROM master_check
+                )
+                INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
+                SELECT $1, 'new_proof', NULL, NULL, NULL FROM master_check",
             )
             .bind(i64::try_from(sequence_number)?)
             .bind::<&[u8]>(blob_data.as_ref())
+            .bind(self.node_id)
             .execute(&self.pool),
             "postgres_db_backend_add_proof_blob"
         )?;
+        
+        if result.rows_affected() == 0 {
+            return Err(anyhow::anyhow!("Failed to add proof blob: not current master"));
+        }
 
         Ok(())
     }
