@@ -187,7 +187,7 @@ where
     pub async fn new(
         backend: Box<dyn PreferredSequencerDbBackend>,
         shutdown_sender: watch::Sender<()>,
-        is_replica: bool,
+        is_master: bool,
     ) -> anyhow::Result<(Self, Option<u64>, SequenceNumber)> {
         let DbSnapshotData {
             completed_blobs,
@@ -211,7 +211,7 @@ where
                 phantom: PhantomData,
                 completed_blobs,
                 in_progress_batch,
-                is_replica,
+                is_replica: !is_master,
                 event_stream: None,
                 shutdown_sender,
                 phantom_runtime: PhantomData,

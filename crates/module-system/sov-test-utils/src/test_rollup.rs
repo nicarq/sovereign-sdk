@@ -643,7 +643,7 @@ where
                 if let SequencerKindConfig::Preferred(ref mut preferred_config) =
                     instance_builder.config.sequencer_config
                 {
-                    preferred_config.is_replica = true;
+                    preferred_config.is_master = false;
                 }
             }
 

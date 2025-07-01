@@ -457,7 +457,7 @@ where
     /// Unique node identifier used for leader election in replica failover scenarios
     node_id: Uuid,
     /// Current replica status - can be dynamically changed during failover
-    is_replica: AtomicBool,
+    is_master: AtomicBool,
     state_root_compute_task: StateRootBackgroundTaskState<S>,
     shutdown_receiver: watch::Receiver<()>,
     ledger_db: LedgerDb,
@@ -544,7 +544,7 @@ where
         let (db, latest_event_id, next_sequence_number) = PreferredSequencerDb::<S, Rt>::new(
             db_backend,
             shutdown_sender.clone(),
-            config.sequencer_kind_config.is_replica,
+            config.sequencer_kind_config.is_master,
         )
         .await?;
 
@@ -565,7 +565,7 @@ where
             handles.push(blob_sender_handle);
 
             let mut blob_sender =
-                PreferredBlobSender::from((inner, config.sequencer_kind_config.is_replica));
+                PreferredBlobSender::from((inner, config.sequencer_kind_config.is_master));
 
             // It's possible that sov-blob-sender's DB might miss some blob data at
             // node startup due to:
@@ -612,10 +612,10 @@ where
             sequence_number_of_next_blob: next_sequence_number,
             in_flight_blobs,
             batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
-            is_ready: if config.sequencer_kind_config.is_replica {
-                Err(SequencerNotReadyDetails::ReplicaMode)
-            } else {
+            is_ready: if config.sequencer_kind_config.is_master {
                 Err(SequencerNotReadyDetails::Startup)
+            } else {
+                Err(SequencerNotReadyDetails::ReplicaMode)
             },
         };
 
@@ -652,7 +652,7 @@ where
             block_executors_shutdown_notifier,
             config: config.clone(),
             node_id,
-            is_replica: AtomicBool::new(config.sequencer_kind_config.is_replica),
+            is_master: AtomicBool::new(config.sequencer_kind_config.is_master),
             state_root_compute_task,
             shutdown_receiver: shutdown_receiver.clone(),
             ledger_db: ledger_db.clone(),
@@ -812,7 +812,7 @@ where
         shutdown_receiver: &watch::Receiver<()>,
         mut info: StateUpdateInfo<S::Storage>,
     ) -> anyhow::Result<()> {
-        if self.is_replica().await? {
+        if !self.is_master().await {
             // Replicas don't run recovery. We let the main sequencer run catchup. If we fail-over
             // midway, update_state() will automatically re-trigger recovery on this instance if
             // necessary - if the previous master already recovered enough then we'll just continue
@@ -1048,13 +1048,9 @@ where
             .await
     }
 
-    async fn is_replica(&self) -> anyhow::Result<bool> {
-        Ok(self.is_replica.load(Ordering::Acquire))
-    }
-
     /// Update the replica status (used during failover)
-    pub fn set_replica_status(&self, is_replica: bool) {
-        self.is_replica.store(is_replica, Ordering::Release);
+    pub fn set_replica_status(&self, is_master: bool) {
+        self.is_master.store(is_master, Ordering::Release);
     }
 
     /// Closes the current batch if it is nearly full (by gas limit) or has reached the target batch execution time.
@@ -1341,6 +1337,15 @@ where
         .map(|_| ())
     }
 
+    async fn is_master(&self) -> bool {
+        self.is_master.load(Ordering::Acquire)
+    }
+
+    fn node_id(&self) -> Uuid {
+        self.node_id
+    }
+
+
     fn api_state(&self) -> ApiState<Self::Spec> {
         self.api_state.clone()
     }
@@ -1579,7 +1584,7 @@ pub struct PreferredSequencerConfig {
     /// When enabled, the sequencer runs in replica mode and cannot accept transactions.
     /// It will sync from the master sequencer's database but remain read-only.
     #[serde(default)]
-    pub is_replica: bool,
+    pub is_master: bool,
     /// Time in seconds after which a replica will attempt to become the master if no heartbeat is received.
     /// Only used in replica mode for failover scenarios.
     #[serde(default = "default_failover_threshold_secs")]
@@ -1595,7 +1600,7 @@ impl Default for PreferredSequencerConfig {
             disable_state_root_consistency_checks: false,
             ideal_lag_behind_finalized_slot: default_ideal_lag_behind_finalized_slot(),
             recovery_strategy: RecoveryStrategy::None,
-            is_replica: false,
+            is_master: true,
             db_event_channel_size: default_db_event_channel_size(),
             batch_execution_time_limit_millis: 6_000, // 6 seconds
             failover_threshold_secs: default_failover_threshold_secs(),

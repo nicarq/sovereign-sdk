@@ -20,6 +20,7 @@ use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::TxHash;
 use tokio::sync::watch::Receiver;
 use tokio_stream::wrappers::BroadcastStream;
+use uuid::Uuid;
 
 use crate::common::{error_not_fully_synced, Sequencer};
 use crate::TxStatus;
@@ -66,7 +67,9 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
             .route(
                 "/sequencer/unstable/events",
                 axum::routing::get(Self::axum_list_events),
-            );
+            )
+            .route("/sequencer/node-id", axum::routing::get(Self::axum_get_node_id))
+            .route("/sequencer/is-master", axum::routing::get(Self::axum_get_is_master));
 
         #[cfg(feature = "test-utils")]
         let router = router.route(
@@ -298,6 +301,14 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
             next_cursor: Some(next_cursor.to_string()),
         };
         Ok(response.into())
+    }
+
+    async fn axum_get_node_id(state: State<Self>) -> ApiResult<Uuid> {
+        Ok(state.sequencer.node_id().into())
+    }
+
+    async fn axum_get_is_master(state: State<Self>) -> ApiResult<bool> {
+        Ok(state.sequencer.is_master().await.into())
     }
 }
 
