@@ -80,11 +80,16 @@ async fn test_actions_against_replicas(
     let (master, mut state) =
         run_actions_against_test_rollup(actions, master, &admin.clone(), state).await;
 
+    println!("Sent master actions");
     // Ensure replicas have processed the database changes
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
 
+    println!("Waited - querying replicas");
     // Verify state synchronization across all replicas
+    let mut i: u32 = 1;
     for replica_opt in &mut replicas {
+        println!("Checking replica {i}");
+        i += 1;
         let replica = replica_opt.take().unwrap();
         let updated_replica = run_action_against_test_rollup(
             replica,
@@ -131,17 +136,23 @@ async fn seq_with_replicas() {
     let (master, state) = setup_test_rollup_with_initial_state(master, &admin).await;
     tokio::time::sleep(Duration::from_secs(2)).await;
 
+    println!("\n\nFirst test action...\n");
     let actions = vec![TestingAction::AcceptTx, TestingAction::QuerySetValue];
     let (master, replicas, mut state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
+    println!("First test action done");
+
     let replicas = restart_replica(&admin, replicas, &mut state, 0).await;
 
     let actions = vec![
         TestingAction::NewDaSlot,
         TestingAction::Sleep { duration_ms: 100 },
     ];
+    println!("\n\nSecond test action...\n");
     let (master, replicas, mut state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
+    println!("Second test action done");
+
 
     let replicas = restart_replica(&admin, replicas, &mut state, 0).await;
 
@@ -156,13 +167,18 @@ async fn seq_with_replicas() {
         TestingAction::Sleep { duration_ms: 100 },
         TestingAction::NewDaSlot,
         TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
     ];
+    println!("\n\nThird test action...\n");
     let (master, replicas, mut state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
+    println!("Third test action done");
 
     let replicas = restart_replica(&admin, replicas, &mut state, 1).await;
     let replicas = restart_replica(&admin, replicas, &mut state, 2).await;
 
+    println!("\n\nFinal check...\n");
     let (master, replicas, state) = test_actions_against_replicas(
         &admin,
         (master, replicas, state),
@@ -173,6 +189,7 @@ async fn seq_with_replicas() {
     // Silence unused variable warnings to keep the test easier to edit
     drop(state);
 
+    println!("\n\nShutting down...\n");
     // Shutdown replicas first
     for replica in replicas {
         replica.unwrap().shutdown().await.unwrap();

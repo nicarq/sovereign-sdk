@@ -657,21 +657,19 @@ where
             stop_at_rollup_height,
         });
 
-        // Launch replica sync task only for replicas
+        // Launch replica sync task
         // This will block until the currently stored batches in the DB are replayed onto the
         // state, then yield when it switches to processing postgres events live.
         // This is necessary to prevent conflicts with the update_state task.
-        if config.sequencer_kind_config.is_replica {
-            handles.push(
-                spawn_replica_sync_task(
-                    seq.clone(),
-                    shutdown_receiver.clone(),
-                    latest_state_update.clone(),
-                    latest_event_id,
-                )
-                .await,
-            );
-        }
+        handles.push(
+            spawn_replica_sync_task(
+                seq.clone(),
+                shutdown_receiver.clone(),
+                latest_state_update.clone(),
+                latest_event_id,
+            )
+            .await,
+        );
         handles.push(tokio::spawn({
             update_state_task(
                 seq.clone(),
