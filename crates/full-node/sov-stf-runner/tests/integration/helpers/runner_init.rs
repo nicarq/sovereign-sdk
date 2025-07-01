@@ -231,6 +231,7 @@ pub async fn initialize_runner(
         Box::new(InfiniteHeight),
         shutdown_receiver.clone(),
         rollup_config.monitoring.clone(),
+        None,
     )
     .await
     .unwrap();

@@ -152,6 +152,7 @@ async fn test_runner_with_background_da_service(
         Box::new(InfiniteHeight),
         shutdown_receiver.clone(),
         rollup_config.monitoring.clone(),
+        None,
     )
     .await?;
 

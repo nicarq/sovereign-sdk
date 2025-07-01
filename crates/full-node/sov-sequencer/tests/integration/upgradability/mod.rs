@@ -6,7 +6,7 @@ use std::time::Duration;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use futures::StreamExt;
-use sov_api_spec::types::{self as api_types};
+use sov_api_spec::types;
 use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
@@ -123,7 +123,7 @@ async fn tests_sequencer_does_not_accept_tx_after_stop() {
 
         let tx_update_one = tx_set_value(&admin.private_key, nonce, 8);
         let res = api_client
-            .accept_tx(&api_types::AcceptTxBody {
+            .accept_tx(&types::AcceptTxBody {
                 body: BASE64_STANDARD.encode(&tx_update_one),
             })
             .await;
@@ -155,6 +155,51 @@ async fn tests_sequencer_does_not_accept_tx_after_stop() {
     let _ = test_rollup.shutdown().await;
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn test_rollup_operates_only_on_finalized_blocks_if_stop_at_height_set() {
+    let stop_at_height = RollupHeight::new(15);
+
+    let (test_rollup, _) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        Some(stop_at_height),
+    )
+    .await;
+
+    let test_rollup = test_rollup.unwrap();
+
+    let client = test_rollup.client.clone();
+    assert_rollup_processes_only_finalized_blocks(&client).await;
+
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(10)
+        .await
+        .unwrap();
+    assert_rollup_processes_only_finalized_blocks(&client).await;
+
+    let mut current_height = get_height(&client).await;
+    let mut slot_subscription = test_rollup.client.client.subscribe_slots().await.unwrap();
+    while current_height.get() < stop_at_height.get() + 10 {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        slot_subscription.next().await;
+        // We nned to wait a bit so the new blcok is visible to the sequencer.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert_rollup_processes_only_finalized_blocks(&client).await;
+        current_height = get_height(&client).await;
+    }
+
+    let _ = test_rollup.shutdown().await;
+}
+
+async fn assert_rollup_processes_only_finalized_blocks(client: &NodeClient) {
+    let last_finalized_block_height = get_last_finalized_block_height(client).await;
+    let last_block_height = get_last_block_height(client).await;
+    // During upgrade procedure rollup processes only finalized blocks.
+    assert_eq!(last_finalized_block_height, last_block_height);
+}
+
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
@@ -172,10 +217,30 @@ struct Data {
 struct Meta {}
 
 async fn get_height(client: &NodeClient) -> RollupHeight {
-    let url = "/modules/chain-state/state/current-heights".to_string();
-    let response = client.http_get(&url).await.unwrap();
+    let url = "/modules/chain-state/state/current-heights";
+    let response = client.http_get(url).await.unwrap();
     let heights: CurrentHeights = serde_json::from_str(&response).unwrap();
     RollupHeight::new(heights.data.value.0)
+}
+
+async fn get_last_finalized_block_height(client: &NodeClient) -> u64 {
+    get_block_height(client, true).await
+}
+
+async fn get_last_block_height(client: &NodeClient) -> u64 {
+    get_block_height(client, false).await
+}
+
+async fn get_block_height(client: &NodeClient, finalized: bool) -> u64 {
+    let url = if finalized {
+        "/ledger/slots/finalized"
+    } else {
+        "/ledger/slots/latest"
+    };
+    let response = client.http_get(url).await.unwrap();
+    let height: sov_api_spec::types::GetLatestSlotResponse =
+        serde_json::from_str(&response).unwrap();
+    height.data.unwrap().number
 }
 
 async fn create_test_rollup(

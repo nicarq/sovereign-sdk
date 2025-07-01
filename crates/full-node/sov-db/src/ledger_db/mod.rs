@@ -361,7 +361,6 @@ impl LedgerDb {
         data_to_commit: SlotCommit<S, B, T>,
         state_root: &[u8],
     ) -> anyhow::Result<SchemaBatch> {
-        // Create a scope to ensure that the lock is released before we materialize data
         let mut current_item_numbers = self.get_next_items_numbers()?;
         let mut schema_batch = SchemaBatch::new();
 

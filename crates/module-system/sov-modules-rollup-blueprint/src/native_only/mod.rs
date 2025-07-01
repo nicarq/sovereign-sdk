@@ -407,6 +407,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             visible_state_height_tracker,
             main_shutdown_receiver.clone(),
             rollup_config.monitoring.clone(),
+            stop_at_rollup_height,
         )
         .await?;
 
