@@ -45,7 +45,7 @@ struct Args {
     validity_profile: ValidityProfile,
 
     #[arg(short, long, default_value = "mixed")]
-    /// The distribution of valid/invalid transactions to generate.
+    /// The distribution of token transfers vs. synthetic load transactions to generate.
     tx_type: TxType,
 }
 
