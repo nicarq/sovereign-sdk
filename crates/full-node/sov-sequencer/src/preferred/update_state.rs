@@ -4,7 +4,12 @@ use sov_modules_api::{Runtime, Spec};
 use sov_rollup_interface::node::da::DaService;
 use sov_state::{NativeStorage, Storage};
 
+<<<<<<< HEAD
 use crate::metrics::PreferredSequencerUpdateStateMetrics;
+=======
+use crate::metrics::{PreferredSequencerPruneMetrics, PreferredSequencerUpdateStateMetrics};
+use crate::common::Sequencer;
+>>>>>>> Add APIS and rename is_replica to is_master
 use crate::preferred::{
     get_next_sequence_number_according_to_node, DbEvent, FetchBatches, Flow,
     PreferredBatchToReplay, PreferredSequencer, ProcessFinalCatchupData, RollupBlockExecutor,
@@ -214,9 +219,32 @@ where
         });
 
         if !self.shutdown_receiver.has_changed().unwrap_or(true) {
+<<<<<<< HEAD
             self.synchronized_state_updator
                 .prune_sequencer_db_msg("update_state::prune_sequencer_db")
                 .await;
+=======
+            // Get back in line for the lock, and trigger batch production if it's convenient.
+            // Since pruning might be expensive and we've already held the lock for a while, we
+            // prefer to drop the lock above and re-acquire it here to help keep p99 stable.
+            let start_prune = std::time::Instant::now();
+            let mut inner = self.lock_inner().await;
+            let time_to_lock = start_prune.elapsed();
+            if self.is_master().await {
+                inner.trigger_batch_production_if_convenient().await?;
+            }
+            inner.prune_sequencer_db().await;
+            drop(inner);
+            let prune_duration = start_prune.elapsed();
+            let lock_duration = prune_duration - time_to_lock;
+            let metrics = PreferredSequencerPruneMetrics {
+                duration_ms: prune_duration.as_millis() as u64,
+                lock_duration_ms: lock_duration.as_millis() as u64,
+            };
+            sov_metrics::track_metrics(|t| {
+                t.submit(metrics);
+            });
+>>>>>>> Add APIS and rename is_replica to is_master
         }
 
         Ok(())

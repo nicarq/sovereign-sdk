@@ -14,7 +14,7 @@ use crate::common::TxStatusBlobSenderHooks;
 pub struct PreferredBlobSender<Da: DaService> {
     inner: BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>, LedgerDb>,
     #[deref(ignore)]
-    is_replica: bool,
+    is_master: bool,
 }
 
 impl<Da: DaService> PreferredBlobSender<Da> {
@@ -52,7 +52,7 @@ impl<Da: DaService> PreferredBlobSender<Da> {
         &mut self,
         completed_blobs: Vec<PreferredSequencerReadBlob>,
     ) -> anyhow::Result<()> {
-        if self.is_replica {
+        if !self.is_master {
             return Ok(());
         }
 

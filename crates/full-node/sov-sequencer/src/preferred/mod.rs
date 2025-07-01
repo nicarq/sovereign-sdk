@@ -120,7 +120,7 @@ where
     /// Unique node identifier used for leader election in replica failover scenarios
     node_id: Uuid,
     /// Current replica status - can be dynamically changed during failover
-    is_replica: AtomicBool,
+    is_master: AtomicBool,
     state_root_compute_task: StateRootBackgroundTaskState<S>,
     shutdown_receiver: watch::Receiver<()>,
     transaction_cache: TransactionCache<S, Rt>,
@@ -205,6 +205,7 @@ where
             } else {
                 Box::new(RocksDbBackend::new(storage_path).await?)
             };
+<<<<<<< HEAD
         let (db, latest_db_event_id, next_sequence_number, db_cache) =
             PreferredSequencerDb::<S, Rt>::new(
                 db_backend,
@@ -212,6 +213,14 @@ where
                 config.sequencer_kind_config.is_replica,
             )
             .await?;
+=======
+        let (db, latest_event_id, next_sequence_number) = PreferredSequencerDb::<S, Rt>::new(
+            db_backend,
+            shutdown_sender.clone(),
+            config.sequencer_kind_config.is_master,
+        )
+        .await?;
+>>>>>>> Add APIS and rename is_replica to is_master
 
         let mut handles = vec![];
 
@@ -243,7 +252,23 @@ where
             .await?;
 
             handles.push(blob_sender_handle);
+<<<<<<< HEAD
             PreferredBlobSender::from((inner_blob_sender, config.sequencer_kind_config.is_replica))
+=======
+
+            let mut blob_sender =
+                PreferredBlobSender::from((inner, config.sequencer_kind_config.is_master));
+
+            // It's possible that sov-blob-sender's DB might miss some blob data at
+            // node startup due to:
+            //  1. Disk failure (the sequencer can use Postgres so it's durable).
+            //  2. DB corruption.
+            //  3. Node crash at an inconvenient time.
+            // Let's restore all missing blob data to make sure they land on the DA.
+            blob_sender.publish_blobs(completed_blobs).await?;
+
+            blob_sender
+>>>>>>> Add APIS and rename is_replica to is_master
         };
 
         let (state_root_compute_handle, state_root_compute_task) =
@@ -294,11 +319,21 @@ where
             executor_events_sender,
             next_sequence_number,
             in_flight_blobs,
+<<<<<<< HEAD
             stop_at_rollup_height,
         );
 
         let synchronized_state_task = synchronized_state.start().await;
         handles.push(synchronized_state_task);
+=======
+            batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
+            is_ready: if config.sequencer_kind_config.is_master {
+                Err(SequencerNotReadyDetails::Startup)
+            } else {
+                Err(SequencerNotReadyDetails::ReplicaMode)
+            },
+        };
+>>>>>>> Add APIS and rename is_replica to is_master
 
         let side_effects_task = SideEffectsTask {
             checkpoint_sender,
@@ -322,7 +357,7 @@ where
             block_executors_shutdown_notifier,
             config: config.clone(),
             node_id,
-            is_replica: AtomicBool::new(config.sequencer_kind_config.is_replica),
+            is_master: AtomicBool::new(config.sequencer_kind_config.is_master),
             state_root_compute_task,
             shutdown_receiver: shutdown_receiver.clone(),
             api_ledger_db,
@@ -402,6 +437,28 @@ where
         shutdown_receiver: &watch::Receiver<()>,
         mut info: StateUpdateInfo<S::Storage>,
     ) -> anyhow::Result<()> {
+<<<<<<< HEAD
+=======
+        if !self.is_master().await {
+            // Replicas don't run recovery. We let the main sequencer run catchup. If we fail-over
+            // midway, update_state() will automatically re-trigger recovery on this instance if
+            // necessary - if the previous master already recovered enough then we'll just continue
+            // operating.
+            //
+            // TODO: we do need to overwrite our state with the node's. Since recovery is expected
+            // to be very rare, and if it does happen that means the rollup has already had
+            // downtime and will already have had lost soft-confirmations, for now we'll require
+            // the user to manually reset replicas.
+            // To implement this properly we'd need to make sure we're 100% synced with the master
+            // on exactly when to stop overwriting from the node and start applying new
+            // transactions again. Probably by watching the `txs` table, so shouldn't be hard, but
+            // not trivial enough to implement it on the spot.
+            error!("We have encountered recovery conditions, but this is a replica sequencer. Recovery is currently unsupported for replicas. Please run a single master instance of the sequencer to restore the rollup to normal functionality. Wait for the rollup to be fully recovered, and then restart any replicas.");
+            exit_rollup(&self.shutdown_sender).await;
+            unreachable!();
+        }
+
+>>>>>>> Add APIS and rename is_replica to is_master
         let mut rt = Rt::default();
 
         loop {
@@ -590,6 +647,7 @@ where
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 pub(crate) fn slot_count_delta_acceptable_lower_bound(
     max_allowed_node_distance_behind: u64,
 ) -> u64 {
@@ -611,9 +669,11 @@ pub(crate) fn slot_count_delta_acceptable_lower_bound(
         Ok(self.is_replica.load(Ordering::Acquire))
     }
 
+=======
+>>>>>>> Add APIS and rename is_replica to is_master
     /// Update the replica status (used during failover)
-    pub fn set_replica_status(&self, is_replica: bool) {
-        self.is_replica.store(is_replica, Ordering::Release);
+    pub fn set_replica_status(&self, is_master: bool) {
+        self.is_master.store(is_master, Ordering::Release);
     }
 
     /// Closes the current batch if it is nearly full (by gas limit) or has reached the target batch execution time.
@@ -871,6 +931,15 @@ where
             .map(|_| ())
     }
 
+    async fn is_master(&self) -> bool {
+        self.is_master.load(Ordering::Acquire)
+    }
+
+    fn node_id(&self) -> Uuid {
+        self.node_id
+    }
+
+
     fn api_state(&self) -> ApiState<Self::Spec> {
         self.api_state.clone()
     }
@@ -1104,7 +1173,7 @@ pub struct PreferredSequencerConfig {
     /// When enabled, the sequencer runs in replica mode and cannot accept transactions.
     /// It will sync from the master sequencer's database but remain read-only.
     #[serde(default)]
-    pub is_replica: bool,
+    pub is_master: bool,
     /// Time in seconds after which a replica will attempt to become the master if no heartbeat is received.
     /// Only used in replica mode for failover scenarios.
     #[serde(default = "default_failover_threshold_secs")]
@@ -1120,7 +1189,7 @@ impl Default for PreferredSequencerConfig {
             disable_state_root_consistency_checks: false,
             ideal_lag_behind_finalized_slot: default_ideal_lag_behind_finalized_slot(),
             recovery_strategy: RecoveryStrategy::None,
-            is_replica: false,
+            is_master: true,
             db_event_channel_size: default_db_event_channel_size(),
             batch_execution_time_limit_millis: 6_000, // 6 seconds
             failover_threshold_secs: default_failover_threshold_secs(),

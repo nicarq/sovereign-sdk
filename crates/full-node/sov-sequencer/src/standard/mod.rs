@@ -28,6 +28,7 @@ use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::Duration;
 use tracing::{debug, error, trace, warn};
+use uuid::Uuid;
 
 use self::mempool::{Mempool, MempoolCursor, MempoolTx};
 use crate::common::{
@@ -78,6 +79,7 @@ where
     runtime: Rt,
     txsm: TxStatusManager<S::Da>,
     inner: Mutex<Inner<S, Rt, Da>>,
+    node_id: Uuid,
     checkpoint_sender: watch::Sender<StateCheckpoint<S>>,
     api_state: ApiState<S>,
     da_address: <S::Da as DaSpec>::Address,
@@ -171,6 +173,7 @@ where
             inner: inner.into(),
             txsm,
             api_state,
+            node_id: Uuid::now_v7(),
             runtime: Rt::default(),
             checkpoint_sender,
             config: config.clone(),
@@ -528,6 +531,15 @@ where
         // transactions.
         Ok(())
     }
+
+    async fn is_master(&self) -> bool {
+        true
+    }
+
+    fn node_id(&self) -> Uuid {
+        self.node_id
+    }
+
 
     fn tx_status_manager(&self) -> &TxStatusManager<<Self::Spec as Spec>::Da> {
         &self.txsm

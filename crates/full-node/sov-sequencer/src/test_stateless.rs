@@ -19,6 +19,7 @@ use sov_rollup_interface::{StateUpdateInfo, TxHash};
 use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::Duration;
+use uuid::Uuid;
 
 use crate::common::{
     loop_call_update_state, loop_send_tx_notifications, AcceptedTx, EmptyConfirmation, Sequencer,
@@ -192,6 +193,14 @@ where
 
     async fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
         Ok(())
+    }
+
+    async fn is_master(&self) -> bool {
+        true
+    }
+
+    fn node_id(&self) -> Uuid {
+        Uuid::nil()
     }
 
     async fn tx_status(

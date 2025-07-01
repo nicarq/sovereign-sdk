@@ -18,7 +18,12 @@ use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
 use super::db::StoredBlob;
+<<<<<<< HEAD
 use crate::preferred::{exit_rollup, DbEvent, PreferredSequencer};
+=======
+use crate::preferred::{exit_rollup, DbEvent, ExecutorEvent, PreferredSequencer};
+use crate::common::Sequencer;
+>>>>>>> Add APIS and rename is_replica to is_master
 use crate::ProofBlobSender;
 
 /// Event type enum for type-safe parsing
@@ -219,17 +224,17 @@ where
         mut shutdown_receiver: watch::Receiver<()>,
         latest_loaded_event_id: Option<u64>,
     ) -> anyhow::Result<()> {
-        let is_replica = sequencer.is_replica().await?;
+        let is_master = sequencer.is_master().await;
 
-        if is_replica {
-            info!("Starting replica sync task for a replica sequencer");
-        } else {
+        if is_master {
             info!("Starting replica sync task for a master sequencer (heartbeat mode)");
+        } else {
+            info!("Starting replica sync task for a replica sequencer");
         }
 
         // Create a separate persistent connection pool for querying transaction data
         let query_pool = PgPoolOptions::default()
-            .max_connections(5) // Small pool since we're just doing simple queries
+            .max_connections(20) // Large pool for extra parallel queries when processing txs
             .connect(connection_string)
             .await?;
 
@@ -240,14 +245,14 @@ where
         listener.listen("leader_changes").await?;
 
         // Replicas also need to listen to events_changes for syncing
-        if is_replica {
+        if !is_master {
             listener.listen("events_changes").await?;
         }
 
         debug!("Successfully connected and listening for PostgreSQL notifications");
 
         // Masters should claim initial leadership on startup
-        if !is_replica {
+        if is_master {
             if let Err(e) = send_heartbeat(&query_pool, sequencer.node_id).await {
                 warn!("Failed to claim initial leadership: {e:?}");
             } else {
@@ -259,7 +264,6 @@ where
         }
 
         // Create and run the replication task
-        let are_we_master = !is_replica;
         let failover_threshold = Duration::from_secs(
             sequencer
                 .config
@@ -272,18 +276,18 @@ where
 
         debug!(
             "Starting database watching loop - role: {}",
-            if are_we_master { "master" } else { "replica" }
+            if is_master { "master" } else { "replica" }
         );
         println!(
             "Starting database watching loop - role: {}",
-            if are_we_master { "master" } else { "replica" }
+            if is_master { "master" } else { "replica" }
         );
 
         let mut task = Self {
             sequencer,
             query_pool,
             latest_received_event_id: latest_loaded_event_id,
-            are_we_master,
+            are_we_master: is_master,
             last_heartbeat_time: SystemTime::now(),
             heartbeat_interval,
             failover_threshold,

@@ -189,6 +189,7 @@ impl PreferredSequencerCache {
         completed_blobs: VecDeque<PreferredSequencerReadBlob>,
         in_progress_batch: Option<InProgressBatch>,
         shutdown_sender: watch::Sender<()>,
+<<<<<<< HEAD
     ) -> Self {
         Self {
             completed_blobs,
@@ -196,6 +197,40 @@ impl PreferredSequencerCache {
             event_stream: None,
             shutdown_sender,
         }
+=======
+        is_master: bool,
+    ) -> anyhow::Result<(Self, Option<u64>, SequenceNumber)> {
+        let DbSnapshotData {
+            completed_blobs,
+            in_progress_batch,
+            latest_event_id,
+        } = backend.current_data().await?;
+        let completed_blobs = VecDeque::from(completed_blobs);
+
+        let sequence_number_of_next_blob = match (completed_blobs.back(), &in_progress_batch) {
+            (Some(blob), None) => blob.sequence_number() + 1,
+            (None, Some(batch)) => batch.sequence_number + 1,
+            (Some(blob), Some(batch)) => {
+                std::cmp::max(blob.sequence_number(), batch.sequence_number) + 1
+            }
+            (None, None) => 0,
+        };
+
+        Ok((
+            Self {
+                backend,
+                phantom: PhantomData,
+                completed_blobs,
+                in_progress_batch,
+                is_replica: !is_master,
+                event_stream: None,
+                shutdown_sender,
+                phantom_runtime: PhantomData,
+            },
+            latest_event_id,
+            sequence_number_of_next_blob,
+        ))
+>>>>>>> Add APIS and rename is_replica to is_master
     }
 
     pub fn in_progress_batch_opt(&self) -> Option<&InProgressBatch> {
