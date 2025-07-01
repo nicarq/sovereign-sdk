@@ -105,6 +105,7 @@ where
     Da: DaService<Spec = S::Da>,
 {
     /// Creates `StdSequencer`
+    #[allow(clippy::too_many_arguments)]
     pub async fn create(
         da: Da,
         state_update_receiver: StateUpdateReceiver<S::Storage>,

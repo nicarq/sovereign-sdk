@@ -93,9 +93,10 @@ bench = [
     "sov-celestia-adapter/bench",
 ]
 arbitrary = [
-    "dep:arbitrary",
-    "dep:proptest",
-    "sov-celestia-adapter/arbitrary",
-    "sov-rollup-interface/arbitrary",
-    "sov-test-utils/arbitrary"
+	"dep:arbitrary",
+	"dep:proptest",
+	"sov-celestia-adapter/arbitrary",
+	"sov-rollup-interface/arbitrary",
+	"sov-test-utils/arbitrary",
+	"sov-modules-macros?/arbitrary"
 ]

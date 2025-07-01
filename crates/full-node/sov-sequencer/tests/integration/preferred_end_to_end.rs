@@ -51,7 +51,7 @@ generate_optimistic_runtime_with_kernel!(
     modules: [value_setter: ValueSetter<S>, hooks_count: HooksCount<S>, paymaster: Paymaster<S>, slot_hook_checker: ModuleWithVersionedStateAccessInSlotHook<S>],
     transaction_delay_ms_wrapper: |call: &Self::Decodable| {
         match call {
-            Self::Decodable::HooksCount(sov_test_modules::hooks_count::CallMessage::DelayedCallMsg { .. }) => DELAYED_TX_DELAY_MS,
+            Self::Decodable::HooksCount(sov_test_modules::hooks_count::CallMessage::DelayedCallMsg) => DELAYED_TX_DELAY_MS,
             _ => 0,
         }
     }
@@ -120,6 +120,7 @@ pub(crate) enum InvalidGeneration {
     TooOld,
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn create_test_rollup(
     minimum_profit_per_tx: u128,
     max_batch_size: usize,
@@ -249,8 +250,7 @@ async fn txs_below_min_fee_are_rejected() {
     let err_message = e.to_string();
     assert!(
         err_message.contains("This transaction did not pay a sufficient net fee."),
-        "Full error message does not contain expect part: {}",
-        err_message
+        "Full error message does not contain expect part: {err_message}"
     );
 }
 
@@ -275,7 +275,7 @@ async fn sequencer_filled_up_block() {
         .collect::<Vec<_>>();
     std::env::set_var(
         "SOV_TEST_CONST_OVERRIDE_INITIAL_GAS_LIMIT",
-        format!("{:?}", gas_limit_array),
+        format!("{gas_limit_array:?}"),
     );
     // Set very high initial balance for the admin.
     genesis_config.additional_accounts_mut()[0].available_gas_balance =
@@ -374,8 +374,7 @@ async fn sequencer_filled_up_block() {
         assert!(
             err.to_string()
                 .contains("The gas to charge is greater than the funds available in the meter"),
-            "Expected Out of Gas error, got: {}",
-            err
+            "Expected Out of Gas error, got: {err}"
         );
 
         // Produce a third transaction that uses 5% of the gas limit.
@@ -535,8 +534,7 @@ async fn seq_behind_deferred_slots_count() {
     let actual_value = response.data.unwrap().value;
     assert_eq!(
         actual_value, UPDATE_TWO_VALUE as u32,
-        "Expected value to be {}, but got {}",
-        UPDATE_TWO_VALUE, actual_value
+        "Expected value to be {UPDATE_TWO_VALUE}, but got {actual_value}"
     );
 
     // Assert that the transaction sent after the sequencer exited recovery was processed (i.e.
@@ -557,8 +555,7 @@ async fn seq_behind_deferred_slots_count() {
     let actual_many_value = many_values_response.data.unwrap().value.unwrap();
     assert_eq!(
         actual_many_value, 12u8,
-        "Expected many_values[0] to be 12, but got {}",
-        actual_many_value
+        "Expected many_values[0] to be 12, but got {actual_many_value}"
     );
 
     tracing::info!("All asserts successful, shutting down rollup");
@@ -578,7 +575,7 @@ async fn seq_out_of_gas_for_pre_checks() {
     let gas_limit_array = gas_limit.as_ref();
     std::env::set_var(
         "SOV_TEST_CONST_OVERRIDE_INITIAL_GAS_LIMIT",
-        format!("{:?}", gas_limit_array),
+        format!("{gas_limit_array:?}"),
     );
     let price_array = config_value!("INITIAL_BASE_FEE_PER_GAS");
     let gas_price = GasPrice::<2>::from([
@@ -724,8 +721,7 @@ async fn max_batch_size() {
         let error_str = resp.to_string();
         assert!(
             error_str.contains("Transaction cannot be included in the batch"),
-            "actual error: {}",
-            error_str
+            "actual error: {error_str}"
         );
     }
 
@@ -1210,8 +1206,7 @@ async fn flaky_seq_back_pressure() {
         assert!(
             err.to_string()
                 .contains("The sequencer is waiting for the blob sender to be ready"),
-            "Unexpected error: {}",
-            err
+            "Unexpected error: {err}"
         );
 
         test_rollup.da_service.resume_blob_submission().await;
@@ -1610,8 +1605,7 @@ async fn txs_that_enter_before_downtime_are_dropped() {
                 .to_string();
             assert!(
                 response.contains("The sequencer is temporarily overloaded"),
-                "Expected error to contain 'The sequencer is temporarily overloaded', got: {}",
-                response
+                "Expected error to contain 'The sequencer is temporarily overloaded', got: {response}"
             );
         }
     });
@@ -1628,8 +1622,7 @@ async fn txs_that_enter_before_downtime_are_dropped() {
         .to_string();
     assert!(
         third_tx_response.contains("The sequencer is temporarily overloaded"),
-        "Expected error to contain 'The sequencer is temporarily overloaded', got: {}",
-        third_tx_response
+        "Expected error to contain 'The sequencer is temporarily overloaded', got: {third_tx_response}"
     );
     // Produce blocks to ensure that the sequencer has room to process the following txs
     test_rollup
@@ -2022,8 +2015,7 @@ async fn flaky_test_hooks_state_is_visible() {
         let hook_name = hook_name.to_string();
         client
             .query_rest_endpoint::<ResponseObject<ValueResponse>>(&format!(
-                "/modules/hooks-count/state/{}-hook-count",
-                hook_name
+                "/modules/hooks-count/state/{hook_name}-hook-count"
             ))
             .await
             .unwrap()
@@ -2124,8 +2116,7 @@ async fn not_sequencer_safe_txs_are_restricted() {
         {
             assert!(
                 e.to_string().contains("Only designated admins are allowed"),
-                "Unexpected error: {}",
-                e
+                "Unexpected error: {e}"
             );
         } else {
             panic!("Sequencer accepted admin tx from non-admin sender");
@@ -2436,8 +2427,8 @@ pub(crate) async fn run_actions_against_test_rollup(
             Ok(new_test_rollup) => test_rollup = Some(new_test_rollup),
             Err(e) => {
                 println!("Action history: {:#?}", actions[..=i].to_vec());
-                println!("test state: {:#?}", test_state);
-                panic!("Error: {:#?}", e);
+                println!("test state: {test_state:#?}");
+                panic!("Error: {e:#?}");
             }
         }
     }
@@ -2530,7 +2521,7 @@ pub(crate) async fn run_action_against_test_rollup(
                     .await?;
             }
         }
-        TestingAction::NewDaSlot { .. } => {
+        TestingAction::NewDaSlot => {
             test_rollup.da_service.produce_block_now().await.unwrap();
         }
         TestingAction::QuerySetValueHistorical => {
@@ -2558,7 +2549,7 @@ async fn query_set_value(
 ) -> anyhow::Result<()> {
     query_set_value_helper(
         test_rollup,
-        rollup_height.map(|n| format!("rollup_height={}", n)),
+        rollup_height.map(|n| format!("rollup_height={n}")),
         expected,
     )
     .await
@@ -2571,7 +2562,7 @@ async fn query_set_value_by_slot_number(
 ) -> anyhow::Result<()> {
     query_set_value_helper(
         test_rollup,
-        slot_number.map(|n| format!("slot_number={}", n)),
+        slot_number.map(|n| format!("slot_number={n}")),
         expected,
     )
     .await
@@ -2585,7 +2576,7 @@ async fn query_set_value_helper(
     let url = format!(
         "/modules/value-setter/state/value{}",
         if let Some(query_param) = query_param {
-            format!("?{}", query_param)
+            format!("?{query_param}")
         } else {
             "".to_string()
         }

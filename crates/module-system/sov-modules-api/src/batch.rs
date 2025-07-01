@@ -121,7 +121,6 @@ impl SequencerBondForTx {
 }
 
 /// Contains raw transactions obtained from the DA blob.
-
 /// A Batch with its ID.
 #[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
 pub struct BatchWithId<S: Spec> {

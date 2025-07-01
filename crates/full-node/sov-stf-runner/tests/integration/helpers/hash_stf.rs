@@ -151,7 +151,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, 
                 ) {
                     Ok(public_data) => public_data,
                     Err(err) => {
-                        panic!("Error when processing proof: {:?}", err);
+                        panic!("Error when processing proof: {err:?}");
                     }
                 };
 

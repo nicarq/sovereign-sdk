@@ -66,7 +66,7 @@ trait HasGasPayer<S: Spec> {
     ) -> anyhow::Result<()>;
 }
 
-impl<'a, S: Spec> HasGasPayer<S> for StandardProvenRollupCapabilities<'a, S> {
+impl<S: Spec> HasGasPayer<S> for StandardProvenRollupCapabilities<'_, S> {
     /// Reserves enough gas for the transaction to be processed, if possible.
     fn try_reserve_gas_from_payer(
         &mut self,
@@ -105,7 +105,7 @@ fn gas_coins(amount: Amount) -> Coins {
     }
 }
 
-impl<'a, S: Spec, T> GasEnforcer<S> for StandardProvenRollupCapabilities<'a, S, T>
+impl<S: Spec, T> GasEnforcer<S> for StandardProvenRollupCapabilities<'_, S, T>
 where
     Self: HasGasPayer<S>,
 {
@@ -118,7 +118,6 @@ where
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
         self.try_reserve_gas_from_payer(tx, gas_price, context, state)
-            .map_err(Into::into)
     }
 
     fn try_reserve_gas_for_proof(
@@ -215,7 +214,7 @@ where
     }
 }
 
-impl<'a, S: Spec, T> SequencerAuthorization<S> for StandardProvenRollupCapabilities<'a, S, T> {
+impl<S: Spec, T> SequencerAuthorization<S> for StandardProvenRollupCapabilities<'_, S, T> {
     fn is_preferred_sequencer(
         &self,
         sequencer: &<S::Da as DaSpec>::Address,
@@ -225,7 +224,7 @@ impl<'a, S: Spec, T> SequencerAuthorization<S> for StandardProvenRollupCapabilit
     }
 }
 
-impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<'a, S, T> {
+impl<S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<'_, S, T> {
     /// Prevents duplicate transactions from running.
     fn check_uniqueness(
         &self,
@@ -299,7 +298,7 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
     }
 }
 
-impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, S, T> {
+impl<S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'_, S, T> {
     #[cfg(feature = "native")]
     type BondingProofService<K: HasKernel<S>> = BondingProofServiceImpl<S, K>;
 
@@ -371,7 +370,7 @@ impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, 
     }
 }
 
-impl<'a, S: Spec, T> SequencerRemuneration<S> for StandardProvenRollupCapabilities<'a, S, T> {
+impl<S: Spec, T> SequencerRemuneration<S> for StandardProvenRollupCapabilities<'_, S, T> {
     fn reward_sequencer_or_refund<
         Accessor: StateReader<Kernel, Error = Infallible>
             + StateWriter<Kernel, Error = Infallible>

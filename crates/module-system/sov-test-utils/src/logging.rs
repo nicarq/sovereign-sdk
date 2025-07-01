@@ -43,10 +43,10 @@ where
 
 struct MessageVisitor<'a>(&'a mut String);
 
-impl<'a> tracing::field::Visit for MessageVisitor<'a> {
+impl tracing::field::Visit for MessageVisitor<'_> {
     fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
         if field.name() == "message" {
-            self.0.push_str(&format!("{:?}", value));
+            self.0.push_str(&format!("{value:?}"));
         }
     }
 }

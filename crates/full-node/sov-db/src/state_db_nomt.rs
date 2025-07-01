@@ -410,8 +410,7 @@ mod tests {
 
                 assert_eq!(
                     user_value, expected_value,
-                    "failed to check value for ref: {}",
-                    this_ref
+                    "failed to check value for ref: {this_ref}"
                 );
                 assert_eq!(kernel_value, expected_value);
             }

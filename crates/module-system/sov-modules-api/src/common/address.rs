@@ -10,6 +10,46 @@ use sov_rollup_interface::BasicAddress;
 
 use crate::CredentialId;
 
+/// Helper macro for hash32 derives without arbitrary feature
+#[cfg(not(feature = "arbitrary"))]
+#[macro_export]
+macro_rules! __hash32_derives {
+    { $($struct_def:tt)* } => {
+        #[derive(
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            Hash,
+            borsh::BorshDeserialize,
+            borsh::BorshSerialize,
+            $crate::macros::UniversalWallet,
+        )]
+        $($struct_def)*
+    };
+}
+
+/// Helper macro for hash32 derives with arbitrary feature
+#[cfg(feature = "arbitrary")]
+#[macro_export]
+macro_rules! __hash32_derives {
+    { $($struct_def:tt)* } => {
+        #[derive(
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            Hash,
+            borsh::BorshDeserialize,
+            borsh::BorshSerialize,
+            sov_modules_api::macros::UniversalWallet,
+            sov_modules_api::prelude::arbitrary::Arbitrary,
+            sov_modules_api::prelude::proptest_derive::Arbitrary
+        )]
+        $($struct_def)*
+    };
+}
+
 /// Implement type conversions between a `\[u8;$len\]` wrapper and a bech32 string representation.
 /// This implementation assumes that the wrapper implents a `fn as_bytes(&self) -> &[u8;$len]` as
 /// well as `From<\[u8;$len\]>` and `AsRef<[u8]>`.
@@ -220,27 +260,12 @@ macro_rules! impl_hash32_type {
     };
 
     ($id:ident, $bech32_version:ident, $human_readable_prefix:expr, $len:expr) => {
-        #[derive(
-            Clone,
-            Copy,
-            PartialEq,
-            Eq,
-            Hash,
-            borsh::BorshDeserialize,
-            borsh::BorshSerialize,
-            sov_modules_api::macros::UniversalWallet,
-        )]
-        #[cfg_attr(
-            feature = "arbitrary",
-            derive(
-                sov_modules_api::prelude::arbitrary::Arbitrary,
-                sov_modules_api::prelude::proptest_derive::Arbitrary
-            )
-        )]
-        /// A globally unique identifier.
-        pub struct $id(
-            #[sov_wallet(display(bech32m(prefix = "__impl_hash32_type_prefix()")))] [u8; $len],
-        );
+        $crate::__hash32_derives! {
+            /// A globally unique identifier.
+            pub struct $id(
+                #[sov_wallet(display(bech32m(prefix = "__impl_hash32_type_prefix()")))] [u8; $len],
+            );
+        }
 
         const fn __impl_hash32_type_prefix() -> &'static str {
             $human_readable_prefix
@@ -557,7 +582,7 @@ impl<'de> serde::Deserialize<'de> for Base58Address {
 impl std::fmt::Debug for Base58Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Use the Display implementation which already does base58 encoding
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 

@@ -31,6 +31,7 @@ impl InitializableNativeStorage for TestNativeStorage {
 }
 
 #[cfg(test)]
+#[allow(missing_docs)]
 pub type H = sha2::Sha256;
 #[cfg(test)]
 /// Default slot hash for tests.
@@ -218,7 +219,7 @@ pub fn fill_accessory_db(
             if !should_have_data {
                 continue;
             }
-            let key = format!("{}{}", key_prefix, key_index).into_bytes();
+            let key = format!("{key_prefix}{key_index}").into_bytes();
             let value = Some(format!("value_{}_{}", key_index, current_slot.get()).into_bytes());
 
             batch.put::<ModuleAccessoryState>(&(key.clone(), current_slot), &value)?;

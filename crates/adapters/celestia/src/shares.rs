@@ -259,7 +259,7 @@ impl<'a> NamespaceDataIterator<'a> {
 }
 
 #[cfg(feature = "native")]
-impl<'a> Iterator for NamespaceDataIterator<'a> {
+impl Iterator for NamespaceDataIterator<'_> {
     type Item = ShareSequence;
 
     // Go over each row and each share, tracking offset.

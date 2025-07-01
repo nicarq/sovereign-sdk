@@ -480,6 +480,7 @@ where
     /// [`TxStatusManager`] after all operations, so we'd only need it if we
     /// ever "drop" previously-accepted transactions. The whole point of the
     /// [`PreferredSequencer`] is that we *don't* do that.
+    #[allow(clippy::too_many_arguments)]
     pub async fn create(
         da: Da,
         state_update_receiver: StateUpdateReceiver<S::Storage>,
@@ -1056,8 +1057,7 @@ where
             .checked_scalar_product(COMFORTABLE_GAS_LIMIT_MULTIPLIER)
             .unwrap_or_else(|| {
                 panic!(
-                    "Cannot overflow after dividing by {} and multiplying by {}",
-                    COMFORTABLE_GAS_LIMIT_DIVISOR, COMFORTABLE_GAS_LIMIT_MULTIPLIER,
+                    "Cannot overflow after dividing by {COMFORTABLE_GAS_LIMIT_DIVISOR} and multiplying by {COMFORTABLE_GAS_LIMIT_MULTIPLIER}",
                 )
             });
         let close_to_gas_limit = remaining_slot_gas.dim_is_less_or_eq(&comfortable_gas_limit);

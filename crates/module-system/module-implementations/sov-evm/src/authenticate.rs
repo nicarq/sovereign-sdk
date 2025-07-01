@@ -41,7 +41,7 @@ where
         .map_err(|e| fatal_deserialization_error::<Accessor, S, _>(raw_tx, e, state))?;
     let hash = TxHash::new(tx.hash().into());
     let signer = tx.recover_signer().ok_or(AuthenticationError::FatalError(
-        FatalError::SigVerificationFailed(format!("Invalid ethereum signature: tx hash {}", hash)),
+        FatalError::SigVerificationFailed(format!("Invalid ethereum signature: tx hash {hash}")),
         hash,
     ))?;
 

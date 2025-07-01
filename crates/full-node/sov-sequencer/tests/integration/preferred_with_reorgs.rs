@@ -307,12 +307,7 @@ async fn test_stream_of_transactions(
     let all_tx_statuses = harness.gather_all_statuses(&rollup.client.client).await?;
 
     for (tx_hash, status) in all_tx_statuses {
-        assert_eq!(
-            status,
-            TxStatus::Processed,
-            "tx {} wasn't processed",
-            tx_hash
-        );
+        assert_eq!(status, TxStatus::Processed, "tx {tx_hash} wasn't processed");
     }
 
     // TODO: Check transactions outcomes

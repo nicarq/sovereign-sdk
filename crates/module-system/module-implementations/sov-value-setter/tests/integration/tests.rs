@@ -80,7 +80,7 @@ fn test_setting_value_not_admin() {
                         "Transaction reverted, but with unexpected reason"
                     );
                 }
-                unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
+                unexpected => panic!("Expected transaction to revert, but got: {unexpected:?}"),
             };
         }),
     });

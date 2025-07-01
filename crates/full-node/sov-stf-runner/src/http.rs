@@ -325,7 +325,7 @@ mod tests {
         let (addr, shutdown_sender) = build_and_start_test_server().await;
 
         let ws_client = WsClientBuilder::default()
-            .build(&format!("ws://{}/rpc", addr))
+            .build(&format!("ws://{addr}/rpc"))
             .await?;
 
         for _ in 0..10 {
@@ -344,7 +344,7 @@ mod tests {
         let (addr, shutdown_sender) = build_and_start_test_server().await;
 
         let ws_client = WsClientBuilder::default()
-            .build(&format!("ws://{}/rpc", addr))
+            .build(&format!("ws://{addr}/rpc"))
             .await?;
 
         let mut subscription = ws_client
@@ -376,7 +376,7 @@ mod tests {
         let (addr, shutdown_sender) = build_and_start_test_server().await;
 
         let ws_client = WsClientBuilder::default()
-            .build(&format!("ws://{}/rpc", addr))
+            .build(&format!("ws://{addr}/rpc"))
             .await?;
 
         let mut subscription = ws_client

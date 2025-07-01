@@ -86,7 +86,7 @@ impl<'host> SP1Host<'host> {
     }
 }
 
-impl<'host> Clone for SP1Host<'host> {
+impl Clone for SP1Host<'_> {
     fn clone(&self) -> Self {
         Self {
             elf: self.elf,
@@ -95,7 +95,7 @@ impl<'host> Clone for SP1Host<'host> {
     }
 }
 
-impl<'host> core::fmt::Debug for SP1Host<'host> {
+impl core::fmt::Debug for SP1Host<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Sp1Host").finish()
     }

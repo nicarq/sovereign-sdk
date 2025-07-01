@@ -176,10 +176,7 @@ async fn new_rollup_with_celestia_da(
 
     let rollup_config: RollupConfig<MultiAddressEvm, CelestiaService> =
         from_toml_path(rollup_config_path).with_context(|| {
-            format!(
-                "Failed to read rollup configuration from {}",
-                rollup_config_path
-            )
+            format!("Failed to read rollup configuration from {rollup_config_path}")
         })?;
 
     let celestia_rollup = CelestiaDemoRollup::<Native>::default();
@@ -203,10 +200,7 @@ async fn new_rollup_with_celestia_da_and_nomt(
 
     let rollup_config: RollupConfig<MultiAddressEvm, CelestiaService> =
         from_toml_path(rollup_config_path).with_context(|| {
-            format!(
-                "Failed to read rollup configuration from {}",
-                rollup_config_path
-            )
+            format!("Failed to read rollup configuration from {rollup_config_path}")
         })?;
 
     let celestia_rollup = CelestiaNomtDemoRollup::<Native>::default();
@@ -233,10 +227,7 @@ async fn new_rollup_with_mock_da_and_jmt(
 
     let rollup_config: RollupConfig<MultiAddressEvm, StorableMockDaService> =
         from_toml_path(rollup_config_path).with_context(|| {
-            format!(
-                "Failed to read rollup configuration from {}",
-                rollup_config_path
-            )
+            format!("Failed to read rollup configuration from {rollup_config_path}")
         })?;
 
     let mock_rollup = MockDemoRollup::<Native>::default();
@@ -263,10 +254,7 @@ async fn new_rollup_with_mock_da_and_nomt(
 
     let rollup_config: RollupConfig<MultiAddressEvm, StorableMockDaService> =
         from_toml_path(rollup_config_path).with_context(|| {
-            format!(
-                "Failed to read rollup configuration from {}",
-                rollup_config_path
-            )
+            format!("Failed to read rollup configuration from {rollup_config_path}")
         })?;
 
     let mock_rollup = MockNomtDemoRollup::<Native>::default();

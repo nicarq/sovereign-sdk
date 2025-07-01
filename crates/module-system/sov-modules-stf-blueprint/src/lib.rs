@@ -244,7 +244,7 @@ where
                 .genesis_root(accessory_delta).expect("genesis root must be set on first iteration of `materialize_slot`. This is a bug - please report it")
         } else {
             runtime.chain_state().visible_hash_with_accessory_state(rollup_height.saturating_add(1), accessory_delta)
-                .unwrap_or_else(|| panic!("next visible hash must be known in advance, but was unable to get it for rollup height {}. This is a bug - please report it", rollup_height))
+                .unwrap_or_else(|| panic!("next visible hash must be known in advance, but was unable to get it for rollup height {rollup_height}. This is a bug - please report it"))
         }
     }
 }
@@ -294,7 +294,7 @@ where
             &mut genesis_accessor,
         ) {
             tracing::error!(error = %e, "Runtime initialization must succeed");
-            panic!("Runtime initialization must succeed {}", e);
+            panic!("Runtime initialization must succeed {e}");
         }
 
         #[cfg(feature = "native")]
@@ -408,6 +408,7 @@ where
 {
     /// Run a state transition using the STF blueprint.
     // Similar to `apply_slot`, but enables the injection of a custom `InjectedControlFlow`.
+    #[allow(clippy::too_many_arguments)]
     pub fn apply_slot_with_control_flow<CF: InjectedControlFlow<S> + Clone>(
         &self,
         pre_state_root: &<S::Storage as Storage>::Root,

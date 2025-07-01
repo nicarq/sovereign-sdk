@@ -685,8 +685,7 @@ mod tests {
             if let Some(previous) = results.insert(height, root_hash) {
                 assert!(
                     user_roots_match(&previous, &root_hash),
-                    "Received different user roots for the same height {}",
-                    height
+                    "Received different user roots for the same height {height}"
                 );
             };
         }
@@ -702,8 +701,7 @@ mod tests {
         {
             assert!(
                 user_roots_match(received_root_hash, canoncial_root_hash),
-                "Received different user roots for the same height {}",
-                rollup_height
+                "Received different user roots for the same height {rollup_height}"
             );
         }
 

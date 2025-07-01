@@ -23,7 +23,7 @@ pub struct BasicKernel<'a, S: Spec> {
     pub blob_storage: &'a mut BlobStorage<S>,
 }
 
-impl<'a, S: Spec> BasicKernel<'a, S> {
+impl<S: Spec> BasicKernel<'_, S> {
     /// Gets a reference to the kernel's ChainState module.
     pub fn chain_state(&self) -> &ChainState<S> {
         self.chain_state
@@ -35,7 +35,7 @@ impl<'a, S: Spec> BasicKernel<'a, S> {
     }
 }
 
-impl<'a, S: Spec> KernelTrait<S> for BasicKernel<'a, S> {
+impl<S: Spec> KernelTrait<S> for BasicKernel<'_, S> {
     fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> SlotNumber {
         self.chain_state.true_slot_number_at_bootstrap(state)
     }
@@ -62,7 +62,7 @@ impl<'a, S: Spec> KernelTrait<S> for BasicKernel<'a, S> {
     }
 }
 
-impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
+impl<S: Spec> BlobSelector for BasicKernel<'_, S> {
     type Spec = S;
 
     const ACCEPTS_PREFERRED_BATCHES: bool = false;
@@ -101,7 +101,7 @@ impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
     }
 }
 
-impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, S> {
+impl<S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'_, S> {
     type Spec = S;
 
     fn synchronize_chain(

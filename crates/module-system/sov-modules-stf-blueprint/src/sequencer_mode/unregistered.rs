@@ -244,7 +244,7 @@ where
             let (scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
             let gas_info = gas_meter.gas_info();
 
-            let err_str = format!("Unregistered sequencer authentication failed: {}", err);
+            let err_str = format!("Unregistered sequencer authentication failed: {err}");
             warn!(error = ?err_str);
 
             let gas_used = gas_info.gas_used;

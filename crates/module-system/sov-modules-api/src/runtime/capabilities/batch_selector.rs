@@ -15,7 +15,7 @@ pub enum BlobOrigin<'a, T> {
     Proof(&'a mut T),
 }
 
-impl<'a, T: BlobReaderTrait> BlobOrigin<'a, T> {
+impl<T: BlobReaderTrait> BlobOrigin<'_, T> {
     /// Inner blob data.
     pub fn get(&self) -> &T {
         match self {

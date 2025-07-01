@@ -386,7 +386,7 @@ where
                 Some(addr) => {
                     // We "keep" it because it is going to be deleted when the parent is deleted.
                     let second_sequencer_dir = tempfile::Builder::new()
-                        .keep(true)
+                        .disable_cleanup(true)
                         .tempdir_in(self.config.storage.as_path())?;
                     let mut rollup_config = rollup_config.clone();
                     rollup_config.storage.path = second_sequencer_dir.path().to_path_buf();
@@ -549,8 +549,7 @@ where
                 .await
         });
 
-        let client =
-            sov_api_spec::client::Client::new(&format!("http://127.0.0.1:{}", actual_port));
+        let client = sov_api_spec::client::Client::new(&format!("http://127.0.0.1:{actual_port}"));
 
         Ok((client, sender))
     }
@@ -620,7 +619,7 @@ where
 
         for i in 0..num_replicas {
             // Create instance-specific storage directory
-            let instance_dir = base_path.join(format!("instance_{}", i));
+            let instance_dir = base_path.join(format!("instance_{i}"));
             std::fs::create_dir_all(&instance_dir)?;
 
             // Clone builder configuration for this instance
@@ -735,10 +734,7 @@ where
         if let Err(error) = self.shutdown_sender.send(()) {
             tracing::info!(%error, "shutdown triggered elsewhere, this is probably OK");
         }
-        self.rollup_task
-            .await
-            .expect("Can't join rollup task")
-            .unwrap();
+        self.rollup_task.await.expect("Can't join rollup task")?;
 
         for handle in self.other_handles {
             handle.await.expect("Can't join other handles");

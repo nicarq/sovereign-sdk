@@ -251,7 +251,7 @@ impl sov_rollup_interface::crypto::Signature for SP1Signature {
 
 #[cfg(feature = "native")]
 fn map_error(e: ed25519_consensus::Error) -> std::io::Error {
-    std::io::Error::new(std::io::ErrorKind::Other, e)
+    std::io::Error::other(e)
 }
 #[cfg(not(feature = "native"))]
 fn map_error(_e: ed25519_consensus::Error) -> std::io::Error {

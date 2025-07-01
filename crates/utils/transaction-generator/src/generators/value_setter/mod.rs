@@ -29,7 +29,7 @@ pub struct ValueSetterAccount<S: Spec> {
     pub(crate) private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
 }
 
-impl<'a, S: Spec, Data> From<&'a AccountState<S, Data>> for ValueSetterAccount<S> {
+impl<S: Spec, Data> From<&AccountState<S, Data>> for ValueSetterAccount<S> {
     fn from(value: &AccountState<S, Data>) -> ValueSetterAccount<S> {
         ValueSetterAccount {
             private_key: value.private_key.clone(),

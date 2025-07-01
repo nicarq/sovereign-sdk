@@ -6,7 +6,7 @@ pub fn track_sequence_number(sequence_number: u64) {
     sov_metrics::track_metrics(|tracker| {
         tracker.submit_inline(
             "sov_rollup_current_sequence_number",
-            format!("current_sequence_number={}", sequence_number),
+            format!("current_sequence_number={sequence_number}"),
         );
     });
 }
@@ -15,7 +15,7 @@ pub fn track_in_progress_batch_size(num_txs: u64) {
     sov_metrics::track_metrics(|tracker| {
         tracker.submit_inline(
             "sov_rollup_in_progress_batch_size",
-            format!("num_txs={}", num_txs),
+            format!("num_txs={num_txs}"),
         );
     });
 }

@@ -157,10 +157,10 @@ impl CelestiaService {
         let fetched_signer = match fetched_address {
             Address::AccAddress(acc) => CelestiaAddress(acc),
             Address::ValAddress(addr) => {
-                panic!("Need account address, got validator: {}", addr);
+                panic!("Need account address, got validator: {addr}");
             }
             Address::ConsAddress(addr) => {
-                panic!("Need account address, got consensus node: {}", addr);
+                panic!("Need account address, got consensus node: {addr}");
             }
         };
         debug!(address = %fetched_signer, "Fetched signer.");
@@ -168,8 +168,7 @@ impl CelestiaService {
         if let Some(config_signer_address) = config.signer_address {
             if config_signer_address != fetched_signer {
                 panic!(
-                    "Signer address in in config {} does not match signer address fetched from node {}",
-                    config_signer_address, fetched_signer
+                    "Signer address in in config {config_signer_address} does not match signer address fetched from node {fetched_signer}"
                 );
             }
         }
@@ -628,7 +627,7 @@ mod tests {
         let response = da_service.send_transaction(&blob).await.await??;
         assert_eq!(
             response.da_transaction_id.to_string(),
-            format!("0x{}", expected_tx_hash)
+            format!("0x{expected_tx_hash}")
         );
         Ok(())
     }
@@ -749,8 +748,7 @@ mod tests {
 
         assert!(
             error.contains("RequestTimeout"),
-            "Error: {} does not contain 'Request timeout'",
-            error
+            "Error: {error} does not contain 'Request timeout'"
         );
         Ok(())
     }
@@ -906,8 +904,7 @@ mod tests {
             .unwrap_err();
         assert!(
             error.to_string().contains(expected_err_pattern),
-            "Actual error: {}",
-            error
+            "Actual error: {error}"
         );
         Ok(())
     }
@@ -938,8 +935,7 @@ mod tests {
             error
                 .to_string()
                 .contains("IncompleteNamespace(ProofError(Invalid(WrongAmountOfLeavesProvided)))"),
-            "Actual error: {}",
-            error
+            "Actual error: {error}"
         );
     }
 
@@ -967,8 +963,7 @@ mod tests {
             error
                 .to_string()
                 .contains("InvalidRowProof(ProofError(Missing))"),
-            "Actual error: {}",
-            error
+            "Actual error: {error}"
         );
     }
 
@@ -1025,8 +1020,7 @@ mod tests {
 
         assert!(
             error.to_string().contains("WrongStartShareIndex"),
-            "Actual error: {}",
-            error
+            "Actual error: {error}"
         );
     }
 
@@ -1054,8 +1048,7 @@ mod tests {
             error
                 .to_string()
                 .contains("InvalidRowProof(ProofError(Invalid(InvalidRoot)))"),
-            "Actual error: {}",
-            error
+            "Actual error: {error}"
         );
     }
 
@@ -1187,7 +1180,7 @@ mod tests {
             let path = make_test_path(data_path);
             update_block_data(&path, &client, &signer, with_prev_header)
                 .await
-                .with_context(|| format!("In path {}", data_path))?;
+                .with_context(|| format!("In path {data_path}"))?;
         }
 
         Ok(())

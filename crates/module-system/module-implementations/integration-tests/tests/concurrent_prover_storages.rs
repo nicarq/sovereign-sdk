@@ -509,8 +509,7 @@ fn assert_values<S: NativeStorage>(
     assert_eq!(
         last_value,
         get_value(None),
-        "Not specifying version should be equal to last version for this storage in {:?}",
-        namespace,
+        "Not specifying version should be equal to last version for this storage in {namespace:?}",
     );
 
     let next_version = expected_values.len() as u64;
@@ -527,8 +526,7 @@ fn assert_values<S: NativeStorage>(
         assert_eq!(
             None,
             get_value(Some(version)),
-            "Future version({}) should not be available",
-            version
+            "Future version({version}) should not be available"
         );
     }
 
@@ -553,6 +551,6 @@ fn assert_root_hashes<S: NativeStorage>(storage: &S, expected_root_hashes: Vec<S
     let future_root = storage
         .get_root_hash(SlotNumber::new_dangerous(next_version))
         .unwrap_err();
-    let expected_error = format!("Root node not found for version {}.", next_version);
+    let expected_error = format!("Root node not found for version {next_version}.");
     assert_eq!(expected_error, future_root.to_string());
 }

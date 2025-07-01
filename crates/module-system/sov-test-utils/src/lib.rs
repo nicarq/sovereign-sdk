@@ -280,6 +280,7 @@ pub fn new_test_gas_meter_with_price<S: Spec>(
 
 /// Serializes a value to JSON and validates it based on its
 /// [`schemars::JsonSchema`] rules.
+#[allow(clippy::result_large_err)]
 pub fn validate_schema<T>(item: &T) -> Result<(), jsonschema::error::ValidationErrorKind>
 where
     T: schemars::JsonSchema + serde::Serialize,

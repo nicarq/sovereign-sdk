@@ -86,11 +86,11 @@ sov-modules-api = { workspace = true, features = [
     "test-utils",
 ] }
 sov-mock-da = { workspace = true, features = ["arbitrary"] }
-sov-bank = { workspace = true, features = ["native"] }
-sov-sequencer-registry = { workspace = true, features = ["native"] }
-sov-accounts = { workspace = true, features = ["native"] }
+sov-bank = { workspace = true, features = ["native", "arbitrary"] }
+sov-sequencer-registry = { workspace = true, features = ["native", "arbitrary"] }
+sov-accounts = { workspace = true, features = ["native", "arbitrary"] }
 sov-api-spec = { workspace = true }
-sov-modules-macros = { workspace = true }
+sov-modules-macros = { workspace = true, features = ["arbitrary"] }
 sov-test-utils = { workspace = true }
 sov-chain-state = { workspace = true }
 sov-blob-storage = { workspace = true }
@@ -101,11 +101,11 @@ demo-stf-json-client = { path = "./stf/demo-stf-json-client", default-features =
 tracing-panic = { version = "0.1.2" }
 
 base64 = { workspace = true }
-hex = "0.4.3"
-sha2 = "0.10.8"
+hex = { workspace = true }
+sha2 = { workspace = true }
 tempfile = "3.12"
 proptest = { version = "1.5", features = ["alloc"] }
-tokio = { version = "1.42", features = ["full"] }
+tokio = { workspace = true, features = ["full"] }
 tracing-subscriber = "0.3.18"
 rand = "0.8"
 
@@ -145,7 +145,6 @@ path = "src/sov-cli/main.rs"
 [[bin]]
 name = "sov-demo-rollup"
 path = "src/main.rs"
-
 
 [[bin]]
 name = "demo-celestia-tester"

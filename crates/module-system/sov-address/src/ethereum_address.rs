@@ -508,7 +508,7 @@ impl sov_rollup_interface::crypto::Signature for EthereumSignature {
 }
 
 fn map_error(e: secp256k1::Error) -> std::io::Error {
-    std::io::Error::new(std::io::ErrorKind::Other, e)
+    std::io::Error::other(e)
 }
 
 #[cfg(feature = "native")]

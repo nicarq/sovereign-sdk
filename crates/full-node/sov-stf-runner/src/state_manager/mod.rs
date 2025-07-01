@@ -111,6 +111,7 @@ where
     >,
     Sm::StfState: Clone,
 {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         storage_manager: Sm,
         ledger_db: LedgerDb,

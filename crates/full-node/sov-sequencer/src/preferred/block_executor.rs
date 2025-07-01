@@ -130,6 +130,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     /// rejected.
     const MAX_BUFFERED_TXS: usize = 1;
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         info: &StateUpdateInfo<S::Storage>,
         events_sender: Option<broadcast::Sender<SequencerEvent<Rt>>>,
@@ -556,7 +557,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                     received_height = %received_height,
                     next_visible_root_height = %next_visible_rollup_height,
                     "Received height did not equal expected height for assertion. This is a bug in the RollupBlockExecutor, please report it.");
-                panic!("Received height ({}) did not equal expected height for assertion {}. This is a bug in the RollupBlockExecutor, please report it.", received_height, next_visible_rollup_height);
+                panic!("Received height ({received_height}) did not equal expected height for assertion {next_visible_rollup_height}. This is a bug in the RollupBlockExecutor, please report it.");
             }
             tracing::trace!(
                 "Received state root for height {} : {}",
@@ -725,7 +726,7 @@ where
     let target_rollup_height = old_rollup_height.saturating_add(1);
     let next_root = kernel
         .visible_hash_for(target_rollup_height, &mut accessor)
-        .ok_or_else(|| format!("Can't get visible hash for {}", target_rollup_height))
+        .ok_or_else(|| format!("Can't get visible hash for {target_rollup_height}"))
         .unwrap();
     // Now that we've incremented the rollup height, we can get the next gas price. Do that and use it to compute the amount of funds that we should
     // reserve for the preferred sequencer.

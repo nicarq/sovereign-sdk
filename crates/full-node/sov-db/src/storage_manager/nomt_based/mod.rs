@@ -398,8 +398,7 @@ where
                         (Some(nomt), Some(rockbound)) => Some(CommitGroup { rockbound, nomt }),
                         (None, None) => None,
                         _ => panic!(
-                            "Inconsistent storage manager state: discrepancy between rockbound and nomt snapshots for block hash {}",
-                            block_hash
+                            "Inconsistent storage manager state: discrepancy between rockbound and nomt snapshots for block hash {block_hash}"
                         ),
                     }
                 };

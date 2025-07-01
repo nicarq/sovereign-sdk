@@ -589,7 +589,7 @@ where
         let raw_root = self
             .historical_state
             .get_serialized_root_hash(version)?
-            .context(format!("Root hash not found for version {}.", version))?;
+            .context(format!("Root hash not found for version {version}."))?;
         let storage_root_historical =
             borsh::from_slice(&raw_root).expect("Failed to deserialize root hash");
         tracing::trace!(%version, root_hash = %storage_root_historical, "Got unbound root hash");

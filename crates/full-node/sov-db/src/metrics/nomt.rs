@@ -59,10 +59,10 @@ impl Metric for NomtDbMetric {
             self.page_cache_misses,
         )?;
         if let Some(avg_page_fetch_time) = &self.avg_page_fetch_time_ns {
-            write!(buffer, ",avg_page_fetch_time_ns={}", avg_page_fetch_time)?;
+            write!(buffer, ",avg_page_fetch_time_ns={avg_page_fetch_time}")?;
         }
         if let Some(avg_value_fetch_time) = &self.avg_value_fetch_time_ns {
-            write!(buffer, ",avg_value_fetch_time_ns={}", avg_value_fetch_time)?;
+            write!(buffer, ",avg_value_fetch_time_ns={avg_value_fetch_time}")?;
         }
 
         Ok(())

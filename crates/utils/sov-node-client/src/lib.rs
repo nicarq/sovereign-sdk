@@ -87,13 +87,13 @@ impl NodeClient {
 
     /// Simplified constructor for testing.
     pub async fn new_at_localhost(port: u16) -> anyhow::Result<Self> {
-        let api_url = format!("http://127.0.0.1:{}", port);
+        let api_url = format!("http://127.0.0.1:{port}");
         Self::new(&api_url).await
     }
 
     /// Simplified constructor for testing.
     pub fn new_at_localhost_unchecked(port: u16) -> Self {
-        let api_url = format!("http://127.0.0.1:{}", port);
+        let api_url = format!("http://127.0.0.1:{port}");
         Self::new_unchecked(&api_url)
     }
 
@@ -197,7 +197,7 @@ impl NodeClient {
         rollup_height: Option<u64>,
     ) -> anyhow::Result<Amount> {
         let height_param: String = rollup_height
-            .map(|h| format!("?rollup_height={}", h))
+            .map(|h| format!("?rollup_height={h}"))
             .unwrap_or_default();
         let balance_url = format!(
             "{}/modules/bank/tokens/{}/balances/{}{}",
@@ -353,7 +353,7 @@ async fn check_if_rollup_has_standard_modules(
     client: &reqwest::Client,
     base_url: &str,
 ) -> anyhow::Result<bool> {
-    let url = format!("{}/modules", base_url);
+    let url = format!("{base_url}/modules");
     let response = client.get(&url).send().await?;
     let response_json: ResponseObject<ModulesList> = response.json().await?;
     let module_response = response_json

@@ -1,3 +1,4 @@
+#![allow(missing_docs)]
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::{Arc, Barrier};
@@ -570,15 +571,11 @@ where
             handle.join().expect("Thread panicked");
         assert!(
             spent_reading_concurrently < avg_reading_time_threshold,
-            "Concurrent reading {:?} is worse than max allowed {:?}",
-            spent_reading_concurrently,
-            avg_reading_time_threshold
+            "Concurrent reading {spent_reading_concurrently:?} is worse than max allowed {avg_reading_time_threshold:?}"
         );
         assert!(
             spent_reading_finalization < avg_reading_time_threshold,
-            "Concurrent reading during finalization {:?} is worse than max allowed {:?}",
-            spent_reading_finalization,
-            avg_reading_time_threshold
+            "Concurrent reading during finalization {spent_reading_finalization:?} is worse than max allowed {avg_reading_time_threshold:?}"
         );
     }
 }

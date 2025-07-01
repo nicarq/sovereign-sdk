@@ -428,7 +428,7 @@ fn test_setting_value_not_admin() {
                             .contains("sender is not an admin"));
                     }
                 },
-                unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
+                unexpected => panic!("Expected transaction to revert, but got: {unexpected:?}"),
             };
         }),
     });

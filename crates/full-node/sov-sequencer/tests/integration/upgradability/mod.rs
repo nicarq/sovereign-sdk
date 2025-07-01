@@ -134,7 +134,7 @@ async fn tests_sequencer_does_not_accept_tx_after_stop() {
         if current_height <= stop_at_height {
             match res {
                 Ok(_) => (),
-                Err(err) => panic!("Unexpected error: {:?}", err),
+                Err(err) => panic!("Unexpected error: {err:?}"),
             }
         }
 
@@ -147,7 +147,7 @@ async fn tests_sequencer_does_not_accept_tx_after_stop() {
                     let err_str = String::from_utf8_lossy(&bytes);
                     assert!(err_str.contains(&expected_error));
                 }
-                _ => panic!("Unexpected error: {:?}", err),
+                _ => panic!("Unexpected error: {err:?}"),
             }
         }
     }
@@ -243,6 +243,7 @@ async fn get_block_height(client: &NodeClient, finalized: bool) -> u64 {
     height.data.unwrap().number
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn create_test_rollup(
     minimum_profit_per_tx: u128,
     max_batch_size: usize,

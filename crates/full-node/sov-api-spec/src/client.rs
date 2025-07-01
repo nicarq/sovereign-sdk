@@ -142,7 +142,7 @@ impl Client {
         &self,
         tx_hash: TxHash,
     ) -> WsSubscription<types::TxInfo> {
-        self.subscribe_to_ws(&format!("/sequencer/txs/{}/ws", tx_hash))
+        self.subscribe_to_ws(&format!("/sequencer/txs/{tx_hash}/ws"))
             .await
     }
 

@@ -216,6 +216,7 @@ pub mod pause_update_state {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn new_test_rollup<RT: Runtime<TestSpec> + HasRestApi<TestSpec>>(
     dir: Arc<tempfile::TempDir>,
     seq_da_address: MockAddress,
@@ -286,7 +287,7 @@ pub async fn new_test_rollup<RT: Runtime<TestSpec> + HasRestApi<TestSpec>>(
             if std::env::var("SOV_TEST_SKIP_DOCKER") == Ok("1".to_string()) {
                 None
             } else {
-                eprintln!("Error starting rollup builder: {:?}", e);
+                eprintln!("Error starting rollup builder: {e:?}");
                 eprintln!("To skip docker based tests run with the env var SOV_TEST_SKIP_DOCKER=1");
                 panic!("Unable to proceed without docker");
             }

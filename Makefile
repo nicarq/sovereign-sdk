@@ -82,8 +82,9 @@ install-dev-tools: install-risc0-toolchain install-sp1-toolchain
 
 install-risc0-toolchain:  ## install risc0 toolchain
 	curl -L https://risczero.com/install | bash
-	~/.risc0/bin/rzup install cargo-risczero 1.2.0
-	cargo risczero install --version r0.1.81.0
+	~/.risc0/bin/rzup install cargo-risczero 2.0.2
+	~/.risc0/bin/rzup install rust 1.88.0
+	~/.risc0/bin/rzup install cpp 2024.1.5
 	@echo "Risc0 toolchain version:"
 	cargo +risc0 --version
 
@@ -128,7 +129,7 @@ cargo-deny-check:   ## Runs a global cargo-deny check, not just the licenses.
 lint-fix:  ## cargo fmt, fix and clippy. Skip clippy on guest code since it's not supported by risc0
 	cargo +nightly fmt --all
 	cargo fix --allow-dirty
-	SKIP_GUEST_BUILD=1 cargo clippy --fix --allow-dirty
+	SKIP_GUEST_BUILD=1 cargo clippy --fix --allow-dirty -- -A clippy::too_many_arguments
 
 check-features: ## Checks that project compiles with all combinations of features.
 	cargo hack check --feature-powerset --exclude-features default --partition $(CARGO_HACK_PARTITION_N)/$(CARGO_HACK_PARTITION_M) --all-targets

@@ -371,7 +371,7 @@ async fn check_with_increasing_stf_infos(
         let test_rollup =
             tokio::time::timeout(ROLLUP_START_TIMEOUT, rollup_builder.clone().start())
                 .await
-                .with_context(|| format!("start n={} of the rollup failed", idx))??;
+                .with_context(|| format!("start n={idx} of the rollup failed"))??;
 
         let TestRollup {
             shutdown_sender,

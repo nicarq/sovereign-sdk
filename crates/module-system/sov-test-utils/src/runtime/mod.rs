@@ -220,44 +220,44 @@ impl ApiPath {
     /// Returns the default path for API queries to the given module.
     pub fn query_module(module_name: &str) -> Self {
         let module_name = if !module_name.starts_with('/') {
-            format!("/{}", module_name)
+            format!("/{module_name}")
         } else {
             module_name.to_string()
         };
 
-        ApiPath(format!("/modules{}", module_name))
+        ApiPath(format!("/modules{module_name}"))
     }
 
     /// Adds a custom path to the API endpoint.
     pub fn with_custom_api_path(self, path: &str) -> Self {
         let path = if !path.starts_with('/') {
-            format!("/{}", path)
+            format!("/{path}")
         } else {
             path.to_string()
         };
 
-        ApiPath(format!("{}{}", self, path))
+        ApiPath(format!("{self}{path}"))
     }
 
     /// Returns the default path for the API of the given module and state key.
     pub fn with_default_state_path(self, state_key: &str) -> Self {
         let state_key = if !state_key.starts_with('/') {
-            format!("/{}", state_key)
+            format!("/{state_key}")
         } else {
             state_key.to_string()
         };
 
-        ApiPath(format!("{}/state{}", self, state_key))
+        ApiPath(format!("{self}/state{state_key}"))
     }
 
     /// Adds an item number to the path.
     pub fn get_item_number(self, item: u64) -> Self {
-        ApiPath(format!("{}/items/{}", self, item))
+        ApiPath(format!("{self}/items/{item}"))
     }
 
     /// Adds a rollup height to the path.
     pub fn with_rollup_height(self, height: u64) -> Self {
-        ApiPath(format!("{}?rollup_height={}", self, height))
+        ApiPath(format!("{self}?rollup_height={height}"))
     }
 }
 
@@ -956,7 +956,7 @@ where
     pub async fn query_api(&self, path: &ApiPath, client: &Client) -> reqwest::Response {
         let base_path = self.base_path();
 
-        let url = format!("{}{}", base_path, path);
+        let url = format!("{base_path}{path}");
 
         client
             .get(&url)
@@ -994,13 +994,11 @@ pub fn assert_tx_reverted_with_reason<S: Spec>(result: TxEffect<S>, reason: anyh
         assert_eq!(
             &contents.reason,
             &Error::ModuleError(reason),
-            "The transaction should have reverted because instead the outcome was {:?}",
-            contents
+            "The transaction should have reverted because instead the outcome was {contents:?}"
         );
     } else {
         panic!(
-            "The transaction should have reverted because {}, instead the outcome was {:?}",
-            reason, result
+            "The transaction should have reverted because {reason}, instead the outcome was {result:?}"
         );
     }
 }

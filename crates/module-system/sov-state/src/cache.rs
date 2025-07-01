@@ -321,7 +321,7 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
                             // This unwrap is justified because in the `ReadType::GetSizeValueFetched` branch,
                             // we inserted `Some(slot_value)`.
                             .unwrap_or_else(|| {
-                                panic!("Invalid read for {:?}, provided witness is invalid", key)
+                                panic!("Invalid read for {key:?}, provided witness is invalid")
                             });
 
                         let node_leaf = NodeLeaf::make_leaf::<S::Hasher>(&slot_value);

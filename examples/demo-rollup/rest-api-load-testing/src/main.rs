@@ -182,7 +182,7 @@ mod helpers {
         let client = Client::new(&url);
         let keys =
             PrivateKeyAndAddress::<TestSpec>::from_json_file(Path::new(private_key_file), true)
-                .context(format!("File does not exist: {:?}", private_key_file))
+                .context(format!("File does not exist: {private_key_file:?}"))
                 .unwrap();
         let priv_key = keys.private_key;
         let sender = keys.address;
@@ -195,9 +195,6 @@ mod helpers {
     }
 
     fn query_token_id(url: &str, sender: <TestSpec as Spec>::Address) -> String {
-        format!(
-            "{}/modules/bank/tokens?token_name={}&sender={}",
-            url, TOKEN_NAME, sender
-        )
+        format!("{url}/modules/bank/tokens?token_name={TOKEN_NAME}&sender={sender}")
     }
 }

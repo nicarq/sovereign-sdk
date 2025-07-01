@@ -16,19 +16,16 @@ pub(crate) type Timestamp = u128;
 
 /// Spawns task that published metrics in the background.
 pub fn init_metrics_tracker(config: &MonitoringConfig) {
-    match METRICS_TRACKER.get() {
-        None => {
-            let (sender, receiver) =
-                tokio::sync::mpsc::channel(config.get_max_pending_metrics() as usize);
-            let config = config.clone();
-            let _handle = tokio::spawn(async move {
-                publisher::metrics_publisher_task(receiver, &config).await;
-            });
-            tracing::trace!("Metrics tracker initialized");
-            OnceLock::set(&METRICS_TRACKER, MetricsTracker { sender })
-                .expect("Metrics tracker failed to set metrics");
-        }
-        Some(_) => {}
+    if METRICS_TRACKER.get().is_none() {
+        let (sender, receiver) =
+            tokio::sync::mpsc::channel(config.get_max_pending_metrics() as usize);
+        let config = config.clone();
+        let _handle = tokio::spawn(async move {
+            publisher::metrics_publisher_task(receiver, &config).await;
+        });
+        tracing::trace!("Metrics tracker initialized");
+        OnceLock::set(&METRICS_TRACKER, MetricsTracker { sender })
+            .expect("Metrics tracker failed to set metrics");
     }
 }
 
@@ -620,7 +617,7 @@ impl Metric for ZkVmExecutionChunk {
                 // Uses special telegraf formatting
                 let telegraf_formatted_key = safe_telegraf_string(key);
 
-                format!("{}={}", telegraf_formatted_key, value)
+                format!("{telegraf_formatted_key}={value}")
             })
             .collect::<Vec<_>>()
             .join(",");

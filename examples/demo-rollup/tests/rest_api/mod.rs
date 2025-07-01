@@ -374,7 +374,7 @@ fn check_not_found_error(
             }
         }
         _ => {
-            panic!("Unexpected error response: {:?}", credential_id_response)
+            panic!("Unexpected error response: {credential_id_response:?}")
         }
     };
 }

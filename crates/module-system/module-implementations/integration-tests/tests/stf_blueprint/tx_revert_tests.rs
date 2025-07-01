@@ -138,7 +138,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
                 "Transaction should fail with an `AuthenticationFailed` error"
             );
         }
-        unexpected => panic!("Expected TxEffect::Skipped but got {:?}", unexpected),
+        unexpected => panic!("Expected TxEffect::Skipped but got {unexpected:?}"),
     }
 
     assert_outcome(&batch_receipt.inner.outcome);
@@ -205,8 +205,7 @@ fn test_tx_bad_nonce() {
     match &tx_receipts[0].receipt {
         sov_modules_api::TxEffect::Successful(_) => (),
         receipt => panic!(
-            "Expected first transaction to be Successful error, but got a different TxEffect: {:?}",
-            receipt
+            "Expected first transaction to be Successful error, but got a different TxEffect: {receipt:?}"
         ),
     }
 
@@ -217,10 +216,7 @@ fn test_tx_bad_nonce() {
                 TxProcessingError::CheckUniquenessFailed(..)
             ));
         }
-        receipt => panic!(
-            "Expected Skipped error, but got a different TxEffect: {:?}",
-            receipt
-        ),
+        receipt => panic!("Expected Skipped error, but got a different TxEffect: {receipt:?}"),
     }
 
     // We don't slash the sequencer for a bad nonce, since the nonce change might have
@@ -237,8 +233,7 @@ fn test_tx_bad_nonce() {
 
     assert!(
             final_sequencer_stake < initial_sequencer_stake,
-            "The sequencer stake should have decreased, final_sequencer_stake = {:?}, initial_sequencer_stake = {:?}",
-            final_sequencer_stake, initial_sequencer_stake
+            "The sequencer stake should have decreased, final_sequencer_stake = {final_sequencer_stake:?}, initial_sequencer_stake = {initial_sequencer_stake:?}"
         );
 }
 
@@ -287,7 +282,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
             skipped.error,
             TxProcessingError::AuthenticationFailed(..)
         )),
-        unexpected => panic!("Expected TxEffect::Skipped but got {:?}", unexpected),
+        unexpected => panic!("Expected TxEffect::Skipped but got {unexpected:?}"),
     }
 
     assert_outcome(&batch_receipt.inner.outcome);

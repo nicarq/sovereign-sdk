@@ -738,6 +738,7 @@ impl<S: Spec> BlobStorage<S> {
         anyhow::bail!("Unable to reserve all needed gas.");
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn add_preferred_blobs_to_selection(
         &mut self,
         selected_preferred_blobs: Vec<PreferredBlobDataWithId>,

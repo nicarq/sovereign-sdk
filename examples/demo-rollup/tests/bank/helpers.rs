@@ -126,8 +126,7 @@ pub(crate) async fn assert_balance(
         .await
         .with_context(|| {
             format!(
-                "Failed to get balance at rollup_height {:?} for user {} and token {} (expected {})",
-                rollup_height, user_address, token_id, assert_amount
+                "Failed to get balance at rollup_height {rollup_height:?} for user {user_address} and token {token_id} (expected {assert_amount})"
             )
         })?;
 
@@ -203,7 +202,7 @@ pub(crate) async fn assert_bank_event<S: Spec>(
     let event_value =
         serde_json::Value::Object(event_response.data.as_ref().unwrap().value.clone());
 
-    println!("event_value: {:?}", event_value);
+    println!("event_value: {event_value:?}");
 
     // Attempt to deserialize the "body" of the bank key in the response to the Event type
     let bank_event_contents = serde_json::from_value::<BankEvent<S>>(event_value)?;
@@ -238,7 +237,7 @@ pub(crate) async fn send_tx_and_wait_for_status(
         // The condition below is never met, but it's included as a sanity check
         // in case something goes terribly wrong and we receive an unexpectedly large number of status updates (which should be impossible).
         if c > 5 {
-            panic!("Invalid status {:?}", info)
+            panic!("Invalid status {info:?}")
         }
         c += 1;
     }

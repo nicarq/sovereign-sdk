@@ -101,7 +101,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         let rt_genesis =
             <Self::Runtime as RuntimeTrait<Self::Spec>>::genesis_config(rt_genesis_paths)
                 .with_context(|| {
-                    format!("Failed to read rollup genesis from {:?}", rt_genesis_paths)
+                    format!("Failed to read rollup genesis from {rt_genesis_paths:?}")
                 })?;
 
         Ok(GenesisParams {

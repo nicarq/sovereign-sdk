@@ -11,6 +11,7 @@ This PR adds initial support for state replication across multiple sequencers sh
 will not allow batches to continue growing once they reach this limit, even if that means causing downtime.
 - #3110 Swaps `StorageConfig` with `RollupDbConfig`. Change should be transparent for rollup struct.
 - #3112 adds validity distribution parameter to sov-soak generator
+- #3114 **BREAKING CHANGE** Updates rust to 1.85
 
 # 2025-06-25
 - #3095 SOAK: inject MessageValidity as an argument to `run_generator_task_for_xx`

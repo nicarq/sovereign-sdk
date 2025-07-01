@@ -168,7 +168,7 @@ where
     let key_and_address = PrivateKeyAndAddress::<S>::from_key(keys);
     let public_key = key_and_address.private_key.pub_key();
     let address = key_and_address.address.clone();
-    let key_path = app_dir.as_ref().join(format!("{}.json", address));
+    let key_path = app_dir.as_ref().join(format!("{address}.json"));
     // First try to serialize, before making anything dirty
     let serialized_key = serde_json::to_string(&key_and_address)?;
     // Trying to add key state
