@@ -19,11 +19,16 @@ use uuid::Uuid;
 
 use super::db::StoredBlob;
 <<<<<<< HEAD
+<<<<<<< HEAD
 use crate::preferred::{exit_rollup, DbEvent, PreferredSequencer};
 =======
 use crate::preferred::{exit_rollup, DbEvent, ExecutorEvent, PreferredSequencer};
 use crate::common::Sequencer;
 >>>>>>> Add APIS and rename is_replica to is_master
+=======
+use crate::common::Sequencer;
+use crate::preferred::{exit_rollup, DbEvent, ExecutorEvent, PreferredSequencer};
+>>>>>>> Rebase on 1.88 upgrade
 use crate::ProofBlobSender;
 
 /// Event type enum for type-safe parsing
@@ -673,6 +678,14 @@ where
                 debug!("Backfill completed up to event_id");
                 Ok(())
             }
+<<<<<<< HEAD
+=======
+            DbEvent::Flushed(_) => Ok(()),
+        },
+        CompletedEvent::Backfill => {
+            debug!("Backfill completed up to event_id");
+            Ok(())
+>>>>>>> Rebase on 1.88 upgrade
         }
     }
 }

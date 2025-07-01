@@ -5,11 +5,16 @@ use sov_rollup_interface::node::da::DaService;
 use sov_state::{NativeStorage, Storage};
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 use crate::metrics::PreferredSequencerUpdateStateMetrics;
 =======
 use crate::metrics::{PreferredSequencerPruneMetrics, PreferredSequencerUpdateStateMetrics};
 use crate::common::Sequencer;
 >>>>>>> Add APIS and rename is_replica to is_master
+=======
+use crate::common::Sequencer;
+use crate::metrics::{PreferredSequencerPruneMetrics, PreferredSequencerUpdateStateMetrics};
+>>>>>>> Rebase on 1.88 upgrade
 use crate::preferred::{
     get_next_sequence_number_according_to_node, DbEvent, FetchBatches, Flow,
     PreferredBatchToReplay, PreferredSequencer, ProcessFinalCatchupData, RollupBlockExecutor,
@@ -231,7 +236,7 @@ where
             let mut inner = self.lock_inner().await;
             let time_to_lock = start_prune.elapsed();
             if self.is_master().await {
-                inner.trigger_batch_production_if_convenient().await?;
+                inner.trigger_batch_production_if_convenient().await;
             }
             inner.prune_sequencer_db().await;
             drop(inner);
