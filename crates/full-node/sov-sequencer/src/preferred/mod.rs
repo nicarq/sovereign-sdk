@@ -1345,7 +1345,6 @@ where
         self.node_id
     }
 
-
     fn api_state(&self) -> ApiState<Self::Spec> {
         self.api_state.clone()
     }

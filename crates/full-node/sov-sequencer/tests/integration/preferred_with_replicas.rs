@@ -133,9 +133,27 @@ async fn seq_with_replicas() {
 
     let master = test_rollups.next().unwrap();
     let replicas: Vec<Option<_>> = test_rollups.map(Some).collect();
-    assert!(master.api_client.is_master().await.unwrap().into_inner().data);
+    assert!(
+        master
+            .api_client
+            .is_master()
+            .await
+            .unwrap()
+            .into_inner()
+            .data
+    );
     for replica in &replicas {
-        assert!(!replica.as_ref().unwrap().api_client.is_master().await.unwrap().into_inner().data);
+        assert!(
+            !replica
+                .as_ref()
+                .unwrap()
+                .api_client
+                .is_master()
+                .await
+                .unwrap()
+                .into_inner()
+                .data
+        );
     }
 
     let (master, state) = setup_test_rollup_with_initial_state(master, &admin).await;

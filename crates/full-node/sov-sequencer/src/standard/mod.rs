@@ -534,7 +534,6 @@ where
         self.node_id
     }
 
-
     fn tx_status_manager(&self) -> &TxStatusManager<<Self::Spec as Spec>::Da> {
         &self.txsm
     }

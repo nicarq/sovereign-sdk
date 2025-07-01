@@ -68,8 +68,14 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
                 "/sequencer/unstable/events",
                 axum::routing::get(Self::axum_list_events),
             )
-            .route("/sequencer/node-id", axum::routing::get(Self::axum_get_node_id))
-            .route("/sequencer/is-master", axum::routing::get(Self::axum_get_is_master));
+            .route(
+                "/sequencer/node-id",
+                axum::routing::get(Self::axum_get_node_id),
+            )
+            .route(
+                "/sequencer/is-master",
+                axum::routing::get(Self::axum_get_is_master),
+            );
 
         #[cfg(feature = "test-utils")]
         let router = router.route(

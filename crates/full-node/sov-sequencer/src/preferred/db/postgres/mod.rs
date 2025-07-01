@@ -232,7 +232,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         })?;
 
         // Compound CTE statement to avoid multiple roundtrips
-        run_with_retries!(
+        let result = run_with_retries!(
             &self.backoff_policy,
             sqlx::query(
                 "WITH master_check AS (
@@ -252,7 +252,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
             .execute(&self.pool),
             "postgres_db_backend_begin_rollup_block"
         )?;
-        
+
         if result.rows_affected() == 0 {
             return Err(anyhow!("Failed to begin rollup block: not current master"));
         }
@@ -267,7 +267,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         tx: FullyBakedTx,
         hash: TxHash,
     ) -> anyhow::Result<()> {
-        run_with_retries!(
+        let result = run_with_retries!(
             &self.backoff_policy,
             sqlx::query::<Postgres>(
                 "INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
@@ -283,7 +283,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
             .execute(&self.pool),
             "postgres_db_backend_add_tx"
         )?;
-        
+
         if result.rows_affected() == 0 {
             return Err(anyhow!("Failed to add transaction: not current master"));
         }
@@ -301,7 +301,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         // Compound CTE statement to avoid multiple roundtrips
         let result = run_with_retries!(
             &self.backoff_policy,
-            sqlx::query(
+            sqlx::query_as::<Postgres, (bool, i64)>(
                 "WITH master_check AS (
                     SELECT CASE WHEN node_id = $3 THEN true ELSE false END as is_master
                     FROM sequencer_leader WHERE singleton = 1
@@ -324,11 +324,11 @@ impl PreferredSequencerDbBackend for PostgresBackend {
             .bind(i64::try_from(cached.sequence_number)?)
             .bind::<&[u8]>(blob_data.as_ref())
             .bind(self.node_id)
-            .execute(&self.pool),
+            .fetch_one(&self.pool),
             "postgres_db_backend_end_rollup_block"
         )?;
 
-        let (is_master, operations_completed) = row;
+        let (is_master, operations_completed) = result;
 
         match (is_master, operations_completed) {
             (false, _) => Err(anyhow::anyhow!("Not current master")),
@@ -379,7 +379,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         let blob_data = borsh::to_vec(&StoredBlob::Proof { data, blob_id })?;
 
         // Compound CTE statement to avoid multiple roundtrips
-        run_with_retries!(
+        let result = run_with_retries!(
             &self.backoff_policy,
             sqlx::query(
                 "WITH master_check AS (
@@ -399,7 +399,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
             .execute(&self.pool),
             "postgres_db_backend_add_proof_blob"
         )?;
-        
+
         if result.rows_affected() == 0 {
             return Err(anyhow::anyhow!(
                 "Failed to add proof blob: not current master"

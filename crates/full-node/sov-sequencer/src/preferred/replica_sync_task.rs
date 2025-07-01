@@ -18,8 +18,8 @@ use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
 use super::db::StoredBlob;
-use crate::preferred::{exit_rollup, DbEvent, ExecutorEvent, PreferredSequencer};
 use crate::common::Sequencer;
+use crate::preferred::{exit_rollup, DbEvent, ExecutorEvent, PreferredSequencer};
 use crate::ProofBlobSender;
 
 /// Event type enum for type-safe parsing
@@ -650,12 +650,12 @@ where
             DbEvent::ProofBlobAccepted(sequence_number) => {
                 do_proof_blob(sequencer, sequence_number, query_pool).await
             }
+            DbEvent::Flushed(_) => Ok(()),
         },
         CompletedEvent::Backfill => {
             debug!("Backfill completed up to event_id");
             Ok(())
         }
-        DbEvent::Flushed(_) => Ok(()),
     }
 }
 
