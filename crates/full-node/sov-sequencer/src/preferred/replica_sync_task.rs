@@ -314,7 +314,8 @@ where
     // Failover threshold from config
     let failover_threshold = Duration::from_secs(sequencer.config.sequencer_kind_config.failover_threshold_secs);
     
-    info!("Starting unified processing loop - role: {}", if are_we_master { "master" } else { "replica" });
+    debug!("Starting database watching loop - role: {}", if are_we_master { "master" } else { "replica" });
+    println!("Starting database watching loop - role: {}", if are_we_master { "master" } else { "replica" });
 
     loop {
         tokio::select! {
@@ -330,7 +331,8 @@ where
             notification_result = listener.recv(), if pending_events.len() < MAX_CONCURRENT => {
                 match notification_result {
                     Ok(notification) => {
-                        trace!("Received PostgreSQL notification: {:?}", notification);
+                        trace!("Node {} received PostgreSQL notification: {:?}", sequencer.node_id, notification);
+                        println!("Node {} received PostgreSQL notification: {:?}", sequencer.node_id, notification);
                         
                         match notification.channel() {
                             "leader_changes" => {
@@ -364,6 +366,7 @@ where
                                     let payload = notification.payload();
                                     match EventsNotificationPayload::parse_csv(payload) {
                                         Ok(parsed_notification) => {
+                                            println!("Replica node {} received PostgreSQL notification: {:?}", sequencer.node_id, parsed_notification);
                                             // Check for gaps and add backfill if needed
                                             if detect_gap(*latest_received_event_id, parsed_notification.event_id).is_some() {
                                                 let backfill_future = create_backfill_future(
@@ -401,6 +404,7 @@ where
 
             // Always process completions in FIFO order
             Some(completed_result) = pending_events.next() => {
+                // println!("Processing DbEvent from completed_result: {completed_result:?}");
                 match completed_result? {
                     CompletedEvent::Event(db_event) => {
                         process_db_event(sequencer.clone(), db_event, query_pool).await?;
