@@ -406,6 +406,16 @@ allow = ["LGPL-3.0"]
 name = "malachite-q"
 version = "0.4.22"
 
+[[licenses.exceptions]]
+allow = ["CDLA-Permissive-2.0"]
+name = "webpki-root-certs"
+version = "1.0.1"
+
+[[licenses.exceptions]]
+allow = ["CDLA-Permissive-2.0"]
+name = "webpki-root-certs"
+version = "0.26.11"
+
 [sources]
 # We're okay with sourcing crates from Git repositories.
 unknown-git = "allow"
