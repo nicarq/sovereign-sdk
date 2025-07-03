@@ -182,20 +182,12 @@ async fn identify_master_and_replicas(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_failover_is_master_mechanism() {
-    let (Some(mut master), mut replicas, _tempdir, admin) = create_test_rollups(4).await else {
+    let (Some(master), mut replicas, _tempdir, admin) = create_test_rollups(4).await else {
         return;
     };
-    // let mut test_rollups = test_rollups.into_iter();
-
-    // // Identify initial master and replicas  
-    // let (mut master, mut replicas) = identify_master_and_replicas(
-    //     test_rollups.next().unwrap(),
-    //     test_rollups.map(Some).collect()
-    // ).await.unwrap();
 
     // Initial setup with state
-    let (master_with_state, mut _state) = setup_test_rollup_with_initial_state(master, &admin).await;
-    master = master_with_state;
+    let (mut master, mut _state) = setup_test_rollup_with_initial_state(master, &admin).await;
 
     for iteration in 1..=4 {
         println!("\n=== Failover iteration {} ===", iteration);
@@ -241,20 +233,9 @@ async fn seq_with_replicas() {
     let (Some(master), replicas, _tempdir, admin) = create_test_rollups(4).await else {
         return;
     };
-    // let (test_rollups, _tempdir, admin) = create_test_rollups(4).await;
-    // let Some(test_rollups) = test_rollups else {
-    //     return;
-    // };
-    // let mut test_rollups = test_rollups.into_iter();
-
-    // // Identify initial master and replicas
-    // let (master, replicas) = identify_master_and_replicas(
-    //     test_rollups.next().unwrap(),
-    //     test_rollups.map(Some).collect()
-    // ).await.unwrap();
 
     let (master, state) = setup_test_rollup_with_initial_state(master, &admin).await;
-    tokio::time::sleep(Duration::from_secs(2)).await;
+    // tokio::time::sleep(Duration::from_secs(2)).await;
 
     println!("\n\nFirst test action...\n");
     let actions = vec![TestingAction::AcceptTx, TestingAction::QuerySetValue];
