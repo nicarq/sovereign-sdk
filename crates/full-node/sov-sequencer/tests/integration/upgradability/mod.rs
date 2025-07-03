@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -32,7 +30,7 @@ generate_operator_runtime_with_kernel!(kernel_type: SoftConfirmationsKernel<'a, 
 type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn tests_sequencer_stops_if_stop_at_height_too_small() {
+async fn flaky_tests_sequencer_stops_if_stop_at_height_too_small() {
     let collector = LogCollector::new(Level::ERROR);
     let subscriber = registry().with(collector.clone());
     subscriber.init();
@@ -74,16 +72,16 @@ async fn tests_sequencer_stops_if_stop_at_height_too_small() {
         panic!("The rollup should have stopped")
     };
 
-    let mut recods = collector.records();
-    assert_eq!(recods.len(), 1);
+    let mut records = collector.records();
+    assert_eq!(records.len(), 1);
 
-    let (_, log) = recods.remove(0);
+    let (_, log) = records.remove(0);
     assert!(log.contains("The requested stop_height"));
     assert!(err.to_string().contains("The requested stop_height"));
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn tests_sequencer_does_not_accept_tx_after_stop() {
+async fn flaky_tests_sequencer_does_not_accept_tx_after_stop() {
     let stop_at_height = RollupHeight::new(15);
 
     let (test_rollup, admin) = create_test_rollup(
@@ -156,7 +154,7 @@ async fn tests_sequencer_does_not_accept_tx_after_stop() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_rollup_operates_only_on_finalized_blocks_if_stop_at_height_set() {
+async fn flaky_test_rollup_operates_only_on_finalized_blocks_if_stop_at_height_set() {
     let stop_at_height = RollupHeight::new(15);
 
     let (test_rollup, _) = create_test_rollup(
@@ -184,7 +182,7 @@ async fn test_rollup_operates_only_on_finalized_blocks_if_stop_at_height_set() {
     while current_height.get() < stop_at_height.get() + 10 {
         test_rollup.da_service.produce_block_now().await.unwrap();
         slot_subscription.next().await;
-        // We nned to wait a bit so the new blcok is visible to the sequencer.
+        // We need to wait a bit so the new block is visible to the sequencer.
         tokio::time::sleep(Duration::from_millis(200)).await;
         assert_rollup_processes_only_finalized_blocks(&client).await;
         current_height = get_height(&client).await;
@@ -196,7 +194,7 @@ async fn test_rollup_operates_only_on_finalized_blocks_if_stop_at_height_set() {
 async fn assert_rollup_processes_only_finalized_blocks(client: &NodeClient) {
     let last_finalized_block_height = get_last_finalized_block_height(client).await;
     let last_block_height = get_last_block_height(client).await;
-    // During upgrade procedure rollup processes only finalized blocks.
+    // During the upgrade procedure rollup processes only finalized blocks.
     assert_eq!(last_finalized_block_height, last_block_height);
 }
 
@@ -205,6 +203,7 @@ use serde::Deserialize;
 #[derive(Deserialize, Debug)]
 struct CurrentHeights {
     data: Data,
+    #[allow(dead_code)]
     meta: Meta,
 }
 
@@ -238,8 +237,7 @@ async fn get_block_height(client: &NodeClient, finalized: bool) -> u64 {
         "/ledger/slots/latest"
     };
     let response = client.http_get(url).await.unwrap();
-    let height: sov_api_spec::types::GetLatestSlotResponse =
-        serde_json::from_str(&response).unwrap();
+    let height: types::GetLatestSlotResponse = serde_json::from_str(&response).unwrap();
     height.data.unwrap().number
 }
 
