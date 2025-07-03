@@ -112,10 +112,12 @@ impl CelestiaService {
         );
 
         info!(
-            height = tx_response.height,
+            da_height = tx_response.height,
             tx_hash = %tx_hash,
             code = %tx_response.code,
             blob_hash = %blob_hash,
+            gas_used = %tx_response.gas_used,
+            bytes,
             "Blob has been submitted to Celestia"
         );
 
