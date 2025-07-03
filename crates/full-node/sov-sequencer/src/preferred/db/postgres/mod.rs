@@ -2,7 +2,6 @@ use std::num::NonZero;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::anyhow;
 use axum::async_trait;
 use backon::{BackoffBuilder, ExponentialBuilder};
 use sov_blob_sender::BlobInternalId;
@@ -224,7 +223,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         blob_id: BlobInternalId,
         visible_slot_number_after_increase: sov_modules_api::VisibleSlotNumber,
         visible_slots_to_advance: NonZero<u8>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         let blob_data = borsh::to_vec(&StoredBlob::Batch {
             blob_id,
             visible_slot_number_after_increase,
@@ -254,10 +253,11 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         )?;
 
         if result.rows_affected() == 0 {
-            return Err(anyhow!("Failed to begin rollup block: not current master"));
+            // Master check failed, no effect
+            return Ok(false);
         }
 
-        Ok(())
+        Ok(true)
     }
 
     async fn add_tx(
@@ -266,7 +266,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         tx_index_within_batch: u64,
         tx: FullyBakedTx,
         hash: TxHash,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         let result = run_with_retries!(
             &self.backoff_policy,
             sqlx::query::<Postgres>(
@@ -285,13 +285,14 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         )?;
 
         if result.rows_affected() == 0 {
-            return Err(anyhow!("Failed to add transaction: not current master"));
+            // Master check failed, no effect
+            return Ok(false)
         }
 
-        Ok(())
+        Ok(true)
     }
 
-    async fn end_rollup_block(&mut self, cached: &super::InProgressBatch) -> anyhow::Result<()> {
+    async fn end_rollup_block(&mut self, cached: &super::InProgressBatch) -> anyhow::Result<bool> {
         let blob_data = borsh::to_vec(&StoredBlob::Batch {
             blob_id: cached.blob_id,
             visible_slots_to_advance: cached.visible_slots_to_advance,
@@ -331,11 +332,11 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         let (is_master, operations_completed) = result;
 
         match (is_master, operations_completed) {
-            (false, _) => Err(anyhow::anyhow!("Not current master")),
+            (false, _) => Ok(false),
             (true, 0) => Err(anyhow::anyhow!(
                 "No in-progress batch found to end - data inconsistency"
             )),
-            (true, 1) => Ok(()),
+            (true, 1) => Ok(true),
             (true, n) => Err(anyhow::anyhow!("Unexpected operations count: {}", n)),
         }
     }
@@ -375,7 +376,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         sequence_number: SequenceNumber,
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         let blob_data = borsh::to_vec(&StoredBlob::Proof { data, blob_id })?;
 
         // Compound CTE statement to avoid multiple roundtrips
@@ -401,12 +402,11 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         )?;
 
         if result.rows_affected() == 0 {
-            return Err(anyhow::anyhow!(
-                "Failed to add proof blob: not current master"
-            ));
+            // Master check failed, no effect
+            return Ok(false)
         }
 
-        Ok(())
+        Ok(true)
     }
 
     async fn current_data(&self) -> anyhow::Result<DbSnapshotData> {

@@ -46,7 +46,7 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
         blob_id: BlobInternalId,
         visible_slot_number_after_increase: VisibleSlotNumber,
         visible_slots_to_advance: NonZero<u8>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         self.db
             .put_async::<tables::InProgressBatch>(
                 &(),
@@ -61,7 +61,7 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
             )
             .await?;
 
-        Ok(())
+        Ok(true)
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
@@ -71,7 +71,7 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
         tx_idx_within_batch: u64,
         tx: FullyBakedTx,
         hash: TxHash,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         self.db
             .put_async::<tables::BatchContents>(
                 &(sequence_number, tx_idx_within_batch),
@@ -79,14 +79,14 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
             )
             .await?;
 
-        Ok(())
+        Ok(true)
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
     async fn end_rollup_block(
         &mut self,
         in_progress_batch: &InProgressBatch,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         let mut s = SchemaBatch::new();
         s.delete::<tables::InProgressBatch>(&())?;
         s.put::<tables::CompletedBlobs>(
@@ -100,7 +100,7 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
         )?;
         self.db.write_schemas_async(&s).await?;
 
-        Ok(())
+        Ok(true)
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
@@ -146,14 +146,14 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
         sequence_number: SequenceNumber,
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         self.db
             .put_async::<tables::CompletedBlobs>(
                 &sequence_number,
                 &StoredBlob::Proof { data, blob_id },
             )
             .await?;
-        Ok(())
+        Ok(true)
     }
 
     async fn current_data(&self) -> anyhow::Result<DbSnapshotData> {

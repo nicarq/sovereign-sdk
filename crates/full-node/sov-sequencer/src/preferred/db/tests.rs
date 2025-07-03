@@ -21,8 +21,8 @@ impl PreferredSequencerDbBackend for MockDbBackend {
         _blob_id: BlobInternalId,
         _visible_slot_number_after_increase: VisibleSlotNumber,
         _visible_slots_to_advance: NonZero<u8>,
-    ) -> anyhow::Result<()> {
-        Ok(())
+    ) -> anyhow::Result<bool> {
+        Ok(true)
     }
 
     async fn add_tx(
@@ -31,15 +31,15 @@ impl PreferredSequencerDbBackend for MockDbBackend {
         _tx_idx_within_batch: u64,
         _tx: FullyBakedTx,
         _hash: TxHash,
-    ) -> anyhow::Result<()> {
-        Ok(())
+    ) -> anyhow::Result<bool> {
+        Ok(true)
     }
 
     async fn end_rollup_block(
         &mut self,
         _in_progress_batch: &InProgressBatch,
-    ) -> anyhow::Result<()> {
-        Ok(())
+    ) -> anyhow::Result<bool> {
+        Ok(true)
     }
 
     async fn add_proof_blob(
@@ -47,8 +47,8 @@ impl PreferredSequencerDbBackend for MockDbBackend {
         _sequence_number: SequenceNumber,
         _blob_id: BlobInternalId,
         _data: Arc<[u8]>,
-    ) -> anyhow::Result<()> {
-        Ok(())
+    ) -> anyhow::Result<bool> {
+        Ok(true)
     }
 
     async fn prune(&mut self, _prune_up_to_including: SequenceNumber) -> anyhow::Result<()> {

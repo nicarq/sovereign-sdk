@@ -45,7 +45,10 @@ where
         &mut self,
         checkpoint: StateCheckpoint<S>,
     ) -> anyhow::Result<()> {
-        let batch = self.db.terminate_batch().await?;
+        let Some(batch) = self.db.terminate_batch().await? else {
+            // We're no longer master, nothing more to do
+            return Ok(());
+        };
         self.update_api_state(checkpoint);
 
         // Publish the batch.
@@ -101,18 +104,26 @@ where
         // 1. close the in-progress batch, if any
         if self.db.in_progress_batch_opt().is_some() {
             tracing::debug!("Recovery: In-progress batch found, terminating it.");
-            self.db.terminate_batch().await?;
+            let Some(_) = self.db.terminate_batch().await? else {
+                // We're no longer master, nothing more to do
+                return Ok(());
+            };
             // No need to update API state, we're going to overwrite it with the node's state soon
         } else {
             tracing::debug!("Recovery: No in-progress batch to terminate.");
         }
 
         // 2. Flush all batches to the BlobSender
+        self.flush_all_unprocessed_completed_blobs(next_sequence_number_according_to_node).await?;
+
+        Ok(())
+    }
+
+    async fn flush_all_unprocessed_completed_blobs(&mut self, next_sequence_number_according_to_node: SequenceNumber) -> anyhow::Result<()> {
         let blobs_to_flush = self
             .db
             .all_completed_blobs_greater_than_or_equal_to(next_sequence_number_according_to_node);
         self.blob_sender.publish_blobs(blobs_to_flush).await?;
-
         Ok(())
     }
 
@@ -177,7 +188,10 @@ where
     ) -> Result<(), anyhow::Error> {
         match event {
             ExecutorEvent::AcceptedTx(tx_hash, tx, confirmation, checkpoint, oneshot_sender) => {
-                self.db.insert_tx(tx.clone(), tx_hash).await?;
+                let true = self.db.insert_tx(tx.clone(), tx_hash).await? else {
+                    // We're no longer master, nothing more to do
+                    return Ok(());
+                };
                 tracing::debug!(%tx_hash, "Transaction was accepted by the sequencer");
                 track_in_progress_batch_size(
                     self.db
@@ -258,8 +272,9 @@ where
             ExecutorEvent::SubscribeToEvents(sender) => {
                 self.db.subscribe_to_events(sender);
             }
-            ExecutorEvent::UpdateMasterStatus(is_master) => {
+            ExecutorEvent::UpdateMasterStatus{ is_master, next_sequence_number_according_to_node }=> {
                 self.blob_sender.set_is_master(is_master);
+                self.flush_all_unprocessed_completed_blobs(next_sequence_number_according_to_node).await?;
                 self.db.set_is_master(is_master);
             }
         }

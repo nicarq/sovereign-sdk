@@ -42,7 +42,7 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         blob_id: BlobInternalId,
         visible_slot_number_after_increase: VisibleSlotNumber,
         visibile_slots_to_advance: NonZero<u8>,
-    ) -> anyhow::Result<()>;
+    ) -> anyhow::Result<bool>;
 
     /// Calls to this method MUST be "sandwiched" between
     /// [`PreferredSequencerDbBackend::begin_rollup_block`] and
@@ -53,9 +53,9 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         tx_idx_within_batch: u64,
         tx: FullyBakedTx,
         hash: TxHash,
-    ) -> anyhow::Result<()>;
+    ) -> anyhow::Result<bool>;
 
-    async fn end_rollup_block(&mut self, cached: &InProgressBatch) -> anyhow::Result<()>;
+    async fn end_rollup_block(&mut self, cached: &InProgressBatch) -> anyhow::Result<bool>;
 
     async fn read_in_progress_batch(&self) -> anyhow::Result<Option<InProgressBatch>>;
 
@@ -69,7 +69,7 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         sequence_number: SequenceNumber,
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
-    ) -> anyhow::Result<()>;
+    ) -> anyhow::Result<bool>;
 
     /// Instructs the database it MAY delete all data up to the given
     /// [`SequenceNumber`] (included).
@@ -231,7 +231,7 @@ where
     }
 
     #[tracing::instrument(skip_all, level = "info")]
-    pub async fn insert_tx(&mut self, tx: FullyBakedTx, hash: TxHash) -> anyhow::Result<()> {
+    pub async fn insert_tx(&mut self, tx: FullyBakedTx, hash: TxHash) -> anyhow::Result<bool> {
         let Some(batch) = self.in_progress_batch.as_mut() else {
             tracing::error!("No in-progress batch; this is a bug, please report it");
             exit_rollup(&self.shutdown_sender).await;
@@ -239,14 +239,17 @@ where
         };
 
         if !self.is_replica {
-            self.backend
+            match self.backend
                 .add_tx(
                     batch.sequence_number,
                     batch.txs.len() as u64,
                     tx.clone(),
                     hash,
                 )
-                .await?;
+                .await? {
+                    false => return Ok(false),
+                    true => ()
+                }
         }
 
         batch.txs.push(tx.clone());
@@ -256,7 +259,7 @@ where
         self.send_event_if_necessary(DbEvent::TxAccepted(tx, hash))
             .await;
 
-        Ok(())
+        Ok(true)
     }
 
     async fn send_event_if_necessary(&mut self, event: DbEvent) {
@@ -293,7 +296,7 @@ where
         visible_slot_number_after_increase: VisibleSlotNumber,
         visible_slots_to_advance: NonZero<u8>,
         sequence_number: SequenceNumber,
-    ) -> anyhow::Result<SequenceNumber> {
+    ) -> anyhow::Result<Option<SequenceNumber>> {
         if self.in_progress_batch.is_some() {
             tracing::error!(
                 "There's already an in-progress batch; this is a bug, please report it"
@@ -319,14 +322,17 @@ where
         );
 
         if !self.is_replica {
-            self.backend
+            match self.backend
                 .begin_rollup_block(
                     sequence_number,
                     blob_id,
                     visible_slot_number_after_increase,
                     visible_slots_to_advance,
                 )
-                .await?;
+                .await? {
+                    false => return Ok(None),
+                    true => ()
+                }
         }
 
         self.in_progress_batch = Some(PreferredSequencerReadBatch {
@@ -345,7 +351,7 @@ where
         })
         .await;
 
-        Ok(sequence_number)
+        Ok(Some(sequence_number))
     }
 
     pub fn all_completed_blobs(&self) -> Vec<PreferredSequencerReadBlob> {
@@ -372,11 +378,14 @@ where
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
         sequence_number: SequenceNumber,
-    ) -> anyhow::Result<SequenceNumber> {
+    ) -> anyhow::Result<Option<SequenceNumber>> {
         if !self.is_replica {
-            self.backend
+            match self.backend
                 .add_proof_blob(sequence_number, blob_id, data.clone())
-                .await?;
+                .await? {
+                    false => return Ok(None),
+                    true => ()
+                }
         }
 
         self.completed_blobs
@@ -388,11 +397,11 @@ where
         self.send_event_if_necessary(DbEvent::ProofBlobAccepted(sequence_number))
             .await;
 
-        Ok(sequence_number)
+        Ok(Some(sequence_number))
     }
 
     #[tracing::instrument(skip_all, level = "info")]
-    pub async fn terminate_batch(&mut self) -> anyhow::Result<PreferredSequencerReadBatch> {
+    pub async fn terminate_batch(&mut self) -> anyhow::Result<Option<PreferredSequencerReadBatch>> {
         let Some(in_progress_batch) = self.in_progress_batch.as_ref() else {
             tracing::error!("No in-progress batch; this is a bug, please report it");
             exit_rollup(&self.shutdown_sender).await;
@@ -400,11 +409,14 @@ where
         };
 
         if !self.is_replica {
-            self.backend.end_rollup_block(in_progress_batch).await?;
-            self.debug_assert_in_progress_batch(
-                "Backend didn't remove in-progress batch from database when ending rollup block",
-            )
-            .await;
+            match
+                self.backend.end_rollup_block(in_progress_batch).await? {
+                    false => return Ok(None),
+                    true => self.debug_assert_in_progress_batch(
+                        "Backend didn't remove in-progress batch from database when ending rollup block",
+                    )
+                        .await,
+                }
         }
 
         let sequence_number = in_progress_batch.sequence_number;
@@ -422,7 +434,7 @@ where
         self.send_event_if_necessary(DbEvent::BatchClosed(sequence_number))
             .await;
 
-        Ok(batch)
+        Ok(Some(batch))
     }
 
     #[tracing::instrument(skip_all, level = "info")]
