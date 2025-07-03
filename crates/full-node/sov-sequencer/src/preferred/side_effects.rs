@@ -194,6 +194,7 @@ where
             ExecutorEvent::AcceptedTx(tx_hash, tx, confirmation, checkpoint, oneshot_sender) => {
                 let true = self.db.insert_tx(tx.clone(), tx_hash).await? else {
                     // We're no longer master, nothing more to do
+                    let _ = oneshot_sender.send(None);
                     return Ok(());
                 };
                 tracing::debug!(%tx_hash, "Transaction was accepted by the sequencer");
@@ -204,11 +205,11 @@ where
                         .unwrap_or(0),
                 );
                 // If the receiver is no longer listening, just don't send the confirmation.
-                let _ = oneshot_sender.send(AcceptedTx {
+                let _ = oneshot_sender.send(Some(AcceptedTx {
                     tx: tx.clone(),
                     tx_hash,
                     confirmation: confirmation.clone(),
-                });
+                }));
                 self.update_api_state(checkpoint);
             }
             ExecutorEvent::CloseBatch(checkpoint) => {

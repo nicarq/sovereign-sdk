@@ -611,7 +611,7 @@ where
             sequence_number_of_next_blob: next_sequence_number,
             in_flight_blobs,
             batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
-            is_ready: Err(SequencerNotReadyDetails::ReplicaMode), // Always start in replica mode
+            is_ready: Err(SequencerNotReadyDetails::Startup), // Always start in replica mode
         };
 
         let side_effects_task = SideEffectsTask {
@@ -719,10 +719,15 @@ where
     }
 
     async fn check_readiness(
+        &self,
         inner: &Inner<S, Rt>,
         max_concurrent_blobs: usize,
         height_to_stop_at: Option<RollupHeight>,
     ) -> Result<(), SequencerNotReadyDetails> {
+        if !self.is_master().await {
+            return Err(SequencerNotReadyDetails::ReplicaMode);
+        }
+
         // We cannot accept transactions until the latest finalized slot number
         // is AT LEAST 1. Meaning, as long as we're stuck at genesis, we can't
         // accept any transactions.
@@ -1336,7 +1341,7 @@ where
         // We don't actually care about the `inner`, we just want to reuse the
         // same logic.
         let inner = self.inner.lock().await;
-        Self::check_readiness(
+        self.check_readiness(
             &inner,
             self.config.max_concurrent_blobs,
             self.stop_at_rollup_height,
@@ -1428,7 +1433,7 @@ where
             return Err(sequencer_overloaded_503());
         }
 
-        Self::check_readiness(
+        self.check_readiness(
             &inner,
             self.config.max_concurrent_blobs,
             self.stop_at_rollup_height,
@@ -1522,7 +1527,9 @@ where
             .await;
         drop(inner);
 
-        rx.await.map_err(database_error_500)
+        rx.await
+            .map_err(database_error_500)?
+            .ok_or_else(|| error_not_fully_synced(SequencerNotReadyDetails::ReplicaMode))
     }
 
     async fn tx_status(

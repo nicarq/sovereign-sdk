@@ -185,7 +185,7 @@ async fn identify_master_and_replicas(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_failover_is_master_mechanism() {
+async fn test_master_election() {
     let (Some(master), mut replicas, _tempdir, admin) = create_test_rollups(4).await else {
         return;
     };
@@ -233,8 +233,6 @@ async fn test_failover_is_master_mechanism() {
         println!("Failover iteration {} completed", iteration);
     }
 
-    // Cleanup
-    println!("\nShutting down all nodes...");
     for replica in replicas.into_iter().flatten() {
         replica.shutdown().await.unwrap();
     }
@@ -242,7 +240,7 @@ async fn test_failover_is_master_mechanism() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn seq_with_replicas() {
+async fn test_state_replication() {
     let (Some(master), replicas, _tempdir, admin) = create_test_rollups(4).await else {
         return;
     };

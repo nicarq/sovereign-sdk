@@ -71,7 +71,7 @@ impl<S: Spec, Rt: Runtime<S>> ExecutorEventsSender<S, Rt> {
         hash: TxHash,
         confirmation: Confirmation<S, Rt>,
         checkpoint: StateCheckpoint<S>,
-    ) -> oneshot::Receiver<AcceptedTx<Confirmation<S, Rt>>> {
+    ) -> oneshot::Receiver<Option<AcceptedTx<Confirmation<S, Rt>>>> {
         let (sender, receiver) = oneshot::channel();
         self.send(ExecutorEvent::AcceptedTx(
             hash,
@@ -128,7 +128,7 @@ where
         FullyBakedTx,
         Confirmation<S, Rt>,
         StateCheckpoint<S>,
-        oneshot::Sender<AcceptedTx<Confirmation<S, Rt>>>,
+        oneshot::Sender<Option<AcceptedTx<Confirmation<S, Rt>>>>,
     ),
     /// Update the master status for both blob sender and database
     UpdateMasterStatus {
