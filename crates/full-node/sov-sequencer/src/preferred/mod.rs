@@ -1050,10 +1050,14 @@ where
 
         // Update blob sender and database master status via executor events
         let inner = self.lock_inner().await;
-        let next_sequence_number_according_to_node = get_next_sequence_number_according_to_node(&inner.latest_info, &mut Rt::default());
+        let next_sequence_number_according_to_node =
+            get_next_sequence_number_according_to_node(&inner.latest_info, &mut Rt::default());
         inner
             .executor_events_sender
-            .send(ExecutorEvent::UpdateMasterStatus { is_master, next_sequence_number_according_to_node })
+            .send(ExecutorEvent::UpdateMasterStatus {
+                is_master,
+                next_sequence_number_according_to_node,
+            })
             .await;
     }
 

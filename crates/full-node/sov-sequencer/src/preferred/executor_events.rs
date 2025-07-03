@@ -133,7 +133,7 @@ where
     /// Update the master status for both blob sender and database
     UpdateMasterStatus {
         is_master: bool,
-        next_sequence_number_according_to_node: SequenceNumber
+        next_sequence_number_according_to_node: SequenceNumber,
     },
     /// Update the API state to the given checkpoint without closing the current batch etc. Used during recovery
     ForceUpdateApiState(StateCheckpoint<S>),

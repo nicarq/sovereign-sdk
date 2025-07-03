@@ -239,17 +239,19 @@ where
         };
 
         if !self.is_replica {
-            match self.backend
+            match self
+                .backend
                 .add_tx(
                     batch.sequence_number,
                     batch.txs.len() as u64,
                     tx.clone(),
                     hash,
                 )
-                .await? {
-                    false => return Ok(false),
-                    true => ()
-                }
+                .await?
+            {
+                false => return Ok(false),
+                true => (),
+            }
         }
 
         batch.txs.push(tx.clone());
@@ -322,17 +324,19 @@ where
         );
 
         if !self.is_replica {
-            match self.backend
+            match self
+                .backend
                 .begin_rollup_block(
                     sequence_number,
                     blob_id,
                     visible_slot_number_after_increase,
                     visible_slots_to_advance,
                 )
-                .await? {
-                    false => return Ok(None),
-                    true => ()
-                }
+                .await?
+            {
+                false => return Ok(None),
+                true => (),
+            }
         }
 
         self.in_progress_batch = Some(PreferredSequencerReadBatch {
@@ -380,12 +384,14 @@ where
         sequence_number: SequenceNumber,
     ) -> anyhow::Result<Option<SequenceNumber>> {
         if !self.is_replica {
-            match self.backend
+            match self
+                .backend
                 .add_proof_blob(sequence_number, blob_id, data.clone())
-                .await? {
-                    false => return Ok(None),
-                    true => ()
-                }
+                .await?
+            {
+                false => return Ok(None),
+                true => (),
+            }
         }
 
         self.completed_blobs

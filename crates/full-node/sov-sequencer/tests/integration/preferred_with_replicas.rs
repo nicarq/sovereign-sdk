@@ -57,21 +57,21 @@ async fn create_test_rollups(
     let dir = tempdir_inside_codebase_dir();
 
     let test_rollups = new_test_rollup::<TestRuntime<TestSpec>>(
-            dir.clone(),
-            genesis_params.runtime.sequencer_registry.seq_da_address,
-            genesis_params,
-            3,
-            0,
-            true,
-            TEST_MAX_BATCH_SIZE,
-            BlockProducingConfig::Manual,
-            None,
-            TEST_BLOB_PROCESSING_TIMEOUT,
-            num_replicas,
-            MAX_BATCH_EXECUTION_TIME_MILLIS,
-            None,
-        )
-        .await;
+        dir.clone(),
+        genesis_params.runtime.sequencer_registry.seq_da_address,
+        genesis_params,
+        3,
+        0,
+        true,
+        TEST_MAX_BATCH_SIZE,
+        BlockProducingConfig::Manual,
+        None,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        num_replicas,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
+        None,
+    )
+    .await;
 
     let Some(test_rollups) = test_rollups else {
         return (None, vec![], dir, admin);
@@ -82,15 +82,12 @@ async fn create_test_rollups(
     // Identify initial master and replicas
     let (master, replicas) = identify_master_and_replicas(
         test_rollups.next().unwrap(),
-        test_rollups.map(Some).collect()
-    ).await.unwrap();
-
-    (
-        Some(master),
-        replicas,
-        dir,
-        admin,
+        test_rollups.map(Some).collect(),
     )
+    .await
+    .unwrap();
+
+    (Some(master), replicas, dir, admin)
 }
 
 type MasterAndReplicasAndState = (
@@ -155,7 +152,10 @@ async fn restart_replica(
 async fn identify_master_and_replicas(
     old_master: TestRollup<TestBlueprint>,
     old_replicas: Vec<Option<TestRollup<TestBlueprint>>>,
-) -> anyhow::Result<(TestRollup<TestBlueprint>, Vec<Option<TestRollup<TestBlueprint>>>)> {
+) -> anyhow::Result<(
+    TestRollup<TestBlueprint>,
+    Vec<Option<TestRollup<TestBlueprint>>>,
+)> {
     // Collect all nodes to check (filter out None replicas)
     let mut all_nodes = vec![old_master];
     all_nodes.extend(old_replicas.into_iter().flatten());
@@ -171,12 +171,16 @@ async fn identify_master_and_replicas(
         }
     }
 
-    assert_eq!(master_count, 1, "Expected exactly one master, found {}", master_count);
+    assert_eq!(
+        master_count, 1,
+        "Expected exactly one master, found {}",
+        master_count
+    );
     let master_idx = master_idx.expect("No master found");
-    
+
     let master = all_nodes.remove(master_idx);
     let replicas = all_nodes.into_iter().map(Some).collect();
-    
+
     Ok((master, replicas))
 }
 
@@ -193,7 +197,7 @@ async fn test_failover_is_master_mechanism() {
         println!("\n=== Failover iteration {} ===", iteration);
 
         let old_master_node_id = master.api_client.node_id().await.unwrap().into_inner().data;
-        
+
         // Shutdown current master and get builder for restart
         println!("Shutting down current master...");
         let master_builder = master.shutdown().await.unwrap();
@@ -206,14 +210,23 @@ async fn test_failover_is_master_mechanism() {
         let old_master = master_builder.start().await.unwrap();
 
         // Find new master and verify it's different from the old one
-        let (new_master, new_replicas) = identify_master_and_replicas(old_master, replicas).await.unwrap();
-        let new_master_node_id = new_master.api_client.node_id().await.unwrap().into_inner().data;
-        
+        let (new_master, new_replicas) = identify_master_and_replicas(old_master, replicas)
+            .await
+            .unwrap();
+        let new_master_node_id = new_master
+            .api_client
+            .node_id()
+            .await
+            .unwrap()
+            .into_inner()
+            .data;
+
         assert_ne!(
             old_master_node_id, new_master_node_id,
-            "New master should be different from old master in iteration {}", iteration
+            "New master should be different from old master in iteration {}",
+            iteration
         );
-        
+
         master = new_master;
         replicas = new_replicas;
 
