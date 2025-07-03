@@ -14,7 +14,7 @@ use sov_modules_api::{
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_sequencer_registry::AllowedSequencerError;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, trace, warn};
 
 use crate::max_size_checker::BlobsAccumulatorWithSizeLimit;
 use crate::{
@@ -944,13 +944,13 @@ impl<S: Spec> BlobStorage<S> {
                 assert_eq!(blob.verified_data().len(), blob.total_len(), "Batch deserialization failed and some data was not provided. The prover might be malicious");
                 let leading_bytes =
                     &blob.verified_data()[..std::cmp::min(100, blob.verified_data().len())];
-                debug!(
+                trace!(
                     deserializing_as = std::any::type_name::<B>(),
                     leading_bytes = %hex::encode(leading_bytes),
                     "Deserializing blob"
                 );
-                error!(
-                    blob_hash = hex::encode(blob.hash()),
+                debug!(
+                    blob_hash = %blob.hash(),
                     slashed_sender = %blob.sender(),
                     error = ?e,
                     "Unable to deserialize blob. slashing sender if they are registered"
@@ -960,7 +960,7 @@ impl<S: Spec> BlobStorage<S> {
                     self.sequencer_registry
                         .slash_sequencer(&blob.sender(), state);
                 } else {
-                    info!("Unable to slash sequencer, they were not registered");
+                    info!(sender = %blob.sender(), "Unable to slash sequencer, they were not registered");
                 }
 
                 None
