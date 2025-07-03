@@ -73,6 +73,7 @@ impl<S: Spec, Rt: Runtime<S>> ExecutorEventsSender<S, Rt> {
 
     /// Send a notification of an accepted tx. Return a receiver that will receive the confirmation.
     pub(crate) async fn send_accept_tx(
+<<<<<<< HEAD
         &mut self,
         accepted_tx: AcceptedTx<Confirmation<S, Rt>>,
         tx_changes: TxChangeSet,
@@ -88,6 +89,14 @@ impl<S: Spec, Rt: Runtime<S>> ExecutorEventsSender<S, Rt> {
             .insert_tx(accepted_tx.tx.clone(), accepted_tx.tx_hash)
             .await;
 
+=======
+        &self,
+        tx: FullyBakedTx,
+        hash: TxHash,
+        confirmation: Confirmation<S, Rt>,
+        checkpoint: StateCheckpoint<S>,
+    ) -> oneshot::Receiver<Option<AcceptedTx<Confirmation<S, Rt>>>> {
+>>>>>>> fix rejection in accept_tx
         let (sender, receiver) = oneshot::channel();
         track_in_progress_batch_size(
             self.cache
@@ -325,7 +334,7 @@ where
         FullyBakedTx,
         Confirmation<S, Rt>,
         StateCheckpoint<S>,
-        oneshot::Sender<AcceptedTx<Confirmation<S, Rt>>>,
+        oneshot::Sender<Option<AcceptedTx<Confirmation<S, Rt>>>>,
     ),
     /// Update the master status for both blob sender and database
 <<<<<<< HEAD

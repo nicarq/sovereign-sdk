@@ -326,7 +326,7 @@ where
         handles.push(synchronized_state_task);
 =======
             batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
-            is_ready: Err(SequencerNotReadyDetails::ReplicaMode), // Always start in replica mode
+            is_ready: Err(SequencerNotReadyDetails::Startup), // Always start in replica mode
         };
 >>>>>>> Add APIS and rename is_replica to is_master
 
@@ -401,6 +401,97 @@ where
         Ok((seq, handles))
     }
 
+<<<<<<< HEAD
+=======
+    #[tracing::instrument(skip_all, level = "debug")]
+    pub(crate) async fn lock_inner(&self) -> MutexGuard<Inner<S, Rt>> {
+        self.inner.lock().await
+    }
+
+    fn create_new_executor_for_replay(
+        &self,
+        info: &StateUpdateInfo<S::Storage>,
+    ) -> RollupBlockExecutor<S, Rt> {
+        RollupBlockExecutor::<_, Rt>::new(
+            info,
+            None, // we don't send events during replay or recovery
+            None, // we don't send transactions during replay or recovery
+            self.config.clone(),
+            self.block_executors_shutdown_notifier.clone(),
+            self.state_root_compute_task.request_sender.clone(),
+            self.shutdown_receiver.clone(),
+            self.shutdown_sender.clone(),
+            self.cached_events.clone(),
+        )
+    }
+
+    async fn check_readiness(
+        &self,
+        inner: &Inner<S, Rt>,
+        max_concurrent_blobs: usize,
+        height_to_stop_at: Option<RollupHeight>,
+    ) -> Result<(), SequencerNotReadyDetails> {
+        if !self.is_master().await {
+            return Err(SequencerNotReadyDetails::ReplicaMode);
+        }
+
+        // We cannot accept transactions until the latest finalized slot number
+        // is AT LEAST 1. Meaning, as long as we're stuck at genesis, we can't
+        // accept any transactions.
+        if inner.latest_info.latest_finalized_slot_number == SlotNumber::GENESIS {
+            tracing::error!("Timed out while waiting for the node to progress beyond genesis. The sequencer can't accept transactions until that happens");
+            return Err(SequencerNotReadyDetails::WaitingOnDa {
+                finalized_slot_number: SlotNumber::GENESIS,
+                needed_finalized_slot_number: SlotNumber::new(1),
+            });
+        }
+
+        if let Some(nb_of_blobs_in_flight) = inner.blob_sender_busy() {
+            return Err(SequencerNotReadyDetails::WaitingOnBlobSender {
+                max_concurrent_blobs,
+                nb_of_blobs_in_flight,
+            });
+        }
+
+        if let Some(height_to_stop_at) = height_to_stop_at {
+            let current_height = inner.current_height();
+            if current_height > height_to_stop_at {
+                return Err(SequencerNotReadyDetails::PreferredSequencerAtStopHeight {
+                    current_height,
+                    height_to_stop_at,
+                });
+            }
+        }
+
+        inner.is_ready.as_ref().map_err(|details| details.clone())?;
+        Ok(())
+    }
+
+    fn current_visible_slot_number_according_to_node(
+        &self,
+        info: &StateUpdateInfo<S::Storage>,
+    ) -> SlotNumber {
+        let mut rt = Rt::default();
+        let node_checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
+        node_checkpoint.current_visible_slot_number().as_true()
+    }
+
+    async fn trigger_recovery(&self, info: &StateUpdateInfo<S::Storage>) {
+        let mut inner = self.lock_inner().await;
+        inner.is_ready = Err(SequencerNotReadyDetails::PreferredSequencerRecovering);
+        let next_sequence_number_according_to_node =
+            get_next_sequence_number_according_to_node(info, &mut Rt::default());
+        inner
+            .executor_events_sender
+            .send(ExecutorEvent::EnterRecoveryMode {
+                recovery_strategy: self.config.sequencer_kind_config.recovery_strategy.clone(),
+                next_sequence_number_according_to_node,
+            })
+            .await;
+        info!(?info, current_visible_slot_number = %self.current_visible_slot_number_according_to_node(info), "Beginning sequencer recovery");
+    }
+
+>>>>>>> fix rejection in accept_tx
     /// Returns a range to allow hysteresis during catchup. The first (lower) value will be the
     /// minimum to be considered successfully recovered, the second (upper) value will be the
     /// target.
@@ -929,6 +1020,7 @@ where
     async fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
         // We don't actually care about the `inner`, we just want to reuse the
         // same logic.
+<<<<<<< HEAD
         self.synchronized_state_updator
             .check_readiness_msg(
                 self.config.max_concurrent_blobs,
@@ -937,6 +1029,16 @@ where
             )
             .await
             .map(|_| ())
+=======
+        let inner = self.inner.lock().await;
+        self.check_readiness(
+            &inner,
+            self.config.max_concurrent_blobs,
+            self.stop_at_rollup_height,
+        )
+        .await
+        .map(|_| ())
+>>>>>>> fix rejection in accept_tx
     }
 
     async fn is_master(&self) -> bool {
@@ -1060,10 +1162,27 @@ where
             tracing::debug!(%tx_hash, "Transaction delay completed, proceeding with processing");
         }
 
+<<<<<<< HEAD
         let res = self
             .synchronized_state_updator
             .accept_tx_msg(&baked_tx, tx_hash, original_tx_queue_id, "accept_tx")
             .await;
+=======
+        let mut inner = self.lock_inner().await;
+        let new_tx_queue_id = self.tx_queue_id.load(Ordering::Acquire);
+        if new_tx_queue_id != original_tx_queue_id {
+            tracing::debug!(%tx_hash, "Transaction was queued before downtime. Dropping.");
+            return Err(sequencer_overloaded_503());
+        }
+
+        self.check_readiness(
+            &inner,
+            self.config.max_concurrent_blobs,
+            self.stop_at_rollup_height,
+        )
+        .await
+        .map_err(error_not_fully_synced)?;
+>>>>>>> fix rejection in accept_tx
 
         match res {
             Ok(rx) => rx.await.map_err(database_error_500),
@@ -1112,6 +1231,61 @@ where
                 }
             },
         }
+<<<<<<< HEAD
+=======
+
+        err_if_cant_fit_tx(&inner.batch_size_tracker, &baked_tx)?;
+
+        let Inner {
+            executor,
+            batch_size_tracker,
+            executor_events_sender,
+            ..
+        } = &mut *inner;
+
+        let apply_tx_res = executor.apply_tx_to_in_progress_batch(&baked_tx).await;
+
+        let TxReceiptWithEvents {
+            receipt,
+            events,
+            remaining_slot_gas,
+            execution_time_micros,
+        } = match apply_tx_res {
+            Ok(res) => {
+                assert_eq!(
+                    tx_hash, res.receipt.tx_hash,
+                    "The executor returned a different tx hash than expected"
+                );
+                res
+            }
+            Err(err) => {
+                tracing::debug!(%tx_hash, %err, "Transaction was dropped by the sequencer");
+                return Err(RollupBlockExecutorError::into_http_error(err));
+            }
+        };
+        let confirmation = Confirmation {
+            events,
+            receipt: receipt.receipt.into(),
+        };
+        batch_size_tracker.add_tx(baked_tx.data.len(), execution_time_micros);
+        let rx = executor_events_sender
+            .send_accept_tx(
+                baked_tx,
+                tx_hash,
+                confirmation,
+                executor
+                    .checkpoint
+                    .clone_with_empty_witness_dropping_temp_cache(),
+            )
+            .await;
+        self.close_batch_if_nearly_full(&mut *inner, &remaining_slot_gas)
+            .await;
+        drop(inner);
+
+        rx.await
+            .map_err(database_error_500)?
+            .ok_or_else(|| error_not_fully_synced(SequencerNotReadyDetails::ReplicaMode))
+>>>>>>> fix rejection in accept_tx
     }
 
     async fn tx_status(
