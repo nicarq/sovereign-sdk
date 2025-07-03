@@ -283,17 +283,19 @@ impl PreferredSequencerCache {
 =======
 
         if !self.is_replica {
-            match self.backend
+            match self
+                .backend
                 .add_tx(
                     batch.sequence_number,
                     batch.txs.len() as u64,
                     tx.clone(),
                     hash,
                 )
-                .await? {
-                    false => return Ok(false),
-                    true => ()
-                }
+                .await?
+            {
+                false => return Ok(false),
+                true => (),
+            }
         }
 
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
@@ -367,17 +369,19 @@ impl PreferredSequencerCache {
         );
 
         if !self.is_replica {
-            match self.backend
+            match self
+                .backend
                 .begin_rollup_block(
                     sequence_number,
                     blob_id,
                     visible_slot_number_after_increase,
                     visible_slots_to_advance,
                 )
-                .await? {
-                    false => return Ok(None),
-                    true => ()
-                }
+                .await?
+            {
+                false => return Ok(None),
+                true => (),
+            }
         }
 
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
@@ -432,12 +436,14 @@ impl PreferredSequencerCache {
 =======
     ) -> anyhow::Result<Option<SequenceNumber>> {
         if !self.is_replica {
-            match self.backend
+            match self
+                .backend
                 .add_proof_blob(sequence_number, blob_id, data.clone())
-                .await? {
-                    false => return Ok(None),
-                    true => ()
-                }
+                .await?
+            {
+                false => return Ok(None),
+                true => (),
+            }
         }
 
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests

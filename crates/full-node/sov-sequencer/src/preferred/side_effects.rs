@@ -127,12 +127,16 @@ where
         }
 
         // 2. Flush all batches to the BlobSender
-        self.flush_all_unprocessed_completed_blobs(next_sequence_number_according_to_node).await?;
+        self.flush_all_unprocessed_completed_blobs(next_sequence_number_according_to_node)
+            .await?;
 
         Ok(())
     }
 
-    async fn flush_all_unprocessed_completed_blobs(&mut self, next_sequence_number_according_to_node: SequenceNumber) -> anyhow::Result<()> {
+    async fn flush_all_unprocessed_completed_blobs(
+        &mut self,
+        next_sequence_number_according_to_node: SequenceNumber,
+    ) -> anyhow::Result<()> {
         let blobs_to_flush = self
             .db
             .all_completed_blobs_greater_than_or_equal_to(next_sequence_number_according_to_node);
@@ -292,9 +296,13 @@ where
                     .await;
                 let _ = oneshot_sender.send(());
             }
-            ExecutorEvent::UpdateMasterStatus{ is_master, next_sequence_number_according_to_node }=> {
+            ExecutorEvent::UpdateMasterStatus {
+                is_master,
+                next_sequence_number_according_to_node,
+            } => {
                 self.blob_sender.set_is_master(is_master);
-                self.flush_all_unprocessed_completed_blobs(next_sequence_number_according_to_node).await?;
+                self.flush_all_unprocessed_completed_blobs(next_sequence_number_according_to_node)
+                    .await?;
                 self.db.set_is_master(is_master);
             }
         }

@@ -316,7 +316,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
 
         if result.rows_affected() == 0 {
             // Master check failed, no effect
-            return Ok(false)
+            return Ok(false);
         }
 
         Ok(true)
@@ -440,7 +440,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
 
         if result.rows_affected() == 0 {
             // Master check failed, no effect
-            return Ok(false)
+            return Ok(false);
         }
 
         Ok(true)

@@ -272,10 +272,8 @@ where
         heartbeat_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         // Create a takeover interval that ticks immediately on startup to check for leadership
-        let mut takeover_interval = tokio::time::interval_at(
-            tokio::time::Instant::now(), 
-            Duration::from_secs(1)
-        );
+        let mut takeover_interval =
+            tokio::time::interval_at(tokio::time::Instant::now(), Duration::from_secs(1));
         takeover_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         println!("Starting database watching loop");
@@ -350,7 +348,7 @@ where
                 // Always process events in FIFO order, once we've fetched what we need from the DB
                 Some(completed_result) = pending_events.next() => {
                     process_completed_event(self.sequencer.clone(), completed_result?, &self.query_pool).await?;
-                    
+
                     // Check if we can complete transition to master, if we need to
                     if self.replica_state == ReplicaState::TransitioningToMaster && pending_events.is_empty() {
                         self.complete_transition_to_master().await?;
@@ -387,8 +385,11 @@ where
         }
     }
 
-
-    async fn handle_leader_change_notification(&mut self, payload: &str, pending_events: &mut FuturesOrdered<PendingEventFuture>) -> anyhow::Result<()> {
+    async fn handle_leader_change_notification(
+        &mut self,
+        payload: &str,
+        pending_events: &mut FuturesOrdered<PendingEventFuture>,
+    ) -> anyhow::Result<()> {
         match LeaderNotificationPayload::parse_csv(payload) {
             Ok(leader_info) => {
                 if leader_info.node_id == self.sequencer.node_id {
@@ -402,7 +403,10 @@ where
                     }
                 } else {
                     // Another node is master
-                    if matches!(self.replica_state, ReplicaState::Master | ReplicaState::TransitioningToMaster) {
+                    if matches!(
+                        self.replica_state,
+                        ReplicaState::Master | ReplicaState::TransitioningToMaster
+                    ) {
                         warn!("Another node took over as master: {}. Downgrading to operate as a replica.", leader_info.node_id);
                         self.transition_to_replica().await?;
                     }
@@ -427,7 +431,10 @@ where
     }
 
     /// Helper method to create event futures from notification payload
-    fn create_event_futures_from_notification(&mut self, payload: &str) -> anyhow::Result<Vec<PendingEventFuture>> {
+    fn create_event_futures_from_notification(
+        &mut self,
+        payload: &str,
+    ) -> anyhow::Result<Vec<PendingEventFuture>> {
         let parsed_notification = EventsNotificationPayload::parse_csv(payload)?;
         let mut futures = Vec::new();
 
@@ -470,10 +477,13 @@ where
     }
 
     /// Start transitioning to master
-    async fn start_transition_to_master(&mut self, pending_events: &mut FuturesOrdered<PendingEventFuture>) -> anyhow::Result<()> {
+    async fn start_transition_to_master(
+        &mut self,
+        pending_events: &mut FuturesOrdered<PendingEventFuture>,
+    ) -> anyhow::Result<()> {
         info!("Starting transition to master");
         self.replica_state = ReplicaState::TransitioningToMaster;
-        
+
         // Drain all buffered notifications to avoid missing events written before we became master
         loop {
             match self.listener.next_buffered() {
@@ -481,11 +491,14 @@ where
                     match notification.channel() {
                         "events_changes" => {
                             // Use helper method to avoid code duplication
-                            self.handle_event_notification(notification.payload(), pending_events).await?;
+                            self.handle_event_notification(notification.payload(), pending_events)
+                                .await?;
                         }
                         "leader_changes" => {
                             // Handle inline to avoid recursive call to start_transition_to_master
-                            if let Ok(leader_info) = LeaderNotificationPayload::parse_csv(notification.payload()) {
+                            if let Ok(leader_info) =
+                                LeaderNotificationPayload::parse_csv(notification.payload())
+                            {
                                 if leader_info.node_id != self.sequencer.node_id {
                                     // Another node is master, abort our transition
                                     info!("Another node became master before we finished transitioning, aborting");
@@ -500,7 +513,7 @@ where
                 None => break, // No more buffered notifications
             }
         }
-        
+
         Ok(())
     }
 
@@ -511,7 +524,7 @@ where
 
         self.replica_state = ReplicaState::Master;
         self.sequencer.set_is_master(true).await;
-        
+
         Ok(())
     }
 
@@ -524,7 +537,10 @@ where
         Ok(())
     }
 
-    async fn tick_takeover(&mut self, pending_events: &mut FuturesOrdered<PendingEventFuture>) -> anyhow::Result<()> {
+    async fn tick_takeover(
+        &mut self,
+        pending_events: &mut FuturesOrdered<PendingEventFuture>,
+    ) -> anyhow::Result<()> {
         let time_since_last_heartbeat = SystemTime::now()
             .duration_since(self.last_heartbeat_time)
             .unwrap_or(Duration::MAX);

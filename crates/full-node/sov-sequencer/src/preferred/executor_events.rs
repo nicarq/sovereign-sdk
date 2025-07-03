@@ -334,7 +334,7 @@ where
 =======
     UpdateMasterStatus {
         is_master: bool,
-        next_sequence_number_according_to_node: SequenceNumber
+        next_sequence_number_according_to_node: SequenceNumber,
     },
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
     /// Update the API state to the given checkpoint without closing the current batch etc. Used during recovery
