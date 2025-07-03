@@ -165,6 +165,12 @@ pub(crate) enum TestingAction {
     /// included in the next batch (it won't, as it's invalid).
     #[weight(2)]
     TryAcceptBadTx { invalid_reason: InvalidGeneration },
+    /// A client submits a valid transaction but still expects it to fail with a specific reason
+    /// due to the sequencer being unable to process it at this time.
+    /// Note that it's the test's responsibility to ensure the sequencer is in the correct state to
+    /// not accept the transaction; the TestingAction cannot set it up.
+    #[weight(0)]
+    ExpectFailTx { fail_reason: FailureReason },
     /// A client queries the nonce for a given address.
     ///
     /// This is an easy and effective way for us to check that all pending
@@ -194,6 +200,12 @@ pub(crate) enum TestingAction {
 pub(crate) enum InvalidGeneration {
     DuplicateTransaction,
     TooOld,
+}
+
+/// Expected failure reason for transaction rejection.
+#[derive(Debug, Clone, Arbitrary)]
+pub(crate) enum FailureReason {
+    ReplicaMode,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2978,6 +2990,39 @@ pub(crate) async fn run_action_against_test_rollup(
                 })
                 .await
                 .is_err());
+        }
+        TestingAction::ExpectFailTx { fail_reason } => {
+            let tx = tx_set_value(
+                key,
+                test_state.next_generation,
+                test_state.current_value + 1,
+            );
+
+            let result = test_rollup
+                .api_client
+                .accept_tx(&api_types::AcceptTxBody {
+                    body: BASE64_STANDARD.encode(&tx),
+                })
+                .await;
+
+            anyhow::ensure!(
+                result.is_err(),
+                "Expected transaction to fail but it succeeded"
+            );
+
+            let error = result.unwrap_err();
+            match fail_reason {
+                FailureReason::ReplicaMode => {
+                    // Check that the error indicates replica mode
+                    let error_string = error.to_string();
+                    anyhow::ensure!(
+                        error_string
+                            .contains("Sequencer is replica and cannot accept transactions"),
+                        "Expected replica mode error but got: {}",
+                        error_string
+                    );
+                }
+            }
         }
         TestingAction::AcceptTx => {
             let tx = tx_set_value(

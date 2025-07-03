@@ -15,8 +15,8 @@ use sov_value_setter::ValueSetterConfig;
 #[allow(unused_imports)]
 use crate::preferred_end_to_end::{
     run_action_against_test_rollup, run_actions_against_test_rollup,
-    setup_test_rollup_with_initial_state, InvalidGeneration, TestBlueprint, TestRuntime, TestState,
-    TestingAction,
+    setup_test_rollup_with_initial_state, FailureReason, InvalidGeneration, TestBlueprint,
+    TestRuntime, TestState, TestingAction,
 };
 use crate::utils::{new_test_rollup, tempdir_inside_codebase_dir, MAX_BATCH_EXECUTION_TIME_MILLIS};
 
@@ -332,4 +332,84 @@ async fn test_state_replication() {
     }
     // Shut down master last, otherwise the postgres subscription will drop and replicas will error
     master.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_replica_transaction_rejection() {
+    let (Some(mut master), mut replicas, _tempdir, admin) = create_test_rollups(2).await else {
+        return;
+    };
+
+    // Setup initial state
+    let (master_with_state, mut state) = setup_test_rollup_with_initial_state(master, &admin).await;
+    master = master_with_state;
+
+    let replica = replicas[0].take().unwrap();
+
+    println!("Testing master can accept transactions");
+    // Master should be able to accept transactions
+    let master = run_action_against_test_rollup(
+        master,
+        &admin.private_key,
+        TestingAction::AcceptTx,
+        &mut state,
+    )
+    .await
+    .unwrap();
+
+    println!("Testing replica rejects transactions");
+    // Replica should reject transactions with replica mode error
+    let replica = run_action_against_test_rollup(
+        replica,
+        &admin.private_key,
+        TestingAction::ExpectFailTx {
+            fail_reason: FailureReason::ReplicaMode,
+        },
+        &mut state,
+    )
+    .await
+    .unwrap();
+
+    println!("Shutting down master to trigger failover");
+    // Shutdown master to trigger failover
+    let master_builder = master.shutdown().await.unwrap();
+
+    // Wait for failover
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
+    println!("Testing new master (former replica) can accept transactions");
+    // Former replica should now be master and accept transactions
+    let new_master = run_action_against_test_rollup(
+        replica,
+        &admin.private_key,
+        TestingAction::AcceptTx,
+        &mut state,
+    )
+    .await
+    .unwrap();
+
+    println!("Restarting old master as replica");
+    // Restart old master - it should now be a replica
+    let old_master_as_replica = master_builder.start().await.unwrap();
+
+    // Give time for the restarted node to sync and become a replica
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    println!("Testing old master (now replica) rejects transactions");
+    // Old master (now replica) should reject transactions with replica mode error
+    let old_master_as_replica = run_action_against_test_rollup(
+        old_master_as_replica,
+        &admin.private_key,
+        TestingAction::ExpectFailTx {
+            fail_reason: FailureReason::ReplicaMode,
+        },
+        &mut state,
+    )
+    .await
+    .unwrap();
+
+    // Cleanup
+    println!("Shutting down nodes");
+    old_master_as_replica.shutdown().await.unwrap();
+    new_master.shutdown().await.unwrap();
 }
