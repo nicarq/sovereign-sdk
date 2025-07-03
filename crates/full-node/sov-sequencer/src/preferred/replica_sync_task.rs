@@ -325,7 +325,7 @@ where
                         Ok(notification) => {
                             match notification.channel() {
                                 "leader_changes" => {
-                                    self.handle_leader_change_notification(notification.payload()).await?;
+                                    self.handle_leader_change_notification(notification.payload(), &mut pending_events).await?;
                                     // Check if we need to complete transition to master after the
                                     // notification, and if we can do it immediately
                                     if self.replica_state == ReplicaState::TransitioningToMaster && pending_events.is_empty() {
@@ -357,14 +357,14 @@ where
                     }
                 },
                 _ = takeover_interval.tick(), if self.replica_state == ReplicaState::Replica => {
-                    if let Err(e) = self.tick_takeover().await {
-                        warn!("Failed takeover attempt: {e:?}");
-                    } else {
-                        // Check if we can immediately complete transition to master
-                        if self.replica_state == ReplicaState::TransitioningToMaster && pending_events.is_empty() {
-                            self.complete_transition_to_master().await?;
+                        if let Err(e) = self.tick_takeover(&mut pending_events).await {
+                            warn!("Failed takeover attempt: {e:?}");
+                        } else {
+                            // Check if we can immediately complete transition to master
+                            if self.replica_state == ReplicaState::TransitioningToMaster && pending_events.is_empty() {
+                                self.complete_transition_to_master().await?;
+                            }
                         }
-                    }
                 },
                 _ = shutdown_receiver.changed() => {
                     info!("Shutdown signal received, stopping event processing");
@@ -388,7 +388,7 @@ where
     }
 
 
-    async fn handle_leader_change_notification(&mut self, payload: &str) -> anyhow::Result<()> {
+    async fn handle_leader_change_notification(&mut self, payload: &str, pending_events: &mut FuturesOrdered<PendingEventFuture>) -> anyhow::Result<()> {
         match LeaderNotificationPayload::parse_csv(payload) {
             Ok(leader_info) => {
                 if leader_info.node_id == self.sequencer.node_id {
@@ -398,7 +398,7 @@ where
                         // In theory, the only way this should be possible would be through manual
                         // database editing. (Which is fine if it happens.)
                         info!("Replica promoted to master via DB notification.");
-                        self.start_transition_to_master().await;
+                        self.start_transition_to_master(pending_events).await?;
                     }
                 } else {
                     // Another node is master
@@ -426,6 +426,31 @@ where
         Ok(())
     }
 
+    /// Helper method to create event futures from notification payload
+    fn create_event_futures_from_notification(&mut self, payload: &str) -> anyhow::Result<Vec<PendingEventFuture>> {
+        let parsed_notification = EventsNotificationPayload::parse_csv(payload)?;
+        let mut futures = Vec::new();
+
+        // Check for gaps and add backfill if needed
+        if detect_gap(self.latest_received_event_id, parsed_notification.event_id).is_some() {
+            let backfill_future = create_backfill_future(
+                self.sequencer.clone(),
+                &self.query_pool,
+                self.latest_received_event_id,
+                parsed_notification.event_id,
+            );
+            futures.push(backfill_future);
+        }
+
+        self.latest_received_event_id = Some(parsed_notification.event_id);
+
+        // Create future for current notification
+        let event_future = create_event_future(parsed_notification, &self.query_pool);
+        futures.push(event_future);
+
+        Ok(futures)
+    }
+
     async fn handle_event_notification(
         &mut self,
         payload: &str,
@@ -436,34 +461,47 @@ where
             return Err(anyhow!("Received new pg event while transitioning to master - no other sequencer should be writing to the DB anymore!"));
         }
 
-        let parsed_notification = EventsNotificationPayload::parse_csv(payload)?;
-        // println!("Replica node {} received PostgreSQL notification: {:?}", self.sequencer.node_id, parsed_notification);
-
-        // Check for gaps and add backfill if needed
-        if detect_gap(self.latest_received_event_id, parsed_notification.event_id)
-            .is_some()
-        {
-            let backfill_future = create_backfill_future(
-                self.sequencer.clone(),
-                &self.query_pool,
-                self.latest_received_event_id,
-                parsed_notification.event_id,
-            );
-            pending_events.push_back(backfill_future);
+        let futures = self.create_event_futures_from_notification(payload)?;
+        for future in futures {
+            pending_events.push_back(future);
         }
-
-        self.latest_received_event_id = Some(parsed_notification.event_id);
-
-        // Create future for current notification
-        let event_future = create_event_future(parsed_notification, &self.query_pool);
-        pending_events.push_back(event_future);
 
         Ok(())
     }
 
     /// Start transitioning to master
-    async fn start_transition_to_master(&mut self) {
+    async fn start_transition_to_master(&mut self, pending_events: &mut FuturesOrdered<PendingEventFuture>) -> anyhow::Result<()> {
+        info!("Starting transition to master");
         self.replica_state = ReplicaState::TransitioningToMaster;
+        
+        // Drain all buffered notifications to avoid missing events written before we became master
+        loop {
+            match self.listener.next_buffered() {
+                Some(notification) => {
+                    match notification.channel() {
+                        "events_changes" => {
+                            // Use helper method to avoid code duplication
+                            self.handle_event_notification(notification.payload(), pending_events).await?;
+                        }
+                        "leader_changes" => {
+                            // Handle inline to avoid recursive call to start_transition_to_master
+                            if let Ok(leader_info) = LeaderNotificationPayload::parse_csv(notification.payload()) {
+                                if leader_info.node_id != self.sequencer.node_id {
+                                    // Another node is master, abort our transition
+                                    info!("Another node became master before we finished transitioning, aborting");
+                                    self.transition_to_replica().await?;
+                                    return Ok(());
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                None => break, // No more buffered notifications
+            }
+        }
+        
+        Ok(())
     }
 
     /// Complete the transition from TransitioningToMaster to Master
@@ -486,7 +524,7 @@ where
         Ok(())
     }
 
-    async fn tick_takeover(&mut self) -> anyhow::Result<()> {
+    async fn tick_takeover(&mut self, pending_events: &mut FuturesOrdered<PendingEventFuture>) -> anyhow::Result<()> {
         let time_since_last_heartbeat = SystemTime::now()
             .duration_since(self.last_heartbeat_time)
             .unwrap_or(Duration::MAX);
@@ -506,7 +544,7 @@ where
             {
                 Ok(true) => {
                     info!("Successfully claimed leadership - transitioning to master");
-                    self.start_transition_to_master().await;
+                    self.start_transition_to_master(pending_events).await?;
                 }
                 Ok(false) => {
                     info!("Another replica beat us to takeover or master recovered. Continuing to operate as replica.");
