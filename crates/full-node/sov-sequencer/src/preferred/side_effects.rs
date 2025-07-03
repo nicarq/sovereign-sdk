@@ -60,7 +60,14 @@ where
         batch: PreferredSequencerReadBatch,
         info_to_store: BatchToStore,
     ) -> anyhow::Result<()> {
+<<<<<<< HEAD
         self.db.terminate_batch(info_to_store).await?;
+=======
+        let Some(batch) = self.db.terminate_batch().await? else {
+            // We're no longer master, nothing more to do
+            return Ok(());
+        };
+>>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
         self.update_api_state(checkpoint);
 
         // Publish the batch.
@@ -97,8 +104,44 @@ where
         Ok(())
     }
 
+<<<<<<< HEAD
     /// Drains at least one event from the queue, batching operations when possible.
     async fn handle_executor_event(
+=======
+    async fn flush_pending_batches_for_recovery(
+        &mut self,
+        next_sequence_number_according_to_node: SequenceNumber,
+    ) -> anyhow::Result<()> {
+        tracing::trace!("Recovery: flushing all preferred sequencer batches");
+
+        // 1. close the in-progress batch, if any
+        if self.db.in_progress_batch_opt().is_some() {
+            tracing::debug!("Recovery: In-progress batch found, terminating it.");
+            let Some(_) = self.db.terminate_batch().await? else {
+                // We're no longer master, nothing more to do
+                return Ok(());
+            };
+            // No need to update API state, we're going to overwrite it with the node's state soon
+        } else {
+            tracing::debug!("Recovery: No in-progress batch to terminate.");
+        }
+
+        // 2. Flush all batches to the BlobSender
+        self.flush_all_unprocessed_completed_blobs(next_sequence_number_according_to_node).await?;
+
+        Ok(())
+    }
+
+    async fn flush_all_unprocessed_completed_blobs(&mut self, next_sequence_number_according_to_node: SequenceNumber) -> anyhow::Result<()> {
+        let blobs_to_flush = self
+            .db
+            .all_completed_blobs_greater_than_or_equal_to(next_sequence_number_according_to_node);
+        self.blob_sender.publish_blobs(blobs_to_flush).await?;
+        Ok(())
+    }
+
+    fn fetch_completed_blobs_by_sequence(
+>>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
         &mut self,
         event_queue: &mut VecDeque<ExecutorEvent<S, Rt>>,
     ) -> Result<(), anyhow::Error> {
@@ -142,6 +185,41 @@ where
                     let _ = contents.oneshot_sender.send(contents.accepted_tx);
                     self.update_api_state_with_changes(contents.tx_changes);
                 }
+<<<<<<< HEAD
+=======
+            })
+            .chain(maybe_in_progress_batch)
+            .collect::<Vec<_>>()
+    }
+
+    async fn handle_executor_event(
+        &mut self,
+        event: ExecutorEvent<S, Rt>,
+    ) -> Result<(), anyhow::Error> {
+        match event {
+            ExecutorEvent::AcceptedTx(tx_hash, tx, confirmation, checkpoint, oneshot_sender) => {
+                let true = self.db.insert_tx(tx.clone(), tx_hash).await? else {
+                    // We're no longer master, nothing more to do
+                    return Ok(());
+                };
+                tracing::debug!(%tx_hash, "Transaction was accepted by the sequencer");
+                track_in_progress_batch_size(
+                    self.db
+                        .in_progress_batch_opt()
+                        .map(|b| b.txs.len() as u64)
+                        .unwrap_or(0),
+                );
+                // If the receiver is no longer listening, just don't send the confirmation.
+                let _ = oneshot_sender.send(AcceptedTx {
+                    tx: tx.clone(),
+                    tx_hash,
+                    confirmation: confirmation.clone(),
+                });
+                self.update_api_state(checkpoint);
+            }
+            ExecutorEvent::CloseBatch(checkpoint) => {
+                self.close_and_publish_current_batch(checkpoint).await?;
+>>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
             }
             ExecutorEvent::CloseBatch(batch, checkpoint) => {
                 let info_to_store = BatchToStore {
@@ -214,8 +292,9 @@ where
                     .await;
                 let _ = oneshot_sender.send(());
             }
-            ExecutorEvent::UpdateMasterStatus(is_master) => {
+            ExecutorEvent::UpdateMasterStatus{ is_master, next_sequence_number_according_to_node }=> {
                 self.blob_sender.set_is_master(is_master);
+                self.flush_all_unprocessed_completed_blobs(next_sequence_number_according_to_node).await?;
                 self.db.set_is_master(is_master);
             }
         }

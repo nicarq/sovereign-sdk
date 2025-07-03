@@ -328,8 +328,15 @@ where
         oneshot::Sender<AcceptedTx<Confirmation<S, Rt>>>,
     ),
     /// Update the master status for both blob sender and database
+<<<<<<< HEAD
     UpdateMasterStatus(bool),
 >>>>>>> is_master failover logic works and tested
+=======
+    UpdateMasterStatus {
+        is_master: bool,
+        next_sequence_number_according_to_node: SequenceNumber
+    },
+>>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
     /// Update the API state to the given checkpoint without closing the current batch etc. Used during recovery
     ForceUpdateApiState(StateCheckpoint<S>),
     /// Prune the database up to the given sequence number.

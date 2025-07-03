@@ -39,7 +39,7 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         blob_id: BlobInternalId,
         visible_slot_number_after_increase: VisibleSlotNumber,
         visibile_slots_to_advance: NonZero<u8>,
-    ) -> anyhow::Result<()>;
+    ) -> anyhow::Result<bool>;
 
     /// Calls to this method MUST be "sandwiched" between
     /// [`PreferredSequencerDbBackend::begin_rollup_block`] and
@@ -50,8 +50,9 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         tx_idx_within_batch: u64,
         tx: FullyBakedTx,
         hash: TxHash,
-    ) -> anyhow::Result<()>;
+    ) -> anyhow::Result<bool>;
 
+<<<<<<< HEAD
     async fn batch_add_txs(
         &mut self,
         sequence_number_of_in_progress_batch: SequenceNumber,
@@ -72,6 +73,9 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
     }
 
     async fn end_rollup_block(&mut self, stored_batch: BatchToStore) -> anyhow::Result<()>;
+=======
+    async fn end_rollup_block(&mut self, cached: &InProgressBatch) -> anyhow::Result<bool>;
+>>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
 
     async fn read_in_progress_batch(&self) -> anyhow::Result<Option<InProgressBatch>>;
 
@@ -85,7 +89,7 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         sequence_number: SequenceNumber,
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
-    ) -> anyhow::Result<()>;
+    ) -> anyhow::Result<bool>;
 
     /// Instructs the database it MAY delete all data up to the given
     /// [`SequenceNumber`] (included).
@@ -264,18 +268,45 @@ impl PreferredSequencerCache {
     }
 
     #[tracing::instrument(skip_all, level = "info")]
+<<<<<<< HEAD
     pub async fn insert_tx(&mut self, tx: FullyBakedTx, hash: TxHash) -> anyhow::Result<()> {
 >>>>>>> is_master failover logic works and tested
+=======
+    pub async fn insert_tx(&mut self, tx: FullyBakedTx, hash: TxHash) -> anyhow::Result<bool> {
+>>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
         let Some(batch) = self.in_progress_batch.as_mut() else {
             tracing::error!("No in-progress batch; this is a bug, please report it");
             exit_rollup(&self.shutdown_sender).await;
             unreachable!();
         };
+<<<<<<< HEAD
+=======
+
+        if !self.is_replica {
+            match self.backend
+                .add_tx(
+                    batch.sequence_number,
+                    batch.txs.len() as u64,
+                    tx.clone(),
+                    hash,
+                )
+                .await? {
+                    false => return Ok(false),
+                    true => ()
+                }
+        }
+
+>>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
         batch.txs.push(tx.clone());
         batch.tx_hashes.push(hash);
         // If there are no receivers, we don't send the tx. This is as it should be.
         self.send_event_if_necessary(DbEvent::TxAccepted(tx, hash))
             .await;
+<<<<<<< HEAD
+=======
+
+        Ok(true)
+>>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
     }
 
     async fn send_event_if_necessary(&mut self, event: DbEvent) {
@@ -312,7 +343,11 @@ impl PreferredSequencerCache {
         visible_slot_number_after_increase: VisibleSlotNumber,
         visible_slots_to_advance: NonZero<u8>,
         sequence_number: SequenceNumber,
+<<<<<<< HEAD
     ) -> BlobInternalId {
+=======
+    ) -> anyhow::Result<Option<SequenceNumber>> {
+>>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
         if self.in_progress_batch.is_some() {
             tracing::error!(
                 "There's already an in-progress batch; this is a bug, please report it"
@@ -320,6 +355,32 @@ impl PreferredSequencerCache {
             exit_rollup(&self.shutdown_sender).await;
         };
         let blob_id = new_blob_id();
+<<<<<<< HEAD
+=======
+
+        tracing::debug!(
+            sequence_number,
+            blob_id,
+            %visible_slot_number_after_increase,
+            visible_slots_to_advance,
+            "Storing new rollup block"
+        );
+
+        if !self.is_replica {
+            match self.backend
+                .begin_rollup_block(
+                    sequence_number,
+                    blob_id,
+                    visible_slot_number_after_increase,
+                    visible_slots_to_advance,
+                )
+                .await? {
+                    false => return Ok(None),
+                    true => ()
+                }
+        }
+
+>>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
         self.in_progress_batch = Some(PreferredSequencerReadBatch {
             sequence_number,
             visible_slot_number_after_increase,
@@ -335,7 +396,30 @@ impl PreferredSequencerCache {
             visible_slots_to_advance,
         })
         .await;
+<<<<<<< HEAD
         blob_id
+=======
+
+        Ok(Some(sequence_number))
+    }
+
+    pub fn all_completed_blobs(&self) -> Vec<PreferredSequencerReadBlob> {
+        self.completed_blobs.clone().into()
+    }
+
+    pub fn all_completed_blobs_greater_than_or_equal_to(
+        &self,
+        sequence_number: SequenceNumber,
+    ) -> Vec<PreferredSequencerReadBlob> {
+        self.completed_blobs
+            .iter()
+            .filter(|b| {
+                // Pruning invariants say it MAY remove older blobs, but we don't know for sure.
+                b.sequence_number() >= sequence_number
+            })
+            .cloned()
+            .collect()
+>>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
     }
 
     pub async fn insert_proof_blob(
@@ -343,7 +427,20 @@ impl PreferredSequencerCache {
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
         sequence_number: SequenceNumber,
+<<<<<<< HEAD
     ) {
+=======
+    ) -> anyhow::Result<Option<SequenceNumber>> {
+        if !self.is_replica {
+            match self.backend
+                .add_proof_blob(sequence_number, blob_id, data.clone())
+                .await? {
+                    false => return Ok(None),
+                    true => ()
+                }
+        }
+
+>>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
         self.completed_blobs
             .push_back(PreferredSequencerReadBlob::Proof {
                 blob_id,
@@ -352,15 +449,38 @@ impl PreferredSequencerCache {
             });
         self.send_event_if_necessary(DbEvent::ProofBlobAccepted(sequence_number))
             .await;
+<<<<<<< HEAD
     }
 
     pub async fn terminate_batch(&mut self) -> PreferredSequencerReadBatch {
+=======
+
+        Ok(Some(sequence_number))
+    }
+
+    #[tracing::instrument(skip_all, level = "info")]
+    pub async fn terminate_batch(&mut self) -> anyhow::Result<Option<PreferredSequencerReadBatch>> {
+>>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
         let Some(in_progress_batch) = self.in_progress_batch.as_ref() else {
             tracing::error!("No in-progress batch; this is a bug, please report it");
             exit_rollup(&self.shutdown_sender).await;
             unreachable!();
         };
 
+<<<<<<< HEAD
+=======
+        if !self.is_replica {
+            match
+                self.backend.end_rollup_block(in_progress_batch).await? {
+                    false => return Ok(None),
+                    true => self.debug_assert_in_progress_batch(
+                        "Backend didn't remove in-progress batch from database when ending rollup block",
+                    )
+                        .await,
+                }
+        }
+
+>>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
         let sequence_number = in_progress_batch.sequence_number;
         let Some(batch) = self.in_progress_batch.take() else {
             tracing::error!("No in-progress batch; this is a bug, please report it");
@@ -376,12 +496,17 @@ impl PreferredSequencerCache {
         self.send_event_if_necessary(DbEvent::BatchClosed(sequence_number))
             .await;
 
+<<<<<<< HEAD
         // Update the metrics.
         track_in_progress_batch_size(
             self.in_progress_batch_opt()
                 .map(|b| b.txs.len() as u64)
                 .unwrap_or(0),
         );
+=======
+        Ok(Some(batch))
+    }
+>>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
 
         batch
     }
