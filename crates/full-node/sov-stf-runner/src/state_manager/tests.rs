@@ -15,7 +15,7 @@ use sov_mock_da::{
 };
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::provable_height_tracker::InfiniteHeight;
-use sov_rollup_interface::common::{HexHash, SlotNumber};
+use sov_rollup_interface::common::{HexHash, RollupHeight, SlotNumber};
 use sov_rollup_interface::da::{DaSpec, RelevantBlobIters};
 use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::node::SyncStatus;
@@ -77,6 +77,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, 
                 inner: (),
             }],
             witness: (),
+            rollup_height: RollupHeight::new(0),
         }
     }
 }

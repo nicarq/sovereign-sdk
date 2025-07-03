@@ -30,7 +30,7 @@ use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConf
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, RollupProverConfig, TestRollup};
 use sov_test_utils::{
     default_test_signed_transaction, generate_optimistic_runtime_with_kernel, RtAgnosticBlueprint,
-    TestSpec, TestUser, TEST_MAX_BATCH_SIZE, TEST_MAX_CONCURRENT_BLOBS,
+    TestSpec, TestUser, TEST_FINALIZATION_BLOCKS, TEST_MAX_BATCH_SIZE, TEST_MAX_CONCURRENT_BLOBS,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use test_strategy::Arbitrary;
@@ -162,6 +162,7 @@ async fn create_test_rollup(
             1,
             max_batch_execution_time_millis,
             None,
+            TEST_FINALIZATION_BLOCKS,
         )
         .await
         .map(|v| v.into_iter().next().unwrap()),
@@ -312,6 +313,7 @@ async fn sequencer_filled_up_block() {
         1,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
         None,
+        TEST_FINALIZATION_BLOCKS,
     )
     .await
     else {
@@ -620,6 +622,7 @@ async fn seq_out_of_gas_for_pre_checks() {
         1,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
         None,
+        TEST_FINALIZATION_BLOCKS,
     )
     .await
     else {
@@ -948,6 +951,7 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
         1,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
         None,
+        TEST_FINALIZATION_BLOCKS,
     )
     .await
     else {
@@ -1880,6 +1884,7 @@ async fn heavy_blob_submission_long_delay() {
         1,
         400, // Set the batch time limit to twice the block time
         None,
+        TEST_FINALIZATION_BLOCKS,
     )
     .await
     else {
@@ -2344,6 +2349,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
         1,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
         None,
+        TEST_FINALIZATION_BLOCKS,
     )
     .await
     else {

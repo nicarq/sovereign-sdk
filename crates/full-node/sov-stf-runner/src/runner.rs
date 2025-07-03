@@ -384,9 +384,9 @@ where
         let status_updater_handle = self
             .spawn_sync_status_updater(self.da_polling_interval, self.shutdown_receiver.clone());
 
+        let stop_at_rollup_height = self.stop_at_rollup_height;
+        let shutdown_receiver = self.shutdown_receiver.clone();
         loop {
-            let shutdown_receiver = self.shutdown_receiver.clone();
-
             if self.stop_at_rollup_height.is_some() {
                 // Rollup is performing an upgrade procedure. We wait until the next_da_height is finalized.
                 let is_shutting_down = Self::wait_until_next_da_height_finalized_or_shutdown(
@@ -400,15 +400,22 @@ where
                     break;
                 }
             }
-            match future_or_shutdown(self.process_next_slot(next_da_height), &shutdown_receiver)
-                .await
+            match future_or_shutdown(
+                self.process_next_slot(next_da_height, &stop_at_rollup_height),
+                &shutdown_receiver,
+            )
+            .await
             {
                 FutureOrShutdownOutput::Shutdown => break,
-                FutureOrShutdownOutput::Output(slot_result) => {
-                    next_da_height = slot_result?;
-                }
+                FutureOrShutdownOutput::Output(slot_result) => match slot_result? {
+                    Some(next) => next_da_height = next,
+                    None => {
+                        break;
+                    }
+                },
             }
         }
+
         info!("Runner main loop is completed, keep shutting down...");
         if let Err(e) = self.secondary_shutdown_sender.send(()) {
             tracing::warn!(
@@ -420,10 +427,12 @@ where
         status_updater_handle
             .await
             .context("Status update handler")?;
+
         let background_handles = std::mem::take(&mut self.background_handles);
         for handle in background_handles {
             let _ = handle.await?;
         }
+
         Ok(())
     }
 
@@ -460,7 +469,8 @@ where
     async fn process_next_slot(
         &mut self,
         mut next_da_height: NextDaHeightToProcess,
-    ) -> anyhow::Result<NextDaHeightToProcess> {
+        stop_at_rollup_height: &Option<RollupHeight>,
+    ) -> anyhow::Result<Option<NextDaHeightToProcess>> {
         let loop_start = std::time::Instant::now();
         let prev_state_root = self.get_state_root().clone();
         debug!("Requesting DA block");
@@ -644,7 +654,22 @@ where
             metrics.track_runner_metrics(point);
         });
 
-        Ok(next_da_height + 1)
+        // If the rollup is upgrading and the current height has reached the stop point,
+        // halt further slot processing.
+        if let Some(stop_at_rollup_height) = stop_at_rollup_height {
+            if &slot_result.rollup_height == stop_at_rollup_height {
+                info!("Stopping at rollup height: {}", stop_at_rollup_height);
+                return Ok(None);
+            }
+            assert!(
+                &slot_result.rollup_height < stop_at_rollup_height,
+                "The rollup height ({}) must be less than the stop height ({})",
+                slot_result.rollup_height,
+                stop_at_rollup_height
+            );
+        }
+
+        Ok(Some(next_da_height + 1))
     }
 
     /// Allows reading current state root

@@ -685,7 +685,8 @@ pub struct TestRollup<R: FullNodeBlueprint<Native>, StoragePath = Arc<tempfile::
     /// In case the rollup was started with a secondary sequencer, this is the
     /// client that can be used to submit transactions.
     pub secondary_test_sequencer_client: Option<sov_api_spec::client::Client>,
-    builder: RollupBuilder<R, StoragePath>,
+    #[allow(missing_docs)]
+    pub builder: RollupBuilder<R, StoragePath>,
     // Keep it open, so the secondary sequencer runs without errors
     #[allow(dead_code)]
     _secondary_sequencer_state_sender:
@@ -753,8 +754,17 @@ where
 
     /// Restarts the rollup.
     pub async fn restart(self) -> anyhow::Result<Self> {
+        self.restart_with_stop_at_height(None).await
+    }
+
+    /// Restarts the rollup. With an option to stop at a specific height.
+    pub async fn restart_with_stop_at_height(
+        self,
+        stop_at_height: Option<RollupHeight>,
+    ) -> anyhow::Result<Self> {
         let builder = self.shutdown().await?;
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let builder = builder.set_config(|c| c.stop_at_rollup_height = stop_at_height);
         builder.start().await
     }
 }
