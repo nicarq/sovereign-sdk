@@ -202,7 +202,7 @@ async fn test_master_election() {
         let master_builder = master.shutdown().await.unwrap();
 
         // Wait for failover to occur
-        tokio::time::sleep(Duration::from_secs(3)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
         // Restart the old master as a replica
         println!("Restarting old master as replica...");
@@ -346,7 +346,7 @@ async fn test_replica_transaction_rejection() {
     let master_builder = master.shutdown().await.unwrap();
 
     // Wait for failover
-    tokio::time::sleep(Duration::from_secs(3)).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
 
     println!("Testing new master (former replica) can accept transactions");
     // Former replica should now be master and accept transactions
@@ -383,4 +383,97 @@ async fn test_replica_transaction_rejection() {
     println!("Shutting down nodes");
     old_master_as_replica.shutdown().await.unwrap();
     new_master.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_state_replication_with_failover() {
+    let (Some(mut master), replicas, _tempdir, admin) = create_test_rollups(3).await else {
+        return;
+    };
+
+    // Setup initial state
+    let (master_with_state, state) = setup_test_rollup_with_initial_state(master, &admin).await;
+    master = master_with_state;
+
+    println!("=== Phase 1: Normal operation with master ===");
+    // Accept some transactions with master running
+    let actions = vec![TestingAction::AcceptTx, TestingAction::AcceptTx];
+    let (master, replicas, state) =
+        test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
+
+    println!("=== Phase 2: Shut down master, trigger failover ===");
+    // Shutdown master to trigger failover
+    let master_builder = master.shutdown().await.unwrap();
+
+    // Wait for failover to occur
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    // Identify new master and replicas
+    let all_remaining: Vec<TestRollup<TestBlueprint>> = replicas.into_iter().flatten().collect();
+    let mut all_remaining = all_remaining.into_iter();
+    let (new_master, new_replicas) = identify_master_and_replicas(
+        all_remaining.next().unwrap(),
+        all_remaining.map(Some).collect(),
+    )
+    .await
+    .unwrap();
+
+    println!("=== Phase 3: Accept transactions with new master (old master down) ===");
+    // Accept transactions while old master is down
+    let actions = vec![TestingAction::AcceptTx, TestingAction::AcceptTx];
+    let (new_master, new_replicas, mut state) =
+        test_actions_against_replicas(&admin, (new_master, new_replicas, state), actions).await;
+
+    println!("=== Phase 4: Restart old master as replica ===");
+    // Restart old master - it should become a replica and sync state
+    let old_master_as_replica = master_builder.start().await.unwrap();
+
+    // Give time for old master to sync up as replica
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    println!("=== Phase 5: Verify old master synced state ===");
+    // Verify old master (now replica) has synced the state from while it was down
+    let old_master_as_replica = run_action_against_test_rollup(
+        old_master_as_replica,
+        &admin.private_key,
+        TestingAction::QuerySetValue,
+        &mut state,
+    )
+    .await
+    .unwrap();
+
+    println!("=== Phase 6: Continue with more transactions ===");
+    // Continue with more transactions to ensure everything works
+    let actions = vec![TestingAction::AcceptTx, TestingAction::NewDaSlot];
+    let mut all_nodes = vec![Some(new_master), Some(old_master_as_replica)];
+    all_nodes.extend(new_replicas);
+    let (new_master, remaining_replicas, state) = test_actions_against_replicas(
+        &admin,
+        (
+            all_nodes[0].take().unwrap(),
+            all_nodes.into_iter().skip(1).collect(),
+            state,
+        ),
+        actions,
+    )
+    .await;
+
+    println!("=== Phase 7: Final verification ===");
+    // Final check that all nodes have consistent state
+    let (final_master, final_replicas, final_state) = test_actions_against_replicas(
+        &admin,
+        (new_master, remaining_replicas, state),
+        vec![TestingAction::QuerySetValue],
+    )
+    .await;
+
+    // Cleanup
+    println!("=== Cleanup ===");
+    for replica in final_replicas.into_iter().flatten() {
+        replica.shutdown().await.unwrap();
+    }
+    final_master.shutdown().await.unwrap();
+
+    // Silence unused variable warning
+    drop(final_state);
 }
