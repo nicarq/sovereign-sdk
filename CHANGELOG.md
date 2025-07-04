@@ -1,3 +1,7 @@
+# 2025-07-04
+- #3167 Changes the format of forced registration transactions on the DA layer, adding a single discriminant byte to specify that the standard authenticator should be used. This makes their format identical to standard transactions.
+
+
 # 2025-06-29
  -#3123 Replaces `sov-value-setter` with `sov-synthetic-load` in sov-demo-stf.
 - #3126 **BREAKING CHANGE** for running rollups: changes the format of the preferred sequencer PostgreSQL database. Any running rollups configured to run postgres in the sequencer will need to have the sequencer halted and the database wiped before restart. If there are pending soft-confirmations, they will be lost when the database is wiped.

@@ -242,7 +242,7 @@ pub fn new_test_blob_from_batch(
 
 /// Builds a new test blob for direct sequencer registration.
 pub fn new_test_blob_for_direct_registration(
-    tx: RawTx,
+    tx: FullyBakedTx,
     address: &[u8],
     hash: [u8; 32],
 ) -> <MockDaSpec as DaSpec>::BlobTransaction {

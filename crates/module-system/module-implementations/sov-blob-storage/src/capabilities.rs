@@ -9,7 +9,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     as_u32_or_panic, Amount, BatchWithId, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec,
     FullyBakedTx, Gas, GasArray, GasSpec, InjectedControlFlow, IterableBatchWithId,
-    KernelStateAccessor, ModuleInfo, PrivilegedKernelAccessor, RawTx, SelectedBlob, Spec,
+    KernelStateAccessor, ModuleInfo, PrivilegedKernelAccessor, SelectedBlob, Spec,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::RelevantBlobIters;
@@ -218,9 +218,9 @@ impl<S: Spec> BlobStorage<S> {
                             }
                             // Otherwise, try to deserialize and use it
                             unregistered_blob_count += 1;
-                            if let Some(tx) = self
-                                .deserialize_or_try_slash_sender::<RawTx>(blob, None, false, state)
-                            {
+                            if let Some(tx) = self.deserialize_or_try_slash_sender::<FullyBakedTx>(
+                                blob, None, false, state,
+                            ) {
                                 let blob = ValidatedBlob::new(
                                     BlobData::EmergencyRegistration(tx).with_id(blob.hash().into()),
                                     blob.sender(),
