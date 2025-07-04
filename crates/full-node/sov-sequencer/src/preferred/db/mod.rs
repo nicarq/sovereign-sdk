@@ -282,8 +282,8 @@ impl PreferredSequencerCache {
 <<<<<<< HEAD
 =======
 
-        if !self.is_replica {
-            match self
+        if !self.is_replica
+            && !self
                 .backend
                 .add_tx(
                     batch.sequence_number,
@@ -292,10 +292,8 @@ impl PreferredSequencerCache {
                     hash,
                 )
                 .await?
-            {
-                false => return Ok(false),
-                true => (),
-            }
+        {
+            return Ok(false);
         }
 
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
@@ -368,8 +366,8 @@ impl PreferredSequencerCache {
             "Storing new rollup block"
         );
 
-        if !self.is_replica {
-            match self
+        if !self.is_replica
+            && !self
                 .backend
                 .begin_rollup_block(
                     sequence_number,
@@ -378,10 +376,8 @@ impl PreferredSequencerCache {
                     visible_slots_to_advance,
                 )
                 .await?
-            {
-                false => return Ok(None),
-                true => (),
-            }
+        {
+            return Ok(None);
         }
 
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
@@ -435,15 +431,13 @@ impl PreferredSequencerCache {
     ) {
 =======
     ) -> anyhow::Result<Option<SequenceNumber>> {
-        if !self.is_replica {
-            match self
+        if !self.is_replica
+            && !self
                 .backend
                 .add_proof_blob(sequence_number, blob_id, data.clone())
                 .await?
-            {
-                false => return Ok(None),
-                true => (),
-            }
+        {
+            return Ok(None);
         }
 
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests

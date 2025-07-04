@@ -1353,8 +1353,8 @@ pub struct PreferredSequencerConfig {
     pub batch_execution_time_limit_millis: u64,
     /// Time in seconds after which a replica will attempt to become the master if no heartbeat is received.
     /// Only used in replica mode for failover scenarios.
-    #[serde(default = "default_failover_threshold_secs")]
-    pub failover_threshold_secs: u64,
+    #[serde(default = "default_failover_threshold_millis")]
+    pub failover_threshold_millis: u64,
 }
 
 impl Default for PreferredSequencerConfig {
@@ -1368,7 +1368,7 @@ impl Default for PreferredSequencerConfig {
             recovery_strategy: RecoveryStrategy::None,
             db_event_channel_size: default_db_event_channel_size(),
             batch_execution_time_limit_millis: 6_000, // 6 seconds
-            failover_threshold_secs: default_failover_threshold_secs(),
+            failover_threshold_millis: default_failover_threshold_millis(),
         }
     }
 }
@@ -1389,9 +1389,8 @@ fn default_db_event_channel_size() -> usize {
 }
 
 /// Default failover threshold in seconds for replica promotion.
-/// Defaulting to 2 seconds provides a reasonable balance between fast failover and avoiding false positives.
-pub const fn default_failover_threshold_secs() -> u64 {
-    2
+pub const fn default_failover_threshold_millis() -> u64 {
+    500
 }
 
 #[async_trait]
