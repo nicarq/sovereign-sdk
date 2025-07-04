@@ -561,15 +561,24 @@ impl<S: FullNodeBlueprint<M>, M: ExecutionMode> Rollup<S, M> {
                 .map_err(|_| anyhow::anyhow!("Failed to send Axum address"))?;
         }
 
-        let monitoring_task = spawn_task_monitor(self.shutdown_sender, self.background_handles);
+        let monitoring_task =
+            spawn_task_monitor(self.shutdown_sender.clone(), self.background_handles);
 
         runner.run_in_process().await?;
         tracing::info!("STF Runner has completed execution");
+
+        if self.shutdown_sender.send(()).is_err() {
+            tracing::info!(
+                "Failed to send primary shutdown signal because all receivers have been dropped"
+            );
+        }
+
         if self.secondary_shutdown_sender.send(()).is_err() {
             tracing::info!(
                 "Failed to send secondary shutdown signal because all receivers have been dropped"
             );
         }
+
         // blocks until background handles have shutdown
         monitoring_task.await??;
         for handle in self.endpoints.inner.background_handles {

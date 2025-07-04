@@ -12,6 +12,7 @@ will not allow batches to continue growing once they reach this limit, even if t
 - #3110 Swaps `StorageConfig` with `RollupDbConfig`. Change should be transparent for rollup struct.
 - #3112 adds validity distribution parameter to sov-soak generator
 - #3114 **BREAKING CHANGE** Updates rust to 1.85
+- #3137 **BREAKING CHANGE** Updates SP1 to 5.0.6
 
 # 2025-06-25
 - #3095 SOAK: inject MessageValidity as an argument to `run_generator_task_for_xx`

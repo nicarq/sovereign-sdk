@@ -10,8 +10,7 @@ use celestia_types::nmt::Namespace;
 use celestia_types::state::Address;
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use jsonrpsee::http_client::transport::HttpBackend;
-use jsonrpsee::http_client::{HeaderMap, HttpClient};
+use jsonrpsee::http_client::{HeaderMap, HttpClient, HttpClientBuilder};
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::{DaProof, DaSpec, RelevantBlobs, RelevantProofs};
 use sov_rollup_interface::node::da::{
@@ -19,11 +18,9 @@ use sov_rollup_interface::node::da::{
 };
 use tokio::sync::{oneshot, Mutex};
 use tokio::time::Instant;
-use tower::ServiceBuilder;
 use tracing::{debug, info, instrument, trace};
 
 pub use crate::config::CelestiaConfig;
-use crate::middleware::{TimingLayer, TimingMiddleware};
 use crate::types::{
     BlobWithSender, FilteredCelestiaBlock, NamespaceBoundaryProof, NamespaceRelevantData, TmHash,
     APP_VERSION,
@@ -35,7 +32,7 @@ use crate::CelestiaHeader;
 
 type BoxError = anyhow::Error;
 
-type TimedHttpClient = HttpClient<TimingMiddleware<HttpBackend>>;
+type TimedHttpClient = HttpClient;
 
 #[derive(Debug, Clone)]
 pub struct CelestiaService {
@@ -112,10 +109,12 @@ impl CelestiaService {
         );
 
         info!(
-            height = tx_response.height,
+            da_height = tx_response.height,
             tx_hash = %tx_hash,
             code = %tx_response.code,
             blob_hash = %blob_hash,
+            gas_used = %tx_response.gas_used,
+            bytes,
             "Blob has been submitted to Celestia"
         );
 
@@ -137,14 +136,13 @@ impl CelestiaService {
                     .unwrap(),
             );
 
-            jsonrpsee::http_client::HttpClientBuilder::default()
+            HttpClientBuilder::default()
                 .set_headers(headers)
                 .max_response_size(config.max_celestia_response_body_size.get())
                 .max_request_size(config.max_celestia_response_body_size.get())
                 .request_timeout(Duration::from_secs(
                     config.celestia_rpc_timeout_seconds.get(),
                 ))
-                .set_http_middleware(ServiceBuilder::new().layer(TimingLayer))
                 .build(&config.celestia_rpc_address)
         }
         .expect("Client initialization is valid");
@@ -1090,7 +1088,8 @@ mod tests {
                         "gas_used": 69085,
                         "timestamp": "",
                         "events": [],
-                })})
+                })
+            })
             .up_to_n_times(1)
             .mount(&mock_server)
             .await;

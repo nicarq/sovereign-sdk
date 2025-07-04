@@ -30,7 +30,7 @@ use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConf
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, RollupProverConfig, TestRollup};
 use sov_test_utils::{
     default_test_signed_transaction, generate_optimistic_runtime_with_kernel, RtAgnosticBlueprint,
-    TestSpec, TestUser, TEST_MAX_BATCH_SIZE, TEST_MAX_CONCURRENT_BLOBS,
+    TestSpec, TestUser, TEST_FINALIZATION_BLOCKS, TEST_MAX_BATCH_SIZE, TEST_MAX_CONCURRENT_BLOBS,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use test_strategy::Arbitrary;
@@ -165,7 +165,7 @@ async fn create_test_rollup(
             dir.clone(),
             genesis_params.runtime.sequencer_registry.seq_da_address,
             genesis_params,
-            3,
+            TEST_FINALIZATION_BLOCKS,
             minimum_profit_per_tx,
             true,
             max_batch_size,
@@ -316,7 +316,7 @@ async fn sequencer_filled_up_block() {
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
-        3,
+        TEST_FINALIZATION_BLOCKS,
         0,
         true,
         TEST_MAX_BATCH_SIZE,
@@ -427,7 +427,7 @@ async fn sequencer_filled_up_block() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn seq_behind_deferred_slots_count() {
+async fn flaky_seq_behind_deferred_slots_count() {
     std::env::set_var("SOV_TEST_CONST_OVERRIDE_DEFERRED_SLOTS_COUNT", "40");
     let (test_rollup, admin) = create_test_rollup(
         0,
@@ -625,7 +625,7 @@ async fn seq_out_of_gas_for_pre_checks() {
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
-        3,
+        TEST_FINALIZATION_BLOCKS,
         0,
         true,
         TEST_MAX_BATCH_SIZE,
@@ -952,7 +952,7 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
-        3,
+        TEST_FINALIZATION_BLOCKS,
         0,
         true,
         TEST_MAX_BATCH_SIZE,
@@ -1557,7 +1557,7 @@ async fn delayed_tx_is_processed_after_delay() {
 /// - Producing blocks so that the sequencer recovers from the downtime
 /// - Ensuring that the delayed tx still fails with a 503
 #[tokio::test(flavor = "multi_thread")]
-async fn txs_that_enter_before_downtime_are_dropped() {
+async fn flaky_txs_that_enter_before_downtime_are_dropped() {
     use futures::future::Either;
     let (test_rollup, admin) = create_test_rollup(
         0,
@@ -1705,7 +1705,7 @@ async fn replay_uses_correct_visible_slot_number() {
 /// - Produce a block, triggering the sequencer to close out its current batch and post it on DA
 /// - Check that the state root assertion suceeded on the node as well.
 #[tokio::test(flavor = "multi_thread")]
-async fn visible_hashes_match_across_node_and_sequencer() {
+async fn flaky_visible_hashes_match_across_node_and_sequencer() {
     const FINALIZATION_BLOCKS: u32 = 0;
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
@@ -1883,7 +1883,7 @@ async fn heavy_blob_submission_long_delay() {
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
-        3,
+        TEST_FINALIZATION_BLOCKS,
         0,
         true,
         max_batch_size,
@@ -2348,7 +2348,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
         dir.clone(),
         genesis_params.runtime.sequencer_registry.seq_da_address,
         genesis_params,
-        3,
+        TEST_FINALIZATION_BLOCKS,
         0,
         false,
         TEST_MAX_BATCH_SIZE,

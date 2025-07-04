@@ -30,7 +30,6 @@
 - [Disclaimer](#disclaimer)
 - [Interacting with your Node via REST API](#interacting-with-your-node-via-rest-api)
 - [Testing with specific DA layers](#testing-with-specific-da-layers)
-- [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -409,11 +408,3 @@ You can get an overview of all available endpoints by reading the OpenAPI specif
 ## Testing with specific DA layers
 
 Check [here](./README_CELESTIA.md) if you want to run with dockerized local Celestia instance.
-
-## License
-
-Licensed under the [Apache License, Version 2.0](../../LICENSE).
-
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in this repository by you, as defined in the Apache-2.0 license, shall be
-licensed as above, without any additional terms or conditions.

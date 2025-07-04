@@ -119,6 +119,8 @@ pub const TEST_DEFAULT_MAX_FEE: Amount = Amount::new(100_000_000_000);
 /// The default gas limit to set for a transaction. This is an optional parameter.
 /// This value should be high enough to be able to execute most standard transactions for the test rollup.
 pub const TEST_DEFAULT_GAS_LIMIT: [u64; 2] = [1_000_000_000, 1_000_000_000];
+/// The number of blocks required to finalize a block.
+pub const TEST_FINALIZATION_BLOCKS: u32 = 3;
 /// The default amount of tokens that should be staked by a user (prover, sequencer, etc.). This value is roughly equal to the
 /// max fee for a transaction because sequencers need to pre-emptively pay for all transactions' pre-execution checks using their stake.
 pub const TEST_DEFAULT_USER_STAKE: [u64; 2] = [100_000_000_000, 100_000_000_000];
