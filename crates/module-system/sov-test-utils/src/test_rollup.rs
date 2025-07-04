@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use derivative::Derivative;
+use sov_api_spec::WsSubscription;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_cli::NodeClient;
 use sov_db::config::RollupDbConfig;
@@ -31,7 +32,7 @@ use sov_rollup_interface::zk::ZkvmHost;
 use sov_rollup_interface::StateUpdateInfo;
 use sov_sequencer::preferred::PreferredSequencerConfig;
 use sov_sequencer::test_stateless::TestStatelessSequencer;
-use sov_sequencer::{SequencerApis, SequencerConfig, SequencerKindConfig};
+use sov_sequencer::{SequencerApis, SequencerConfig, SequencerKindConfig, StateUpdateNotification};
 pub use sov_stf_runner::processes::RollupProverConfig;
 use sov_stf_runner::{
     HttpServerConfig, MonitoringConfig, ProofManagerConfig, RollupConfig, RunnerConfig,
@@ -750,6 +751,14 @@ where
             .http_post("/sequencer/test-utils/force-close-batch")
             .await?;
         Ok(())
+    }
+
+    /// Subscribe to state update completion notifications.
+    pub async fn subscribe_state_updates(&self) -> WsSubscription<StateUpdateNotification> {
+        self.client
+            .client
+            .subscribe_to_ws::<StateUpdateNotification>("/sequencer/test-utils/state-updates/ws")
+            .await
     }
 
     /// Restarts the rollup.
