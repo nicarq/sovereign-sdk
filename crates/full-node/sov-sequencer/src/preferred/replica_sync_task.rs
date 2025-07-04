@@ -209,7 +209,6 @@ where
     last_heartbeat_time: SystemTime,
 
     // Timing
-    heartbeat_interval: tokio::time::Interval,
     failover_threshold: Duration,
 }
 
@@ -246,20 +245,12 @@ where
         debug!("Successfully connected and listening for PostgreSQL notifications");
 
         // Create and run the replication task
-        let failover_threshold = Duration::from_secs(
+        let failover_threshold = Duration::from_millis(
             sequencer
                 .config
                 .sequencer_kind_config
-                .failover_threshold_secs,
+                .failover_threshold_millis,
         );
-
-        let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
-        heartbeat_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
-        // Create a takeover interval that ticks immediately on startup to check for leadership
-        let mut takeover_interval =
-            tokio::time::interval_at(tokio::time::Instant::now(), Duration::from_secs(1));
-        takeover_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         println!("Starting database watching loop");
 
@@ -271,18 +262,13 @@ where
             replica_state: ReplicaState::Replica,
             // Initialize to a time in the past to allow immediate takeover on startup
             last_heartbeat_time: SystemTime::now() - failover_threshold - Duration::from_secs(1),
-            heartbeat_interval,
             failover_threshold,
         };
 
-        task.run(&mut shutdown_receiver, takeover_interval).await
+        task.run(&mut shutdown_receiver).await
     }
 
-    async fn run(
-        &mut self,
-        shutdown_receiver: &mut watch::Receiver<()>,
-        mut takeover_interval: tokio::time::Interval,
-    ) -> anyhow::Result<()> {
+    async fn run(&mut self, shutdown_receiver: &mut watch::Receiver<()>) -> anyhow::Result<()> {
         // This determines the maximum number of futures. The futures are used to fetch extra info from
         // the DB when a notification comes in, so that notification processing doesn't block on this.
         // In theory, this will only grow above the pool's max_connections() if either the replica is
@@ -295,10 +281,18 @@ where
         const MAX_CONCURRENT: usize = 1000;
         let mut pending_events: FuturesOrdered<PendingEventFuture> = FuturesOrdered::new();
 
+        let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(100));
+        heartbeat_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+        // Create a takeover interval that ticks immediately on startup to check for leadership
+        let mut takeover_interval =
+            tokio::time::interval_at(tokio::time::Instant::now(), Duration::from_millis(200));
+        takeover_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
         loop {
             tokio::select! {
                 // Master heartbeat timer
-                _ = self.heartbeat_interval.tick(), if matches!(self.replica_state, ReplicaState::Master | ReplicaState::TransitioningToMaster) => {
+                _ = heartbeat_interval.tick(), if matches!(self.replica_state, ReplicaState::Master | ReplicaState::TransitioningToMaster) => {
                     self.tick_heartbeat().await;
                 },
 
@@ -340,12 +334,13 @@ where
                     }
                 },
                 _ = takeover_interval.tick(), if self.replica_state == ReplicaState::Replica => {
-                        if let Err(e) = self.tick_takeover(&mut pending_events).await {
-                            warn!("Failed takeover attempt: {e:?}");
-                        } else {
-                            // Check if we can immediately complete transition to master
-                            if self.replica_state == ReplicaState::TransitioningToMaster && pending_events.is_empty() {
-                                self.complete_transition_to_master().await?;
+                    println!("Ticking takeover attempt!");
+                    if let Err(e) = self.tick_takeover(&mut pending_events).await {
+                        warn!("Failed takeover attempt: {e:?}");
+                    } else {
+                        // Check if we can immediately complete transition to master
+                        if self.replica_state == ReplicaState::TransitioningToMaster && pending_events.is_empty() {
+                            self.complete_transition_to_master().await?;
                             }
                         }
                 },
@@ -470,32 +465,27 @@ where
         self.replica_state = ReplicaState::TransitioningToMaster;
 
         // Drain all buffered notifications to avoid missing events written before we became master
-        loop {
-            match self.listener.next_buffered() {
-                Some(notification) => {
-                    match notification.channel() {
-                        "events_changes" => {
-                            // Use helper method to avoid code duplication
-                            self.handle_event_notification(notification.payload(), pending_events)
-                                .await?;
+        while let Some(notification) = self.listener.next_buffered() {
+            match notification.channel() {
+                "events_changes" => {
+                    // Use helper method to avoid code duplication
+                    self.handle_event_notification(notification.payload(), pending_events)
+                        .await?;
+                }
+                "leader_changes" => {
+                    // Handle inline to avoid recursive call to start_transition_to_master
+                    if let Ok(leader_info) =
+                        LeaderNotificationPayload::parse_csv(notification.payload())
+                    {
+                        if leader_info.node_id != self.sequencer.node_id {
+                            // Another node is master, abort our transition
+                            info!("Another node became master before we finished transitioning, aborting");
+                            self.transition_to_replica().await?;
+                            return Ok(());
                         }
-                        "leader_changes" => {
-                            // Handle inline to avoid recursive call to start_transition_to_master
-                            if let Ok(leader_info) =
-                                LeaderNotificationPayload::parse_csv(notification.payload())
-                            {
-                                if leader_info.node_id != self.sequencer.node_id {
-                                    // Another node is master, abort our transition
-                                    info!("Another node became master before we finished transitioning, aborting");
-                                    self.transition_to_replica().await?;
-                                    return Ok(());
-                                }
-                            }
-                        }
-                        _ => {}
                     }
                 }
-                None => break, // No more buffered notifications
+                _ => {}
             }
         }
 
@@ -545,13 +535,16 @@ where
             {
                 Ok(true) => {
                     info!("Successfully claimed leadership - transitioning to master");
+                    println!("Successful takeover");
                     self.start_transition_to_master(pending_events).await?;
                 }
                 Ok(false) => {
                     info!("Another replica beat us to takeover or master recovered. Continuing to operate as replica.");
+                    println!("Unsuccessful takeover... staying replica");
                 }
                 Err(e) => {
                     warn!("Takeover attempt failed with error; continuing to operate as replica. Error: {e:?}");
+                    println!("Takeover had an ERROR!");
                 }
             }
         }
@@ -561,16 +554,20 @@ where
 
 /// Send a heartbeat to maintain leadership
 async fn send_heartbeat(query_pool: &PgPool, node_id: Uuid) -> anyhow::Result<()> {
-    sqlx::query(
+    let result = sqlx::query(
         "INSERT INTO sequencer_leader (node_id, last_updated) 
          VALUES ($1, NOW()) 
          ON CONFLICT (singleton) DO UPDATE SET 
-             node_id = EXCLUDED.node_id, 
-             last_updated = EXCLUDED.last_updated",
+             last_updated = EXCLUDED.last_updated 
+         WHERE sequencer_leader.node_id = EXCLUDED.node_id",
     )
     .bind(node_id)
     .execute(query_pool)
     .await?;
+
+    if result.rows_affected() == 0 {
+        warn!("Replication heartbeat failed to update any rows - this node may have been downgraded to a replica.");
+    }
 
     debug!("Heartbeat sent for node {}", node_id);
     Ok(())
@@ -582,7 +579,7 @@ async fn attempt_leadership_takeover(
     node_id: Uuid,
     failover_threshold: Duration,
 ) -> anyhow::Result<bool> {
-    let threshold_seconds = failover_threshold.as_secs() as i64;
+    let threshold_millis = failover_threshold.as_millis() as i64;
 
     // Atomic takeover: only succeed if the current leader's heartbeat is old enough
     let result = sqlx::query(
@@ -591,10 +588,10 @@ async fn attempt_leadership_takeover(
          ON CONFLICT (singleton) DO UPDATE SET 
              node_id = EXCLUDED.node_id, 
              last_updated = EXCLUDED.last_updated 
-         WHERE sequencer_leader.last_updated < NOW() - INTERVAL '1 second' * $2",
+         WHERE sequencer_leader.last_updated < NOW() - INTERVAL '1 millisecond' * $2",
     )
     .bind(node_id)
-    .bind(threshold_seconds)
+    .bind(threshold_millis)
     .execute(query_pool)
     .await?;
 

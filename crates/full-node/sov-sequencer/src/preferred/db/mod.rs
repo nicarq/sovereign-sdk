@@ -238,8 +238,8 @@ where
             unreachable!();
         };
 
-        if !self.is_replica {
-            match self
+        if !self.is_replica
+            && !self
                 .backend
                 .add_tx(
                     batch.sequence_number,
@@ -248,10 +248,8 @@ where
                     hash,
                 )
                 .await?
-            {
-                false => return Ok(false),
-                true => (),
-            }
+        {
+            return Ok(false);
         }
 
         batch.txs.push(tx.clone());
@@ -323,8 +321,8 @@ where
             "Storing new rollup block"
         );
 
-        if !self.is_replica {
-            match self
+        if !self.is_replica
+            && !self
                 .backend
                 .begin_rollup_block(
                     sequence_number,
@@ -333,10 +331,8 @@ where
                     visible_slots_to_advance,
                 )
                 .await?
-            {
-                false => return Ok(None),
-                true => (),
-            }
+        {
+            return Ok(None);
         }
 
         self.in_progress_batch = Some(PreferredSequencerReadBatch {
@@ -383,15 +379,13 @@ where
         data: Arc<[u8]>,
         sequence_number: SequenceNumber,
     ) -> anyhow::Result<Option<SequenceNumber>> {
-        if !self.is_replica {
-            match self
+        if !self.is_replica
+            && !self
                 .backend
                 .add_proof_blob(sequence_number, blob_id, data.clone())
                 .await?
-            {
-                false => return Ok(None),
-                true => (),
-            }
+        {
+            return Ok(None);
         }
 
         self.completed_blobs

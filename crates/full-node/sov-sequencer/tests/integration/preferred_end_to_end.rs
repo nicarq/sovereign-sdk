@@ -2471,9 +2471,11 @@ pub(crate) async fn run_action_against_test_rollup(
         TestingAction::Restart => {
             // This is a more complex action, as the sequencer cannot accept transactions on
             // startup until a StateUpdateInfo from the node has been processed.
+            // It also needs to "fail over" from the previous run's NodeID to be able to act as a
+            // master sequencer and accept transactions.
             let test_rollup = test_rollup.restart().await?;
             test_rollup.da_service.produce_block_now().await.unwrap();
-            sleep(Duration::from_millis(500)).await;
+            sleep(Duration::from_millis(750)).await;
             return Ok(test_rollup);
         }
         TestingAction::TryAcceptBadTx { invalid_reason } => {

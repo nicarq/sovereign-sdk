@@ -173,8 +173,7 @@ async fn identify_master_and_replicas(
 
     assert_eq!(
         master_count, 1,
-        "Expected exactly one master, found {}",
-        master_count
+        "Expected exactly one master, found {master_count}",
     );
     let master_idx = master_idx.expect("No master found");
 
@@ -194,8 +193,6 @@ async fn test_master_election() {
     let (mut master, mut _state) = setup_test_rollup_with_initial_state(master, &admin).await;
 
     for iteration in 1..=4 {
-        println!("\n=== Failover iteration {} ===", iteration);
-
         let old_master_node_id = master.api_client.node_id().await.unwrap().into_inner().data;
 
         // Shutdown current master and get builder for restart
@@ -223,14 +220,11 @@ async fn test_master_election() {
 
         assert_ne!(
             old_master_node_id, new_master_node_id,
-            "New master should be different from old master in iteration {}",
-            iteration
+            "New master should be different from old master in iteration {iteration}",
         );
 
         master = new_master;
         replicas = new_replicas;
-
-        println!("Failover iteration {} completed", iteration);
     }
 
     for replica in replicas.into_iter().flatten() {
