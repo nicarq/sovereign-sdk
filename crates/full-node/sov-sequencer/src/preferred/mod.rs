@@ -189,6 +189,14 @@ where
             None,
         );
 
+        // Rocksdb sequencers always start as master, since there is no support for replication.
+        // Postgres sequencers always start as a replica and attempt to register as master after
+        // startup.
+        let start_as_master = config
+            .sequencer_kind_config
+            .postgres_connection_string
+            .is_none();
+
         let (block_executors_shutdown_notifier, block_executors_shutdown_rx) = mpsc::channel(1);
 
         let (blobs_sender_channel, _) =
@@ -217,7 +225,7 @@ where
         let (db, latest_event_id, next_sequence_number) = PreferredSequencerDb::<S, Rt>::new(
             db_backend,
             shutdown_sender.clone(),
-            false, // Always start as replica initially
+            start_as_master,
         )
         .await?;
 >>>>>>> Add APIS and rename is_replica to is_master
@@ -256,7 +264,7 @@ where
             PreferredBlobSender::from((inner_blob_sender, config.sequencer_kind_config.is_replica))
 =======
 
-            let mut blob_sender = PreferredBlobSender::from((inner, false)); // Always start as replica initially
+            let mut blob_sender = PreferredBlobSender::from((inner, start_as_master));
 
             // It's possible that sov-blob-sender's DB might miss some blob data at
             // node startup due to:
@@ -326,7 +334,7 @@ where
         handles.push(synchronized_state_task);
 =======
             batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
-            is_ready: Err(SequencerNotReadyDetails::Startup), // Always start in replica mode
+            is_ready: Err(SequencerNotReadyDetails::Startup),
         };
 >>>>>>> Add APIS and rename is_replica to is_master
 
@@ -352,7 +360,7 @@ where
             block_executors_shutdown_notifier,
             config: config.clone(),
             node_id,
-            is_master: AtomicBool::new(false), // Always start as replica, let failover logic determine master status
+            is_master: AtomicBool::new(start_as_master),
             state_root_compute_task,
             shutdown_receiver: shutdown_receiver.clone(),
             api_ledger_db,
@@ -363,10 +371,12 @@ where
             da_address,
         });
 
-        // Launch replica sync task
+        // Launch replica sync task (only IF postgres is configured). Rocksdb sequencers have no
+        // replication functionality.
         // This will block until the currently stored batches in the DB are replayed onto the
         // state, then yield when it switches to processing postgres events live.
         // This is necessary to prevent conflicts with the update_state task.
+<<<<<<< HEAD
         handles.push(
             spawn_replica_sync_task(
                 seq.clone(),
@@ -376,6 +386,20 @@ where
             )
             .await,
         );
+=======
+        if let Some(connection_string) = &config.sequencer_kind_config.postgres_connection_string {
+            handles.push(
+                spawn_replica_sync_task(
+                    seq.clone(),
+                    shutdown_receiver.clone(),
+                    latest_state_update.clone(),
+                    connection_string.clone(),
+                    latest_event_id,
+                )
+                .await,
+            );
+        }
+>>>>>>> Fix tests that use rocksdb
         handles.push(tokio::spawn({
             update_state_task(
                 seq.clone(),
@@ -759,7 +783,17 @@ pub(crate) fn slot_count_delta_acceptable_lower_bound(
 >>>>>>> Add APIS and rename is_replica to is_master
     /// Update the replica status (used during failover)
     pub async fn set_is_master(&self, is_master: bool) {
-        println!("  Setting is_master to {is_master}");
+        // Sanity check - this should never be called for rocksdb sequencers
+        if self
+            .config
+            .sequencer_kind_config
+            .postgres_connection_string
+            .is_none()
+        {
+            error!("The sequencer is running on rocksdb yet its replication status attempted to be changed. Rocksdb has no support for replication or failover; this is a bug, please report it.");
+            exit_rollup(&self.shutdown_sender).await;
+            unreachable!();
+        }
         self.is_master.store(is_master, Ordering::Release);
 
         // Update blob sender and database master status via executor events

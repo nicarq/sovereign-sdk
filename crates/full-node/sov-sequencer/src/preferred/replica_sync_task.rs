@@ -151,6 +151,7 @@ pub async fn spawn_replica_sync_task<S, Rt, Da>(
     sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
     shutdown_receiver: watch::Receiver<()>,
     latest_state_update: StateUpdateInfo<S::Storage>,
+    connection_string: String,
     latest_loaded_event_id: Option<u64>,
 ) -> JoinHandle<()>
 where
@@ -175,19 +176,9 @@ where
     }
 
     tokio::spawn(async move {
-        let Some(connection_string) = sequencer
-            .config
-            .sequencer_kind_config
-            .postgres_connection_string
-            .as_ref()
-        else {
-            info!("Replication is not supported on the rocksdb backend.");
-            return;
-        };
-
         if let Err(e) = ReplicationTask::connect_and_run(
             sequencer.clone(),
-            connection_string,
+            &connection_string,
             shutdown_receiver,
             latest_loaded_event_id,
         )
@@ -349,7 +340,6 @@ where
                     }
                 },
                 _ = takeover_interval.tick(), if self.replica_state == ReplicaState::Replica => {
-                    println!("Ticking takeover attempt!");
                     if let Err(e) = self.tick_takeover(&mut pending_events).await {
                         warn!("Failed takeover attempt: {e:?}");
                     } else {
