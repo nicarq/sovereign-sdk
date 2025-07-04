@@ -420,19 +420,20 @@ pub mod private_key {
 }
 
 /// The public key of an secp256k1 keypair. Wraps the optimized Risc0 fork of the ed25519-dalek crate.
-#[derive(PartialEq, Eq, Hash, Clone, Debug, JsonSchema)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug, JsonSchema, UniversalWallet)]
 pub struct EthereumPublicKey {
     #[schemars(
         flatten,
         with = "String",
         length(equal = "secp256k1::constants::PUBLIC_KEY_SIZE * 2")
     )]
+    #[sov_wallet(as_ty = "[u8; secp256k1::constants::PUBLIC_KEY_SIZE]")]
     pub(crate) pub_key: PublicKey,
 }
 
 impl EthereumPublicKey {
     /// Returns the bytes of the underlying public key.
-    pub fn bytes(&self) -> [u8; 33] {
+    pub fn bytes(&self) -> [u8; PUBLIC_KEY_SIZE] {
         self.pub_key.serialize()
     }
 }
@@ -466,10 +467,13 @@ impl BorshSerialize for EthereumPublicKey {
 }
 
 /// A secp256k1 signature. Wraps the rust-secp256k1 crate.
-#[derive(PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema)]
+#[derive(
+    PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema, UniversalWallet,
+)]
 pub struct EthereumSignature {
     /// The inner signature.
     #[schemars(flatten, with = "String", length(equal = "128"))]
+    #[sov_wallet(as_ty = "[u8; 64]")]
     pub msg_sig: Signature,
 }
 
