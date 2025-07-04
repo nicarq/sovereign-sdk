@@ -12,7 +12,7 @@ use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
 use futures::future;
 use sov_api_spec::types::{self as api_types, TxReceiptResult};
-use sov_api_spec::Client;
+use sov_api_spec::{Client, WsSubscription};
 use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
@@ -25,6 +25,7 @@ use sov_rest_utils::ResponseObject;
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
 use sov_sequencer::preferred::default_ideal_lag_behind_finalized_slot;
+use sov_sequencer::StateUpdateNotification;
 use sov_test_modules::hooks_count::HooksCount;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, RollupProverConfig, TestRollup};
@@ -34,6 +35,7 @@ use sov_test_utils::{
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use test_strategy::Arbitrary;
+use tokio::sync::RwLock;
 use tokio::time::sleep;
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
@@ -64,6 +66,79 @@ use sov_test_utils::TEST_BLOB_PROCESSING_TIMEOUT;
 const DEFAULT_BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnBatchSubmit {
     block_wait_timeout_ms: None,
 };
+
+pub struct DaLayerWithSubscription {
+    da_layer: Arc<RwLock<StorableMockDaLayer>>,
+    state_update_subscription: WsSubscription<StateUpdateNotification>,
+    slot_subscription: WsSubscription<api_types::Slot>,
+    /// The number of slots that have been produced but not yet had their notifications received.
+    back_slot_notifications: u64,
+}
+
+impl DaLayerWithSubscription {
+    pub async fn new(test_rollup: &TestRollup<TestBlueprint>) -> Self {
+        assert!(matches!(test_rollup
+            .da_service
+            .block_producing(),
+            BlockProducingConfig::Manual),
+            "Can't currently use DaLayerWithSubscription with a non-manual block producing config because notifications may be produced without our knowledge"
+        );
+        let da_layer = test_rollup.da_service.da_layer().clone();
+        let state_update_subscription = test_rollup.subscribe_state_updates().await;
+        let slot_subscription = test_rollup
+            .api_client
+            .subscribe_slots_with_children(IncludeChildren::new(true))
+            .await;
+        Self {
+            da_layer,
+            state_update_subscription,
+            slot_subscription,
+            back_slot_notifications: 0,
+        }
+    }
+
+    pub async fn produce_block(&mut self) -> anyhow::Result<()> {
+        let mut lock = self.da_layer.write().await;
+        lock.produce_block().await?;
+        self.back_slot_notifications += 1;
+        Ok(())
+    }
+
+    /// Waits for a new slot notification to be produced, Clearing any older ones from the queue first.
+    /// This is useful when you've been producing blocks but without waiting for notifications and now you want to wait again.
+    pub async fn wait_for_new_slot_notification(&mut self) -> api_types::Slot {
+        let subscription = self.slot_subscription.as_mut().unwrap();
+        while self.back_slot_notifications > 1 {
+            self.back_slot_notifications -= 1;
+            subscription.next().await.unwrap().unwrap();
+        }
+
+        self.back_slot_notifications -= 1;
+        subscription.next().await.unwrap().unwrap()
+    }
+
+    /// Gets the next state update notification, clearing any *known* updates from the queue first.
+    /// Unless you've been using `produce_and_wait_for_slot` for all block production, this notification might possibly be stale.
+    /// This is inevitable because `update_state` doesn't run on every block, so (unlike the slot subscription) we don't know
+    /// how many state update notifications we should ultimately be receiving.
+    pub async fn next_state_update_notification(&mut self) -> StateUpdateNotification {
+        let subscription = self.state_update_subscription.as_mut().unwrap();
+        subscription.next().await.unwrap().unwrap()
+    }
+
+    /// Produces a slot and waits for the state update and slot notifications.
+    pub async fn produce_and_wait_for_slot(&mut self) -> api_types::Slot {
+        self.produce_block().await.unwrap();
+        self.next_state_update_notification().await;
+        self.wait_for_new_slot_notification().await
+    }
+
+    pub async fn produce_and_wait_for_n_slots(&mut self, n: u64) {
+        for _ in 0..n {
+            self.produce_and_wait_for_slot().await;
+        }
+    }
+}
 
 /// All the interesting "things" that can happen during sequencer operations, and to
 /// which the sequencer ought to know how to respond.
@@ -243,12 +318,8 @@ async fn txs_below_min_fee_are_rejected() {
     };
 
     // Produce a few blocks to DA blocks to make sure there's a finalized slot after genesis.
-    test_rollup
-        .da_service
-        .produce_n_blocks_now(5)
-        .await
-        .unwrap();
-    sleep(Duration::from_millis(1000)).await;
+    let mut da_layer = DaLayerWithSubscription::new(&test_rollup).await;
+    da_layer.produce_and_wait_for_n_slots(5).await;
 
     let client = test_rollup.api_client.clone();
     let tx = tx_set_value(&admin.private_key, 0, 7);
@@ -334,13 +405,9 @@ async fn sequencer_filled_up_block() {
     };
     let test_rollup = test_rollups.into_iter().next().unwrap();
 
-    test_rollup
-        .da_service
-        .produce_n_blocks_now(5)
-        .await
-        .unwrap();
+    let mut da_layer = DaLayerWithSubscription::new(&test_rollup).await;
+    da_layer.produce_and_wait_for_n_slots(5).await;
 
-    sleep(Duration::from_millis(200)).await;
     let client = test_rollup.api_client.clone();
 
     {
@@ -444,10 +511,8 @@ async fn flaky_seq_behind_deferred_slots_count() {
     sleep(Duration::from_millis(500)).await;
 
     // Finalise some blocks
-    for _ in 0..8 {
-        test_rollup.da_service.produce_block_now().await.unwrap();
-        sleep(Duration::from_millis(50)).await; // give chance for update_state to run
-    }
+    let mut da_layer = DaLayerWithSubscription::new(&test_rollup).await;
+    da_layer.produce_and_wait_for_n_slots(8).await;
 
     // Sanity check tx that the rollup works
     let tx_update_one = tx_set_value(&admin.private_key, 0, 8);
@@ -459,10 +524,7 @@ async fn flaky_seq_behind_deferred_slots_count() {
         .unwrap();
 
     tracing::info!("Producing DA blocks for inclusion sanity check tx inclusion");
-    for _ in 0..10 {
-        test_rollup.da_service.produce_block_now().await.unwrap();
-        sleep(Duration::from_millis(50)).await; // give chance for update_state to run
-    }
+    da_layer.produce_and_wait_for_n_slots(10).await;
 
     // Pause sequencer update_state and run some blocks so deferred_slots_count is reached
     test_rollup.pause_preferred_batches().await;
@@ -483,9 +545,9 @@ async fn flaky_seq_behind_deferred_slots_count() {
         "Producing subsequent DA blocks while sequencer is paused, to exceet deferred_slots_count"
     );
     for _ in 0..30 {
-        test_rollup.da_service.produce_block_now().await.unwrap();
-        sleep(Duration::from_millis(50)).await; // have the node process them
+        let _ = da_layer.produce_block().await; // Don't wait for state updates since we've just paused them
     }
+    tokio::time::sleep(Duration::from_millis(1500)).await; // Sleep to give time for at least some of these to be processed.
 
     tracing::info!("Resuming preferred sequencer batch production.");
     test_rollup.resume_preferred_batches().await;
@@ -494,8 +556,8 @@ async fn flaky_seq_behind_deferred_slots_count() {
     // A single block is usually enough but was very rarely flaky. Producing two blocks fixes that
     // and doesn't hurt
     for _ in 0..2 {
-        test_rollup.da_service.produce_block_now().await.unwrap();
-        sleep(Duration::from_millis(100)).await;
+        let _ = da_layer.produce_block().await; // Now updates are not working because we're in recovery mode.
+        sleep(Duration::from_millis(100)).await; // Sleep to give time for the sequencer to go into recovery.
     }
 
     // Create transaction that should fail: sequencer should not accept transactions while in
@@ -515,8 +577,8 @@ async fn flaky_seq_behind_deferred_slots_count() {
     // Give time for the sequencer to catch up its visible state number
     tracing::info!("Producing DA blocks to let the sequencer resync.");
     for _ in 0..30 {
-        test_rollup.da_service.produce_block_now().await.unwrap();
-        sleep(Duration::from_millis(100)).await; // have the node and sequencer process them
+        let _ = da_layer.produce_block().await;
+        sleep(Duration::from_millis(100)).await; // Notifications don't work during recovery.
     }
 
     // Submit the same transaction to the now-working sequencer
@@ -643,13 +705,8 @@ async fn seq_out_of_gas_for_pre_checks() {
     };
     let test_rollup = test_rollups.into_iter().next().unwrap();
 
-    test_rollup
-        .da_service
-        .produce_n_blocks_now(5)
-        .await
-        .unwrap();
-
-    sleep(Duration::from_millis(200)).await;
+    let mut da_layer = DaLayerWithSubscription::new(&test_rollup).await;
+    da_layer.produce_and_wait_for_n_slots(5).await;
 
     let client = test_rollup.api_client.clone();
     test_rollup.pause_preferred_batches().await;
@@ -690,12 +747,8 @@ async fn seq_out_of_gas_for_pre_checks() {
         assert!(error_str.contains("More transactions were submitted that the sequencer is allowed to put into a single batch."));
     }
     test_rollup.resume_preferred_batches().await;
-    test_rollup
-        .da_service
-        .produce_n_blocks_now(2)
-        .await
-        .unwrap();
-    sleep(Duration::from_millis(200)).await;
+    let mut da_layer = DaLayerWithSubscription::new(&test_rollup).await;
+    da_layer.produce_and_wait_for_n_slots(2).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -713,12 +766,8 @@ async fn max_batch_size() {
         return;
     };
 
-    test_rollup
-        .da_service
-        .produce_n_blocks_now(5)
-        .await
-        .unwrap();
-    sleep(Duration::from_millis(200)).await;
+    let mut da_layer = DaLayerWithSubscription::new(&test_rollup).await;
+    da_layer.produce_and_wait_for_n_slots(5).await;
 
     let client = test_rollup.api_client.clone();
 
@@ -739,8 +788,6 @@ async fn max_batch_size() {
             "actual error: {error_str}"
         );
     }
-
-    sleep(Duration::from_millis(200)).await;
 
     test_rollup.pause_preferred_batches().await;
     // The first and third transactions are processed, but the second and fourth are too large to be included in the batch.
@@ -1260,8 +1307,10 @@ async fn seq_many_invalid_txs() {
         .produce_n_blocks_now(5)
         .await
         .unwrap();
-
-    sleep(Duration::from_millis(200)).await;
+    let mut slot_subscription = test_rollup.api_client.subscribe_slots().await.unwrap();
+    for _ in 0..5 {
+        slot_subscription.next().await.unwrap().unwrap();
+    }
 
     let client = test_rollup.api_client.clone();
     let tx = tx_set_value(&admin.private_key, 100, 0);
@@ -1310,7 +1359,8 @@ async fn seq_many_invalid_txs() {
 ///     gets processed correctly by the node.
 #[tokio::test(flavor = "multi_thread")]
 async fn query_historical_values() {
-    let panicked = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let panicked: Arc<std::sync::atomic::AtomicBool> =
+        Arc::new(std::sync::atomic::AtomicBool::new(false));
     let panicked_ref = panicked.clone();
     let prev_hook = std::panic::take_hook();
     // Set a new panic hook
@@ -1321,15 +1371,14 @@ async fn query_historical_values() {
     }));
     let tx_builder = |key| tx_set_value(&key, 0, 7);
     let assertions = |test_rollup| async move {
-        query_set_value(&test_rollup, Some(4), 7).await.unwrap();
+        query_set_value(&test_rollup, Some(2), 7).await.unwrap();
         query_set_value(&test_rollup, Some(0), 0).await.unwrap();
-        query_set_value_by_slot_number(
-            &test_rollup,
-            Some(5 + default_ideal_lag_behind_finalized_slot()),
-            7,
-        )
-        .await
-        .unwrap();
+        query_set_value_by_slot_number(&test_rollup, Some(8), 7)
+            .await
+            .unwrap();
+        query_set_value_by_slot_number(&test_rollup, Some(7), 0)
+            .await
+            .unwrap();
         query_set_value_by_slot_number(&test_rollup, Some(1), 0)
             .await
             .unwrap();
@@ -1398,25 +1447,24 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
     };
     let test_rollup = test_rollups.into_iter().next().unwrap();
 
-    let mut slot_subscription = test_rollup
+    let mut da_layer = DaLayerWithSubscription::new(&test_rollup).await;
+    // Produce some empty blocks to make sure we have a finalized slot.
+    da_layer.produce_and_wait_for_n_slots(5).await;
+
+    // Note: The exact number height asserted here is not important, as long as it's correct
+    // at the time we submit the transaction - if we change the sequencer logic, this number may need to be updated.
+    let tx = tx_set_value(&admin.private_key, 0, 0);
+    test_rollup
         .api_client
-        .subscribe_slots_with_children(IncludeChildren::new(true))
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx),
+        })
         .await
         .unwrap();
-    // Produce enough empty blocks that we hit our target lag behind finalized slot.
-    for _ in 0..=default_ideal_lag_behind_finalized_slot() {
-        test_rollup.da_service.produce_block_now().await.unwrap();
-        slot_subscription.next().await.unwrap().unwrap();
-    }
-    // First, produce two empty blocks. After the second one, the preferred sequencer will produce an empty batch in an attempt
-    // to keep the visible_slot_number within 2 of the DA slot number.
-    test_rollup.da_service.produce_block_now().await.unwrap();
-    slot_subscription.next().await.unwrap().unwrap();
-    // Wait for the node to process the empty blocks. This ensures that the sequencer has time to produce an empty batch.
-    // Right here (invisibly) the preferred sequencer will produce its empty batch and send it to DA
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    test_rollup.force_close_batch().await.unwrap();
+    sleep(Duration::from_millis(200)).await; // Sleep to make sure the batch is published before we produce a block. If this gets flaky, we'll need to add a blob_sender subscription.
+    da_layer.produce_and_wait_for_slot().await;
 
-    // Produce a block with a transaction that asserts the correct visible slot number.
     // Note: The exact number height asserted here is not important, as long as it's correct
     // at the time we submit the transaction - if we change the sequencer logic, this number may need to be updated.
     let tx = tx_builder(admin.private_key.clone());
@@ -1428,30 +1476,20 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
         .await
         .unwrap();
 
-    // Produce a block. This places the (invisibly produced) empty preferred batch on DA, triggering the sequencer to replay the soft-confirmed transaction
-    // on top of that new state. The replay will fail if the visible slot number was not correctly set.
-    test_rollup.da_service.produce_block_now().await.unwrap();
-    let slot = slot_subscription.next().await.unwrap().unwrap();
-
-    // Right here, we check that we really did receive an empty batch from the preferred sequencer.
-    // This is a test of the test logic, not a test of the sequencer - it's perfectly valid to modify
-    // the sequencer such that a batch is not produced here - but in that case we need to update this test.
-    assert_eq!(slot.number, 3 + default_ideal_lag_behind_finalized_slot());
-    assert_eq!(slot.batches.len(), 1);
-    assert_eq!(slot.batches[0].txs.len(), 0);
+    // Produce a block. Make sure that it's empty, meaning that the preferred sequencer still has the previous tx in memory and will replay it.
+    // as part of update_state
+    let slot = da_layer.produce_and_wait_for_slot().await;
+    assert_eq!(slot.number, 7);
+    assert_eq!(slot.batches.len(), 0);
 
     // Close the batch and submit to DA
     test_rollup.force_close_batch().await.unwrap();
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    tokio::time::sleep(Duration::from_millis(200)).await; // Sleep to make sure the batch is published before we produce a block. If this gets flaky, we'll need to add a blob_sender subscription.
 
     // Ensure that the sequencer has time to see the updated state and submit its batch containing the transaction to DA.
-    test_rollup.da_service.produce_block_now().await.unwrap();
-    let _ = slot_subscription.next().await.unwrap().unwrap();
-    test_rollup.da_service.produce_block_now().await.unwrap();
-    let next = slot_subscription.next().await.unwrap().unwrap();
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    let next = da_layer.produce_and_wait_for_slot().await;
 
-    assert_eq!(next.number, 5 + default_ideal_lag_behind_finalized_slot());
+    assert_eq!(next.number, 8);
     assert_eq!(
         next.batches[0].txs[0].receipt.result,
         TxReceiptResult::Successful,
@@ -1681,18 +1719,9 @@ async fn flaky_txs_that_enter_before_downtime_are_dropped() {
 /// Ensure that we use the correct visible slot number when replaying transactions after a call to `update_state` in the sequencer.
 /// The key thing that this test does is to execute the same transaction 3 times - once in the sequencer via `accept_tx`, once via `update_state`
 /// and once in the node. Everything else is implementation details.
-///
-/// # How it works (currently)
-/// Here's how the test works currently - feel free to change this as the sequencer logic evolves.
-///  1. Produce enough empty *DA blocks* that the sequencer will produce an empty batch
-///  2. Before including that first empty batch on DA, submit a transaction to the sequencer which asserts the correct visible slot number.
-///      This will cause the sequencer to start bulding a new batch on top of the updated state.
-///  3. Include the empty batch on DA, and wait for the node to process it. This triggers a call to `update_state` in the sequencer, which will panic on error.
-///  4. Accept the sequencer's new batch (which contains the transaction asserting the correct visible slot number) onto the DA layer. Defensively assert that it
-///     gets processed correctly by the node.
 #[tokio::test(flavor = "multi_thread")]
 async fn replay_uses_correct_visible_slot_number() {
-    let tx_builder = |key| tx_assert_visible_slot_number(&key, 0, 4);
+    let tx_builder = |key| tx_assert_visible_slot_number(&key, 0, 2);
     do_manual_block_production_test(tx_builder, |_| async {}).await;
 }
 

@@ -3,7 +3,7 @@ use sov_modules_api::{Error, PrivateKey, PublicKey, Spec, TxEffect};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    generate_optimistic_runtime, AsUser, TestHasher, TestPrivateKey, TestUser, TransactionTestCase,
+    generate_optimistic_runtime, AsUser, TestPrivateKey, TestUser, TransactionTestCase,
 };
 
 type S = sov_test_utils::TestSpec;
@@ -76,9 +76,7 @@ fn test_update_account() {
         mut runner,
     ) = setup();
 
-    let new_credential = TestPrivateKey::generate()
-        .pub_key()
-        .credential_id::<TestHasher>();
+    let new_credential = TestPrivateKey::generate().pub_key().credential_id();
 
     runner.execute_transaction(TransactionTestCase {
         input: user.create_plain_message::<RT, Accounts<S>>(CallMessage::InsertCredentialId(
@@ -152,9 +150,7 @@ fn test_register_new_account() {
         assert_eq!(response, Response::AccountEmpty);
     });
 
-    let new_credential = TestPrivateKey::generate()
-        .pub_key()
-        .credential_id::<TestHasher>();
+    let new_credential = TestPrivateKey::generate().pub_key().credential_id();
 
     runner.execute_transaction(TransactionTestCase {
         input: non_registered_account.create_plain_message::<RT, Accounts<S>>(
@@ -247,11 +243,11 @@ fn test_resolve_address_if_more_than_one_credential() {
     ) = setup();
 
     let pub_key_1 = TestPrivateKey::generate().pub_key();
-    let credential_1 = pub_key_1.credential_id::<TestHasher>();
+    let credential_1 = pub_key_1.credential_id();
     let default_address_1 = credential_1.into();
 
     let pub_key_2 = TestPrivateKey::generate().pub_key();
-    let credential_2 = pub_key_2.credential_id::<TestHasher>();
+    let credential_2 = pub_key_2.credential_id();
     let default_address_2 = credential_2.into();
 
     runner.execute(
@@ -291,9 +287,7 @@ fn test_resolve_address_if_more_than_one_credential() {
 fn test_resolve_with_different_default_address() {
     let (TestData { account_1, .. }, runner) = setup();
 
-    let random_credential = TestPrivateKey::generate()
-        .pub_key()
-        .credential_id::<TestHasher>();
+    let random_credential = TestPrivateKey::generate().pub_key().credential_id();
 
     runner.query_visible_state(|state| {
         let mut accounts = Accounts::<S>::default();

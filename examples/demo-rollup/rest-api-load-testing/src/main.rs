@@ -156,7 +156,7 @@ mod helpers {
         nonce: u64,
         initial_balance: Amount,
     ) -> Transaction<Runtime<TestSpec>, TestSpec> {
-        let user_address: Address = key.pub_key().credential_id::<sha2::Sha256>().into();
+        let user_address: Address = key.pub_key().credential_id().into();
 
         let msg = RuntimeCall::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
             token_name: TOKEN_NAME.try_into().unwrap(),

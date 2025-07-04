@@ -593,12 +593,10 @@ mod test {
 
     use core::str::FromStr;
 
-    use sha2::Sha256;
     use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
     use sov_mock_zkvm::crypto::Ed25519PublicKey;
-    use sov_modules_api::{CryptoSpec, PublicKey, Spec};
+    use sov_modules_api::PublicKey;
     use sov_rollup_interface::crypto::{PrivateKey, PublicKeyHex};
-    use sov_test_utils::TestSpec;
     use sov_universal_wallet::schema::Schema;
 
     use super::*;
@@ -654,7 +652,7 @@ mod test {
 
         let pub_key = Ed25519PublicKey::try_from(&pub_key_hex).unwrap();
 
-        let sov_address: Address = pub_key.credential_id::<Sha256>().into();
+        let sov_address: Address = pub_key.credential_id().into();
 
         let expected_addr =
             Address::from_str("sov1qghz9yvcm9tm7rq22p88677wexdp6ckve3uxrmfy2fnk5grt3d2").unwrap();
@@ -666,8 +664,7 @@ mod test {
     // Test that the address to public key conversion works for a random public key.
     fn test_base58address_from_pubkey() {
         let pubkey = Ed25519PrivateKey::generate().pub_key();
-        let cred_id: CredentialId =
-            pubkey.credential_id::<<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher>();
+        let cred_id: CredentialId = pubkey.credential_id();
         let _ = Base58Address::from(cred_id);
     }
 
@@ -689,8 +686,7 @@ mod test {
     // Test that address generation direct from public key vs credential id is consistent, i.e. credential id no longer hashes the pubkey
     fn test_base58_address_credential_id_no_hashing_pubkey() {
         let pubkey = Ed25519PrivateKey::generate().pub_key();
-        let cred_id: CredentialId =
-            pubkey.credential_id::<<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher>();
+        let cred_id: CredentialId = pubkey.credential_id();
         let address = Base58Address::from(cred_id);
         let address2 = Base58Address::from(*pubkey.bytes());
         assert_eq!(address.to_string(), address2.to_string());

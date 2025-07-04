@@ -25,7 +25,9 @@ use tokio::time::timeout;
 use tracing::{info, trace};
 use uuid::Uuid;
 
-use crate::{SequencerEvent, SequencerNotReadyDetails, TxHash, TxStatus, TxStatusManager};
+use crate::{
+    SequencerEvent, SequencerNotReadyDetails, SlotNumber, TxHash, TxStatus, TxStatusManager,
+};
 
 /// The [`Sequencer`] trait is responsible for accepting transactions and
 /// assembling them into batches.
@@ -107,6 +109,13 @@ pub trait Sequencer: Send + Sync + 'static {
     async fn force_close_current_batch(&self) -> anyhow::Result<()> {
         anyhow::bail!("Not implemented")
     }
+
+    /// Subscribe to state update completion notifications. Note that notifications may be delivered out of order.
+    async fn subscribe_state_updates_unstable(
+        &self,
+    ) -> Option<broadcast::Receiver<StateUpdateNotification>> {
+        None
+    }
 }
 
 /// A transaction that has been accepted by the batch builder.
@@ -120,6 +129,15 @@ pub struct AcceptedTx<C> {
     pub tx_hash: TxHash,
     /// Confirmation data. Could be empty, a receipt, or other data.
     pub confirmation: C,
+}
+
+/// A notification that the sequencer has processed a new state update.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct StateUpdateNotification {
+    /// The slot number that was processed.
+    pub slot_number: SlotNumber,
+    /// The finalized slot number.
+    pub finalized_slot_number: SlotNumber,
 }
 
 impl<C> AcceptedTx<C> {

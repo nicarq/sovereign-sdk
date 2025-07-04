@@ -102,11 +102,7 @@ fn test_key_import() {
     assert_eq!(entry.nickname.as_ref().unwrap(), key_name);
     assert_eq!(
         entry.address,
-        key_and_address
-            .private_key
-            .pub_key()
-            .credential_id::<<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher>()
-            .into()
+        key_and_address.private_key.pub_key().credential_id().into()
     );
 }
 

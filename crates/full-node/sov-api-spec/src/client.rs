@@ -146,7 +146,7 @@ impl Client {
             .await
     }
 
-    async fn subscribe_to_ws<T: serde::de::DeserializeOwned>(
+    pub async fn subscribe_to_ws<T: serde::de::DeserializeOwned>(
         &self,
         path: &str,
     ) -> WsSubscription<T> {

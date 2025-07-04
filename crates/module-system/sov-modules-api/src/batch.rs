@@ -155,7 +155,7 @@ pub enum BlobData<S: Spec> {
     /// Batch of transactions.
     Batch((Arc<Vec<FullyBakedTx>>, S::Address)),
     /// Emergency Registration
-    EmergencyRegistration(RawTx),
+    EmergencyRegistration(FullyBakedTx),
     /// Aggregated proof posted on the DA.
     Proof((Vec<u8>, S::Address)),
 }
@@ -190,7 +190,7 @@ pub enum BlobDataWithId<S: Spec, B> {
     /// Emergency Registration
     EmergencyRegistration {
         /// The registration transaction
-        tx: RawTx,
+        tx: FullyBakedTx,
         /// The id of the blob on the DA layer
         id: [u8; 32],
     },
@@ -486,7 +486,7 @@ impl<S: Spec> BlobData<S> {
     }
 
     /// Emergency Registration variant constructor.
-    pub fn new_emergency_registration(tx: RawTx) -> Self {
+    pub fn new_emergency_registration(tx: FullyBakedTx) -> Self {
         BlobData::EmergencyRegistration(tx)
     }
 

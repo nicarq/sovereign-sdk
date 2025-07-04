@@ -86,13 +86,13 @@ impl CelestiaService {
             APP_VERSION,
         )
         .expect("Bug in CelestiaAdapter");
-        info!(
-            commitment = hex::encode(blob.commitment.hash()),
+        let blob_hash = HexHash::new(*blob.commitment.hash());
+        debug!(
+            commitment = %blob_hash,
             bytes,
             data_bytes = blob.data.len(),
             "Submitting a blob"
         );
-        let blob_hash = HexHash::new(*blob.commitment.hash());
 
         let tx_config = celestia_rpc::TxConfig::default();
 
@@ -305,7 +305,6 @@ impl CelestiaService {
 fn into_transient_with_context(
     error: jsonrpsee::core::ClientError,
 ) -> MaybeRetryable<anyhow::Error> {
-    tracing::info!("ORIGINAL ERROR: {}", error);
     let error = anyhow::anyhow!("Celestia RPC node returned an error: {:?}", error);
     MaybeRetryable::Transient(error)
 }

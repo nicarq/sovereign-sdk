@@ -7,7 +7,7 @@ use sov_modules_api::{Amount, BatchSequencerOutcome, PrivateKey, PublicKey, TxPr
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::generators::bank::get_default_token_id;
 use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::{TestHasher, TestSpec};
+use sov_test_utils::TestSpec;
 
 use super::{reset_constants, setup};
 use crate::stf_blueprint::da_simulation::{
@@ -91,7 +91,7 @@ fn test_tx_revert() -> Result<(), Infallible> {
 
         let latest_generation = runtime
             .uniqueness
-            .next_generation(&admin_key.pub_key().credential_id::<TestHasher>(), state)
+            .next_generation(&admin_key.pub_key().credential_id(), state)
             .unwrap();
 
         // with 3 transactions, the latest generation should be 2, because generators send
@@ -151,7 +151,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
 
         let nonce = runtime
             .uniqueness
-            .nonce(&admin_key.pub_key().credential_id::<TestHasher>(), state)
+            .nonce(&admin_key.pub_key().credential_id(), state)
             .unwrap_infallible()
             .unwrap_or_default();
 
