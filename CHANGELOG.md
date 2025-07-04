@@ -1,6 +1,6 @@
 # 2025-07-04
+- #3162 Removes the Hasher generic from the PublicKey trait's credential_id() method. (As well as making sure EthereumPublicKey's get hashed specifically with the Keccak256 hash.)
 - #3167 Changes the format of forced registration transactions on the DA layer, adding a single discriminant byte to specify that the standard authenticator should be used. This makes their format identical to standard transactions.
-
 
 # 2025-06-29
  -#3123 Replaces `sov-value-setter` with `sov-synthetic-load` in sov-demo-stf.

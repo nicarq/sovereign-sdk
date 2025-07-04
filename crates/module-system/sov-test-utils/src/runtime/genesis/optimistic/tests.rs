@@ -3,8 +3,8 @@ use sov_attester_incentives::AttesterIncentivesConfig;
 use sov_bank::{Bank, BankConfig};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    Amount, CodeCommitmentFor, CryptoSpec, DaSpec, EncodeCall, Gas, GasArray, GasSpec, PrivateKey,
-    PublicKey, Spec,
+    Amount, CodeCommitmentFor, DaSpec, EncodeCall, Gas, GasArray, GasSpec, PrivateKey, PublicKey,
+    Spec,
 };
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_paymaster::{PaymasterConfig, SafeVec};
@@ -80,10 +80,7 @@ fn run_value_setter_txs_with_assertions(
 ) {
     let sequencer_rollup_addr = <TestSpec as Spec>::Address::from(SEQUENCER_ADDR);
     let admin_pkey = TestPrivateKey::generate();
-    let admin_addr = admin_pkey
-        .pub_key()
-        .credential_id::<<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher>()
-        .into();
+    let admin_addr = admin_pkey.pub_key().credential_id().into();
     let genesis_config = create_test_rt_genesis_config(
         admin_addr,
         &[],

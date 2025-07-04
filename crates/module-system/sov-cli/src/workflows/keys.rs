@@ -82,8 +82,7 @@ impl<S: sov_modules_api::Spec> KeyWorkflow<S> {
                 let private_key = load_key::<S>(&path)?;
                 let public_key = private_key.pub_key();
 
-                let credential_id: CredentialId =
-                    public_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+                let credential_id: CredentialId = public_key.credential_id();
                 let default_address: S::Address = credential_id.into();
 
                 let address = address_override.unwrap_or(default_address);

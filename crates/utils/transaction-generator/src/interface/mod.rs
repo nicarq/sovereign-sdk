@@ -422,10 +422,7 @@ where
     ) -> arbitrary::Result<(S::Address, Self::AccountView)> {
         let private_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey =
             Arbitrary::arbitrary(u)?;
-        let address: S::Address = private_key
-            .pub_key()
-            .credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>()
-            .into();
+        let address: S::Address = private_key.pub_key().credential_id().into();
 
         // If an account already exist with that address panic because that means our source of randomness is flawed!
         // There is only a vanishingly small change that two randomly generated addressed are the same

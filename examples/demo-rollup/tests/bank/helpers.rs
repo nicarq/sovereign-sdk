@@ -52,10 +52,7 @@ pub(crate) fn create_keys_and_addresses() -> (
 
     let recipient_key = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
 
-    let address: Address = recipient_key
-        .pub_key()
-        .credential_id::<sha2::Sha256>()
-        .into();
+    let address: Address = recipient_key.pub_key().credential_id().into();
 
     let recipient_address = <TestSpec as Spec>::Address::from(address);
 
@@ -67,7 +64,7 @@ pub(crate) fn build_create_token_tx(
     nonce: u64,
     initial_balance: u128,
 ) -> Transaction<Runtime<TestSpec>, TestSpec> {
-    let user_address: Address = key.pub_key().credential_id::<sha2::Sha256>().into();
+    let user_address: Address = key.pub_key().credential_id().into();
     let msg = RuntimeCall::<TestSpec>::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
         token_name: TOKEN_NAME.try_into().unwrap(),
         token_decimals: Some(TOKEN_DECIMALS),

@@ -104,7 +104,7 @@ impl NodeClient {
         &self,
         pub_key: &<S::CryptoSpec as CryptoSpec>::PublicKey,
     ) -> anyhow::Result<u64> {
-        let credential_id = pub_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+        let credential_id = pub_key.credential_id();
         let nonce_url = format!(
             "{}/modules/nonces/state/nonces/items/{}",
             self.base_url, credential_id
