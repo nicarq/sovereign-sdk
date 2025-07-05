@@ -10470,9 +10470,11 @@ dependencies = [
  "sov-mock-da",
  "sov-modules-api",
  "sov-rollup-interface",
+ "sov-test-utils",
  "tempfile",
  "tokio",
  "tracing",
+ "tracing-subscriber 0.3.18",
  "uuid 1.10.0",
 ]
 
