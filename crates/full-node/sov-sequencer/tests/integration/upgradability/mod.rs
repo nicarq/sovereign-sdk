@@ -202,17 +202,22 @@ async fn rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(finaliza
 
     let client = test_rollup.client.clone();
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
     println!("\nInitial assert_rollup_processes_only_finalized_blocks");
     assert_rollup_processes_only_finalized_blocks(&client).await;
     println!("\nInitial assert_rollup_processes_only_finalized_blocks DONE\n");
 >>>>>>> tmp, printlns for CI
+=======
+    assert_rollup_processes_only_finalized_blocks(&client).await;
+>>>>>>> CI test
 
     test_rollup
         .da_service
         .produce_n_blocks_now(10)
         .await
         .unwrap();
+<<<<<<< HEAD
 <<<<<<< HEAD
     tokio::time::sleep(Duration::from_millis(500)).await;
 =======
@@ -221,6 +226,10 @@ async fn rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(finaliza
     assert_rollup_processes_only_finalized_blocks(&client).await;
     println!("\nSecond assert_rollup_processes_only_finalized_blocks DONE\n");
 >>>>>>> tmp, printlns for CI
+=======
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_rollup_processes_only_finalized_blocks(&client).await;
+>>>>>>> CI test
 
     let mut current_height = get_height(&client).await.unwrap();
     let mut slot_subscription = test_rollup.client.client.subscribe_slots().await.unwrap();
@@ -354,10 +363,13 @@ async fn get_block_height(client: &NodeClient, finalized: bool) -> u64 {
     };
     let response = client.http_get(url).await.unwrap();
 <<<<<<< HEAD
+<<<<<<< HEAD
     let slot: types::Slot = serde_json::from_str(&response).unwrap();
     slot.number
 =======
     println!("\n{response:?}");
+=======
+>>>>>>> CI test
     let height: types::GetLatestSlotResponse = serde_json::from_str(&response).unwrap();
     height.data.unwrap().number
 >>>>>>> tmp, printlns for CI
