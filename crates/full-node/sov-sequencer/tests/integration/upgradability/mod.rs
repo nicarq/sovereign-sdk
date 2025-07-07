@@ -189,19 +189,15 @@ async fn rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(finaliza
     let test_rollup = test_rollup.unwrap();
 
     let client = test_rollup.client.clone();
-    println!("\nInitial assert_rollup_processes_only_finalized_blocks");
     assert_rollup_processes_only_finalized_blocks(&client).await;
-    println!("\nInitial assert_rollup_processes_only_finalized_blocks DONE\n");
 
     test_rollup
         .da_service
         .produce_n_blocks_now(10)
         .await
         .unwrap();
-    tokio::time::sleep(Duration::from_millis(200)).await;
-    println!("\nSecond assert_rollup_processes_only_finalized_blocks");
+    tokio::time::sleep(Duration::from_millis(500)).await;
     assert_rollup_processes_only_finalized_blocks(&client).await;
-    println!("\nSecond assert_rollup_processes_only_finalized_blocks DONE\n");
 
     let mut current_height = get_height(&client).await;
     let mut slot_subscription = test_rollup.client.client.subscribe_slots().await.unwrap();
@@ -288,7 +284,6 @@ async fn get_block_height(client: &NodeClient, finalized: bool) -> u64 {
         "/ledger/slots/latest"
     };
     let response = client.http_get(url).await.unwrap();
-    println!("\n{response:?}");
     let height: types::GetLatestSlotResponse = serde_json::from_str(&response).unwrap();
     height.data.unwrap().number
 }
