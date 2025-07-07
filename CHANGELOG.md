@@ -1,3 +1,10 @@
+# 2025-07-07
+- #3168 *Advisory*: enables failover and automatic leader election between sequencers connected to the same PostgreSQL database. To make use of this, ensure the sequencers have identical configuration (including addresses and keys) and are connected to the same database.
+  - A `/sequencer/is-master` API endpoint is added. The master sequencer can accept transactions; the others can only serve read queries (with eventual consistency). For advanced users, a `/sequencer/node-id` endpoint is also exposed with the ID used internally for leader election; this ID is ephemeral and lost upon restart.
+  - While this should be a non-breaking change, there may be some timing differences on sequencer startup when using PostgreSQL, which may affect end-to-end testing that make timing assumptions.
+  - The config option introduces in #3126 has been removed. Leader elections happens automatically (including if a single sequencer is running).
+  - None of this will affect sequencers running with the RocksDB backend (which is the default if no PostgreSQL connection string is provided in the configuration).
+
 # 2025-07-04
 - #3162 Removes the Hasher generic from the PublicKey trait's credential_id() method. (As well as making sure EthereumPublicKey's get hashed specifically with the Keccak256 hash.)
 - #3167 Changes the format of forced registration transactions on the DA layer, adding a single discriminant byte to specify that the standard authenticator should be used. This makes their format identical to standard transactions.
