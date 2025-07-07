@@ -84,6 +84,12 @@ type VisibleSlotNumberIncrease = NonZero<u8>;
 const COMFORTABLE_GAS_LIMIT_MULTIPLIER: u64 = 19;
 const COMFORTABLE_GAS_LIMIT_DIVISOR: u64 = 20;
 
+/// These two constants are used to calculate the comfortable batch size limit.
+/// Currently, this is 99% of the hard limit. After the comfortable limit is reached,
+/// the sequencer will close and publish the current batch.
+const COMFORTABLE_SIZE_LIMIT_MULTIPLIER: u64 = 99;
+const COMFORTABLE_SIZE_LIMIT_DIVISOR: u64 = 100;
+
 // Big infodump for the user that wouldmake the code hard to read if it were inline.
 const RECOVERY_ERROR_MESSAGE_ON_NONE_STRATEGY: &str = "The preferred sequencer is too far behind, and the visible slot number has lagged more than the allowed deferred slots count. This means some non-preferred batches may have been included by the node, if there were any. If this happened, already provided soft confirmations may now no longer be valid. Because the recovery_strategy config was set to None, we are not attempting recovery at this point. You should either: a) delete everything from the preferred_sequencer database (thus annulling all currently pending soft confirmations), which will allow you to restart the sequencer fresh; or b) set the recovery_strategy config value to TryToSave, in which case all pending batches will be flushed to be executed on a best-effort basis. The latter may save some soft-confirmations if they have not been invalidated yet. However, IF a non-preferred batch has been included, AND some soft-confirmations have been invalidated by it, this will cause the sequencer to be penalised for every invalid batch; ensure your sequencer bond is sufficient to cover any penalties to be able to continue operating uninterrupted.";
 
@@ -1085,6 +1091,21 @@ where
             inner.close_current_batch().await;
         } else {
             tracing::trace!(%batch_execution_time_limit_micros, %current_batch_execution_time_micros, "Batch execution time is within comfortable range, not closing batch");
+        }
+
+        let comfortable_size_limit = (inner.batch_size_tracker.max_batch_size as u64)
+            .checked_div(COMFORTABLE_SIZE_LIMIT_DIVISOR)
+            .and_then(|x| x.checked_mul(COMFORTABLE_SIZE_LIMIT_MULTIPLIER))
+            .unwrap_or_else(|| {
+                panic!(
+                    "Cannot overflow after dividing by {COMFORTABLE_SIZE_LIMIT_DIVISOR} and multiplying by {COMFORTABLE_SIZE_LIMIT_MULTIPLIER}",
+                )
+            });
+        if (inner.batch_size_tracker.current_batch_size as u64) > comfortable_size_limit {
+            tracing::debug!(%comfortable_size_limit, current_batch_size = %inner.batch_size_tracker.current_batch_size, "Closing and publishing current batch because we're close to the size limit");
+            inner.close_current_batch().await;
+        } else {
+            tracing::trace!(%comfortable_size_limit, current_batch_size = %inner.batch_size_tracker.current_batch_size, "Batch size is within comfortable range, not closing batch");
         }
     }
 
