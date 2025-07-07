@@ -128,16 +128,11 @@ async fn test_actions_against_replicas(
     let (master, mut state) =
         run_actions_against_test_rollup(actions, master, &admin.clone(), state).await;
 
-    println!("Sent master actions");
     // Ensure replicas have processed the database changes
     tokio::time::sleep(Duration::from_millis(200)).await;
 
-    println!("Waited - querying replicas");
     // Verify state synchronization across all replicas
-    let mut i: u32 = 1;
     for replica_opt in &mut replicas {
-        println!("Checking replica {i}");
-        i += 1;
         let replica = replica_opt.take().unwrap();
         let updated_replica = run_action_against_test_rollup(
             replica,
@@ -221,14 +216,12 @@ async fn test_master_election() {
         let old_master_node_id = master.api_client.node_id().await.unwrap().into_inner().data;
 
         // Shutdown current master and get builder for restart
-        println!("Shutting down current master...");
         let master_builder = master.shutdown().await.unwrap();
 
         // Wait for failover to occur
         tokio::time::sleep(Duration::from_secs(1)).await;
 
         // Restart the old master as a replica
-        println!("Restarting old master as replica...");
         let old_master = master_builder.start().await.unwrap();
 
         // Find new master and verify it's different from the old one
@@ -265,13 +258,10 @@ async fn test_state_replication() {
     };
 
     let (master, state) = setup_test_rollup_with_initial_state(master, &admin).await;
-    // tokio::time::sleep(Duration::from_secs(2)).await;
 
-    println!("\n\nFirst test action...\n");
     let actions = vec![TestingAction::AcceptTx, TestingAction::QuerySetValue];
     let (master, replicas, mut state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
-    println!("First test action done");
 
     let replicas = restart_replica(&admin, replicas, &mut state, 0).await;
 
@@ -279,10 +269,8 @@ async fn test_state_replication() {
         TestingAction::NewDaSlot,
         TestingAction::Sleep { duration_ms: 100 },
     ];
-    println!("\n\nSecond test action...\n");
     let (master, replicas, mut state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
-    println!("Second test action done");
 
     let replicas = restart_replica(&admin, replicas, &mut state, 0).await;
 
@@ -298,17 +286,14 @@ async fn test_state_replication() {
         TestingAction::NewDaSlot,
         TestingAction::Sleep { duration_ms: 100 },
         TestingAction::NewDaSlot,
-        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::Sleep { duration_ms: 1000 },
     ];
-    println!("\n\nThird test action...\n");
     let (master, replicas, mut state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
-    println!("Third test action done");
 
     let replicas = restart_replica(&admin, replicas, &mut state, 1).await;
     let replicas = restart_replica(&admin, replicas, &mut state, 2).await;
 
-    println!("\n\nFinal check...\n");
     let (master, replicas, state) = test_actions_against_replicas(
         &admin,
         (master, replicas, state),
@@ -319,7 +304,6 @@ async fn test_state_replication() {
     // Silence unused variable warnings to keep the test easier to edit
     drop(state);
 
-    println!("\n\nShutting down...\n");
     // Shutdown replicas first
     for replica in replicas {
         replica.unwrap().shutdown().await.unwrap();
@@ -340,7 +324,6 @@ async fn test_replica_transaction_rejection() {
 
     let replica = replicas[0].take().unwrap();
 
-    println!("Testing master can accept transactions");
     // Master should be able to accept transactions
     let master = run_action_against_test_rollup(
         master,
@@ -351,7 +334,6 @@ async fn test_replica_transaction_rejection() {
     .await
     .unwrap();
 
-    println!("Testing replica rejects transactions");
     // Replica should reject transactions with replica mode error
     let replica = run_action_against_test_rollup(
         replica,
@@ -364,14 +346,12 @@ async fn test_replica_transaction_rejection() {
     .await
     .unwrap();
 
-    println!("Shutting down master to trigger failover");
     // Shutdown master to trigger failover
     let master_builder = master.shutdown().await.unwrap();
 
     // Wait for failover
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    println!("Testing new master (former replica) can accept transactions");
     // Former replica should now be master and accept transactions
     let new_master = run_action_against_test_rollup(
         replica,
@@ -382,14 +362,12 @@ async fn test_replica_transaction_rejection() {
     .await
     .unwrap();
 
-    println!("Restarting old master as replica");
     // Restart old master - it should now be a replica
     let old_master_as_replica = master_builder.start().await.unwrap();
 
     // Give time for the restarted node to sync and become a replica
     tokio::time::sleep(Duration::from_secs(2)).await;
 
-    println!("Testing old master (now replica) rejects transactions");
     // Old master (now replica) should reject transactions with replica mode error
     let old_master_as_replica = run_action_against_test_rollup(
         old_master_as_replica,
@@ -403,7 +381,6 @@ async fn test_replica_transaction_rejection() {
     .unwrap();
 
     // Cleanup
-    println!("Shutting down nodes");
     old_master_as_replica.shutdown().await.unwrap();
     new_master.shutdown().await.unwrap();
 }
@@ -418,13 +395,11 @@ async fn test_state_replication_with_failover() {
     let (master_with_state, state) = setup_test_rollup_with_initial_state(master, &admin).await;
     master = master_with_state;
 
-    println!("=== Phase 1: Normal operation with master ===");
     // Accept some transactions with master running
     let actions = vec![TestingAction::AcceptTx, TestingAction::AcceptTx];
     let (master, replicas, state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
 
-    println!("=== Phase 2: Shut down master, trigger failover ===");
     // Shutdown master to trigger failover
     let master_builder = master.shutdown().await.unwrap();
 
@@ -441,20 +416,17 @@ async fn test_state_replication_with_failover() {
     .await
     .unwrap();
 
-    println!("=== Phase 3: Accept transactions with new master (old master down) ===");
     // Accept transactions while old master is down
     let actions = vec![TestingAction::AcceptTx, TestingAction::AcceptTx];
     let (new_master, new_replicas, mut state) =
         test_actions_against_replicas(&admin, (new_master, new_replicas, state), actions).await;
 
-    println!("=== Phase 4: Restart old master as replica ===");
     // Restart old master - it should become a replica and sync state
     let old_master_as_replica = master_builder.start().await.unwrap();
 
     // Give time for old master to sync up as replica
     tokio::time::sleep(Duration::from_secs(2)).await;
 
-    println!("=== Phase 5: Verify old master synced state ===");
     // Verify old master (now replica) has synced the state from while it was down
     let old_master_as_replica = run_action_against_test_rollup(
         old_master_as_replica,
@@ -465,7 +437,6 @@ async fn test_state_replication_with_failover() {
     .await
     .unwrap();
 
-    println!("=== Phase 6: Continue with more transactions ===");
     // Continue with more transactions to ensure everything works
     let actions = vec![TestingAction::AcceptTx, TestingAction::NewDaSlot];
     let mut all_nodes = vec![Some(new_master), Some(old_master_as_replica)];
@@ -481,7 +452,6 @@ async fn test_state_replication_with_failover() {
     )
     .await;
 
-    println!("=== Phase 7: Final verification ===");
     // Final check that all nodes have consistent state
     let (final_master, final_replicas, final_state) = test_actions_against_replicas(
         &admin,
@@ -491,7 +461,6 @@ async fn test_state_replication_with_failover() {
     .await;
 
     // Cleanup
-    println!("=== Cleanup ===");
     for replica in final_replicas.into_iter().flatten() {
         replica.shutdown().await.unwrap();
     }
