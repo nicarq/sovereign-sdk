@@ -1,9 +1,10 @@
 # 2025-07-04
+- #3169 Exposes exponential backoff configuration in celestia adapter's configuration.
 - #3162 Removes the Hasher generic from the PublicKey trait's credential_id() method. (As well as making sure EthereumPublicKey's get hashed specifically with the Keccak256 hash.)
 - #3167 Changes the format of forced registration transactions on the DA layer, adding a single discriminant byte to specify that the standard authenticator should be used. This makes their format identical to standard transactions.
 
 # 2025-06-29
- -#3123 Replaces `sov-value-setter` with `sov-synthetic-load` in sov-demo-stf.
+- #3123 Replaces `sov-value-setter` with `sov-synthetic-load` in sov-demo-stf.
 - #3126 **BREAKING CHANGE** for running rollups: changes the format of the preferred sequencer PostgreSQL database. Any running rollups configured to run postgres in the sequencer will need to have the sequencer halted and the database wiped before restart. If there are pending soft-confirmations, they will be lost when the database is wiped.
 This PR adds initial support for state replication across multiple sequencers sharing the same PostgreSQL database, as the initial stage of implementing failover. For those wishing to test the replication functionality, there is a temporary config value to launch sequencers in replica mode; be aware that this config value will be removed without warning in a subsequent PR once failover is implemented.
 

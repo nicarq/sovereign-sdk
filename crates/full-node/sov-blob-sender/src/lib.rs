@@ -529,7 +529,10 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                         }
                         err => {
                             tracing::error!(
-                                "BlobSender: unable to send blob: {blob_state:?}, error: {err:?}, blob_id: {blob_id}. Shutting down."
+                                %blob_id,
+                                error = ?err,
+                                ?blob_state,
+                                "BlobSender: unable to send blob. Shutting down."
                             );
                             let _ = self.shutdown_sender.send(());
                             return;
