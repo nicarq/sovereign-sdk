@@ -1,4 +1,4 @@
-use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::common::{HexHash, SlotNumber};
 use sov_rollup_interface::da::{BlobReaderTrait, DaSpec, RelevantBlobIters};
 
 use crate::{
@@ -85,9 +85,10 @@ pub trait BlobSelector {
         >,
         state: &mut KernelStateAccessor<'_, Self::Spec>,
         cf: CF,
-    ) -> anyhow::Result<
+    ) -> anyhow::Result<(
         BlobSelectorOutput<SelectedBlob<Self::Spec, IterableBatchWithId<Self::Spec, CF>>>,
-    >;
+        Vec<HexHash>,
+    )>;
 
     /// Extracts all delayed non-preferred blobs that belong to the given slots.
     #[allow(clippy::type_complexity)]

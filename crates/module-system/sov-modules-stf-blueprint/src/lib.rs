@@ -9,7 +9,7 @@ use sov_modules_api::track_gas_constants_usage;
 #[cfg(feature = "native")]
 use sov_modules_api::{capabilities::RollupHeight, AccessoryDelta};
 use sov_modules_api::{
-    BatchSequencerReceipt, GasArray, GasSpec, IncrementalBatch, InjectedControlFlow,
+    BatchSequencerReceipt, GasArray, GasSpec, HexHash, IncrementalBatch, InjectedControlFlow,
     KernelStateAccessor, NoOpControlFlow, SelectedBlob, TransactionReceipt, VersionReader,
 };
 #[cfg(feature = "native")]
@@ -392,7 +392,10 @@ where
         relevant_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         kernel: &mut KernelStateAccessor<S>,
         cf: CF,
-    ) -> BlobSelectorOutput<SelectedBlob<S, IterableBatchWithId<S, CF>>> {
+    ) -> (
+        BlobSelectorOutput<SelectedBlob<S, IterableBatchWithId<S, CF>>>,
+        Vec<HexHash>,
+    ) {
         runtime
             .blob_selector()
             .get_blobs_for_this_slot(relevant_blobs, kernel, cf)
@@ -460,7 +463,7 @@ where
         );
 
         tracing::trace!("Selecting blobs");
-        let blob_selector_output = self.select_and_validate_blobs(
+        let (blob_selector_output, _discarded_blobs) = self.select_and_validate_blobs(
             &mut runtime,
             relevant_blobs,
             &mut kernel_with_partially_stale_heights,

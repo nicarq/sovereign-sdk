@@ -10,7 +10,7 @@ use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel as KernelTrait
 #[cfg(feature = "native")]
 use sov_modules_api::AccessoryStateReaderAndWriter;
 use sov_modules_api::{
-    BootstrapWorkingSet, DaSpec, Gas, InjectedControlFlow, IterableBatchWithId,
+    BootstrapWorkingSet, DaSpec, Gas, HexHash, InjectedControlFlow, IterableBatchWithId,
     KernelStateAccessor, SelectedBlob, Spec, StateReader, VersionReader, VisibleSlotNumber,
 };
 use sov_rollup_interface::common::SlotNumber;
@@ -72,7 +72,10 @@ impl<S: Spec> BlobSelector for BasicKernel<'_, S> {
         current_blobs: RelevantBlobIters<&mut [<S::Da as DaSpec>::BlobTransaction]>,
         state: &mut KernelStateAccessor<'_, S>,
         cf: CF,
-    ) -> anyhow::Result<BlobSelectorOutput<SelectedBlob<S, IterableBatchWithId<S, CF>>>> {
+    ) -> anyhow::Result<(
+        BlobSelectorOutput<SelectedBlob<S, IterableBatchWithId<S, CF>>>,
+        Vec<HexHash>,
+    )> {
         Ok(self
             .blob_storage
             .select_blobs_as_based_sequencer(current_blobs, state, cf))
