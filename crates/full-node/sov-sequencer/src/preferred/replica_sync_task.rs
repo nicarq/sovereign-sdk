@@ -243,8 +243,6 @@ where
                 .failover_threshold_millis,
         );
 
-        println!("Starting database watching loop");
-
         let mut task = Self {
             sequencer,
             query_pool,
@@ -525,16 +523,13 @@ where
             {
                 Ok(true) => {
                     info!("Successfully claimed leadership - transitioning to master");
-                    println!("Successful takeover");
                     self.start_transition_to_master(pending_events).await?;
                 }
                 Ok(false) => {
                     info!("Another replica beat us to takeover or master recovered. Continuing to operate as replica.");
-                    println!("Unsuccessful takeover... staying replica");
                 }
                 Err(e) => {
                     warn!("Takeover attempt failed with error; continuing to operate as replica. Error: {e:?}");
-                    println!("Takeover had an ERROR!");
                 }
             }
         }
