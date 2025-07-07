@@ -40,6 +40,12 @@
 # 2025-07-09
 - #3193 **BREAKING CHANGE** this PR moves the sequencer tx status endpoint from `/sequencer/txs/{hash}` to `/sequencer/txs/{hash}/status`. A new endpoint is added at `/sequencer/txs/{hash}/` which returns the transaction's soft confirmation info. This PR also fixes an off-by-one error which caused the sequencer's unstable events endpoint to return one more event than was requested. It also makes the non-breaking change of allowing sequencer tx subscriptions from any past tx number `/sequencer/txs/ws?start_from=123`.
 
+# 2025-07-07
+- #3168 *Advisory*: enables failover and automatic leader election between sequencers connected to the same PostgreSQL database. To make use of this, ensure the sequencers have identical configuration (including addresses and keys) and are connected to the same database.
+  - A `/sequencer/is-master` API endpoint is added. The master sequencer can accept transactions; the others can only serve read queries (with eventual consistency). For advanced users, a `/sequencer/node-id` endpoint is also exposed with the ID used internally for leader election; this ID is ephemeral and lost upon restart.
+  - While this should be a non-breaking change, there may be some timing differences on sequencer startup when using PostgreSQL, which may affect end-to-end testing that make timing assumptions.
+  - The config option introduces in #3126 has been removed. Leader elections happens automatically (including if a single sequencer is running).
+  - None of this will affect sequencers running with the RocksDB backend (which is the default if no PostgreSQL connection string is provided in the configuration).
 
 # 2025-07-04
 - #3169 Exposes exponential backoff configuration in celestia adapter's configuration.
