@@ -84,6 +84,15 @@ pub struct StoredStfInfo {
     pub data: Vec<u8>,
 }
 
+/// The on-disk format for a discarded blob.
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct StoredDiscardedBlob {
+    /// The blob hash.
+    pub hash: DbHash,
+    /// This blobs's parent slot number.
+    pub slot_number: SlotNumber,
+}
+
 /// The on-disk format for a batch. Stores the hash and identifies the range of transactions
 /// included in the batch.
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]

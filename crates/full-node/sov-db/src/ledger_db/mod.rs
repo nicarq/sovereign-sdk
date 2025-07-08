@@ -4,20 +4,21 @@ use std::sync::{Arc, Mutex, RwLock};
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::{Schema, SchemaBatch};
 use serde::Serialize;
-use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::common::{HexHash, SlotNumber};
 use sov_rollup_interface::node::da::SlotData;
 use sov_rollup_interface::node::ledger_api::AggregatedProofResponse;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TxReceiptContents};
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 
 use crate::schema::tables::{
-    BatchByHash, BatchByNumber, EventByKey, EventByNumber, FinalizedSlots, ProofByUniqueId,
-    SlotByHash, SlotByNumber, StfInfoByNumber, StfInfoMetadata, TxByHash, TxByNumber,
-    LEDGER_TABLES,
+    BatchByHash, BatchByNumber, DiscardedBlobByHash, EventByKey, EventByNumber, FinalizedSlots,
+    ProofByUniqueId, SlotByHash, SlotByNumber, StfInfoByNumber, StfInfoMetadata, TxByHash,
+    TxByNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, LatestFinalizedSlotSingleton, ProofUniqueId,
-    StfInfoUniqueId, StoredBatch, StoredSlot, StoredStfInfo, StoredTransaction, TxNumber,
+    StfInfoUniqueId, StoredBatch, StoredDiscardedBlob, StoredSlot, StoredStfInfo,
+    StoredTransaction, TxNumber,
 };
 use crate::DbOptions;
 
@@ -48,6 +49,7 @@ pub struct ItemNumbers {
 pub struct SlotCommit<S: SlotData, B, T: TxReceiptContents> {
     slot_data: S,
     batch_receipts: Vec<BatchReceipt<B, T>>,
+    discarded_blobs: Vec<HexHash>,
     num_txs: usize,
     num_events: usize,
 }
@@ -64,10 +66,11 @@ impl<S: SlotData, B, T: TxReceiptContents> SlotCommit<S, B, T> {
     }
 
     /// Create a new SlotCommit from the given slot data
-    pub fn new(slot_data: S) -> Self {
+    pub fn new(slot_data: S, discarded_blobs: Vec<HexHash>) -> Self {
         Self {
             slot_data,
             batch_receipts: vec![],
+            discarded_blobs,
             num_txs: 0,
             num_events: 0,
         }
@@ -333,6 +336,14 @@ impl LedgerDb {
         schema_batch.put::<BatchByHash>(&batch.hash, batch_number)
     }
 
+    fn put_discarded_blob(
+        &self,
+        blob: StoredDiscardedBlob,
+        schema_batch: &mut SchemaBatch,
+    ) -> anyhow::Result<()> {
+        schema_batch.put::<DiscardedBlobByHash>(&blob.hash, &blob)
+    }
+
     fn put_transaction(
         &self,
         tx: &StoredTransaction,
@@ -406,6 +417,16 @@ impl LedgerDb {
             };
             self.put_batch(&batch_to_store, &batch_number, &mut schema_batch)?;
             current_item_numbers.batch_number += 1;
+        }
+
+        for dicarded_blob_hash in data_to_commit.discarded_blobs.into_iter() {
+            self.put_discarded_blob(
+                StoredDiscardedBlob {
+                    hash: dicarded_blob_hash.0,
+                    slot_number,
+                },
+                &mut schema_batch,
+            )?;
         }
 
         // Once all batches are inserted, Insert slot
@@ -565,5 +586,15 @@ impl LedgerDb {
     pub async fn get_stf_info_oldest_slot_number(&self) -> anyhow::Result<Option<SlotNumber>> {
         let db = self.db.read().expect(DB_LOCK_POISONED).clone();
         db.get_async::<StfInfoMetadata>(&LAST_SLOT_NUMBER_ID).await
+    }
+
+    /// Gets the discarded blob (if any) corresponding to the given `blob_hash`.
+    pub async fn get_discarded_blob_by_hash(
+        &self,
+        _blob_hash: HexHash,
+    ) -> anyhow::Result<Option<StoredDiscardedBlob>> {
+        //let db = self.db.read().expect(DB_LOCK_POISONED).clone();
+        //db.get_async::<DiscardedBlobByHash>(&blob_hash.0).await
+        Ok(None)
     }
 }

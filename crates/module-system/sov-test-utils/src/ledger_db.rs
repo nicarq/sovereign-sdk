@@ -32,7 +32,8 @@ pub async fn materialize_simple_ledger_db_data(
 ) -> anyhow::Result<SchemaBatch> {
     let mut block_a = MockBlock::default();
     block_a.header.time = Time::from_secs(100); // Use a non-zero time to test that the time is serialized correctly, but hard-code it to make sure the test is deterministic.
-    let mut slot: SlotCommit<MockBlock, i32, TestTxReceiptContents> = SlotCommit::new(block_a);
+    let mut slot: SlotCommit<MockBlock, i32, TestTxReceiptContents> =
+        SlotCommit::new(block_a, Vec::default());
 
     let tx_receipts = vec![TransactionReceipt {
         tx_hash: TxHash::new([1; 32]),
@@ -99,8 +100,8 @@ fn events() -> Vec<StoredEvent> {
 
 /// Materialize some complex data for the [`LedgerDb`]. Returns a [`SchemaBatch`] containing the description of the data to be stored.
 pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Result<SchemaBatch> {
-    let mut slots: Vec<SlotCommit<MockBlock, u32, TestTxReceiptContents>> =
-        vec![SlotCommit::new(MockBlock {
+    let mut slots: Vec<SlotCommit<MockBlock, u32, TestTxReceiptContents>> = vec![SlotCommit::new(
+        MockBlock {
             header: MockBlockHeader {
                 prev_hash: MockHash(sha2::Sha256::digest(b"prev_header").into()),
                 hash: MockHash(sha2::Sha256::digest(b"slot_data").into()),
@@ -109,7 +110,9 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
             },
             batch_blobs: Default::default(),
             proof_blobs: Default::default(),
-        })];
+        },
+        Vec::default(),
+    )];
 
     let batches = vec![
         BatchReceipt {

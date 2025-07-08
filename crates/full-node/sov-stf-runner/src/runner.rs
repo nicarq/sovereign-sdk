@@ -105,7 +105,7 @@ where
         stf.init_chain(&block_header, stf_state, genesis_params);
 
     let data_to_commit: SlotCommit<_, Stf::BatchReceiptContents, Stf::TxReceiptContents> =
-        SlotCommit::new(genesis_block);
+        SlotCommit::new(genesis_block, Vec::default());
     let mut ledger_change_set =
         ledger_db.materialize_slot(data_to_commit, genesis_state_root.as_ref())?;
 
@@ -586,7 +586,7 @@ where
             .await;
         let get_relevant_proofs_time = get_relevant_proofs_start.elapsed();
         // Handling executed data
-        let mut data_to_commit = SlotCommit::new(filtered_block);
+        let mut data_to_commit = SlotCommit::new(filtered_block, slot_result.discarded_blobs);
         for receipt in slot_result.batch_receipts {
             batch_count += 1;
             transaction_count += receipt.tx_receipts.len();

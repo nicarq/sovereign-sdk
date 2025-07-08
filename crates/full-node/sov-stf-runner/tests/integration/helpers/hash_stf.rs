@@ -186,6 +186,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, 
             proof_receipts,
             // TODO: Add batch receipts to inspection
             batch_receipts: vec![],
+            discarded_blobs: vec![],
             witness,
             rollup_height: RollupHeight::new(0),
         }

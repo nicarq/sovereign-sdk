@@ -362,9 +362,9 @@ type BlobReceiptFut<Da> = oneshot::Receiver<
 >;
 
 #[async_trait]
-/// Decides if a given blob was finalized on the DA.
+/// Decides if a given blob was finalized on the DA or discarded by the rollup.
 pub trait FinalizationManager: Clone + Send + Sync + 'static {
-    async fn is_blob_finalized(
+    async fn is_blob_finalized_or_discarded(
         &self,
         blob_hash: HexHash,
         blob_id: BlobInternalId,
@@ -373,22 +373,25 @@ pub trait FinalizationManager: Clone + Send + Sync + 'static {
 
 #[async_trait]
 impl FinalizationManager for LedgerDb {
-    async fn is_blob_finalized(
+    async fn is_blob_finalized_or_discarded(
         &self,
         blob_hash: HexHash,
         _blob_id: BlobInternalId,
     ) -> anyhow::Result<Option<bool>> {
-        let Some(batch) = self
+        let slot_number = match self
             .get_batch_by_hash::<(), (), RuntimeEventResponse<IgnoreEvent>>(
                 &blob_hash.0,
                 QueryMode::Compact,
             )
             .await?
-        else {
-            return Ok(None);
+        {
+            Some(batch) => batch.slot_number,
+            None => match self.get_discarded_blob_by_hash(blob_hash).await? {
+                Some(blob) => blob.slot_number,
+                None => return Ok(None),
+            },
         };
 
-        let slot_number = batch.slot_number;
         let latest_finalized_slot_number = self.get_latest_finalized_slot_number().await?;
         Ok(Some(slot_number <= latest_finalized_slot_number))
     }
@@ -442,7 +445,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
     ) -> anyhow::Result<Option<bool>> {
         let is_finalized = self
             .finalization_manager
-            .is_blob_finalized(blob_hash, blob_id)
+            .is_blob_finalized_or_discarded(blob_hash, blob_id)
             .await;
 
         if let Err(err) = &is_finalized {

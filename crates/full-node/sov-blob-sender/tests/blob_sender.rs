@@ -56,7 +56,7 @@ impl<Da> FinalizationManager for TestFinalizationManager<Da>
 where
     Da: DaService<Error = anyhow::Error>,
 {
-    async fn is_blob_finalized(
+    async fn is_blob_finalized_or_discarded(
         &self,
         _blob_hash: HexHash,
         blob_id: BlobInternalId,
