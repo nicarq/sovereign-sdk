@@ -1,5 +1,6 @@
 ---
 source: crates/full-node/sov-stf-runner/src/config.rs
+assertion_line: 198
 expression: config
 ---
 {
@@ -23,7 +24,8 @@ expression: config
       "public_address": "https://rollup.sovereign.xyz",
       "cors": "restrictive"
     },
-    "concurrent_sync_tasks": 18
+    "concurrent_sync_tasks": 18,
+    "save_tx_bodies": false
   },
   "da": {
     "connection_string": "sqlite:///tmp/mockda.sqlite?mode=rwc",

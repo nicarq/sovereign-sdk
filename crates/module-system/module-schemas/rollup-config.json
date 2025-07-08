@@ -676,6 +676,11 @@
               "$ref": "#/definitions/HttpServerConfig"
             }
           ]
+        },
+        "save_tx_bodies": {
+          "description": "Whether to save transaction bodies to the database.",
+          "default": false,
+          "type": "boolean"
         }
       }
     },

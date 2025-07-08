@@ -21,6 +21,7 @@ pub fn apply_tx<S, RT, I>(
     ctx: &Context<S>,
     tx: &AuthenticatedTransactionData<S>,
     raw_tx_hash: TxHash,
+    raw_tx: FullyBakedTx,
     message: <RT as DispatchCall>::Decodable,
     mut working_set: WorkingSet<S, I>,
 ) -> (ApplyTxResult<S>, TxScratchpad<S, I>)
@@ -39,10 +40,16 @@ where
                 tx_scratchpad,
                 TransactionReceipt {
                     tx_hash: raw_tx_hash,
-                    body_to_save: None,
+                    body_to_save: Some(raw_tx.data),
                     events: convert_to_runtime_events::<S, RT>(events, raw_tx_hash.into()),
                     receipt: TxEffect::Successful(SuccessfulTxContents {
                         gas_used: gas_used.clone(),
+                        // TODO: Add additional fields here for...
+                        // - sender
+                        // - authorizer_id (i.e. Ethereum or Solana)
+                        // - credential
+                        // - nonce
+                        // - etc.
                     }),
                 },
                 transaction_consumption,
@@ -62,7 +69,7 @@ where
 
             let receipt = TransactionReceipt {
                 tx_hash: raw_tx_hash,
-                body_to_save: None,
+                body_to_save: Some(raw_tx.data),
                 events: vec![], // As in Ethereum, reverted transactions don't emit events
                 receipt: TxEffect::Reverted(RevertedTxContents {
                     gas_used: transaction_consumption.base_fee().clone(),
@@ -129,6 +136,7 @@ pub fn get_gas_used<S: Spec>(receipt: &TransactionReceipt<S>) -> S::Gas {
 pub(crate) fn create_tx_receipt<S: Spec>(
     skipped: SkippedTxContents<S>,
     raw_tx_hash: TxHash,
+    raw_tx_body: Vec<u8>,
 ) -> TransactionReceipt<S> {
     info!(
         error = %skipped.error,
@@ -138,7 +146,7 @@ pub(crate) fn create_tx_receipt<S: Spec>(
 
     TransactionReceipt {
         tx_hash: raw_tx_hash,
-        body_to_save: None,
+        body_to_save: Some(raw_tx_body),
         events: Vec::new(),
         receipt: TxEffect::Skipped(skipped),
     }

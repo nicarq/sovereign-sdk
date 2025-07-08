@@ -455,6 +455,7 @@ where
                     self.config.axum_port,
                 ),
                 concurrent_sync_tasks: Some(1),
+                save_tx_bodies: false,
             },
             da: self.da_config.clone(),
             proof_manager: ProofManagerConfig {

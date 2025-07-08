@@ -60,6 +60,7 @@ where
     secondary_shutdown_sender: watch::Sender<()>,
     background_handles: Vec<tokio::task::JoinHandle<anyhow::Result<()>>>,
     stop_at_rollup_height: Option<RollupHeight>,
+    save_tx_bodies: bool,
 }
 
 struct DiscardEvents;
@@ -244,6 +245,7 @@ where
             secondary_shutdown_sender,
             background_handles: vec![fetcher_background_handle],
             stop_at_rollup_height,
+            save_tx_bodies: runner_config.save_tx_bodies,
         })
     }
 
@@ -587,7 +589,12 @@ where
         let get_relevant_proofs_time = get_relevant_proofs_start.elapsed();
         // Handling executed data
         let mut data_to_commit = SlotCommit::new(filtered_block, slot_result.discarded_blobs);
-        for receipt in slot_result.batch_receipts {
+        for mut receipt in slot_result.batch_receipts {
+            if !self.save_tx_bodies {
+                for tx in receipt.tx_receipts.iter_mut() {
+                    tx.body_to_save = None;
+                }
+            }
             batch_count += 1;
             transaction_count += receipt.tx_receipts.len();
             data_to_commit.add_batch(receipt);

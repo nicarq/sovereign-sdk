@@ -352,6 +352,7 @@ mod tests {
                 public_address: public_address.map(|s| s.to_string()),
                 cors: sov_stf_runner::CorsConfiguration::Permissive,
             },
+            save_tx_bodies: false,
             concurrent_sync_tasks: None,
         }
     }
