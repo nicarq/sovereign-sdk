@@ -862,9 +862,9 @@ where
                 }
                 let mut inner = self.lock_inner().await;
                 if i % 10 == 0 {
-                    tracing::info!("Sending {i}th catchup batch");
+                    tracing::info!(number = %i, min = %min_batches_to_send, max = %max_batches_to_send, "Sending catchup batch");
                 } else {
-                    tracing::debug!("Sending {i}th catchup batch");
+                    tracing::debug!(number = %i, min = %min_batches_to_send, max = %max_batches_to_send, "Sending catchup batch");
                 }
                 // We don't run force_overwrite_state() here.
                 // This is mostly fine, mainly the API state will be out of date until we've
