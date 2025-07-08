@@ -8,14 +8,14 @@ use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::generators::bank::get_default_token_id;
 use sov_test_utils::TestSpec;
 
-use super::da_simulation::simulate_da_with_multiple_direct_registration_msg;
-use super::setup;
-use crate::stf_blueprint::da_simulation::{
+use super::da_simulation::{
     simulate_da, simulate_da_with_incorrect_direct_registration_msg,
+    simulate_da_with_multiple_direct_registration_msg,
 };
+use super::optimistic_rt::{setup, IntegTestRuntime};
 use crate::stf_blueprint::{
     default_rewards, has_tx_events, new_test_blob_for_direct_registration,
-    new_test_blob_from_batch, reset_constants, IntegTestRuntime, S,
+    new_test_blob_from_batch, reset_constants, S,
 };
 
 #[test]

@@ -9,13 +9,13 @@ use sov_test_utils::generators::bank::get_default_token_id;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::TestSpec;
 
-use super::{reset_constants, setup};
-use crate::stf_blueprint::da_simulation::{
+use super::da_simulation::{
     simulate_da_with_bad_nonce, simulate_da_with_bad_serialization, simulate_da_with_bad_sig,
     simulate_da_with_revert_msg,
 };
+use super::optimistic_rt::{setup, IntegTestRuntime};
 use crate::stf_blueprint::{
-    default_rewards, has_tx_events, new_test_blob_from_batch, IntegTestRuntime,
+    default_rewards, has_tx_events, new_test_blob_from_batch, reset_constants,
 };
 
 fn assert_outcome(outcome: &BatchSequencerOutcome) {

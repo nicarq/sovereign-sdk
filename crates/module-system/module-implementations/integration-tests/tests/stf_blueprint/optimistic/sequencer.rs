@@ -4,11 +4,9 @@ use sov_modules_api::{Gas, GasArray, Spec, TransactionReceipt};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::TestRunner;
 
-use super::helpers::*;
-use super::{IntegTestRuntime, TxStatus};
-use crate::stf_blueprint::setup;
-
-type S = sov_test_utils::TestSpec;
+use super::optimistic_rt::helpers::*;
+use super::optimistic_rt::{setup, IntegTestRuntime};
+use crate::stf_blueprint::{create_txs, TxStatus, S};
 
 fn create_runner_and_blobs(
     tx_statuses: &[TxStatus],
@@ -22,7 +20,7 @@ fn create_runner_and_blobs(
         sequencer_account,
     };
 
-    let txs = create_txs(
+    let txs = create_txs::<IntegTestRuntime<S>>(
         tx_statuses,
         priority_fee_bips,
         &actors.admin_account,

@@ -15,9 +15,8 @@ use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::{EncodeCall, TestUser};
 
-use super::{get_balance, get_seq_bond, setup, TxStatus};
-use crate::stf_blueprint::reset_constants;
-type S = sov_test_utils::TestSpec;
+use super::optimistic_rt::setup;
+use crate::stf_blueprint::{get_balance, get_seq_bond, reset_constants, TxStatus, S};
 
 const BOND_AMOUNT: Amount = Amount::new(100);
 
@@ -246,10 +245,9 @@ mod helpers {
     use sov_test_utils::TEST_DEFAULT_MAX_FEE;
 
     use super::*;
-    use crate::stf_blueprint::{
-        create_tx_bad_sig, create_tx_out_of_gas, create_tx_valid, IntegTestRuntime,
-        IntegTestRuntimeCall,
-    };
+    use crate::stf_blueprint::optimistic::optimistic_rt::{IntegTestRuntime, IntegTestRuntimeCall};
+    use crate::stf_blueprint::{create_tx_bad_sig, create_tx_out_of_gas, create_tx_valid};
+
     // A user that is not a registered sequencer and attempts to register itself as one.
     pub(crate) struct PotentialSequencer {
         pub(crate) user: TestUser<S>,
@@ -360,7 +358,7 @@ mod helpers {
         potential_seq: &PotentialSequencer,
     ) -> MockBlob {
         let tx = match status {
-            TxStatus::Success => encode_tx(create_tx_valid(
+            TxStatus::Success => encode_tx(create_tx_valid::<IntegTestRuntime<S>>(
                 0,
                 max_priority_fee_bips,
                 &potential_seq.user,
@@ -368,7 +366,7 @@ mod helpers {
                 encode_message(potential_seq.da_address, BOND_AMOUNT),
             )),
             TxStatus::BadGeneration => panic!("Unregistered blobs send one transaction per user, any generation number is valid for a user's first transaction"),
-            TxStatus::BadChainId => encode_tx(create_tx_valid(
+            TxStatus::BadChainId => encode_tx(create_tx_valid::<IntegTestRuntime<S>>(
                 0,
                 max_priority_fee_bips,
                 &potential_seq.user,
@@ -385,7 +383,7 @@ mod helpers {
             TxStatus::BadSerialization => <IntegTestRuntime<S> as Runtime<S>>::Auth::encode_with_standard_auth(RawTx {
                 data: vec![1, 2, 3],
             }),
-            TxStatus::OutOfGas => encode_tx(create_tx_out_of_gas(
+            TxStatus::OutOfGas => encode_tx(create_tx_out_of_gas::<IntegTestRuntime<S>>(
                 0,
                 max_priority_fee_bips,
                 &potential_seq.user,

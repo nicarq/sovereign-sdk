@@ -9,9 +9,8 @@ use sov_test_utils::generators::sequencer_registry::SequencerRegistryMessageGene
 use sov_test_utils::generators::value_setter::{ValueSetterMessage, ValueSetterMessages};
 use sov_test_utils::{MessageGenerator, TestPrivateKey};
 
-use super::IntegTestRuntime;
-
-pub(crate) type S = sov_test_utils::TestSpec;
+use super::optimistic_rt::IntegTestRuntime;
+use crate::stf_blueprint::S;
 
 pub fn simulate_da(admin: TestPrivateKey) -> Vec<FullyBakedTx> {
     let mut messages = Vec::default();
