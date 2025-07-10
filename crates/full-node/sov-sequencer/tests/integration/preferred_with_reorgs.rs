@@ -143,6 +143,7 @@ impl TestState {
     async fn gather_all_statuses(
         &mut self,
         client: &sov_api_spec::Client,
+        max_slots_to_wait: u64,
     ) -> anyhow::Result<Vec<(TxHash, TxStatus)>> {
         tracing::info!(
             txs_to_wait = self.txs_to_wait.len(),
@@ -154,7 +155,17 @@ impl TestState {
         tracing::info!(current_head_slot = head_slot, wait_max_till_slot= %wait_to, "Start gathering all statuses");
         let mut last_tx_statuses: Vec<(HexHash, TxStatus)> =
             Vec::with_capacity(self.txs_to_wait.len());
+
+        let mut slots = 0;
         while !self.txs_to_wait.is_empty() {
+            slots += 1;
+            if slots > max_slots_to_wait {
+                anyhow::bail!(
+                    "Didn't receive status for all transactions in {} slots. Remaining txs: {:?}",
+                    max_slots_to_wait,
+                    self.txs_to_wait,
+                );
+            }
             let Some(next_slot) = self.slots_subscription.try_next().await? else {
                 continue;
             };
@@ -303,8 +314,15 @@ async fn test_stream_of_transactions(
         }
     }
     tracing::info!("Submission of all transactions to sequencer is done, checking results");
+    assert!(
+        !rollup.is_rollup_crashed(),
+        "Some of the rollup tasks have crashed before shutdown"
+    );
 
-    let all_tx_statuses = harness.gather_all_statuses(&rollup.client.client).await?;
+    let max_slots = da_slots * 10;
+    let all_tx_statuses = harness
+        .gather_all_statuses(&rollup.client.client, max_slots as u64)
+        .await?;
 
     for (tx_hash, status) in all_tx_statuses {
         assert_eq!(status, TxStatus::Processed, "tx {tx_hash} wasn't processed");
@@ -312,6 +330,11 @@ async fn test_stream_of_transactions(
 
     // TODO: Check transactions outcomes
     tracing::info!("Test is completed, shutting down the rollup");
+
+    assert!(
+        !rollup.is_rollup_crashed(),
+        "Some of the rollup tasks have crashed before shutdown"
+    );
 
     rollup.shutdown().await?;
     Ok(())

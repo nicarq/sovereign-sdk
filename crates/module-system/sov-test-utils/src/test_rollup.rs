@@ -747,6 +747,15 @@ where
         Ok(self.builder)
     }
 
+    /// Returns true if any of the rollup tasks have finished.
+    pub fn is_rollup_crashed(&self) -> bool {
+        if self.rollup_task.is_finished() {
+            return true;
+        }
+
+        self.other_handles.iter().any(|handle| handle.is_finished())
+    }
+
     /// Force closes the current batch.
     pub async fn force_close_batch(&self) -> anyhow::Result<()> {
         self.client
