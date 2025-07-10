@@ -51,3 +51,7 @@ restart-toxiproxy:
 	docker compose restart toxiproxy
 	sleep 5
 	TOXIPROXY_HOST="localhost" ./toxiproxy/configure.sh
+
+
+start-obs:
+	docker compose -f $(DOCKER_COMPOSE_DIR)/docker-compose.obs.yml up
