@@ -105,6 +105,8 @@ pub struct NomtStorageManager<Da: DaSpec, H, S: InitializableNativeNomtStorage<H
     // If pruner is running.
     pruner: Option<PrunerJob>,
     last_pruner_run_at_height: Option<u64>,
+    pruner_block_interval: u64,
+    pruner_versions_to_keep: usize,
 
     _phantom_s: PhantomData<S>,
 }
@@ -117,6 +119,12 @@ where
 {
     /// Create a new [` NomtStorageManager`].
     pub fn new(config: RollupDbConfig) -> anyhow::Result<Self> {
+        let pruner_block_interval = config.get_pruner_interval();
+        let pruner_versions_to_keep = config.get_pruner_versions_to_keep();
+        assert!(
+            pruner_versions_to_keep >= 1,
+            "Pruner versions to keep should be at least 1, got {pruner_versions_to_keep}",
+        );
         let db_group = DbGroup::new(config)?;
 
         db_group.update_ledger_finalized_height()?;
@@ -130,6 +138,8 @@ where
             db_group,
             pruner: None,
             last_pruner_run_at_height: None,
+            pruner_block_interval,
+            pruner_versions_to_keep,
             _phantom_s: Default::default(),
         })
     }
@@ -142,7 +152,7 @@ where
     ) -> anyhow::Result<(S, DeltaReader)> {
         tracing::trace!(%block_hash, "Creating storage up to block hash");
         // References are in reversed chronological order,
-        // starting from tip of the chain going back to last finalized header
+        // starting from the tip of the chain going back to the last finalized header
 
         let mut rev_references = Vec::new();
 
@@ -177,7 +187,7 @@ where
         self.rockbound_snapshots.is_empty()
             && self.blocks_to_parent.is_empty()
             && self.chain_forks.is_empty()
-            // Lock at the end, so should be trigger last in case of non-empty.
+            // Lock at the end, so should be triggered last in case of non-empty.
             && self.nomt_snapshots.read().unwrap().is_empty()
     }
 
@@ -237,7 +247,7 @@ where
         &mut self,
         block_header: &Da::BlockHeader,
     ) -> anyhow::Result<(Self::StfState, Self::LedgerState)> {
-        // Storage created "after" a block is usually used outside of node context,
+        // Storage created "after" a block is usually used outside of the node context,
         // So strict mode is not needed.
         let use_strict_mode = false;
         if !self.rockbound_snapshots.contains_key(&block_header.hash()) {
@@ -454,11 +464,12 @@ where
             && self
                 .last_pruner_run_at_height
                 .map(|last_run_at_height| {
-                    block_header.height().saturating_sub(last_run_at_height) > 100
+                    block_header.height().saturating_sub(last_run_at_height)
+                        > self.pruner_block_interval
                 })
                 .unwrap_or(true);
         if should_run_pruner {
-            let pruner = self.db_group.start_pruner(20);
+            let pruner = self.db_group.start_pruner(self.pruner_versions_to_keep);
             self.pruner = Some(pruner);
         }
 

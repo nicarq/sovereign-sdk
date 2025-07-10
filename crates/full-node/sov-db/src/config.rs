@@ -34,6 +34,13 @@ pub struct RollupDbConfig {
     /// Leaf cache size for kernel state.
     /// More details at [`Options::leaf_cache_size`]
     pub kernel_leaf_cache_size: Option<usize>,
+
+    /// Pruner
+    /// Defines how often pruner is going to be started.
+    /// Measure by DA blocks.
+    pub pruner_block_interval: Option<u64>,
+    /// This many versions will be available for historical querying.
+    pub pruner_versions_to_keep: Option<usize>,
 }
 
 impl RollupDbConfig {
@@ -54,6 +61,8 @@ impl RollupDbConfig {
             kernel_hashtable_buckets: None,
             kernel_page_cache_size: None,
             kernel_leaf_cache_size: None,
+            pruner_block_interval: Some(1000),
+            pruner_versions_to_keep: Some(20),
         }
     }
 
@@ -97,6 +106,16 @@ impl RollupDbConfig {
         }
         opts.path(self.path.join("user_nomt_db"));
         opts
+    }
+
+    pub(crate) fn get_pruner_interval(&self) -> u64 {
+        self.pruner_block_interval
+            .expect("`pruner_block_interval` must be set")
+    }
+
+    pub(crate) fn get_pruner_versions_to_keep(&self) -> usize {
+        self.pruner_versions_to_keep
+            .expect("`pruner_versions_to_keep` must be set")
     }
 }
 

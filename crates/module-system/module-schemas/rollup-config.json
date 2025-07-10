@@ -601,6 +601,24 @@
           "description": "Path where all databases are stored",
           "type": "string"
         },
+        "pruner_block_interval": {
+          "description": "Pruner Defines how often pruner is going to be started. Measure by DA blocks.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "pruner_versions_to_keep": {
+          "description": "This many versions will be available for historical querying.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0.0
+        },
         "user_commit_concurrency": {
           "description": "Number of concurrent commit workers for user state. More details at [`Options::commit_concurrency`]",
           "type": [
