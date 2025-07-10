@@ -9,6 +9,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use derivative::Derivative;
 use sov_api_spec::WsSubscription;
+use sov_blob_sender::BlobExecutionStatus;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_cli::NodeClient;
 use sov_db::config::RollupDbConfig;
@@ -455,6 +456,7 @@ where
                     self.config.axum_port,
                 ),
                 concurrent_sync_tasks: Some(1),
+                save_tx_bodies: false,
             },
             da: self.da_config.clone(),
             proof_manager: ProofManagerConfig {
@@ -736,6 +738,15 @@ where
         Ok(self.builder)
     }
 
+    /// Returns true if any of the rollup tasks have finished.
+    pub fn is_rollup_crashed(&self) -> bool {
+        if self.rollup_task.is_finished() {
+            return true;
+        }
+
+        self.other_handles.iter().any(|handle| handle.is_finished())
+    }
+
     /// Force closes the current batch.
     pub async fn force_close_batch(&self) -> anyhow::Result<()> {
         self.client
@@ -749,6 +760,16 @@ where
         self.client
             .client
             .subscribe_to_ws::<StateUpdateNotification>("/sequencer/test-utils/state-updates/ws")
+            .await
+    }
+
+    /// Subscribe to blobs from the blob sender.
+    pub async fn subscribe_to_blobs_from_blob_sender(
+        &self,
+    ) -> WsSubscription<BlobExecutionStatus<MockDaSpec>> {
+        self.client
+            .client
+            .subscribe_to_ws::<BlobExecutionStatus<MockDaSpec>>("/sequencer/test-utils/blobs/ws")
             .await
     }
 

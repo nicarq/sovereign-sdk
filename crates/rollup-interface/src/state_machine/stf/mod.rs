@@ -22,7 +22,7 @@ pub use transaction::*;
 pub use verifier::StateTransitionVerifier;
 
 use super::optimistic::Attestation;
-use crate::common::RollupHeight;
+use crate::common::{HexHash, RollupHeight};
 use crate::da::{DaSpec, RelevantBlobIters};
 use crate::zk::aggregated_proof::{AggregatedProofPublicData, SerializedAggregatedProof};
 use crate::zk::{StateTransitionPublicData, Zkvm};
@@ -174,6 +174,8 @@ pub struct ApplySlotOutputInner<Root, ChangeSet, BR, PR, Witness> {
     pub proof_receipts: PR,
     /// Receipt for each applied batch
     pub batch_receipts: Vec<BR>,
+    /// Hash for each discarded blob.
+    pub discarded_blobs: Vec<HexHash>,
     /// Witness after applying the whole block
     pub witness: Witness,
     /// The rollup height before applying the changes.

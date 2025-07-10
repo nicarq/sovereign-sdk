@@ -7,7 +7,7 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::prelude::*;
 use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, TxDetails};
-use sov_modules_api::{DaSpec, Gas, GasArray, Spec, StateCheckpoint, WorkingSet};
+use sov_modules_api::{DaSpec, FullyBakedTx, Gas, GasArray, Spec, StateCheckpoint, WorkingSet};
 use sov_modules_stf_blueprint::{apply_tx, ApplyTxResult, Runtime};
 use sov_rollup_interface::common::HexString;
 
@@ -98,6 +98,8 @@ where
             &tx_data,
             // We don't have a way to get the raw transaction hash because it depends on the signature.
             HexString::new([0; 32]),
+            // We use an empty tx body because we can't build an actual one without the signature. We could make something *more* accurate here, but it might be confusing to the user.
+            FullyBakedTx::new(vec![]),
             decoded_call_message,
             working_set,
         );

@@ -19,6 +19,8 @@ use crate::sequencer_mode::common::{
 };
 use crate::{ApplyTxResult, AuthTxOutput, Runtime, TxReceiptContents};
 
+type TxAndError = (TxProcessingError, FullyBakedTx);
+
 /// Executes the entire transaction lifecycle.
 ///
 /// The caller is responsible for penalizing the sequencer if this method returns an error. If the tx can be attempted,
@@ -31,13 +33,14 @@ pub fn process_tx_and_reward_prover<S, R, I, C>(
     pre_exec_working_set: PreExecWorkingSet<S, I>,
     slot_gas: &S::Gas,
     validated_output: AuthTxOutput<S, R>,
+    raw_tx: FullyBakedTx,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     sequencer_rollup_address: S::Address,
     #[allow(unused_variables)] execution_context: ExecutionContext,
     injected_control_flow: &C,
     operating_mode: OperatingMode,
 ) -> (
-    Result<ApplyTxResult<S>, TxProcessingError>,
+    Result<ApplyTxResult<S>, TxAndError>,
     TxScratchpad<S, I>,
     BasicGasMeter<S>,
 )
@@ -64,6 +67,7 @@ where
         pre_exec_working_set,
         slot_gas,
         validated_output,
+        raw_tx,
         sequencer_da_address,
         sequencer_rollup_address,
         injected_control_flow,
@@ -86,7 +90,7 @@ where
 
 #[cfg(feature = "native")]
 fn track_transaction_metrics<S: Spec>(
-    result: &Result<ApplyTxResult<S>, TxProcessingError>,
+    result: &Result<ApplyTxResult<S>, TxAndError>,
     execution_time: std::time::Duration,
     execution_context: ExecutionContext,
     visible_slot_number: sov_rollup_interface::common::VisibleSlotNumber,
@@ -126,12 +130,13 @@ fn process_tx_and_reward_prover_inner<S, R, I, C>(
     mut pre_exec_working_set: PreExecWorkingSet<S, I>,
     slot_gas: &S::Gas,
     validated_output: AuthTxOutput<S, R>,
+    raw_tx: FullyBakedTx,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     sequencer_rollup_address: S::Address,
     injected_control_flow: &C,
     operating_mode: OperatingMode,
 ) -> (
-    Result<ApplyTxResult<S>, TxProcessingError>,
+    Result<ApplyTxResult<S>, TxAndError>,
     TxScratchpad<S, I>,
     BasicGasMeter<S>,
 )
@@ -158,7 +163,10 @@ where
         Err(err) => {
             let (scratchpad, pre_exec_gas_meter) = pre_exec_working_set.revert();
             return (
-                Err(TxProcessingError::CannotResolveContext(err.to_string())),
+                Err((
+                    TxProcessingError::CannotResolveContext(err.to_string()),
+                    raw_tx,
+                )),
                 scratchpad,
                 pre_exec_gas_meter,
             );
@@ -170,7 +178,7 @@ where
         TxControlFlow::IgnoreTx => {
             let (scratchpad, pre_exec_gas_meter) = pre_exec_working_set.revert();
             return (
-                Err(TxProcessingError::RejectedByPreFlight),
+                Err((TxProcessingError::RejectedByPreFlight, raw_tx)),
                 scratchpad,
                 pre_exec_gas_meter,
             );
@@ -185,7 +193,10 @@ where
     ) {
         let (scratchpad, pre_exec_gas_meter) = pre_exec_working_set.revert();
         return (
-            Err(TxProcessingError::CheckUniquenessFailed(err.to_string())),
+            Err((
+                TxProcessingError::CheckUniquenessFailed(err.to_string()),
+                raw_tx,
+            )),
             scratchpad,
             pre_exec_gas_meter,
         );
@@ -198,7 +209,10 @@ where
     ) {
         let (scratchpad, pre_exec_gas_meter) = pre_exec_working_set.revert();
         return (
-            Err(TxProcessingError::MarkTxAttemptedFailed(err.to_string())),
+            Err((
+                TxProcessingError::MarkTxAttemptedFailed(err.to_string()),
+                raw_tx,
+            )),
             scratchpad,
             pre_exec_gas_meter,
         );
@@ -212,7 +226,7 @@ where
     {
         let (scratchpad, pre_exec_gas_meter) = pre_exec_working_set.revert();
         return (
-            Err(TxProcessingError::CannotReserveGas(err.to_string())),
+            Err((TxProcessingError::CannotReserveGas(err.to_string()), raw_tx)),
             scratchpad,
             pre_exec_gas_meter,
         );
@@ -238,14 +252,15 @@ where
         );
 
         return (
-            Err(TxProcessingError::OutOfGas(err.to_string())),
+            Err((TxProcessingError::OutOfGas(err.to_string()), raw_tx)),
             scratchpad,
             pre_exec_gas_meter,
         );
     }
 
     // If the transaction is valid, execute it and apply the changes to the state.
-    let (apply_tx, mut scratchpad) = apply_tx(runtime, &ctx, tx, raw_tx_hash, message, working_set);
+    let (apply_tx, mut scratchpad) =
+        apply_tx(runtime, &ctx, tx, raw_tx_hash, raw_tx, message, working_set);
 
     let transaction_consumption = &apply_tx.transaction_consumption;
 
@@ -386,7 +401,7 @@ where
             clean_scratchpad,
             // Here we make sure that a tx can't use more gas that remaining gas in the slot gas meter.
             slot_gas_meter.remaining_slot_gas(sequencer_da_address),
-            &raw_tx,
+            raw_tx,
             sequencer_da_address,
             sequencer_address.clone(),
             gas_price,
@@ -408,7 +423,11 @@ where
                     reason,
                 )
             }
-            AuthAndProcessOutcome::Skipped { error, tx_hash } => {
+            AuthAndProcessOutcome::Skipped {
+                error,
+                tx_hash,
+                tx_body,
+            } => {
                 ProvisionalSequencerOutcome::penalize(
                     // SAFETY: `gas_used`  comes from `BasicGasMeter`, which ensures overflow protection.
                     gas_used
@@ -420,6 +439,7 @@ where
                             gas_used: gas_used.clone(),
                         },
                         tx_hash,
+                        tx_body.data,
                     ),
                 )
             }
@@ -547,6 +567,7 @@ enum AuthAndProcessOutcome<S: Spec> {
     Skipped {
         error: TxProcessingError,
         tx_hash: TxHash,
+        tx_body: FullyBakedTx,
     },
     /// The transaction failed
     Applied {
@@ -588,7 +609,7 @@ fn auth_and_process_tx_and_incentivize_sequencer<S, RT, I, C>(
     runtime: &mut RT,
     scratchpad: TxScratchpad<S, I>,
     slot_gas: &S::Gas,
-    raw_tx: &FullyBakedTx,
+    raw_tx: FullyBakedTx,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     sequencer_rollup_address: S::Address,
     gas_price: &<S::Gas as Gas>::Price,
@@ -661,7 +682,7 @@ where
         .expect("The gas meter should be able to charge the pre-execution checks");
 
     let authentication_result =
-        deserialize_and_authenticate::<S, RT, I>(raw_tx, &mut pre_exec_working_set);
+        deserialize_and_authenticate::<S, RT, I>(&raw_tx, &mut pre_exec_working_set);
 
     let validated_output = match authentication_result {
         Ok(auth_output) => auth_output,
@@ -688,6 +709,7 @@ where
                         outcome: AuthAndProcessOutcome::Skipped {
                             error: TxProcessingError::AuthenticationFailed(err.to_string()),
                             tx_hash,
+                            tx_body: raw_tx,
                         },
                     }
                 }
@@ -718,7 +740,7 @@ where
 
     #[cfg(feature = "native")]
     assert_eq!(
-        RT::Auth::compute_tx_hash(raw_tx).ok(),
+        RT::Auth::compute_tx_hash(&raw_tx).ok(),
         Some(raw_tx_hash),
         "Sanity check failed. The transaction hash computed by the authenticator does not match the hash computed by the dedicated tx hash calculation utility method. This is a bug, please report it."
     );
@@ -730,6 +752,7 @@ where
         pre_exec_working_set,
         slot_gas,
         validated_output,
+        raw_tx,
         sequencer_da_address,
         sequencer_rollup_address.clone(),
         execution_context,
@@ -742,7 +765,7 @@ where
     let (tx_result, mut scratchpad, pre_exec_gas_meter) = process_tx_result;
 
     match tx_result {
-        Err(error) => {
+        Err((error, raw_tx)) => {
             penalize_sequencer(
                 runtime,
                 pre_exec_gas_meter.gas_info().gas_value,
@@ -756,6 +779,7 @@ where
                 outcome: AuthAndProcessOutcome::Skipped {
                     error,
                     tx_hash: raw_tx_hash,
+                    tx_body: raw_tx,
                 },
                 scratchpad,
                 gas_used,

@@ -227,6 +227,7 @@ pub enum Admin<S: Spec> {
 #[derive(
     borsh::BorshDeserialize, borsh::BorshSerialize, Serialize, Deserialize, Debug, PartialEq, Clone,
 )]
+#[serde(bound = "S: Spec")]
 pub struct WarpRouteInstance<S: Spec> {
     /// The source of the token.
     pub token_source: StoredTokenKind,

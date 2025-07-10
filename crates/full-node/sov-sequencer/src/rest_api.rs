@@ -80,6 +80,10 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
         #[cfg(feature = "test-utils")]
         let router = router
             .route(
+                "/sequencer/test-utils/blobs/ws",
+                axum::routing::get(Self::subscribe_to_blobs_from_blob_sender),
+            )
+            .route(
                 "/sequencer/test-utils/force-close-batch",
                 axum::routing::post(Self::axum_force_close_batch),
             )
@@ -200,12 +204,18 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
 
         let tx_with_hash = tokio::spawn(async move { state.sequencer.accept_tx(baked_tx).await })
             .await
-            .map_err(|_| {
+            .map_err(|e| {
+                tracing::error!(error = %e, "A panic occurred while accepting a transaction");
                 sov_rest_utils::errors::internal_server_error_response_500(
                     "An internal error occurred while processing the transaction",
                 )
             })?
-            .map_err(IntoResponse::into_response)?;
+            .map_err(|e| {
+                if e.status.is_server_error() {
+                    tracing::error!(error = ?e, "Error accepting transaction");
+                }
+                IntoResponse::into_response(e)
+            })?;
 
         Ok(TxInfoWithConfirmation {
             id: tx_with_hash.tx_hash,
@@ -214,6 +224,7 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
         }
         .into())
     }
+
     async fn subscribe_to_events(
         State(state): State<Self>,
         ws: WebSocketUpgrade,
@@ -266,6 +277,26 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
         } else {
             Err(errors::not_found_404("Event", event_number))
         }
+    }
+
+    #[cfg(feature = "test-utils")]
+    async fn subscribe_to_blobs_from_blob_sender(
+        State(state): State<Self>,
+        ws: WebSocketUpgrade,
+    ) -> impl IntoResponse {
+        ws.on_upgrade(|socket| async move {
+            let stream = state
+                .sequencer
+                .subscribe_blobs_from_blob_sender()
+                .await
+                .map(|receiver| {
+                    BroadcastStream::new(receiver)
+                        .map_err(|err| anyhow::anyhow!("Error creating broadcast stream: {err}"))
+                        .boxed()
+                })
+                .unwrap_or_else(|| futures::stream::empty().boxed());
+            serve_generic_ws_subscription(socket, stream, state.shutdown_receiver.clone()).await;
+        })
     }
 
     #[cfg(feature = "test-utils")]

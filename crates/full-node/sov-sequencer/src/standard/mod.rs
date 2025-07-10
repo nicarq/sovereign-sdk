@@ -145,6 +145,7 @@ where
             TxStatusBlobSenderHooks::new(txsm.clone()),
             shutdown_sender,
             Duration::from_secs(config.blob_processing_timeout_secs),
+            None,
         )
         .await?;
 
@@ -264,6 +265,7 @@ where
             // Currently the sequencer doesn't take into account the slot gas limit.
             &<S::Gas>::MAX,
             auth_output,
+            mempool_tx.tx.clone(),
             &self.config.da_address,
             self.config.rollup_address.clone(),
             ExecutionContext::Sequencer,
@@ -275,7 +277,7 @@ where
             Err(reason) => {
                 // ...and immediately store the new `StateCheckpoint`.
                 ctx.state_checkpoint = tx_scratchpad.revert();
-                (ctx, Err(AddTxToBatchError::TxProcessing(reason)))
+                (ctx, Err(AddTxToBatchError::TxProcessing(reason.0)))
             }
             Ok(ApplyTxResult {
                 receipt,

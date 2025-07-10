@@ -362,6 +362,19 @@ pub fn runtime_metadata_rest_api(input: TokenStream) -> TokenStream {
     handle_macro_error_and_expand(fn_name!(), rest::runtime::derive(&input).map(Into::into))
 }
 
+/// Derives REST API endpoints for module state items.
+///
+/// ## Note
+/// Generation of state item endpoints can fail silently, a common cause for this is missing
+/// serde bounds for items stored in state.
+///
+/// If the stored item references the `Spec` generic you may need to add a serde bound like so:
+/// ```ignore
+/// #[serde(bound = "S: Spec")]
+/// pub struct MyState<S: Spec> {
+///   item: MyItem<S>
+/// }
+/// ```
 #[proc_macro_derive(ModuleRestApi, attributes(rest_api))]
 pub fn module_metadata_rest_api(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);

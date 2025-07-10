@@ -117,6 +117,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, 
             change_set: (),
             proof_receipts: vec![],
             batch_receipts: receipts,
+            discarded_blobs: Default::default(),
             witness: (),
             rollup_height: RollupHeight::new(0),
         }

@@ -4,7 +4,7 @@ use sov_metrics::Metric;
 use sov_modules_api::DaSpec;
 use tokio::task::JoinHandle;
 
-use crate::{BlobInternalId, BlobProcessingState};
+use crate::{BlobExecutionStatus, BlobInternalId};
 
 #[derive(Debug)]
 pub struct InFlightBlob<Da: DaSpec> {
@@ -19,7 +19,7 @@ pub struct InFlightBlobInfo<Da: DaSpec> {
     pub is_batch: bool,
     pub size_in_bytes: u64,
     pub was_resurrected: bool,
-    pub last_known_state: BlobProcessingState<Da>,
+    pub last_known_state: BlobExecutionStatus<Da>,
 }
 
 impl<Da: DaSpec> Metric for InFlightBlobInfo<Da> {

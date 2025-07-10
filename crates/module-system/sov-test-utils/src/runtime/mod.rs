@@ -114,6 +114,8 @@ impl RelevantBlobInfo {
 /// Defines a slot receipt. A slot receipt is a list of [`BatchReceipt`]s and a block header.
 pub struct SlotReceipt<S: Spec> {
     #[allow(missing_docs)]
+    pub discarded_blobs: Vec<HexHash>,
+    #[allow(missing_docs)]
     pub batch_receipts: Vec<BatchReceipt<S>>,
     #[allow(missing_docs, clippy::type_complexity)]
     pub proof_receipts: Vec<
@@ -707,6 +709,7 @@ where
         self.synchronize_storage_channel();
         self.state_root = output.state_root.clone();
         self.slot_receipts.push(SlotReceipt {
+            discarded_blobs: output.discarded_blobs.clone(),
             batch_receipts: output.batch_receipts.clone(),
             proof_receipts: output.proof_receipts.clone(),
             state_root: output.state_root,
@@ -856,11 +859,14 @@ where
 fn split_apply_slot_output<S: Spec, RT: Runtime<S>>(
     mut result: TestApplySlotOutput<RT, S>,
 ) -> (TestApplySlotOutput<RT, S>, SlotReceipt<S>) {
+    let original_discarded_blobs = std::mem::take(&mut result.discarded_blobs.clone());
     let original_batch_receipts = std::mem::take(&mut result.batch_receipts);
-    let original_proof_receipts = std::mem::take(&mut result.proof_receipts);
+    let original_proof_receipts = std::mem::take(&mut result.proof_receipts.clone());
+    result.discarded_blobs = original_discarded_blobs.clone();
     result.batch_receipts = original_batch_receipts.clone();
     result.proof_receipts = original_proof_receipts.clone();
     let slot_receipt = SlotReceipt {
+        discarded_blobs: original_discarded_blobs,
         batch_receipts: original_batch_receipts,
         proof_receipts: original_proof_receipts,
         state_root: result.state_root.clone(),

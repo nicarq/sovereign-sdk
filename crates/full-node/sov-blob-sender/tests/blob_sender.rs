@@ -2,7 +2,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use sov_blob_sender::{BlobInternalId, BlobSender, BlobSenderHooks, FinalizationManager};
+use sov_blob_sender::{
+    BlobInternalId, BlobSelectorStatus, BlobSender, BlobSenderHooks, FinalizationManager,
+};
 use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{MockAddress, MockDaSpec};
@@ -56,25 +58,27 @@ impl<Da> FinalizationManager for TestFinalizationManager<Da>
 where
     Da: DaService<Error = anyhow::Error>,
 {
-    async fn is_blob_finalized(
+    async fn blob_finalized_or_discarded(
         &self,
         _blob_hash: HexHash,
         blob_id: BlobInternalId,
-    ) -> anyhow::Result<Option<bool>> {
+    ) -> anyhow::Result<Option<(bool, BlobSelectorStatus)>> {
         let last_finalized_block_number = self.da.get_last_finalized_block_number().await?;
 
         let is_finalized = self
             .is_blob_posted_on_da(blob_id, self.start_da_height, last_finalized_block_number)
             .await?;
 
-        match is_finalized {
-            Some(_) => Ok(is_finalized),
+        let finalized = match is_finalized {
+            Some(_) => is_finalized,
             None => {
                 let header = self.da.get_head_block_header().await?;
                 self.is_blob_posted_on_da(blob_id, last_finalized_block_number + 1, header.height())
-                    .await
+                    .await?
             }
-        }
+        };
+
+        Ok(finalized.map(|f| (f, BlobSelectorStatus::Accepted)))
     }
 }
 
@@ -260,6 +264,7 @@ async fn create_blob_sender(
         hooks,
         shutdown_sender,
         blob_processing_timeout,
+        None,
         Duration::from_millis(1000),
     )
     .await

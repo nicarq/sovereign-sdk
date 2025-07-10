@@ -2,52 +2,13 @@ use sov_bank::{config_gas_token_id, Amount, Bank};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{BlobReaderTrait, Gas, GasArray, GasSpec, Rewards};
 use sov_rollup_interface::da::RelevantBlobs;
-use sov_test_utils::runtime::genesis::operator::HighLevelOperatorGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::{
-    generate_operator_runtime, TestAddress, TestSequencer, TestUser, TEST_DEFAULT_USER_BALANCE,
+use sov_test_utils::{TestAddress, TestUser, TEST_DEFAULT_USER_BALANCE};
+
+use crate::stf_blueprint::operator::operator_rt::{setup, IntegTestRuntime};
+use crate::stf_blueprint::{
+    create_blob, do_check_txs, get_seq_bond, PriorityFeeBips, TxStatus, TxsCheckResult, S,
 };
-use sov_value_setter::ValueSetter;
-
-use crate::stf_blueprint::helpers::create_blob;
-use crate::stf_blueprint::{do_check_txs, get_seq_bond, PriorityFeeBips, TxStatus, TxsCheckResult};
-
-generate_operator_runtime!(IntegTestRuntime <= value_setter: ValueSetter<S>);
-
-type S = sov_test_utils::TestSpec;
-
-#[allow(clippy::type_complexity)]
-fn setup(
-    reward_user: TestUser<S>,
-    nb_of_users: usize,
-) -> (
-    TestRunner<IntegTestRuntime<S>, S>,
-    Vec<TestUser<S>>,
-    TestSequencer<S>,
-) {
-    let genesis_config = HighLevelOperatorGenesisConfig::<S>::generate_with_additional_accounts(
-        nb_of_users,
-        reward_user,
-    );
-
-    let admin = genesis_config.additional_accounts()[0].address();
-
-    let genesis = GenesisConfig::from_minimal_config(
-        genesis_config.clone().into(),
-        sov_value_setter::ValueSetterConfig { admin },
-    );
-
-    let runner: TestRunner<IntegTestRuntime<S>, S> =
-        TestRunner::new_with_genesis(genesis.into_genesis_params(), Default::default());
-
-    let sequencer_account = genesis_config.initial_sequencer.clone();
-
-    (
-        runner,
-        genesis_config.additional_accounts().clone(),
-        sequencer_account,
-    )
-}
 
 fn check_txs(tx_statuses: Vec<TxStatus>) {
     let priority_fee_bips = PriorityFeeBips::from_percentage(0);
@@ -64,7 +25,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>) {
 
     let start_reward_address_balance = get_balance(reward_address, &runner).unwrap();
 
-    let mock_blob = create_blob(
+    let mock_blob = create_blob::<IntegTestRuntime<S>>(
         &tx_statuses,
         priority_fee_bips,
         admin_account,

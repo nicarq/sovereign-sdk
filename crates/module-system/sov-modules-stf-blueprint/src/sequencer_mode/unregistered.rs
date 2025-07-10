@@ -17,6 +17,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
     mut pre_exec_working_set: PreExecWorkingSet<S, StateCheckpoint<S>>,
     slot_gas: &S::Gas,
     validated_output: AuthTxOutput<S, R>,
+    raw_tx: FullyBakedTx,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
@@ -114,7 +115,8 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
     }
 
     // If the transaction is valid, execute it and apply the changes to the state.
-    let (apply_tx, mut scratchpad) = apply_tx(runtime, &ctx, tx, raw_tx_hash, message, working_set);
+    let (apply_tx, mut scratchpad) =
+        apply_tx(runtime, &ctx, tx, raw_tx_hash, raw_tx, message, working_set);
 
     let transaction_consumption = &apply_tx.transaction_consumption;
 
@@ -255,7 +257,7 @@ where
 
                     return (
                         early_return_batch_receipt(
-                            vec![create_tx_receipt(skipped, tx_hash)],
+                            vec![create_tx_receipt(skipped, tx_hash, batch.tx.data.clone())],
                             Vec::new(),
                             gas_used,
                         ),
@@ -290,6 +292,7 @@ where
         pre_exec_working_set,
         slot_gas,
         validated_output,
+        batch.tx.clone(),
         sequencer_da_address,
     );
 
@@ -309,7 +312,7 @@ where
                 gas_used: gas_used.clone(),
             };
 
-            let tx_receipt = create_tx_receipt(skipped, raw_tx_hash);
+            let tx_receipt = create_tx_receipt(skipped, raw_tx_hash, batch.tx.data.clone());
             tx_receipts.push(tx_receipt);
         }
         Ok(ApplyTxResult {

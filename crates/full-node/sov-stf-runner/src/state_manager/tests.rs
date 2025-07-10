@@ -76,6 +76,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, 
                 ignored_tx_receipts: vec![],
                 inner: (),
             }],
+            discarded_blobs: Default::default(),
             witness: (),
             rollup_height: RollupHeight::new(0),
         }
@@ -312,7 +313,7 @@ async fn test_save_last_finalized_larger_than_seen_latest_seen_transition() -> a
     )
     .await;
 
-    let slot_commit: MockSlotCommit = SlotCommit::new(filtered_block);
+    let slot_commit: MockSlotCommit = SlotCommit::new(filtered_block, Default::default());
     state_manager
         .process_stf_changes(
             &da_service,
@@ -430,7 +431,8 @@ async fn test_progressing_with_shuffle(
         )
         .await;
 
-        let slot_commit: MockSlotCommit = SlotCommit::new(returned_block.clone());
+        let slot_commit: MockSlotCommit =
+            SlotCommit::new(returned_block.clone(), Default::default());
 
         let state_root_hash = transition_witness.final_state_root;
         state_manager
@@ -640,7 +642,8 @@ async fn test_with_frequent_periodic_batch_production() -> anyhow::Result<()> {
         )
         .await;
 
-        let slot_commit: MockSlotCommit = SlotCommit::new(returned_block.clone());
+        let slot_commit: MockSlotCommit =
+            SlotCommit::new(returned_block.clone(), Default::default());
 
         let state_root_hash = transition_witness.final_state_root;
         state_manager
@@ -736,7 +739,8 @@ async fn test_chain_progress_between_prepare_storage_and_save_changes(
         )
         .await;
 
-        let slot_commit: MockSlotCommit = SlotCommit::new(returned_block.clone());
+        let slot_commit: MockSlotCommit =
+            SlotCommit::new(returned_block.clone(), Default::default());
 
         let state_root_hash = transition_witness.final_state_root;
         state_manager
@@ -1000,7 +1004,7 @@ async fn setup_storage_manager(
     );
 
     let data_to_commit: SlotCommit<_, TestBatchReceiptContents, TestTxReceiptContents> =
-        SlotCommit::new(genesis_block);
+        SlotCommit::new(genesis_block, Default::default());
     let mut ledger_change_set = ledger_db.materialize_slot(data_to_commit, state_root.as_ref())?;
     let finalized_slot_changes =
         ledger_db.materialize_latest_finalize_slot(SlotNumber::GENESIS, SlotNumber::GENESIS)?;
@@ -1121,7 +1125,7 @@ async fn process_continuous_transition(
     )
     .await;
 
-    let slot_commit: MockSlotCommit = SlotCommit::new(filtered_block);
+    let slot_commit: MockSlotCommit = SlotCommit::new(filtered_block, Default::default());
     state_manager
         .process_stf_changes(
             da_service,

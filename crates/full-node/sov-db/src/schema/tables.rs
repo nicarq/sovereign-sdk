@@ -40,6 +40,7 @@ use super::types::{
     LatestFinalizedSlotSingleton, ProofUniqueId, StateRootHashId, StfInfoUniqueId, StoredBatch,
     StoredSlot, StoredStfInfo, StoredTransaction, TxNumber,
 };
+use crate::schema::types::StoredDiscardedBlob;
 
 /* Other tables used by the Rollup */
 
@@ -49,6 +50,7 @@ pub const LEDGER_TABLES: &[ColumnFamilyName] = &[
     SlotByNumber::table_name(),
     SlotByHash::table_name(),
     BatchByHash::table_name(),
+    DiscardedBlobByHash::table_name(),
     BatchByNumber::table_name(),
     TxByHash::table_name(),
     TxByNumber::table_name(),
@@ -232,6 +234,11 @@ define_table_with_default_codec!(
 define_table_with_seek_key_codec!(
     /// The primary source for batch data
     (BatchByNumber) BatchNumber => StoredBatch
+);
+
+define_table_with_seek_key_codec!(
+    /// The primary source for discarded blobs
+    (DiscardedBlobByHash) DbHash => StoredDiscardedBlob
 );
 
 define_table_with_default_codec!(

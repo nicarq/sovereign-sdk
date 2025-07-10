@@ -10,7 +10,6 @@ mod replica_sync_task;
 mod side_effects;
 mod state_root_compute;
 mod update_state;
-
 use std::boxed::Box;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
@@ -35,7 +34,7 @@ use replica_sync_task::spawn_replica_sync_task;
 use schemars::JsonSchema;
 use serde_with::serde_as;
 use side_effects::SideEffectsTask;
-use sov_blob_sender::{new_blob_id, BlobInternalId, BlobSender};
+use sov_blob_sender::{new_blob_id, BlobExecutionStatus, BlobInternalId, BlobSender};
 use sov_blob_storage::{PreferredBatchData, SequenceNumber};
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::{BlobSelector, RollupHeight, TransactionAuthenticator};
@@ -84,6 +83,12 @@ type VisibleSlotNumberIncrease = NonZero<u8>;
 /// the sequencer will close and publish the current batch.
 const COMFORTABLE_GAS_LIMIT_MULTIPLIER: u64 = 19;
 const COMFORTABLE_GAS_LIMIT_DIVISOR: u64 = 20;
+
+/// These two constants are used to calculate the comfortable batch size limit.
+/// Currently, this is 99% of the hard limit. After the comfortable limit is reached,
+/// the sequencer will close and publish the current batch.
+const COMFORTABLE_SIZE_LIMIT_MULTIPLIER: u64 = 99;
+const COMFORTABLE_SIZE_LIMIT_DIVISOR: u64 = 100;
 
 // Big infodump for the user that wouldmake the code hard to read if it were inline.
 const RECOVERY_ERROR_MESSAGE_ON_NONE_STRATEGY: &str = "The preferred sequencer is too far behind, and the visible slot number has lagged more than the allowed deferred slots count. This means some non-preferred batches may have been included by the node, if there were any. If this happened, already provided soft confirmations may now no longer be valid. Because the recovery_strategy config was set to None, we are not attempting recovery at this point. You should either: a) delete everything from the preferred_sequencer database (thus annulling all currently pending soft confirmations), which will allow you to restart the sequencer fresh; or b) set the recovery_strategy config value to TryToSave, in which case all pending batches will be flushed to be executed on a best-effort basis. The latter may save some soft-confirmations if they have not been invalidated yet. However, IF a non-preferred batch has been included, AND some soft-confirmations have been invalidated by it, this will cause the sequencer to be penalised for every invalid batch; ensure your sequencer bond is sufficient to cover any penalties to be able to continue operating uninterrupted.";
@@ -450,6 +455,7 @@ where
     tx_status_manager: TxStatusManager<S::Da>,
     events_sender: broadcast::Sender<SequencerEvent<Rt>>,
     transactions_sender: broadcast::Sender<AcceptedTx<Confirmation<S, Rt>>>,
+    blobs_sender_channel: broadcast::Sender<BlobExecutionStatus<Da::Spec>>,
     api_state: ApiState<S>,
     da_sync_state: Arc<DaSyncState>,
     _runtime: PhantomData<(Rt, Da)>,
@@ -534,15 +540,16 @@ where
             .postgres_connection_string
             .is_none();
 
+        let node_id = Uuid::now_v7();
+
         let (block_executors_shutdown_notifier, block_executors_shutdown_rx) = mpsc::channel(1);
         let (events_sender, _) =
             broadcast::channel(config.sequencer_kind_config.events_channel_size);
-
+        // These channels are available for testing purposes only.
         let (transactions_sender, _) =
             broadcast::channel(config.sequencer_kind_config.events_channel_size);
-
-        // Generate node ID early so it can be used for database backend creation
-        let node_id = Uuid::now_v7();
+        let (blobs_sender_channel, _) =
+            broadcast::channel(config.sequencer_kind_config.events_channel_size);
 
         let db_backend: Box<dyn PreferredSequencerDbBackend> =
             if let Some(postgres_connection_string) =
@@ -570,6 +577,7 @@ where
                 TxStatusBlobSenderHooks::new(tx_status_manager.clone()),
                 shutdown_sender.clone(),
                 Duration::from_secs(config.blob_processing_timeout_secs),
+                Some(blobs_sender_channel.clone()),
             )
             .await?;
 
@@ -652,6 +660,7 @@ where
             tx_status_manager: tx_status_manager.clone(),
             events_sender,
             transactions_sender,
+            blobs_sender_channel,
             da_sync_state,
             api_state,
             _runtime: PhantomData,
@@ -797,6 +806,12 @@ where
                 next_sequence_number_according_to_node,
             })
             .await;
+
+        let executor_from_info = self.create_new_executor_for_replay(info);
+        inner
+            .force_overwrite_state(info.clone(), executor_from_info)
+            .await;
+
         info!(?info, current_visible_slot_number = %self.current_visible_slot_number_according_to_node(info), "Beginning sequencer recovery");
     }
 
@@ -876,9 +891,9 @@ where
                 }
                 let mut inner = self.lock_inner().await;
                 if i % 10 == 0 {
-                    tracing::info!("Sending {i}th catchup batch");
+                    tracing::info!(number = %i, min = %min_batches_to_send, max = %max_batches_to_send, "Sending catchup batch");
                 } else {
-                    tracing::debug!("Sending {i}th catchup batch");
+                    tracing::debug!(number = %i, min = %min_batches_to_send, max = %max_batches_to_send, "Sending catchup batch");
                 }
                 // We don't run force_overwrite_state() here.
                 // This is mostly fine, mainly the API state will be out of date until we've
@@ -1129,6 +1144,21 @@ where
             inner.close_current_batch().await;
         } else {
             tracing::trace!(%batch_execution_time_limit_micros, %current_batch_execution_time_micros, "Batch execution time is within comfortable range, not closing batch");
+        }
+
+        let comfortable_size_limit = (inner.batch_size_tracker.max_batch_size as u64)
+            .checked_div(COMFORTABLE_SIZE_LIMIT_DIVISOR)
+            .and_then(|x| x.checked_mul(COMFORTABLE_SIZE_LIMIT_MULTIPLIER))
+            .unwrap_or_else(|| {
+                panic!(
+                    "Cannot overflow after dividing by {COMFORTABLE_SIZE_LIMIT_DIVISOR} and multiplying by {COMFORTABLE_SIZE_LIMIT_MULTIPLIER}",
+                )
+            });
+        if (inner.batch_size_tracker.current_batch_size as u64) > comfortable_size_limit {
+            tracing::debug!(%comfortable_size_limit, current_batch_size = %inner.batch_size_tracker.current_batch_size, "Closing and publishing current batch because we're close to the size limit");
+            inner.close_current_batch().await;
+        } else {
+            tracing::trace!(%comfortable_size_limit, current_batch_size = %inner.batch_size_tracker.current_batch_size, "Batch size is within comfortable range, not closing batch");
         }
     }
 
@@ -1424,6 +1454,12 @@ where
         &self,
     ) -> Option<broadcast::Receiver<AcceptedTx<Self::Confirmation>>> {
         Some(self.transactions_sender.subscribe())
+    }
+
+    async fn subscribe_blobs_from_blob_sender(
+        &self,
+    ) -> Option<broadcast::Receiver<BlobExecutionStatus<<Self::Da as DaService>::Spec>>> {
+        Some(self.blobs_sender_channel.subscribe())
     }
 
     async fn update_state(

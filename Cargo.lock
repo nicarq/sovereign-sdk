@@ -11716,6 +11716,7 @@ dependencies = [
  "sov-api-spec",
  "sov-attester-incentives",
  "sov-bank",
+ "sov-blob-sender",
  "sov-blob-storage",
  "sov-capabilities",
  "sov-chain-state",

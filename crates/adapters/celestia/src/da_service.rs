@@ -54,11 +54,8 @@ impl CelestiaService {
         rollup_proof_namespace: Namespace,
         signer_address: CelestiaAddress,
         safe_lead_time: Duration,
+        backoff_policy: ExponentialBuilder,
     ) -> Self {
-        // NOTE: Current exponential backoff policy defaults:
-        // jitter: false, factor: 2, min_delay: 1s, max_delay: 60s, max_times: 3,
-        let backoff_policy = ExponentialBuilder::default();
-
         Self {
             submit_client: Arc::new(Mutex::new(client.clone())),
             read_client: Arc::new(client),
@@ -147,10 +144,19 @@ impl CelestiaService {
         }
         .expect("Client initialization is valid");
 
-        let fetched_address = client
-            .state_account_address()
-            .await
-            .expect("Failed to query state.AccountAddress to retrieve signer address");
+        let backoff_policy = config.get_backoff_policy();
+        let fetched_address = run_maybe_retryable_async_fn_with_retries(
+            &backoff_policy,
+            || async {
+                client
+                    .state_account_address()
+                    .await
+                    .map_err(into_transient_with_context)
+            },
+            "state_account_address",
+        )
+        .await
+        .expect("Failed to query state.AccountAddress to retrieve signer address");
 
         let fetched_signer = match fetched_address {
             Address::AccAddress(acc) => CelestiaAddress(acc),
@@ -177,6 +183,7 @@ impl CelestiaService {
             chain_params.rollup_proof_namespace,
             fetched_signer,
             Duration::from_millis(config.safe_lead_time_ms),
+            backoff_policy,
         )
     }
 }
@@ -554,14 +561,9 @@ mod tests {
         let timeout_sec = timeout_sec
             .map(|t| NonZero::new(t).unwrap())
             .unwrap_or_else(default_request_timeout_seconds);
-        let config = CelestiaConfig {
-            celestia_rpc_auth_token: "RPC_TOKEN".to_string(),
-            celestia_rpc_address: mock_server.uri(),
-            max_celestia_response_body_size: NonZero::new(120_000).unwrap(),
-            celestia_rpc_timeout_seconds: timeout_sec,
-            safe_lead_time_ms: 0,
-            signer_address: Some(address),
-        };
+        let mut config = CelestiaConfig::dev_config(&mock_server.uri());
+        config.signer_address = Some(address);
+        config.celestia_rpc_timeout_seconds = timeout_sec;
 
         let da_service = CelestiaService::new(config.clone(), params).await;
 

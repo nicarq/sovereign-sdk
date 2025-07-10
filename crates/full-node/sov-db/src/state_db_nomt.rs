@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 
 use anyhow::Context;
 use nomt::hasher::BinaryHasher;
-use nomt::{Nomt, SessionParams, WitnessMode};
+use nomt::{Nomt, Overlay, SessionParams, WitnessMode};
 use sov_rollup_interface::reexports::digest;
 
 use super::commit_flag::{CommitFlag, CommitStatus};
@@ -12,6 +12,9 @@ use crate::metrics::nomt::{NomtBeginSessionMetric, NomtDbMetric};
 
 const KERNEL: &str = "kernel_state";
 const USER: &str = "user_state";
+
+const COMMIT_START_DELAY: std::time::Duration = std::time::Duration::from_millis(1);
+const COMMIT_RETRY_ATTEMPTS: usize = 15;
 
 /// Contains all the most recent rollup data.
 pub struct NomtStateDb<H> {
@@ -87,9 +90,8 @@ impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> NomtSta
         debug_assert_eq!(self.commit_flag.read_status()?, CommitStatus::Completed);
 
         let in_progress_commit_status = CommitStatus::InProgress(kernel.root().into_inner());
-        kernel
-            .commit(&self.kernel)
-            .context("kernel namespace commit")?;
+
+        try_commit_overlay_with_backoff(&self.kernel, kernel).context("kernel namespace commit")?;
         // If the kernel commit fails, the flag is untouched, meaning DB remains synced on previous state.
         // Write IN-PROGRESS status after kernel committed successfully.
 
@@ -125,8 +127,7 @@ impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> NomtSta
 
         debug_assert_eq!(self.commit_flag.read_status()?, in_progress_commit_status);
 
-        user.commit(&self.user)
-            .context("user namespace commit failed")?;
+        try_commit_overlay_with_backoff(&self.user, user).context("user namespace commit")?;
         self.commit_flag
             .write_status(CommitStatus::Completed)
             .with_context(|| {
@@ -201,10 +202,10 @@ impl StateRootHashes {
     }
 }
 
-/// Combination of [`nomt::Overlay`] for user and kernel namespaces.
+/// Combination of [`Overlay`] for user and kernel namespaces.
 pub(crate) struct StateOverlay {
-    pub(crate) user: nomt::Overlay,
-    pub(crate) kernel: nomt::Overlay,
+    pub(crate) user: Overlay,
+    pub(crate) kernel: Overlay,
 }
 
 /// Container of all necessary information to build a [`nomt::Session`] for a given namespace.
@@ -335,6 +336,51 @@ where
     }
 }
 
+/// An attempt to commit an overlay to the given `nomt` instance.
+///
+/// This function will retry the commit with an exponential backoff if it fails
+/// due to contention.
+/// This is necessary because another thread might be holding a lock on the NOMT.
+/// The function will attempt to commit a total of [`COMMIT_RETRY_ATTEMPTS`] times before giving up and returning an error.
+fn try_commit_overlay_with_backoff<H>(
+    nomt: &Nomt<BinaryHasher<H>>,
+    mut overlay: Overlay,
+) -> anyhow::Result<()>
+where
+    H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync,
+{
+    let mut start_wait = COMMIT_START_DELAY;
+    for attempt in 0..COMMIT_RETRY_ATTEMPTS {
+        match overlay.try_commit_nonblocking(nomt)? {
+            None => {
+                tracing::trace!(attempts = %attempt, "Commit completed");
+                return Ok(());
+            }
+            Some(returned) => {
+                match attempt {
+                    n if n > 20 => {
+                        tracing::warn!(%attempt, wait_time = ?start_wait, "Failed to commit overlay, retrying...");
+                    }
+                    n if n > 10 => {
+                        tracing::info!(%attempt, wait_time = ?start_wait, "Failed to commit overlay, retrying...");
+                    }
+                    _ => {
+                        tracing::debug!(%attempt, wait_time = ?start_wait, "Failed to commit overlay, retrying...");
+                    }
+                };
+                overlay = returned;
+                std::thread::sleep(start_wait);
+                start_wait *= 2;
+            }
+        }
+    }
+
+    anyhow::bail!(
+        "Failed to commit overlay after {} attempts",
+        COMMIT_RETRY_ATTEMPTS
+    );
+}
+
 /// Begin a new user and kernel session with only data that has been written to disk
 #[cfg(feature = "test-utils")]
 pub fn get_session_builder_from_committed<H, K>(
@@ -357,9 +403,9 @@ mod tests {
     use crate::storage_manager::StateFinishedSession;
     use crate::test_utils::H;
 
-    fn from_key(key: u64) -> (nomt::trie::KeyPath, Option<Vec<u8>>) {
+    fn from_key(key: u64) -> (KeyPath, Option<Vec<u8>>) {
         let raw_data = key.to_be_bytes();
-        let key_path: nomt::trie::KeyPath = H::digest(raw_data).into();
+        let key_path: KeyPath = H::digest(raw_data).into();
         (key_path, Some(raw_data.to_vec()))
     }
 
@@ -557,5 +603,60 @@ mod tests {
         let kernel_value = kernel_session.read(kernel_key_path).unwrap();
         assert_eq!(user_value, Some(value_2.clone()));
         assert_eq!(user_value, kernel_value);
+    }
+
+    #[test]
+    fn test_commit_with_live_user_session_will_eventually_fail() {
+        commit_with_live_session_will_eventually_fail(true);
+    }
+
+    #[test]
+    fn test_commit_with_live_kernel_session_will_eventually_fail() {
+        commit_with_live_session_will_eventually_fail(false);
+    }
+
+    fn commit_with_live_session_will_eventually_fail(is_user_session: bool) {
+        // Setup
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config = RollupDbConfig::default_in_path(temp_dir.path().to_path_buf());
+        let state_db = Arc::new(NomtStateDb::<H>::new(config).unwrap());
+
+        let all_overlays: HashMap<u64, StateOverlay> = HashMap::new();
+        let all_overlays = Arc::new(RwLock::new(all_overlays));
+        let builder =
+            NomtSessionBuilder::<H, u64>::new(state_db.clone(), Vec::new(), all_overlays.clone());
+        let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel();
+
+        // Starting background live session, until shutdown signal is sent
+        let background_session = if is_user_session {
+            builder.begin_user_session().unwrap()
+        } else {
+            builder.begin_kernel_session().unwrap()
+        };
+        let thread_handle = std::thread::spawn(move || {
+            let _root = background_session.prev_root();
+            shutdown_rx.recv().unwrap();
+        });
+
+        // Building some changes
+        let user_session = builder.begin_user_session().unwrap();
+        let kernel_session = builder.begin_kernel_session().unwrap();
+
+        let key = b"test_key".to_vec();
+        let key_path: KeyPath = H::digest(&key).into();
+        let value = b"test_value".to_vec();
+        let writes = vec![(key_path, nomt::KeyReadWrite::Write(Some(value)))];
+
+        let finished_user = user_session.finish(writes.clone()).unwrap();
+        let finished_kernel = kernel_session.finish(writes).unwrap();
+
+        let overlay =
+            StateFinishedSession::new(finished_user, finished_kernel).into_state_overlay();
+
+        // Trying to commit
+        assert!(state_db.commit(overlay).is_err());
+
+        shutdown_tx.send(()).unwrap();
+        thread_handle.join().unwrap();
     }
 }

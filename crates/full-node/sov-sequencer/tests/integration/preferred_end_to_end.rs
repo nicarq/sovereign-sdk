@@ -493,8 +493,10 @@ async fn sequencer_filled_up_block() {
     }
 }
 
+const SEQUENCER_RECOVERY_ERROR: &str = "The preferred sequencer is recovering from downtime and cannot provide soft-confirmations at this time";
+
 #[tokio::test(flavor = "multi_thread")]
-async fn flaky_seq_behind_deferred_slots_count() {
+async fn flaky_seq_behind_deferred_slots_count_simple_lagging() {
     std::env::set_var("SOV_TEST_CONST_OVERRIDE_DEFERRED_SLOTS_COUNT", "40");
     let (test_rollup, admin) = create_test_rollup(
         0,
@@ -544,6 +546,8 @@ async fn flaky_seq_behind_deferred_slots_count() {
     tracing::info!(
         "Producing subsequent DA blocks while sequencer is paused, to exceet deferred_slots_count"
     );
+    // This can be lower than DEFERRED_SLOTS_COUNT because the sequencer takes into account a)
+    // possible node lag and b) a 90% threshold.
     for _ in 0..30 {
         let _ = da_layer.produce_block().await; // Don't wait for state updates since we've just paused them
     }
@@ -567,16 +571,17 @@ async fn flaky_seq_behind_deferred_slots_count() {
     const UPDATE_VEC_VALUE: u8 = 12;
     let tx_update_vec = tx_set_many_values(&admin.private_key, 2, vec![UPDATE_VEC_VALUE]);
     tracing::info!("Trying to send transaction during recovery - expecing rejection");
-    client
+    let err = client
         .accept_tx(&api_types::AcceptTxBody {
             body: BASE64_STANDARD.encode(&tx_update_vec),
         })
         .await
         .unwrap_err();
+    assert!(err.to_string().contains(SEQUENCER_RECOVERY_ERROR));
 
     // Give time for the sequencer to catch up its visible state number
     tracing::info!("Producing DA blocks to let the sequencer resync.");
-    for _ in 0..30 {
+    for _ in 0..10 {
         let _ = da_layer.produce_block().await;
         sleep(Duration::from_millis(100)).await; // Notifications don't work during recovery.
     }
@@ -615,6 +620,148 @@ async fn flaky_seq_behind_deferred_slots_count() {
 
     // Assert that the transaction sent after the sequencer exited recovery was processed (i.e.
     // that the rollup is now functional)
+    #[derive(Debug, serde::Deserialize)]
+    struct IdxResponse {
+        #[allow(unused)]
+        index: u64,
+        value: Option<u8>,
+    }
+    let many_values_response = test_rollup
+        .client
+        .query_rest_endpoint::<ResponseObject<IdxResponse>>(
+            "/modules/value-setter/state/many-values/items/0",
+        )
+        .await
+        .unwrap();
+    let actual_many_value = many_values_response.data.unwrap().value.unwrap();
+    assert_eq!(
+        actual_many_value, 12u8,
+        "Expected many_values[0] to be 12, but got {actual_many_value}"
+    );
+
+    tracing::info!("All asserts successful, shutting down rollup");
+    test_rollup.shutdown().await.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn seq_behind_deferred_slots_count_with_shutdown() {
+    std::env::set_var("SOV_TEST_CONST_OVERRIDE_DEFERRED_SLOTS_COUNT", "40");
+    let (test_rollup, admin) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
+    )
+    .await;
+    let Some(test_rollup) = test_rollup else {
+        return;
+    };
+    let client = test_rollup.api_client.clone();
+    // Sleep for the rollup to start up
+    sleep(Duration::from_millis(500)).await;
+
+    // Finalise some blocks
+    let mut da_layer = DaLayerWithSubscription::new(&test_rollup).await;
+    da_layer.produce_and_wait_for_n_slots(8).await;
+
+    // Sanity check tx that the rollup works
+    let tx_update_one = tx_set_value(&admin.private_key, 0, 8);
+    client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx_update_one),
+        })
+        .await
+        .unwrap();
+
+    tracing::info!("Producing DA blocks for inclusion sanity check tx inclusion");
+    da_layer.produce_and_wait_for_n_slots(10).await;
+
+    // Send a transaction that will be queued while rollup is shut down
+    const UPDATE_TWO_VALUE: u64 = 19;
+    let tx_update_two = tx_set_value(&admin.private_key, 0, UPDATE_TWO_VALUE);
+    client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx_update_two),
+        })
+        .await
+        .unwrap();
+
+    // Keep a reference to the DA service before shutting down
+    let da_service = test_rollup.da_service.clone();
+
+    // Shutdown the rollup while preserving the DA layer
+    tracing::info!("Shutting down rollup to test restart behavior");
+    let builder = test_rollup.shutdown().await.unwrap();
+
+    tracing::info!("Producing DA blocks while rollup is shut down, to exceed deferred_slots_count");
+    // This can be lower than DEFERRED_SLOTS_COUNT because the sequencer takes into account a)
+    // possible node lag and b) a 90% threshold.
+    da_service.produce_n_blocks_now(30).await.unwrap();
+
+    // Restart the rollup
+    tracing::info!("Restarting rollup after exceeding deferred_slots_count");
+    let test_rollup = builder.start().await.unwrap();
+    let client = test_rollup.api_client.clone();
+
+    // Give the rollup time to process the backlog and enter recovery mode
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    // Produce a few more blocks to trigger recovery detection
+    for _ in 0..3 {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        sleep(Duration::from_millis(500)).await;
+    }
+
+    // Create transaction that should fail: sequencer should not accept transactions while in recovery
+    const UPDATE_VEC_VALUE: u8 = 12;
+    let tx_update_vec = tx_set_many_values(&admin.private_key, 2, vec![UPDATE_VEC_VALUE]);
+    tracing::info!("Trying to send transaction during recovery - expecting rejection");
+    let err = client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx_update_vec),
+        })
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains(SEQUENCER_RECOVERY_ERROR));
+
+    // Give time for the sequencer to catch up its visible state number
+    tracing::info!("Producing DA blocks to let the sequencer resync.");
+    for _ in 0..10 {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        sleep(Duration::from_millis(50)).await;
+    }
+
+    // Submit the same transaction to the now-working sequencer
+    client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx_update_vec),
+        })
+        .await
+        .unwrap();
+
+    tracing::info!("Producing final run of blocks to include the last tx and confirm the rollup is running normally");
+    for _ in 0..10 {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        sleep(Duration::from_millis(50)).await;
+    }
+
+    // Assert that the earlier transaction sent before shutdown was processed
+    #[derive(Debug, serde::Deserialize)]
+    struct ValueResponse {
+        value: u32,
+    }
+    let response = test_rollup
+        .client
+        .query_rest_endpoint::<ResponseObject<ValueResponse>>("/modules/value-setter/state/value")
+        .await
+        .unwrap();
+    let actual_value = response.data.unwrap().value;
+    assert_eq!(
+        actual_value, UPDATE_TWO_VALUE as u32,
+        "Expected value to be {UPDATE_TWO_VALUE}, but got {actual_value}"
+    );
+
+    // Assert that the transaction sent after recovery was processed
     #[derive(Debug, serde::Deserialize)]
     struct IdxResponse {
         #[allow(unused)]

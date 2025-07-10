@@ -22,6 +22,9 @@ pub struct RunnerConfig {
     pub http_config: HttpServerConfig,
     /// How many concurrent tasks to get block from DA service
     pub concurrent_sync_tasks: Option<u8>,
+    /// Whether to save transaction bodies to the database.
+    #[serde(default)]
+    pub save_tx_bodies: bool,
 }
 
 impl RunnerConfig {

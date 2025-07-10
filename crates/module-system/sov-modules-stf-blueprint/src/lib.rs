@@ -463,7 +463,7 @@ where
         );
 
         tracing::trace!("Selecting blobs");
-        let (blob_selector_output, _discarded_blobs) = self.select_and_validate_blobs(
+        let (blob_selector_output, discarded_blobs) = self.select_and_validate_blobs(
             &mut runtime,
             relevant_blobs,
             &mut kernel_with_partially_stale_heights,
@@ -586,6 +586,7 @@ where
             change_set,
             proof_receipts,
             batch_receipts,
+            discarded_blobs,
             witness,
             rollup_height,
         }

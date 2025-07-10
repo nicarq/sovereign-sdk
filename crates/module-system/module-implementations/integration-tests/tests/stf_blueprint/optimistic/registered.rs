@@ -8,11 +8,12 @@ use sov_modules_api::{
 };
 use sov_rollup_interface::da::RelevantBlobs;
 
-use super::helpers::*;
-use super::TxStatus;
-use crate::stf_blueprint::{create_tx_valid, do_check_txs, setup, TxsCheckResult};
-
-type S = sov_test_utils::TestSpec;
+use super::optimistic_rt::helpers::*;
+use crate::stf_blueprint::optimistic::optimistic_rt::{setup, IntegTestRuntime};
+use crate::stf_blueprint::{
+    create_blob, create_tx_valid, create_txs, do_check_txs, encode, encode_message, TxStatus,
+    TxsCheckResult, S,
+};
 
 fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
     let (mut runner, users, sequencer_account) = setup(2);
@@ -27,7 +28,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
 
     let txs_len = tx_statuses.len();
 
-    let mock_blob = create_blob(
+    let mock_blob = create_blob::<IntegTestRuntime<S>>(
         &tx_statuses,
         priority_fee_bips,
         &actors.admin_account,
@@ -182,7 +183,7 @@ fn non_existing_seq_da_tests() {
 
     let bad_da_address: [u8; 32] = [33u8; 32];
 
-    let mock_blob = create_blob(
+    let mock_blob = create_blob::<IntegTestRuntime<S>>(
         &tx_statuses,
         priority_fee_bips,
         &actors.admin_account,
@@ -230,12 +231,12 @@ fn slot_out_of_gas_tests() {
 
     // The transaction uses more gas than the slot gas limit.
     let gas = GasUnit::from([10000000001, 2]);
-    let tx = create_tx_valid(
+    let tx = create_tx_valid::<IntegTestRuntime<S>>(
         10,
         priority_fee_bips,
         &actors.admin_account,
         config_value!("CHAIN_ID"),
-        encode_message(Some(gas)),
+        encode_message::<IntegTestRuntime<S>>(Some(gas)),
     );
 
     let blob = borsh::to_vec(&vec![encode(tx)]).unwrap();
@@ -264,7 +265,7 @@ fn test_batch_gas_used() {
         sequencer_account,
     };
 
-    let mut txs = create_txs(
+    let mut txs = create_txs::<IntegTestRuntime<S>>(
         &[
             TxStatus::Success,
             TxStatus::Success,

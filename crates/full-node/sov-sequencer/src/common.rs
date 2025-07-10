@@ -8,7 +8,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use axum::http::StatusCode;
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_blob_sender::{BlobInternalId, BlobSenderHooks};
+use sov_blob_sender::{BlobExecutionStatus, BlobInternalId, BlobSenderHooks};
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::{AuthenticationOutput, TransactionAuthenticator};
 use sov_modules_api::rest::utils::ErrorObject;
@@ -51,6 +51,13 @@ pub trait Sequencer: Send + Sync + 'static {
     async fn subscribe_transactions(
         &self,
     ) -> Option<broadcast::Receiver<AcceptedTx<Self::Confirmation>>> {
+        None
+    }
+
+    /// Only available if the [`Sequencer`] blob streaming.
+    async fn subscribe_blobs_from_blob_sender(
+        &self,
+    ) -> Option<broadcast::Receiver<BlobExecutionStatus<<Self::Da as DaService>::Spec>>> {
         None
     }
 

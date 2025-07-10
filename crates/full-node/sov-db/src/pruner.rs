@@ -111,7 +111,6 @@ impl Pruner {
     }
 }
 
-#[allow(dead_code)]
 struct UniqueBaseKeysIterator<'a, T>
 where
     T: Schema<Key = VersionedSchemaKey> + 'a,
@@ -120,7 +119,6 @@ where
     iter: SchemaIterator<'a, T>,
 }
 
-#[allow(dead_code)]
 impl<'a, T> UniqueBaseKeysIterator<'a, T>
 where
     T: Schema<Key = VersionedSchemaKey> + 'a,

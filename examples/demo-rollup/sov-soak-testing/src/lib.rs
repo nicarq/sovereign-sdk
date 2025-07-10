@@ -300,6 +300,11 @@ pub async fn setup_rollup(
         config.prover_address = setup.prover.user_info.address().to_string();
         config.aggregated_proof_block_jump = 3;
         config.axum_port = axum_port;
+        if let SequencerKindConfig::Preferred(preferred_sequencer_config) =
+            &mut config.sequencer_config
+        {
+            preferred_sequencer_config.batch_execution_time_limit_millis = 400;
+        }
     })
     .set_da_config(|da_config| {
         da_config.sender_address = setup.sequencer.da_address;
