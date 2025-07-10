@@ -10,7 +10,6 @@ mod replica_sync_task;
 mod side_effects;
 mod state_root_compute;
 mod update_state;
-
 use std::boxed::Box;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
@@ -35,7 +34,7 @@ use replica_sync_task::spawn_replica_sync_task;
 use schemars::JsonSchema;
 use serde_with::serde_as;
 use side_effects::SideEffectsTask;
-use sov_blob_sender::{new_blob_id, BlobInternalId, BlobSender};
+use sov_blob_sender::{new_blob_id, BlobExecutionStatus, BlobInternalId, BlobSender};
 use sov_blob_storage::{PreferredBatchData, SequenceNumber};
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::{BlobSelector, RollupHeight, TransactionAuthenticator};
@@ -455,6 +454,7 @@ where
     tx_status_manager: TxStatusManager<S::Da>,
     events_sender: broadcast::Sender<SequencerEvent<Rt>>,
     transactions_sender: broadcast::Sender<AcceptedTx<Confirmation<S, Rt>>>,
+    blobs_sender_channel: broadcast::Sender<BlobExecutionStatus<Da::Spec>>,
     api_state: ApiState<S>,
     da_sync_state: Arc<DaSyncState>,
     _runtime: PhantomData<(Rt, Da)>,
@@ -531,7 +531,12 @@ where
         let (events_sender, _) =
             broadcast::channel(config.sequencer_kind_config.events_channel_size);
 
+        // These channels are available for testing purposes only.
+
         let (transactions_sender, _) =
+            broadcast::channel(config.sequencer_kind_config.events_channel_size);
+
+        let (blobs_sender_channel, _) =
             broadcast::channel(config.sequencer_kind_config.events_channel_size);
 
         let db_backend: Box<dyn PreferredSequencerDbBackend> =
@@ -560,6 +565,7 @@ where
                 TxStatusBlobSenderHooks::new(tx_status_manager.clone()),
                 shutdown_sender.clone(),
                 Duration::from_secs(config.blob_processing_timeout_secs),
+                Some(blobs_sender_channel.clone()),
             )
             .await?;
 
@@ -647,6 +653,7 @@ where
             tx_status_manager: tx_status_manager.clone(),
             events_sender,
             transactions_sender,
+            blobs_sender_channel,
             da_sync_state,
             api_state,
             _runtime: PhantomData,
@@ -1393,6 +1400,12 @@ where
         &self,
     ) -> Option<broadcast::Receiver<AcceptedTx<Self::Confirmation>>> {
         Some(self.transactions_sender.subscribe())
+    }
+
+    async fn subscribe_blobs_from_blob_sender(
+        &self,
+    ) -> Option<broadcast::Receiver<BlobExecutionStatus<<Self::Da as DaService>::Spec>>> {
+        Some(self.blobs_sender_channel.subscribe())
     }
 
     async fn update_state(

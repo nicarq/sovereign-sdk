@@ -1,3 +1,4 @@
+mod discarded_blobs;
 mod preferred_end_to_end;
 mod preferred_with_reorgs;
 mod preferred_with_replicas;

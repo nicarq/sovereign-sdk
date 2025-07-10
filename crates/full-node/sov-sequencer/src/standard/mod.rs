@@ -143,6 +143,7 @@ where
             TxStatusBlobSenderHooks::new(txsm.clone()),
             shutdown_sender,
             Duration::from_secs(config.blob_processing_timeout_secs),
+            None,
         )
         .await?;
 

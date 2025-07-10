@@ -591,10 +591,9 @@ impl LedgerDb {
     /// Gets the discarded blob (if any) corresponding to the given `blob_hash`.
     pub async fn get_discarded_blob_by_hash(
         &self,
-        _blob_hash: HexHash,
+        blob_hash: HexHash,
     ) -> anyhow::Result<Option<StoredDiscardedBlob>> {
-        //let db = self.db.read().expect(DB_LOCK_POISONED).clone();
-        //db.get_async::<DiscardedBlobByHash>(&blob_hash.0).await
-        Ok(None)
+        let db = self.db.read().expect(DB_LOCK_POISONED).clone();
+        db.get_async::<DiscardedBlobByHash>(&blob_hash.0).await
     }
 }

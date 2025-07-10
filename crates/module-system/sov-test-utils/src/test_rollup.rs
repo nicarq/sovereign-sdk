@@ -9,6 +9,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use derivative::Derivative;
 use sov_api_spec::WsSubscription;
+use sov_blob_sender::BlobExecutionStatus;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_cli::NodeClient;
 use sov_db::config::RollupDbConfig;
@@ -759,6 +760,16 @@ where
         self.client
             .client
             .subscribe_to_ws::<StateUpdateNotification>("/sequencer/test-utils/state-updates/ws")
+            .await
+    }
+
+    /// Subscribe to blobs from the blob sender.
+    pub async fn subscribe_to_blobs_from_blob_sender(
+        &self,
+    ) -> WsSubscription<BlobExecutionStatus<MockDaSpec>> {
+        self.client
+            .client
+            .subscribe_to_ws::<BlobExecutionStatus<MockDaSpec>>("/sequencer/test-utils/blobs/ws")
             .await
     }
 

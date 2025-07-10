@@ -57,6 +57,7 @@ sov-api-spec = { workspace = true }
 sov-capabilities = { workspace = true, features = ["native"] }
 sov-sequencer = { workspace = true, features = ["test-utils"] }
 sov-sequencer-registry = { workspace = true, features = ["native"] }
+sov-blob-sender = { workspace = true }
 sov-chain-state = { workspace = true, features = ["native", "test-utils"] }
 sov-blob-storage = { workspace = true, features = ["native"] }
 sov-db = { workspace = true, features = ["test-utils"] }

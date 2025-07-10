@@ -4,7 +4,7 @@ use std::sync::Arc;
 use rockbound::{gen_rocksdb_options, SchemaBatch};
 use sov_modules_api::DaSpec;
 
-use crate::{BlobInternalId, BlobProcessingState, BlobSubmissionRequest};
+use crate::{BlobExecutionStatus, BlobInternalId, BlobSubmissionRequest, BlobSubmissionStatus};
 
 #[derive(Debug)]
 pub struct BlobSenderDb {
@@ -39,10 +39,13 @@ impl BlobSenderDb {
                 .db
                 .get_async::<tables::BlobInfos>(&blob_id)
                 .await?
-                .map(|blob_info| blob_info.blob_processing_state::<Da>())
+                .map(|blob_info| blob_info.blob_execution_status::<Da>())
                 // If we're missing blob state information, we will just assume
                 // we must resubmit it.
-                .unwrap_or(BlobProcessingState::MustSubmit);
+                .unwrap_or(BlobExecutionStatus {
+                    blob_submission_status: BlobSubmissionStatus::MustSubmit,
+                    blob_selector_status: None,
+                });
 
             blobs.push(BlobSubmissionRequest {
                 blob,
@@ -63,7 +66,7 @@ impl BlobSenderDb {
     pub async fn set_state<Da: DaSpec>(
         &self,
         blob_id: BlobInternalId,
-        state: &BlobProcessingState<Da>,
+        state: &BlobExecutionStatus<Da>,
     ) -> anyhow::Result<()> {
         self.db
             .put_async::<tables::BlobInfos>(&blob_id, &BlobInfo::new(state))
@@ -104,14 +107,14 @@ pub struct BlobInfo {
 }
 
 impl BlobInfo {
-    fn new<Da: DaSpec>(blob_processing_state: &BlobProcessingState<Da>) -> Self {
+    fn new<Da: DaSpec>(blob_execution_status: &BlobExecutionStatus<Da>) -> Self {
         Self {
-            json_serialized_state: serde_json::to_vec(blob_processing_state)
+            json_serialized_state: serde_json::to_vec(blob_execution_status)
                 .expect("Failed to serialize blob processing state"),
         }
     }
 
-    fn blob_processing_state<Da: DaSpec>(&self) -> BlobProcessingState<Da> {
+    fn blob_execution_status<Da: DaSpec>(&self) -> BlobExecutionStatus<Da> {
         serde_json::from_slice(&self.json_serialized_state)
             .expect("Invalid blob info in the database")
     }

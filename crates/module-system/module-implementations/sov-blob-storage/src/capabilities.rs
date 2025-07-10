@@ -858,6 +858,13 @@ impl<S: Spec> BlobStorage<S> {
                 state,
             ) else {
                 tracing::error!(blob_id = hex::encode(blob_id), "Preferred sequencer did not have enough balance to submit this blob. Dropping preferred blob. Some soft confirmations may be invalidated");
+                Self::discard(
+                    discarded_blobs,
+                    preferred_sender,
+                    blob_id,
+                    &BlobDiscardReason::SenderInsufficientStake,
+                );
+
                 continue;
             };
             if let PushOrIgnore::IgnoredBlob(id, sender) =
