@@ -1007,7 +1007,7 @@ async fn max_batch_execution_time() {
     let get_next_block = |rollup_client: Client, should_have_batch: bool| {
         let da_service = test_rollup.da_service.clone();
         async move {
-            tokio::time::sleep(Duration::from_millis(200)).await; // Ensure the batch has time to close, if applciable
+            tokio::time::sleep(Duration::from_millis(500)).await; // Ensure the batch has time to close, if applciable
             let mut slot_subscription = rollup_client
                 .subscribe_slots_with_children(IncludeChildren::new(true))
                 .await
