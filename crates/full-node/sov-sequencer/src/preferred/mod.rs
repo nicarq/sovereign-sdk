@@ -790,6 +790,12 @@ where
                 next_sequence_number_according_to_node,
             })
             .await;
+
+        let executor_from_info = self.create_new_executor_for_replay(info);
+        inner
+            .force_overwrite_state(info.clone(), executor_from_info)
+            .await;
+
         info!(?info, current_visible_slot_number = %self.current_visible_slot_number_according_to_node(info), "Beginning sequencer recovery");
     }
 
