@@ -106,7 +106,7 @@ async fn test_actions_against_replicas(
         run_actions_against_test_rollup(actions, master, &admin.clone(), state).await;
 
     // Ensure replicas have processed the database changes
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
 
     // Verify state synchronization across all replicas
     for replica_opt in &mut replicas {
@@ -153,7 +153,6 @@ async fn identify_master_and_replicas(
     TestRollup<TestBlueprint>,
     Vec<Option<TestRollup<TestBlueprint>>>,
 )> {
-    // Collect all nodes to check (filter out None replicas)
     let mut all_nodes = vec![old_master];
     all_nodes.extend(old_replicas.into_iter().flatten());
 
