@@ -23,7 +23,7 @@ pub struct StateCheckpoint<S: Spec> {
     pub(super) cache: TempCache,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// The list of changes from the state checkpoint
 pub struct ChangeSet {
     #[allow(missing_docs)]

@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -24,9 +25,16 @@ use tokio::sync::{broadcast, watch, Mutex, RwLock};
 use tokio::time::timeout;
 use tracing::{info, trace};
 
+use crate::rest_api::ApiAcceptedTx;
 use crate::{
     SequencerEvent, SequencerNotReadyDetails, SlotNumber, TxHash, TxStatus, TxStatusManager,
 };
+
+pub(crate) type SequencerTxStream<Confirmation> =
+    Pin<Box<dyn futures::Stream<Item = Result<ApiAcceptedTx<Confirmation>, anyhow::Error>> + Send>>;
+
+pub(crate) type SequencerEventStream<Rt> =
+    Pin<Box<dyn futures::Stream<Item = anyhow::Result<SequencerEvent<Rt>>> + Send>>;
 
 /// The [`Sequencer`] trait is responsible for accepting transactions and
 /// assembling them into batches.
@@ -42,14 +50,15 @@ pub trait Sequencer: Send + Sync + 'static {
     type Da: DaService<Spec = <Self::Spec as Spec>::Da>;
 
     /// Only available if the [`Sequencer`] supports events streaming.
-    async fn subscribe_events(&self) -> Option<broadcast::Receiver<SequencerEvent<Self::Rt>>> {
+    async fn subscribe_events(&self) -> Option<SequencerEventStream<Self::Rt>> {
         None
     }
 
     /// Only available if the [`Sequencer`] supports transactions streaming.
     async fn subscribe_transactions(
         &self,
-    ) -> Option<broadcast::Receiver<AcceptedTx<Self::Confirmation>>> {
+        _starting_from: Option<u64>,
+    ) -> Option<anyhow::Result<SequencerTxStream<Self::Confirmation>>> {
         None
     }
 
@@ -65,7 +74,7 @@ pub trait Sequencer: Send + Sync + 'static {
     /// This is only available if the [`Sequencer`] supports events streaming.
     async fn list_events(
         &self,
-        _event_numbers: &[u64],
+        _event_numbers: std::ops::Range<u64>,
     ) -> Result<
         Vec<RuntimeEventResponse<<Self::Rt as RuntimeEventProcessor>::RuntimeEvent>>,
         anyhow::Error,
@@ -84,6 +93,14 @@ pub trait Sequencer: Send + Sync + 'static {
         &self,
         tx_hash: &TxHash,
     ) -> anyhow::Result<TxStatus<<<Self::Spec as Spec>::Da as DaSpec>::TransactionId>>;
+
+    /// Queries a transaction by hash.
+    async fn get_tx(
+        &self,
+        _tx_hash: TxHash,
+    ) -> anyhow::Result<Option<AcceptedTx<Self::Confirmation>>> {
+        Ok(None)
+    }
 
     /// Updates the sequencer's view of the state of the rollup.
     async fn update_state(
@@ -111,20 +128,22 @@ pub trait Sequencer: Send + Sync + 'static {
     /// Subscribe to state update completion notifications. Note that notifications may be delivered out of order.
     async fn subscribe_state_updates_unstable(
         &self,
-    ) -> Option<broadcast::Receiver<StateUpdateNotification>> {
+    ) -> Option<tokio::sync::broadcast::Receiver<StateUpdateNotification>> {
         None
     }
 }
 
 /// A transaction that has been accepted by the batch builder.
 #[serde_with::serde_as]
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Clone, serde::Serialize, derivative::Derivative)]
+#[derivative(Debug)]
 pub struct AcceptedTx<C> {
     /// Encoded transaction, as will appear on-chain.
     #[serde_as(as = "serde_with::base64::Base64")]
     pub tx: FullyBakedTx,
     /// Hash of the transaction.
     pub tx_hash: TxHash,
+    #[derivative(Debug(bound = "C: Debug"))]
     /// Confirmation data. Could be empty, a receipt, or other data.
     pub confirmation: C,
 }

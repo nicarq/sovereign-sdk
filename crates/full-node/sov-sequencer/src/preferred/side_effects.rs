@@ -1,15 +1,16 @@
 use sov_blob_storage::SequenceNumber;
-use sov_modules_api::{Runtime, Spec, StateCheckpoint};
+use sov_modules_api::{Runtime, Spec, StateCheckpoint, TxChangeSet};
 use sov_rollup_interface::node::da::DaService;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 use tracing::{error, trace, warn};
 
 use super::executor_events::ExecutorEvent;
+use crate::preferred::transaction_subscriptions::TxResultWriter;
 use crate::preferred::{
-    exit_rollup, track_in_progress_batch_size, AcceptedTx, PreferredBatchToReplay,
-    PreferredBlobSender, PreferredSequencerDb, PreferredSequencerReadBatch,
-    PreferredSequencerReadBlob, RecoveryStrategy, RECOVERY_ERROR_MESSAGE_ON_NONE_STRATEGY,
+    exit_rollup, track_in_progress_batch_size, PreferredBatchToReplay, PreferredBlobSender,
+    PreferredSequencerDb, PreferredSequencerReadBatch, PreferredSequencerReadBlob,
+    RecoveryStrategy, RECOVERY_ERROR_MESSAGE_ON_NONE_STRATEGY,
 };
 
 /// A task that runs in the background and handles side effects of accepted transactions.
@@ -24,6 +25,7 @@ where
     pub db: PreferredSequencerDb<S, Rt>,
     pub executor_events_receiver: mpsc::Receiver<ExecutorEvent<S, Rt>>,
     pub shutdown_sender: watch::Sender<()>,
+    pub transaction_cache: TxResultWriter<S, Rt>,
 }
 
 impl<S, Rt, Da> SideEffectsTask<S, Rt, Da>
@@ -38,6 +40,14 @@ where
         if self.checkpoint_sender.send(checkpoint).is_err() {
             tracing::debug!("Could not send checkpoint because the receiver has been dropped; this probably means the rollup is shutting down");
         }
+    }
+
+    /// Applies the changes to the current [`StateCheckpoint`].
+    #[tracing::instrument(skip_all, level = "trace")]
+    fn update_api_state_with_changes(&self, changes: TxChangeSet) {
+        self.checkpoint_sender.send_modify(|checkpoint| {
+            checkpoint.apply_changes(changes.0);
+        });
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
@@ -176,22 +186,22 @@ where
         event: ExecutorEvent<S, Rt>,
     ) -> Result<(), anyhow::Error> {
         match event {
-            ExecutorEvent::AcceptedTx(tx_hash, tx, confirmation, checkpoint, oneshot_sender) => {
-                self.db.insert_tx(tx.clone(), tx_hash).await?;
-                tracing::debug!(%tx_hash, "Transaction was accepted by the sequencer");
+            ExecutorEvent::AcceptedTx(accepted_tx, tx_changes, oneshot_sender) => {
+                self.db
+                    .insert_tx(accepted_tx.tx.clone(), accepted_tx.tx_hash)
+                    .await?;
+                tracing::debug!(%accepted_tx.tx_hash, "Transaction was accepted by the sequencer");
                 track_in_progress_batch_size(
                     self.db
                         .in_progress_batch_opt()
                         .map(|b| b.txs.len() as u64)
                         .unwrap_or(0),
                 );
+                self.transaction_cache.insert(accepted_tx.clone()).await;
+
                 // If the receiver is no longer listening, just don't send the confirmation.
-                let _ = oneshot_sender.send(AcceptedTx {
-                    tx: tx.clone(),
-                    tx_hash,
-                    confirmation: confirmation.clone(),
-                });
-                self.update_api_state(checkpoint);
+                let _ = oneshot_sender.send(accepted_tx);
+                self.update_api_state_with_changes(tx_changes);
             }
             ExecutorEvent::CloseBatch(checkpoint) => {
                 self.close_and_publish_current_batch(checkpoint).await?;
@@ -203,6 +213,7 @@ where
                 visible_slot_number_after_increase,
                 visible_slots_to_advance,
                 sequence_number,
+                new_checkpoint,
             } => {
                 self.db
                     .start_batch(
@@ -211,6 +222,7 @@ where
                         sequence_number,
                     )
                     .await?;
+                self.update_api_state(new_checkpoint);
             }
             ExecutorEvent::EnterRecoveryMode {
                 recovery_strategy,
@@ -257,6 +269,15 @@ where
             }
             ExecutorEvent::SubscribeToEvents(sender) => {
                 self.db.subscribe_to_events(sender);
+            }
+            ExecutorEvent::FlushTransactionsCache {
+                next_tx_number,
+                oneshot_sender,
+            } => {
+                self.transaction_cache
+                    .clean_and_overwrite_next_tx_number(next_tx_number)
+                    .await;
+                let _ = oneshot_sender.send(());
             }
         }
         Ok(())

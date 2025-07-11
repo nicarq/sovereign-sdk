@@ -223,6 +223,7 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for TxScratchpad<S, I> {
 }
 
 /// The list of changes caused by a single transaction
+#[derive(Debug, Clone)]
 pub struct TxChangeSet(pub ChangeSet);
 
 impl<S: Spec, I: StateProvider<S>> TxScratchpad<S, I> {

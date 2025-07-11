@@ -1,3 +1,6 @@
+# 2025-07-09
+- #3193 **BREAKING CHANGE** this PR moves the sequencer tx status endpoint from `/sequencer/txs/{hash}` to `/sequencer/txs/{hash}/status`. A new endpoint is added at `/sequencer/txs/{hash}/` which returns the transaction's soft confirmation info. This PR also fixes an off-by-one error which caused the sequencer's unstable events endpoint to return one more event than was requested. It also makes the non-breaking change of allowing sequencer tx subscriptions from any past tx number `/sequencer/txs/ws?start_from=123`.
+
 # 2025-07-04
 - #3169 Exposes exponential backoff configuration in celestia adapter's configuration.
 - #3162 Removes the Hasher generic from the PublicKey trait's credential_id() method. (As well as making sure EthereumPublicKey's get hashed specifically with the Keccak256 hash.)

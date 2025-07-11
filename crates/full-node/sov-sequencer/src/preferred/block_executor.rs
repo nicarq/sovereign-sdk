@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, VecDeque};
+use std::marker::PhantomData;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -12,15 +13,14 @@ use sov_modules_api::{
     call_message_repr, BlobDataWithId, ChangeSet, DaSpec, ExecutionContext, FullyBakedTx, Gas,
     GasSpec, HexString, KernelStateAccessor, NoOpControlFlow, RejectReason, Runtime,
     RuntimeEventProcessor, RuntimeEventResponse, SelectedBlob, Spec, StateCheckpoint,
-    StateUpdateInfo, TransactionReceipt, TxHash, VersionReader, VisibleSlotNumber,
+    StateUpdateInfo, TransactionReceipt, TxChangeSet, TxHash, VersionReader, VisibleSlotNumber,
 };
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rest_utils::{json_obj, ErrorObject};
-use sov_rollup_interface::common::SlotNumber;
 use sov_state::{Namespace, StateAccesses, StateRoot, Storage};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::{self, Sender};
-use tokio::sync::{broadcast, oneshot, watch};
+use tokio::sync::{oneshot, watch};
 use tokio::task::JoinHandle;
 use tracing::trace;
 use uuid::Uuid;
@@ -32,15 +32,15 @@ use super::{
 use crate::common::{generic_accept_tx_error, AcceptedTx};
 use crate::preferred::async_batch::{ExecutedTxResponse, MaybeAsyncBatch};
 use crate::preferred::exit_rollup;
-use crate::{SequencerConfig, SequencerEvent};
+use crate::preferred::transaction_subscriptions::TxResultWriter;
+use crate::SequencerConfig;
 
-pub(crate) struct TxReceiptWithEvents<S, Rt>
+pub(crate) struct AcceptedTxWithBudgetInfo<S, Rt>
 where
     S: Spec,
     Rt: Runtime<S> + RuntimeEventProcessor,
 {
-    pub receipt: TransactionReceipt<S>,
-    pub events: Vec<RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>,
+    pub accepted_tx: AcceptedTx<Confirmation<S, Rt>>,
     pub remaining_slot_gas: <S as Spec>::Gas,
     pub execution_time_micros: u64,
 }
@@ -98,8 +98,6 @@ impl<S: Spec> RollupBlockExecutorError<S> {
 type StateRootReceiver<S> =
     oneshot::Receiver<(RollupHeight, <<S as Spec>::Storage as Storage>::Root)>;
 
-pub(crate) type EventCache<E> = Arc<tokio::sync::RwLock<BTreeMap<u64, (E, SlotNumber)>>>;
-
 pub struct RollupBlockExecutor<S, Rt>
 where
     S: Spec,
@@ -109,8 +107,7 @@ where
     rollup_block_task_state: Option<BackgroundTaskState<S>>,
 
     next_event_number: u64,
-    events_sender: Option<broadcast::Sender<SequencerEvent<Rt>>>,
-    transactions_sender: Option<broadcast::Sender<AcceptedTx<Confirmation<S, Rt>>>>,
+    next_tx_number: u64,
     config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     // A sender notifying that this acceptor has successfully shut down. We give a handle to
     // each background task when it is spawned, ensuring that this channel remains open as long
@@ -122,7 +119,10 @@ where
     shutdown_receiver: watch::Receiver<()>,
     shutdown_sender: watch::Sender<()>,
     id: Uuid,
-    cached_events: EventCache<RuntimeEventResponse<Rt::RuntimeEvent>>,
+    /// A handle to the tx cache for repopulating it on startup. This is `None` except during startup.
+    // TODO: This should become part of the "local side effects" task of the executor; passing it here is messy
+    startup_transaction_cache_writer: Option<TxResultWriter<S, Rt>>,
+    phantom: PhantomData<Rt>,
 }
 
 impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
@@ -133,24 +133,21 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         info: &StateUpdateInfo<S::Storage>,
-        events_sender: Option<broadcast::Sender<SequencerEvent<Rt>>>,
-        transactions_sender: Option<broadcast::Sender<AcceptedTx<Confirmation<S, Rt>>>>,
         config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
         shutdown_notifier: Sender<()>,
         state_root_request_sender: tokio::sync::mpsc::Sender<StateRootComputeRequest<S>>,
         shutdown_receiver: watch::Receiver<()>,
         shutdown_sender: watch::Sender<()>,
-        cached_events: EventCache<RuntimeEventResponse<Rt::RuntimeEvent>>,
+        startup_transaction_cache_writer: Option<TxResultWriter<S, Rt>>,
     ) -> RollupBlockExecutor<S, Rt> {
         let mut rt = Rt::default();
         let checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
 
-        RollupBlockExecutor {
+        Self {
             checkpoint,
             rollup_block_task_state: None,
             next_event_number: info.next_event_number,
-            events_sender,
-            transactions_sender,
+            next_tx_number: info.next_tx_number,
             config,
             shutdown_notifier,
             state_root_request_sender,
@@ -159,7 +156,8 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             id: Uuid::now_v7(),
             shutdown_receiver,
             shutdown_sender,
-            cached_events,
+            startup_transaction_cache_writer,
+            phantom: PhantomData,
         }
     }
 
@@ -183,6 +181,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         self.checkpoint = other.checkpoint;
         self.rollup_block_task_state = other.rollup_block_task_state;
         self.next_event_number = other.next_event_number;
+        self.next_tx_number = other.next_tx_number;
 
         // Update our list of state roots from the other executor.
         self.state_roots = other.state_roots;
@@ -196,22 +195,23 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     pub async fn apply_tx_to_in_progress_batch(
         &mut self,
         baked_tx: &FullyBakedTx,
-    ) -> Result<TxReceiptWithEvents<S, Rt>, RollupBlockExecutorError<S>> {
+    ) -> Result<(AcceptedTxWithBudgetInfo<S, Rt>, TxChangeSet), RollupBlockExecutorError<S>> {
         let result = self.apply_tx_to_in_progress_batch_inner(baked_tx).await;
 
-        let slot_num = self.checkpoint.current_visible_slot_number();
-
         match result {
-            Ok((receipt, remaining_slot_gas, execution_time_micros)) => {
-                let events = self
-                    .process_tx_receipt_and_emit_events(&receipt, *slot_num)
-                    .await;
-                Ok(TxReceiptWithEvents {
-                    receipt,
-                    events,
-                    remaining_slot_gas,
-                    execution_time_micros,
-                })
+            Ok((receipt, remaining_slot_gas, execution_time_micros, tx_changes)) => {
+                let accepted_tx = self.process_tx_receipt(&receipt);
+                if let Some(writer) = self.startup_transaction_cache_writer.as_mut() {
+                    writer.insert(accepted_tx.clone()).await;
+                }
+                Ok((
+                    AcceptedTxWithBudgetInfo {
+                        accepted_tx,
+                        remaining_slot_gas,
+                        execution_time_micros,
+                    },
+                    tx_changes,
+                ))
             }
             Err(e) => Err(e),
         }
@@ -220,7 +220,10 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     async fn apply_tx_to_in_progress_batch_inner(
         &mut self,
         baked_tx: &FullyBakedTx,
-    ) -> Result<(TransactionReceipt<S>, <S as Spec>::Gas, u64), RollupBlockExecutorError<S>> {
+    ) -> Result<
+        (TransactionReceipt<S>, <S as Spec>::Gas, u64, TxChangeSet),
+        RollupBlockExecutorError<S>,
+    > {
         let Some(task_state) = self.rollup_block_task_state.as_mut() else {
             panic!("Accepting a transaction, yet there's no in-progress batch. This is a bug in the sequencer, please report it.");
         };
@@ -252,9 +255,14 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             return Err(RollupBlockExecutorError::UnsuccessfulTransaction { receipt });
         }
 
-        self.checkpoint.apply_changes(tx_changes.0);
+        self.checkpoint.apply_changes(tx_changes.0.clone());
 
-        Ok((receipt, remaining_slot_gas, execution_time_micros))
+        Ok((
+            receipt,
+            remaining_slot_gas,
+            execution_time_micros,
+            tx_changes,
+        ))
     }
 
     /// Returns true if [`super::db::PreferredSequencerDb::pop_tx`] ought to be called.
@@ -348,17 +356,17 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         );
 
         match self.apply_tx_to_in_progress_batch(tx).await {
-            Ok(receipt) => {
-                if tx_hash != receipt.receipt.tx_hash {
+            Ok((output, _tx_changes)) => {
+                if tx_hash != output.accepted_tx.tx_hash {
                     tracing::error!(
                         expected_hash = %tx_hash,
-                        executor_output_hash = %receipt.receipt.tx_hash,
+                        executor_output_hash = %output.accepted_tx.tx_hash,
                         "The executor returned a different tx hash than expected"
                     );
                     exit_rollup(&self.shutdown_sender).await;
                     unreachable!()
                 }
-                receipt.execution_time_micros
+                output.execution_time_micros
             }
             Err(err) => {
                 tracing::error!(
@@ -435,22 +443,18 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             move || rollup_block_task_body::<S, Rt>(ctx)
         });
 
-        {
-            // Wait for the background task to get up and running, and send the
-            // initial change set.
-            trace!("Applying setup changes...");
-            let setup_changes = setup_receiver
-                .await
-                .context("Setup must finish successfully")
-                .expect(
-                    "The sequencer can't recover from this error; this is a bug, please report it",
-                );
-            trace!("Applied setup changes");
+        // Wait for the background task to get up and running, and send the
+        // initial change set.
+        trace!("Applying setup changes...");
+        let setup_changes = setup_receiver
+            .await
+            .context("Setup must finish successfully")
+            .expect("The sequencer can't recover from this error; this is a bug, please report it");
+        trace!("Applied setup changes");
 
-            self.checkpoint.apply_changes(setup_changes);
-            self.checkpoint
-                .advance_visible_slot_number(visible_increase);
-        }
+        self.checkpoint.apply_changes(setup_changes);
+        self.checkpoint
+            .advance_visible_slot_number(visible_increase);
 
         self.rollup_block_task_state = Some(BackgroundTaskState {
             handle,
@@ -459,11 +463,11 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         });
     }
 
-    async fn process_tx_receipt_and_emit_events(
+    fn process_tx_receipt(
         &mut self,
         tx_receipt: &TransactionReceipt<S>,
-        current_slot_num: SlotNumber,
-    ) -> Vec<RuntimeEventResponse<Rt::RuntimeEvent>> {
+    ) -> AcceptedTx<Confirmation<S, Rt>> {
+        let tx_number = self.next_tx_number;
         let events = tx_receipt
             .events
             .iter()
@@ -477,30 +481,20 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             .expect("Supposedly infallible conversion failed; this is a bug, please report it");
 
         self.next_event_number += events.len() as u64;
-
-        // TODO: Remove this logic once we get confirmation that separate events endpoints are not needed.
-        // As 1) we're making indexing transaction oriented, and transaction include events
-        // and 2) we send events too early here. The db.tx write might fail later, and this transaction
-        // as well as the events might be lost.
-        if let Some(sender) = &self.events_sender {
-            let mut cached_events = self.cached_events.write().await;
-            cached_events.extend(
-                events
-                    .iter()
-                    .cloned()
-                    .map(|event| (event.number, (event, current_slot_num))),
-            );
-            for event in events.iter().cloned() {
-                sender
-                    .send(SequencerEvent {
-                        tx_hash: tx_receipt.tx_hash,
-                        event,
-                    })
-                    .ok();
-            }
+        self.next_tx_number += 1;
+        AcceptedTx {
+            tx: FullyBakedTx {
+                data: tx_receipt.body_to_save.clone().expect(
+                    "Transaction receipts contain bodies when using sov-modules-stf-blueprint",
+                ),
+            },
+            tx_hash: tx_receipt.tx_hash,
+            confirmation: Confirmation {
+                events,
+                receipt: tx_receipt.receipt.clone().into(),
+                tx_number,
+            },
         }
-
-        events
     }
 
     /// Before starting a rollup block, we need to have stored any visible state roots that it might need in state.
@@ -592,35 +586,19 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             "Transaction acceptor task failed unexpectedly! This is a bug, please report it.",
         );
 
+        let mut accepted_txs_by_batch = Vec::with_capacity(batch_receipts.len());
         for batch_receipt in batch_receipts {
             // We already increment the event number for our own transactions
             // inside `apply_tx_to_in_progress_batch`.
             if batch_receipt.inner.da_address == self.config.da_address {
                 continue;
             }
-
+            let mut accepted_txs = Vec::with_capacity(batch_receipt.tx_receipts.len());
             for tx_receipt in batch_receipt.tx_receipts {
-                let events = self
-                    .process_tx_receipt_and_emit_events(
-                        &tx_receipt,
-                        *self.checkpoint.current_visible_slot_number(),
-                    )
-                    .await;
-
-                // Emit non-preferred sequencer transactions.
-                if let Some(sender) = &self.transactions_sender {
-                    sender
-                        .send(AcceptedTx {
-                            tx: FullyBakedTx { data: vec![0; 10] },
-                            tx_hash: tx_receipt.tx_hash,
-                            confirmation: Confirmation {
-                                events,
-                                receipt: tx_receipt.receipt.clone().into(),
-                            },
-                        })
-                        .ok();
-                }
+                let accepted_tx = self.process_tx_receipt(&tx_receipt);
+                accepted_txs.push(accepted_tx);
             }
+            accepted_txs_by_batch.push(accepted_txs);
         }
 
         trace!(

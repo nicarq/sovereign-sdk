@@ -34,6 +34,7 @@ where
         &self,
         info: StateUpdateInfo<S::Storage>,
         timer_start: Instant,
+        is_startup: bool,
     ) -> anyhow::Result<()> {
         // On shutdown exit early. This prevents duplicate subscriptions to the DB events channel, which would cause spurious warnings.
         // Note that we only need to detect whether a previous `replay_soft_confirmations_on_top_of_node_state` was aborted due to shutdown
@@ -49,17 +50,23 @@ where
             get_next_sequence_number_according_to_node(&info, &mut Rt::default());
         let mut total_lock_duration = std::time::Duration::ZERO;
 
+        // During startup, we need to repopulate the transaction cache with any transactions from the soft-confirmed batches
+        // Outside of this edge case, we don't want replay to affect the transaction cache, so we don't pass a writer.
+        let startup_transaction_cache_writer = if is_startup {
+            Some(self.transaction_cache.write_handle())
+        } else {
+            None
+        };
+
         // Now that we're not locking on the sequencer state anymore, we can replay all the batches.
         let mut executor = RollupBlockExecutor::<_, Rt>::new(
             &info,
-            None, // We don't re-send events when replaying batches in the background.
-            None, // We don't re-send transactions when replaying batches in the background.
             self.config.clone(),
             self.block_executors_shutdown_notifier.clone(),
             self.state_root_compute_task.request_sender.clone(),
             self.shutdown_receiver.clone(),
             self.shutdown_sender.clone(),
-            self.cached_events.clone(),
+            startup_transaction_cache_writer,
         );
 
         let node_state_root = tracing::trace_span!("root_hash")
@@ -196,6 +203,7 @@ where
         // The executor is now caught up. Swap it in
         inner.executor.replace_state(executor).await;
         inner.is_ready = Ok(());
+        inner.has_finished_startup = true;
         inner.latest_info = info;
         let checkpoint = inner
             .executor
@@ -206,7 +214,7 @@ where
             .send(ExecutorEvent::ForceUpdateApiState(checkpoint))
             .await;
         drop(db_event_subscription);
-        self.update_api_ledger(&inner.latest_info);
+        self.update_api_ledger(&inner.latest_info).await;
         drop(inner); // Release the lock and allow transactions to progress while we handle metrics
 
         total_lock_duration += inner_lock_start_time.elapsed();

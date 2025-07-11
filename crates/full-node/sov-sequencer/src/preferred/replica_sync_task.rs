@@ -120,6 +120,7 @@ where
         .replay_soft_confirmations_on_top_of_node_state(
             latest_state_update,
             std::time::Instant::now(),
+            true,
         )
         .await
     {

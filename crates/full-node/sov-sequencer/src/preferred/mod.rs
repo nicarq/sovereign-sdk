@@ -9,12 +9,13 @@ mod preferred_blob_sender;
 mod replica_sync_task;
 mod side_effects;
 mod state_root_compute;
+mod transaction_subscriptions;
 mod update_state;
 use std::boxed::Box;
-use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::num::NonZero;
 use std::path::Path;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,6 +30,7 @@ use db::{
     PreferredSequencerDb, PreferredSequencerDbBackend, PreferredSequencerReadBatch,
     PreferredSequencerReadBlob,
 };
+use futures::Stream;
 use preferred_blob_sender::PreferredBlobSender;
 use replica_sync_task::spawn_replica_sync_task;
 use schemars::JsonSchema;
@@ -48,7 +50,6 @@ use sov_modules_api::{
 use sov_rest_utils::errors::{database_error_500, sequencer_overloaded_503};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::da::DaService;
-use sov_rollup_interface::node::ledger_api::{EventIdentifier, LedgerStateProvider};
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
 use sov_state::{NativeStorage, Storage};
@@ -58,21 +59,22 @@ use tokio::sync::{broadcast, oneshot, watch, Mutex, MutexGuard};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, error, info, trace, warn};
+use transaction_subscriptions::TransactionCache;
 
 use crate::common::{
     error_not_fully_synced, generic_accept_tx_error, loop_send_tx_notifications, poll_state_update,
-    AcceptedTx, Sequencer, StateUpdateError, StateUpdateNotification, TxStatusBlobSenderHooks,
-    WithCachedTxHashes,
+    AcceptedTx, Sequencer, SequencerEventStream, StateUpdateError, StateUpdateNotification,
+    TxStatusBlobSenderHooks, WithCachedTxHashes,
 };
 use crate::metrics::{track_in_progress_batch_size, track_sequence_number};
 use crate::preferred::block_executor::{
-    EventCache, RollupBlockExecutor, RollupBlockExecutorError, TxReceiptWithEvents,
+    AcceptedTxWithBudgetInfo, RollupBlockExecutor, RollupBlockExecutorError,
 };
 use crate::preferred::db::{latest_finalized_sequence_number, DbEvent};
 use crate::preferred::executor_events::{ExecutorEvent, ExecutorEventsSender};
+use crate::rest_api::ApiAcceptedTx;
 use crate::{
-    ProofBlobSender, SequencerConfig, SequencerEvent, SequencerNotReadyDetails, TxStatus,
-    TxStatusManager,
+    ProofBlobSender, SequencerConfig, SequencerNotReadyDetails, TxStatus, TxStatusManager,
 };
 
 type VisibleSlotNumberIncrease = NonZero<u8>;
@@ -127,6 +129,10 @@ where
     in_flight_blobs: Arc<AtomicUsize>,
     executor_events_sender: ExecutorEventsSender<S, Rt>,
     sequence_number_of_next_blob: SequenceNumber,
+    /// A boolean that indicates whether the sequencer has finished its startup phase.
+    /// We need this rather than relying on `SequencerNotReadyDetails::Startup` because that state
+    /// can be overwritten when the node is resyncing.
+    has_finished_startup: bool,
 }
 
 impl<S, Rt> Inner<S, Rt>
@@ -224,13 +230,6 @@ where
 
         // DB operations handled by replica-aware db implementation
         let sequence_number = self.get_and_inc_next_sequence_number();
-        self.executor_events_sender
-            .send(ExecutorEvent::StartBatch {
-                visible_slot_number_after_increase,
-                visible_slots_to_advance: visible_increase,
-                sequence_number,
-            })
-            .await;
 
         let min_profit_per_tx = self.config.sequencer_kind_config.minimum_profit_per_tx;
         self.executor
@@ -240,6 +239,17 @@ where
                 &node_state_root,
                 min_profit_per_tx,
             )
+            .await;
+        self.executor_events_sender
+            .send(ExecutorEvent::StartBatch {
+                visible_slot_number_after_increase,
+                visible_slots_to_advance: visible_increase,
+                sequence_number,
+                new_checkpoint: self
+                    .executor
+                    .checkpoint
+                    .clone_with_empty_witness_dropping_temp_cache(),
+            })
             .await;
 
         Ok(())
@@ -278,13 +288,6 @@ where
 
         let node_state_root = self.node_root_hash()?;
         let sequence_number = self.get_and_inc_next_sequence_number();
-        self.executor_events_sender
-            .send(ExecutorEvent::StartBatch {
-                visible_slot_number_after_increase,
-                visible_slots_to_advance,
-                sequence_number,
-            })
-            .await;
 
         let min_profit_per_tx = self.config.sequencer_kind_config.minimum_profit_per_tx;
         self.executor
@@ -294,6 +297,18 @@ where
                 &node_state_root,
                 min_profit_per_tx,
             )
+            .await;
+
+        self.executor_events_sender
+            .send(ExecutorEvent::StartBatch {
+                visible_slot_number_after_increase,
+                visible_slots_to_advance,
+                sequence_number,
+                new_checkpoint: self
+                    .executor
+                    .checkpoint
+                    .clone_with_empty_witness_dropping_temp_cache(),
+            })
             .await;
 
         Ok(())
@@ -452,8 +467,6 @@ where
 {
     inner: Mutex<Inner<S, Rt>>,
     tx_status_manager: TxStatusManager<S::Da>,
-    events_sender: broadcast::Sender<SequencerEvent<Rt>>,
-    transactions_sender: broadcast::Sender<AcceptedTx<Confirmation<S, Rt>>>,
     blobs_sender_channel: broadcast::Sender<BlobExecutionStatus<Da::Spec>>,
     api_state: ApiState<S>,
     da_sync_state: Arc<DaSyncState>,
@@ -462,12 +475,11 @@ where
     block_executors_shutdown_notifier: Sender<()>,
     state_root_compute_task: StateRootBackgroundTaskState<S>,
     shutdown_receiver: watch::Receiver<()>,
-    ledger_db: LedgerDb,
+    transaction_cache: TransactionCache<S, Rt>,
     // This ledgerdb is used specifically for REST API and websocket subscriptions.
     // The sequencer controls when it is updated to solve inconsistency issues,
     // See [`LedgerDb::with_shared_notifications`] for more details.
     api_ledger_db: LedgerDb,
-    cached_events: EventCache<RuntimeEventResponse<Rt::RuntimeEvent>>,
     shutdown_sender: watch::Sender<()>,
     // Used to track which txs need to be ignored after the sequencer had downtime (in the sense of giving out 503s)
     tx_queue_id: AtomicU64,
@@ -528,13 +540,6 @@ where
         );
 
         let (block_executors_shutdown_notifier, block_executors_shutdown_rx) = mpsc::channel(1);
-        let (events_sender, _) =
-            broadcast::channel(config.sequencer_kind_config.events_channel_size);
-
-        // These channels are available for testing purposes only.
-
-        let (transactions_sender, _) =
-            broadcast::channel(config.sequencer_kind_config.events_channel_size);
 
         let (blobs_sender_channel, _) =
             broadcast::channel(config.sequencer_kind_config.events_channel_size);
@@ -547,7 +552,7 @@ where
             } else {
                 Box::new(RocksDbBackend::new(storage_path).await?)
             };
-        let (db, latest_event_id, next_sequence_number) = PreferredSequencerDb::<S, Rt>::new(
+        let (db, latest_db_event_id, next_sequence_number) = PreferredSequencerDb::<S, Rt>::new(
             db_backend,
             shutdown_sender.clone(),
             config.sequencer_kind_config.is_replica,
@@ -594,7 +599,12 @@ where
             );
         handles.push(state_root_compute_handle);
 
-        let cached_events = Arc::new(tokio::sync::RwLock::new(BTreeMap::new()));
+        // TODO: Rename events_channel_size to transaction_channel_size
+        let cached_txs = TransactionCache::new(
+            api_ledger_db.clone(),
+            &latest_state_update,
+            config.sequencer_kind_config.events_channel_size,
+        );
 
         let (executor_events_sender, executor_events_receiver) =
             ExecutorEventsSender::new(shutdown_sender.clone());
@@ -606,19 +616,18 @@ where
             shutdown_receiver: shutdown_receiver.clone(),
             executor: RollupBlockExecutor::new(
                 &latest_state_update,
-                Some(events_sender.clone()),
-                Some(transactions_sender.clone()),
                 config.clone(),
                 block_executors_shutdown_notifier.clone(),
                 state_root_compute_task.request_sender.clone(),
                 shutdown_receiver.clone(),
                 shutdown_sender.clone(),
-                cached_events.clone(),
+                None, // The main executor must *not* write to the tx cache. That's handled by the side effects task
             ),
             executor_events_sender,
             sequence_number_of_next_blob: next_sequence_number,
             in_flight_blobs,
             batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
+            has_finished_startup: false,
             is_ready: if config.sequencer_kind_config.is_replica {
                 Err(SequencerNotReadyDetails::ReplicaMode)
             } else {
@@ -632,6 +641,7 @@ where
             executor_events_receiver,
             db,
             shutdown_sender: shutdown_sender.clone(),
+            transaction_cache: cached_txs.write_handle(),
         }
         .spawn();
         handles.push(side_effects_task);
@@ -651,8 +661,7 @@ where
         let seq = Arc::new(PreferredSequencer {
             inner: inner.into(),
             tx_status_manager: tx_status_manager.clone(),
-            events_sender,
-            transactions_sender,
+            transaction_cache: cached_txs,
             blobs_sender_channel,
             da_sync_state,
             api_state,
@@ -661,9 +670,7 @@ where
             config: config.clone(),
             state_root_compute_task,
             shutdown_receiver: shutdown_receiver.clone(),
-            ledger_db: ledger_db.clone(),
             api_ledger_db,
-            cached_events,
             shutdown_sender,
             tx_queue_id: AtomicU64::new(0),
             stop_at_rollup_height,
@@ -680,7 +687,7 @@ where
                     seq.clone(),
                     shutdown_receiver.clone(),
                     latest_state_update.clone(),
-                    latest_event_id,
+                    latest_db_event_id,
                 )
                 .await,
             );
@@ -715,20 +722,23 @@ where
         self.inner.lock().await
     }
 
-    fn create_new_executor_for_replay(
+    /// Creates a new executor for recovery. This must *not* be called to create executors
+    /// under other circumstances, since it causes side effects on the transaction cache.
+    ///
+    /// If you need an executor for normal "replay" use a different constructor which does
+    /// not pass a transaction cache writer.
+    fn create_new_executor_for_recovery(
         &self,
         info: &StateUpdateInfo<S::Storage>,
     ) -> RollupBlockExecutor<S, Rt> {
         RollupBlockExecutor::<_, Rt>::new(
             info,
-            None, // we don't send events during replay or recovery
-            None, // we don't send transactions during replay or recovery
             self.config.clone(),
             self.block_executors_shutdown_notifier.clone(),
             self.state_root_compute_task.request_sender.clone(),
             self.shutdown_receiver.clone(),
             self.shutdown_sender.clone(),
-            self.cached_events.clone(),
+            Some(self.transaction_cache.write_handle()), // update the tx cache as we go
         )
     }
 
@@ -794,7 +804,7 @@ where
             })
             .await;
 
-        let executor_from_info = self.create_new_executor_for_replay(info);
+        let executor_from_info = self.create_new_executor_for_recovery(info);
         inner
             .force_overwrite_state(info.clone(), executor_from_info)
             .await;
@@ -918,11 +928,16 @@ where
                 )
                 .await?;
                 let mut inner = self.lock_inner().await;
-                let executor_from_info = self.create_new_executor_for_replay(&info);
+                inner
+                    .executor_events_sender
+                    .flush_transactions_cache(info.next_tx_number)
+                    .await;
+                let executor_from_info = self.create_new_executor_for_recovery(&info);
                 inner
                     .force_overwrite_state(info.clone(), executor_from_info)
                     .await;
-                self.update_api_ledger(&info);
+
+                self.update_api_ledger(&info).await;
             }
         }
 
@@ -980,11 +995,12 @@ where
             / 10
     }
 
-    fn update_api_ledger(&self, info: &StateUpdateInfo<S::Storage>) {
+    async fn update_api_ledger(&self, info: &StateUpdateInfo<S::Storage>) {
         self.api_ledger_db
             .replace_reader(info.ledger_reader.clone());
         self.api_ledger_db
             .send_notifications_for_slot(info.slot_number);
+        prune_transactions_cache(info.next_tx_number, &self.transaction_cache).await;
     }
 
     async fn wait_for_node_resync(
@@ -1021,6 +1037,15 @@ where
                 inner
                     .overwrite_next_sequence_number_for_recovery(node_sequence_number)
                     .await;
+                inner
+                    .executor_events_sender
+                    .flush_transactions_cache(info.next_tx_number)
+                    .await;
+            } else if !inner.has_finished_startup {
+                inner
+                    .executor_events_sender
+                    .flush_transactions_cache(info.next_tx_number)
+                    .await;
             }
 
             inner.latest_info = info.clone();
@@ -1030,7 +1055,8 @@ where
                 .executor_events_sender
                 .send(ExecutorEvent::UpdateStateForRecovery(checkpoint))
                 .await;
-            self.update_api_ledger(&info);
+
+            self.update_api_ledger(&info).await;
 
             // Exit after processing if we're synced
             if is_synced {
@@ -1222,7 +1248,6 @@ where
     let mut rt = Rt::default();
     let timer_start = std::time::Instant::now();
 
-    prune_events_cache(info.latest_finalized_slot_number, &seq.cached_events).await;
     let next_sequence_number_according_to_node =
         get_next_sequence_number_according_to_node(&info, &mut rt);
 
@@ -1230,11 +1255,12 @@ where
     // This prevents `accept_tx` from sneaking in any new txs between the time we check if there are soft confirmations to replay
     // and the time the sequencer is marked unready.
     let inner = seq.lock_inner().await;
-    let (batches_to_replay, next_sequence_number) = {
+    let (batches_to_replay, next_sequence_number, is_startup) = {
         (
             seq.completed_batches_to_replay(&inner, next_sequence_number_according_to_node, true)
                 .await?,
             inner.next_sequence_number(),
+            !inner.has_finished_startup,
         )
     };
 
@@ -1302,7 +1328,7 @@ where
         // `deferred_slots_count` threshold or we've hit it already. Our
         // soft-confirmations might easily get invalidated.
         (false, true, false, _) => {
-            error!("Sequencer has detected that it is past, or very close to, having the visible_slot_number lag behind the deferred_slots_count threshold. Normal operation will be suspended until this can be remedied.");
+            error!(slot_number_according_to_node=%info.slot_number, %current_visible_slot_number, "Sequencer has detected that it is past, or very close to, having the visible_slot_number lag behind the deferred_slots_count threshold. Normal operation will be suspended until this can be remedied.");
             seq.recover_and_catch_up(state_update_receiver, shutdown_receiver, info, inner)
                 .await?;
         }
@@ -1311,7 +1337,7 @@ where
         // conditions.
         (false, false, false, _) => {
             drop(inner); // Drop the lock. We don't need to hold it while we do replay.
-            seq.replay_soft_confirmations_on_top_of_node_state(info, timer_start)
+            seq.replay_soft_confirmations_on_top_of_node_state(info, timer_start, is_startup)
                 .await?;
         }
     }
@@ -1342,44 +1368,15 @@ where
 
     async fn list_events(
         &self,
-        event_nums: &[u64],
+        event_nums: std::ops::Range<u64>,
     ) -> Result<
         Vec<RuntimeEventResponse<<Self::Rt as RuntimeEventProcessor>::RuntimeEvent>>,
         anyhow::Error,
     > {
-        trace!(events_len = event_nums.len(), "listing events");
+        let num_events = event_nums.end - event_nums.start;
+        trace!(events_len = num_events, "listing events");
 
-        let (mut events, missing_ids) = {
-            let mut events = vec![];
-            let mut cache_misses = vec![];
-            let cached_events = self.cached_events.read().await;
-
-            for event_num in event_nums {
-                let event = cached_events.get(event_num).cloned();
-                if let Some((event, _)) = event {
-                    events.push(event);
-                } else {
-                    cache_misses.push(EventIdentifier::Number(*event_num));
-                }
-            }
-            (events, cache_misses)
-        };
-
-        let ledger_events = self
-            .ledger_db
-            .get_events::<RuntimeEventResponse<Rt::RuntimeEvent>>(&missing_ids)
-            .await?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-
-        debug!(
-            cache_hits = events.len(),
-            cache_misses = missing_ids.len(),
-            "retrieved sequencer events"
-        );
-
-        events.extend(ledger_events);
+        let events = self.transaction_cache.list_events(event_nums).await?;
 
         trace!(result_len = events.len(), "retrieved events");
 
@@ -1420,14 +1417,54 @@ where
         &self.tx_status_manager
     }
 
-    async fn subscribe_events(&self) -> Option<broadcast::Receiver<SequencerEvent<Rt>>> {
-        Some(self.events_sender.subscribe())
+    async fn subscribe_events(&self) -> Option<SequencerEventStream<Self::Rt>> {
+        use futures::StreamExt;
+
+        use crate::SequencerEvent;
+        let tx_stream = self.transaction_cache.subscribe();
+
+        let event_stream: SequencerEventStream<Self::Rt> =
+            Box::pin(tx_stream.flat_map(|tx| match tx {
+                Ok(tx) => {
+                    let output: SequencerEventStream<Self::Rt> = Box::pin(
+                        futures::stream::iter(tx.confirmation.events).map(move |event| {
+                            Ok(SequencerEvent {
+                                tx_hash: tx.id,
+                                event,
+                            })
+                        }),
+                    );
+                    output
+                }
+                Err(e) => {
+                    let output: SequencerEventStream<Self::Rt> =
+                        Box::pin(futures::stream::once(async { Err(e) }));
+                    output
+                }
+            }));
+        Some(event_stream)
+    }
+
+    async fn get_tx(
+        &self,
+        tx_hash: TxHash,
+    ) -> anyhow::Result<Option<AcceptedTx<Self::Confirmation>>> {
+        self.transaction_cache.get_tx_by_hash(tx_hash).await
     }
 
     async fn subscribe_transactions(
         &self,
-    ) -> Option<broadcast::Receiver<AcceptedTx<Self::Confirmation>>> {
-        Some(self.transactions_sender.subscribe())
+        starting_from: Option<u64>,
+    ) -> Option<
+        anyhow::Result<
+            Pin<Box<dyn Stream<Item = anyhow::Result<ApiAcceptedTx<Self::Confirmation>>> + Send>>,
+        >,
+    > {
+        Some(
+            self.transaction_cache
+                .subscribe_starting_from_tx_number(starting_from)
+                .await,
+        )
     }
 
     async fn subscribe_blobs_from_blob_sender(
@@ -1481,6 +1518,8 @@ where
         }
 
         let mut inner = self.lock_inner().await;
+        // If the sequencer had to give out 503s at any point during the time we were waiting for the lock, we need to return a 503 - otherwise
+        // we've effectively jumped the line
         let new_tx_queue_id = self.tx_queue_id.load(Ordering::Acquire);
         if new_tx_queue_id != original_tx_queue_id {
             tracing::debug!(%tx_hash, "Transaction was queued before downtime. Dropping.");
@@ -1544,15 +1583,17 @@ where
 
         let apply_tx_res = executor.apply_tx_to_in_progress_batch(&baked_tx).await;
 
-        let TxReceiptWithEvents {
-            receipt,
-            events,
-            remaining_slot_gas,
-            execution_time_micros,
-        } = match apply_tx_res {
+        let (
+            AcceptedTxWithBudgetInfo {
+                accepted_tx,
+                remaining_slot_gas,
+                execution_time_micros,
+            },
+            tx_changes,
+        ) = match apply_tx_res {
             Ok(res) => {
                 assert_eq!(
-                    tx_hash, res.receipt.tx_hash,
+                    tx_hash, res.0.accepted_tx.tx_hash,
                     "The executor returned a different tx hash than expected"
                 );
                 res
@@ -1562,20 +1603,9 @@ where
                 return Err(RollupBlockExecutorError::into_http_error(err));
             }
         };
-        let confirmation = Confirmation {
-            events,
-            receipt: receipt.receipt.into(),
-        };
         batch_size_tracker.add_tx(baked_tx.data.len(), execution_time_micros);
         let rx = executor_events_sender
-            .send_accept_tx(
-                baked_tx,
-                tx_hash,
-                confirmation,
-                executor
-                    .checkpoint
-                    .clone_with_empty_witness_dropping_temp_cache(),
-            )
+            .send_accept_tx(accepted_tx, tx_changes)
             .await;
         self.close_batch_if_nearly_full(&mut *inner, &remaining_slot_gas)
             .await;
@@ -1707,7 +1737,7 @@ struct TxBody(#[serde_as(as = "serde_with::base64::Base64")] Vec<u8>);
 
 /// Transaction confirmation data of [`PreferredSequencer`].
 #[derive(derivative::Derivative, serde::Serialize, serde::Deserialize)]
-#[derivative(Clone(bound = ""), Debug)]
+#[derivative(Clone(bound = ""), Debug(bound = "S: Spec, Rt: Runtime<S>"))]
 #[serde(bound = "S: Spec, Rt: Runtime<S>")]
 pub struct Confirmation<S, Rt>
 where
@@ -1716,6 +1746,7 @@ where
 {
     events: Vec<RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>>,
     receipt: ApiTxEffect<TxReceiptContents<S>>,
+    tx_number: u64,
 }
 
 fn get_next_sequence_number_according_to_node<S, Rt>(
@@ -1798,9 +1829,11 @@ fn next_visible_slot_number_increase_inner(
     }
 }
 
-async fn prune_events_cache<E>(finialized_slot: SlotNumber, cache: &EventCache<E>) {
-    let mut writer = cache.write().await;
-    writer.retain(|_, (_, slot_num)| *slot_num > finialized_slot);
+async fn prune_transactions_cache<S: Spec, Rt: Runtime<S>>(
+    next_tx_number: u64,
+    cache: &TransactionCache<S, Rt>,
+) {
+    cache.prune(next_tx_number).await;
 }
 
 /// A helper function to allow recovering an associated consant from an *instance* of a type
@@ -1857,25 +1890,6 @@ pub enum BatchCreationError {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[tokio::test]
-    async fn test_prune_events_cache() {
-        let cached_events = Arc::new(tokio::sync::RwLock::new(BTreeMap::new()));
-        {
-            let mut writer = cached_events.write().await;
-            writer.insert(1, ((), SlotNumber::new(1)));
-            writer.insert(2, ((), SlotNumber::new(2)));
-            writer.insert(3, ((), SlotNumber::new(3)));
-            writer.insert(4, ((), SlotNumber::new(4)));
-            writer.insert(5, ((), SlotNumber::new(5)));
-        }
-        prune_events_cache(SlotNumber::new(3), &cached_events).await;
-
-        let reader = cached_events.read().await;
-        assert_eq!(reader.len(), 2);
-        assert_eq!(reader.get(&4), Some(&((), SlotNumber::new(4))));
-        assert_eq!(reader.get(&5), Some(&((), SlotNumber::new(5))));
-    }
 
     #[test]
     fn test_next_visible_slot_number_increase() {
