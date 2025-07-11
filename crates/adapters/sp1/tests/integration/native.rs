@@ -36,6 +36,7 @@ fn test_hints_roundtrip() {
 }
 
 #[test]
+#[ignore = "Should be run manually"]
 #[allow(clippy::field_reassign_with_default)]
 fn build_fibonacci_elf() {
     let crate_path = env!("CARGO_MANIFEST_DIR");

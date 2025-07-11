@@ -794,8 +794,11 @@ where
         node_checkpoint.current_visible_slot_number().as_true()
     }
 
-    async fn trigger_recovery(&self, info: &StateUpdateInfo<S::Storage>) {
-        let mut inner = self.lock_inner().await;
+    async fn trigger_recovery(
+        &self,
+        info: &StateUpdateInfo<S::Storage>,
+        mut inner: MutexGuard<'_, Inner<S, Rt>>,
+    ) {
         inner.is_ready = Err(SequencerNotReadyDetails::PreferredSequencerRecovering);
         let next_sequence_number_according_to_node =
             get_next_sequence_number_according_to_node(info, &mut Rt::default());
@@ -842,6 +845,7 @@ where
         state_update_receiver: &mut StateUpdateReceiver<S::Storage>,
         shutdown_receiver: &watch::Receiver<()>,
         mut info: StateUpdateInfo<S::Storage>,
+        inner: MutexGuard<'_, Inner<S, Rt>>,
     ) -> anyhow::Result<()> {
         if !self.is_master().await {
             // Replicas don't run recovery. We let the main sequencer run catchup. If we fail-over
@@ -863,7 +867,7 @@ where
         }
 
         let mut rt = Rt::default();
-        self.trigger_recovery(&info).await;
+        self.trigger_recovery(&info, inner).await;
 
         loop {
             let (min_batches_to_send, max_batches_to_send) = self.catchup_batches_to_send(&info);
@@ -1005,7 +1009,14 @@ where
         shutdown_receiver: &watch::Receiver<()>,
         distance_to_tip: u64,
         current_info: StateUpdateInfo<S::Storage>,
+        mut inner: MutexGuard<'_, Inner<S, Rt>>,
     ) -> anyhow::Result<()> {
+        inner.is_ready = Err(SequencerNotReadyDetails::Syncing {
+            target_da_height: self.da_sync_state.target_da_height.load(Ordering::Relaxed),
+            synced_da_height: self.da_sync_state.synced_da_height.load(Ordering::Relaxed),
+        });
+        drop(inner); // Drop the lock so that we can reacquire it on the first loop iteration
+
         let mut rt = Rt::default();
         let mut info = current_info;
 
@@ -1058,6 +1069,7 @@ where
         state_update_receiver: &mut StateUpdateReceiver<S::Storage>,
         shutdown_receiver: &watch::Receiver<()>,
         current_info: StateUpdateInfo<S::Storage>,
+        inner: MutexGuard<'_, Inner<S, Rt>>, // We pass the lock to ensure no txs can be accepted before the sequencer is marked unready
     ) -> anyhow::Result<()> {
         self.wait_for_node_resync(
             state_update_receiver,
@@ -1065,6 +1077,7 @@ where
             // Catch up a bit extra to avoid immediately triggering another resync
             self.config.max_allowed_node_distance_behind.div_ceil(2),
             current_info,
+            inner,
         )
         .await
     }
@@ -1074,9 +1087,16 @@ where
         state_update_receiver: &mut StateUpdateReceiver<S::Storage>,
         shutdown_receiver: &watch::Receiver<()>,
         current_info: StateUpdateInfo<S::Storage>,
+        inner: MutexGuard<'_, Inner<S, Rt>>,
     ) -> anyhow::Result<()> {
-        self.wait_for_node_resync(state_update_receiver, shutdown_receiver, 1, current_info)
-            .await
+        self.wait_for_node_resync(
+            state_update_receiver,
+            shutdown_receiver,
+            1,
+            current_info,
+            inner,
+        )
+        .await
     }
 
     /// Update the replica status (used during failover)
@@ -1245,10 +1265,11 @@ where
     let next_sequence_number_according_to_node =
         get_next_sequence_number_according_to_node(&info, &mut rt);
 
-    // We gotta briefly lock to access the database, but release the lock ASAP.
+    // We acquire the lock and hold it until we've decided whether the sequencer needs to enter an unready state.
+    // This prevents `accept_tx` from sneaking in any new txs between the time we check if there are soft confirmations to replay
+    // and the time the sequencer is marked unready.
+    let inner = seq.lock_inner().await;
     let (batches_to_replay, next_sequence_number) = {
-        let inner = seq.lock_inner().await;
-
         (
             seq.completed_batches_to_replay(&inner, next_sequence_number_according_to_node, true)
                 .await?,
@@ -1275,15 +1296,14 @@ where
     let condition_node_is_lagging = distance > seq.config.max_allowed_node_distance_behind;
 
     // Are there ANY soft confirmations to replay at all?
-    // Note that this information could become outdated by the time we use it! It should be treated as a best guess because
-    // the sequencer is *not* locked and `accept_tx` is allowed to start batches at any point.
-    let condition_are_there_known_batches_to_replay = !batches_to_replay.is_empty();
+    // Note that we're holding a lock on the sequencer, so this is guaranteed to be up to date.
+    let condition_are_there_batches_to_replay = !batches_to_replay.is_empty();
 
     tracing::debug!(
         condition_nodes_sequence_number_is_fresher,
         condition_too_close_to_deferred_slots_count_for_comfort,
         condition_node_is_lagging,
-        condition_are_there_known_batches_to_replay,
+        condition_are_there_batches_to_replay,
         "Choosing the state update code path"
     );
 
@@ -1291,7 +1311,7 @@ where
         condition_nodes_sequence_number_is_fresher,
         condition_too_close_to_deferred_slots_count_for_comfort,
         condition_node_is_lagging,
-        condition_are_there_known_batches_to_replay,
+        condition_are_there_batches_to_replay,
     ) {
         // Something has gone terribly wrong, and I don't see a way for us
         // to meaningfully recover without nuking the sequencer DB.
@@ -1302,7 +1322,7 @@ where
         // to the chain tip.
         (true, _, false, false) => {
             warn!("The node has a higher sequence number than the sequencer, but we're very close to the chain tip, i.e. we don't expect to be simply syncing. This could mean there is another preferred sequencer running (which is not supported and will likely lead to issues), or you very recently restarted the node and there's still some in-flight blobs. Resyncing to the chain tip.");
-            seq.wait_for_node_resync_to_tip(state_update_receiver, shutdown_receiver, info)
+            seq.wait_for_node_resync_to_tip(state_update_receiver, shutdown_receiver, info, inner)
                 .await?;
         }
         // The node is lagging behind the chain tip. Pause the sequencer (if
@@ -1313,6 +1333,7 @@ where
                 state_update_receiver,
                 shutdown_receiver,
                 info,
+                inner,
             )
             .await?;
         }
@@ -1321,13 +1342,14 @@ where
         // soft-confirmations might easily get invalidated.
         (false, true, false, _) => {
             error!("Sequencer has detected that it is past, or very close to, having the visible_slot_number lag behind the deferred_slots_count threshold. Normal operation will be suspended until this can be remedied.");
-            seq.recover_and_catch_up(state_update_receiver, shutdown_receiver, info)
+            seq.recover_and_catch_up(state_update_receiver, shutdown_receiver, info, inner)
                 .await?;
         }
         // This is by far the most common scenario, i.e. a nominal
         // `update_state` call during sequencer execution with no unusual
         // conditions.
         (false, false, false, _) => {
+            drop(inner); // Drop the lock. We don't need to hold it while we do replay.
             seq.replay_soft_confirmations_on_top_of_node_state(info, timer_start)
                 .await?;
         }
