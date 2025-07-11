@@ -117,9 +117,9 @@ where
     config: SequencerConfig<S::Address, PreferredSequencerConfig>,
     da_address: <S::Da as DaSpec>::Address,
     block_executors_shutdown_notifier: Sender<()>,
-    /// Unique node identifier used for leader election in replica failover scenarios
+    /// Unique node identifier used for leader election in replica failover scenarios. Generated on
+    /// startup (and reset on restart).
     node_id: Uuid,
-    /// Current replica status - can be dynamically changed during failover
     is_master: AtomicBool,
     state_root_compute_task: StateRootBackgroundTaskState<S>,
     shutdown_receiver: watch::Receiver<()>,
@@ -796,7 +796,6 @@ pub(crate) fn slot_count_delta_acceptable_lower_bound(
         }
         self.is_master.store(is_master, Ordering::Release);
 
-        // Update blob sender and database master status via executor events
         let inner = self.lock_inner().await;
         let next_sequence_number_according_to_node =
             get_next_sequence_number_according_to_node(&inner.latest_info, &mut Rt::default());
@@ -1385,8 +1384,8 @@ pub struct PreferredSequencerConfig {
     pub recovery_strategy: RecoveryStrategy,
     /// Target time in milliseconds to spend executing all the txs in a single batch. Batches will be closed when they exceed this value.
     pub batch_execution_time_limit_millis: u64,
-    /// Time in seconds after which a replica will attempt to become the master if no heartbeat is received.
-    /// Only used in replica mode for failover scenarios.
+    /// Time in milliseconds after which a replica will attempt to become the master if no heartbeat is observed.
+    /// No effect if postgres_connection_string is not set.
     #[serde(default = "default_failover_threshold_millis")]
     pub failover_threshold_millis: u64,
 }
@@ -1422,8 +1421,7 @@ fn default_db_event_channel_size() -> usize {
     10_000
 }
 
-/// Default failover threshold in seconds for replica promotion.
-pub const fn default_failover_threshold_millis() -> u64 {
+fn default_failover_threshold_millis() -> u64 {
     500
 }
 

@@ -34,7 +34,6 @@ use crate::preferred::{exit_rollup, DbEvent, ExecutorEvent, PreferredSequencer};
 >>>>>>> Rebase on 1.88 upgrade
 use crate::ProofBlobSender;
 
-/// Event type enum for type-safe parsing
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 enum EventType {
@@ -58,7 +57,8 @@ impl FromStr for EventType {
     }
 }
 
-/// Structure representing the CSV payload from PostgreSQL NOTIFY
+// Structures representing the CSV payload from PostgreSQL NOTIFY
+
 #[derive(Debug)]
 struct EventsNotificationPayload {
     event_id: u64,
@@ -66,33 +66,10 @@ struct EventsNotificationPayload {
     event_type: EventType,
     index_in_batch: Option<u64>, // Only present for transaction events
 }
-
-/// Structure representing leader election notification payload from PostgreSQL NOTIFY
 #[derive(Debug)]
 struct LeaderNotificationPayload {
     node_id: Uuid,
-    last_updated_timestamp: f64, // Unix timestamp from EXTRACT(EPOCH FROM timestamp)
-}
-
-impl LeaderNotificationPayload {
-    fn parse_csv(payload: &str) -> anyhow::Result<Self> {
-        let parts: Vec<&str> = payload.split(',').collect();
-        if parts.len() != 2 {
-            return Err(anyhow!(
-                "Invalid leader notification CSV format: expected 2 fields, got {}",
-                parts.len()
-            ));
-        }
-
-        Ok(LeaderNotificationPayload {
-            node_id: parts[0]
-                .parse()
-                .map_err(|e| anyhow!("Invalid node_id '{}': {}", parts[0], e))?,
-            last_updated_timestamp: parts[1]
-                .parse()
-                .map_err(|e| anyhow!("Invalid timestamp '{}': {}", parts[1], e))?,
-        })
-    }
+    last_updated_timestamp: f64,
 }
 
 impl EventsNotificationPayload {
@@ -124,6 +101,27 @@ impl EventsNotificationPayload {
                         .map_err(|e| anyhow!("Invalid index_in_batch '{}': {}", parts[3], e))?,
                 )
             },
+        })
+    }
+}
+
+impl LeaderNotificationPayload {
+    fn parse_csv(payload: &str) -> anyhow::Result<Self> {
+        let parts: Vec<&str> = payload.split(',').collect();
+        if parts.len() != 2 {
+            return Err(anyhow!(
+                "Invalid leader notification CSV format: expected 2 fields, got {}",
+                parts.len()
+            ));
+        }
+
+        Ok(LeaderNotificationPayload {
+            node_id: parts[0]
+                .parse()
+                .map_err(|e| anyhow!("Invalid node_id '{}': {}", parts[0], e))?,
+            last_updated_timestamp: parts[1]
+                .parse()
+                .map_err(|e| anyhow!("Invalid timestamp '{}': {}", parts[1], e))?,
         })
     }
 }
@@ -191,6 +189,8 @@ where
 }
 
 /// Replication state for handling master/replica transitions
+/// We need a transitional state to finish processing any state events from the master that were
+/// still buffered at the point where we succeeded in takeover
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum ReplicaState {
     Replica,
@@ -224,7 +224,6 @@ where
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
-    /// Connect to PostgreSQL and run the replication task
     async fn connect_and_run(
         sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
         connection_string: &str,
@@ -233,24 +232,22 @@ where
     ) -> anyhow::Result<()> {
         debug!("Starting replica sync task for a replica sequencer");
 
-        // Create a separate persistent connection pool for querying transaction data
         let query_pool = PgPoolOptions::default()
             .max_connections(20) // Large pool for extra parallel queries when processing txs
             .connect(connection_string)
             .await?;
 
-        // Create dedicated listeners for PostgreSQL LISTEN/NOTIFY
         let mut listener = PgListener::connect(connection_string).await?;
 
         listener.listen("leader_changes").await?;
 
-        // All nodes start as replicas and need to listen to events_changes for syncing
-        // Masters will unsubscribe when they complete their transition
+        // All nodes start as replicas and need to listen to events_changes for syncing.
+        // If this is the only node it will immediately promote to master and stop listening (but
+        // since it's the only node there it won't receive any events in the meantime).
         listener.listen("events_changes").await?;
 
         debug!("Successfully connected and listening for PostgreSQL notifications");
 
-        // Create and run the replication task
         let failover_threshold = Duration::from_millis(
             sequencer
                 .config
@@ -264,7 +261,7 @@ where
             listener,
             latest_received_event_id: latest_loaded_event_id,
             replica_state: ReplicaState::Replica,
-            // Initialize to a time in the past to allow immediate takeover on startup
+            // Initialize to a time in the past to force an immediate takeover attempt on startup
             last_heartbeat_time: SystemTime::now() - failover_threshold - Duration::from_secs(1),
             failover_threshold,
         };
@@ -328,7 +325,7 @@ where
                     }
                 },
 
-                // Always process events in FIFO order, once we've fetched what we need from the DB
+                // Process events in FIFO order, once we've fetched what we need from the DB
                 Some(completed_result) = pending_events.next() => {
                     process_completed_event(self.sequencer.clone(), completed_result?, &self.query_pool).await?;
 
@@ -337,6 +334,7 @@ where
                         self.complete_transition_to_master().await?;
                     }
                 },
+
                 _ = takeover_interval.tick(), if self.replica_state == ReplicaState::Replica => {
                     if let Err(e) = self.tick_takeover(&mut pending_events).await {
                         warn!("Failed takeover attempt: {e:?}");
@@ -347,6 +345,7 @@ where
                             }
                         }
                 },
+
                 _ = shutdown_receiver.changed() => {
                     info!("Shutdown signal received, stopping event processing");
                     break;
@@ -357,14 +356,44 @@ where
         Ok(())
     }
 
-    async fn tick_heartbeat(&self) {
-        if let Err(e) = send_heartbeat(&self.query_pool, self.sequencer.node_id).await {
-            // Continue trying, but this could indicate we're no longer master.
-            // It's safe not to crash, though, since write operations are gated by a node_id check.
-            // In the worst case, the master will erroneously report `is_master() == true`, but
-            // won't be able to accept transactions or do anything else harmful.
-            // In the best case it's a transient DB error.
-            error!("Failed to send heartbeat: {e:?}");
+    async fn tick_heartbeat(&mut self) {
+        match send_heartbeat(&self.query_pool, self.sequencer.node_id).await {
+            Ok((rows_affected, current_node_id)) => {
+                match (rows_affected, current_node_id) {
+                    (1, Some(our_node_id)) if our_node_id == self.sequencer.node_id => {
+                        debug!(
+                            "Heartbeat successfully sent for node {}",
+                            self.sequencer.node_id
+                        );
+                    }
+                    (0, Some(other_node_id)) if other_node_id != self.sequencer.node_id => {
+                        warn!(
+                            "Another node {} has taken over as master. Transitioning to replica.",
+                            other_node_id
+                        );
+                        if let Err(e) = self.transition_to_replica().await {
+                            error!("Failed to transition to replica: {e:?}. Shutting down.");
+                            exit_rollup(&self.sequencer.shutdown_sender).await;
+                        }
+                    }
+                    (rows, node_id) => {
+                        // Sanity check: more than one row was affected by the insert
+                        error!(
+                            "Unexpected heartbeat result: rows_affected={}, current_node_id={:?}, our_node_id={}. This should not be possible. Shutting down.",
+                            rows, node_id, self.sequencer.node_id
+                        );
+                        exit_rollup(&self.sequencer.shutdown_sender).await;
+                        unreachable!();
+                    }
+                }
+            }
+            Err(e) => {
+                // Database error - log and continue. If this is transient, the next heartbeat
+                // should succeed.
+                // If it's a persistent connection failure, the sequencer cannot function and will
+                // shut down anyway.
+                warn!("Failed to send heartbeat: {e:?}. If this persists the sequencer may be demoted to a replica.");
+            }
         }
     }
 
@@ -379,8 +408,8 @@ where
                     // This is our own heartbeat - we're the master sequencer
                     if self.replica_state == ReplicaState::Replica {
                         // We weren't master before but somehow now we are.
-                        // In theory, the only way this should be possible would be through manual
-                        // database editing. (Which is fine if it happens.)
+                        // The only way this should be possible would be through manual database
+                        // editing. (Which is fine if it happens.)
                         info!("Replica promoted to master via DB notification.");
                         self.start_transition_to_master(pending_events).await?;
                     }
@@ -471,17 +500,17 @@ where
         while let Some(notification) = self.listener.next_buffered() {
             match notification.channel() {
                 "events_changes" => {
-                    // Use helper method to avoid code duplication
                     self.handle_event_notification(notification.payload(), pending_events)
                         .await?;
                 }
                 "leader_changes" => {
-                    // Handle inline to avoid recursive call to start_transition_to_master
+                    // Handle inline to avoid recursive call to start_transition_to_master.
+                    // We don't need full handling, just a single check if we need to abort.
                     if let Ok(leader_info) =
                         LeaderNotificationPayload::parse_csv(notification.payload())
                     {
                         if leader_info.node_id != self.sequencer.node_id {
-                            // Another node is master, abort our transition
+                            // Another node is suddenly master, abort our transition
                             info!("Another node became master before we finished transitioning, aborting");
                             self.transition_to_replica().await?;
                             return Ok(());
@@ -553,24 +582,35 @@ where
 }
 
 /// Send a heartbeat to maintain leadership
-async fn send_heartbeat(query_pool: &PgPool, node_id: Uuid) -> anyhow::Result<()> {
-    let result = sqlx::query(
-        "INSERT INTO sequencer_leader (node_id, last_updated) 
-         VALUES ($1, NOW()) 
-         ON CONFLICT (singleton) DO UPDATE SET 
-             last_updated = EXCLUDED.last_updated 
-         WHERE sequencer_leader.node_id = EXCLUDED.node_id",
+/// Returns (rows_affected, current_node_id) for sanity checking
+async fn send_heartbeat(query_pool: &PgPool, node_id: Uuid) -> anyhow::Result<(u64, Option<Uuid>)> {
+    // Use a CTE to perform the update and return the current node_id in one query
+    let row = sqlx::query(
+        "WITH heartbeat_update AS (
+            INSERT INTO sequencer_leader (node_id, last_updated) 
+            VALUES ($1, NOW()) 
+            ON CONFLICT (singleton) DO UPDATE SET 
+                last_updated = EXCLUDED.last_updated 
+            WHERE sequencer_leader.node_id = EXCLUDED.node_id
+            RETURNING 1 as updated
+        )
+        SELECT 
+            (SELECT COUNT(*) FROM heartbeat_update) as rows_affected,
+            (SELECT node_id FROM sequencer_leader WHERE singleton = 1) as current_node_id",
     )
     .bind(node_id)
-    .execute(query_pool)
+    .fetch_one(query_pool)
     .await?;
 
-    if result.rows_affected() == 0 {
-        warn!("Replication heartbeat failed to update any rows - this node may have been downgraded to a replica.");
-    }
+    let rows_affected = row.get::<i64, _>("rows_affected") as u64;
+    let current_node_id: Option<Uuid> = row.get("current_node_id");
 
-    debug!("Heartbeat sent for node {}", node_id);
-    Ok(())
+    trace!(
+        "Heartbeat result: rows_affected={}, current_node_id={:?}",
+        rows_affected,
+        current_node_id
+    );
+    Ok((rows_affected, current_node_id))
 }
 
 /// Attempt to take over leadership atomically

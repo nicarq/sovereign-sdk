@@ -338,7 +338,7 @@
           "minimum": 0.0
         },
         "failover_threshold_millis": {
-          "description": "Time in seconds after which a replica will attempt to become the master if no heartbeat is received. Only used in replica mode for failover scenarios.",
+          "description": "Time in milliseconds after which a replica will attempt to become the master if no heartbeat is observed. No effect if postgres_connection_string is not set.",
           "default": 500,
           "type": "integer",
           "format": "uint64",

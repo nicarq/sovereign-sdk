@@ -13,12 +13,12 @@ use crate::common::TxStatusBlobSenderHooks;
 #[derive(derive_more::Deref, derive_more::From)]
 pub struct PreferredBlobSender<Da: DaService> {
     inner: BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>, LedgerDb>,
+    /// If the sequencer is a replica, blob sending is a no-op.
     #[deref(ignore)]
     is_master: bool,
 }
 
 impl<Da: DaService> PreferredBlobSender<Da> {
-    /// Update the master status of this blob sender
     pub fn set_is_master(&mut self, is_master: bool) {
         self.is_master = is_master;
     }
