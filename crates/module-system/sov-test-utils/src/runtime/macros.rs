@@ -118,8 +118,8 @@ macro_rules! generate_runtime_without_capabilities {
             type Auth = $auth;
 
             fn endpoints(api_state: sov_modules_api::rest::ApiState<S>) -> ::sov_modules_api::NodeEndpoints {
-                use $crate::sov_rollup_apis::dedup::{DeDupEndpoint, NonceDeDupEndpoint};
-                use $crate::sov_rollup_apis::schema::{SchemaEndpoint, StandardSchemaEndpoint};
+                use $crate::sov_rollup_apis::endpoints::dedup::{DeDupEndpoint, NonceDeDupEndpoint};
+                use $crate::sov_rollup_apis::endpoints::schema::{SchemaEndpoint, StandardSchemaEndpoint};
                 use $crate::sov_universal_wallet::schema::{ChainData, Schema};
                 use ::sov_modules_api::macros::config_value;
                 use ::sov_modules_api::transaction::{Transaction, UnsignedTransaction};
@@ -147,6 +147,7 @@ macro_rules! generate_runtime_without_capabilities {
                 )
                 .expect("Failed to initialize StandardSchemaEndpoint");
                 let axum_router = axum_router.merge(schema_endpoint.axum_router());
+                let axum_router = axum_router.merge($crate::sov_rollup_apis::endpoints::constants::axum_router());
 
                 ::sov_modules_api::NodeEndpoints {
                     axum_router,

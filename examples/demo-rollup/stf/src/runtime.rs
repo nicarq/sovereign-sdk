@@ -104,8 +104,8 @@ where
         api_state: sov_modules_api::rest::ApiState<S>,
     ) -> ::sov_modules_api::NodeEndpoints {
         use ::sov_modules_api::rest::HasRestApi;
-        use ::sov_rollup_apis::dedup::{DeDupEndpoint, NonceDeDupEndpoint};
-        use ::sov_rollup_apis::schema::{SchemaEndpoint, StandardSchemaEndpoint};
+        use ::sov_rollup_apis::endpoints::dedup::{DeDupEndpoint, NonceDeDupEndpoint};
+        use ::sov_rollup_apis::endpoints::schema::{SchemaEndpoint, StandardSchemaEndpoint};
 
         let axum_router = Self::default().rest_api(api_state.clone());
         // Provide an endpoint to return dedup information associated with addresses.
@@ -119,6 +119,7 @@ where
         )
         .expect("Failed to initialize StandardSchemaEndpoint");
         let axum_router = axum_router.merge(schema_endpoint.axum_router());
+        let axum_router = axum_router.merge(sov_rollup_apis::endpoints::constants::axum_router());
 
         ::sov_modules_api::NodeEndpoints {
             axum_router,

@@ -17,11 +17,9 @@ use sov_rest_utils::{errors, preconfigured_router_layers, ApiResult, ResponseObj
 
 mod client_interface;
 
-/// Provides the `dedup` endpoint functionality.
-pub mod dedup;
 mod default_provider;
-/// Provides the `schema` endpoint functionality.
-pub mod schema;
+/// Provides functionality for various `/rollup` endpoints.
+pub mod endpoints;
 
 pub use default_provider::DefaultRollupStateProvider;
 

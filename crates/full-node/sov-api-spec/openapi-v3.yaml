@@ -425,6 +425,21 @@ paths:
           $ref: "#/components/responses/Schema"
         "400":
           $ref: "#/components/responses/ApiErrorResponse"
+  /rollup/constants:
+    get:
+      summary: Get constants
+      description: >
+        Returns the a subset of the constants used by the rollup.
+
+        This information can be useful for the web3 SDK and external tools.
+      operationId: rollup_constants
+      tags:
+        - Rollup
+      responses:
+        "200":
+          $ref: "#/components/responses/Constants"
+        "400":
+          $ref: "#/components/responses/ApiErrorResponse"
   /rollup/addresses/{address}/dedup:
     get:
       summary: Deduplicate an address
@@ -705,6 +720,19 @@ components:
               - meta
     Schema:
       description: Schema of the rollup.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: "#/components/schemas/AnyJsonValue"
+              meta:
+                $ref: "#/components/schemas/AnyJsonValue"
+            required:
+              - meta
+    Constants:
+      description: Constants of the rollup.
       content:
         application/json:
           schema:
