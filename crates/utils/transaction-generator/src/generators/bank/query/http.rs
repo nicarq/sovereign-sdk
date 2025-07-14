@@ -35,7 +35,7 @@ impl<S: Spec> HttpBankClient<S> {
             self.client
                 .get_balance::<S>(user, &token_id, self.rollup_height)
         })
-        .retry(&ExponentialBuilder::default())
+        .retry(ExponentialBuilder::default())
         .await
         .unwrap()
     }
@@ -43,7 +43,7 @@ impl<S: Spec> HttpBankClient<S> {
     /// Get the total supply of a token
     pub async fn get_total_supply(&self, token_id: &TokenId) -> sov_bank::Amount {
         (|| self.client.get_total_supply(token_id))
-            .retry(&ExponentialBuilder::default())
+            .retry(ExponentialBuilder::default())
             .await
             .unwrap()
     }
@@ -51,7 +51,7 @@ impl<S: Spec> HttpBankClient<S> {
     /// Check if a token is frozen
     pub async fn is_frozen(&self, token_id: &TokenId) -> bool {
         (|| self.client.get_admins::<S>(token_id))
-            .retry(&ExponentialBuilder::default())
+            .retry(ExponentialBuilder::default())
             .await
             .unwrap()
             .is_empty()

@@ -1,3 +1,5 @@
+# 2025-07-10
+- #3200 Upgrade `backon` crate.
 # 2025-07-14
 - #3211 Moves the `schema` and `dedup` endpoint traits/router to a new `endpoints` module for better organization
 

@@ -105,7 +105,7 @@ impl Client {
         let tx = types::AcceptTxBody { body: tx_b64 };
         let client = self.clone();
         let fut = || async { client.accept_tx(&tx).await };
-        fut.retry(&backoff)
+        fut.retry(backoff)
             .when(|err| {
                 match err {
                     Error::InvalidRequest(_) | Error::InvalidUpgrade(_) | Error::PreHookError(_) => false,

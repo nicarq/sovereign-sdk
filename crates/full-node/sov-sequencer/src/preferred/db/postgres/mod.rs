@@ -27,7 +27,7 @@ macro_rules! run_with_retries {
             if result.is_ok() {
                 result
             } else {
-                for iter in $backoff_policy.build() {
+                for iter in $backoff_policy.clone().build() {
                     tracing::warn!(
                         // Safety: We just checked that the result is an error, so we can unwrap.
                         method_name = %$method_name, error = %result.err().unwrap(), duration = ?iter,
@@ -131,7 +131,7 @@ impl PostgresBackend {
     }
     async fn maybe_retry_policy(&self, with_retries: bool) -> ExponentialBuilder {
         if with_retries {
-            self.backoff_policy.clone()
+            self.backoff_policy
         } else {
             ExponentialBuilder::default().with_max_times(0)
         }

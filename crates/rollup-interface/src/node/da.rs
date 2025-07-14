@@ -253,7 +253,7 @@ pub trait DaService: Clone + Send + Sync + 'static {
 
 /// Retry the given async function with the given backoff policy.
 pub async fn run_maybe_retryable_async_fn_with_retries<F, Fut, T, E>(
-    backoff_policy: &impl BackoffBuilder,
+    backoff_policy: impl BackoffBuilder,
     fxn: F,
     da_method_name: &str,
 ) -> Result<T, E>
@@ -310,7 +310,7 @@ mod tests {
         let backoff_policy = ExponentialBuilder::default().with_max_times(max_retries);
 
         let r = run_maybe_retryable_async_fn_with_retries(
-            &backoff_policy,
+            backoff_policy,
             || async {
                 let mut count = retry_counter.lock().await;
                 *count += 1;

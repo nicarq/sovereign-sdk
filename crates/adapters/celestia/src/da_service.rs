@@ -146,7 +146,7 @@ impl CelestiaService {
 
         let backoff_policy = config.get_backoff_policy();
         let fetched_address = run_maybe_retryable_async_fn_with_retries(
-            &backoff_policy,
+            backoff_policy,
             || async {
                 client
                     .state_account_address()
@@ -327,7 +327,7 @@ impl DaService for CelestiaService {
     #[instrument(skip(self))]
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
         run_maybe_retryable_async_fn_with_retries(
-            &self.backoff_policy,
+            self.backoff_policy,
             || self.get_block_at_inner(height),
             "get_block_at",
         )
@@ -340,7 +340,7 @@ impl DaService for CelestiaService {
         height: u64,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
         run_maybe_retryable_async_fn_with_retries(
-            &self.backoff_policy,
+            self.backoff_policy,
             || self.get_block_header_at_inner(height),
             "get_block_header_at",
         )
@@ -366,7 +366,7 @@ impl DaService for CelestiaService {
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
         run_maybe_retryable_async_fn_with_retries(
-            &self.backoff_policy,
+            self.backoff_policy,
             || self.get_head_block_header_inner(),
             "get_head_block_header",
         )
@@ -399,7 +399,7 @@ impl DaService for CelestiaService {
     > {
         let (tx, rx) = oneshot::channel();
         let res = run_maybe_retryable_async_fn_with_retries(
-            &self.backoff_policy,
+            self.backoff_policy,
             || self.send_transaction_inner(blob),
             "send_transaction",
         )
@@ -416,7 +416,7 @@ impl DaService for CelestiaService {
     > {
         let (tx, rx) = oneshot::channel();
         let res = run_maybe_retryable_async_fn_with_retries(
-            &self.backoff_policy,
+            self.backoff_policy,
             || self.send_proof_inner(aggregated_proof),
             "send_proof",
         )
@@ -428,7 +428,7 @@ impl DaService for CelestiaService {
     #[instrument(err)]
     async fn get_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
         run_maybe_retryable_async_fn_with_retries(
-            &self.backoff_policy,
+            self.backoff_policy,
             || self.get_proofs_at_inner(height),
             "get_proofs_at",
         )
