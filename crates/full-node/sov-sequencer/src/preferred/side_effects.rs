@@ -202,7 +202,11 @@ where
     ) -> Result<(), anyhow::Error> {
         match event {
             ExecutorEvent::AcceptedTx(accepted_tx, tx_changes, oneshot_sender) => {
-                let true = self.db.insert_tx(accepted_tx.tx.clone(), accepted_tx.tx_hash).await? else {
+                let true = self
+                    .db
+                    .insert_tx(accepted_tx.tx.clone(), accepted_tx.tx_hash)
+                    .await?
+                else {
                     // We're no longer master, nothing more to do
                     let _ = oneshot_sender.send(None);
                     return Ok(());
@@ -263,7 +267,9 @@ where
                 self.db.prune(sequence_number).await?;
             }
             ExecutorEvent::InsertTxWithoutConfirmation(accepted_tx) => {
-                self.db.insert_tx(accepted_tx.tx.clone(), accepted_tx.tx_hash).await?;
+                self.db
+                    .insert_tx(accepted_tx.tx.clone(), accepted_tx.tx_hash)
+                    .await?;
                 self.transaction_cache.insert(accepted_tx).await;
             }
 

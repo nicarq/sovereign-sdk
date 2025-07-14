@@ -3,9 +3,7 @@ use std::sync::Arc;
 
 use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
-use sov_modules_api::{
-    Runtime, Spec, StateCheckpoint, TxChangeSet, VisibleSlotNumber,
-};
+use sov_modules_api::{Runtime, Spec, StateCheckpoint, TxChangeSet, VisibleSlotNumber};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{mpsc, oneshot, watch};
 use uuid::Uuid;

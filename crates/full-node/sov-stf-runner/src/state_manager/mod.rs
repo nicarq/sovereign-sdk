@@ -390,6 +390,7 @@ where
             ?commit_time,
             "All finalized transitions are marked as finalized"
         );
+
         let updating_api_time = self.update_api_and_ledger_storage(&block_header).await?;
 
         let sending_to_prover_start = std::time::Instant::now();
@@ -448,7 +449,6 @@ where
         ledger_state: DeltaReader,
     ) -> anyhow::Result<()> {
         self.ledger_db.replace_reader(ledger_state);
-
         let state_update_info = query_state_update_info(&self.ledger_db, stf_state).await?;
 
         // `send_replace` is superior to `send` for our use case. It never fails

@@ -22,7 +22,6 @@ pub use config::{SequencerConfig, SequencerKindConfig};
 pub use rest_api::SequencerApis;
 use serde::Serialize;
 use sov_modules_api::capabilities::RollupHeight;
-use sov_modules_api::{RuntimeEventProcessor, RuntimeEventResponse};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::TxHash;
 pub use tx_status::TxStatusManager;
@@ -69,19 +68,6 @@ pub enum SequencerNotReadyDetails {
     /// The sequencer is running in replica mode and cannot accept transactions.
     ReplicaMode,
 }
-
-/// See [`crate::common::Sequencer::subscribe_events`].
-#[derive(derivative::Derivative, serde::Serialize, serde::Deserialize)]
-#[derivative(Clone(bound = ""))]
-#[serde(bound = "")]
-pub struct SequencerEvent<Rt: RuntimeEventProcessor> {
-    /// The hash of the transaction for which the event was emitted.
-    pub tx_hash: TxHash,
-    /// Event data.
-    #[serde(flatten)]
-    pub event: RuntimeEventResponse<Rt::RuntimeEvent>,
-}
-
 /// An object-safe interface to the sequencer, which can be used to
 /// publish a proof blob to DA.
 #[async_trait]

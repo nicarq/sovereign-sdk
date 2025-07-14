@@ -5,6 +5,8 @@
   - While this should be a non-breaking change, there may be some changes in timing on sequencer startup when using PostgreSQL which may affect end-to-end testing that makes timing assumptions.
   - The config option introduces in #3126 has been removed. Leader elections happens automatically. To promote a specific node to leader, start it as the only node before starting other replicas. It is also possible, though dangerous, to edit the database manually and modify the `sequencer_leader` table by inserting a specific node's ID.
   - None of this affects sequencers running with the RocksDB backend (which is the default if no PostgreSQL connection string is provided in the configuration).
+- #3164 Adds support for an optional `stop_at_rollup_height` parameter in the rollup.
+- #3211 Moves the `schema` and `dedup` endpoint traits/router to a new `endpoints` module for better organization
 
 # 2025-07-10
 - #3200 Upgrade `backon` crate.

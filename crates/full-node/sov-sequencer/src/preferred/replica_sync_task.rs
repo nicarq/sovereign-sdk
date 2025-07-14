@@ -150,6 +150,7 @@ where
             latest_state_update,
             std::time::Instant::now(),
             true,
+            std::time::Duration::from_secs(0),
         )
         .await
     {
@@ -555,7 +556,7 @@ where
                 // We don't set it to ReplicaMode anywhere. But guard against it in case we ever
                 // do: it's obviously natural and we should proceed with takeover.
                 // (If it ever becomes an expected value, this print can be removed.)
-                debug!("Replica takeover: `inner.is_ready` was set to `SequencerNotReadyDetails::ReplicaMode`. This is not harmful, but is not expected to be possible.")
+                debug!("Replica takeover: `inner.is_ready` was set to `SequencerNotReadyDetails::ReplicaMode`. This is not harmful, but is not expected to be possible.");
             }
         }
 
@@ -848,15 +849,17 @@ where
 {
     let mut inner = sequencer.lock_inner().await;
 
-    let AcceptedTxWithBudgetInfo { accepted_tx, execution_time_micros, .. } = inner.executor.replay_tx(tx_hash, &baked_tx).await;
+    let AcceptedTxWithBudgetInfo {
+        accepted_tx,
+        execution_time_micros,
+        ..
+    } = inner.executor.replay_tx(tx_hash, &baked_tx).await;
     inner
         .batch_size_tracker
         .add_tx(baked_tx.data.len(), execution_time_micros);
     inner
         .executor_events_sender
-        .send(ExecutorEvent::InsertTxWithoutConfirmation(
-                accepted_tx
-        ))
+        .send(ExecutorEvent::InsertTxWithoutConfirmation(accepted_tx))
         .await;
     inner
         .executor_events_sender

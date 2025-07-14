@@ -99,6 +99,7 @@ pub struct RollupBuilderConfig<S: Spec, StoragePath = Arc<tempfile::TempDir>> {
     pub max_batch_size_bytes: usize,
     pub max_concurrent_blobs: usize,
     pub blob_processing_timeout_secs: u64,
+    pub start_at_rollup_height: Option<RollupHeight>,
     pub stop_at_rollup_height: Option<RollupHeight>,
 }
 
@@ -226,6 +227,7 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
                 axum_host: "127.0.0.1".to_string(),
                 axum_port: 0,
                 blob_processing_timeout_secs: 60,
+                start_at_rollup_height: None,
                 stop_at_rollup_height: None,
             },
             with_secondary_sequencer: None,
@@ -357,6 +359,7 @@ where
                         genesis_paths,
                         rollup_config.clone(),
                         self.config.rollup_prover_config.clone(),
+                        self.config.start_at_rollup_height,
                         self.config.stop_at_rollup_height,
                     )
                     .await?
@@ -367,6 +370,7 @@ where
                         genesis_params.clone(),
                         rollup_config.clone(),
                         self.config.rollup_prover_config.clone(),
+                        self.config.start_at_rollup_height,
                         self.config.stop_at_rollup_height,
                     )
                     .await?
@@ -524,6 +528,7 @@ where
             slot_number: SlotNumber::ONE,
             latest_finalized_slot_number: SlotNumber::ONE,
         };
+
         let (sender, state_update_receiver) = watch::channel(state_update_info);
 
         let (sequencer, _background_handles) =
@@ -776,17 +781,21 @@ where
 
     /// Restarts the rollup.
     pub async fn restart(self) -> anyhow::Result<Self> {
-        self.restart_with_stop_at_height(None).await
+        self.restart_with_heights(None, None).await
     }
 
     /// Restarts the rollup. With an option to stop at a specific height.
-    pub async fn restart_with_stop_at_height(
+    pub async fn restart_with_heights(
         self,
+        start_at_height: Option<RollupHeight>,
         stop_at_height: Option<RollupHeight>,
     ) -> anyhow::Result<Self> {
         let builder = self.shutdown().await?;
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        let builder = builder.set_config(|c| c.stop_at_rollup_height = stop_at_height);
+        let builder = builder.set_config(|c| {
+            c.start_at_rollup_height = start_at_height;
+            c.stop_at_rollup_height = stop_at_height;
+        });
         builder.start().await
     }
 }

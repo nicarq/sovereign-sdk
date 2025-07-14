@@ -153,6 +153,7 @@ async fn test_runner_with_background_da_service(
         shutdown_receiver.clone(),
         rollup_config.monitoring.clone(),
         None,
+        None,
     )
     .await?;
 

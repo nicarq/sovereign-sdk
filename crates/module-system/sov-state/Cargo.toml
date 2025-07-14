@@ -27,7 +27,7 @@ serde-big-array = "0.5.1"
 sov-rollup-interface = { workspace = true }
 sov-db = { workspace = true, optional = true }
 hex = { workspace = true }
-jmt = { workspace = true }
+jmt = { workspace = true, features = ["std", "sha2"] }
 nomt-core = { workspace = true }
 nomt = { workspace = true, optional = true }
 sov-metrics = { workspace = true, optional = true }
@@ -41,12 +41,12 @@ sha2 = { workspace = true }
 
 [features]
 arbitrary = [
-	"dep:arbitrary",
-	"dep:proptest",
-	"dep:proptest-derive",
-	"sov-db?/arbitrary",
-	"sov-rollup-interface/arbitrary",
-	"sov-modules-macros?/arbitrary"
+    "dep:arbitrary",
+    "dep:proptest",
+    "dep:proptest-derive",
+    "sov-db?/arbitrary",
+    "sov-rollup-interface/arbitrary",
+    "sov-modules-macros?/arbitrary"
 ]
 bench = ["sov-metrics", "sov-modules-macros/bench"]
 default = []

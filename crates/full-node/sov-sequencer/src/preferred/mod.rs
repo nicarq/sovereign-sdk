@@ -15,8 +15,8 @@ use std::boxed::Box;
 use std::marker::PhantomData;
 use std::num::NonZero;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -59,15 +59,18 @@ use tokio::sync::{broadcast, oneshot, watch, Mutex, MutexGuard};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, error, info, trace, warn};
-use uuid::Uuid;
 use transaction_subscriptions::TransactionCache;
+use uuid::Uuid;
 
 use crate::common::{
     error_not_fully_synced, generic_accept_tx_error, loop_send_tx_notifications, poll_state_update,
     AcceptedTx, Sequencer, SequencerEventStream, StateUpdateError, StateUpdateNotification,
     TxStatusBlobSenderHooks, WithCachedTxHashes,
 };
-use crate::metrics::{track_in_progress_batch_size, track_sequence_number};
+use crate::metrics::{
+    track_in_progress_batch_size, track_sequence_number,
+    PreferredSequencerFetchBatchesToReplayMetrics,
+};
 use crate::preferred::block_executor::{
     AcceptedTxWithBudgetInfo, RollupBlockExecutor, RollupBlockExecutorError,
 };
@@ -620,7 +623,7 @@ where
         // TODO: Rename events_channel_size to transaction_channel_size
         let cached_txs = TransactionCache::new(
             api_ledger_db.clone(),
-            &latest_state_update,
+            latest_state_update.next_tx_number,
             config.sequencer_kind_config.events_channel_size,
         );
 
@@ -659,18 +662,6 @@ where
         }
         .spawn();
         handles.push(side_effects_task);
-
-        if let Some(stop_height) = stop_at_rollup_height {
-            let rollup_height_to_access = inner.executor.checkpoint.rollup_height_to_access();
-            if stop_height < rollup_height_to_access {
-                tracing::error!(
-                    stop_height = stop_height.get(),
-                    rollup_height_to_access = rollup_height_to_access.get(),
-                    "The requested stop_height is lower than rollup_height_to_access, exiting"
-                );
-                anyhow::bail!("The requested stop_height: {stop_height} is lower than the current rollup_height_to_access: {rollup_height_to_access}, exiting");
-            }
-        }
 
         let seq = Arc::new(PreferredSequencer {
             inner: inner.into(),
@@ -1220,11 +1211,15 @@ where
         inner: &Inner<S, Rt>,
         sequence_number: SequenceNumber,
         include_in_progress_batch: bool,
-    ) -> anyhow::Result<Vec<PreferredBatchToReplay>>
+    ) -> anyhow::Result<(
+        Vec<PreferredBatchToReplay>,
+        PreferredSequencerFetchBatchesToReplayMetrics,
+    )>
     where
         S: Spec,
         Rt: Runtime<S>,
     {
+        let start = std::time::Instant::now();
         let (sender, receiver) = oneshot::channel();
         inner
             .executor_events_sender
@@ -1234,9 +1229,16 @@ where
                 include_in_progress_batch,
             })
             .await;
-        receiver.await.map_err(|_| {
+        let result = receiver.await.map_err(|_| {
             anyhow!("Failed to fetch completed batches because the databse shut down.")
-        })
+        })?;
+        let duration = start.elapsed();
+        let metrics = PreferredSequencerFetchBatchesToReplayMetrics {
+            duration,
+            num_batches: result.len() as u64,
+            num_transactions: result.iter().map(|b| b.batch.inner.data.len()).sum(),
+        };
+        Ok((result, metrics))
     }
 }
 
@@ -1301,7 +1303,7 @@ where
     // This prevents `accept_tx` from sneaking in any new txs between the time we check if there are soft confirmations to replay
     // and the time the sequencer is marked unready.
     let inner = seq.lock_inner().await;
-    let (batches_to_replay, next_sequence_number, is_startup) = {
+    let ((batches_to_replay, fetch_batches_to_replay_metrics), next_sequence_number, is_startup) = {
         (
             seq.completed_batches_to_replay(&inner, next_sequence_number_according_to_node, true)
                 .await?,
@@ -1309,6 +1311,10 @@ where
             !inner.has_finished_startup,
         )
     };
+    let time_spent_fetching_batches = fetch_batches_to_replay_metrics.duration;
+    sov_metrics::track_metrics(|t| {
+        t.submit(fetch_batches_to_replay_metrics);
+    });
 
     let distance = seq.da_sync_state.status().distance();
 
@@ -1383,8 +1389,13 @@ where
         // conditions.
         (false, false, false, _) => {
             drop(inner); // Drop the lock. We don't need to hold it while we do replay.
-            seq.replay_soft_confirmations_on_top_of_node_state(info, timer_start, is_startup)
-                .await?;
+            seq.replay_soft_confirmations_on_top_of_node_state(
+                info,
+                timer_start,
+                is_startup,
+                time_spent_fetching_batches,
+            )
+            .await?;
         }
     }
 
@@ -1474,22 +1485,13 @@ where
     async fn subscribe_events(&self) -> Option<SequencerEventStream<Self::Rt>> {
         use futures::StreamExt;
 
-        use crate::SequencerEvent;
         let tx_stream = self.transaction_cache.subscribe();
 
         let event_stream: SequencerEventStream<Self::Rt> =
             Box::pin(tx_stream.flat_map(|tx| match tx {
-                Ok(tx) => {
-                    let output: SequencerEventStream<Self::Rt> = Box::pin(
-                        futures::stream::iter(tx.confirmation.events).map(move |event| {
-                            Ok(SequencerEvent {
-                                tx_hash: tx.id,
-                                event,
-                            })
-                        }),
-                    );
-                    output
-                }
+                Ok(tx) => Box::pin(futures::stream::iter(
+                    tx.confirmation.events.into_iter().map(Ok),
+                )),
                 Err(e) => {
                     let output: SequencerEventStream<Self::Rt> =
                         Box::pin(futures::stream::once(async { Err(e) }));

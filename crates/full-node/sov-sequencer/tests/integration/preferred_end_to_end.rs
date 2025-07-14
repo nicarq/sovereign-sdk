@@ -709,12 +709,12 @@ async fn seq_behind_deferred_slots_count_with_shutdown() {
     let client = test_rollup.api_client.clone();
 
     // Give the rollup time to process the backlog and enter recovery mode
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    tokio::time::sleep(Duration::from_millis(1000)).await;
 
     // Produce a few more blocks to trigger recovery detection
     for _ in 0..3 {
         test_rollup.da_service.produce_block_now().await.unwrap();
-        sleep(Duration::from_millis(500)).await;
+        sleep(Duration::from_millis(1000)).await;
     }
 
     // Create transaction that should fail: sequencer should not accept transactions while in recovery
@@ -1111,6 +1111,86 @@ async fn test_sequencer_getters() {
         page = SequencerListEventsPage::Next;
         page_cursor = next_cursor;
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sequencer_event_stream_filtering() {
+    let (test_rollup, admin) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        1000, // Timeout the batch after 1 second of execution time.
+    )
+    .await;
+
+    let Some(test_rollup) = test_rollup else {
+        return;
+    };
+
+    // Set up the rollup the usual way.
+    let mut slot_subscription = test_rollup.api_client.subscribe_slots().await.unwrap();
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(5)
+        .await
+        .unwrap();
+    for _ in 0..5 {
+        let _ = slot_subscription.next().await.unwrap().unwrap();
+    }
+
+    let mut all_events = test_rollup.api_client.subscribe_to_events().await.unwrap();
+    let mut value_setter_cpu_heavy_events = test_rollup
+        .api_client
+        .subscribe_to_events_with_filter("ValueSetter/RanCPUHeavyOperation")
+        .await
+        .unwrap();
+    let mut bank_events = test_rollup
+        .api_client
+        .subscribe_to_events_with_filter("Bank/*")
+        .await
+        .unwrap();
+    let mut value_setter_and_bank_events = test_rollup
+        .api_client
+        .subscribe_to_events_with_filter("Bank/*,ValueSetter/*")
+        .await
+        .unwrap();
+    let tx = tx_set_value(&admin.private_key, 0, 1000);
+    let _ = test_rollup
+        .api_client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx),
+        })
+        .await
+        .unwrap();
+
+    assert!(
+        tokio::time::timeout(Duration::from_secs(1), bank_events.next())
+            .await
+            .is_err(),
+        "Bank event stream should not receive value setter txs"
+    );
+    assert!(
+        tokio::time::timeout(Duration::from_secs(1), value_setter_cpu_heavy_events.next())
+            .await
+            .is_err(),
+        "Value setter cpu heavy event stream should not receive bank events"
+    );
+    assert!(
+        tokio::time::timeout(Duration::from_secs(1), all_events.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .is_ok(),
+        "All event stream should receive all events"
+    );
+    assert!(
+        tokio::time::timeout(Duration::from_secs(1), value_setter_and_bank_events.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .is_ok(),
+        "Value setter and bank event stream should receive value setter events"
+    );
 }
 
 /// This test checks that the sequencer closes its current batch when the tx execution time exceeds its target.
