@@ -11302,6 +11302,7 @@ dependencies = [
  "serde_urlencoded",
  "sov-rest-utils",
  "test-strategy",
+ "thiserror 1.0.64",
  "tokio",
  "tower 0.5.1",
  "tower-http",

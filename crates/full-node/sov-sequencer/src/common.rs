@@ -26,15 +26,20 @@ use tokio::time::timeout;
 use tracing::{info, trace};
 
 use crate::rest_api::ApiAcceptedTx;
-use crate::{
-    SequencerEvent, SequencerNotReadyDetails, SlotNumber, TxHash, TxStatus, TxStatusManager,
-};
+use crate::{SequencerNotReadyDetails, SlotNumber, TxHash, TxStatus, TxStatusManager};
 
 pub(crate) type SequencerTxStream<Confirmation> =
     Pin<Box<dyn futures::Stream<Item = Result<ApiAcceptedTx<Confirmation>, anyhow::Error>> + Send>>;
 
-pub(crate) type SequencerEventStream<Rt> =
-    Pin<Box<dyn futures::Stream<Item = anyhow::Result<SequencerEvent<Rt>>> + Send>>;
+pub(crate) type SequencerEventStream<Rt> = Pin<
+    Box<
+        dyn futures::Stream<
+                Item = anyhow::Result<
+                    RuntimeEventResponse<<Rt as RuntimeEventProcessor>::RuntimeEvent>,
+                >,
+            > + Send,
+    >,
+>;
 
 /// The [`Sequencer`] trait is responsible for accepting transactions and
 /// assembling them into batches.

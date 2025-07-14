@@ -1423,22 +1423,13 @@ where
     async fn subscribe_events(&self) -> Option<SequencerEventStream<Self::Rt>> {
         use futures::StreamExt;
 
-        use crate::SequencerEvent;
         let tx_stream = self.transaction_cache.subscribe();
 
         let event_stream: SequencerEventStream<Self::Rt> =
             Box::pin(tx_stream.flat_map(|tx| match tx {
-                Ok(tx) => {
-                    let output: SequencerEventStream<Self::Rt> = Box::pin(
-                        futures::stream::iter(tx.confirmation.events).map(move |event| {
-                            Ok(SequencerEvent {
-                                tx_hash: tx.id,
-                                event,
-                            })
-                        }),
-                    );
-                    output
-                }
+                Ok(tx) => Box::pin(futures::stream::iter(
+                    tx.confirmation.events.into_iter().map(Ok),
+                )),
                 Err(e) => {
                     let output: SequencerEventStream<Self::Rt> =
                         Box::pin(futures::stream::once(async { Err(e) }));

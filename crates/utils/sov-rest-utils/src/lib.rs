@@ -22,6 +22,7 @@
 #![doc = include_str!("../README.md")]
 
 mod axum_extractors;
+mod filter;
 mod pagination;
 mod sorting;
 
@@ -40,6 +41,7 @@ use axum::http::{HeaderName, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::{Json, Router};
 pub use axum_extractors::{Path, Query};
+pub use filter::{Filter, FilterError, FilterQuery};
 use futures::StreamExt;
 pub use pagination::{PageSelection, PaginatedResponse, Pagination};
 use serde::Serialize;

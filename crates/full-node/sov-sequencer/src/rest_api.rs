@@ -15,8 +15,8 @@ use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::runtime::Runtime;
 use sov_modules_api::{RawTx, RuntimeEventProcessor, RuntimeEventResponse};
 use sov_rest_utils::{
-    errors, preconfigured_router_layers, serve_generic_ws_subscription, ApiResult, PageSelection,
-    PaginatedResponse, Pagination, Path, Query,
+    errors, preconfigured_router_layers, serve_generic_ws_subscription, ApiResult, FilterQuery,
+    PageSelection, PaginatedResponse, Pagination, Path, Query,
 };
 use sov_rollup_interface::da::{DaBlobHash, DaSpec};
 use sov_rollup_interface::node::da::DaService;
@@ -258,14 +258,21 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
 
     async fn subscribe_to_events(
         State(state): State<Self>,
+        filter: FilterQuery,
         ws: WebSocketUpgrade,
     ) -> impl IntoResponse {
+        use futures::future;
         ws.on_upgrade(|socket| async move {
             let stream = state
                 .sequencer
                 .subscribe_events()
                 .await
-                .unwrap_or_else(|| futures::stream::empty().boxed());
+                .unwrap_or_else(|| futures::stream::empty().boxed())
+                .filter(|event| match (event, &filter.filter) {
+                    // Only filter events if the event is Ok (don't drop the errors!) and there is a filter configured.
+                    (Ok(event), Some(filter)) => future::ready(filter.matches(&event.key)),
+                    (_, _) => future::ready(true),
+                });
             serve_generic_ws_subscription(socket, stream, state.shutdown_receiver.clone()).await;
         })
     }

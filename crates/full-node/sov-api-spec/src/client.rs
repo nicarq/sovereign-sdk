@@ -159,6 +159,18 @@ impl Client {
         self.subscribe_to_ws(path).await
     }
 
+    pub async fn subscribe_to_events(&self) -> WsSubscription<types::LedgerEvent> {
+        self.subscribe_to_ws("/sequencer/events/ws").await
+    }
+
+    pub async fn subscribe_to_events_with_filter(
+        &self,
+        filter: &str,
+    ) -> WsSubscription<types::LedgerEvent> {
+        self.subscribe_to_ws(&format!("/sequencer/events/ws?key={filter}"))
+            .await
+    }
+
     pub async fn subscribe_to_ws<T: serde::de::DeserializeOwned>(
         &self,
         path: &str,
