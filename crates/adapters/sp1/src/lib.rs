@@ -131,13 +131,13 @@ mod tests {
     #[test]
     fn test_sp1_method_id_codec_roundtrip() {
         use sov_rollup_interface::zk::CodeCommitment;
-        use sp1_sdk::ProverClient;
+        use sp1_sdk::{Prover, ProverClient};
 
         use crate::SP1MethodId;
 
         const ELF: &[u8] = include_bytes!("../test_data/riscv32im-succinct-zkvm-elf");
 
-        let prover = ProverClient::from_env();
+        let prover = ProverClient::builder().mock().build();
         let (_, vk) = prover.setup(ELF);
         let method_id = SP1MethodId(bincode::serialize(&vk).unwrap());
         let encoded = method_id.encode();

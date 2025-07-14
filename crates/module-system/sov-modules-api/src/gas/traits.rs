@@ -28,6 +28,7 @@ pub trait GasArray:
     + Clone
     + Send
     + Sync
+    + Unpin
     + PartialEq
     + Eq
     + JsonSchema

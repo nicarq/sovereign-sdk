@@ -17,6 +17,7 @@ use sov_rollup_interface::TxHash;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::{Error as WsError, Message};
 use types::AcceptTxResponse;
+
 pub extern crate tokio_tungstenite;
 
 pub type WsSubscription<T> = Result<BoxStream<'static, anyhow::Result<T>>, WsError>;
@@ -104,7 +105,7 @@ impl Client {
         let tx = types::AcceptTxBody { body: tx_b64 };
         let client = self.clone();
         let fut = || async { client.accept_tx(&tx).await };
-        fut.retry(&backoff)
+        fut.retry(backoff)
             .when(|err| {
                 match err {
                     Error::InvalidRequest(_) | Error::InvalidUpgrade(_) | Error::PreHookError(_) => false,
@@ -144,6 +145,18 @@ impl Client {
     ) -> WsSubscription<types::TxInfo> {
         self.subscribe_to_ws(&format!("/sequencer/txs/{tx_hash}/ws"))
             .await
+    }
+
+    pub async fn subscribe_to_txs(
+        &self,
+        starting_from: Option<u64>,
+    ) -> WsSubscription<types::ApiAcceptedTx> {
+        let path = if let Some(starting_from) = starting_from {
+            &format!("/sequencer/txs/ws?start_from={starting_from}")
+        } else {
+            "/sequencer/txs/ws"
+        };
+        self.subscribe_to_ws(path).await
     }
 
     pub async fn subscribe_to_ws<T: serde::de::DeserializeOwned>(

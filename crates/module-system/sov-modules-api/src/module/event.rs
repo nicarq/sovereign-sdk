@@ -13,7 +13,8 @@ pub trait RuntimeEventProcessor {
         + PartialEq
         + Send
         + Sync
-        + EventModuleName;
+        + EventModuleName
+        + Unpin;
 
     /// Function that converts module specific events to a wrapped event for storage
     fn convert_to_runtime_event(event: crate::TypeErasedEvent) -> Option<Self::RuntimeEvent>;

@@ -17,9 +17,10 @@ use tokio::task::JoinHandle;
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
+use super::block_executor::AcceptedTxWithBudgetInfo;
 use super::db::StoredBlob;
 use crate::preferred::{exit_rollup, DbEvent, ExecutorEvent, PreferredSequencer};
-use crate::ProofBlobSender;
+use crate::{ProofBlobSender, SequencerNotReadyDetails};
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -148,6 +149,7 @@ where
         .replay_soft_confirmations_on_top_of_node_state(
             latest_state_update,
             std::time::Instant::now(),
+            true,
         )
         .await
     {
@@ -537,6 +539,26 @@ where
             .duration_since(self.last_heartbeat_time)
             .unwrap_or(Duration::MAX);
 
+        // This will normally be Err(e) either on startup before the first update_state(), or if
+        // the replica's node is syncing. No point in trying to take over if we aren't ready to
+        // operate just yet.
+        // Worst case we'll take over once we're ready (i.e. finish syncing), best case another
+        // replica is better positioned to take over and we shouldn't get in the way.
+        if let Err(e) = {
+            let inner = self.sequencer.lock_inner().await;
+            inner.is_ready.clone()
+        } {
+            if !matches!(e, SequencerNotReadyDetails::ReplicaMode) {
+                info!("Master heartbeat timeout detected; however, this replica is currently not ready to take over: {e:?}.");
+                return Ok(());
+            } else {
+                // We don't set it to ReplicaMode anywhere. But guard against it in case we ever
+                // do: it's obviously natural and we should proceed with takeover.
+                // (If it ever becomes an expected value, this print can be removed.)
+                debug!("Replica takeover: `inner.is_ready` was set to `SequencerNotReadyDetails::ReplicaMode`. This is not harmful, but is not expected to be possible.")
+            }
+        }
+
         if time_since_last_heartbeat > self.failover_threshold {
             info!(
                 "Master heartbeat timeout detected ({:?} > {:?}). Attempting takeover...",
@@ -826,14 +848,14 @@ where
 {
     let mut inner = sequencer.lock_inner().await;
 
-    let execution_time_micros = inner.executor.replay_tx(tx_hash, &baked_tx).await;
+    let AcceptedTxWithBudgetInfo { accepted_tx, execution_time_micros, .. } = inner.executor.replay_tx(tx_hash, &baked_tx).await;
     inner
         .batch_size_tracker
         .add_tx(baked_tx.data.len(), execution_time_micros);
     inner
         .executor_events_sender
         .send(ExecutorEvent::InsertTxWithoutConfirmation(
-            baked_tx, tx_hash,
+                accepted_tx
         ))
         .await;
     inner

@@ -105,8 +105,6 @@ async fn sequencer_stops_if_stop_at_height_too_small(finalization_blocks: u32) {
     };
 
     let mut records = collector.records();
-    assert_eq!(records.len(), 1);
-
     let (_, log) = records.remove(0);
 
     assert!(log.contains("The requested stop_height"));

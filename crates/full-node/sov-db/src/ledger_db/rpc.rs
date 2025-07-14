@@ -733,20 +733,6 @@ impl LedgerStateProvider for LedgerDb {
             .map(|mut batches: Vec<Option<BatchResponse<B, T, E>>>| batches.pop().unwrap_or(None))
     }
 
-    async fn get_tx_by_hash<T, E>(
-        &self,
-        hash: &[u8; 32],
-        query_mode: QueryMode,
-    ) -> anyhow::Result<Option<TxResponse<T, E>>>
-    where
-        T: TxReceiptContents,
-        E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
-    {
-        self.get_transactions(&[TxIdentifier::Hash(*hash)], query_mode)
-            .await
-            .map(|mut txs: Vec<Option<TxResponse<T, E>>>| txs.pop().unwrap_or(None))
-    }
-
     async fn get_tx_numbers_by_hash(&self, hash: &[u8; 32]) -> Result<Vec<u64>, Self::Error> {
         self.get_rpc_reader().get_tx_numbers_by_hash(hash).await
     }

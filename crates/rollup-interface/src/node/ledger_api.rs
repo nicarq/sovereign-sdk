@@ -411,14 +411,24 @@ pub trait LedgerStateProvider {
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> Result<Option<TxResponse<T, E>>, Self::Error>
+    ) -> Result<Option<(u64, TxResponse<T, E>)>, Self::Error>
     where
         T: TxReceiptContents,
         E: for<'a> TryFrom<(u64, &'a StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
-        self.get_transactions(&[TxIdentifier::Hash(*hash)], query_mode)
-            .await
-            .map(|mut txs: Vec<Option<TxResponse<T, E>>>| txs.pop().unwrap_or(None))
+        let tx_id = self
+            .resolve_tx_identifier(&TxIdentifier::Hash(*hash))
+            .await?;
+        if let Some(tx_id) = tx_id {
+            let mut txs = self
+                .get_transactions(&[TxIdentifier::Number(tx_id)], query_mode)
+                .await?;
+            assert_eq!(txs.len(), 1, "Tx id was in storage, but a query for it returned {} results. This is a bug, please report it.", txs.len());
+            let tx = txs.pop().flatten().unwrap(); // Safety: We just asserted that there is exactly one result
+            Ok(Some((tx_id, tx)))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Get a list of transaction numbers by hash. Since a tx hash itself

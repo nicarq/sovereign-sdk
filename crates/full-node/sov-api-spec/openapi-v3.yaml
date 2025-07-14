@@ -299,7 +299,7 @@ paths:
           "$ref": "#/components/responses/ApiErrorResponse"
         "503":
           "$ref": "#/components/responses/ApiErrorResponse"
-  /sequencer/txs/{txHash}:
+  /sequencer/txs/{txHash}/status:
     get:
       summary: Get a transaction status by hash
       operationId: get_tx_status
@@ -317,6 +317,30 @@ paths:
                 properties:
                   data:
                     $ref: "#/components/schemas/TxInfo"
+                  meta:
+                    type: object
+                required:
+                  - meta
+        "404":
+          $ref: "#/components/responses/ApiErrorResponse"
+  /sequencer/txs/{txHash}:
+    get:
+      summary: Get a transaction by hash
+      operationId: sequencer_get_tx
+      tags:
+        - Sequencer
+      parameters:
+        - $ref: "#/components/parameters/txHash"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ApiAcceptedTx"
                   meta:
                     type: object
                 required:
@@ -450,6 +474,21 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/Schema"
+        "400":
+          $ref: "#/components/responses/ApiErrorResponse"
+  /rollup/constants:
+    get:
+      summary: Get constants
+      description: >
+        Returns the a subset of the constants used by the rollup.
+
+        This information can be useful for the web3 SDK and external tools.
+      operationId: rollup_constants
+      tags:
+        - Rollup
+      responses:
+        "200":
+          $ref: "#/components/responses/Constants"
         "400":
           $ref: "#/components/responses/ApiErrorResponse"
   /rollup/addresses/{address}/dedup:
@@ -743,6 +782,19 @@ components:
                 $ref: "#/components/schemas/AnyJsonValue"
             required:
               - meta
+    Constants:
+      description: Constants of the rollup.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: "#/components/schemas/Constants"
+              meta:
+                $ref: "#/components/schemas/AnyJsonValue"
+            required:
+              - meta
     ApiErrorResponse:
       description: The request sent was invalid.
       content:
@@ -943,6 +995,19 @@ components:
           type: string
       required:
         - name
+    Constants:
+      type: object
+      properties:
+        chain_name:
+          type: string
+        chain_id:
+          type: integer
+        hyperlane_domain:
+          type: integer
+      required:
+        - chain_name
+        - chain_id
+        - hyperlane_domain
     Hash:
       type: string
       title: Hash
@@ -974,6 +1039,9 @@ components:
           $ref: "#/components/schemas/TxHash"
         status:
           $ref: "#/components/schemas/TxStatus"
+        tx_number:
+          type: integer
+          format: uint64
         events:
           type: array
           items:
@@ -983,6 +1051,25 @@ components:
       required:
         - id
         - status
+    ApiAcceptedTx:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/TxHash"
+        tx_number:
+          type: integer
+          format: uint64
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/LedgerEvent"
+        receipt:
+          $ref: "#/components/schemas/TxReceipt"
+      required:
+        - id
+        - tx_number
+        - events
+        - receipt
     TxStatus:
       type: string
       enum:

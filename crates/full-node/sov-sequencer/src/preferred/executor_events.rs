@@ -3,7 +3,9 @@ use std::sync::Arc;
 
 use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
-use sov_modules_api::{FullyBakedTx, Runtime, Spec, StateCheckpoint, TxHash, VisibleSlotNumber};
+use sov_modules_api::{
+    Runtime, Spec, StateCheckpoint, TxChangeSet, VisibleSlotNumber,
+};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{mpsc, oneshot, watch};
 use uuid::Uuid;
@@ -67,21 +69,28 @@ impl<S: Spec, Rt: Runtime<S>> ExecutorEventsSender<S, Rt> {
     /// Send a notification of an accepted tx. Return a receiver that will receive the confirmation.
     pub(crate) async fn send_accept_tx(
         &self,
-        tx: FullyBakedTx,
-        hash: TxHash,
-        confirmation: Confirmation<S, Rt>,
-        checkpoint: StateCheckpoint<S>,
+        accepted_tx: AcceptedTx<Confirmation<S, Rt>>,
+        tx_changes: TxChangeSet,
     ) -> oneshot::Receiver<Option<AcceptedTx<Confirmation<S, Rt>>>> {
         let (sender, receiver) = oneshot::channel();
-        self.send(ExecutorEvent::AcceptedTx(
-            hash,
-            tx,
-            confirmation,
-            checkpoint,
-            sender,
-        ))
-        .await;
+        self.send(ExecutorEvent::AcceptedTx(accepted_tx, tx_changes, sender))
+            .await;
         receiver
+    }
+
+    pub(crate) async fn flush_transactions_cache(&self, next_tx_number: u64) {
+        let (sender, receiver) = oneshot::channel();
+        self.send(ExecutorEvent::FlushTransactionsCache {
+            next_tx_number,
+            oneshot_sender: sender,
+        })
+        .await;
+        if receiver.await.is_err() {
+            tracing::error!(
+                "Failed to flush transactions cache because the side effects task is no longer available."
+            );
+            self.shutdown_on_error().await;
+        };
     }
 
     /// Fetch the in-progress batch from the database.
@@ -115,6 +124,8 @@ where
         visible_slots_to_advance: NonZero<u8>,
         #[allow(missing_docs)]
         sequence_number: SequenceNumber,
+        #[allow(missing_docs)]
+        new_checkpoint: StateCheckpoint<S>,
     },
     /// Close the current batch.
     CloseBatch(StateCheckpoint<S>),
@@ -124,10 +135,8 @@ where
     PublishProofBlob(BlobInternalId, Arc<[u8]>, SequenceNumber),
     /// Insert an accepted transaction into the database and send out the confirmation
     AcceptedTx(
-        TxHash,
-        FullyBakedTx,
-        Confirmation<S, Rt>,
-        StateCheckpoint<S>,
+        AcceptedTx<Confirmation<S, Rt>>,
+        TxChangeSet,
         oneshot::Sender<Option<AcceptedTx<Confirmation<S, Rt>>>>,
     ),
     /// Update the master status for both blob sender and database
@@ -157,10 +166,15 @@ where
         #[allow(missing_docs)]
         include_in_progress_batch: bool,
     },
+    /// Flush transactions cache
+    FlushTransactionsCache {
+        next_tx_number: u64,
+        oneshot_sender: oneshot::Sender<()>,
+    },
     /// Fetch completed blobs from the database.
     FetchInProgressBatch(oneshot::Sender<Option<PreferredSequencerReadBatch>>),
     /// Subscribe to events from the database.
     SubscribeToEvents(mpsc::Sender<DbEvent>),
     /// Insert a transaction into the database.
-    InsertTxWithoutConfirmation(FullyBakedTx, TxHash),
+    InsertTxWithoutConfirmation(AcceptedTx<Confirmation<S, Rt>>),
 }

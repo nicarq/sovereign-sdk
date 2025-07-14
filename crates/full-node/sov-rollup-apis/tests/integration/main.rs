@@ -68,6 +68,7 @@ impl TestData {
             storage,
             ledger_reader: ledger.create_ledger_storage(),
             next_event_number: 0,
+            next_tx_number: 0,
             slot_number: SlotNumber::GENESIS,
             latest_finalized_slot_number: SlotNumber::GENESIS,
         };
@@ -124,6 +125,7 @@ impl TestData {
             storage,
             ledger_reader: ledger.create_ledger_storage(),
             next_event_number: 0,
+            next_tx_number: 0,
             slot_number: SlotNumber::GENESIS,
             latest_finalized_slot_number: SlotNumber::GENESIS,
         };

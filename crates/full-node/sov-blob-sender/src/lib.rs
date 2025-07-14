@@ -8,7 +8,8 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use async_trait::async_trait;
-use db::{BlobSenderDb, BlobToSend};
+use db::BlobSenderDb;
+pub use db::BlobToSend;
 use in_flight_blob::{track_num_of_in_flight_blobs, InFlightBlob, InFlightBlobInfo};
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::{DaSpec, EventModuleName, RuntimeEventResponse};
@@ -93,6 +94,7 @@ pub struct BlobSender<Da: DaService, H, FM: FinalizationManager> {
     blob_processing_timeout: Duration,
     blob_sender_channel: Option<broadcast::Sender<BlobExecutionStatus<Da::Spec>>>,
     ledger_pool_interval: Duration,
+    blobs_to_send_after_retart: Option<Vec<BlobSubmissionRequest<Da::Spec>>>,
 }
 
 impl<Da, H, FM> BlobSender<Da, H, FM>
@@ -109,6 +111,7 @@ where
         shutdown_sender: watch::Sender<()>,
         blob_processing_timeout: Duration,
         blob_sender_channel: Option<broadcast::Sender<BlobExecutionStatus<Da::Spec>>>,
+        completed_blobs_to_send: Vec<(BlobToSend, BlobInternalId)>,
     ) -> anyhow::Result<(Self, JoinHandle<()>)> {
         Self::new_with_task_intervals(
             da,
@@ -119,6 +122,7 @@ where
             blob_processing_timeout,
             blob_sender_channel,
             LEDGER_POLL_INTERVAL,
+            completed_blobs_to_send,
         )
         .await
     }
@@ -132,16 +136,31 @@ where
         blob_processing_timeout: Duration,
         blob_sender_channel: Option<broadcast::Sender<BlobExecutionStatus<Da::Spec>>>,
         ledger_pool_interval: Duration,
+        completed_blobs_to_send: Vec<(BlobToSend, BlobInternalId)>,
     ) -> anyhow::Result<(Self, JoinHandle<()>)> {
         let shutdown_receiver = shutdown_sender.subscribe();
         let db = Arc::new(BlobSenderDb::new(storage_path).await?);
 
-        let all_blobs = db.get_all::<Da::Spec>().await?;
+        let mut all_blobs = db.get_all::<Da::Spec>().await?;
 
         let hooks = Arc::new(hooks);
         let in_flight_blobs: Arc<Mutex<_>> = Default::default();
 
-        let mut sender = Self {
+        let completed_blobs_to_send =
+            completed_blobs_to_send
+                .into_iter()
+                .map(|(blob, blob_id)| BlobSubmissionRequest {
+                    blob,
+                    blob_id,
+                    latest_known_processing_state: BlobExecutionStatus {
+                        blob_submission_status: BlobSubmissionStatus::MustSubmit,
+                        blob_selector_status: None,
+                    },
+                });
+
+        all_blobs.extend(completed_blobs_to_send);
+
+        let sender = Self {
             db,
             hooks,
             in_flight_blobs: in_flight_blobs.clone(),
@@ -153,15 +172,10 @@ where
             blob_processing_timeout,
             blob_sender_channel,
             ledger_pool_interval,
+            blobs_to_send_after_retart: Some(all_blobs),
         };
 
         let handle = Self::main_task(in_flight_blobs, shutdown_receiver).await;
-
-        for b in all_blobs {
-            sender
-                .publish_blob_inner(b.blob, b.blob_id, b.latest_known_processing_state)
-                .await?;
-        }
 
         Ok((sender, handle))
     }
@@ -222,6 +236,28 @@ where
     }
 
     async fn publish_blob_inner(
+        &mut self,
+        blob: BlobToSend,
+        blob_id: BlobInternalId,
+        latest_known_processing_state: BlobExecutionStatus<Da::Spec>,
+    ) -> anyhow::Result<()> {
+        let blobs_to_send_after_retart = self.blobs_to_send_after_retart.take();
+        if let Some(all_blobs) = blobs_to_send_after_retart {
+            for blob_req in all_blobs {
+                self.submit_blob_on_da(
+                    blob_req.blob,
+                    blob_req.blob_id,
+                    blob_req.latest_known_processing_state,
+                )
+                .await?;
+            }
+        }
+
+        self.submit_blob_on_da(blob, blob_id, latest_known_processing_state)
+            .await
+    }
+
+    async fn submit_blob_on_da(
         &mut self,
         blob: BlobToSend,
         blob_id: BlobInternalId,
@@ -526,6 +562,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
 
             match &blob_status.blob_submission_status {
                 BlobSubmissionStatus::MustSubmit => {
+                    self.send_notification(blob_status.clone()).await;
                     if self
                         .save_blob_state_or_err(blob_id, &blob_status)
                         .await
@@ -540,7 +577,6 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
 
                     match receipt_fut.await {
                         Ok(Ok(receipt)) => {
-                            self.send_notification(blob_status.clone()).await;
                             blob_status = BlobExecutionStatus {
                                 blob_submission_status: BlobSubmissionStatus::Published { receipt },
                                 blob_selector_status: None,

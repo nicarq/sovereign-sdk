@@ -731,6 +731,7 @@ pub async fn query_state_update_info<S>(
         .await?
         .map(|x| x + 1)
         .unwrap_or_default();
+    let next_tx_number = ledger_db.get_next_items_numbers()?.tx_number;
     let latest_finalized_slot_number = ledger_db
         .get_latest_finalized_slot_number()
         .await?
@@ -740,6 +741,7 @@ pub async fn query_state_update_info<S>(
         storage,
         ledger_reader: ledger_db.clone_reader(),
         next_event_number,
+        next_tx_number,
         slot_number,
         latest_finalized_slot_number,
     })

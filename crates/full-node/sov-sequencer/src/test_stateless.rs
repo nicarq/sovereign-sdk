@@ -85,6 +85,7 @@ where
                     shutdown_sender,
                     Duration::from_secs(config.blob_processing_timeout_secs),
                     None,
+                    Default::default(),
                 )
                 .await?
                 .0,

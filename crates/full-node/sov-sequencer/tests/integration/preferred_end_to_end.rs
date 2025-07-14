@@ -11,7 +11,9 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
 use futures::future;
-use sov_api_spec::types::{self as api_types, TxReceiptResult};
+use sov_api_spec::types::{
+    self as api_types, SequencerListEventsPage, SequencerListEventsResponseData, TxReceiptResult,
+};
 use sov_api_spec::{Client, WsSubscription};
 use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::BlockProducingConfig;
@@ -577,7 +579,10 @@ async fn flaky_seq_behind_deferred_slots_count_simple_lagging() {
         })
         .await
         .unwrap_err();
-    assert!(err.to_string().contains(SEQUENCER_RECOVERY_ERROR));
+    assert!(
+        err.to_string().contains(SEQUENCER_RECOVERY_ERROR),
+        "Expected recovery error, got: {err}"
+    );
 
     // Give time for the sequencer to catch up its visible state number
     tracing::info!("Producing DA blocks to let the sequencer resync.");
@@ -722,7 +727,10 @@ async fn seq_behind_deferred_slots_count_with_shutdown() {
         })
         .await
         .unwrap_err();
-    assert!(err.to_string().contains(SEQUENCER_RECOVERY_ERROR));
+    assert!(
+        err.to_string().contains(SEQUENCER_RECOVERY_ERROR),
+        "Expected recovery error, got: {err}"
+    );
 
     // Give time for the sequencer to catch up its visible state number
     tracing::info!("Producing DA blocks to let the sequencer resync.");
@@ -983,6 +991,125 @@ async fn max_batch_size() {
             })
             .await
             .unwrap();
+    }
+}
+
+/// This test covers various endpoints that the sequencer provides for getting transactions and events.o
+/// These tests are all squished into one because we have to do some relatively expensive setup (ie running a few hundred txs),
+/// so we want to reuse that work for multiple endpoints.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sequencer_getters() {
+    use sov_api_spec::types::AcceptTxResponse;
+    let (test_rollup, admin) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        1000, // Timeout the batch after 1 second of execution time.
+    )
+    .await;
+
+    let Some(test_rollup) = test_rollup else {
+        return;
+    };
+
+    // Set up the rollup the usual way.
+    let mut slot_subscription = test_rollup.api_client.subscribe_slots().await.unwrap();
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(5)
+        .await
+        .unwrap();
+    for _ in 0..5 {
+        let _ = slot_subscription.next().await.unwrap().unwrap();
+    }
+
+    let mut responses: Vec<AcceptTxResponse> = Vec::new();
+    let mut tx_number = 0;
+    // Create a helper function to check that the tx endpoint responds with the expected txs.
+    let check_responses = |starting_from: usize,
+                           responses: Vec<AcceptTxResponse>,
+                           client: sov_api_spec::client::Client| async move {
+        let mut tx_ws = client
+            .subscribe_to_txs(Some(starting_from as u64))
+            .await
+            .unwrap();
+        for (i, old_response) in responses.iter().enumerate().skip(starting_from) {
+            let new_response = tokio::time::timeout(Duration::from_millis(500), tx_ws.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                new_response.id.to_string(),
+                old_response.data.id.to_string(),
+                "Mismatch at tx number {i}. Found {new_response:?} \nbut expected {old_response:?}",
+            );
+            assert_eq!(
+                new_response.events, old_response.data.events,
+                "Mismatch at tx {i}",
+            );
+        }
+    };
+
+    // Produce 30 blocks each containing 7 txs. After each block, check that the tx websocket responds with the expected txs. Starting from both zero and 5.
+    // This should trigger any edge cases.
+    for _ in 0..30 {
+        for _ in 0..7 {
+            let tx = tx_set_value(&admin.private_key, tx_number, tx_number);
+            let resp = test_rollup
+                .api_client
+                .send_raw_tx_to_sequencer_with_retry(&tx)
+                .await
+                .unwrap();
+            responses.push(resp.into_inner());
+            tx_number += 1;
+        }
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        slot_subscription.next().await;
+        check_responses(0, responses.clone(), test_rollup.api_client.clone()).await;
+        check_responses(5, responses.clone(), test_rollup.api_client.clone()).await;
+    }
+
+    check_responses(0, responses.clone(), test_rollup.api_client.clone()).await;
+    check_responses(5, responses.clone(), test_rollup.api_client.clone()).await;
+
+    // Now, check the `get_tx` endpoint by iterating through all the txs we generated.
+    // And fetching each tx by its id.
+    for response in responses.iter() {
+        let tx_response = test_rollup
+            .api_client
+            .sequencer_get_tx(&response.data.id)
+            .await
+            .unwrap();
+        let tx = tx_response.data.as_ref().unwrap();
+        assert_eq!(tx.id, response.data.id);
+        assert_eq!(tx.events, response.data.events);
+        assert_eq!(&tx.receipt, response.data.receipt.as_ref().unwrap());
+        assert_eq!(&tx.tx_number, response.data.tx_number.as_ref().unwrap());
+    }
+
+    // Finally, test the "list events" endpoint by iterating through all the events we generated.
+    let all_events = responses
+        .into_iter()
+        .flat_map(|response| response.data.events.into_iter())
+        .collect::<Vec<_>>();
+    let mut i = 0;
+    let mut page = SequencerListEventsPage::First;
+    let mut page_cursor: Option<String> = None;
+    while i < all_events.len() {
+        let response = test_rollup
+            .api_client
+            .sequencer_list_events(Some(page), page_cursor.as_deref(), Some(9)) // Use page size 9 because it's relatively prime to our number of events. This should trigger more edge cases
+            .await
+            .unwrap()
+            .into_inner();
+        let SequencerListEventsResponseData { items, next_cursor } = response.data;
+        for event in items {
+            assert_eq!(event.number, i as u64);
+            i += 1;
+        }
+        page = SequencerListEventsPage::Next;
+        page_cursor = next_cursor;
     }
 }
 
@@ -1881,7 +2008,7 @@ async fn replay_uses_correct_visible_slot_number() {
 /// - Produce a block, triggering the sequencer to close out its current batch and post it on DA
 /// - Check that the state root assertion suceeded on the node as well.
 #[tokio::test(flavor = "multi_thread")]
-async fn flaky_visible_hashes_match_across_node_and_sequencer() {
+async fn visible_hashes_match_across_node_and_sequencer() {
     const FINALIZATION_BLOCKS: u32 = 0;
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
@@ -1928,6 +2055,7 @@ async fn flaky_visible_hashes_match_across_node_and_sequencer() {
         .unwrap()
     };
 
+    let mut state_update_subscription = test_rollup.subscribe_state_updates().await.unwrap();
     let mut slot_subscription = test_rollup
         .api_client
         .subscribe_slots_with_children(IncludeChildren::new(true))
@@ -1967,9 +2095,10 @@ async fn flaky_visible_hashes_match_across_node_and_sequencer() {
     // Produce some empty blocks to ensure that the sequencer has a batch in progress.
     da_layer.write().await.produce_block().await.unwrap();
     slot_subscription.next().await.unwrap().unwrap();
+    state_update_subscription.next().await.unwrap().unwrap();
     da_layer.write().await.produce_block().await.unwrap();
     slot_subscription.next().await.unwrap().unwrap();
-    sleep(Duration::from_millis(50)).await;
+    state_update_subscription.next().await.unwrap().unwrap();
 
     // Run a few rounds of checking the state root to be extra sure nothing gets screwed up over time.
     let mut current_nonce = 0;
@@ -2007,6 +2136,7 @@ async fn flaky_visible_hashes_match_across_node_and_sequencer() {
         current_nonce += 1;
 
         // Produce a block. This will trigger the sequencer to close out its current batch and start a new one.
+        test_rollup.force_close_batch().await.unwrap();
         da_layer.write().await.produce_block().await.unwrap();
         let slot = slot_subscription.next().await.unwrap().unwrap();
         if !slot.batches.is_empty() && !slot.batches[0].txs.is_empty() {
@@ -2016,8 +2146,7 @@ async fn flaky_visible_hashes_match_across_node_and_sequencer() {
                 TxReceiptResult::Successful
             );
         }
-        // Sleep to ensure that the sequencer has time to process `update_state` and submit its batch before the next loop iteration.
-        sleep(Duration::from_millis(200)).await;
+        state_update_subscription.next().await.unwrap().unwrap();
     }
 }
 

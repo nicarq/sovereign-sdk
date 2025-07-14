@@ -263,7 +263,7 @@ impl BatchSender {
         };
 
         let batch_hashes = send_txs_to_sequencer
-            .retry(&backon::ExponentialBuilder::default())
+            .retry(backon::ExponentialBuilder::default())
             .notify(|err, dur| {
                 tracing::warn!(bench = self.bench_name, err = ?err, duration = ?dur, "Failed to publish batch. Retrying...")
             })

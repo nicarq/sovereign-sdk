@@ -520,6 +520,7 @@ where
             storage: storage.clone(),
             ledger_reader: ledger_db.clone_reader(),
             next_event_number: 0,
+            next_tx_number: 0,
             slot_number: SlotNumber::ONE,
             latest_finalized_slot_number: SlotNumber::ONE,
         };

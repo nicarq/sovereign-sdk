@@ -1,3 +1,4 @@
+use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -5,7 +6,9 @@ use axum::extract::ws::WebSocket;
 use axum::extract::{ws, State, WebSocketUpgrade};
 use axum::response::IntoResponse;
 use axum::Json;
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
+#[cfg(feature = "test-utils")]
+use futures::TryStreamExt;
 use serde_with::base64::Base64;
 use serde_with::serde_as;
 use sov_modules_api::capabilities::TransactionAuthenticator;
@@ -22,8 +25,25 @@ use tokio::sync::watch::Receiver;
 use tokio_stream::wrappers::BroadcastStream;
 use uuid::Uuid;
 
-use crate::common::{error_not_fully_synced, Sequencer};
+use crate::common::{error_not_fully_synced, AcceptedTx, Sequencer};
 use crate::TxStatus;
+
+/// [`StartFrom`] is used as a query parameter for the txs subscription
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    serde::Serialize,
+    serde::Deserialize,
+    derive_more::Display,
+)]
+#[display("{}", self.start_from)]
+pub struct StartFrom {
+    start_from: u64,
+}
 
 /// Provides REST APIs for any [`Sequencer`]. See [`SequencerApis::rest_api_server`].
 #[derive(derivative::Derivative)]
@@ -44,6 +64,10 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
         let router = axum::Router::new()
             .route("/sequencer/txs", axum::routing::post(Self::axum_accept_tx))
             .route("/sequencer/ready", axum::routing::get(Self::axum_get_ready))
+            .route(
+                "/sequencer/txs/:tx_hash/status",
+                axum::routing::get(Self::axum_get_tx_status),
+            )
             .route(
                 "/sequencer/txs/:tx_hash",
                 axum::routing::get(Self::axum_get_tx),
@@ -174,7 +198,7 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
         }
     }
 
-    async fn axum_get_tx(
+    async fn axum_get_tx_status(
         state: State<Self>,
         tx_hash: Path<TxHash>,
     ) -> ApiResult<TxInfo<<<Seq::Da as DaService>::Spec as DaSpec>::TransactionId>> {
@@ -186,6 +210,22 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
                 status: tx_status,
             }
             .into())
+        } else {
+            Err(errors::not_found_404("Transaction", tx_hash.0))
+        }
+    }
+
+    async fn axum_get_tx(
+        state: State<Self>,
+        tx_hash: Path<TxHash>,
+    ) -> ApiResult<ApiAcceptedTx<Seq::Confirmation>> {
+        let tx = state.sequencer.get_tx(tx_hash.0).await.map_err(|e| {
+            tracing::error!(error = %e, "Error getting transaction");
+            errors::database_error_500("Unable to retrieve transaction").into_response()
+        })?;
+        if let Some(tx) = tx {
+            let tx: ApiAcceptedTx<_> = tx.into();
+            Ok(sov_rest_utils::ResponseObject::from(tx))
         } else {
             Err(errors::not_found_404("Transaction", tx_hash.0))
         }
@@ -234,11 +274,6 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
                 .sequencer
                 .subscribe_events()
                 .await
-                .map(|receiver| {
-                    BroadcastStream::new(receiver)
-                        .map_err(|err| anyhow::anyhow!("Error creating broadcast stream: {err}"))
-                        .boxed()
-                })
                 .unwrap_or_else(|| futures::stream::empty().boxed());
             serve_generic_ws_subscription(socket, stream, state.shutdown_receiver.clone()).await;
         })
@@ -246,36 +281,28 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
 
     async fn subscribe_to_transactions(
         State(state): State<Self>,
+        start_from: Option<Query<StartFrom>>,
         ws: WebSocketUpgrade,
     ) -> impl IntoResponse {
-        ws.on_upgrade(|socket| async move {
-            let stream = state
-                .sequencer
-                .subscribe_transactions()
-                .await
-                .map(|receiver| {
-                    BroadcastStream::new(receiver)
-                        .map_err(|err| anyhow::anyhow!("Error creating broadcast stream: {err}"))
-                        .boxed()
-                })
-                .unwrap_or_else(|| futures::stream::empty().boxed());
+        let start_from = start_from.map(|start_from| start_from.0.start_from);
+        ws.on_upgrade(move |socket| async move {
+            let stream =
+                Self::subscribe_txs_starting_from(start_from, state.sequencer.clone()).await;
             serve_generic_ws_subscription(socket, stream, state.shutdown_receiver.clone()).await;
         })
     }
 
-    async fn axum_get_event(
-        state: State<Self>,
-        Path(event_number): Path<u64>,
-    ) -> ApiResult<RuntimeEventResponse<<Seq::Rt as RuntimeEventProcessor>::RuntimeEvent>> {
-        let mut events = state
-            .sequencer
-            .list_events(&[event_number])
-            .await
-            .map_err(|_| errors::database_error_500("Unable to retrieve event").into_response())?;
-        if let Some(event) = events.pop() {
-            Ok(event.into())
-        } else {
-            Err(errors::not_found_404("Event", event_number))
+    async fn subscribe_txs_starting_from(
+        start_from: Option<u64>,
+        sequencer: Arc<Seq>,
+    ) -> Pin<Box<dyn futures::Stream<Item = anyhow::Result<ApiAcceptedTx<Seq::Confirmation>>> + Send>>
+    {
+        let Some(stream) = sequencer.subscribe_transactions(start_from).await else {
+            return futures::stream::empty().boxed();
+        };
+        match stream {
+            Ok(stream) => stream,
+            Err(e) => futures::stream::once(futures::future::ready(Err(e))).boxed(),
         }
     }
 
@@ -330,6 +357,26 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
         })
     }
 
+    async fn axum_get_event(
+        state: State<Self>,
+        Path(event_number): Path<u64>,
+    ) -> ApiResult<RuntimeEventResponse<<Seq::Rt as RuntimeEventProcessor>::RuntimeEvent>> {
+        let next_event_number = event_number.checked_add(1).ok_or(errors::bad_request_400(
+            "u64::MAX is not a valid event number",
+            "",
+        ))?;
+        let mut events = state
+            .sequencer
+            .list_events(event_number..next_event_number)
+            .await
+            .map_err(|_| errors::database_error_500("Unable to retrieve event").into_response())?;
+        if let Some(event) = events.pop() {
+            Ok(event.into())
+        } else {
+            Err(errors::not_found_404("Event", event_number))
+        }
+    }
+
     async fn axum_list_events(
         state: State<Self>,
         pagination_opt: Option<Query<Pagination<String>>>,
@@ -350,12 +397,14 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
             PageSelection::First => 0,
             PageSelection::Last => return Err(errors::not_implemented_501()),
         };
+        // Note: The previous version of this code returned one more than the requested number of events.
+        // This is now fixed.
         let end = start
             .checked_add(pagination.size as u64)
             .unwrap_or(u64::MAX);
-        let nums = (start..=end).collect::<Vec<_>>();
+
         let events =
-            state.sequencer.list_events(&nums).await.map_err(|_| {
+            state.sequencer.list_events(start..end).await.map_err(|_| {
                 errors::database_error_500("Unable to retrieve events").into_response()
             })?;
         let next_cursor = start + events.len() as u64;
@@ -407,4 +456,29 @@ struct TxInfoWithConfirmation<DaTransactionId, Confirmation> {
     confirmation: Confirmation,
     #[serde(flatten)]
     status: TxStatus<DaTransactionId>,
+}
+
+/// An accepted transaction, with the transaction body and confirmation data.
+#[serde_with::serde_as]
+#[derive(Clone, serde::Serialize)]
+pub struct ApiAcceptedTx<Confirmation> {
+    /// The hex encoded transaction hash
+    pub id: TxHash,
+    /// The base64 encoded transaction body
+    #[serde_as(as = "serde_with::base64::Base64")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tx: Vec<u8>,
+    /// The confirmation data
+    #[serde(flatten)]
+    pub confirmation: Confirmation,
+}
+
+impl<C> From<AcceptedTx<C>> for ApiAcceptedTx<C> {
+    fn from(tx: AcceptedTx<C>) -> Self {
+        Self {
+            id: tx.tx_hash,
+            tx: tx.tx.data,
+            confirmation: tx.confirmation,
+        }
+    }
 }
