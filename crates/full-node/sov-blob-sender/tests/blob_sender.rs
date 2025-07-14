@@ -160,18 +160,26 @@ async fn blob_sender_resubmits_blobs_in_progress_after_restart() -> anyhow::Resu
         handle.await.unwrap();
     }
 
-    // After retart the blob sender, should resubmit the blob that was in progress.
-
+    // After restart, the blob sender, resubmits the previous blob on the first call to `publish_batch_blob`.
     {
-        let (blob_sender, _) = create_blob_sender(
+        let (mut blob_sender, _) = create_blob_sender(
             Duration::from_secs(20),
             &storage_dir,
             da.clone(),
             shutdown_sender.clone(),
         )
         .await;
+
+        {
+            let blob_id = 111u8;
+            let data = Arc::new([blob_id, 99]);
+            blob_sender
+                .publish_batch_blob(data.clone(), blob_id as BlobInternalId)
+                .await?;
+        }
+
         let submissions = blob_sender.nb_of_concurrent_blob_submissions();
-        assert_eq!(submissions, 1);
+        assert_eq!(submissions, 2);
 
         sleep(Duration::from_secs(1)).await;
         da.produce_block_now().await?;
@@ -266,6 +274,7 @@ async fn create_blob_sender(
         blob_processing_timeout,
         None,
         Duration::from_millis(1000),
+        Default::default(),
     )
     .await
     .unwrap();

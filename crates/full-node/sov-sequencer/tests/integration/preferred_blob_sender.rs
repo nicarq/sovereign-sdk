@@ -1,6 +1,4 @@
-#![allow(dead_code)]
 use std::env;
-use std::sync::Arc;
 use std::time::Duration;
 
 use futures::StreamExt;
@@ -27,11 +25,7 @@ use crate::preferred_end_to_end::{
 };
 use crate::utils::{new_test_rollup, tempdir_inside_codebase_dir, MAX_BATCH_EXECUTION_TIME_MILLIS};
 
-async fn create_test_rollup() -> (
-    TestRollup<TestBlueprint>,
-    Arc<tempfile::TempDir>,
-    TestUser<TestSpec>,
-) {
+async fn create_test_rollup() -> (TestRollup<TestBlueprint>, TestUser<TestSpec>) {
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
     let admin = genesis_config.additional_accounts()[0].clone();
@@ -55,13 +49,14 @@ async fn create_test_rollup() -> (
 
     (
         new_test_rollup::<TestRuntime<TestSpec>>(
-            dir.clone(),
+            dir,
             genesis_params.runtime.sequencer_registry.seq_da_address,
             genesis_params,
             0,
             true,
             TEST_MAX_BATCH_SIZE,
             BlockProducingConfig::Periodic { block_time_ms: 300 },
+            //BlockProducingConfig::Manual,
             None,
             TEST_BLOB_PROCESSING_TIMEOUT,
             1,
@@ -72,7 +67,6 @@ async fn create_test_rollup() -> (
         .await
         .map(|v| v.into_iter().next().unwrap())
         .unwrap(),
-        dir,
         admin,
     )
 }
@@ -83,7 +77,7 @@ async fn test_discard_oversized_blobs() {
         "SOV_TEST_CONST_OVERRIDE_MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE",
         "1000",
     );
-    let (test_rollup, _, admin) = create_test_rollup().await;
+    let (test_rollup, admin) = create_test_rollup().await;
 
     test_rollup.da_service.produce_block_now().await.unwrap();
     tokio::time::sleep(Duration::from_secs(1)).await;
@@ -108,6 +102,43 @@ async fn test_discard_oversized_blobs() {
     })
     .await
     .expect("Timeout occurred while waiting for the discarded blob.");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_blobs_are_send_after_rollup_resync() {
+    let (test_rollup, _) = create_test_rollup().await;
+    let da = test_rollup.da_service.clone();
+    let mut header_subscrition = da.subscribe_finalized_header().await.unwrap();
+
+    for _ in 0..10 {
+        da.produce_block_now().await.unwrap();
+        header_subscrition.next().await.unwrap().unwrap();
+        tokio::time::sleep(Duration::from_millis(300)).await;
+    }
+
+    let builder = test_rollup.shutdown().await.unwrap();
+
+    // Generate a block while Rollup is offline to trigger resync logic.
+    for _ in 0..20 {
+        da.produce_block_now().await.unwrap();
+        header_subscrition.next().await.unwrap().unwrap();
+    }
+
+    // The new rollup has pending blobs in the BlobSender DB and completed blobs in the Preferred Sequencer state.
+    let test_rollup = builder.start().await.unwrap();
+    let mut subscribe_state_updates = test_rollup.subscribe_state_updates().await.unwrap();
+    let mut subscribe_to_blobs_from_blob_sender = test_rollup
+        .subscribe_to_blobs_from_blob_sender()
+        .await
+        .unwrap();
+
+    // BlobSender should send blobs only after resync is complete, so the subscribe_state_updates notification must come first.
+    tokio::select! {
+        _ = subscribe_state_updates.next() => {}
+        _ = subscribe_to_blobs_from_blob_sender.next() => {
+            panic!("In a resync scenario, the state update notification should occur before the blob sender transmits the blobs.")
+        }
+    }
 }
 
 fn tx_set_many_values(key: &Ed25519PrivateKey, nonce: u64, values_to_set: Vec<u8>) -> RawTx {

@@ -72,6 +72,7 @@ use crate::preferred::block_executor::{
 };
 use crate::preferred::db::{latest_finalized_sequence_number, DbEvent};
 use crate::preferred::executor_events::{ExecutorEvent, ExecutorEventsSender};
+use crate::preferred::preferred_blob_sender::create_blobs_to_send;
 use crate::rest_api::ApiAcceptedTx;
 use crate::{
     ProofBlobSender, SequencerConfig, SequencerNotReadyDetails, TxStatus, TxStatusManager,
@@ -562,7 +563,20 @@ where
         let mut handles = vec![];
 
         let completed_blobs = db.all_completed_blobs();
+
         let blob_sender = {
+            let blobs_to_send = if config.sequencer_kind_config.is_replica {
+                Vec::new()
+            } else {
+                // It's possible that sov-blob-sender's DB might miss some blob data at
+                // node startup due to:
+                //  1. Disk failure (the sequencer can use Postgres so it's durable).
+                //  2. DB corruption.
+                //  3. Node crash at an inconvenient time.
+                // Let's restore all missing blob data to make sure they land on the DA.
+                create_blobs_to_send(completed_blobs)?
+            };
+
             let (inner, blob_sender_handle) = BlobSender::new(
                 da,
                 ledger_db.clone(),
@@ -571,23 +585,12 @@ where
                 shutdown_sender.clone(),
                 Duration::from_secs(config.blob_processing_timeout_secs),
                 Some(blobs_sender_channel.clone()),
+                blobs_to_send,
             )
             .await?;
 
             handles.push(blob_sender_handle);
-
-            let mut blob_sender =
-                PreferredBlobSender::from((inner, config.sequencer_kind_config.is_replica));
-
-            // It's possible that sov-blob-sender's DB might miss some blob data at
-            // node startup due to:
-            //  1. Disk failure (the sequencer can use Postgres so it's durable).
-            //  2. DB corruption.
-            //  3. Node crash at an inconvenient time.
-            // Let's restore all missing blob data to make sure they land on the DA.
-            blob_sender.publish_blobs(completed_blobs).await?;
-
-            blob_sender
+            PreferredBlobSender::from((inner, config.sequencer_kind_config.is_replica))
         };
 
         let (state_root_compute_handle, state_root_compute_task) =
