@@ -605,7 +605,7 @@ where
         // TODO: Rename events_channel_size to transaction_channel_size
         let cached_txs = TransactionCache::new(
             api_ledger_db.clone(),
-            &latest_state_update,
+            latest_state_update.next_tx_number,
             config.sequencer_kind_config.events_channel_size,
         );
 

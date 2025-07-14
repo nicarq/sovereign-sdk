@@ -697,12 +697,12 @@ async fn seq_behind_deferred_slots_count_with_shutdown() {
     let client = test_rollup.api_client.clone();
 
     // Give the rollup time to process the backlog and enter recovery mode
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    tokio::time::sleep(Duration::from_millis(1000)).await;
 
     // Produce a few more blocks to trigger recovery detection
     for _ in 0..3 {
         test_rollup.da_service.produce_block_now().await.unwrap();
-        sleep(Duration::from_millis(500)).await;
+        sleep(Duration::from_millis(1000)).await;
     }
 
     // Create transaction that should fail: sequencer should not accept transactions while in recovery

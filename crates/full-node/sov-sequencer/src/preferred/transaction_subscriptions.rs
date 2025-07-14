@@ -5,9 +5,7 @@ use std::sync::Arc;
 use futures::task::Poll;
 use futures::{Future, FutureExt, Stream, StreamExt, TryStreamExt};
 use sov_db::ledger_db::LedgerDb;
-use sov_modules_api::{
-    FullyBakedTx, HexString, Runtime, RuntimeEventResponse, Spec, StateUpdateInfo, TxHash,
-};
+use sov_modules_api::{FullyBakedTx, HexString, Runtime, RuntimeEventResponse, Spec, TxHash};
 use sov_rollup_interface::node::ledger_api::{EventIdentifier, LedgerStateProvider, QueryMode};
 use tokio::sync::{broadcast, RwLock};
 use tokio_stream::wrappers::BroadcastStream;
@@ -104,13 +102,8 @@ impl<S: Spec, Rt: Runtime<S>> TransactionCache<S, Rt> {
 }
 
 impl<S: Spec, Rt: Runtime<S>> TransactionCache<S, Rt> {
-    pub fn new(
-        ledger_db: LedgerDb,
-        latest_state_update: &StateUpdateInfo<S::Storage>,
-        broadcast_channel_size: usize,
-    ) -> Self {
+    pub fn new(ledger_db: LedgerDb, next_tx_number: u64, broadcast_channel_size: usize) -> Self {
         let (tx_response_sender, tx_response_receiver) = broadcast::channel(broadcast_channel_size);
-        let next_tx_number = latest_state_update.next_tx_number;
         Self {
             inner: Arc::new(RwLock::new(TransactionCacheInner {
                 cache: BTreeMap::new(),
@@ -485,4 +478,194 @@ pub(crate) struct TransactionCacheInner<S: Spec, Rt: Runtime<S>> {
     // A map of tx hashes to tx numbers
     tx_hash_index: HashMap<TxHash, TxNumber>,
     event_numbers_index: BTreeMap<EventNumber, TxNumber>,
+}
+
+#[cfg(test)]
+mod tests {
+    use sov_db::ledger_db::SlotCommit;
+    use sov_mock_da::{MockAddress, MockBlob, MockBlock};
+    use sov_modules_api::{
+        ApiTxEffect, BatchReceipt, Gas, SuccessfulTxContents, TransactionReceipt, TxEffect,
+        TxReceiptContents,
+    };
+    use sov_test_utils::storage::SimpleLedgerStorageManager;
+    use sov_test_utils::{generate_optimistic_runtime, TestSpec as S};
+
+    use super::*;
+
+    generate_optimistic_runtime!(TestRuntime <=);
+
+    fn build_mock_confirmation(tx_number: u64) -> AcceptedTx<Confirmation<S, TestRuntime<S>>> {
+        AcceptedTx {
+            tx: FullyBakedTx::new(vec![]),
+            tx_hash: HexString([tx_number as u8; 32]),
+            confirmation: Confirmation {
+                events: vec![],
+                receipt: ApiTxEffect::Successful {
+                    data: SuccessfulTxContents {
+                        gas_used: <<S as Spec>::Gas as Gas>::zero(),
+                    },
+                },
+                tx_number,
+            },
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_catchup_to_stream() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
+        let ledger_db = LedgerDb::with_reader(storage_manager.create_ledger_storage()).unwrap();
+        let cache = TransactionCache::new(ledger_db, 0, 100);
+        let writer = cache.write_handle();
+
+        let initial_num_txs = 201;
+        let mut num_txs = initial_num_txs;
+        let txs = (0..num_txs).map(build_mock_confirmation);
+        for tx in txs {
+            writer.insert(tx).await;
+        }
+
+        // Check that we don't have issues no matter where we start the stream from
+        for i in 0..initial_num_txs {
+            let mut stream = cache
+                .subscribe_starting_from_tx_number(Some(i))
+                .await
+                .unwrap();
+
+            for j in i..num_txs {
+                let next_tx =
+                    tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
+                        .await
+                        .unwrap()
+                        .unwrap()
+                        .unwrap();
+                assert_eq!(next_tx.confirmation.tx_number, j);
+            }
+            // Occasionally, insert a new tx to test that the stream continues working after catchup
+            if i % 13 == 0 {
+                let new_tx = build_mock_confirmation(num_txs);
+                writer.insert(new_tx.clone()).await;
+                let next_tx =
+                    tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
+                        .await
+                        .unwrap()
+                        .unwrap()
+                        .unwrap();
+                assert_eq!(next_tx.confirmation.tx_number, num_txs);
+                num_txs += 1;
+            } else {
+                // If we're not inserting a new tx, then the stream should be empty. Check that it is.
+                assert!(
+                    tokio::time::timeout(std::time::Duration::from_millis(50), stream.next())
+                        .await
+                        .is_err()
+                );
+            }
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_subscribe_from_head() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
+        let ledger_db = LedgerDb::with_reader(storage_manager.create_ledger_storage()).unwrap();
+        let cache = TransactionCache::new(ledger_db, 0, 100);
+        let writer = cache.write_handle();
+
+        let num_txs = 5;
+        let txs = (0..num_txs).map(build_mock_confirmation);
+        for tx in txs {
+            writer.insert(tx).await;
+        }
+
+        let mut stream = cache.subscribe_starting_from_tx_number(None).await.unwrap();
+        // If we're not inserting a new tx, then the stream should be empty. Check that it is.
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(50), stream.next())
+                .await
+                .is_err()
+        );
+
+        // Push a new tx to the stream and check that it comes through
+        writer.insert(build_mock_confirmation(num_txs)).await;
+        let next_tx = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(next_tx.confirmation.tx_number, num_txs);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_tx_stream_falls_back_to_db_for_uncached_txs() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
+        let ledger_db = LedgerDb::with_reader(storage_manager.create_ledger_storage()).unwrap();
+        let cache = TransactionCache::new(ledger_db.clone(), 0, 100);
+        let writer = cache.write_handle();
+        let num_txs = 215;
+        // Populate the Ledger DB and tx cache
+        {
+            let mut slot = SlotCommit::<_, MockBlob, TxReceiptContents<S>>::new(
+                MockBlock::default(),
+                Default::default(),
+            );
+            let mut batch = BatchReceipt::<MockBlob, TxReceiptContents<S>> {
+                batch_hash: [0; 32],
+                tx_receipts: vec![],
+                ignored_tx_receipts: vec![],
+                inner: MockBlob::new(vec![], MockAddress::new([0; 32]), [0; 32]),
+            };
+
+            let txs = (0..num_txs).map(build_mock_confirmation);
+            for (i, tx) in txs.enumerate() {
+                // Push the first 110 txs to both the ledger db and the tx cache
+                if i < 110 {
+                    batch.tx_receipts.push(TransactionReceipt {
+                        tx_hash: tx.tx_hash,
+                        body_to_save: None,
+                        events: vec![],
+                        receipt: TxEffect::Successful(SuccessfulTxContents {
+                            gas_used: <<S as Spec>::Gas as Gas>::zero(),
+                        }),
+                    });
+                }
+                writer.insert(tx).await;
+            }
+            slot.add_batch(batch);
+            let commit_data = ledger_db.materialize_slot(slot, b"state-root").unwrap();
+            storage_manager.commit(commit_data);
+            ledger_db.replace_reader(storage_manager.create_ledger_storage());
+        }
+        // Prune the cache to remove the first 105 txs. This forces the stream to fall back to the DB for those txs
+        // Note that the range of txs in the cache will still overlap with the DB after pruning. That's intentional to test the
+        // handling of that edge case.
+        cache.prune(105).await;
+
+        let mut stream = cache
+            .subscribe_starting_from_tx_number(Some(0))
+            .await
+            .unwrap();
+
+        // Check that we can get all the txs from the stream in the expected order
+        for i in 0..num_txs {
+            let next_tx = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            assert_eq!(next_tx.confirmation.tx_number, i);
+            assert_eq!(next_tx.id, HexString([i as u8; 32]));
+        }
+
+        // Push a new tx to the stream and check that it comes through
+        writer.insert(build_mock_confirmation(num_txs)).await;
+        let next_tx = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(next_tx.confirmation.tx_number, num_txs);
+    }
 }
