@@ -27,6 +27,7 @@ pub struct PreferredSequencerUpdateStateMetrics {
     pub batches_count: u64,
     pub transactions_count: u64,
     pub in_progress_batch: bool,
+    pub time_spent_fetching_batches: std::time::Duration,
 }
 
 impl Metric for PreferredSequencerUpdateStateMetrics {
@@ -37,13 +38,38 @@ impl Metric for PreferredSequencerUpdateStateMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         write!(
             buffer,
-            "{} duration_ms={},lock_duration_ms={},batches_count={},transactions_count={},in_progress_batch={}",
+            "{} duration_ms={},lock_duration_ms={},fetch_batches_duration_us={},batches_count={},transactions_count={},in_progress_batch={}",
             self.measurement_name(),
             self.duration.as_millis(),
             self.lock_duration.as_millis(),
+            self.time_spent_fetching_batches.as_micros(),
             self.batches_count,
             self.transactions_count,
             self.in_progress_batch
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct PreferredSequencerFetchBatchesToReplayMetrics {
+    pub duration: std::time::Duration,
+    pub num_batches: u64,
+    pub num_transactions: usize,
+}
+
+impl Metric for PreferredSequencerFetchBatchesToReplayMetrics {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_preferred_sequencer_fetch_batches_to_replay"
+    }
+
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(
+            buffer,
+            "{} duration_us={},num_batches={},num_transactions={}",
+            self.measurement_name(),
+            self.duration.as_micros(),
+            self.num_batches,
+            self.num_transactions,
         )
     }
 }

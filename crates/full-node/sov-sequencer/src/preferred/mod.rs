@@ -66,7 +66,10 @@ use crate::common::{
     AcceptedTx, Sequencer, SequencerEventStream, StateUpdateError, StateUpdateNotification,
     TxStatusBlobSenderHooks, WithCachedTxHashes,
 };
-use crate::metrics::{track_in_progress_batch_size, track_sequence_number};
+use crate::metrics::{
+    track_in_progress_batch_size, track_sequence_number,
+    PreferredSequencerFetchBatchesToReplayMetrics,
+};
 use crate::preferred::block_executor::{
     AcceptedTxWithBudgetInfo, RollupBlockExecutor, RollupBlockExecutorError,
 };
@@ -1165,11 +1168,15 @@ where
         inner: &Inner<S, Rt>,
         sequence_number: SequenceNumber,
         include_in_progress_batch: bool,
-    ) -> anyhow::Result<Vec<PreferredBatchToReplay>>
+    ) -> anyhow::Result<(
+        Vec<PreferredBatchToReplay>,
+        PreferredSequencerFetchBatchesToReplayMetrics,
+    )>
     where
         S: Spec,
         Rt: Runtime<S>,
     {
+        let start = std::time::Instant::now();
         let (sender, receiver) = oneshot::channel();
         inner
             .executor_events_sender
@@ -1179,9 +1186,16 @@ where
                 include_in_progress_batch,
             })
             .await;
-        receiver.await.map_err(|_| {
+        let result = receiver.await.map_err(|_| {
             anyhow!("Failed to fetch completed batches because the databse shut down.")
-        })
+        })?;
+        let duration = start.elapsed();
+        let metrics = PreferredSequencerFetchBatchesToReplayMetrics {
+            duration,
+            num_batches: result.len() as u64,
+            num_transactions: result.iter().map(|b| b.batch.inner.data.len()).sum(),
+        };
+        Ok((result, metrics))
     }
 }
 
@@ -1246,7 +1260,7 @@ where
     // This prevents `accept_tx` from sneaking in any new txs between the time we check if there are soft confirmations to replay
     // and the time the sequencer is marked unready.
     let inner = seq.lock_inner().await;
-    let (batches_to_replay, next_sequence_number, is_startup) = {
+    let ((batches_to_replay, fetch_batches_to_replay_metrics), next_sequence_number, is_startup) = {
         (
             seq.completed_batches_to_replay(&inner, next_sequence_number_according_to_node, true)
                 .await?,
@@ -1254,6 +1268,10 @@ where
             !inner.has_finished_startup,
         )
     };
+    let time_spent_fetching_batches = fetch_batches_to_replay_metrics.duration;
+    sov_metrics::track_metrics(|t| {
+        t.submit(fetch_batches_to_replay_metrics);
+    });
 
     let distance = seq.da_sync_state.status().distance();
 
@@ -1328,8 +1346,13 @@ where
         // conditions.
         (false, false, false, _) => {
             drop(inner); // Drop the lock. We don't need to hold it while we do replay.
-            seq.replay_soft_confirmations_on_top_of_node_state(info, timer_start, is_startup)
-                .await?;
+            seq.replay_soft_confirmations_on_top_of_node_state(
+                info,
+                timer_start,
+                is_startup,
+                time_spent_fetching_batches,
+            )
+            .await?;
         }
     }
 

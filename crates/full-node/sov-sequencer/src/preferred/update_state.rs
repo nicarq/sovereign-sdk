@@ -35,6 +35,7 @@ where
         info: StateUpdateInfo<S::Storage>,
         timer_start: Instant,
         is_startup: bool,
+        mut time_spent_fetching_batches: std::time::Duration, // The time already spent fetching batches to replay
     ) -> anyhow::Result<()> {
         // On shutdown exit early. This prevents duplicate subscriptions to the DB events channel, which would cause spurious warnings.
         // Note that we only need to detect whether a previous `replay_soft_confirmations_on_top_of_node_state` was aborted due to shutdown
@@ -78,7 +79,7 @@ where
             let lock_start = std::time::Instant::now();
             // Because we just sent our own message while holding the lock, we know that it will be the last message in the db channel.
             // So, the response we receive is a completely up-to-date picture of the DB.
-            let completed_batches = self
+            let (completed_batches, fetch_batches_to_replay_metrics) = self
                 .completed_batches_to_replay(&inner, next_sequence_number, false)
                 .await?;
 
@@ -91,16 +92,33 @@ where
                     .send(ExecutorEvent::SubscribeToEvents(db_events_sender))
                     .await;
 
+                let fetch_in_progress_batch_time = std::time::Instant::now();
                 let in_progress_batch = inner
                     .executor_events_sender
                     .fetch_in_progress_batch()
                     .await?;
-                total_lock_duration += lock_start.elapsed();
+                // Update metrics
+                {
+                    time_spent_fetching_batches += fetch_batches_to_replay_metrics.duration;
+                    time_spent_fetching_batches += fetch_in_progress_batch_time.elapsed();
+                    sov_metrics::track_metrics(|t| {
+                        t.submit(fetch_batches_to_replay_metrics);
+                    });
+                    total_lock_duration += lock_start.elapsed();
+                }
+
                 break (in_progress_batch, subscription);
             }
 
             drop(inner); // Drop quickly so we don't block the sequencer
-            total_lock_duration += lock_start.elapsed();
+                         // Update metrics
+            {
+                total_lock_duration += lock_start.elapsed();
+                time_spent_fetching_batches += fetch_batches_to_replay_metrics.duration;
+                sov_metrics::track_metrics(|t| {
+                    t.submit(fetch_batches_to_replay_metrics);
+                });
+            }
 
             for batch in completed_batches {
                 batches_count += 1;
@@ -226,6 +244,7 @@ where
                 .try_into()
                 .expect("transactions in a single batch cannot possibly exceed u64::MAX"),
             in_progress_batch: batch_is_in_progress,
+            time_spent_fetching_batches,
         };
 
         sov_metrics::track_metrics(|t| {
