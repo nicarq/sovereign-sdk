@@ -3,7 +3,6 @@ use reth_primitives::revm_primitives::{
 };
 use reth_primitives::TransactionSigned;
 use sov_address::{EthereumAddress, FromVmAddress};
-#[cfg(feature = "native")]
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{Context, Spec, TxState};
 
@@ -25,8 +24,8 @@ use crate::{Evm, PendingTransaction, SpecId};
     Eq,
     Clone,
     schemars::JsonSchema,
+    UniversalWallet,
 )]
-#[cfg_attr(feature = "native", derive(UniversalWallet))]
 pub struct CallMessage {
     /// RLP encoded transaction.
     pub rlp: RlpEvmTransaction,

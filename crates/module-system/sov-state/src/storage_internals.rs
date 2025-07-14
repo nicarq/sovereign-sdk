@@ -8,7 +8,6 @@ use jmt::SimpleHasher;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use sov_rollup_interface::reexports::digest::Digest;
-#[cfg(feature = "native")]
 use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 
 use crate::{MerkleProofSpec, ProvableNamespace, StateRoot};
@@ -26,8 +25,8 @@ use crate::{MerkleProofSpec, ProvableNamespace, StateRoot};
     Deserialize,
     derive_more::Display,
     derive_more::Debug,
+    UniversalWallet,
 )]
-#[cfg_attr(feature = "native", derive(UniversalWallet))]
 #[derivative(
     Eq(bound = "S: MerkleProofSpec"),
     PartialEq(bound = "S: MerkleProofSpec"),
@@ -113,8 +112,7 @@ impl<S: MerkleProofSpec> StorageRoot<S> {
 }
 
 /// A storage proof that is used to verify the existence of a key in the storage.
-#[derive(Derivative, Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
-#[cfg_attr(feature = "native", derive(UniversalWallet))]
+#[derive(Derivative, Serialize, Deserialize, BorshDeserialize, BorshSerialize, UniversalWallet)]
 #[derivative(
     PartialEq(bound = "H: SimpleHasher"),
     Eq(bound = "H: SimpleHasher"),

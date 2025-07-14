@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::crypto::SigVerificationError;
+use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 use sov_rollup_interface::zk::CryptoSpec;
 use sov_rollup_interface::TxHash;
 use thiserror::Error;
@@ -36,29 +37,25 @@ impl<D: DispatchCall> TransactionCallable for D {
     type Call = D::Decodable;
 }
 
-#[derive(derive_more::Debug, Clone, borsh::BorshDeserialize)]
-#[cfg_attr(
-    feature = "native",
-    derive(
-        sov_rollup_interface::sov_universal_wallet::UniversalWallet,
-        serde::Serialize,
-        serde::Deserialize,
-        borsh::BorshSerialize,
-    ),
-    serde(bound = "Call: serde::Serialize + serde::de::DeserializeOwned")
+#[derive(
+    derive_more::Debug,
+    Clone,
+    borsh::BorshDeserialize,
+    serde::Serialize,
+    serde::Deserialize,
+    borsh::BorshSerialize,
+    UniversalWallet,
 )]
+#[serde(bound = "Call: serde::Serialize + serde::de::DeserializeOwned")]
 /// V0 transaction.
 pub struct Version0<Call, S: Spec> {
     /// The signature of the transaction.
     pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
     /// The public key of the sender of the transaction.
     pub pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
-    /// The runtime call of the transaction.     
-    #[cfg_attr(
-        feature = "native",
-        sov_wallet(
-            bound = "Call: sov_rollup_interface::sov_universal_wallet::schema::SchemaGenerator"
-        )
+    /// The runtime call of the transaction.
+    #[sov_wallet(
+        bound = "Call: sov_rollup_interface::sov_universal_wallet::schema::SchemaGenerator"
     )]
     pub runtime_call: Call,
     /// The generation of the transaction (for uniqueness).
@@ -67,17 +64,16 @@ pub struct Version0<Call, S: Spec> {
     pub details: TxDetails<S>,
 }
 
-#[derive(derive_more::Debug, Clone, borsh::BorshDeserialize)]
-#[cfg_attr(
-    feature = "native",
-    derive(
-        sov_rollup_interface::sov_universal_wallet::UniversalWallet,
-        serde::Serialize,
-        serde::Deserialize,
-        borsh::BorshSerialize,
-    ),
-    serde(bound = "Call: serde::Serialize + serde::de::DeserializeOwned")
+#[derive(
+    derive_more::Debug,
+    Clone,
+    borsh::BorshDeserialize,
+    serde::Serialize,
+    serde::Deserialize,
+    borsh::BorshSerialize,
+    UniversalWallet,
 )]
+#[serde(bound = "Call: serde::Serialize + serde::de::DeserializeOwned")]
 /// Versioned transaction
 pub enum VersionedTx<Call, S: Spec> {
     /// V0 transaction.
@@ -87,18 +83,13 @@ pub enum VersionedTx<Call, S: Spec> {
 #[derive(
     derive_more::Debug, // derive_more uses the correct bound of TransactionCallable::RuntimeCall
     Clone,
+    borsh::BorshSerialize,
     borsh::BorshDeserialize,
+    serde::Serialize,
+    serde::Deserialize,
+    UniversalWallet,
 )]
-#[cfg_attr(
-    feature = "native",
-    derive(
-        sov_rollup_interface::sov_universal_wallet::UniversalWallet,
-        serde::Serialize,
-        serde::Deserialize,
-        borsh::BorshSerialize,
-    ),
-    serde(bound = "R::Call: serde::Serialize + serde::de::DeserializeOwned")
-)]
+#[serde(bound = "R::Call: serde::Serialize + serde::de::DeserializeOwned")]
 /// A Transaction object that is compatible with the module-system/sov-default-stf.
 pub struct Transaction<R: TransactionCallable, S: Spec> {
     /// Versioned transaction.
@@ -304,10 +295,8 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
 }
 
 /// An unsent transaction with the required data to be submitted to the DA layer
-#[derive(derive_more::Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-#[cfg_attr(
-    feature = "native",
-    derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)
+#[derive(
+    derive_more::Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, UniversalWallet,
 )]
 pub struct UnsignedTransaction<R: TransactionCallable, S: Spec> {
     // The runtime call

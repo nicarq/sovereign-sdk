@@ -64,7 +64,7 @@ mod arbitrary_impls {
 }
 
 const CELESTIA: &str = "celestia";
-#[derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)]
+#[derive(UniversalWallet)]
 #[allow(dead_code)]
 #[doc(hidden)]
 struct CelestiaAddressSchema(#[sov_wallet(display(bech32(prefix = "CELESTIA")))] Vec<u8>);

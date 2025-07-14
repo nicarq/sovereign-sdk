@@ -66,7 +66,9 @@ pub mod execution_mode {
         const EXECUTION_MODE: RuntimeExecutionMode;
     }
     /// A unit struct marking that execution occurs inside of a [`Zkvm`](super::zk::Zkvm).
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, schemars::JsonSchema,
+    )]
     #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
     pub struct Zk;
     impl ExecutionMode for Zk {
@@ -82,7 +84,9 @@ pub mod execution_mode {
         const EXECUTION_MODE: RuntimeExecutionMode = RuntimeExecutionMode::Native;
     }
     /// A unit struct marking that execution generates a witness, adding additional overhead on top of [`Native`] execution.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, schemars::JsonSchema,
+    )]
     #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
     pub struct WitnessGeneration;
     impl ExecutionMode for WitnessGeneration {
