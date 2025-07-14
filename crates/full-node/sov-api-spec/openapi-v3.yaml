@@ -739,7 +739,7 @@ components:
             type: object
             properties:
               data:
-                $ref: "#/components/schemas/AnyJsonValue"
+                $ref: "#/components/schemas/Constants"
               meta:
                 $ref: "#/components/schemas/AnyJsonValue"
             required:
@@ -944,6 +944,19 @@ components:
           type: string
       required:
         - name
+    Constants:
+      type: object
+      properties:
+        chain_name:
+          type: string
+        chain_id:
+          type: integer
+        hyperlane_domain:
+          type: integer
+      required:
+        - chain_name
+        - chain_id
+        - hyperlane_domain
     Hash:
       type: string
       title: Hash
