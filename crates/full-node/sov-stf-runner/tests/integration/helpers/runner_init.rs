@@ -232,6 +232,7 @@ pub async fn initialize_runner(
         shutdown_receiver.clone(),
         rollup_config.monitoring.clone(),
         None,
+        None,
     )
     .await
     .unwrap();

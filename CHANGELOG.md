@@ -1,7 +1,9 @@
+# 2025-07-14
+- #3164 Adds support for an optional `stop_at_rollup_height` parameter in the rollup.
+- #3211 Moves the `schema` and `dedup` endpoint traits/router to a new `endpoints` module for better organization
+
 # 2025-07-10
 - #3200 Upgrade `backon` crate.
-# 2025-07-14
-- #3211 Moves the `schema` and `dedup` endpoint traits/router to a new `endpoints` module for better organization
 
 # 2025-07-09
 - #3193 **BREAKING CHANGE** this PR moves the sequencer tx status endpoint from `/sequencer/txs/{hash}` to `/sequencer/txs/{hash}/status`. A new endpoint is added at `/sequencer/txs/{hash}/` which returns the transaction's soft confirmation info. This PR also fixes an off-by-one error which caused the sequencer's unstable events endpoint to return one more event than was requested. It also makes the non-breaking change of allowing sequencer tx subscriptions from any past tx number `/sequencer/txs/ws?start_from=123`.

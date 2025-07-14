@@ -49,6 +49,10 @@ struct Args {
     /// Stops the rollup at a given height.
     #[arg(long, default_value = None)]
     stop_at_rollup_height: Option<u64>,
+
+    /// Asserts that the rollup starts at a given height.
+    #[arg(long, default_value = None)]
+    start_at_rollup_height: Option<u64>,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -92,7 +96,9 @@ async fn run() -> anyhow::Result<()> {
         "Running demo rollup with prover config"
     );
 
+    let start_at_rollup_height = args.start_at_rollup_height.map(RollupHeight::new);
     let stop_at_rollup_height = args.stop_at_rollup_height.map(RollupHeight::new);
+
     match (args.da_layer, args.storage) {
         (SupportedDaLayer::Mock, SupportedStorage::Jmt) => {
             let prover_config = prover_config_disc
@@ -101,7 +107,8 @@ async fn run() -> anyhow::Result<()> {
                 &GenesisPaths::from_dir(&args.genesis_config_dir),
                 rollup_config_path,
                 prover_config,
-                args.stop_at_rollup_height.map(RollupHeight::new),
+                start_at_rollup_height,
+                stop_at_rollup_height,
             )
             .await
             .context("Failed to initialize MockDa rollup")?;
@@ -114,6 +121,7 @@ async fn run() -> anyhow::Result<()> {
                 &GenesisPaths::from_dir(&args.genesis_config_dir),
                 rollup_config_path,
                 prover_config,
+                start_at_rollup_height,
                 stop_at_rollup_height,
             )
             .await
@@ -127,6 +135,7 @@ async fn run() -> anyhow::Result<()> {
                 &GenesisPaths::from_dir(&args.genesis_config_dir),
                 rollup_config_path,
                 prover_config,
+                start_at_rollup_height,
                 stop_at_rollup_height,
             )
             .await
@@ -140,6 +149,7 @@ async fn run() -> anyhow::Result<()> {
                 &GenesisPaths::from_dir(&args.genesis_config_dir),
                 rollup_config_path,
                 prover_config,
+                start_at_rollup_height,
                 stop_at_rollup_height,
             )
             .await
@@ -170,6 +180,7 @@ async fn new_rollup_with_celestia_da(
     rt_genesis_paths: &GenesisPaths,
     rollup_config_path: &str,
     prover_config: Option<RollupProverConfig<Risc0>>,
+    start_at_rollup_height: Option<RollupHeight>,
     stop_at_rollup_height: Option<RollupHeight>,
 ) -> anyhow::Result<Rollup<CelestiaDemoRollup<Native>, Native>> {
     debug!(config_path = rollup_config_path, "Starting Celestia rollup");
@@ -185,6 +196,7 @@ async fn new_rollup_with_celestia_da(
             rt_genesis_paths,
             rollup_config,
             prover_config,
+            start_at_rollup_height,
             stop_at_rollup_height,
         )
         .await
@@ -194,6 +206,7 @@ async fn new_rollup_with_celestia_da_and_nomt(
     rt_genesis_paths: &GenesisPaths,
     rollup_config_path: &str,
     prover_config: Option<RollupProverConfig<Risc0>>,
+    start_at_rollup_height: Option<RollupHeight>,
     stop_at_rollup_height: Option<RollupHeight>,
 ) -> anyhow::Result<Rollup<CelestiaNomtDemoRollup<Native>, Native>> {
     debug!(config_path = rollup_config_path, "Starting Celestia rollup");
@@ -209,6 +222,7 @@ async fn new_rollup_with_celestia_da_and_nomt(
             rt_genesis_paths,
             rollup_config,
             prover_config,
+            start_at_rollup_height,
             stop_at_rollup_height,
         )
         .await
@@ -218,6 +232,7 @@ async fn new_rollup_with_mock_da_and_jmt(
     rt_genesis_paths: &GenesisPaths,
     rollup_config_path: &str,
     prover_config: Option<RollupProverConfig<Risc0>>,
+    start_at_rollup_height: Option<RollupHeight>,
     stop_at_rollup_height: Option<RollupHeight>,
 ) -> anyhow::Result<Rollup<MockDemoRollup<Native>, Native>> {
     debug!(
@@ -236,6 +251,7 @@ async fn new_rollup_with_mock_da_and_jmt(
             rt_genesis_paths,
             rollup_config,
             prover_config,
+            start_at_rollup_height,
             stop_at_rollup_height,
         )
         .await
@@ -245,6 +261,7 @@ async fn new_rollup_with_mock_da_and_nomt(
     rt_genesis_paths: &GenesisPaths,
     rollup_config_path: &str,
     prover_config: Option<RollupProverConfig<Risc0>>,
+    start_at_rollup_height: Option<RollupHeight>,
     stop_at_rollup_height: Option<RollupHeight>,
 ) -> anyhow::Result<Rollup<MockNomtDemoRollup<Native>, Native>> {
     debug!(
@@ -264,6 +281,7 @@ async fn new_rollup_with_mock_da_and_nomt(
             rollup_config,
             prover_config,
             stop_at_rollup_height,
+            start_at_rollup_height,
         )
         .await
 }

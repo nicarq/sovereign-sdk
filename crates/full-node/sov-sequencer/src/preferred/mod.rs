@@ -649,18 +649,6 @@ where
         .spawn();
         handles.push(side_effects_task);
 
-        if let Some(stop_height) = stop_at_rollup_height {
-            let rollup_height_to_access = inner.executor.checkpoint.rollup_height_to_access();
-            if stop_height < rollup_height_to_access {
-                tracing::error!(
-                    stop_height = stop_height.get(),
-                    rollup_height_to_access = rollup_height_to_access.get(),
-                    "The requested stop_height is lower than rollup_height_to_access, exiting"
-                );
-                anyhow::bail!("The requested stop_height: {stop_height} is lower than the current rollup_height_to_access: {rollup_height_to_access}, exiting");
-            }
-        }
-
         let seq = Arc::new(PreferredSequencer {
             inner: inner.into(),
             tx_status_manager: tx_status_manager.clone(),

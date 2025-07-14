@@ -3,7 +3,6 @@ pub mod logging;
 pub mod proof_sender;
 mod telemetry;
 mod wallet;
-
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -12,12 +11,13 @@ use async_trait::async_trait;
 pub use endpoints::*;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::{DeltaReader, SchemaBatch};
-use sov_modules_api::capabilities::{HasCapabilities, ProofProcessor, RollupHeight};
+use sov_modules_api::capabilities::{HasCapabilities, HasKernel, ProofProcessor, RollupHeight};
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::provable_height_tracker::MaximumProvableHeight;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
-    NodeEndpoints, OperatingMode, ProofSender, Spec, StateUpdateInfo, SyncStatus, ZkVerifier,
+    NodeEndpoints, OperatingMode, ProofSender, Spec, StateCheckpoint, StateUpdateInfo, SyncStatus,
+    VersionReader, ZkVerifier,
 };
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::common::SlotNumber;
@@ -154,6 +154,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         runtime_genesis_paths: &<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisInput,
         rollup_config: RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         prover_config: Option<RollupProverConfig<<Self::Spec as Spec>::InnerZkvm>>,
+        start_at_rollup_height: Option<RollupHeight>,
         stop_at_rollup_height: Option<RollupHeight>,
     ) -> anyhow::Result<Rollup<Self, M>>
     where
@@ -165,6 +166,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             genesis_params,
             rollup_config,
             prover_config,
+            start_at_rollup_height,
             stop_at_rollup_height,
         )
         .await
@@ -267,6 +269,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         genesis_params: GenesisParams<<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisConfig>,
         rollup_config: RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         prover_config: Option<RollupProverConfig<<Self::Spec as Spec>::InnerZkvm>>,
+        start_at_rollup_height: Option<RollupHeight>,
         stop_at_rollup_height: Option<RollupHeight>,
     ) -> anyhow::Result<Rollup<Self, M>>
     where
@@ -300,6 +303,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
 
         let (prover_storage, ledger_state) =
             storage_manager.create_state_after(&current_finalized_header)?;
+
         let ledger_db = self.create_ledger_db(ledger_state.clone())?;
         // Create separate API LedgerDb that will be used to provide strong consistency for REST
         // API. The updating of the underlying ledger reader will be delayed until other components
@@ -347,6 +351,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                 // because genesis data won't be visible to it.
                 let (prover_storage, ledger_state) =
                     storage_manager.create_state_after(&genesis_header)?;
+
                 ledger_db.replace_reader(ledger_state.clone());
                 api_ledger_db.replace_reader(ledger_state);
                 // Clearing notifications that has been produced during genesis.
@@ -366,7 +371,17 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             }
         };
 
-        let state_update_info = query_state_update_info(&ledger_db, prover_storage).await?;
+        let state_update_info = query_state_update_info(&ledger_db, prover_storage.clone()).await?;
+
+        let mut rt = Self::Runtime::default();
+        let checkpoint = StateCheckpoint::new(prover_storage, &rt.kernel());
+        let current_height = checkpoint.rollup_height_to_access();
+
+        validate_heights(
+            current_height,
+            start_at_rollup_height,
+            stop_at_rollup_height,
+        )?;
 
         tracing::debug!(
             prev_root_hash = hex::encode(prev_state_root.as_ref()),
@@ -407,6 +422,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             visible_state_height_tracker,
             main_shutdown_receiver.clone(),
             rollup_config.monitoring.clone(),
+            start_at_rollup_height,
             stop_at_rollup_height,
         )
         .await?;
@@ -502,6 +518,36 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             background_handles,
         })
     }
+}
+
+fn validate_heights(
+    current_height: RollupHeight,
+    start_at_rollup_height: Option<RollupHeight>,
+    stop_at_rollup_height: Option<RollupHeight>,
+) -> anyhow::Result<()> {
+    if let Some(start_at_rollup_height) = start_at_rollup_height {
+        let expected_start_at_rollup_height = current_height
+            .checked_add(1)
+            .expect("Height calculation overflow");
+        if start_at_rollup_height != expected_start_at_rollup_height {
+            anyhow::bail!(
+                "The requested start_at_rollup_height: {start_at_rollup_height}, is different than expected height {expected_start_at_rollup_height}"
+            );
+        }
+    }
+
+    if let Some(stop_height) = stop_at_rollup_height {
+        if stop_height <= current_height {
+            tracing::error!(
+                stop_height = stop_height.get(),
+                rollup_height_to_access = current_height.get(),
+                "The requested stop_height must be greater than the current rollup_height_to_access"
+            );
+            anyhow::bail!("The requested stop_height {stop_height} must be greater than the current_height {current_height}");
+        }
+    }
+
+    Ok(())
 }
 
 /// [`NodeEndpoints`] with `CORS` configuration.

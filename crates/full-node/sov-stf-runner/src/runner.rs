@@ -59,6 +59,7 @@ where
     shutdown_receiver: watch::Receiver<()>,
     secondary_shutdown_sender: watch::Sender<()>,
     background_handles: Vec<tokio::task::JoinHandle<anyhow::Result<()>>>,
+    start_at_rollup_height: Option<RollupHeight>,
     stop_at_rollup_height: Option<RollupHeight>,
     save_tx_bodies: bool,
 }
@@ -154,6 +155,7 @@ where
         state_height_tracker: Box<dyn ProvableHeightTracker>,
         shutdown_receiver: watch::Receiver<()>,
         monitoring_config: MonitoringConfig,
+        start_at_rollup_height: Option<RollupHeight>,
         stop_at_rollup_height: Option<RollupHeight>,
     ) -> anyhow::Result<Self> {
         error_if_tokio_runtime_is_not_multi_threaded()?;
@@ -244,6 +246,7 @@ where
             shutdown_receiver,
             secondary_shutdown_sender,
             background_handles: vec![fetcher_background_handle],
+            start_at_rollup_height,
             stop_at_rollup_height,
             save_tx_bodies: runner_config.save_tx_bodies,
         })
@@ -386,6 +389,7 @@ where
         let status_updater_handle = self
             .spawn_sync_status_updater(self.da_polling_interval, self.shutdown_receiver.clone());
 
+        let start_at_rollup_height = self.start_at_rollup_height;
         let stop_at_rollup_height = self.stop_at_rollup_height;
         let shutdown_receiver = self.shutdown_receiver.clone();
         loop {
@@ -403,7 +407,11 @@ where
                 }
             }
             match future_or_shutdown(
-                self.process_next_slot(next_da_height, &stop_at_rollup_height),
+                self.process_next_slot(
+                    next_da_height,
+                    &start_at_rollup_height,
+                    &stop_at_rollup_height,
+                ),
                 &shutdown_receiver,
             )
             .await
@@ -471,6 +479,7 @@ where
     async fn process_next_slot(
         &mut self,
         mut next_da_height: NextDaHeightToProcess,
+        start_at_rollup_height: &Option<RollupHeight>,
         stop_at_rollup_height: &Option<RollupHeight>,
     ) -> anyhow::Result<Option<NextDaHeightToProcess>> {
         let loop_start = std::time::Instant::now();
@@ -557,6 +566,16 @@ where
             relevant_blobs.as_iters(),
             ExecutionContext::Node,
         );
+
+        if let Some(start_at_rollup_height) = start_at_rollup_height {
+            assert!(
+                &slot_result.rollup_height >= start_at_rollup_height,
+                "The rollup height ({}) must be higher or equal to the start height ({})",
+                slot_result.rollup_height,
+                start_at_rollup_height
+            );
+        }
+
         let apply_slot_time = apply_slot_start.elapsed();
 
         // --- Before destructuring the receipt, extract some data for metrics ---
