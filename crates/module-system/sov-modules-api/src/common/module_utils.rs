@@ -9,12 +9,16 @@ use schemars::JsonSchema;
 /// ## Details
 /// This is a simple struct that implements all the necessary call message traits
 /// and that can be used as a placeholder for modules that do not support calls.
-#[cfg_attr(
-    feature = "native",
-    derive(crate::macros::UniversalWallet),
-    universal_wallet(sov_modules_api_path = crate),
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    crate::macros::UniversalWallet,
 )]
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone)]
+#[universal_wallet(sov_modules_api_path = crate)]
 pub enum NotInstantiable {}
 
 impl borsh::BorshDeserialize for NotInstantiable {

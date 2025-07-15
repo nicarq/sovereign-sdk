@@ -451,6 +451,15 @@ impl<S: Spec> Bank<S> {
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
         if from == to {
+            let balance = self
+                .balances
+                .get(&(from, token_id), state)?
+                .unwrap_or(Amount::ZERO);
+
+            if amount > balance {
+                anyhow::bail!("Token transfer to self failed. Self: {from}, transfer amount: {amount}, balance: {balance}.")
+            }
+
             tracing::trace!("Token transfer succeeded because it was transferring tokens to self.");
             return Ok(());
         }

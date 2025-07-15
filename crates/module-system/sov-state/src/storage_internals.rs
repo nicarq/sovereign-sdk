@@ -8,7 +8,6 @@ use jmt::SimpleHasher;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use sov_rollup_interface::reexports::digest::Digest;
-#[cfg(feature = "native")]
 use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 
 use crate::{MerkleProofSpec, ProvableNamespace, StateRoot};
@@ -26,8 +25,8 @@ use crate::{MerkleProofSpec, ProvableNamespace, StateRoot};
     Deserialize,
     derive_more::Display,
     derive_more::Debug,
+    UniversalWallet,
 )]
-#[cfg_attr(feature = "native", derive(UniversalWallet))]
 #[derivative(
     Eq(bound = "S: MerkleProofSpec"),
     PartialEq(bound = "S: MerkleProofSpec"),
@@ -113,8 +112,7 @@ impl<S: MerkleProofSpec> StorageRoot<S> {
 }
 
 /// A storage proof that is used to verify the existence of a key in the storage.
-#[derive(Derivative, Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
-#[cfg_attr(feature = "native", derive(UniversalWallet))]
+#[derive(Derivative, Serialize, Deserialize, BorshDeserialize, BorshSerialize, UniversalWallet)]
 #[derivative(
     PartialEq(bound = "H: SimpleHasher"),
     Eq(bound = "H: SimpleHasher"),
@@ -124,17 +122,13 @@ impl<S: MerkleProofSpec> StorageRoot<S> {
 pub struct SparseMerkleProof<H: SimpleHasher>(
     #[serde(bound(serialize = "", deserialize = ""))]
     #[borsh(bound(serialize = "", deserialize = ""))]
-    #[cfg_attr(
-        feature = "native",
-        sov_wallet(as_ty = "wallet_placeholders::MerkleDisplayPlaceholder")
-    )]
+    #[sov_wallet(as_ty = "wallet_placeholders::MerkleDisplayPlaceholder")]
     jmt::proof::SparseMerkleProof<H>,
 );
 
 // The types in this module aren't actually dead code, they are used as placeholders in the wallet
 // However, since they only appear in the Schema (which isn't Rust code), Rustc doesn't know that.
 #[allow(dead_code)]
-#[cfg(feature = "native")]
 mod wallet_placeholders {
     use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
     #[derive(UniversalWallet)]

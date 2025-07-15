@@ -6,11 +6,9 @@ use std::hash;
 
 use derive_more::derive::Display;
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "native")]
 use sov_universal_wallet::UniversalWallet;
 
 use super::CredentialId;
-#[cfg(feature = "native")]
 use crate as sov_rollup_interface;
 use crate::common::SafeString; // Needed for UniversalWallet, as it requires global paths
 
@@ -79,8 +77,8 @@ pub trait PrivateKey:
     Clone,
     Eq,
     derive_more::Display,
+    UniversalWallet,
 )]
-#[cfg_attr(feature = "native", derive(UniversalWallet))]
 #[serde(try_from = "String", into = "String")]
 pub struct PublicKeyHex {
     /// The public key in hexadecimal format.

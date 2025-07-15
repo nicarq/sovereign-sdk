@@ -2,7 +2,6 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "native")]
 use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 
 #[derive(
@@ -44,8 +43,8 @@ pub enum Namespace {
     BorshDeserialize,
     Serialize,
     Deserialize,
+    UniversalWallet,
 )]
-#[cfg_attr(feature = "native", derive(UniversalWallet))]
 #[serde(rename_all = "snake_case")]
 /// Namespaces which can be merkle proven.
 pub enum ProvableNamespace {

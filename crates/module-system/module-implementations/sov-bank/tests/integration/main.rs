@@ -4,6 +4,7 @@ mod capability_test;
 mod create_token_test;
 mod freeze_test;
 mod helpers;
+mod init;
 mod mint_test;
 mod transfer_test;
 mod wallet_test;

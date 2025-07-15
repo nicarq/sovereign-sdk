@@ -3912,7 +3912,6 @@ dependencies = [
  "borsh",
  "digest 0.10.7",
  "hex",
- "reth-primitives",
  "schemars",
  "secp256k1",
  "serde",

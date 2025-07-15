@@ -123,11 +123,18 @@ impl<S: Spec> Bank<S> {
                     .ok_or(anyhow::anyhow!("Overflowed token supply!"))?;
             }
 
+            let supply_cap = token_config.supply_cap.unwrap_or(Amount::MAX);
+            if total_supply > supply_cap {
+                anyhow::bail!(
+                    "Error: The total_supply: {total_supply} exceeds supply_cap: {supply_cap}"
+                );
+            }
+
             let admins = unique_holders(&admins);
             let token = Token::<S> {
                 name: token_config.token_name.to_owned(),
                 total_supply,
-                supply_cap: token_config.supply_cap.unwrap_or(Amount::MAX),
+                supply_cap,
                 admins,
             };
 

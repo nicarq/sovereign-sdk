@@ -24,17 +24,18 @@ borsh = { workspace = true, features = ["rc", "bytes"] }
 hex = { workspace = true }
 sha2 = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true}
+serde_json = { workspace = true }
 schemars = { workspace = true }
 rand = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
 
 # EVM dependencies
 alloy-primitives = { workspace = true, default-features = false, features = [
-	"rlp",
+    "rlp",
+    "serde",
+    "std",
 ], optional = true }
 secp256k1 = { workspace = true, features = ["serde"], optional = true }
-reth-primitives = { workspace = true, optional = true }
 
 [dev-dependencies]
 sov-address = { path = ".", features = ["native"] }
@@ -46,28 +47,25 @@ jsonschema = { workspace = true }
 [features]
 default = []
 evm = [
-	"dep:secp256k1",
-	"dep:alloy-primitives",
-	"dep:reth-primitives",
+    "dep:secp256k1",
+    "dep:alloy-primitives",
 ]
 arbitrary = [
-	"dep:arbitrary",
-	"dep:rand",
-	"dep:proptest",
-	"alloy-primitives?/arbitrary",
-	"reth-primitives?/arbitrary",
-	"sov-address/arbitrary",
-	"sov-modules-api/arbitrary",
-	"sov-rollup-interface/arbitrary",
-	"sov-test-utils/arbitrary"
+    "dep:arbitrary",
+    "dep:rand",
+    "dep:proptest",
+    "alloy-primitives?/arbitrary",
+    "sov-address/arbitrary",
+    "sov-modules-api/arbitrary",
+    "sov-rollup-interface/arbitrary",
+    "sov-test-utils/arbitrary"
 ]
 native = [
-	"dep:rand",
-	"alloy-primitives?/std",
-	"reth-primitives?/std",
-	"secp256k1?/rand",
-	"secp256k1?/global-context",
-	"sov-rollup-interface/native",
-	"sov-address/native",
-	"sov-modules-api/native"
+    "dep:rand",
+    "alloy-primitives?/std",
+    "secp256k1?/rand",
+    "secp256k1?/global-context",
+    "sov-rollup-interface/native",
+    "sov-address/native",
+    "sov-modules-api/native"
 ]

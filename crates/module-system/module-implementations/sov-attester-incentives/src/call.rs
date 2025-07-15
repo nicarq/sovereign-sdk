@@ -4,7 +4,6 @@ use std::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "native")]
 use sov_modules_api::macros::UniversalWallet;
 use thiserror::Error;
 use tracing::error;
@@ -22,8 +21,8 @@ use crate::Amount;
     PartialEq,
     Eq,
     schemars::JsonSchema,
+    UniversalWallet,
 )]
-#[cfg_attr(feature = "native", derive(UniversalWallet))]
 #[serde(rename_all = "snake_case")]
 pub enum CallMessage {
     /// Register an attester, the parameter is the bond amount
