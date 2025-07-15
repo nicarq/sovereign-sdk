@@ -567,15 +567,6 @@ where
             ExecutionContext::Node,
         );
 
-        if let Some(start_at_rollup_height) = start_at_rollup_height {
-            assert!(
-                &slot_result.rollup_height >= start_at_rollup_height,
-                "The rollup height ({}) must be higher or equal to the start height ({})",
-                slot_result.rollup_height,
-                start_at_rollup_height
-            );
-        }
-
         let apply_slot_time = apply_slot_start.elapsed();
 
         // --- Before destructuring the receipt, extract some data for metrics ---
