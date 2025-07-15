@@ -203,7 +203,12 @@ where
 
         if let Some(height_to_stop_at) = stop_at_rollup_height {
             let current_height = self.current_height();
-            if current_height >= height_to_stop_at {
+            let condition = if leave_space_for_next_batch {
+                current_height >= height_to_stop_at
+            } else {
+                current_height > height_to_stop_at
+            };
+            if condition {
                 debug!("The sequencer is at stop height and tried to create a batch (aborted due to stop height).");
                 return Err(BatchCreationError::PreferredSequencerAtStopHeight {
                     current_height,
@@ -876,14 +881,8 @@ where
             // necessary - if the previous master already recovered enough then we'll just continue
             // operating.
             //
-            // TODO: we do need to overwrite our state with the node's. Since recovery is expected
-            // to be very rare, and if it does happen that means the rollup has already had
-            // downtime and will already have had lost soft-confirmations, for now we'll require
-            // the user to manually reset replicas.
-            // To implement this properly we'd need to make sure we're 100% synced with the master
-            // on exactly when to stop overwriting from the node and start applying new
-            // transactions again. Probably by watching the `txs` table, so shouldn't be hard, but
-            // not trivial enough to implement it on the spot.
+            // TODO: we do need to overwrite our state with the node's to implement automatic
+            // recovery following properly. #3100
             error!("We have encountered recovery conditions, but this is a replica sequencer. Recovery is currently unsupported for replicas. Please run a single master instance of the sequencer to restore the rollup to normal functionality. Wait for the rollup to be fully recovered, and then restart any replicas.");
             exit_rollup(&self.shutdown_sender).await;
             unreachable!();

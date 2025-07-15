@@ -703,6 +703,18 @@ async fn seq_behind_deferred_slots_count_with_shutdown() {
     // possible node lag and b) a 90% threshold.
     da_service.produce_n_blocks_now(30).await.unwrap();
 
+    // If we stop and restart the rollup too soon, the old run's node_id will still be registered
+    // as master, so the newly started run (with a newly generated node_id) will not be able to
+    // immediately become master. This will cause the sequencer to crash because replicas don't
+    // support recovery.
+    // In the real world that's fine because you the crash doesn't cause any extra issues; you can
+    // restart again and by then it'll probably succeed, assuming 500ms since the last heartbeat
+    // have passed. And that's assuming your monitoring is fast enough to restart immediately.
+    // Here we just need the explicit wait because it makes the test flaky.
+    // (Also in the real world the conditions to trigger it are exceedingly unlikely to happen -
+    // this test just produces a large amount of DA blocks nearly instantaneously.)
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
     // Restart the rollup
     tracing::info!("Restarting rollup after exceeding deferred_slots_count");
     let test_rollup = builder.start().await.unwrap();

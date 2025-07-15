@@ -41,22 +41,22 @@ async fn flaky_tests_sequencer_stops_if_stop_at_height_too_small() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn flaky_tests_sequencer_does_not_accept_tx_after_stop_immediate_finality() {
+async fn tests_sequencer_does_not_accept_tx_after_stop_immediate_finality() {
     sequencer_does_not_accept_tx_after_stop(0).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn flaky_tests_sequencer_does_not_accept_tx_after_stop() {
+async fn tests_sequencer_does_not_accept_tx_after_stop() {
     sequencer_does_not_accept_tx_after_stop(TEST_FINALIZATION_BLOCKS).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn flaky_test_rollup_operates_only_on_finalized_blocks_if_stop_at_immediate_finality() {
+async fn test_rollup_operates_only_on_finalized_blocks_if_stop_at_immediate_finality() {
     rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(0).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn flaky_test_rollup_operates_only_on_finalized_blocks_if_stop_at_height_set() {
+async fn test_rollup_operates_only_on_finalized_blocks_if_stop_at_height_set() {
     rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(TEST_FINALIZATION_BLOCKS).await;
 }
 
@@ -210,15 +210,20 @@ async fn rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(finaliza
 
     tokio::time::sleep(Duration::from_millis(500)).await;
 
+    println!("Getting first height");
     let mut current_height = get_height(&client).await.unwrap();
+    println!("Starting at height {current_height:?}");
     let mut slot_subscription = test_rollup.client.client.subscribe_slots().await.unwrap();
     while current_height.get() < stop_at_height.get() + finalization_blocks as u64 {
+        print!("Start of loop: current_height={current_height:?}, stop_at_height={stop_at_height:?}...");
         test_rollup.da_service.produce_block_now().await.unwrap();
         slot_subscription.next().await;
         // We need to wait a bit so the new block is visible to the sequencer.
         tokio::time::sleep(Duration::from_millis(300)).await;
+        print!("    ...gonna assess process_only_finalzied...");
         assert_rollup_processes_only_finalized_blocks(&client).await;
         current_height = get_height(&client).await.unwrap();
+        println!("    ...end of loop: current_height={current_height:?}");
     }
 
     test_rollup.da_service.produce_block_now().await.unwrap();

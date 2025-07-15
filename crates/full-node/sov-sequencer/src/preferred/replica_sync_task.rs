@@ -278,6 +278,17 @@ where
             tokio::time::interval_at(tokio::time::Instant::now(), Duration::from_millis(200));
         takeover_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
+        if let Ok(true) = attempt_leadership_takeover(
+            &self.query_pool,
+            self.sequencer.node_id,
+            self.failover_threshold,
+        )
+        .await
+        {
+            info!("Successfully claimed leadership on sequencer startup - transitioning to master (most likely, we're the only running node)");
+            self.start_transition_to_master(&mut pending_events).await?;
+        }
+
         loop {
             tokio::select! {
                 // Master heartbeat timer
@@ -540,9 +551,7 @@ where
             .duration_since(self.last_heartbeat_time)
             .unwrap_or(Duration::MAX);
 
-        // This will normally be Err(e) either on startup before the first update_state(), or if
-        // the replica's node is syncing. No point in trying to take over if we aren't ready to
-        // operate just yet.
+        // No point in trying to take over if we aren't ready to operate just yet.
         // Worst case we'll take over once we're ready (i.e. finish syncing), best case another
         // replica is better positioned to take over and we shouldn't get in the way.
         if let Err(e) = {
