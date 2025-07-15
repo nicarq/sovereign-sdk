@@ -236,7 +236,9 @@ where
             let mut inner = self.lock_inner().await;
             let time_to_lock = start_prune.elapsed();
             if self.is_master().await {
-                inner.trigger_batch_production_if_convenient().await;
+                inner
+                    .trigger_batch_production_if_convenient(self.stop_at_rollup_height)
+                    .await;
             }
             inner.prune_sequencer_db().await;
             drop(inner);

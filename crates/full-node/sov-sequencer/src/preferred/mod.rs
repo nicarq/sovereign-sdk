@@ -101,6 +101,371 @@ pub enum RecoveryStrategy {
     TryToSave,
 }
 
+<<<<<<< HEAD
+=======
+/// A inner sequencer struct containing state that requires synchronized access.
+/// This struct accepts/rejects transactions, then hands them to the side effects task
+/// to be persisted.
+struct Inner<S, Rt>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
+    latest_info: StateUpdateInfo<S::Storage>,
+
+    config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
+    shutdown_receiver: watch::Receiver<()>,
+    executor: RollupBlockExecutor<S, Rt>,
+    batch_size_tracker: BatchSizeTracker,
+    is_ready: Result<(), SequencerNotReadyDetails>,
+    in_flight_blobs: Arc<AtomicUsize>,
+    executor_events_sender: ExecutorEventsSender<S, Rt>,
+    sequence_number_of_next_blob: SequenceNumber,
+    /// A boolean that indicates whether the sequencer has finished its startup phase.
+    /// We need this rather than relying on `SequencerNotReadyDetails::Startup` because that state
+    /// can be overwritten when the node is resyncing.
+    has_finished_startup: bool,
+}
+
+impl<S, Rt> Inner<S, Rt>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
+    fn nb_of_concurrent_blob_submissions(&self) -> usize {
+        self.in_flight_blobs.load(Ordering::Acquire)
+    }
+
+    pub async fn publish_proof_blob(&mut self, blob_id: BlobInternalId, data: Arc<[u8]>) {
+        let sequence_number = self.get_and_inc_next_sequence_number();
+        self.executor_events_sender
+            .send(ExecutorEvent::PublishProofBlob(
+                blob_id,
+                data,
+                sequence_number,
+            ))
+            .await;
+    }
+
+    async fn overwrite_next_sequence_number_for_recovery(
+        &mut self,
+        sequence_number: SequenceNumber,
+    ) {
+        info!(%sequence_number, "Overwriting next sequence number");
+        self.sequence_number_of_next_blob = sequence_number;
+        track_sequence_number(self.sequence_number_of_next_blob);
+    }
+
+    fn blob_sender_busy(&self) -> Option<usize> {
+        let num_current_in_flight = self.nb_of_concurrent_blob_submissions();
+
+        if num_current_in_flight > self.config.max_concurrent_blobs {
+            Some(num_current_in_flight)
+        } else {
+            None
+        }
+    }
+
+    fn node_root_hash(&self) -> anyhow::Result<<S::Storage as Storage>::Root> {
+        self.latest_info
+            .storage
+            .get_root_hash(self.latest_info.slot_number)
+    }
+
+    fn current_height(&self) -> RollupHeight {
+        self.executor.checkpoint.rollup_height_to_access()
+    }
+
+    /// Create a new batch, if possible. Errors here are expected, because it's not always possible to create a new batch due to transient DA issues.
+    /// We can only create a new batch if we have a finalized slot available to use as our `visible_slot_number_after_increase`.
+    #[tracing::instrument(skip_all, level = "trace")]
+    async fn try_to_create_and_start_batch_if_none_in_progress(
+        &mut self,
+        stop_at_rollup_height: Option<RollupHeight>,
+        leave_space_for_next_batch: bool,
+    ) -> Result<(), BatchCreationError> {
+        if self.executor.has_in_progress_batch() {
+            return Ok(());
+        }
+
+        if let Some(height_to_stop_at) = stop_at_rollup_height {
+            let current_height = self.current_height();
+            if current_height >= height_to_stop_at {
+                debug!("The sequencer is at stop height and tried to create a batch (aborted due to stop height).");
+                return Err(BatchCreationError::PreferredSequencerAtStopHeight {
+                    current_height,
+                    height_to_stop_at,
+                });
+            }
+        }
+
+        if self.blob_sender_busy().is_some() {
+            warn!("The blob sender is busy, no batch could be started at this time.");
+            return Err(BatchCreationError::BlobSenderBusy);
+        }
+
+        let visible_increase = match next_visible_slot_number_increase(
+            &self.executor.checkpoint,
+            &self.latest_info,
+            leave_space_for_next_batch,
+            self.config
+                .sequencer_kind_config
+                .ideal_lag_behind_finalized_slot,
+        ) {
+            Ok(visible_increase) => visible_increase,
+            Err(e) => {
+                warn!(
+                    "A batch was requested but the sequencer is not ready to produce one: {:?}",
+                    e
+                );
+                return Err(BatchCreationError::NoFinalizedSlotAvailable);
+            }
+        };
+
+        debug!(visible_increase, "No in-progress batch, starting a new one");
+        let node_state_root = self
+            .node_root_hash()
+            .map_err(BatchCreationError::DatabaseError)?;
+        let visible_slot_number_after_increase = self
+            .executor
+            .checkpoint
+            .current_visible_slot_number()
+            .advance(visible_increase.get().into());
+
+        // DB operations handled by replica-aware db implementation
+        let sequence_number = self.get_and_inc_next_sequence_number();
+
+        let min_profit_per_tx = self.config.sequencer_kind_config.minimum_profit_per_tx;
+        self.executor
+            .start_rollup_block(
+                visible_slot_number_after_increase,
+                visible_increase,
+                &node_state_root,
+                min_profit_per_tx,
+            )
+            .await;
+        self.executor_events_sender
+            .send(ExecutorEvent::StartBatch {
+                visible_slot_number_after_increase,
+                visible_slots_to_advance: visible_increase,
+                sequence_number,
+                new_checkpoint: self
+                    .executor
+                    .checkpoint
+                    .clone_with_empty_witness_dropping_temp_cache(),
+            })
+            .await;
+
+        Ok(())
+    }
+
+    /// Creates and starts a batch for replicas using the exact visible slot parameters from the master
+    #[tracing::instrument(skip_all, level = "trace")]
+    pub(crate) async fn try_start_batch_with_parameters_from_master(
+        &mut self,
+        visible_slot_number_after_increase: VisibleSlotNumber,
+        visible_slots_to_advance: NonZero<u8>,
+    ) -> anyhow::Result<()> {
+        if self.executor.has_in_progress_batch() {
+            return Ok(());
+        }
+
+        // Calculate the correct visible_slots_to_advance for this replica based on its current state
+        let current_visible_slot_number = self.executor.checkpoint.current_visible_slot_number();
+        let replica_visible_slots_to_advance = visible_slot_number_after_increase.as_true()
+            .checked_sub(current_visible_slot_number.as_true().get())
+            .and_then(|diff| NonZero::new(diff.get().try_into().unwrap()))
+            .ok_or_else(|| {
+                error!(
+                    current_visible_slot_number = %current_visible_slot_number,
+                    target_visible_slot_number = %visible_slot_number_after_increase,
+                    "Cannot calculate visible slots to advance for replica: target is not greater than current"
+                );
+                anyhow!("Invalid visible slot number progression for replica".to_string())
+            })?;
+
+        assert_eq!(
+            visible_slots_to_advance,
+            replica_visible_slots_to_advance,
+            "Sanity check failed: replica visible_slots_to_advance calculation different from master."
+        );
+
+        let node_state_root = self.node_root_hash()?;
+        let sequence_number = self.get_and_inc_next_sequence_number();
+
+        let min_profit_per_tx = self.config.sequencer_kind_config.minimum_profit_per_tx;
+        self.executor
+            .start_rollup_block(
+                visible_slot_number_after_increase,
+                replica_visible_slots_to_advance,
+                &node_state_root,
+                min_profit_per_tx,
+            )
+            .await;
+
+        self.executor_events_sender
+            .send(ExecutorEvent::StartBatch {
+                visible_slot_number_after_increase,
+                visible_slots_to_advance,
+                sequence_number,
+                new_checkpoint: self
+                    .executor
+                    .checkpoint
+                    .clone_with_empty_witness_dropping_temp_cache(),
+            })
+            .await;
+
+        Ok(())
+    }
+
+    #[tracing::instrument(skip_all, level = "trace")]
+    async fn trigger_batch_production_if_convenient(
+        &mut self,
+        stop_at_rollup_height: Option<RollupHeight>,
+    ) {
+        if !self.config.automatic_batch_production {
+            warn!("Skipping batch production due to settings");
+            return;
+        }
+
+        // If we're lagging less than the ideal amount, it's not convenient to create a new batch so return early
+        if is_lagging_less_than_ideal_amount(
+            self.executor.checkpoint.current_visible_slot_number(),
+            self.latest_info.latest_finalized_slot_number,
+            self.config
+                .sequencer_kind_config
+                .ideal_lag_behind_finalized_slot,
+        ) {
+            return;
+        }
+
+        if let Err(e) = self
+            .try_to_create_and_start_batch_if_none_in_progress(stop_at_rollup_height, true)
+            .await
+        {
+            tracing::debug!(
+                error = %e,
+                "Unable to start new batch after successful state update."
+            );
+        }
+
+        // We were unable to open a new batch (likely due to a lack of finalized
+        // slots), so we're done.
+        if !self.executor.has_in_progress_batch() {
+            return;
+        }
+
+        // If the node is shutting down, we may not be able to terminate the batch. In that case, just return early.
+        if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            info!(
+                "The sequencer is shutting down. Exiting trigger_batch_production_if_convenient."
+            );
+            return;
+        }
+
+        self.close_current_batch().await;
+    }
+
+    /// Closes the current batch
+    #[cfg(feature = "test-utils")]
+    pub async fn force_close_current_batch(&mut self) -> anyhow::Result<()> {
+        self.close_current_batch().await;
+        Ok(())
+    }
+
+    fn next_sequence_number(&self) -> SequenceNumber {
+        self.sequence_number_of_next_blob
+    }
+
+    fn get_and_inc_next_sequence_number(&mut self) -> SequenceNumber {
+        let sequence_number = self.sequence_number_of_next_blob;
+        self.sequence_number_of_next_blob = self
+            .sequence_number_of_next_blob
+            .checked_add(1)
+            .expect("Sequence number overflow; this should be unreachable for a few billion years");
+        track_sequence_number(self.sequence_number_of_next_blob);
+        sequence_number
+    }
+
+    /// Closes the current batch.
+    ///
+    /// This should be called only when...
+    /// 1. There's no more capacity to accept txs in the current batch.
+    /// 2. We're absolutely sure we want to close the batch early even though we don't need to.
+    ///
+    /// Case 2 only happens when we've just finished updating the state *and* we have more than our ideal number of finalized slots available.
+    #[tracing::instrument(skip_all, level = "trace")]
+    async fn close_current_batch(&mut self) {
+        // Terminate the batch.
+        self.executor.end_rollup_block().await;
+        self.batch_size_tracker = BatchSizeTracker::new(self.config.max_batch_size_bytes);
+        let checkpoint = self
+            .executor
+            .checkpoint
+            .clone_with_empty_witness_dropping_temp_cache();
+        self.executor_events_sender
+            .send(ExecutorEvent::CloseBatch(checkpoint))
+            .await;
+    }
+
+    async fn prune_sequencer_db(&mut self) {
+        let latest_state_info = &self.latest_info;
+        let mut runtime = Rt::default();
+        let next_sequence_number_according_to_node =
+            get_next_sequence_number_according_to_node(latest_state_info, &mut runtime);
+
+        sov_metrics::track_metrics(|tracker| {
+            tracker.submit_inline(
+                "sov_rollup_sequence_number_delta",
+                format!(
+                    "delta={}i",
+                    (self.next_sequence_number() as i64)
+                        - (next_sequence_number_according_to_node as i64)
+                ),
+            );
+        });
+
+        match latest_finalized_sequence_number(latest_state_info, &mut runtime) {
+            Some(num) => {
+                // TODO(@neysofu): somehow, if we prune too close to the latest
+                // finalized sequence number, we get panics due to missing blobs
+                // and inconsistent state. There is clearly something wrong with
+                // the pruning height calculation height.
+                if let Some(num) = num.checked_sub(100) {
+                    self.executor_events_sender
+                        .send(ExecutorEvent::PruneDb(num))
+                        .await;
+                }
+            }
+            None => {
+                // Nothing to prune because there's no sequence number history.
+            }
+        }
+    }
+
+    async fn force_overwrite_state(
+        &mut self,
+        info: StateUpdateInfo<S::Storage>,
+        new_executor: RollupBlockExecutor<S, Rt>,
+    ) {
+        tracing::trace!(?info, "Overwriting preferred sequencer internal state");
+
+        // Replace known info
+        self.latest_info = info.clone();
+
+        // Replace executor state
+        self.executor.replace_state(new_executor).await;
+
+        // Replace API state
+        let mut rt = Rt::default();
+        let checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
+        self.executor_events_sender
+            .send(ExecutorEvent::ForceUpdateApiState(checkpoint))
+            .await;
+    }
+}
+
+>>>>>>> Prevent sequencer from creating batches past the stop_at_height parameter
 /// A [`Sequencer`] with instant transaction confirmation.
 pub struct PreferredSequencer<S, Rt, Da>
 where
@@ -600,11 +965,20 @@ where
                 } else {
                     tracing::debug!(number = %i, min = %min_batches_to_send, max = %max_batches_to_send, "Sending catchup batch");
                 }
+<<<<<<< HEAD
 
                 self.synchronized_state_updator
                     .trigger_batch_production_if_convenient_msg(
                         "recover_and_catch_up:dump_catchup_batches",
                     )
+=======
+                // We don't run force_overwrite_state() here.
+                // This is mostly fine, mainly the API state will be out of date until we've
+                // finished sending our batches.
+                // Adding parallel state update handling is not worth the complexity right now.
+                inner
+                    .trigger_batch_production_if_convenient(self.stop_at_rollup_height)
+>>>>>>> Prevent sequencer from creating batches past the stop_at_height parameter
                     .await;
             }
 
@@ -1217,15 +1591,29 @@ where
         .map_err(error_not_fully_synced)?;
 >>>>>>> fix rejection in accept_tx
 
+<<<<<<< HEAD
         match res {
             Ok(rx) => rx.await.map_err(database_error_500),
             Err(e) => match e {
                 AcceptTxError::SequencerOverloaded503 => {
+=======
+        if let Err(e) = inner
+            .try_to_create_and_start_batch_if_none_in_progress(self.stop_at_rollup_height, false)
+            .await
+        {
+            // On all errors, we treat the sequencer as having had downtime and clear out the transaction queue.
+            // Note that we'll increment the queue ID once per rejected tx. This is totally fine - we have 2**64 ids to play with
+            // and atomic increments are very cheap relative to the cost of executing the tx
+            self.tx_queue_id.fetch_add(1, Ordering::AcqRel);
+            match e {
+                BatchCreationError::NoFinalizedSlotAvailable => {
+>>>>>>> Prevent sequencer from creating batches past the stop_at_height parameter
                     return Err(sequencer_overloaded_503());
                 }
                 AcceptTxError::NotFullySynced(details) => {
                     return Err(error_not_fully_synced(details))
                 }
+<<<<<<< HEAD
                 AcceptTxError::BatchError {
                     batch_creation_error,
                     nb_of_concurrent_blob_submissions,
@@ -1257,6 +1645,21 @@ where
                 }
                 AcceptTxError::ExecutorError(err) => {
                     return Err(RollupBlockExecutorError::into_http_error(err));
+=======
+                BatchCreationError::PreferredSequencerAtStopHeight {
+                    height_to_stop_at,
+                    current_height,
+                } => {
+                    return Err(error_not_fully_synced(
+                        SequencerNotReadyDetails::PreferredSequencerAtStopHeight {
+                            height_to_stop_at,
+                            current_height,
+                        },
+                    ));
+                }
+                BatchCreationError::DatabaseError(e) => {
+                    return Err(database_error_500(e));
+>>>>>>> Prevent sequencer from creating batches past the stop_at_height parameter
                 }
 
                 AcceptTxError::Shutdown => {
@@ -1586,6 +1989,7 @@ pub(crate) async fn exit_rollup(shutdown_sender: &watch::Sender<()>) {
 
 /// An error that can occur when trying to create a new batch.
 #[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)] // Similar to SequencerNotReadyDetails, the inner fields are self-documenting
 pub enum BatchCreationError {
     /// The blob sender is applying backpressure due to difficulty landing blob on DA
     #[error("The blob sender is busy. Cannot create a new batch.")]
@@ -1596,6 +2000,14 @@ pub enum BatchCreationError {
     /// The sequencer was not able to start a batch because it has consumed its whole buffer of finalized slots.
     #[error("The sequencer is temporarily overloaded. Try again in a few seconds")]
     NoFinalizedSlotAvailable,
+    /// The prefered sequencer has reached the stop height and is no longer creating new batches.
+    #[error(
+        "The sequencer is halted for a chain upgrade. Please wait for the upgrade to complete."
+    )]
+    PreferredSequencerAtStopHeight {
+        height_to_stop_at: RollupHeight,
+        current_height: RollupHeight,
+    },
 }
 
 #[cfg(test)]
