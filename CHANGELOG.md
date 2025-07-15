@@ -1,4 +1,5 @@
 # 2025-07-14
+- #3225 Bank: A transfer to self succeeds only if the transfer amount does not exceed the current balance.
 - #3164 Adds support for an optional `stop_at_rollup_height` parameter in the rollup.
 - #3211 Moves the `schema` and `dedup` endpoint traits/router to a new `endpoints` module for better organization
 

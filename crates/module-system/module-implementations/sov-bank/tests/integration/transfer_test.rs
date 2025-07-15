@@ -298,9 +298,8 @@ fn transfer_receiver_does_not_have_balance() {
     });
 }
 
-/// Test that a transfer call succeeds when the sender and receiver are the same. Even if the sender has zero balance and the transfer amount is NON null.
 #[test]
-fn transfer_sender_equals_receiver() {
+fn transfer_sender_equals_receiver_zero_balance() {
     let (
         TestData {
             token_id,
@@ -312,11 +311,28 @@ fn transfer_sender_equals_receiver() {
 
     let sender_address = user_no_token_balance.address();
 
+    // Transfer fails if the sender sends to itself and TRANSFER_AMOUNT > 0
     runner.execute_transaction(TransactionTestCase {
         input: user_no_token_balance.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
             to: sender_address,
             coins: Coins {
                 amount: TRANSFER_AMOUNT,
+                token_id,
+            },
+        }),
+        assert: Box::new(move |result, _state| {
+            assert!(result.tx_receipt.is_reverted());
+            assert!(result.events.is_empty());
+        }),
+    });
+
+    // Transfer succeeds if the sender sends to itself and TRANSFER_AMOUNT = 0
+    let zero = Amount::ZERO;
+    runner.execute_transaction(TransactionTestCase {
+        input: user_no_token_balance.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
+            to: sender_address,
+            coins: Coins {
+                amount: zero,
                 token_id,
             },
         }),
@@ -329,13 +345,73 @@ fn transfer_sender_equals_receiver() {
                     from: TokenHolder::User(sender_address),
                     to: TokenHolder::User(sender_address),
                     coins: Coins {
-                        amount: TRANSFER_AMOUNT,
+                        amount: zero,
                         token_id
                     }
                 })
             );
         }),
     });
+}
+
+/// Sender sends tokens to itself.
+#[test]
+fn transfer_sender_equals_receiver() {
+    let (
+        TestData {
+            token_id,
+            token_name,
+            user_high_token_balance,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    let sender_address = user_high_token_balance.address();
+    let sender_initial_balance = user_high_token_balance.token_balance(&token_name).unwrap();
+
+    // Transfer to self fails if the amount exceeds the sender's balance.
+    {
+        let amount = sender_initial_balance.saturating_add(Amount::new(1));
+
+        runner.execute_transaction(TransactionTestCase {
+            input: user_high_token_balance.create_plain_message::<RT, Bank<S>>(
+                CallMessage::Transfer {
+                    to: sender_address,
+                    coins: Coins { amount, token_id },
+                },
+            ),
+            assert: Box::new(move |result, _state| {
+                assert!(result.tx_receipt.is_reverted());
+                assert_eq!(result.events.len(), 0);
+            }),
+        });
+    }
+
+    // Transfer to self succeeds if the amount equals the sender's balance.
+    {
+        let amount = sender_initial_balance;
+        runner.execute_transaction(TransactionTestCase {
+            input: user_high_token_balance.create_plain_message::<RT, Bank<S>>(
+                CallMessage::Transfer {
+                    to: sender_address,
+                    coins: Coins { amount, token_id },
+                },
+            ),
+            assert: Box::new(move |result, _state| {
+                assert!(result.tx_receipt.is_successful());
+                assert_eq!(result.events.len(), 1);
+                assert_eq!(
+                    result.events[0],
+                    TestBankRuntimeEvent::Bank(sov_bank::event::Event::TokenTransferred {
+                        from: TokenHolder::User(sender_address),
+                        to: TokenHolder::User(sender_address),
+                        coins: Coins { amount, token_id }
+                    })
+                );
+            }),
+        });
+    }
 }
 
 /// Test that a transfer call succeeds when the sender sends a null amount of a valid token. Even if the sender has zero balance.
