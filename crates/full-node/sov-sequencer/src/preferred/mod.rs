@@ -194,10 +194,22 @@ where
     #[tracing::instrument(skip_all, level = "trace")]
     async fn try_to_create_and_start_batch_if_none_in_progress(
         &mut self,
+        stop_at_rollup_height: Option<RollupHeight>,
         leave_space_for_next_batch: bool,
     ) -> Result<(), BatchCreationError> {
         if self.executor.has_in_progress_batch() {
             return Ok(());
+        }
+
+        if let Some(height_to_stop_at) = stop_at_rollup_height {
+            let current_height = self.current_height();
+            if current_height >= height_to_stop_at {
+                debug!("The sequencer is at stop height and tried to create a batch (aborted due to stop height).");
+                return Err(BatchCreationError::PreferredSequencerAtStopHeight {
+                    current_height,
+                    height_to_stop_at,
+                });
+            }
         }
 
         if self.blob_sender_busy().is_some() {
@@ -320,7 +332,10 @@ where
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
-    async fn trigger_batch_production_if_convenient(&mut self) {
+    async fn trigger_batch_production_if_convenient(
+        &mut self,
+        stop_at_rollup_height: Option<RollupHeight>,
+    ) {
         if !self.config.automatic_batch_production {
             warn!("Skipping batch production due to settings");
             return;
@@ -338,7 +353,7 @@ where
         }
 
         if let Err(e) = self
-            .try_to_create_and_start_batch_if_none_in_progress(true)
+            .try_to_create_and_start_batch_if_none_in_progress(stop_at_rollup_height, true)
             .await
         {
             tracing::debug!(
@@ -911,7 +926,9 @@ where
                 // This is mostly fine, mainly the API state will be out of date until we've
                 // finished sending our batches.
                 // Adding parallel state update handling is not worth the complexity right now.
-                inner.trigger_batch_production_if_convenient().await;
+                inner
+                    .trigger_batch_production_if_convenient(self.stop_at_rollup_height)
+                    .await;
             }
 
             // 2. Wait for node to catch up to our sequence number
@@ -1591,7 +1608,7 @@ where
         .map_err(error_not_fully_synced)?;
 
         if let Err(e) = inner
-            .try_to_create_and_start_batch_if_none_in_progress(false)
+            .try_to_create_and_start_batch_if_none_in_progress(self.stop_at_rollup_height, false)
             .await
         {
             // On all errors, we treat the sequencer as having had downtime and clear out the transaction queue.
@@ -1607,6 +1624,17 @@ where
                         SequencerNotReadyDetails::WaitingOnBlobSender {
                             max_concurrent_blobs: self.config.max_concurrent_blobs,
                             nb_of_blobs_in_flight: inner.nb_of_concurrent_blob_submissions(),
+                        },
+                    ));
+                }
+                BatchCreationError::PreferredSequencerAtStopHeight {
+                    height_to_stop_at,
+                    current_height,
+                } => {
+                    return Err(error_not_fully_synced(
+                        SequencerNotReadyDetails::PreferredSequencerAtStopHeight {
+                            height_to_stop_at,
+                            current_height,
                         },
                     ));
                 }
@@ -1937,6 +1965,7 @@ pub(crate) async fn exit_rollup(shutdown_sender: &watch::Sender<()>) {
 
 /// An error that can occur when trying to create a new batch.
 #[derive(Debug, thiserror::Error)]
+#[allow(missing_docs)] // Similar to SequencerNotReadyDetails, the inner fields are self-documenting
 pub enum BatchCreationError {
     /// The blob sender is applying backpressure due to difficulty landing blob on DA
     #[error("The blob sender is busy. Cannot create a new batch.")]
@@ -1947,6 +1976,14 @@ pub enum BatchCreationError {
     /// The sequencer was not able to start a batch because it has consumed its whole buffer of finalized slots.
     #[error("The sequencer is temporarily overloaded. Try again in a few seconds")]
     NoFinalizedSlotAvailable,
+    /// The prefered sequencer has reached the stop height and is no longer creating new batches.
+    #[error(
+        "The sequencer is halted for a chain upgrade. Please wait for the upgrade to complete."
+    )]
+    PreferredSequencerAtStopHeight {
+        height_to_stop_at: RollupHeight,
+        current_height: RollupHeight,
+    },
 }
 
 #[cfg(test)]
