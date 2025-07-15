@@ -10290,7 +10290,6 @@ dependencies = [
  "jsonschema",
  "proptest",
  "rand 0.8.5",
- "reth-primitives",
  "schemars",
  "secp256k1",
  "serde",

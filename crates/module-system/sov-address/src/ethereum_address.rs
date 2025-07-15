@@ -3,12 +3,10 @@
 #[cfg(feature = "native")]
 use std::str::FromStr;
 
-use alloy_primitives::AddressError;
+use alloy_primitives::{keccak256, Address, AddressError};
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "native")]
 use private_key::EthereumPrivateKey;
-use reth_primitives::keccak256;
-use reth_primitives::revm_primitives::Address;
 use schemars::JsonSchema;
 use secp256k1::constants::PUBLIC_KEY_SIZE;
 use secp256k1::ecdsa::Signature;
@@ -285,8 +283,8 @@ impl CryptoSpec for EvmCryptoSpec {
 #[cfg(feature = "native")]
 pub mod private_key {
 
+    use alloy_primitives::keccak256;
     use rand::rngs::OsRng;
-    use reth_primitives::keccak256;
     use secp256k1::{Keypair, Message};
     #[cfg(feature = "arbitrary")]
     use sov_rollup_interface::crypto::PrivateKey;
