@@ -290,6 +290,17 @@ where
             tokio::time::interval_at(tokio::time::Instant::now(), Duration::from_millis(200));
         takeover_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
+        if let Ok(true) = attempt_leadership_takeover(
+            &self.query_pool,
+            self.sequencer.node_id,
+            self.failover_threshold,
+        )
+        .await
+        {
+            info!("Successfully claimed leadership on sequencer startup - transitioning to master (most likely, we're the only running node)");
+            self.start_transition_to_master(&mut pending_events).await?;
+        }
+
         loop {
             tokio::select! {
                 // Master heartbeat timer
@@ -552,6 +563,27 @@ where
             .duration_since(self.last_heartbeat_time)
             .unwrap_or(Duration::MAX);
 
+<<<<<<< HEAD
+=======
+        // No point in trying to take over if we aren't ready to operate just yet.
+        // Worst case we'll take over once we're ready (i.e. finish syncing), best case another
+        // replica is better positioned to take over and we shouldn't get in the way.
+        if let Err(e) = {
+            let inner = self.sequencer.lock_inner().await;
+            inner.is_ready.clone()
+        } {
+            if !matches!(e, SequencerNotReadyDetails::ReplicaMode) {
+                info!("Master heartbeat timeout detected; however, this replica is currently not ready to take over: {e:?}.");
+                return Ok(());
+            } else {
+                // We don't set it to ReplicaMode anywhere. But guard against it in case we ever
+                // do: it's obviously natural and we should proceed with takeover.
+                // (If it ever becomes an expected value, this print can be removed.)
+                debug!("Replica takeover: `inner.is_ready` was set to `SequencerNotReadyDetails::ReplicaMode`. This is not harmful, but is not expected to be possible.");
+            }
+        }
+
+>>>>>>> Fix some of the upgradability tests
         if time_since_last_heartbeat > self.failover_threshold {
             info!(
                 "Master heartbeat timeout detected ({:?} > {:?}). Attempting takeover...",
