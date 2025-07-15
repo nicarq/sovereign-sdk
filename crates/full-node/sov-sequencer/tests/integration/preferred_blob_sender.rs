@@ -110,6 +110,8 @@ async fn test_discard_oversized_blobs() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_blobs_are_send_after_rollup_resync() {
+    // We're testing resyncing here, we don't want to go into recovery mode
+    std::env::set_var("SOV_TEST_CONST_OVERRIDE_DEFERRED_SLOTS_COUNT", "5000");
     let (test_rollup, _) = create_test_rollup().await;
     let da = test_rollup.da_service.clone();
     let mut header_subscrition = da.subscribe_finalized_header().await.unwrap();
@@ -121,6 +123,7 @@ async fn test_blobs_are_send_after_rollup_resync() {
     }
 
     let builder = test_rollup.shutdown().await.unwrap();
+    tokio::time::sleep(Duration::from_millis(1000)).await;
 
     // Generate a block while Rollup is offline to trigger resync logic.
     for _ in 0..20 {
@@ -135,6 +138,30 @@ async fn test_blobs_are_send_after_rollup_resync() {
         .subscribe_to_blobs_from_blob_sender()
         .await
         .unwrap();
+
+    // Wait until sequencer transitions from replica mode to syncing
+    // On startup, sequencer responds as replica until takeover as master occurs
+    let mut is_replica = true;
+    while is_replica {
+        match test_rollup.client.http_get("/sequencer/ready").await {
+            Err(e) => {
+                panic!("Unexpected sequencer error during startup: {:?}", e);
+            }
+            Ok(res) => {
+                let str = res.to_string();
+                if str.contains("replica") {
+                    // Still in replica mode, continue waiting
+                    continue;
+                } else if str.contains("sync") || str.contains("catch up") {
+                    // Successfully transitioned to syncing state
+                    println!("SYNCING!");
+                    is_replica = false;
+                } else {
+                    panic!("Unexpected sequencer result during startup: {}", str);
+                }
+            }
+        }
+    }
 
     // BlobSender should send blobs only after resync is complete, so the subscribe_state_updates notification must come first.
     tokio::select! {
