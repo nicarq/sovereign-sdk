@@ -193,7 +193,7 @@ fn val_hash_and_size_inner(val_hash: [u8; 32], size: u32) -> Vec<u8> {
     UniversalWallet,
 )]
 pub struct SlotValue {
-    #[cfg_attr(feature = "native", sov_wallet(hidden))]
+    #[sov_wallet(hidden)]
     value: Arc<Vec<u8>>,
 }
 

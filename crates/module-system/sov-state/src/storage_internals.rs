@@ -122,17 +122,13 @@ impl<S: MerkleProofSpec> StorageRoot<S> {
 pub struct SparseMerkleProof<H: SimpleHasher>(
     #[serde(bound(serialize = "", deserialize = ""))]
     #[borsh(bound(serialize = "", deserialize = ""))]
-    #[cfg_attr(
-        feature = "native",
-        sov_wallet(as_ty = "wallet_placeholders::MerkleDisplayPlaceholder")
-    )]
+    #[sov_wallet(as_ty = "wallet_placeholders::MerkleDisplayPlaceholder")]
     jmt::proof::SparseMerkleProof<H>,
 );
 
 // The types in this module aren't actually dead code, they are used as placeholders in the wallet
 // However, since they only appear in the Schema (which isn't Rust code), Rustc doesn't know that.
 #[allow(dead_code)]
-#[cfg(feature = "native")]
 mod wallet_placeholders {
     use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
     #[derive(UniversalWallet)]

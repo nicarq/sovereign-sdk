@@ -24,10 +24,7 @@ use crate::{Amount, BasicGasMeter, Gas, GasArray, Spec};
     Eq,
     PartialOrd,
     Ord,
-)]
-#[cfg_attr(
-    feature = "native",
-    derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)
+    sov_rollup_interface::sov_universal_wallet::UniversalWallet,
 )]
 pub struct PriorityFeeBips(pub u64);
 
@@ -101,10 +98,7 @@ impl PriorityFeeBips {
     borsh::BorshSerialize,
     serde::Serialize,
     serde::Deserialize,
-)]
-#[cfg_attr(
-    feature = "native",
-    derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)
+    sov_rollup_interface::sov_universal_wallet::UniversalWallet,
 )]
 #[serde(bound = "S: Spec")]
 pub struct TxDetails<S: Spec> {

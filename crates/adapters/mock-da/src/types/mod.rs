@@ -10,8 +10,6 @@ use sov_rollup_interface::da::{
     BlockHashTrait, BlockHeaderTrait, CountedBufReader, DaProof, RelevantBlobs, RelevantProofs,
     Time,
 };
-#[cfg(feature = "native")]
-use sov_rollup_interface::node::da::SlotData;
 use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 use sov_rollup_interface::Bytes;
 
@@ -198,7 +196,7 @@ pub struct MockBlock {
 }
 
 #[cfg(feature = "native")]
-impl SlotData for MockBlock {
+impl sov_rollup_interface::node::da::SlotData for MockBlock {
     type BlockHeader = MockBlockHeader;
 
     fn hash(&self) -> [u8; 32] {
