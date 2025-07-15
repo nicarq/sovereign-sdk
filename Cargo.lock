@@ -10871,9 +10871,9 @@ dependencies = [
  "strum",
  "tempfile",
  "testcontainers",
- "thiserror 1.0.64",
  "tokio",
  "tokio-stream",
+ "tracing",
  "workspace-hack",
 ]
 
