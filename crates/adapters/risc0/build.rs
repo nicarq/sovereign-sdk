@@ -39,14 +39,14 @@ fn main() -> anyhow::Result<()> {
 
     if risc0_rustc_version != native_rustc_version {
         anyhow::bail!(
-			"Risc0 rustc version {} does not match native rustc version {}. Please \
+            "Risc0 rustc version {} does not match native rustc version {}. Please \
             update your Risc0 toolchain or use a rust-toolchain.toml file to force your \
             native compiler to the correct version.\n\n   To install a specific version of the Risc0 \
             rust toolchain, use the command `cargo risczero install --version {{tag}}`.\n You can find a \
             list of available versions at https://github.com/risc0/rust/releases.\n",
-			risc0_rustc_version,
-			native_rustc_version
-		);
+            risc0_rustc_version,
+            native_rustc_version
+        );
     }
     Ok(())
 }

@@ -1,3 +1,5 @@
+# 2025-07-11
+- #3208 Upgrades SP1 to `5.0.8` to have matching rust toolchain
 # 2025-07-14
 - #3225 Bank: A transfer to self succeeds only if the transfer amount does not exceed the current balance.
 - #3164 Adds support for an optional `stop_at_rollup_height` parameter in the rollup.
