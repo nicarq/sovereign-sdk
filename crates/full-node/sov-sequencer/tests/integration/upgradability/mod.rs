@@ -231,12 +231,9 @@ async fn rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(finaliza
     assert_rollup_processes_only_finalized_blocks(&client).await;
 >>>>>>> CI test
 
-    println!("Getting first height");
     let mut current_height = get_height(&client).await.unwrap();
-    println!("Starting at height {current_height:?}");
     let mut slot_subscription = test_rollup.client.client.subscribe_slots().await.unwrap();
-    while current_height.get() < stop_at_height.get() + finalization_blocks as u64 {
-        print!("Start of loop: current_height={current_height:?}, stop_at_height={stop_at_height:?}...");
+    while current_height.get() < stop_at_height.get() {
         test_rollup.da_service.produce_block_now().await.unwrap();
         slot_subscription.next().await;
         // We need to wait a bit so the new block is visible to the sequencer.
@@ -244,11 +241,22 @@ async fn rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(finaliza
         tokio::time::sleep(Duration::from_millis(500)).await;
 =======
         tokio::time::sleep(Duration::from_millis(300)).await;
+<<<<<<< HEAD
         print!("    ...gonna assess process_only_finalzied...");
 >>>>>>> Fix some of the upgradability tests
+=======
+>>>>>>> Fix the rest of upgradability tests
         assert_rollup_processes_only_finalized_blocks(&client).await;
         current_height = get_height(&client).await.unwrap();
-        println!("    ...end of loop: current_height={current_height:?}");
+    }
+
+    for _ in 0..finalization_blocks {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        slot_subscription.next().await;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert_rollup_processes_only_finalized_blocks(&client).await;
+        // Assert sequencer remains at the stop height
+        assert_eq!(get_height(&client).await.unwrap(), stop_at_height);
     }
 
     test_rollup.da_service.produce_block_now().await.unwrap();
