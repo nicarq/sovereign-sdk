@@ -7,9 +7,13 @@ use tokio::task::JoinHandle;
 use tracing::{error, warn};
 
 use super::executor_events::ExecutorEvent;
+<<<<<<< HEAD
 use crate::metrics::PreferredSequencerExecutorEventMetrics;
 use crate::preferred::db::BatchToStore;
 use crate::preferred::executor_events::AcceptedTxEventContents;
+=======
+use crate::preferred::db::DatabaseWriteOutcome;
+>>>>>>> Clarity improvements: explicit outcome type for DB operations, and replace is_replica with is_master for consistency
 use crate::preferred::transaction_subscriptions::TxResultWriter;
 use crate::preferred::{
     exit_rollup, PreferredBlobSender, PreferredSequencerDb, PreferredSequencerReadBatch,
@@ -61,9 +65,13 @@ where
         info_to_store: BatchToStore,
     ) -> anyhow::Result<()> {
 <<<<<<< HEAD
+<<<<<<< HEAD
         self.db.terminate_batch(info_to_store).await?;
 =======
         let Some(batch) = self.db.terminate_batch().await? else {
+=======
+        let DatabaseWriteOutcome::Success(batch) = self.db.terminate_batch().await? else {
+>>>>>>> Clarity improvements: explicit outcome type for DB operations, and replace is_replica with is_master for consistency
             // We're no longer master, nothing more to do
             return Ok(());
         };
@@ -117,7 +125,7 @@ where
         // 1. close the in-progress batch, if any
         if self.db.in_progress_batch_opt().is_some() {
             tracing::debug!("Recovery: In-progress batch found, terminating it.");
-            let Some(_) = self.db.terminate_batch().await? else {
+            let DatabaseWriteOutcome::Success(_) = self.db.terminate_batch().await? else {
                 // We're no longer master, nothing more to do
                 return Ok(());
             };
@@ -201,8 +209,17 @@ where
         event: ExecutorEvent<S, Rt>,
     ) -> Result<(), anyhow::Error> {
         match event {
+<<<<<<< HEAD
             ExecutorEvent::AcceptedTx(tx_hash, tx, confirmation, checkpoint, oneshot_sender) => {
                 let true = self.db.insert_tx(tx.clone(), tx_hash).await? else {
+=======
+            ExecutorEvent::AcceptedTx(accepted_tx, tx_changes, oneshot_sender) => {
+                let DatabaseWriteOutcome::Success(()) = self
+                    .db
+                    .insert_tx(accepted_tx.tx.clone(), accepted_tx.tx_hash)
+                    .await?
+                else {
+>>>>>>> Clarity improvements: explicit outcome type for DB operations, and replace is_replica with is_master for consistency
                     // We're no longer master, nothing more to do
                     let _ = oneshot_sender.send(None);
                     return Ok(());

@@ -31,6 +31,17 @@ use tokio::sync::{mpsc, watch};
 use crate::common::WithCachedTxHashes;
 use crate::preferred::{exit_rollup, track_in_progress_batch_size};
 
+/// Write operations might abort and result in a no-op if the sequencer has been demoted to a
+/// replica. This is unlikely but for (logical) safety every write query must have an atomic guard
+/// against this.
+/// Databases that do not support replication (i.e. RocksDB) will probably always return Success(T)
+/// here.
+#[derive(Debug, Clone)]
+pub enum DatabaseWriteOutcome<T> {
+    AbortedBecauseReplica,
+    Success(T),
+}
+
 #[async_trait]
 pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
     async fn begin_rollup_block(
@@ -39,7 +50,7 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         blob_id: BlobInternalId,
         visible_slot_number_after_increase: VisibleSlotNumber,
         visibile_slots_to_advance: NonZero<u8>,
-    ) -> anyhow::Result<bool>;
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>>;
 
     /// Calls to this method MUST be "sandwiched" between
     /// [`PreferredSequencerDbBackend::begin_rollup_block`] and
@@ -50,8 +61,9 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         tx_idx_within_batch: u64,
         tx: FullyBakedTx,
         hash: TxHash,
-    ) -> anyhow::Result<bool>;
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>>;
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     async fn batch_add_txs(
         &mut self,
@@ -76,6 +88,12 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
 =======
     async fn end_rollup_block(&mut self, cached: &InProgressBatch) -> anyhow::Result<bool>;
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
+=======
+    async fn end_rollup_block(
+        &mut self,
+        cached: &InProgressBatch,
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>>;
+>>>>>>> Clarity improvements: explicit outcome type for DB operations, and replace is_replica with is_master for consistency
 
     async fn read_in_progress_batch(&self) -> anyhow::Result<Option<InProgressBatch>>;
 
@@ -89,7 +107,7 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         sequence_number: SequenceNumber,
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
-    ) -> anyhow::Result<bool>;
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>>;
 
     /// Instructs the database it MAY delete all data up to the given
     /// [`SequenceNumber`] (included).
@@ -184,6 +202,10 @@ pub(crate) enum DbEvent {
 pub struct PreferredSequencerCache {
     completed_blobs: VecDeque<PreferredSequencerReadBlob>,
     in_progress_batch: Option<InProgressBatch>,
+<<<<<<< HEAD
+=======
+    is_master: bool,
+>>>>>>> Clarity improvements: explicit outcome type for DB operations, and replace is_replica with is_master for consistency
     event_stream: Option<mpsc::Sender<DbEvent>>,
     shutdown_sender: watch::Sender<()>,
 }
@@ -226,7 +248,7 @@ impl PreferredSequencerCache {
                 phantom: PhantomData,
                 completed_blobs,
                 in_progress_batch,
-                is_replica: !is_master,
+                is_master,
                 event_stream: None,
                 shutdown_sender,
                 phantom_runtime: PhantomData,
@@ -264,16 +286,24 @@ impl PreferredSequencerCache {
 =======
     /// Update the master/replica status of this database
     pub fn set_is_master(&mut self, is_master: bool) {
-        self.is_replica = !is_master;
+        self.is_master = is_master;
     }
 
     #[tracing::instrument(skip_all, level = "info")]
+<<<<<<< HEAD
 <<<<<<< HEAD
     pub async fn insert_tx(&mut self, tx: FullyBakedTx, hash: TxHash) -> anyhow::Result<()> {
 >>>>>>> is_master failover logic works and tested
 =======
     pub async fn insert_tx(&mut self, tx: FullyBakedTx, hash: TxHash) -> anyhow::Result<bool> {
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
+=======
+    pub async fn insert_tx(
+        &mut self,
+        tx: FullyBakedTx,
+        hash: TxHash,
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
+>>>>>>> Clarity improvements: explicit outcome type for DB operations, and replace is_replica with is_master for consistency
         let Some(batch) = self.in_progress_batch.as_mut() else {
             tracing::error!("No in-progress batch; this is a bug, please report it");
             exit_rollup(&self.shutdown_sender).await;
@@ -282,8 +312,8 @@ impl PreferredSequencerCache {
 <<<<<<< HEAD
 =======
 
-        if !self.is_replica
-            && !self
+        if self.is_master {
+            let DatabaseWriteOutcome::Success(()) = self
                 .backend
                 .add_tx(
                     batch.sequence_number,
@@ -292,8 +322,9 @@ impl PreferredSequencerCache {
                     hash,
                 )
                 .await?
-        {
-            return Ok(false);
+            else {
+                return Ok(DatabaseWriteOutcome::AbortedBecauseReplica);
+            };
         }
 
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
@@ -305,8 +336,12 @@ impl PreferredSequencerCache {
 <<<<<<< HEAD
 =======
 
+<<<<<<< HEAD
         Ok(true)
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
+=======
+        Ok(DatabaseWriteOutcome::Success(()))
+>>>>>>> Clarity improvements: explicit outcome type for DB operations, and replace is_replica with is_master for consistency
     }
 
     async fn send_event_if_necessary(&mut self, event: DbEvent) {
@@ -344,16 +379,31 @@ impl PreferredSequencerCache {
         visible_slots_to_advance: NonZero<u8>,
         sequence_number: SequenceNumber,
 <<<<<<< HEAD
+<<<<<<< HEAD
     ) -> BlobInternalId {
 =======
     ) -> anyhow::Result<Option<SequenceNumber>> {
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
+=======
+    ) -> anyhow::Result<DatabaseWriteOutcome<SequenceNumber>> {
+>>>>>>> Clarity improvements: explicit outcome type for DB operations, and replace is_replica with is_master for consistency
         if self.in_progress_batch.is_some() {
             tracing::error!(
                 "There's already an in-progress batch; this is a bug, please report it"
             );
             exit_rollup(&self.shutdown_sender).await;
         };
+<<<<<<< HEAD
+=======
+
+        if self.is_master {
+            self.debug_assert_in_progress_batch(
+                "Cached in-progress batch state (None) didn't match backend db state",
+            )
+            .await;
+        }
+
+>>>>>>> Clarity improvements: explicit outcome type for DB operations, and replace is_replica with is_master for consistency
         let blob_id = new_blob_id();
 <<<<<<< HEAD
 =======
@@ -366,8 +416,8 @@ impl PreferredSequencerCache {
             "Storing new rollup block"
         );
 
-        if !self.is_replica
-            && !self
+        if self.is_master {
+            let DatabaseWriteOutcome::Success(()) = self
                 .backend
                 .begin_rollup_block(
                     sequence_number,
@@ -376,8 +426,9 @@ impl PreferredSequencerCache {
                     visible_slots_to_advance,
                 )
                 .await?
-        {
-            return Ok(None);
+            else {
+                return Ok(DatabaseWriteOutcome::AbortedBecauseReplica);
+            };
         }
 
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
@@ -400,7 +451,7 @@ impl PreferredSequencerCache {
         blob_id
 =======
 
-        Ok(Some(sequence_number))
+        Ok(DatabaseWriteOutcome::Success(sequence_number))
     }
 
     pub fn all_completed_blobs(&self) -> Vec<PreferredSequencerReadBlob> {
@@ -428,16 +479,23 @@ impl PreferredSequencerCache {
         data: Arc<[u8]>,
         sequence_number: SequenceNumber,
 <<<<<<< HEAD
+<<<<<<< HEAD
     ) {
 =======
     ) -> anyhow::Result<Option<SequenceNumber>> {
         if !self.is_replica
             && !self
+=======
+    ) -> anyhow::Result<DatabaseWriteOutcome<SequenceNumber>> {
+        if self.is_master {
+            let DatabaseWriteOutcome::Success(()) = self
+>>>>>>> Clarity improvements: explicit outcome type for DB operations, and replace is_replica with is_master for consistency
                 .backend
                 .add_proof_blob(sequence_number, blob_id, data.clone())
                 .await?
-        {
-            return Ok(None);
+            else {
+                return Ok(DatabaseWriteOutcome::AbortedBecauseReplica);
+            };
         }
 
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
@@ -455,12 +513,18 @@ impl PreferredSequencerCache {
     pub async fn terminate_batch(&mut self) -> PreferredSequencerReadBatch {
 =======
 
-        Ok(Some(sequence_number))
+        Ok(DatabaseWriteOutcome::Success(sequence_number))
     }
 
     #[tracing::instrument(skip_all, level = "info")]
+<<<<<<< HEAD
     pub async fn terminate_batch(&mut self) -> anyhow::Result<Option<PreferredSequencerReadBatch>> {
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
+=======
+    pub async fn terminate_batch(
+        &mut self,
+    ) -> anyhow::Result<DatabaseWriteOutcome<PreferredSequencerReadBatch>> {
+>>>>>>> Clarity improvements: explicit outcome type for DB operations, and replace is_replica with is_master for consistency
         let Some(in_progress_batch) = self.in_progress_batch.as_ref() else {
             tracing::error!("No in-progress batch; this is a bug, please report it");
             exit_rollup(&self.shutdown_sender).await;
@@ -468,12 +532,16 @@ impl PreferredSequencerCache {
         };
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         if !self.is_replica {
+=======
+        if self.is_master {
+>>>>>>> Clarity improvements: explicit outcome type for DB operations, and replace is_replica with is_master for consistency
             match
                 self.backend.end_rollup_block(in_progress_batch).await? {
-                    false => return Ok(None),
-                    true => self.debug_assert_in_progress_batch(
+                    DatabaseWriteOutcome::AbortedBecauseReplica => return Ok(DatabaseWriteOutcome::AbortedBecauseReplica),
+                    DatabaseWriteOutcome::Success(()) => self.debug_assert_in_progress_batch(
                         "Backend didn't remove in-progress batch from database when ending rollup block",
                     )
                         .await,
@@ -497,6 +565,7 @@ impl PreferredSequencerCache {
             .await;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         // Update the metrics.
         track_in_progress_batch_size(
             self.in_progress_batch_opt()
@@ -505,11 +574,25 @@ impl PreferredSequencerCache {
         );
 =======
         Ok(Some(batch))
+=======
+        Ok(DatabaseWriteOutcome::Success(batch))
+>>>>>>> Clarity improvements: explicit outcome type for DB operations, and replace is_replica with is_master for consistency
     }
 >>>>>>> State takeover seems to work. Need to fix buffer race condition, and add a bunch of tests
 
+<<<<<<< HEAD
         batch
     }
+=======
+    #[tracing::instrument(skip_all, level = "info")]
+    pub(super) async fn prune(
+        &mut self,
+        prune_up_to_including: SequenceNumber,
+    ) -> anyhow::Result<()> {
+        if self.is_master {
+            self.backend.prune(prune_up_to_including).await?;
+        }
+>>>>>>> Clarity improvements: explicit outcome type for DB operations, and replace is_replica with is_master for consistency
 
     pub async fn prune(&mut self, prune_up_to_including: SequenceNumber) {
         // We could also do binary search, but this seems fast enough.
