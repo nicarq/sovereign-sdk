@@ -1751,21 +1751,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ecdsa"
-version = "0.16.9"
-source = "git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9#475daa8834035cc170a567e7656329ab8de8cc44"
-dependencies = [
- "anyhow",
- "cfg-if",
- "digest 0.10.7",
- "elliptic-curve",
- "hex-literal",
- "signature",
- "sp1-lib 3.0.0",
- "spki",
-]
-
-[[package]]
 name = "ed25519"
 version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2770,7 +2755,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6e3919bbaa2945715f0bb6d3934a173d1e9a59ac23767fbaaef277265a7411b"
 dependencies = [
  "cfg-if",
- "ecdsa 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ecdsa",
  "elliptic-curve",
  "once_cell",
  "serdect",
@@ -3374,7 +3359,7 @@ version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b"
 dependencies = [
- "ecdsa 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ecdsa",
  "elliptic-curve",
  "primeorder",
  "sha2 0.10.8",
@@ -4807,22 +4792,19 @@ dependencies = [
 
 [[package]]
 name = "secp256k1"
-version = "0.29.0"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=secp256k1-v0.29.0-patch-v1#c78195abe3c5bc11163d69588a5559ef21bdff31"
+version = "0.29.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9465315bc9d4566e1724f0fffcbcc446268cb522e60f9a27bcded6b19c108113"
 dependencies = [
- "cfg-if",
- "ecdsa 0.16.9 (git+https://github.com/sp1-patches/signatures?branch=patch-ecdsa-v0.16.9)",
- "elliptic-curve",
- "k256",
  "rand",
  "secp256k1-sys",
- "serde",
 ]
 
 [[package]]
 name = "secp256k1-sys"
-version = "0.10.0"
-source = "git+https://github.com/sp1-patches/rust-secp256k1?tag=secp256k1-v0.29.0-patch-v1#c78195abe3c5bc11163d69588a5559ef21bdff31"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4387882333d3aa8cb20530a17c69a3752e97837832f34f6dccc760e715001d9"
 dependencies = [
  "cc",
 ]
@@ -5177,10 +5159,9 @@ dependencies = [
  "alloy-primitives",
  "anyhow",
  "borsh",
- "digest 0.10.7",
  "hex",
+ "k256",
  "schemars",
- "secp256k1",
  "serde",
  "serde_json",
  "sha2 0.10.8",

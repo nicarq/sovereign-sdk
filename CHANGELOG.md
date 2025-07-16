@@ -1,4 +1,4 @@
-# 2025-07-15
+# 2025-07-16
 - #3168 *Advisory*: enables failover and automatic leader election between sequencers connected to the same PostgreSQL database. To make use of this, ensure the sequencers have identical configuration (including addresses and keys) and are connected to the same database.
   - A `/sequencer/is-master` API endpoint is added. The master sequencer can accept transactions; the others can only serve read queries (with eventual consistency). For advanced users, a `/sequencer/node-id` endpoint is also exposed with the ID used internally for leader election; this ID is ephemeral and lost upon restart.
   - While this should be a non-breaking change, there may be some changes in timing on sequencer startup when using PostgreSQL which may affect end-to-end testing that makes timing assumptions.
@@ -6,13 +6,13 @@
   - None of this affects sequencers running with the RocksDB backend (which is the default if no PostgreSQL connection string is provided in the configuration).
 
 # 2025-07-14
-- #3211 Moves the `schema` and `dedup` endpoint traits/router to a new `endpoints` module for better organization
 - #3225 Bank: A transfer to self succeeds only if the transfer amount does not exceed the current balance.
 - #3164 Adds support for an optional `stop_at_rollup_height` parameter in the rollup.
 - #3211 Moves the `schema` and `dedup` endpoint traits/router to a new `endpoints` module for better organization
 
 # 2025-07-11
 - #3208 Upgrades SP1 to `5.0.8` to have matching rust toolchain
+- #3234 Replaces `secp256k1` with `k256` for EVM related authentication.
 
 # 2025-07-10
 - #3200 Upgrade `backon` crate.

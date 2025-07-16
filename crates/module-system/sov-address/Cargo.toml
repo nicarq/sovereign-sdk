@@ -19,11 +19,12 @@ sov-rollup-interface = { workspace = true }
 
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
-digest = { workspace = true }
 borsh = { workspace = true, features = ["rc", "bytes"] }
+
 hex = { workspace = true }
 sha2 = { workspace = true }
 serde = { workspace = true }
+# For schema
 serde_json = { workspace = true }
 schemars = { workspace = true }
 rand = { workspace = true, optional = true }
@@ -34,21 +35,23 @@ alloy-primitives = { workspace = true, default-features = false, features = [
     "rlp",
     "serde",
     "std",
+    "k256"
 ], optional = true }
-secp256k1 = { workspace = true, features = ["serde"], optional = true }
+k256 = { workspace = true, features = ["serde", "ecdsa", "ecdsa-core"], optional = true }
 
 [dev-dependencies]
 sov-address = { path = ".", features = ["native"] }
-secp256k1 = { workspace = true, features = ["rand-std"] }
+secp256k1 = { workspace = true, features = ["serde", "rand-std"] }
 sov-test-utils = { workspace = true }
+
 bincode = { workspace = true }
 jsonschema = { workspace = true }
 
 [features]
 default = []
 evm = [
-    "dep:secp256k1",
     "dep:alloy-primitives",
+    "dep:k256",
 ]
 arbitrary = [
     "dep:arbitrary",
@@ -63,8 +66,6 @@ arbitrary = [
 native = [
     "dep:rand",
     "alloy-primitives?/std",
-    "secp256k1?/rand",
-    "secp256k1?/global-context",
     "sov-rollup-interface/native",
     "sov-address/native",
     "sov-modules-api/native"

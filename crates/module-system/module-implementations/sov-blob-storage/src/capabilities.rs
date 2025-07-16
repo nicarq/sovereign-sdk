@@ -530,17 +530,12 @@ impl<S: Spec> BlobStorage<S> {
             };
 
             // 4. If there are preferred blobs, put them in the list of blobs to select
-            let available_balance = self
-                .sequencer_registry
-                .get_sender_balance(preferred_sender, state)
-                .unwrap_or(Amount::ZERO);
             self.add_preferred_blobs_to_selection(
                 selected_preferred_blobs,
                 &mut blobs_to_select,
                 discarded_blobs,
                 preferred_sender,
                 &preferred_sequencer,
-                available_balance,
                 visible_height_increase as u64,
                 state,
             );
@@ -834,7 +829,7 @@ impl<S: Spec> BlobStorage<S> {
         discarded_blobs: &mut Vec<HexHash>,
         preferred_sender: &<S::Da as DaSpec>::Address,
         preferred_sequencer: &S::Address,
-        available_balance: Amount,
+
         visible_height_increase: u64,
         state: &mut KernelStateAccessor<'_, S>,
     ) {
@@ -849,6 +844,12 @@ impl<S: Spec> BlobStorage<S> {
                 }
             };
             let blob_with_id = data.with_id(blob_id);
+
+            let available_balance = self
+                .sequencer_registry
+                .get_sender_balance(preferred_sender, state)
+                .unwrap_or(Amount::ZERO);
+
             let Some(validated_blob) = self.validate_preferred_blob(
                 blob_with_id,
                 preferred_sender.clone(),
@@ -905,11 +906,17 @@ impl<S: Spec> BlobStorage<S> {
             true,
             state,
         )?;
+
+        let available_balance = self
+            .sequencer_registry
+            .get_sender_balance(&blob.sender(), state)
+            .unwrap_or(Amount::ZERO);
+
         self.validate_blob(
             idx,
             BlobData::Proof((proof, sequencer.address)).with_id(blob.hash().into()),
             blob.sender(),
-            sequencer.balance,
+            available_balance,
             &gas_price_for_new_block,
             account_for_deferral,
             state,
@@ -933,11 +940,17 @@ impl<S: Spec> BlobStorage<S> {
             true,
             state,
         )?;
+
+        let available_balance = self
+            .sequencer_registry
+            .get_sender_balance(&blob.sender(), state)
+            .unwrap_or(Amount::ZERO);
+
         self.validate_blob(
             idx,
             BlobData::Batch((Arc::new(batch), sequencer.address)).with_id(blob.hash().into()),
             blob.sender(),
-            sequencer.balance,
+            available_balance,
             gas_price_for_new_block,
             account_for_deferral,
             state,

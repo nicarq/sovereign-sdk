@@ -37,7 +37,6 @@ curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", re
 ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", rev = "2b2c4b43344bc4daf5b1326f367f2d9d661eeabb" }
 #tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2" }
 tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", rev = "bf0b28f63510a90c7b6c21ac6ff461c93ecd2331" }
-secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "secp256k1-v0.29.0-patch-v1" }
 
 # Patches aren't useful right now
 # revm = { git = "https://github.com/sp1-patches/revm", branch = "patch-v5.0.0" }
