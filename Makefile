@@ -94,7 +94,7 @@ install-sp1-toolchain:  ## install SP1 toolchain
 	~/.sp1/bin/cargo-prove prove --version
 	~/.sp1/bin/cargo-prove prove install-toolchain
 	@echo "SP1 toolchain version:"
-	cargo +succinct --version
+	rustc +succinct --version
 
 lint:  ## cargo fmt, check and clippy.
 	## fmt first, because it's the cheapest
