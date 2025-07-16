@@ -772,12 +772,12 @@ where
     }
 
     async fn check_readiness(
-        &self,
+        is_master: bool,
         inner: &Inner<S, Rt>,
         max_concurrent_blobs: usize,
         height_to_stop_at: Option<RollupHeight>,
     ) -> Result<(), SequencerNotReadyDetails> {
-        if !self.is_master().await {
+        if !is_master {
             return Err(SequencerNotReadyDetails::ReplicaMode);
         }
 
@@ -1460,7 +1460,8 @@ where
         // We don't actually care about the `inner`, we just want to reuse the
         // same logic.
         let inner = self.inner.lock().await;
-        self.check_readiness(
+        Self::check_readiness(
+            self.is_master().await,
             &inner,
             self.config.max_concurrent_blobs,
             self.stop_at_rollup_height,
@@ -1598,7 +1599,8 @@ where
             return Err(sequencer_overloaded_503());
         }
 
-        self.check_readiness(
+        Self::check_readiness(
+            self.is_master().await,
             &inner,
             self.config.max_concurrent_blobs,
             self.stop_at_rollup_height,

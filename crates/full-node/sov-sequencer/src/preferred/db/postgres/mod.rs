@@ -11,7 +11,10 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 use sqlx::{PgConnection, Postgres};
 use uuid::Uuid;
 
-use super::{DbSnapshotData, PreferredSequencerDbBackend, PreferredSequencerReadBlob, StoredBlob};
+use super::{
+    DatabaseWriteOutcome, DbSnapshotData, PreferredSequencerDbBackend, PreferredSequencerReadBlob,
+    StoredBlob,
+};
 use crate::preferred::db::InProgressBatch;
 
 pub struct PostgresBackend {
@@ -223,7 +226,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         blob_id: BlobInternalId,
         visible_slot_number_after_increase: sov_modules_api::VisibleSlotNumber,
         visible_slots_to_advance: NonZero<u8>,
-    ) -> anyhow::Result<bool> {
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
         let blob_data = borsh::to_vec(&StoredBlob::Batch {
             blob_id,
             visible_slot_number_after_increase,
@@ -254,10 +257,10 @@ impl PreferredSequencerDbBackend for PostgresBackend {
 
         if result.rows_affected() == 0 {
             // Master check failed, no effect
-            return Ok(false);
+            return Ok(DatabaseWriteOutcome::AbortedBecauseReplica);
         }
 
-        Ok(true)
+        Ok(DatabaseWriteOutcome::Success(()))
     }
 
     async fn add_tx(
@@ -266,7 +269,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         tx_index_within_batch: u64,
         tx: FullyBakedTx,
         hash: TxHash,
-    ) -> anyhow::Result<bool> {
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
         let result = run_with_retries!(
             &self.backoff_policy,
             sqlx::query::<Postgres>(
@@ -286,13 +289,16 @@ impl PreferredSequencerDbBackend for PostgresBackend {
 
         if result.rows_affected() == 0 {
             // Master check failed, no effect
-            return Ok(false);
+            return Ok(DatabaseWriteOutcome::AbortedBecauseReplica);
         }
 
-        Ok(true)
+        Ok(DatabaseWriteOutcome::Success(()))
     }
 
-    async fn end_rollup_block(&mut self, cached: &super::InProgressBatch) -> anyhow::Result<bool> {
+    async fn end_rollup_block(
+        &mut self,
+        cached: &super::InProgressBatch,
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
         let blob_data = borsh::to_vec(&StoredBlob::Batch {
             blob_id: cached.blob_id,
             visible_slots_to_advance: cached.visible_slots_to_advance,
@@ -332,11 +338,11 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         let (is_master, operations_completed) = result;
 
         match (is_master, operations_completed) {
-            (false, _) => Ok(false),
+            (false, _) => Ok(DatabaseWriteOutcome::AbortedBecauseReplica),
             (true, 0) => Err(anyhow::anyhow!(
                 "No in-progress batch found to end - data inconsistency"
             )),
-            (true, 1) => Ok(true),
+            (true, 1) => Ok(DatabaseWriteOutcome::Success(())),
             (true, n) => Err(anyhow::anyhow!("Unexpected operations count: {}", n)),
         }
     }
@@ -376,7 +382,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         sequence_number: SequenceNumber,
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
-    ) -> anyhow::Result<bool> {
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
         let blob_data = borsh::to_vec(&StoredBlob::Proof { data, blob_id })?;
 
         // Compound CTE statement to avoid multiple roundtrips
@@ -403,10 +409,10 @@ impl PreferredSequencerDbBackend for PostgresBackend {
 
         if result.rows_affected() == 0 {
             // Master check failed, no effect
-            return Ok(false);
+            return Ok(DatabaseWriteOutcome::AbortedBecauseReplica);
         }
 
-        Ok(true)
+        Ok(DatabaseWriteOutcome::Success(()))
     }
 
     async fn current_data(&self) -> anyhow::Result<DbSnapshotData> {

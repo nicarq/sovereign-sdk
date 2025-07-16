@@ -6,6 +6,7 @@ use tokio::task::JoinHandle;
 use tracing::{error, trace, warn};
 
 use super::executor_events::ExecutorEvent;
+use crate::preferred::db::DatabaseWriteOutcome;
 use crate::preferred::transaction_subscriptions::TxResultWriter;
 use crate::preferred::{
     exit_rollup, track_in_progress_batch_size, PreferredBatchToReplay, PreferredBlobSender,
@@ -55,7 +56,7 @@ where
         &mut self,
         checkpoint: StateCheckpoint<S>,
     ) -> anyhow::Result<()> {
-        let Some(batch) = self.db.terminate_batch().await? else {
+        let DatabaseWriteOutcome::Success(batch) = self.db.terminate_batch().await? else {
             // We're no longer master, nothing more to do
             return Ok(());
         };
@@ -114,7 +115,7 @@ where
         // 1. close the in-progress batch, if any
         if self.db.in_progress_batch_opt().is_some() {
             tracing::debug!("Recovery: In-progress batch found, terminating it.");
-            let Some(_) = self.db.terminate_batch().await? else {
+            let DatabaseWriteOutcome::Success(_) = self.db.terminate_batch().await? else {
                 // We're no longer master, nothing more to do
                 return Ok(());
             };
@@ -202,7 +203,7 @@ where
     ) -> Result<(), anyhow::Error> {
         match event {
             ExecutorEvent::AcceptedTx(accepted_tx, tx_changes, oneshot_sender) => {
-                let true = self
+                let DatabaseWriteOutcome::Success(()) = self
                     .db
                     .insert_tx(accepted_tx.tx.clone(), accepted_tx.tx_hash)
                     .await?

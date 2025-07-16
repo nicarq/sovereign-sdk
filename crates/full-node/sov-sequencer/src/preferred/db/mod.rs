@@ -34,6 +34,17 @@ mod tests;
 use crate::common::WithCachedTxHashes;
 use crate::preferred::exit_rollup;
 
+/// Write operations might abort and result in a no-op if the sequencer has been demoted to a
+/// replica. This is unlikely but for (logical) safety every write query must have an atomic guard
+/// against this.
+/// Databases that do not support replication (i.e. RocksDB) will probably always return Success(T)
+/// here.
+#[derive(Debug, Clone)]
+pub enum DatabaseWriteOutcome<T> {
+    AbortedBecauseReplica,
+    Success(T),
+}
+
 #[async_trait]
 pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
     async fn begin_rollup_block(
@@ -42,7 +53,7 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         blob_id: BlobInternalId,
         visible_slot_number_after_increase: VisibleSlotNumber,
         visibile_slots_to_advance: NonZero<u8>,
-    ) -> anyhow::Result<bool>;
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>>;
 
     /// Calls to this method MUST be "sandwiched" between
     /// [`PreferredSequencerDbBackend::begin_rollup_block`] and
@@ -53,9 +64,12 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         tx_idx_within_batch: u64,
         tx: FullyBakedTx,
         hash: TxHash,
-    ) -> anyhow::Result<bool>;
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>>;
 
-    async fn end_rollup_block(&mut self, cached: &InProgressBatch) -> anyhow::Result<bool>;
+    async fn end_rollup_block(
+        &mut self,
+        cached: &InProgressBatch,
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>>;
 
     async fn read_in_progress_batch(&self) -> anyhow::Result<Option<InProgressBatch>>;
 
@@ -69,7 +83,7 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         sequence_number: SequenceNumber,
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
-    ) -> anyhow::Result<bool>;
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>>;
 
     /// Instructs the database it MAY delete all data up to the given
     /// [`SequenceNumber`] (included).
@@ -171,7 +185,7 @@ where
     phantom: PhantomData<S>,
     completed_blobs: VecDeque<PreferredSequencerReadBlob>,
     in_progress_batch: Option<InProgressBatch>,
-    is_replica: bool,
+    is_master: bool,
     event_stream: Option<mpsc::Sender<DbEvent>>,
     shutdown_sender: watch::Sender<()>,
     phantom_runtime: PhantomData<Rt>,
@@ -211,7 +225,7 @@ where
                 phantom: PhantomData,
                 completed_blobs,
                 in_progress_batch,
-                is_replica: !is_master,
+                is_master,
                 event_stream: None,
                 shutdown_sender,
                 phantom_runtime: PhantomData,
@@ -227,19 +241,23 @@ where
 
     /// Update the master/replica status of this database
     pub fn set_is_master(&mut self, is_master: bool) {
-        self.is_replica = !is_master;
+        self.is_master = is_master;
     }
 
     #[tracing::instrument(skip_all, level = "info")]
-    pub async fn insert_tx(&mut self, tx: FullyBakedTx, hash: TxHash) -> anyhow::Result<bool> {
+    pub async fn insert_tx(
+        &mut self,
+        tx: FullyBakedTx,
+        hash: TxHash,
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
         let Some(batch) = self.in_progress_batch.as_mut() else {
             tracing::error!("No in-progress batch; this is a bug, please report it");
             exit_rollup(&self.shutdown_sender).await;
             unreachable!();
         };
 
-        if !self.is_replica
-            && !self
+        if self.is_master {
+            let DatabaseWriteOutcome::Success(()) = self
                 .backend
                 .add_tx(
                     batch.sequence_number,
@@ -248,8 +266,9 @@ where
                     hash,
                 )
                 .await?
-        {
-            return Ok(false);
+            else {
+                return Ok(DatabaseWriteOutcome::AbortedBecauseReplica);
+            };
         }
 
         batch.txs.push(tx.clone());
@@ -259,7 +278,7 @@ where
         self.send_event_if_necessary(DbEvent::TxAccepted(tx, hash))
             .await;
 
-        Ok(true)
+        Ok(DatabaseWriteOutcome::Success(()))
     }
 
     async fn send_event_if_necessary(&mut self, event: DbEvent) {
@@ -296,7 +315,7 @@ where
         visible_slot_number_after_increase: VisibleSlotNumber,
         visible_slots_to_advance: NonZero<u8>,
         sequence_number: SequenceNumber,
-    ) -> anyhow::Result<Option<SequenceNumber>> {
+    ) -> anyhow::Result<DatabaseWriteOutcome<SequenceNumber>> {
         if self.in_progress_batch.is_some() {
             tracing::error!(
                 "There's already an in-progress batch; this is a bug, please report it"
@@ -304,7 +323,7 @@ where
             exit_rollup(&self.shutdown_sender).await;
         };
 
-        if !self.is_replica {
+        if self.is_master {
             self.debug_assert_in_progress_batch(
                 "Cached in-progress batch state (None) didn't match backend db state",
             )
@@ -321,8 +340,8 @@ where
             "Storing new rollup block"
         );
 
-        if !self.is_replica
-            && !self
+        if self.is_master {
+            let DatabaseWriteOutcome::Success(()) = self
                 .backend
                 .begin_rollup_block(
                     sequence_number,
@@ -331,8 +350,9 @@ where
                     visible_slots_to_advance,
                 )
                 .await?
-        {
-            return Ok(None);
+            else {
+                return Ok(DatabaseWriteOutcome::AbortedBecauseReplica);
+            };
         }
 
         self.in_progress_batch = Some(PreferredSequencerReadBatch {
@@ -351,7 +371,7 @@ where
         })
         .await;
 
-        Ok(Some(sequence_number))
+        Ok(DatabaseWriteOutcome::Success(sequence_number))
     }
 
     pub fn all_completed_blobs(&self) -> Vec<PreferredSequencerReadBlob> {
@@ -378,14 +398,15 @@ where
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
         sequence_number: SequenceNumber,
-    ) -> anyhow::Result<Option<SequenceNumber>> {
-        if !self.is_replica
-            && !self
+    ) -> anyhow::Result<DatabaseWriteOutcome<SequenceNumber>> {
+        if self.is_master {
+            let DatabaseWriteOutcome::Success(()) = self
                 .backend
                 .add_proof_blob(sequence_number, blob_id, data.clone())
                 .await?
-        {
-            return Ok(None);
+            else {
+                return Ok(DatabaseWriteOutcome::AbortedBecauseReplica);
+            };
         }
 
         self.completed_blobs
@@ -397,22 +418,24 @@ where
         self.send_event_if_necessary(DbEvent::ProofBlobAccepted(sequence_number))
             .await;
 
-        Ok(Some(sequence_number))
+        Ok(DatabaseWriteOutcome::Success(sequence_number))
     }
 
     #[tracing::instrument(skip_all, level = "info")]
-    pub async fn terminate_batch(&mut self) -> anyhow::Result<Option<PreferredSequencerReadBatch>> {
+    pub async fn terminate_batch(
+        &mut self,
+    ) -> anyhow::Result<DatabaseWriteOutcome<PreferredSequencerReadBatch>> {
         let Some(in_progress_batch) = self.in_progress_batch.as_ref() else {
             tracing::error!("No in-progress batch; this is a bug, please report it");
             exit_rollup(&self.shutdown_sender).await;
             unreachable!();
         };
 
-        if !self.is_replica {
+        if self.is_master {
             match
                 self.backend.end_rollup_block(in_progress_batch).await? {
-                    false => return Ok(None),
-                    true => self.debug_assert_in_progress_batch(
+                    DatabaseWriteOutcome::AbortedBecauseReplica => return Ok(DatabaseWriteOutcome::AbortedBecauseReplica),
+                    DatabaseWriteOutcome::Success(()) => self.debug_assert_in_progress_batch(
                         "Backend didn't remove in-progress batch from database when ending rollup block",
                     )
                         .await,
@@ -434,7 +457,7 @@ where
         self.send_event_if_necessary(DbEvent::BatchClosed(sequence_number))
             .await;
 
-        Ok(Some(batch))
+        Ok(DatabaseWriteOutcome::Success(batch))
     }
 
     #[tracing::instrument(skip_all, level = "info")]
@@ -442,7 +465,7 @@ where
         &mut self,
         prune_up_to_including: SequenceNumber,
     ) -> anyhow::Result<()> {
-        if !self.is_replica {
+        if self.is_master {
             self.backend.prune(prune_up_to_including).await?;
         }
 
