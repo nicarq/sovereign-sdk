@@ -245,6 +245,36 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         Ok(())
     }
 
+    async fn batch_add_txs(
+        &mut self,
+        sequence_number: SequenceNumber,
+        tx_idx_within_batch: u64,
+        txs: &[(FullyBakedTx, TxHash)],
+    ) -> anyhow::Result<()> {
+        let start = i64::try_from(tx_idx_within_batch)?;
+        let end = start + txs.len() as i64;
+        let sequence_number = vec![i64::try_from(sequence_number)?; txs.len()];
+        let event_types = vec!["transaction"; txs.len()];
+        let tx_indexes = (start..end).collect::<Vec<_>>();
+        let hashes = txs.iter().map(|(_, hash)| hash.0).collect::<Vec<_>>();
+        let txs = txs.iter().map(|(tx, _)| &tx.data).collect::<Vec<_>>();
+        run_with_retries!(
+            &self.backoff_policy,
+            sqlx::query::<Postgres>(
+                "INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data)
+                SELECT * FROM UNNEST($1::bigint[], $2::event_type[], $3::bigint[], $4::bytea[], $5::bytea[])"
+            )
+            .bind(&sequence_number[..])
+            .bind(&event_types[..])
+            .bind(&tx_indexes[..])
+            .bind(&hashes[..])
+            .bind(&txs[..])
+            .execute(&self.pool),
+            "postgres_db_backend_add_tx"
+        )?;
+        Ok(())
+    }
+
     async fn add_tx(
         &mut self,
         sequence_number: SequenceNumber,

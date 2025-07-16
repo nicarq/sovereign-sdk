@@ -425,7 +425,11 @@ where
     Da: DaService<Spec = S::Da>,
 {
     while {
-        sequencer.lock_inner().await.latest_info.slot_number
+        sequencer
+            .lock_inner("replica_sync_task:do_batch_start::wait_for_visible_slot_catchup")
+            .await
+            .latest_info
+            .slot_number
             < visible_slot_number_after_increase.as_true()
     } {
         // TODO: once read APIs get an is_ready state, set it to not ready here and reset
@@ -433,7 +437,9 @@ where
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
 
-    let mut inner = sequencer.lock_inner().await;
+    let mut inner = sequencer
+        .lock_inner("replica_sync_task:do_batch_start::start_batch")
+        .await;
     if inner.executor.has_in_progress_batch() {
         return Err(anyhow!(
             "Received open batch notification, but replica already has an open batch"
@@ -469,7 +475,7 @@ where
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
-    let mut inner = sequencer.lock_inner().await;
+    let mut inner = sequencer.lock_inner("replica_sync_task:do_batch_end").await;
     inner.close_current_batch().await;
 
     Ok(())
@@ -487,7 +493,7 @@ where
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
-    let mut inner = sequencer.lock_inner().await;
+    let mut inner = sequencer.lock_inner("replica_sync_task:do_new_tx").await;
 
     let execution_time_micros = inner.executor.replay_tx(tx_hash, &baked_tx).await;
     inner

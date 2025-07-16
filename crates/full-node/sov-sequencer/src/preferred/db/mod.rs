@@ -55,6 +55,25 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
         hash: TxHash,
     ) -> anyhow::Result<()>;
 
+    async fn batch_add_txs(
+        &mut self,
+        sequence_number_of_in_progress_batch: SequenceNumber,
+        mut tx_idx_within_batch: u64,
+        txs: &[(FullyBakedTx, TxHash)],
+    ) -> anyhow::Result<()> {
+        for (tx, hash) in txs {
+            self.add_tx(
+                sequence_number_of_in_progress_batch,
+                tx_idx_within_batch,
+                tx.clone(),
+                *hash,
+            )
+            .await?;
+            tx_idx_within_batch += 1;
+        }
+        Ok(())
+    }
+
     async fn end_rollup_block(&mut self, cached: &InProgressBatch) -> anyhow::Result<()>;
 
     async fn read_in_progress_batch(&self) -> anyhow::Result<Option<InProgressBatch>>;
@@ -223,6 +242,35 @@ where
 
     pub fn in_progress_batch_opt(&self) -> Option<&InProgressBatch> {
         self.in_progress_batch.as_ref()
+    }
+
+    #[tracing::instrument(skip_all, level = "info")]
+    pub async fn bulk_insert_txs(
+        &mut self,
+        txs: Vec<(FullyBakedTx, TxHash)>,
+    ) -> anyhow::Result<()> {
+        let Some(batch) = self.in_progress_batch.as_mut() else {
+            tracing::error!("No in-progress batch; this is a bug, please report it");
+            exit_rollup(&self.shutdown_sender).await;
+            unreachable!();
+        };
+
+        if !self.is_replica {
+            self.backend
+                .batch_add_txs(batch.sequence_number, batch.txs.len() as u64, &txs)
+                .await?;
+        }
+
+        batch.txs.extend(txs.iter().map(|(tx, _)| tx.clone()));
+        batch.tx_hashes.extend(txs.iter().map(|(_, hash)| *hash));
+
+        for (tx, hash) in txs {
+            // If there are no receivers, we don't send the tx. This is as it should be.
+            self.send_event_if_necessary(DbEvent::TxAccepted(tx, hash))
+                .await;
+        }
+
+        Ok(())
     }
 
     #[tracing::instrument(skip_all, level = "info")]

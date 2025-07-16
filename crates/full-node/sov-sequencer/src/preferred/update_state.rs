@@ -75,7 +75,9 @@ where
 
         // Repeatedly fetch all completed batches from the database that haven't yet been played on this sequencer and replay them
         let (in_progress_batch, mut db_event_subscription) = loop {
-            let inner = self.lock_inner().await;
+            let inner = self
+                .lock_inner("update_state::fetch_completed_batches_iteration")
+                .await;
             let lock_start = std::time::Instant::now();
             // Because we just sent our own message while holding the lock, we know that it will be the last message in the db channel.
             // So, the response we receive is a completely up-to-date picture of the DB.
@@ -174,7 +176,7 @@ where
             .await?;
         }
 
-        let mut inner = self.lock_inner().await;
+        let mut inner = self.lock_inner("update_state::do_final_catchup").await;
         let inner_lock_start_time = std::time::Instant::now();
         // Some events might come in while we're waiting to grab the lock.
         // Replay them.
@@ -255,7 +257,7 @@ where
             // Since pruning might be expensive and we've already held the lock for a while, we
             // prefer to drop the lock above and re-acquire it here to help keep p99 stable.
             let start_prune = std::time::Instant::now();
-            let mut inner = self.lock_inner().await;
+            let mut inner = self.lock_inner("update_state::prune_sequencer_db").await;
             let time_to_lock = start_prune.elapsed();
             if !self.is_replica().await? {
                 inner.trigger_batch_production_if_convenient().await;

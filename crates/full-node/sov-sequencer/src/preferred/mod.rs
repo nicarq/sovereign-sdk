@@ -14,6 +14,7 @@ mod update_state;
 use std::boxed::Box;
 use std::marker::PhantomData;
 use std::num::NonZero;
+use std::ops::Deref;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -68,7 +69,8 @@ use crate::common::{
 };
 use crate::metrics::{
     track_in_progress_batch_size, track_sequence_number,
-    PreferredSequencerFetchBatchesToReplayMetrics,
+    PreferredSequencerFetchBatchesToReplayMetrics, PreferredSequencerLockMetrics,
+    PreferredSequencerLockMetricsBatch,
 };
 use crate::preferred::block_executor::{
     AcceptedTxWithBudgetInfo, RollupBlockExecutor, RollupBlockExecutorError,
@@ -97,6 +99,8 @@ const COMFORTABLE_SIZE_LIMIT_DIVISOR: u64 = 100;
 
 // Big infodump for the user that wouldmake the code hard to read if it were inline.
 const RECOVERY_ERROR_MESSAGE_ON_NONE_STRATEGY: &str = "The preferred sequencer is too far behind, and the visible slot number has lagged more than the allowed deferred slots count. This means some non-preferred batches may have been included by the node, if there were any. If this happened, already provided soft confirmations may now no longer be valid. Because the recovery_strategy config was set to None, we are not attempting recovery at this point. You should either: a) delete everything from the preferred_sequencer database (thus annulling all currently pending soft confirmations), which will allow you to restart the sequencer fresh; or b) set the recovery_strategy config value to TryToSave, in which case all pending batches will be flushed to be executed on a best-effort basis. The latter may save some soft-confirmations if they have not been invalidated yet. However, IF a non-preferred batch has been included, AND some soft-confirmations have been invalidated by it, this will cause the sequencer to be penalised for every invalid batch; ensure your sequencer bond is sufficient to cover any penalties to be able to continue operating uninterrupted.";
+
+const LOCK_METRICS_BATCH_SIZE: usize = 32;
 
 /// Strategy for handling the scenario where the preferred sequencer finds itself close to or past
 /// deferred_slots_count in the past, i.e. risking its soft confirmations being invalidated due to
@@ -137,6 +141,76 @@ where
     /// We need this rather than relying on `SequencerNotReadyDetails::Startup` because that state
     /// can be overwritten when the node is resyncing.
     has_finished_startup: bool,
+    metrics: Vec<PreferredSequencerLockMetrics>,
+}
+
+struct InnerGuard<'a, S, Rt>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
+    inner: MutexGuard<'a, Inner<S, Rt>>,
+    reason: &'static str,
+    start_time: std::time::Instant,
+}
+
+impl<'a, S, Rt> InnerGuard<'a, S, Rt>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
+    /// Create a new inner guard.
+    pub fn new(inner: MutexGuard<'a, Inner<S, Rt>>, reason: &'static str) -> Self {
+        Self {
+            inner,
+            reason,
+            start_time: std::time::Instant::now(),
+        }
+    }
+}
+
+impl<S, Rt> Deref for InnerGuard<'_, S, Rt>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
+    type Target = Inner<S, Rt>;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<S, Rt> std::ops::DerefMut for InnerGuard<'_, S, Rt>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
+impl<S, Rt> Drop for InnerGuard<'_, S, Rt>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
+    fn drop(&mut self) {
+        self.inner.metrics.push(PreferredSequencerLockMetrics {
+            duration: self.start_time.elapsed(),
+            lock_reason: self.reason,
+        });
+        if self.inner.metrics.len() >= LOCK_METRICS_BATCH_SIZE {
+            sov_metrics::track_metrics(|t| {
+                t.submit(PreferredSequencerLockMetricsBatch {
+                    metrics: std::mem::replace(
+                        &mut self.inner.metrics,
+                        Vec::with_capacity(LOCK_METRICS_BATCH_SIZE),
+                    ),
+                });
+            });
+        }
+    }
 }
 
 impl<S, Rt> Inner<S, Rt>
@@ -634,6 +708,7 @@ where
             in_flight_blobs,
             batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
             has_finished_startup: false,
+            metrics: Vec::with_capacity(128),
             is_ready: if config.sequencer_kind_config.is_replica {
                 Err(SequencerNotReadyDetails::ReplicaMode)
             } else {
@@ -712,8 +787,9 @@ where
     }
 
     #[tracing::instrument(skip_all, level = "debug")]
-    pub(crate) async fn lock_inner(&self) -> MutexGuard<Inner<S, Rt>> {
-        self.inner.lock().await
+    pub(crate) async fn lock_inner(&self, reason: &'static str) -> InnerGuard<'_, S, Rt> {
+        let guard = InnerGuard::new(self.inner.lock().await, reason);
+        guard
     }
 
     /// Creates a new executor for recovery. This must *not* be called to create executors
@@ -785,7 +861,7 @@ where
     async fn trigger_recovery(
         &self,
         info: &StateUpdateInfo<S::Storage>,
-        mut inner: MutexGuard<'_, Inner<S, Rt>>,
+        mut inner: InnerGuard<'_, S, Rt>,
     ) {
         inner.is_ready = Err(SequencerNotReadyDetails::PreferredSequencerRecovering);
         let next_sequence_number_according_to_node =
@@ -833,7 +909,7 @@ where
         state_update_receiver: &mut StateUpdateReceiver<S::Storage>,
         shutdown_receiver: &watch::Receiver<()>,
         mut info: StateUpdateInfo<S::Storage>,
-        inner: MutexGuard<'_, Inner<S, Rt>>,
+        inner: InnerGuard<'_, S, Rt>,
     ) -> anyhow::Result<()> {
         if self.is_replica().await? {
             // Replicas don't run recovery. We let the main sequencer run catchup. If we fail-over
@@ -881,7 +957,9 @@ where
                         tokio::time::sleep(Duration::from_millis(100)).await;
                     }
                 }
-                let mut inner = self.lock_inner().await;
+                let mut inner = self
+                    .lock_inner("recover_and_catch_up:dump_catchup_batches")
+                    .await;
                 if i % 10 == 0 {
                     tracing::info!(number = %i, min = %min_batches_to_send, max = %max_batches_to_send, "Sending catchup batch");
                 } else {
@@ -896,7 +974,9 @@ where
 
             // 2. Wait for node to catch up to our sequence number
             let target_sequence_number = {
-                let inner = self.lock_inner().await;
+                let inner = self
+                    .lock_inner("recover_and_catch_up:get_next_sequence_number")
+                    .await;
                 inner.next_sequence_number()
             };
 
@@ -921,7 +1001,9 @@ where
                     "update_state_task",
                 )
                 .await?;
-                let mut inner = self.lock_inner().await;
+                let mut inner = self
+                    .lock_inner("recover_and_catch_up:overwrite_executor")
+                    .await;
                 inner
                     .executor_events_sender
                     .flush_transactions_cache(info.next_tx_number)
@@ -1003,7 +1085,7 @@ where
         shutdown_receiver: &watch::Receiver<()>,
         distance_to_tip: u64,
         current_info: StateUpdateInfo<S::Storage>,
-        mut inner: MutexGuard<'_, Inner<S, Rt>>,
+        mut inner: InnerGuard<'_, S, Rt>,
     ) -> anyhow::Result<()> {
         inner.is_ready = Err(SequencerNotReadyDetails::Syncing {
             target_da_height: self.da_sync_state.target_da_height.load(Ordering::Relaxed),
@@ -1017,7 +1099,7 @@ where
         loop {
             let is_synced = self.da_sync_state.status().distance() <= distance_to_tip;
 
-            let mut inner = self.lock_inner().await;
+            let mut inner = self.lock_inner("wait_for_node_resync").await;
 
             inner.is_ready = Err(SequencerNotReadyDetails::Syncing {
                 target_da_height: self.da_sync_state.target_da_height.load(Ordering::Relaxed),
@@ -1073,7 +1155,7 @@ where
         state_update_receiver: &mut StateUpdateReceiver<S::Storage>,
         shutdown_receiver: &watch::Receiver<()>,
         current_info: StateUpdateInfo<S::Storage>,
-        inner: MutexGuard<'_, Inner<S, Rt>>, // We pass the lock to ensure no txs can be accepted before the sequencer is marked unready
+        inner: InnerGuard<'_, S, Rt>, // We pass the lock to ensure no txs can be accepted before the sequencer is marked unready
     ) -> anyhow::Result<()> {
         self.wait_for_node_resync(
             state_update_receiver,
@@ -1091,7 +1173,7 @@ where
         state_update_receiver: &mut StateUpdateReceiver<S::Storage>,
         shutdown_receiver: &watch::Receiver<()>,
         current_info: StateUpdateInfo<S::Storage>,
-        inner: MutexGuard<'_, Inner<S, Rt>>,
+        inner: InnerGuard<'_, S, Rt>,
     ) -> anyhow::Result<()> {
         self.wait_for_node_resync(
             state_update_receiver,
@@ -1259,7 +1341,9 @@ where
     // We acquire the lock and hold it until we've decided whether the sequencer needs to enter an unready state.
     // This prevents `accept_tx` from sneaking in any new txs between the time we check if there are soft confirmations to replay
     // and the time the sequencer is marked unready.
-    let inner = seq.lock_inner().await;
+    let inner = seq
+        .lock_inner("update_state::fetch_initial_batches_to_replay")
+        .await;
     let ((batches_to_replay, fetch_batches_to_replay_metrics), next_sequence_number, is_startup) = {
         (
             seq.completed_batches_to_replay(&inner, next_sequence_number_according_to_node, true)
@@ -1400,7 +1484,7 @@ where
     async fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
         // We don't actually care about the `inner`, we just want to reuse the
         // same logic.
-        let inner = self.inner.lock().await;
+        let inner = self.lock_inner("check_readiness").await;
         Self::check_readiness(
             &inner,
             self.config.max_concurrent_blobs,
@@ -1416,7 +1500,7 @@ where
 
     #[cfg(feature = "test-utils")]
     async fn force_close_current_batch(&self) -> anyhow::Result<()> {
-        let mut inner = self.lock_inner().await;
+        let mut inner = self.lock_inner("force_close_current_batch").await;
         inner.force_close_current_batch().await
     }
 
@@ -1522,7 +1606,7 @@ where
             tracing::debug!(%tx_hash, "Transaction delay completed, proceeding with processing");
         }
 
-        let mut inner = self.lock_inner().await;
+        let mut inner = self.lock_inner("accept_tx").await;
         // If the sequencer had to give out 503s at any point during the time we were waiting for the lock, we need to return a 503 - otherwise
         // we've effectively jumped the line
         let new_tx_queue_id = self.tx_queue_id.load(Ordering::Acquire);
@@ -1728,7 +1812,7 @@ where
 {
     async fn produce_and_publish_proof_blob(&self, proof_data: Arc<[u8]>) -> anyhow::Result<()> {
         let blob_id = new_blob_id();
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.lock_inner("produce_and_publish_proof_blob").await;
 
         inner.publish_proof_blob(blob_id, proof_data.clone()).await;
 
