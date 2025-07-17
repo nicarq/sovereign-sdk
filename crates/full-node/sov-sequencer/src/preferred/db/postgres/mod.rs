@@ -11,7 +11,7 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 use sqlx::{PgConnection, Postgres};
 
 use super::{DbSnapshotData, PreferredSequencerDbBackend, PreferredSequencerReadBlob, StoredBlob};
-use crate::preferred::db::InProgressBatch;
+use crate::preferred::db::{BatchToStore, InProgressBatch};
 
 pub struct PostgresBackend {
     pool: PgPool,
@@ -298,12 +298,10 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         Ok(())
     }
 
-    async fn end_rollup_block(&mut self, cached: &super::InProgressBatch) -> anyhow::Result<()> {
-        let blob_data = borsh::to_vec(&StoredBlob::Batch {
-            blob_id: cached.blob_id,
-            visible_slots_to_advance: cached.visible_slots_to_advance,
-            visible_slot_number_after_increase: cached.visible_slot_number_after_increase,
-        })?;
+    async fn end_rollup_block(&mut self, cached: BatchToStore) -> anyhow::Result<()> {
+        let sequence_number = cached.sequence_number;
+        let stored_blob: StoredBlob = cached.into();
+        let blob_data = borsh::to_vec(&stored_blob)?;
 
         // Compound CTE statement to avoid multiple roundtrips
         let result = run_with_retries!(
@@ -317,7 +315,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
             SELECT $1, 'batch_end', NULL, NULL, $2
             FROM batch_delete",
             )
-            .bind(i64::try_from(cached.sequence_number)?)
+            .bind(i64::try_from(sequence_number)?)
             .bind::<&[u8]>(blob_data.as_ref())
             .execute(&self.pool),
             "postgres_db_backend_end_rollup_block"

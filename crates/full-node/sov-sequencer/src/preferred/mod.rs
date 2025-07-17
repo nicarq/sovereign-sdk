@@ -56,7 +56,7 @@ use sov_rollup_interface::TxHash;
 use sov_state::{NativeStorage, Storage};
 use state_root_compute::StateRootBackgroundTaskState;
 use tokio::sync::mpsc::{self, Sender};
-use tokio::sync::{broadcast, oneshot, watch, Mutex, MutexGuard};
+use tokio::sync::{broadcast, watch, Mutex, MutexGuard};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, error, info, trace, warn};
@@ -76,7 +76,7 @@ use crate::preferred::block_executor::{
     AcceptedTxWithBudgetInfo, RollupBlockExecutor, RollupBlockExecutorError,
 };
 use crate::preferred::db::{latest_finalized_sequence_number, DbEvent};
-use crate::preferred::executor_events::{ExecutorEvent, ExecutorEventsSender};
+use crate::preferred::executor_events::ExecutorEventsSender;
 use crate::preferred::preferred_blob_sender::create_blobs_to_send;
 use crate::rest_api::ApiAcceptedTx;
 use crate::{
@@ -225,11 +225,7 @@ where
     pub async fn publish_proof_blob(&mut self, blob_id: BlobInternalId, data: Arc<[u8]>) {
         let sequence_number = self.get_and_inc_next_sequence_number();
         self.executor_events_sender
-            .send(ExecutorEvent::PublishProofBlob(
-                blob_id,
-                data,
-                sequence_number,
-            ))
+            .publish_proof_blob(blob_id, data, sequence_number)
             .await;
     }
 
@@ -319,15 +315,14 @@ where
             )
             .await;
         self.executor_events_sender
-            .send(ExecutorEvent::StartBatch {
+            .start_batch(
                 visible_slot_number_after_increase,
-                visible_slots_to_advance: visible_increase,
+                visible_increase,
                 sequence_number,
-                new_checkpoint: self
-                    .executor
+                self.executor
                     .checkpoint
                     .clone_with_empty_witness_dropping_temp_cache(),
-            })
+            )
             .await;
 
         Ok(())
@@ -378,15 +373,14 @@ where
             .await;
 
         self.executor_events_sender
-            .send(ExecutorEvent::StartBatch {
+            .start_batch(
                 visible_slot_number_after_increase,
                 visible_slots_to_advance,
                 sequence_number,
-                new_checkpoint: self
-                    .executor
+                self.executor
                     .checkpoint
                     .clone_with_empty_witness_dropping_temp_cache(),
-            })
+            )
             .await;
 
         Ok(())
@@ -448,6 +442,10 @@ where
         self.sequence_number_of_next_blob
     }
 
+    fn current_sequence_number(&self) -> SequenceNumber {
+        self.sequence_number_of_next_blob.checked_sub(1).expect("Sequence number underflow. Cannot get sequence number if no batch has ever been active. This is a bug, please report")
+    }
+
     fn get_and_inc_next_sequence_number(&mut self) -> SequenceNumber {
         let sequence_number = self.sequence_number_of_next_blob;
         self.sequence_number_of_next_blob = self
@@ -474,9 +472,7 @@ where
             .executor
             .checkpoint
             .clone_with_empty_witness_dropping_temp_cache();
-        self.executor_events_sender
-            .send(ExecutorEvent::CloseBatch(checkpoint))
-            .await;
+        self.executor_events_sender.close_batch(checkpoint).await;
     }
 
     async fn prune_sequencer_db(&mut self) {
@@ -503,9 +499,7 @@ where
                 // and inconsistent state. There is clearly something wrong with
                 // the pruning height calculation height.
                 if let Some(num) = num.checked_sub(100) {
-                    self.executor_events_sender
-                        .send(ExecutorEvent::PruneDb(num))
-                        .await;
+                    self.executor_events_sender.prune(num).await;
                 }
             }
             None => {
@@ -531,7 +525,7 @@ where
         let mut rt = Rt::default();
         let checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
         self.executor_events_sender
-            .send(ExecutorEvent::ForceUpdateApiState(checkpoint))
+            .force_update_api_state(checkpoint)
             .await;
     }
 }
@@ -630,16 +624,17 @@ where
             } else {
                 Box::new(RocksDbBackend::new(storage_path).await?)
             };
-        let (db, latest_db_event_id, next_sequence_number) = PreferredSequencerDb::<S, Rt>::new(
-            db_backend,
-            shutdown_sender.clone(),
-            config.sequencer_kind_config.is_replica,
-        )
-        .await?;
+        let (db, latest_db_event_id, next_sequence_number, db_cache) =
+            PreferredSequencerDb::<S, Rt>::new(
+                db_backend,
+                shutdown_sender.clone(),
+                config.sequencer_kind_config.is_replica,
+            )
+            .await?;
 
         let mut handles = vec![];
 
-        let completed_blobs = db.all_completed_blobs();
+        let completed_blobs = db_cache.all_completed_blobs();
 
         let blob_sender = {
             let blobs_to_send = if config.sequencer_kind_config.is_replica {
@@ -687,7 +682,7 @@ where
         );
 
         let (executor_events_sender, executor_events_receiver) =
-            ExecutorEventsSender::new(shutdown_sender.clone());
+            ExecutorEventsSender::new(shutdown_sender.clone(), db_cache);
         let in_flight_blobs = blob_sender.nb_of_in_flight_blobs_handle();
 
         let inner = Inner {
@@ -868,10 +863,10 @@ where
             get_next_sequence_number_according_to_node(info, &mut Rt::default());
         inner
             .executor_events_sender
-            .send(ExecutorEvent::EnterRecoveryMode {
-                recovery_strategy: self.config.sequencer_kind_config.recovery_strategy.clone(),
+            .trigger_recovery(
                 next_sequence_number_according_to_node,
-            })
+                self.config.sequencer_kind_config.recovery_strategy.clone(),
+            )
             .await;
 
         let executor_from_info = self.create_new_executor_for_recovery(info);
@@ -1129,7 +1124,7 @@ where
             let checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
             inner
                 .executor_events_sender
-                .send(ExecutorEvent::UpdateStateForRecovery(checkpoint))
+                .update_state_for_recovery(checkpoint)
                 .await;
 
             self.update_api_ledger(&info).await;
@@ -1259,18 +1254,9 @@ where
         Rt: Runtime<S>,
     {
         let start = std::time::Instant::now();
-        let (sender, receiver) = oneshot::channel();
-        inner
+        let result = inner
             .executor_events_sender
-            .send(ExecutorEvent::FetchCompletedBlobs {
-                after_and_including: sequence_number,
-                oneshot_sender: sender,
-                include_in_progress_batch,
-            })
-            .await;
-        let result = receiver.await.map_err(|_| {
-            anyhow!("Failed to fetch completed batches because the databse shut down.")
-        })?;
+            .fetch_completed_blobs_by_sequence(sequence_number, include_in_progress_batch);
         let duration = start.elapsed();
         let metrics = PreferredSequencerFetchBatchesToReplayMetrics {
             duration,
@@ -1663,6 +1649,7 @@ where
 
         err_if_cant_fit_tx(&inner.batch_size_tracker, &baked_tx)?;
 
+        let sequence_number = inner.current_sequence_number();
         let Inner {
             executor,
             batch_size_tracker,
@@ -1694,7 +1681,7 @@ where
         };
         batch_size_tracker.add_tx(baked_tx.data.len(), execution_time_micros);
         let rx = executor_events_sender
-            .send_accept_tx(accepted_tx, tx_changes)
+            .send_accept_tx(accepted_tx, tx_changes, sequence_number)
             .await;
         self.close_batch_if_nearly_full(&mut *inner, &remaining_slot_gas)
             .await;

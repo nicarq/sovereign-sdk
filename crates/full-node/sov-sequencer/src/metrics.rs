@@ -97,6 +97,30 @@ impl Metric for PreferredSequencerLockMetricsBatch {
 }
 
 #[derive(Debug)]
+pub struct PreferredSequencerExecutorEventMetrics {
+    pub event_type: &'static str,
+    pub duration: std::time::Duration,
+    pub batch_size: usize,
+}
+
+impl Metric for PreferredSequencerExecutorEventMetrics {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_preferred_sequencer_executor_event"
+    }
+
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(
+            buffer,
+            "{},event_type={} duration_us={},batch_size={}",
+            self.measurement_name(),
+            self.event_type,
+            self.duration.as_micros(),
+            self.batch_size,
+        )
+    }
+}
+
+#[derive(Debug)]
 pub struct PreferredSequencerFetchBatchesToReplayMetrics {
     pub duration: std::time::Duration,
     pub num_batches: u64,

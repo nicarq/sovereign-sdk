@@ -17,7 +17,7 @@ use tokio::task::JoinHandle;
 use tracing::{debug, error, info, trace, warn};
 
 use super::db::StoredBlob;
-use crate::preferred::{exit_rollup, DbEvent, ExecutorEvent, PreferredSequencer};
+use crate::preferred::{exit_rollup, DbEvent, PreferredSequencer};
 use crate::ProofBlobSender;
 
 /// Event type enum for type-safe parsing
@@ -410,7 +410,6 @@ where
         DbEvent::ProofBlobAccepted(sequence_number) => {
             do_proof_blob(sequencer, sequence_number, query_pool).await
         }
-        DbEvent::Flushed(_) => Ok(()),
     }
 }
 
@@ -501,18 +500,15 @@ where
         .add_tx(baked_tx.data.len(), execution_time_micros);
     inner
         .executor_events_sender
-        .send(ExecutorEvent::InsertTxWithoutConfirmation(
-            baked_tx, tx_hash,
-        ))
+        .insert_tx_without_confirmation(baked_tx, tx_hash)
         .await;
+    let checkpoint = inner
+        .executor
+        .checkpoint
+        .clone_with_empty_witness_dropping_temp_cache();
     inner
         .executor_events_sender
-        .send(ExecutorEvent::ForceUpdateApiState(
-            inner
-                .executor
-                .checkpoint
-                .clone_with_empty_witness_dropping_temp_cache(),
-        ))
+        .force_update_api_state(checkpoint)
         .await;
     Ok(())
 }

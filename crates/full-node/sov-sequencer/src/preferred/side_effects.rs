@@ -1,26 +1,20 @@
 use std::collections::VecDeque;
 
-use sov_blob_storage::SequenceNumber;
 use sov_modules_api::{Runtime, Spec, StateCheckpoint, TxChangeSet};
 use sov_rollup_interface::node::da::DaService;
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
-use tracing::{error, trace, warn};
+use tracing::{error, warn};
 
 use super::executor_events::ExecutorEvent;
-use crate::common::AcceptedTx;
+use crate::metrics::PreferredSequencerExecutorEventMetrics;
+use crate::preferred::db::BatchToStore;
+use crate::preferred::executor_events::AcceptedTxEventContents;
 use crate::preferred::transaction_subscriptions::TxResultWriter;
 use crate::preferred::{
-    exit_rollup, track_in_progress_batch_size, Confirmation, PreferredBatchToReplay,
-    PreferredBlobSender, PreferredSequencerDb, PreferredSequencerReadBatch,
+    exit_rollup, PreferredBlobSender, PreferredSequencerDb, PreferredSequencerReadBatch,
     PreferredSequencerReadBlob, RecoveryStrategy, RECOVERY_ERROR_MESSAGE_ON_NONE_STRATEGY,
 };
-
-type AcceptedTxContents<S, Rt> = (
-    AcceptedTx<Confirmation<S, Rt>>,
-    TxChangeSet,
-    oneshot::Sender<AcceptedTx<Confirmation<S, Rt>>>,
-);
 
 /// A task that runs in the background and handles side effects of accepted transactions.
 pub(super) struct SideEffectsTask<S, Rt, Da>
@@ -63,8 +57,10 @@ where
     async fn close_and_publish_current_batch(
         &mut self,
         checkpoint: StateCheckpoint<S>,
+        batch: PreferredSequencerReadBatch,
+        info_to_store: BatchToStore,
     ) -> anyhow::Result<()> {
-        let batch = self.db.terminate_batch().await?;
+        self.db.terminate_batch(info_to_store).await?;
         self.update_api_state(checkpoint);
 
         // Publish the batch.
@@ -74,30 +70,20 @@ where
             .await;
         self.blob_sender.publish_batch(batch).await?;
 
-        // Update the metrics.
-        track_in_progress_batch_size(
-            self.db
-                .in_progress_batch_opt()
-                .map(|b| b.txs.len() as u64)
-                .unwrap_or(0),
-        );
         Ok(())
     }
 
     async fn trigger_recovery(
         &mut self,
-        next_sequence_number_according_to_node: SequenceNumber,
+        batches_to_flush: Vec<PreferredSequencerReadBlob>,
         recovery_strategy: RecoveryStrategy,
     ) -> anyhow::Result<()> {
-        let batches_to_replay =
-            self.fetch_completed_blobs_by_sequence(next_sequence_number_according_to_node, true);
-        if !batches_to_replay.is_empty() {
+        if !batches_to_flush.is_empty() {
             match recovery_strategy {
                 RecoveryStrategy::TryToSave => {
                     // Flush our batches to try to save them if we can
-                    warn!(num_batches_to_replay = batches_to_replay.len(), "TryToSave recovery strategy has been configured. The currently pending soft confirmations will be flushed to the node. This may save some of the transactions, but if any are no longer valid, the sequencer will be penalised.");
-                    self.flush_pending_batches_for_recovery(next_sequence_number_according_to_node)
-                        .await?;
+                    warn!(num_batches_to_replay = batches_to_flush.len(), "TryToSave recovery strategy has been configured. The currently pending soft confirmations will be flushed to the node. This may save some of the transactions, but if any are no longer valid, the sequencer will be penalised.");
+                    self.blob_sender.publish_blobs(batches_to_flush).await?;
                 }
                 RecoveryStrategy::None => {
                     // Shut down
@@ -111,151 +97,95 @@ where
         Ok(())
     }
 
-    async fn flush_pending_batches_for_recovery(
-        &mut self,
-        next_sequence_number_according_to_node: SequenceNumber,
-    ) -> anyhow::Result<()> {
-        tracing::trace!("Recovery: flushing all preferred sequencer batches");
-
-        // 1. close the in-progress batch, if any
-        if self.db.in_progress_batch_opt().is_some() {
-            tracing::debug!("Recovery: In-progress batch found, terminating it.");
-            self.db.terminate_batch().await?;
-            // No need to update API state, we're going to overwrite it with the node's state soon
-        } else {
-            tracing::debug!("Recovery: No in-progress batch to terminate.");
-        }
-
-        // 2. Flush all batches to the BlobSender
-        let blobs_to_flush = self
-            .db
-            .all_completed_blobs_greater_than_or_equal_to(next_sequence_number_according_to_node);
-        self.blob_sender.publish_blobs(blobs_to_flush).await?;
-
-        Ok(())
-    }
-
-    fn fetch_completed_blobs_by_sequence(
-        &mut self,
-        after_and_including: SequenceNumber,
-        include_in_progress_batch: bool,
-    ) -> Vec<PreferredBatchToReplay> {
-        let blobs_to_apply = self
-            .db
-            .all_completed_blobs_greater_than_or_equal_to(after_and_including);
-        let first_sequence_number = blobs_to_apply.first().map(|b| b.sequence_number());
-
-        trace!(
-            blobs_count = blobs_to_apply.len(),
-            first_sequence_number,
-            last_sequence_number = blobs_to_apply.last().map(|b| b.sequence_number()),
-            "Extracted blobs to apply from database"
-        );
-
-        let maybe_in_progress_batch = if include_in_progress_batch {
-            self.db.in_progress_batch_opt().cloned().map(|batch| {
-                let batch: PreferredSequencerReadBatch = batch.into();
-                PreferredBatchToReplay {
-                    is_in_progress: true,
-                    visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
-                    batch: batch.into_with_cached_tx_hashes(),
-                }
-            })
-        } else {
-            None
-        };
-
-        blobs_to_apply
-            .into_iter()
-            .filter_map(|blob| match blob {
-                PreferredSequencerReadBlob::Batch(batch) => Some(PreferredBatchToReplay {
-                    is_in_progress: false,
-                    visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
-                    batch: batch.into_with_cached_tx_hashes(),
-                }),
-                // TODO(https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2063): Process proofs.
-                // Note: once we start processing proofs in addition to batches,
-                // we gotta make sure to order everything by sequence number as
-                // proofs can have a sequence number that's greater than the
-                // in-progress batch.
-                _ => {
-                    trace!(
-                        sequence_number = %blob.sequence_number(),
-                        "Ignoring proof blob"
-                    );
-                    None
-                }
-            })
-            .chain(maybe_in_progress_batch)
-            .collect::<Vec<_>>()
-    }
-
     /// Drains at least one event from the queue, batching operations when possible.
     async fn handle_executor_event(
         &mut self,
         event_queue: &mut VecDeque<ExecutorEvent<S, Rt>>,
     ) -> Result<(), anyhow::Error> {
+        let queue_size_before = event_queue.len();
         let next_event = event_queue
             .pop_front()
             .expect("Tried to pop from empty event queue. This is a bug, please report it");
+        let event_type: &'static str = (&next_event).into();
+        let start_time = std::time::Instant::now();
         match next_event {
-            ExecutorEvent::AcceptedTx(accepted_tx, tx_changes, oneshot_sender) => {
-                let txs_to_insert = drain_consecutive_accepted_txs(
-                    (accepted_tx, tx_changes, oneshot_sender),
-                    event_queue,
-                );
+            ExecutorEvent::AcceptedTx(contents) => {
+                let sequence_number = contents.sequence_number;
+                let tx_idx_within_batch = contents.tx_idx_within_batch;
+                let txs_to_insert = drain_consecutive_accepted_txs(contents, event_queue);
                 if tracing::enabled!(tracing::Level::DEBUG) {
-                    for (tx, _, _) in txs_to_insert.iter() {
-                        tracing::debug!(tx_hatsh = %tx.tx_hash, "Transaction was accepted by the sequencer");
+                    for tx in txs_to_insert.iter() {
+                        tracing::debug!(tx_hash = %tx.accepted_tx.tx_hash, "Transaction was accepted by the sequencer");
                     }
                 }
                 self.db
                     .bulk_insert_txs(
                         txs_to_insert
                             .iter()
-                            .map(|(tx, _, _)| (tx.tx.clone(), tx.tx_hash))
+                            .map(|contents| {
+                                (
+                                    contents.accepted_tx.tx.clone(),
+                                    contents.accepted_tx.tx_hash,
+                                )
+                            })
                             .collect(),
+                        sequence_number,
+                        tx_idx_within_batch,
                     )
                     .await?;
-                track_in_progress_batch_size(
-                    self.db
-                        .in_progress_batch_opt()
-                        .map(|b| b.txs.len() as u64)
-                        .unwrap_or(0),
-                );
-                for (tx, tx_changes, oneshot_sender) in txs_to_insert {
-                    self.transaction_cache.insert(tx.clone()).await;
+
+                for contents in txs_to_insert {
+                    self.transaction_cache
+                        .insert(contents.accepted_tx.clone())
+                        .await;
                     // If the receiver is no longer listening, just don't send the confirmation.
-                    let _ = oneshot_sender.send(tx);
-                    self.update_api_state_with_changes(tx_changes);
+                    let _ = contents.oneshot_sender.send(contents.accepted_tx);
+                    self.update_api_state_with_changes(contents.tx_changes);
                 }
             }
-            ExecutorEvent::CloseBatch(checkpoint) => {
-                self.close_and_publish_current_batch(checkpoint).await?;
-            }
-            ExecutorEvent::Flush(id) => {
-                self.db.flush(id).await;
+            ExecutorEvent::CloseBatch(batch, checkpoint) => {
+                let info_to_store = BatchToStore {
+                    blob_id: batch.blob_id,
+                    sequence_number: batch.sequence_number,
+                    visible_slot_number_after_increase: batch.visible_slot_number_after_increase,
+                    visible_slots_to_advance: batch.visible_slots_to_advance,
+                };
+                self.close_and_publish_current_batch(checkpoint, batch, info_to_store)
+                    .await?;
             }
             ExecutorEvent::StartBatch {
                 visible_slot_number_after_increase,
                 visible_slots_to_advance,
                 sequence_number,
                 new_checkpoint,
+                blob_id,
             } => {
                 self.db
                     .start_batch(
                         visible_slot_number_after_increase,
                         visible_slots_to_advance,
                         sequence_number,
+                        blob_id,
                     )
                     .await?;
                 self.update_api_state(new_checkpoint);
             }
-            ExecutorEvent::EnterRecoveryMode {
+            ExecutorEvent::TriggerRecovery {
+                blobs_to_flush,
                 recovery_strategy,
-                next_sequence_number_according_to_node,
+                batch_to_close,
             } => {
-                self.trigger_recovery(next_sequence_number_according_to_node, recovery_strategy)
+                if let Some(batch) = batch_to_close {
+                    let info_to_store = BatchToStore {
+                        blob_id: batch.blob_id,
+                        sequence_number: batch.sequence_number,
+                        visible_slot_number_after_increase: batch
+                            .visible_slot_number_after_increase,
+                        visible_slots_to_advance: batch.visible_slots_to_advance,
+                    };
+                    self.db.terminate_batch(info_to_store).await?; // This batch will be included in the list to publish, so we only terminate and don't explicitly publish it
+                }
+                self.trigger_recovery(blobs_to_flush, recovery_strategy)
                     .await?;
             }
             ExecutorEvent::PublishProofBlob(blob_id, data, sequence_number) => {
@@ -272,30 +202,8 @@ where
             ExecutorEvent::PruneDb(sequence_number) => {
                 self.db.prune(sequence_number).await?;
             }
-            ExecutorEvent::InsertTxWithoutConfirmation(tx, tx_hash) => {
-                self.db.insert_tx(tx, tx_hash).await?;
-            }
-
-            ExecutorEvent::FetchCompletedBlobs {
-                after_and_including,
-                oneshot_sender,
-                include_in_progress_batch,
-            } => {
-                let blobs = self.fetch_completed_blobs_by_sequence(
-                    after_and_including,
-                    include_in_progress_batch,
-                );
-                let _ = oneshot_sender.send(blobs);
-            }
-            ExecutorEvent::FetchInProgressBatch(oneshot_sender) => {
-                let in_progress_batch = self.db.in_progress_batch_opt().cloned().map(|b| b.into());
-                let _ = oneshot_sender.send(in_progress_batch);
-            }
             ExecutorEvent::UpdateStateForRecovery(checkpoint) => {
                 self.update_api_state(checkpoint);
-            }
-            ExecutorEvent::SubscribeToEvents(sender) => {
-                self.db.subscribe_to_events(sender);
             }
             ExecutorEvent::FlushTransactionsCache {
                 next_tx_number,
@@ -307,6 +215,16 @@ where
                 let _ = oneshot_sender.send(());
             }
         }
+        let queue_size_after = event_queue.len();
+        let batch_size = queue_size_before - queue_size_after;
+        let duration = start_time.elapsed();
+        sov_metrics::track_metrics(|t| {
+            t.submit(PreferredSequencerExecutorEventMetrics {
+                event_type,
+                duration,
+                batch_size,
+            });
+        });
         Ok(())
     }
 
@@ -348,13 +266,13 @@ where
 }
 
 fn drain_consecutive_accepted_txs<S: Spec, Rt: Runtime<S>>(
-    first_tx: AcceptedTxContents<S, Rt>,
+    first_tx: AcceptedTxEventContents<S, Rt>,
     event_queue: &mut VecDeque<ExecutorEvent<S, Rt>>,
-) -> Vec<AcceptedTxContents<S, Rt>> {
+) -> Vec<AcceptedTxEventContents<S, Rt>> {
     let mut txs_to_insert = vec![first_tx];
     while let Some(next_event) = event_queue.pop_front() {
-        if let ExecutorEvent::AcceptedTx(accepted_tx, tx_changes, oneshot_sender) = next_event {
-            txs_to_insert.push((accepted_tx, tx_changes, oneshot_sender));
+        if let ExecutorEvent::AcceptedTx(accepted) = next_event {
+            txs_to_insert.push(accepted);
         } else {
             // Otherwise, put the event back and return.
             event_queue.push_front(next_event);
@@ -370,6 +288,9 @@ mod tests {
         ApiTxEffect, ChangeSet, FullyBakedTx, Gas, SuccessfulTxContents, TxHash,
     };
     use sov_test_utils::{generate_optimistic_runtime, TestSpec as S};
+    use tokio::sync::oneshot;
+
+    use crate::preferred::{AcceptedTx, Confirmation};
 
     generate_optimistic_runtime!(TestRuntime <= );
 
@@ -389,25 +310,27 @@ mod tests {
             },
             tx_number: number,
         };
-        ExecutorEvent::AcceptedTx(
-            AcceptedTx {
+        ExecutorEvent::AcceptedTx(AcceptedTxEventContents {
+            accepted_tx: AcceptedTx {
                 tx,
                 tx_hash,
                 confirmation,
             },
             tx_changes,
-            sender,
-        )
+            oneshot_sender: sender,
+            sequence_number: 0,
+            tx_idx_within_batch: number,
+        })
     }
 
-    fn split_event(
+    fn extract_contents(
         event: ExecutorEvent<S, TestRuntime<S>>,
-    ) -> AcceptedTxContents<S, TestRuntime<S>> {
-        match event {
-            ExecutorEvent::AcceptedTx(accepted_tx, tx_changes, oneshot_sender) => {
-                (accepted_tx, tx_changes, oneshot_sender)
+    ) -> AcceptedTxEventContents<S, TestRuntime<S>> {
+        {
+            match event {
+                ExecutorEvent::AcceptedTx(contents) => contents,
+                _ => panic!("Expected AcceptedTx event"),
             }
-            _ => panic!("Expected AcceptedTx event"),
         }
     }
 
@@ -420,7 +343,7 @@ mod tests {
         {
             let first_event = create_accepted_tx_event(0);
             let drained_txs =
-                drain_consecutive_accepted_txs(split_event(first_event), &mut VecDeque::new());
+                drain_consecutive_accepted_txs(extract_contents(first_event), &mut VecDeque::new());
             // We should get back the event that we passed and no others. The queue should still be empty.
             assert_eq!(drained_txs.len(), 1);
         }
@@ -430,7 +353,7 @@ mod tests {
             let first_event = create_accepted_tx_event(0);
             let mut event_queue = vec![ExecutorEvent::PruneDb(0)].into();
             let drained_txs =
-                drain_consecutive_accepted_txs(split_event(first_event), &mut event_queue);
+                drain_consecutive_accepted_txs(extract_contents(first_event), &mut event_queue);
             // We should get back the event that we passed and no others. The queue should be untouched
             assert_eq!(drained_txs.len(), 1);
             assert_eq!(event_queue.len(), 1);
@@ -442,7 +365,7 @@ mod tests {
             let second_event = create_accepted_tx_event(1);
             let mut event_queue = vec![ExecutorEvent::PruneDb(0), second_event].into();
             let drained_txs =
-                drain_consecutive_accepted_txs(split_event(first_event), &mut event_queue);
+                drain_consecutive_accepted_txs(extract_contents(first_event), &mut event_queue);
             // We should get back the event that we passed and no others. The queue should be untouched
             assert_eq!(drained_txs.len(), 1);
             assert_eq!(event_queue.len(), 2);
@@ -455,12 +378,15 @@ mod tests {
             // Put a non-accepted tx in the middle of the queue
             event_queue.insert(500, ExecutorEvent::PruneDb(0));
             let drained_txs =
-                drain_consecutive_accepted_txs(split_event(first_event), &mut event_queue);
+                drain_consecutive_accepted_txs(extract_contents(first_event), &mut event_queue);
             // We should drain events at index 0..499 (so 500 of them) plus the "first" event
             assert_eq!(drained_txs.len(), 501);
             assert_eq!(event_queue.len(), 501); // There should be 501 events in the queue - one prune and the remaining 500 accept txs
             for i in 0..501 {
-                assert_eq!(drained_txs[i as usize].0.confirmation.tx_number, i);
+                assert_eq!(
+                    drained_txs[i as usize].accepted_tx.confirmation.tx_number,
+                    i
+                );
             }
 
             // Drain the prune event
@@ -468,15 +394,18 @@ mod tests {
 
             // Drain the last half of the events and check correctness
             let drained_txs = drain_consecutive_accepted_txs(
-                split_event(create_accepted_tx_event(0)),
+                extract_contents(create_accepted_tx_event(0)),
                 &mut event_queue,
             );
             assert_eq!(drained_txs.len(), 501);
             assert_eq!(event_queue.len(), 0);
             let first_event_received = drained_txs.first().unwrap();
-            assert_eq!(first_event_received.0.confirmation.tx_number, 0);
+            assert_eq!(first_event_received.accepted_tx.confirmation.tx_number, 0);
             for i in 1..501 {
-                assert_eq!(drained_txs[i as usize].0.confirmation.tx_number, i + 500);
+                assert_eq!(
+                    drained_txs[i as usize].accepted_tx.confirmation.tx_number,
+                    i + 500
+                );
             }
         }
     }
