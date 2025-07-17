@@ -111,10 +111,6 @@ fn fetch_root_hash_if_stale<S: Spec>(
     tracing::trace!(%latest_unbound, %slot_number, "Latest unbound slot number");
     // If the latest version is equal, it means this state root has already been computed.
     if latest_unbound >= slot_number {
-        tracing::debug!(
-            %latest_unbound,
-            %slot_number,
-            "Latest unbound slot number is greater than passed slot number, fetching root hash for passed slot number");
         let root = storage
             .get_root_hash_unbound(slot_number)
             .expect("Failed to get root hash");
