@@ -55,7 +55,7 @@ pub struct Version0<Call, S: Spec> {
     pub pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
     /// The runtime call of the transaction.
     #[sov_wallet(
-        bound = "Call: sov_rollup_interface::sov_universal_wallet::schema::SchemaGenerator"
+        bound = "Call: sov_rollup_interface::sov_universal_wallet::schema::UniversalWallet"
     )]
     pub runtime_call: Call,
     /// The generation of the transaction (for uniqueness).

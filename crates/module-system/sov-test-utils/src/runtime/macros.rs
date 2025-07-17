@@ -107,8 +107,8 @@ macro_rules! generate_runtime_without_capabilities {
         impl<S> $crate::runtime::Runtime<S> for $id<S>
         where
             S: ::sov_modules_api::Spec,
-            ::sov_modules_api::transaction::Transaction::<Self, S>: $crate::sov_universal_wallet::schema::SchemaGenerator,
-            <Self as ::sov_modules_api::DispatchCall>::Decodable: $crate::sov_universal_wallet::schema::SchemaGenerator,
+            ::sov_modules_api::transaction::Transaction::<Self, S>: $crate::sov_universal_wallet::schema::UniversalWallet,
+            <Self as ::sov_modules_api::DispatchCall>::Decodable: $crate::sov_universal_wallet::schema::UniversalWallet,
             $($runtime_trait_impl_bounds)*
         {
             const CHAIN_HASH: [u8; 32] = [11; 32];

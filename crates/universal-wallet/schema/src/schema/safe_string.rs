@@ -4,7 +4,7 @@ use std::str::FromStr;
 use borsh::{BorshDeserialize, BorshSerialize};
 use thiserror::Error;
 
-use crate::schema::{IndexLinking, Item, Link, Primitive, Schema, SchemaGenerator};
+use crate::schema::{IndexLinking, Item, Link, Primitive, Schema, UniversalWallet};
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum SchemaStringError {
@@ -18,14 +18,14 @@ pub enum SchemaStringError {
 /// of a transaction without confusing the user. Only printable ASCII is allowed, and the length is
 /// limited.
 ///
-/// `SchemaGenerator` implementation is forbidden on `std::String` by default, to avoid the possibility
+/// `UniversalWallet` implementation is forbidden on `std::String` by default, to avoid the possibility
 /// of untrusted input supplying highly confusing text that tricks users into misunderstanding the
 /// transaction they are signing. `SafeString` enforces some constraints to mitigate this risk. If
 /// you need to encode a large data blob such as a hex string, use a `Vec<u8>` with the
 /// `[sov_wallet(display = "hex")]` attribute (or any of the other display styles). Avoid raw
 /// `String`s if possible.
 /// If an actual `String` is absolutely necessary, then a newtype wrapper can be used, on which
-/// `SchemaGenerator` is derived manually.
+/// `UniversalWallet` is derived manually.
 #[derive(
     Default, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, BorshSerialize, BorshDeserialize,
 )]
@@ -112,7 +112,7 @@ impl<const MAX_LEN: usize> FromStr for SizedSafeString<MAX_LEN> {
     }
 }
 
-impl<const MAX_LEN: usize> SchemaGenerator for SizedSafeString<MAX_LEN> {
+impl<const MAX_LEN: usize> UniversalWallet for SizedSafeString<MAX_LEN> {
     fn scaffold() -> Item<IndexLinking> {
         Item::Atom(Primitive::String)
     }

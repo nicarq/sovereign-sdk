@@ -9,7 +9,7 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_modules_macros::config_value_private;
-use sov_universal_wallet::schema::{Container, IndexLinking, Item, Link, Schema, SchemaGenerator};
+use sov_universal_wallet::schema::{Container, IndexLinking, Item, Link, Schema, UniversalWallet};
 use sov_universal_wallet::ty::{Tuple, UnnamedField};
 use thiserror::Error;
 
@@ -37,7 +37,7 @@ pub trait GasArray:
     + DeserializeOwned
     + BorshSerialize
     + BorshDeserialize
-    + SchemaGenerator
+    + UniversalWallet
     + From<[Self::Scalar; GAS_DIMENSIONS]>
     + Into<[Self::Scalar; GAS_DIMENSIONS]>
     + AsRef<[Self::Scalar; GAS_DIMENSIONS]>
@@ -128,10 +128,10 @@ pub struct GasUnit<const N: usize> {
     name: Option<String>,
 }
 
-impl<const N: usize> SchemaGenerator for GasUnit<N>
+impl<const N: usize> UniversalWallet for GasUnit<N>
 where
     Self: 'static,
-    [u64; N]: SchemaGenerator,
+    [u64; N]: UniversalWallet,
 {
     fn scaffold() -> Item<IndexLinking> {
         Item::Container(Container::Tuple(Tuple {

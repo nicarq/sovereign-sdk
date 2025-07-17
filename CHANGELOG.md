@@ -1,3 +1,7 @@
+# 2025-07-17
+
+- #3249 This PR renames the SchemaGenerator trait to UniversalWallet, so that the trait and the macro have the same name for better DevX.
+
 # 2025-07-11
 - #3208 Upgrades SP1 to `5.0.8` to have matching rust toolchain
 - #3234 Replaces `secp256k1` with `k256` for EVM related authentication.

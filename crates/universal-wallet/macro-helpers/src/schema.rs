@@ -94,16 +94,16 @@ impl ToTokens for Bounds {
     }
 }
 
-/// Derive the `SchemaGenerator` trait on an input type. See the actual proc-macro definition for
+/// Derive the `UniversalWallet` trait on an input type. See the actual proc-macro definition for
 /// usage information, including attributes; the code generation is documented here.
 ///
-/// The macro generates the `SchemaGenerator::scaffold()` and `SchemaGenerator::get_child_links()`
+/// The macro generates the `UniversalWallet::scaffold()` and `UniversalWallet::get_child_links()`
 /// methods on the trait. The scaffold is the Container corresponding to the data structure of
 /// the derived-on type, with the types of all child fields (if any) set as placeholder links.
 /// `get_child_links()` is what allows schema generation to recursively walk every child type and
 /// replace the placeholder links with a link to its corresponding schema.
 ///
-/// For struct types, the generation is relatively self-explanatory: an `impl SchemaGenerator` is
+/// For struct types, the generation is relatively self-explanatory: an `impl UniversalWallet` is
 /// emitted, containing the above two functions. However, enums are treated differently: any
 /// variants that themselves contain fields are treated as containing a virtual struct. A struct
 /// definition is then emitted, containing the actual data for that variant, with the proc macro
@@ -121,7 +121,7 @@ pub fn derive(
     Ok(res)
 }
 
-/// Collect the tokens to implement the return value of SchemaGenerator::get_child_links for a
+/// Collect the tokens to implement the return value of UniversalWallet::get_child_links for a
 /// struct type
 fn struct_child_links(
     input: &Fields<InputField>,
@@ -208,7 +208,7 @@ fn struct_child_templates(
                     vec![#(#templates),* ],
                     Self::get_child_links(#schema_arg),
                 ),
-                type_templates: <#ty as #prefix::sov_universal_wallet::schema::SchemaGenerator>::get_child_templates(schema)
+                type_templates: <#ty as #prefix::sov_universal_wallet::schema::UniversalWallet>::get_child_templates(schema)
             }
         })
     }).collect::<Result<Vec<_>, darling::Error>>()?;
@@ -222,7 +222,7 @@ fn struct_child_templates(
 }
 
 /// Collect the tokens to implement one of the links returned as part of
-/// SchemaGenerator::get_child_links for a single variant of an enum type
+/// UniversalWallet::get_child_links for a single variant of an enum type
 fn enum_variant_child_link(
     type_ident: &Ident,
     generics: &Generics,
@@ -230,7 +230,7 @@ fn enum_variant_child_link(
 ) -> TokenStream {
     let ty_generics = generics.split_for_impl().1;
     quote! {
-        <#type_ident #ty_generics as #prefix::sov_universal_wallet::schema::SchemaGenerator>::make_linkable(schema)
+        <#type_ident #ty_generics as #prefix::sov_universal_wallet::schema::UniversalWallet>::make_linkable(schema)
     }
 }
 
@@ -247,7 +247,7 @@ fn enum_variant_child_templates(
     let ty_generics = generics.split_for_impl().1;
     let type_name = type_ident.to_string();
     quote! {
-        <#type_ident #ty_generics as #prefix::sov_universal_wallet::schema::SchemaGenerator>::get_child_templates(schema).filter_enum_variant_templates(vec![ #(#filter.to_string()),* ], #inherit, #type_name)
+        <#type_ident #ty_generics as #prefix::sov_universal_wallet::schema::UniversalWallet>::get_child_templates(schema).filter_enum_variant_templates(vec![ #(#filter.to_string()),* ], #inherit, #type_name)
     }
 }
 
@@ -312,11 +312,11 @@ fn generate_where_clause_simple_field_bound(
     prefix: &Option<syn::TypePath>,
 ) -> WherePredicate {
     syn::parse_quote! {
-        #ty_tokens: #prefix::sov_universal_wallet::schema::SchemaGenerator
+        #ty_tokens: #prefix::sov_universal_wallet::schema::UniversalWallet
     }
 }
 
-/// Main macro functionality. Implements the SchemaGenerator trait on the given type, by
+/// Main macro functionality. Implements the UniversalWallet trait on the given type, by
 /// a) generating a scaffold containing Link::Placeholder links for every child,
 /// b) collecting the types of every Placeholder child, in order, in get_child_links(), and
 /// c) collecting any template construction information from attribute annotations (if any) into
@@ -504,7 +504,7 @@ fn derive_wallet_field(
 
     let schema = quote! {
         #[automatically_derived]
-        impl #impl_generics #prefix::sov_universal_wallet::schema::SchemaGenerator for #ident #ty_generics #where_clause {
+        impl #impl_generics #prefix::sov_universal_wallet::schema::UniversalWallet for #ident #ty_generics #where_clause {
             fn scaffold() -> #prefix::sov_universal_wallet::schema::Item::<#prefix::sov_universal_wallet::schema::IndexLinking> {
                 #container
             }
@@ -961,7 +961,7 @@ impl InputField {
             }
         } else {
             quote! {
-                <#ty as #crate_prefix::sov_universal_wallet::schema::SchemaGenerator>::make_linkable(schema)
+                <#ty as #crate_prefix::sov_universal_wallet::schema::UniversalWallet>::make_linkable(schema)
             }
         }
     }

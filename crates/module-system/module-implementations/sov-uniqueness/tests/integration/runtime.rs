@@ -2,7 +2,7 @@ use sov_address::{EthereumAddress, FromVmAddress, MultiAddressEvm};
 use sov_evm::{Evm, EvmAuthenticatorInput};
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::configurable_spec::ConfigurableSpec;
-use sov_modules_api::sov_universal_wallet::schema::SchemaGenerator;
+use sov_modules_api::sov_universal_wallet::schema::UniversalWallet;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{RawTx, Spec};
 use sov_rollup_interface::execution_mode::Native;
@@ -28,7 +28,7 @@ generate_runtime! {
 impl<S: Spec> sov_evm::EthereumAuthenticator<S> for TestNonceRuntime<S>
 where
     S::Address: FromVmAddress<EthereumAddress>,
-    Transaction<Self, S>: SchemaGenerator,
+    Transaction<Self, S>: UniversalWallet,
 {
     fn add_ethereum_auth(tx: RawTx) -> <Self::Auth as TransactionAuthenticator<S>>::Input {
         EvmAuthenticatorInput::Evm(tx)

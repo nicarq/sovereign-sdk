@@ -10,7 +10,7 @@ pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_universal_wallet::schema::SchemaGenerator;
+use sov_universal_wallet::schema::UniversalWallet;
 
 use crate::common::{HexHash, SlotNumber};
 
@@ -121,7 +121,7 @@ pub trait BasicAddress:
     + DeserializeOwned
     + BorshDeserialize
     + BorshSerialize
-    + SchemaGenerator
+    + UniversalWallet
     + MaybeArbitrary
     + JsonSchema
     + 'static

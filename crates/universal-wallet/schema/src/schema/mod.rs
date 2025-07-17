@@ -105,7 +105,7 @@ impl Debug for ConstructedMerkleTree {
 pub struct ItemId(pub TypeId);
 
 impl ItemId {
-    pub fn of<T: 'static + SchemaGenerator>() -> Self {
+    pub fn of<T: 'static + UniversalWallet>() -> Self {
         T::id_override().unwrap_or(ItemId(TypeId::of::<T>()))
     }
 }
@@ -136,8 +136,8 @@ pub struct ChainData {
 /// It is also serialisable and therefore, once generated for a rollup, can be imported and used with
 /// non-Rust languages, enabling toolkits in any language to implement the same functionality as above.
 ///
-/// A schema can be instantiated for any type that implements either `SchemaGenerator` or
-/// `OverrideSchema`. In turn, `SchemaGenerator` is intended to be automatically derived using the
+/// A schema can be instantiated for any type that implements either `UniversalWallet` or
+/// `OverrideSchema`. In turn, `UniversalWallet` is intended to be automatically derived using the
 /// `UniversalWallet` macro.
 #[derive(Default, Debug, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -212,7 +212,7 @@ pub struct Schema {
 impl Schema {
     /// Instantiate a schema for a single type.
     /// This root type will be at index 0
-    pub fn of_single_type<T: SchemaGenerator>() -> Result<Self, SchemaError> {
+    pub fn of_single_type<T: UniversalWallet>() -> Result<Self, SchemaError> {
         // TODO: this could easily be implemented with a macro for N types for any N >= 1, if ever needed
         let mut schema = Self::default();
         T::make_root_of(&mut schema);
@@ -226,10 +226,10 @@ impl Schema {
     /// order); they can also be queried using the `RollupRoots` enum through the `_rollup`-tagged
     /// functions on the schema
     pub fn of_rollup_types_with_chain_data<
-        Transaction: SchemaGenerator,
-        UnsignedTransaction: SchemaGenerator,
-        RuntimeCall: SchemaGenerator,
-        Address: SchemaGenerator,
+        Transaction: UniversalWallet,
+        UnsignedTransaction: UniversalWallet,
+        RuntimeCall: UniversalWallet,
+        Address: UniversalWallet,
     >(
         chain_data: ChainData,
     ) -> Result<Self, SchemaError> {
@@ -532,13 +532,13 @@ pub enum Item<L: LinkingScheme> {
 /// For complex types, this should typically be derived with a macro,
 /// rather than implemented by hand.
 /// This is also automatically implemented for all types implementing `OverrideSchema`.
-pub trait SchemaGenerator: Sized + 'static {
+pub trait UniversalWallet: Sized + 'static {
     /// Ensure that each type contained in the outer type (i.e. the type of each struct/tuple field) is added to the schema,
     /// and return a `Link` connecting the child to the parent.
     ///
-    /// Ideally, this function would return something like `Box<dyn SchemaGenerator>`.
+    /// Ideally, this function would return something like `Box<dyn UniversalWallet>`.
     /// Unfortunately, we need to return *types*, not instances (because we don't want to
-    /// add a `Default` bound on all types that implement SchemaGenerator) which Rustc doesn't like.
+    /// add a `Default` bound on all types that implement UniversalWallet) which Rustc doesn't like.
     /// So, we have a slightly messier signature where the type is expected to register each of its child
     /// types with the schema directly rather than returning them to the caller for future registration.
     fn get_child_links(schema: &mut Schema) -> Vec<Link>;
@@ -619,10 +619,10 @@ pub trait SchemaGenerator: Sized + 'static {
 /// Note that, for types to be considered equivalent in the schema, their borsh and JSON
 /// serialisations must both also be equivalent.
 pub trait OverrideSchema {
-    type Output: SchemaGenerator;
+    type Output: UniversalWallet;
 }
 
-impl<T: OverrideSchema + 'static> SchemaGenerator for T {
+impl<T: OverrideSchema + 'static> UniversalWallet for T {
     fn scaffold() -> Item<IndexLinking> {
         <Self as OverrideSchema>::Output::scaffold()
     }

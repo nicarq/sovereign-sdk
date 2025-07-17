@@ -2,7 +2,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::UniversalWallet;
-// use sov_modules_api::sov_universal_wallet::schema::SchemaGenerator;
+// use sov_modules_api::sov_universal_wallet::schema::UniversalWallet;
 use sov_modules_api::{
     BorshSerializedSize, Context, DaSpec, Error, EventEmitter, GenesisState, Module, ModuleId,
     ModuleInfo, ModuleRestApi, SafeString, Spec, StateValue, TxState,

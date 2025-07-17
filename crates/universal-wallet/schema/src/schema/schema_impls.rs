@@ -1,5 +1,5 @@
 #[doc(hidden)]
-// This module contains the implementations of the `SchemaGenerator` trait for all primitive types
+// This module contains the implementations of the `UniversalWallet` trait for all primitive types
 mod primitive_type_impls {
     extern crate alloc;
     use std::any::TypeId;
@@ -12,7 +12,7 @@ mod primitive_type_impls {
 
     use crate::schema::container::{Container, StructWithSerde};
     use crate::schema::{
-        IndexLinking, Item, Link, OverrideSchema, Primitive, Schema, SchemaGenerator,
+        IndexLinking, Item, Link, OverrideSchema, Primitive, Schema, UniversalWallet,
     };
     use crate::ty::{
         macro_for_ints, ByteDisplay, ContainerSerdeMetadata, FieldOrVariantSerdeMetadata,
@@ -21,7 +21,7 @@ mod primitive_type_impls {
 
     macro_rules! impl_for_int {
         ($t:ident) => {
-            impl SchemaGenerator for $t {
+            impl UniversalWallet for $t {
                 fn scaffold() -> Item<IndexLinking> {
                     Item::Atom(Primitive::Integer(IntegerType::$t, IntegerDisplay::Decimal))
                 }
@@ -41,7 +41,7 @@ mod primitive_type_impls {
         type Output = u32;
     }
 
-    impl SchemaGenerator for bool {
+    impl UniversalWallet for bool {
         fn scaffold() -> Item<IndexLinking> {
             Item::Atom(Primitive::Boolean)
         }
@@ -50,7 +50,7 @@ mod primitive_type_impls {
         }
     }
 
-    impl SchemaGenerator for f32 {
+    impl UniversalWallet for f32 {
         fn scaffold() -> Item<IndexLinking> {
             Item::Atom(Primitive::Float32)
         }
@@ -59,7 +59,7 @@ mod primitive_type_impls {
         }
     }
 
-    impl SchemaGenerator for f64 {
+    impl UniversalWallet for f64 {
         fn scaffold() -> Item<IndexLinking> {
             Item::Atom(Primitive::Float64)
         }
@@ -68,7 +68,7 @@ mod primitive_type_impls {
         }
     }
 
-    impl SchemaGenerator for () {
+    impl UniversalWallet for () {
         fn scaffold() -> Item<IndexLinking> {
             Item::Atom(Primitive::Skip { len: 0 })
         }
@@ -77,7 +77,7 @@ mod primitive_type_impls {
         }
     }
 
-    impl<T: 'static> SchemaGenerator for PhantomData<T> {
+    impl<T: 'static> UniversalWallet for PhantomData<T> {
         fn scaffold() -> Item<IndexLinking> {
             Item::Atom(Primitive::Skip { len: 0 })
         }
@@ -86,7 +86,7 @@ mod primitive_type_impls {
         }
     }
 
-    impl<T: SchemaGenerator> SchemaGenerator for Vec<T> {
+    impl<T: UniversalWallet> UniversalWallet for Vec<T> {
         fn get_child_links(schema: &mut Schema) -> Vec<Link> {
             vec![T::make_linkable(schema)]
         }
@@ -104,15 +104,15 @@ mod primitive_type_impls {
         }
     }
 
-    impl<T: SchemaGenerator> OverrideSchema for HashSet<T> {
+    impl<T: UniversalWallet> OverrideSchema for HashSet<T> {
         type Output = Vec<T>;
     }
 
-    impl<T: SchemaGenerator> OverrideSchema for BTreeSet<T> {
+    impl<T: UniversalWallet> OverrideSchema for BTreeSet<T> {
         type Output = Vec<T>;
     }
 
-    impl<const N: usize, T: SchemaGenerator> SchemaGenerator for [T; N] {
+    impl<const N: usize, T: UniversalWallet> UniversalWallet for [T; N] {
         fn get_child_links(schema: &mut Schema) -> Vec<Link> {
             vec![T::make_linkable(schema)]
         }
@@ -134,7 +134,7 @@ mod primitive_type_impls {
 
     macro_rules! impl_container_type {
         ($t:ident) => {
-            impl<T: SchemaGenerator> OverrideSchema for $t<T> {
+            impl<T: UniversalWallet> OverrideSchema for $t<T> {
                 type Output = T;
             }
         };
@@ -156,7 +156,7 @@ mod primitive_type_impls {
     }
     macro_rules! impl_tuple_type {
         ($($tts:tt),*) => {
-            impl<$($tts: SchemaGenerator + 'static,)*> SchemaGenerator for ($($tts,)*) {
+            impl<$($tts: UniversalWallet + 'static,)*> UniversalWallet for ($($tts,)*) {
                 fn scaffold() -> Item<IndexLinking> {
                     Item::Container(Container::Tuple(Tuple {
                         template: None,
@@ -187,7 +187,7 @@ mod primitive_type_impls {
     impl_tuple_type!(T1, T2, T3, T4, T5, T6, T7);
     impl_tuple_type!(T1, T2, T3, T4, T5, T6, T7, T8);
 
-    impl<T: SchemaGenerator> SchemaGenerator for Option<T> {
+    impl<T: UniversalWallet> UniversalWallet for Option<T> {
         fn scaffold() -> Item<IndexLinking> {
             Item::Container(Container::Option {
                 value: Link::Placeholder,
@@ -199,7 +199,7 @@ mod primitive_type_impls {
         }
     }
 
-    impl<K: SchemaGenerator, V: SchemaGenerator> SchemaGenerator for HashMap<K, V> {
+    impl<K: UniversalWallet, V: UniversalWallet> UniversalWallet for HashMap<K, V> {
         fn scaffold() -> Item<IndexLinking> {
             Item::Container(Container::Map {
                 key: Link::Placeholder,
@@ -212,11 +212,11 @@ mod primitive_type_impls {
         }
     }
 
-    impl<K: SchemaGenerator, V: SchemaGenerator> OverrideSchema for BTreeMap<K, V> {
+    impl<K: UniversalWallet, V: UniversalWallet> OverrideSchema for BTreeMap<K, V> {
         type Output = HashMap<K, V>;
     }
 
-    impl<T: SchemaGenerator> SchemaGenerator for Range<T> {
+    impl<T: UniversalWallet> UniversalWallet for Range<T> {
         fn scaffold() -> Item<IndexLinking> {
             Item::Container(Container::Struct(StructWithSerde {
                 ty: Struct {
@@ -258,7 +258,7 @@ mod primitive_type_impls {
     }
 
     #[cfg(feature = "arrayvec")]
-    impl<T: SchemaGenerator, const N: usize> OverrideSchema for arrayvec::ArrayVec<T, N> {
+    impl<T: UniversalWallet, const N: usize> OverrideSchema for arrayvec::ArrayVec<T, N> {
         type Output = Vec<T>;
     }
 }
