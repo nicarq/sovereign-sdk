@@ -239,6 +239,42 @@ impl<S: Spec> Token<S> {
         Ok(())
     }
 
+    pub(crate) fn update_admin(
+        &mut self,
+        new_admin: Option<S::Address>,
+        admin_to_replace: &S::Address,
+    ) -> anyhow::Result<()> {
+        // Check if the `admin_to_replace` is in the admin list.
+        let Some(current_admin_pos) = self.find_admin_index(admin_to_replace) else {
+            bail!(
+                "Cannot update admin: `{admin_to_replace}` is not in the admin list for the specified token {}",
+                self.name
+            );
+        };
+
+        if let Some(new_admin) = new_admin {
+            // The admin list is guaranteed to be unique at genesis.
+            // This logic preserves that invariant during updates.
+
+            // 1. If `new_admin` is already in the list, do nothing to avoid duplicates.
+            if self.find_admin_index(&new_admin).is_some() {
+                bail!("`{new_admin}` is already a member of the admin list.");
+            };
+
+            // 2. Replace the `admin_to_replace` with the `new_admin``.
+            self.admins[current_admin_pos] = TokenHolder::User(new_admin);
+        } else {
+            self.admins.remove(current_admin_pos);
+        }
+        Ok(())
+    }
+
+    fn find_admin_index(&self, admin: &S::Address) -> Option<usize> {
+        self.admins
+            .iter()
+            .position(|a| a.as_token_holder() == admin.as_token_holder())
+    }
+
     /// Mints a given `amount` of token sent by `sender` to the specified `mint_to_address`.
     /// Checks that the `admins` set is not empty for the token and that the `sender`
     /// is an `admin`. If so, update the balances of token for the `mint_to_address` by
@@ -300,9 +336,13 @@ pub(crate) fn unique_holders<S: Spec>(holders: &[TokenHolderRef<'_, S>]) -> Vec<
 mod tests {
     use std::str::FromStr;
 
+    use sov_modules_api::{Address, Amount};
     use sov_state::{BorshCodec, EncodeLike, StateItemEncoder};
 
-    use crate::{BalanceKey, TokenId};
+    use crate::token::Token;
+    use crate::{BalanceKey, TokenHolder, TokenId};
+
+    type S = sov_test_utils::TestSpec;
 
     #[test]
     fn test_balance_key_str_roundtrip() {
@@ -325,5 +365,84 @@ mod tests {
             BorshCodec.encode_like(&(key.0.clone(), &key.1)),
             BorshCodec.encode(&key)
         );
+    }
+
+    #[test]
+    fn test_update_admin() {
+        let old_admin = Address::new([22; 28]);
+        let new_admin = Address::new([99; 28]);
+
+        let mut token = Token {
+            name: "Test".to_string(),
+            total_supply: Amount::new(1000),
+            supply_cap: Amount::new(10000),
+            admins: vec![TokenHolder::<S>::User(old_admin)],
+        };
+
+        // Fail becouse new_admin = old_admin
+        assert!(token.update_admin(Some(old_admin), &old_admin).is_err());
+        // Fail: `new_admin` is not authorized to update the admin list as its not in it.
+        assert!(token.update_admin(Some(old_admin), &new_admin).is_err());
+        // Success
+        assert!(token.update_admin(Some(new_admin), &old_admin).is_ok());
+        assert_eq!(token.admins(), &[TokenHolder::<S>::User(new_admin)]);
+
+        assert!(token.update_admin(None, &old_admin).is_err());
+        assert!(token.update_admin(None, &new_admin).is_ok());
+        assert_eq!(token.admins(), &[]);
+    }
+
+    #[test]
+    fn test_update_admin_list() {
+        let admin_1 = TokenHolder::<S>::User(Address::new([11; 28]));
+        let admin_2 = TokenHolder::<S>::User(Address::new([22; 28]));
+        let admin_3 = TokenHolder::<S>::User(Address::new([33; 28]));
+
+        let old_admin_addr = Address::new([99; 28]);
+        let admins = vec![
+            admin_1.clone(),
+            TokenHolder::<S>::User(old_admin_addr),
+            admin_2.clone(),
+            admin_3.clone(),
+        ];
+
+        let new_admin_addr = Address::new([77; 28]);
+
+        let mut token = Token {
+            name: "Test".to_string(),
+            total_supply: Amount::new(1000),
+            supply_cap: Amount::new(10000),
+            admins,
+        };
+
+        // Fail: `new_admin` is the same as `old_admin_addr`, and duplicates are not allowed.
+        assert!(token
+            .update_admin(Some(old_admin_addr), &old_admin_addr)
+            .is_err());
+        // Fail: `new_admin` is not authorized to update the admin list.
+        assert!(token
+            .update_admin(Some(old_admin_addr), &new_admin_addr)
+            .is_err());
+
+        // Success: `old_admin_addr` successfully updates the admin list with `new_admin_addr`.
+        assert!(token
+            .update_admin(Some(new_admin_addr), &old_admin_addr)
+            .is_ok());
+
+        assert_eq!(
+            token.admins(),
+            &vec![
+                admin_1.clone(),
+                TokenHolder::<S>::User(new_admin_addr),
+                admin_2.clone(),
+                admin_3.clone()
+            ]
+        );
+
+        // Fail: `old_admin` has already been replaced by `new_admin`.
+        assert!(token.update_admin(None, &old_admin_addr).is_err());
+        // Success: `new_admin_addr` successfully removes itself from the admin list.
+        assert!(token.update_admin(None, &new_admin_addr).is_ok());
+        assert_eq!(token.admins(), &vec![admin_1, admin_2, admin_3]);
     }
 }

@@ -197,6 +197,43 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Updates the list of admins for a specified token.",
+      "type": "object",
+      "required": [
+        "update_admin"
+      ],
+      "properties": {
+        "update_admin": {
+          "type": "object",
+          "required": [
+            "token_id"
+          ],
+          "properties": {
+            "new_admin": {
+              "description": "The new admin address. If `None`, the current admin entry for the transaction sender will be removed.",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Address"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "token_id": {
+              "description": "The ID of the token whose admin list is being updated.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/TokenId"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

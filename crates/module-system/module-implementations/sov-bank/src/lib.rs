@@ -129,6 +129,13 @@ impl<S: Spec> Module for Bank<S> {
                 Ok(())
             }
             call::CallMessage::Freeze { token_id } => Ok(self.freeze(token_id, context, state)?),
+            call::CallMessage::UpdateAdmin {
+                new_admin,
+                token_id,
+            } => {
+                self.update_admin_address(new_admin, token_id, context, state)?;
+                Ok(())
+            }
         }
     }
 }

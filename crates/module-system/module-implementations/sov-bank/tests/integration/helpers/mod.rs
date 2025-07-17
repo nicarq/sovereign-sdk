@@ -20,6 +20,8 @@ pub struct TestData {
     pub token_id: TokenId,
     /// A user with a high token balance of [`Self::token_id`].
     pub user_high_token_balance: TestUser<S>,
+    /// Another user with a high token balance of [`Self::token_id`].
+    pub another_user_high_token_balance: TestUser<S>,
     /// A user with no token balance of [`Self::token_id`].
     pub user_no_token_balance: TestUser<S>,
     /// A user that can mint tokens. By default can mint the token whose id is [`Self::token_id`].
@@ -41,15 +43,15 @@ pub fn setup_with_custom_runtime(
 
     let genesis_config = HighLevelOptimisticGenesisConfig::generate()
         .add_accounts_with_default_balance(1)
-        .add_accounts_with_token(&token_name, true, 1, Amount::new(100_000));
+        .add_accounts_with_token(&token_name, true, 2, Amount::new(100_000));
 
     let user_no_token_balance = genesis_config.additional_accounts()[0].clone();
-
     assert!(user_no_token_balance.token_balance(&token_name).is_none());
 
     let mut token_users_vec = genesis_config.get_accounts_for_token(&token_name);
 
     let user_high_token_balance = token_users_vec.pop().unwrap();
+    let another_user_high_token_balance = token_users_vec.pop().unwrap();
     let minter = token_users_vec.pop().unwrap();
 
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
@@ -64,6 +66,7 @@ pub fn setup_with_custom_runtime(
             token_name,
             token_id,
             user_high_token_balance,
+            another_user_high_token_balance,
             minter,
             user_no_token_balance,
         },

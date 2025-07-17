@@ -7,4 +7,5 @@ mod helpers;
 mod init;
 mod mint_test;
 mod transfer_test;
+mod update_admin;
 mod wallet_test;

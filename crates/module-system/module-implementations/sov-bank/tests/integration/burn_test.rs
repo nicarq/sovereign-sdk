@@ -186,7 +186,7 @@ fn burn_more_than_deployed_tokens_fails() {
 
                 assert_eq!(
                     format!(
-                        "Total supply underflow when burning, supply=200000 is less than burn amount={to_burn}",
+                        "Total supply underflow when burning, supply=300000 is less than burn amount={to_burn}",
                     ),
                     message_2,
                     "The error message is incorrect"

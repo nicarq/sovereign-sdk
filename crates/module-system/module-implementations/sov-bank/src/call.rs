@@ -80,6 +80,14 @@ pub enum CallMessage<S: Spec> {
         /// Address of the token to be frozen
         token_id: TokenId,
     },
+    /// Updates the list of admins for a specified token.
+    UpdateAdmin {
+        /// The new admin address.
+        /// If `None`, the current admin entry for the transaction sender will be removed.
+        new_admin: Option<S::Address>,
+        /// The ID of the token whose admin list is being updated.
+        token_id: TokenId,
+    },
 }
 
 impl<S: Spec> Bank<S> {
@@ -415,6 +423,25 @@ impl<S: Spec> Bank<S> {
             },
         );
 
+        Ok(())
+    }
+
+    /// Updates the admin list with the specified `new_admin`.
+    /// If `new_admin` is `None`, the sender of the transaction is removed from the admin list.
+    pub fn update_admin_address(
+        &mut self,
+        new_address: Option<S::Address>,
+        token_id: TokenId,
+        context: &Context<S>,
+        state: &mut impl TxState<S>,
+    ) -> Result<()> {
+        let mut token = self
+            .tokens
+            .get_or_err(&token_id, state)?
+            .with_context(|| format!("Failed to get token_id={}", &token_id))?;
+
+        token.update_admin(new_address, context.sender())?;
+        self.tokens.set(&token_id, &token, state)?;
         Ok(())
     }
 }

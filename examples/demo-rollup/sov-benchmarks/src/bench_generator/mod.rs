@@ -217,7 +217,6 @@ mod tests {
 
     use demo_stf::genesis_config::EvmConfig;
     use sov_address::MultiAddress;
-    use sov_modules_api::prelude::strum::IntoEnumIterator;
     use sov_modules_api::Address;
     use sov_test_modules::access_pattern::AccessPatternGenesisConfig;
     use sov_test_utils::runtime::genesis::zk::config::{
@@ -239,9 +238,13 @@ mod tests {
     fn serialize_deserialize_works() {
         let bank_harness: BenchmarkModule<S> =
             Arc::new(BasicBankHarness::new(BankMessageGenerator::new(
-                Distribution::with_equiprobable_values(
-                    BankDiscriminants::iter().collect::<Vec<_>>(),
-                ),
+                Distribution::with_equiprobable_values(vec![
+                    BankDiscriminants::Transfer,
+                    BankDiscriminants::Burn,
+                    BankDiscriminants::Mint,
+                    BankDiscriminants::Freeze,
+                    BankDiscriminants::CreateToken,
+                ]),
                 Percent::one_hundred(),
             )));
 

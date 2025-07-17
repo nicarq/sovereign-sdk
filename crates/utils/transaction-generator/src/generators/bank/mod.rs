@@ -172,6 +172,12 @@ impl<S: Spec> BankMessageGenerator<S> {
             (CallMessageDiscriminants::Freeze, MessageValidity::Invalid) => {
                 Ok(self.generate_invalid_freeze(u, generator_state)?)
             }
+            (CallMessageDiscriminants::UpdateAdmin, MessageValidity::Valid) => {
+                todo!("https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/3235")
+            }
+            (CallMessageDiscriminants::UpdateAdmin, MessageValidity::Invalid) => {
+                todo!("https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/3235")
+            }
         }
     }
 }
