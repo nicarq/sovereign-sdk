@@ -207,7 +207,7 @@ async fn rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(finaliza
         .produce_n_blocks_now(10)
         .await
         .unwrap();
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     let mut current_height = get_height(&client).await.unwrap();
     let mut slot_subscription = test_rollup.client.client.subscribe_slots().await.unwrap();
@@ -215,14 +215,14 @@ async fn rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(finaliza
         test_rollup.da_service.produce_block_now().await.unwrap();
         slot_subscription.next().await;
         // We need to wait a bit so the new block is visible to the sequencer.
-        tokio::time::sleep(Duration::from_millis(300)).await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
         assert_rollup_processes_only_finalized_blocks(&client).await;
         current_height = get_height(&client).await.unwrap();
     }
 
     test_rollup.da_service.produce_block_now().await.unwrap();
     slot_subscription.next().await;
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     test_rollup
         .wait_for_rollup_to_shutdown(Duration::from_secs(1))
