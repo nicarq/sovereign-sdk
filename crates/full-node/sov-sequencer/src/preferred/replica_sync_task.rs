@@ -129,7 +129,10 @@ type PendingEventFuture = Pin<Box<dyn Future<Output = anyhow::Result<CompletedEv
 #[derive(Debug)]
 enum CompletedEvent {
     Event(DbEvent),
-    Backfill,
+    Backfill {
+        current_latest: Option<u64>,
+        target: u64
+    },
 }
 
 /// Background task for replica sequencers to sync state from the master sequencer's database.
@@ -452,12 +455,13 @@ where
 
         // Check for gaps and add backfill if needed
         if detect_gap(self.latest_received_event_id, parsed_notification.event_id).is_some() {
-            let backfill_future = create_backfill_future(
-                self.sequencer.clone(),
-                &self.query_pool,
-                self.latest_received_event_id,
-                parsed_notification.event_id,
-            );
+            let current_latest = self.latest_received_event_id;
+            let backfill_future: PendingEventFuture = Box::pin(async move {
+                Ok(CompletedEvent::Backfill {
+                    current_latest,
+                    target: parsed_notification.event_id
+                })
+            });
             futures.push(backfill_future);
         }
 
@@ -728,27 +732,6 @@ fn create_event_future(
     }
 }
 
-/// Creates a future for backfilling a gap in events using existing backfill logic
-fn create_backfill_future<S, Rt, Da>(
-    sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
-    query_pool: &PgPool,
-    current_latest: Option<u64>,
-    target_event_id: u64,
-) -> PendingEventFuture
-where
-    S: Spec,
-    Rt: Runtime<S>,
-    Da: DaService<Spec = S::Da>,
-{
-    let sequencer = sequencer.clone();
-    let pool = query_pool.clone();
-
-    Box::pin(async move {
-        backfill_to_event_id(sequencer.clone(), &pool, current_latest, target_event_id).await?;
-        Ok(CompletedEvent::Backfill)
-    })
-}
-
 /// Processes a completed DB event
 async fn process_completed_event<S, Rt, Da>(
     sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
@@ -781,8 +764,8 @@ where
             }
             DbEvent::Flushed(_) => Ok(()),
         },
-        CompletedEvent::Backfill => {
-            debug!("Backfill completed up to event_id");
+        CompletedEvent::Backfill{ current_latest, target } => {
+            backfill_to_event_id(sequencer.clone(), &query_pool, current_latest, target).await?;
             Ok(())
         }
     }
