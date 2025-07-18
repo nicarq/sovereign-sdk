@@ -150,7 +150,9 @@ use dispatch::hooks::HooksMacro;
 use dispatch::message_codec::MessageCodec;
 use event::EventMacro;
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, DeriveInput};
+use syn::parse::Parser;
+use syn::punctuated::Punctuated;
+use syn::{parse_macro_input, DeriveInput, Path, Token};
 
 // Inputs to the [`config_value`](crate::config_value) proc-macro.
 /// Returns the name of the function that invoked the proc-macro.
@@ -242,6 +244,53 @@ pub fn codec(input: TokenStream) -> TokenStream {
     let codec_macro = MessageCodec::new("MessageCodec");
 
     handle_macro_error_and_expand(fn_name!(), codec_macro.derive_message_codec(input))
+}
+
+/// A convenience macro that adds serialization-related derives and attributes.
+/// It takes `Borsh` and/or `Serde` as arguments to generate the appropriate implementations.
+///
+/// ## Example
+/// ```rust,ignore
+/// #[serialize(Borsh, Serde)]
+/// #[derive(Debug, PartialEq, Eq, Clone)]
+/// pub enum MyMessage {
+///   // ...
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn serialize(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = match Punctuated::<Path, Token![,]>::parse_terminated.parse(attr) {
+        Ok(args) => args,
+        Err(err) => return err.to_compile_error().into(),
+    };
+    let ast = parse_macro_input!(item as DeriveInput);
+
+    let mut borsh_derives = quote::quote! {};
+    let mut serde_derives = quote::quote! {};
+
+    for arg in args {
+        if arg.is_ident("Borsh") {
+            borsh_derives =
+                quote::quote! { #[derive(borsh::BorshDeserialize, borsh::BorshSerialize)] };
+        } else if arg.is_ident("Serde") {
+            serde_derives = quote::quote! {
+                #[derive(serde::Serialize, serde::Deserialize)]
+            };
+        } else if let Some(ident) = arg.get_ident() {
+            let err_msg = format!("Unsupported serialization format: `{ident}`. Supported formats are `Borsh` and `Serde`.");
+            return syn::Error::new_spanned(arg, err_msg)
+                .to_compile_error()
+                .into();
+        }
+    }
+
+    let expanded = quote::quote! {
+        #borsh_derives
+        #serde_derives
+        #ast
+    };
+
+    expanded.into()
 }
 
 #[proc_macro]

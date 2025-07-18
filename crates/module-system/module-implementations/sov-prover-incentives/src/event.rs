@@ -1,14 +1,7 @@
+use sov_modules_api::macros::serialize;
 use sov_modules_api::{Amount, Spec};
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Clone,
-    derive_more::Display,
-)]
+#[derive(Debug, PartialEq, Clone, derive_more::Display)]
+#[serialize(Borsh, Serde)]
 #[serde(rename_all = "snake_case")]
 /// Reasons for slashing a prover
 pub enum SlashingReason {
@@ -42,15 +35,8 @@ pub enum SlashingReason {
     IncorrectFinalSlotHash,
 }
 
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Clone,
-)]
+#[derive(Debug, PartialEq, Clone)]
+#[serialize(Borsh, Serde)]
 #[serde(rename_all = "snake_case")]
 /// The reasons for penalizing a prover
 pub enum PenalizationReason {
@@ -58,16 +44,8 @@ pub enum PenalizationReason {
     ProofAlreadyProcessed,
 }
 
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Clone,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, PartialEq, Clone, schemars::JsonSchema)]
+#[serialize(Borsh, Serde)]
 #[serde(rename_all = "snake_case")]
 /// Events for prover incentives
 pub enum Event<S: Spec> {

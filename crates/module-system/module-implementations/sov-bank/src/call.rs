@@ -1,6 +1,6 @@
 use anyhow::{bail, Context as _, Result};
 use schemars::JsonSchema;
-use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::macros::{serialize, UniversalWallet};
 use sov_modules_api::{
     Context, EventEmitter, SafeString, SafeVec, Spec, StateAccessor, StateReader, TxState,
 };
@@ -16,20 +16,8 @@ use crate::{Amount, Bank, Coins, Token, TokenId};
 pub const MAX_ADMINS: usize = 20;
 
 /// This enumeration represents the available call messages for interacting with the sov-bank module.
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    JsonSchema,
-    EnumDiscriminants,
-    EnumIs,
-    UniversalWallet,
-)]
+#[derive(Debug, PartialEq, Eq, Clone, JsonSchema, UniversalWallet, EnumDiscriminants, EnumIs)]
+#[serialize(Borsh, Serde)]
 #[schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "CallMessage")]
 #[serde(rename_all = "snake_case")]
 #[strum_discriminants(derive(VariantArray, EnumIs, EnumIter))]

@@ -1,28 +1,16 @@
 use core::result::Result::Ok;
 use std::fmt::Debug;
 
-use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
-use serde::{Deserialize, Serialize};
-use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::macros::{serialize, UniversalWallet};
 use thiserror::Error;
 use tracing::error;
 
 use crate::Amount;
 
 /// This enumeration represents the available call messages for interacting with the `AttesterIncentives` module.
-#[derive(
-    Derivative,
-    BorshDeserialize,
-    BorshSerialize,
-    Serialize,
-    Deserialize,
-    Clone,
-    PartialEq,
-    Eq,
-    schemars::JsonSchema,
-    UniversalWallet,
-)]
+#[derive(Derivative, Clone, PartialEq, Eq, schemars::JsonSchema, UniversalWallet)]
+#[serialize(Borsh, Serde)]
 #[serde(rename_all = "snake_case")]
 pub enum CallMessage {
     /// Register an attester, the parameter is the bond amount
@@ -55,19 +43,8 @@ impl Debug for CallMessage {
     }
 }
 
-#[derive(
-    Debug,
-    Error,
-    PartialEq,
-    Eq,
-    BorshDeserialize,
-    BorshSerialize,
-    Clone,
-    Copy,
-    Serialize,
-    Deserialize,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, Error, PartialEq, Eq, Clone, Copy, schemars::JsonSchema)]
+#[serialize(Borsh, Serde)]
 #[serde(rename_all = "snake_case")]
 /// Error type that explains why a user is slashed
 pub enum SlashingReason {

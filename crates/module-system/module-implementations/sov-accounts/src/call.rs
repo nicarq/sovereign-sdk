@@ -1,24 +1,14 @@
 use anyhow::{anyhow, Result};
 use schemars::JsonSchema;
-use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::macros::{serialize, UniversalWallet};
 use sov_modules_api::{Context, CredentialId, Spec, StateReader, TxState};
 use sov_state::namespaces::User;
 
 use crate::{Account, Accounts};
 
 /// Represents the available call messages for interacting with the sov-accounts module.
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    JsonSchema,
-    UniversalWallet,
-)]
+#[derive(Debug, PartialEq, Eq, Clone, JsonSchema, UniversalWallet)]
+#[serialize(Borsh, Serde)]
 #[serde(rename_all = "snake_case")]
 pub enum CallMessage {
     /// Inserts a new credential id for the corresponding Account.

@@ -1,23 +1,12 @@
-use borsh::{BorshDeserialize, BorshSerialize};
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use sov_bank::TokenId;
-use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::macros::{serialize, UniversalWallet};
 use sov_modules_api::Spec;
 
 /// Call messages for the revenue share module
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    BorshDeserialize,
-    BorshSerialize,
-    Serialize,
-    Deserialize,
-    JsonSchema,
-    UniversalWallet,
-    Eq,
-)]
+#[derive(Debug, Clone, PartialEq, JsonSchema, UniversalWallet, Eq)]
+#[serialize(Borsh, Serde)]
+#[serde(rename_all = "snake_case")]
 pub enum CallMessage<S: Spec> {
     /// Activate revenue sharing (admin only)
     ActivateRevenueShare,

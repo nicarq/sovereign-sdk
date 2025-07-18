@@ -505,6 +505,26 @@ pub mod macros {
     /// ```
     #[cfg(feature = "native")]
     pub use sov_modules_macros::rpc_gen;
+    /// A convenience attribute macro that adds serialization-related derives.
+    /// It takes `Borsh` and/or `Serde` as arguments to generate the appropriate implementations.
+    ///
+    /// The macro generates the following for each argument:
+    /// - `Borsh`: `#[derive(borsh::BorshDeserialize, borsh::BorshSerialize)]`
+    /// - `Serde`: `#[derive(serde::Serialize, serde::Deserialize)]`
+    ///
+    /// ## Example
+    /// ```rust
+    /// use sov_modules_api::macros::serialize;
+    ///
+    /// #[serialize(Borsh, Serde)]
+    /// #[derive(Debug, PartialEq)] // Other derives are still needed
+    /// pub enum MyMessage {
+    ///     One,
+    ///     Two(u32),
+    ///     Three { data: Vec<u8> }
+    /// }
+    /// ```
+    pub use sov_modules_macros::serialize;
     /// Implements the `sov_modules_api::CliWallet` trait for the annotated runtime.
     /// Under the hood, this macro generates an enum called `CliTransactionParser` which derives the [`clap::Parser`] trait.
     /// This enum has one variant for each field of the `Runtime`, and uses the `sov_modules_api::CliWalletArg` trait to parse the

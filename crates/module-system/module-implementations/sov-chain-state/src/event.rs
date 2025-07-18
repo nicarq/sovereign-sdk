@@ -1,13 +1,8 @@
+use sov_modules_api::macros::serialize;
+
 /// Sample Event
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Clone,
-)]
+#[derive(Debug, PartialEq, Clone)]
+#[serialize(Borsh, Serde)]
 #[serde(rename_all = "snake_case")]
 pub enum Event {
     /// Sample event variant 1

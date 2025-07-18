@@ -1,16 +1,9 @@
+use sov_modules_api::macros::serialize;
 use sov_modules_api::{Amount, Spec};
 
 /// Sample Event
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Clone,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, PartialEq, Clone, schemars::JsonSchema)]
+#[serialize(Borsh, Serde)]
 #[serde(rename_all = "snake_case")]
 pub enum Event<S: Spec> {
     /// A sequencer was registered.

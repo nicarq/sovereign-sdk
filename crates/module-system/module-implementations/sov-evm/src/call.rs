@@ -3,7 +3,7 @@ use reth_primitives::revm_primitives::{
 };
 use reth_primitives::TransactionSigned;
 use sov_address::{EthereumAddress, FromVmAddress};
-use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::macros::{serialize, UniversalWallet};
 use sov_modules_api::{Context, Spec, TxState};
 
 use crate::conversions::convert_to_transaction_signed;
@@ -14,18 +14,8 @@ use crate::evm::{EvmChainConfig, RlpEvmTransaction};
 use crate::{Evm, PendingTransaction, SpecId};
 
 /// EVM call message.
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    schemars::JsonSchema,
-    UniversalWallet,
-)]
+#[derive(Debug, PartialEq, Eq, Clone, schemars::JsonSchema, UniversalWallet)]
+#[serialize(Borsh, Serde)]
 pub struct CallMessage {
     /// RLP encoded transaction.
     pub rlp: RlpEvmTransaction,

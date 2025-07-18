@@ -1,5 +1,5 @@
-use borsh::{BorshDeserialize, BorshSerialize};
 use schemars::JsonSchema;
+use sov_modules_api::macros::serialize;
 use sov_modules_api::{DaSpec, Spec};
 
 use crate::PayeePolicy;
@@ -11,16 +11,8 @@ use crate::PayeePolicy;
 /// default policies for a payer and/or the list of allowed sequencer/updaters
 /// are not currently emitted as events since those values can be directly observed from
 /// the API by just querying the policy for a particular payer.
-#[derive(
-    serde::Serialize,
-    serde::Deserialize,
-    BorshDeserialize,
-    BorshSerialize,
-    Debug,
-    PartialEq,
-    Clone,
-    JsonSchema,
-)]
+#[derive(Debug, PartialEq, Clone, JsonSchema)]
+#[serialize(Borsh, Serde)]
 #[serde(bound = "S: Spec", rename_all = "snake_case")]
 #[schemars(bound = "S: Spec", rename = "Event")]
 pub enum Event<S: Spec> {

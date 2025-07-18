@@ -1,11 +1,9 @@
 use std::fmt::Debug;
 
 use anyhow::Result;
-use borsh::{BorshDeserialize, BorshSerialize};
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use sov_bank::BurnRate;
-use sov_modules_api::macros::{config_value, UniversalWallet};
+use sov_modules_api::macros::{config_value, serialize, UniversalWallet};
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
 use sov_modules_api::{Amount, EventEmitter, Spec, StateAccessor, StateReader, TxState};
 use sov_state::User;
@@ -14,18 +12,8 @@ use thiserror::Error;
 use crate::{Event, ProverIncentives};
 
 /// This enumeration represents the available call messages for interacting with the `ExampleModule` module.
-#[derive(
-    Clone,
-    Serialize,
-    Deserialize,
-    BorshDeserialize,
-    BorshSerialize,
-    Debug,
-    PartialEq,
-    Eq,
-    UniversalWallet,
-    JsonSchema,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, UniversalWallet, JsonSchema)]
+#[serialize(Borsh, Serde)]
 #[serde(rename_all = "snake_case")]
 // TODO: allow call messages to borrow data
 //     https://github.com/Sovereign-Labs/sovereign-sdk/issues/274

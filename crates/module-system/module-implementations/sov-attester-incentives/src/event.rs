@@ -1,19 +1,12 @@
 use sov_bank::Amount;
+use sov_modules_api::macros::serialize;
 use sov_modules_api::Spec;
 
 use crate::SlashingReason;
 
 /// Events for attester incentives
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Clone,
-    schemars::JsonSchema,
-)]
+#[derive(Debug, PartialEq, Clone, schemars::JsonSchema)]
+#[serialize(Borsh, Serde)]
 #[serde(rename_all = "snake_case")]
 pub enum Event<S: Spec> {
     /// Event for User Slashed

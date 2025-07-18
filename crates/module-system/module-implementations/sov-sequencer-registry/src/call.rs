@@ -1,6 +1,6 @@
 use schemars::JsonSchema;
 use sov_bank::{Amount, IntoPayable};
-use sov_modules_api::macros::{config_value, UniversalWallet};
+use sov_modules_api::macros::{config_value, serialize, UniversalWallet};
 use sov_modules_api::registration_lib::RegistrationError;
 use sov_modules_api::{Context, DaSpec, EventEmitter, ModuleInfo, Spec, TxState};
 
@@ -15,20 +15,10 @@ use crate::{
     feature = "arbitrary",
     derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
 )]
-#[derive(
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
-    serde::Serialize,
-    serde::Deserialize,
-    JsonSchema,
-    UniversalWallet,
-)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, PartialEq, Eq, Clone, JsonSchema, UniversalWallet)]
+#[serialize(Borsh, Serde)]
 #[schemars(bound = "S: Spec", rename = "CallMessage")]
+#[serde(rename_all = "snake_case")]
 pub enum CallMessage<S: Spec> {
     /// Add a new sequencer to the sequencer registry.
     Register {
