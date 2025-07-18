@@ -41,22 +41,22 @@ async fn flaky_tests_sequencer_stops_if_stop_at_height_too_small() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn tests_sequencer_does_not_accept_tx_after_stop_immediate_finality() {
+async fn flaky_tests_sequencer_does_not_accept_tx_after_stop_immediate_finality() {
     sequencer_does_not_accept_tx_after_stop(0).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn tests_sequencer_does_not_accept_tx_after_stop() {
+async fn flaky_tests_sequencer_does_not_accept_tx_after_stop() {
     sequencer_does_not_accept_tx_after_stop(TEST_FINALIZATION_BLOCKS).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_rollup_operates_only_on_finalized_blocks_if_stop_at_immediate_finality() {
+async fn flaky_test_rollup_operates_only_on_finalized_blocks_if_stop_at_immediate_finality() {
     rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(0).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_rollup_operates_only_on_finalized_blocks_if_stop_at_height_set() {
+async fn flaky_test_rollup_operates_only_on_finalized_blocks_if_stop_at_height_set() {
     rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(TEST_FINALIZATION_BLOCKS).await;
 }
 
