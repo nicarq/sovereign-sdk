@@ -9,9 +9,21 @@ use crate::SequencerRegistry;
 ///
 /// This `struct` must be passed as an argument to
 /// [`Module::genesis`](sov_modules_api::Module::genesis).
-///
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, JsonSchema)]
 #[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
+#[schemars(
+    bound = "S: sov_modules_api::Spec, <S::Da as DaSpec>::Address: JsonSchema",
+    rename = "SequencerRegistryConfig"
+)]
+pub struct SequencerRegistryConfig<S: Spec> {
+    /// Registration will fail if the sequencer bonds less than this amount.
+    pub minimum_bond: Amount,
+    /// The initial configuration for the sequencer.
+    pub sequencer_config: SequencerConfig<S>,
+}
+
+/// The initial sequencer config.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, JsonSchema)]
 #[schemars(
     bound = "S: sov_modules_api::Spec, <S::Da as DaSpec>::Address: JsonSchema",
     rename = "SequencerConfig"
@@ -37,6 +49,10 @@ impl<S: Spec> SequencerRegistry<S> {
         config: &<Self as sov_modules_api::Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
+        self.minimum_bond.set(&config.minimum_bond, state)?;
+
+        let config = &config.sequencer_config;
+
         tracing::info!(
             sequencer_rollup_address = %config.seq_rollup_address,
             sequencer_da_address = %config.seq_da_address,

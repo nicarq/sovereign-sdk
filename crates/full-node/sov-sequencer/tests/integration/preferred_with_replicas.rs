@@ -51,7 +51,11 @@ async fn create_test_rollups(
     (
         new_test_rollup::<TestRuntime<TestSpec>>(
             dir.clone(),
-            genesis_params.runtime.sequencer_registry.seq_da_address,
+            genesis_params
+                .runtime
+                .sequencer_registry
+                .sequencer_config
+                .seq_da_address,
             genesis_params,
             0,
             true,

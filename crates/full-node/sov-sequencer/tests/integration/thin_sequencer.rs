@@ -47,6 +47,7 @@ async fn test_thin_direct_same_transactions() {
     genesis_params
         .runtime
         .sequencer_registry
+        .sequencer_config
         .is_preferred_sequencer = false;
 
     let test_rollup = RollupBuilder::<TestBlueprint>::new(

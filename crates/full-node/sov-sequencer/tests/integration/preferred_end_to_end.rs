@@ -228,7 +228,11 @@ async fn create_test_rollup(
     (
         new_test_rollup::<TestRuntime<TestSpec>>(
             dir.clone(),
-            genesis_params.runtime.sequencer_registry.seq_da_address,
+            genesis_params
+                .runtime
+                .sequencer_registry
+                .sequencer_config
+                .seq_da_address,
             genesis_params,
             minimum_profit_per_tx,
             true,
@@ -375,7 +379,11 @@ async fn sequencer_filled_up_block() {
 
     let Some(test_rollups) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
-        genesis_params.runtime.sequencer_registry.seq_da_address,
+        genesis_params
+            .runtime
+            .sequencer_registry
+            .sequencer_config
+            .seq_da_address,
         genesis_params,
         0,
         true,
@@ -828,7 +836,11 @@ async fn seq_out_of_gas_for_pre_checks() {
 
     let Some(test_rollups) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
-        genesis_params.runtime.sequencer_registry.seq_da_address,
+        genesis_params
+            .runtime
+            .sequencer_registry
+            .sequencer_config
+            .seq_da_address,
         genesis_params,
         0,
         true,
@@ -1339,7 +1351,11 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
 
     let Some(test_rollups) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
-        genesis_params.runtime.sequencer_registry.seq_da_address,
+        genesis_params
+            .runtime
+            .sequencer_registry
+            .sequencer_config
+            .seq_da_address,
         genesis_params,
         0,
         true,
@@ -1774,7 +1790,12 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
             .unwrap(),
     ));
     let test_rollup = {
-        let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
+        let sequencer_addr = genesis_params
+            .runtime
+            .sequencer_registry
+            .sequencer_config
+            .seq_da_address;
+
         RollupBuilder::<TestBlueprint>::new(
             GenesisSource::CustomParams(genesis_params),
             BlockProducingConfig::Manual, // Use manual block production to be sure that the changes are happening in the sequencer only, not the node.
@@ -2108,7 +2129,11 @@ async fn visible_hashes_match_across_node_and_sequencer() {
             .unwrap(),
     ));
     let test_rollup = {
-        let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
+        let sequencer_addr = genesis_params
+            .runtime
+            .sequencer_registry
+            .sequencer_config
+            .seq_da_address;
         RollupBuilder::<TestBlueprint>::new(
             GenesisSource::CustomParams(genesis_params),
             BlockProducingConfig::Manual, // Use manual block production to be sure that the changes are happening in the sequencer only, not the node.
@@ -2258,7 +2283,11 @@ async fn heavy_blob_submission_long_delay() {
 
     let Some(test_rollups) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
-        genesis_params.runtime.sequencer_registry.seq_da_address,
+        genesis_params
+            .runtime
+            .sequencer_registry
+            .sequencer_config
+            .seq_da_address,
         genesis_params,
         0,
         true,
@@ -2365,7 +2394,11 @@ async fn flaky_test_hooks_state_is_visible() {
             .unwrap(),
     ));
     let test_rollup = {
-        let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
+        let sequencer_addr = genesis_params
+            .runtime
+            .sequencer_registry
+            .sequencer_config
+            .seq_da_address;
         RollupBuilder::<TestBlueprint>::new(
             GenesisSource::CustomParams(genesis_params),
             BlockProducingConfig::Manual, // Use manual block production to be sure that the changes are happening in the sequencer only, not the node.
@@ -2723,7 +2756,11 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
 
     let Some(test_rollups) = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
-        genesis_params.runtime.sequencer_registry.seq_da_address,
+        genesis_params
+            .runtime
+            .sequencer_registry
+            .sequencer_config
+            .seq_da_address,
         genesis_params,
         0,
         false,

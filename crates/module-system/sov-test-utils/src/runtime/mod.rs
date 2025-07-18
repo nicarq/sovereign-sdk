@@ -39,7 +39,7 @@ pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
-pub use sov_sequencer_registry::{self, SequencerConfig, SequencerRegistry};
+pub use sov_sequencer_registry::{self, SequencerRegistry, SequencerRegistryConfig};
 use sov_state::{DefaultStorageSpec, Storage, StorageProof};
 pub use sov_uniqueness::Uniqueness;
 pub use sov_value_setter::{
@@ -474,6 +474,7 @@ where
 
         let sequencer_da_address =
             <RT as MinimalGenesis<S>>::sequencer_registry_config(&genesis_config.runtime)
+                .sequencer_config
                 .seq_da_address;
 
         let stf_state = storage_manager.create_prover_storage();

@@ -133,6 +133,10 @@ pub struct SequencerRegistry<S: Spec> {
     /// So this sequencer can guarantee soft confirmation time for transactions
     #[state]
     pub(crate) preferred_sequencer: StateValue<<S::Da as DaSpec>::Address>,
+
+    /// Minimum bond for the sequencer to be registered.
+    #[state]
+    pub(crate) minimum_bond: StateValue<Amount>,
 }
 
 /// A special error type that can be raised when calling a method from the sequencer registry
@@ -179,7 +183,7 @@ pub type SequencerRegistryError<S: Spec, ST: StateAccessor> = RegistrationError<
 impl<S: Spec> Module for SequencerRegistry<S> {
     type Spec = S;
 
-    type Config = SequencerConfig<S>;
+    type Config = SequencerRegistryConfig<S>;
 
     type CallMessage = CallMessage<S>;
 

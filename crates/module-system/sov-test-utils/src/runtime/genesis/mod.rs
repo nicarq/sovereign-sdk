@@ -9,14 +9,14 @@ use sov_modules_api::{
 };
 use sov_operator_incentives::{OperatorIncentives, OperatorIncentivesConfig};
 use sov_prover_incentives::ProverIncentives;
-use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
+use sov_sequencer_registry::{SequencerConfig, SequencerRegistry, SequencerRegistryConfig};
 use sov_uniqueness::Uniqueness;
 
 use crate::interface::AsUser;
 use crate::runtime::TokenId;
 use crate::{
     TestSequencer, TestSpec, TestUser, UserTokenInfo, TEST_DEFAULT_USER_BALANCE,
-    TEST_DEFAULT_USER_STAKE,
+    TEST_DEFAULT_USER_STAKE, TEST_MIN_SEQ_BOND,
 };
 
 /// Utilities for testing a runtime in the optimistic execution context.
@@ -83,12 +83,15 @@ pub struct BasicGenesisConfig<S: Spec> {
 }
 
 impl<S: Spec> BasicGenesisConfig<S> {
-    fn sequencer_registry(initial_sequencer: &TestSequencer<S>) -> SequencerConfig<S> {
-        SequencerConfig {
-            seq_rollup_address: initial_sequencer.as_user().address().clone(),
-            seq_da_address: initial_sequencer.da_address.clone(),
-            seq_bond: initial_sequencer.bond,
-            is_preferred_sequencer: true,
+    fn sequencer_registry(initial_sequencer: &TestSequencer<S>) -> SequencerRegistryConfig<S> {
+        SequencerRegistryConfig {
+            minimum_bond: TEST_MIN_SEQ_BOND,
+            sequencer_config: SequencerConfig {
+                seq_rollup_address: initial_sequencer.as_user().address().clone(),
+                seq_da_address: initial_sequencer.da_address.clone(),
+                seq_bond: initial_sequencer.bond,
+                is_preferred_sequencer: true,
+            },
         }
     }
 

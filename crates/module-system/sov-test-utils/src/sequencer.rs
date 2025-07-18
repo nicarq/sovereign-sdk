@@ -99,7 +99,10 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
             value_setter_config,
             paymaster_config,
         );
-        let sequencer_rollup_address = genesis_config.sequencer_registry.seq_rollup_address;
+        let sequencer_rollup_address = genesis_config
+            .sequencer_registry
+            .sequencer_config
+            .seq_rollup_address;
 
         let params = GenesisParams {
             runtime: genesis_config,

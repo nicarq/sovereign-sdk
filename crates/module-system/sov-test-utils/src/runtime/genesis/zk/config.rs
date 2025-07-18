@@ -6,10 +6,11 @@ use sov_rollup_interface::common::SlotNumber;
 
 use crate::interface::AsUser;
 use crate::runtime::genesis::{generate_config_details, BasicGenesisConfig, HighLevelBasicConfig};
-use crate::runtime::{OperatorIncentivesConfig, ProverIncentivesConfig, SequencerConfig};
+use crate::runtime::sov_sequencer_registry::SequencerConfig;
+use crate::runtime::{OperatorIncentivesConfig, ProverIncentivesConfig, SequencerRegistryConfig};
 use crate::{
     TestProver, TestSequencer, TestSpec, TestUser, TEST_DEFAULT_USER_BALANCE,
-    TEST_DEFAULT_USER_STAKE, TEST_GAS_TOKEN_NAME,
+    TEST_DEFAULT_USER_STAKE, TEST_GAS_TOKEN_NAME, TEST_MIN_SEQ_BOND,
 };
 /// Minimal genesis configuration for the zk runtime.
 pub struct MinimalZkGenesisConfig<S: Spec> {
@@ -145,11 +146,14 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
         let default_user_stake = S::Gas::from(TEST_DEFAULT_USER_STAKE);
         Self {
             config: BasicGenesisConfig {
-                sequencer_registry: SequencerConfig {
-                    seq_rollup_address: initial_sequencer.as_user().address().clone(),
-                    seq_da_address: initial_sequencer.da_address.clone(),
-                    seq_bond: initial_sequencer.bond,
-                    is_preferred_sequencer: true,
+                sequencer_registry: SequencerRegistryConfig {
+                    minimum_bond: TEST_MIN_SEQ_BOND,
+                    sequencer_config: SequencerConfig {
+                        seq_rollup_address: initial_sequencer.as_user().address().clone(),
+                        seq_da_address: initial_sequencer.da_address.clone(),
+                        seq_bond: initial_sequencer.bond,
+                        is_preferred_sequencer: true,
+                    },
                 },
                 operator_incentives: OperatorIncentivesConfig {
                     reward_address: initial_prover.as_user().address().clone(),

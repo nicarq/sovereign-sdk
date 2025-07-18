@@ -82,6 +82,19 @@ impl<S: Spec> SequencerRegistry<S> {
                 existing_sequencer.address,
             ));
         }
+
+        let Some(minimum_bond) = self.minimum_bond.get(state)? else {
+            return Err(SequencerRegistryError::<S, ST>::NoMinimumBondSet);
+        };
+
+        if amount < minimum_bond {
+            return Err(SequencerRegistryError::<S, ST>::InsufficientStakeAmount {
+                address: address.clone(),
+                bond_amount: amount,
+                minimum_bond_amount: minimum_bond,
+            });
+        }
+
         self.bank
             .transfer_from(
                 &address,

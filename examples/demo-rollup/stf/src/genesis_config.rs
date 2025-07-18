@@ -17,7 +17,7 @@ use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
 use sov_operator_incentives::OperatorIncentivesConfig;
 use sov_paymaster::PaymasterConfig;
 use sov_prover_incentives::ProverIncentivesConfig;
-pub use sov_sequencer_registry::SequencerConfig;
+pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistryConfig};
 pub use sov_state::config::Config as StorageConfig;
 
 /// Creates config for a rollup with some default settings, the config is used in demos and tests.
@@ -81,7 +81,7 @@ where
 {
     let bank_config: BankConfig<S> = read_genesis_json(&genesis_paths.bank_genesis_path)?;
 
-    let sequencer_registry_config: SequencerConfig<S> =
+    let sequencer_registry_config: SequencerRegistryConfig<S> =
         read_genesis_json(&genesis_paths.sequencer_genesis_path)?;
 
     let operator_incentives_config: OperatorIncentivesConfig<S> =
