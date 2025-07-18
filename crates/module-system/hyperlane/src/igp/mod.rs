@@ -9,8 +9,8 @@ use anyhow::{anyhow, bail, Context as _, Result};
 use sov_bank::{config_gas_token_id, Amount, Bank, Coins};
 use sov_modules_api::prelude::tracing;
 use sov_modules_api::{
-    Context, DaSpec, Error, GenesisState, HexString, Module, ModuleId, ModuleInfo, ModuleRestApi,
-    SafeVec, Spec, StateMap, StateReader,
+    Context, DaSpec, GenesisState, HexString, Module, ModuleId, ModuleInfo, ModuleRestApi, SafeVec,
+    Spec, StateMap, StateReader,
 };
 use sov_state::User;
 
@@ -80,7 +80,7 @@ impl<S: Spec> Module for InterchainGasPaymaster<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         _config: &Self::Config,
         _state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -89,7 +89,7 @@ impl<S: Spec> Module for InterchainGasPaymaster<S> {
         message: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl sov_modules_api::TxState<Self::Spec>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         match message {
             CallMessage::ClaimRewards { relayer_address } => {
                 self.claim(relayer_address, context, state)?;

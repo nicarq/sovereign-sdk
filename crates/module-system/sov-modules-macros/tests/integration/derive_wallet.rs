@@ -1,8 +1,8 @@
 use sov_modules_api::cli::JsonStringArg;
 use sov_modules_api::macros::CliWallet;
 use sov_modules_api::{
-    Context, DaSpec, DispatchCall, Error, Genesis, MessageCodec, Module, ModuleId, ModuleInfo,
-    Spec, StateValue, TxState,
+    Context, DaSpec, DispatchCall, Genesis, MessageCodec, Module, ModuleId, ModuleInfo, Spec,
+    StateValue, TxState,
 };
 use sov_test_utils::TestSpec;
 
@@ -49,7 +49,7 @@ pub mod first_test_module {
 
             _config: &Self::Config,
             _state: &mut impl sov_modules_api::GenesisState<S>,
-        ) -> Result<(), Error> {
+        ) -> anyhow::Result<()> {
             Ok(())
         }
 
@@ -58,7 +58,7 @@ pub mod first_test_module {
             _msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             _state: &mut impl TxState<S>,
-        ) -> Result<(), Error> {
+        ) -> anyhow::Result<()> {
             Ok(())
         }
     }
@@ -107,7 +107,7 @@ pub mod second_test_module {
 
             _config: &Self::Config,
             _state: &mut impl sov_modules_api::GenesisState<S>,
-        ) -> Result<(), Error> {
+        ) -> anyhow::Result<()> {
             Ok(())
         }
 
@@ -116,7 +116,7 @@ pub mod second_test_module {
             _msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             _state: &mut impl TxState<S>,
-        ) -> Result<(), Error> {
+        ) -> anyhow::Result<()> {
             Ok(())
         }
     }

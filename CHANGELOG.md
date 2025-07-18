@@ -1,6 +1,7 @@
 # 2025-07-17
-
+- #3251 **BREAKING CHANGE** Update the `Module` trait so that `Module::call and Module::genesis` return `anyhow::Result<()>` instead of `Result<(), ModuleError>`.
 - #3249 This PR renames the SchemaGenerator trait to UniversalWallet, so that the trait and the macro have the same name for better DevX.
+
 
 # 2025-07-11
 - #3208 Upgrades SP1 to `5.0.8` to have matching rust toolchain

@@ -53,7 +53,7 @@ where
 
         _config: &Self::Config,
         _state: &mut impl sov_modules_api::GenesisState<S>,
-    ) -> Result<(), sov_modules_api::Error> {
+    ) -> anyhow::Result<()> {
         unimplemented!()
     }
 
@@ -62,7 +62,7 @@ where
         _msg: Self::CallMessage,
         _context: &sov_modules_api::Context<Self::Spec>,
         _state: &mut impl sov_modules_api::TxState<S>,
-    ) -> Result<(), sov_modules_api::Error> {
+    ) -> anyhow::Result<()> {
         unimplemented!()
     }
 }

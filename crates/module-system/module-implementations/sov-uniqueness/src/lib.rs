@@ -6,8 +6,8 @@ mod nonces;
 use std::collections::{BTreeMap, HashSet};
 
 use sov_modules_api::{
-    Context, CredentialId, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
-    ModuleRestApi, NotInstantiable, Spec, StateMap, StateReader, TxHash, TxState,
+    Context, CredentialId, DaSpec, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi,
+    NotInstantiable, Spec, StateMap, StateReader, TxHash, TxState,
 };
 use sov_state::User;
 
@@ -94,7 +94,7 @@ impl<S: Spec> Module for Uniqueness<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         _config: &Self::Config,
         _state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -103,7 +103,7 @@ impl<S: Spec> Module for Uniqueness<S> {
         _msg: Self::CallMessage,
         _context: &Context<S>,
         _state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         unreachable!()
     }
 }

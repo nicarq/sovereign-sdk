@@ -68,28 +68,25 @@ impl<S: Spec> Module for TestHelper<S> {
         msg: Self::CallMessage,
         _context: &sov_modules_api::Context<S>,
         state: &mut impl sov_modules_api::TxState<S>,
-    ) -> Result<(), sov_modules_api::ModuleError> {
+    ) -> anyhow::Result<()> {
         match msg {
             TestHelperCallMessage::PayRevenueShare {
                 token_id,
                 amount,
                 from,
-            } => {
-                self.revenue_share
-                    .pay_revenue_share(&from, token_id, amount, state)
-                    .map_err(sov_modules_api::ModuleError::ModuleError)?;
-                Ok(())
-            }
+            } => self
+                .revenue_share
+                .pay_revenue_share(&from, token_id, amount, state),
             TestHelperCallMessage::ComputeAndPayRevenueShare {
                 token_id,
                 total_revenue,
                 from,
-            } => {
-                self.revenue_share
-                    .compute_and_pay_revenue_share(&from, token_id, total_revenue, state)
-                    .map_err(sov_modules_api::ModuleError::ModuleError)?;
-                Ok(())
-            }
+            } => self.revenue_share.compute_and_pay_revenue_share(
+                &from,
+                token_id,
+                total_revenue,
+                state,
+            ),
         }
     }
 }

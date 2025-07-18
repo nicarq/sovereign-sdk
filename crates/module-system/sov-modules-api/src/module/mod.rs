@@ -46,7 +46,7 @@ pub trait Module {
         _genesis_rollup_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
         _config: &Self::Config,
         _state: &mut impl GenesisState<Self::Spec>,
-    ) -> Result<(), ModuleError> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -78,7 +78,7 @@ pub trait Module {
         _message: Self::CallMessage,
         _context: &Context<Self::Spec>,
         _state: &mut impl TxState<Self::Spec>,
-    ) -> Result<(), ModuleError>;
+    ) -> anyhow::Result<()>;
 
     /// Attempts to charge the provided amount of gas from the working set reverting the transaction if unsuccessful.
     ///
@@ -259,7 +259,12 @@ where
         config: &Self::Config,
         state: &mut impl GenesisState<Self::Spec>,
     ) -> Result<(), ModuleError> {
-        <Self as Module>::genesis(self, genesis_rollup_header, config, state)
+        Ok(<Self as Module>::genesis(
+            self,
+            genesis_rollup_header,
+            config,
+            state,
+        )?)
     }
 }
 

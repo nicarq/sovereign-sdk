@@ -63,7 +63,7 @@ pub mod first_test_module {
 
             _config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
-        ) -> Result<(), Error> {
+        ) -> anyhow::Result<()> {
             self.state_in_first_struct.set(&1, state).unwrap();
             Ok(())
         }
@@ -73,10 +73,8 @@ pub mod first_test_module {
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             state: &mut impl TxState<S>,
-        ) -> Result<(), Error> {
-            self.state_in_first_struct
-                .set(&msg, state)
-                .map_err(|e| Error::ModuleError(e.into()))?;
+        ) -> anyhow::Result<()> {
+            self.state_in_first_struct.set(&msg, state)?;
             Ok(())
         }
     }
@@ -135,7 +133,7 @@ pub mod second_test_module {
 
             _config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
-        ) -> Result<(), Error> {
+        ) -> anyhow::Result<()> {
             self.state_in_second_struct.set(&2, state).unwrap();
             Ok(())
         }
@@ -145,10 +143,8 @@ pub mod second_test_module {
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             state: &mut impl TxState<S>,
-        ) -> Result<(), Error> {
-            self.state_in_second_struct
-                .set(&msg, state)
-                .map_err(|e| Error::ModuleError(e.into()))?;
+        ) -> anyhow::Result<()> {
+            self.state_in_second_struct.set(&msg, state)?;
             Ok(())
         }
     }
@@ -223,7 +219,7 @@ pub mod third_test_module {
 
             _config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
-        ) -> Result<(), Error> {
+        ) -> anyhow::Result<()> {
             self.state_in_third_struct
                 .set(&Default::default(), state)
                 .unwrap();
@@ -235,10 +231,8 @@ pub mod third_test_module {
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             state: &mut impl TxState<S>,
-        ) -> Result<(), Error> {
-            self.state_in_third_struct
-                .set(&msg, state)
-                .map_err(|e| Error::ModuleError(e.into()))?;
+        ) -> anyhow::Result<()> {
+            self.state_in_third_struct.set(&msg, state)?;
             Ok(())
         }
     }

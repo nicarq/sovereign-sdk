@@ -10,8 +10,8 @@ use sov_bank::{config_gas_token_id, Bank, Coins, IntoPayable, TokenId};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{
-    Amount, Context, CryptoSpec, Error, EventEmitter, GasMeter, HexHash, HexString, Module,
-    ModuleId, ModuleInfo, ModuleRestApi, SafeVec, Spec, StateMap, TxState,
+    Amount, Context, CryptoSpec, EventEmitter, GasMeter, HexHash, HexString, Module, ModuleId,
+    ModuleInfo, ModuleRestApi, SafeVec, Spec, StateMap, TxState,
 };
 
 use crate::crypto::charge_gas_for_hashing;
@@ -206,7 +206,7 @@ where
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         match msg {
             CallMessage::Register {
                 admin,

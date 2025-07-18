@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::UniversalWallet;
 // use sov_modules_api::sov_universal_wallet::schema::UniversalWallet;
 use sov_modules_api::{
-    BorshSerializedSize, Context, DaSpec, Error, EventEmitter, GenesisState, Module, ModuleId,
-    ModuleInfo, ModuleRestApi, SafeString, Spec, StateValue, TxState,
+    BorshSerializedSize, Context, DaSpec, EventEmitter, GenesisState, Module, ModuleId, ModuleInfo,
+    ModuleRestApi, SafeString, Spec, StateValue, TxState,
 };
 
 /// A message to test and set a value
@@ -127,7 +127,7 @@ impl<S: Spec> Module for CacheAndRevertTester<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         _config: &Self::Config,
         _state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -136,8 +136,8 @@ impl<S: Spec> Module for CacheAndRevertTester<S> {
         msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
-        Ok(match msg {
+    ) -> anyhow::Result<()> {
+        match msg {
             CallMessage::TestAndSetU8(msg) => msg.run(state),
             CallMessage::TestAndSetU16(msg) => msg.run(state),
             CallMessage::TestAndSetString(msg) => msg.run(state),
@@ -165,6 +165,6 @@ impl<S: Spec> Module for CacheAndRevertTester<S> {
                 }
                 Ok(())
             }
-        }?)
+        }
     }
 }

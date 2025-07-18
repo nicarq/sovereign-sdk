@@ -5,7 +5,6 @@ mod call;
 mod error;
 mod genesis;
 
-use anyhow::Result;
 pub use call::CallMessage;
 pub use error::RevenueShareError;
 pub use genesis::GenesisConfig;
@@ -52,7 +51,7 @@ impl<S: Spec> Module for RevenueShare<S> {
         _genesis_rollup_header: &<<Self::Spec as Spec>::Da as sov_modules_api::DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl sov_modules_api::GenesisState<S>,
-    ) -> Result<(), sov_modules_api::ModuleError> {
+    ) -> anyhow::Result<()> {
         let _ = self.is_active.set(&false, state);
         let _ = self
             .revenue_share_percentage_bps
@@ -69,7 +68,7 @@ impl<S: Spec> Module for RevenueShare<S> {
         msg: Self::CallMessage,
         context: &sov_modules_api::Context<S>,
         state: &mut impl sov_modules_api::TxState<S>,
-    ) -> Result<(), sov_modules_api::ModuleError> {
+    ) -> anyhow::Result<()> {
         match msg {
             CallMessage::ActivateRevenueShare => {
                 self.activate_revenue_share(context, state)?;

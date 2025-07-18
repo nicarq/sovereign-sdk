@@ -24,8 +24,8 @@ use sov_bank::{Amount, BurnRate};
 pub use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::runtime::OperatingMode;
 use sov_modules_api::{
-    Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
-    StateMap, StateReader, StateValue, TxState,
+    Context, DaSpec, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateMap,
+    StateReader, StateValue, TxState,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::User;
@@ -135,9 +135,9 @@ where
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         // The initialization logic
-        Ok(self.init_module(config, state)?)
+        self.init_module(config, state)
     }
 
     fn call(
@@ -145,34 +145,31 @@ where
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         if !self.should_reward_fees(state) {
             return Err(anyhow::anyhow!(
                 "Attester incentives call message received when operating in zk mode"
-            )
-            .into());
+            ));
         }
-        let res = match msg {
-            call::CallMessage::RegisterAttester(bond_amount) => self
-                .register_attester(bond_amount, context.sender(), state)
-                .map_err(|err| err.into()),
-            call::CallMessage::DepositAttester(amount) => self
-                .deposit_attester(amount, context.sender(), state)
-                .map_err(|err| err.into()),
+        match msg {
+            call::CallMessage::RegisterAttester(bond_amount) => {
+                Ok(self.register_attester(bond_amount, context.sender(), state)?)
+            }
 
-            call::CallMessage::BeginExitAttester => self
-                .begin_exit_attester(context, state)
-                .map_err(|error| error.into()),
-            call::CallMessage::ExitAttester => self
-                .exit_attester(context, state)
-                .map_err(|error| error.into()),
-            call::CallMessage::RegisterChallenger(bond_amount) => self
-                .register_challenger(bond_amount, context.sender(), state)
-                .map_err(|err| err.into()),
+            call::CallMessage::DepositAttester(amount) => {
+                Ok(self.deposit_attester(amount, context.sender(), state)?)
+            }
+
+            call::CallMessage::BeginExitAttester => Ok(self.begin_exit_attester(context, state)?),
+
+            call::CallMessage::ExitAttester => Ok(self.exit_attester(context, state)?),
+
+            call::CallMessage::RegisterChallenger(bond_amount) => {
+                Ok(self.register_challenger(bond_amount, context.sender(), state)?)
+            }
+
             call::CallMessage::ExitChallenger => self.exit_challenger(context, state),
         }
-        .map_err(|e| e.into());
-        res
     }
 }
 

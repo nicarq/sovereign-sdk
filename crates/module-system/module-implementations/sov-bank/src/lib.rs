@@ -20,8 +20,8 @@ pub use genesis::*;
 use sov_modules_api::macros::config_value;
 pub use sov_modules_api::Amount;
 use sov_modules_api::{
-    Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
-    StateMap, TxState,
+    Context, DaSpec, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateMap,
+    TxState,
 };
 use sov_state::BorshCodec;
 use token::{BalanceKey, Token};
@@ -80,8 +80,8 @@ impl<S: Spec> Module for Bank<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
-        Ok(self.init_module(config, state)?)
+    ) -> anyhow::Result<()> {
+        self.init_module(config, state)
     }
 
     fn call(
@@ -89,7 +89,7 @@ impl<S: Spec> Module for Bank<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         match msg {
             call::CallMessage::CreateToken {
                 token_name,

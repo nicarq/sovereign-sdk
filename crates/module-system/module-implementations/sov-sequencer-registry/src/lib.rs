@@ -27,9 +27,9 @@ use sov_modules_api::registration_lib::RegistrationError;
 #[cfg(feature = "native")]
 use sov_modules_api::ApiStateAccessor;
 use sov_modules_api::{
-    BasicAddress, Context, DaSpec, Error, GenesisState, InfallibleStateAccessor,
-    KernelStateAccessor, KernelStateMap, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
-    StateAccessor, StateReader, StateValue, StateWriter, TxState, VisibleSlotNumber,
+    BasicAddress, Context, DaSpec, GenesisState, InfallibleStateAccessor, KernelStateAccessor,
+    KernelStateMap, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateAccessor, StateReader,
+    StateValue, StateWriter, TxState, VisibleSlotNumber,
 };
 use sov_state::{Kernel, User};
 use thiserror::Error;
@@ -190,8 +190,8 @@ impl<S: Spec> Module for SequencerRegistry<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
-        Ok(self.init_module(config, state)?)
+    ) -> anyhow::Result<()> {
+        self.init_module(config, state)
     }
 
     fn call(
@@ -199,22 +199,24 @@ impl<S: Spec> Module for SequencerRegistry<S> {
         message: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         match message {
-            CallMessage::Register { da_address, amount } => self
-                .register(&da_address, amount, context, state)
-                .map_err(|e| Error::ModuleError(e.into()))?,
-            CallMessage::Deposit { da_address, amount } => self
-                .deposit(&da_address, amount, context, state)
-                .map_err(|e| Error::ModuleError(e.into()))?,
-            CallMessage::InitiateWithdrawal { da_address } => self
-                .initiate_withdrawal(&da_address, context, state)
-                .map_err(|e| Error::ModuleError(e.into()))?,
-            CallMessage::Withdraw { da_address } => self
-                .withdraw(&da_address, context, state)
-                .map_err(|e| Error::ModuleError(e.into()))?,
+            CallMessage::Register { da_address, amount } => {
+                Ok(self.register(&da_address, amount, context, state)?)
+            }
+
+            CallMessage::Deposit { da_address, amount } => {
+                Ok(self.deposit(&da_address, amount, context, state)?)
+            }
+
+            CallMessage::InitiateWithdrawal { da_address } => {
+                Ok(self.initiate_withdrawal(&da_address, context, state)?)
+            }
+
+            CallMessage::Withdraw { da_address } => {
+                Ok(self.withdraw(&da_address, context, state)?)
+            }
         }
-        Ok(())
     }
 }
 

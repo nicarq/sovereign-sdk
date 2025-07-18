@@ -48,7 +48,7 @@ mod test_module {
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
             _state: &mut impl TxState<S>,
-        ) -> Result<(), sov_modules_api::Error> {
+        ) -> anyhow::Result<()> {
             todo!()
         }
     }
@@ -131,7 +131,7 @@ mod second_test_module {
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
             _state: &mut impl TxState<S>,
-        ) -> Result<(), sov_modules_api::Error> {
+        ) -> anyhow::Result<()> {
             todo!()
         }
     }

@@ -5,7 +5,7 @@ use sov_hyperlane_integration::{
     MerkleTreeHook, Recipient, StorageLocation,
 };
 use sov_modules_api::{
-    Context, Error, HexHash, HexString, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, TxState,
+    Context, HexHash, HexString, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, TxState,
 };
 use sov_test_utils::generate_runtime;
 
@@ -33,7 +33,7 @@ impl<S: Spec> Module for RoutingRecipient<S> {
         _msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
         _state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 }

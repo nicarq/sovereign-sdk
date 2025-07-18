@@ -14,8 +14,8 @@ pub use query::*;
 mod tests;
 pub use call::CallMessage;
 use sov_modules_api::{
-    Context, CredentialId, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
-    ModuleRestApi, Spec, StateMap, TxState,
+    Context, CredentialId, DaSpec, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    StateMap, TxState,
 };
 
 /// An account on the rollup.
@@ -61,8 +61,8 @@ impl<S: Spec> Module for Accounts<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
-        Ok(self.init_module(config, state)?)
+    ) -> anyhow::Result<()> {
+        self.init_module(config, state)
     }
 
     fn call(
@@ -70,7 +70,7 @@ impl<S: Spec> Module for Accounts<S> {
         msg: Self::CallMessage,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         match msg {
             call::CallMessage::InsertCredentialId(new_credential_id) => {
                 Ok(self.insert_credential_id(new_credential_id, context, state)?)

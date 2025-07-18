@@ -9,8 +9,8 @@ pub use event::Event;
 pub use query::*;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{
-    Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
-    StateValue, TxState,
+    Context, DaSpec, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateValue,
+    TxState,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,9 +51,9 @@ impl<S: Spec> Module for ExampleModule<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         // The initialization logic
-        Ok(self.init_module(config, state)?)
+        self.init_module(config, state)
     }
 
     fn call(
@@ -61,7 +61,7 @@ impl<S: Spec> Module for ExampleModule<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         match msg {
             CallMessage::SetValue(new_value) => Ok(self.set_value(new_value, context, state)?),
         }

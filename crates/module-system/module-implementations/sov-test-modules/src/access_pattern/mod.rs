@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{
     AccessoryStateMap, AccessoryStateValue, AuthenticatedTransactionData, Context, CryptoSpec,
-    DaSpec, Error, GasSpec, GenesisState, MeteredBorshDeserialize, MeteredBorshDeserializeError,
+    DaSpec, GasSpec, GenesisState, MeteredBorshDeserialize, MeteredBorshDeserializeError,
     MeteredHasher, MeteredSignature, Module, ModuleId, ModuleInfo, ModuleRestApi, SafeVec,
     SizedSafeString, Spec, StateMap, StateValue, StateVec, TxHooks, TxState,
 };
@@ -300,11 +300,9 @@ impl<S: Spec> Module for AccessPattern<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         // The initialization logic
-        self.admin.set(&config.admin, state).map_err(Into::into)?;
-
-        Ok(())
+        self.admin.set(&config.admin, state).map_err(Into::into)
     }
 
     fn call(
@@ -312,7 +310,7 @@ impl<S: Spec> Module for AccessPattern<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         let admin = self
             .admin
             .get(state)
@@ -320,13 +318,13 @@ impl<S: Spec> Module for AccessPattern<S> {
             .expect("Admin should be set at genesis");
 
         if context.sender() != &admin {
-            return Err(Error::ModuleError(anyhow::anyhow!(
+            return Err(anyhow::anyhow!(
                 "The transaction sender is not an admin of the access patterns module. Sender {}",
                 context.sender()
-            )));
+            ));
         }
 
-        Ok(self.inner_call(msg, state)?)
+        self.inner_call(msg, state)
     }
 }
 

@@ -9,7 +9,7 @@ pub use event::Event;
 pub use genesis::*;
 mod hooks;
 use sov_modules_api::{
-    AccessoryStateValue, Context, DaSpec, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo,
+    AccessoryStateValue, Context, DaSpec, Gas, GenesisState, Module, ModuleId, ModuleInfo,
     ModuleRestApi, Spec, StateValue, StateVec, TxState,
 };
 
@@ -70,9 +70,9 @@ impl<S: Spec> Module for ValueSetter<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         // The initialization logic
-        Ok(self.init_module(config, state)?)
+        self.init_module(config, state)
     }
 
     fn call(
@@ -80,7 +80,7 @@ impl<S: Spec> Module for ValueSetter<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         let mut state_wrapped = state.to_revertable();
         let state = &mut state_wrapped;
         let res = match msg {

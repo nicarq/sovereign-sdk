@@ -4,7 +4,7 @@ use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     decode_borsh_serialized_message, ApiStateAccessor, Context, DaSpec, DispatchCall, EncodeCall,
-    Error, Genesis, MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint, StateValue,
+    Genesis, MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint, StateValue,
     TxState,
 };
 use sov_state::ZkStorage;
@@ -76,7 +76,7 @@ pub mod my_module {
 
             config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
-        ) -> Result<(), Error> {
+        ) -> anyhow::Result<()> {
             self.data.set(config, state).unwrap();
             Ok(())
         }
@@ -86,10 +86,8 @@ pub mod my_module {
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             state: &mut impl TxState<S>,
-        ) -> Result<(), Error> {
-            self.data
-                .set(&msg, state)
-                .map_err(|e| Error::ModuleError(e.into()))?;
+        ) -> anyhow::Result<()> {
+            self.data.set(&msg, state)?;
             Ok(())
         }
     }
