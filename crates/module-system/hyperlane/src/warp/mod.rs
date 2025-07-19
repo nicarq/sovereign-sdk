@@ -705,16 +705,27 @@ where
     }
 
     fn unpack_transfer_body(
-        &self,
         body: &[u8],
         token_source: &StoredTokenKind,
-    ) -> anyhow::Result<(HexHash, Amount)> {
-        anyhow::ensure!(body.len() == 64, "Invalid transfer body");
+    ) -> anyhow::Result<TransferMessage> {
+        anyhow::ensure!(body.len() >= 64, "Invalid transfer body");
         let recipient = HexString(body[..32].try_into().unwrap());
         let amount = body[32..64].try_into().unwrap();
         let amount = token_source.inbound_amount(amount)?;
-        Ok((recipient, amount))
+        // We do not process metadata, so it is disregarded.
+        Ok(TransferMessage { recipient, amount })
     }
+}
+
+// This type is taken from: https://docs.hyperlane.xyz/docs/alt-vm-implementations/implementation-guide#transfer-message
+#[derive(Debug)]
+struct TransferMessage {
+    // The recipient of the remote transfer
+    recipient: HexHash,
+    // An amount of tokens
+    amount: Amount,
+    // Not supported: Optional metadata e.g. NFT URI information
+    //metadata: Vec<u8>,
 }
 
 impl<S: Spec> Recipient<S> for Warp<S>
@@ -763,8 +774,11 @@ where
             anyhow::bail!("Enrolled router does not match sender");
         }
 
-        let (token_recipient_hex, amount) =
-            self.unpack_transfer_body(body.as_ref(), &route.token_source)?;
+        let TransferMessage {
+            recipient: token_recipient_hex,
+            amount,
+        } = Self::unpack_transfer_body(body.as_ref(), &route.token_source)?;
+
         let token_recipient = S::Address::from_sender(token_recipient_hex)?;
         let route_token_holder: DerivedHolder = route_id.0.into();
         match &route.token_source {
@@ -829,7 +843,25 @@ where
 mod tests {
     use std::str::FromStr;
 
+    use sov_test_utils::TestSpec;
+
     use super::*;
+
+    #[test]
+    fn test_unpack_transfer_body() {
+        let body: &[u8] = &[0; 60];
+        let res = Warp::<TestSpec>::unpack_transfer_body(body, &StoredTokenKind::Native);
+        assert!(res.is_err());
+
+        let body: &[u8] = &[0; 64];
+        let res = Warp::<TestSpec>::unpack_transfer_body(body, &StoredTokenKind::Native);
+        assert!(res.is_ok());
+
+        let body: &[u8] = &[0; 65];
+        let res = Warp::<TestSpec>::unpack_transfer_body(body, &StoredTokenKind::Native);
+        assert!(res.is_ok());
+    }
+
     #[test]
     fn test_router_key() {
         const KEY_STR: &str =
