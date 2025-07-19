@@ -158,6 +158,26 @@ fn test_verify_duplicate_signatures() {
 }
 
 #[test]
+fn test_verify_signature_check_overflow() {
+    let data: MultisigIsmTestData = get_multisig_ism_test_data();
+    let mut metadata = data.metadata_without_signatures;
+    metadata.0.extend(data.signatures[0].iter());
+
+    let ism: Ism = Ism::MessageIdMultisig {
+        validators: data.validators.try_into().unwrap(),
+        threshold: u32::MAX,
+    };
+    let v = ism.verify(
+        &dummy_context(),
+        &data.message,
+        &metadata,
+        &mut unlimited_gas_meter(),
+    );
+
+    assert!(v.is_err());
+}
+
+#[test]
 fn test_verify_not_enough_signatures() {
     let data: MultisigIsmTestData = get_multisig_ism_test_data();
     let mut metadata = data.metadata_without_signatures;
