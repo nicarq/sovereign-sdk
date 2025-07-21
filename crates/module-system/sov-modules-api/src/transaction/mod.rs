@@ -14,6 +14,7 @@ use sov_rollup_interface::crypto::SigVerificationError;
 use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 use sov_rollup_interface::zk::CryptoSpec;
 use sov_rollup_interface::TxHash;
+use sov_universal_wallet::schema::UniversalWallet;
 use thiserror::Error;
 
 use crate::{
@@ -30,7 +31,7 @@ mod tests;
 /// the trait using the runtime's typed `RuntimeCall` messages.
 pub trait TransactionCallable {
     /// The type of the call of the transaction.
-    type Call: BorshSerialize + BorshDeserialize + Debug + Clone + PartialEq + Eq;
+    type Call: BorshSerialize + BorshDeserialize + Debug + Clone + PartialEq + Eq + UniversalWallet;
 }
 
 impl<D: DispatchCall> TransactionCallable for D {

@@ -8,11 +8,7 @@ use sov_address::MultiAddressEvm;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::macros::config_value;
 use sov_modules_api::schemars::schema_for;
-use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::Address;
-use sov_universal_wallet::schema::{ChainData, Schema};
 
 type S = sov_modules_api::configurable_spec::ConfigurableSpec<
     MockDaSpec,
@@ -55,16 +51,8 @@ fn main() -> io::Result<()> {
         println!("cargo::rustc-cfg=skip_guest_build");
     }
 
-    let schema = Schema::of_rollup_types_with_chain_data::<
-        Transaction<Runtime<S>, S>,
-        UnsignedTransaction<Runtime<S>, S>,
-        RuntimeCall<S>,
-        Address,
-    >(ChainData {
-        chain_id: config_value!("CHAIN_ID"),
-        chain_name: config_value!("CHAIN_NAME").to_string(),
-    })
-    .unwrap();
+    let schema = sov_modules_api::runtime::get_runtime_schema::<S, Runtime<S>>()
+        .expect("Failed to get schema");
 
     let schema_json_string = serde_json::to_string_pretty(&schema)?;
     let mut json_file = File::create("demo-rollup-schema.json")?;

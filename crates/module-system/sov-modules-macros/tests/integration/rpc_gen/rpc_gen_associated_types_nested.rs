@@ -40,6 +40,7 @@ pub trait Data:
     + UniversalWallet
     + borsh::BorshDeserialize
     + schemars::JsonSchema
+    + UniversalWallet
     + Send
     + Sync
     + 'static

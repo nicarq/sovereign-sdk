@@ -22,6 +22,7 @@ pub trait Data:
     + borsh::BorshSerialize
     + borsh::BorshDeserialize
     + schemars::JsonSchema
+    + sov_modules_api::sov_universal_wallet::schema::UniversalWallet
     + Default
 {
 }

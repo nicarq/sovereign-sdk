@@ -207,7 +207,7 @@ async fn test_generate_mockda_dataset_for_resync() -> anyhow::Result<()> {
 
 /// The actual resync test, using a pre-generated mock_da database.
 ///
-/// Imporant Note: This test may fail if you've made any changes that could modify the chain hash,
+/// Important Note: This test may fail if you've made any changes that could modify the chain hash,
 /// including adding/removing call message variants to any module in demo-rollup. Remove
 /// `test/resync/data` and run `test_generate_mockda_dataset_for_resync` to update the data.
 #[tokio::test(flavor = "multi_thread")]

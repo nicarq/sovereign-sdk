@@ -29,6 +29,7 @@ macro_rules! generate_runtime_without_capabilities {
             ::sov_modules_api::MessageCodec,
             ::sov_modules_api::macros::CliWallet,
             ::sov_modules_api::macros::RuntimeRestApi,
+            ::sov_modules_api::macros::UniversalWallet,
         )]
         pub struct $id<S: ::sov_modules_api::Spec>  where
         $($runtime_trait_impl_bounds)*

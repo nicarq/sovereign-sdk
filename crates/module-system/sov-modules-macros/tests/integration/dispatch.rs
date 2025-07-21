@@ -1,5 +1,5 @@
 use sov_modules_api::capabilities::mocks::MockKernel;
-use sov_modules_api::sov_universal_wallet::schema::{Schema, UniversalWallet};
+use sov_modules_api::sov_universal_wallet::schema::Schema;
 use sov_modules_api::{
     decode_borsh_serialized_message, Context, DaSpec, DispatchCall, EncodeCall, Error, Event,
     Genesis, MessageCodec, Module, ModuleInfo, Spec, StateValue, TxState, WorkingSet,
@@ -151,6 +151,7 @@ pub mod second_test_module {
 }
 
 pub mod third_test_module {
+    use sov_modules_api::sov_universal_wallet::schema::UniversalWallet;
     use sov_modules_api::ModuleId;
 
     use super::*;
@@ -167,6 +168,7 @@ pub mod third_test_module {
         + Clone
         + Send
         + Sync
+        + UniversalWallet
         + 'static
     {
     }

@@ -177,3 +177,18 @@ impl Default for NodeEndpoints {
         }
     }
 }
+
+/// Helper function to get [`sov_universal_wallet::schema::Schema`] for the [`Runtime`]
+pub fn get_runtime_schema<S: Spec, R: Runtime<S>>(
+) -> anyhow::Result<sov_universal_wallet::schema::Schema> {
+    let schema = sov_universal_wallet::schema::Schema::of_rollup_types_with_chain_data::<
+        crate::transaction::Transaction<R, S>,
+        crate::transaction::UnsignedTransaction<R, S>,
+        R::Decodable,
+        S::Address,
+    >(sov_universal_wallet::schema::ChainData {
+        chain_id: sov_modules_macros::config_value!("CHAIN_ID"),
+        chain_name: sov_modules_macros::config_value!("CHAIN_NAME").to_string(),
+    })?;
+    Ok(schema)
+}

@@ -58,6 +58,7 @@ pub use sov_modules_macros::track_gas_constants_usage;
 ///    sov_modules_api::prelude::strum::EnumTryAs,
 ///    sov_modules_api::prelude::strum::IntoStaticStr,
 ///    sov_modules_api::prelude::strum::AsRefStr,
+///    sov_modules_api::macros::UniversalWallet,
 /// )]
 /// #[strum_discriminants(derive(
 ///    sov_modules_api::prelude::strum::VariantNames,
@@ -66,6 +67,7 @@ pub use sov_modules_macros::track_gas_constants_usage;
 ///    sov_modules_api::prelude::strum::IntoStaticStr,
 ///    sov_modules_api::prelude::strum::AsRefStr,
 ///    sov_modules_api::prelude::schemars::JsonSchema,
+///    sov_modules_api::macros::UniversalWallet,
 /// ))]
 /// #[serde(rename_all = "snake_case")]
 /// pub enum RuntimeCall<S: Spec> {

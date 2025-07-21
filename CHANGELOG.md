@@ -6,6 +6,7 @@
 
 # 2025-07-18
 - #3246 **BREAKING CHANGE** A minimum bond is now required for sequencer registration.
+- #3257 Adds a helper function for the Runtime schema build script.
 
 # 2025-07-17 
 - #3251 **BREAKING CHANGE** Update the `Module` trait so that `Module::call and Module::genesis` return `anyhow::Result<()>` instead of `Result<(), ModuleError>`.
