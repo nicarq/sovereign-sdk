@@ -1,5 +1,4 @@
 include:
-  - docker-compose.obs.yml
   - docker-compose.celestia.yml
 # Uncomment this if you want to test network delays/errors
 #services:
