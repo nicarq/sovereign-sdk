@@ -18,9 +18,6 @@ async fn test_get_base_fee_per_gas_latest() {
     assert_eq!(
         <<S as Spec>::Gas as Gas>::Price::try_from(
             response
-                .data
-                .clone()
-                .unwrap()
                 .base_fee_per_gas
                 .0
                 .iter()
@@ -37,14 +34,7 @@ async fn test_get_base_fee_per_gas_latest() {
 async fn test_get_base_fee_per_gas_latest_with_updates() {
     let mut data = TestData::setup().await;
 
-    let initial_response = data
-        .client()
-        .get_latest_base_fee_per_gas()
-        .await
-        .unwrap()
-        .data
-        .clone()
-        .unwrap();
+    let initial_response = data.client().get_latest_base_fee_per_gas().await.unwrap();
 
     let runner = &mut data.runner;
     let user = &data.user;
@@ -89,9 +79,7 @@ async fn test_get_base_fee_per_gas_latest_with_updates() {
         .get_latest_base_fee_per_gas()
         .await
         .unwrap()
-        .data
-        .clone()
-        .unwrap();
+        .clone();
 
     let api_initial_gas_price = <<S as Spec>::Gas as Gas>::Price::try_from(
         initial_response
@@ -160,9 +148,7 @@ async fn test_simulation() {
         .simulate(&types::SimulateBody { body: partial_tx })
         .await
         .unwrap()
-        .data
-        .clone()
-        .unwrap();
+        .clone();
 
     let simulation_result_parsed: SimulateExecutionContainer<S> =
         simulation_result.try_into().unwrap();
@@ -218,8 +204,7 @@ async fn test_sync_status_fully_synced() {
         synced_da_height: expected_synced_da_height,
     });
 
-    let sync_status: types::SyncStatus =
-        data.client().get_sync_status().await.unwrap().data.clone();
+    let sync_status: types::SyncStatus = data.client().get_sync_status().await.unwrap().clone();
 
     assert_eq!(
         sync_status,
@@ -241,8 +226,7 @@ async fn test_sync_status_syncing() {
         target_da_height,
     });
 
-    let sync_status: types::SyncStatus =
-        data.client().get_sync_status().await.unwrap().data.clone();
+    let sync_status: types::SyncStatus = data.client().get_sync_status().await.unwrap().clone();
 
     assert_eq!(
         sync_status,

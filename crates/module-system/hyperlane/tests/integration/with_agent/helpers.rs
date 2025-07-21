@@ -202,8 +202,9 @@ impl HyperlaneBuilder {
         let docker_image = env::var("CUSTOM_HLP_DOCKER_IMAGE");
         let has_custom_image = !matches!(docker_image, Err(env::VarError::NotPresent));
 
-        let docker_image =
-            docker_image.unwrap_or_else(|_| "ghcr.io/eigerco/hyperlane:latest".into());
+        let docker_image = docker_image.unwrap_or_else(|_| {
+            "ghcr.io/eigerco/hyperlane:898d99d8136cd48a92a730d628d11c8b620886da".into()
+        });
         let (name, tag) = docker_image
             .split_once(':')
             .unwrap_or((&docker_image, "latest"));

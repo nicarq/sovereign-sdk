@@ -1,3 +1,9 @@
+# 2025-07-19
+- #3252 **BREAKING CHANGE** Removed "wrapper" object returned by all REST API endpoints, data is now returned directly.
+    Previously `{data: $DATA, meta: {}}`, so data was accessed as `responseJson.data.field`, now this is just `{$DATA}`, access the data directly: `responseJson.field`.
+    The structure for errors has also changed, it is now just a single top-level error object: `{status: $STATUS, title: $TITLE, details: []}`.
+    The error object itself is unchanged.
+
 # 2025-07-18
 - #3246 **BREAKING CHANGE** A minimum bond is now required for sequencer registration.
 

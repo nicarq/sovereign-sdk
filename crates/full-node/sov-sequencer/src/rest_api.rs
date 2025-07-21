@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use axum::extract::ws::WebSocket;
 use axum::extract::{ws, State, WebSocketUpgrade};
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use futures::StreamExt;
 #[cfg(feature = "test-utils")]
@@ -13,12 +13,12 @@ use serde_with::base64::Base64;
 use serde_with::serde_as;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::runtime::Runtime;
-use sov_modules_api::{RawTx, RuntimeEventProcessor, RuntimeEventResponse};
+use sov_modules_api::RawTx;
 use sov_rest_utils::{
-    errors, preconfigured_router_layers, serve_generic_ws_subscription, ApiResult, FilterQuery,
-    PageSelection, PaginatedResponse, Pagination, Path, Query,
+    errors, preconfigured_router_layers, serve_generic_ws_subscription, FilterQuery, PageSelection,
+    PaginatedResponse, Pagination, Path, Query,
 };
-use sov_rollup_interface::da::{DaBlobHash, DaSpec};
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::TxHash;
 use tokio::sync::watch::Receiver;
@@ -182,9 +182,9 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
         })
     }
 
-    async fn axum_get_ready(state: State<Self>) -> ApiResult<()> {
+    async fn axum_get_ready(state: State<Self>) -> Result<Response, Response> {
         match state.sequencer.is_ready().await {
-            Ok(()) => Ok(().into()),
+            Ok(()) => Ok(().into_response()),
             Err(details) => Err(error_not_fully_synced(details).into_response()),
         }
     }
@@ -192,42 +192,34 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
     async fn axum_get_tx_status(
         state: State<Self>,
         tx_hash: Path<TxHash>,
-    ) -> ApiResult<TxInfo<<<Seq::Da as DaService>::Spec as DaSpec>::TransactionId>> {
+    ) -> Result<Response, Response> {
         let tx_status = state.sequencer.tx_status(&tx_hash.0).await;
 
         if let Ok(tx_status) = tx_status {
-            Ok(TxInfo {
+            Ok(Json(TxInfo {
                 id: tx_hash.0,
                 status: tx_status,
-            }
-            .into())
+            })
+            .into_response())
         } else {
             Err(errors::not_found_404("Transaction", tx_hash.0))
         }
     }
 
-    async fn axum_get_tx(
-        state: State<Self>,
-        tx_hash: Path<TxHash>,
-    ) -> ApiResult<ApiAcceptedTx<Seq::Confirmation>> {
+    async fn axum_get_tx(state: State<Self>, tx_hash: Path<TxHash>) -> Result<Response, Response> {
         let tx = state.sequencer.get_tx(tx_hash.0).await.map_err(|e| {
             tracing::error!(error = %e, "Error getting transaction");
             errors::database_error_500("Unable to retrieve transaction").into_response()
         })?;
         if let Some(tx) = tx {
             let tx: ApiAcceptedTx<_> = tx.into();
-            Ok(sov_rest_utils::ResponseObject::from(tx))
+            Ok(Json(tx).into_response())
         } else {
             Err(errors::not_found_404("Transaction", tx_hash.0))
         }
     }
 
-    async fn axum_accept_tx(
-        state: State<Self>,
-        tx: Json<AcceptTx>,
-    ) -> ApiResult<
-        TxInfoWithConfirmation<DaBlobHash<<Seq::Da as DaService>::Spec>, Seq::Confirmation>,
-    > {
+    async fn axum_accept_tx(state: State<Self>, tx: Json<AcceptTx>) -> Result<Response, Response> {
         let raw_tx = RawTx::new(tx.0.body.blob);
         let baked_tx = <<Seq::Rt as Runtime<Seq::Spec>>::Auth as TransactionAuthenticator<
             Seq::Spec,
@@ -248,12 +240,12 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
                 IntoResponse::into_response(e)
             })?;
 
-        Ok(TxInfoWithConfirmation {
+        Ok(Json(TxInfoWithConfirmation {
             id: tx_with_hash.tx_hash,
             confirmation: tx_with_hash.confirmation,
-            status: TxStatus::Submitted,
-        }
-        .into())
+            status: TxStatus::<<<Seq::Da as DaService>::Spec as DaSpec>::TransactionId>::Submitted,
+        })
+        .into_response())
     }
 
     async fn subscribe_to_events(
@@ -325,13 +317,13 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
     }
 
     #[cfg(feature = "test-utils")]
-    async fn axum_force_close_batch(state: State<Self>) -> ApiResult<()> {
+    async fn axum_force_close_batch(state: State<Self>) -> Result<Response, Response> {
         state
             .sequencer
             .force_close_current_batch()
             .await
             .map_err(|e| errors::bad_request_400("Could not force close batch", e))?;
-        Ok(().into())
+        Ok(().into_response())
     }
 
     /// Subscribe to state updates. Note that notifications may be delivered out of order.
@@ -358,7 +350,7 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
     async fn axum_get_event(
         state: State<Self>,
         Path(event_number): Path<u64>,
-    ) -> ApiResult<RuntimeEventResponse<<Seq::Rt as RuntimeEventProcessor>::RuntimeEvent>> {
+    ) -> Result<Response, Response> {
         let next_event_number = event_number.checked_add(1).ok_or(errors::bad_request_400(
             "u64::MAX is not a valid event number",
             "",
@@ -369,7 +361,7 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
             .await
             .map_err(|_| errors::database_error_500("Unable to retrieve event").into_response())?;
         if let Some(event) = events.pop() {
-            Ok(event.into())
+            Ok(Json(event).into_response())
         } else {
             Err(errors::not_found_404("Event", event_number))
         }
@@ -378,12 +370,7 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
     async fn axum_list_events(
         state: State<Self>,
         pagination_opt: Option<Query<Pagination<String>>>,
-    ) -> ApiResult<
-        PaginatedResponse<
-            RuntimeEventResponse<<Seq::Rt as RuntimeEventProcessor>::RuntimeEvent>,
-            String,
-        >,
-    > {
+    ) -> Result<Response, Response> {
         let pagination = match pagination_opt {
             Some(Query(pagination)) => pagination,
             None => Default::default(),
@@ -410,7 +397,7 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
             items: events,
             next_cursor: Some(next_cursor.to_string()),
         };
-        Ok(response.into())
+        Ok(Json(response).into_response())
     }
 }
 

@@ -12,7 +12,7 @@ use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
 use futures::future;
 use sov_api_spec::types::{
-    self as api_types, SequencerListEventsPage, SequencerListEventsResponseData, TxReceiptResult,
+    self as api_types, SequencerListEventsPage, SequencerListEventsResponse, TxReceiptResult,
 };
 use sov_api_spec::{Client, WsSubscription};
 use sov_mock_da::storable::layer::StorableMockDaLayer;
@@ -23,7 +23,6 @@ use sov_modules_api::{Amount, DispatchCall, Gas, GasArray, GasPrice, GasUnit, Ra
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_node_client::NodeClient;
 use sov_paymaster::{Paymaster, PaymasterConfig};
-use sov_rest_utils::ResponseObject;
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
 use sov_sequencer::preferred::default_ideal_lag_behind_finalized_slot;
@@ -610,10 +609,10 @@ async fn flaky_seq_behind_deferred_slots_count_simple_lagging() {
     }
     let response = test_rollup
         .client
-        .query_rest_endpoint::<ResponseObject<ValueResponse>>("/modules/value-setter/state/value")
+        .query_rest_endpoint::<ValueResponse>("/modules/value-setter/state/value")
         .await
         .unwrap();
-    let actual_value = response.data.unwrap().value;
+    let actual_value = response.value;
     assert_eq!(
         actual_value, UPDATE_TWO_VALUE as u32,
         "Expected value to be {UPDATE_TWO_VALUE}, but got {actual_value}"
@@ -629,12 +628,10 @@ async fn flaky_seq_behind_deferred_slots_count_simple_lagging() {
     }
     let many_values_response = test_rollup
         .client
-        .query_rest_endpoint::<ResponseObject<IdxResponse>>(
-            "/modules/value-setter/state/many-values/items/0",
-        )
+        .query_rest_endpoint::<IdxResponse>("/modules/value-setter/state/many-values/items/0")
         .await
         .unwrap();
-    let actual_many_value = many_values_response.data.unwrap().value.unwrap();
+    let actual_many_value = many_values_response.value.unwrap();
     assert_eq!(
         actual_many_value, 12u8,
         "Expected many_values[0] to be 12, but got {actual_many_value}"
@@ -756,10 +753,10 @@ async fn seq_behind_deferred_slots_count_with_shutdown() {
     }
     let response = test_rollup
         .client
-        .query_rest_endpoint::<ResponseObject<ValueResponse>>("/modules/value-setter/state/value")
+        .query_rest_endpoint::<ValueResponse>("/modules/value-setter/state/value")
         .await
         .unwrap();
-    let actual_value = response.data.unwrap().value;
+    let actual_value = response.value;
     assert_eq!(
         actual_value, UPDATE_TWO_VALUE as u32,
         "Expected value to be {UPDATE_TWO_VALUE}, but got {actual_value}"
@@ -774,12 +771,10 @@ async fn seq_behind_deferred_slots_count_with_shutdown() {
     }
     let many_values_response = test_rollup
         .client
-        .query_rest_endpoint::<ResponseObject<IdxResponse>>(
-            "/modules/value-setter/state/many-values/items/0",
-        )
+        .query_rest_endpoint::<IdxResponse>("/modules/value-setter/state/many-values/items/0")
         .await
         .unwrap();
-    let actual_many_value = many_values_response.data.unwrap().value.unwrap();
+    let actual_many_value = many_values_response.value.unwrap();
     assert_eq!(
         actual_many_value, 12u8,
         "Expected many_values[0] to be 12, but got {actual_many_value}"
@@ -999,7 +994,7 @@ async fn max_batch_size() {
 /// so we want to reuse that work for multiple endpoints.
 #[tokio::test(flavor = "multi_thread")]
 async fn test_sequencer_getters() {
-    use sov_api_spec::types::AcceptTxResponse;
+    use sov_api_spec::types::TxInfoWithConfirmation;
     let (test_rollup, admin) = create_test_rollup(
         0,
         TEST_MAX_BATCH_SIZE,
@@ -1023,11 +1018,11 @@ async fn test_sequencer_getters() {
         let _ = slot_subscription.next().await.unwrap().unwrap();
     }
 
-    let mut responses: Vec<AcceptTxResponse> = Vec::new();
+    let mut responses: Vec<TxInfoWithConfirmation> = Vec::new();
     let mut tx_number = 0;
     // Create a helper function to check that the tx endpoint responds with the expected txs.
     let check_responses = |starting_from: usize,
-                           responses: Vec<AcceptTxResponse>,
+                           responses: Vec<TxInfoWithConfirmation>,
                            client: sov_api_spec::client::Client| async move {
         let mut tx_ws = client
             .subscribe_to_txs(Some(starting_from as u64))
@@ -1041,11 +1036,11 @@ async fn test_sequencer_getters() {
                 .unwrap();
             assert_eq!(
                 new_response.id.to_string(),
-                old_response.data.id.to_string(),
+                old_response.id.to_string(),
                 "Mismatch at tx number {i}. Found {new_response:?} \nbut expected {old_response:?}",
             );
             assert_eq!(
-                new_response.events, old_response.data.events,
+                new_response.events, old_response.events,
                 "Mismatch at tx {i}",
             );
         }
@@ -1078,20 +1073,20 @@ async fn test_sequencer_getters() {
     for response in responses.iter() {
         let tx_response = test_rollup
             .api_client
-            .sequencer_get_tx(&response.data.id)
+            .sequencer_get_tx(&response.id)
             .await
             .unwrap();
-        let tx = tx_response.data.as_ref().unwrap();
-        assert_eq!(tx.id, response.data.id);
-        assert_eq!(tx.events, response.data.events);
-        assert_eq!(&tx.receipt, response.data.receipt.as_ref().unwrap());
-        assert_eq!(&tx.tx_number, response.data.tx_number.as_ref().unwrap());
+        let tx = tx_response.as_ref();
+        assert_eq!(tx.id, response.id);
+        assert_eq!(tx.events, response.events);
+        assert_eq!(&tx.receipt, response.receipt.as_ref().unwrap());
+        assert_eq!(&tx.tx_number, response.tx_number.as_ref().unwrap());
     }
 
     // Finally, test the "list events" endpoint by iterating through all the events we generated.
     let all_events = responses
         .into_iter()
-        .flat_map(|response| response.data.events.into_iter())
+        .flat_map(|response| response.events.into_iter())
         .collect::<Vec<_>>();
     let mut i = 0;
     let mut page = SequencerListEventsPage::First;
@@ -1103,7 +1098,7 @@ async fn test_sequencer_getters() {
             .await
             .unwrap()
             .into_inner();
-        let SequencerListEventsResponseData { items, next_cursor } = response.data;
+        let SequencerListEventsResponse { items, next_cursor } = response;
         for event in items {
             assert_eq!(event.number, i as u64);
             i += 1;
@@ -1898,7 +1893,7 @@ async fn events_are_returned_in_tx_response() {
         .await
         .unwrap();
 
-    assert_eq!(response.data.events.len(), 1);
+    assert_eq!(response.events.len(), 1);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -2180,14 +2175,10 @@ async fn visible_hashes_match_across_node_and_sequencer() {
             .await
             .unwrap();
         let response = response
-            .json::<ResponseObject<ValueResponse>>()
+            .json::<ValueResponse>()
             .await
             .expect("Hooks must have run");
-        let root = response
-            .data
-            .ok_or_else(|| anyhow::anyhow!("No state root in response"))
-            .unwrap();
-        root.value
+        response.value
     }
     // Produce some empty blocks to ensure that the sequencer has a batch in progress.
     da_layer.write().await.produce_block().await.unwrap();
@@ -2437,12 +2428,10 @@ async fn flaky_test_hooks_state_is_visible() {
         }
         let hook_name = hook_name.to_string();
         client
-            .query_rest_endpoint::<ResponseObject<ValueResponse>>(&format!(
+            .query_rest_endpoint::<ValueResponse>(&format!(
                 "/modules/hooks-count/state/{hook_name}-hook-count"
             ))
             .await
-            .unwrap()
-            .data
             .unwrap()
             .value
     };
@@ -3011,17 +3000,15 @@ async fn query_set_value_helper(
     );
     let response = test_rollup
         .client
-        .query_rest_endpoint::<ResponseObject<serde_json::Value>>(&url)
+        .query_rest_endpoint::<serde_json::Value>(&url)
         .await?;
+    // quick/easy way to detect if the request returned a error, i.e 404
+    if response.get("title").is_some() {
+        return Err(anyhow::anyhow!("API request failed: {:?}", response));
+    }
 
     debug!(?response, "Querying value");
-
-    let found_value = response
-        .data
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("No data found. {:?}", response))?["value"]
-        .as_u64()
-        .unwrap_or_default();
+    let found_value = response["value"].as_u64().unwrap_or_default();
 
     anyhow::ensure!(found_value == expected);
 

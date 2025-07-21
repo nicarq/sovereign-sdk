@@ -46,7 +46,7 @@ async fn query_time_basic_kernel() {
         });
 
         let api_time = runner
-            .query_api_unwrap_data::<ApiGetStateData<Time>>(
+            .query_api_response::<ApiGetStateData<Time>>(
                 &ApiPath::query_module("chain-state").with_default_state_path("time"),
                 &client,
             )
@@ -55,7 +55,7 @@ async fn query_time_basic_kernel() {
             .unwrap();
 
         let api_time_at_height = runner
-            .query_api_unwrap_data::<ApiGetStateData<Time>>(
+            .query_api_response::<ApiGetStateData<Time>>(
                 &ApiPath::query_module("chain-state")
                     .with_default_state_path("time")
                     .with_rollup_height(i),
@@ -87,7 +87,7 @@ async fn query_invalid_rollup_height_returns_error() {
     // Using the API without the rollup height parameter should return the value at the current visible height
     // It should be possible to retrieve the time at the height 10.
     runner
-        .query_api_unwrap_data::<ApiGetStateData<Time>>(
+        .query_api_response::<ApiGetStateData<Time>>(
             &ApiPath::query_module("chain-state")
                 .with_default_state_path("time")
                 .with_rollup_height(SLOTS_TO_ADVANCE),

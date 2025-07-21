@@ -111,7 +111,6 @@ mod helpers {
     use sov_bank::types::TokenIdResponse;
     use sov_cli::wallet_state::PrivateKeyAndAddress;
     use sov_modules_api::prelude::serde::de::DeserializeOwned;
-    use sov_modules_api::rest::utils::ResponseObject;
     use sov_modules_api::transaction::Transaction;
     use sov_modules_api::{
         Address, Amount, CryptoSpec, PrivateKey, PublicKey, Runtime as RuntimeTrait, SafeVec, Spec,
@@ -188,10 +187,9 @@ mod helpers {
         let sender = keys.address;
         let tx = build_create_token_tx(&priv_key, 0, Amount::new(100));
         client.send_transactions(&[tx]).await;
-        let token_id_resp: ResponseObject<TokenIdResponse> =
-            client.get(query_token_id(&url, sender)).await;
+        let token_id_resp: TokenIdResponse = client.get(query_token_id(&url, sender)).await;
 
-        (sender, token_id_resp.data.unwrap().token_id.to_string())
+        (sender, token_id_resp.token_id.to_string())
     }
 
     fn query_token_id(url: &str, sender: <TestSpec as Spec>::Address) -> String {

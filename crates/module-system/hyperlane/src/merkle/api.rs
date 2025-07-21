@@ -1,8 +1,10 @@
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use serde::Serialize;
+use sov_modules_api::prelude::serde_json::json;
 use sov_modules_api::prelude::utoipa::openapi::OpenApi;
 use sov_modules_api::prelude::{axum, UnwrapInfallible};
-use sov_modules_api::rest::utils::{errors, ApiResult};
+use sov_modules_api::rest::utils::errors;
 use sov_modules_api::rest::{ApiState, HasCustomRestApi};
 use sov_modules_api::{ApiStateAccessor, HexHash, Spec};
 
@@ -45,7 +47,7 @@ impl<S: Spec> MerkleTreeHook<S> {
     async fn get_count(
         state: ApiState<S, Self>,
         mut accessor: ApiStateAccessor<S>,
-    ) -> ApiResult<u32> {
+    ) -> Result<Response, Response> {
         let count = state
             .tree
             .get(&mut accessor)
@@ -55,13 +57,13 @@ impl<S: Spec> MerkleTreeHook<S> {
             .ok_or_else(|| errors::not_found_404("MerkleTreeHook", "count"))?
             .count;
 
-        Ok(count.into())
+        Ok(axum::Json(json!({"count": count})).into_response())
     }
 
     async fn get_checkpoint(
         state: ApiState<S, Self>,
         mut accessor: ApiStateAccessor<S>,
-    ) -> ApiResult<Checkpoint> {
+    ) -> Result<Response, Response> {
         let tree = state
             .tree
             .get(&mut accessor)
@@ -77,7 +79,6 @@ impl<S: Spec> MerkleTreeHook<S> {
             .root(&mut accessor)
             .expect("Should not fail charging gas");
         let checkpoint = Checkpoint { root, index };
-
-        Ok(checkpoint.into())
+        Ok(axum::Json(checkpoint).into_response())
     }
 }

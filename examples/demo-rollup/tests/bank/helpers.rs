@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use demo_stf::runtime::{Runtime, RuntimeCall};
 use futures::StreamExt;
 use sov_bank::event::Event as BankEvent;
@@ -150,13 +150,7 @@ pub(crate) async fn assert_aggregated_proof(
         <TestSpec as Spec>::Address,
         <TestSpec as Spec>::Da,
         <<TestSpec as Spec>::Storage as Storage>::Root,
-    > = verifier.verify(
-        &proof_response
-            .data
-            .clone()
-            .ok_or_else(|| anyhow!("data should be defined"))?
-            .try_into()?,
-    )?;
+    > = verifier.verify(&proof_response.clone().try_into()?)?;
 
     // We test inequality because proofs are saved asynchronously in the db.
     assert!(initial_slot <= proof_pub_data.initial_slot_number.get());
@@ -181,7 +175,7 @@ pub(crate) async fn assert_slot_finality(
 
     assert_eq!(
         expected_finality,
-        slot.data.as_ref().unwrap().finality_status.into(),
+        slot.finality_status.into(),
         "Wrong finality status for rollup height {rollup_height}"
     );
 }
@@ -194,10 +188,9 @@ pub(crate) async fn assert_bank_event<S: Spec>(
     let event_response = client.client.get_event_by_id(event_number).await?;
 
     // Ensure "Bank" is present in response json
-    assert_eq!(event_response.data.as_ref().unwrap().module.name, "Bank");
+    assert_eq!(event_response.module.name, "Bank");
 
-    let event_value =
-        serde_json::Value::Object(event_response.data.as_ref().unwrap().value.clone());
+    let event_value = serde_json::Value::Object(event_response.value.clone());
 
     println!("event_value: {event_value:?}");
 
@@ -217,7 +210,7 @@ pub(crate) async fn send_tx_and_wait_for_status(
     let rsps = client.client.send_txs_to_sequencer(txs).await?;
 
     // Wait for the last transaction.
-    let tx_hash = &rsps[rsps.len() - 1].data.id;
+    let tx_hash = &rsps[rsps.len() - 1].id;
 
     let mut tx_subscription = client
         .client
@@ -241,5 +234,5 @@ pub(crate) async fn send_tx_and_wait_for_status(
 
     let res = client.client.get_latest_slot(None).await?;
     // We are certain that the transaction result will be visible after this height.
-    Ok(res.data.clone().unwrap().number)
+    Ok(res.number)
 }

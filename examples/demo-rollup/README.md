@@ -127,45 +127,42 @@ this case have the TokenCreated Event
 ```sh,test-ci,bashtestmd:compare-output
 $ sleep 5
 $ curl -sS http://127.0.0.1:12346/ledger/txs/0x1846983d3d7ff20a78e0d514d1f95576bcb8b33971b1ca7eb9e327443085a090/events | jq
-{
-  "data": [
-    {
-      "type": "event",
-      "number": 0,
-      "key": "Bank/TokenCreated",
-      "value": {
-        "token_created": {
-          "token_name": "sov-test-token",
-          "coins": {
-            "amount": "1000000",
-            "token_id": "token_17732u2vyp35dl6lkgjrdqs4mtuzt7rmy02hq9nqct8wq3g74rqyqz0rt2x"
-          },
-          "mint_to_address": {
-            "user": "sov10d6chuh8vu86ltmt7qq4ec8lt25qyvr0cl3lg4mzs5llcfnx69m"
-          },
-          "minter": {
+[
+  {
+    "type": "event",
+    "number": 0,
+    "key": "Bank/TokenCreated",
+    "value": {
+      "token_created": {
+        "token_name": "sov-test-token",
+        "coins": {
+          "amount": "1000000",
+          "token_id": "token_17732u2vyp35dl6lkgjrdqs4mtuzt7rmy02hq9nqct8wq3g74rqyqz0rt2x"
+        },
+        "mint_to_address": {
+          "user": "sov10d6chuh8vu86ltmt7qq4ec8lt25qyvr0cl3lg4mzs5llcfnx69m"
+        },
+        "minter": {
+          "user": "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
+        },
+        "supply_cap": "340282366920938463463374607431768211455",
+        "admins": [
+          {
             "user": "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
           },
-          "supply_cap": "340282366920938463463374607431768211455",
-          "admins": [
-            {
-              "user": "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
-            },
-            {
-              "user": "sov10d6chuh8vu86ltmt7qq4ec8lt25qyvr0cl3lg4mzs5llcfnx69m"
-            }
-          ]
-        }
-      },
-      "module": {
-        "type": "moduleRef",
-        "name": "Bank"
-      },
-      "tx_hash": "0x1846983d3d7ff20a78e0d514d1f95576bcb8b33971b1ca7eb9e327443085a090"
-    }
-  ],
-  "meta": {}
-}
+          {
+            "user": "sov10d6chuh8vu86ltmt7qq4ec8lt25qyvr0cl3lg4mzs5llcfnx69m"
+          }
+        ]
+      }
+    },
+    "module": {
+      "type": "moduleRef",
+      "name": "Bank"
+    },
+    "tx_hash": "0x1846983d3d7ff20a78e0d514d1f95576bcb8b33971b1ca7eb9e327443085a090"
+  }
+]
 ```
 
 We can see the TokenCreated event which contains the id of the token
@@ -370,7 +367,7 @@ $ ./../../target/debug/sov-cli node submit-batch --wait-for-processing by-addres
 
 ```bash,test-ci,bashtestmd:compare-output
 $ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7/total-supply | jq -c -M
-{"data":{"amount":"10030000000000000","token_id":"token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"},"meta":{}}
+{"amount":"10030000000000000","token_id":"token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"}
 ```
 
 #### 6. Wait for aggregated proof to be available

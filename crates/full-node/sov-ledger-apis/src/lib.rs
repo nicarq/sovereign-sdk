@@ -8,7 +8,7 @@ use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
-use axum::{middleware, Extension};
+use axum::{middleware, Extension, Json};
 use borsh::{BorshDeserialize, BorshSerialize};
 use futures::StreamExt;
 use serde::de::DeserializeOwned;
@@ -22,7 +22,7 @@ use sov_rest_utils::errors::{
     self, database_error_response_500, internal_server_error_response_500, not_found_404,
 };
 use sov_rest_utils::{
-    json_obj, preconfigured_router_layers, serve_generic_ws_subscription, ApiResult, ErrorObject,
+    json_obj, preconfigured_router_layers, serve_generic_ws_subscription, ErrorObject,
     PageSelection, Pagination, Path, Query,
 };
 use sov_rollup_interface::common::{HexHash, HexString, SlotNumber};
@@ -231,7 +231,7 @@ where
         State(state): State<LedgerState<T>>,
         include_children_opt: Option<Query<IncludeChildren>>,
         Extension(slot_number): Extension<SlotNumber>,
-    ) -> ApiResult<Slot<B, TxReceipt, E>> {
+    ) -> Response {
         match state
             .ledger
             .get_slot_by_number::<B, TxReceipt, RuntimeEventResponse<E>>(
@@ -240,9 +240,9 @@ where
             )
             .await
         {
-            Ok(Some(slot_response)) => Ok(Slot::new(slot_response).into()),
-            Ok(None) => Err(errors::not_found_404("Slot", slot_number)),
-            Err(err) => Err(errors::database_error_response_500(err)),
+            Ok(Some(slot_response)) => Json(Slot::new(slot_response)).into_response(),
+            Ok(None) => errors::not_found_404("Slot", slot_number),
+            Err(err) => errors::database_error_response_500(err),
         }
     }
 
@@ -250,7 +250,7 @@ where
         State(state): State<LedgerState<T>>,
         Extension(slot_number): Extension<SlotNumber>,
         event_key_prefix_opt: Option<Query<EventFilter>>,
-    ) -> ApiResult<Vec<RuntimeEventResponse<E>>> {
+    ) -> Response {
         let filter = event_key_prefix_opt.map(|q| q.0.prefix.into());
         let events = state
             .ledger
@@ -258,17 +258,18 @@ where
                 &SlotIdentifier::Number(slot_number),
                 filter,
             )
-            .await
-            .map_err(database_error_response_500)?;
-
-        Ok(events.into())
+            .await;
+        match events {
+            Ok(events) => Json(events).into_response(),
+            Err(err) => database_error_response_500(err),
+        }
     }
 
     async fn get_batch(
         State(state): State<LedgerState<T>>,
         include_children_opt: Option<Query<IncludeChildren>>,
         Extension(BatchNumber(batch_number)): Extension<BatchNumber>,
-    ) -> ApiResult<Batch<B, TxReceipt, E>> {
+    ) -> Response {
         match state
             .ledger
             .get_batch_by_number::<B, TxReceipt, RuntimeEventResponse<E>>(
@@ -277,9 +278,11 @@ where
             )
             .await
         {
-            Ok(Some(batch_response)) => Ok(Batch::new(batch_response, batch_number).into()),
-            Ok(None) => Err(errors::not_found_404("Batch", batch_number)),
-            Err(err) => Err(errors::database_error_response_500(err)),
+            Ok(Some(batch_response)) => {
+                Json(Batch::new(batch_response, batch_number)).into_response()
+            }
+            Ok(None) => errors::not_found_404("Batch", batch_number),
+            Err(err) => errors::database_error_response_500(err),
         }
     }
 
@@ -287,7 +290,7 @@ where
         State(state): State<LedgerState<T>>,
         include_children_opt: Option<Query<IncludeChildren>>,
         Extension(TxNumber(tx_number)): Extension<TxNumber>,
-    ) -> ApiResult<Transaction<TxReceipt, E>> {
+    ) -> Response {
         match state
             .ledger
             .get_tx_by_number::<TxReceipt, RuntimeEventResponse<E>>(
@@ -296,9 +299,9 @@ where
             )
             .await
         {
-            Ok(Some(tx_response)) => Ok(Transaction::new(tx_response, tx_number).into()),
-            Ok(None) => Err(errors::not_found_404("Transaction", tx_number)),
-            Err(err) => Err(errors::database_error_response_500(err)),
+            Ok(Some(tx_response)) => Json(Transaction::new(tx_response, tx_number)).into_response(),
+            Ok(None) => errors::not_found_404("Transaction", tx_number),
+            Err(err) => errors::database_error_response_500(err),
         }
     }
 
@@ -306,39 +309,41 @@ where
         State(state): State<LedgerState<T>>,
         Extension(TxNumber(tx_number)): Extension<TxNumber>,
         event_key_prefix_opt: Option<Query<EventFilter>>,
-    ) -> ApiResult<Vec<RuntimeEventResponse<E>>> {
+    ) -> Response {
         match state
             .ledger
             .get_events_by_txn_number::<RuntimeEventResponse<E>>(tx_number)
             .await
         {
-            Ok(events) => Ok(events
-                .into_iter()
-                .filter(|event| {
-                    if let Some(prefix) = &event_key_prefix_opt {
-                        event.key.starts_with(&prefix.prefix)
-                    } else {
-                        true
-                    }
-                })
-                .collect::<Vec<_>>()
-                .into()),
-            Err(err) => Err(errors::database_error_response_500(err)),
+            Ok(events) => Json(
+                events
+                    .into_iter()
+                    .filter(|event| {
+                        if let Some(prefix) = &event_key_prefix_opt {
+                            event.key.starts_with(&prefix.prefix)
+                        } else {
+                            true
+                        }
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .into_response(),
+            Err(err) => errors::database_error_response_500(err),
         }
     }
 
     async fn get_event(
         State(state): State<LedgerState<T>>,
         Extension(EventNumber(event_number)): Extension<EventNumber>,
-    ) -> ApiResult<RuntimeEventResponse<E>> {
+    ) -> Response {
         match state
             .ledger
             .get_event_by_number::<RuntimeEventResponse<E>>(event_number)
             .await
         {
-            Ok(Some(event_response)) => Ok(event_response.into()),
-            Ok(None) => Err(errors::not_found_404("Event", event_number)),
-            Err(err) => Err(errors::database_error_response_500(err)),
+            Ok(Some(event_response)) => Json(event_response).into_response(),
+            Ok(None) => errors::not_found_404("Event", event_number),
+            Err(err) => errors::database_error_response_500(err),
         }
     }
 
@@ -349,7 +354,7 @@ where
     async fn list_events(
         State(state): State<LedgerState<T>>,
         pagination_opt: Option<Query<Pagination<String>>>,
-    ) -> ApiResult<Vec<RuntimeEventResponse<E>>> {
+    ) -> Result<Response, Response> {
         let pagination = match pagination_opt {
             Some(Query(pagination)) => pagination,
             None => Default::default(),
@@ -375,12 +380,10 @@ where
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        Ok(events.into())
+        Ok(Json(events).into_response())
     }
 
-    async fn get_latest_event(
-        State(state): State<LedgerState<T>>,
-    ) -> ApiResult<RuntimeEventResponse<E>> {
+    async fn get_latest_event(State(state): State<LedgerState<T>>) -> Result<Response, Response> {
         let event_number = state
             .ledger
             .get_latest_event_number()
@@ -393,7 +396,7 @@ where
             .await
             .map_err(errors::database_error_response_500)?
             .ok_or_else(|| errors::not_found_404("Event", event_number))?;
-        Ok(event.into())
+        Ok(Json(event).into_response())
     }
 
     // ENTITY ID RESOLVERS
@@ -605,7 +608,7 @@ where
 
     async fn get_latest_aggregated_proof(
         State(state): State<LedgerState<T>>,
-    ) -> ApiResult<AggregatedProof> {
+    ) -> Result<Response, Response> {
         let latest_proof: AggregatedProof = state
             .ledger
             .get_latest_aggregated_proof()
@@ -615,7 +618,7 @@ where
             .try_into()
             .map_err(internal_server_error_response_500)?;
 
-        Ok(latest_proof.into())
+        Ok(Json(latest_proof).into_response())
     }
 
     // SUBSCRIPTIONS

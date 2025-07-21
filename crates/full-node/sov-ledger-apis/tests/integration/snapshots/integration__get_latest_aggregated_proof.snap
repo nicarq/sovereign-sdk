@@ -1,12 +1,8 @@
 ---
 source: crates/full-node/sov-ledger-apis/tests/integration/main.rs
 expression: response
-snapshot_kind: text
 ---
 {
-  "data": {
-    "proof": "YWdncmVnYXRlZC1wcm9vZg==",
-    "type": "aggregatedProof"
-  },
-  "meta": {}
+  "proof": "YWdncmVnYXRlZC1wcm9vZg==",
+  "type": "aggregatedProof"
 }

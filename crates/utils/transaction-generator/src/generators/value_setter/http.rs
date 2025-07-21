@@ -1,5 +1,4 @@
 use serde::Deserialize;
-use sov_modules_api::rest::utils::ResponseObject;
 use sov_node_client::NodeClient;
 
 use crate::generators::basic::BasicClientConfig;
@@ -46,13 +45,13 @@ impl HttpValueSetterClient {
 
         let response = self
             .client
-            .query_rest_endpoint::<ResponseObject<ValueResponse<u32>>>(&format!(
+            .query_rest_endpoint::<ValueResponse<u32>>(&format!(
                 "/modules/value-setter/state/value{rollup_height_param}"
             ))
             .await
             .unwrap();
 
-        response.data.and_then(|d| d.value)
+        response.value
     }
 
     pub async fn get_many_values_len(&self) -> Option<u64> {
@@ -64,13 +63,13 @@ impl HttpValueSetterClient {
 
         let response = self
             .client
-            .query_rest_endpoint::<ResponseObject<LenResponse>>(&format!(
+            .query_rest_endpoint::<LenResponse>(&format!(
                 "/modules/value-setter/state/many-values{rollup_height_param}"
             ))
             .await
             .unwrap();
 
-        response.data.map(|q| q.length)
+        Some(response.length)
     }
 
     pub async fn get_many_values_item(&self, item: u64) -> Option<u8> {
@@ -81,12 +80,11 @@ impl HttpValueSetterClient {
         };
 
         self.client
-            .query_rest_endpoint::<ResponseObject<IdxResponse<u8>>>(&format!(
+            .query_rest_endpoint::<IdxResponse<u8>>(&format!(
                 "/modules/value-setter/state/many-values/items/{item}{rollup_height_param}"
             ))
             .await
             .unwrap()
-            .data
-            .and_then(|d| d.value)
+            .value
     }
 }

@@ -8,7 +8,7 @@ use serde::Serialize;
 use sov_modules_api::prelude::anyhow;
 use sov_modules_api::rest::ApiState;
 use sov_modules_api::{metered_credential, ApiStateAccessor, CryptoSpec, Spec};
-use sov_rest_utils::{errors, preconfigured_router_layers, ResponseObject};
+use sov_rest_utils::{errors, preconfigured_router_layers};
 use sov_uniqueness::Uniqueness;
 
 /// Trait for the `/rollup/addresses/{address}/dedup` endpoint.
@@ -32,7 +32,7 @@ pub trait DeDupEndpoint<S: Spec>: Clone + Send + Sync + 'static {
 
     /// Returns a configured axum router for the dedup endpoint.
     ///
-    /// Calls the implemented [`DeDupEndpoint::handler`] and returns the result as a [`ResponseObject`].
+    /// Calls the implemented [`DeDupEndpoint::handler`] and returns the result.
     /// If [`DeDupEndpoint::handler`] returns a error then it will be included in the
     /// [`sov_rest_utils::ErrorObject`]s details field.
     ///
@@ -49,7 +49,7 @@ pub trait DeDupEndpoint<S: Spec>: Clone + Send + Sync + 'static {
                     get(
                         |Path(address): Path<String>, State(state): State<Self>| async move {
                             match Self::handler(address, state.state()) {
-                                Ok(data) => ResponseObject::from(data).into_response(),
+                                Ok(data) => axum::Json(data).into_response(),
                                 Err(err) => errors::bad_request_400("Failed to dedup address", err),
                             }
                         },

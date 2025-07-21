@@ -298,15 +298,13 @@ async fn send_tx(
     admin: &TestUser<TestSpec>,
     nonce: u64,
     api_client: &sov_api_spec::Client,
-) -> Result<ResponseValue<types::AcceptTxResponse>, String> {
+) -> Result<ResponseValue<types::TxInfoWithConfirmation>, String> {
     let tx = tx_set_value(&admin.private_key, nonce, 8);
     let res = api_client.send_raw_tx_to_sequencer(&tx).await;
 
     match res {
         Ok(ok) => Ok(ok),
-        Err(sov_api_spec::Error::InvalidResponsePayload(bytes, _)) => {
-            Err(String::from_utf8_lossy(&bytes).to_string())
-        }
+        Err(sov_api_spec::Error::ErrorResponse(err)) => Err(err.into_inner().title),
         Err(err) => {
             panic!("Unexpected error: {err:?}")
         }
@@ -316,25 +314,15 @@ async fn send_tx(
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
-struct CurrentHeights {
-    data: Data,
-    #[allow(dead_code)]
-    meta: Meta,
-}
-
-#[derive(Deserialize, Debug)]
 struct Data {
     value: (u64, u64),
 }
 
-#[derive(Deserialize, Debug)]
-struct Meta {}
-
 async fn get_height(client: &NodeClient) -> anyhow::Result<RollupHeight> {
     let url = "/modules/chain-state/state/current-heights";
     let response = client.http_get(url).await?;
-    let heights: CurrentHeights = serde_json::from_str(&response)?;
-    Ok(RollupHeight::new(heights.data.value.0))
+    let heights: Data = serde_json::from_str(&response)?;
+    Ok(RollupHeight::new(heights.value.0))
 }
 
 async fn get_last_finalized_block_height(client: &NodeClient) -> u64 {
@@ -352,8 +340,8 @@ async fn get_block_height(client: &NodeClient, finalized: bool) -> u64 {
         "/ledger/slots/latest"
     };
     let response = client.http_get(url).await.unwrap();
-    let height: types::GetLatestSlotResponse = serde_json::from_str(&response).unwrap();
-    height.data.unwrap().number
+    let slot: types::Slot = serde_json::from_str(&response).unwrap();
+    slot.number
 }
 
 #[allow(clippy::too_many_arguments)]

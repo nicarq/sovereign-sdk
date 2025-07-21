@@ -45,7 +45,7 @@ async fn test_enroll_remote_router() {
     });
 
     let api_response = runner
-        .query_api_unwrap_data::<Vec<RemoteRouter>>(
+        .query_api_response::<Vec<RemoteRouter>>(
             &ApiPath::query_module("warp")
                 .with_custom_api_path(&format!("route/{warp_route_id}/routers")),
             &client,
@@ -63,7 +63,7 @@ async fn test_unenroll_remote_router() {
 
     let warp_route_id = register_basic_warp_route_and_enroll_router(&mut runner, &admin);
     let api_response = runner
-        .query_api_unwrap_data::<Vec<RemoteRouter>>(
+        .query_api_response::<Vec<RemoteRouter>>(
             &ApiPath::query_module("warp")
                 .with_custom_api_path(&format!("route/{warp_route_id}/routers")),
             &client,
@@ -95,7 +95,7 @@ async fn test_unenroll_remote_router() {
         }),
     });
     let api_response = runner
-        .query_api_unwrap_data::<Vec<RemoteRouter>>(
+        .query_api_response::<Vec<RemoteRouter>>(
             &ApiPath::query_module("warp")
                 .with_custom_api_path(&format!("route/{warp_route_id}/routers")),
             &client,

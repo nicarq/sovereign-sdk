@@ -316,7 +316,7 @@ This command will use your default private key.
 
 ```bash,test-ci,bashtestmd:compare-output
 $ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_17732u2vyp35dl6lkgjrdqs4mtuzt7rmy02hq9nqct8wq3g74rqyqz0rt2x/total-supply | jq -c -M
-{"data":{"amount":"1000000","token_id":"token_17732u2vyp35dl6lkgjrdqs4mtuzt7rmy02hq9nqct8wq3g74rqyqz0rt2x"},"meta":{}}
+{"amount":"1000000","token_id":"token_17732u2vyp35dl6lkgjrdqs4mtuzt7rmy02hq9nqct8wq3g74rqyqz0rt2x"}
 ```
 
 

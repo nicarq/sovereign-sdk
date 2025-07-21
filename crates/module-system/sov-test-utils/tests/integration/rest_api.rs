@@ -16,7 +16,7 @@ async fn test_rest_api_routes_default_state() {
     let client = runner.setup_rest_api_server().await;
 
     let admin_addr_api = runner
-        .query_api_unwrap_data::<ApiGetStateData<String>>(
+        .query_api_response::<ApiGetStateData<String>>(
             &ApiPath::query_module("value-setter").with_default_state_path("admin"),
             &client,
         )
@@ -30,7 +30,7 @@ async fn test_rest_api_routes_default_state() {
     );
 
     let value_api = runner
-        .query_api_unwrap_data::<ApiGetStateData<u64>>(
+        .query_api_response::<ApiGetStateData<u64>>(
             &ApiPath::query_module("value-setter").with_default_state_path("value"),
             &client,
         )
@@ -55,7 +55,7 @@ async fn test_rest_api_routes_default_state() {
     });
 
     let value_api = runner
-        .query_api_unwrap_data::<ApiGetStateData<u64>>(
+        .query_api_response::<ApiGetStateData<u64>>(
             &ApiPath::query_module("value-setter").with_default_state_path("value"),
             &client,
         )
@@ -82,7 +82,7 @@ async fn test_rest_api_routes_custom_api() {
         format!("tokens/{}/balances/{}", config_gas_token_id(), user_addr).as_str(),
     );
 
-    let api_user_balance = runner.query_api_unwrap_data::<Coins>(&path, &client).await;
+    let api_user_balance = runner.query_api_response::<Coins>(&path, &client).await;
 
     assert_eq!(
         api_user_balance.amount, initial_user_balance,
@@ -105,7 +105,7 @@ async fn test_rest_api_routes_custom_api() {
         }),
     });
 
-    let api_user_balance: Coins = runner.query_api_unwrap_data(&path, &client).await;
+    let api_user_balance: Coins = runner.query_api_response(&path, &client).await;
 
     let expected_balance = initial_user_balance
         .checked_sub(gas_used_clone.get())

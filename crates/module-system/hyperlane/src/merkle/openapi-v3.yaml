@@ -10,22 +10,22 @@ paths:
       operationId: "hyperlane_merkle_tree_hook_count"
       tags: [MerkleTreeHook]
       responses:
-        '200':
-          $ref: '#/components/responses/CountResponse'
-        '404':
+        "200":
+          $ref: "#/components/responses/CountResponse"
+        "404":
           # Referring type from `runtime-base.yaml`
-          $ref: '#/components/responses/StateNotFound'
+          $ref: "#/components/responses/StateNotFound"
   /checkpoint:
     get:
       summary: Get the current checkpoint of merkle tree
       operationId: "hyperlane_merkle_tree_hook_checkpoint"
       tags: [MerkleTreeHook]
       responses:
-        '200':
-          $ref: '#/components/responses/CheckpointResponse'
-        '404':
+        "200":
+          $ref: "#/components/responses/CheckpointResponse"
+        "404":
           # Referring type from `runtime-base.yaml`
-          $ref: '#/components/responses/StateNotFound'
+          $ref: "#/components/responses/StateNotFound"
 
 components:
   schemas:
@@ -45,10 +45,14 @@ components:
       content:
         application/json:
           schema:
-            type: integer
+            type: object
+            properties:
+              count:
+                type: integer
+                description: The merkle tree leaves count
     CheckpointResponse:
       description: Checkpoint of a merkle tree
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Checkpoint'
+            $ref: "#/components/schemas/Checkpoint"

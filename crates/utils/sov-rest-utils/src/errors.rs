@@ -111,7 +111,6 @@ mod tests {
     use tower::ServiceExt;
 
     use super::*;
-    use crate::ResponseObject;
 
     #[test]
     fn check_404() {
@@ -140,11 +139,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let error: ResponseObject<()> = serde_json::from_slice(&body).unwrap();
-
-        assert_eq!(1, error.errors.len());
-
-        let error = error.errors.first().unwrap();
+        let error: ErrorObject = serde_json::from_slice(&body).unwrap();
 
         assert_eq!("Not Found", error.title);
         assert_eq!(

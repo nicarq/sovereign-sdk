@@ -6,7 +6,6 @@ use sov_cli::NodeClient;
 use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
 use sov_test_utils::test_rollup::{RollupBuilder, RollupProverConfig};
 use sov_test_utils::TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING;
@@ -114,11 +113,11 @@ struct ValueResponse {
 
 async fn get_max_attested_height(client: &NodeClient) -> anyhow::Result<u64> {
     let response = client
-        .query_rest_endpoint::<ResponseObject<ValueResponse>>(
+        .query_rest_endpoint::<ValueResponse>(
             "/modules/attester-incentives/state/maximum-attested-height",
         )
         .await?;
 
-    let height = response.data.unwrap().value;
+    let height = response.value;
     Ok(height)
 }

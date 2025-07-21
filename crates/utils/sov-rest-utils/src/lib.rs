@@ -52,69 +52,9 @@ use tower_http::trace::TraceLayer;
 use tower_request_id::{RequestId, RequestIdLayer};
 use tracing::{error, error_span, trace, warn};
 
-/// The standard response type used by the utilities in this crate.
-pub type ApiResult<T, E = Response> = Result<ResponseObject<T>, E>;
-
-/// Top-level response object to be used for all responses.
-///
-/// Every [`ResponseObject`] has at least of:
-/// - A `data` field, which can be any JSON value.
-/// - An `errors` field with one or more errors in it.
-///
-/// These two cases are usually but not always exclusive, notably in the case of
-/// partial success.
-#[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
-pub struct ResponseObject<T> {
-    /// Core response data when successful.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<T>,
-    /// A list of errors that occurred during the request. If the list is empty,
-    /// the request was successful.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub errors: Vec<ErrorObject>,
-    /// Metadata about the response, if present or needed (e.g. remaining
-    /// requests available in the current rate limit window). This will be empty
-    /// in most cases.
-    pub meta: JsonObject,
-}
-
-impl<T> From<T> for ResponseObject<T> {
-    fn from(data: T) -> Self {
-        Self {
-            data: Some(data),
-            errors: Vec::new(),
-            meta: JsonObject::default(),
-        }
-    }
-}
-
-impl<T> IntoResponse for ResponseObject<T>
-where
-    T: serde::Serialize,
-{
-    fn into_response(self) -> Response {
-        // If there are no errors, we return a 200 OK response.
-        let status = self
-            .errors
-            .first()
-            .map(|err| err.status)
-            .unwrap_or(StatusCode::OK);
-
-        (status, Json(self)).into_response()
-    }
-}
-
 impl IntoResponse for ErrorObject {
     fn into_response(self) -> Response {
-        (
-            self.status,
-            Json(ResponseObject::<()> {
-                data: None,
-                errors: vec![self],
-                meta: JsonObject::default(),
-            }),
-        )
-            .into_response()
+        (self.status, Json(self)).into_response()
     }
 }
 

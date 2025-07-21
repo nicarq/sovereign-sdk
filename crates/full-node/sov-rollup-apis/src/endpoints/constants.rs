@@ -1,9 +1,8 @@
-use axum::response::IntoResponse as _;
 use axum::routing::get;
 use axum::Router;
 use serde::Serialize;
 use sov_modules_api::macros::config_value;
-use sov_rest_utils::{preconfigured_router_layers, ResponseObject};
+use sov_rest_utils::preconfigured_router_layers;
 
 /// The response returned by the `/rollup/constants` endpoint.
 ///
@@ -30,6 +29,6 @@ impl Default for ConstantsResponse {
 pub fn axum_router() -> Router<()> {
     preconfigured_router_layers(Router::new().route(
         "/rollup/constants",
-        get(|| async move { ResponseObject::from(ConstantsResponse::default()).into_response() }),
+        get(|| async move { axum::Json(ConstantsResponse::default()) }),
     ))
 }

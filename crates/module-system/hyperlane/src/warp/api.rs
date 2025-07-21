@@ -1,9 +1,10 @@
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use serde::Serialize;
 use sov_modules_api::prelude::axum::extract::State;
 use sov_modules_api::prelude::utoipa::openapi::OpenApi;
 use sov_modules_api::prelude::{axum, UnwrapInfallible};
-use sov_modules_api::rest::utils::{errors, ApiResult, Path};
+use sov_modules_api::rest::utils::{errors, Path};
 use sov_modules_api::rest::{ApiState, HasCustomRestApi};
 use sov_modules_api::{ApiStateAccessor, HexHash, Spec};
 
@@ -41,7 +42,7 @@ impl<S: Spec> Warp<S> {
         State(state): State<ApiState<S, Self>>,
         mut accessor: ApiStateAccessor<S>,
         Path(route): Path<WarpRouteId>,
-    ) -> ApiResult<Vec<RemoteRouter>> {
+    ) -> Result<Response, Response> {
         let router = state
             .warp_routes
             .get(&route, &mut accessor)
@@ -68,6 +69,6 @@ impl<S: Spec> Warp<S> {
                 address: address.0,
             });
         }
-        Ok(routers.into())
+        Ok(axum::Json(routers).into_response())
     }
 }

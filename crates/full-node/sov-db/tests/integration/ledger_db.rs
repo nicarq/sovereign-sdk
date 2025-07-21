@@ -22,8 +22,7 @@ async fn get_filtered_slot_events() {
     let events = &client
         .get_slot_filtered_events(&IntOrHash::Integer(0), None)
         .await
-        .unwrap()
-        .data;
+        .unwrap();
 
     assert_eq!(events.len(), 2);
     assert_eq!(events[0].key, "foo");
@@ -31,8 +30,7 @@ async fn get_filtered_slot_events() {
     let events = &client
         .get_slot_filtered_events(&IntOrHash::Integer(0), Some("bar"))
         .await
-        .unwrap()
-        .data;
+        .unwrap();
 
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].key, "bar");
@@ -40,8 +38,7 @@ async fn get_filtered_slot_events() {
     let events = &client
         .get_slot_filtered_events(&IntOrHash::Integer(0), Some("")) // empty prefix
         .await
-        .unwrap()
-        .data;
+        .unwrap();
 
     assert_eq!(events.len(), 2);
     assert_eq!(events[0].key, "foo");

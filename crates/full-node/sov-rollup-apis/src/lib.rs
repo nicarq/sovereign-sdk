@@ -3,9 +3,10 @@
 #![deny(missing_docs)]
 
 use axum::extract::State;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::Json;
-use sov_api_spec::types::{self, SimulateExecutionResponse};
+use sov_api_spec::types::{self};
 use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities, UniquenessData};
 use sov_modules_api::prelude::tokio::sync::watch;
 use sov_modules_api::rest::StateUpdateReceiver;
@@ -13,7 +14,7 @@ use sov_modules_api::transaction::{Credentials, TxDetails};
 use sov_modules_api::{CryptoSpec, DaSpec, Gas, PublicKey, Spec, SyncStatus};
 pub use sov_modules_stf_blueprint::ApplyTxResult;
 use sov_modules_stf_blueprint::Runtime;
-use sov_rest_utils::{errors, preconfigured_router_layers, ApiResult, ResponseObject};
+use sov_rest_utils::{errors, preconfigured_router_layers};
 
 mod client_interface;
 
@@ -156,9 +157,9 @@ where
             sync_status_receiver,
             ..
         }): State<Self>,
-    ) -> ApiResult<SyncStatus> {
+    ) -> impl IntoResponse {
         let sync_status = *sync_status_receiver.borrow();
-        Ok(ResponseObject::from(sync_status))
+        Json(sync_status)
     }
 
     /// Get the latest base fee per gas in the storage.
@@ -166,12 +167,12 @@ where
         State(RollupTxRouter {
             state_update_recv, ..
         }): State<Self>,
-    ) -> ApiResult<GasPriceContainer<T::Spec>> {
+    ) -> Response {
         match T::get_latest_base_fee_per_gas(&state_update_recv) {
             Ok(base_fee_per_gas) => {
-                Ok(ResponseObject::from(GasPriceContainer { base_fee_per_gas }))
+                Json(GasPriceContainer::<T::Spec> { base_fee_per_gas }).into_response()
             }
-            Err(err) => Err(errors::database_error_response_500(err)),
+            Err(err) => errors::database_error_response_500(err),
         }
     }
 
@@ -184,7 +185,7 @@ where
             ..
         }): State<Self>,
         Json(req): Json<types::SimulateBody>,
-    ) -> ApiResult<SimulateExecutionResponse> {
+    ) -> Result<Response, Response> {
         let transaction: PartialTransaction<T::Spec> = req
             .body
             .try_into()
@@ -196,9 +197,7 @@ where
                 let simulate_execution_response: types::SimulateExecutionResponse = SimulateExecutionContainer { apply_tx_result }.try_into()
                     .map_err(|err| errors::internal_server_error_response_500(format!("Internal server error: Failed to serialize response. Error {err}")))?;
 
-                let response = ResponseObject::from(simulate_execution_response);
-
-                Ok(response)
+                Ok(Json(simulate_execution_response).into_response())
             }
 
             Err(err) => Err(errors::bad_request_400(

@@ -1,5 +1,4 @@
 use serde::Deserialize;
-use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::Spec;
 use sov_node_client::NodeClient;
 use sov_test_modules::access_pattern::HooksConfig;
@@ -42,13 +41,12 @@ impl HttpStorageAccessClient {
         };
 
         self.client
-            .query_rest_endpoint::<ResponseObject<MapResponse<String>>>(&format!(
+            .query_rest_endpoint::<MapResponse<String>>(&format!(
                 "/modules/access-pattern/state/values/items/{item}{rollup_height_param}"
             ))
             .await
-            .unwrap()
-            .data
-            .map(|d| d.value)
+            .map(|r| r.value)
+            .ok()
     }
 
     pub async fn get_begin_hook(&self, item: u64) -> Option<HooksConfig> {
@@ -59,13 +57,12 @@ impl HttpStorageAccessClient {
         };
 
         self.client
-            .query_rest_endpoint::<ResponseObject<MapResponse<HooksConfig>>>(&format!(
+            .query_rest_endpoint::<MapResponse<HooksConfig>>(&format!(
                 "/modules/access-pattern/state/pre-hook/items/{item}{rollup_height_param}"
             ))
             .await
-            .unwrap()
-            .data
-            .map(|d| d.value)
+            .map(|r| r.value)
+            .ok()
     }
 
     pub async fn get_end_hook(&self, item: u64) -> Option<HooksConfig> {
@@ -76,13 +73,12 @@ impl HttpStorageAccessClient {
         };
 
         self.client
-            .query_rest_endpoint::<ResponseObject<MapResponse<HooksConfig>>>(&format!(
+            .query_rest_endpoint::<MapResponse<HooksConfig>>(&format!(
                 "/modules/access-pattern/state/post-hook/items/{item}{rollup_height_param}"
             ))
             .await
-            .unwrap()
-            .data
-            .map(|d| d.value)
+            .map(|r| r.value)
+            .ok()
     }
 
     pub async fn get_admin<S: Spec>(&self) -> Option<S::Address> {
@@ -94,13 +90,13 @@ impl HttpStorageAccessClient {
 
         let response = self
             .client
-            .query_rest_endpoint::<ResponseObject<ValueResponse<S::Address>>>(&format!(
+            .query_rest_endpoint::<ValueResponse<S::Address>>(&format!(
                 "/modules/access-pattern/state/admin{rollup_height_param}"
             ))
             .await
             .unwrap();
 
-        response.data.and_then(|d| d.value)
+        response.value
     }
 }
 

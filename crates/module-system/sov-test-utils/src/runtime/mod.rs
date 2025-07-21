@@ -24,7 +24,6 @@ use sov_modules_api::capabilities::{ChainState as _, Kernel, RollupHeight};
 use sov_modules_api::da::Time;
 use sov_modules_api::prelude::utoipa::openapi::OpenApi;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::rest::{ApiState, HasRestApi};
 use sov_modules_api::{
     Amount, ApiStateAccessor, ApplySlotOutput, BlobReaderTrait, CryptoSpec, DaSpec, EncodeCall,
@@ -977,21 +976,12 @@ where
         &self,
         path: &ApiPath,
         client: &Client,
-    ) -> ResponseObject<T> {
+    ) -> T {
         self.query_api(path, client)
             .await
             .json()
             .await
             .expect("Impossible to deserialize the response to the expected format")
-    }
-
-    /// Sends a GET request to the API at the given path and returns the deserialized response to the expected format.
-    pub async fn query_api_unwrap_data<T: serde::de::DeserializeOwned>(
-        &self,
-        path: &ApiPath,
-        client: &Client,
-    ) -> T {
-        self.query_api_response(path, client).await.data.unwrap()
     }
 }
 

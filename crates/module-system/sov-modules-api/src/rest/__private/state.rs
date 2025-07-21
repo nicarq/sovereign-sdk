@@ -17,10 +17,12 @@ use std::marker::PhantomData;
 use std::str::FromStr;
 
 use axum::extract::{FromRequestParts, State};
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
+use axum::Json;
 use serde::Serialize;
 use sov_rest_utils::errors::not_found_404;
-use sov_rest_utils::{ApiResult, ErrorObject, Path, Query};
+use sov_rest_utils::{ErrorObject, Path, Query};
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::{CompileTimeNamespace, Kernel, Namespace, StateCodec, StateItemCodec};
 use unwrap_infallible::UnwrapInfallible;
@@ -111,14 +113,14 @@ where
     async fn get_state_value_route(
         State(state): State<Self>,
         mut accessor: ApiStateAccessor<M::Spec>,
-    ) -> ApiResult<StateItemContents<T, T>> {
+    ) -> impl IntoResponse {
         let state_value = NamespacedStateValue::<N, T, Codec>::with_codec(
             state.state_item_info.prefix.0.clone(),
             Codec::default(),
         );
 
         let value = state_value.get(&mut accessor).unwrap_infallible();
-        Ok(StateItemContents::Value { value }.into())
+        Json(StateItemContents::<T, T>::Value { value })
     }
 }
 
@@ -155,31 +157,31 @@ where
     async fn get_state_vec_route(
         state: State<Self>,
         mut accessor: ApiStateAccessor<M::Spec>,
-    ) -> ApiResult<StateItemContents<T, T>> {
+    ) -> impl IntoResponse {
         let state_vec = state.vec();
         let length = state_vec.len(&mut accessor).unwrap_infallible();
 
-        Ok(StateItemContents::Vec { length }.into())
+        Json(StateItemContents::<T, T>::Vec { length })
     }
 
     async fn get_state_vec_item_route(
         state: State<Self>,
         mut accessor: ApiStateAccessor<M::Spec>,
         Path(item_index): Path<u64>,
-    ) -> ApiResult<StateItemContents<T, T>> {
+    ) -> Response {
         let state_vec = state.vec();
 
         let value = match state_vec.get(item_index, &mut accessor).unwrap_infallible() {
             None => {
-                return Err(not_found_404(&state.state_item_info.name, item_index));
+                return not_found_404(&state.state_item_info.name, item_index);
             }
             Some(v) => v,
         };
-        Ok(StateItemContents::VecElement {
+        Json(StateItemContents::<T, T>::VecElement {
             index: item_index,
             value,
-        }
-        .into())
+        })
+        .into_response()
     }
 }
 
@@ -212,22 +214,21 @@ where
     Codec::KeyCodec: StateItemCodec<K>,
     Codec::ValueCodec: StateItemCodec<V>,
 {
-    async fn get_state_map_route(State(state): State<Self>) -> ApiResult<StateItemInfo> {
-        Ok(StateItemInfo {
+    async fn get_state_map_route(State(state): State<Self>) -> impl IntoResponse {
+        Json(StateItemInfo {
             r#type: StateItemKind::StateMap,
             prefix: state.state_item_info.prefix,
             description: state.state_item_info.description.clone(),
             name: state.state_item_info.name.clone(),
             namespace: state.state_item_info.namespace,
-        }
-        .into())
+        })
     }
 
     async fn get_state_map_item_route(
         State(state): State<Self>,
         mut accessor: ApiStateAccessor<M::Spec>,
         Path(key): Path<K>,
-    ) -> ApiResult<StateItemContents<K, V>> {
+    ) -> Response {
         let state_map = NamespacedStateMap::<N, K, V, Codec>::with_codec(
             state.state_item_info.prefix.0.clone(),
             Codec::default(),
@@ -237,8 +238,10 @@ where
         match value {
             // Known issue, will be solved later
             // https://github.com/Sovereign-Labs/sovereign-sdk-wip/blob/f3b934e33833ec3621f46a3b31824a344de7b433/crates/full-node/sov-ledger-apis/src/lib.rs#L387
-            None => Err(not_found_404(&state.state_item_info.name, "unknown")),
-            Some(value) => Ok(StateItemContents::MapElement { key, value }.into()),
+            None => not_found_404(&state.state_item_info.name, "unknown"),
+            Some(value) => {
+                Json(StateItemContents::<K, V>::MapElement { key, value }).into_response()
+            }
         }
     }
 }
@@ -255,14 +258,14 @@ where
     async fn get_state_value_route(
         State(state): State<Self>,
         mut accessor: ApiStateAccessor<M::Spec>,
-    ) -> ApiResult<StateItemContents<V, V>> {
+    ) -> impl IntoResponse {
         let state_map = VersionedStateValue::<V, Codec>::with_codec(
             state.state_item_info.prefix.0.clone(),
             Codec::default(),
         );
 
         let value = state_map.get_current(&mut accessor).unwrap_infallible();
-        Ok(StateItemContents::Value { value }.into())
+        Json(StateItemContents::<V, V>::Value { value })
     }
 }
 

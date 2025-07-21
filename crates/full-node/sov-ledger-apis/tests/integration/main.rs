@@ -23,7 +23,7 @@ async fn get_latest_slot() {
     });
 
     // By number.
-    let rollup_height = slot["data"]["number"].as_u64().unwrap();
+    let rollup_height = slot["number"].as_u64().unwrap();
     assert_json_eq!(
         slot,
         ledger_response_body(move |client| async move {
@@ -50,7 +50,7 @@ async fn get_finalized_slot() {
     });
 
     // By number.
-    let rollup_height = slot["data"]["number"].as_u64().unwrap();
+    let rollup_height = slot["number"].as_u64().unwrap();
     assert_json_eq!(
         slot,
         ledger_response_body(move |client| async move {
@@ -81,7 +81,7 @@ async fn get_batch() {
     });
 
     // By hash.
-    let hash = types::Hash::from_str(batch["data"]["hash"].as_str().unwrap()).unwrap();
+    let hash = types::Hash::from_str(batch["hash"].as_str().unwrap()).unwrap();
     assert_json_eq!(
         batch,
         ledger_response_body(|client| async move {
@@ -139,7 +139,7 @@ async fn get_tx() {
     );
 
     // By hash.
-    let hash = types::Hash::from_str(tx["data"]["hash"].as_str().unwrap()).unwrap();
+    let hash = types::Hash::from_str(tx["hash"].as_str().unwrap()).unwrap();
     assert_json_eq!(
         tx,
         ledger_response_body(|client| async move {
@@ -190,7 +190,7 @@ async fn get_event() {
 
     assert_eq!(response.status(), 200);
     insta::with_settings!({sort_maps => true}, {
-        insta::assert_json_snapshot!(response.data);
+        insta::assert_json_snapshot!(*response);
     });
 }
 

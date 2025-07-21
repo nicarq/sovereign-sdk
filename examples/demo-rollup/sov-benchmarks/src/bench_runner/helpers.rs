@@ -269,7 +269,7 @@ impl BatchSender {
             })
             .await?
             .iter()
-            .map(|val| val.data.id.clone())
+            .map(|val| val.id.clone())
             .collect::<Vec<_>>();
 
         ensure!(

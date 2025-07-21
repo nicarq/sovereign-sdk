@@ -12,7 +12,6 @@ use sov_api_spec::types::AcceptTxBody;
 use sov_bank::utils::TokenHolder;
 use sov_bank::{Amount, Coins, TokenId};
 use sov_modules_api::prelude::tracing;
-use sov_modules_api::rest::utils::ResponseObject;
 use sov_rollup_interface::crypto::{CredentialId, PublicKey};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::zk::CryptoSpec;
@@ -110,9 +109,11 @@ impl NodeClient {
             self.base_url, credential_id
         );
         let response = self.http_client.get(&nonce_url).send().await?;
-        let response = response.json::<ResponseObject<NonceResponse>>().await?;
 
-        let nonce = response.data.map(|data| data.value).unwrap_or_default();
+        let nonce = match response.error_for_status() {
+            Ok(res) => res.json::<NonceResponse>().await?.value,
+            Err(_) => 0,
+        };
 
         tracing::debug!(url = nonce_url, ?nonce, "Queried nonce");
 
@@ -139,26 +140,16 @@ impl NodeClient {
         tracing::debug!(url = token_url, "Querying token_id");
 
         let response = self.http_client.get(token_url).send().await?;
-        let response = response.json::<ResponseObject<TokenIdResponse>>().await?;
+        let response = response.json::<TokenIdResponse>().await?;
 
-        let data = response
-            .data
-            .ok_or_else(|| anyhow::anyhow!("No data in token response"))?;
-
-        Ok(data.token_id)
+        Ok(response.token_id)
     }
 
     async fn query_amount(&self, url: &str) -> anyhow::Result<Amount> {
-        let response = self.http_client.get(url).send().await?;
-        let response = response.json::<ResponseObject<Coins>>().await?;
+        let response = self.http_client.get(url).send().await?.error_for_status()?;
+        let response = response.json::<Coins>().await?;
 
-        let data = response.data.ok_or_else(|| {
-            anyhow::anyhow!(
-                "No data in balance response. Response errors: {:?}",
-                response.errors
-            )
-        })?;
-        Ok(data.amount)
+        Ok(response.amount)
     }
 
     /// Get total supply of given sov-bank token
@@ -180,13 +171,9 @@ impl NodeClient {
         let url = format!("{}/modules/bank/tokens/{}/admins", self.base_url, token_id);
 
         let response = self.http_client.get(url).send().await?;
-        let response = response.json::<ResponseObject<AdminsResponse<S>>>().await?;
+        let response = response.json::<AdminsResponse<S>>().await?;
 
-        let data = response
-            .data
-            .ok_or_else(|| anyhow::anyhow!("No data in balance response"))?;
-
-        Ok(data.admins)
+        Ok(response.admins)
     }
 
     /// Get balance of the user.
@@ -241,7 +228,7 @@ impl NodeClient {
                 })
                 .await
                 .context("Failed to submit tx")?;
-            let tx_hash = value.data.id.clone();
+            let tx_hash = value.id.clone();
             tracing::info!(hash = tx_hash.as_str(), "Submitted tx");
             tx_hashes.push(tx_hash);
         }
@@ -324,15 +311,11 @@ impl NodeClient {
             anyhow::bail!("Unsuccessful response {:?}", response);
         }
         let response = response
-            .json::<ResponseObject<KnownSequencerResponse<S>>>()
+            .json::<KnownSequencerResponse<S>>()
             .await
             .context("Deserialization of `KnownSequencerResponse`")?;
 
-        let known_sequencer = response
-            .data
-            .expect("Data should be set, otherwise HTTP 404");
-
-        Ok(Some(known_sequencer.value))
+        Ok(Some(response.value))
     }
 }
 
@@ -355,10 +338,7 @@ async fn check_if_rollup_has_standard_modules(
 ) -> anyhow::Result<bool> {
     let url = format!("{base_url}/modules");
     let response = client.get(&url).send().await?;
-    let response_json: ResponseObject<ModulesList> = response.json().await?;
-    let module_response = response_json
-        .data
-        .ok_or(anyhow::anyhow!("List of modules is missing"))?;
+    let module_response: ModulesList = response.json().await?;
 
     Ok(module_response.modules.contains_key("bank")
         && module_response.modules.contains_key("accounts")

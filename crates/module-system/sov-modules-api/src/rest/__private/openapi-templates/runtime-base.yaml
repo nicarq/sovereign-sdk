@@ -24,11 +24,8 @@ paths:
               schema:
                 type: object
                 properties:
-                  data:
-                    type: object
-                    properties:
-                      modules:
-                        $ref: '#/components/schemas/Modules'
+                  modules:
+                    $ref: "#/components/schemas/Modules"
   /modules/{moduleName}:
     get:
       summary: Get module information by name
@@ -47,10 +44,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    $ref: "#/components/schemas/Module"
+                $ref: "#/components/schemas/Module"
         "404":
           $ref: "#/components/responses/StateNotFound"
 components:
@@ -99,13 +93,13 @@ components:
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/RuntimeErrorContainer"
+            $ref: "#/components/schemas/RuntimeError"
     BadRequestResponse:
       description: The request has invalid parameters.
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/RuntimeErrorContainer"
+            $ref: "#/components/schemas/RuntimeError"
   schemas:
     RuntimeAnyJsonValue:
       description: "Any JSON type, including null."
@@ -162,7 +156,7 @@ components:
     Modules:
       type: object
       additionalProperties:
-        $ref: '#/components/schemas/ModuleOverviewFromRuntime'
+        $ref: "#/components/schemas/ModuleOverviewFromRuntime"
     ModuleOverviewFromRuntime:
       type: object
       properties:
@@ -185,15 +179,6 @@ components:
         - status
         - title
         - details
-    RuntimeErrorContainer:
-      type: object
-      properties:
-        errors:
-          type: array
-          items:
-            $ref: "#/components/schemas/RuntimeError"
-        meta:
-          $ref: "#/components/schemas/RuntimeAnyJsonValue"
     StateValueBase:
       type: object
       properties:
@@ -216,67 +201,31 @@ components:
       additionalProperties:
         $ref: "#/components/schemas/StateValueBase"
     StateValue:
-      type: object
-      properties:
-        data:
-          $ref: "#/components/schemas/RuntimeAnyJsonValue"
-        meta:
-          $ref: "#/components/schemas/RuntimeAnyJsonValue"
-      required:
-        - data
+      $ref: "#/components/schemas/RuntimeAnyJsonValue"
     StateVecInfo:
       type: object
       properties:
-        data:
-          type: object
-          properties:
-            length:
-              type: integer
-        meta:
-          $ref: "#/components/schemas/RuntimeAnyJsonValue"
-      required:
-        - data
+        length:
+          type: integer
     StateVecElement:
       type: object
       properties:
-        data:
-          type: object
-          properties:
-            index:
-              type: integer
-            value:
-              $ref: "#/components/schemas/RuntimeAnyJsonValue"
-          required:
-            - index
-            - value
-        meta:
+        index:
+          type: integer
+        value:
           $ref: "#/components/schemas/RuntimeAnyJsonValue"
       required:
-        - data
+        - index
+        - value
     StateMapInfo:
-      type: object
-      properties:
-        data:
-          $ref: "#/components/schemas/StateValueBase"
-        meta:
-          $ref: "#/components/schemas/RuntimeAnyJsonValue"
-      required:
-        - data
+      $ref: "#/components/schemas/StateValueBase"
     StateMapElement:
       type: object
       properties:
-        data:
-          type: object
-          properties:
-            key:
-              $ref: "#/components/schemas/RuntimeAnyJsonValue"
-            value:
-              $ref: "#/components/schemas/RuntimeAnyJsonValue"
-          required:
-            - key
-            - value
-        meta:
+        key:
+          $ref: "#/components/schemas/RuntimeAnyJsonValue"
+        value:
           $ref: "#/components/schemas/RuntimeAnyJsonValue"
       required:
-        - data
-
+        - key
+        - value
