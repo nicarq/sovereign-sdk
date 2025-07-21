@@ -17,7 +17,6 @@ anyhow = { workspace = true }
 arbitrary = { workspace = true, features = ["derive"], optional = true }
 bincode = { workspace = true }
 borsh = { workspace = true, features = ["derive"] }
-digest = { workspace = true, features = ["alloc"] }
 ed25519-consensus = { version = "=2.1.0" }
 hex = { workspace = true }
 proptest = { workspace = true, features = ["alloc", "std"], optional = true }
@@ -45,6 +44,9 @@ serde_json = { workspace = true, features = ["alloc"] }
 sov-sp1-adapter = { path = ".", features = ["arbitrary", "native"] }
 sov-test-utils = { workspace = true, features = ["arbitrary"] }
 sp1-build = { version = "5.0.8" }
+
+[build-dependencies]
+anyhow = { workspace = true }
 
 [features]
 default = []

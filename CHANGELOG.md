@@ -19,6 +19,7 @@
 
 # 2025-07-11
 - #3208 Upgrades SP1 to `5.0.8` to have matching rust toolchain
+- #3237 Moves rust version check from guest build to adapter build for SP1
 - #3234 Replaces `secp256k1` with `k256` for EVM related authentication.
 
 # 2025-07-14
