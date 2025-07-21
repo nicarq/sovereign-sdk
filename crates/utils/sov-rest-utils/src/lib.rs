@@ -69,7 +69,7 @@ pub struct ErrorObject {
     #[serde(with = "serde_status_code")]
     pub status: StatusCode,
     /// A short, human-readable description of the error.
-    pub title: String,
+    pub message: String,
     /// Structured details about the error, if available.
     pub details: JsonObject,
 }

@@ -1,3 +1,7 @@
+# 2025-07-21
+- #3263 **BREAKING CHANGE** Update error object used for errors returned by REST API endpoints.
+    Previously `{errors: [{$ERR_OBJ}], meta: {}}`, now we just return a single `{$ERR_OBJ}` directly.
+
 # 2025-07-19
 - #3252 **BREAKING CHANGE** Removed "wrapper" object returned by all REST API endpoints, data is now returned directly.
     Previously `{data: $DATA, meta: {}}`, so data was accessed as `responseJson.data.field`, now this is just `{$DATA}`, access the data directly: `responseJson.field`.

@@ -1576,9 +1576,9 @@ where
             Err(_) => {
                 return Err(ErrorObject {
                     status: StatusCode::BAD_REQUEST,
-                    title: "Unable to decode transaction".to_string(),
+                    message: "Unable to decode transaction".to_string(),
                     details: sov_rest_utils::json_obj!({
-                        "message": "Unable to decode transaction".to_string(),
+                        "error": "Unable to decode transaction".to_string(),
                     }),
                 });
             }
@@ -1707,9 +1707,9 @@ fn shut_down_error() -> ErrorObject {
     tracing::info!("The sequencer is shutting down. Cannot accept transactions");
     ErrorObject {
         status: StatusCode::SERVICE_UNAVAILABLE,
-        title: "The sequencer is shutting down".to_string(),
+        message: "The sequencer is shutting down".to_string(),
         details: sov_rest_utils::json_obj!({
-            "message": "The sequencer is shutting down. Transactions cannot be accepted at this time".to_string(),
+            "error": "The sequencer is shutting down. Transactions cannot be accepted at this time".to_string(),
         }),
     }
 }
@@ -1923,10 +1923,10 @@ fn err_if_cant_fit_tx(tracker: &BatchSizeTracker, tx: &FullyBakedTx) -> Result<(
     if !tracker.can_fit_tx_bytes(tx.data.len()) {
         return Err(ErrorObject {
             status: StatusCode::SERVICE_UNAVAILABLE,
-            title: "Transaction cannot be included in the batch due to batch size limitations"
+            message: "Transaction cannot be included in the batch due to batch size limitations"
                 .to_string(),
             details: sov_rest_utils::json_obj!({
-                "message": "The transaction is too large.",
+                "error": "The transaction is too large.",
                 "serialized_tx_size": BatchSizeTracker::serialized_tx_size(tx.data.len()),
                 "current_batch_size": tracker.current_batch_size,
                 "max_batch_size": tracker.max_batch_size,

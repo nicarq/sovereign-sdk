@@ -162,9 +162,10 @@ where
         let filter = if let Some(filter_value) = extract_filter_param(query_str) {
             Some(Filter::new(&filter_value).map_err(|err| ErrorObject {
                 status: StatusCode::BAD_REQUEST,
-                title: "Invalid filter parameter".to_string(),
+                message: "Invalid filter parameter".to_string(),
                 details: json_obj!({
-                    "message": err.to_string(),
+                    "filter": filter_value,
+                    "error": err.to_string(),
                 }),
             })?)
         } else {

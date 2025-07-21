@@ -589,7 +589,7 @@ where
         if baked_tx.data.len() > self.max_batch_size_bytes().get() {
             return Err(ErrorObject {
                 status: StatusCode::PAYLOAD_TOO_LARGE,
-                title: "Transaction is too big".to_string(),
+                message: "Transaction is too big".to_string(),
                 details: json_obj!({
                     "max_allowed_size": self.max_batch_size_bytes(),
                     "submitted_size": baked_tx.data.len(),
@@ -640,9 +640,9 @@ where
                     Err(ErrorObject {
                         // Not enough gas, so 403 seems appropriate.
                         status: StatusCode::FORBIDDEN,
-                        title: "Not enough gas for pre-execution checks".to_string(),
+                        message: "Not enough gas for pre-execution checks".to_string(),
                         details: json_obj!({
-                            "message": err.to_string()
+                            "error": err.to_string()
                         }),
                     }),
                 );

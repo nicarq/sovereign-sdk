@@ -1081,13 +1081,14 @@ components:
           type: integer
           format: int32
           description: HTTP status code related to this error
-        title:
+        message:
           type: string
         details:
           type: object
+          additionalProperties: true
       required:
         - status
-        - title
+        - message
         - details
     SyncStatus:
       oneOf:

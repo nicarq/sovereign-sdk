@@ -340,7 +340,7 @@ async fn check_historical_data(client: &demo_stf_json_client::Client) -> anyhow:
     check_not_found_error(
         state_vec_element_response,
         "invalid rollup height",
-        "message",
+        "error",
         "Impossible to get the rollup state at the specified height. Please ensure you have queried the correct height.",
     );
     Ok(())
@@ -354,19 +354,14 @@ fn check_not_found_error(
 ) {
     match credential_id_response {
         demo_stf_json_client::Error::ErrorResponse(error) => {
-            assert_eq!(expected_title, error.title);
+            assert_eq!(expected_title, error.message);
             assert_eq!(404, error.status);
-            match &error.details {
-                RuntimeAnyJsonValue::Object(details) => {
-                    assert_eq!(1, details.len());
-                    assert!(details.contains_key(expected_details_key));
-                    assert_eq!(
-                        Some(serde_json::Value::String(expected_key.to_string())),
-                        details.get(expected_details_key).cloned()
-                    );
-                }
-                _ => panic!("unexpected details type: {:?}", error.details),
-            }
+            assert_eq!(1, error.details.len());
+            assert!(error.details.contains_key(expected_details_key));
+            assert_eq!(
+                Some(serde_json::Value::String(expected_key.to_string())),
+                error.details.get(expected_details_key).cloned()
+            );
         }
         _ => {
             panic!("Unexpected error response: {credential_id_response:?}")

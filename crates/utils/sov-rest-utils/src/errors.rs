@@ -11,7 +11,7 @@ use crate::{json_obj, ErrorObject};
 pub async fn global_404(OriginalUri(uri): OriginalUri) -> Response {
     ErrorObject {
         status: StatusCode::NOT_FOUND,
-        title: "Not Found".to_string(),
+        message: "Not Found".to_string(),
         details: json_obj!({
             "url": uri.to_string(),
         }),
@@ -23,7 +23,7 @@ pub async fn global_404(OriginalUri(uri): OriginalUri) -> Response {
 pub fn not_implemented_501() -> Response {
     ErrorObject {
         status: StatusCode::NOT_IMPLEMENTED,
-        title: "Not implemented yet".to_string(),
+        message: "Not implemented yet".to_string(),
         details: Default::default(),
     }
     .into_response()
@@ -33,7 +33,7 @@ pub fn not_implemented_501() -> Response {
 pub fn not_found_404(resource_name_capitalized: &str, resource_id: impl ToString) -> Response {
     ErrorObject {
         status: StatusCode::NOT_FOUND,
-        title: format!(
+        message: format!(
             "{} '{}' not found",
             resource_name_capitalized,
             resource_id.to_string()
@@ -49,9 +49,9 @@ pub fn not_found_404(resource_name_capitalized: &str, resource_id: impl ToString
 pub fn bad_request_400(message: &str, err: impl ToString) -> Response {
     ErrorObject {
         status: StatusCode::BAD_REQUEST,
-        title: message.to_string(),
+        message: message.to_string(),
         details: json_obj!({
-            "message": err.to_string(),
+            "error": err.to_string(),
         }),
     }
     .into_response()
@@ -61,7 +61,7 @@ pub fn bad_request_400(message: &str, err: impl ToString) -> Response {
 pub fn sequencer_overloaded_503() -> ErrorObject {
     ErrorObject {
         status: StatusCode::SERVICE_UNAVAILABLE,
-        title: "The sequencer is temporarily overloaded. Try again in a few seconds".to_string(),
+        message: "The sequencer is temporarily overloaded. Try again in a few seconds".to_string(),
         details: json_obj!({}),
     }
 }
@@ -79,7 +79,7 @@ pub fn database_error_500(err: impl ToString) -> ErrorObject {
 
     ErrorObject {
         status: StatusCode::INTERNAL_SERVER_ERROR,
-        title: "Database error".to_string(),
+        message: "Internal server error".to_string(),
         details: json_obj!({}),
     }
 }
@@ -95,9 +95,9 @@ pub fn internal_server_error_response_500(err: impl ToString) -> Response {
 
     ErrorObject {
         status: StatusCode::INTERNAL_SERVER_ERROR,
-        title: "Internal server error".to_string(),
+        message: "Internal server error".to_string(),
         details: json_obj!({
-            "message": err.to_string(),
+            "error": err.to_string(),
         }),
     }
     .into_response()
@@ -141,7 +141,7 @@ mod tests {
         let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let error: ErrorObject = serde_json::from_slice(&body).unwrap();
 
-        assert_eq!("Not Found", error.title);
+        assert_eq!("Not Found", error.message);
         assert_eq!(
             error.details.get("url").unwrap().to_string(),
             "\"/doesnt-exist-foorbar\"".to_string()

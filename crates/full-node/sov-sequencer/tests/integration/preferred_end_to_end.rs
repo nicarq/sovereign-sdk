@@ -3003,7 +3003,7 @@ async fn query_set_value_helper(
         .query_rest_endpoint::<serde_json::Value>(&url)
         .await?;
     // quick/easy way to detect if the request returned a error, i.e 404
-    if response.get("title").is_some() {
+    if response.get("message").is_some() {
         return Err(anyhow::anyhow!("API request failed: {:?}", response));
     }
 

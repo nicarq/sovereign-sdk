@@ -66,16 +66,16 @@ impl<S: Spec> RollupBlockExecutorError<S> {
         match self {
             RollupBlockExecutorError::DecodeCall(_) => ErrorObject {
                 status: StatusCode::BAD_REQUEST,
-                title: "Malformed transaction".to_string(),
+                message: "Malformed transaction".to_string(),
                 details: json_obj!({
-                    "message": self.to_string(),
+                    "error": self.to_string(),
                 }),
             },
             RollupBlockExecutorError::Overloaded => ErrorObject {
                 status: StatusCode::SERVICE_UNAVAILABLE,
-                title: "Temporarily unavailable".to_string(),
+                message: "Temporarily unavailable".to_string(),
                 details: json_obj!({
-                    "message": self.to_string(),
+                    "error": self.to_string(),
                 }),
             },
             RollupBlockExecutorError::Rejected { reason, call } => {
@@ -86,9 +86,9 @@ impl<S: Spec> RollupBlockExecutorError<S> {
             }
             RollupBlockExecutorError::UnexpectedFailure => ErrorObject {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
-                title: "Internal Server Error".to_string(),
+                message: "Internal Server Error".to_string(),
                 details: json_obj!({
-                    "message": "The sequencer is shutting down due to an internal error. Your transaction was not accepted.",
+                    "error": "The sequencer is shutting down due to an internal error. Your transaction was not accepted.",
                 }),
             },
         }
@@ -795,25 +795,25 @@ fn reject_reason_to_error(
     match error {
         RejectReason::SequencerOutOfGas => ErrorObject {
             status: StatusCode::SERVICE_UNAVAILABLE,
-            title: "Batch is full".to_string(),
+            message: "Batch is full".to_string(),
             details: json_obj!({
-                "message": "More transactions were submitted that the sequencer is allowed to put into a single batch. Wait a few seconds and try again."
+                "error": "More transactions were submitted that the sequencer is allowed to put into a single batch. Wait a few seconds and try again."
             }),
         },
         RejectReason::InsufficientReward { expected, found } => ErrorObject {
             status: StatusCode::FORBIDDEN,
-            title: "Sequencer tip too low".to_string(),
+            message: "Sequencer tip too low".to_string(),
             details: json_obj!({
-                "message": "This transaction did not pay a sufficient net fee.",
+                "error": "This transaction did not pay a sufficient net fee.",
                 "minimum": expected,
                 "found": found,
             }),
         },
         RejectReason::SenderMustBeAdmin => ErrorObject {
             status: StatusCode::FORBIDDEN,
-            title: "The transaction is forbidden".to_string(),
+            message: "The transaction is forbidden".to_string(),
             details: json_obj!({
-                "message": format!("Only designated admins are allowed to send `{:#?}` transactions through this sequencer", call_discriminant),
+                "error": format!("Only designated admins are allowed to send `{:#?}` transactions through this sequencer", call_discriminant),
             }),
         },
     }

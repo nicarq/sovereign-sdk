@@ -304,7 +304,7 @@ async fn send_tx(
 
     match res {
         Ok(ok) => Ok(ok),
-        Err(sov_api_spec::Error::ErrorResponse(err)) => Err(err.into_inner().title),
+        Err(sov_api_spec::Error::ErrorResponse(err)) => Err(err.into_inner().message),
         Err(err) => {
             panic!("Unexpected error: {err:?}")
         }
