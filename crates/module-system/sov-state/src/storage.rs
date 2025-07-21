@@ -444,7 +444,6 @@ pub trait Storage: Clone + core::fmt::Debug {
     fn get_leaf<N: ProvableCompileTimeNamespace>(
         &self,
         key: &SlotKey,
-        version: Option<SlotNumber>,
         witness: &Self::Witness,
     ) -> Option<NodeLeafAndMaybeValue>;
 
@@ -452,7 +451,6 @@ pub trait Storage: Clone + core::fmt::Debug {
     fn get<N: ProvableCompileTimeNamespace>(
         &self,
         key: &SlotKey,
-        version: Option<SlotNumber>,
         witness: &Self::Witness,
     ) -> Option<SlotValue>;
 
@@ -496,6 +494,22 @@ pub trait NativeStorage: Storage {
 
     /// Gets the latest version that can be committed from any other instance of the storage.
     fn latest_version_unbound(&self) -> SlotNumber;
+
+    /// Returns the value corresponding to the key or None if key is absent.
+    fn get_historical<N: ProvableCompileTimeNamespace>(
+        &self,
+        key: &SlotKey,
+        version: Option<SlotNumber>,
+        witness: &Self::Witness,
+    ) -> Option<SlotValue>;
+
+    /// Get the node leaf. This method does not need to load the full value into memory.
+    fn get_leaf_historical<N: ProvableCompileTimeNamespace>(
+        &self,
+        key: &SlotKey,
+        version: Option<SlotNumber>,
+        witness: &Self::Witness,
+    ) -> Option<NodeLeafAndMaybeValue>;
 
     /// Returns the value corresponding to the key or None if the key is absent and a proof to
     /// get the value.

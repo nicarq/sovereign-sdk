@@ -35,13 +35,13 @@ fn get_slot_number(visible_slot_number: Option<VisibleSlotNumber>) -> Option<Slo
 impl<S: Spec> UniversalStateAccessor for ApiStateAccessor<S> {
     fn get_size(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<u32> {
         match namespace {
-            Namespace::User => self.user_cache.get_size_or_fetch(
+            Namespace::User => self.user_cache.get_size_or_fetch_historical(
                 key,
                 &self.storage,
                 &self.witness,
                 self.safe_true_slot_number_to_use,
             ),
-            Namespace::Kernel => self.kernel_cache.get_size_or_fetch(
+            Namespace::Kernel => self.kernel_cache.get_size_or_fetch_historical(
                 key,
                 &self.storage,
                 &self.witness,
@@ -62,13 +62,13 @@ impl<S: Spec> UniversalStateAccessor for ApiStateAccessor<S> {
 
     fn get_value(&mut self, namespace: sov_state::Namespace, key: &SlotKey) -> Option<SlotValue> {
         match namespace {
-            Namespace::User => self.user_cache.get_or_fetch(
+            Namespace::User => self.user_cache.get_or_fetch_historical(
                 key,
                 &self.storage,
                 &self.witness,
                 self.safe_true_slot_number_to_use,
             ),
-            Namespace::Kernel => self.kernel_cache.get_or_fetch(
+            Namespace::Kernel => self.kernel_cache.get_or_fetch_historical(
                 key,
                 &self.storage,
                 &self.witness,

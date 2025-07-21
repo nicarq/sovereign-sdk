@@ -189,6 +189,38 @@ where
         }
         .map(Into::into)
     }
+
+    fn do_get_leaf<N: ProvableCompileTimeNamespace>(
+        &self,
+        key: &SlotKey,
+        version: Option<SlotNumber>,
+        witness: Option<&<Self as Storage>::Witness>,
+    ) -> Option<NodeLeafAndMaybeValue> {
+        let val = self.read_value::<N>(key, version);
+
+        // First, we create a node that we put in the cache. This one contains the value.
+        let node_leaf_with_fetched_value = val.map(|v| {
+            let leaf = NodeLeaf::make_leaf::<S::Hasher>(&v);
+            NodeLeafAndMaybeValue {
+                leaf,
+                value: ReadType::GetSizeValueFetched(v),
+            }
+        });
+
+        // Second, we create a node that we put in the witness. This one doesn't contain the value.
+        let node_leaf_without_value =
+            node_leaf_with_fetched_value
+                .clone()
+                .map(|node| NodeLeafAndMaybeValue {
+                    leaf: node.leaf,
+                    value: ReadType::GetSizeValueNotFetched,
+                });
+
+        if let Some(witness) = witness {
+            witness.add_hint(&node_leaf_without_value);
+        }
+        node_leaf_with_fetched_value
+    }
 }
 
 fn to_nomt_accesses<S: MerkleProofSpec>(
@@ -349,40 +381,17 @@ where
     fn get_leaf<N: ProvableCompileTimeNamespace>(
         &self,
         key: &SlotKey,
-        version: Option<SlotNumber>,
         witness: &Self::Witness,
     ) -> Option<NodeLeafAndMaybeValue> {
-        let val = self.read_value::<N>(key, version);
-
-        // First, we create a node that we put in the cache. This one contains the value.
-        let node_leaf_with_fetched_value = val.map(|v| {
-            let leaf = NodeLeaf::make_leaf::<S::Hasher>(&v);
-            NodeLeafAndMaybeValue {
-                leaf,
-                value: ReadType::GetSizeValueFetched(v),
-            }
-        });
-
-        // Second, we create a node that we put in the witness. This one doesn't contain the value.
-        let node_leaf_without_value =
-            node_leaf_with_fetched_value
-                .clone()
-                .map(|node| NodeLeafAndMaybeValue {
-                    leaf: node.leaf,
-                    value: ReadType::GetSizeValueNotFetched,
-                });
-
-        witness.add_hint(&node_leaf_without_value);
-        node_leaf_with_fetched_value
+        self.do_get_leaf::<N>(key, None, Some(witness))
     }
 
     fn get<N: ProvableCompileTimeNamespace>(
         &self,
         key: &SlotKey,
-        version: Option<SlotNumber>,
         witness: &Self::Witness,
     ) -> Option<SlotValue> {
-        let val = self.read_value::<N>(key, version);
+        let val = self.read_value::<N>(key, None);
         witness.add_hint(&val);
         val
     }
@@ -526,6 +535,24 @@ where
         self.historical_state
             .last_version_unbound()
             .expect("Issue with underlying database")
+    }
+
+    fn get_historical<N: ProvableCompileTimeNamespace>(
+        &self,
+        key: &SlotKey,
+        version: Option<SlotNumber>,
+        _witness: &Self::Witness,
+    ) -> Option<SlotValue> {
+        self.read_value::<N>(key, version)
+    }
+
+    fn get_leaf_historical<N: ProvableCompileTimeNamespace>(
+        &self,
+        key: &SlotKey,
+        version: Option<SlotNumber>,
+        _witness: &Self::Witness,
+    ) -> Option<NodeLeafAndMaybeValue> {
+        self.do_get_leaf::<N>(key, version, None)
     }
 
     fn get_with_proof<N: ProvableCompileTimeNamespace>(
