@@ -233,7 +233,7 @@ pub use sov_modules_macros::MessageCodec;
 /// ```
 /// use sov_modules_api::{Spec, ModuleId, ModuleInfo, StateMap};
 ///
-/// #[derive(ModuleInfo)]
+/// #[derive(Clone, ModuleInfo)]
 /// struct TestModule<S: Spec> {
 ///     #[id]
 ///     id: ModuleId,

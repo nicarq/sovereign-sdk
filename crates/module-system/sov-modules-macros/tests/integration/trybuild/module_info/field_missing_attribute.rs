@@ -1,6 +1,6 @@
 use sov_modules_api::{Context, Module, ModuleId, ModuleInfo, Spec, StateMap, TxState};
 
-#[derive(ModuleInfo)]
+#[derive(Clone, ModuleInfo)]
 struct TestStruct<S: Spec> {
     #[id]
     pub id: ModuleId,

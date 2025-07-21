@@ -294,7 +294,7 @@ pub mod parsing {
     use super::*;
 
     /// A fully parsed and validated `struct` marked with
-    /// `#[derive(ModuleInfo)]`.
+    /// `#[derive(Clone, ModuleInfo)]`.
     pub struct StructDef<'a> {
         pub ident: &'a Ident,
         pub impl_generics: ImplGenerics<'a>,

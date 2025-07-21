@@ -61,6 +61,7 @@ pub struct Warp<S: Spec> {
     JsonSchema,
     UniversalWallet,
 )]
+#[schemars(bound = "S: Spec", rename = "CallMessage")]
 pub enum CallMessage<S: Spec> {
     /// Register a route with the given token source and ISM.
     Register {
@@ -127,10 +128,8 @@ pub enum CallMessage<S: Spec> {
     Clone,
     JsonSchema,
 )]
-#[serde(
-    bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned",
-    rename_all = "snake_case"
-)]
+#[serde(bound = "S: Spec", rename_all = "snake_case")]
+#[schemars(bound = "S: Spec", rename = "Event")]
 pub enum Event<S: Spec> {
     /// A route was registered.
     RouteRegistered {

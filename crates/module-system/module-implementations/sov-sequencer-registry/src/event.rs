@@ -5,6 +5,7 @@ use sov_modules_api::{Amount, Spec};
 #[derive(Debug, PartialEq, Clone, schemars::JsonSchema)]
 #[serialize(Borsh, Serde)]
 #[serde(rename_all = "snake_case")]
+#[schemars(bound = "S: Spec", rename = "Event")]
 pub enum Event<S: Spec> {
     /// A sequencer was registered.
     Registered {

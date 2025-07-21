@@ -47,6 +47,7 @@ pub enum PenalizationReason {
 #[derive(Debug, PartialEq, Clone, schemars::JsonSchema)]
 #[serialize(Borsh, Serde)]
 #[serde(rename_all = "snake_case")]
+#[schemars(bound = "S: Spec", rename = "Event")]
 /// Events for prover incentives
 pub enum Event<S: Spec> {
     /// The prover has been bonded. The deposit is the amount of the bond and the total balance is the total amount staked.

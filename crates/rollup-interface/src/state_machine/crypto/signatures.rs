@@ -6,6 +6,7 @@ use std::hash;
 
 use derive_more::derive::Display;
 use serde::{Deserialize, Serialize};
+use sov_universal_wallet::schema::UniversalWallet as UniversalWalletSchema;
 use sov_universal_wallet::UniversalWallet;
 
 use super::CredentialId;
@@ -29,6 +30,7 @@ pub trait Signature:
     + Sync
     + Serialize
     + for<'a> Deserialize<'a>
+    + UniversalWalletSchema
 {
     /// The public key associated with the signature.
     type PublicKey;
@@ -39,7 +41,15 @@ pub trait Signature:
 
 /// A public key for verifying digital signatures.
 pub trait PublicKey:
-    Eq + hash::Hash + Clone + Debug + Send + Sync + Serialize + for<'a> Deserialize<'a>
+    Eq
+    + hash::Hash
+    + Clone
+    + Debug
+    + Send
+    + Sync
+    + Serialize
+    + for<'a> Deserialize<'a>
+    + UniversalWalletSchema
 {
     /// Returns hashed public key.
     fn credential_id(&self) -> CredentialId;

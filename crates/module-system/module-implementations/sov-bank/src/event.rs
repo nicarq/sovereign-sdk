@@ -7,10 +7,8 @@ use crate::{Amount, Coins, TokenId};
 /// Bank Event
 #[derive(Debug, PartialEq, Clone, schemars::JsonSchema)]
 #[serialize(Borsh, Serde)]
-#[serde(
-    bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned",
-    rename_all = "snake_case"
-)]
+#[serde(bound = "S: Spec", rename_all = "snake_case")]
+#[schemars(bound = "S: Spec", rename = "Event")]
 pub enum Event<S: Spec> {
     /// Event for Token Creation
     TokenCreated {

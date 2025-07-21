@@ -5,6 +5,7 @@ use core::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::da::DaSpec;
 use sov_state::EventContainer;
+use sov_universal_wallet::schema::UniversalWallet;
 
 use crate::common::ModuleError;
 use crate::{GenesisState, ModuleId, TxState};
@@ -23,7 +24,7 @@ pub use spec::*;
 
 /// The core trait implemented by all modules. This trait defines how a module is initialized at genesis,
 /// and how it handles user transactions (if applicable).
-pub trait Module {
+pub trait Module: Clone {
     /// Execution context.
     type Spec: Spec;
 
@@ -31,10 +32,23 @@ pub trait Module {
     type Config;
 
     /// Module defined argument to the call method.
-    type CallMessage: Debug + BorshSerialize + BorshDeserialize + Clone;
+    type CallMessage: Debug
+        + BorshSerialize
+        + BorshDeserialize
+        + UniversalWallet
+        + schemars::JsonSchema
+        + Clone
+        + PartialEq
+        + Eq;
 
     /// Module defined event resulting from a call method.
-    type Event: Debug + BorshSerialize + BorshDeserialize + 'static + core::marker::Send;
+    type Event: Debug
+        + BorshSerialize
+        + BorshDeserialize
+        + schemars::JsonSchema
+        + 'static
+        + core::marker::Send
+        + PartialEq;
 
     /// Genesis is called once when a rollup is deployed.
     ///

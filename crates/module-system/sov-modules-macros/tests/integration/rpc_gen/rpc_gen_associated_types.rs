@@ -2,6 +2,7 @@ use jsonrpsee::core::RpcResult;
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::sov_universal_wallet::schema::UniversalWallet;
 use sov_modules_api::{
     decode_borsh_serialized_message, ApiStateAccessor, Context, DaSpec, DispatchCall, EncodeCall,
     Genesis, MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint, StateValue,
@@ -25,6 +26,7 @@ pub trait Data:
     + borsh::BorshSerialize
     + borsh::BorshDeserialize
     + schemars::JsonSchema
+    + UniversalWallet
     + Send
     + Sync
     + 'static

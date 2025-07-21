@@ -215,6 +215,7 @@ pub(crate) type WarpRouteId = HexHash;
     UniversalWallet,
     Eq,
 )]
+#[schemars(bound = "S: Spec", rename = "Admin")]
 pub enum Admin<S: Spec> {
     /// No admin - the route is immutable.
     None,

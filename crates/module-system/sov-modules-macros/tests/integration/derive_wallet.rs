@@ -1,8 +1,8 @@
 use sov_modules_api::cli::JsonStringArg;
-use sov_modules_api::macros::CliWallet;
+use sov_modules_api::macros::{CliWallet, UniversalWallet};
 use sov_modules_api::{
-    Context, DaSpec, DispatchCall, Genesis, MessageCodec, Module, ModuleId, ModuleInfo, Spec,
-    StateValue, TxState,
+    Context, DaSpec, DispatchCall, Genesis, MessageCodec, Module, ModuleId, ModuleInfo,
+    SizedSafeString, Spec, StateValue, TxState,
 };
 use sov_test_utils::TestSpec;
 
@@ -19,13 +19,14 @@ pub mod first_test_module {
         serde::Serialize,
         serde::Deserialize,
         schemars::JsonSchema,
+        UniversalWallet,
     )]
     pub struct MyStruct {
         pub first_field: u32,
-        pub str_field: String,
+        pub str_field: SizedSafeString<10>,
     }
 
-    #[derive(ModuleInfo, PartialEq, Eq)]
+    #[derive(Clone, ModuleInfo, PartialEq, Eq)]
     pub struct FirstTestStruct<S: Spec> {
         #[id]
         pub id: ModuleId,
@@ -67,7 +68,7 @@ pub mod first_test_module {
 pub mod second_test_module {
     use super::*;
 
-    #[derive(ModuleInfo, PartialEq, Eq)]
+    #[derive(Clone, ModuleInfo, PartialEq, Eq)]
     pub struct SecondTestStruct<S: Spec> {
         #[id]
         pub id: ModuleId,
@@ -89,9 +90,13 @@ pub mod second_test_module {
         serde::Serialize,
         serde::Deserialize,
         schemars::JsonSchema,
+        UniversalWallet,
     )]
     pub enum MyEnum {
-        Foo { first_field: u32, str_field: String },
+        Foo {
+            first_field: u32,
+            str_field: SizedSafeString<10>,
+        },
         Bar(u8),
     }
 
@@ -134,7 +139,7 @@ fn build_runtime_call() {
 
     let expected_foo = RuntimeCall::First(first_test_module::MyStruct {
         first_field: 1,
-        str_field: "hello".to_string(),
+        str_field: SizedSafeString::<10>::try_from("hello").unwrap(),
     });
     let foo_from_cli: RuntimeSubcommand<JsonStringArg, TestSpec> =
         <RuntimeSubcommand<JsonStringArg, TestSpec>>::try_parse_from([

@@ -6,6 +6,7 @@ use sov_modules_api::Spec;
 /// Call messages for the revenue share module
 #[derive(Debug, Clone, PartialEq, JsonSchema, UniversalWallet, Eq)]
 #[serialize(Borsh, Serde)]
+#[schemars(bound = "S: Spec", rename = "CallMessage")]
 #[serde(rename_all = "snake_case")]
 pub enum CallMessage<S: Spec> {
     /// Activate revenue sharing (admin only)

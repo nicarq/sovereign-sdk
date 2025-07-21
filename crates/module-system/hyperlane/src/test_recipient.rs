@@ -47,6 +47,7 @@ pub struct TestRecipient<S: Spec> {
     Serialize,
     Deserialize,
 )]
+#[schemars(bound = "S: Spec", rename = "Event")]
 pub enum Event<S: Spec> {
     /// A generic "message received" event when the sending chain is unknown
     MessageReceivedGeneric {

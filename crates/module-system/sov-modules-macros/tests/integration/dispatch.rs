@@ -1,5 +1,5 @@
 use sov_modules_api::capabilities::mocks::MockKernel;
-use sov_modules_api::sov_universal_wallet::schema::Schema;
+use sov_modules_api::sov_universal_wallet::schema::{Schema, UniversalWallet};
 use sov_modules_api::{
     decode_borsh_serialized_message, Context, DaSpec, DispatchCall, EncodeCall, Error, Event,
     Genesis, MessageCodec, Module, ModuleInfo, Spec, StateValue, TxState, WorkingSet,
@@ -13,7 +13,7 @@ pub mod first_test_module {
 
     use super::*;
 
-    #[derive(ModuleInfo)]
+    #[derive(Clone, ModuleInfo)]
     pub struct FirstTestStruct<S: Spec> {
         #[id]
         pub id: ModuleId,
@@ -85,7 +85,7 @@ pub mod second_test_module {
 
     use super::*;
 
-    #[derive(ModuleInfo)]
+    #[derive(Clone, ModuleInfo)]
     pub struct SecondTestStruct<S: Spec> {
         #[id]
         pub id: ModuleId,
@@ -158,6 +158,8 @@ pub mod third_test_module {
     pub trait ModuleThreeStorable:
         borsh::BorshSerialize
         + borsh::BorshDeserialize
+        + UniversalWallet
+        + schemars::JsonSchema
         + core::fmt::Debug
         + Default
         + PartialEq
@@ -171,7 +173,7 @@ pub mod third_test_module {
 
     impl ModuleThreeStorable for u32 {}
 
-    #[derive(ModuleInfo)]
+    #[derive(Clone, ModuleInfo)]
     pub struct ThirdTestStruct<S: Spec, OtherGeneric: ModuleThreeStorable> {
         #[id]
         pub id: ModuleId,
@@ -202,6 +204,7 @@ pub mod third_test_module {
         Debug,
         PartialEq,
         Clone,
+        schemars::JsonSchema,
     )]
     pub enum Event {
         ThirdModuleEnum,

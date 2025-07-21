@@ -11651,6 +11651,7 @@ dependencies = [
  "sov-state",
  "sov-test-modules",
  "sov-test-utils",
+ "sov-universal-wallet",
  "strum",
  "tempfile",
  "thiserror 1.0.64",

@@ -8,7 +8,7 @@ use sov_modules_api::{ModuleId, ModuleInfo, Spec, StateCheckpoint, StateValue};
 use sov_state::{DefaultStorageSpec, StateCodec, StateItemDecoder, StateItemEncoder, ZkStorage};
 use sov_test_utils::{TestHasher, ZkTestSpec};
 
-#[derive(ModuleInfo)]
+#[derive(Clone, ModuleInfo)]
 struct TestModule<S: Spec> {
     #[id]
     id: ModuleId,

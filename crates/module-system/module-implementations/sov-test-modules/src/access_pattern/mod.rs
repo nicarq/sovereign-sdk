@@ -7,7 +7,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::macros::{serialize, UniversalWallet};
 use sov_modules_api::{
     AccessoryStateMap, AccessoryStateValue, AuthenticatedTransactionData, Context, CryptoSpec,
     DaSpec, GasSpec, GenesisState, MeteredBorshDeserialize, MeteredBorshDeserializeError,
@@ -60,20 +60,10 @@ impl<S: Spec> MeteredBorshDeserialize<S> for MeteredBorshDeserializeString {
 }
 
 /// Call message to specify storage access patterns.
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    Clone,
-    JsonSchema,
-    EnumDiscriminants,
-    EnumIs,
-    Derivative,
-    UniversalWallet,
-)]
+#[derive(Debug, Clone, JsonSchema, EnumDiscriminants, EnumIs, Derivative, UniversalWallet)]
+#[serialize(Borsh, Serde)]
 #[serde(rename_all = "snake_case")]
+#[schemars(bound = "S: Spec", rename = "AccessPatternMessages")]
 #[derivative(
     PartialEq(
         bound = "<S::CryptoSpec as CryptoSpec>::Signature: PartialEq, <S::CryptoSpec as CryptoSpec>::PublicKey: PartialEq"

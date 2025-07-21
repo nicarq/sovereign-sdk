@@ -1,6 +1,6 @@
 use sov_modules_api::{ModuleInfo, Spec, StateMap};
 
-#[derive(ModuleInfo)]
+#[derive(Clone, ModuleInfo)]
 struct TestStruct<S: Spec> {
     #[id]
     address_1: S::Address,

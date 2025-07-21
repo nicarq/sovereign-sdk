@@ -49,7 +49,7 @@ pub mod my_module {
     {
         type Spec = S;
         type Config = D;
-        type CallMessage = D;
+        type CallMessage = ();
         type Event = ();
 
         fn genesis(
@@ -64,12 +64,12 @@ pub mod my_module {
 
         fn call(
             &mut self,
-            msg: Self::CallMessage,
+            _msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             state: &mut impl TxState<S>,
         ) -> anyhow::Result<()> {
             self.data
-                .set(&msg, state)
+                .set(10, state)
                 .map_err(|e| Error::ModuleError(e.into()))?;
             Ok(())
         }
