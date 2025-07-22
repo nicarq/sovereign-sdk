@@ -68,8 +68,7 @@ use crate::common::{
 };
 use crate::metrics::{track_in_progress_batch_size, PreferredSequencerFetchBatchesToReplayMetrics};
 use crate::preferred::block_executor::{
-    AcceptedTxWithBudgetInfo, RollupBlockExecutor, RollupBlockExecutorConfig,
-    RollupBlockExecutorError,
+    RollupBlockExecutor, RollupBlockExecutorConfig, RollupBlockExecutorError,
 };
 use crate::preferred::db::DbEvent;
 use crate::preferred::executor_events::ExecutorEventsSender;
@@ -125,7 +124,7 @@ where
     api_ledger_db: LedgerDb,
     shutdown_sender: watch::Sender<()>,
     // Used to track which txs need to be ignored after the sequencer had downtime (in the sense of giving out 503s)
-    tx_queue_id: AtomicU64,
+    tx_queue_id: Arc<AtomicU64>,
     stop_at_rollup_height: Option<RollupHeight>,
     /// The sender for state update notifications. Currently used only for testing.
     test_only_state_update_notification_sender: broadcast::Sender<StateUpdateNotification>,
@@ -271,8 +270,10 @@ where
             startup_transaction_cache_writer: None, // The main executor must *not* write to the tx cache. That's handled by the side effects task
         };
 
+        let tx_queue_id = Arc::new(AtomicU64::new(0));
         let inner = Inner {
             latest_info: latest_state_update.clone(),
+            tx_queue_id: tx_queue_id.clone(),
             batch_execution_time_limit_micros,
             config: config.clone(),
             shutdown_receiver: shutdown_receiver.clone(),
@@ -289,6 +290,7 @@ where
             } else {
                 Err(SequencerNotReadyDetails::Startup)
             },
+            stop_at_rollup_height,
         };
 
         let side_effects_task = SideEffectsTask {
@@ -316,7 +318,7 @@ where
             shutdown_receiver: shutdown_receiver.clone(),
             api_ledger_db,
             shutdown_sender,
-            tx_queue_id: AtomicU64::new(0),
+            tx_queue_id,
             stop_at_rollup_height,
             test_only_state_update_notification_sender: broadcast::channel(100).0,
         });
@@ -876,7 +878,7 @@ where
         }
 
         PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState => {
-            drop(inner); // Drop the lock. We don't need to hold it while we do replay.
+            drop(inner);
             seq.replay_soft_confirmations_on_top_of_node_state(
                 info,
                 timer_start,
@@ -1051,97 +1053,58 @@ where
         }
 
         let mut inner = self.lock_inner("accept_tx").await;
-        // If the sequencer had to give out 503s at any point during the time we were waiting for the lock, we need to return a 503 - otherwise
-        // we've effectively jumped the line
-        let new_tx_queue_id = self.tx_queue_id.load(Ordering::Acquire);
-        if new_tx_queue_id != original_tx_queue_id {
-            tracing::debug!(%tx_hash, "Transaction was queued before downtime. Dropping.");
-            return Err(sequencer_overloaded_503());
-        }
-
-        inner
-            .check_readiness(self.config.max_concurrent_blobs, self.stop_at_rollup_height)
-            .await
-            .map_err(error_not_fully_synced)?;
-
-        if let Err(e) = inner
-            .try_to_create_and_start_batch_if_none_in_progress(false)
-            .await
-        {
-            // On all errors, we treat the sequencer as having had downtime and clear out the transaction queue.
-            // Note that we'll increment the queue ID once per rejected tx. This is totally fine - we have 2**64 ids to play with
-            // and atomic increments are very cheap relative to the cost of executing the tx
-            self.tx_queue_id.fetch_add(1, Ordering::AcqRel);
-            match e {
-                BatchCreationError::NoFinalizedSlotAvailable => {
-                    return Err(sequencer_overloaded_503());
-                }
-                BatchCreationError::BlobSenderBusy => {
-                    return Err(error_not_fully_synced(
-                        SequencerNotReadyDetails::WaitingOnBlobSender {
-                            max_concurrent_blobs: self.config.max_concurrent_blobs,
-                            nb_of_blobs_in_flight: inner.nb_of_concurrent_blob_submissions(),
-                        },
-                    ));
-                }
-                BatchCreationError::DatabaseError(e) => {
-                    return Err(database_error_500(e));
-                }
-            }
-        };
-
-        if self.shutdown_receiver.has_changed().unwrap_or(true) {
-            tracing::info!("The sequencer is shutting down. Cannot accept transactions");
-            return Err(shut_down_error());
-        }
-
-        if !inner.executor.has_in_progress_batch() {
-            panic!(
-                "No batch in progress, and no batch could be started. Please report this bug. {:?} {:?}",
-                &inner.executor.checkpoint, inner.latest_info
-            );
-        }
-
-        err_if_cant_fit_tx(&inner.batch_size_tracker, &baked_tx)?;
-
-        let sequence_number = inner.current_sequence_number();
-        let Inner {
-            executor,
-            batch_size_tracker,
-            executor_events_sender,
-            ..
-        } = &mut *inner;
-
-        let apply_tx_res = executor.apply_tx_to_in_progress_batch(&baked_tx).await;
-
-        let (
-            AcceptedTxWithBudgetInfo {
-                accepted_tx,
-                remaining_slot_gas,
-                execution_time_micros,
-            },
-            tx_changes,
-        ) = match apply_tx_res {
-            Ok(res) => {
-                assert_eq!(
-                    tx_hash, res.0.accepted_tx.tx_hash,
-                    "The executor returned a different tx hash than expected"
-                );
-                res
-            }
-            Err(err) => {
-                tracing::debug!(%tx_hash, %err, "Transaction was dropped by the sequencer");
-                return Err(RollupBlockExecutorError::into_http_error(err));
-            }
-        };
-        batch_size_tracker.add_tx(baked_tx.data.len(), execution_time_micros);
-        let rx = executor_events_sender
-            .send_accept_tx(accepted_tx, tx_changes, sequence_number)
+        let res = inner
+            .process_accept_tx(&baked_tx, tx_hash, original_tx_queue_id)
             .await;
-        inner.close_batch_if_nearly_full(&remaining_slot_gas).await;
         drop(inner);
 
-        rx.await.map_err(database_error_500)
+        match res {
+            Ok(rx) => rx.await.map_err(database_error_500),
+            Err(e) => match e {
+                AcceptTxError::SequencerOverloaded503 => {
+                    return Err(sequencer_overloaded_503());
+                }
+                AcceptTxError::NotFullySynced(details) => {
+                    return Err(error_not_fully_synced(details))
+                }
+                AcceptTxError::BatchError {
+                    batch_creation_error,
+                    nb_of_concurrent_blob_submissions,
+                } => match batch_creation_error {
+                    BatchCreationError::NoFinalizedSlotAvailable => {
+                        return Err(sequencer_overloaded_503());
+                    }
+                    BatchCreationError::BlobSenderBusy => {
+                        return Err(error_not_fully_synced(
+                            SequencerNotReadyDetails::WaitingOnBlobSender {
+                                max_concurrent_blobs: self.config.max_concurrent_blobs,
+                                nb_of_blobs_in_flight: nb_of_concurrent_blob_submissions,
+                            },
+                        ));
+                    }
+                    BatchCreationError::DatabaseError(e) => {
+                        return Err(database_error_500(e));
+                    }
+                },
+                AcceptTxError::TxTooBig {
+                    current_batch_size,
+                    max_batch_size,
+                } => {
+                    return Err(err_cant_fit_tx(
+                        current_batch_size,
+                        max_batch_size,
+                        baked_tx.data.len(),
+                    ))
+                }
+                AcceptTxError::ExecutorError(err) => {
+                    return Err(RollupBlockExecutorError::into_http_error(err));
+                }
+
+                AcceptTxError::Shutdown => {
+                    return Err(shut_down_error());
+                }
+            },
+        }
     }
 
     async fn tx_status(
@@ -1373,22 +1336,18 @@ fn accepts_preferred_batches<B: BlobSelector>(_blob_selector: B) -> bool {
     B::ACCEPTS_PREFERRED_BATCHES
 }
 
-fn err_if_cant_fit_tx(tracker: &BatchSizeTracker, tx: &FullyBakedTx) -> Result<(), ErrorObject> {
-    if !tracker.can_fit_tx_bytes(tx.data.len()) {
-        return Err(ErrorObject {
-            status: StatusCode::SERVICE_UNAVAILABLE,
-            message: "Transaction cannot be included in the batch due to batch size limitations"
-                .to_string(),
-            details: sov_rest_utils::json_obj!({
-                "error": "The transaction is too large.",
-                "serialized_tx_size": BatchSizeTracker::serialized_tx_size(tx.data.len()),
-                "current_batch_size": tracker.current_batch_size,
-                "max_batch_size": tracker.max_batch_size,
-            }),
-        });
+fn err_cant_fit_tx(current_batch_size: usize, max_batch_size: usize, tx_len: usize) -> ErrorObject {
+    ErrorObject {
+        status: StatusCode::SERVICE_UNAVAILABLE,
+        message: "Transaction cannot be included in the batch due to batch size limitations"
+            .to_string(),
+        details: sov_rest_utils::json_obj!({
+            "error": "The transaction is too large.",
+            "serialized_tx_size": BatchSizeTracker::serialized_tx_size(tx_len),
+            "current_batch_size": current_batch_size,
+            "max_batch_size": max_batch_size,
+        }),
     }
-
-    Ok(())
 }
 
 pub(crate) async fn exit_rollup(shutdown_sender: &watch::Sender<()>) {

@@ -1,8 +1,6 @@
-//! See [`PreferredSequencer`].
-
 use std::num::NonZero;
 use std::ops::Deref;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use anyhow::anyhow;
@@ -10,28 +8,30 @@ use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
 use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::{
-    GasArray, GasSpec, Runtime, Spec, StateCheckpoint, StateUpdateInfo, VersionReader,
-    VisibleSlotNumber,
+    FullyBakedTx, GasArray, GasSpec, Runtime, Spec, StateCheckpoint, StateUpdateInfo,
+    VersionReader, VisibleSlotNumber,
 };
 use sov_state::{NativeStorage, Storage};
-use tokio::sync::{watch, MutexGuard};
+use tokio::sync::{oneshot, watch, MutexGuard};
 use tracing::{debug, error, info, warn};
 
 use super::batch_size_tracker::BatchSizeTracker;
 use crate::metrics::{
     track_sequence_number, PreferredSequencerLockMetrics, PreferredSequencerLockMetricsBatch,
 };
-use crate::preferred::block_executor::RollupBlockExecutor;
+use crate::preferred::block_executor::{
+    AcceptedTxWithBudgetInfo, RollupBlockExecutor, RollupBlockExecutorError,
+};
 use crate::preferred::db::latest_finalized_sequence_number;
 use crate::preferred::executor_events::ExecutorEventsSender;
 use crate::preferred::{
     current_visible_slot_number_according_to_node, exit_rollup,
     get_next_sequence_number_according_to_node, is_lagging_less_than_ideal_amount,
-    next_visible_slot_number_increase, BatchCreationError, PreferredBatchToReplay,
-    PreferredSequencerConfig, PreferredSequencerFetchBatchesToReplayMetrics, RecoveryStrategy,
-    RollupBlockExecutorConfig,
+    next_visible_slot_number_increase, AcceptedTx, BatchCreationError, Confirmation,
+    PreferredBatchToReplay, PreferredSequencerConfig,
+    PreferredSequencerFetchBatchesToReplayMetrics, RecoveryStrategy, RollupBlockExecutorConfig,
 };
-use crate::{SequencerConfig, SequencerNotReadyDetails, SlotNumber};
+use crate::{SequencerConfig, SequencerNotReadyDetails, SlotNumber, TxHash};
 
 /// These two constants are used to calculate the comfortable batch size limit.
 /// Currently, this is 99% of the hard limit. After the comfortable limit is reached,
@@ -71,6 +71,9 @@ where
     /// can be overwritten when the node is resyncing.
     pub(crate) has_finished_startup: bool,
     pub(crate) metrics: Vec<PreferredSequencerLockMetrics>,
+    // Shared between sequencer and Inner.
+    pub(crate) tx_queue_id: Arc<AtomicU64>,
+    pub(crate) stop_at_rollup_height: Option<RollupHeight>,
 }
 
 pub(crate) struct InnerGuard<'a, S, Rt>
@@ -607,5 +610,120 @@ where
         } else {
             tracing::trace!(%comfortable_size_limit, current_batch_size = %self.batch_size_tracker.current_batch_size, "Batch size is within comfortable range, not closing batch");
         }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum AcceptTxError<S: Spec> {
+    SequencerOverloaded503,
+    NotFullySynced(SequencerNotReadyDetails),
+    BatchError {
+        batch_creation_error: BatchCreationError,
+        nb_of_concurrent_blob_submissions: usize,
+    },
+    TxTooBig {
+        current_batch_size: usize,
+        max_batch_size: usize,
+    },
+    ExecutorError(RollupBlockExecutorError<S>),
+    Shutdown,
+}
+
+impl<S, Rt> Inner<S, Rt>
+where
+    S: Spec,
+    Rt: Runtime<S>,
+{
+    pub(crate) async fn process_accept_tx(
+        &mut self,
+        baked_tx: &FullyBakedTx,
+        tx_hash: TxHash,
+        original_tx_queue_id: u64,
+    ) -> Result<oneshot::Receiver<AcceptedTx<Confirmation<S, Rt>>>, AcceptTxError<S>> {
+        // If the sequencer had to give out 503s at any point during the time we were waiting for the lock, we need to return a 503 - otherwise
+        // we've effectively jumped the line
+        let new_tx_queue_id = self.tx_queue_id.load(Ordering::Acquire);
+        if new_tx_queue_id != original_tx_queue_id {
+            tracing::debug!(%tx_hash, "Transaction was queued before downtime. Dropping.");
+            return Err(AcceptTxError::SequencerOverloaded503);
+        }
+
+        self.check_readiness(self.config.max_concurrent_blobs, self.stop_at_rollup_height)
+            .await
+            .map_err(AcceptTxError::NotFullySynced)?;
+
+        if let Err(batch_creation_error) = self
+            .try_to_create_and_start_batch_if_none_in_progress(false)
+            .await
+        {
+            // On all errors, we treat the sequencer as having had downtime and clear out the transaction queue.
+            // Note that we'll increment the queue ID once per rejected tx. This is totally fine - we have 2**64 ids to play with
+            // and atomic increments are very cheap relative to the cost of executing the tx
+            self.tx_queue_id.fetch_add(1, Ordering::AcqRel);
+
+            return Err(AcceptTxError::BatchError {
+                batch_creation_error,
+                nb_of_concurrent_blob_submissions: self.nb_of_concurrent_blob_submissions(),
+            });
+        };
+
+        if self.shutdown_receiver.has_changed().unwrap_or(true) {
+            tracing::info!("The sequencer is shutting down. Cannot accept transactions");
+            return Err(AcceptTxError::Shutdown);
+        }
+
+        if !self.executor.has_in_progress_batch() {
+            panic!(
+                "No batch in progress, and no batch could be started. Please report this bug. {:?} {:?}",
+                &self.executor.checkpoint, self.latest_info
+            );
+        }
+
+        let sequence_number = self.current_sequence_number();
+        let Inner {
+            executor,
+            batch_size_tracker,
+            executor_events_sender,
+            ..
+        } = &mut *self;
+
+        if !batch_size_tracker.can_fit_tx_bytes(baked_tx.data.len()) {
+            return Err(AcceptTxError::TxTooBig {
+                current_batch_size: batch_size_tracker.current_batch_size,
+                max_batch_size: batch_size_tracker.max_batch_size,
+            });
+        }
+
+        let apply_tx_res = executor.apply_tx_to_in_progress_batch(baked_tx).await;
+
+        let (
+            AcceptedTxWithBudgetInfo {
+                accepted_tx,
+                remaining_slot_gas,
+                execution_time_micros,
+            },
+            tx_changes,
+        ) = match apply_tx_res {
+            Ok(res) => {
+                assert_eq!(
+                    tx_hash, res.0.accepted_tx.tx_hash,
+                    "The executor returned a different tx hash than expected"
+                );
+                res
+            }
+            Err(err) => {
+                tracing::debug!(%tx_hash, %err, "Transaction was dropped by the sequencer");
+                return Err(AcceptTxError::ExecutorError(err));
+            }
+        };
+
+        batch_size_tracker.add_tx(baked_tx.data.len(), execution_time_micros);
+        let rx = executor_events_sender
+            .send_accept_tx(accepted_tx, tx_changes, sequence_number)
+            .await;
+
+        self.close_batch_if_nearly_full(&remaining_slot_gas).await;
+
+        Ok(rx)
     }
 }
