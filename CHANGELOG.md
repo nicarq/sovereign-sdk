@@ -8,6 +8,7 @@
     Previously `{data: $DATA, meta: {}}`, so data was accessed as `responseJson.data.field`, now this is just `{$DATA}`, access the data directly: `responseJson.field`.
     The structure for errors has also changed, it is now just a single top-level error object: `{status: $STATUS, title: $TITLE, details: []}`.
     The error object itself is unchanged.
+- #3258 **BREAKING CHANGE** Added `UniversalWallet` and `schemars::JsonSchema` traits to `Module::CallMessage`, `schemars::JsonSchema` trait to `Module::Event`, and `Clone` trait to `Module`. Quick note: If you parameterize your `CallMessage` or `Event` over `S` (for example, to include an address of type `S::Address`), you must add the `#[schemars(bound = “S: Spec”, rename = "MyEnum")]` attribute on top your enum definition. This is a necessary hint for `schemars`, a library that generates a JSON schema for your module’s API. Also note that the rename is also often required.
 
 # 2025-07-18
 - #3246 **BREAKING CHANGE** A minimum bond is now required for sequencer registration.
