@@ -52,6 +52,9 @@ use tower_http::trace::TraceLayer;
 use tower_request_id::{RequestId, RequestIdLayer};
 use tracing::{error, error_span, trace, warn};
 
+/// Standard result type for API endpoints.
+pub type ApiResult<T> = Result<axum::Json<T>, Response>;
+
 impl IntoResponse for ErrorObject {
     fn into_response(self) -> Response {
         (self.status, Json(self)).into_response()

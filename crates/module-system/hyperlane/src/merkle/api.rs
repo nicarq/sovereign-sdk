@@ -4,7 +4,7 @@ use serde::Serialize;
 use sov_modules_api::prelude::serde_json::json;
 use sov_modules_api::prelude::utoipa::openapi::OpenApi;
 use sov_modules_api::prelude::{axum, UnwrapInfallible};
-use sov_modules_api::rest::utils::errors;
+use sov_modules_api::rest::utils::{errors, ApiResult};
 use sov_modules_api::rest::{ApiState, HasCustomRestApi};
 use sov_modules_api::{ApiStateAccessor, HexHash, Spec};
 
@@ -63,7 +63,7 @@ impl<S: Spec> MerkleTreeHook<S> {
     async fn get_checkpoint(
         state: ApiState<S, Self>,
         mut accessor: ApiStateAccessor<S>,
-    ) -> Result<Response, Response> {
+    ) -> ApiResult<Checkpoint> {
         let tree = state
             .tree
             .get(&mut accessor)
@@ -79,6 +79,6 @@ impl<S: Spec> MerkleTreeHook<S> {
             .root(&mut accessor)
             .expect("Should not fail charging gas");
         let checkpoint = Checkpoint { root, index };
-        Ok(axum::Json(checkpoint).into_response())
+        Ok(checkpoint.into())
     }
 }

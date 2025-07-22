@@ -1,12 +1,11 @@
 //! Defines REST queries exposed by the bank module, along with the relevant types.
 
-use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Json;
 use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::prelude::utoipa::openapi::OpenApi;
 use sov_modules_api::prelude::{axum, serde_yaml, UnwrapInfallible};
-use sov_modules_api::rest::utils::{errors, Path, Query};
+use sov_modules_api::rest::utils::{errors, ApiResult, Path, Query};
 use sov_modules_api::rest::{ApiState, HasCustomRestApi};
 use sov_modules_api::{ApiStateAccessor, Spec};
 
@@ -66,7 +65,7 @@ impl<S: Spec> Bank<S> {
 
 /// Axum routes.
 impl<S: Spec> Bank<S> {
-    async fn route_gas_token() -> impl IntoResponse {
+    async fn route_gas_token() -> axum::Json<types::TokenIdResponse> {
         Json(types::TokenIdResponse {
             token_id: config_gas_token_id(),
         })
@@ -76,7 +75,7 @@ impl<S: Spec> Bank<S> {
         state: ApiState<S, Self>,
         accessor: ApiStateAccessor<S>,
         Path(user_address): Path<S::Address>,
-    ) -> Response {
+    ) -> ApiResult<Coins> {
         Self::route_balance(state, accessor, Path((config_gas_token_id(), user_address))).await
     }
 
@@ -84,53 +83,47 @@ impl<S: Spec> Bank<S> {
         state: ApiState<S, Self>,
         mut accessor: ApiStateAccessor<S>,
         Path((token_id, user_address)): Path<(TokenId, S::Address)>,
-    ) -> Response {
-        match state
+    ) -> ApiResult<Coins> {
+        let amount = state
             .get_balance_of(&user_address, token_id, &mut accessor)
             .unwrap_infallible()
-        {
-            Some(amount) => Json(Coins { amount, token_id }).into_response(),
-            None => errors::not_found_404("Balance", user_address),
-        }
+            .ok_or_else(|| errors::not_found_404("Balance", user_address))?;
+
+        Ok(Coins { amount, token_id }.into())
     }
 
     async fn route_total_supply(
         state: ApiState<S, Self>,
         mut accessor: ApiStateAccessor<S>,
         Path(token_id): Path<TokenId>,
-    ) -> Response {
-        match state
+    ) -> ApiResult<Coins> {
+        let amount = state
             .get_total_supply_of(&token_id, &mut accessor)
             .unwrap_infallible()
-        {
-            Some(amount) => Json(Coins { amount, token_id }).into_response(),
-            None => errors::not_found_404("Token", token_id),
-        }
+            .ok_or_else(|| errors::not_found_404("Token", token_id))?;
+
+        Ok(Coins { amount, token_id }.into())
     }
 
     async fn route_find_token_id(
         params: Query<types::FindTokenIdQueryParams<S::Address>>,
-    ) -> impl IntoResponse {
+    ) -> ApiResult<types::TokenIdResponse> {
         let token_id = get_token_id::<S>(&params.token_name, params.token_decimals, &params.sender);
-        Json(types::TokenIdResponse { token_id })
+        Ok(types::TokenIdResponse { token_id }.into())
     }
 
     async fn route_admins(
         state: ApiState<S, Self>,
         mut accessor: ApiStateAccessor<S>,
         Path(token_id): Path<TokenId>,
-    ) -> Response {
-        match state
+    ) -> ApiResult<types::AdminsResponse<S>> {
+        let admins = state
             .tokens
             .get(&token_id, &mut accessor)
             .unwrap_infallible()
-        {
-            Some(token) => Json(types::AdminsResponse {
-                admins: token.admins,
-            })
-            .into_response(),
-            None => errors::not_found_404("Token", token_id),
-        }
+            .ok_or_else(|| errors::not_found_404("Token", token_id))?
+            .admins;
+        Ok(types::AdminsResponse { admins }.into())
     }
 }
 

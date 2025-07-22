@@ -2,7 +2,7 @@ pub mod openapi;
 pub mod state;
 mod types;
 
-use axum::response::IntoResponse;
+use sov_rest_utils::ApiResult;
 use sov_state::Namespace;
 
 use self::state::StateItemKind;
@@ -69,10 +69,11 @@ impl<R> RuntimeRestApiBaseImpl<R>
 where
     R: TxHooks + Send + Sync + 'static,
 {
-    async fn root_handler(State(state): State<Self>) -> impl IntoResponse {
-        axum::Json(RuntimeObject {
+    async fn root_handler(State(state): State<Self>) -> ApiResult<RuntimeObject> {
+        Ok(RuntimeObject {
             modules: state.modules.clone(),
-        })
+        }
+        .into())
     }
 }
 
@@ -117,11 +118,12 @@ where
     /// The handler function for the root path of the router, which
     /// returns some general information about the module (name, ID,
     /// etc.).
-    async fn root_route(State(state): State<Self>) -> impl IntoResponse {
-        axum::Json(ModuleObject::new(
+    async fn root_route(State(state): State<Self>) -> ApiResult<ModuleObject> {
+        Ok(ModuleObject::new(
             &*state.module,
             state.description.clone(),
             state.state_items.clone(),
-        ))
+        )
+        .into())
     }
 }

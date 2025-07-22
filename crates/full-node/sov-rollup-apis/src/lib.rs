@@ -3,10 +3,9 @@
 #![deny(missing_docs)]
 
 use axum::extract::State;
-use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::Json;
-use sov_api_spec::types::{self};
+use sov_api_spec::types::{self, SimulateExecutionResponse};
 use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities, UniquenessData};
 use sov_modules_api::prelude::tokio::sync::watch;
 use sov_modules_api::rest::StateUpdateReceiver;
@@ -14,7 +13,7 @@ use sov_modules_api::transaction::{Credentials, TxDetails};
 use sov_modules_api::{CryptoSpec, DaSpec, Gas, PublicKey, Spec, SyncStatus};
 pub use sov_modules_stf_blueprint::ApplyTxResult;
 use sov_modules_stf_blueprint::Runtime;
-use sov_rest_utils::{errors, preconfigured_router_layers};
+use sov_rest_utils::{errors, preconfigured_router_layers, ApiResult};
 
 mod client_interface;
 
@@ -157,7 +156,7 @@ where
             sync_status_receiver,
             ..
         }): State<Self>,
-    ) -> impl IntoResponse {
+    ) -> axum::Json<SyncStatus> {
         let sync_status = *sync_status_receiver.borrow();
         Json(sync_status)
     }
@@ -167,12 +166,10 @@ where
         State(RollupTxRouter {
             state_update_recv, ..
         }): State<Self>,
-    ) -> Response {
+    ) -> ApiResult<GasPriceContainer<T::Spec>> {
         match T::get_latest_base_fee_per_gas(&state_update_recv) {
-            Ok(base_fee_per_gas) => {
-                Json(GasPriceContainer::<T::Spec> { base_fee_per_gas }).into_response()
-            }
-            Err(err) => errors::database_error_response_500(err),
+            Ok(base_fee_per_gas) => Ok(GasPriceContainer { base_fee_per_gas }.into()),
+            Err(err) => Err(errors::database_error_response_500(err)),
         }
     }
 
@@ -185,7 +182,7 @@ where
             ..
         }): State<Self>,
         Json(req): Json<types::SimulateBody>,
-    ) -> Result<Response, Response> {
+    ) -> ApiResult<SimulateExecutionResponse> {
         let transaction: PartialTransaction<T::Spec> = req
             .body
             .try_into()
@@ -194,10 +191,10 @@ where
         match T::simulate_execution(&state_update_recv, default_sequencer, default_sequencer_rollup_address, transaction) {
             Ok(apply_tx_result) =>
             {
-                let simulate_execution_response: types::SimulateExecutionResponse = SimulateExecutionContainer { apply_tx_result }.try_into()
+                let simulate_execution_response: SimulateExecutionResponse = SimulateExecutionContainer { apply_tx_result }.try_into()
                     .map_err(|err| errors::internal_server_error_response_500(format!("Internal server error: Failed to serialize response. Error {err}")))?;
 
-                Ok(Json(simulate_execution_response).into_response())
+                Ok(simulate_execution_response.into())
             }
 
             Err(err) => Err(errors::bad_request_400(

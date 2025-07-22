@@ -6,7 +6,7 @@ use sov_bank::{config_gas_token_id, Amount};
 use sov_modules_api::prelude::serde_json::json;
 use sov_modules_api::prelude::utoipa::openapi::OpenApi;
 use sov_modules_api::prelude::{axum, UnwrapInfallible};
-use sov_modules_api::rest::utils::{errors, Path, Query};
+use sov_modules_api::rest::utils::{errors, ApiResult, Path, Query};
 use sov_modules_api::rest::{ApiState, HasCustomRestApi};
 use sov_modules_api::{ApiStateAccessor, CredentialId, HexHash, Spec};
 
@@ -102,7 +102,7 @@ impl<S: Spec, R: Recipient<S>> Mailbox<S, R> {
         state: ApiState<S, Self>,
         Path(address): Path<HexHash>,
         mut accessor: ApiStateAccessor<S>,
-    ) -> Result<Response, Response> {
+    ) -> ApiResult<ValidatorsAndThreshold> {
         let ism = state
             .recipients
             .ism(&address, &mut accessor)
@@ -120,18 +120,18 @@ impl<S: Spec, R: Recipient<S>> Mailbox<S, R> {
             ));
         };
 
-        Ok(Json(ValidatorsAndThreshold {
+        Ok(ValidatorsAndThreshold {
             validators: validators.into(),
             threshold,
-        })
-        .into_response())
+        }
+        .into())
     }
 
     async fn query_quote_dispatch(
         state: ApiState<S, Mailbox<S, R>>,
         mut accessor: ApiStateAccessor<S>,
         Query(params): Query<QuoteParams>,
-    ) -> Result<Response, Response> {
+    ) -> ApiResult<QuoteDispatchResponse> {
         let relayer: Option<S::Address> = params.relayer.map(|r| r.into());
         let relayer = match relayer {
             Some(relayer) => relayer,
@@ -159,6 +159,6 @@ impl<S: Spec, R: Recipient<S>> Mailbox<S, R> {
             token_id: config_gas_token_id().to_string(),
         };
 
-        Ok(Json(response).into_response())
+        Ok(response.into())
     }
 }
