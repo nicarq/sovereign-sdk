@@ -47,6 +47,7 @@ sp1-build = { version = "5.0.8" }
 
 [build-dependencies]
 anyhow = { workspace = true }
+sov-zkvm-utils = { workspace = true }
 
 [features]
 default = []

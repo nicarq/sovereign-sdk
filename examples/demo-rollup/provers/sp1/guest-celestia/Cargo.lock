@@ -5537,6 +5537,7 @@ dependencies = [
  "serde",
  "sha2 0.10.8",
  "sov-rollup-interface",
+ "sov-zkvm-utils",
  "sp1-lib 5.0.8",
  "sp1-sdk",
  "sp1-zkvm",
@@ -5647,6 +5648,14 @@ dependencies = [
  "proc-macro2",
  "sov-universal-wallet-macro-helpers",
  "syn 2.0.87",
+]
+
+[[package]]
+name = "sov-zkvm-utils"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "convert_case 0.6.0",
 ]
 
 [[package]]

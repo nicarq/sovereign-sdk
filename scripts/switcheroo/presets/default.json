@@ -12,6 +12,7 @@
 	"crates/full-node/sov-api-spec",
 	"crates/utils/sov-rest-utils",
 	"crates/utils/nearly-linear",
+	"crates/utils/sov-zkvm-utils",
 	"crates/module-system/hyperlane",
 	"crates/module-system/sov-cli",
 	"crates/module-system/sov-modules-stf-blueprint",

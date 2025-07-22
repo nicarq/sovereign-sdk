@@ -136,6 +136,7 @@ demo-stf = { workspace = true, features = ["native"] }
 sov-address = { workspace = true, features = ["evm"] }
 sov-state = { workspace = true, features = ["native"] }
 sov-modules-macros = { workspace = true, features = ["arbitrary"] }
+sov-zkvm-utils = { workspace = true }
 
 [features]
 default = []

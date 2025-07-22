@@ -8837,7 +8837,9 @@ dependencies = [
 name = "risc0"
 version = "0.3.0"
 dependencies = [
+ "anyhow",
  "risc0-build",
+ "sov-zkvm-utils",
 ]
 
 [[package]]
@@ -10685,6 +10687,7 @@ dependencies = [
  "sov-synthetic-load",
  "sov-test-utils",
  "sov-universal-wallet",
+ "sov-zkvm-utils",
  "sp1",
  "tempfile",
  "tokio",
@@ -11321,6 +11324,7 @@ dependencies = [
  "sov-metrics",
  "sov-risc0-adapter",
  "sov-rollup-interface",
+ "sov-zkvm-utils",
  "thiserror 1.0.64",
  "tracing",
  "tracing-subscriber 0.3.18",
@@ -11533,6 +11537,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-sp1-adapter",
  "sov-test-utils",
+ "sov-zkvm-utils",
  "sp1-build",
  "sp1-lib",
  "sp1-sdk",
@@ -11848,6 +11853,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-zkvm-utils"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "convert_case 0.6.0",
+]
+
+[[package]]
 name = "sovereign-sdk-fuzz"
 version = "0.3.0"
 dependencies = [
@@ -11870,6 +11883,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "lazy_static",
+ "sov-zkvm-utils",
  "sp1-build",
 ]
 

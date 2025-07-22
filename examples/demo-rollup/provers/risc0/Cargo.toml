@@ -23,7 +23,9 @@ semicolon_if_nothing_returned = "deny"
 float_arithmetic = "deny"              # Can cause subtle bugs due to different behavior between native and zkVM execution.
 
 [build-dependencies]
+anyhow = { workspace = true }
 risc0-build = "2.1"
+sov-zkvm-utils = { workspace = true }
 
 [package.metadata.risc0]
 methods = ["guest-celestia", "guest-mock"]
