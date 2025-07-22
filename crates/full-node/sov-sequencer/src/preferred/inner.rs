@@ -10,7 +10,8 @@ use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
 use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::{
-    Runtime, Spec, StateCheckpoint, StateUpdateInfo, VersionReader, VisibleSlotNumber,
+    GasArray, GasSpec, Runtime, Spec, StateCheckpoint, StateUpdateInfo, VersionReader,
+    VisibleSlotNumber,
 };
 use sov_state::{NativeStorage, Storage};
 use tokio::sync::{watch, MutexGuard};
@@ -26,10 +27,23 @@ use crate::preferred::executor_events::ExecutorEventsSender;
 use crate::preferred::{
     current_visible_slot_number_according_to_node, exit_rollup,
     get_next_sequence_number_according_to_node, is_lagging_less_than_ideal_amount,
-    next_visible_slot_number_increase, BatchCreationError, PreferredSequencerConfig,
-    RecoveryStrategy, RollupBlockExecutorConfig,
+    next_visible_slot_number_increase, BatchCreationError, PreferredBatchToReplay,
+    PreferredSequencerConfig, PreferredSequencerFetchBatchesToReplayMetrics, RecoveryStrategy,
+    RollupBlockExecutorConfig,
 };
 use crate::{SequencerConfig, SequencerNotReadyDetails, SlotNumber};
+
+/// These two constants are used to calculate the comfortable batch size limit.
+/// Currently, this is 99% of the hard limit. After the comfortable limit is reached,
+/// the sequencer will close and publish the current batch.
+const COMFORTABLE_SIZE_LIMIT_MULTIPLIER: u64 = 99;
+const COMFORTABLE_SIZE_LIMIT_DIVISOR: u64 = 100;
+
+/// These two constants are used to calculate the comfortable gas limit.
+/// Currently, this is 95% of the initial gas limit. After the comfortable limit is reached,
+/// the sequencer will close and publish the current batch.
+const COMFORTABLE_GAS_LIMIT_MULTIPLIER: u64 = 19;
+const COMFORTABLE_GAS_LIMIT_DIVISOR: u64 = 20;
 
 const LOCK_METRICS_BATCH_SIZE: usize = 32;
 
@@ -42,7 +56,7 @@ where
     Rt: Runtime<S>,
 {
     pub(crate) latest_info: StateUpdateInfo<S::Storage>,
-
+    pub(crate) batch_execution_time_limit_micros: u64,
     pub(crate) config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
     pub(crate) shutdown_receiver: watch::Receiver<()>,
     pub(crate) shutdown_sender: watch::Sender<()>,
@@ -520,5 +534,78 @@ where
             .await;
 
         info!(?info, current_visible_slot_number = %current_visible_slot_number_according_to_node::<S,Rt>(info), "Beginning sequencer recovery");
+    }
+
+    #[tracing::instrument(skip_all, level = "trace")]
+    pub(crate) fn completed_batches_to_replay(
+        &self,
+        sequence_number: SequenceNumber,
+        include_in_progress_batch: bool,
+    ) -> (
+        Vec<PreferredBatchToReplay>,
+        PreferredSequencerFetchBatchesToReplayMetrics,
+    )
+    where
+        S: Spec,
+        Rt: Runtime<S>,
+    {
+        let start = std::time::Instant::now();
+        let result = self
+            .executor_events_sender
+            .fetch_completed_blobs_by_sequence(sequence_number, include_in_progress_batch);
+        let duration = start.elapsed();
+        let metrics = PreferredSequencerFetchBatchesToReplayMetrics {
+            duration,
+            num_batches: result.len() as u64,
+            num_transactions: result.iter().map(|b| b.batch.inner.data.len()).sum(),
+        };
+        (result, metrics)
+    }
+
+    /// Closes the current batch if it is nearly full (by gas limit) or has reached the target batch execution time.
+    pub(crate) async fn close_batch_if_nearly_full(
+        &mut self,
+        remaining_slot_gas: &<S as GasSpec>::Gas,
+    ) {
+        // Check if we're close to the gas limit and close the batch if we are.
+        let mut comfortable_gas_limit = <S as GasSpec>::initial_gas_limit();
+        comfortable_gas_limit
+            .scalar_division(COMFORTABLE_GAS_LIMIT_DIVISOR)
+            .checked_scalar_product(COMFORTABLE_GAS_LIMIT_MULTIPLIER)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Cannot overflow after dividing by {COMFORTABLE_GAS_LIMIT_DIVISOR} and multiplying by {COMFORTABLE_GAS_LIMIT_MULTIPLIER}",
+                )
+            });
+        let close_to_gas_limit = remaining_slot_gas.dim_is_less_or_eq(&comfortable_gas_limit);
+        if close_to_gas_limit {
+            tracing::debug!(%comfortable_gas_limit, %remaining_slot_gas, "Closing and publishing current batch because we're close to the gas limit");
+            self.close_current_batch().await;
+        }
+
+        let current_batch_execution_time_micros =
+            self.batch_size_tracker.batch_execution_time_micros;
+
+        if current_batch_execution_time_micros > self.batch_execution_time_limit_micros {
+            tracing::debug!(%self.batch_execution_time_limit_micros, %current_batch_execution_time_micros, "Closing and publishing current batch because we've reached the batch execution time cap");
+            self.close_current_batch().await;
+        } else {
+            tracing::trace!(%self.batch_execution_time_limit_micros, %current_batch_execution_time_micros, "Batch execution time is within comfortable range, not closing batch");
+        }
+
+        let comfortable_size_limit = (self.batch_size_tracker.max_batch_size as u64)
+            .checked_div(COMFORTABLE_SIZE_LIMIT_DIVISOR)
+            .and_then(|x| x.checked_mul(COMFORTABLE_SIZE_LIMIT_MULTIPLIER))
+            .unwrap_or_else(|| {
+                panic!(
+                    "Cannot overflow after dividing by {COMFORTABLE_SIZE_LIMIT_DIVISOR} and multiplying by {COMFORTABLE_SIZE_LIMIT_MULTIPLIER}",
+                )
+            });
+        if (self.batch_size_tracker.current_batch_size as u64) > comfortable_size_limit {
+            tracing::debug!(%comfortable_size_limit, current_batch_size = %self.batch_size_tracker.current_batch_size, "Closing and publishing current batch because we're close to the size limit");
+            self.close_current_batch().await;
+        } else {
+            tracing::trace!(%comfortable_size_limit, current_batch_size = %self.batch_size_tracker.current_batch_size, "Batch size is within comfortable range, not closing batch");
+        }
     }
 }

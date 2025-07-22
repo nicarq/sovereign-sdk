@@ -81,18 +81,6 @@ use crate::{
 
 type VisibleSlotNumberIncrease = NonZero<u8>;
 
-/// These two constants are used to calculate the comfortable gas limit.
-/// Currently, this is 95% of the initial gas limit. After the comfortable limit is reached,
-/// the sequencer will close and publish the current batch.
-const COMFORTABLE_GAS_LIMIT_MULTIPLIER: u64 = 19;
-const COMFORTABLE_GAS_LIMIT_DIVISOR: u64 = 20;
-
-/// These two constants are used to calculate the comfortable batch size limit.
-/// Currently, this is 99% of the hard limit. After the comfortable limit is reached,
-/// the sequencer will close and publish the current batch.
-const COMFORTABLE_SIZE_LIMIT_MULTIPLIER: u64 = 99;
-const COMFORTABLE_SIZE_LIMIT_DIVISOR: u64 = 100;
-
 // Big infodump for the user that wouldmake the code hard to read if it were inline.
 const RECOVERY_ERROR_MESSAGE_ON_NONE_STRATEGY: &str = "The preferred sequencer is too far behind, and the visible slot number has lagged more than the allowed deferred slots count. This means some non-preferred batches may have been included by the node, if there were any. If this happened, already provided soft confirmations may now no longer be valid. Because the recovery_strategy config was set to None, we are not attempting recovery at this point. You should either: a) delete everything from the preferred_sequencer database (thus annulling all currently pending soft confirmations), which will allow you to restart the sequencer fresh; or b) set the recovery_strategy config value to TryToSave, in which case all pending batches will be flushed to be executed on a best-effort basis. The latter may save some soft-confirmations if they have not been invalidated yet. However, IF a non-preferred batch has been included, AND some soft-confirmations have been invalidated by it, this will cause the sequencer to be penalised for every invalid batch; ensure your sequencer bond is sufficient to cover any penalties to be able to continue operating uninterrupted.";
 
@@ -268,6 +256,12 @@ where
             ExecutorEventsSender::new(shutdown_sender.clone(), db_cache);
         let in_flight_blobs = blob_sender.nb_of_in_flight_blobs_handle();
 
+        // Here we need to mutliply by 1000 to convert from millis to micros.
+        let batch_execution_time_limit_micros = config
+            .sequencer_kind_config
+            .batch_execution_time_limit_millis
+            * 1000;
+
         let rollup_exec_config = RollupBlockExecutorConfig {
             config: config.clone(),
             shutdown_notifier: block_executors_shutdown_notifier.clone(),
@@ -279,6 +273,7 @@ where
 
         let inner = Inner {
             latest_info: latest_state_update.clone(),
+            batch_execution_time_limit_micros,
             config: config.clone(),
             shutdown_receiver: shutdown_receiver.clone(),
             shutdown_sender: shutdown_sender.clone(),
@@ -663,87 +658,6 @@ where
     fn is_replica(&self) -> bool {
         self.config.sequencer_kind_config.is_replica
     }
-
-    /// Closes the current batch if it is nearly full (by gas limit) or has reached the target batch execution time.
-    async fn close_batch_if_nearly_full(
-        &self,
-        inner: &mut Inner<S, Rt>,
-        remaining_slot_gas: &<S as GasSpec>::Gas,
-    ) {
-        // Check if we're close to the gas limit and close the batch if we are.
-        let mut comfortable_gas_limit = <S as GasSpec>::initial_gas_limit();
-        comfortable_gas_limit
-            .scalar_division(COMFORTABLE_GAS_LIMIT_DIVISOR)
-            .checked_scalar_product(COMFORTABLE_GAS_LIMIT_MULTIPLIER)
-            .unwrap_or_else(|| {
-                panic!(
-                    "Cannot overflow after dividing by {COMFORTABLE_GAS_LIMIT_DIVISOR} and multiplying by {COMFORTABLE_GAS_LIMIT_MULTIPLIER}",
-                )
-            });
-        let close_to_gas_limit = remaining_slot_gas.dim_is_less_or_eq(&comfortable_gas_limit);
-        if close_to_gas_limit {
-            tracing::debug!(%comfortable_gas_limit, %remaining_slot_gas, "Closing and publishing current batch because we're close to the gas limit");
-            inner.close_current_batch().await;
-        }
-
-        // Here we need to mutliply by 1000 to convert from millis to micros.
-        let batch_execution_time_limit_micros = self
-            .config
-            .sequencer_kind_config
-            .batch_execution_time_limit_millis
-            * 1000;
-
-        let current_batch_execution_time_micros =
-            inner.batch_size_tracker.batch_execution_time_micros;
-
-        if current_batch_execution_time_micros > batch_execution_time_limit_micros {
-            tracing::debug!(%batch_execution_time_limit_micros, %current_batch_execution_time_micros, "Closing and publishing current batch because we've reached the batch execution time cap");
-            inner.close_current_batch().await;
-        } else {
-            tracing::trace!(%batch_execution_time_limit_micros, %current_batch_execution_time_micros, "Batch execution time is within comfortable range, not closing batch");
-        }
-
-        let comfortable_size_limit = (inner.batch_size_tracker.max_batch_size as u64)
-            .checked_div(COMFORTABLE_SIZE_LIMIT_DIVISOR)
-            .and_then(|x| x.checked_mul(COMFORTABLE_SIZE_LIMIT_MULTIPLIER))
-            .unwrap_or_else(|| {
-                panic!(
-                    "Cannot overflow after dividing by {COMFORTABLE_SIZE_LIMIT_DIVISOR} and multiplying by {COMFORTABLE_SIZE_LIMIT_MULTIPLIER}",
-                )
-            });
-        if (inner.batch_size_tracker.current_batch_size as u64) > comfortable_size_limit {
-            tracing::debug!(%comfortable_size_limit, current_batch_size = %inner.batch_size_tracker.current_batch_size, "Closing and publishing current batch because we're close to the size limit");
-            inner.close_current_batch().await;
-        } else {
-            tracing::trace!(%comfortable_size_limit, current_batch_size = %inner.batch_size_tracker.current_batch_size, "Batch size is within comfortable range, not closing batch");
-        }
-    }
-}
-
-#[tracing::instrument(skip_all, level = "trace")]
-async fn completed_batches_to_replay<S, Rt>(
-    inner: &Inner<S, Rt>,
-    sequence_number: SequenceNumber,
-    include_in_progress_batch: bool,
-) -> anyhow::Result<(
-    Vec<PreferredBatchToReplay>,
-    PreferredSequencerFetchBatchesToReplayMetrics,
-)>
-where
-    S: Spec,
-    Rt: Runtime<S>,
-{
-    let start = std::time::Instant::now();
-    let result = inner
-        .executor_events_sender
-        .fetch_completed_blobs_by_sequence(sequence_number, include_in_progress_batch);
-    let duration = start.elapsed();
-    let metrics = PreferredSequencerFetchBatchesToReplayMetrics {
-        duration,
-        num_batches: result.len() as u64,
-        num_transactions: result.iter().map(|b| b.batch.inner.data.len()).sum(),
-    };
-    Ok((result, metrics))
 }
 
 async fn update_state_task<S, Rt, Da>(
@@ -780,6 +694,58 @@ fn current_visible_slot_number_according_to_node<S: Spec, Rt: Runtime<S>>(
     let mut rt = Rt::default();
     let node_checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
     node_checkpoint.current_visible_slot_number().as_true()
+}
+
+enum PreferredSeqOperation {
+    // Something has gone terribly wrong, and I don't see a way for us
+    // to meaningfully recover without nuking the sequencer DB.
+    Unreachable,
+    // We found a preferred batch of which we have no memory very close
+    // to the chain tip.
+    WaitForNodeResyncToTip,
+    // The node is lagging behind the chain tip. Pause the sequencer (if
+    // it wasn't already paused), and wait for the node to catch up.
+    WaitForNodeResyncWithAllowedSlack,
+    // We are either dangerously close to hitting the
+    // `deferred_slots_count` threshold or we've hit it already. Our
+    // soft-confirmations might easily get invalidated.
+    RecoverAndCatchUp,
+    // This is by far the most common scenario, i.e. a nominal
+    // `update_state` call during sequencer execution with no unusual
+    // conditions.
+    ReplaySoftConfirmationsOnTopOfNodeState,
+}
+
+impl PreferredSeqOperation {
+    fn new(
+        condition_nodes_sequence_number_is_fresher: bool,
+        condition_too_close_to_deferred_slots_count_for_comfort: bool,
+        condition_node_is_lagging: bool,
+        condition_are_there_batches_to_replay: bool,
+    ) -> Self {
+        tracing::debug!(
+            condition_nodes_sequence_number_is_fresher,
+            condition_too_close_to_deferred_slots_count_for_comfort,
+            condition_node_is_lagging,
+            condition_are_there_batches_to_replay,
+            "Choosing the state update code path"
+        );
+
+        match (
+            condition_nodes_sequence_number_is_fresher,
+            condition_too_close_to_deferred_slots_count_for_comfort,
+            condition_node_is_lagging,
+            condition_are_there_batches_to_replay,
+        ) {
+            (true, _, _, true) => PreferredSeqOperation::Unreachable,
+            (true, _, false, false) => PreferredSeqOperation::WaitForNodeResyncToTip,
+            (_, _, true, _) => PreferredSeqOperation::WaitForNodeResyncWithAllowedSlack,
+            (false, true, false, _) => PreferredSeqOperation::RecoverAndCatchUp,
+            (false, false, false, _) => {
+                PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState
+            }
+        }
+    }
 }
 
 #[tracing::instrument(skip_all, level = "debug")]
@@ -819,8 +785,7 @@ where
         .await;
     let ((batches_to_replay, fetch_batches_to_replay_metrics), next_sequence_number, is_startup) = {
         (
-            completed_batches_to_replay(&inner, next_sequence_number_according_to_node, true)
-                .await?,
+            inner.completed_batches_to_replay(next_sequence_number_according_to_node, true),
             inner.next_sequence_number(),
             !inner.has_finished_startup,
         )
@@ -852,47 +817,37 @@ where
     // Note that we're holding a lock on the sequencer, so this is guaranteed to be up to date.
     let condition_are_there_batches_to_replay = !batches_to_replay.is_empty();
 
-    tracing::debug!(
+    let operation = PreferredSeqOperation::new(
         condition_nodes_sequence_number_is_fresher,
         condition_too_close_to_deferred_slots_count_for_comfort,
         condition_node_is_lagging,
         condition_are_there_batches_to_replay,
-        "Choosing the state update code path"
     );
 
-    match (
-        condition_nodes_sequence_number_is_fresher,
-        condition_too_close_to_deferred_slots_count_for_comfort,
-        condition_node_is_lagging,
-        condition_are_there_batches_to_replay,
-    ) {
-        // Something has gone terribly wrong, and I don't see a way for us
-        // to meaningfully recover without nuking the sequencer DB.
-        (true, _, _, true) => {
+    match operation {
+        PreferredSeqOperation::Unreachable => {
             panic!("The node has a higher sequence number than the sequencer, but the sequencer has some batches that it must replay (i.e. we're not just re-indexing a chain starting from an empty sequencer DB). This is an unusual scenario. It could mean you're running a competing preferred sequencer (which is not allowed!), or your sequencer DB data is corrupted... or it's just a bug. Please report it. You might attempt to recover by deleting the entire sequencer DB.")
         }
-        // We found a preferred batch of which we have no memory very close
-        // to the chain tip.
-        (true, _, false, false) => {
+
+        PreferredSeqOperation::WaitForNodeResyncToTip => {
             warn!("The node has a higher sequence number than the sequencer, but we're very close to the chain tip, i.e. we don't expect to be simply syncing. This could mean there is another preferred sequencer running (which is not supported and will likely lead to issues), or you very recently restarted the node and there's still some in-flight blobs. Resyncing to the chain tip.");
             inner.is_ready = Err(SequencerNotReadyDetails::Syncing {
                 target_da_height: seq.da_sync_state.target_da_height.load(Ordering::Relaxed),
                 synced_da_height: seq.da_sync_state.synced_da_height.load(Ordering::Relaxed),
             });
-            drop(inner); // Drop the lock so that we can reacquire it on the first loop iteration
+            drop(inner);
 
             seq.wait_for_node_resync_to_tip(state_update_receiver, shutdown_receiver, info)
                 .await?;
         }
-        // The node is lagging behind the chain tip. Pause the sequencer (if
-        // it wasn't already paused), and wait for the node to catch up.
-        (_, _, true, _) => {
+
+        PreferredSeqOperation::WaitForNodeResyncWithAllowedSlack => {
             warn!(?distance, "The sequencer must pause because the node has lagged behind the DA blockchain. This might lead to a brief downtime for users.");
             inner.is_ready = Err(SequencerNotReadyDetails::Syncing {
                 target_da_height: seq.da_sync_state.target_da_height.load(Ordering::Relaxed),
                 synced_da_height: seq.da_sync_state.synced_da_height.load(Ordering::Relaxed),
             });
-            drop(inner); // Drop the lock so that we can reacquire it on the first loop iteration
+            drop(inner);
 
             seq.wait_for_node_resync_with_allowed_slack(
                 state_update_receiver,
@@ -901,10 +856,7 @@ where
             )
             .await?;
         }
-        // We are either dangerously close to hitting the
-        // `deferred_slots_count` threshold or we've hit it already. Our
-        // soft-confirmations might easily get invalidated.
-        (false, true, false, _) => {
+        PreferredSeqOperation::RecoverAndCatchUp => {
             error!(slot_number_according_to_node=%info.slot_number, %current_visible_slot_number, "Sequencer has detected that it is past, or very close to, having the visible_slot_number lag behind the deferred_slots_count threshold. Normal operation will be suspended until this can be remedied.");
 
             let rollup_exec_config = seq.create_bloc_exec_config_for_recovery();
@@ -922,10 +874,8 @@ where
             seq.recover_and_catch_up(state_update_receiver, shutdown_receiver, info)
                 .await?;
         }
-        // This is by far the most common scenario, i.e. a nominal
-        // `update_state` call during sequencer execution with no unusual
-        // conditions.
-        (false, false, false, _) => {
+
+        PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState => {
             drop(inner); // Drop the lock. We don't need to hold it while we do replay.
             seq.replay_soft_confirmations_on_top_of_node_state(
                 info,
@@ -1188,8 +1138,7 @@ where
         let rx = executor_events_sender
             .send_accept_tx(accepted_tx, tx_changes, sequence_number)
             .await;
-        self.close_batch_if_nearly_full(&mut *inner, &remaining_slot_gas)
-            .await;
+        inner.close_batch_if_nearly_full(&remaining_slot_gas).await;
         drop(inner);
 
         rx.await.map_err(database_error_500)

@@ -7,9 +7,8 @@ use tokio::sync::mpsc;
 
 use crate::metrics::{PreferredSequencerPruneMetrics, PreferredSequencerUpdateStateMetrics};
 use crate::preferred::{
-    completed_batches_to_replay, get_next_sequence_number_according_to_node, DbEvent,
-    PreferredBatchToReplay, PreferredSequencer, RollupBlockExecutor, RollupBlockExecutorConfig,
-    StateUpdateInfo,
+    get_next_sequence_number_according_to_node, DbEvent, PreferredBatchToReplay,
+    PreferredSequencer, RollupBlockExecutor, RollupBlockExecutorConfig, StateUpdateInfo,
 };
 
 impl<S, Rt, Da> PreferredSequencer<S, Rt, Da>
@@ -83,7 +82,7 @@ where
             // Because we just sent our own message while holding the lock, we know that it will be the last message in the db channel.
             // So, the response we receive is a completely up-to-date picture of the DB.
             let (completed_batches, fetch_batches_to_replay_metrics) =
-                completed_batches_to_replay(&inner, next_sequence_number, false).await?;
+                inner.completed_batches_to_replay(next_sequence_number, false);
 
             // Once we've caught up to the in-progress batch, we're done.
             let (db_events_sender, subscription) =
