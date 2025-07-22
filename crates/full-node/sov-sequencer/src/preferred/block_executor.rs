@@ -98,6 +98,15 @@ impl<S: Spec> RollupBlockExecutorError<S> {
 type StateRootReceiver<S> =
     oneshot::Receiver<(RollupHeight, <<S as Spec>::Storage as Storage>::Root)>;
 
+pub struct RollupBlockExecutorConfig<S: Spec, Rt: Runtime<S>> {
+    pub config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
+    pub shutdown_notifier: Sender<()>,
+    pub state_root_request_sender: tokio::sync::mpsc::Sender<StateRootComputeRequest<S>>,
+    pub shutdown_receiver: watch::Receiver<()>,
+    pub shutdown_sender: watch::Sender<()>,
+    pub startup_transaction_cache_writer: Option<TxResultWriter<S, Rt>>,
+}
+
 pub struct RollupBlockExecutor<S, Rt>
 where
     S: Spec,
@@ -133,15 +142,19 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         info: &StateUpdateInfo<S::Storage>,
-        config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
-        shutdown_notifier: Sender<()>,
-        state_root_request_sender: tokio::sync::mpsc::Sender<StateRootComputeRequest<S>>,
-        shutdown_receiver: watch::Receiver<()>,
-        shutdown_sender: watch::Sender<()>,
-        startup_transaction_cache_writer: Option<TxResultWriter<S, Rt>>,
+        rollup_exec_config: RollupBlockExecutorConfig<S, Rt>,
     ) -> RollupBlockExecutor<S, Rt> {
         let mut rt = Rt::default();
         let checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
+
+        let RollupBlockExecutorConfig {
+            config,
+            shutdown_notifier,
+            state_root_request_sender,
+            shutdown_receiver,
+            shutdown_sender,
+            startup_transaction_cache_writer,
+        } = rollup_exec_config;
 
         Self {
             checkpoint,

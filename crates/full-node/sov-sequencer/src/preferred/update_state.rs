@@ -7,8 +7,9 @@ use tokio::sync::mpsc;
 
 use crate::metrics::{PreferredSequencerPruneMetrics, PreferredSequencerUpdateStateMetrics};
 use crate::preferred::{
-    get_next_sequence_number_according_to_node, DbEvent, PreferredBatchToReplay,
-    PreferredSequencer, RollupBlockExecutor, StateUpdateInfo,
+    completed_batches_to_replay, get_next_sequence_number_according_to_node, DbEvent,
+    PreferredBatchToReplay, PreferredSequencer, RollupBlockExecutor, RollupBlockExecutorConfig,
+    StateUpdateInfo,
 };
 
 impl<S, Rt, Da> PreferredSequencer<S, Rt, Da>
@@ -58,16 +59,17 @@ where
             None
         };
 
-        // Now that we're not locking on the sequencer state anymore, we can replay all the batches.
-        let mut executor = RollupBlockExecutor::<_, Rt>::new(
-            &info,
-            self.config.clone(),
-            self.block_executors_shutdown_notifier.clone(),
-            self.state_root_compute_task.request_sender.clone(),
-            self.shutdown_receiver.clone(),
-            self.shutdown_sender.clone(),
+        let rollup_exec_config = RollupBlockExecutorConfig {
+            config: self.config.clone(),
+            shutdown_notifier: self.block_executors_shutdown_notifier.clone(),
+            state_root_request_sender: self.state_root_compute_task.request_sender.clone(),
+            shutdown_receiver: self.shutdown_receiver.clone(),
+            shutdown_sender: self.shutdown_sender.clone(),
             startup_transaction_cache_writer,
-        );
+        };
+
+        // Now that we're not locking on the sequencer state anymore, we can replay all the batches.
+        let mut executor = RollupBlockExecutor::<_, Rt>::new(&info, rollup_exec_config);
 
         let node_state_root = tracing::trace_span!("root_hash")
             .in_scope(|| info.storage.get_root_hash(info.slot_number))?;
@@ -80,9 +82,8 @@ where
             let lock_start = std::time::Instant::now();
             // Because we just sent our own message while holding the lock, we know that it will be the last message in the db channel.
             // So, the response we receive is a completely up-to-date picture of the DB.
-            let (completed_batches, fetch_batches_to_replay_metrics) = self
-                .completed_batches_to_replay(&inner, next_sequence_number, false)
-                .await?;
+            let (completed_batches, fetch_batches_to_replay_metrics) =
+                completed_batches_to_replay(&inner, next_sequence_number, false).await?;
 
             // Once we've caught up to the in-progress batch, we're done.
             let (db_events_sender, subscription) =
@@ -230,7 +231,7 @@ where
             let start_prune = std::time::Instant::now();
             let mut inner = self.lock_inner("update_state::prune_sequencer_db").await;
             let time_to_lock = start_prune.elapsed();
-            if !self.is_replica().await? {
+            if !self.is_replica() {
                 inner.trigger_batch_production_if_convenient().await;
             }
             inner.prune_sequencer_db().await;

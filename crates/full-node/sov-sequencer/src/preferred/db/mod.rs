@@ -166,7 +166,7 @@ impl PreferredSequencerReadBlob {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum DbEvent {
+pub(crate) enum DbEvent {
     TxAccepted(FullyBakedTx, TxHash),
     BatchStarted {
         sequence_number: SequenceNumber,

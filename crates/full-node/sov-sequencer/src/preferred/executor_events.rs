@@ -19,7 +19,7 @@ use crate::preferred::{
 
 const MAX_EXECUTOR_EVENT_QUEUE_DEPTH: usize = 1000;
 
-pub(super) struct ExecutorEventsSender<S: Spec, Rt: Runtime<S>> {
+pub(crate) struct ExecutorEventsSender<S: Spec, Rt: Runtime<S>> {
     events_sender: mpsc::Sender<ExecutorEvent<S, Rt>>,
     cache: PreferredSequencerCache,
     shutdown_sender: watch::Sender<()>,
@@ -294,7 +294,7 @@ impl<S: Spec, Rt: Runtime<S>> ExecutorEventsSender<S, Rt> {
 }
 
 #[derive(strum::IntoStaticStr)]
-pub(super) enum ExecutorEvent<S, Rt>
+pub(crate) enum ExecutorEvent<S, Rt>
 where
     S: Spec,
     Rt: Runtime<S>,
