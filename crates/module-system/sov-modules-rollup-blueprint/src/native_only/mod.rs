@@ -16,8 +16,8 @@ use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::provable_height_tracker::MaximumProvableHeight;
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
-    NodeEndpoints, OperatingMode, ProofSender, Spec, StateCheckpoint, StateUpdateInfo, SyncStatus,
-    VersionReader, ZkVerifier,
+    DaSpec, NodeEndpoints, OperatingMode, ProofSender, Spec, StateCheckpoint, StateUpdateInfo,
+    SyncStatus, VersionReader, ZkVerifier,
 };
 use sov_modules_stf_blueprint::{GenesisParams, Runtime as RuntimeTrait, StfBlueprint};
 use sov_rollup_interface::common::SlotNumber;
@@ -226,6 +226,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     background_handles,
                     proof_sender: sequencer,
                     api_ledger_db: api_ledger_db.clone(),
+                    da_address: da_service.get_signer().await,
                 })
             }
             SequencerKindConfig::Preferred(seq_config) => {
@@ -256,6 +257,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                     background_handles,
                     proof_sender: sequencer,
                     api_ledger_db: api_ledger_db.clone(),
+                    da_address: da_service.get_signer().await,
                 })
             }
         }
@@ -708,4 +710,6 @@ pub struct SequencerCreationReceipt<S: Spec> {
     pub endpoints: NodeEndpoints,
     #[allow(missing_docs)]
     pub background_handles: Vec<JoinHandle<()>>,
+    #[allow(missing_docs)]
+    pub da_address: <S::Da as DaSpec>::Address,
 }

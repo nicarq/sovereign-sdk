@@ -99,7 +99,8 @@ type StateRootReceiver<S> =
     oneshot::Receiver<(RollupHeight, <<S as Spec>::Storage as Storage>::Root)>;
 
 pub struct RollupBlockExecutorConfig<S: Spec, Rt: Runtime<S>> {
-    pub config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
+    pub config: SequencerConfig<S::Address, PreferredSequencerConfig>,
+    pub da_address: <S::Da as DaSpec>::Address,
     pub shutdown_notifier: Sender<()>,
     pub state_root_request_sender: tokio::sync::mpsc::Sender<StateRootComputeRequest<S>>,
     pub shutdown_receiver: watch::Receiver<()>,
@@ -117,7 +118,8 @@ where
 
     next_event_number: u64,
     next_tx_number: u64,
-    config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
+    config: SequencerConfig<S::Address, PreferredSequencerConfig>,
+    da_address: <S::Da as DaSpec>::Address,
     // A sender notifying that this acceptor has successfully shut down. We give a handle to
     // each background task when it is spawned, ensuring that this channel remains open as long
     // as any background task is operational even if the acceptor is dropped.
@@ -149,6 +151,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
 
         let RollupBlockExecutorConfig {
             config,
+            da_address,
             shutdown_notifier,
             state_root_request_sender,
             shutdown_receiver,
@@ -162,6 +165,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             next_event_number: info.next_event_number,
             next_tx_number: info.next_tx_number,
             config,
+            da_address,
             shutdown_notifier,
             state_root_request_sender,
             state_roots: Default::default(),
@@ -450,7 +454,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                 minimum_profit_per_tx,
                 admin_addresses: self.config.admin_addresses.clone().into(),
                 sequencer_rollup_address: self.config.rollup_address.clone(),
-                sequencer_da_address: self.config.da_address.clone(),
+                sequencer_da_address: self.da_address.clone(),
             };
 
             move || rollup_block_task_body::<S, Rt>(ctx)
@@ -603,7 +607,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         for batch_receipt in batch_receipts {
             // We already increment the event number for our own transactions
             // inside `apply_tx_to_in_progress_batch`.
-            if batch_receipt.inner.da_address == self.config.da_address {
+            if batch_receipt.inner.da_address == self.da_address {
                 continue;
             }
             let mut accepted_txs = Vec::with_capacity(batch_receipt.tx_receipts.len());

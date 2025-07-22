@@ -130,7 +130,7 @@ pub struct RollupConfig<Address, Da: DaService> {
     /// Proof manager configuration.
     pub proof_manager: ProofManagerConfig<Address>,
     /// Sequencer (and batch builder) configuration.
-    pub sequencer: SequencerConfig<Da::Spec, Address, SequencerKindConfig>,
+    pub sequencer: SequencerConfig<Address, SequencerKindConfig>,
     /// Monitoring configuration.
     pub monitoring: MonitoringConfig,
 }
@@ -189,7 +189,6 @@ mod tests {
             max_batch_size_bytes = 1048576
             max_concurrent_blobs = 16
             max_allowed_node_distance_behind = 5
-            da_address = "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"
             rollup_address = "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
             [sequencer.standard]
         "#;

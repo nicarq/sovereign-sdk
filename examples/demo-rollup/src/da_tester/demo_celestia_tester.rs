@@ -46,7 +46,5 @@ async fn main() -> anyhow::Result<()> {
     )
     .await;
 
-    let sender = rollup_config.sequencer.da_address;
-
-    sov_celestia_adapter::checker::check_da_service(&da_service, &sender, args.rounds).await
+    sov_celestia_adapter::checker::check_da_service(&da_service, args.rounds).await
 }

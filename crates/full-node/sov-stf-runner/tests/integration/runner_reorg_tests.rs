@@ -104,7 +104,6 @@ async fn test_runner_with_background_da_service(
     let (shutdown_sender, mut shutdown_receiver) = watch::channel(());
     shutdown_receiver.mark_unchanged();
 
-    let sequencer_address = da_config.sender_address;
     let da_service =
         StorableMockDaService::from_config(da_config.clone(), shutdown_receiver.clone()).await;
     let da_service = Arc::new(da_service);
@@ -113,7 +112,6 @@ async fn test_runner_with_background_da_service(
     let rollup_config = crate::helpers::runner_init::rollup_config_with_da::<StorableMockDaService>(
         tempdir.path(),
         da_config,
-        sequencer_address,
         1,
     );
 

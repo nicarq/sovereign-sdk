@@ -57,7 +57,7 @@ where
 {
     pub(crate) latest_info: StateUpdateInfo<S::Storage>,
     pub(crate) batch_execution_time_limit_micros: u64,
-    pub(crate) config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
+    pub(crate) config: SequencerConfig<S::Address, PreferredSequencerConfig>,
     pub(crate) shutdown_receiver: watch::Receiver<()>,
     pub(crate) shutdown_sender: watch::Sender<()>,
     pub(crate) executor: RollupBlockExecutor<S, Rt>,

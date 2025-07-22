@@ -249,6 +249,9 @@ pub trait DaService: Clone + Send + Sync + 'static {
     async fn take_background_join_handle(&self) -> Option<tokio::task::JoinHandle<()>> {
         None
     }
+
+    /// Returns a [`DaSpec::Address`] that signs blobs submitted by this instance of [`DaService`]
+    async fn get_signer(&self) -> <Self::Spec as DaSpec>::Address;
 }
 
 /// Retry the given async function with the given backoff policy.

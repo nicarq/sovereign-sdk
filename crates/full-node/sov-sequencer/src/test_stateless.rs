@@ -59,7 +59,7 @@ where
         state_update_receiver: StateUpdateReceiver<<S as Spec>::Storage>,
         _da_sync_state: Arc<DaSyncState>,
         storage_path: &Path,
-        config: &SequencerConfig<<S as Spec>::Da, <S as Spec>::Address, ()>,
+        config: &SequencerConfig<<S as Spec>::Address, ()>,
         ledger_db: LedgerDb,
         shutdown_sender: watch::Sender<()>,
     ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {

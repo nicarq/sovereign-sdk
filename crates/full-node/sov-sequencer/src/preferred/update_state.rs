@@ -60,6 +60,7 @@ where
 
         let rollup_exec_config = RollupBlockExecutorConfig {
             config: self.config.clone(),
+            da_address: self.da_address.clone(),
             shutdown_notifier: self.block_executors_shutdown_notifier.clone(),
             state_root_request_sender: self.state_root_compute_task.request_sender.clone(),
             shutdown_receiver: self.shutdown_receiver.clone(),

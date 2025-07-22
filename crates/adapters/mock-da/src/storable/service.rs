@@ -560,6 +560,10 @@ impl DaService for StorableMockDaService {
     async fn take_background_join_handle(&self) -> Option<JoinHandle<()>> {
         self.block_producer_handle.lock().await.take()
     }
+
+    async fn get_signer(&self) -> <Self::Spec as DaSpec>::Address {
+        self.sequencer_da_address
+    }
 }
 
 #[cfg(test)]

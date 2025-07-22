@@ -113,7 +113,8 @@ where
     api_state: ApiState<S>,
     da_sync_state: Arc<DaSyncState>,
     _runtime: PhantomData<(Rt, Da)>,
-    config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
+    config: SequencerConfig<S::Address, PreferredSequencerConfig>,
+    da_address: <S::Da as DaSpec>::Address,
     block_executors_shutdown_notifier: Sender<()>,
     state_root_compute_task: StateRootBackgroundTaskState<S>,
     shutdown_receiver: watch::Receiver<()>,
@@ -149,7 +150,7 @@ where
         state_update_receiver: StateUpdateReceiver<S::Storage>,
         da_sync_state: Arc<DaSyncState>,
         storage_path: &Path,
-        config: &SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
+        config: &SequencerConfig<S::Address, PreferredSequencerConfig>,
         ledger_db: LedgerDb,
         api_ledger_db: LedgerDb,
         shutdown_sender: watch::Sender<()>,
@@ -157,8 +158,10 @@ where
     ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
         let shutdown_receiver = shutdown_sender.subscribe();
         let latest_state_update = state_update_receiver.borrow().clone();
+        let da_address = da.get_signer().await;
         debug!(
             ?latest_state_update,
+            %da_address,
             "Instantiating the preferred sequencer"
         );
 
@@ -263,6 +266,7 @@ where
 
         let rollup_exec_config = RollupBlockExecutorConfig {
             config: config.clone(),
+            da_address: da_address.clone(),
             shutdown_notifier: block_executors_shutdown_notifier.clone(),
             state_root_request_sender: state_root_compute_task.request_sender.clone(),
             shutdown_receiver: shutdown_receiver.clone(),
@@ -321,6 +325,7 @@ where
             tx_queue_id,
             stop_at_rollup_height,
             test_only_state_update_notification_sender: broadcast::channel(100).0,
+            da_address,
         });
 
         // Launch replica sync task only for replicas
@@ -504,6 +509,7 @@ where
     fn create_bloc_exec_config_for_recovery(&self) -> RollupBlockExecutorConfig<S, Rt> {
         RollupBlockExecutorConfig {
             config: self.config.clone(),
+            da_address: self.da_address.clone(),
             shutdown_notifier: self.block_executors_shutdown_notifier.clone(),
             state_root_request_sender: self.state_root_compute_task.request_sender.clone(),
             shutdown_receiver: self.shutdown_receiver.clone(),
