@@ -107,7 +107,6 @@ impl<S: Spec> HighLevelOptimisticGenesisConfig<S> {
 
 impl<S: Spec> HighLevelOptimisticGenesisConfig<S>
 where
-    S::Address: From<sov_modules_api::Address>,
     <S::Da as DaSpec>::Address: From<[u8; 32]>,
     <<<S as Spec>::InnerZkvm as Zkvm>::Verifier as ZkVerifier>::CodeCommitment: Default,
     <<<S as Spec>::OuterZkvm as Zkvm>::Verifier as ZkVerifier>::CodeCommitment: Default,
