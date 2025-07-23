@@ -1,3 +1,6 @@
+# 2025-07-23
+- #3283 **BREAKING CHANGE** Update the mock `code-commitment` to 8 bytes. This change requires modifying the `chain_state_xx.json` genesis files accordingly.
+
 # 2025-07-21
 - #3263 **BREAKING CHANGE** Update error object used for errors returned by REST API endpoints.
     Previously `{errors: [{$ERR_OBJ}], meta: {}}`, now we just return a single `{$ERR_OBJ}` directly.
