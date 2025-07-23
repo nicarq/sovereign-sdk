@@ -779,7 +779,7 @@ where
             current_latest,
             target,
         } => {
-            backfill_to_event_id(sequencer.clone(), &query_pool, current_latest, target).await?;
+            backfill_to_event_id(sequencer.clone(), query_pool, current_latest, target).await?;
             Ok(())
         }
     }
