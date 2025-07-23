@@ -2,17 +2,18 @@ use std::num::NonZero;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use anyhow::anyhow;
 use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
 use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::{
-    FullyBakedTx, GasArray, GasSpec, Runtime, Spec, StateCheckpoint, StateUpdateInfo,
+    DaSyncState, FullyBakedTx, GasArray, GasSpec, Runtime, Spec, StateCheckpoint, StateUpdateInfo,
     VersionReader, VisibleSlotNumber,
 };
 use sov_state::{NativeStorage, Storage};
-use tokio::sync::{oneshot, watch, MutexGuard};
+use tokio::sync::{mpsc, oneshot, watch, MutexGuard};
 use tracing::{debug, error, info, warn};
 
 use super::batch_size_tracker::BatchSizeTracker;
@@ -24,12 +25,14 @@ use crate::preferred::block_executor::{
 };
 use crate::preferred::db::latest_finalized_sequence_number;
 use crate::preferred::executor_events::ExecutorEventsSender;
+use crate::preferred::update_state::do_next_event;
 use crate::preferred::{
     current_visible_slot_number_according_to_node, exit_rollup,
     get_next_sequence_number_according_to_node, is_lagging_less_than_ideal_amount,
-    next_visible_slot_number_increase, AcceptedTx, BatchCreationError, Confirmation,
-    PreferredBatchToReplay, PreferredSequencerConfig,
+    next_visible_slot_number_increase, update_api_ledger, AcceptedTx, BatchCreationError,
+    Confirmation, DbEvent, LedgerDb, PreferredBatchToReplay, PreferredSequencerConfig,
     PreferredSequencerFetchBatchesToReplayMetrics, RecoveryStrategy, RollupBlockExecutorConfig,
+    TransactionCache,
 };
 use crate::{SequencerConfig, SequencerNotReadyDetails, SlotNumber, TxHash};
 
@@ -725,5 +728,183 @@ where
         self.close_batch_if_nearly_full(&remaining_slot_gas).await;
 
         Ok(rx)
+    }
+
+    pub(crate) fn process_latest_slot_number(&self) -> SlotNumber {
+        self.latest_info.slot_number
+    }
+
+    pub(crate) async fn process_do_batch_start(
+        &mut self,
+        visible_slot_number_after_increase: VisibleSlotNumber,
+        visible_slots_to_advance: NonZero<u8>,
+    ) -> anyhow::Result<()> {
+        if self.executor.has_in_progress_batch() {
+            return Err(anyhow!(
+                "Received open batch notification, but replica already has an open batch"
+            ));
+        }
+
+        // Query the master's batch metadata to get the exact visible slot parameters used
+        // let batch_metadata =
+        //     query_batch_metadata_from_db(query_pool, sequence_number).await?;
+        self.try_start_batch_with_parameters_from_master(
+            visible_slot_number_after_increase,
+            visible_slots_to_advance,
+        )
+        .await?;
+
+        // Ensure the batch was successfully started
+        if !self.executor.has_in_progress_batch() {
+            panic!(
+                "Replica: no batch in progress, and no batch could be started. This should not be possible under any circumstances as the master was able to create a batch at this point. Please report this bug. {:?} {:?}",
+                &self.executor.checkpoint, self.latest_info
+            );
+        }
+
+        Ok(())
+    }
+
+    pub(crate) async fn process_flush_tx_cache(
+        &mut self,
+        api_ledger_db: &LedgerDb,
+        transaction_cache: &TransactionCache<S, Rt>,
+        info: StateUpdateInfo<S::Storage>,
+        rollup_exec_config: RollupBlockExecutorConfig<S, Rt>,
+    ) {
+        self.executor_events_sender
+            .flush_transactions_cache(info.next_tx_number)
+            .await;
+
+        let executor_from_info = RollupBlockExecutor::<_, Rt>::new(&info, rollup_exec_config);
+
+        self.force_overwrite_state(info.clone(), executor_from_info)
+            .await;
+        update_api_ledger(api_ledger_db, transaction_cache, &info).await;
+    }
+
+    pub(crate) async fn process_do_new_tx(
+        &mut self,
+        tx_hash: TxHash,
+        baked_tx: FullyBakedTx,
+    ) -> anyhow::Result<()> {
+        let execution_time_micros = self.executor.replay_tx(tx_hash, &baked_tx).await;
+        self.batch_size_tracker
+            .add_tx(baked_tx.data.len(), execution_time_micros);
+        self.executor_events_sender
+            .insert_tx_without_confirmation(baked_tx, tx_hash)
+            .await;
+        let checkpoint = self
+            .executor
+            .checkpoint
+            .clone_with_empty_witness_dropping_temp_cache();
+        self.executor_events_sender
+            .force_update_api_state(checkpoint)
+            .await;
+        Ok(())
+    }
+
+    pub(crate) async fn process_final_catchup(
+        &mut self,
+        api_ledger_db: &LedgerDb,
+        transaction_cache: &TransactionCache<S, Rt>,
+        info: StateUpdateInfo<S::Storage>,
+        mut db_event_subscription: mpsc::Receiver<DbEvent>,
+        mut executor: RollupBlockExecutor<S, Rt>,
+        batches_count: &mut u64,
+        transactions_count: &mut usize,
+        node_state_root: &<S::Storage as Storage>::Root,
+        batch_is_in_progress: &mut bool,
+    ) -> anyhow::Result<Instant> {
+        {
+            let inner_lock_start_time = std::time::Instant::now();
+            // Some events might come in while we're waiting to grab the lock.
+            // Replay them.
+            while let Ok(event) = db_event_subscription.try_recv() {
+                if self.shutdown_receiver.has_changed().unwrap_or(true) {
+                    tracing::info!("The sequencer is shutting down. Exiting replay_batch");
+                    return Ok(inner_lock_start_time);
+                }
+
+                do_next_event(
+                    &mut executor,
+                    event,
+                    batches_count,
+                    transactions_count,
+                    node_state_root,
+                    batch_is_in_progress,
+                )
+                .await?;
+            }
+
+            // The executor is now caught up. Swap it in
+            self.executor.replace_state(executor).await;
+            self.is_ready = Ok(());
+            self.has_finished_startup = true;
+            self.latest_info = info;
+            let checkpoint = self
+                .executor
+                .checkpoint
+                .clone_with_empty_witness_dropping_temp_cache();
+            self.executor_events_sender
+                .force_update_api_state(checkpoint)
+                .await;
+            drop(db_event_subscription);
+
+            update_api_ledger(api_ledger_db, transaction_cache, &self.latest_info).await;
+
+            Ok(inner_lock_start_time)
+        }
+    }
+
+    pub(crate) async fn process_prune_sequencer_db(
+        &mut self,
+        is_replica: bool,
+        start_prune: Instant,
+    ) -> Duration {
+        let time_to_lock = start_prune.elapsed();
+        if !is_replica {
+            self.trigger_batch_production_if_convenient().await;
+        }
+        self.prune_sequencer_db().await;
+        time_to_lock
+    }
+
+    pub(crate) async fn process_wait_for_node_resync(
+        &mut self,
+        api_ledger_db: &LedgerDb,
+        transaction_cache: &TransactionCache<S, Rt>,
+        info: StateUpdateInfo<S::Storage>,
+        da_sync_state: Arc<DaSyncState>,
+    ) {
+        let mut rt = Rt::default();
+        self.is_ready = Err(SequencerNotReadyDetails::Syncing {
+            target_da_height: da_sync_state.target_da_height.load(Ordering::Relaxed),
+            synced_da_height: da_sync_state.synced_da_height.load(Ordering::Relaxed),
+        });
+
+        let node_sequence_number = get_next_sequence_number_according_to_node(&info, &mut rt);
+        let our_sequence_number = self.next_sequence_number();
+
+        if node_sequence_number > our_sequence_number {
+            self.overwrite_next_sequence_number_for_recovery(node_sequence_number)
+                .await;
+            self.executor_events_sender
+                .flush_transactions_cache(info.next_tx_number)
+                .await;
+        } else if !self.has_finished_startup {
+            self.executor_events_sender
+                .flush_transactions_cache(info.next_tx_number)
+                .await;
+        }
+
+        self.latest_info = info.clone();
+        // We update the API state, so users can query node state as it syncs.
+        let checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
+        self.executor_events_sender
+            .update_state_for_recovery(checkpoint)
+            .await;
+
+        update_api_ledger(api_ledger_db, transaction_cache, &info).await;
     }
 }
