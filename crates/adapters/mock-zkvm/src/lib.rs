@@ -45,7 +45,7 @@ impl Zkvm for MockZkvm {
 #[derive(
     Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Default,
 )]
-pub struct MockCodeCommitment(pub [u8; 32]);
+pub struct MockCodeCommitment(pub [u8; 8]);
 
 impl sov_rollup_interface::zk::CodeCommitment for MockCodeCommitment {
     type DecodeError = MockCodeCommitmentError;
@@ -55,10 +55,10 @@ impl sov_rollup_interface::zk::CodeCommitment for MockCodeCommitment {
     }
 
     fn decode(value: &[u8]) -> Result<Self, Self::DecodeError> {
-        if value.len() != 32 {
+        if value.len() != 8 {
             return Err(MockCodeCommitmentError::InvalidLength { found: value.len() });
         }
-        let mut contents = [0u8; 32];
+        let mut contents = [0u8; 8];
         contents.copy_from_slice(value);
         Ok(Self(contents))
     }
@@ -170,7 +170,7 @@ mod tests {
     fn mock_code_commitment_codec_roundtrip() {
         // Check a roundtrip with the "digest" type from risc0.
         // This ensures that our use of `from_ne_bytes` is correct on the target platform.
-        let raw_data = [1; 32];
+        let raw_data = [1; 8];
         let method_id = MockCodeCommitment(raw_data);
         let bytes = method_id.encode();
         let id = MockCodeCommitment::decode(&bytes).expect("Encoding is valid");

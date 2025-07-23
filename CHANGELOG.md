@@ -4,6 +4,9 @@
   - While this should be a non-breaking change, there may be some changes in timing on sequencer startup when using PostgreSQL which may affect end-to-end testing that makes timing assumptions.
   - The config option introduces in #3126 has been removed. Leader elections happens automatically. To promote a specific node to leader, start it as the only node before starting other replicas. It is also possible, though dangerous, to edit the database manually and modify the `sequencer_leader` table by inserting a specific node's ID.
   - None of this affects sequencers running with the RocksDB backend (which is the default if no PostgreSQL connection string is provided in the configuration).
+# 2025-07-23
+- #3283 **BREAKING CHANGE** Update the mock `code-commitment` to 8 bytes. This change requires modifying the `chain_state_xx.json` genesis files accordingly.
+
 # 2025-07-21
 - #3263 **BREAKING CHANGE** Update error object used for errors returned by REST API endpoints.
     Previously `{errors: [{$ERR_OBJ}], meta: {}}`, now we just return a single `{$ERR_OBJ}` directly.

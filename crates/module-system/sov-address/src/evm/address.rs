@@ -124,7 +124,7 @@ impl schemars::JsonSchema for EthereumAddress {
     fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
         serde_json::from_value(serde_json::json!({
             "type": "string",
-            "pattern": "^0x[a-fA-F0-9]{64}$",
+            "pattern": "^0x[a-fA-F0-9]{40}$",
             "description": "20 bytes in hexadecimal format, with `0x` prefix.",
         }))
         .unwrap()

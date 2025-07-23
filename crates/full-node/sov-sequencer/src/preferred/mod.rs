@@ -454,14 +454,15 @@ where
                         tokio::time::sleep(Duration::from_millis(100)).await;
                     }
                 }
-                let mut inner = self
-                    .lock_inner("recover_and_catch_up:dump_catchup_batches")
-                    .await;
                 if i % 10 == 0 {
                     tracing::info!(number = %i, min = %min_batches_to_send, max = %max_batches_to_send, "Sending catchup batch");
                 } else {
                     tracing::debug!(number = %i, min = %min_batches_to_send, max = %max_batches_to_send, "Sending catchup batch");
                 }
+                let mut inner = self
+                    .lock_inner("recover_and_catch_up:dump_catchup_batches")
+                    .await;
+
                 // We don't run force_overwrite_state() here.
                 // This is mostly fine, mainly the API state will be out of date until we've
                 // finished sending our batches.
@@ -506,18 +507,13 @@ where
                     .lock_inner("recover_and_catch_up:overwrite_executor")
                     .await;
                 inner
-                    .executor_events_sender
-                    .flush_transactions_cache(info.next_tx_number)
+                    .process_flush_tx_cache(
+                        &self.api_ledger_db,
+                        &self.transaction_cache,
+                        info.clone(),
+                        rollup_exec_config,
+                    )
                     .await;
-
-                let executor_from_info =
-                    RollupBlockExecutor::<_, Rt>::new(&info, rollup_exec_config);
-
-                inner
-                    .force_overwrite_state(info.clone(), executor_from_info)
-                    .await;
-
-                self.update_api_ledger(&info).await;
             }
         }
 
@@ -592,14 +588,6 @@ where
             / 10
     }
 
-    async fn update_api_ledger(&self, info: &StateUpdateInfo<S::Storage>) {
-        self.api_ledger_db
-            .replace_reader(info.ledger_reader.clone());
-        self.api_ledger_db
-            .send_notifications_for_slot(info.slot_number);
-        prune_transactions_cache(info.next_tx_number, &self.transaction_cache).await;
-    }
-
     async fn wait_for_node_resync(
         &self,
         state_update_receiver: &mut StateUpdateReceiver<S::Storage>,
@@ -607,46 +595,22 @@ where
         distance_to_tip: u64,
         current_info: StateUpdateInfo<S::Storage>,
     ) -> anyhow::Result<()> {
-        let mut rt = Rt::default();
         let mut info = current_info;
 
         loop {
             let is_synced = self.da_sync_state.status().distance() <= distance_to_tip;
 
             let mut inner = self.lock_inner("wait_for_node_resync").await;
-
-            inner.is_ready = Err(SequencerNotReadyDetails::Syncing {
-                target_da_height: self.da_sync_state.target_da_height.load(Ordering::Relaxed),
-                synced_da_height: self.da_sync_state.synced_da_height.load(Ordering::Relaxed),
-            });
-
-            let node_sequence_number = get_next_sequence_number_according_to_node(&info, &mut rt);
-            let our_sequence_number = inner.next_sequence_number();
-
-            if node_sequence_number > our_sequence_number {
-                inner
-                    .overwrite_next_sequence_number_for_recovery(node_sequence_number)
-                    .await;
-                inner
-                    .executor_events_sender
-                    .flush_transactions_cache(info.next_tx_number)
-                    .await;
-            } else if !inner.has_finished_startup {
-                inner
-                    .executor_events_sender
-                    .flush_transactions_cache(info.next_tx_number)
-                    .await;
-            }
-
-            inner.latest_info = info.clone();
-            // We update the API state, so users can query node state as it syncs.
-            let checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
             inner
-                .executor_events_sender
-                .update_state_for_recovery(checkpoint)
+                .process_wait_for_node_resync(
+                    &self.api_ledger_db,
+                    &self.transaction_cache,
+                    info,
+                    self.da_sync_state.clone(),
+                )
                 .await;
 
-            self.update_api_ledger(&info).await;
+            drop(inner);
 
             // Exit after processing if we're synced
             if is_synced {
@@ -796,6 +760,16 @@ impl PreferredSeqOperation {
             }
         }
     }
+}
+
+pub(crate) async fn update_api_ledger<S: Spec, Rt: Runtime<S>>(
+    api_ledger_db: &LedgerDb,
+    transaction_cache: &TransactionCache<S, Rt>,
+    info: &StateUpdateInfo<S::Storage>,
+) {
+    api_ledger_db.replace_reader(info.ledger_reader.clone());
+    api_ledger_db.send_notifications_for_slot(info.slot_number);
+    prune_transactions_cache(info.next_tx_number, transaction_cache).await;
 }
 
 #[tracing::instrument(skip_all, level = "debug")]

@@ -17,7 +17,6 @@ use tokio::task::JoinHandle;
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
-use super::block_executor::AcceptedTxWithBudgetInfo;
 use super::db::StoredBlob;
 use crate::preferred::{exit_rollup, DbEvent, PreferredSequencer};
 use crate::{ProofBlobSender, SequencerNotReadyDetails};
@@ -748,9 +747,18 @@ where
     match event {
         CompletedEvent::Event(db_event) => match db_event {
             DbEvent::TxAccepted(baked_tx, tx_hash, sequence_number) => {
-                do_new_tx(sequencer, tx_hash, baked_tx, sequence_number).await
+                let mut inner = sequencer.lock_inner("replica_sync_task:do_new_tx").await;
+                inner
+                    .process_do_new_tx(tx_hash, baked_tx, sequence_number)
+                    .await
             }
-            DbEvent::BatchClosed(_) => do_batch_end(sequencer).await,
+            DbEvent::BatchClosed(_) => {
+                let mut inner = sequencer
+                    .lock_inner("replica_sync_task:close_current_batch")
+                    .await;
+                inner.close_current_batch().await;
+                Ok(())
+            }
             DbEvent::BatchStarted {
                 sequence_number: _,
                 visible_slot_number_after_increase,
@@ -788,12 +796,11 @@ where
     Da: DaService<Spec = S::Da>,
 {
     while {
-        sequencer
+        let inner = sequencer
             .lock_inner("replica_sync_task:do_batch_start::wait_for_visible_slot_catchup")
-            .await
-            .latest_info
-            .slot_number
-            < visible_slot_number_after_increase.as_true()
+            .await;
+
+        inner.process_latest_slot_number() < visible_slot_number_after_increase.as_true()
     } {
         // TODO: once read APIs get an is_ready state, set it to not ready here and reset
         // afterwards
@@ -803,73 +810,10 @@ where
     let mut inner = sequencer
         .lock_inner("replica_sync_task:do_batch_start::start_batch")
         .await;
-    if inner.executor.has_in_progress_batch() {
-        return Err(anyhow!(
-            "Received open batch notification, but replica already has an open batch"
-        ));
-    }
 
     inner
-        .try_start_batch_with_parameters_from_master(
-            visible_slot_number_after_increase,
-            visible_slots_to_advance,
-        )
+        .process_do_batch_start(visible_slot_number_after_increase, visible_slots_to_advance)
         .await?;
-
-    // Ensure the batch was successfully started
-    if !inner.executor.has_in_progress_batch() {
-        panic!(
-            "Replica: no batch in progress, and no batch could be started. This should not be possible under any circumstances as the master was able to create a batch at this point. Please report this bug. {:?} {:?}",
-            &inner.executor.checkpoint, inner.latest_info
-        );
-    }
-    Ok(())
-}
-
-async fn do_batch_end<S, Rt, Da>(
-    sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
-) -> anyhow::Result<()>
-where
-    S: Spec,
-    Rt: Runtime<S>,
-    Da: DaService<Spec = S::Da>,
-{
-    let mut inner = sequencer.lock_inner("replica_sync_task:do_batch_end").await;
-    inner.close_current_batch().await;
-
-    Ok(())
-}
-
-/// Inner transaction processing logic extracted from handle_transaction_notification
-/// This version takes the already-constructed transaction data to avoid re-fetching from DB
-async fn do_new_tx<S, Rt, Da>(
-    sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
-    tx_hash: TxHash,
-    baked_tx: FullyBakedTx,
-    sequence_number: u64,
-) -> anyhow::Result<()>
-where
-    S: Spec,
-    Rt: Runtime<S>,
-    Da: DaService<Spec = S::Da>,
-{
-    let mut inner = sequencer.lock_inner("replica_sync_task:do_new_tx").await;
-
-    let (
-        AcceptedTxWithBudgetInfo {
-            accepted_tx,
-            execution_time_micros,
-            ..
-        },
-        tx_changes,
-    ) = inner.executor.replay_tx(tx_hash, &baked_tx).await;
-    inner
-        .batch_size_tracker
-        .add_tx(baked_tx.data.len(), execution_time_micros);
-    inner
-        .executor_events_sender
-        .send_accept_tx(accepted_tx, tx_changes, sequence_number)
-        .await;
     Ok(())
 }
 
@@ -941,7 +885,10 @@ async fn backfill_to_event_id<S: Spec, Rt: Runtime<S>, Da: DaService<Spec = S::D
                     })?);
                     let baked_tx = FullyBakedTx::new(tx_data);
 
-                    do_new_tx(sequencer.clone(), tx_hash, baked_tx, sequence_number).await?;
+                    let mut inner = sequencer.lock_inner("replica_sync_task:do_new_tx").await;
+                    inner
+                        .process_do_new_tx(tx_hash, baked_tx, sequence_number)
+                        .await?;
                 }
                 EventType::BatchStart => {
                     let batch_data: Vec<u8> = row.get("data");
@@ -955,7 +902,10 @@ async fn backfill_to_event_id<S: Spec, Rt: Runtime<S>, Da: DaService<Spec = S::D
                     .await?;
                 }
                 EventType::BatchEnd => {
-                    do_batch_end(sequencer.clone()).await?;
+                    let mut inner = sequencer
+                        .lock_inner("replica_sync_task:close_current_batch")
+                        .await;
+                    inner.close_current_batch().await;
                 }
                 EventType::NewProof => {
                     do_proof_blob(sequencer.clone(), sequence_number, query_pool).await?;

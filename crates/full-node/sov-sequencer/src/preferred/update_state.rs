@@ -162,7 +162,7 @@ where
                 return Ok(());
             }
             let event = db_event_subscription.try_recv().unwrap();
-            Self::do_next_event(
+            do_next_event(
                 &mut executor,
                 event,
                 &mut batches_count,
@@ -174,40 +174,19 @@ where
         }
 
         let mut inner = self.lock_inner("update_state::do_final_catchup").await;
-        let inner_lock_start_time = std::time::Instant::now();
-        // Some events might come in while we're waiting to grab the lock.
-        // Replay them.
-        while let Ok(event) = db_event_subscription.try_recv() {
-            if self.shutdown_receiver.has_changed().unwrap_or(true) {
-                tracing::info!("The sequencer is shutting down. Exiting replay_batch");
-                return Ok(());
-            }
-            Self::do_next_event(
-                &mut executor,
-                event,
+        let inner_lock_start_time = inner
+            .process_final_catchup(
+                &self.api_ledger_db,
+                &self.transaction_cache,
+                info,
+                db_event_subscription,
+                executor,
                 &mut batches_count,
                 &mut transactions_count,
                 &node_state_root,
                 &mut batch_is_in_progress,
             )
             .await?;
-        }
-
-        // The executor is now caught up. Swap it in
-        inner.executor.replace_state(executor).await;
-        inner.is_ready = Ok(());
-        inner.has_finished_startup = true;
-        inner.latest_info = info;
-        let checkpoint = inner
-            .executor
-            .checkpoint
-            .clone_with_empty_witness_dropping_temp_cache();
-        inner
-            .executor_events_sender
-            .force_update_api_state(checkpoint)
-            .await;
-        drop(db_event_subscription);
-        self.update_api_ledger(&inner.latest_info).await;
         drop(inner); // Release the lock and allow transactions to progress while we handle metrics
 
         total_lock_duration += inner_lock_start_time.elapsed();
@@ -231,13 +210,13 @@ where
             // prefer to drop the lock above and re-acquire it here to help keep p99 stable.
             let start_prune = std::time::Instant::now();
             let mut inner = self.lock_inner("update_state::prune_sequencer_db").await;
-            let time_to_lock = start_prune.elapsed();
-            if self.is_master().await {
-                inner
-                    .trigger_batch_production_if_convenient(self.stop_at_rollup_height)
-                    .await;
-            }
-            inner.prune_sequencer_db().await;
+            let time_to_lock = inner
+                .process_prune_sequencer_db(
+                    self.is_master().await,
+                    start_prune,
+                    self.stop_at_rollup_height,
+                )
+                .await;
             drop(inner);
             let prune_duration = start_prune.elapsed();
             let lock_duration = prune_duration - time_to_lock;
@@ -252,51 +231,51 @@ where
 
         Ok(())
     }
+}
 
-    /// Replay an event on the executor.
-    #[tracing::instrument(skip_all, level = "warn", name = "update_state::do_next_event")]
-    async fn do_next_event(
-        executor: &mut RollupBlockExecutor<S, Rt>,
-        event: DbEvent,
-        batches_count: &mut u64,
-        transactions_count: &mut usize,
-        node_state_root: &<S::Storage as Storage>::Root,
-        batch_is_in_progress: &mut bool,
-    ) -> anyhow::Result<()> {
-        match event {
-            DbEvent::TxAccepted(tx, hash, _sequence_number) => {
-                executor.replay_tx(hash, &tx).await;
-                *transactions_count += 1;
-                *batch_is_in_progress = true;
-            }
-            DbEvent::BatchClosed(_) => {
-                tracing::trace!("Done replaying txs");
-                executor.end_rollup_block().await;
-                *batch_is_in_progress = false;
-            }
-            DbEvent::BatchStarted {
-                sequence_number: _,
-                visible_slot_number_after_increase,
-                visible_slots_to_advance,
-            } => {
-                *batches_count += 1;
-                executor
-                    .start_rollup_block_for_replay(
-                        visible_slot_number_after_increase,
-                        visible_slots_to_advance,
-                        node_state_root,
-                        0,
-                    )
-                    .await;
-
-                *batch_is_in_progress = true;
-            }
-            DbEvent::ProofBlobAccepted(_) => {
-                // We don't do anything with proofs yet.
-                // Note that we also don't change the state of the batch_is_in_progress flag here.
-                tracing::trace!("Proof blob accepted");
-            }
+/// Replay an event on the executor.
+#[tracing::instrument(skip_all, level = "warn", name = "update_state::do_next_event")]
+pub(crate) async fn do_next_event<S: Spec, Rt: Runtime<S>>(
+    executor: &mut RollupBlockExecutor<S, Rt>,
+    event: DbEvent,
+    batches_count: &mut u64,
+    transactions_count: &mut usize,
+    node_state_root: &<S::Storage as Storage>::Root,
+    batch_is_in_progress: &mut bool,
+) -> anyhow::Result<()> {
+    match event {
+        DbEvent::TxAccepted(tx, hash, _) => {
+            executor.replay_tx(hash, &tx).await;
+            *transactions_count += 1;
+            *batch_is_in_progress = true;
         }
-        Ok(())
+        DbEvent::BatchClosed(_) => {
+            tracing::trace!("Done replaying txs");
+            executor.end_rollup_block().await;
+            *batch_is_in_progress = false;
+        }
+        DbEvent::BatchStarted {
+            sequence_number: _,
+            visible_slot_number_after_increase,
+            visible_slots_to_advance,
+        } => {
+            *batches_count += 1;
+            executor
+                .start_rollup_block_for_replay(
+                    visible_slot_number_after_increase,
+                    visible_slots_to_advance,
+                    node_state_root,
+                    0,
+                )
+                .await;
+
+            *batch_is_in_progress = true;
+        }
+        DbEvent::ProofBlobAccepted(_) => {
+            // We don't do anything with proofs yet.
+            // Note that we also don't change the state of the batch_is_in_progress flag here.
+            tracing::trace!("Proof blob accepted");
+        }
     }
+    Ok(())
 }
