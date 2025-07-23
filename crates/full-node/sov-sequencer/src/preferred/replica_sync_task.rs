@@ -798,8 +798,16 @@ where
 =======
             DbEvent::Flushed(_) => Ok(()),
         },
+<<<<<<< HEAD
         CompletedEvent::Backfill{ current_latest, target } => {
             backfill_to_event_id(sequencer.clone(), &query_pool, current_latest, target).await?;
+=======
+        CompletedEvent::Backfill {
+            current_latest,
+            target,
+        } => {
+            backfill_to_event_id(sequencer.clone(), query_pool, current_latest, target).await?;
+>>>>>>> clippy
             Ok(())
 >>>>>>> Rebase on 1.88 upgrade
         }
